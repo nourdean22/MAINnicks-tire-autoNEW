@@ -2,13 +2,18 @@
  * /api/relationships/log-outreach · Wave AB Phase 2 · 2026-05-28.
  *
  * Operator hit "log outreach" on a Nick's pick. Records:
- *   1. RelationshipLedger row (+1 deposit · source="outreach")
+ *   1. RelationshipLedger row (+1 deposit · source="outreach") through the
+ *      ledger seam, which also moves lastInteraction + interactionCount in
+ *      the same transaction (2026-09-16 — this route used to carry its own
+ *      copy of that bump; measured before the change, ZERO "outreach" rows
+ *      had ever landed in production).
  *   2. BrainMemory(RELATIONSHIPS_OUTREACH) with the draft + rationale
  *      so future Nick reads can see what was sent without scanning SMS
- *   3. Touches PersonProfile.lastInteraction = now
  *
  * Body: { personId, message, rationale? }
- * Returns: { ok, ledgerId, memoryId }
+ * Returns: { ok, ledgerId, memoryId } — memoryId is null when the secondary
+ * memory write failed (the ledger row is the primary record and carries the
+ * message in its metadata).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -16,6 +21,11 @@ import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
+import {
+  PersonNotFoundError,
+  recordInteraction,
+  type RecordedInteraction,
+} from "@/lib/services/people/record-interaction";
 
 const log = rootLogger.withSurface("api/relationships/log-outreach");
 
@@ -45,58 +55,60 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const person = await prisma.personProfile.findUnique({
-      where: { id: body.personId },
-      select: { id: true, name: true },
-    });
-    if (!person) {
-      return NextResponse.json({ error: "not_found" }, { status: 404 });
-    }
-
     const now = new Date();
     const trimmedMessage = message.slice(0, 1000);
     const ledgerNote = `outreach · ${trimmedMessage.slice(0, 160)}${trimmedMessage.length > 160 ? "…" : ""}`;
 
-    const [ledger, memory] = await prisma.$transaction([
-      prisma.relationshipLedger.create({
-        data: {
-          personId: body.personId,
-          amount: 1,
-          note: ledgerNote,
-          source: "outreach",
-          metadata: {
-            kind: "ai_draft_sent",
-            rationale: body.rationale ?? null,
-            message: trimmedMessage,
-            origin: "ai_drafted",
-          } as never,
+    let recorded: RecordedInteraction;
+    try {
+      recorded = await recordInteraction({
+        personId: body.personId,
+        amount: 1,
+        note: ledgerNote,
+        source: "outreach",
+        at: now,
+        metadata: {
+          kind: "ai_draft_sent",
+          rationale: body.rationale ?? null,
+          message: trimmedMessage,
+          origin: "ai_drafted",
         },
-        select: { id: true },
-      }),
-      prisma.brainMemory.create({
+      });
+    } catch (err) {
+      if (err instanceof PersonNotFoundError) {
+        return NextResponse.json({ error: "not_found" }, { status: 404 });
+      }
+      throw err;
+    }
+
+    // Secondary record — the ledger row above already carries the message.
+    let memoryId: string | null = null;
+    try {
+      const memory = await prisma.brainMemory.create({
         data: {
           category: BRAIN_CATEGORIES.RELATIONSHIPS_OUTREACH,
           key: `${body.personId}:${now.getTime()}`,
-          content: `[Outreach · ${person.name}] ${trimmedMessage}`,
+          content: `[Outreach · ${recorded.personName}] ${trimmedMessage}`,
           confidence: 1.0,
           source: "operator",
           createdBy: "user",
           metadata: {
             personId: body.personId,
-            personName: person.name,
+            personName: recorded.personName,
             rationale: body.rationale ?? null,
             message: trimmedMessage,
             loggedAt: now.toISOString(),
           } as never,
         },
         select: { id: true },
-      }),
-      prisma.personProfile.update({
-        where: { id: body.personId },
-        data: { lastInteraction: now, interactionCount: { increment: 1 } },
-        select: { id: true },
-      }),
-    ]);
+      });
+      memoryId = memory.id;
+    } catch (memErr) {
+      log.warn("outreach_memory_failed", {
+        err: memErr instanceof Error ? memErr.message : String(memErr),
+        personId: body.personId,
+      });
+    }
 
     // Invalidate today's picks cache so the just-logged person doesn't
     // keep appearing in the picks list.
@@ -117,8 +129,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({
       ok: true,
-      ledgerId: ledger.id,
-      memoryId: memory.id,
+      ledgerId: recorded.ledgerId,
+      memoryId,
     });
   } catch (err) {
     log.error("log_outreach_failed", {

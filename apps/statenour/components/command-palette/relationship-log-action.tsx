@@ -3,8 +3,10 @@
 /**
  * <RelationshipLogAction> · 2026-05-27 · Power Atlas Phase 1 Task 1.10
  *
- * Cmd+K log-anywhere action. Parses `<name> <+|-><number> [<note>]` and
- * fuzzy-resolves the name against `PersonProfile` rows. Single
+ * Cmd+K log-anywhere action. Parses `<name> <+|-><number> [<note>]` with the
+ * shared grammar (lib/services/people/parse-ledger-query — Telegram `/log`
+ * uses the same one since 2026-09-16) and fuzzy-resolves the name against
+ * `PersonProfile` rows. Single
  * high-confidence match → auto-logs. Multiple → disambiguation surface
  * via a sub-list of CommandItems (operator picks). Calls
  * `trpcVanilla.task.logLedger.mutate({ personId, amount, note, source })`.
@@ -22,44 +24,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CommandGroup, CommandItem } from "@/components/ui/command";
 import { trpcVanilla } from "@/lib/trpc/vanilla-client";
+import { parseLedgerQuery } from "@/lib/services/people/parse-ledger-query";
 
 interface PersonLite {
   id: string;
   name: string;
   role: string;
-}
-
-interface ParsedQuery {
-  rawName: string;
-  amount: number; // signed
-  note: string;
-}
-
-/**
- * Parser · "<name> <+|-><number> [<note>]"
- *   - First whitespace-delimited token = name
- *     · multi-word names: any leading tokens until we hit the signed
- *       amount token are joined as the name. "mary jane +5 hi" works.
- *   - Signed-amount token must match /^[+-]\d{1,3}$/  (cap magnitude 100)
- *   - Remaining tokens after the amount = note (may be empty)
- *
- * Returns null when no signed-amount token is found.
- */
-export function parseLedgerQuery(input: string): ParsedQuery | null {
-  const tokens = input.trim().split(/\s+/);
-  if (tokens.length < 2) return null;
-
-  const amountIdx = tokens.findIndex((t) => /^[+-]\d{1,3}$/.test(t));
-  if (amountIdx <= 0) return null;
-
-  const amount = parseInt(tokens[amountIdx], 10);
-  if (!Number.isFinite(amount) || amount < -100 || amount > 100) return null;
-
-  const rawName = tokens.slice(0, amountIdx).join(" ").trim();
-  if (!rawName) return null;
-
-  const note = tokens.slice(amountIdx + 1).join(" ").trim() || "manual log";
-  return { rawName, amount, note };
 }
 
 /**
