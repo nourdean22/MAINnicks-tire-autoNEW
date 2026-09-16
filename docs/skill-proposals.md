@@ -1782,3 +1782,210 @@ statenour primitives documented (existence re-verified at
   commit stalls a merge."
 - **Confidence:** low (one avoidance, no witnessed conflict)
 - **Status:** applied 2026-09-15 (operator: "lets get on 5"; same PR as this status line)
+
+## 2026-09-16 · W11 · the controls that could not see their subject (#2355 #2359 #2362 #2364 #2368)
+
+Five merged ships, all repairs to controls that reported green while blind to their subject. Three canaries
+written this wave were themselves broken on first run; three of my own proposed fixes were refuted by
+measurement. Every proposal below cites the moment in this wave that produced it.
+
+### P1 · `nickstire-shared-main-push` (PR mechanics) — the reviewed SHA must equal the merge head
+- **Trigger (witnessed):** `chatgpt-codex-connector[bot]` fires on the draft→ready transition, NOT on a plain
+  push, and takes ~4 min; the sweep takes ~13. Un-drafting at merge time raced the review on three consecutive
+  merges by under 15 seconds each (#2359, #2362, #2364). #2359's two P2 findings therefore landed on `main`.
+  #2368 was the first PR marked ready on open, and was the first this session whose review finding arrived
+  BEFORE the merge — a second copy of stale figures in the `NODE_OPTIONS` block, fixed in `69de22b79`.
+- **Cost:** an entire extra PR (#2364) that existed only to fix findings the race let through, plus two real
+  defects live on `main` for about an hour.
+- **Second trigger, found on THIS PR (2026-09-16):** the first draft of this proposal said only "mark ready on
+  open" and left a hole big enough to drive the same defect through. #2370 was opened ready and reviewed at
+  `a2314c5`; two later commits (`bafebe27b`, `169563699`) were pushed, and because the reviewer does not fire on
+  pushes, the head that would actually have merged carried NO review. I noticed the gap and decided not to spend
+  a CI cycle on it; Codex then found it independently and filed it as a P1 against this very block. Both of us
+  reading the same text and reaching the same conclusion is the evidence. `@codex review` as a PR comment DOES
+  trigger a fresh round on the current head (verified: trigger recorded as "Manual request", commit `1695636`),
+  so the remedy costs one comment.
+- **Proposed edit:** add a step — "**The reviewed SHA must equal the head you merge.** Two distinct failures,
+  one rule. (a) Mark ready-for-review when you OPEN the PR, not when you merge it: the reviewer fires on
+  draft→ready and returns in ~4 min against a ~13 min sweep, so un-drafting at merge time lands the review after
+  the squash and its findings arrive on `main`. Measured 2026-09-16: 3/3 merges raced it by <15s. (b) After ANY
+  push that moves the head, request a fresh round with an `@codex review` comment: the reviewer does not fire on
+  pushes, so every commit after the ready transition is unreviewed by default. Before merging, compare the
+  reviewed commit in the review summary against the PR head — if they differ, you are merging something nothing
+  looked at."
+- **Confidence:** high — (a) 3/3 failures then the fix validated in the same session; (b) reproduced on #2370
+  itself and independently filed by the reviewer
+- **Status:** proposed
+
+### P2 · `statenour-verify` (Traps) — a green CI job is not a green sweep; read the TASK count
+- **Trigger (witnessed):** I cited #2362's passing CI run as "the heaviest case, and it passed" — the evidence
+  that the memory fix worked. That run executed **zero** turbo tasks. `dorny/paths-filter`
+  (`.github/workflows/test.yml:45`) decides whether the `node` JOB runs; `turbo run … --affected` (`:237`)
+  decides which PACKAGES run inside it. A workflow-only diff satisfies the first and is empty to the second, so
+  the job goes green having compiled nothing. Corrected in #2368's body and merge commit.
+- **Cost:** a false receipt published in a PR body, and a memory claim that rested on a run which never built.
+- **Proposed edit:** "**A green CI job is not a green sweep.** `paths-filter` decides whether a JOB runs;
+  `turbo --affected` decides which PACKAGES run inside it — two mechanisms, and a diff can satisfy one while
+  being empty to the other. Before citing a CI run as evidence that a build-level change worked, open the sweep
+  step's log and read the task count. `Tasks: 0 successful, 0 total` and a full sweep are the same colour in the
+  check rollup."
+- **Confidence:** medium (once, unambiguous, and it shipped into a PR body before being caught)
+- **Status:** proposed
+
+### P3 · `positive-control-first` — a THIRD way a canary lies: it scanned nothing
+- **Trigger (witnessed):** the first draft of `apps/statenour/tests/repo/raw-sql-interval-cast.test.ts` (#2359)
+  had a dead detector. Its interpolation-end helper started its depth counter at `0` *after* the opening brace,
+  so the first closing brace drove it to `-1` and the `=== 0` terminator never fired; it returned `[]` for every
+  input. The arm that scans the live tree reported a clean tree and was green. Only the instrument-control arm
+  (a known-bad literal string) went red. In #2362 I wrote the general form of the missing arm:
+  `scripts/agent-os/ciMemorySampler.test.mjs:189-200` asserts the scanner LOCATED its subject — several steps
+  found, exactly one sweep step, exactly one summary step, and the block did not leak into a sibling job.
+- **Cost:** would have shipped a permanently-green gate on the exact defect class the file exists to catch — the
+  same shape as the sampler bug it was written beside.
+- **Proposed edit:** add to "Two ways a canary lies" a third entry — "**The scanner matched NOTHING.** A
+  detector that returns an empty finding list for every input is indistinguishable from a clean subject, and a
+  mutation arm does not always catch it. Add an arm that asserts the scanner LOCATED its subject: a non-zero
+  count of matched units, and the exact expected count of each named one."
+- **Applier note (found in my own audit, not by the reviewer):** the target section heading is literally
+  `## Two ways a canary lies` (`positive-control-first/SKILL.md:28`). Appending a third bullet under it leaves
+  the heading contradicting its own contents, so the edit is "rename to `## Three ways a canary lies`, then add".
+  Naming it here because the two findings the reviewer filed on this queue were both exactly this shape — a
+  proposal that does not survive contact with the file it targets.
+- **Confidence:** high (the dead detector in #2359, and the whole of #2362 is the same shape one layer up)
+- **Status:** proposed
+
+### P4 · `positive-control-first` — the dual of stripping comments: mutate the LIVE text
+- **Trigger (witnessed):** this skill already prescribes stripping comments so documentation cannot satisfy a
+  control. Applying it created the dual within minutes. In `scripts/agent-os/ciMemorySampler.test.mjs` the
+  mutation `String.replace("--concurrency=1", …)` hit the FIRST occurrence — which was in the comment recording
+  the change — and the stripper then erased the mutation, so the arm went green having proved nothing. Fixed at
+  `:154-165` by anchoring on the executable command string and asserting it occurs exactly once
+  (`workflow.split(live).length - 1 === 1`) before mutating it.
+- **Cost:** a mutation arm that certified a gate it never touched; caught only by re-reading the arm.
+- **Proposed edit:** append to the "So: after writing a control…" paragraph — "**And the dual: once the scanner
+  strips comments, the mutation must target the LIVE text.** `String.replace` takes the first match, which after
+  a repair is usually inside the comment documenting that repair; the stripper then erases your mutation and the
+  arm passes having changed nothing the scanner reads. Anchor the mutation on the executable line and assert it
+  occurs exactly once before mutating it."
+- **Confidence:** high (structural consequence of a remedy this skill already prescribes)
+- **Status:** proposed
+
+### P5 · `statenour-verify` (Traps) — a build-resource number is only a measurement if the run was COLD
+- **Trigger (witnessed):** #2362 wrote `peak 4962MB` and a `7695MB` collision into `.github/workflows/test.yml`
+  as the justification for `--concurrency=1`. Both were warm-`.next` artifacts: a warm build skips compile and
+  type-check, which are the phases that hold the memory. Cold, `next build` peaks at **6778MB**, not 4962. The
+  same warmth made `experimental.cpus: 1` look like a 36% win; measured cold on both arms it is 2.3%
+  (6778 → 6621MB) and was dropped. #2368 exists only to retract those figures.
+- **Cost:** one whole PR, and a near-miss in which a refuted lever would have shipped as a fix.
+- **Proposed edit:** "**Any build-resource number must be taken COLD.** CI always is (fresh checkout,
+  `Remote caching disabled`); a local repeat is not. `Compiled successfully in <10s` is the tell — that run
+  skipped the compile and type-check phases that hold the peak. Delete `.next` between arms, and never write a
+  locally-measured MB figure into a workflow comment without naming the cache state it was taken in."
+- **Confidence:** high (a wrong number shipped and required a retraction PR)
+- **Status:** proposed
+
+### P6 · `stranded-branch-rescue` — restarting a branch after its PR squash-merged, without rewriting history
+- **Trigger (witnessed):** after each squash-merge this session the working branch had to be restarted on `main`,
+  which leaves the old remote tip a non-ancestor — and rewriting pushed history is a Protected Operation.
+  Deleting the remote ref is not an escape either: this session's credential can push but not delete a ref
+  (HTTP 403, witnessed). The compliant move, used five times: re-point the local branch at `origin/main`, then
+  merge the old remote tip with the `ours` strategy so the restarted branch is a descendant of what the remote
+  already holds; the next push then fast-forwards with no force.
+- **Cost:** about five blocked pushes before the pattern was found; each would otherwise have stranded a branch.
+- **Proposed edit:** new section — "**Restarting a branch on `main` after its PR squash-merged.** The squash
+  makes your old tip unreachable, so a plain re-point cannot push and a rewrite is banned. Re-point at
+  `origin/main`, then merge the old remote tip with the `ours` strategy — content from `main`, ancestry from the
+  remote — and push as a fast-forward. Deleting the remote ref is not a fallback: the agent credential can push
+  but not delete. The bookkeeping merge appears as a commit on the branch; disclose it in the PR body rather
+  than trying to remove it."
+- **This collides with the skill's own zombie rule, and the proposal must carry the fix.** Filed by Codex as a
+  P2 against this block on 2026-09-16 and verified against the file: `stranded-branch-rescue/SKILL.md:23` reads
+  "**A MERGED PR = zombie. Stop. Never re-merge**, whatever `git cherry` says", and the branch check above it is
+  `gh pr list --head <branch> --state all`, which on a REUSED branch returns the merged PR forever. So a session
+  that reuses the branch, pushes new work, and dies before opening its next PR would be audited as a zombie and
+  its real commits abandoned — the precise failure this skill exists to prevent, introduced by this proposal.
+  The skill already carries the probe that disambiguates (`:31-34`: is the "stranded" SHA in the merged PR's own
+  commit list?), but it is framed as curing a commit-count false positive, not as an exception to the merged-PR
+  stop, so a reader applying the headline rule never reaches it.
+- **Second proposed edit, required alongside the first:** amend the zombie rule to "**A merged PR whose commit
+  list CONTAINS the branch head = zombie. Stop.** A merged PR alone is no longer sufficient: branches are reused
+  after a squash merge, so the merged PR stays attached to the branch while new unlanded work sits on top. Run
+  the `gh pr view <pr> --json commits` probe BEFORE concluding zombie, not only when a commit count looks
+  suspicious." Shipping the restart pattern without this is how a rescue skill learns to skip live work.
+- **It also contradicts ROOT policy, which outranks any skill — filed by the reviewer, verified in the file.**
+  Root `AGENTS.md:52` defines the canonical post-merge lifecycle as `gh pr merge --squash ; gh api -X DELETE
+  .../refs/heads/<b>` followed by `git fetch origin main ; git merge --ff-only`. Delete-then-fresh IS the
+  procedure. `CLAUDE-OPERATING-PROFILE.md` states that engineering policy in `AGENTS.md` WINS on any conflict,
+  so a skill teaching preserve-and-reuse would leave agents holding two mandatory, incompatible instructions.
+- **And the 403 was mine, not everyone's.** The deletion failure is THIS session's credential — a remote agent
+  session — not a property of the repo. The operator's own machine running `gh` with a real token deletes the ref
+  fine, which is why the canonical flow was written that way. Generalising one environment's permission error
+  into a universal rule is the fossil-number error this queue's P2 is about, committed while writing P6.
+- **So P6 must be scoped as a FALLBACK, not a replacement:** "when ref deletion is unavailable (403), either
+  branch fresh for the next task — preferred, and what root policy already implies — or, if the branch name must
+  be kept, re-point at `origin/main` and merge the old tip with the `ours` strategy, and say in the PR body why."
+  Adopting even that requires root `AGENTS.md`'s Branching block to name the fallback, or the contradiction
+  simply moves rather than resolving. That edit is the operator's, not this queue's.
+- **Confidence:** high on the pattern (five recurrences in one session); high on the collision (read in the file,
+  not inferred); high on the root conflict (read at `AGENTS.md:52`)
+- **Status:** proposed — NOT adoptable as first written; needs the fallback scoping plus a root `AGENTS.md` edit
+
+### P7 · `statenour-verify` — the Traps list carries two byte-identical duplicate bullets
+- **Trigger (witnessed):** found while auditing this queue's own proposals against the skills they target, after
+  the reviewer caught two proposals that collided with their target files. Measured over the whole file by
+  splitting on the top-level bullet delimiter rather than by eye:
+
+  ```
+  duplicate top-level bullets in statenour-verify/SKILL.md: 2
+    x2  TS2307 "cannot find module" in a file OUTSIDE your diff = stale-ju...
+    x2  lefthook's parallel pre-commit jobs can flake red under memory   p...
+  total top-level bullets: 31
+  ```
+
+  Both pairs are exact repeats, adjacent, presumably from a merge that appended instead of replacing.
+- **Cost:** none measured yet, and that is the point — this skill is read before every statenour commit, so the
+  cost is paid as attention on every read, by every session, invisibly. 2 of 31 bullets is ~6% of a file whose
+  whole job is to be read carefully under time pressure.
+- **Proposed edit:** delete the second occurrence of each pair. No wording changes — the surviving copies are
+  correct and are cited elsewhere.
+- **Confidence:** high (measured over the whole file, not sampled)
+- **Status:** proposed
+
+> **Audit note for this whole block.** After the reviewer filed findings against P1 and P6 — both of them
+> "this proposal does not survive contact with the file it targets" — I checked the remaining four the same
+> way instead of waiting for the next round. P2 and P5 (`statenour-verify` Traps) collide with nothing; P4
+> extends an existing paragraph cleanly; P3 needed the heading note now attached to it; and the audit turned
+> up P7, which no proposal introduced. Recording the method because the root cause of both findings was
+> writing six proposals without reading six target files, not two isolated mistakes.
+>
+> **That audit was still incomplete, and the reviewer caught the half I missed.** I checked whether each
+> proposal COLLIDES with its target's content. I did not check whether the target FIRES in the scenario the
+> proposal is about. A rule in a skill that never loads is not a rule — it is the 3.5%-ever-fired base rate in
+> `CLAUDE-OPERATING-PROFILE.md`, manufactured on purpose. Verified against each target's frontmatter
+> `description`, which is what gates activation:
+>
+> | Proposal | Target fires when… | Motivating incident | Verdict |
+> |---|---|---|---|
+> | P1 | "before any `git push` **from the nickstire app**" | statenour PR merges (#2359 #2362 #2364 #2368) | **mis-scoped** |
+> | P2, P5 | "changes to the statenour app (`apps/statenour/`)" | `.github/workflows/test.yml` — not under that path | **mis-scoped** |
+> | P6 first half (restart recipe) | "a pushed branch… has no merged PR, or auditing origin branches" | an ACTIVE post-merge restart, not an audit | **mis-scoped** |
+> | P6 second half (zombie-rule amendment) | same | a later audit of a reused branch | correctly placed |
+> | P3, P4 | "whenever you write a new test, canary, gate, guard regex, or alarm" | writing canaries | correctly placed |
+> | P7 | n/a — edits the skill's own body | n/a | correctly placed |
+>
+> Note P6 SPLITS: its zombie-rule amendment belongs exactly where it is, because that half does fire during an
+> audit. Only the restart recipe is homeless. The reviewer's blanket verdict on P6 was one step too coarse, and
+> its blanket verdict on the others was right.
+>
+> **Placement is the operator's call, and the options are not equal.** (a) Widen the three target descriptions —
+> cheapest, but widening `nickstire-shared-main-push` to cover statenour PR timing makes its name a lie.
+> (b) Move the cross-app PR/CI rules (P1, P2, P5, P6's restart half) to a new repo-wide skill — honest scoping,
+> and the option I understated: I first argued against it with the 3.5% figure, which is the rate for the WHOLE
+> 1,307-name installed library. `CLAUDE-OPERATING-PROFILE.md:83` gives the project cohort at **64%**, and the
+> same paragraph explicitly says to prefer `.claude/skills/` because it is "the cohort that actually fires". A
+> new repo-wide project skill belongs to that cohort, not the global one. Caught by the reviewer; it is a
+> base-rate substitution, in a repo that ships a `base-rate-check` skill for exactly this. The marginal rate for
+> a NEW skill is still unknown — 64% is the cohort's observed rate, not a prediction for one more entry. (c) Put them in root `AGENTS.md`, which is where cross-app
+> checkable rules belong by its own stated test — but it sits at its 200-line cap, so something goes to make
+> room. I am not choosing: this queue is propose-only, and the choice is a policy decision about where this
+> repo's PR mechanics live, not a defect with one correct fix.

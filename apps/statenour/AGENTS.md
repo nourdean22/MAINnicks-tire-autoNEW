@@ -7,8 +7,8 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-16 · Visible Transformation + honest-counter W8 SHIPPED `8ee86eb3b` + DEPLOYED · evidence-gate E4 ran:
-REFUTED, flag stays OFF · counter reconcile #2348 SHIPPED + prod reconcile DONE · workbench #2337/#2341. RECONCILIATION top.
+**Last refreshed:** 2026-09-16 · W11 "the controls that could not see their subject" · 5 ships: #2355 #2359 #2362 #2364 #2368
+(SHAs in RECONCILIATION top) · #2355 /chat spine lane + #2359 census, dead 3wk, DEPLOYED · CI `node` at 97% runner memory, unfixed.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
@@ -146,7 +146,7 @@ new verbs as they appear, then re-run its test file.
 - **`prisma migrate status` is the source of truth**, not "I ran release:db" — verify against prod
   before declaring schema work done.
 - **`position: relative` containing-block trap** — adding it to a parent silently re-anchors
-  `position: fixed` descendants (the state-aura 2545px regression).
+  `position: fixed` descendants (the state-aura 2545px regression). Dual: a `fixed` child ignores ancestor padding (#2355).
 - **The Next.js dev-server module cache is sticky** — when swapping a module's behaviour, have the
   old module internally delegate to the new one.
 - **`aiChat` / `tracedAiChat` NEVER throw on total provider failure** — they return a SENTINEL.
