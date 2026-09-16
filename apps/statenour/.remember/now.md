@@ -1,6 +1,20 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-16 (Session B: relationship-ledger wave #2346 on `claude/statenour-ui-architecture-intmaf` merged; Session A: execution truth + Dream-to-Proof #2335/#2336/#2338/#2339/#2340/#2342/#2343/#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`; Session B's UI workbench entry below is intact)
+**Updated:** 2026-09-16 (Session B: counter reconcile #2348 open on `claude/statenour-ui-architecture-intmaf` after ledger wave #2346 merged + deployed `e0f0275bd`; Session A: execution truth + Dream-to-Proof #2335/#2336/#2338/#2339/#2340/#2342/#2343/#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`; Session B's UI workbench entry below is intact)
+
+## (Session B) Counter reconcile wave (2026-09-16; same branch, PR #2348, after #2346 shipped + deployed `e0f0275bd`)
+**Operator:** "counter recon". **Measured (Neon, read-only):** 27 profiles, `interaction_count` sum 200 vs 15 contact
+rows (23 minus 8 synthetic); 20 with zero rows; worst 69 vs 4 (last 09-12 vs 06-04). **Shipped in #2348:** contact-row
+predicate (`contact-rows.ts`: not synthetic, not status_flip) · `deriveCounters` / `computeCounterDeltas` · delete side
+recomputes both counters behind the person lock · creation starts 0 / null · six `nulls: "last"` orderings + a
+source-scan canary · power-dynamics NULL = unknown · `scripts/reconcile-person-counters.ts` (dry-run default,
+`--apply` snapshots to `_bak_person_profiles_counter_recon_<yyyymmdd>`). **Sequence:** merge → deploy-verify →
+reconcile prod with the script's SQL (snapshot + per-person locked recompute in one transaction) → residual-drift
+SELECT = 0 → receipts into the RECONCILIATION entry. **Traps:** no `DATABASE_URL` in the cloud container (the write
+path is Neon MCP; the script is the repo record) · Neon PITR is 6 h (`history_retention_seconds`), so the `_bak_`
+table is the rollback · a bare DESC on a nullable column sorts NULLs FIRST in Postgres — the codebase knew
+(`autoPriority` uses `nulls: "last"` in 10 places) but never for `lastInteraction`. **Next:** the eight unfiltered
+ledger readers (#2348 §7) · cadences on /people · the first Telegram `/log` is the live receipt for the seam.
 
 ## (Session B) Relationship ledger wave (2026-09-16; same branch, restarted by merging main `fc631eccc`)
 **Finding:** the ledger had no live writer worth the name — 23 rows ever, last 2026-07-10, the 8 "chat" rows a

@@ -74,7 +74,7 @@ export const GET = cronHandler(async () => {
         ],
       },
     },
-    orderBy: { lastInteraction: "asc" },
+    orderBy: { lastInteraction: { sort: "asc", nulls: "last" } },
     take: 50,
     select: {
       id: true,

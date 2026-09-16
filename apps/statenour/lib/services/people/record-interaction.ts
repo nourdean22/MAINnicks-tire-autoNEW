@@ -134,7 +134,7 @@ async function readPrior(personId: string): Promise<Prior> {
  * namespaced so it cannot collide with other advisory keys in this database
  * (lib/services/google-oauth.ts uses the same mechanism for its refresh race).
  */
-async function lockPerson(tx: Prisma.TransactionClient, personId: string): Promise<void> {
+export async function lockPerson(tx: Prisma.TransactionClient, personId: string): Promise<void> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`relationship_ledger:${personId}`}))`;
 }
 

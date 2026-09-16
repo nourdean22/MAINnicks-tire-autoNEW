@@ -367,7 +367,7 @@ export async function getBrainGraph(params: {
     }),
     people: prisma.personProfile.findMany({
       where: { deletedAt: null, ...(isHome && { status: "active" }) },
-      orderBy: { lastInteraction: "desc" },
+      orderBy: { lastInteraction: { sort: "desc", nulls: "last" } },
       take: counts.people,
     }),
     memories: prisma.brainMemory.findMany({

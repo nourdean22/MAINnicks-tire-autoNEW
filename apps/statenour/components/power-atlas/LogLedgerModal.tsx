@@ -4,9 +4,10 @@
  * <LogLedgerModal> · 2026-05-27 · Power Atlas Phase 1
  *
  * Quick deposit/withdraw modal. Operator picks amount + types note +
- * picks source. Calls `trpc.task.logLedger` which inserts the row,
- * increments `interactionCount`, updates `lastInteraction`, and queues
- * the note for re-embedding (>=20 chars).
+ * picks source. Calls `trpc.task.logLedger`, which writes through the
+ * ledger seam (`lib/services/people/record-interaction.ts`, #2346): the
+ * row and both counters in one transaction, lastInteraction forward-only,
+ * the note queued for re-embedding (>=20 chars) after the commit.
  *
  * Default source is "manual" · operator can change to any of the seven
  * sources the procedure accepts.

@@ -1,5 +1,34 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-16 · Counter reconcile (branch `claude/statenour-ui-architecture-intmaf`, fifth PR #2348; #2346 SHIPPED + DEPLOYED-VERIFIED `e0f0275bd` at 02:49Z)
+>
+> Operator: "counter recon". **Measured on Neon (read-only) before any code:** 27 profiles whose
+> `interaction_count` summed to 200 against 15 contact rows (23 rows minus the 8 synthetic mention backfills);
+> 20 profiles counting with ZERO rows behind them; the largest lie 69 vs 4, its `last_interaction` 2026-09-12
+> against a last contact row of 2026-06-04. A 44-file consumer trace found no crash on NULL, but four
+> `orderBy: { lastInteraction: "desc" }` sites with no `nulls:` option — Postgres sorts NULLs FIRST on DESC, so the
+> brain graph's 5/15 people, the dossier cron's 5 and the Greene cron's 8 would have been never-contacted profiles —
+> and two writers still outside the seam: profile creation seeded `1 / now`, and `task.deleteLedger` decremented
+> blindly (a deleted synthetic or status-flip row cost a real contact) without refreshing the date.
+> **Built:** `lib/services/people/contact-rows.ts` (the one definition of a CONTACT row: not `metadata.synthetic`,
+> not a `status_flip` audit row; TS predicate + coalescing SQL twin — 15 prod rows have NULL metadata and a Prisma
+> JSON NOT filter would drop them) · `counter-reconcile.ts` (`deriveCounters`: count = contact rows, lastInteraction
+> = newest contact row or null; `computeCounterDeltas`) · `delete-ledger-row.ts` (lock → delete → recompute both
+> counters; the tRPC procedure delegates) · creation starts at `0 / null` · six `nulls: "last"` orderings with a
+> source-scan canary (`tests/repo/last-interaction-orderby-nulls.test.ts`) · `power-dynamics` reads NULL as
+> unknown, not neglected · `scripts/reconcile-person-counters.ts` (dry-run default; `--apply` snapshots to
+> `_bak_person_profiles_counter_recon_<yyyymmdd>`, then per person lock → re-derive → write, exits 1 on residual
+> drift; Neon PITR here is 6 h, so the table is the durable rollback). **The prod reconcile runs AFTER this deploys**
+> (creation leak closed + NULL orderings live first) — its receipts land in this entry when done.
+> **Receipts.** Red first: creation `expected 1 to be +0`, delete module missing, canary 6 bare orderings in 5
+> files, analyzer `expected 2 to be 1` · green: 7 files / 29 tests · mutants: predicate forced true → 7 red across
+> 3 files, blind decrement → 3 red, golden 14/14 · `tsc --noEmit` 0 · eslint 0 on 20 files · mutations strict ·
+> soft-delete 1417 files 0 new · raw-sql · get-auth 179 · check:scripts 44 = 44 · scoped tsc on the script 0 ·
+> pre-push build 0 · the SQL twin vs the TS formula on Neon: identical for all 27 profiles (sum 200 → 15).
+> **Not in this PR (follow-ups in #2348 §7):** eight unfiltered ledger READERS still see synthetic/status-flip
+> rows; `interactionCount desc` orderings tie at 0 until the ledger fills; `unstableAlliances` compares
+> `trustScore < 50` on a 0–1 field (pre-existing).
+
 > ## 2026-09-16 · The relationship ledger gets a writer (branch `claude/statenour-ui-architecture-intmaf`, fourth PR; #2344 SHIPPED + DEPLOYED-VERIFIED `8c62ee965` at 00:38Z)
 >
 > Operator: "fix the ledger in perfect way, leave the cameras for now". **Root cause, measured on Neon

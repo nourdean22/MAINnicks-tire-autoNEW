@@ -45,8 +45,8 @@ export const GET = apiHandler(
     const orderBy = sort === "trust"
       ? { trustScore: "desc" as const }
       : sort === "neglect"
-      ? { lastInteraction: "asc" as const }
-      : { lastInteraction: "desc" as const };
+      ? { lastInteraction: { sort: "asc" as const, nulls: "last" as const } }
+      : { lastInteraction: { sort: "desc" as const, nulls: "last" as const } };
 
     const rows = await prisma.personProfile.findMany({
       // 2026-05-28 · Wave AC.b · operator bug · soft-deleted rows still
