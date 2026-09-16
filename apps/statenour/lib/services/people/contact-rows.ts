@@ -27,6 +27,8 @@ export interface LedgerRowShape {
   metadata: unknown;
 }
 
+import { z } from "zod";
+
 /**
  * The markers that make a row a NON-contact, as {key, value} pairs — the one
  * definition `isContactRow` below excludes on and `assertWritableMetadata`
@@ -70,6 +72,32 @@ export function assertWritableMetadata(metadata: unknown): void {
     if (m[key] === value) throw new ReservedLedgerMetadataError(key);
   }
 }
+
+/**
+ * The same rule as a zod schema, for callers that validate BEFORE the seam.
+ *
+ * Why it lives here and not inline in the router: this is the THIRD expression
+ * of one rule (the predicate that excludes, the assert that refuses, this
+ * schema that rejects at the edge). Three copies in three files drift; three
+ * uses of RESERVED_LEDGER_METADATA_KEYS cannot. The router keeps it only so
+ * the operator gets a BAD_REQUEST naming the key instead of the seam's throw
+ * surfacing as an internal error — it is a nicer message, never a second
+ * source of truth, and `assertWritableMetadata` still runs underneath.
+ */
+export const writableLedgerMetadata = z
+  .record(z.string(), z.unknown())
+  .superRefine((meta, ctx) => {
+    if (!meta) return;
+    for (const { key, value } of RESERVED_LEDGER_METADATA_KEYS) {
+      if ((meta as Record<string, unknown>)[key] === value) {
+        ctx.addIssue({
+          code: "custom",
+          message: `metadata.${key} is reserved — it marks a row as NOT a contact, but this writer counts one.`,
+          path: [key],
+        });
+      }
+    }
+  });
 
 export function isContactRow(row: LedgerRowShape): boolean {
   const meta = row.metadata;

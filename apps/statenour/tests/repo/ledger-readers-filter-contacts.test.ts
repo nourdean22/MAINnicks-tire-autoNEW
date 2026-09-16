@@ -59,6 +59,56 @@ const READ = /relationshipLedger[\s\n]*\.?[\s\n]*(findMany|findFirst|count|aggre
  */
 const CALLS_FILTER = /contactRowsOnly\s*\(|\.then\(\s*contactRowsOnly\s*\)/;
 
+/**
+ * A FILTER THAT CANNOT SEE ITS OWN INPUT IS A NO-OP, and it fails open.
+ *
+ * `isContactRow` reads `row.metadata`. If the Prisma read narrows with a
+ * `select` that omits `metadata`, every row arrives with `metadata:
+ * undefined`, the predicate returns TRUE for all of them, and
+ * `contactRowsOnly` quietly filters nothing — no crash, no type error (the
+ * rows still satisfy `LedgerRowShape` structurally at runtime), just the
+ * contaminated numbers this wave was built to remove, back again.
+ *
+ * The scan above cannot see that: it checks the CALL exists. This one checks
+ * the call is FED. Found 2026-09-16 while auditing the wave's own diff — a
+ * `metadata: true` grep flagged `relationship-arc-projection.ts`, which turned
+ * out to be a FALSE POSITIVE (its read has no `select` at all, so Prisma
+ * returns every scalar including metadata). The code was right; the
+ * instrument was not able to tell. A guard that cannot distinguish a working
+ * filter from a silently dead one is the defect, whichever way the first
+ * reading happened to fall.
+ *
+ * Rule: a ledger read whose rows reach `contactRowsOnly` must either carry no
+ * `select` (all scalars, metadata included) or name `metadata` in it.
+ */
+function ledgerReadArgs(src: string): string[] {
+  const out: string[] = [];
+  const re = /relationshipLedger[\s\n]*\.?[\s\n]*(?:findMany|findFirst|aggregate|groupBy)[\s\n]*\(/g;
+  for (const m of src.matchAll(re)) {
+    // Brace-match the call's argument object so a `select` belonging to a
+    // DIFFERENT model's read in the same file cannot be mistaken for this one.
+    const start = src.indexOf("{", (m.index ?? 0) + m[0].length - 1);
+    if (start < 0) continue;
+    let depth = 0;
+    for (let i = start; i < src.length; i++) {
+      if (src[i] === "{") depth++;
+      else if (src[i] === "}") {
+        depth--;
+        if (depth === 0) {
+          out.push(src.slice(start, i + 1));
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Reads that narrow with a `select` but leave `metadata` out of it. */
+export function blindLedgerReads(src: string): string[] {
+  return ledgerReadArgs(src).filter((args) => /\bselect\s*:/.test(args) && !/\bmetadata\s*:/.test(args));
+}
+
 describe("relationship_ledger readers filter to CONTACT rows", () => {
   const offenders: string[] = [];
   const allowedSeen = new Set<string>();
@@ -85,6 +135,41 @@ describe("relationship_ledger readers filter to CONTACT rows", () => {
     // wrong reason. 13 filtered readers + 3 allowlisted ones exist as of
     // 2026-09-16, so the scan must still see every allowlist entry.
     expect(allowedSeen.size).toBe(Object.keys(ALLOWED).length);
+  });
+
+  it("no filtered reader narrows its select away from metadata (the filter would silently no-op)", () => {
+    const blind: string[] = [];
+    for (const file of trackedFiles()) {
+      if (file in ALLOWED) continue;
+      const src = readFileSync(join(ROOT, file), "utf8");
+      if (!READ.test(src) || !CALLS_FILTER.test(src)) continue;
+      for (const args of blindLedgerReads(src)) {
+        blind.push(`${file}: select without metadata -> ${args.replace(/\s+/g, " ").slice(0, 120)}`);
+      }
+    }
+    expect(
+      blind,
+      `these readers pipe rows through contactRowsOnly but never SELECT metadata, so isContactRow sees undefined and keeps every row — the filter is dead and fails OPEN:\n${blind.join("\n")}`,
+    ).toEqual([]);
+  });
+
+  it("the blindness detector fires on a narrowed select and not on a select-less read", () => {
+    // Instrument control. Both shapes are real and both appear in this repo:
+    // changes-since.ts narrows deliberately; relationship-arc-projection.ts
+    // takes every scalar. Only the first can go blind.
+    expect(
+      blindLedgerReads(`prisma.relationshipLedger.findMany({ where: { a: 1 }, select: { amount: true } })`),
+    ).toHaveLength(1);
+    expect(
+      blindLedgerReads(`prisma.relationshipLedger.findMany({ where: { a: 1 }, select: { amount: true, metadata: true } })`),
+    ).toEqual([]);
+    expect(blindLedgerReads(`prisma.relationshipLedger.findMany({ where: { a: 1 }, take: 60 })`)).toEqual([]);
+    // A select on a DIFFERENT model in the same file must not be attributed here.
+    expect(
+      blindLedgerReads(
+        `prisma.brainMemory.findMany({ select: { content: true } }); prisma.relationshipLedger.findMany({ take: 5 })`,
+      ),
+    ).toEqual([]);
   });
 
   it("every allowlist entry still exists and still reads the ledger", () => {
