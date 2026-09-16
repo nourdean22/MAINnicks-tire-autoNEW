@@ -45,7 +45,10 @@ export function LlmSpendPanel() {
           <button
             key={w}
             onClick={() => setWindowDays(w)}
-            className={`text-[11px] px-2 py-1.5 rounded border min-w-[44px] ${
+            // 48x48 minimum, per the standing iOS-PWA rule in
+            // apps/nickstire/AGENTS.md §6. The first draft set min-w only and
+            // left the height at roughly 28px.
+            className={`text-[11px] rounded border min-w-[48px] min-h-[48px] ${
               windowDays === w
                 ? "border-indigo-400 bg-indigo-400/15 text-indigo-300 font-bold"
                 : "border-border/40 text-foreground/60"
@@ -191,7 +194,7 @@ export function LlmSpendPanel() {
       {lanes.length > 6 && (
         <button
           onClick={() => setExpanded((e) => !e)}
-          className="mt-3 inline-flex items-center gap-1 text-[11px] text-muted-foreground min-h-[44px]"
+          className="mt-3 inline-flex items-center gap-1 text-[11px] text-muted-foreground min-h-[48px] px-1"
         >
           {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           {expanded ? "Show fewer" : `Show all ${lanes.length} lanes`}
