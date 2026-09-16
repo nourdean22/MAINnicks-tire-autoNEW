@@ -335,7 +335,7 @@ complete — an unlisted control is not a covered one.
 | Claude hook **wiring** — `pretool.mjs` exit-2, `settings.json` registration, `notebook_path`→`filePath` | 1 | 0 | **Never exercised.** See [proven ≠ connected](#proven-is-not-connected) |
 | Claude hooks — `Stop`, `SessionStart` | 2 | 0 | `stop-check.mjs` fails **open** on its own bugs |
 | agent-os parity — `check-adapters.mjs` | 1 | **1** | 135 checks, proven as of this PR |
-| lefthook `pre-commit` | 9 | 0 | 2 of the 9 invoke a proven control (`nickstire-lint-brand`, `agent-os-verify`) |
+| lefthook `pre-commit` | 10 | **1** | 3 of the 10 invoke a proven control (`nickstire-lint-brand`, `agent-os-verify`, `nickstire-lint-pii`). `nickstire-lint-pii` was wired 2026-09-16 and is the first job on this surface whose OWN hook wiring is canaried: `lintPiiHookWiring.test.ts` runs the real script twice — clean env AND under a valid `GIT_DIR`, which is what git actually exports to a hook — and mutation M23 (restoring the fail-open) leaves 5 of 12 green, the 5 being the clean-env cases. That is why the #2363 blindness survived for months here |
 | lefthook `pre-push` | 1 | 0 | `turbo-build-affected` |
 | statenour `verify:hard` | 16 | 0 | 12 are `tsx scripts/*.ts`, and `scripts/` is **excluded from tsc** — ratchet-gated by `check:scripts` since 2026-09-15 (its own row below) |
 | statenour `check:policy-coverage` | 1 | **1** | Was wired into **nothing** for months; wired into `verify:hard` and canaried 2026-08-22 — see [the dead control](#the-dead-control) |
@@ -365,7 +365,7 @@ complete — an unlisted control is not a covered one.
 | nickstire **hidden holdout** — `scripts/proof/unpack-holdout.mjs` + `holdout-summary.mjs` + the runner's holdout mode | 1 | **1** | The evaluator the optimising agent cannot see. `shared/proofHoldout.test.ts` (10) proves the leak surfaces are shut — a holdout's title is its id only, an assertion label names only the oracle's KIND, a failure record carries a fixed phrase — and that an ABSENT holdout is posted as `unmeasured`, never as a pass (the silent-instrument shape, on the one instrument whose silence nobody would notice). Replayed live 2026-09-15: 3/3 pass in holdout mode, nothing written under the uploaded artifact |
 | statenour **Repo Time Machine** — `lib/services/proof-timeline.ts` + `/api/proof/timeline` | 1 | **1** | Groups the proof lane on the commit the site actually SERVED when judged. `tests/services/proof-timeline.test.ts` (8): newest-first grouping, latest run wins, failures unioned, deltas name what was fixed and what broke, an unmeasured holdout never becomes "zero failures" in a delta, garbage payloads cannot take the page down, P2021 degrades and other errors surface |
 | statenour **ActionAttempt reclaim CAS** — `beginAttempt` in `lib/services/action-attempts.ts` | 1 | **1** | The claim-before-act shape: two racers reading the same expired row must yield ONE claim. `tests/services/action-attempts.test.ts` drives a store whose `updateMany` evaluates the WHERE against the current row (no hard-coded counts): the two-caller race returns one `claimed` and one `duplicate`, and the RENEWAL race — another caller moves only `holdUntil` between the read and the swap — returns `duplicate` with nothing reclaimed. Dropping the deadline from the predicate flips the renewal race to `claimed` (Codex, #2343/#2345) |
-| **Total** | **73** | **27** | **37.0 %** |
+| **Total** | **74** | **28** | **37.8 %** |
 
 ---
 
@@ -395,7 +395,7 @@ passes.** Without that second half, a control that failed unconditionally would 
 | `stop-check.mjs` (Stop hook) | uncommitted changes on `main` | Fails **open** on its own bugs (`pretool.mjs:9-12`) — silence is not a green |
 | `graphify-session-context.ps1` (SessionStart) | injects graph context | A silent failure degrades every later decision invisibly |
 | statenour `check:env`, `check:runbooks`, `check:prompt-injection`, `check:audit-deps`, `check:lint-baseline`, `check:raw-sql`, `check:crons`, `check:soft-delete`, `check:get-auth`, `check:mutations:strict`, `check:stale-docs`, `prompt:size-check` | 12 distinct invariants | `tsconfig.json` excludes `scripts/`, so **none of these is typechecked**; a broken import passes every gate and fails only at runtime |
-| lefthook `pre-commit` x9, `pre-push` x1 | staged lint, typecheck, secrets, build | Git-level, applies to **every** agent and human — the widest blast radius and the least proof |
+| lefthook `pre-commit` x10, `pre-push` x1 | staged lint, typecheck, secrets, build | Git-level, applies to **every** agent and human — the widest blast radius and the least proof |
 | nickstire `verify` — 15 of 16 links | PII, routes, prerender, migrations, SQL (now incl. `lint:cron-wiring`, its own canary unwritten) | Only `lint:brand-voice` is proven |
 | Daily-brief delivery path | that the operator actually sees a P1 | Instance ten, below |
 

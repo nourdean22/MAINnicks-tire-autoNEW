@@ -231,6 +231,49 @@ describe("lint:pii lets the designed escape hatches through", () => {
   });
 });
 
+describe("the glob's blast radius is honest about itself", () => {
+  /**
+   * The lefthook glob is extension-only, so it triggers on files the linter's
+   * own IN_SCOPE does not cover (`client/**`). The script then finds nothing
+   * staged in scope and falls back to AUDIT mode over the whole app.
+   *
+   * That fallback is deliberate — the alternative is a directory glob, which
+   * would be a SECOND definition of scope free to drift from the script's. But
+   * "deliberate" is only defensible if the fallback (a) cannot block a commit
+   * and (b) LABELS itself, so nobody reads an audit receipt as confirmation
+   * that their staged changes were checked. Both are asserted here rather than
+   * assumed from reading the source.
+   */
+  it("an out-of-scope stage falls back to a NON-BLOCKING audit that says `(audit)`", () => {
+    const indexFile = join(tmpdir(), `pii-scope-${process.pid}-${Math.random().toString(36).slice(2)}.index`);
+    const env = { ...process.env, GIT_INDEX_FILE: indexFile, GIT_DIR: gitDirOf() };
+    const git = (args: string[], input?: string) =>
+      spawnSync("git", args, { cwd: APP, env, encoding: "utf8", input, maxBuffer: CHILD_MAX_BUFFER });
+
+    expect(git(["read-tree", "HEAD"]).status).toBe(0);
+    const blob = git(["hash-object", "-w", "--stdin"], "export const x = 1;\n");
+    expect(blob.status).toBe(0);
+    // client/** is matched by the lefthook glob but NOT by the linter's IN_SCOPE.
+    expect(
+      git([
+        "update-index", "--add", "--cacheinfo",
+        `100644,${blob.stdout.trim()},apps/nickstire/client/src/ZzPiiScopeProbe.tsx`,
+      ]).status,
+    ).toBe(0);
+
+    const r = spawnSync(process.execPath, [SCRIPT], {
+      cwd: APP, env, encoding: "utf8", timeout: 180_000, maxBuffer: CHILD_MAX_BUFFER,
+    });
+    const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+
+    expect(out).toContain("(audit)");
+    expect(out).not.toContain(PRE_COMMIT_LABEL);
+    // Non-blocking is the load-bearing half: a full-app audit that exited 1
+    // would fail commits over pre-existing findings in untouched files.
+    expect(r.status).toBe(0);
+  });
+});
+
 describe("the gate is actually WIRED into pre-commit", () => {
   /**
    * The tests above prove the linter blocks. They cannot prove git calls it —

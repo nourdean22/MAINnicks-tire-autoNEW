@@ -24,12 +24,33 @@ pre-commit:
     # 2026-09-16 gate-integrity: staged-only PII scan. It was already in
     # `pnpm run verify` and CI but in NO git hook, so no commit was ever
     # blocked on staged PII and the pre-commit mode the script implements
-    # never actually ran at commit time. Measured before wiring: ~800ms
-    # (817/800/803) against `nickstire-check`'s 52.9s in this same parallel
-    # block, and 1 block across the last 120 commits touching
-    # apps/nickstire/server/ — which was a TRUE positive (the operator's own
-    # mobile hardcoded with no waiver). Expect ~1 commit in 120 to need one
-    # `// pii-allow: <reason>` line. Canary: server/lintPiiHookWiring.test.ts.
+    # never actually ran at commit time.
+    #
+    # Measured before wiring: ~800ms in pre-commit mode, ~770ms in the audit
+    # fallback over 919 files, and 1.05s inside this hook. It is the cheapest
+    # job in this block by an order of magnitude — stated as a RELATION on
+    # purpose, because an absolute number for a sibling job is a cache with no
+    # invalidation (`nickstire-check` measured 52.9s cold and 8.04s warm on the
+    # very commit that added this line).
+    #
+    # False-positive rate: 1 block across the last 120 commits touching
+    # apps/nickstire/server/, and that one was a TRUE positive — the operator's
+    # own mobile, hardcoded with no waiver. Expect ~1 commit in 120 to need one
+    # `// pii-allow: <reason>` line.
+    #
+    # The glob is EXTENSION-ONLY on purpose. The script owns the scope
+    # definition (`IN_SCOPE`: server/**, shared/**, scripts/**), and a glob
+    # mirroring those directories would be a SECOND definition of scope, free
+    # to drift from the first — the exact defect class the consent work this
+    # gate ships beside was fixing. The cost of delegating is that a
+    # client-only commit triggers the job, finds nothing in scope and falls
+    # back to a non-blocking audit; that path is measured above, is labelled
+    # `(audit)` in its own receipt, and cannot block. Do not "optimize" this
+    # into a directory glob.
+    #
+    # Canary: apps/nickstire/server/lintPiiHookWiring.test.ts (11 tests, run
+    # twice — clean env AND under a valid GIT_DIR, which is what git actually
+    # exports to a hook).
     nickstire-lint-pii:
       root: "apps/nickstire"
       glob: "**/*.{ts,tsx,mjs,js}"
