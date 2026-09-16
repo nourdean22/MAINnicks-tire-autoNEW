@@ -145,18 +145,10 @@ export function MissionFeed({
     })(),
   }));
 
-  const totalOpenTasks = useMemo(
-    () => tasks.filter((t) => t.status !== "DONE").length,
-    [tasks],
-  );
-  const totalDoneToday = useMemo(() => {
-    return tasks.filter((t) => {
-      if (t.status !== "DONE") return false;
-      const completedAt = t.lastTouchedAt ?? t.updatedAt;
-      if (!completedAt) return false;
-      return new Date(completedAt).getTime() >= renderNow.todayStartMs;
-    }).length;
-  }, [tasks, renderNow.todayStartMs]);
+  // 2026-09-16 · Visible Transformation: the strip used to repeat the
+  // page heading's "N active · N open" and the rail's "done today"; it now
+  // says only what nothing else on the page says — the next deadline and
+  // the autonomic chip — and renders nothing when it has nothing to add.
   const nextDeadline = useMemo(() => {
     const upcoming = activeMissions
       .map((m) => (m.deadline ? new Date(m.deadline) : null))
@@ -171,39 +163,16 @@ export function MissionFeed({
   }, [activeMissions, renderNow.nowMs]);
 
   return (
-    <div className="space-y-4">
-      {/* Thin KPI strip · 4 values · single line at the top */}
-      <div className="flex items-center gap-4 px-2 py-1.5 text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] border-b border-[var(--border-default)]/40">
-        <span>
-          <span className="text-[var(--gold)] tabular-nums">
-            {activeMissions.length}
-          </span>{" "}
-          missions
-        </span>
-        <span className="text-[var(--text-tertiary)]/60">·</span>
-        <span>
-          <span className="text-[var(--text-secondary)] tabular-nums">
-            {totalOpenTasks}
-          </span>{" "}
-          open
-        </span>
-        <span className="text-[var(--text-tertiary)]/60">·</span>
-        <span>
-          <span className="text-emerald-400 tabular-nums">
-            {totalDoneToday}
-          </span>{" "}
-          done today
-        </span>
+    <div className="space-y-8">
+      {(nextDeadline || autonomicHealth) && (
+      <div className="flex items-center gap-4 py-1 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
         {nextDeadline && (
-          <>
-            <span className="text-[var(--text-tertiary)]/60">·</span>
-            <span>
-              next:{" "}
-              <span className="text-[var(--text-secondary)]">
-                {nextDeadline}
-              </span>
+          <span>
+            next deadline ·{" "}
+            <span className="text-fg-secondary">
+              {nextDeadline}
             </span>
-          </>
+          </span>
         )}
         {autonomicHealth && (() => {
           // truth-substrate audit #4-6: unwrap the MetricResult with proper
@@ -254,12 +223,13 @@ export function MissionFeed({
           );
         })()}
       </div>
+      )}
 
-      {/* Mission cards */}
+      {/* Mission cards · a ruled list, not a stack of boxes */}
       {activeMissions.length === 0 ? (
         <EmptyMissions />
       ) : (
-        <div className="space-y-2.5">
+        <div className="divide-y divide-edge border-y border-edge">
           {activeMissions.map((mission, missionIdx) => (
             <MissionCard
               key={mission.id}
@@ -286,24 +256,21 @@ export function MissionFeed({
           CLASSIFIED tasks routed to a per-domain anchor, shown distinctly from
           the "unattached" (truly unclassified) pile below. */}
       {domainGroups.map((group) => (
-        <section
-          key={group.anchor.id}
-          className="rounded-lg border border-[var(--border-default)]/60 bg-[var(--bg-base)]"
-        >
-          <header className="px-3 py-2 flex items-center gap-2 border-b border-[var(--border-default)]/40">
+        <section key={group.anchor.id}>
+          <header className="flex items-center gap-2 border-b border-edge pb-3">
             <Layers
-              size={12}
-              className="text-[var(--text-tertiary)]"
+              size={14}
+              className="text-fg-tertiary"
               strokeWidth={1.75}
             />
-            <h3 className="text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+            <h3 className="vt-eyebrow text-fg-secondary">
               {group.anchor.title}
             </h3>
-            <span className="text-[10px] font-mono text-[var(--text-tertiary)]/70 tabular-nums">
+            <span className="font-mono text-[12px] tabular-nums text-fg-tertiary">
               {group.tasks.length}
             </span>
           </header>
-          <div className="py-1">
+          <div className="divide-y divide-edge">
             {group.tasks.map((task) => (
               <MissionTaskRow key={task.id} task={task} />
             ))}
@@ -313,26 +280,21 @@ export function MissionFeed({
 
       {/* Unattached section */}
       {unattached.length > 0 && (
-        <section
-          className={cn(
-            "rounded-lg border border-[var(--border-default)]/60 bg-[var(--bg-base)]",
-            "border-dashed",
-          )}
-        >
-          <header className="px-3 py-2 flex items-center gap-2 border-b border-[var(--border-default)]/40">
+        <section>
+          <header className="flex items-center gap-2 border-b border-dashed border-edge pb-3">
             <Inbox
-              size={12}
-              className="text-[var(--text-tertiary)]"
+              size={14}
+              className="text-fg-tertiary"
               strokeWidth={1.75}
             />
-            <h3 className="text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+            <h3 className="vt-eyebrow text-fg-secondary">
               unattached
             </h3>
-            <span className="text-[10px] font-mono text-[var(--text-tertiary)]/70 tabular-nums">
+            <span className="font-mono text-[12px] tabular-nums text-fg-tertiary">
               {unattached.length}
             </span>
           </header>
-          <div className="py-1">
+          <div className="divide-y divide-edge">
             {unattached.map((task) => (
               <MissionTaskRow
                 key={task.id}
@@ -358,19 +320,26 @@ function EmptyMissions() {
   };
 
   return (
-    <div className="rounded-lg border border-dashed border-[var(--border-default)] bg-[var(--bg-base)] px-4 py-8 text-center">
-      <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+    <div className="border-l-2 border-edge py-2 pl-5 sm:pl-6">
+      <p className="vt-eyebrow text-fg-tertiary">
         no active missions
       </p>
-      <p className="mt-2 text-[12px] text-[var(--text-secondary)] leading-snug max-w-md mx-auto">
+      <p className="mt-3 max-w-[52ch] text-[15px] leading-relaxed text-fg-secondary">
         Missions group your tasks toward a goal. Type a mission name in the input
         above (or ask Nick to suggest one) and tasks start flowing into it.
       </p>
-      <div className="mt-4">
+      {/* Clear the fixed capture FAB, which lives in the bottom-left corner
+          and covered this button by 22x28px (floating-collision spec).
+          THE BREAKPOINT IS NOT A GUESS: the FAB is `lg:hidden` (omni-capture-
+          modal.tsx), so the lane it occupies exists at every width below
+          1024px. The first cut of this fix reset at `sm` (640px) and the spec
+          went red again at 768px, where the FAB is still on screen. If the
+          FAB's own breakpoint ever moves, this one moves with it. */}
+      <div className="mt-5 ml-16 lg:ml-0">
         <button
           type="button"
           onClick={handleAskNick}
-          className="inline-flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider bg-zinc-800 hover:bg-zinc-700 text-[var(--gold)] border border-zinc-700/60 shadow-lg shadow-black/40 hover:scale-[1.02] active:scale-[0.98] transition-all"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-gold/40 px-4 font-mono text-[12px] uppercase tracking-[0.14em] text-gold transition-colors hover:bg-gold/10"
         >
           ✨ Ask Nick for Recommendations
         </button>

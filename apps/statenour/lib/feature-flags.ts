@@ -248,6 +248,18 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     onValue: "true",
     defaultBehavior:
       "The evidence gate computes a verdict and persists it (evidence_gate_shadow); nothing acts on it.",
+    // E4 RAN, 2026-09-16 (Neon, read-only, 91 shadow turns 09-11 -> 09-16):
+    // pass 57 / block 21 / repair 13. Of the 21 blocks, 20 carried
+    // unreceipted names at 4.86 per turn -- and about HALF of the 73 distinct
+    // names were not resources at all, but the operator's itineraries and gym
+    // protocols, which Nick writes as bolded list items. LISTED_TITLE_RE was
+    // matching markdown formatting, so enforcement would have deleted the
+    // travel plan out of the reply. `isResourceTitle` (named-source-claims.ts)
+    // now removes that class at zero measured true-positive cost.
+    // VERDICT: DO NOT ARM on the pre-fix numbers -- they are refuted, not
+    // pending. Re-run E4 on a fresh window of post-fix shadow rows before this
+    // flag is considered again; the old rows measure a detector that no longer
+    // exists. Gate: tests/ai/named-source-listed-precision.test.ts.
     ownerDoc: "lib/ai/chat/gate-enforcement.ts",
   },
   {
@@ -258,6 +270,11 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     onValue: "true",
     defaultBehavior:
       "OFF: high-risk turns stream; the evidence gate still runs post-flush as shadow telemetry and turnRisk is stamped for measurement.",
+    // E3 status 2026-09-16: INSUFFICIENT DATA, not a green light. The stamp
+    // landed 2026-09-15, so only 9 of the 91 shadow rows carry turnRisk at all
+    // (5 of those 9 would buffer). Nine turns cannot justify adding latency to
+    // a lane; this needs a full week of stamped rows. It also depends on
+    // NICK_EVIDENCE_ENFORCEMENT, whose E4 verdict above is currently REFUTED.
     ownerDoc: "app/api/ai/chat/alternate-paths.ts",
   },
   {

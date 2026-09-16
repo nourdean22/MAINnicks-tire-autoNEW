@@ -21,6 +21,7 @@
 
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 /**
  * Compute the auto-derived power balance for a person, RESPECTING the
@@ -82,12 +83,15 @@ export async function computePowerBalance(
   balance += rolePrior[person.role] ?? 0;
 
   // 3. Recent ledger trend · positive ledger = operator giving = -balance
-  const recentLedger = await prisma.relationshipLedger.findMany({
-    where: { personId },
-    orderBy: { createdAt: "desc" },
-    take: 10,
-    select: { amount: true },
-  });
+  // CONTACT rows only (W8): a status flip's −50 would dominate this sum.
+  const recentLedger = contactRowsOnly(
+    await prisma.relationshipLedger.findMany({
+      where: { personId },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      select: { amount: true, metadata: true },
+    }),
+  ).slice(0, 10);
   const recentSum = recentLedger.reduce((s, r) => s + r.amount, 0);
   balance += -Math.tanh(recentSum / 50) * 0.3;
 

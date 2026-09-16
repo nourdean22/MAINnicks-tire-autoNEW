@@ -1,9 +1,8 @@
 "use client";
 
 import { Suspense } from "react";
-import { NotebookPen } from "lucide-react";
 
-import { SectionHeader } from "@/components/ui/section-header";
+import { PageHeader } from "@/components/layout/ui";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
@@ -39,12 +38,12 @@ function JournalPageInner() {
 
   return (
     <div className="min-h-screen text-zinc-100 space-y-5" data-no-deep-nudge>
-      <SectionHeader
-        icon={<NotebookPen size={16} className="text-(--gold)" />}
-        label="Journal"
-        subtitle="thinking · reasoning · insights · decisions · reflections"
-        accent="gold"
-        live
+      {/* 2026-09-16 · Visible Transformation: the house display header
+          (eyebrow · title · one line) replaces the icon-and-label strip. */}
+      <PageHeader
+        eyebrow="Mastery · journal"
+        title="Journal"
+        description="Thinking, reasoning, insights, decisions, reflections."
       />
 
       <MissionBreadcrumb />

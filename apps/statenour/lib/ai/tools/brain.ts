@@ -1626,7 +1626,12 @@ export const brainTools = {
         .findMany({
           where: { deletedAt: null },
           select: { id: true, name: true, powerBalance: true, interactionCount: true },
-          orderBy: { interactionCount: "desc" },
+          // W8 · recency leads, count breaks ties. With honest counters
+          // (0–4, 13 of 20 live profiles never logged) a bare count
+          // ordering picked this top-5 essentially at random. NULLS LAST:
+          // never-logged is unknown, not oldest. See
+          // lib/brain/people-intelligence.ts for the full note.
+          orderBy: [{ lastInteraction: { sort: "desc", nulls: "last" } }, { interactionCount: "desc" }],
           take: 5,
         })
         .catch((): never[] => []);

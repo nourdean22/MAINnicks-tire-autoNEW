@@ -18,6 +18,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("people-intelligence");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { daysAgo, today } from "@/lib/utils/datetime";
+import { NEGLECT_AFTER_DAYS, isNeglected } from "@/lib/services/people/neglect";
 import { PERSON_ROLE_PROMPT_LIST, isPersonRole } from "./person-roles";
 import { logError } from "@/lib/utils/error-log";
 
@@ -54,7 +55,15 @@ export async function runPeopleIntelligence(): Promise<{
   // would delete person X · Nick would keep referencing X in chat replies.
   const people = await prisma.personProfile.findMany({
     where: { deletedAt: null },
-    orderBy: { interactionCount: "desc" },
+    // W8 · honest counters changed what this ordering MEANS. Before the
+    // 2026-09-16 reconcile `interactionCount` ran to 69 and sorted people
+    // meaningfully; the true figures run 0–4, with 13 of 20 live profiles
+    // never logged at all, so a bare count ordering is now mostly an
+    // arbitrary tie-break over people the ledger has never seen. Recency
+    // still discriminates (7 profiles carry a real date), so it leads —
+    // NULLS LAST, because never-logged is unknown, not oldest — and the
+    // count breaks ties beneath it. No new threshold, no invented weight.
+    orderBy: [{ lastInteraction: { sort: "desc", nulls: "last" } }, { interactionCount: "desc" }],
     select: {
       id: true,
       name: true,
@@ -72,16 +81,13 @@ export async function runPeopleIntelligence(): Promise<{
 
   if (people.length === 0) return { profilesUpdated: 0, alerts: [] };
 
-  // Detect neglected relationships — no real CONTACT in 14d. Someone whose
-  // dossier the operator just reviewed is still tracked, not neglected.
-  const twoWeeksAgo = daysAgo(14);
-  const neglected = people.filter(
-    (p) =>
-      p.interactionCount >= 3 && // Only alert for people we interact with regularly
-      p.lastInteraction &&
-      new Date(p.lastInteraction) < twoWeeksAgo &&
-      !reviewedWithin(p.dossierUpdatedAt)
-  );
+  // Detect neglected relationships — no real CONTACT in NEGLECT_AFTER_DAYS.
+  // Someone whose dossier the operator just reviewed is still tracked, not
+  // neglected. W8: the "regularly" half (interactionCount >= 3) moved into
+  // lib/services/people/neglect.ts, one definition for all three consumers,
+  // and dropped to >= 1 — see that file's header for the prod measurement
+  // that made 3 the wrong number.
+  const neglected = people.filter((p) => isNeglected(p) && !reviewedWithin(p.dossierUpdatedAt));
 
   for (const n of neglected) {
     const daysSince = Math.round(
@@ -219,7 +225,13 @@ export async function getPeopleIntelligence(): Promise<string> {
       // otherwise he keeps referencing people the operator deleted. The
       // scan (runPeopleIntelligence) already filters; this builder didn't.
       where: { deletedAt: null },
-      orderBy: [{ interactionCount: "desc" }, { trustScore: "desc" }],
+      // W8 · recency first (see the note above); the count and then trust
+      // break ties beneath it.
+      orderBy: [
+        { lastInteraction: { sort: "desc", nulls: "last" } },
+        { interactionCount: "desc" },
+        { trustScore: "desc" },
+      ],
       take: 15,
       select: {
         name: true,
@@ -272,16 +284,11 @@ export async function getPeopleIntelligence(): Promise<string> {
     );
   }
 
-  // Surface neglected relationships — no real CONTACT in 14+ days. Someone
+  // Surface neglected relationships — no real CONTACT in NEGLECT_AFTER_DAYS+ days. Someone
   // whose dossier the operator just reviewed is NOT neglected (clearly
   // still tracked) — split those into a truthful "reach out" nudge instead
   // of crying neglect right after they engaged with the record.
-  const staleContact = people.filter(
-    (p) =>
-      p.interactionCount >= 3 &&
-      p.lastInteraction &&
-      new Date(p.lastInteraction) < daysAgo(14)
-  );
+  const staleContact = people.filter((p) => isNeglected(p));
   const neglected = staleContact.filter((p) => !reviewedWithin(p.dossierUpdatedAt));
   const reviewedNotContacted = staleContact.filter((p) =>
     reviewedWithin(p.dossierUpdatedAt)

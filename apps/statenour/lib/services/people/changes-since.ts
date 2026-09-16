@@ -30,6 +30,7 @@
 import { prisma } from "@/lib/prisma";
 import { activeOnly } from "@/lib/db/soft-delete";
 import { clampSince, type ChangeSet } from "@/lib/ui/change-cursor";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 const DAY_MS = 86_400_000;
 
@@ -62,7 +63,15 @@ export async function buildPeopleChangesSince(sinceMsRaw: number, now = new Date
 
   const [created, logged, cadenceRows] = await Promise.all([
     guarded(prisma.personProfile.count({ where: activeOnly({ createdAt: { gte: since } }) })),
-    guarded(prisma.relationshipLedger.count({ where: { createdAt: { gte: since } } })),
+    // CONTACT rows only (W8): the line renders as "interactions logged", so a
+    // status-flip audit row must not count as an interaction. Counted in TS
+    // rather than SQL — a Prisma JSON filter drops NULL metadata, which is
+    // most rows (contact-rows.ts).
+    guarded(
+      prisma.relationshipLedger
+        .findMany({ where: { createdAt: { gte: since } }, select: { metadata: true } })
+        .then((rows) => contactRowsOnly(rows).length),
+    ),
     guarded(
       prisma.personProfile.findMany({
         where: activeOnly({ status: "active", cadenceDays: { not: null }, lastInteraction: { not: null } }),

@@ -25,6 +25,12 @@
  * mini-apps, Nick's Tire anything (shop surfaces live at nickstire.org/admin;
  * /business was deleted 2026-09-02 on operator verdict — never on the personal
  * command surface).
+ *
+ * 2026-09-16 · Visible Transformation wave: same six sections, same data,
+ * recomposed. The state sentence is the NOW region (one display line the
+ * page is allowed to shout), the brief is THE MOVE (one gold rule, one
+ * primary action), Nick is a command bar rather than a card, judgment is a
+ * ledger of rows, and the context rail is a timeline. Zero cards.
  */
 
 import { trpc } from "@/lib/trpc/client";
@@ -49,49 +55,43 @@ export function HomeConsole() {
   const refreshFailed = briefQ.isError && !!brief;
 
   return (
-    <div className="mx-auto w-full max-w-[720px] px-4 pb-10 sm:px-6 xl:grid xl:max-w-[1180px] xl:grid-cols-[minmax(0,720px)_minmax(300px,1fr)] xl:items-start xl:gap-x-12">
+    <div className="mx-auto w-full max-w-[760px] px-4 pb-16 sm:px-6 xl:grid xl:max-w-[1260px] xl:grid-cols-[minmax(0,780px)_minmax(320px,1fr)] xl:items-start xl:gap-x-14">
       <div className="flex min-w-0 flex-col" data-home-column="queue">
-      <BriefStateLine
-        state={brief?.state ?? null}
-        loading={briefQ.isLoading}
-        unreadable={unreadable}
-      />
+        <BriefStateLine
+          state={brief?.state ?? null}
+          loading={briefQ.isLoading}
+          unreadable={unreadable}
+        />
 
-      {refreshFailed && (
-        <p className="mt-2 text-[10px] font-mono uppercase tracking-wider text-rose-300/80">
-          refresh failed · showing last confirmed brief
-        </p>
-      )}
+        {refreshFailed && (
+          <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.14em] text-rose-300/80">
+            refresh failed · showing last confirmed brief
+          </p>
+        )}
 
-      {unreadable ? (
-        <section
-          aria-label="brief unreadable"
-          className="mt-6 rounded-xl border border-rose-500/25 bg-rose-500/5 p-4"
-        >
-          <p role="heading" aria-level={2} className="text-sm font-semibold text-rose-300">
-            The brief couldn&apos;t be built
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-fg-secondary">
-            The read failed — state unknown, not empty. Nick still works below.
-          </p>
-          <button
-            type="button"
-            onClick={() => void briefQ.refetch()}
-            className="mt-3 inline-flex min-h-[44px] items-center rounded-lg border border-edge px-3 text-[11px] font-mono uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-edge-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-          >
-            Retry
-          </button>
+        {unreadable ? (
+          <section aria-label="brief unreadable" className="mt-10 border-l-2 border-rose-500/60 pl-5 sm:pl-6">
+            <h2 className="vt-eyebrow text-rose-300">The brief couldn&apos;t be built</h2>
+            <p className="mt-3 max-w-[56ch] text-[15px] leading-relaxed text-fg-secondary">
+              The read failed — state unknown, not empty. Nick still works below.
+            </p>
+            <button
+              type="button"
+              onClick={() => void briefQ.refetch()}
+              className="mt-4 inline-flex min-h-[44px] items-center rounded-md border border-edge px-4 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-secondary transition-colors duration-150 hover:border-edge-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            >
+              Retry
+            </button>
+          </section>
+        ) : (
+          <BriefLead lead={brief?.lead ?? null} loading={briefQ.isLoading} />
+        )}
+
+        <section aria-label="Nick" className="mt-12">
+          <NickCommandLine />
         </section>
-      ) : (
-        <BriefLead lead={brief?.lead ?? null} loading={briefQ.isLoading} />
-      )}
 
-      <section aria-label="Nick" className="mt-7">
-        <NickCommandLine />
-      </section>
-
-      <JudgmentQueue judgment={brief?.judgment ?? null} loading={briefQ.isLoading} />
-
+        <JudgmentQueue judgment={brief?.judgment ?? null} loading={briefQ.isLoading} />
       </div>
 
       {/* Section 5.4 (2026-09-08): at >=1280px the horizon and the change line form a context rail
@@ -99,7 +99,11 @@ export function HomeConsole() {
       <aside
         aria-label="context"
         data-home-column="context"
-        className="xl:sticky xl:top-6 xl:border-l xl:border-edge xl:pl-8"
+        // An empty rail (no horizon, no change line) used to render as a lone
+        // 8px stub of its left rule at >=1280px (hermetic render, 2026-09-16).
+        // It keeps its grid cell — tests/e2e/desktop-density.spec.ts measures
+        // the rail beside the queue — but loses its rules when empty.
+        className="mt-12 border-t border-edge pt-8 empty:border-t-0 xl:sticky xl:top-8 xl:mt-0 xl:border-l xl:border-t-0 xl:border-edge xl:pl-10 xl:pt-2 xl:empty:border-l-0"
       >
         <HorizonLine horizon={brief?.horizon ?? null} />
         <ChangeLine />

@@ -16,13 +16,14 @@
  * Automation Policies · Brain Categories).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Panel } from "@/components/panel";
-import { MetricCard } from "@/components/metric-card";
 import { PageHeader } from "@/components/layout/ui";
 import { usePullRefresh } from "@/lib/hooks/use-pull-refresh";
-import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
+import { cn } from "@/lib/utils";
+import { controlTower } from "@/lib/system/control-tower";
 import { SystemHubGrid } from "@/components/system/hub-grid";
 import { AgendaDesk } from "@/components/system/agenda-desk";
 // ObservabilityRow · 4-tile ops telemetry (cost SLO · voice latency ·
@@ -179,9 +180,17 @@ export default function SystemPage() {
   // exists; StatusDot renders it as the neutral gray dot.
   const overallStatus = !d ? "unknown" : d.db.connected ? "healthy" : "degraded";
 
+  // 2026-09-16 · Visible Transformation: the Control Tower verdict — ONE
+  // line, then only the exceptions (pure logic in lib/system/control-tower.ts,
+  // canary in tests/lib/system/control-tower.test.ts).
+  const tower = useMemo(
+    () => controlTower({ diagnostics: d, health, diagnosticsReadFailed: diagnosticsQuery.isError }),
+    [d, health, diagnosticsQuery.isError],
+  );
+
   return (
     <div
-      className="mx-auto max-w-5xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6"
+      className="mx-auto max-w-5xl space-y-8 px-3 py-4 sm:space-y-10 sm:px-4 sm:py-6 xl:max-w-6xl"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
@@ -210,56 +219,64 @@ export default function SystemPage() {
         }
       />
 
-      {/* ── STATUS FIRST ─────────────────────────────────────────── */}
-
-      {/* Overall status bar */}
-      <Panel className="flex items-center justify-between gap-4 border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] p-4">
-        <div className="flex items-center gap-3">
-          <StatusDot status={overallStatus} />
-          <span className="text-sm font-semibold text-white uppercase">
-            {overallStatus}
-          </span>
-          <span className="text-xs text-[var(--text-tertiary)]">
-            DB: {d?.db.latency_ms !== undefined ? <AnimatedCounter value={d.db.latency_ms} /> : "..."}ms
-          </span>
-        </div>
-      </Panel>
-
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 stagger-in">
-        <MetricCard
-          label="Requests (24h)"
-          value={d?.kpis.requests_24h ?? "..."}
-          hint="API calls"
-        />
-        <MetricCard
-          label="Avg Latency"
-          // avg_ms === 0 with live traffic means latency isn't being
-          // tracked (no data), not a real 0ms. Show an em-dash so the
-          // tile reads as "unknown" rather than an implausible zero.
-          value={d ? (d.kpis.latency_24h.avg_ms > 0 ? `${d.kpis.latency_24h.avg_ms}ms` : "—") : "..."}
-          hint={d && d.kpis.latency_24h.avg_ms === 0 ? "no data yet" : "24h average"}
-        />
-        <MetricCard
-          label="Errors (24h)"
-          // Unknown-is-not-clean (2026-08-19): with diagnostics null the
-          // hint used to read "Clean" — a failed read rendered as a
-          // clean system. Round-2: a failed REFRESH with cached data keeps
-          // the last read and says so; only a first-load failure is "—".
-          value={d ? d.kpis.errors_24h : diagnosticsQuery.isError ? "—" : "..."}
-          hint={
-            d
-              ? diagnosticsQuery.isError
-                ? "refresh failed — showing last read"
-                : d.kpis.errors_24h > 0
-                  ? "Check /system/logs"
-                  : "Clean"
-              : diagnosticsQuery.isError
-                ? "read failed — unknown, not clean"
-                : "measuring..."
-          }
-        />
-      </div>
+      {/* ── CONTROL TOWER (2026-09-16 · Visible Transformation) ──────────
+          One verdict in display type, then only the exceptions; the vitals
+          retreat into a single mono line. Replaces the status bar + three
+          KPI cards. Unknown-is-not-clean (2026-08-19) lives in the pure
+          helper: no measurement or a failed first read is UNKNOWN, never
+          nominal; a failed refresh keeps the last read and is listed as an
+          exception; a 0-error read with no data says so. */}
+      <section
+        aria-labelledby="tower-heading"
+        data-control-tower={tower.state}
+        className={cn(
+          "border-l-2 pl-5 sm:pl-6",
+          tower.state === "nominal"
+            ? "border-emerald-400/70"
+            : tower.state === "attention"
+              ? "border-amber-400"
+              : "border-edge",
+        )}
+      >
+        <h2 id="tower-heading" className="vt-eyebrow text-fg-secondary">
+          control tower
+        </h2>
+        <p
+          className={cn(
+            "vt-verdict mt-3 max-w-[16ch]",
+            tower.state === "attention"
+              ? "text-amber-200"
+              : tower.state === "unknown"
+                ? "text-fg-secondary"
+                : "text-fg",
+          )}
+        >
+          {tower.headline}
+        </p>
+        {tower.exceptions.length > 0 && (
+          <ul aria-label="exceptions" className="mt-6 divide-y divide-edge border-y border-edge">
+            {tower.exceptions.map((e) => (
+              <li key={e.key} className="flex min-h-[44px] items-center justify-between gap-3 py-1 text-[15px]">
+                <span className={e.tone === "rose" ? "text-rose-200" : "text-amber-100"}>{e.line}</span>
+                {e.href && (
+                  <Link
+                    href={e.href}
+                    className="inline-flex min-h-[44px] shrink-0 items-center font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary hover:text-gold"
+                  >
+                    open ↗
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-5 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-tertiary">
+          db {d ? (d.db.connected ? `${d.db.latency_ms}ms` : "down") : "…"} · requests 24h{" "}
+          {d ? d.kpis.requests_24h : "…"} · avg latency{" "}
+          {d ? (d.kpis.latency_24h.avg_ms > 0 ? `${d.kpis.latency_24h.avg_ms}ms` : "no data") : "…"} · errors 24h{" "}
+          {d ? d.kpis.errors_24h : diagnosticsQuery.isError ? "unknown" : "…"}
+        </p>
+      </section>
 
       {/* Ops telemetry — cost SLO · voice latency · eval pass · drift */}
       <ObservabilityRow />

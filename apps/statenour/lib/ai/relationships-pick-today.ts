@@ -30,6 +30,7 @@ import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { logger as rootLogger } from "@/lib/logger";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 const log = rootLogger.withSurface("ai/relationships-pick-today");
 
@@ -196,10 +197,13 @@ async function buildCandidatePool(): Promise<Candidate[]> {
 
   // Pull last-30d ledger movement per person.
   const since30d = new Date(Date.now() - 30 * DAY_MS);
-  const ledger = await prisma.relationshipLedger.findMany({
-    where: { createdAt: { gte: since30d } },
-    select: { personId: true, amount: true },
-  });
+  // CONTACT rows only (W8): `touches` below is literally a contact count.
+  const ledger = contactRowsOnly(
+    await prisma.relationshipLedger.findMany({
+      where: { createdAt: { gte: since30d } },
+      select: { personId: true, amount: true, metadata: true },
+    }),
+  );
   const ledgerByPerson = new Map<string, { delta: number; touches: number }>();
   for (const row of ledger) {
     const bucket = ledgerByPerson.get(row.personId) ?? { delta: 0, touches: 0 };

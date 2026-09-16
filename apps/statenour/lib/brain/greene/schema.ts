@@ -54,8 +54,16 @@ export interface GreeneEntry {
   fullText: string;
   /** 2-4 observable conditions in the operator's profile schema that
    *  signal this entry applies. Authored in plain English mapped to
-   *  fields the digest cron can check (e.g. "interactionCount > 20",
-   *  "ledger trends net-negative 90d", "person.role === 'mentor'"). */
+   *  fields the digest cron can check (e.g. "ledger trends net-negative
+   *  90d", "person.role === 'mentor'").
+   *
+   *  2026-09-16 (W8): the example here used to be "interactionCount > 20",
+   *  and law_16 shipped with exactly that trigger. `interactionCount` counts
+   *  only DELIBERATELY LOGGED contact — the honest prod maximum is 4 — so
+   *  that condition could never be true, and an unreachable trigger read by
+   *  an LLM is not a conservative filter, it is a false instruction. Write
+   *  triggers about the SHAPE of a relationship, not about a raw ledger
+   *  count; if you must use a count, measure the live distribution first. */
   triggers: string[];
   /** 2026-07-27 · the CHAT-side match surface. `triggers` above are
    *  analyst-facing condition sentences ("person.power_balance > +0.4

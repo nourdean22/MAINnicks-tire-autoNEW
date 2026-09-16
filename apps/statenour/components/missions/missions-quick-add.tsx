@@ -57,7 +57,7 @@ export function MissionsQuickAdd({
         e.preventDefault();
         void handleSubmit();
       }}
-      className="flex gap-2 items-center"
+      className="flex items-center gap-3"
     >
       <div className="relative flex-1">
         <input
@@ -70,8 +70,9 @@ export function MissionsQuickAdd({
             // wave-AB.d-mobile · 15px → 16px · iOS Safari zoom-on-focus
             // floor is 16px · pre-fix every quick-add tap on iPhone PWA
             // zoomed in jarringly + reset the page layout.
-            "w-full min-h-[44px] rounded-md border bg-[var(--bg-raised)]/[0.06] px-3 py-2 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 transition-colors",
-            "border-[var(--border-default)] focus:border-[var(--gold)]/40 focus:outline-none focus:shadow-[0_0_18px_rgba(253,185,19,0.12)]",
+            // 2026-09-16 · Visible Transformation: a ruled input line, not a box.
+            "w-full min-h-[48px] border-0 border-b-2 border-edge bg-transparent px-0 py-2 text-[18px] text-fg placeholder:text-fg-tertiary transition-colors",
+            "focus:border-gold focus:outline-none",
             "disabled:opacity-50",
           )}
           aria-label="mission or task input"
@@ -86,28 +87,28 @@ export function MissionsQuickAdd({
           disabled={busy}
           aria-label={voiceActive ? "stop recording" : "voice input"}
           className={cn(
-            "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border transition-colors",
+            "inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-md border transition-colors",
             voiceActive
-              ? "border-rose-500/50 bg-rose-500/10 text-rose-400 animate-pulse"
-              : "border-[var(--border-default)] bg-[var(--bg-raised)]/[0.06] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/40",
+              ? "animate-pulse border-rose-500/50 bg-rose-500/10 text-rose-400"
+              : "border-edge text-fg-tertiary hover:border-edge-hover hover:text-gold",
             "disabled:opacity-40",
           )}
         >
-          <Mic size={14} strokeWidth={1.75} />
+          <Mic size={16} strokeWidth={2} />
         </button>
       )}
       <button
         type="submit"
         disabled={!text.trim() || busy}
         aria-label="submit"
-        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15 transition-colors disabled:opacity-40"
+        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-gold text-black transition-colors hover:bg-gold-dim disabled:opacity-40"
       >
         {busy ? (
-          <Loader2 size={14} className="animate-spin" strokeWidth={1.75} />
+          <Loader2 size={16} className="animate-spin" strokeWidth={2} />
         ) : text.trim() ? (
-          <Send size={14} strokeWidth={1.75} />
+          <Send size={16} strokeWidth={2} />
         ) : (
-          <Plus size={14} strokeWidth={1.75} />
+          <Plus size={16} strokeWidth={2} />
         )}
       </button>
     </form>

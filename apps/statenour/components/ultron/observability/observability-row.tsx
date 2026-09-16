@@ -48,16 +48,11 @@ export function ObservabilityRow() {
       {/* Zone label — matches the gold mono uppercase rhythm used by
           the other Ultron section delimiters. Stays subtle so the
           tiles carry the visual weight. */}
-      <div className="flex items-center gap-2 px-0.5">
-        <span className="h-px flex-1 bg-[var(--border-default)]/40" />
-        <span className="text-[9px] font-mono uppercase tracking-[0.22em] text-[var(--text-tertiary)]">
-          observability
-        </span>
-        <span className="h-px flex-1 bg-[var(--border-default)]/40" />
-      </div>
+      <h2 className="vt-eyebrow border-b border-edge pb-3 text-fg-secondary">observability</h2>
 
-      {/* Asymmetric editorial pairing · mobile = single col, sm+ = 2x2 */}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {/* 2026-09-16 · four RULED figures (GlassCard `ruled`), not four glass
+          tiles: single column on the phone, two columns from sm. */}
+      <div className="grid grid-cols-1 gap-x-10 gap-y-4 pt-2 sm:grid-cols-2">
         <CostSloTile state={cost} />
         <VoiceLatencyTile state={voice} />
         <EvalPassRateTile state={evals} />

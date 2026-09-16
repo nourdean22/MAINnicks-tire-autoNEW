@@ -214,21 +214,34 @@ export function MissionCard({
       // Wave AR · 2026-05-28 · row anchor · TopMissionToday CTA points
       // at #mission-<id> · MissionsHealthStrip chips link here too ·
       // smooth-scroll lands the operator on the right card.
+      // 2026-09-16 · Visible Transformation: the board is a ruled list (the
+      // parent divides missions with hairlines); an open mission is marked by
+      // a gold left rule, never a glowing box.
       className={cn(
-        "rounded-lg border bg-[var(--bg-base)] scroll-mt-24 transition-all duration-200",
-        expanded
-          ? "border-[var(--gold)]/30 shadow-[0_0_20px_rgba(253,185,19,0.05)]"
-          : "border-[var(--border-default)]",
-        isDraggedOver && "border-[var(--gold)]/60 bg-[var(--gold)]/[0.02]"
+        "scroll-mt-24 border-l-2 transition-colors duration-200",
+        expanded ? "border-l-gold" : "border-l-transparent",
+        isDraggedOver && "border-l-gold/60 bg-gold/[0.03]"
       )}
     >
-      {/* Header · tap to toggle */}
-      <button
-        type="button"
+      {/* Header · tap to toggle.
+          2026-09-16 · a div-as-button, not a <button>: the reorder arrows and
+          the edit affordance inside it are interactive, and a <button> inside
+          a <button> is invalid HTML that React reports as a hydration error
+          on every card render (seen on the seeded hermetic render). Same
+          pattern as the People rows. */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded((v) => !v)}
+        onKeyDown={(e) => {
+          if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+            e.preventDefault();
+            setExpanded((v) => !v);
+          }
+        }}
         aria-expanded={expanded}
         aria-label={`${expanded ? "collapse" : "expand"} mission ${mission.title}`}
-        className="w-full flex items-center gap-2 px-3 py-3 text-left active:scale-[0.995] transition-transform"
+        className="flex w-full cursor-pointer items-center gap-2 px-3 py-4 text-left transition-transform active:scale-[0.995] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold sm:px-4"
       >
         <div
           onMouseDown={(e) => {
@@ -265,7 +278,7 @@ export function MissionCard({
           className="text-[var(--gold)] shrink-0"
           strokeWidth={2}
         />
-        <h3 className="flex-1 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--text-primary)] truncate">
+        <h3 className="flex-1 truncate font-display text-[22px] font-bold uppercase leading-none tracking-tight text-fg sm:text-2xl">
           {mission.title}
         </h3>
         {/* wave-AA-audit · hide "0%" when the mission has no tasks ·
@@ -280,12 +293,12 @@ export function MissionCard({
          *  automatically once a deadline or completionCriteria is set. */}
         {openTasks.length + doneTasks.length > 0 &&
           (hasEndState ? (
-            <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)] shrink-0">
+            <span className="shrink-0 font-mono text-[12px] uppercase tracking-[0.12em] tabular-nums text-fg-tertiary">
               {progress}%
             </span>
           ) : (
             <span
-              className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)] shrink-0"
+              className="shrink-0 font-mono text-[12px] uppercase tracking-[0.12em] tabular-nums text-fg-tertiary"
               title={`${doneTasks.length} done · no completion target set for this mission`}
             >
               {openTasks.length} open
@@ -294,7 +307,7 @@ export function MissionCard({
         {deadlineLabel && (
           <span
             className={cn(
-              "text-[10px] font-mono tabular-nums shrink-0",
+              "shrink-0 font-mono text-[12px] uppercase tracking-[0.12em] tabular-nums",
               deadlineTone === "urgent" && "text-rose-400",
               deadlineTone === "soon" && "text-amber-400",
               deadlineTone === "normal" && "text-[var(--text-tertiary)]",
@@ -381,7 +394,7 @@ export function MissionCard({
         >
           <Pencil size={14} strokeWidth={1.75} />
         </span>
-      </button>
+      </div>
 
       {/* Progress bar · hidden when mission has 0 tasks total · the
        *  0% sliver was misleading for fresh missions. wave-AA-audit
@@ -390,10 +403,10 @@ export function MissionCard({
        *  bar that fills toward a target nobody set is a picture of a claim
        *  the data does not make. */}
       {openTasks.length + doneTasks.length > 0 && hasEndState && (
-        <div className="px-3 -mt-2 pb-2">
-          <div className="h-0.5 bg-[var(--border-default)]/40 rounded-full overflow-hidden">
+        <div className="px-3 pb-3 sm:px-4">
+          <div className="h-px overflow-hidden bg-edge">
             <div
-              className="h-full bg-[var(--gold)] transition-all duration-500"
+              className="h-full bg-gold transition-all duration-500"
               style={{ width: `${progress}%` }}
               aria-hidden
             />
@@ -403,23 +416,23 @@ export function MissionCard({
 
       {/* Body · task list + add row + footer */}
       {expanded && (
-        <div className="border-t border-[var(--border-default)]/60">
-          {/* Nick's pick rationale banner (Phase 2 · only shown when set) */}
+        <div className="border-t border-edge pb-2">
+          {/* Nick's pick rationale (Phase 2 · only shown when set) */}
           {nicksPickTaskId && nicksPickRationale && (
-            <div className="border-b border-[var(--border-default)]/60 px-3 py-1.5 bg-[var(--gold)]/[0.04]">
-              <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
+            <div className="border-b border-edge px-3 py-2 sm:px-4">
+              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-gold/80">
                 nick&apos;s pick
               </p>
-              <p className="text-[11px] text-[var(--text-secondary)] leading-snug mt-0.5">
+              <p className="mt-0.5 text-[14px] leading-snug text-fg-secondary">
                 {nicksPickRationale}
               </p>
             </div>
           )}
 
           {/* Task list */}
-          <div className="py-1">
+          <div className="divide-y divide-edge/60">
             {sortedOpen.length === 0 && doneTasks.length === 0 && (
-              <p className="px-3 py-3 text-[12px] text-[var(--text-tertiary)] italic">
+              <p className="px-3 py-3 text-[14px] text-fg-tertiary sm:px-4">
                 No tasks yet. Add one below.
               </p>
             )}
@@ -450,7 +463,7 @@ export function MissionCard({
             })}
             {doneTasks.length > 0 && (
               <details className="px-2">
-                <summary className="px-1 py-1.5 text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] cursor-pointer hover:text-[var(--text-secondary)] list-none">
+                <summary className="flex min-h-[44px] cursor-pointer list-none items-center px-1 font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary hover:text-fg-secondary">
                   ▸ {doneTasks.length} done
                 </summary>
                 <div>
@@ -463,9 +476,9 @@ export function MissionCard({
           </div>
 
           {/* Add row */}
-          <div className="border-t border-[var(--border-default)]/40 px-2 py-1.5">
+          <div className="border-t border-edge/60 px-2 py-1.5 sm:px-3">
             {adding ? (
-              <div className="flex gap-1.5 items-center">
+              <div className="flex items-center gap-3">
                 <input
                   autoFocus
                   type="text"
@@ -482,13 +495,13 @@ export function MissionCard({
                   disabled={submitting}
                   // wave-AB.d-mobile · inline add input · bump to 44px
                   // tap target + 16px font (iOS no-zoom).
-                  className="flex-1 min-h-[44px] rounded-md border border-[var(--gold)]/30 bg-[var(--bg-raised)]/[0.06] px-2.5 py-2 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 focus:border-[var(--gold)]/60 focus:outline-none transition-colors disabled:opacity-50"
+                  className="min-h-[44px] flex-1 border-0 border-b border-edge bg-transparent px-1 py-2 text-[16px] text-fg placeholder:text-fg-tertiary transition-colors focus:border-gold focus:outline-none disabled:opacity-50"
                 />
                 <button
                   type="button"
                   onClick={handleAdd}
                   disabled={!newTaskTitle.trim() || submitting}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[var(--gold)]/40 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15 disabled:opacity-40"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-gold text-black transition-colors hover:bg-gold-dim disabled:opacity-40"
                   aria-label="add task"
                 >
                   <Plus size={14} strokeWidth={2} />
@@ -498,9 +511,9 @@ export function MissionCard({
               <button
                 type="button"
                 onClick={() => setAdding(true)}
-                className="w-full text-left inline-flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05] transition-colors"
+                className="inline-flex min-h-[44px] w-full items-center gap-2 px-1 text-left font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary transition-colors hover:text-gold"
               >
-                <Plus size={12} strokeWidth={1.75} />
+                <Plus size={14} strokeWidth={1.75} />
                 add task to this mission
               </button>
             )}
@@ -508,18 +521,18 @@ export function MissionCard({
 
           {/* Footer · mission actions */}
           {openTasks.length === 0 && doneTasks.length > 0 && (
-            <div className="border-t border-[var(--border-default)]/40 px-3 py-2 flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 border-t border-edge/60 px-3 sm:px-4">
               <button
                 type="button"
                 onClick={() => actions.handleCompleteMission(mission.id)}
-                className="text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)] hover:underline"
+                className="inline-flex min-h-[44px] items-center font-mono text-[11px] uppercase tracking-[0.14em] text-gold hover:underline"
               >
                 complete mission ↗
               </button>
               <button
                 type="button"
                 onClick={() => actions.handleArchiveMission(mission.id)}
-                className="text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+                className="inline-flex min-h-[44px] items-center font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary hover:text-fg-secondary"
               >
                 archive
               </button>

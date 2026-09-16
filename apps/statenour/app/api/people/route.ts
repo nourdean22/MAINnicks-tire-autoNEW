@@ -20,6 +20,7 @@
 
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
+import { daysSinceContact, isNeglected } from "@/lib/services/people/neglect";
 
 export const dynamic = "force-dynamic";
 
@@ -70,17 +71,14 @@ export const GET = apiHandler(
       },
     });
 
-    const now = Date.now();
-    const NEGLECT_THRESHOLD_DAYS = 14;
+    // W8 · one definition, shared with lib/brain/people-intelligence.ts. The
+    // hand-rolled copy here rounded the day count and compared `> 14` while
+    // the brain copies compared a Date against `daysAgo(14)`, so a person
+    // 14.4 days quiet was neglected in one surface and not the other.
+    const nowDate = new Date();
 
     const people: PersonRow[] = rows.map((r) => {
-      const daysSinceInteraction = r.lastInteraction
-        ? Math.round((now - r.lastInteraction.getTime()) / (24 * 3600_000))
-        : null;
-      const isNeglected =
-        r.interactionCount >= 3 &&
-        daysSinceInteraction !== null &&
-        daysSinceInteraction > NEGLECT_THRESHOLD_DAYS;
+      const daysSinceInteraction = daysSinceContact(r, nowDate);
       return {
         id: r.id,
         name: r.name,
@@ -91,7 +89,7 @@ export const GET = apiHandler(
         lastInteraction: r.lastInteraction ? r.lastInteraction.toISOString() : null,
         interactionCount: r.interactionCount,
         daysSinceInteraction,
-        isNeglected,
+        isNeglected: isNeglected(r, nowDate),
       };
     });
 

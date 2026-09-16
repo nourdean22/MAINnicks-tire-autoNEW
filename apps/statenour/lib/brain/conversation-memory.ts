@@ -579,7 +579,10 @@ export async function detectCrossSessionThread(
         .catch((): never[] => []),
       prisma.personProfile
         .findMany({
-          orderBy: { interactionCount: "desc" },
+          // W8 · recency leads, count breaks ties: with honest counters
+          // (0–4, 20 of 27 at zero) a bare count ordering picked 20 people
+          // essentially at random for the conversation's people context.
+          orderBy: [{ lastInteraction: { sort: "desc", nulls: "last" } }, { interactionCount: "desc" }],
           take: 20,
           select: { name: true, role: true, relationship: true },
         })

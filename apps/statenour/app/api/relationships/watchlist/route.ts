@@ -12,6 +12,7 @@ import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 const log = rootLogger.withSurface("api/relationships/watchlist");
 
@@ -133,10 +134,14 @@ async function buildWatchlist(): Promise<WatchlistItem[]> {
 
   // Power imbalance · last 30d ledger
   const since30 = new Date(now - 30 * DAY_MS);
-  const ledger = await prisma.relationshipLedger.findMany({
-    where: { createdAt: { gte: since30 } },
-    select: { personId: true, amount: true },
-  });
+  // CONTACT rows only (W8) — one blown_up status flip is −50 and would put
+  // anyone on the imbalance watchlist on its own.
+  const ledger = contactRowsOnly(
+    await prisma.relationshipLedger.findMany({
+      where: { createdAt: { gte: since30 } },
+      select: { personId: true, amount: true, metadata: true },
+    }),
+  );
   const ledgerByPerson = new Map<string, number>();
   for (const l of ledger) {
     ledgerByPerson.set(l.personId, (ledgerByPerson.get(l.personId) ?? 0) + l.amount);

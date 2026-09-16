@@ -27,6 +27,7 @@ import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { logger as rootLogger } from "@/lib/logger";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 const log = rootLogger.withSurface("ai/contextual-greene-laws");
 
@@ -211,12 +212,16 @@ export async function pickContextualLawsForPerson(
 
   // Recent ledger + promises
   const [ledger, promiseRows] = await Promise.all([
-    prisma.relationshipLedger.findMany({
-      where: { personId },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: { amount: true, note: true, createdAt: true, source: true },
-    }),
+    prisma.relationshipLedger
+      .findMany({
+        where: { personId },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        select: { amount: true, note: true, createdAt: true, source: true, metadata: true },
+      })
+      // CONTACT rows only (W8) — these rows become the model's picture of the
+      // relationship; an audit row is not something the operator did.
+      .then((rows) => contactRowsOnly(rows).slice(0, 10)),
     prisma.brainMemory.findMany({
       where: { category: BRAIN_CATEGORIES.KEPT_WORD },
       select: { metadata: true },

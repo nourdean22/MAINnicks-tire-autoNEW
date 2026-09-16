@@ -73,9 +73,9 @@ export function CostSloTile({ state }: Props) {
 
   const tierBorder = {
     neutral: "border-[var(--gold)]/25 bg-[var(--gold)]/[0.04]",
-    green: "border-emerald-500/25 bg-emerald-500/[0.04]",
-    amber: "border-amber-500/30 bg-amber-500/[0.05]",
-    red: "border-rose-500/35 bg-rose-500/[0.05]",
+    green: "border-l-emerald-400/70",
+    amber: "border-l-amber-400",
+    red: "border-l-rose-400",
   }[tier];
 
   const tierText = {
@@ -106,7 +106,7 @@ export function CostSloTile({ state }: Props) {
     : {};
 
   return (
-    <GlassCard
+    <GlassCard ruled
       className={cn("relative w-full text-left", tierBorder, "min-h-[112px]")}
       {...cardProps}
     >
@@ -193,7 +193,7 @@ export function EmptyTile({
   icon?: React.ReactNode;
 }) {
   return (
-    <GlassCard className="min-h-[112px] border-[var(--gold)]/15 bg-[var(--gold)]/[0.02]">
+    <GlassCard ruled className="min-h-[112px] border-l-gold/40">
       <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/70">
         {icon}
         {label}
@@ -210,7 +210,7 @@ export function EmptyTile({
 
 export function ErrorTile({ label, message }: { label: string; message: string }) {
   return (
-    <GlassCard className="min-h-[112px] border-rose-500/30 bg-rose-500/5">
+    <GlassCard ruled className="min-h-[112px] border-rose-500/30 bg-rose-500/5">
       <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-rose-300">
         <AlertTriangle size={11} />
         {label} · failed

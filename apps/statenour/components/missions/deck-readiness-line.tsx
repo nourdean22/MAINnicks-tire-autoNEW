@@ -7,6 +7,8 @@
  * line speaks only on exception, and always says how old its data is
  * when it can't speak at all. Replaces the always-on governor strip
  * that printed "Readiness: 96/100" off a health log of unbounded age.
+ *
+ * 2026-09-16 · Visible Transformation: a ruled line, not a pill.
  */
 import type { MissionsDeck } from "@/lib/missions/deck";
 
@@ -15,13 +17,13 @@ export function DeckReadinessLine({ readiness }: { readiness: MissionsDeck["read
 
   const tone =
     readiness.state === "exception"
-      ? "border-amber-400/30 bg-amber-400/[0.05] text-amber-200/90"
-      : "border-[var(--border-default)] bg-[var(--bg-base)] text-[var(--text-tertiary)]";
+      ? "border-amber-400/70 text-amber-200/90"
+      : "border-edge text-fg-tertiary";
 
   return (
     <p
       role={readiness.state === "exception" ? "status" : undefined}
-      className={`rounded-lg border px-3 py-2 font-mono text-[10.5px] uppercase tracking-wide ${tone}`}
+      className={`border-l-2 py-1 pl-4 font-mono text-[12px] uppercase tracking-[0.14em] ${tone}`}
     >
       {readiness.line}
     </p>

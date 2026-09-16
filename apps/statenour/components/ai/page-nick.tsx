@@ -196,7 +196,8 @@ export function PageNick({
   return (
     <div
       className={cn(
-        "rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]/40 p-2.5 space-y-2",
+        // 2026-09-16 · Visible Transformation: a ruled strip, not a card.
+        "space-y-2 border-l-2 border-edge py-1 pl-3 sm:pl-4",
         className
       )}
     >
@@ -258,7 +259,7 @@ export function PageNick({
                 <button
                   key={i}
                   onClick={() => ask(p)}
-                  className="text-[9px] px-2 py-0.5 rounded-full border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/30 hover:text-[var(--gold)] transition-colors"
+                  className="inline-flex min-h-[32px] items-center border-b border-edge px-1 font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)] transition-colors hover:border-[var(--gold)]/60 hover:text-[var(--gold)]"
                 >
                   {p}
                 </button>

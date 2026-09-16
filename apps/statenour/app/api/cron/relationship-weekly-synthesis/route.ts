@@ -18,6 +18,7 @@ import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 
@@ -75,6 +76,8 @@ export const GET = cronHandler(async () => {
   const weekStart = new Date(now.getTime() - 7 * DAY_MS);
 
   const [ledgerEntries, alphaRows, outreachRows, people] = await Promise.all([
+    // CONTACT rows only (W8) — the synthesis reads these as the week's
+    // relationship activity; an audit row is not activity.
     prisma.relationshipLedger.findMany({
       where: { createdAt: { gte: weekStart } },
       select: {
@@ -82,11 +85,12 @@ export const GET = cronHandler(async () => {
         note: true,
         source: true,
         createdAt: true,
+        metadata: true,
         person: { select: { id: true, name: true, role: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 200,
-    }),
+    }).then(contactRowsOnly),
     prisma.brainMemory.findMany({
       where: {
         category: BRAIN_CATEGORIES.ALPHA_MOMENT,
