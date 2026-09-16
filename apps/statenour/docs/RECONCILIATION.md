@@ -1,5 +1,50 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-16 · Honest-counter repair wave W8 (branch `claude/statenour-ui-architecture-intmaf`, sixth PR, on top of the Visible Transformation slices)
+>
+> Operator: fact-check the research, repair reality, keep shipping. This wave is the REPAIR half — every consumer
+> that was written while `interactionCount` was inflated and every ledger reader that could not tell a contact from
+> an audit row. **Re-measured on prod before touching anything** (Neon, read-only): 20 live profiles · 7 ever
+> logged · 13 at zero · max `interaction_count` 4 · `>= 3` matches 2 · `trustScore` 0.3–0.9.
+> **Shipped, five slices:**
+> · **Writer guard** — `RESERVED_LEDGER_METADATA_KEYS` + `assertWritableMetadata` in `contact-rows.ts`, called from
+>   `recordInteraction.normalize()` before any IO, plus a zod `superRefine` on `task.logLedger` so the operator gets a
+>   BAD_REQUEST naming the key. Codex P2 on #2348: the seam increments `interactionCount`, so it may not stamp a
+>   marker that excludes its own row — the profile would count a contact the ledger does not have.
+> · **Trust scale** — `unstableAlliances` compared a 0–1 Float to `50`, vacuously true for every person who has ever
+>   existed, while its other half (`>= 10`) was unreachable after the reconcile. Now `< 0.4` (the house RISK tier,
+>   `brain-graph.ts:605`) AND at least one logged contact. Canary `tests/repo/score-scale-mismatch.test.ts` fails on
+>   any 0–1 field compared to a literal above 1; it strips comments AND strings, because its first cut flagged its
+>   own explanation of the bug.
+> · **Reader contamination** — all 16 ledger read sites classified: 13 pipe through `contactRowsOnly`, 3 allowlisted
+>   WITH a reason (the audit timeline, the writer, the delete that re-derives through the predicate).
+>   `changes-since.ts` moves `count` → fetch-then-filter. The 8 synthetic rows each carry **+1**, so they had been
+>   earning relationship XP in `people-credit.ts` for chat messages that merely NAMED someone; the status-flip half
+>   (−50 / −5 / 0) is armed and unfired at 0 rows.
+> · **Counter consumers** — 4 bare `orderBy: { interactionCount: "desc" }` reads now lead with `lastInteraction`
+>   NULLS LAST (a count ordering is an arbitrary tie-break over 13 identical zeros); Greene law_16's
+>   `"interactionCount > 20 in the last 60 days"` trigger replaced with the observable saturation SHAPE, and the
+>   schema doc that offered the same comparison as its worked example fixed with it; the neglect predicate
+>   de-duplicated into `lib/services/people/neglect.ts` at `>= 1` (existence, not frequency — `>= 3` dropped 5 of the
+>   7 real candidates and dropped the worst cases first) with one boundary spelling, `floor()` not `round()`, so the
+>   day count the /people badge now shows matches the verdict beside it.
+> · **Gate fallout from W7** — `components/ui/{input-group,section-header}.tsx` deleted (256 lines; the wave took the
+>   last importer off each) and the anti-slop waiver canary repointed onto a fixture it plants itself, because its
+>   precondition read the one live waiver this wave correctly removed.
+> **Silent-instrument finding, kept:** the ledger canary's first cut tested `src.includes("contactRowsOnly")`, which
+> the import line alone satisfies — mutation proved it stayed GREEN after the call was deleted. Tightened to a real
+> call shape it immediately caught a REAL miss in this same diff (`relationship-weekly-synthesis` had the import and
+> the `metadata: true` select but never called the filter).
+> **Receipts:** `tsc --noEmit` exit 0 · eslint 0 errors (132 pre-existing warnings) · vitest **840 files, 8,405
+> passed, 6 skipped, 2 failed** · 10 static gates green (`runbooks`, `lint-baseline`, `raw-sql`, `crons`,
+> `soft-delete`, `get-auth`, `mutations:strict`, `anti-slop`, `et-clock`, `scripts`). Every new canary
+> mutation-proven RED against the real tree before being trusted.
+> **The 2 failures are environmental and pre-existing**, not this branch: `obsidian-ingest-server-only` and
+> `generate-pwa-icons-sharp` both spawn `npx tsx -e` probes, and in this Linux container a spawned `tsx -e` dynamic
+> import collapses every module's namespace to `default` — reproduced on `lib/db/soft-delete.ts`, which this branch
+> does not touch, WITHOUT the shim. Neither test's subject appears in the branch diff. `check:env` also fails here
+> for want of provider keys, which is the documented container constraint.
+
 > ## 2026-09-16 · Visible Transformation (branch `claude/statenour-ui-architecture-intmaf`, sixth PR; #2348 SHIPPED + DEPLOYED-VERIFIED `ef52c8e38`, prod counter reconcile DONE 10:28Z)
 >
 > Operator: the workbench substrate (#2337 / #2341 / #2344) shipped but "StateNour still looks 85–95% like before";

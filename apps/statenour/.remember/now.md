@@ -1,6 +1,39 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-16 (Session B: counter reconcile #2348 SHIPPED + DEPLOYED-VERIFIED `ef52c8e38`, prod reconcile DONE 10:28Z; Visible Transformation wave open on `claude/statenour-ui-architecture-intmaf` — sixth PR; Session A: execution truth + Dream-to-Proof #2335–#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`)
+**Updated:** 2026-09-16 (Session B: counter reconcile #2348 SHIPPED + DEPLOYED-VERIFIED `ef52c8e38`, prod reconcile DONE 10:28Z; Visible Transformation + honest-counter repair W8 open on `claude/statenour-ui-architecture-intmaf` — sixth PR #2349; Session A: execution truth + Dream-to-Proof #2335–#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`)
+
+## (Session B) Honest-counter repair W8 (2026-09-16; same branch, on top of the Visible Transformation slices)
+**Operator:** fact-check the research, repair reality, keep shipping. **Re-measured on prod FIRST** (Neon,
+read-only) rather than trusting any number in a comment or an audit: 20 live profiles · 7 ever logged · 13 at
+zero · max `interaction_count` 4 · `>= 3` matches 2 · `trustScore` 0.3–0.9.
+**Shipped (5 commits):** writer guard — `RESERVED_LEDGER_METADATA_KEYS` + `assertWritableMetadata` in the
+`recordInteraction` seam + a zod `superRefine` on `task.logLedger` · trust scale — `unstableAlliances` compared a
+0–1 Float to `50` (vacuously true for everyone) while its other half `>= 10` was unreachable; now `< 0.4` AND one
+logged contact · reader contamination — all 16 ledger reads classified, 13 filtered through `contactRowsOnly`, 3
+allowlisted with a reason, `changes-since.ts` moved `count` → fetch-then-filter · counter consumers — 4 bare
+`orderBy: { interactionCount: "desc" }` now lead with `lastInteraction` NULLS LAST, Greene law_16's
+`"interactionCount > 20"` trigger replaced with the observable SHAPE (and the schema doc that taught it), the
+neglect predicate de-duplicated into `lib/services/people/neglect.ts` at `>= 1` · W7 gate fallout —
+`components/ui/{input-group,section-header}.tsx` deleted, anti-slop waiver canary repointed onto its own fixture.
+**Traps measured, all worth keeping:**
+· **A canary that cannot fail is not a canary.** The ledger scan's first cut tested
+  `src.includes("contactRowsOnly")` — the IMPORT line alone satisfies that, and mutation proved it stayed GREEN
+  after the call was deleted. Tightened to a real call shape it immediately caught a REAL miss in the same diff.
+· **A detector fires on its own documentation.** Both new source scans flagged the comment explaining the bug they
+  fix. The score-scale one strips comments AND strings (its subject is code); the threshold one strips comments and
+  KEEPS strings (its subject is prose an LLM reads). Mirror images, and each needs the "does not fire on a comment"
+  arm or the next fix is un-documentable.
+· **A threshold authored against a broken counter survives the fix.** `>= 3` was not dead, it was MIS-SCALED, and
+  it dropped the worst cases first. Re-measure every threshold downstream of a data repair, not just the ones that
+  went to zero.
+· **`git commit` commits the INDEX, not your pathspec.** A `git rm` staged earlier swept 256 lines of deletion into
+  an unrelated slice. Caught by reading `git show --stat`; fixed with `reset --soft` while nothing was pushed.
+**Environmental, NOT this branch (do not chase):** `obsidian-ingest-server-only` + `generate-pwa-icons-sharp` both
+spawn `npx tsx -e`, and in this Linux container a spawned `tsx -e` dynamic import collapses every module namespace
+to `default` — reproduced on untouched `lib/db/soft-delete.ts` WITHOUT the shim. `check:env` fails for want of
+provider keys (never export real keys into the test shell).
+**Next:** W9 nickstire public FCFS vs "SCHEDULE DROP-OFF" — HOLD, a sibling session is doing GSC/SEO work in those
+same files (`Home.tsx`, `FocusedServicePage.tsx`, `InternalLinks.tsx`, `SiteFooter.tsx`); coordinate before touching.
 
 ## (Session B) Visible Transformation wave (2026-09-16; same branch, sixth PR, after #2348 shipped `ef52c8e38`)
 **Operator:** the workbench substrate shipped but the pages "still look 85–95% like before"; new bar: old vs new
