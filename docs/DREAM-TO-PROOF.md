@@ -80,8 +80,13 @@ judges structurally unable to land a change on `main` — read/triage permission
 write only behind an ACTIVE ruleset that does not bypass it. On the Free plan a private repo has no
 rulesets or branch protection (the API answers 403), so read/triage + fork is the boundary; the ruleset
 for a Pro repo is in `scripts/night-shift/ruleset-night-shift-boundary.json`. A refusal is a
-`darwin.run_refused` ledger event, and the child process holds the token only as `GH_TOKEN`. What the
-operator still owns: creating the machine account and its token (README, Identity).
+`darwin.run_refused` ledger event, and the child process holds the token only as `GH_TOKEN`. State on
+2026-09-16: fork-PR workflows are ENABLED for this private repo with secrets and write tokens withheld and
+manual approval required (`actions/permissions/fork-pr-workflows-private-repos`), `CLAUDE_CODE_OAUTH_TOKEN`
+is set and a headless `claude -p` authenticated with it, and the reclaim in `action-attempts.ts` pins the
+deadline it decided from (#2345). What the operator still owns: creating the machine account (agents may not
+create accounts), inviting it as a read collaborator is then one `gh api` call, and its CLASSIC `repo`-scope
+token as `NIGHT_SHIFT_GH_TOKEN` (README, Identity). Until then every run refuses to start, by design.
 
 ## Operating it
 
@@ -89,7 +94,7 @@ operator still owns: creating the machine account and its token (README, Identit
 2. **Read `/proof`** (statenour): claims by grade, recent reality, standing claims, your judgments, Night Shift proposals.
 3. **Record taste**: `POST /api/proof/taste` with two candidates, a winner, reason codes from `TASTE_REASON_CODES`. It mirrors into BrainMemory at OPERATOR trust.
 4. **The lot band is on** (`shopstate_lot_band`, 2026-09-15). It reads `unknown` until the camera bridge heartbeats again — `shopStatus.getState` says `lot:offline (no recent observation)` when the flag is on but `camera_runtime.receivedAt` is stale, and bare `lot:offline` when the flag is off.
-5. **Night Shift**: run `scripts/night-shift/run.ps1` by hand first; register with `register-task.ps1` when you trust it. Give it `EVIDENCE_LEDGER_KEY` (statenour env var; opens `/api/sync/evidence` only) — never `STATENOUR_SYNC_KEY`, which is the whole cross-app bridge. `run.ps1` scrubs the bridge key from the child process on purpose.
+5. **Night Shift**: run `scripts/night-shift/run.ps1` by hand first; register with `register-task.ps1` when you trust it. Give it `EVIDENCE_LEDGER_KEY` (statenour env var; opens `/api/sync/evidence` only) — never `STATENOUR_SYNC_KEY`, which is the whole cross-app bridge. `run.ps1` scrubs the bridge key from the child process on purpose. Readiness on 2026-09-16: OAuth token set and proven, fork-PR workflows enabled; the run still refuses until the machine account exists and `NIGHT_SHIFT_GH_TOKEN` points at it (the preflight prints the reason).
 6. **The migration is applied** (`20260915140000_reality_ledger`, 2026-09-15; `prisma migrate status` clean). `/proof` shows a not-migrated banner if a future environment lacks it.
 7. **The hidden holdout is armed** (2026-09-15): `HOLDOUT_EPISODES_B64` holds six `HO-xxx` episodes — three on routes the visible five never touch, three distilled from real incidents (the 404'd city pages, the "4 stars" review copy, the shop strip that was never visible); the plain copy lives outside every checkout at `~/.nourcity-holdout/holdout-episodes.json` (rotate it there, replay it in holdout mode, then `base64 -w0 <file> | gh secret set HOLDOUT_EPISODES_B64`). Grow it from `proof.episode_failed` events and incidents, never from the visible set. Every proof run posts `proof.holdout` — counts and ids only, or **unmeasured** when the secret is absent, so a missing holdout can never pass by silence. The holdout's report, traces and log never leave the runner. Three consecutive visible-green / holdout-red runs is the overfitting signal: the loop is learning the tests, not the customer.
 8. **Read the Repo Time Machine** on `/proof` (or `GET /api/proof/timeline`): one row per commit nickstire.org actually served when judged, newest first, with the visible run, the holdout, and the delta against the previous judged commit (failures introduced and fixed by name). Grouping is on the judged sha, never the requested one — a push-triggered run that measured the previous deploy lands under that deploy.

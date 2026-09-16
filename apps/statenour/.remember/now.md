@@ -1,8 +1,8 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-16 (relationship-ledger wave on `claude/statenour-ui-architecture-intmaf`, fourth PR; #2344 shipped + deployed-verified)
+**Updated:** 2026-09-16 (Session B: relationship-ledger wave #2346 on `claude/statenour-ui-architecture-intmaf` merged; Session A: execution truth + Dream-to-Proof #2335/#2336/#2338/#2339/#2340/#2342/#2343/#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`; Session B's UI workbench entry below is intact)
 
-## Relationship ledger wave (2026-09-16; same branch, restarted by merging main `fc631eccc`)
+## (Session B) Relationship ledger wave (2026-09-16; same branch, restarted by merging main `fc631eccc`)
 **Finding:** the ledger had no live writer worth the name — 23 rows ever, last 2026-07-10, the 8 "chat" rows a
 synthetic 05-29 backfill, 0 outreach/gmail/calendar/telegram rows ever — while `interaction_count` (sum 191) and
 `last_interaction` kept moving from chat MENTIONS, `person.update` edits and profile creation. **Shipped:** ONE
@@ -18,6 +18,25 @@ Prisma's camelCase (`"jobName"`, `"createdAt"`) · a `vi.waitFor` is the only ho
 fire-and-forget hook fired.
 **Next:** decide the counter reconcile (`interaction_count := ledger count`, `last_interaction := max(ledger)`) —
 one dry-run-first script, operator-run · the `/people` line's "went overdue" stays silent until a cadence is set.
+
+## Execution truth + Dream-to-Proof, waves 2-3 + follow-ups (Session A, 2026-09-15/16)
+**Objective:** close both "StateNour reset" audits in-session. **Done:** truthful Telegram + durable
+`ActionAttempt` (`action_attempts` table APPLIED to prod; reclaim is a compare-and-swap pinned to id +
+attemptNo + state + holdUntil; `ledgerState` stamped only after a confirmed settle) · ledger producer
+ceilings + lineage + recursive PII · exact-id recall lane · `check:scripts` ratchet (44 errors baselined,
+5 dead imports fixed; `sharp` resolves via `next`) · Repo Time Machine (`lib/services/proof-timeline.ts`,
+`GET /api/proof/timeline`, `/proof` section, grouped on the commit the site SERVED). **Last decision:** the
+hidden holdout lives outside the tree (secret `HOLDOUT_EPISODES_B64`, six episodes, three from real
+incidents) and posts `proof.holdout` every run — `unmeasured` when absent. **Blocker (operator):**
+`EVIDENCE_LEDGER_KEY` still not created (the proof lane posts through the bridge key); Night Shift needs
+the machine GitHub account + classic `repo` token (agents may not create accounts). **Next:** when a
+`proof.holdout` ever fails while the visible run passes, that is the overfitting signal — read
+`/proof`'s Time Machine before touching an episode. Traps: the StateNour domain-boundary gate rejects
+"nickstire.org" / "Nick's Tire" in any StateNour prose outside a link-out; vitest's `NODE_PATH` makes bare
+specifiers resolve in-process (resolution tests must spawn a child); a `node` job "runner shutdown signal"
+minutes after a main merge is merge ordering, not code (root AGENTS.md merge recipe now checks first).
+
+## (Session B) UI workbench — previous header: **Updated:** 2026-09-15 (UI workbench #2337 shipped + deployed-verified; wave 3 on the same branch name, second PR)
 
 ## UI workbench wave 3 (2026-09-15; branch `claude/statenour-ui-architecture-intmaf` restarted by merging main — force-push is policy-blocked)
 **Shipped this wave:** `tool` inspector + inspectable `/system/tools` rows · ChangeSet primitive

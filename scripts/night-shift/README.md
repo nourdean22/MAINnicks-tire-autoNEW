@@ -41,7 +41,9 @@ is the ruleset to apply if the repo moves to Pro (`gh api -X POST repos/<owner>/
 scripts/night-shift/ruleset-night-shift-boundary.json`; it restricts updates, force-pushes and deletion
 of `main` to repository admins — RepositoryRole id 5 — and to the GitHub Actions app — Integration id
 15368 — so the weekly prerender push keeps working; verify that bypass on first activation). Operator steps, once: create a machine account; add it
-as a collaborator with **read**; under Settings → Actions enable workflows on pull requests from forks;
+as a collaborator with **read** (`gh api -X PUT repos/<owner>/<repo>/collaborators/<login> -f permission=read`);
+fork-PR workflows — DONE 2026-09-16 via `actions/permissions/fork-pr-workflows-private-repos`: run them, but
+send no secrets or write tokens and require approval for each run (so the holdout secret never reaches a fork);
 on that account mint a **classic** token with only the `repo` scope (a fine-grained token cannot reach a
 repo owned by another personal account, so it could never open the cross-repo PR; `repo` on a read
 collaborator can fork, push to the fork and open the PR, and still cannot merge) and store it as the user
