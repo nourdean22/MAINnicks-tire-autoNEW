@@ -34,7 +34,7 @@
  * beside the sums, and the caller can see what share of the window the totals
  * actually cover.
  */
-import { desc, gte, sql } from "drizzle-orm";
+import { desc, sql } from "drizzle-orm";
 
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
@@ -55,7 +55,6 @@ interface LlmLaneRow {
   completionTokens: number;
   avgLatencyMs: number;
   maxLatencyMs: number;
-  lastCallAt: string | null;
 }
 
 interface LlmLedgerSummary {
@@ -81,13 +80,66 @@ const empty = (state: LlmLedgerState, windowDays: number): LlmLedgerSummary => (
   generatedAt: new Date().toISOString(),
 });
 
+/** The handle db() hands back, minus the null it returns when there is none. */
+type Db = NonNullable<Awaited<ReturnType<typeof db>>>;
+type LlmCallsTable = (typeof import("../../drizzle/schema"))["llmCalls"];
+
+/**
+ * The aggregate, pulled out and EXPORTED so a test can compile it.
+ *
+ * Every state test in llmLedgerRead.test.ts replaces the whole drizzle chain
+ * with a stub, which means not one of them can see this query: the aggregate
+ * expressions, the group-by, the cutoff comparison and the
+ * `order by count(*) desc` were all invisible to nine green tests. That is the
+ * silent-instrument shape this repo keeps finding — a suite that would pass
+ * whatever the SQL said, including SQL that throws at runtime in production.
+ * Extracting the builder lets llmLedgerSql.test.ts push it through a REAL
+ * drizzle MySQL dialect and assert the emitted text, so the thing under test
+ * is the thing that ships.
+ */
+export function buildLaneAggregate(d: Db, table: LlmCallsTable, windowDays: number) {
+  return d
+    .select({
+      lane: table.lane,
+      provider: table.provider,
+      calls: sql<number>`count(*)`,
+      failed: sql<number>`sum(case when ${table.ok} = 0 then 1 else 0 end)`,
+      callsWithTokens: sql<number>`sum(case when ${table.promptTokens} is not null then 1 else 0 end)`,
+      promptTokens: sql<number>`coalesce(sum(${table.promptTokens}), 0)`,
+      completionTokens: sql<number>`coalesce(sum(${table.completionTokens}), 0)`,
+      avgLatencyMs: sql<number>`coalesce(round(avg(${table.latencyMs})), 0)`,
+      maxLatencyMs: sql<number>`coalesce(max(${table.latencyMs}), 0)`,
+    })
+    .from(table)
+    /**
+     * The cutoff is computed BY THE DATABASE, not in JS, and that is load-bearing.
+     *
+     * The first draft passed `new Date(Date.now() - days * 86400_000)`. Drizzle
+     * serialises a Date for a TIMESTAMP column into a bare datetime string —
+     * measured: `"2026-09-09 00:00:00.000"` — and MySQL/TiDB interprets a bare
+     * literal in the SESSION time zone. So the real cutoff moved by whatever
+     * the session offset happened to be (4h on Eastern), silently shortening
+     * the window, and nothing in the result would have looked wrong.
+     *
+     * `date_sub(now(), interval ? day)` compares `calledAt` against a value
+     * produced in the same zone the column is read in, so the comparison is
+     * offset-free whatever the session is set to. This is what
+     * apps/nickstire/AGENTS.md means by computing ages in SQL rather than JS.
+     */
+    .where(sql`${table.calledAt} >= date_sub(now(), interval ${windowDays} day)`)
+    .groupBy(table.lane, table.provider)
+    .orderBy(desc(sql`count(*)`))
+    .limit(100);
+}
+
 /**
  * Per-lane aggregates over the trailing `windowDays`.
  *
- * Aggregated in SQL rather than by pulling rows into JS: apps/nickstire/AGENTS.md
- * requires age and day-bucket arithmetic to happen in SQL, because driver-parsed
- * TiDB DATETIME values come back shifted on Eastern. The cutoff is passed as a
- * bound Date parameter, so no interval string is interpolated.
+ * Aggregated in SQL rather than by pulling rows into JS, and the window cutoff
+ * is derived from the database's own `now()` rather than the process clock —
+ * see the comment on the `where` clause in buildLaneAggregate for the measured
+ * reason. `windowDays` reaches SQL as a bound parameter; nothing is
+ * interpolated into the statement text.
  */
 export async function getLlmLedgerSummary(windowDays: number): Promise<LlmLedgerSummary> {
   if (!isLedgerEnabled()) return empty("not_recording", windowDays);
@@ -97,26 +149,7 @@ export async function getLlmLedgerSummary(windowDays: number): Promise<LlmLedger
     const d = await db();
     if (!d) return empty("unreadable", windowDays);
 
-    const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
-
-    const rows = await d
-      .select({
-        lane: llmCalls.lane,
-        provider: llmCalls.provider,
-        calls: sql<number>`count(*)`,
-        failed: sql<number>`sum(case when ${llmCalls.ok} = 0 then 1 else 0 end)`,
-        callsWithTokens: sql<number>`sum(case when ${llmCalls.promptTokens} is not null then 1 else 0 end)`,
-        promptTokens: sql<number>`coalesce(sum(${llmCalls.promptTokens}), 0)`,
-        completionTokens: sql<number>`coalesce(sum(${llmCalls.completionTokens}), 0)`,
-        avgLatencyMs: sql<number>`coalesce(round(avg(${llmCalls.latencyMs})), 0)`,
-        maxLatencyMs: sql<number>`coalesce(max(${llmCalls.latencyMs}), 0)`,
-        lastCallAt: sql<string | null>`max(${llmCalls.calledAt})`,
-      })
-      .from(llmCalls)
-      .where(gte(llmCalls.calledAt, cutoff))
-      .groupBy(llmCalls.lane, llmCalls.provider)
-      .orderBy(desc(sql`count(*)`))
-      .limit(100);
+    const rows = await buildLaneAggregate(d, llmCalls, windowDays);
 
     /**
      * The shape the driver actually hands back, which is NOT the shape the
@@ -137,7 +170,6 @@ export async function getLlmLedgerSummary(windowDays: number): Promise<LlmLedger
       completionTokens: number | string | null;
       avgLatencyMs: number | string | null;
       maxLatencyMs: number | string | null;
-      lastCallAt: string | Date | null;
     };
 
     const lanes: LlmLaneRow[] = (rows as unknown as RawRow[]).map((r) => ({
@@ -150,7 +182,6 @@ export async function getLlmLedgerSummary(windowDays: number): Promise<LlmLedger
       completionTokens: Number(r.completionTokens ?? 0),
       avgLatencyMs: Number(r.avgLatencyMs ?? 0),
       maxLatencyMs: Number(r.maxLatencyMs ?? 0),
-      lastCallAt: r.lastCallAt ? new Date(r.lastCallAt).toISOString() : null,
     }));
 
     return {
