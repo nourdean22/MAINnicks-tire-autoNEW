@@ -21,7 +21,9 @@ review (Codex P1). The fix was one WHERE clause and one branch:
 
 ```
 const r = await prisma.actionAttempt.updateMany({
-  where: { id: existing.id, attemptNo: existing.attemptNo, state: existing.state },
+  // every field the DECISION read: identity, version, state — and the
+  // deadline the "expired" verdict came from (a renewal changes only that)
+  where: { id: existing.id, attemptNo: existing.attemptNo, state: existing.state, holdUntil: existing.holdUntil },
   data:  { ...fresh, attemptNo: existing.attemptNo + 1 },
 });
 if (r.count === 1) return { kind: "claimed", ... };
@@ -34,10 +36,14 @@ return { kind: "duplicate", state: winner.state, ... };   // the loser never act
 **A read-then-write that decides who acts is a compare-and-swap, never an
 update by id.**
 
-1. Pin the write to every field you DECIDED on — the version-ish fields
-   the other branch would have changed (`attemptNo`, `state`, `expiresAt`,
-   `updatedAt`). A settle changes `state`; a reclaim bumps `attemptNo`; so
-   exactly one swap can match.
+1. Pin the write to EVERY field the decision read — the version-ish fields
+   the other branch would have changed (`attemptNo`, `state`, `updatedAt`)
+   AND the field the verdict came from: if you decided "expired" from
+   `holdUntil` / `expiresAt`, pin that deadline too. A settle changes
+   `state`; a reclaim bumps `attemptNo`; a renewal changes only the
+   deadline — and a swap that did not pin it still matches the stale
+   observation and lets the reclaimer act (Codex review of #2343). A
+   monotonic version column covers all three at once, if you have one.
 2. `count === 1` wins. `count === 0` re-reads the winner's row and reports
    it (a duplicate with the REAL state) — no retry loop, no second swap.
 3. If the store cannot express the swap, use a serializable transaction
@@ -48,11 +54,21 @@ update by id.**
 
 ## The canary (positive-control-first applies)
 
-Spawn two callers on the same stale read: mock the read to return the same
-reclaimable row to both, make the first swap return `{ count: 1 }` and the
-second `{ count: 0 }`, and assert exactly one `claimed` and one `duplicate`
-that carries the winner's state. Then plant the defect (swap -> update by
-id, or `count >= 0`) and watch the canary go red; #2338's did.
+Two arms, because a mocked `{ count }` cannot see a field missing from the
+predicate:
+
+- **Against a real store (preferred):** two callers share one stale read;
+  between the first caller's read and its swap, the second RENEWS only the
+  deadline (no state or version change). Exactly one acts. A swap that omits
+  the deadline lets both act here — that is the case the mocked arm is blind to.
+- **Against a mocked store:** assert the swap's WHERE names every field the
+  decision read (`id`, `attemptNo`, `state`, `holdUntil`), then the race:
+  first swap `{ count: 1 }`, second `{ count: 0 }` -> exactly one `claimed`
+  and one `duplicate` carrying the winner's state. Dropping a field from the
+  predicate must fail the first assertion, not pass silently.
+
+Then plant the defect (swap -> update by id, `count >= 0`, or a predicate
+without the deadline) and watch the canary go red; #2338's did.
 
 ## When NOT to use
 
