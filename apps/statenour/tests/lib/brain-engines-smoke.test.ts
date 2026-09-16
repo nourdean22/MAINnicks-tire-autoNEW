@@ -61,6 +61,41 @@ vi.mock("@/lib/brain/embedding-utils", () => ({
   storeMemoryEmbedding: async () => {},
 }));
 
+/**
+ * NOT every engine here is "100% DB-dominated", despite this file's header.
+ *
+ * `findTeachingMoments` takes four inputs, and only two of them are Prisma.
+ * The other two — `recentShopJobs` / `recentShopLeads` in
+ * `lib/brain/legacy-shims.ts` — reach the NICKSTIRE BRIDGE over HTTP via
+ * `queryNick`, which the `@/lib/prisma` mock above cannot intercept. So the
+ * "empty DB" premise was never established for that engine: the mock emptied
+ * Prisma while the bridge kept answering with live shop data.
+ *
+ * Observed 2026-09-16 with no DATABASE_URL set: the engine returned two REAL
+ * revenue moments ("Mon averages $727 vs Fri at $424", n=11/n=8), so the
+ * assertion below was decided by whether the bridge happened to be reachable —
+ * green in CI where it is not, red on a developer machine where it is. A test
+ * whose verdict depends on network reachability cannot fail for the reason it
+ * claims to test (return-type drift, broken destructuring).
+ *
+ * Mocking the bridge makes the empty premise REAL and the test deterministic.
+ * Empty-but-well-shaped payloads are deliberate: they exercise the `.map()`
+ * path the shims take on success, which is stricter than the early-return
+ * error path a `{ error }` stub would hit.
+ *
+ * Spread the real module rather than hand-writing a partial mock — a partial
+ * factory silently drops the other exports (`postNickstireBridge`,
+ * `queryNickBatch`) for anything that imports them later.
+ */
+vi.mock("@/lib/nickstire/query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/nickstire/query")>()),
+  queryNick: vi.fn(async (query: string) => {
+    if (query === "recent_invoices") return { data: { invoices: [] }, query, timestamp: "" };
+    if (query === "recent_leads") return { data: { leads: [] }, query, timestamp: "" };
+    return { data: {}, query, timestamp: "" };
+  }),
+}));
+
 describe("blind-spot-detector", () => {
   beforeEach(() => vi.clearAllMocks());
 
