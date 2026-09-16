@@ -174,20 +174,61 @@ export function GBPPostGenerator() {
                   {authStatus?.connected ? "Connected" : "Disconnected"}
                 </span>
               </div>
-              {authStatus?.connected ? (
-                <span className="text-[10px] text-foreground/40 font-mono">
-                  Client ID: {authStatus.clientIdFingerprint}
-                </span>
-              ) : (
+              {/* 2026-09-16 · the reconnect affordance is ALWAYS rendered.
+                  It used to be hidden whenever connected === true, which made
+                  "connected as the wrong Google account" an inescapable state:
+                  the GBP listing is owned by moeseuclid@gmail.com while this
+                  app held a token for an account managing zero businesses, and
+                  the only control that can re-run OAuth was hidden precisely
+                  because a (useless) token existed. There is no disconnect
+                  procedure on the gbp router to fall back to — getAuthUrl and
+                  reconnect both worked the whole time, they were simply
+                  unreachable. That left the documented operator fix
+                  (docs/ENTITY-CONTINUITY-FILE.md §3) impossible to perform and
+                  the reconnect "pending verification" from 2026-07-29. */}
+              <div className="flex items-center gap-3">
+                {authStatus?.connected && (
+                  /* Two DIFFERENT fingerprints, deliberately both shown.
+                     Client ID identifies the OAuth app and never changes, so it
+                     cannot tell you whether a reconnect took. Token identifies
+                     the stored grant and changes on every successful reconnect —
+                     it is the one docs/ENTITY-CONTINUITY-FILE.md asks the
+                     operator to compare, and until now the UI showed only the
+                     constant, which looks like confirmation and is not. */
+                  <span className="text-[10px] text-foreground/40 font-mono flex flex-col leading-tight">
+                    <span>Client ID: {authStatus.clientIdFingerprint}</span>
+                    {authStatus.refreshTokenFingerprint && (
+                      <span title="Changes when a reconnect stores a new token. Compare before/after to confirm a reconnect actually persisted.">
+                        Token: {authStatus.refreshTokenFingerprint}
+                      </span>
+                    )}
+                  </span>
+                )}
                 <button
                   onClick={handleConnect}
                   disabled={authUrlLoading}
-                  className="flex items-center gap-1 bg-primary text-primary-foreground px-3 py-1 font-bold text-[10px] tracking-wider hover:bg-primary/95 transition-colors disabled:opacity-50"
+                  title={
+                    authStatus?.connected
+                      ? "Re-run Google OAuth — use this to switch which Google account owns the connection"
+                      : "Connect this app to Google Business Profile"
+                  }
+                  /* min-h/min-w 48px per apps/nickstire/AGENTS.md: the operator
+                     runs this as an installed iOS PWA, where text-[10px] + py-1
+                     yields a touch box far under the 48px floor. It matters more
+                     here than on a typical control -- this button is the ONLY
+                     recovery action when the connection is bound to the wrong
+                     Google account, so a miss costs the whole recovery path.
+                     Styling differs by state; geometry deliberately does not. */
+                  className={`flex items-center justify-center gap-1 min-h-[48px] min-w-[48px] px-4 py-1 font-bold text-[10px] tracking-wider transition-colors disabled:opacity-50 ${
+                    authStatus?.connected
+                      ? "border border-border/50 text-foreground/70 hover:text-foreground hover:border-border"
+                      : "bg-primary text-primary-foreground hover:bg-primary/95"
+                  }`}
                 >
                   {authUrlLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />}
-                  CONNECT GBP
+                  {authStatus?.connected ? "RECONNECT" : "CONNECT GBP"}
                 </button>
-              )}
+              </div>
             </div>
 
             {/* Account & Location Selection */}

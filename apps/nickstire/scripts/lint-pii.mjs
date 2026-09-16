@@ -464,8 +464,34 @@ let files;
 if (mode === "pre-commit") {
   files = stagedFiles;
 } else {
-  // Audit mode: walk all in-scope files
-  const out = execSync('git ls-files', { cwd: APP_ROOT, encoding: "utf8" });
+  // Audit mode: walk all in-scope files.
+  //
+  // ⚠ `env: GIT_ENV` is LOAD-BEARING, and this is the call site the 2026-09-16
+  // fail-closed sweep MISSED. The two staged-diff calls above were fixed; this
+  // third one was not, and it shipped in #2374 still carrying the bug.
+  //
+  // Measured from `apps/nickstire/` with `GIT_DIR` set and `GIT_WORK_TREE`
+  // unset — which is exactly what `git commit` hands a hook:
+  //
+  //   clean env    `git ls-files` -> 3673 paths, relative to THIS app
+  //                                  (`server/…`)                -> 919 in scope
+  //   GIT_DIR set  `git ls-files` -> 8054 paths, relative to the REPO ROOT
+  //                                  (`apps/nickstire/server/…`) ->  38 in scope
+  //
+  // The 38 are not a subset. `isInScope` anchors on `^server/`, `^shared/` and
+  // `^scripts/`, so repo-root-relative paths miss it entirely and what survives
+  // is the REPO ROOT's own `scripts/` — a different package's files. The
+  // receipt still read `clean (38 files scanned)`, so the run reported success
+  // over 4% of the app and none of the files it was pointed at.
+  //
+  // Audit mode does not block, so this could never wave a violation THROUGH a
+  // commit. It could and did print a green receipt that means nothing, which is
+  // the same defect this script exists to prevent.
+  //
+  // Pinned by `server/lintPiiHookWiring.test.ts` — GIT_DIR-invariance AND a
+  // floor, because equality alone would pass if both environments collapsed
+  // the same way.
+  const out = execSync('git ls-files', { cwd: APP_ROOT, encoding: "utf8", env: GIT_ENV });
   files = out.split("\n").map((f) => f.trim()).filter(Boolean).filter(isInScope);
 }
 
