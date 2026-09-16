@@ -118,6 +118,34 @@ export function carrierBlockedPhones(
   return blocked;
 }
 
+/**
+ * The suppression index, for callers OUTSIDE the SMS path.
+ *
+ * Exported 2026-09-16 because the outbound VOICE lanes were maintaining a
+ * weaker second copy of "who must not be contacted", and the copy had the
+ * exact bug this file already fixed for SMS:
+ *
+ *   cron/jobs/voiceRecovery.ts read ONLY `customers.smsOptOut = 1`, wrapped in
+ *   `catch { /* fail-soft *\/ }`. An unreadable list therefore produced an
+ *   EMPTY opt-out set and every candidate got called — "nobody opted out",
+ *   which is precisely the failure documented in the gate below with verified
+ *   harm on 2026-07-20 (a number that opted out on 07-13 received automated
+ *   messages on 07-16 and 07-19). It also missed `sms_preferences`, the table
+ *   `persistOptOutPreference` writes, so an opt-out recorded there but not
+ *   mirrored onto the customer row was honoured by SMS and ignored by voice.
+ *
+ * Returning the `OptOutIndex` union rather than a bare Set is the whole point:
+ * `ok: false` forces the caller to decide what an unknown answer means, and it
+ * cannot be mistaken for "nobody opted out". One definition, one failure mode.
+ *
+ * `OptOutIndex` itself is deliberately NOT exported: a caller gets the union
+ * structurally from this function's return type, so a named export would be an
+ * export with zero importers — the same orphan shape this repo gates for.
+ */
+export async function loadSuppressionIndex(): Promise<OptOutIndex> {
+  return ensureOptOutCache();
+}
+
 async function ensureOptOutCache(): Promise<OptOutIndex> {
   const now = Date.now();
   if (optOutCache && now - optOutCacheLoadedAt < OPT_OUT_CACHE_TTL_MS) {

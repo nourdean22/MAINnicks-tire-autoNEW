@@ -66,7 +66,10 @@ export async function runVoiceRecovery(): Promise<RunResult> {
   const d = await getDb();
   if (!d) return { recordsProcessed: 0, details: "No DB" };
 
-  const { algEstimates, customers } = await import("../../../drizzle/schema");
+  // `customers` was only ever imported for the local opt-out query that
+  // loadSuppressionIndex now owns; left in place it would be dead weight
+  // implying this job still derives suppression itself.
+  const { algEstimates } = await import("../../../drizzle/schema");
   const { placeVapiOutboundCall, buildOutboundRecoveryPrompt, buildRecoveryVoicemail } = await import("../../services/vapi");
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -108,14 +111,78 @@ export async function runVoiceRecovery(): Promise<RunResult> {
     return { recordsProcessed: 0, details: "No estimates eligible for voice recovery" };
   }
 
-  // Preload opt-outs (wave-181.61 pattern)
-  const optOutSet = new Set<string>();
-  try {
-    const rows = await d.select({ phone: customers.phone }).from(customers).where(eq(customers.smsOptOut, 1));
-    for (const r of rows) {
-      if (r.phone) optOutSet.add(r.phone.replace(/\D/g, "").slice(-10));
-    }
-  } catch { /* fail-soft */ }
+  /**
+   * Suppression, from the SAME index the SMS path uses — and FAILING CLOSED.
+   *
+   * What was here until 2026-09-16 was a second, weaker copy:
+   *
+   *   const optOutSet = new Set<string>();
+   *   try { ...select customers where smsOptOut = 1... } catch { /* fail-soft *\/ }
+   *
+   * Two defects in four lines. It read only `customers.smsOptOut`, missing
+   * `sms_preferences` — the table `persistOptOutPreference` actually writes —
+   * so an opt-out recorded there without a mirrored customer-row update was
+   * honoured by SMS and ignored here. And the empty-Set-on-failure catch made
+   * an unreadable opt-out list mean "nobody opted out", so every candidate got
+   * a call. That is the identical failure sms.ts documents with verified harm
+   * on 2026-07-20: a number that opted out on 07-13 still received automated
+   * messages on 07-16 and 07-19. SMS was fixed to fail closed; this lane was
+   * never revisited.
+   *
+   * Refusing to place a recovery call costs one delayed marketing touch, to a
+   * cold lead that already ignored two SMS touches, on a job that runs again
+   * tomorrow. Calling someone who said STOP costs $500-$1,500 per contact and
+   * their trust. So an indeterminate index aborts the run LOUDLY rather than
+   * proceeding — consistent with the 2026-09-01 audit rule that cron handlers
+   * fail loudly instead of returning a soft "skipped".
+   *
+   * TWO refusals, not one. `ok: false` is the obvious case. The second is
+   * `stale`, raised by Codex as a P1 on PR #2361 and CORRECT:
+   *
+   *   `ensureOptOutCache()`'s `stale()` helper returns `ok: true, stale: true`
+   *   with whatever `optOutCache` currently holds and does NOT look at
+   *   `optOutCacheLoadedAt`. So `stale` does not mean "5 minutes old" (that is
+   *   the TTL, i.e. the FRESH path) — it means the refresh FAILED and this
+   *   snapshot is older than the TTL by an UNBOUNDED amount. This server is a
+   *   long-lived process, so a persistent DB fault leaves the lane calling from
+   *   an hours- or days-old set, and an opt-out recorded after it — especially
+   *   by another pod — is invisible.
+   *
+   * ⚠ Do NOT generalise this to the SMS path. `sendSms` deliberately accepts a
+   * stale index (its own header argues that refusing on a stale set is its own
+   * outage) and carries additional per-send checks. The asymmetry is the point:
+   * a text is cheap and reversible, an unwanted phone call is neither. One
+   * definition of WHO is suppressed, two different bars for HOW SURE the lane
+   * has to be before acting on it.
+   *
+   * ★ One claim Codex made is not right, and it matters for the record: it said
+   * the snapshot "can remain permissive indefinitely, unlike the previous
+   * per-run customer query". The previous query returned an EMPTY set on
+   * failure — permissive for EVERYONE, immediately. The snapshot is strictly
+   * better than what it replaced. That is not the bar, which is why this
+   * refusal is here anyway.
+   */
+  const { loadSuppressionIndex } = await import("../../sms");
+  const suppression = await loadSuppressionIndex();
+  if (!suppression.ok) {
+    log.error("[voice-recovery] suppression index unreadable — placing NO calls", {
+      reason: suppression.reason,
+      candidates: candidates.length,
+      errorId: "VOICE_RECOVERY_SUPPRESSION_UNREADABLE",
+    });
+    throw new Error(`voice recovery aborted — suppression index unreadable: ${suppression.reason}`);
+  }
+  if (suppression.stale) {
+    log.error("[voice-recovery] suppression index is STALE (refresh failed, age unbounded) — placing NO calls", {
+      suppressed: suppression.phones.size,
+      candidates: candidates.length,
+      errorId: "VOICE_RECOVERY_SUPPRESSION_STALE",
+    });
+    throw new Error(
+      "voice recovery aborted — suppression index is STALE: the last refresh failed, so its age is unbounded and an opt-out recorded since is invisible",
+    );
+  }
+  const optOutSet = suppression.phones;
 
   let placed = 0;
   let failed = 0;
