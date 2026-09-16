@@ -28,7 +28,7 @@ import { describe, expect, it } from "vitest";
 import { drizzle } from "drizzle-orm/mysql2";
 
 import { llmCalls } from "../drizzle/schema";
-import { buildLaneAggregate } from "./services/llmLedgerRead";
+import { buildLaneAggregate, buildWindowTotals } from "./services/llmLedgerQuery";
 
 const WINDOW_DAYS = 7;
 
@@ -102,6 +102,45 @@ describe("buildLaneAggregate — emits valid MySQL", () => {
     // per apps/nickstire/AGENTS.md, so surfacing it needed timezone work
     // nothing was doing.
     expect(compiled().sql).not.toMatch(/`calledAt`\)/i);
+  });
+});
+
+describe("buildWindowTotals — the headline figures, deliberately unbounded", () => {
+  const totals = () => buildWindowTotals(dialectOnly as never, llmCalls, WINDOW_DAYS).toSQL();
+
+  it("compiles at all", () => {
+    expect(() => totals()).not.toThrow();
+  });
+
+  it("has NO limit and NO group by — that is the entire point of it existing", () => {
+    const { sql } = totals();
+    /**
+     * The lane list is capped at 100 groups. Summing THAT for the headline
+     * numbers would drop the least-active groups from "calls" and "tokens"
+     * while the panel still offered to show all lanes — under-reporting and
+     * looking authoritative doing it. This query must therefore stay
+     * ungrouped and uncapped.
+     */
+    expect(sql).not.toMatch(/\blimit\b/i);
+    expect(sql).not.toMatch(/\bgroup by\b/i);
+  });
+
+  it("counts distinct lane/provider combinations so truncation is detectable", () => {
+    expect(totals().sql).toMatch(/count\(distinct `lane`, `provider`\)/i);
+  });
+
+  it("shares the lane query's window predicate, so the two cannot disagree", () => {
+    const a = totals().sql;
+    const b = compiled().sql;
+    const clause = /`llm_calls`\.`calledAt` >= date_sub\(now\(\), interval \? day\)/i;
+    expect(a).toMatch(clause);
+    expect(b).toMatch(clause);
+  });
+
+  it("carries the same nullable-token discipline as the lane rows", () => {
+    const { sql } = totals();
+    expect(sql).toMatch(/sum\(case when `promptTokens` is not null then 1 else 0 end\)/i);
+    expect(sql).toMatch(/coalesce\(sum\(`promptTokens`\), 0\)/i);
   });
 });
 

@@ -68,15 +68,29 @@ export function callerLane(): string | null {
 let warnedOnce = false;
 let disabled = false; // set on the first insert failure — no point retrying a missing table every call
 
+/** What the WRITER is actually doing right now — not merely what the flag says. */
+export type LedgerRecordingState = "on" | "off" | "stopped_after_error";
+
 /**
  * Exported for the READER (services/llmLedgerRead.ts), which must tell an
  * operator the difference between "no LLM calls happened" and "we are not
  * recording them". A second copy of this predicate is how flag state drifts:
  * the same mistake is on record twice in docs/CURRENT-TRUTH.md, where a
  * provider name written in prose was stale both times.
+ *
+ * `disabled` IS PART OF READINESS, and leaving it out was a real defect. The
+ * first draft exported an env-only `isLedgerEnabled()`. But `recordLlmCall`
+ * short-circuits on `!ledgerEnabled() || disabled`, and `disabled` latches
+ * true on the first insert failure and stays true until the process restarts.
+ * So after one transient write error the flag still read "true", the reader
+ * would have reported `live`, and the panel would have presented a frozen
+ * window as current usage while every new call was being dropped — a
+ * confident number over a dead writer, which is the whole defect family this
+ * reader exists to avoid.
  */
-export function isLedgerEnabled(): boolean {
-  return ledgerEnabled();
+export function ledgerRecordingState(): LedgerRecordingState {
+  if (!ledgerEnabled()) return "off";
+  return disabled ? "stopped_after_error" : "on";
 }
 
 function ledgerEnabled(): boolean {

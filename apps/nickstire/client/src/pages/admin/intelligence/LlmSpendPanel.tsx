@@ -2,19 +2,23 @@
  * LLM usage per lane — the first consumer `llm_calls` has ever had.
  *
  * The table has been filling since 2026-09-02 and nothing read it; the schema
- * comment in drizzle/schema.ts says as much. This panel exists to end that.
+ * comment in drizzle/schema.ts says as much. This panel ends that.
  *
- * Three states, kept visually distinct on purpose:
- *   live          — real numbers.
- *   not recording — LLM_LEDGER_ENABLED is off, so rows cannot exist. Zero here
- *                   says NOTHING about AI usage, and painting it as "no
- *                   activity" would be the same confident lie as a failed read
- *                   rendering $0.
- *   unknown       — the read failed.
+ * TWO INDEPENDENT FACTS, shown independently. The first draft folded them into
+ * one state and got two things wrong for it:
  *
- * No dollar figures anywhere. The table records tokens and there is no price
- * table in this repo; a hard-coded rate would be fabrication and would drift
- * from the vendor's real pricing with nothing to catch it.
+ *   recording — what the WRITER is doing (on / off / stopped after a write
+ *               error). "off" does NOT mean there is nothing to show: rows
+ *               already recorded are still real and still worth reading, and
+ *               the first draft refused to query at all in that case.
+ *   read      — whether this particular read worked.
+ *
+ * So a stopped writer now renders a banner ABOVE real history, rather than
+ * replacing it. A failed read still renders UNKNOWN, never zero.
+ *
+ * No dollar figures anywhere: the table records tokens, this repo has no price
+ * table, and an invented rate would drift from the vendor with nothing to
+ * catch it.
  */
 import { useState } from "react";
 import { Cpu, AlertTriangle, HelpCircle, ChevronDown, ChevronUp } from "lucide-react";
@@ -23,7 +27,8 @@ import { trpc } from "@/lib/trpc";
 const WINDOWS = [1, 7, 30] as const;
 type Window = (typeof WINDOWS)[number];
 
-const num = (n: number) => n.toLocaleString("en-US");
+const LANES_SHOWN = 6;
+const num = (v: number) => v.toLocaleString("en-US");
 
 export function LlmSpendPanel() {
   const [windowDays, setWindowDays] = useState<Window>(7);
@@ -45,9 +50,7 @@ export function LlmSpendPanel() {
           <button
             key={w}
             onClick={() => setWindowDays(w)}
-            // 48x48 minimum, per the standing iOS-PWA rule in
-            // apps/nickstire/AGENTS.md §6. The first draft set min-w only and
-            // left the height at roughly 28px.
+            // 48x48 minimum per the iOS-PWA rule in apps/nickstire/AGENTS.md §6.
             className={`text-[11px] rounded border min-w-[48px] min-h-[48px] ${
               windowDays === w
                 ? "border-indigo-400 bg-indigo-400/15 text-indigo-300 font-bold"
@@ -71,7 +74,7 @@ export function LlmSpendPanel() {
   }
 
   // A failed query is UNKNOWN. It is not an idle model fleet.
-  if (isError || !data) {
+  if (isError || !data || data.read === "unreadable") {
     return (
       <div className="stat-card p-5 border-amber-500/30 bg-amber-500/5">
         {header}
@@ -79,53 +82,53 @@ export function LlmSpendPanel() {
           <HelpCircle className="w-4 h-4 mt-0.5 shrink-0" />
           <p className="text-sm">
             Ledger unreadable — this is UNKNOWN, not zero. Model calls may well be running; this panel
-            could not read them.{error?.message ? ` (${error.message})` : ""}
+            could not read them.{isError && error?.message ? ` (${error.message})` : ""}
           </p>
         </div>
       </div>
     );
   }
 
-  if (data.state === "unreadable") {
-    return (
-      <div className="stat-card p-5 border-amber-500/30 bg-amber-500/5">
-        {header}
-        <div className="flex items-start gap-2 text-amber-400" role="status">
-          <HelpCircle className="w-4 h-4 mt-0.5 shrink-0" />
-          <p className="text-sm">
-            The <code className="text-[11px]">llm_calls</code> read failed on the server — UNKNOWN, not zero.
+  const { lanes, totals, recording, lanesTruncated } = data;
+
+  /**
+   * The writer's state, shown above whatever history exists rather than
+   * instead of it. `stopped_after_error` is the one a flag check alone cannot
+   * see: llmLedger latches an internal `disabled` on its first insert failure
+   * and drops every later call until the process restarts.
+   */
+  const recordingNotice =
+    recording === "on" ? null : (
+      <div
+        className="flex items-start gap-2 text-amber-400 mb-3 text-[12px]"
+        role="status"
+      >
+        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+        {recording === "off" ? (
+          <p>
+            Not recording — <code className="text-[11px]">LLM_LEDGER_ENABLED</code> is not{" "}
+            <code className="text-[11px]">true</code>. Anything below was recorded earlier and is
+            real; new calls are not being written down, so these numbers will not grow.
           </p>
-        </div>
+        ) : (
+          <p>
+            Recording <strong>stopped after a write failure</strong> and stays stopped until the
+            server restarts. History below is real but is no longer growing — treat it as a
+            snapshot, not as current usage.
+          </p>
+        )}
       </div>
     );
-  }
 
-  if (data.state === "not_recording") {
-    return (
-      <div className="stat-card p-5 border-amber-500/30 bg-amber-500/5">
-        {header}
-        <div className="flex items-start gap-2 text-amber-400" role="status">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-          <p className="text-sm">
-            Not recording. <code className="text-[11px]">LLM_LEDGER_ENABLED</code> is not set to{" "}
-            <code className="text-[11px]">true</code>, so no rows can exist — this says nothing about how much
-            AI is running, only that nothing is being written down.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const { lanes, totals } = data;
-
-  // state === "live" and nothing came back: the only case where zero is a fact.
   if (lanes.length === 0) {
     return (
       <div className="stat-card p-5">
         {header}
+        {recordingNotice}
         <p className="text-sm text-muted-foreground">
-          No model calls recorded in the last {data.windowDays} day{data.windowDays === 1 ? "" : "s"}. The
-          ledger is live, so this one is a real zero.
+          {recording === "on"
+            ? `No model calls recorded in the last ${windowDays} day${windowDays === 1 ? "" : "s"}. The ledger is live, so this one is a real zero.`
+            : `No rows in the last ${windowDays} day${windowDays === 1 ? "" : "s"}. With recording stopped, that is not evidence about how much AI ran.`}
         </p>
       </div>
     );
@@ -137,11 +140,12 @@ export function LlmSpendPanel() {
   // failure again: the column exists, the values stopped, the UI kept
   // rendering a confident number.
   const tokenCoverage = totals.calls > 0 ? (totals.callsWithTokens / totals.calls) * 100 : 0;
-  const visible = expanded ? lanes : lanes.slice(0, 6);
+  const visible = expanded ? lanes : lanes.slice(0, LANES_SHOWN);
 
   return (
     <div className="stat-card p-5">
       {header}
+      {recordingNotice}
 
       <div className="grid grid-cols-3 gap-2 mb-4">
         <div>
@@ -149,9 +153,7 @@ export function LlmSpendPanel() {
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">calls</div>
         </div>
         <div>
-          <div
-            className={`text-xl font-black tabular-nums ${totals.failed > 0 ? "text-red-400" : ""}`}
-          >
+          <div className={`text-xl font-black tabular-nums ${totals.failed > 0 ? "text-red-400" : ""}`}>
             {failRate.toFixed(1)}%
           </div>
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">failed</div>
@@ -191,14 +193,23 @@ export function LlmSpendPanel() {
         ))}
       </ul>
 
-      {lanes.length > 6 && (
+      {lanes.length > LANES_SHOWN && (
         <button
           onClick={() => setExpanded((e) => !e)}
           className="mt-3 inline-flex items-center gap-1 text-[11px] text-muted-foreground min-h-[48px] px-1"
         >
           {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-          {expanded ? "Show fewer" : `Show all ${lanes.length} lanes`}
+          {expanded ? "Show fewer" : `Show ${lanes.length} lanes`}
         </button>
+      )}
+
+      {/* The list is capped server-side; the totals above are not. Say so
+          rather than implying the rows account for the headline numbers. */}
+      {lanesTruncated && (
+        <p className="text-[11px] text-amber-400/90 mt-2">
+          Showing the {num(lanes.length)} busiest of {num(totals.groups)} lane/provider combinations.
+          The totals above cover all {num(totals.groups)}, not just the ones listed.
+        </p>
       )}
 
       <p className="text-[10px] text-muted-foreground mt-3">

@@ -75,6 +75,22 @@ export function permissionForAdminProcedure(path: string, type: "query" | "mutat
     return "settings.manage";
   }
 
+  // 2026-09-16 · `system.*` resolves to settings.manage below, which is right
+  // for the rest of that router (notifyOwner). It is WRONG for this read, and
+  // the mismatch was a guaranteed-forbidden button: the LLM-usage panel mounts
+  // on Intelligence HQ's default tab, registry.tsx grants that section to
+  // `viewer`, and viewer does not hold settings.manage — so every viewer would
+  // have fired a request that could only fail and been shown a "Ledger
+  // unreadable" card that blamed the database for a permission decision. That
+  // is the same defect the proposals.create override below exists to prevent.
+  //
+  // reports.view matches the surface: `intelligence.*` and `analytics.*` on
+  // this very page already resolve to it for queries. The projection is
+  // counts, token sums, latency and lane/provider names — it does NOT include
+  // the `error` column, so no provider error text or prompt fragment leaves
+  // the server. Read-only; there is no mutation on this path to widen.
+  if (normalized === "system.llmledger") return "reports.view";
+
   // Bulk export is exfiltration-shaped even though it is a read: export.leads
   // returns up to 10,000 customers' name/phone/email/problem as CSV, and the
   // query default gave it to every role. The comment further down already

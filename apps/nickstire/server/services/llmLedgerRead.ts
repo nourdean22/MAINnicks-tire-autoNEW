@@ -5,44 +5,52 @@
  * migration 0116 was applied and LLM_LEDGER_ENABLED was set on Railway
  * (2026-09-02). Nothing ever read it. drizzle/schema.ts says so in its own
  * comment — "nothing selects from this table" — and a repo-wide grep for
- * `llmCalls` returns only the table definition and its two exported types.
+ * `llmCalls` returned only the table definition and its two exported types.
  *
- * That is a WRITER WITH NO READER: the estate has been paying for ~65 call
- * sites' worth of model usage, recording every call, and showing the operator
- * none of it. Same defect shape as the 5-of-30 heartbeat columns that had no
- * producer, approached from the opposite end.
+ * That is a WRITER WITH NO READER: ~65 call sites' worth of model usage,
+ * recorded faithfully, shown to the operator never. Same defect shape as the
+ * 5-of-30 heartbeat columns that had no producer, from the other end.
  *
- * THREE STATES, NOT TWO. The gate is the whole reason this file is careful:
+ * TWO INDEPENDENT FACTS, NOT ONE STATE. The first draft collapsed them and got
+ * two things wrong for it, both caught in review:
  *
- *   live          — the read succeeded. Zero lanes genuinely means zero calls.
- *   not_recording — LLM_LEDGER_ENABLED is not "true", so rows can NEVER exist.
- *                   An empty result here says nothing about AI usage, and
- *                   rendering it as "no activity" would be a confident lie of
- *                   exactly the kind that produced the $0-revenue incident.
- *   unreadable    — the query threw (table absent, database down). UNKNOWN.
+ *   `recording` — what the WRITER is doing: on | off | stopped_after_error.
+ *                 Note the third: llmLedger latches a module-level `disabled`
+ *                 on its first insert failure and drops every later call until
+ *                 the process restarts, so an env flag reading "true" is NOT
+ *                 proof that anything is being written down.
+ *   `read`       — whether THIS query succeeded: ok | unreadable.
  *
- * NO DOLLAR FIGURES. llm_calls records tokens, not cost, and there is no price
- * table in this repo. Multiplying tokens by a hard-coded rate would be
- * fabrication, and a per-model rate that drifts from the vendor's actual
- * pricing is a cache with no invalidation. Tokens are reported; money is not.
+ * They are orthogonal. Recording can be off while a month of real history sits
+ * in the table — and the first draft refused to query at all in that case,
+ * which took the operator's existing data away at exactly the moment they
+ * would want to look at it. The read now always runs; `recording` is reported
+ * beside the data rather than instead of it.
+ *
+ * NO DOLLAR FIGURES. The table records tokens and this repo has no price
+ * table. A hard-coded rate would be fabrication, and one that drifts from the
+ * vendor's real pricing is a cache with no invalidation.
  *
  * TOKEN COLUMNS ARE NULLABLE. promptTokens/completionTokens are `int` with no
- * NOT NULL — not every provider returns usage. A bare SUM() over them would
- * silently under-report and look authoritative, which is precisely how ALG's
- * partsCost died: the column kept existing while the values stopped arriving,
- * and the UI kept rendering a number. So every row carries `callsWithTokens`
- * beside the sums, and the caller can see what share of the window the totals
- * actually cover.
+ * NOT NULL — not every provider returns usage. A bare SUM() would under-report
+ * while looking authoritative, which is precisely how ALG's partsCost died:
+ * the column kept existing, the values stopped arriving, and the UI kept
+ * rendering a number. Hence `callsWithTokens` beside every sum.
+ *
+ * TOTALS ARE UNBOUNDED. The lane list is capped at 100 (lane, provider)
+ * groups; summing that capped list would silently under-report headline calls
+ * and tokens whenever more groups exist, while the UI offered to "show all
+ * lanes". Totals therefore come from their own aggregate with no limit, and
+ * `lanesTruncated` says plainly when the list is a subset.
  */
-import { desc, sql } from "drizzle-orm";
-
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
-import { isLedgerEnabled } from "./llmLedger";
+import { ledgerRecordingState, type LedgerRecordingState } from "./llmLedger";
+import { buildLaneAggregate, buildWindowTotals } from "./llmLedgerQuery";
 
 const log = createLogger("llm-ledger-read");
 
-type LlmLedgerState = "live" | "not_recording" | "unreadable";
+type ReadState = "ok" | "unreadable";
 
 interface LlmLaneRow {
   lane: string;
@@ -57,152 +65,111 @@ interface LlmLaneRow {
   maxLatencyMs: number;
 }
 
+interface LlmLedgerTotals {
+  calls: number;
+  failed: number;
+  callsWithTokens: number;
+  promptTokens: number;
+  completionTokens: number;
+  /** Distinct (lane, provider) groups in the window, counted without a limit. */
+  groups: number;
+}
+
 interface LlmLedgerSummary {
-  state: LlmLedgerState;
+  /** What the writer is doing. Independent of whether this read worked. */
+  recording: LedgerRecordingState;
+  /** Whether this read worked. Independent of what the writer is doing. */
+  read: ReadState;
   windowDays: number;
   lanes: LlmLaneRow[];
-  totals: {
-    calls: number;
-    failed: number;
-    callsWithTokens: number;
-    promptTokens: number;
-    completionTokens: number;
-  };
+  /** True when more (lane, provider) groups exist than `lanes` contains. */
+  lanesTruncated: boolean;
+  totals: LlmLedgerTotals;
   /** ISO. When the read ran — not when the newest row was written. */
   generatedAt: string;
 }
 
-const empty = (state: LlmLedgerState, windowDays: number): LlmLedgerSummary => ({
-  state,
+const ZERO_TOTALS: LlmLedgerTotals = {
+  calls: 0,
+  failed: 0,
+  callsWithTokens: 0,
+  promptTokens: 0,
+  completionTokens: 0,
+  groups: 0,
+};
+
+const unreadable = (recording: LedgerRecordingState, windowDays: number): LlmLedgerSummary => ({
+  recording,
+  read: "unreadable",
   windowDays,
   lanes: [],
-  totals: { calls: 0, failed: 0, callsWithTokens: 0, promptTokens: 0, completionTokens: 0 },
+  lanesTruncated: false,
+  totals: { ...ZERO_TOTALS },
   generatedAt: new Date().toISOString(),
 });
 
-/** The handle db() hands back, minus the null it returns when there is none. */
-type Db = NonNullable<Awaited<ReturnType<typeof db>>>;
-type LlmCallsTable = (typeof import("../../drizzle/schema"))["llmCalls"];
-
 /**
- * The aggregate, pulled out and EXPORTED so a test can compile it.
- *
- * Every state test in llmLedgerRead.test.ts replaces the whole drizzle chain
- * with a stub, which means not one of them can see this query: the aggregate
- * expressions, the group-by, the cutoff comparison and the
- * `order by count(*) desc` were all invisible to nine green tests. That is the
- * silent-instrument shape this repo keeps finding — a suite that would pass
- * whatever the SQL said, including SQL that throws at runtime in production.
- * Extracting the builder lets llmLedgerSql.test.ts push it through a REAL
- * drizzle MySQL dialect and assert the emitted text, so the thing under test
- * is the thing that ships.
+ * mysql2 returns DECIMAL/BIGINT aggregates as strings often enough that this
+ * coercion is not defensive clutter: `"12" + "7"` is `"127"`, and two lanes
+ * summed without it would have rendered a plausible, wrong total.
  */
-export function buildLaneAggregate(d: Db, table: LlmCallsTable, windowDays: number) {
-  return d
-    .select({
-      lane: table.lane,
-      provider: table.provider,
-      calls: sql<number>`count(*)`,
-      failed: sql<number>`sum(case when ${table.ok} = 0 then 1 else 0 end)`,
-      callsWithTokens: sql<number>`sum(case when ${table.promptTokens} is not null then 1 else 0 end)`,
-      promptTokens: sql<number>`coalesce(sum(${table.promptTokens}), 0)`,
-      completionTokens: sql<number>`coalesce(sum(${table.completionTokens}), 0)`,
-      avgLatencyMs: sql<number>`coalesce(round(avg(${table.latencyMs})), 0)`,
-      maxLatencyMs: sql<number>`coalesce(max(${table.latencyMs}), 0)`,
-    })
-    .from(table)
-    /**
-     * The cutoff is computed BY THE DATABASE, not in JS, and that is load-bearing.
-     *
-     * The first draft passed `new Date(Date.now() - days * 86400_000)`. Drizzle
-     * serialises a Date for a TIMESTAMP column into a bare datetime string —
-     * measured: `"2026-09-09 00:00:00.000"` — and MySQL/TiDB interprets a bare
-     * literal in the SESSION time zone. So the real cutoff moved by whatever
-     * the session offset happened to be (4h on Eastern), silently shortening
-     * the window, and nothing in the result would have looked wrong.
-     *
-     * `date_sub(now(), interval ? day)` compares `calledAt` against a value
-     * produced in the same zone the column is read in, so the comparison is
-     * offset-free whatever the session is set to. This is what
-     * apps/nickstire/AGENTS.md means by computing ages in SQL rather than JS.
-     */
-    .where(sql`${table.calledAt} >= date_sub(now(), interval ${windowDays} day)`)
-    .groupBy(table.lane, table.provider)
-    .orderBy(desc(sql`count(*)`))
-    .limit(100);
-}
+const n = (v: unknown): number => {
+  const parsed = Number(v ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
-/**
- * Per-lane aggregates over the trailing `windowDays`.
- *
- * Aggregated in SQL rather than by pulling rows into JS, and the window cutoff
- * is derived from the database's own `now()` rather than the process clock —
- * see the comment on the `where` clause in buildLaneAggregate for the measured
- * reason. `windowDays` reaches SQL as a bound parameter; nothing is
- * interpolated into the statement text.
- */
 export async function getLlmLedgerSummary(windowDays: number): Promise<LlmLedgerSummary> {
-  if (!isLedgerEnabled()) return empty("not_recording", windowDays);
+  const recording = ledgerRecordingState();
 
   try {
     const { llmCalls } = await import("../../drizzle/schema");
     const d = await db();
-    if (!d) return empty("unreadable", windowDays);
+    if (!d) return unreadable(recording, windowDays);
 
-    const rows = await buildLaneAggregate(d, llmCalls, windowDays);
+    // Both aggregates, one window predicate. Sequential rather than
+    // Promise.all: a single pooled connection is the common case here and
+    // these are two cheap grouped reads, not a latency-critical path.
+    const laneRows = (await buildLaneAggregate(d, llmCalls, windowDays)) as unknown as Array<
+      Record<string, unknown>
+    >;
+    const totalRows = (await buildWindowTotals(d, llmCalls, windowDays)) as unknown as Array<
+      Record<string, unknown>
+    >;
 
-    /**
-     * The shape the driver actually hands back, which is NOT the shape the
-     * `sql<number>` annotations claim. mysql2 returns DECIMAL/BIGINT aggregates
-     * as strings, so `count(*)` and every `sum(...)` above can arrive as
-     * `"12"`. That is why the coercion below exists rather than being defensive
-     * clutter: `"12" + "7"` is `"127"`, and two lanes summed without Number()
-     * would have rendered a plausible, wrong total. Typed explicitly because
-     * tsc could not infer past the aggregate expressions.
-     */
-    type RawRow = {
-      lane: string;
-      provider: string;
-      calls: number | string | null;
-      failed: number | string | null;
-      callsWithTokens: number | string | null;
-      promptTokens: number | string | null;
-      completionTokens: number | string | null;
-      avgLatencyMs: number | string | null;
-      maxLatencyMs: number | string | null;
-    };
-
-    const lanes: LlmLaneRow[] = (rows as unknown as RawRow[]).map((r) => ({
-      lane: String(r.lane),
-      provider: String(r.provider),
-      calls: Number(r.calls ?? 0),
-      failed: Number(r.failed ?? 0),
-      callsWithTokens: Number(r.callsWithTokens ?? 0),
-      promptTokens: Number(r.promptTokens ?? 0),
-      completionTokens: Number(r.completionTokens ?? 0),
-      avgLatencyMs: Number(r.avgLatencyMs ?? 0),
-      maxLatencyMs: Number(r.maxLatencyMs ?? 0),
+    const lanes: LlmLaneRow[] = laneRows.map((r) => ({
+      lane: String(r.lane ?? ""),
+      provider: String(r.provider ?? ""),
+      calls: n(r.calls),
+      failed: n(r.failed),
+      callsWithTokens: n(r.callsWithTokens),
+      promptTokens: n(r.promptTokens),
+      completionTokens: n(r.completionTokens),
+      avgLatencyMs: n(r.avgLatencyMs),
+      maxLatencyMs: n(r.maxLatencyMs),
     }));
 
+    const t = totalRows[0] ?? {};
+    const totals: LlmLedgerTotals = {
+      calls: n(t.calls),
+      failed: n(t.failed),
+      callsWithTokens: n(t.callsWithTokens),
+      promptTokens: n(t.promptTokens),
+      completionTokens: n(t.completionTokens),
+      groups: n(t.groups),
+    };
+
     return {
-      state: "live",
+      recording,
+      read: "ok",
       windowDays,
       lanes,
-      totals: lanes.reduce(
-        (acc, l) => ({
-          calls: acc.calls + l.calls,
-          failed: acc.failed + l.failed,
-          callsWithTokens: acc.callsWithTokens + l.callsWithTokens,
-          promptTokens: acc.promptTokens + l.promptTokens,
-          completionTokens: acc.completionTokens + l.completionTokens,
-        }),
-        { calls: 0, failed: 0, callsWithTokens: 0, promptTokens: 0, completionTokens: 0 },
-      ),
+      lanesTruncated: totals.groups > lanes.length,
+      totals,
       generatedAt: new Date().toISOString(),
     };
   } catch (err) {
     // A failed read is UNKNOWN, never an empty ledger.
     log.error("llm ledger read failed", { error: err instanceof Error ? err.message : String(err) });
-    return empty("unreadable", windowDays);
+    return unreadable(recording, windowDays);
   }
 }
