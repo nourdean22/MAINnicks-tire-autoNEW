@@ -11,10 +11,20 @@
  * non-personal contacts (e.g. tire-shop callers), (b) ghost rows named
  * "her". Builds on the 2026-06-02 C1 suggest-then-approve gate (role/trust
  * → pendingClassification · Nick never silently reclassifies a person).
+ *
+ * 2026-09-16 · person.logInteraction is the CONTACT path. person.update is an
+ * edit and no longer touches lastInteraction / interactionCount (it bumped
+ * both on every call with no ledger row behind it — measured on Neon: the
+ * counters summed to 191 against 23 ledger rows ever, none since 07-10).
+ * Contact now has exactly one writer, lib/services/people/record-interaction.
  */
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
 import type { ActionParams, ActionResult } from "./types";
+
+const INTERACTION_KINDS: ReadonlySet<string> = new Set(["in_person", "call", "text", "video", "other"]);
+/** The seam clamps to ±100 (the modal's range); an LLM-decided swing is capped tighter. */
+const AGENT_AMOUNT_CAP = 25;
 
 export async function handlePersonUpdate(params: ActionParams, type: string): Promise<ActionResult> {
   // person.update edits an EXISTING person · createIfMissing:false means a
@@ -42,10 +52,10 @@ export async function handlePersonUpdate(params: ActionParams, type: string): Pr
   }
 
   // 2026-06-02 · C1 fix · honor the suggest-then-approve gate.
-  // relationship / leverageNotes / interaction are low-risk → write
-  // immediately. role + trustScore reclassify a person Nour may have
-  // curated → route them into pendingClassification (operator approves on
-  // /people) so Nick can NEVER silently overwrite a role/trust.
+  // relationship / leverageNotes are low-risk → write immediately. role +
+  // trustScore reclassify a person Nour may have curated → route them into
+  // pendingClassification (operator approves on /people) so Nick can NEVER
+  // silently overwrite a role/trust.
   const personId = resolution.person.id;
   const current = await prisma.personProfile.findUnique({
     where: { id: personId },
@@ -53,16 +63,15 @@ export async function handlePersonUpdate(params: ActionParams, type: string): Pr
   });
   const { isPersonRole } = await import("@/lib/brain/person-roles");
 
-  // Immediate (low-risk) writes.
-  await prisma.personProfile.update({
-    where: { id: personId },
-    data: {
-      ...(params.relationship ? { relationship: String(params.relationship) } : {}),
-      ...(params.leverageNotes ? { leverageNotes: String(params.leverageNotes) } : {}),
-      interactionCount: { increment: 1 },
-      lastInteraction: new Date(),
-    },
-  });
+  // Immediate (low-risk) writes. 2026-09-16 · an EDIT is not a CONTACT: this
+  // write no longer bumps interactionCount / lastInteraction. Contact goes
+  // through person.logInteraction → the ledger seam, which owns both counters.
+  const immediate: { relationship?: string; leverageNotes?: string } = {};
+  if (params.relationship) immediate.relationship = String(params.relationship);
+  if (params.leverageNotes) immediate.leverageNotes = String(params.leverageNotes);
+  if (Object.keys(immediate).length > 0) {
+    await prisma.personProfile.update({ where: { id: personId }, data: immediate });
+  }
 
   // Build a role/trust PROPOSAL (never a live write).
   const requestedRole = params.role ? String(params.role) : null;
@@ -184,6 +193,74 @@ export async function handlePersonCreate(params: ActionParams, type: string): Pr
         : "Added a new person.",
       undoToken,
       undoExpiresAt: undoExpiresAt ? undoExpiresAt.toISOString() : undefined,
+    },
+  };
+}
+
+/**
+ * person.logInteraction — the CONTACT path (2026-09-16). Nour reports that he
+ * actually talked to / met / texted someone he already has; Nick records it
+ * as ONE relationship-ledger row through the seam (row + both counters in one
+ * transaction, embed + XP after the commit). Resolves through the same fuzzy
+ * chain as person.update and NEVER creates a profile — an unknown name is an
+ * ask-first error, exactly like person.update.
+ *
+ * amount is the deposit size (+1 routine touch · +5 meaningful · +10 major ·
+ * negative for a withdrawal), clamped to ±AGENT_AMOUNT_CAP so a model-decided
+ * swing can never reach the modal's ±100. source is "chat": the fact came in
+ * through Nick; metadata.via says which writer.
+ */
+export async function handlePersonLogInteraction(params: ActionParams, type: string): Promise<ActionResult> {
+  const name = String(params.name ?? "").trim();
+  const note = String(params.note ?? "").trim();
+  if (!note) {
+    return {
+      action: type,
+      success: false,
+      error: `person.logInteraction needs a note — one line saying what happened with ${name || "the person"}.`,
+    };
+  }
+  const rawAmount = Number(params.amount ?? 1);
+  const amount = Number.isFinite(rawAmount)
+    ? Math.max(-AGENT_AMOUNT_CAP, Math.min(AGENT_AMOUNT_CAP, Math.trunc(rawAmount)))
+    : 1;
+  const kind = typeof params.kind === "string" && INTERACTION_KINDS.has(params.kind) ? params.kind : "other";
+
+  const { resolvePersonByName } = await import("@/lib/brain/person-profile-fuzzy");
+  const resolution = await resolvePersonByName(name, { createIfMissing: false });
+  if (!resolution.matched || !resolution.person) {
+    return {
+      action: type,
+      success: false,
+      error:
+        resolution.matchTier === "rejected_nonname"
+          ? `"${name}" is not a real name — never log to a pronoun or descriptor. Use the person's actual name.`
+          : `No existing person matches "${name}". Do not assume one. Ask Nour: "want me to add ${name} to your people?" — then use person.create only after a yes, and log the interaction after that.`,
+    };
+  }
+
+  const { recordInteraction } = await import("@/lib/services/people/record-interaction");
+  const recorded = await recordInteraction({
+    personId: resolution.person.id,
+    amount,
+    note,
+    source: "chat",
+    metadata: { via: "nick_action", kind, matchTier: resolution.matchTier },
+  });
+
+  return {
+    action: type,
+    success: true,
+    result: {
+      id: recorded.personId,
+      name: recorded.personName,
+      ledgerId: recorded.ledgerId,
+      amount: recorded.amount,
+      note: recorded.note,
+      kind,
+      matchTier: resolution.matchTier,
+      lastInteraction: recorded.lastInteraction ? recorded.lastInteraction.toISOString() : null,
+      interactionCount: recorded.interactionCount,
     },
   };
 }

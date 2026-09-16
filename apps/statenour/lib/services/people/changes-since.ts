@@ -18,10 +18,13 @@
  *                         visit is not (the watchlist already carries them).
  *
  * Measured base rates before building (Neon, 2026-09-16): 20 active people,
- * 0 with cadenceDays, 23 ledger rows total, the last on 2026-07-10 — so in
- * production this line is SILENT until a cadence is set or an interaction
- * is logged. Silence is the honest render of "nothing changed"; it is not a
- * bug, and it is why the base rates are written here.
+ * 0 with cadenceDays, 23 ledger rows total, the last on 2026-07-10 — so the
+ * line was SILENT in production. The ledger silence was the finding, not the
+ * line: the same day the ledger got one writer (record-interaction.ts) fed by
+ * the modal / ⌘K, Telegram /log, Nick's person.logInteraction, the picks
+ * outreach button and digest-extracted interactions, so "interactions logged"
+ * now has a producer. "went overdue" stays silent until a cadence is set —
+ * that silence is the honest render of "nothing changed", not a bug.
  */
 
 import { prisma } from "@/lib/prisma";

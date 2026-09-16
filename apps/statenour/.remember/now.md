@@ -1,6 +1,23 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-16 (Session A: execution truth + Dream-to-Proof #2335/#2336/#2338/#2339/#2340/#2342/#2343/#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`; Session B's UI workbench entry below is intact)
+**Updated:** 2026-09-16 (Session B: relationship-ledger wave #2346 on `claude/statenour-ui-architecture-intmaf` merged; Session A: execution truth + Dream-to-Proof #2335/#2336/#2338/#2339/#2340/#2342/#2343/#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`; Session B's UI workbench entry below is intact)
+
+## (Session B) Relationship ledger wave (2026-09-16; same branch, restarted by merging main `fc631eccc`)
+**Finding:** the ledger had no live writer worth the name — 23 rows ever, last 2026-07-10, the 8 "chat" rows a
+synthetic 05-29 backfill, 0 outreach/gmail/calendar/telegram rows ever — while `interaction_count` (sum 191) and
+`last_interaction` kept moving from chat MENTIONS, `person.update` edits and profile creation. **Shipped:** ONE
+writer `lib/services/people/record-interaction.ts` (row + both counters in one transaction, forward-only
+timestamp by predicate, embed + XP after commit; `recordInteractionOnce` = per-person advisory lock every writer takes, one row per person per
+window) fed by the modal / ⌘K, the picks button, Telegram `/log`, Nick's `person.logInteraction`, and the digest
+(model returns `interacted` per person; a mention writes nothing). `person.update` no longer bumps counters.
+**Left alone on purpose:** the historical counter drift (a prod write + a behaviour change — operator's call) ·
+cameras/devices (operator: "leave the cameras for now"). **Traps measured:** the repo clone is shallow (82
+commits from 2026-09-10) — `git log -S` cannot see May; prod metadata (`synthetic: true`) told the story instead ·
+`information_schema` needs the `@@map` name (`cron_job_logs`, `chat_conversations`), and cron-log columns keep
+Prisma's camelCase (`"jobName"`, `"createdAt"`) · a `vi.waitFor` is the only honest way to assert a
+fire-and-forget hook fired.
+**Next:** decide the counter reconcile (`interaction_count := ledger count`, `last_interaction := max(ledger)`) —
+one dry-run-first script, operator-run · the `/people` line's "went overdue" stays silent until a cadence is set.
 
 ## Execution truth + Dream-to-Proof, waves 2-3 + follow-ups (Session A, 2026-09-15/16)
 **Objective:** close both "StateNour reset" audits in-session. **Done:** truthful Telegram + durable

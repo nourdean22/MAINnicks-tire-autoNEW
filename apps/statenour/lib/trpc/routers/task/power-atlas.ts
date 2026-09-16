@@ -15,6 +15,7 @@ import { TaskStatus } from "@prisma/client";
 import { PERSON_ROLES } from "@/lib/brain/person-roles";
 import { prisma } from "@/lib/prisma";
 import { buildPeopleChangesSince } from "@/lib/services/people/changes-since";
+import { PersonNotFoundError, recordInteraction } from "@/lib/services/people/record-interaction";
 
 export const powerAtlasProcedures = {
   /**
@@ -116,48 +117,34 @@ export const powerAtlasProcedures = {
       }),
     )
     .mutation(async ({ input }) => {
-      const { enqueueLedgerEmbed } = await import("@/lib/brain/people-embed-hook");
-      // Capture role + PRIOR lastInteraction before the update bumps it —
-      // people-credit needs the role for stat selection and the prior
-      // timestamp to detect a neglect-repair deposit.
-      const prior = await prisma.personProfile
-        .findUnique({
-          where: { id: input.personId },
-          select: { role: true, lastInteraction: true },
-        })
-        .catch(() => null);
-      const ledger = await prisma.relationshipLedger.create({
-        data: {
+      // 2026-09-16 · every ledger write goes through the seam: row + both
+      // counters in ONE transaction, embed + XP after the commit. This
+      // procedure used to carry its own copy of the counter bump (and a
+      // `.catch(() => null)` that could leave a row with no bump).
+      try {
+        const recorded = await recordInteraction({
           personId: input.personId,
           amount: input.amount,
           note: input.note,
           source: input.source,
-          metadata: input.metadata as never,
-        },
-      });
-      await prisma.personProfile
-        .update({
-          where: { id: input.personId },
-          data: {
-            interactionCount: { increment: 1 },
-            lastInteraction: new Date(),
+          metadata: input.metadata,
+        });
+        return {
+          ok: true,
+          ledger: {
+            id: recorded.ledgerId,
+            personId: recorded.personId,
+            amount: recorded.amount,
+            note: recorded.note,
+            source: recorded.source,
+            createdAt: recorded.at,
+            metadata: input.metadata ?? null,
           },
-        })
-        .catch(() => null);
-      void enqueueLedgerEmbed(ledger.id, input.note);
-      // 2026-06-01 · credit relationship XP for real reps. Positive
-      // deposits only (creditLedgerDeposit no-ops on <= 0), idempotent
-      // per ledger row, fire-and-forget — never blocks the mutation.
-      const { creditLedgerDeposit } = await import("@/lib/mastery/people-credit");
-      void creditLedgerDeposit({
-        ledgerId: ledger.id,
-        personId: input.personId,
-        amount: input.amount,
-        note: input.note,
-        role: prior?.role,
-        priorLastInteraction: prior?.lastInteraction ?? null,
-      });
-      return { ok: true, ledger };
+        };
+      } catch (err) {
+        if (err instanceof PersonNotFoundError) throw new Error("Person not found");
+        throw err;
+      }
     }),
 
   flipPersonStatus: operatorProcedure

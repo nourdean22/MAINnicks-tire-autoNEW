@@ -56,6 +56,8 @@ export const MUTATION_ACTIONS: ReadonlySet<string> = new Set([
   // People
   "person.update",
   "person.create",
+  // 2026-09-16 · the relationship ledger's writer.
+  "person.logInteraction",
   // Cross-system shop writes.
   // shop.updateLead was removed with its handler — nothing can emit it any more.
   // shop.sendSms STAYS: the handler is gone, but lib/ai/tools/social.ts still
@@ -164,13 +166,25 @@ export const PHANTOM_CLAIM_PATTERNS: ReadonlyArray<{ regex: RegExp; action: stri
   { regex: /\b(?:profiles?|person)\b.{0,40}\b(?:created|added|updated|saved)\b/i, action: "person.create" },
   // "created profiles for Hamda and Nathan" · "added them to your people"
   { regex: /\b(?:created|added|saved)\b.{0,50}\b(?:profiles?|to (?:your|my|the) people)\b/i, action: "person.create" },
+  // 2026-09-16 · "Logged +5 for Dania" · "recorded the interaction" · "logged a +3 deposit for Mash".
+  // A ledger write Nick narrates without emitting person.logInteraction is the
+  // same confabulation shape as the 08-25 profiles — a counter that never moved.
+  // Codex P2 on #2346: a bare signed number matched "Logged +2 tasks" and
+  // "Recorded +5 lb on bench", so the numeric/deposit form needs a
+  // relationship cue — for/with/to + a capitalised name — within one word.
+  // Deliberately case-SENSITIVE (no /i): the cue is the capital letter.
+  {
+    regex:
+      /\b(?:[Ll]ogged|[Rr]ecorded)\b.{0,40}(?:\b[Ii]nteraction\b|\b[Ll]edger\b|\b[Rr]elationship\b|(?:[+\-−]\d{1,3}|\b(?:[Dd]eposit|[Ww]ithdrawal)\b)(?:\s+\w+)?\s+(?:for|with|to)\s+[A-Z][\w'-]+)/,
+    action: "person.logInteraction",
+  },
 ];
 
 /** Minimal per-sentence guards, mirroring the detector's hedge intent. */
 const PHANTOM_HEDGE =
   /\b(?:would|could|can|might|want me to|if you|i(?:'ll| will)|shall i|do you want)\b/i;
 const PHANTOM_SECOND_PERSON =
-  /\byou(?:'ve| have| had)?\s+(?:\w+\s+)?(?:added|created|updated|saved)\b/i;
+  /\byou(?:'ve| have| had)?\s+(?:\w+\s+)?(?:added|created|updated|saved|logged|recorded)\b/i;
 
 export function detectPhantomActionClaims(
   results: ReadonlyArray<ActionExecResult>,

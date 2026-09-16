@@ -25,6 +25,9 @@ const h = vi.hoisted(() => ({
   memUpsert: vi.fn(),
   memFindUnique: vi.fn(),
   aiChat: vi.fn(),
+  personUpdate: vi.fn(),
+  resolve: vi.fn(),
+  recordOnce: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -37,7 +40,18 @@ vi.mock("@/lib/prisma", () => ({
       create: h.auditCreate,
     },
     brainMemory: { upsert: h.memUpsert, findUnique: h.memFindUnique },
+    personProfile: { update: h.personUpdate },
   },
+}));
+
+// 2026-09-16 · a MENTION is not a CONTACT. The people fan-out used to bump
+// lastInteraction/interactionCount for every extracted name with no ledger
+// row behind it; it now resolves the name and writes ONE chat ledger row
+// through the seam only when the digest says Nour actually interacted.
+vi.mock("@/lib/brain/person-profile-fuzzy", () => ({ resolvePersonByName: h.resolve }));
+vi.mock("@/lib/services/people/record-interaction", () => ({
+  recordInteractionOnce: h.recordOnce,
+  recordInteraction: vi.fn(),
 }));
 
 vi.mock("@/lib/ai/traced-aichat", () => ({
@@ -214,5 +228,104 @@ describe("summarizeAndStoreConversation fan-out", () => {
 
     h.memFindUnique.mockResolvedValue(null);
     await expect(summarizeAndStoreConversation(CONV)).resolves.toBe("compiled");
+  });
+});
+
+// ── 2026-09-16 · people: a mention is not a contact ─────────────────────
+describe("people fan-out — a mention is not a contact", () => {
+  const FIRST = new Date("2026-09-15T12:00:00Z");
+  const LAST = new Date("2026-09-15T12:40:00Z");
+
+  beforeEach(() => {
+    h.chatFindMany.mockResolvedValue([
+      { role: "user", content: "walked the bays with Mash today, we talked staffing", createdAt: FIRST },
+      { role: "assistant", content: "noted", createdAt: new Date("2026-09-15T12:10:00Z") },
+      { role: "user", content: "should I trust Dania with the books?", createdAt: new Date("2026-09-15T12:20:00Z") },
+      { role: "assistant", content: "here is how I would think about it", createdAt: new Date("2026-09-15T12:30:00Z") },
+      { role: "user", content: "ok", createdAt: LAST },
+    ]);
+    h.convFindUnique.mockResolvedValue({ updatedAt: LAST });
+    h.resolve.mockResolvedValue({ person: { id: "p2", name: "Mash" }, matched: true, matchTier: "exact" });
+    h.recordOnce.mockResolvedValue({ skipped: false, recorded: { ledgerId: "L1" } });
+  });
+
+  it("a mere mention writes NOTHING to the profile's interaction fields and no ledger row", async () => {
+    h.aiChat.mockResolvedValue({
+      content: JSON.stringify({
+        ...DIGEST_JSON,
+        peopleMentioned: [
+          { name: "Dania", context: "asked whether to trust her with the books", sentiment: "neutral", interacted: false, interactionKind: null },
+        ],
+      }),
+    });
+    await expect(summarizeAndStoreConversation(CONV)).resolves.toBe("compiled");
+    expect(h.personUpdate).not.toHaveBeenCalled();
+    expect(h.recordOnce).not.toHaveBeenCalled();
+  });
+
+  it("a reported interaction becomes ONE chat ledger row through the seam: dated by the conversation, windowed from its start, no XP", async () => {
+    h.aiChat.mockResolvedValue({
+      content: JSON.stringify({
+        ...DIGEST_JSON,
+        peopleMentioned: [
+          {
+            name: "Mash",
+            context: "GM at the shop",
+            sentiment: "positive",
+            interacted: true,
+            interactionKind: "in_person",
+            interactionNote: "walked the bays with him, talked staffing",
+          },
+        ],
+      }),
+    });
+    await summarizeAndStoreConversation(CONV);
+
+    expect(h.resolve).toHaveBeenCalledWith("Mash", expect.objectContaining({ createIfMissing: false }));
+    expect(h.recordOnce).toHaveBeenCalledTimes(1);
+    expect(h.recordOnce).toHaveBeenCalledWith({
+      personId: "p2",
+      amount: 1,
+      note: "walked the bays with him, talked staffing",
+      source: "chat",
+      at: LAST,
+      noRowSince: FIRST,
+      creditXp: false,
+      metadata: {
+        auto: true,
+        via: "conversation_digest",
+        conversationId: CONV,
+        interactionKind: "in_person",
+        sentiment: "positive",
+        matchTier: "exact",
+      },
+    });
+    // The old direct bump is gone for good — the seam owns both counters.
+    expect(h.personUpdate).not.toHaveBeenCalled();
+  });
+
+  it("an unknown name is never created and never logged; a malformed flag is not an interaction", async () => {
+    h.resolve.mockResolvedValue({ person: null, matched: false, matchTier: "no_match" });
+    h.aiChat.mockResolvedValue({
+      content: JSON.stringify({
+        ...DIGEST_JSON,
+        peopleMentioned: [
+          { name: "Zorblax", context: "new guy", sentiment: "neutral", interacted: true, interactionKind: "call" },
+          { name: "Mash", context: "GM", sentiment: "positive", interacted: "yes", interactionKind: "call" },
+        ],
+      }),
+    });
+    await summarizeAndStoreConversation(CONV);
+    expect(h.recordOnce).not.toHaveBeenCalled();
+    expect(h.personUpdate).not.toHaveBeenCalled();
+  });
+
+  it("the digest prompt asks the model for the interacted flag (the consumer of the schema is the model)", async () => {
+    h.aiChat.mockResolvedValue({ content: JSON.stringify(DIGEST_JSON) });
+    await summarizeAndStoreConversation(CONV);
+    const system = (h.aiChat.mock.calls[0][0] as Array<{ role: string; content: string }>)[0].content;
+    expect(system).toContain('"interacted"');
+    expect(system).toContain('"interactionNote"');
+    expect(system).toMatch(/never for talking ABOUT someone/i);
   });
 });

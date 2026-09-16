@@ -612,6 +612,9 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
         return await cmdMit(args.join(" "), chatId);
       case "/commit":
         return await cmdCommit(args.join(" "), chatId);
+      // 2026-09-16 · the phone-side ledger writer.
+      case "/log":
+        return await cmdLog(args.join(" "), chatId);
       case "/ask":
       case "/nick":
         return await cmdAsk(args.join(" "), chatId);
@@ -683,6 +686,7 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `/task [text] — Create task\n` +
             `/mit [text] — Set today's MIT\n` +
             `/commit [text] — Create commitment\n` +
+            `/log [name] [+n|-n] [note] — Log a relationship deposit/withdrawal\n` +
             `/ask [question] — Ask Nick anything\n\n` +
             `\n<b>COUNCIL (AG-13)</b>\n` +
             `/board [strategic|invest|product|operator|full|team] [q] — Convene an advisor board\n` +
@@ -860,6 +864,46 @@ async function cmdCommit(args: string, chatId: string): Promise<void> {
     );
   } catch (err) {
     await sendTelegram(`⚠️ Commit failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+// 2026-09-16 · /log — the phone-side relationship-ledger writer. Same grammar
+// as the ⌘K "Log ledger" action (`<name> <+n|-n> [note]`) and the same seam
+// (recordInteraction), so a deposit logged from the truck and one logged from
+// the modal are the same row. source="telegram" — that enum value had zero
+// writers since the ledger was born.
+async function cmdLog(args: string, chatId: string): Promise<void> {
+  try {
+    const { logInteractionFromText } = await import("@/lib/services/people/log-from-text");
+    const out = await logInteractionFromText(args, "telegram");
+    switch (out.kind) {
+      case "usage":
+        await sendTelegram(
+          `Usage: /log [name] [+n|-n] [note]\n\nExample: /log Dania +5 coffee, talked about the move`,
+          chatId,
+        );
+        return;
+      case "rejected_name":
+        await sendTelegram(`"${escapeHtml(out.name)}" is not a name — use the person's real name.`, chatId);
+        return;
+      case "no_match":
+        await sendTelegram(
+          `No one named "${escapeHtml(out.name)}" in your people — add them on /people first.`,
+          chatId,
+        );
+        return;
+      case "logged": {
+        const r = out.recorded;
+        const signed = r.amount > 0 ? `+${r.amount}` : `${r.amount}`;
+        await sendTelegram(
+          `📒 <b>Logged ${signed} for ${escapeHtml(r.personName)}</b>\n${escapeHtml(r.note)}\n\n${r.interactionCount} interactions on record`,
+          chatId,
+        );
+        return;
+      }
+    }
+  } catch (err) {
+    await sendTelegram(`⚠️ Log failed: ${escapeHtml((err as Error).message)}`, chatId);
   }
 }
 
