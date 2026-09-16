@@ -13,6 +13,34 @@
  *
  * Requires a Google Service Account with Search Console API access.
  * Env vars needed: GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_SERVICE_ACCOUNT_KEY
+ *
+ * ─── What this data can and cannot tell you (measured 2026-09-16) ───
+ * Four limits, each established by probing this property directly, not
+ * read off Google's docs. Full write-up + evidence:
+ * `docs/INDEX-COVERAGE-DIAGNOSIS-2026-09-16.md`.
+ *
+ * 1. ~93% of query-dimension impressions are ANONYMISED. A page-filtered
+ *    query pull on /reviews named only 157 of its 2,216 impressions. Any
+ *    conclusion drawn on the `query` dimension describes a small visible
+ *    slice, never the population — do not compute a rate from it and
+ *    present it as the page's rate.
+ *
+ * 2. The URL Inspection API (searchconsole/v1, a DIFFERENT API from the
+ *    webmasters/v3 one below) is NON-DETERMINISTIC here. The same URL,
+ *    inspected 3x consecutively with `siteOwner` access, returned
+ *    "Discovered - currently not indexed" twice and "URL is unknown to
+ *    Google" once. Never trust a single call: probe N times, or
+ *    corroborate against searchAnalytics. Permission is not the cause.
+ *
+ * 3. searchAnalytics (this file's endpoint) has been stable and
+ *    self-consistent across daily series — it is the one to trust when
+ *    the two disagree.
+ *
+ * 4. A CTR benchmark carries the QUERY CLASS it was measured on. The
+ *    device-CTR bands derived for this property (mobile pos 4-10 =
+ *    1.10%) came from NON-BRAND queries. Applying them to a page whose
+ *    traffic is brand queries predicts clicks that were never owed —
+ *    that error shipped once (withdrawn in #2367) before being caught.
  */
 
 import { invokeLLM } from "../_core/llm";
