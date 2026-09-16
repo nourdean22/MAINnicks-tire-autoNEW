@@ -36,6 +36,9 @@ import { AppBadge } from "@/components/hud/app-badge";
 // Spec: docs/design/ui-workbench-2026-09-15.md.
 import { InspectorHost } from "@/components/inspector/inspector-host";
 import { WorksetShelf } from "@/components/workset/workset-shelf";
+// 2026-09-16 · Visible Transformation wave · the desktop workspace rail
+// (≥1280px). `<main>` pads left by --spine-w so nothing sits under it.
+import { DesktopSpine } from "@/components/layout/desktop-spine";
 
 // ── Render mode (audit-2026-06-21 CSP follow-up) ──────────────────────────
 // MUST be force-dynamic. middleware.ts stamps a per-request CSP nonce onto
@@ -114,7 +117,12 @@ export default function MasteryLayout({
             on <html> while its docked panel is showing at >=1280px, so content
             reflows beside it instead of being covered. Summed with the FAB lane
             because a single xl:pr- would otherwise REPLACE md:pr- and drop it. */}
-        <main id="main-content" className="pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)] md:pr-[var(--nick-fab-lane,0px)] xl:pr-[calc(var(--nick-fab-lane,0px)_+_var(--inspector-lane,0px))]">
+        {/* xl:pl-[var(--spine-w,0px)] · 2026-09-16 · the desktop spine's lane
+            (4rem at ≥1280px, 0 below — base.css). The workset shelf renders
+            in-flow at the top of <main> on desktop and as a floating pill
+            above the bottom chrome on phones. */}
+        <main id="main-content" className="pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)] md:pr-[var(--nick-fab-lane,0px)] xl:pr-[calc(var(--nick-fab-lane,0px)_+_var(--inspector-lane,0px))] xl:pl-[var(--spine-w,0px)]">
+          <WorksetShelf />
           <div className="feed py-4 md:py-6 page-enter">
             {/* v11.1 · ErrorBoundary wraps the page content (not the
                 chrome). A broken panel still lets the orb, nav, and
@@ -151,7 +159,7 @@ export default function MasteryLayout({
           `?inspect=<kind>:<id>`, Space to peek, j/k to move, x to select) and
           the workset shelf. Inside TRPCProvider: the panels read via tRPC. */}
       <InspectorHost />
-      <WorksetShelf />
+      <DesktopSpine />
     </NourStateProvider>
     </TRPCProvider>
   );

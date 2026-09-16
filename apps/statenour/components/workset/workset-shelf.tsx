@@ -43,9 +43,14 @@ export function WorksetShelf() {
       className={cn(
         "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] left-3 z-[53] flex max-w-[calc(100vw-1.5rem)] items-center gap-1.5 overflow-x-auto rounded-xl border border-edge bg-elevated/95 px-2 py-1.5 no-scrollbar",
         "md:max-w-[min(60vw,40rem)] md:right-auto",
+        // 2026-09-16 · Visible Transformation · on desktop the workset is a
+        // persistent strip at the top of <main>, in flow, not a floating pill.
+        "xl:static xl:z-auto xl:w-full xl:max-w-none xl:rounded-none xl:border-0 xl:border-b xl:border-edge xl:bg-transparent xl:px-8 xl:py-2.5",
       )}
     >
-      <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-tertiary">workset</span>
+      <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.16em] text-gold">
+        workset · {entries.length}
+      </span>
       {entries.map((entry) => (
         <span
           key={`${entry.ref.kind}:${entry.ref.id}`}
@@ -57,7 +62,7 @@ export function WorksetShelf() {
             title={`${ENTITY_KIND_LABEL[entry.ref.kind]} · ${describeExpiry(entry, now)}`}
             className="inline-flex min-h-[44px] max-w-[11rem] items-center gap-1.5 px-2 text-[12px] text-fg-secondary hover:text-gold md:min-h-[36px]"
           >
-            <span className="font-mono text-[9px] uppercase tracking-wide text-fg-tertiary">{entry.ref.kind}</span>
+            <span className="font-mono text-[11px] uppercase tracking-wide text-fg-tertiary">{entry.ref.kind}</span>
             <span className="truncate">{entry.label}</span>
           </button>
           <button
