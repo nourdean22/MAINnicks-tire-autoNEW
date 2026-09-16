@@ -1789,7 +1789,7 @@ Five merged ships, all repairs to controls that reported green while blind to th
 written this wave were themselves broken on first run; three of my own proposed fixes were refuted by
 measurement. Every proposal below cites the moment in this wave that produced it.
 
-### P1 · `nickstire-shared-main-push` (PR mechanics) — mark ready-for-review on OPEN, not at merge
+### P1 · `nickstire-shared-main-push` (PR mechanics) — the reviewed SHA must equal the merge head
 - **Trigger (witnessed):** `chatgpt-codex-connector[bot]` fires on the draft→ready transition, NOT on a plain
   push, and takes ~4 min; the sweep takes ~13. Un-drafting at merge time raced the review on three consecutive
   merges by under 15 seconds each (#2359, #2362, #2364). #2359's two P2 findings therefore landed on `main`.
@@ -1797,12 +1797,24 @@ measurement. Every proposal below cites the moment in this wave that produced it
   BEFORE the merge — a second copy of stale figures in the `NODE_OPTIONS` block, fixed in `69de22b79`.
 - **Cost:** an entire extra PR (#2364) that existed only to fix findings the race let through, plus two real
   defects live on `main` for about an hour.
-- **Proposed edit:** add a step — "**Mark ready-for-review when you OPEN the PR, not when you merge it.** The
-  automated reviewer fires on draft→ready, not on pushes, and returns in ~4 min against a ~13 min sweep.
-  Un-drafting at merge time means the review lands after the squash, so its findings arrive on `main` and cost
-  a second PR. Measured 2026-09-16: 3/3 merges raced it by <15s; the first PR opened ready caught its finding
-  pre-merge."
-- **Confidence:** high (3/3 failures, then the fix validated in the same session)
+- **Second trigger, found on THIS PR (2026-09-16):** the first draft of this proposal said only "mark ready on
+  open" and left a hole big enough to drive the same defect through. #2370 was opened ready and reviewed at
+  `a2314c5`; two later commits (`bafebe27b`, `169563699`) were pushed, and because the reviewer does not fire on
+  pushes, the head that would actually have merged carried NO review. I noticed the gap and decided not to spend
+  a CI cycle on it; Codex then found it independently and filed it as a P1 against this very block. Both of us
+  reading the same text and reaching the same conclusion is the evidence. `@codex review` as a PR comment DOES
+  trigger a fresh round on the current head (verified: trigger recorded as "Manual request", commit `1695636`),
+  so the remedy costs one comment.
+- **Proposed edit:** add a step — "**The reviewed SHA must equal the head you merge.** Two distinct failures,
+  one rule. (a) Mark ready-for-review when you OPEN the PR, not when you merge it: the reviewer fires on
+  draft→ready and returns in ~4 min against a ~13 min sweep, so un-drafting at merge time lands the review after
+  the squash and its findings arrive on `main`. Measured 2026-09-16: 3/3 merges raced it by <15s. (b) After ANY
+  push that moves the head, request a fresh round with an `@codex review` comment: the reviewer does not fire on
+  pushes, so every commit after the ready transition is unreviewed by default. Before merging, compare the
+  reviewed commit in the review summary against the PR head — if they differ, you are merging something nothing
+  looked at."
+- **Confidence:** high — (a) 3/3 failures then the fix validated in the same session; (b) reproduced on #2370
+  itself and independently filed by the reviewer
 - **Status:** proposed
 
 ### P2 · `statenour-verify` (Traps) — a green CI job is not a green sweep; read the TASK count
