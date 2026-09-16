@@ -843,7 +843,6 @@ async function startServer() {
 
     const pages: Array<{ path: string; photos: ImgEntry[] }> = [
       { path: "/",                       photos: HOME_PHOTOS },
-      { path: "/new-tires-cleveland",    photos: TIRES_PHOTOS },
       { path: "/used-tires-cleveland",   photos: TIRES_PHOTOS },
       { path: "/tires",                  photos: TIRES_PHOTOS },
       { path: "/brakes",                 photos: BRAKES_PHOTOS },

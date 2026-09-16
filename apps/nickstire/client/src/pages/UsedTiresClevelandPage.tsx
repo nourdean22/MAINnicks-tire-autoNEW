@@ -109,7 +109,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         consequence: "Used set: $240+. New full set with free install package: $400-800 depending on brand/size. Sometimes new is the smarter spend.",
         relief: "Live quotes by tire size on the new-tire page.",
         ctaLabel: "NEW TIRE PRICING",
-        ctaHref: "/new-tires-cleveland",
+        ctaHref: "/tires#new-tires",
       },
       {
         tone: "warning",

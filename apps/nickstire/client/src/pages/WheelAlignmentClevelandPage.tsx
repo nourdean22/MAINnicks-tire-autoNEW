@@ -180,7 +180,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         consequence: "Pothole + vibration = often a bent wheel or thrown balance weight, NOT pure alignment. We'll diagnose both at once — alignment + balance + visual rim check, free.",
         relief: "Free pull-check + visual inspection covers both alignment AND obvious balance/wheel issues.",
         ctaLabel: "Tire repair · plug-and-patch",
-        ctaHref: "/tire-repair-cleveland",
+        ctaHref: "/tires#tire-repair",
         icon: <Activity className="w-5 h-5" />,
       },
       {

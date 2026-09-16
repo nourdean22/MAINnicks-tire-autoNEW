@@ -158,7 +158,7 @@ export default function SiteFooter() {
               <div className="space-y-3">
                 {[
                   { href: "/tires", label: "Tires" },
-                  { href: "/tire-repair-cleveland", label: "Tire Repair · $25" },
+                  { href: "/tires#tire-repair", label: "Tire Repair · $25" },
                   { href: "/brakes", label: "Brakes" },
                   { href: "/diagnostics", label: "Diagnostics" },
                   { href: "/emissions", label: "Emissions / E-Check" },
@@ -176,7 +176,7 @@ export default function SiteFooter() {
                   // hrefs from every page that includes the footer (which
                   // is every public page).
                   { href: "/no-credit-check-tires-cleveland", label: "No-Credit-Check Tires" },
-                  { href: "/tire-shop-open-sunday-cleveland", label: "Sunday Tire Shop" },
+                  { href: "/tires#open-sundays", label: "Sunday Tire Shop" },
                 ].map((l) => (
                   <Link key={l.href} href={l.href} className={LINK_CLASS}>{l.label}</Link>
                 ))}

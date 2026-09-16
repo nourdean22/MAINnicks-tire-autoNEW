@@ -158,6 +158,19 @@ const REDIRECTS: RedirectRule[] = [
   // resolves to a dead end and told not to index it, which is both halves of a
   // contradiction at once. /tires (priority 1.0) is the real page.
   { from: "/tires/info", to: "/tires", reason: "never rendered: /:slug is single-segment, so this always hit GenericServicePage's not-found branch at HTTP 200. 301 rather than delete — the URL was in the sitemap, so Google has it" },
+
+  // 2026-09-16 · §11 tire-silo consolidation. The 2026-08-19 War Room gated
+  // consolidation on a 28-day read of the hub->silo link test, due ~2026-09-16.
+  // Verified live against Search Console: homepage weighted position on "used
+  // tires near me" did not improve (6.45 -> 6.99) and all three pages logged
+  // zero impressions across the full window (/tire-repair-cleveland has never
+  // logged one query-date row in its entire history). Per the pre-registered
+  // decision rule, content merged into /tires as sections and these 301 there.
+  // /used-tires-cleveland and /tire-prices-cleveland are KEPT per the same
+  // rule (non-zero impressions, distinct intent) — do not add them here.
+  { from: "/new-tires-cleveland",           to: "/tires#new-tires",   reason: "§11 tire-silo consolidation; 0 impressions in the 28-day post-rewrite window" },
+  { from: "/tire-repair-cleveland",         to: "/tires#tire-repair", reason: "§11 tire-silo consolidation; 0 impressions ever (whole history, verified 2026-09-16)" },
+  { from: "/tire-shop-open-sunday-cleveland", to: "/tires#open-sundays", reason: "§11 tire-silo consolidation; 0 impressions in the 28-day post-rewrite window" },
 ];
 
 // Returns a 301 redirect if the path matches, otherwise falls through.

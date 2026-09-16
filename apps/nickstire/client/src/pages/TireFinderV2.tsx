@@ -5,7 +5,7 @@ import { Search, Phone, Check, Loader2, ShieldCheck, Star, AlertTriangle, Chevro
 import PageLayout from "@/components/PageLayout";
 import { Breadcrumbs, SEOHead, trackEvent, trackPhoneClick } from "@/components/SEO";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
-import FAQPageSchema, { TIRE_BUYING_FAQ } from "@/components/FAQPageSchema";
+import FAQPageSchema, { TIRE_BUYING_FAQ, TIRE_REPAIR_FAQ } from "@/components/FAQPageSchema";
 import { trpc } from "@/lib/trpc";
 import type { RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
@@ -29,6 +29,12 @@ const CATEGORY_LABEL: Record<Tire["category"], string> = {
 function optionLabel(t: Tire, i: number): string {
   return i === 0 ? "Lowest price" : CATEGORY_LABEL[t.category] ?? "Available";
 }
+
+// 2026-09-16 · §11 tire-silo consolidation: TIRE_REPAIR_FAQ existed with zero
+// import sites anywhere in the app — written, never wired. Combined here
+// rather than duplicated, so both the schema and the visible accordion cover
+// buying AND repair intent in one page.
+const ALL_TIRE_FAQ = [...TIRE_BUYING_FAQ, ...TIRE_REPAIR_FAQ];
 
 export default function TireFinderV2() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -121,7 +127,7 @@ export default function TireFinderV2() {
       />
       <Breadcrumbs items={[{ label: "Tires" }]} />
       <LocalBusinessSchema />
-      <FAQPageSchema qa={TIRE_BUYING_FAQ} />
+      <FAQPageSchema qa={ALL_TIRE_FAQ} />
       <main>
         <section className="border-b border-border/30 bg-gradient-to-b from-primary/10 to-background py-12 sm:py-16">
           <div className="container max-w-5xl mx-auto text-center">
@@ -283,18 +289,90 @@ export default function TireFinderV2() {
           </div>
         </section>
 
-        {/* 2026-08-19 · hub->silo links. /tires linked NONE of the three money
-            tire pages (verified in prerendered HTML), leaving the silo fed only
-            from inside itself — a candidate cause for its zero GSC impressions.
-            Cheap test before any consolidation decision: give the hub real
-            downlinks and re-measure. */}
+        {/* 2026-09-16 · §11 tire-silo consolidation. The 2026-08-19 hub->silo
+            links test ran its full 28 days: homepage position on "used tires
+            near me" did not improve (6.45 -> 6.99) and /new-tires-cleveland,
+            /tire-repair-cleveland, /tire-shop-open-sunday-cleveland logged
+            ZERO impressions across the whole window (verified live against
+            Search Console, 2026-09-16) — /tire-repair-cleveland has never
+            logged one query-date row in its entire history. Per the
+            pre-registered decision rule, their unique content merges here as
+            sections and the URLs 301 to /tires. /used-tires-cleveland and
+            /tire-prices-cleveland are kept per the same rule (non-zero
+            impressions, distinct intent) and stay linked below. */}
+        <section id="new-tires" className="border-t border-border/30 bg-card/30 py-14 scroll-mt-20">
+          <div className="container max-w-4xl mx-auto">
+            <h2 className="font-heading text-2xl sm:text-3xl font-black text-foreground uppercase tracking-tight">New tires — the install package is free, not an upsell</h2>
+            <p className="mt-2 max-w-2xl text-muted-foreground">
+              Chains advertise a tire price, then add mount, balance, valve stems, TPMS reset and an alignment check at the register —
+              often ~$266 on a set of four. At Nick's that package is already in the price on every new tire.
+            </p>
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl border border-border/50 bg-card p-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">Budget all-season</p>
+                <p className="mt-1 text-2xl font-black">From $89<span className="text-sm font-normal text-muted-foreground">/tire</span></p>
+                <p className="mt-1 text-sm text-muted-foreground">Cooper, General, Firestone Champion, Hankook Kinergy — install free.</p>
+              </div>
+              <div className="rounded-2xl border-2 border-primary bg-card p-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">Premium all-season</p>
+                <p className="mt-1 text-2xl font-black">From $149<span className="text-sm font-normal text-muted-foreground">/tire</span></p>
+                <p className="mt-1 text-sm text-muted-foreground">Michelin Defender, Goodyear Assurance, Bridgestone Turanza — install free.</p>
+              </div>
+              <div className="rounded-2xl border border-border/50 bg-card p-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">Performance / truck / SUV</p>
+                <p className="mt-1 text-2xl font-black">From $179<span className="text-sm font-normal text-muted-foreground">/tire</span></p>
+                <p className="mt-1 text-sm text-muted-foreground">Michelin LTX, Bridgestone Dueler, Goodyear Wrangler, Pirelli — install free.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tire-repair" className="border-t border-border/30 py-14 scroll-mt-20">
+          <div className="container max-w-4xl mx-auto">
+            <h2 className="font-heading text-2xl sm:text-3xl font-black text-foreground uppercase tracking-tight">Got a flat, not a size to search? Tire repair, walk-in</h2>
+            <p className="mt-2 max-w-2xl text-muted-foreground">
+              Free check first. If the puncture is in the tread center it's usually repairable in about 15 minutes; sidewall or shoulder
+              damage isn't safely repairable per industry standard, and we'll show you why before offering a used tire from $25 installed.
+            </p>
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+              <div className="rounded-2xl border border-border/50 bg-card p-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">Plug repair</p>
+                <p className="mt-1 text-2xl font-black">From $25</p>
+                <p className="mt-1 text-sm text-muted-foreground">Fast, roadside-style fix for a nail or screw in the tread center.</p>
+              </div>
+              <div className="rounded-2xl border-2 border-primary bg-card p-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">Plug + patch combo</p>
+                <p className="mt-1 text-2xl font-black">From $35</p>
+                <p className="mt-1 text-sm text-muted-foreground">Tire off the wheel, inspected inside, sealed from both sides — the industry-recommended fix.</p>
+              </div>
+              <div className="rounded-2xl border border-border/50 bg-card p-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">Used tire replacement</p>
+                <p className="mt-1 text-2xl font-black">From $25 installed</p>
+                <p className="mt-1 text-sm text-muted-foreground">When the damage isn't repairable — mounted from our in-stock inventory the same visit.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="open-sundays" className="border-t border-border/30 bg-card/30 py-14 scroll-mt-20">
+          <div className="container max-w-4xl mx-auto">
+            <h2 className="font-heading text-2xl sm:text-3xl font-black text-foreground uppercase tracking-tight">Open Sundays — 9am to 4pm, same crew</h2>
+            <p className="mt-2 max-w-2xl text-muted-foreground">
+              Same service, same pricing, same crew as any weekday — walk in, no appointment. Most chains keep shorter or no Sunday hours;
+              Nick's runs the full week.
+            </p>
+          </div>
+        </section>
+
         <nav aria-label="Tire resources" className="container max-w-4xl mx-auto py-8 text-center">
           <p className="text-xs uppercase tracking-wide text-muted-foreground mb-3">More tire help</p>
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
             <Link href="/used-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Used Tires from $25</Link>
-            <Link href="/new-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">New Tires from $89</Link>
+            <a href="#new-tires" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">New Tires from $89</a>
             <Link href="/tire-prices-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Live Tire Prices</Link>
             <Link href="/no-credit-check-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">No Credit Check Tires</Link>
+            <a href="#tire-repair" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Flat / Tire Repair</a>
+            <a href="#open-sundays" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Open Sundays</a>
           </div>
         </nav>
 
@@ -309,7 +387,7 @@ export default function TireFinderV2() {
               Tire questions, answered
             </h2>
             <div className="mt-6 space-y-2">
-              {TIRE_BUYING_FAQ.map((faq, i) => (
+              {ALL_TIRE_FAQ.map((faq, i) => (
                 <details key={i} className="group border border-border/30 rounded-lg bg-card/40 [&_summary::-webkit-details-marker]:hidden">
                   <summary className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none font-semibold text-[14px] text-foreground hover:bg-card/60 transition-colors">
                     {faq.q}

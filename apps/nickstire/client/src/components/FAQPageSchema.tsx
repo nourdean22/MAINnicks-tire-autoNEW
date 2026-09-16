@@ -177,6 +177,12 @@ export const TIRE_BUYING_FAQ: FAQItem[] = [
     q: "Are used tires safe to buy?",
     a: "The ones we sell are. Every used tire passes a 4-point check before it goes on a car — tread depth, sidewall condition, DOT date, and plug history. We don't sell a tire we wouldn't put on our own family's car. From $25 installed (12-inch rims; most sizes $40-80).",
   },
+  {
+    // 2026-09-16 · §11 tire-silo consolidation. Sunday hours had no FAQ
+    // anywhere in this file; the retiring TireShopOpenSundayPage covered it.
+    q: "Are you open Sundays?",
+    a: "Yes — every Sunday, 9am-4pm, same crew and pricing as the rest of the week. Walk in, no appointment needed. Most Cleveland chains are closed or run shorter Sunday hours.",
+  },
 ];
 
 // wave-2-2026-05-30 (SEO-AEO parity) · broad auto-repair FAQ for the

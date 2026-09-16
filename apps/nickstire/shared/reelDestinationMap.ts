@@ -61,8 +61,8 @@ export const PACK_DESTINATIONS: Readonly<Record<string, string>> = {
   "roadtrip-tire-check": "/tires",
   "tire-rotation": "/tires",
   "lug-nut-retorque": "/tires",
-  "plug-vs-patch": "/tire-repair-cleveland",
-  "slow-leak-soap-test": "/tire-repair-cleveland",
+  "plug-vs-patch": "/tires#tire-repair",
+  "slow-leak-soap-test": "/tires#tire-repair",
 
   // ── Alignment / steering ──────────────────────────────────────────────
   "why-car-pulls": "/car-pulling-to-one-side",
