@@ -8,6 +8,9 @@
  * with one-tap verbs. Renders NOTHING when clear — quiet is the healthy
  * state (dark cockpit). The count is the whole-queue truth even when
  * rows are capped.
+ *
+ * 2026-09-16 · Visible Transformation: an eyebrow h2 with the queue count
+ * in display type, hairline rows, 44px verbs; no card.
  */
 import { useState } from "react";
 import Link from "next/link";
@@ -30,6 +33,9 @@ function nextWeekIso(): string {
   return d.toISOString();
 }
 
+const VERB =
+  "inline-flex min-h-[44px] shrink-0 items-center rounded-md border border-edge px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary transition-colors hover:border-edge-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
+
 export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTask }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
@@ -38,41 +44,30 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
   const taskById = new Map(tasks.map((t) => [t.id, t]));
 
   return (
-    <section
-      aria-labelledby="triage-heading"
-      className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-base)] p-3 sm:p-4"
-    >
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id="triage-heading" className="text-sm font-semibold text-[var(--text-primary)]">
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--gold)]/80">
-            decide
-          </span>{" "}
-          <span className="tabular-nums">({triage.totalCount})</span>
+    <section aria-labelledby="triage-heading">
+      <div className="flex items-end justify-between gap-3 border-b border-edge pb-3">
+        <h2 id="triage-heading" className="vt-eyebrow text-gold/80">
+          decide
         </h2>
-        {triage.totalCount > triage.rows.length && (
-          <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
-            showing {triage.rows.length} of {triage.totalCount}
-          </span>
-        )}
+        <span className="font-mono text-[12px] uppercase tracking-[0.14em] tabular-nums text-fg-tertiary">
+          {triage.totalCount > triage.rows.length
+            ? `showing ${triage.rows.length} of ${triage.totalCount}`
+            : `${triage.totalCount} waiting`}
+        </span>
       </div>
 
-      <ul className="mt-2 divide-y divide-[var(--border-default)]/60">
+      <ul className="divide-y divide-edge">
         {triage.rows.map((row) => {
           const task = row.taskId ? taskById.get(row.taskId) : undefined;
           return (
-            <li key={row.id} className="flex flex-wrap items-center gap-2 py-2">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] text-[var(--text-primary)]">{row.title}</p>
-                {row.detail && (
-                  <p className="truncate text-[10.5px] text-[var(--text-tertiary)]">{row.detail}</p>
-                )}
+            <li key={row.id} className="flex flex-wrap items-center gap-3 py-3">
+              <div className="min-w-0 flex-1 basis-40">
+                <p className="truncate text-[15px] text-fg">{row.title}</p>
+                {row.detail && <p className="truncate text-[12px] text-fg-tertiary">{row.detail}</p>}
               </div>
 
               {row.kind === "capture" && (
-                <Link
-                  href="/system/inbox"
-                  className="shrink-0 rounded-md border border-[var(--border-default)] px-2.5 py-2 text-[10px] font-mono uppercase tracking-[0.1em] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] min-h-[44px] inline-flex items-center"
-                >
+                <Link href="/system/inbox" className={VERB}>
                   open inbox ↗
                 </Link>
               )}
@@ -85,19 +80,11 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
               )}
 
               {(row.kind === "unattached" || row.kind === "rescue") && task && (
-                <div className="flex shrink-0 items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => onEditTask(task)}
-                    className="rounded-md border border-[var(--border-default)] px-2.5 py-2 text-[10px] font-mono uppercase tracking-[0.1em] text-[var(--text-secondary)] transition-colors hover:border-[var(--gold)]/40 hover:text-[var(--gold)] min-h-[44px]"
-                  >
+                <div className="flex shrink-0 items-center gap-2">
+                  <button type="button" onClick={() => onEditTask(task)} className={VERB}>
                     file it
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => onSnoozeTask(task.id, nextWeekIso())}
-                    className="rounded-md border border-[var(--border-default)] px-2.5 py-2 text-[10px] font-mono uppercase tracking-[0.1em] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] min-h-[44px]"
-                  >
+                  <button type="button" onClick={() => onSnoozeTask(task.id, nextWeekIso())} className={VERB}>
                     later
                   </button>
                   {confirmDelete === task.id ? (
@@ -107,7 +94,7 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
                         onDeleteTask(task.id);
                         setConfirmDelete(null);
                       }}
-                      className="rounded-md border border-rose-500/50 bg-rose-500/10 px-2.5 py-2 text-[10px] font-mono uppercase tracking-[0.1em] text-rose-300 min-h-[44px]"
+                      className="inline-flex min-h-[44px] items-center rounded-md border border-rose-500/50 bg-rose-500/10 px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-rose-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
                     >
                       confirm ✕
                     </button>
@@ -117,7 +104,7 @@ export function DeckTriage({ triage, tasks, onEditTask, onSnoozeTask, onDeleteTa
                       onClick={() => setConfirmDelete(task.id)}
                       onBlur={() => setConfirmDelete((v) => (v === task.id ? null : v))}
                       aria-label={`Delete ${task.title}`}
-                      className="rounded-md border border-[var(--border-default)] px-2.5 py-2 text-[10px] font-mono text-[var(--text-tertiary)] transition-colors hover:text-rose-300 min-h-[44px]"
+                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-edge font-mono text-[12px] text-fg-tertiary transition-colors hover:text-rose-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
                     >
                       ✕
                     </button>
