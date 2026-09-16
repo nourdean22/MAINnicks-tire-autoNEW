@@ -1943,3 +1943,30 @@ measurement. Every proposal below cites the moment in this wave that produced it
 > extends an existing paragraph cleanly; P3 needed the heading note now attached to it; and the audit turned
 > up P7, which no proposal introduced. Recording the method because the root cause of both findings was
 > writing six proposals without reading six target files, not two isolated mistakes.
+>
+> **That audit was still incomplete, and the reviewer caught the half I missed.** I checked whether each
+> proposal COLLIDES with its target's content. I did not check whether the target FIRES in the scenario the
+> proposal is about. A rule in a skill that never loads is not a rule — it is the 3.5%-ever-fired base rate in
+> `CLAUDE-OPERATING-PROFILE.md`, manufactured on purpose. Verified against each target's frontmatter
+> `description`, which is what gates activation:
+>
+> | Proposal | Target fires when… | Motivating incident | Verdict |
+> |---|---|---|---|
+> | P1 | "before any `git push` **from the nickstire app**" | statenour PR merges (#2359 #2362 #2364 #2368) | **mis-scoped** |
+> | P2, P5 | "changes to the statenour app (`apps/statenour/`)" | `.github/workflows/test.yml` — not under that path | **mis-scoped** |
+> | P6 first half (restart recipe) | "a pushed branch… has no merged PR, or auditing origin branches" | an ACTIVE post-merge restart, not an audit | **mis-scoped** |
+> | P6 second half (zombie-rule amendment) | same | a later audit of a reused branch | correctly placed |
+> | P3, P4 | "whenever you write a new test, canary, gate, guard regex, or alarm" | writing canaries | correctly placed |
+> | P7 | n/a — edits the skill's own body | n/a | correctly placed |
+>
+> Note P6 SPLITS: its zombie-rule amendment belongs exactly where it is, because that half does fire during an
+> audit. Only the restart recipe is homeless. The reviewer's blanket verdict on P6 was one step too coarse, and
+> its blanket verdict on the others was right.
+>
+> **Placement is the operator's call, and the options are not equal.** (a) Widen the three target descriptions —
+> cheapest, but widening `nickstire-shared-main-push` to cover statenour PR timing makes its name a lie.
+> (b) Move the cross-app PR/CI rules (P1, P2, P5, P6's restart half) to a new repo-wide skill — honest scoping,
+> one more skill in a library where 3.5% ever fire. (c) Put them in root `AGENTS.md`, which is where cross-app
+> checkable rules belong by its own stated test — but it sits at its 200-line cap, so something goes to make
+> room. I am not choosing: this queue is propose-only, and the choice is a policy decision about where this
+> repo's PR mechanics live, not a defect with one correct fix.
