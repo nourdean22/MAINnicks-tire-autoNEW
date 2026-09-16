@@ -11,7 +11,13 @@ import { recordInteraction } from "@/lib/ai/memory";
 import { messageContentToText } from "@/lib/ai/chat/message-text";
 import { buildVerifierBanner, isVerifierRewritten } from "@/lib/ai/chat/fabrication-rewriter";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
-import { detectFailedActionClaims, detectPhantomActionClaims } from "@/lib/ai/chat/action-result-verifier";
+import {
+  compareActionDoneShadow,
+  detectFailedActionClaims,
+  detectPhantomActionClaims,
+} from "@/lib/ai/chat/action-result-verifier";
+import { recordMetric } from "@/lib/services/metrics";
+import { recordActionDoneShadow } from "@/lib/ai/receipts/action-done-shadow-recorder";
 import { logError } from "@/lib/utils/error-log";
 import { canClaimDone, summarizeClaimDoneShadow, toReceipt } from "@/lib/ai/receipts/action-receipt";
 import { processConversation } from "@/lib/brain/pipeline-controller";
@@ -558,6 +564,24 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                 })
                 .catch(() => undefined);
             }
+            // ── Strict-Done shadow · PROSE-AWARE arm · SHADOW ONLY ──────────
+            // Records a verdict; changes no behaviour. The contract, the
+            // denominator rule and the reason this is not a duplicate of the
+            // claim_done_shadow above all live in the recorder module, which is
+            // extracted precisely so they can be TESTED — this function has no
+            // harness of its own.
+            if (traceId) {
+              await recordActionDoneShadow(
+                compareActionDoneShadow(results, cleanedText),
+                { traceId, conversationId: convId ?? null },
+                {
+                  recordMetric,
+                  logInfo: (event, data) => log.info(event, data),
+                  logError: (scope, err, meta) => logError(scope, err, meta, "warn"),
+                },
+              );
+            }
+
             // S3 · receipt-backed completion event (the audit's split:
             // attempt acknowledgment now, receipt-confirmed completion
             // later). This follow-up message is the ONLY voice that says
