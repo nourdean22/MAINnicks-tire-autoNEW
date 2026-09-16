@@ -18,7 +18,7 @@
  * Sept 2026 is EDT (UTC-4); canon is Mon-Sat 08:00-18:00, Sun 09:00-16:00.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
   created: [] as Array<Record<string, unknown>>,
@@ -112,6 +112,35 @@ describe("PromisesPanel — the stored due time is resolved at submit", () => {
     // From Sunday, the next opening is Monday 08:00 ET = 12:00Z. Resolving on
     // Saturday would have stored Sunday 09:00 ET, already in the past.
     expect(h.created[0].dueAtISO).toBe("2026-09-14T12:00:00.000Z");
+  });
+
+  it("the DISPLAYED line re-resolves while the form sits open, so it cannot drift from what gets stored", async () => {
+    /**
+     * Fixing only the submit path would have left the old bug visible in a new
+     * place: the line under the picker would keep saying "today at close" after
+     * the honest answer became tomorrow, and the operator would read one thing
+     * while a different instant was written. The 30s ticker is what closes
+     * that gap, and without this test nothing would notice if it stopped.
+     */
+    vi.setSystemTime(new Date("2026-09-14T21:59:00Z")); // Mon 17:59 ET, still open
+    render(<PromisesPanel />);
+    openFormAndType();
+    fireEvent.click(screen.getByText("End of day"));
+
+    expect(screen.getByText(/Comes due today at close · 6 PM/)).toBeTruthy();
+
+    // Sit on the open form across 6 PM. The interval runs every 30s.
+    await act(async () => {
+      vi.advanceTimersByTime(2 * 60 * 1000);
+    });
+
+    // Monday's close has passed, so "End of day" now honestly means Tuesday.
+    expect(screen.getByText(/Comes due Tue at close · 6 PM/)).toBeTruthy();
+    expect(screen.queryByText(/Comes due today at close/)).toBeNull();
+
+    // And the stored value agrees with the line that is on screen.
+    fireEvent.click(screen.getByText("Log it"));
+    expect(h.created[0].dueAtISO).toBe("2026-09-15T22:00:00.000Z"); // Tue 18:00 ET
   });
 
   it("the resolved line the operator reads names the same day the value lands on", () => {
