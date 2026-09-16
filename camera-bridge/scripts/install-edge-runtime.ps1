@@ -36,7 +36,7 @@
     another. Every machine runs its own encryption; that is the point, not a limitation.
 .EXAMPLE
     powershell -File scripts/install-edge-runtime.ps1 -EncryptSecret
-    railway run --service MAINnicks-tire-auto -- powershell -File scripts/install-edge-runtime.ps1 -SecretFromEnvironment -SecretOnly
+    railway run --service MAINnicks-tire-auto -- pwsh -NoProfile -File scripts/install-edge-runtime.ps1 -SecretFromEnvironment -SecretOnly
     powershell -File scripts/install-edge-runtime.ps1 -Calibration .\scratchpad\shopsign_calibration.json
     powershell -File scripts/install-edge-runtime.ps1 -DryRun
     powershell -File scripts/install-edge-runtime.ps1 -Uninstall
@@ -148,13 +148,21 @@ if ($SecretFromEnvironment) { $EncryptSecret = $true }
 if ($EncryptSecret) {
     if ($SecretFromEnvironment) {
         $value = $env:CAMERA_INGEST_KEY
-        # NAME THE WRAPPER IN THE FAILURE. Run bare, this variable is simply absent, and
-        # "CAMERA_INGEST_KEY is not set" sends the reader hunting for a file that is not
-        # the mechanism. The fix is almost always the missing `railway run` prefix.
+        # NAME THE WRAPPER IN THE FAILURE, AND MAKE THE PRINTED COMMAND THE ONE THAT WORKS.
+        # Run bare, this variable is simply absent, and "CAMERA_INGEST_KEY is not set" sends
+        # the reader hunting for a file that is not the mechanism. The fix is almost always
+        # the missing `railway run` prefix.
+        #
+        # `pwsh`, NOT `powershell`, and only here. Invoked directly, Windows PowerShell 5.1
+        # runs this script fine. Invoked as `railway run -- powershell ...` it dies with
+        # "the module could not be loaded" on Microsoft.PowerShell.Security, so
+        # ConvertTo-SecureString does not resolve -- the CLI hands its child a different
+        # environment than the shell you typed in. An error message that prints the failing
+        # command is worse than no example: it is the string the reader will copy.
         if (-not $value) {
             throw ("CAMERA_INGEST_KEY is not in this process's environment. -SecretFromEnvironment " +
                    "expects a wrapper that injects it, e.g.`n" +
-                   "  railway run --service MAINnicks-tire-auto -- powershell -File scripts/install-edge-runtime.ps1 -SecretFromEnvironment -SecretOnly`n" +
+                   "  railway run --service MAINnicks-tire-auto -- pwsh -NoProfile -File scripts/install-edge-runtime.ps1 -SecretFromEnvironment -SecretOnly`n" +
                    "Check `railway whoami` first; the CLI must be logged in ON THIS MACHINE.")
         }
         $sourceLabel = "the injected environment (nothing was written in plaintext)"
