@@ -1295,6 +1295,48 @@
       "exposure": "disabled"
     },
     {
+      "capabilityId": "outbound-consent-one-index",
+      "name": "Every outbound lane reads ONE suppression index, and a list that could not be read stops the lane",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "#2361 (34d53af5c) voice lanes fail closed + #2371 (46e3194f4) all four voice lanes and both email lanes consume loadSuppressionIndex(). Before this, three voice crons each ran their OWN narrower query (customers.smsOptOut only -- ignoring sms_preferences, the inbound STOP log and carrier blocks) inside catch { /* fail-soft */ }, so an unreachable DB produced an EMPTY opt-out set and the whole batch was called; confirmationCalls.ts had no consent check at all. stale:true is NOT 'five minutes old' (that is the TTL, i.e. the FRESH path) -- it is returned only when a refresh FAILED and the cache age is UNBOUNDED, so every lane treats it as unreadable. Automated lanes THROW so cron_log records a failed run; the operator lane (routers/vapi.ts makeFollowUpCall) REFUSES with a reason, because a silent no-op reads as a broken button. Operator decision 2026-09-16: FCFS shop holds no slots, so a confirmation call is outreach and is gated -- the business fact makes that answer, not the cron's name.",
+        "deploymentId": "railway main auto-deploy -- 34d53af5c, e94ab8998 and 46e3194f4 all confirmed LIVE by ancestry against /api/health on 2026-09-16 (status healthy, db up 68ms)",
+        "tests": [
+          "server/cron/jobs/outboundLanes.suppression.test.ts (13): ENUMERATION. Walks all of server/** for three dial shapes -- placeVapiOutboundCall(, a raw api.vapi.ai/call with no / or ? after (the lookahead separates the one dial from five read-only VAPI sites), and vapiFetch(\"/call\") -- plus an inventory pin on every VAPI-touching file and an enumeration of email senders. DOCUMENTED_EXCEPTIONS is EMPTY. This file exists because a guard keyed on the helper name and scoped to cron/jobs could not see makeFollowUpCall's raw fetch; the fourth lane was found by sweeping the PROVIDER, not the helper.",
+          "server/emailLanes.suppression.test.ts (11) + server/makeFollowUpCallSuppression.test.ts (4) + server/cron/jobs/voiceRecovery.suppression.test.ts (6): BEHAVIOUR. Every sender is stubbed to THROW, so 'nothing was sent' is witnessed rather than inferred from a counter the code under test computed, and each file carries a positive control (a clean index DOES send) so a silence cannot be satisfied by a vacuous run. Proven by mutation: M19 kept every token and merely ignored the index result -- the behavioural suite failed with the suppressed address reaching the transport while the source-only sweep stayed 13/13 GREEN. Enumeration catches the lane nobody named; behaviour catches the regression inside a lane already named.",
+          "server/lintGateFailClosed.test.ts (15): the same fail-closed rule for the gates that guard this code -- an empty per-file diff is now an ERROR rather than a clean receipt, asserted under a VALID GIT_DIR (what a real git commit exports) as well as a clean env."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "an email unsubscribe is a mailto:unsubscribe@nickstire.org link recorded in NO machine-readable place, so loadSuppressionIndex() cannot see an email-only revocation -- the index's email coverage is inherited from phone-keyed suppression, not from email consent state",
+          "source": "design"
+        },
+        {
+          "severity": "P2",
+          "description": "the fail-closed path has never been OBSERVED firing in production -- no real ok:false or stale:true has been recorded since the ship, so the throw/refuse behaviour is unit-verified and deployed but not live-verified. First real occurrence will appear as a *_SUPPRESSION_UNREADABLE / *_STALE error id in cron_log",
+          "source": "measurement"
+        },
+        {
+          "severity": "P2",
+          "description": "lint:brand-voice does not scope the customer-facing email templates in services/emailCampaigns.ts -- scopeOf() covers client pages/components, services/vapi.ts and the Sequences/Outreach/Recovery crons only, so no gate claim-checks copy that reaches customers by email",
+          "source": "coverage"
+        }
+      ],
+      "deferredScope": [
+        "the drip EMAIL branch is UNREACHABLE today -- all 12 steps across all 4 campaigns declare channel:\"sms\". The guard is in place for whoever adds the first email step, and a test asserts the zero-email fact so the claim is not taken on trust",
+        "no override flag on makeFollowUpCall, deliberately -- an operator who needs to reach a suppressed number should record why against the customer, not bypass the index",
+        "revisit confirmationCalls.ts if the shop ever starts holding real appointment slots: the transactional defence needs a held slot the customer would forfeit, which does not exist in an FCFS shop with no calendar/slot/bay model",
+        "PROMOTION CONDITION to live_verified @ production: this row is deployed @ internal, not production, because exposure production requires live_verified and the fail-closed path has never been OBSERVED firing. Promote on either (a) one real *_SUPPRESSION_UNREADABLE / *_STALE row in cron_log, which proves the throw path, or (b) a databaseAssertion that a post-2026-09-16 run of each lane skipped a known-suppressed number. Do NOT promote on test evidence -- that is what unit_verified already means."
+      ],
+      "lastVerifiedAt": "2026-09-16",
+      "verificationExpiresAt": "2026-12-16",
+      "codeState": "merged",
+      "operationalState": "deployed",
+      "exposure": "internal"
+    },
+    {
       "capabilityId": "cron-once-per-shop-day-cadence",
       "name": "Once-per-shop-day cron cadence (boot-phase-proof)",
       "owner": "system",

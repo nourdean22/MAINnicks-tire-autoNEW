@@ -95,6 +95,57 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-09-16 — "we could not check the opt-out list" had been reading as "nobody opted out"
+
+Shipped as #2361 (`34d53af5c`), #2363 (`e94ab8998`) and #2371 (`46e3194f4`);
+all three merged, deployed and confirmed live by ancestry against
+`/api/health`.
+
+`server/sms.ts` records a verified harm from 2026-07-20: a consent list that
+failed to load once contributed to 136 messages reaching 103 people. The SMS
+path was fixed then. **The outbound VOICE path never got that fix.**
+`cron/jobs/voiceRecovery.ts` and `cron/jobs/followupCadence.ts` each ran their
+own narrower query — `customers.smsOptOut` only, ignoring `sms_preferences`,
+the inbound STOP log and carrier blocks — inside `catch { /* fail-soft */ }`.
+An unreachable database therefore produced an EMPTY opt-out set and the whole
+batch got called. `confirmationCalls.ts` had no consent check at all.
+
+Three things about how that was found are worth keeping.
+
+1. **The second lane was a byte-for-byte copy of the first, and it only turned
+   up because I swept the class AFTER shipping the fix for lane one.** Twelve
+   lines above the fail-open, `followupCadence` already rethrows on an
+   unreadable fired-touch set — an unreadable fired-touch set must not read as
+   a clean run. The re-contact guard failed closed while the consent guard
+   failed open, in the same function.
+2. **A fourth lane existed that my own guard could not see.** I had written
+   that a fourth lane "cannot be missed the way the second one was"; that was
+   false. `routers/vapi.ts` `makeFollowUpCall` dials VAPI with a raw `fetch` to
+   `https://api.vapi.ai/call`, so it was invisible both to a guard keyed on the
+   helper name and to one scoped to `server/cron/jobs`. Sweeping the PROVIDER
+   rather than the helper is what surfaced it.
+3. **Only a mutation showed that two of my own guards were mention-blind.** A
+   source assertion on `loadSuppressionIndex` stayed GREEN under a full revert
+   of the fix, satisfied by a leftover comment that merely named the function.
+   Both guards now match a call expression on comment-stripped source.
+
+Operator decisions taken the same day: the shop is first-come first-served with
+no held spots, so a confirmation call is outreach and is gated like the rest;
+and the email lanes were authorized, so both now read the same index. The full
+operating contract — including why `stale` is not "five minutes old" — is in
+[`docs/CURRENT-TRUTH.md`](docs/CURRENT-TRUTH.md) under **Outbound consent**.
+
+Fixed alongside, because it is the same defect shape one level up: three
+staged-diff gates — including statenour's staged **secret scanner** — were
+scanning ZERO files on every commit and rendering that as a pass. `git commit`
+hands hooks an absolute `GIT_DIR` with no `GIT_WORK_TREE`; lefthook runs each
+job with `root: apps/<app>`; git then treats the cwd as the work-tree root, so
+every per-file pathspec and `--show-toplevel` answers the wrong root. A planted
+AWS key and a planted banned claim both committed cleanly before the fix.
+**Any canary for a gate that shells out to git must run twice — clean, and
+under a VALID `GIT_DIR`** (the prior canary used a NONEXISTENT one, so git
+failed loudly and the silent case was never covered).
+
 ## 2026-09-09 — the account was being judged on the wrong number, and the critic was grading a spec the generator never got
 
 **SAVES ARE NOT A REELS RANKING INPUT.** Meta's own ranking documentation lists

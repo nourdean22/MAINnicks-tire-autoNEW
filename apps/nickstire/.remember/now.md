@@ -1,8 +1,9 @@
 # Session ledger - nickstire
 
 **Updated: 2026-09-16** (Outbound-consent sweep, all three channels + the gates that were scanning
-nothing. #2361 `34d53af5c` + #2363 `e94ab8998` MERGED and DEPLOYED. Operator answered two of the three
-decisions, so EVERY outbound lane now honours the shared opt-out index — see the third PR below.)
+nothing + the gate that was never wired. #2361 `34d53af5c` + #2363 `e94ab8998` + #2371 `46e3194f4` MERGED
+and DEPLOYED; **#2374 open** — `lint:pii` becomes a pre-commit gate and the consent contract finally lands
+in CURRENT-TRUTH / truth_os / the capability ledger instead of living only in PR bodies.)
 
 ## 2026-09-16 · Outbound consent, and the gates that reported success over unread files
 
@@ -140,6 +141,60 @@ read or a dial. Same shape for email senders. **The allowlist is now EMPTY.**
 **Previous header — Updated: 2026-09-16** (Dream-to-Proof waves 2-3 + follow-ups SHIPPED:
 #2330/#2334/#2335/#2336/#2340/#2342/#2343 — kernel calibrated + GrowthBook cross-checked, Night Shift identity
 fail-closed, hidden holdout armed and posting, capability ledger current. Nothing of mine open.)
+
+### #2374 — the PII gate was never wired, and the consent work was never written down
+
+Two halves of one operator line: *"Did u do the docs n u can do the wiring too then wrap it up."*
+
+**The docs half had to be answered NO first.** #2361/#2371 shipped real production behaviour and touched
+none of the three sources this repo tells agents to trust. Now: `docs/CURRENT-TRUTH.md` gains an **Outbound
+consent** operating contract beside the outbound-SMS one; `truth_os.md` gains a dated ship entry (its own
+AGENTS.md header says "updated on every ship" and three prod PRs had skipped it); and the capability ledger
+gains `outbound-consent-one-index`.
+
+★ **The ledger checker refused my first claim and was right.** I wrote `exposure: production` — the lanes do
+run in prod against real customers. It exited 1: *exposure production requires operationalState >=
+live_verified*. In that ledger **`exposure` is a claim about VERIFIED REACH**, not about which environment the
+code sits in, and `live_verified` needs `liveRuns`/`databaseAssertions` — which do not exist, because **no
+real `ok:false` or `stale:true` has been observed firing in production**. Landed `deployed @ internal`
+(precedent: `boundary-enforcement`), promotion condition written INTO the row. `REALITY-LEDGER.md` is
+RENDERED — run `scripts/render-reality-ledger.mjs`, never hand-edit.
+
+**The wiring half.** `lint:pii` was in `pnpm run verify` and CI but in NO lefthook job, so its pre-commit mode
+never ran at commit time. Now `nickstire-lint-pii` (`root: apps/nickstire`, glob `**/*.{ts,tsx,mjs,js}`).
+Measured BEFORE wiring: ~800ms pre-commit, ~770ms audit fallback over 919 files, 1.05-1.10s in the real hook;
+**1 block in the last 120 commits** touching `server/`, and that one was a **TRUE positive**. `main` clean at
+919 files / 0 violations.
+
+★★ **The canary is the reusable asset** — `server/lintPiiHookWiring.test.ts`, 12 tests, every one driving the
+real script end-to-end and asserting the RULE TEXT (a nonzero exit is not proof; a config error exits nonzero
+too). Three properties, each of which one of my own drafts got wrong:
+1. **It runs TWICE — clean env AND under a valid `GIT_DIR`.** M23 (restore the fail-open) → **6 red, 5 green,
+   and the 5 include the clean-env control.** That is exactly why the #2363 blindness survived for months.
+2. **Mode is ASSERTED.** The script silently falls back to non-blocking AUDIT mode when nothing in scope is
+   staged, so a harness that staged nothing prints a green receipt over ~900 files and every "clean"
+   assertion passes vacuously. Every test pins the literal `(pre-commit)` label.
+3. **The glob is extension-only ON PURPOSE** — a directory glob would be a SECOND definition of scope, free to
+   drift from the script's `IN_SCOPE`. The cost is an audit fallback on client-only commits, which a test now
+   proves cannot block and labels itself `(audit)`. Do not "optimize" it into a directory glob.
+
+⚠ **Traps for the next session.** (a) The `// pii-allow:` waiver is **line-level, on the offending line** —
+"waive by SIGNATURE, never by filename" — and a second violation elsewhere in the same file still blocks.
+(b) `pre-commit:` is the **FIRST line** of `lefthook.yml`, so slicing that block on a preceding newline
+returns -1 and `slice(-1, …)` yields `""`; assert block bounds before reading out of them.
+(c) **`docs/agent-audit/CONTROL-CANARY-COVERAGE.md` derives numbers FROM the repo and `coverage-doc.test.mjs`
+enforces them** — adding a tenth pre-commit job staled two counts and turned CI red. Reconcile the row, the
+Total, AND every stated percentage (it checks all of them, not just the table's).
+(d) Probe phone numbers in that canary must NOT be 555 (exempt by NANP reservation, which would make every
+deny assertion vacuous), so the file depends on `.test.ts` staying OUT of `lint:pii`'s scope.
+
+**Fixed in passing:** `services/nonCustomerFilter.ts` claimed unformatted storage dodges the Cleveland-phone
+pattern. False — the separators are optional, so `2168488888` matches as readily as the dashed form; the
+`// pii-allow:` marker is what silences it. Verified against the regex directly.
+
+**Still open, reported not fixed:** an email unsubscribe is a `mailto:` recorded nowhere machine-readable, so
+the index cannot see an email-only revocation; and `lint:brand-voice` does not scope the customer-facing email
+templates in `emailCampaigns.ts`. Both are P2 rows on the new ledger entry.
 
 ## 2026-09-15/16 · Proof lane: what is live, what still needs a human
 
