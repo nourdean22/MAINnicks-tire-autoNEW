@@ -18,8 +18,15 @@ export default function ChatPage() {
   // the iOS status bar and the composer under the bottom chrome. The bottom
   // value is the MEASURED one the tab bar publishes via ResizeObserver, not
   // the hardcoded 96px in .pb-safe, which the ticker can outgrow.
+  // xl:left-[var(--spine-w,0px)] * 2026-09-16 * the same escape hatch, third
+  // side. <main> reserves the desktop spine's 4.5rem lane with
+  // xl:pl-[var(--spine-w)], and inset-0 resolves against the VIEWPORT, so this
+  // island rendered from x=0 and the header's first control sat under the rail
+  // (floating-collision.spec.ts: aside[Workspace rail] covers a[/settings] by
+  // 3x44px at 1460px). Reserving it here, not padding the header, because the
+  // island's own border-b and backdrop-blur must stop at the rail too.
   return (
-    <div className="fixed inset-0 overflow-hidden bg-zinc-950 pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)]">
+    <div className="fixed inset-0 overflow-hidden bg-zinc-950 pt-[env(safe-area-inset-top,0px)] pb-[var(--bottom-chrome-h)] xl:left-[var(--spine-w,0px)]">
       <ChatIsland />
     </div>
   );

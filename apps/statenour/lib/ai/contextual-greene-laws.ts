@@ -221,6 +221,11 @@ export async function pickContextualLawsForPerson(
       })
       // CONTACT rows only (W8) — these rows become the model's picture of the
       // relationship; an audit row is not something the operator did.
+      // The take went 10 -> 30 so the filter has headroom: it is a 3x buffer,
+      // not a guarantee. A person carrying more than 30 audit rows would yield
+      // fewer than 10 contacts here. That degrades gracefully (a shorter,
+      // still-honest history) and no prod person is close — the WHOLE ledger
+      // held 23 rows on 2026-09-16 — but it is a truncation, not an exact read.
       .then((rows) => contactRowsOnly(rows).slice(0, 10)),
     prisma.brainMemory.findMany({
       where: { category: BRAIN_CATEGORIES.KEPT_WORD },

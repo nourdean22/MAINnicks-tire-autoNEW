@@ -28,6 +28,7 @@ import {
   ReservedLedgerMetadataError,
   assertWritableMetadata,
   isContactRow,
+  writableLedgerMetadata,
 } from "@/lib/services/people/contact-rows";
 
 describe("assertWritableMetadata · a contact writer cannot stamp a non-contact marker", () => {
@@ -67,6 +68,64 @@ describe("assertWritableMetadata · a contact writer cannot stamp a non-contact 
       expect(() => assertWritableMetadata({ [key]: value }), `${key} should be rejected`).toThrow(
         ReservedLedgerMetadataError,
       );
+    }
+  });
+});
+
+/**
+ * THE EDGE GUARD HAD NO TEST, found 2026-09-16 auditing this wave's own diff.
+ *
+ * The rule has three expressions: `isContactRow` excludes the row,
+ * `assertWritableMetadata` refuses to write it, and this zod schema rejects it
+ * at the tRPC edge so the operator gets a BAD_REQUEST naming the key rather
+ * than the seam's throw as an internal error. Only the first two were tested.
+ *
+ * That gap was invisible BY CONSTRUCTION, which is what makes it worth a test
+ * rather than a shrug: the schema sits in front of `recordInteraction`, which
+ * runs `assertWritableMetadata` anyway — so a broken schema still produced a
+ * rejected write, just with a worse error. A duplicated guard where only one
+ * copy is exercised is a guard you cannot trust and cannot notice losing.
+ */
+describe("writableLedgerMetadata · the same rule at the tRPC edge", () => {
+  it("rejects each reserved marker and names the key in the issue path", () => {
+    for (const { key, value } of RESERVED_LEDGER_METADATA_KEYS) {
+      const r = writableLedgerMetadata.safeParse({ [key]: value });
+      expect(r.success, `${key} should be rejected at the edge`).toBe(false);
+      if (!r.success) {
+        expect(r.error.issues.some((i) => i.path.join(".") === key), `issue path should name ${key}`).toBe(true);
+      }
+    }
+  });
+
+  it("accepts ordinary metadata and an empty object", () => {
+    expect(writableLedgerMetadata.safeParse({}).success).toBe(true);
+    expect(writableLedgerMetadata.safeParse({ chatMessageId: "m1", kind: "checkin" }).success).toBe(true);
+    expect(writableLedgerMetadata.safeParse({ synthetic: false }).success).toBe(true);
+  });
+
+  it("agrees with the runtime guard on EVERY input, so the two cannot drift apart", () => {
+    // The real invariant is not "each rejects bad input" but "they reject the
+    // SAME input". Drift between an edge validator and the seam behind it is
+    // how a caller gets a 200 from one layer and a 500 from the next.
+    const cases: unknown[] = [
+      {},
+      { chatMessageId: "m1" },
+      { kind: "checkin" },
+      { synthetic: false },
+      { synthetic: true },
+      { kind: "status_flip" },
+      { kind: "status_flip", before: "active" },
+      { synthetic: true, kind: "checkin" },
+    ];
+    for (const c of cases) {
+      const edgeRejects = !writableLedgerMetadata.safeParse(c).success;
+      let seamRejects = false;
+      try {
+        assertWritableMetadata(c);
+      } catch {
+        seamRejects = true;
+      }
+      expect(edgeRejects, `edge and seam disagree on ${JSON.stringify(c)}`).toBe(seamRejects);
     }
   });
 });
