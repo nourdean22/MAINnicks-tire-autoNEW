@@ -67,10 +67,25 @@ export type ExclusionReason =
  * control, so it must fail safe: in source it is reviewed, diffed and cannot
  * silently vanish. The same list in an env var disappears the moment a deploy
  * drops the variable, and the failure mode is texting the people it exists to
- * protect - with nothing logged, because the list would simply be empty. Stored
- * unformatted (no dashes) so the PII lint's Cleveland-phone pattern does not
- * read it as customer data pasted into source by accident; it is neither
- * customer data nor accidental.
+ * protect - with nothing logged, because the list would simply be empty.
+ *
+ * The digits are stored unformatted because that is the shape they are COMPARED
+ * in (see `last10` below), and for no other reason.
+ *
+ * CORRECTED 2026-09-16. This comment used to claim the unformatted form was
+ * chosen "so the PII lint's Cleveland-phone pattern does not read it as
+ * customer data". That is false, and measured false: the rule is
+ * `\b(216|330|440|234)\s*[\-.\s]?\s*\d{3}\s*[\-.\s]?\s*\d{4}\b`, whose
+ * separators are OPTIONAL, so `2168488888` matches exactly as readily as
+ * `216-848-8888`. A 120-commit replay of the linter found this file to be the
+ * ONE true positive in that history - it tripped the gate at the commit that
+ * added it, with no waiver. What actually silences the rule today is the
+ * `// pii-allow:` marker on the line itself. Keep that marker: strip it and the
+ * gate blocks the commit, which as of 2026-09-16 is a pre-commit hook and not
+ * just a `verify` step. A comment that misstates WHY a guard passes is worse
+ * than no comment - the next reader reformats the digits for legibility,
+ * expects the gate to stay quiet for the stated reason, and learns nothing
+ * about the marker doing the real work.
  */
 export interface InternalLine {
   /** Last 10 digits, NANP. Compared against the same normalisation. */

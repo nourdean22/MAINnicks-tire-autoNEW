@@ -560,6 +560,85 @@ caller. See ROS-085 and the ISSUE-REGISTRY rows for each.
 - Verified 2026-07-20: a tuple-shape misread of the claim result made that claim always evaluate to zero rows, so every restart moved up to 100 messages into `sending` and sent none. 136 messages to 103 people accumulated between 2026-06-02 and 2026-07-19. Fixed (#962/#965, `lib/db-affected.ts` `affectedRowCount`), backlog released, 132 delivered.
 - Every non-send path in `sendSms` now logs a reason, and the drain logs hold/resume transitions (#970). Before that, a message that never reached a customer left no trace anywhere.
 
+### Outbound consent — one index, and a list that could not be read stops the lane (2026-09-16, #2361 `34d53af5c` + #2371 `46e3194f4`)
+
+This is the 2026-09-10 rule at the top of this file — *a read that could not
+run must not render as a confident zero* — applied to consent, where the
+confident zero was "nobody opted out".
+
+- **ONE definition.** `loadSuppressionIndex()` in `server/sms.ts` is the only
+  answer to "may we contact this number". It unions FOUR sources —
+  `customers.smsOptOut`, `sms_preferences`, the raw inbound message log
+  (STOP/UNSUBSCRIBE/etc. via `shared/smsOptOutKeywords.ts`), and carrier block
+  notices — and returns `{ok:true, phones, carrierBlocked, stale}` or
+  `{ok:false, reason}`. A lane that queries any ONE of those by hand holds a
+  narrower list than the shop's real consent state, which is exactly how this
+  started: three voice lanes read `customers.smsOptOut` alone, inside a
+  `catch { /* fail-soft */ }`.
+- **`stale: true` does NOT mean "five minutes old".** Five minutes is the TTL —
+  the FRESH path. `stale` is returned only when a refresh FAILED, and the cache
+  it hands back has **unbounded** age (`stale()` never consults
+  `optOutCacheLoadedAt`). Every lane therefore treats `stale` exactly as it
+  treats `ok:false`. Reading `stale` as "recent enough" is the trap this
+  contract exists to close.
+- **An automated lane THROWS; an operator lane REFUSES.** A cron that skips
+  silently reports a clean run to `cron_log` with nobody listening, so an
+  unreadable index raises and the run is recorded failed — one error id per
+  lane (`VOICE_RECOVERY_SUPPRESSION_UNREADABLE` / `_STALE`, and the
+  `FOLLOWUP_CADENCE_` / `CONFIRMATION_CALLS_` / `EMAIL_CAMPAIGNS_` / `DRIP_`
+  equivalents). An admin button has a human waiting, so `makeFollowUpCall`
+  returns the reason instead: a silent no-op reads as a broken button and gets
+  pressed again. No override flag, deliberately.
+- **Lanes covered.** SMS is gated centrally — there is exactly ONE Twilio send
+  site repo-wide and every automated class passes the `sendSms` chokepoint.
+  Voice: `cron/jobs/voiceRecovery.ts`, `cron/jobs/followupCadence.ts`,
+  `cron/jobs/confirmationCalls.ts`, plus the operator lane `routers/vapi.ts`
+  `makeFollowUpCall`. Email: `services/emailCampaigns.ts` (flag
+  `email_marketing_campaigns`, read ENABLED in prod) and
+  `services/dripProcessor.ts`.
+- **Confirmation calls are gated because the shop holds no slots.** A
+  confirmation could otherwise claim transactional status, but that defence
+  needs a held appointment the customer would forfeit, and this is an FCFS shop
+  with no calendar, slot or bay model anywhere (see the Arrival load note under
+  Authoritative operator surfaces). Operator answer, 2026-09-16: confirming
+  attendance is fine, no spots are held. **The business fact is what makes that
+  answer, not the cron's name** — if the shop ever starts holding real slots,
+  revisit this lane first.
+- **Suppression must run BEFORE the batch limit.** `emailCampaigns` took
+  `LIMIT 15` and filtered afterwards. A customer suppressed via
+  `sms_preferences` still satisfies `c.smsOptOut = 0`, so they occupied a slot;
+  `lastEmailCampaignAt` is stamped only on a SUCCESSFUL send, so they were never
+  aged out; and with no `ORDER BY` the same rows returned every day. That is
+  **indefinite starvation** of everyone behind them, not a throughput dent. It
+  now reads a bounded candidate window (4x the batch) and takes the batch from
+  the unsuppressed remainder, logging `EMAIL_CAMPAIGNS_WINDOW_EXHAUSTED` rather
+  than quietly under-sending. Send volume is unchanged at 15.
+- **The drip EMAIL branch is unreachable today** — all 12 steps across all 4
+  campaigns declare `channel: "sms"`. The missing check there was a latent trap
+  for whoever adds the first email step, not a live hole; a test asserts the
+  zero-email fact so nobody has to take that on trust. Drip counters are also
+  split now (`sent` / `suppressed` / `processed`) — `sent++` used to be
+  unconditional, so `cron_log` counted suppressed contacts as successful sends.
+- **How the lanes are kept enumerated.** A guard keyed on the helper
+  (`placeVapiOutboundCall(`) and scoped to `cron/jobs` could not see
+  `makeFollowUpCall`, which dials with a raw `fetch` to
+  `https://api.vapi.ai/call` — that fourth lane was found by sweeping the
+  PROVIDER, not the helper. `cron/jobs/outboundLanes.suppression.test.ts` now
+  walks all of `server/**` for three dial shapes plus an inventory pin on every
+  VAPI-touching file, and its documented-exceptions list is **EMPTY**.
+  Enumeration catches the lane nobody named; the behavioural suites
+  (`makeFollowUpCallSuppression.test.ts`, `emailLanes.suppression.test.ts`, each
+  sender stubbed to THROW so "nothing sent" is *witnessed* rather than inferred
+  from a counter the code under test computed) catch a regression inside a lane
+  already named. Both, or neither is enough — a mutation that kept every token
+  and merely ignored the index result left the source-only sweep 13/13 green.
+- **Known gap, reported not fixed:** an email unsubscribe is a
+  `mailto:unsubscribe@nickstire.org` link recorded in no machine-readable place,
+  so the index cannot see an email-only revocation; and `lint:brand-voice` does
+  not scope the customer-facing templates in `emailCampaigns.ts` (`scopeOf()`
+  covers pages, components, `services/vapi.ts` and the
+  Sequences/Outreach/Recovery crons — and nulls any `admin/` path).
+
 ### Inbound SMS response — durability + human takeover (2026-07-21, NCSOS)
 
 - Every inbound customer text now creates a durable **`sms_response_jobs`** row — the obligation to respond, deduped by a deterministic idempotency key so a provider redelivery maps to one job. The webhook still answers in-request for latency; the job row is the durable safety net. `server/services/smsResponseJobs.ts` (#986).

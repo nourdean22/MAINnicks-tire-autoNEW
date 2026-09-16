@@ -21,6 +21,19 @@ pre-commit:
       root: "apps/nickstire"
       glob: "**/*.{ts,tsx}"
       run: pnpm run check
+    # 2026-09-16 gate-integrity: staged-only PII scan. It was already in
+    # `pnpm run verify` and CI but in NO git hook, so no commit was ever
+    # blocked on staged PII and the pre-commit mode the script implements
+    # never actually ran at commit time. Measured before wiring: ~800ms
+    # (817/800/803) against `nickstire-check`'s 52.9s in this same parallel
+    # block, and 1 block across the last 120 commits touching
+    # apps/nickstire/server/ — which was a TRUE positive (the operator's own
+    # mobile hardcoded with no waiver). Expect ~1 commit in 120 to need one
+    # `// pii-allow: <reason>` line. Canary: server/lintPiiHookWiring.test.ts.
+    nickstire-lint-pii:
+      root: "apps/nickstire"
+      glob: "**/*.{ts,tsx,mjs,js}"
+      run: pnpm run lint:pii
     statenour-typecheck:
       root: "apps/statenour"
       glob: "**/*.{ts,tsx}"
