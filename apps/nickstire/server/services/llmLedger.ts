@@ -68,6 +68,17 @@ export function callerLane(): string | null {
 let warnedOnce = false;
 let disabled = false; // set on the first insert failure — no point retrying a missing table every call
 
+/**
+ * Exported for the READER (services/llmLedgerRead.ts), which must tell an
+ * operator the difference between "no LLM calls happened" and "we are not
+ * recording them". A second copy of this predicate is how flag state drifts:
+ * the same mistake is on record twice in docs/CURRENT-TRUTH.md, where a
+ * provider name written in prose was stale both times.
+ */
+export function isLedgerEnabled(): boolean {
+  return ledgerEnabled();
+}
+
 function ledgerEnabled(): boolean {
   return process.env.LLM_LEDGER_ENABLED === "true";
 }
