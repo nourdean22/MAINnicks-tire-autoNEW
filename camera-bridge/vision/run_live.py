@@ -38,7 +38,7 @@ from vision.detector import (  # noqa: E402
     DetectorCouncil, DetectorUnavailable, Mog2MotionDetector, OpenVinoVehicleDetector,
 )
 from vision.evidence import EvidenceStore  # noqa: E402
-from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
+from vision.geometry import EntryPortal, LotMap, Zone, point_in_poly  # noqa: E402
 from vision.panedetect import (ChannelNotFound, assert_channel_usable,  # noqa: E402
                                classify_motion, detect_live_region,
                                resolve_channel, split_into_channels)
@@ -529,6 +529,56 @@ def _solo(src, calibrated_reference=None):
     return mux
 
 
+class PortalNotUsable(Exception):
+    """A portal that cannot be crossed inward. See `assert_portal_straddles`."""
+
+
+def assert_portal_straddles(lot_poly, portal_poly, samples: int = 4000) -> None:
+    """Refuse a portal that does not span the lot boundary.
+
+    An arrival is a vehicle crossing INTO the lot through the portal. A portal drawn
+    wholly INSIDE the lot can never be crossed inward -- there is no outside half to come
+    from -- so the producer records zero arrivals forever while every other signal stays
+    green: frames arrive, vehicles are detected and tracked, the health lattice is happy,
+    and the shop board simply shows a lot nobody ever drove into. That is indistinguishable
+    from a genuinely quiet week, which is why it has to fail at LOAD time and loudly.
+
+    Caught on the shop PC 2026-09-16 against a hand-drawn calibration: 75 of 75 sampled
+    portal cells were inside the lot, 0 outside. The polygons looked perfectly sensible
+    drawn over the camera view; only counting the two halves showed it.
+
+    A portal wholly OUTSIDE is refused for the mirror reason: nothing can land in the lot
+    through it either.
+    """
+    if not portal_poly:
+        return                      # census mode: no portal is a deliberate, honest state
+    xs = [p[0] for p in lot_poly + list(portal_poly)]
+    ys = [p[1] for p in lot_poly + list(portal_poly)]
+    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    step = max(1.0, ((x1 - x0) * (y1 - y0) / max(samples, 1)) ** 0.5)
+    inside_lot = outside_lot = 0
+    y = y0
+    while y <= y1:
+        x = x0
+        while x <= x1:
+            if point_in_poly((x, y), portal_poly):
+                if point_in_poly((x, y), lot_poly):
+                    inside_lot += 1
+                else:
+                    outside_lot += 1
+            x += step
+        y += step
+    if inside_lot and outside_lot:
+        return
+    where = "entirely INSIDE the lot" if outside_lot == 0 else "entirely OUTSIDE the lot"
+    raise PortalNotUsable(
+        f"the portal is {where} ({inside_lot} sampled cells inside, {outside_lot} outside), "
+        "so no vehicle can ever cross INTO the lot through it and no arrival will ever be "
+        "recorded -- which looks exactly like a quiet lot. Redraw the portal as a band "
+        "STRADDLING the lot's entry edge, with part of it outside the lot polygon."
+    )
+
+
 def build_council(model: str | None, device: str, motion_gate: bool,
                   adjudicator_model: str | None = None,
                   adjudicator_device: str | None = None) -> DetectorCouncil:
@@ -717,6 +767,7 @@ def main() -> int:
             cal = json.load(fh)
         lot_poly = [tuple(p) for p in cal["lot"]]
         portal_poly = [tuple(p) for p in cal.get("portal", [])]
+        assert_portal_straddles(lot_poly, portal_poly)
         lot_map = LotMap().add("front_lot", lot_poly)
         for name, poly in (cal.get("bays") or {}).items():
             lot_map.add(name, [tuple(p) for p in poly])

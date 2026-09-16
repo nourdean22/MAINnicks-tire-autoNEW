@@ -1636,3 +1636,32 @@ def test_an_INJECTED_REAL_TRACKER_actually_receives_parsed_events():
     )
     raw_pipe._emit("new", _Track(), 1000.0)
     assert isinstance(seen[0], dict), "an explicit opt-out still hands over the raw payload"
+
+
+def test_portal_must_straddle_the_lot_boundary():
+    """A portal that cannot be crossed inward records zero arrivals and looks like a quiet lot.
+
+    Found on the shop PC 2026-09-16 against a hand-drawn calibration: every sampled portal
+    cell was inside the lot and none outside, so there was no outside half for a vehicle to
+    arrive FROM. Nothing else complains -- frames arrive, vehicles track, the health lattice
+    stays green -- so this has to fail at load time.
+    """
+    from vision.run_live import PortalNotUsable, assert_portal_straddles
+
+    lot = [(143, 117), (535, 130), (535, 294), (55, 294), (55, 192)]
+
+    # CANARY: the exact geometry that was wrong, asserted to FAIL. Without this the
+    # control below proves nothing -- a function that accepts everything would pass it.
+    import pytest
+    with pytest.raises(PortalNotUsable, match="entirely INSIDE"):
+        assert_portal_straddles(lot, [(55, 192), (143, 117), (187, 130), (99, 210)])
+
+    # the mirror mistake is equally unusable: nothing can land in the lot through it
+    with pytest.raises(PortalNotUsable, match="entirely OUTSIDE"):
+        assert_portal_straddles(lot, [(0, 0), (20, 0), (20, 20), (0, 20)])
+
+    # CONTROL: a band straddling the entry edge is accepted
+    assert_portal_straddles(lot, [(126, 97), (38, 172), (72, 212), (160, 137)])
+
+    # census mode declares no portal at all, and that is a legitimate, honest state
+    assert_portal_straddles(lot, [])
