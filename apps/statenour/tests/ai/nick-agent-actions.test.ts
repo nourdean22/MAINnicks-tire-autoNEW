@@ -27,14 +27,23 @@ vi.mock("@/lib/ai/agent-actions/arsenal-actions", () => ({
   handleArsenalBrowserObserve: vi.fn().mockResolvedValue({ action: "arsenal.browserObserve", success: true }),
 }));
 
+// 2026-09-16 · person.logInteraction — the contact path. Mocked like the
+// other handler modules; the dispatch + catalog pin lives at the bottom.
+vi.mock("@/lib/ai/agent-actions/person-actions", () => ({
+  handlePersonUpdate: vi.fn().mockResolvedValue({ action: "person.update", success: true }),
+  handlePersonCreate: vi.fn().mockResolvedValue({ action: "person.create", success: true }),
+  handlePersonLogInteraction: vi.fn().mockResolvedValue({ action: "person.logInteraction", success: true, result: { ledgerId: "L1" } }),
+}));
+
 // Mock the feedback loop to avoid DB side-effects during test runs
 vi.mock("@/lib/brain/pipeline-controller", () => ({
   feedbackLoop: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { parseActions, executeActions } from "../../lib/ai/nick-agent";
+import { parseActions, executeActions, ACTION_CATALOG } from "../../lib/ai/nick-agent";
 import * as googleHandlers from "@/lib/ai/agent-actions/google-actions";
 import * as arsenalHandlers from "@/lib/ai/agent-actions/arsenal-actions";
+import * as personHandlers from "@/lib/ai/agent-actions/person-actions";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -116,5 +125,22 @@ describe("Nick Agent Action Dispatcher", () => {
     expect(arsenalHandlers.handleArsenalBrowserAct).toHaveBeenCalled();
     expect(arsenalHandlers.handleArsenalBrowserExtract).toHaveBeenCalled();
     expect(arsenalHandlers.handleArsenalBrowserObserve).toHaveBeenCalled();
+  });
+});
+
+describe("person.logInteraction — reachable, not just registered", () => {
+  it("dispatches to its handler with (params, type) and the catalog advertises it to the model", async () => {
+    const results = await executeActions([
+      { type: "person.logInteraction", params: { name: "Dania", note: "coffee", amount: 5, kind: "in_person" } },
+    ]);
+    expect(results).toHaveLength(1);
+    expect(results[0].success).toBe(true);
+    expect(personHandlers.handlePersonLogInteraction).toHaveBeenCalledWith(
+      { name: "Dania", note: "coffee", amount: 5, kind: "in_person" },
+      "person.logInteraction",
+    );
+    // The prompt is the only way the model learns the action exists.
+    expect(ACTION_CATALOG).toContain("| person.logInteraction |");
+    expect(ACTION_CATALOG).toMatch(/person\.update[^\n]*never touches lastInteraction/);
   });
 });

@@ -159,6 +159,27 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
       return o?.name ? `${o.name} · ${o.note ?? "Added to people"}` : null;
     },
   },
+  // 2026-09-16 · the relationship ledger's writer — the receipt names the
+  // person, the signed amount and the note, and deep-links to the row's
+  // person on /people (the timeline is inside the detail panel).
+  "person.logInteraction": {
+    label: "Logging interaction",
+    doneLabel: "Interaction logged",
+    runningLabel: "Logging interaction…",
+    icon: HandshakeIcon,
+    color: "emerald",
+    link: { href: "/people", label: "View people" },
+    linkFn: (out) => {
+      const o = out as { id?: string } | null;
+      return o?.id ? { href: `/people#person-${o.id}`, label: "View ledger" } : null;
+    },
+    subtitle: (out) => {
+      const o = out as { name?: string; amount?: number; note?: string } | null;
+      if (!o?.name) return null;
+      const amount = typeof o.amount === "number" ? `${o.amount > 0 ? "+" : ""}${o.amount}` : "";
+      return [o.name, amount, o.note].filter(Boolean).join(" · ");
+    },
+  },
   logGoalProgress: {
     label: "Logging progress",
     doneLabel: "Progress logged",

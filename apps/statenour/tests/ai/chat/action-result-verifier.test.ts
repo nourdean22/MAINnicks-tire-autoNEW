@@ -88,7 +88,7 @@ describe("detectFailedActionClaims", () => {
 
   it("treats the canonical write actions as mutations", () => {
     const mutations = [
-      "task.create", "person.create", "telegram.send", "decision.log",
+      "task.create", "person.create", "person.logInteraction", "telegram.send", "decision.log",
       "google.proposeEvent", "gmail.draftReply", "gmail.createDraft",
       "gmail.sendDraft", "google.draftReviewResponse", "google.markReviewResponded",
       "arsenal.browserCreateSession", "arsenal.browserCloseSession"
@@ -248,5 +248,23 @@ describe("detectPhantomActionClaims — claimed but never emitted (the 08-25 per
     expect(
       detectPhantomActionClaims([], "The workout went well and the BBQ plan is solid."),
     ).toEqual([]);
+  });
+});
+
+describe("detectPhantomActionClaims — a claimed ledger write that was never emitted (2026-09-16)", () => {
+  it("BREAKS: 'Logged +5 for Dania' with no person.logInteraction emitted is a phantom", () => {
+    const claims = detectPhantomActionClaims([], "Logged +5 for Dania — coffee at the shop.");
+    expect(claims).toHaveLength(1);
+    expect(claims[0].expectedTool).toBe("person.logInteraction");
+  });
+
+  it("positive control: the same prose with the action emitted (success or failure) is not phantom", () => {
+    expect(detectPhantomActionClaims([OK("person.logInteraction")], "Logged +5 for Dania.")).toEqual([]);
+    expect(detectPhantomActionClaims([FAIL("person.logInteraction")], "Logged +5 for Dania.")).toEqual([]);
+  });
+
+  it("hedged prose and a decision/task log are not ledger claims", () => {
+    expect(detectPhantomActionClaims([], "Want me to log that interaction with Dania?")).toEqual([]);
+    expect(detectPhantomActionClaims([], "Logged the decision to hire a second tech.")).toEqual([]);
   });
 });

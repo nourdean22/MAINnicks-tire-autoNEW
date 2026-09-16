@@ -18,7 +18,7 @@
  * - alert.resolve
  * - memory.remember / memory.forget
  * - simulation.run
- * - person.update
+ * - person.update / person.create / person.logInteraction
  * - habit.toggle
  */
 
@@ -43,7 +43,11 @@ import {
   handleSimulationRun,
   handleMemorySearch,
 } from "@/lib/ai/agent-actions/memory-actions";
-import { handlePersonUpdate, handlePersonCreate } from "@/lib/ai/agent-actions/person-actions";
+import {
+  handlePersonUpdate,
+  handlePersonCreate,
+  handlePersonLogInteraction,
+} from "@/lib/ai/agent-actions/person-actions";
 import {
   handleSystemHealth,
   handleSystemBrainStats,
@@ -256,6 +260,10 @@ export async function executeActionWithoutTracing(action: AgentAction): Promise<
       case "person.create":
         return await handlePersonCreate(params, type);
 
+      // 2026-09-16 · the contact path — the relationship ledger's writer.
+      case "person.logInteraction":
+        return await handlePersonLogInteraction(params, type);
+
       // ═══════════════════════════════════════════
       // CROSS-SYSTEM: nickstire.org actions via tRPC
       // ═══════════════════════════════════════════
@@ -465,10 +473,11 @@ Available actions:
 | mission.plan | title, domain, priority?, successMetric?, tasks[{title, nextPhysicalAction, effort?, context?}] | Create a mission with multiple linked tasks |
 | habit.toggle | habitKey (wake/exercise/business/order/shutdown) | Toggle today's habit |
 | simulation.run | scenario | Run a what-if simulation |
-| person.update | name, role?, relationship?, trustScore?, leverageNotes? | Update an EXISTING person (must already be in Nour's people). relationship/leverageNotes/interaction apply immediately; role + trustScore become a PENDING proposal approved on /people. Does NOT create — if the name isn't found it returns an error telling you to ask first. NEVER pass a pronoun/descriptor ("her", "the caller") as the name. |
+| person.update | name, role?, relationship?, trustScore?, leverageNotes? | Update an EXISTING person's FACTS (must already be in Nour's people). relationship/leverageNotes apply immediately; role + trustScore become a PENDING proposal approved on /people. An edit is not a contact — it never touches lastInteraction; use person.logInteraction for that. Does NOT create — if the name isn't found it returns an error telling you to ask first. NEVER pass a pronoun/descriptor ("her", "the caller") as the name. |
+| person.logInteraction | name, note, amount?(-25..25, default 1), kind?(in_person/call/text/video/other) | Record that Nour ACTUALLY interacted with an EXISTING person — met, called, texted, ate with, visited. Writes his relationship ledger (the only thing that moves lastInteraction) and returns the row. amount = deposit size: +1 routine touch · +5 meaningful · +10 major · negative for a withdrawal (a slight, a fight). Use it whenever Nour REPORTS contact ("had dinner with Mash", "Dania called me"); never for merely talking ABOUT someone or planning to reach out. Does NOT create — an unknown name returns an error telling you to ask first. |
 | person.create | name, role?, relationship?, leverageNotes? | Add a NEW person to Nour's people. Use ONLY after Nour explicitly says yes to "want me to add <name>?". Requires a real proper name (never a pronoun). NEVER auto-add tire-shop callers/leads/customers — those are business contacts, not Nour's personal relationships. |
 
-**People rule — ask before adding.** Nour's "people" are his PERSONAL relationships. Never silently add anyone. To log about someone he already has, use person.update. To add someone NEW, first ASK ("want me to add <name> to your people?") and use person.create only after he confirms. Never use a pronoun or "the caller"/"that guy" as a name, and never add tire-shop callers, leads, or customers — those live in the shop system.
+**People rule — ask before adding.** Nour's "people" are his PERSONAL relationships. Never silently add anyone. To record facts about someone he already has, use person.update; to record that he actually talked to or met them, use person.logInteraction — that is what keeps his ledger honest. To add someone NEW, first ASK ("want me to add <name> to your people?") and use person.create only after he confirms. Never use a pronoun or "the caller"/"that guy" as a name, and never add tire-shop callers, leads, or customers — those live in the shop system.
 
 ### Shop Actions (cross-system — talks to nickstire.org)
 | Action | Params | What It Does |

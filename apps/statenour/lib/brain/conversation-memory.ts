@@ -39,10 +39,54 @@ interface ConversationDigest {
     trajectory: "improving" | "declining" | "stable" | "volatile";
     triggers: string[];
   };
-  peopleMentioned: Array<{ name: string; context: string; sentiment: "positive" | "neutral" | "negative" }>;
+  peopleMentioned: MentionedPerson[];
   keyInsight: string | null;
   followUpNeeded: string | null;
   relatedConversations: string[]; // topics that connect to past conversations
+}
+
+/**
+ * 2026-09-16 · a mention is not a contact. `interacted` is the model's claim
+ * that Nour actually communicated with this person (met, called, texted, ate
+ * with, visited) — never that he talked ABOUT them. Only an interacted mention
+ * may touch the relationship ledger, and only through the seam.
+ */
+export type InteractionKind = "in_person" | "call" | "text" | "video" | "other";
+export interface MentionedPerson {
+  name: string;
+  context: string;
+  sentiment: "positive" | "neutral" | "negative";
+  interacted: boolean;
+  interactionKind: InteractionKind | null;
+  /** One line, in Nour's words, saying what happened — the ledger note when interacted. */
+  interactionNote: string;
+}
+
+const INTERACTION_KINDS: ReadonlySet<string> = new Set(["in_person", "call", "text", "video", "other"]);
+
+/** Shape the model's people list; a string "yes" is not an interaction claim. */
+function normalizeMentionedPeople(raw: unknown): MentionedPerson[] {
+  if (!Array.isArray(raw)) return [];
+  const out: MentionedPerson[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const name = typeof o.name === "string" ? o.name.trim() : "";
+    if (!name) continue;
+    const kind =
+      typeof o.interactionKind === "string" && INTERACTION_KINDS.has(o.interactionKind)
+        ? (o.interactionKind as InteractionKind)
+        : null;
+    out.push({
+      name,
+      context: typeof o.context === "string" ? o.context : "",
+      sentiment: o.sentiment === "positive" || o.sentiment === "negative" ? o.sentiment : "neutral",
+      interacted: o.interacted === true,
+      interactionKind: kind,
+      interactionNote: typeof o.interactionNote === "string" ? o.interactionNote.trim() : "",
+    });
+  }
+  return out;
 }
 
 /**
@@ -95,7 +139,7 @@ Return ONLY JSON:
     "trajectory": "improving",
     "triggers": ["realized he's losing money by not hiring"]
   },
-  "peopleMentioned": [{ "name": "Mo", "context": "current tech, reliable", "sentiment": "positive" }],
+  "peopleMentioned": [{ "name": "Mo", "context": "current tech, reliable", "sentiment": "positive", "interacted": false, "interactionKind": null, "interactionNote": null }],
   "keyInsight": "The hiring bottleneck is the real revenue cap — not marketing",
   "followUpNeeded": "Check if job ad was posted by Friday",
   "relatedConversations": ["topics from past that connect: hiring, staffing, revenue scaling"]
@@ -104,7 +148,7 @@ Return ONLY JSON:
 Rules:
 - Extract REAL content, not generic summaries
 - Emotional arc tracks how the mood CHANGED during the conversation
-- People: extract any person's name mentioned, with their context
+- People: extract any person's name mentioned, with their context. "interacted" is true ONLY when Nour reports actually communicating with that person — met, called, texted, video-called, ate with, visited — during or just before this conversation; never for talking ABOUT someone, asking advice about them, or planning to reach out. When true, set "interactionKind" (in_person | call | text | video | other) and "interactionNote" (one line, in Nour's words, saying what happened); otherwise both are null
 - Follow-up: what should Nick proactively bring up next time?
 - Related conversations: match against these recent topics: ${recentTopics || "none yet"}
 - If nothing fits a field, use null or empty array
@@ -140,7 +184,7 @@ Rules:
         trajectory: "stable",
         triggers: [],
       },
-      peopleMentioned: parsed.peopleMentioned || [],
+      peopleMentioned: normalizeMentionedPeople(parsed.peopleMentioned),
       keyInsight: parsed.keyInsight || null,
       followUpNeeded: parsed.followUpNeeded || null,
       relatedConversations: parsed.relatedConversations || [],
@@ -397,17 +441,28 @@ export async function summarizeAndStoreConversation(
     }
   }
 
-  // Feed People Intelligence — fuzzy-resolve any mentioned people.
-  //
-  // 2026-05-27 · was `prisma.personProfile.upsert({where:{name}})` which
-  // is case-sensitive exact match. That created a "Danai" ghost row
-  // when this engine parsed "Dania" as "Danai" from one brain dump.
-  // resolvePersonByName now does exact → case-insensitive → Levenshtein
-  // ≤1 → Jaro-Winkler ≥0.92 fuzzy chain before creating a new row, and
-  // logs auto-merges to BrainMemory(category=people_intelligence_merge)
-  // for operator audit.
+  // People. 2026-09-16 · a MENTION is not a CONTACT. Until today every name
+  // the digest extracted bumped lastInteraction + interactionCount on the
+  // matched profile with no ledger row behind it — "should I trust Dania?"
+  // counted exactly like "had dinner with Dania" (measured on Neon: the
+  // counters summed to 191 against 23 ledger rows ever, none since 07-10).
+  // Now a mention does nothing to the interaction fields; a REPORTED
+  // interaction becomes one honest chat ledger row through the seam: dated
+  // by the conversation's last message (compiling yesterday's chat is not
+  // contact today), at most one per person per conversation window (a
+  // recompile, or a row the operator or Nick already wrote, wins), no XP (a
+  // rep the operator did not confirm earns nothing). The name resolves
+  // through the fuzzy chain (exact → case-insensitive → Levenshtein ≤1 →
+  // Jaro-Winkler ≥0.92, merges audited in people_intelligence_merge) and
+  // NEVER creates a profile (2026-06-06: the digest auto-added tire-shop
+  // callers; new people go through person.create after Nour confirms).
+  const conversationStart = messages[0]?.createdAt ? new Date(messages[0].createdAt) : new Date();
+  const conversationEnd = messages[messages.length - 1]?.createdAt
+    ? new Date(messages[messages.length - 1].createdAt)
+    : new Date();
   for (const person of digest.peopleMentioned) {
     if (!person.name || person.name.length < 2) continue;
+    if (!person.interacted) continue; // a mention: no counters, no row
     try {
       const { resolvePersonByName } = await import("./person-profile-fuzzy");
       const resolution = await resolvePersonByName(person.name, {
@@ -415,28 +470,43 @@ export async function summarizeAndStoreConversation(
         relationship: person.context,
         trustScore: person.sentiment === "positive" ? 0.7 : person.sentiment === "negative" ? 0.3 : 0.5,
         metadata: { firstMentioned: digest.date, context: person.context },
-        // 2026-06-06 · the background digest only ENRICHES people Nour already
-        // has · it must never invent a profile from a name scraped out of a
-        // chat transcript (that auto-added tire-shop callers like "Fernando
-        // Romero"). New people are added explicitly via person.create after
-        // Nour confirms ("want me to add X?").
         createIfMissing: false,
       });
-      if (resolution.matched && resolution.person) {
-        // Existing profile · just update interaction signal + most-recent context
-        await prisma.personProfile.update({
-          where: { id: resolution.person.id },
-          data: {
-            lastInteraction: new Date(),
-            interactionCount: { increment: 1 },
-            // 2026-06-06 · do NOT overwrite a curated `relationship` with the
-            // latest digest blurb · enrichment only bumps the interaction
-            // signal (the overwrite was corrupting hand-written context).
-          },
-        });
-      }
-      // If `created` · resolvePersonByName already set lastInteraction + interactionCount=1
-    } catch {} // non-critical
+      if (!resolution.matched || !resolution.person) continue;
+      const { recordInteractionOnce } = await import("@/lib/services/people/record-interaction");
+      const outcome = await recordInteractionOnce({
+        personId: resolution.person.id,
+        amount: 1,
+        note:
+          person.interactionNote ||
+          person.context ||
+          `interaction reported in chat (${person.interactionKind ?? "other"})`,
+        source: "chat",
+        at: conversationEnd,
+        noRowSince: conversationStart,
+        creditXp: false,
+        metadata: {
+          auto: true,
+          via: "conversation_digest",
+          conversationId,
+          interactionKind: person.interactionKind ?? "other",
+          sentiment: person.sentiment,
+          matchTier: resolution.matchTier,
+        },
+      });
+      log.info(outcome.skipped ? "people_interaction_skipped" : "people_interaction_recorded", {
+        conversationId,
+        personId: resolution.person.id,
+        ...(outcome.skipped ? { reason: outcome.reason } : { ledgerId: outcome.recorded.ledgerId }),
+      });
+    } catch (err) {
+      // Non-critical for the compile, but never silent — a bare `catch {}`
+      // here is how nine weeks of ledger silence went unnoticed.
+      log.warn("people_interaction_failed", {
+        conversationId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   // Apr 18 — auto-extraction of "open loops" from conversation digests

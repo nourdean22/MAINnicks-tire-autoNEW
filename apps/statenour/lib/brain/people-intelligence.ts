@@ -23,10 +23,13 @@ import { logError } from "@/lib/utils/error-log";
 
 /**
  * Operator opened/edited the dossier within `days` — a "reviewed" signal
- * distinct from real CONTACT (lastInteraction, bumped only by chat
- * mention / logged outreach / ledger). A dossier edit deliberately does
- * NOT bump lastInteraction, so we use this to avoid crying "neglected"
- * right after the operator engaged with someone's record.
+ * distinct from real CONTACT (lastInteraction, moved ONLY by a ledger write
+ * through lib/services/people/record-interaction: the modal / ⌘K, Telegram
+ * /log, Nick's person.logInteraction, the picks outreach button, or a
+ * digest-extracted interaction — since 2026-09-16 a mere chat MENTION no
+ * longer counts). A dossier edit deliberately does NOT bump lastInteraction,
+ * so we use this to avoid crying "neglected" right after the operator
+ * engaged with someone's record.
  */
 function reviewedWithin(
   dossierUpdatedAt: Date | null | undefined,

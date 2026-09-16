@@ -271,6 +271,15 @@ describe("Permission Policy Engine Rules", () => {
 
       const resUpdate = evaluateToolAction({ toolId: "person.update", actionType: "execute" });
       expect(resUpdate.decision).toBe("allow");
+
+      // 2026-09-16 · person.logInteraction rides the same dynamic resolver:
+      // a ledger write on an EXISTING person is medium-risk and ungated, so
+      // the approval gate lets the action block run. Reachability pin, not
+      // a positive control — the resolver already behaved this way.
+      const capLog = getToolCapability("person.logInteraction");
+      expect(capLog?.approvalPolicy).toBe("none");
+      expect(capLog?.riskClass).toBe("medium");
+      expect(evaluateToolAction({ toolId: "person.logInteraction", actionType: "execute" }).decision).toBe("allow");
     });
 
     it("resolves dynamic memory writes and requires owner approval", () => {
