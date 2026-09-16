@@ -174,20 +174,42 @@ export function GBPPostGenerator() {
                   {authStatus?.connected ? "Connected" : "Disconnected"}
                 </span>
               </div>
-              {authStatus?.connected ? (
-                <span className="text-[10px] text-foreground/40 font-mono">
-                  Client ID: {authStatus.clientIdFingerprint}
-                </span>
-              ) : (
+              {/* 2026-09-16 · the reconnect affordance is ALWAYS rendered.
+                  It used to be hidden whenever connected === true, which made
+                  "connected as the wrong Google account" an inescapable state:
+                  the GBP listing is owned by moeseuclid@gmail.com while this
+                  app held a token for an account managing zero businesses, and
+                  the only control that can re-run OAuth was hidden precisely
+                  because a (useless) token existed. There is no disconnect
+                  procedure on the gbp router to fall back to — getAuthUrl and
+                  reconnect both worked the whole time, they were simply
+                  unreachable. That left the documented operator fix
+                  (docs/ENTITY-CONTINUITY-FILE.md §3) impossible to perform and
+                  the reconnect "pending verification" from 2026-07-29. */}
+              <div className="flex items-center gap-3">
+                {authStatus?.connected && (
+                  <span className="text-[10px] text-foreground/40 font-mono">
+                    Client ID: {authStatus.clientIdFingerprint}
+                  </span>
+                )}
                 <button
                   onClick={handleConnect}
                   disabled={authUrlLoading}
-                  className="flex items-center gap-1 bg-primary text-primary-foreground px-3 py-1 font-bold text-[10px] tracking-wider hover:bg-primary/95 transition-colors disabled:opacity-50"
+                  title={
+                    authStatus?.connected
+                      ? "Re-run Google OAuth — use this to switch which Google account owns the connection"
+                      : "Connect this app to Google Business Profile"
+                  }
+                  className={
+                    authStatus?.connected
+                      ? "flex items-center gap-1 border border-border/50 text-foreground/70 px-3 py-1 font-bold text-[10px] tracking-wider hover:text-foreground hover:border-border transition-colors disabled:opacity-50"
+                      : "flex items-center gap-1 bg-primary text-primary-foreground px-3 py-1 font-bold text-[10px] tracking-wider hover:bg-primary/95 transition-colors disabled:opacity-50"
+                  }
                 >
                   {authUrlLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />}
-                  CONNECT GBP
+                  {authStatus?.connected ? "RECONNECT" : "CONNECT GBP"}
                 </button>
-              )}
+              </div>
             </div>
 
             {/* Account & Location Selection */}
