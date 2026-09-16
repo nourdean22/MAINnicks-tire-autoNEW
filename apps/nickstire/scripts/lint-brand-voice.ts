@@ -21,10 +21,11 @@
  *     `<ref>...HEAD`. This is the CI mode: a CI checkout stages nothing, so
  *     PRE-COMMIT mode there is structurally blind (see below).
  *   - AUDIT (`--audit`) — scans all in-scope files and reports the full set.
- *     Never exits non-zero; this is the inventory tool. NOT gateable: 28
- *     blocking findings in 17 files exist today, several of them false
- *     positives on internal identifiers ("unmatched" invoice rows). That is
- *     precisely why the other two modes read ADDED LINES only.
+ *     Never exits non-zero; this is the inventory tool. NOT gateable: measured
+ *     2026-09-16 it reported 28 blocking findings across 17 files, several of
+ *     them false positives on internal identifiers ("unmatched" invoice rows).
+ *     Re-measure before quoting that figure — it is a reading, not a fact. The
+ *     durable point is the reason the other two modes read ADDED LINES only.
  *
  * ⚠ TWO FAIL-OPENS, BOTH FIXED 2026-09-16, BOTH MEASURED — this gate had never
  * scanned a single file on any automatic invocation:

@@ -303,17 +303,27 @@ function main(): void {
   // UNKNOWN is not CLEAN. A staged file the scanner could not read is the exact
   // state the GIT_DIR bug produced for EVERY file, silently, for months — and
   // the pass line was indistinguishable from a real one.
-  if (stagedOnly && unreadable.length > 0 && !jsonOut) {
-    console.error(
-      `✗ scan-secrets · ${unreadable.length} staged file(s) could not be read from the index — NOT scanned, NOT a pass:`,
-    );
-    for (const f of unreadable) console.error(`  [UNREAD] ${f}`);
-    console.error(`  Nothing below has been verified for these files. Fix the read, do not bypass.`);
+  if (stagedOnly && unreadable.length > 0) {
+    // `--json` gets the same verdict, in its own shape. Gating this on the
+    // human output would have left a consumer of the JSON reading `findings: []`
+    // as clean over files nothing had opened — the identical defect, one
+    // interface along.
+    if (jsonOut) {
+      console.log(JSON.stringify({ findings: allFindings, unreadable, scanned, oversize }, null, 2));
+    } else {
+      console.error(
+        `✗ scan-secrets · ${unreadable.length} staged file(s) could not be read from the index — NOT scanned, NOT a pass:`,
+      );
+      for (const f of unreadable) console.error(`  [UNREAD] ${f}`);
+      console.error(`  Nothing below has been verified for these files. Fix the read, do not bypass.`);
+    }
     process.exit(1);
   }
 
   if (jsonOut) {
-    console.log(JSON.stringify({ findings: allFindings }, null, 2));
+    // `scanned` travels with the findings so a consumer can tell "clean" from
+    // "read nothing" — the distinction this whole change is about.
+    console.log(JSON.stringify({ findings: allFindings, scanned, oversize }, null, 2));
   } else {
     if (allFindings.length === 0) {
       // `scanned`, not `targetFiles.length` — the old count was taken before the
