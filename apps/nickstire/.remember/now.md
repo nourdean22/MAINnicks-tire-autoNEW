@@ -1,6 +1,27 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-11** (CLOSED — GSC Page Indexing report fully triaged, all 8 buckets. Four PRs
+**Updated: 2026-09-16** (Dream-to-Proof waves 2-3 + follow-ups SHIPPED: #2330/#2334/#2335/#2336/#2340/#2342/#2343 — kernel
+calibrated + GrowthBook cross-checked, Night Shift identity fail-closed, hidden holdout armed and posting, capability ledger
+current. Nothing of mine open.)
+
+## 2026-09-15/16 · Proof lane: what is live, what still needs a human
+
+**Live:** `.github/workflows/nickstire-proof.yml` runs post-deploy + daily against the LIVE site, waits for `/api/health`
+`deploy.commit`, replays the five visible episodes (`tests/episodes/*.json`) and then the HIDDEN holdout (secret
+`HOLDOUT_EPISODES_B64`, six `HO-xxx` episodes, plain copy at `~/.nourcity-holdout/holdout-episodes.json` — never in the
+tree; unpacked to `$RUNNER_TEMP`, id-only titles, nothing uploaded), and posts `proof.run` + `proof.holdout` (ids +
+counts only; `unmeasured` when the secret is absent). First real receipt 2026-09-15 23:41Z: `evidence: 200 — 2 event(s),
+holdout success` on live commit `4cb7dbf4d`. The experiment kernel's H4 rests on a MEASURED rule (`pnpm calibrate:kernel`;
+GrowthBook gbstats 0.8.0 agrees run-for-run). Night Shift: `scripts/night-shift/run.ps1` fails CLOSED until
+`NIGHT_SHIFT_GH_TOKEN` names a separate read-collaborator identity (fork flow; Free plan has no rulesets).
+**Blocker (operator):** create the machine GitHub account + classic `repo` token; create `EVIDENCE_LEDGER_KEY`
+(the lane posts through the bridge key until then). **Next:** grow the holdout from `proof.episode_failed` events and
+incidents, never from the visible set; a visible-green / holdout-red run is the overfitting signal. Traps: `pnpm exec
+playwright` is silent from a harness worktree (call `node node_modules/@playwright/test/cli.js`); the shop strip's
+open/closed line is split across two spans (match the leaf); most routes' prerendered HTML is the SPA shell — probe with a
+real browser, not curl.
+
+**Previous header — Updated: 2026-09-11** (CLOSED — GSC Page Indexing report fully triaged, all 8 buckets. Four PRs
 merged and deployed: #2321 `d707602f9` (guides sitemap gap) · #2322 `e1383501f` (62 orphaned
 neighborhoods registered) · #2323 `106f97862` (109 remaining thin neighborhoods enriched + all 121
 indexed + dead blog URL redirected) · #2324 `5688da6c5` (docs, ROS-111 closed). Sitemap resubmitted
