@@ -107,9 +107,46 @@ describe("the regression this file exists for — connected must not hide the do
 
   it("keeps showing the client-ID fingerprint alongside it", () => {
     render(<GBPPostGenerator />);
-    // The fingerprint is how the operator verifies the token actually changed
-    // after reconnecting (ENTITY-CONTINUITY-FILE §3 step 2), so it must survive.
     expect(screen.getByText(/Client ID:/i)).toBeTruthy();
+  });
+
+  /**
+   * ENTITY-CONTINUITY-FILE §3 asks the operator to confirm a reconnect by
+   * watching the refresh-token fingerprint change. That only works if the UI
+   * actually renders it — a field returned by getAuthStatus and shown nowhere
+   * is a writer with no reader, which is the same defect class as the button
+   * this file exists for. So assert the consumer, not just the producer.
+   */
+  it("renders the refresh-token fingerprint when the server supplies one", () => {
+    h.authStatus = {
+      connected: true,
+      clientIdFingerprint: "…nt.com",
+      refreshTokenFingerprint: "sha256:ef9fea01",
+    };
+    render(<GBPPostGenerator />);
+    expect(screen.getByText(/sha256:ef9fea01/)).toBeTruthy();
+  });
+
+  it("does not confuse the constant client-ID fingerprint with the token fingerprint", () => {
+    // The client ID never changes, so if the UI showed only it, a reconnect that
+    // silently failed would look identical to one that succeeded.
+    h.authStatus = {
+      connected: true,
+      clientIdFingerprint: "…nt.com",
+      refreshTokenFingerprint: "sha256:ef9fea01",
+    };
+    render(<GBPPostGenerator />);
+    const clientLine = screen.getByText(/Client ID:/i).textContent ?? "";
+    const tokenLine = screen.getByText(/Token:/i).textContent ?? "";
+    expect(clientLine).not.toBe(tokenLine);
+    expect(tokenLine).toContain("sha256:");
+  });
+
+  it("omits the token fingerprint rather than rendering a blank when absent", () => {
+    h.authStatus = { connected: true, clientIdFingerprint: "…nt.com" };
+    render(<GBPPostGenerator />);
+    expect(screen.getByText(/Client ID:/i)).toBeTruthy();
+    expect(screen.queryByText(/Token:/i)).toBeNull();
   });
 
   it("REACHES gbp.getAuthUrl when clicked while connected", async () => {

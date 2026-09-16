@@ -188,8 +188,20 @@ export function GBPPostGenerator() {
                   the reconnect "pending verification" from 2026-07-29. */}
               <div className="flex items-center gap-3">
                 {authStatus?.connected && (
-                  <span className="text-[10px] text-foreground/40 font-mono">
-                    Client ID: {authStatus.clientIdFingerprint}
+                  /* Two DIFFERENT fingerprints, deliberately both shown.
+                     Client ID identifies the OAuth app and never changes, so it
+                     cannot tell you whether a reconnect took. Token identifies
+                     the stored grant and changes on every successful reconnect —
+                     it is the one docs/ENTITY-CONTINUITY-FILE.md asks the
+                     operator to compare, and until now the UI showed only the
+                     constant, which looks like confirmation and is not. */
+                  <span className="text-[10px] text-foreground/40 font-mono flex flex-col leading-tight">
+                    <span>Client ID: {authStatus.clientIdFingerprint}</span>
+                    {authStatus.refreshTokenFingerprint && (
+                      <span title="Changes when a reconnect stores a new token. Compare before/after to confirm a reconnect actually persisted.">
+                        Token: {authStatus.refreshTokenFingerprint}
+                      </span>
+                    )}
                   </span>
                 )}
                 <button

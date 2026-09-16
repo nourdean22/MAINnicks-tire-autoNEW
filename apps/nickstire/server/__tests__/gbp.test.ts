@@ -111,6 +111,7 @@ describe("gbpRouter - Authorization and Status", () => {
       clientIdFingerprint: null,
       accountId: null,
       locationId: null,
+      refreshTokenFingerprint: null,
     });
   });
 
@@ -132,7 +133,41 @@ describe("gbpRouter - Authorization and Status", () => {
       clientIdFingerprint: "…ent-id",
       accountId: "accounts/123",
       locationId: "locations/456",
+      // sha256("refresh-tok").slice(0,8) -- hardcoded on purpose. Recomputing it
+      // in the test with the same createHash call the implementation uses would
+      // assert only that sha256 is deterministic, never that the router hashes
+      // the right value.
+      refreshTokenFingerprint: "sha256:75da00f6",
     });
+  });
+
+  /**
+   * The point of this field is DISCRIMINATION: docs/ENTITY-CONTINUITY-FILE.md
+   * asks the operator to confirm a reconnect by seeing the fingerprint CHANGE.
+   * A field that returned a constant, or hashed something other than the token,
+   * would satisfy the shape assertion above and still be useless for that. So
+   * assert the behaviour that actually matters -- two different tokens must not
+   * produce the same fingerprint.
+   */
+  it("derives the fingerprint from the refresh token, so a changed token shows a changed fingerprint", async () => {
+    h.selectQueue.push([{ k: "gbp_refresh_token", v: "token-BEFORE-reconnect" }]);
+    const before = await gbpRouter.createCaller(adminContext()).getAuthStatus();
+
+    h.selectQueue.push([{ k: "gbp_refresh_token", v: "token-AFTER-reconnect" }]);
+    const after = await gbpRouter.createCaller(adminContext()).getAuthStatus();
+
+    expect(before.refreshTokenFingerprint).toMatch(/^sha256:[0-9a-f]{8}$/);
+    expect(after.refreshTokenFingerprint).toMatch(/^sha256:[0-9a-f]{8}$/);
+    expect(after.refreshTokenFingerprint).not.toBe(before.refreshTokenFingerprint);
+  });
+
+  it("never leaks the refresh token itself through the status payload", async () => {
+    const SECRET = "super-secret-refresh-token-value";
+    h.selectQueue.push([{ k: "gbp_refresh_token", v: SECRET }]);
+    const status = await gbpRouter.createCaller(adminContext()).getAuthStatus();
+
+    expect(status.connected).toBe(true);
+    expect(JSON.stringify(status)).not.toContain(SECRET);
   });
 
   it("fails to generate auth url if client ID or secret is missing", async () => {
