@@ -62,11 +62,20 @@ that."* BBB's 2022 date is worth asking the operator about directly.
 
 ## 3. Google Business Profile state
 
+**Operator-confirmed 2026-09-16: `moeseuclid@gmail.com` is the operator's own account, used
+for this shop location — not a former owner's account or a third party's.** Earlier drafts of
+this file (and the repo's own prior framing) called it "the legacy Moe's account," which
+overstated the situation — the trade *name* was formerly Moe's (§2), but the *Google account*
+was never someone else's and needs no recovery or claim process. This is a same-day, two-step
+task for the operator (sign in, verify the token changed), not a multi-party reconciliation.
+
 - The live GBP listing's **owner Google account is `moeseuclid@gmail.com`** —
   `docs/integrations/INTEGRATION_REGISTRY.md:34`, confirmed independently at
   `docs/BUSINESS-LANDSCAPE.md:239` and `docs/website-audit-status.md:101`.
 - The app's OAuth connection is currently authenticated as **`nourdean22@gmail.com`**, which
-  *"manages zero businesses"* on Google — that token can never read the shop's data.
+  *"manages zero businesses"* on Google — that token can never read the shop's data. This is
+  purely a matter of the nickstire.org admin app being signed into the wrong of the operator's
+  own two Google accounts; nothing here is inaccessible to the operator.
 - A re-Connect as `moeseuclid@gmail.com` was logged **pending verification** as of 2026-07-29
   (refresh-token fingerprint `sha256:16a903b7…`, length 103). The 2026-09-08 status entry still
   describes this as outstanding — treat the reconnect as **not confirmed successful**.
@@ -103,7 +112,7 @@ read. Confirm directly once access is restored.
 | **BBB** | Phone **WRONG: 682-0005** (transposed — correct is 862-0005); founding year recorded as **2022** vs canonical 2018 | Needs correction | Phone correction + name-change request. Test-guarded: `canonical-business-truth.test.ts:12,23,31,110` exists specifically because "BBB already carries 682-0005." |
 | **Yelp** | A "Monro" ghost listing owns the address at 17625 Euclid Ave (most recent finding, supersedes an older note about searching "Moe's Tire Euclid" on Yelp) | Not claimed under Nick's | Claim/create the correct Nick's listing; separately resolve the Monro ghost entry with Yelp support. Yelp prohibits review solicitation once claimed. |
 | **Facebook** | Page **Name field literally still reads "Moe's Euclid Tire & Auto"** — confirmed via Graph API metadata. Address and connected Instagram are already correct; public URL slug is already `nickstireeuclid`. | Yes, owned/operated | `server/services/metaSocial.ts:816-821`: *"the owner was told explicitly and accepted it while the Facebook page is sorted out."* Operator-deferred, not an oversight — re-raise once the platforms above are settled. Correction: rename the Page's Name field on Meta's side (not a code change). |
-| **Legacy Google Sites microsite** | Unknown exact URL/content — off-site, outside this codebase | Unknown who has edit access | Still live and listed as the "official website" by BBB/Birdeye/AutoTechIQ (`docs/website-audit-status.md:100`). **Not found in repo:** its URL, displayed NAP, or which account controls it (plausibly `moeseuclid@gmail.com`, not confirmed). Identify the owning account, then either redirect it to nickstire.org with correct NAP or take it down, and get BBB/Birdeye/AutoTechIQ to repoint their "official website" field. |
+| **Legacy Google Sites microsite** | Unknown exact URL/content — off-site, outside this codebase | Operator-accessible if it lives under `moeseuclid@gmail.com` (confirmed the operator's own account, §3) | Still live and listed as the "official website" by BBB/Birdeye/AutoTechIQ (`docs/website-audit-status.md:100`). **Not found in repo:** its URL or displayed NAP. Since `moeseuclid@gmail.com` is confirmed operator-owned, check Google Sites under that account first — this is likely a quick find, not an unknown-ownership mystery. Then either redirect it to nickstire.org with correct NAP or take it down, and get BBB/Birdeye/AutoTechIQ to repoint their "official website" field. |
 | **AutoTechIQ** | Also points to the legacy microsite as "official website" | Unknown | Contact support to update or remove. |
 
 ## 5. Do-not-confuse warning
@@ -154,5 +163,12 @@ outside this repository.
 Sourced live-data findings that motivated re-checking this file (2026-09-16, via Chrome
 Search Console access authenticated as the operator): GSC property added to account
 **2026-03-17** (`Settings → About`); current listed Search Console users are
-**moeseuclid, nickstire-server, Nourdean Rabah** — the legacy Moe's account still has GSC
-access on the *website* property as well as GBP, not just GBP.
+**moeseuclid, nickstire-server, Nourdean Rabah** — `moeseuclid@gmail.com` (the operator's own
+account, §3) still has GSC access on the *website* property as well as GBP, not just GBP.
+
+**Correction, 2026-09-16 (post-merge):** this file's earlier drafts called `moeseuclid@gmail.com`
+"the legacy Moe's account" throughout — operator-confirmed it's simply their own account for
+this location, not a former owner's or third party's. §3 and §4 corrected accordingly. The
+underlying facts (owning account, OAuth mismatch, blocked API quota, correction sequence) are
+unchanged — only the framing of *why* the account is separate from the app's current OAuth
+connection was overstated.
