@@ -42,12 +42,24 @@ interface BookingWizardProps {
 // job. The generic "drop your car off" line was contradicting that rule on
 // both pages (verified live: /oil-change's own hero says "no appointment, no
 // drop-off" while this card, further down the SAME page, invited a drop-off).
-const NO_DROP_OFF_SERVICES = new Set(["oil-change", "emissions"]);
+//
+// Per-service copy, not a shared boolean: a P1 review on the first fix
+// (2026-09-16) caught that a single "we work it while you wait" message
+// applied to emissions blanket-promised a wait for the WHOLE service. The
+// operator rule only covers the free readiness scan — /emissions also
+// covers real repairs (O2 sensors, EVAP, catalytic, drive-cycle), and its
+// own `turnaround` field says "Most emissions repairs completed in 1-2
+// days." oil-change has no such split (every oil change is the same quick
+// job), so it keeps the original wait-only framing unchanged.
+const NO_DROP_OFF_COPY: Record<string, string> = {
+  "oil-change": "No appointments to chase, no drop-off needed — pull up, we work it while you wait.",
+  "emissions": "No appointments to chase, no drop-off needed for the free readiness scan — pull up. If a repair turns up, most are done in 1-2 days.",
+};
 
 export default function BookingWizard(props: BookingWizardProps = {}) {
   const service = props.service || props.defaultService;
   const source = typeof props.source === "string" ? props.source : "booking-wizard";
-  const allowsDropOff = !service || !NO_DROP_OFF_SERVICES.has(service);
+  const noDropOffCopy = service ? NO_DROP_OFF_COPY[service] : undefined;
 
   // Pre-fill SMS body with the service context if we have one.
   // Operator gets a richer first message · less "what does this person
@@ -85,9 +97,9 @@ export default function BookingWizard(props: BookingWizardProps = {}) {
             {service ? (
               <>Need <span className="text-primary font-semibold">{service}</span>? </>
             ) : null}
-            {allowsDropOff
-              ? <>No appointments to chase. Drop your car off if you can&apos;t wait — we&apos;ll text you the second it&apos;s ready.</>
-              : <>No appointments to chase, no drop-off needed — pull up, we work it while you wait.</>}
+            {noDropOffCopy
+              ? noDropOffCopy
+              : <>No appointments to chase. Drop your car off if you can&apos;t wait — we&apos;ll text you the second it&apos;s ready.</>}
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-4 text-[13px] text-foreground/60">
