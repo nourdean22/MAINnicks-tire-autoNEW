@@ -69,7 +69,7 @@ export const GET = cronHandler(async () => {
       behavioralFingerprint: true,
       psychographicLadder: true,
     },
-    orderBy: { lastInteraction: "desc" },
+    orderBy: { lastInteraction: { sort: "desc", nulls: "last" } },
     take: 20,
   });
 

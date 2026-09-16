@@ -176,7 +176,9 @@ export function computePowerDynamics(args: {
   // ── network ──
   const activeConnections = profiles.filter((p) => p.lastInteractionAt != null && p.lastInteractionAt >= since).length;
   const neglectedThreshold = daysAgo(30);
-  const neglectedCount = profiles.filter((p) => p.lastInteractionAt == null || p.lastInteractionAt < neglectedThreshold).length;
+  // 2026-09-16 (W6): a NULL lastInteractionAt is UNKNOWN (never logged), not neglected — every
+  // other consumer (picks, digest, /people, watchlist) already reads NULL as "no signal".
+  const neglectedCount = profiles.filter((p) => p.lastInteractionAt != null && p.lastInteractionAt < neglectedThreshold).length;
   const mentorCount = profiles.filter((p) => p.role === "mentor" || p.role === "advisor").length;
   const rivalCount = profiles.filter((p) => p.role === "rival" || p.role === "enemy").length;
 

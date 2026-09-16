@@ -30,7 +30,7 @@ export const GET = cronHandler(async () => {
   const candidates = await prisma.personProfile.findMany({
     where: { status: { not: "blown_up" }, deletedAt: null },
     select: { id: true, applicableLaws: true },
-    orderBy: { lastInteraction: "desc" },
+    orderBy: { lastInteraction: { sort: "desc", nulls: "last" } },
     take: 40,
   });
 

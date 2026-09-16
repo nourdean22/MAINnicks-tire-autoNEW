@@ -196,7 +196,7 @@ export default function LedgerTimeline({
     const trimmed = note.length > 60 ? note.slice(0, 60) + "…" : note;
     const confirmed = await confirm({
       title: "Delete this ledger entry?",
-      body: `"${trimmed}"\n\nThe row disappears + interactionCount drops by 1.`,
+      body: `"${trimmed}"\n\nThe row disappears and both counters are recomputed from the rows that remain.`,
       confirmLabel: "Delete",
       tone: "danger",
     });
