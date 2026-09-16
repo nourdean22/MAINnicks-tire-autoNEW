@@ -1053,6 +1053,65 @@ export const vapiRouter = router({
         return { success: false, error: "Invalid phone number — need 10 or 11 digits" };
       }
 
+      // ⚠ ORDER MATTERS, and a test caught it: this check was originally placed
+      // after the /phone-number lookup below, i.e. AFTER a VAPI round-trip. Two
+      // reasons it belongs here instead — a consent refusal should not depend on
+      // a third party being reachable, and a VAPI outage would otherwise return
+      // a confusing network error for a number that simply opted out.
+      /**
+       * Suppression — the SAME index every automated lane uses, but with a
+       * different RESPONSE, because a human is waiting for an answer.
+       *
+       * A cron SKIPS a suppressed number silently: there is nobody to tell. An
+       * operator pressed a button, so this REFUSES and says why. Silently doing
+       * nothing would read as a broken button and get pressed again.
+       *
+       * Gated on the operator's 2026-09-16 instruction ("i need the opt outs to
+       * work too email, txt"). Being operator-initiated is not a consent
+       * defence: TCPA does not care who pressed the button, and this dials an
+       * AI voice, which is squarely automated-call territory. The button now
+       * cannot place a call that the shop would have to answer for.
+       *
+       * ⚠ There is deliberately NO override flag. If the operator needs one —
+       * a genuine callback that a customer requested by other means, say — that
+       * is a decision to make explicitly, with a reason recorded, not a
+       * parameter an admin screen can pass by accident.
+       */
+      const { loadSuppressionIndex } = await import("../sms");
+      const suppression = await loadSuppressionIndex();
+      if (!suppression.ok) {
+        log.error("makeFollowUpCall refused — suppression index unreadable", {
+          reason: suppression.reason,
+          errorId: "MAKE_FOLLOWUP_CALL_SUPPRESSION_UNREADABLE",
+        });
+        return {
+          success: false,
+          error: `Can't place the call: the opt-out list could not be read (${suppression.reason}). Refusing rather than risk calling someone who opted out — try again once the database is reachable.`,
+        };
+      }
+      if (suppression.stale) {
+        log.error("makeFollowUpCall refused — suppression index is STALE (age unbounded)", {
+          suppressed: suppression.phones.size,
+          errorId: "MAKE_FOLLOWUP_CALL_SUPPRESSION_STALE",
+        });
+        return {
+          success: false,
+          error:
+            "Can't place the call: the opt-out list's last refresh FAILED, so its age is unbounded and a recent opt-out may be invisible. Refusing rather than guess.",
+        };
+      }
+      if (suppression.phones.has(e164.replace(/\D/g, "").slice(-10))) {
+        log.info("makeFollowUpCall refused — number is on the opt-out list", {
+          last4: e164.slice(-4),
+          errorId: "MAKE_FOLLOWUP_CALL_SUPPRESSED",
+        });
+        return {
+          success: false,
+          error: `This number has opted out of automated contact, so the call was not placed. (Ends ${e164.slice(-4)}.) If they asked you to call them back, do it from a normal line.`,
+        };
+      }
+
+
       // First name only — strip last name + commas (ALG returns "LASTNAME, FIRSTNAME")
       const firstName = input.customerName.includes(",")
         ? input.customerName.split(",")[1]?.trim().split(/\s+/)[0] || "there"

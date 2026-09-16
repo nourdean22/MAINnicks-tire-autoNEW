@@ -1,8 +1,145 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-16** (Dream-to-Proof waves 2-3 + follow-ups SHIPPED: #2330/#2334/#2335/#2336/#2340/#2342/#2343 — kernel
-calibrated + GrowthBook cross-checked, Night Shift identity fail-closed, hidden holdout armed and posting, capability ledger
-current. Nothing of mine open.)
+**Updated: 2026-09-16** (Outbound-consent sweep, all three channels + the gates that were scanning
+nothing. #2361 `34d53af5c` + #2363 `e94ab8998` MERGED and DEPLOYED. Operator answered two of the three
+decisions, so EVERY outbound lane now honours the shared opt-out index — see the third PR below.)
+
+## 2026-09-16 · Outbound consent, and the gates that reported success over unread files
+
+### Consent — two voice lanes were calling people who had opted out
+
+`server/cron/jobs/voiceRecovery.ts` and `server/cron/jobs/followupCadence.ts` each derived their OWN
+do-not-contact set: a local `customers.smsOptOut`-only query inside a fail-soft catch. That missed
+`sms_preferences` (what `persistOptOutPreference` writes), the inbound STOP log and carrier blocks — and an
+unreadable list produced an EMPTY set, i.e. "nobody opted out", so every candidate was contacted. followupCadence
+announced it in its own log line: `opt-out query failed (proceeding without)`. Same failure `sms.ts` records with
+verified harm on 2026-07-20.
+
+Both now consume `loadSuppressionIndex()` (exported from `server/sms.ts`) and refuse BOTH `ok:false` and
+`stale`. **`stale` was the subtle one** (Codex P1, correct): `sms.ts`'s `stale()` hands back `optOutCache`
+without ever consulting `optOutCacheLoadedAt`, so a stale snapshot's age is UNBOUNDED — it is NOT the 5-minute
+TTL, which is the fresh path. SMS deliberately keeps the opposite bar and a test pins that asymmetry: a text is
+cheap and reversible, an unwanted call is neither.
+
+★ **I shipped the first lane before sweeping, and that is how the second was missed.** The sweep is now mechanical:
+`server/cron/jobs/voiceLanes.suppression.test.ts` enumerates every file under `server/cron/jobs` that CALLS
+`placeVapiOutboundCall(` and fails any that does not CALL `loadSuppressionIndex(`, with one allowlisted
+exception carrying its reason; it also bans reading `customers.smsOptOut` directly, requires the enumeration to
+find >= 3 lanes, and requires every allowlist entry to still dial. A per-lane test proves the lane it names; only
+an enumeration proves there is no lane nobody named.
+
+⚠ **Two of my own sweep guards were satisfied by COMMENTS mentioning the banned symbol, and only the mutation
+showed it.** A source-scanning guard must match a CALL EXPRESSION on COMMENT-STRIPPED source, never a bare
+substring. `stripComments` shape: `server/nonCustomerFilter.test.ts`.
+
+**SMS needs no sweep** — all ~30 callers go through `sendSms`, which consults the index centrally. One gate, which
+is the architecture the voice lanes lacked.
+
+### The gates: three staged-diff readers scanned ZERO files on every commit
+
+`git commit` exports `GIT_DIR` (absolute) and no `GIT_WORK_TREE` to hooks; `lefthook.yml` runs each job with
+`root: "apps/<app>"`; with `GIT_DIR` set and `GIT_WORK_TREE` unset git treats CWD as the work-tree root. So every
+per-file pathspec and every `--show-toplevel` answered the wrong root — and each gate rendered the miss as a PASS.
+A planted `AKIA…` key and a banned customer claim both committed cleanly. `scan-secrets` even printed
+"scanned 1 files" about a file it never opened (the count was taken before the skip).
+
+**Reproduce any staged-diff gate's blindness in one line**, from an app dir with something staged:
+`GIT_DIR=$(git rev-parse --absolute-git-dir) pnpm run <gate>` versus the same without it.
+
+Fixed in all three (`lint-brand-voice.ts`, `lint-pii.mjs`, `apps/statenour/scripts/scan-secrets.ts`) by deleting
+`GIT_DIR`/`GIT_WORK_TREE` from the child env — **keeping `GIT_INDEX_FILE`**, which is what makes a PARTIAL commit
+gate the bytes actually being committed. Plus a root-cause-independent invariant: a changed in-scope file whose own
+per-file diff is EMPTY is UNREADABLE, not clean. Plus: CI ran brand-voice BARE on a checkout that stages nothing, so
+it scanned 0 every run — now `--range origin/main` (three-dot). Plus: `scan-secrets --staged` read the WORKING
+TREE, so `git add` a key then edit it out and the secret committed unscanned — it now reads `git show :<path>`.
+
+★ **Any canary for a gate that shells out to git must run TWICE — clean, and under a VALID `GIT_DIR`.** The old
+canary already used `GIT_DIR`, pointed at a NONEXISTENT path, so git failed loudly; a valid one is the dangerous
+input, because git succeeds and answers the wrong question. That is why every pre-existing test passed throughout.
+
+★ **Safe canary technique:** stage into a throwaway `GIT_INDEX_FILE` seeded from HEAD and write the probe in as a
+blob (`hash-object -w` + `update-index --cacheinfo`). The real index is never opened and a crash cannot strand a
+fake key or a banned claim in the tree.
+
+⚠ **A `\u0000` escape authored through a Write/Edit payload reaches disk as a RAW NUL byte** (the payload is JSON,
+so it is decoded first). One NUL makes the whole file read as BINARY and every text lint skips it silently;
+`apps/statenour/tests/repo/source-files-are-text.test.ts` catches it. Describing the byte in a comment
+reintroduced it once — name the code point, never spell it, and check bytes:
+`node -e 'console.log(require("fs").readFileSync(F).indexOf(0))'` (-1 = clean). And run the app's whole
+`tests/repo/` directory, not just your own file — those are whole-tree invariants any new file can trip.
+
+**POST-MERGE RECEIPT, on `main` under the real hook env:** brand-voice caught a planted `cliche.trusted`
+(exit 1) · scan-secrets caught a planted `AKIA…` key (exit 1) · the ALLOW control passed with `1 file(s)
+scanned`, not 0.
+
+### Operator decisions — ANSWERED 2026-09-16, and what they changed
+
+The operator resolved two of the three, and the reasoning is worth keeping because it is what
+settles the question rather than a legal argument:
+
+> "weare first come first serve so it can confirm they are gonna come but no holding spots.
+>  email lines we really arent emailing ppl right now but u can do it to. also i need the opt
+>  outs to work too email, txt"
+
+1. **`confirmationCalls.ts` — GATED.** FCFS was the whole answer: the shop holds no slot, so there
+   is no reservation to confirm and nothing the customer forfeits. The transactional defence needed
+   a held appointment and there isn't one. ⚠ If the shop ever starts holding real slots, revisit —
+   the business fact makes the answer, not the cron's name.
+2. **Both EMAIL lanes — GATED.** `emailCampaigns.ts` was reading 1 of the 4 sources (never
+   fail-open: the condition sat in a WHERE clause); `dripProcessor.ts`'s email step checked nothing
+   at all. Cross-channel suppression is OVER-suppression (TCPA STOP governs calls/texts, CAN-SPAM
+   governs email) and the operator asked for it explicitly — and emailCampaigns had already made
+   that choice implicitly by filtering on `smsOptOut`, so it is the same policy completely applied.
+3. **`lint:pii` wiring — STILL OPEN.** It runs in `verify` and CI but sits in no git hook, so a
+   commit is never gated on PII.
+
+### A FOURTH lane existed, and my own sweep could not see it
+
+`makeFollowUpCall` in `server/routers/vapi.ts` POSTs straight to `https://api.vapi.ai/call` with a
+raw `fetch`. My guard keyed on the `placeVapiOutboundCall(` helper and scanned only
+`server/cron/jobs`, so it was invisible — and I had written that "a fourth lane cannot be missed".
+**That claim was false and is now corrected in the source.** Found by sweeping the PROVIDER rather
+than the helper, which is the same move that found the second lane, applied one level up.
+
+★ It is `adminProcedure`, so its contract DIFFERS on purpose: a cron skips a suppressed number
+silently because nobody is listening; an operator pressed a button, so it **refuses and says why**.
+A silent no-op reads as a broken button and gets pressed again. No override flag, deliberately.
+
+★ **A behavioural test caught an ordering flaw in my own fix:** the guard was first placed after the
+`/phone-number` lookup, i.e. after a VAPI round-trip. A consent refusal must not depend on a third
+party being reachable. Moved ahead of all network work.
+
+### The sweep, as it now stands
+
+`server/cron/jobs/outboundLanes.suppression.test.ts` (renamed from `voiceLanes.*` — it spans
+channels now) walks `server/**` and matches all three dial shapes: the helper, a raw
+`api.vapi.ai/call` with no `/` or `?` after it (that lookahead is what separates the dial from the
+FIVE read-only `/call/<id>` and `/call?limit=` sites), and `vapiFetch("/call")`. It says out loud
+what it still cannot see — a new spelling — and answers that with an **inventory pin**: the set of
+files touching the VAPI API at all is fixed, so a new one fails and a human must classify it as a
+read or a dial. Same shape for email senders. **The allowlist is now EMPTY.**
+
+### Corrections to things I asserted earlier this session
+
+- "a fourth lane cannot be missed" — **false**, see above.
+- "`emailCampaigns` has no feature flag, live whenever `RESEND_API_KEY` is set" — **false**. It is
+  gated by `email_marketing_campaigns`, and a prior session's comment records that flag as ENABLED
+  in production. The lane is armed, not dormant: worse than I said, not better.
+- "`.remember` is gitignored and diverges per worktree" — **false**. The file IS tracked; the
+  PRIMARY checkout was simply parked on a stale branch (`statenour/nextjs-critical-rce-advisory`).
+  ⚠ A background task was spawned on that wrong premise and had already been started — it should be
+  stopped rather than acted on.
+
+### Still missing, named so nobody reads the sweep as complete
+
+- An **email unsubscribe** is a `mailto:unsubscribe@nickstire.org` and is recorded NOWHERE
+  machine-readable. Someone who unsubscribed by email and never texted STOP is in no index.
+- `lint:brand-voice`'s `IN_SCOPE` does not cover the customer-facing email templates in
+  `services/emailCampaigns.ts`, so that copy is claim-checked by no gate.
+
+**Previous header — Updated: 2026-09-16** (Dream-to-Proof waves 2-3 + follow-ups SHIPPED:
+#2330/#2334/#2335/#2336/#2340/#2342/#2343 — kernel calibrated + GrowthBook cross-checked, Night Shift identity
+fail-closed, hidden holdout armed and posting, capability ledger current. Nothing of mine open.)
 
 ## 2026-09-15/16 · Proof lane: what is live, what still needs a human
 

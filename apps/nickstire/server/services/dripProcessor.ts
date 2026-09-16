@@ -206,7 +206,48 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
     if (!due || due.length === 0) return { recordsProcessed: 0, details: "No drip steps due" };
 
     const { CAMPAIGNS, personalizeMessage } = await import("./dripCampaigns");
-    const { sendSms, withOptOut } = await import("../sms");
+    const { sendSms, withOptOut, loadSuppressionIndex } = await import("../sms");
+
+    /**
+     * ONE suppression read for the whole run, covering BOTH channels.
+     *
+     * What this replaces, and the comment that gave the game away: the SMS
+     * branch resolved opt-out with its own raw
+     * `SELECT smsOptOut FROM customers WHERE phone LIKE '%<last10>'` — one of
+     * the four sources — and the email branch checked NOTHING. The old comment
+     * said so outright: "An opted-out customer still advances through the
+     * campaign; only the SMS send is skipped, so any later email steps are
+     * unaffected." Unaffected was the bug.
+     *
+     * The SMS branch was never actually a hole, because `sendSms` consults the
+     * index centrally — that local query was a redundant weaker pre-check. The
+     * EMAIL branch was the hole, and it is the one the operator asked for on
+     * 2026-09-16 ("i need the opt outs to work too email, txt").
+     *
+     * Fail closed on both an unreadable and a STALE index: `stale` is not
+     * "5 minutes old" (that is the TTL, i.e. the fresh path) — sms.ts's
+     * `stale()` never consults `optOutCacheLoadedAt`, so its age is UNBOUNDED.
+     */
+    const suppression = await loadSuppressionIndex();
+    if (!suppression.ok) {
+      log.error("[drip] suppression index unreadable — sending NOTHING", {
+        reason: suppression.reason,
+        due: due.length,
+        errorId: "DRIP_SUPPRESSION_UNREADABLE",
+      });
+      throw new Error(`drip processor aborted — suppression index unreadable: ${suppression.reason}`);
+    }
+    if (suppression.stale) {
+      log.error("[drip] suppression index is STALE (refresh failed, age unbounded) — sending NOTHING", {
+        suppressed: suppression.phones.size,
+        due: due.length,
+        errorId: "DRIP_SUPPRESSION_STALE",
+      });
+      throw new Error(
+        "drip processor aborted — suppression index is STALE: the last refresh failed, so its age is unbounded and an opt-out recorded since is invisible",
+      );
+    }
+
     let sent = 0;
 
     for (const enrollment of due) {
@@ -259,20 +300,26 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
           referralCode: enrollment.customerPhone.slice(-4),
         });
 
+        // ONE suppression decision for BOTH channels, from the shared index.
+        // Previously the SMS branch had its own weaker query and the email
+        // branch had none at all (see loadSuppressionIndex above).
+        const enrollmentP10 = enrollment.customerPhone.replace(/\D/g, "").slice(-10);
+        const optedOut = suppression.phones.has(enrollmentP10);
+        if (optedOut) {
+          // The enrollment still ADVANCES — that behaviour is deliberate and
+          // unchanged, so a customer who opts out mid-campaign quietly runs to
+          // the end instead of being stuck due forever. What changed is that no
+          // step of it CONTACTS them, on either channel.
+          log.info("[drip] step suppressed on both channels — number is on the opt-out index", {
+            last4: enrollmentP10.slice(-4),
+            channel: step.channel,
+          });
+        }
+
         if (step.channel === "sms") {
           // Gate SMS behind feature flag
           const { isEnabled } = await import("./featureFlags");
           if (await isEnabled("drip_campaigns_enabled")) {
-            // Opt-out guard — drip_enrollments only carries the phone, so
-            // resolve opt-out by last-10-digit match (same pattern as
-            // abandonedForms). An opted-out customer still advances
-            // through the campaign; only the SMS send is skipped, so any
-            // later email steps are unaffected.
-            const normalized = enrollment.customerPhone.replace(/\D/g, "").slice(-10);
-            const [optRows] = await db.execute(sql`
-              SELECT smsOptOut FROM customers WHERE phone LIKE ${"%" + normalized} LIMIT 1
-            `);
-            const optedOut = !!((optRows as Array<{ smsOptOut?: number }>)[0]?.smsOptOut);
             if (!optedOut) {
               // wave-182: drip sequences are enrollment-based promotional sends →
               // TCPA opt-out on every step (idempotent if the body already has one).
@@ -286,6 +333,11 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
           const { isEnabled } = await import("./featureFlags");
           if (!(await isEnabled("drip_campaigns_enabled"))) {
             /* skip */
+          } else if (optedOut) {
+            // THE HOLE THIS FIXES. Until 2026-09-16 this branch had no
+            // suppression check of any kind, and the comment in the SMS branch
+            // said so: "any later email steps are unaffected".
+            /* suppressed — already logged above */
           } else {
             const email =
               typeof meta.email === "string" && meta.email.includes("@")
