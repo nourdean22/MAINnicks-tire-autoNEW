@@ -1,22 +1,5 @@
 # Reconciliation · statenour-os
 
-> ## 2026-09-16 · UI workbench wave 4 (the follow-ups; branch `claude/statenour-ui-architecture-intmaf`, third PR; #2341 SHIPPED + DEPLOYED-VERIFIED `ec3625fc8` at 23:58Z)
->
-> Operator: "do the open follow ups". **Built:** `agentRules: false` in `next.config.ts` (the Next 16
-> agent-rules block broke the 200-line AGENTS.md cap on every `next dev` start; the docs pointer it
-> carried is in the config comment) · ChangeSet's third consumer — `/people` "since your last visit"
-> (`lib/services/people/changes-since.ts`, `task.peopleChangesSince`, `PeopleChangeLine` above Nick's
-> brief): new people · interactions logged · went overdue (threshold crossed INTO the window).
-> **Measured before building (Neon, read-only):** 20 active people, 0 with `cadenceDays`, 23 ledger rows
-> ever, last 2026-07-10 — the line is silent in prod until a cadence is set or an interaction is logged;
-> the finding is the nine-week-silent relationship ledger, not the line.
-> **BLOCKED, not built — the `device` renderer:** no device surface exists to open it from
-> (`/system/devices` pruned; `G D` still points there; `system.deviceFleet` has one consumer, the ⌘K
-> probe) and the bridge heartbeats landed for one device (Shop Sign Camera, 5 events, last seen
-> 2026-09-11 00:01) then stopped; 19 of 20 rows last seen in April. Spec §5 has the receipts and the
-> operator decision it needs.
-> **Receipts.** `tsc --noEmit` 0 errors (1m38s, after the build regenerated the Prisma client — a first run showed 6 `actionAttempt` phantoms from the sibling's #2338 model) · `tests/services/people-changes-since.test.ts` 5 passed; positive control: `activeOnly` removed from the created query → red on `deletedAt`, restored (0 diff lines); 4 files / 18 tests green with ui-mount-graph + the ChangeSet tests · eslint 0 errors on every touched file · lint-baseline 132 ≤ 132 · anti-slop · et-clock · stale-docs strict 0 critical · `pnpm build` exit 0 · `next dev` probe with the CI env: Ready in 534ms, no agent-rules writer line, AGENTS.md / next-env.d.ts md5 unchanged before and after.
-
 > ## 2026-09-16 · Execution truth follow-ups · 2 ships (#2345 `6f5059b7c` code, #2343 `fc631eccc` docs) + the wrap-up docs pass
 >
 > **#2345 `6f5059b7c` — the ActionAttempt reclaim pins the deadline it decided from.** Codex's review of the new
@@ -48,6 +31,23 @@
 > - `NICK_EVIDENCE_PREFLUSH` is OFF and has no enforcement wiring; the evidence gate still runs in shadow on the streaming path.
 > - `test.yml` `node` job: runner resource death (shutdown signal / 50-min timeout after 232 MB free) recurs under
 >   `@statenour/web#build` + `#check` in parallel; lever if chronic = `--concurrency=1`.
+
+> ## 2026-09-16 · UI workbench wave 4 (the follow-ups; branch `claude/statenour-ui-architecture-intmaf`, third PR; #2341 SHIPPED + DEPLOYED-VERIFIED `ec3625fc8` at 23:58Z)
+>
+> Operator: "do the open follow ups". **Built:** `agentRules: false` in `next.config.ts` (the Next 16
+> agent-rules block broke the 200-line AGENTS.md cap on every `next dev` start; the docs pointer it
+> carried is in the config comment) · ChangeSet's third consumer — `/people` "since your last visit"
+> (`lib/services/people/changes-since.ts`, `task.peopleChangesSince`, `PeopleChangeLine` above Nick's
+> brief): new people · interactions logged · went overdue (threshold crossed INTO the window).
+> **Measured before building (Neon, read-only):** 20 active people, 0 with `cadenceDays`, 23 ledger rows
+> ever, last 2026-07-10 — the line is silent in prod until a cadence is set or an interaction is logged;
+> the finding is the nine-week-silent relationship ledger, not the line.
+> **BLOCKED, not built — the `device` renderer:** no device surface exists to open it from
+> (`/system/devices` pruned; `G D` still points there; `system.deviceFleet` has one consumer, the ⌘K
+> probe) and the bridge heartbeats landed for one device (Shop Sign Camera, 5 events, last seen
+> 2026-09-11 00:01) then stopped; 19 of 20 rows last seen in April. Spec §5 has the receipts and the
+> operator decision it needs.
+> **Receipts.** `tsc --noEmit` 0 errors (1m38s, after the build regenerated the Prisma client — a first run showed 6 `actionAttempt` phantoms from the sibling's #2338 model) · `tests/services/people-changes-since.test.ts` 5 passed; positive control: `activeOnly` removed from the created query → red on `deletedAt`, restored (0 diff lines); 4 files / 18 tests green with ui-mount-graph + the ChangeSet tests · eslint 0 errors on every touched file · lint-baseline 132 ≤ 132 · anti-slop · et-clock · stale-docs strict 0 critical · `pnpm build` exit 0 · `next dev` probe with the CI env: Ready in 534ms, no agent-rules writer line, AGENTS.md / next-env.d.ts md5 unchanged before and after.
 
 > ## 2026-09-15 · UI workbench wave 3 (branch `claude/statenour-ui-architecture-intmaf`, second PR; #2337 SHIPPED + DEPLOYED-VERIFIED `7164b69` at 19:32Z)
 >
