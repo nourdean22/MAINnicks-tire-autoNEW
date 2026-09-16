@@ -86,8 +86,14 @@ export const BUSINESS = {
   // ─── REVIEWS ─────────────────────────────────────────
   reviews: {
     rating: 4.9,
-    count: 1700,
-    countDisplay: "1,700+",
+    // 2026-09-16 · floor bumped 1700 -> 1710: live-checked across 8 pages
+    // today, every one that resolved the live query showed 1,710+; /about
+    // was the one page still showing the stale 1,700 floor on that pass
+    // (a resolveReviewDisplay() fallback, not a per-page bug — see
+    // useReviewStats.ts). This is a periodic floor update, not a design
+    // change; keep raising it as the live count grows.
+    count: 1710,
+    countDisplay: "1,710+",
     source: "Google",
     url: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid",
   },

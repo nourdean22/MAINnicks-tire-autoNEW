@@ -369,8 +369,14 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/emissions",
     priority: 0.9,
     changefreq: "monthly",
-    title: "Ohio E-Check Cleveland — Failed Emissions? Pass Same Day | Nick's",
-    description: "Failed Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. Walk in 7 days, pass same-day. (216) 862-0005.",
+    // 2026-09-16 · claim-safety fix. Both this title and its old services.ts
+    // counterpart independently promised "Pass Same Day" / "Pass Guaranteed" —
+    // the shop's own turnaround field says "Most emissions repairs completed
+    // in 1-2 days," and AGENTS.md's content rule bans "guaranteed" outright.
+    // Unified with services.ts:401's metaTitle so the title/meta split-brain
+    // (prerender vs. live SPA) can't show two different claims either.
+    title: "Failed E-Check Cleveland · Free Readiness Check | Nick's",
+    description: "Failed Ohio E-Check? Free readiness check tells you what's wrong before you pay. We diagnose and repair — O2 sensors, EVAP, catalytics. Walk in 7 days. (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,

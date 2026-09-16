@@ -18,6 +18,10 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 import FadeIn from "@/components/FadeIn";
 import { useState } from "react";
 
+// validThrough phrases that already read as complete sentences — "Until "
+// must not be prepended to these (see the render site for why).
+const NO_PREFIX_VALID_THROUGH = new Set(["While supplies last", "Available now"]);
+
 /* ─── SPECIALS DATA ─────────────────────────────────────── */
 interface Special {
   id: number;
@@ -281,7 +285,12 @@ function SpecialCard({ special }: { special: Special }) {
           )}
           <div className="flex items-center gap-1 text-foreground/40 text-[11px]">
             <Clock className="w-3 h-3" />
-            Until {special.validThrough}
+            {/* 2026-09-16 · claim-safety fix. validThrough holds either a real
+                date or one of two complete fallback phrases ("While supplies
+                last" / "Available now") when a DB coupon has no expiresAt —
+                unconditionally prepending "Until " produced "Until While
+                supplies last" live on /specials. Only dates get the prefix. */}
+            {NO_PREFIX_VALID_THROUGH.has(special.validThrough) ? special.validThrough : `Until ${special.validThrough}`}
           </div>
         </div>
 

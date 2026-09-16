@@ -398,7 +398,12 @@ export const SERVICES: ServiceData[] = [
     num: "04",
     title: "EMISSIONS & E-CHECK REPAIR",
     shortDesc: "Failed Ohio E-Check? We diagnose and repair emissions problems — oxygen sensors, EVAP leaks, catalytic converters — and get you passing.",
-    metaTitle: "Failed E-Check Cleveland · Pass Guaranteed | Nick's",
+    // 2026-09-16 · claim-safety fix — "Pass Guaranteed" is an unsupported
+    // promise (turnaround below says "Most emissions repairs completed in
+    // 1-2 days," never a guarantee) and AGENTS.md bans "guaranteed" outright.
+    // Unified with routes.ts:372's title so prerendered HTML and the live SPA
+    // can't disagree.
+    metaTitle: "Failed E-Check Cleveland · Free Readiness Check | Nick's",
     metaDescription: "Failed your Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. State tests; we get you passing. Same-day diagnosis. (216) 862-0005.",
     heroHeadline: "Failed E-Check?\nWe'll get you passing.",
     heroSubline: "The state runs the official E-Check — we run a FREE readiness check that tells you if you'll pass, then diagnose and repair the exact emissions problem and make sure all monitors complete so you pass the official test.",
@@ -483,7 +488,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Free check now / 1-2 days (repair)",
     startingPrice: "FREE E-Check check",
     priceRange: "",
-    whyChooseUs: "The state runs the official E-Check — we run a free readiness check that tells you if you'll pass before you go, and we fix it if you won't. We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete fast. We fix the root cause -- not just clear codes. Walk-ins 7 days, same-day diagnosis, and a 12-month warranty on repairs.",
+    whyChooseUs: "The state runs the official E-Check — we run a free readiness check that tells you if you'll pass before you go, and we fix it if you won't. We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete fast. We fix the root cause -- not just clear codes. Walk-ins 7 days, same-day diagnosis, and a 12-month parts / 90-day labor warranty on repairs.",
     commonSymptoms: [
       "Failed Ohio E-Check inspection",
       "Check engine light before emissions test",

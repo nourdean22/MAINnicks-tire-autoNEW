@@ -140,7 +140,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         icon: <AlertTriangle className="w-5 h-5" />,
         symptom: "E-Check failed with code P0420?",
         consequence: "Catalytic converter or O2 sensor — 30 days to remedy or your registration goes invalid.",
-        relief: "State-certified emissions repair, same-day pass guarantee.",
+        relief: "State-certified emissions repair, free readiness check first.",
         ctaLabel: "OHIO E-CHECK",
         ctaHref: "/emissions",
       },
