@@ -1,5 +1,41 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-16 · W10 · E4 RAN: the evidence gate is REFUTED, not pending (branch `claude/statenour-ui-architecture-intmaf`)
+>
+> `NICK_EVIDENCE_ENFORCEMENT` is the last layer of the fabrication-defense stack (§4 L6). It has been wired,
+> unit-tested and OFF since it shipped, with `persist-assistant-turn.ts` deferring it until "these numbers say the
+> FP rate is tolerable" and naming experiments **E2 / E3 / E4**. **Nobody had ever run them.** An unarmed control
+> that everyone believes is nearly ready is the same defect class as a silent canary, so they were run.
+> **Measured (Neon, read-only, 91 shadow turns 2026-09-11 → 2026-09-16):**
+>
+> | experiment | question | answer |
+> |---|---|---|
+> | E2 | share of turns naming a resource with no receipt | **21 / 91 = 23%** (avg 4.86 names each) |
+> | E4 | false-positive rate of the named-source check | **~50%** of the 73 distinct names were not resources |
+> | E3 | share of turns the pre-flush lane would buffer | **INSUFFICIENT DATA** — the stamp landed 09-15, so only 9 of 91 rows carry it (5 would buffer) |
+>
+> Verdicts: pass 57 · block 21 · repair 13. **The 50% is the finding.** `LISTED_TITLE_RE` is the only one of the
+> module's three patterns with NO resource noun anchoring it — it matches a bolded markdown list item, full stop —
+> and Nick writes the operator's itineraries and gym protocols as bolded list items. Enforcement DELETES list items
+> it cannot receipt, so arming the flag would have stripped the operator's travel plan and workout protocol out of
+> replies. Shape census of the 73: 14 ended in sentence punctuation · 10 were label-colon-value lines · 2 arrow
+> itinerary legs · 1 equation-style assertion · 2 parenthetical day labels.
+> **Shipped:** `isResourceTitle()` gating the `listed` kind on five rules drawn from that corpus, at **zero measured
+> true-positive cost** — every real channel and video title in the sample survives. Capitalization density was tried
+> as a rule and REJECTED with receipts: sentence-case video titles are indistinguishable from prose by
+> capitalization and it dropped three real titles. Both flags now carry the verdict inline so the next session
+> cannot read "experimental, ready" and switch it on.
+> **The old rows are now stale by construction** — they measure a detector that no longer exists. E4 must be re-run
+> on a fresh window before the flag is considered again; that is written into `lib/feature-flags.ts`, not just here.
+> **Not done, on purpose:** the ~25% residual FP rate (gym-log and plan fragments that are neither sentences nor
+> labels) is real and un-fixed; it is why the flag stays OFF rather than "nearly ready".
+> **Receipts:** `tsc --noEmit` exit 0 · eslint 0 errors on the three touched files · `vitest run tests/ai` **178
+> files, 2,352 passed, exit 0** (including the canonical end-to-end enforcement fixture, untouched) ·
+> `tests/ai/named-source-listed-precision.test.ts` 22 tests, mutation-proven: deleting the guard turns 3 of them RED,
+> one of which is an explicit instrument control proving the pattern still fires on a real title.
+> **Privacy:** the measured strings are the operator's private chat content and this repo is public, so the test
+> fixtures are SYNTHETIC reproductions of the measured shapes; the counts are recorded, the text is not.
+
 > ## 2026-09-16 · Honest-counter repair wave W8 (branch `claude/statenour-ui-architecture-intmaf`, sixth PR, on top of the Visible Transformation slices)
 >
 > Operator: fact-check the research, repair reality, keep shipping. This wave is the REPAIR half — every consumer

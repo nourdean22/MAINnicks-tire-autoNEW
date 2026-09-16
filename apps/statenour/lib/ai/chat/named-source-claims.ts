@@ -198,6 +198,62 @@ function isPlausibleName(raw: string): boolean {
   return meaningful.some((w) => /^[A-Z]/.test(w));
 }
 
+/**
+ * A `listed` candidate is a bolded or quoted LIST ITEM, and unlike the other
+ * two patterns it has NO resource noun anchoring it — `LISTED_TITLE_RE` fires
+ * on markdown formatting alone. That is the whole false-positive surface, and
+ * it is not theoretical.
+ *
+ * MEASURED on production shadow verdicts, 2026-09-11 → 2026-09-16 (91 turns,
+ * the E4 experiment this module's own header defers enforcement on): 21 turns
+ * came back `block`, 20 of them carrying unreceipted names, 4.86 names each —
+ * and roughly half of the 73 distinct names were not resources at all. They
+ * were the operator's own itineraries and coaching plans, written by Nick as
+ * bolded list items:
+ *
+ *   14 ended in sentence punctuation   ("… in the next 30 min.")
+ *   10 were label-colon-value lines    ("Lunch: <place>")
+ *    2 were arrow itineraries          ("<place> → <place>")
+ *    1 was an equation-style assertion ("<signal> = <reading>")
+ *    2 were parenthetical day labels   ("Fri (arrival day)")
+ *
+ * Enforcement deletes list items it cannot receipt, so arming the gate on
+ * that detector would have stripped the operator's travel plan and gym
+ * protocol out of Nick's replies. The comment in persist-assistant-turn.ts
+ * predicted exactly this — "a gate that either mangles good replies or gets
+ * switched off for good" — which is why the number had to be measured first.
+ *
+ * So a listed candidate must LOOK like a title. These five rules were chosen
+ * against that measured corpus and cost ZERO true positives on it: every real
+ * channel and video title in the sample (including the sentence-case ones
+ * like "How to read body language — FBI agent explains") survives all five,
+ * because none of them ends a sentence, carries a label colon, or starts
+ * lowercase. Capitalization density was REJECTED as a rule for exactly that
+ * reason — sentence-case video titles are indistinguishable from prose by
+ * capitalization, and it would have dropped three real titles.
+ */
+export function isResourceTitle(raw: string): boolean {
+  const t = raw.trim();
+  if (!t) return false;
+  // 1 · a title does not end a sentence.
+  if (/[.!?]$/.test(t)) return false;
+  // 2 · "<signal> = <reading>" is an assertion, not a name.
+  if (t.includes("=")) return false;
+  // 3 · "<place> → <place>" is an itinerary leg.
+  if (/→|->/.test(t)) return false;
+  // 4 · a label. "Lunch: <place>" and "Week after:" are fields, not titles.
+  //     A real subtitle ("Never Split the Difference: Negotiating As If …")
+  //     has a long left side, so only a SHORT left side is rejected.
+  const colon = t.indexOf(":");
+  if (colon >= 0) {
+    const left = t.slice(0, colon).trim();
+    if (left.split(/\s+/).filter(Boolean).length <= 3) return false;
+  }
+  // 5 · a title does not begin mid-sentence ("of <name>").
+  if (/^[a-z]/.test(t)) return false;
+  return true;
+}
+
 function snippetAround(text: string, index: number, len: number): string {
   const start = Math.max(0, index - 40);
   const end = Math.min(text.length, index + len + 40);
@@ -228,6 +284,8 @@ export function detectNamedSources(text: string): NamedSourceClaim[] {
     push(m[2], m[1], m.index ?? 0, /["'“‘*]/.test(m[0]));
   }
   for (const m of text.matchAll(LISTED_TITLE_RE)) {
+    // The only pattern with no resource noun anchoring it — see isResourceTitle.
+    if (!isResourceTitle(m[1])) continue;
     push(m[1], "listed", m.index ?? 0, true);
   }
 
