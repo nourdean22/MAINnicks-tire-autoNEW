@@ -1,6 +1,23 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-15 (UI workbench #2337 shipped + deployed-verified; wave 3 on the same branch name, second PR)
+**Updated:** 2026-09-16 (relationship-ledger wave on `claude/statenour-ui-architecture-intmaf`, fourth PR; #2344 shipped + deployed-verified)
+
+## Relationship ledger wave (2026-09-16; same branch, restarted by merging main `fc631eccc`)
+**Finding:** the ledger had no live writer worth the name — 23 rows ever, last 2026-07-10, the 8 "chat" rows a
+synthetic 05-29 backfill, 0 outreach/gmail/calendar/telegram rows ever — while `interaction_count` (sum 191) and
+`last_interaction` kept moving from chat MENTIONS, `person.update` edits and profile creation. **Shipped:** ONE
+writer `lib/services/people/record-interaction.ts` (row + both counters in one transaction, forward-only
+timestamp by predicate, embed + XP after commit; `recordInteractionOnce` = Serializable, one row per person per
+window) fed by the modal / ⌘K, the picks button, Telegram `/log`, Nick's `person.logInteraction`, and the digest
+(model returns `interacted` per person; a mention writes nothing). `person.update` no longer bumps counters.
+**Left alone on purpose:** the historical counter drift (a prod write + a behaviour change — operator's call) ·
+cameras/devices (operator: "leave the cameras for now"). **Traps measured:** the repo clone is shallow (82
+commits from 2026-09-10) — `git log -S` cannot see May; prod metadata (`synthetic: true`) told the story instead ·
+`information_schema` needs the `@@map` name (`cron_job_logs`, `chat_conversations`), and cron-log columns keep
+Prisma's camelCase (`"jobName"`, `"createdAt"`) · a `vi.waitFor` is the only honest way to assert a
+fire-and-forget hook fired.
+**Next:** decide the counter reconcile (`interaction_count := ledger count`, `last_interaction := max(ledger)`) —
+one dry-run-first script, operator-run · the `/people` line's "went overdue" stays silent until a cadence is set.
 
 ## UI workbench wave 3 (2026-09-15; branch `claude/statenour-ui-architecture-intmaf` restarted by merging main — force-push is policy-blocked)
 **Shipped this wave:** `tool` inspector + inspectable `/system/tools` rows · ChangeSet primitive

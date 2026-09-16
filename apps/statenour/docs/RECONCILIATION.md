@@ -1,5 +1,44 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-16 · The relationship ledger gets a writer (branch `claude/statenour-ui-architecture-intmaf`, fourth PR; #2344 SHIPPED + DEPLOYED-VERIFIED `8c62ee965` at 00:38Z)
+>
+> Operator: "fix the ledger in perfect way, leave the cameras for now". **Root cause, measured on Neon
+> (read-only) before touching code:** 23 `relationship_ledger` rows ever, the last on 2026-07-10; 8 of them
+> `source=chat` with `metadata.synthetic: true` (a 2026-05-29 backfill — there was never a live chat writer);
+> 2 `auto` rows were the 06-01 profile seeding; 0 `outreach` rows ever (the picks button's route had never
+> written); 0 `gmail` / `calendar` / `telegram` rows ever (enum values with no writer). Meanwhile
+> `person_profiles.interaction_count` summed to 191 and `last_interaction` kept advancing into September,
+> because three paths bumped the counters with NO ledger row — the conversation digest bumped every MENTIONED
+> name ("should I trust Dania?" counted like "had dinner with Dania"), Nick's `person.update` bumped on every
+> edit, and profile creation seeded 1 — while the two real writers (`task.logLedger`, `log-outreach`) each
+> carried a private copy of the bump. Nothing made the counters and the ledger agree.
+> **Built:** `lib/services/people/record-interaction.ts` — the ONE writer: row + `interactionCount` +
+> `lastInteraction` in one transaction; `lastInteraction` moves forward only, by a WHERE predicate, so a
+> backdated row never rewinds a newer contact; embed + XP after the commit; `recordInteractionOnce` for
+> automatic writers (at most one row per person per window, Serializable — the racer's P2034 is `lost_race`,
+> never a duplicate). `task.logLedger` and `log-outreach` write through it. **Five producers now feed it:**
+> the modal / ⌘K (unchanged UI, shared grammar moved to `parse-ledger-query.ts`), the picks outreach button,
+> Telegram `/log <name> <+n|-n> [note]` (first writer of `source=telegram`, via `log-from-text.ts`), Nick's new
+> `person.logInteraction` action (name, note, amount ±25, kind; catalog row, dispatch, receipt card,
+> verifier membership + a phantom-claim pattern for "Logged +5 for Dania" with no action emitted, the
+> behavior directive), and the conversation digest — which now asks the model `interacted` /
+> `interactionKind` / `interactionNote` per person and writes one `chat` row only for a REPORTED interaction,
+> dated by the conversation's last message, windowed from its first, no XP, never creating a profile.
+> **Stopped:** a mention no longer touches the interaction fields; `person.update` is an edit and writes no
+> counters. **Not done, on purpose:** the historical drift stays — resetting `interaction_count` /
+> `last_interaction` to the ledger is a production write and a behaviour change (everyone would read
+> "silent since July"); it is the operator's call, and the seam makes the drift stop growing. One auto row per
+> person per conversation thread: a second interaction with the same person inside the same thread is covered by
+> Nick's action or the modal, not the digest (a recompile cannot tell the old report from a new one).
+> **Receipts.** Red first on the unfixed code: 4 files / 12 tests red (mention bumped the profile, no seam call,
+> no `interacted` in the prompt, `person.update` data carried counters, dispatcher "Unknown action type",
+> verifier membership + pattern missing) · green after: 17 files / 212 tests · four seam mutants each red on the
+> intended test and the golden restored with 0 diff lines (forward-only predicate dropped, Serializable dropped,
+> window check dropped, counter bump dropped) · `tsc --noEmit` 0 errors (1m39s) · eslint 0 errors on every
+> touched file (the 1 warning is the pre-existing `set-state-in-effect` in the ⌘K component, in the baseline) ·
+> lint-baseline 132 ≤ 132 · anti-slop · et-clock · prompt-injection 58 files · get-auth 179 · mutations strict ·
+> knip 0 unused files · `pnpm build` exit 0 · stale-docs strict (see the PR).
+
 > ## 2026-09-16 · UI workbench wave 4 (the follow-ups; branch `claude/statenour-ui-architecture-intmaf`, third PR; #2341 SHIPPED + DEPLOYED-VERIFIED `ec3625fc8` at 23:58Z)
 >
 > Operator: "do the open follow ups". **Built:** `agentRules: false` in `next.config.ts` (the Next 16
