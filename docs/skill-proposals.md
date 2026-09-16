@@ -1846,6 +1846,11 @@ measurement. Every proposal below cites the moment in this wave that produced it
   detector that returns an empty finding list for every input is indistinguishable from a clean subject, and a
   mutation arm does not always catch it. Add an arm that asserts the scanner LOCATED its subject: a non-zero
   count of matched units, and the exact expected count of each named one."
+- **Applier note (found in my own audit, not by the reviewer):** the target section heading is literally
+  `## Two ways a canary lies` (`positive-control-first/SKILL.md:28`). Appending a third bullet under it leaves
+  the heading contradicting its own contents, so the edit is "rename to `## Three ways a canary lies`, then add".
+  Naming it here because the two findings the reviewer filed on this queue were both exactly this shape — a
+  proposal that does not survive contact with the file it targets.
 - **Confidence:** high (the dead detector in #2359, and the whole of #2362 is the same shape one layer up)
 - **Status:** proposed
 
@@ -1910,3 +1915,31 @@ measurement. Every proposal below cites the moment in this wave that produced it
 - **Confidence:** high on the pattern (five recurrences in one session); high on the collision (read in the file,
   not inferred)
 - **Status:** proposed
+
+### P7 · `statenour-verify` — the Traps list carries two byte-identical duplicate bullets
+- **Trigger (witnessed):** found while auditing this queue's own proposals against the skills they target, after
+  the reviewer caught two proposals that collided with their target files. Measured over the whole file by
+  splitting on the top-level bullet delimiter rather than by eye:
+
+  ```
+  duplicate top-level bullets in statenour-verify/SKILL.md: 2
+    x2  TS2307 "cannot find module" in a file OUTSIDE your diff = stale-ju...
+    x2  lefthook's parallel pre-commit jobs can flake red under memory   p...
+  total top-level bullets: 31
+  ```
+
+  Both pairs are exact repeats, adjacent, presumably from a merge that appended instead of replacing.
+- **Cost:** none measured yet, and that is the point — this skill is read before every statenour commit, so the
+  cost is paid as attention on every read, by every session, invisibly. 2 of 31 bullets is ~6% of a file whose
+  whole job is to be read carefully under time pressure.
+- **Proposed edit:** delete the second occurrence of each pair. No wording changes — the surviving copies are
+  correct and are cited elsewhere.
+- **Confidence:** high (measured over the whole file, not sampled)
+- **Status:** proposed
+
+> **Audit note for this whole block.** After the reviewer filed findings against P1 and P6 — both of them
+> "this proposal does not survive contact with the file it targets" — I checked the remaining four the same
+> way instead of waiting for the next round. P2 and P5 (`statenour-verify` Traps) collide with nothing; P4
+> extends an existing paragraph cleanly; P3 needed the heading note now attached to it; and the audit turned
+> up P7, which no proposal introduced. Recording the method because the root cause of both findings was
+> writing six proposals without reading six target files, not two isolated mistakes.
