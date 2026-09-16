@@ -11,6 +11,10 @@
  * explanation strings, never a fabricated confidence %), correctable
  * ("Different move" reveals ranked alternatives), and dismissible (it's
  * one tap of scroll — nothing traps focus).
+ *
+ * 2026-09-16 · Visible Transformation: THE MOVE. One gold rule down the left,
+ * the headline as a real eyebrow h2, the body at reading size, one primary
+ * action in display type. No card.
  */
 
 import { useState } from "react";
@@ -31,6 +35,8 @@ const KIND_TONE: Record<BriefLeadSection["kind"], string> = {
   suggestions: "text-fg-secondary",
 };
 
+const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
+
 export function BriefLead({
   lead,
   loading,
@@ -47,7 +53,7 @@ export function BriefLead({
 
   if (loading) {
     return (
-      <section aria-label="the brief" className="mt-7 space-y-3" aria-busy>
+      <section aria-label="the brief" className="mt-10 space-y-3 border-l-2 border-edge pl-5 sm:pl-6" aria-busy>
         <div className="h-3 w-24 animate-pulse rounded bg-raised" />
         <div className="h-7 w-3/4 animate-pulse rounded bg-raised" />
         <div className="h-4 w-full animate-pulse rounded bg-raised" />
@@ -59,24 +65,25 @@ export function BriefLead({
   const tone = KIND_TONE[lead.kind];
 
   return (
-    <section aria-label="the brief" className="mt-7">
-      <p className={cn("text-[10px] font-mono font-semibold uppercase tracking-[0.2em]", tone)}>
-        {lead.headline}
-      </p>
+    <section aria-label="the brief" className="mt-10 border-l-2 border-gold pl-5 sm:pl-6">
+      <h2 className={cn("vt-eyebrow", tone)}>{lead.headline}</h2>
 
-      <p className="mt-2 max-w-[56ch] text-pretty text-[15px] leading-relaxed text-fg-secondary">
+      <p className="mt-3 max-w-[56ch] text-pretty text-lg leading-relaxed text-fg sm:text-xl">
         {lead.body}
       </p>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-2">
+      <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-3">
         {lead.cta && (
           <Link
             href={lead.cta.href}
-            className="group inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-gold px-4 text-[13px] font-semibold text-black transition-colors duration-150 hover:bg-gold-dim focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            className={cn(
+              "group inline-flex min-h-[52px] items-center gap-2 rounded-md bg-gold px-6 font-display text-base font-bold uppercase tracking-wide text-black transition-colors duration-150 hover:bg-gold-dim",
+              FOCUS,
+            )}
           >
             {lead.cta.label}
             <ArrowRight
-              size={14}
+              size={16}
               className="transition-transform duration-150 motion-safe:group-hover:translate-x-0.5"
             />
           </Link>
@@ -86,10 +93,13 @@ export function BriefLead({
           <button
             type="button"
             onClick={() => openInspector({ kind: "task", id: lead.taskId! })}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-glass px-3 text-[12px] text-fg-secondary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            className={cn(
+              "inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-edge px-4 text-[13px] text-fg-secondary transition-colors duration-150 hover:border-edge-hover hover:text-fg",
+              FOCUS,
+            )}
             data-brief-inspect={lead.taskId}
           >
-            <Eye size={13} />
+            <Eye size={14} />
             Inspect
           </button>
         )}
@@ -98,10 +108,13 @@ export function BriefLead({
           type="button"
           onClick={() => setShowWhy((v) => !v)}
           aria-expanded={showWhy}
-          className="inline-flex min-h-[44px] items-center gap-1 rounded-lg px-3 text-[12px] text-fg-tertiary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          className={cn(
+            "inline-flex min-h-[44px] items-center gap-1 rounded-md px-3 text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg",
+            FOCUS,
+          )}
         >
           Why this?
-          {showWhy ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          {showWhy ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </button>
 
         {lead.alternatives.length > 0 && (
@@ -109,18 +122,21 @@ export function BriefLead({
             type="button"
             onClick={() => setShowAlternatives((v) => !v)}
             aria-expanded={showAlternatives}
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-lg px-3 text-[12px] text-fg-tertiary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            className={cn(
+              "inline-flex min-h-[44px] items-center gap-1 rounded-md px-3 text-[13px] text-fg-tertiary transition-colors duration-150 hover:text-fg",
+              FOCUS,
+            )}
           >
             Different move
-            {showAlternatives ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            {showAlternatives ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
           </button>
         )}
       </div>
 
       {showWhy && (
-        <div className="mt-3 space-y-1.5 border-l-2 border-edge pl-3">
+        <div className="mt-4 space-y-2 border-l border-edge pl-4">
           {lead.reasoning.map((line, i) => (
-            <p key={i} className="text-xs leading-relaxed text-fg-tertiary">
+            <p key={i} className="text-[13px] leading-relaxed text-fg-tertiary">
               {line}
             </p>
           ))}
@@ -128,17 +144,18 @@ export function BriefLead({
       )}
 
       {showAlternatives && (
-        <ul className="mt-3 space-y-1">
+        <ul className="mt-4 divide-y divide-edge border-y border-edge">
           {lead.alternatives.map((alt) => (
             <li key={alt.href + alt.label}>
               <Link
                 href={alt.href}
-                className="group flex min-h-[44px] flex-col justify-center rounded-lg px-3 py-1.5 transition-colors duration-150 hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+                className={cn(
+                  "group flex min-h-[52px] flex-col justify-center py-2 transition-colors duration-150 hover:text-gold",
+                  FOCUS,
+                )}
               >
-                <span className="text-[13px] font-medium text-fg group-hover:text-fg">
-                  {alt.label}
-                </span>
-                <span className="text-[11px] text-fg-tertiary">{alt.why}</span>
+                <span className="text-[15px] font-medium text-fg group-hover:text-gold">{alt.label}</span>
+                <span className="text-[12px] text-fg-tertiary">{alt.why}</span>
               </Link>
             </li>
           ))}
