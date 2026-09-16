@@ -74,7 +74,7 @@
 >   **Billing decision: the operator's, not a commit's.**
 > - **E4 cannot be re-run until ~2026-09-20.** The `isResourceTitle` repair deployed 12:56Z; only 11 shadow turns
 >   have accrued since, against E4's original 91. Early signal is 0 blocks in 11 (vs 21/91 = 23% before) — but if
->   the true rate were still 23%, P(0 in 11) = 5.8%. Suggestive, NOT conclusive. Rate is ~20 turns/day. The verdict
+>   the true rate were still 23.1%, P(0 in 11) = 5.6%. Suggestive, NOT conclusive. Rate is ~20 turns/day. The verdict
 >   split alone cannot decide arming; the number that decides it is what fraction of blocked names are genuine
 >   resources vs the operator's own prose. `lib/feature-flags.ts` still reads REFUTED / flag OFF and stays that way.
 > - **~25% residual false-positive rate in the `listed` named-source detector** — gym-log and plan fragments that
