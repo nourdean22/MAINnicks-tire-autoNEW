@@ -1782,3 +1782,104 @@ statenour primitives documented (existence re-verified at
   commit stalls a merge."
 - **Confidence:** low (one avoidance, no witnessed conflict)
 - **Status:** applied 2026-09-15 (operator: "lets get on 5"; same PR as this status line)
+
+## 2026-09-16 · W11 · the controls that could not see their subject (#2355 #2359 #2362 #2364 #2368)
+
+Five merged ships, all repairs to controls that reported green while blind to their subject. Three canaries
+written this wave were themselves broken on first run; three of my own proposed fixes were refuted by
+measurement. Every proposal below cites the moment in this wave that produced it.
+
+### P1 · `nickstire-shared-main-push` (PR mechanics) — mark ready-for-review on OPEN, not at merge
+- **Trigger (witnessed):** `chatgpt-codex-connector[bot]` fires on the draft→ready transition, NOT on a plain
+  push, and takes ~4 min; the sweep takes ~13. Un-drafting at merge time raced the review on three consecutive
+  merges by under 15 seconds each (#2359, #2362, #2364). #2359's two P2 findings therefore landed on `main`.
+  #2368 was the first PR marked ready on open, and was the first this session whose review finding arrived
+  BEFORE the merge — a second copy of stale figures in the `NODE_OPTIONS` block, fixed in `69de22b79`.
+- **Cost:** an entire extra PR (#2364) that existed only to fix findings the race let through, plus two real
+  defects live on `main` for about an hour.
+- **Proposed edit:** add a step — "**Mark ready-for-review when you OPEN the PR, not when you merge it.** The
+  automated reviewer fires on draft→ready, not on pushes, and returns in ~4 min against a ~13 min sweep.
+  Un-drafting at merge time means the review lands after the squash, so its findings arrive on `main` and cost
+  a second PR. Measured 2026-09-16: 3/3 merges raced it by <15s; the first PR opened ready caught its finding
+  pre-merge."
+- **Confidence:** high (3/3 failures, then the fix validated in the same session)
+- **Status:** proposed
+
+### P2 · `statenour-verify` (Traps) — a green CI job is not a green sweep; read the TASK count
+- **Trigger (witnessed):** I cited #2362's passing CI run as "the heaviest case, and it passed" — the evidence
+  that the memory fix worked. That run executed **zero** turbo tasks. `dorny/paths-filter`
+  (`.github/workflows/test.yml:45`) decides whether the `node` JOB runs; `turbo run … --affected` (`:237`)
+  decides which PACKAGES run inside it. A workflow-only diff satisfies the first and is empty to the second, so
+  the job goes green having compiled nothing. Corrected in #2368's body and merge commit.
+- **Cost:** a false receipt published in a PR body, and a memory claim that rested on a run which never built.
+- **Proposed edit:** "**A green CI job is not a green sweep.** `paths-filter` decides whether a JOB runs;
+  `turbo --affected` decides which PACKAGES run inside it — two mechanisms, and a diff can satisfy one while
+  being empty to the other. Before citing a CI run as evidence that a build-level change worked, open the sweep
+  step's log and read the task count. `Tasks: 0 successful, 0 total` and a full sweep are the same colour in the
+  check rollup."
+- **Confidence:** medium (once, unambiguous, and it shipped into a PR body before being caught)
+- **Status:** proposed
+
+### P3 · `positive-control-first` — a THIRD way a canary lies: it scanned nothing
+- **Trigger (witnessed):** the first draft of `apps/statenour/tests/repo/raw-sql-interval-cast.test.ts` (#2359)
+  had a dead detector. Its interpolation-end helper started its depth counter at `0` *after* the opening brace,
+  so the first closing brace drove it to `-1` and the `=== 0` terminator never fired; it returned `[]` for every
+  input. The arm that scans the live tree reported a clean tree and was green. Only the instrument-control arm
+  (a known-bad literal string) went red. In #2362 I wrote the general form of the missing arm:
+  `scripts/agent-os/ciMemorySampler.test.mjs:189-200` asserts the scanner LOCATED its subject — several steps
+  found, exactly one sweep step, exactly one summary step, and the block did not leak into a sibling job.
+- **Cost:** would have shipped a permanently-green gate on the exact defect class the file exists to catch — the
+  same shape as the sampler bug it was written beside.
+- **Proposed edit:** add to "Two ways a canary lies" a third entry — "**The scanner matched NOTHING.** A
+  detector that returns an empty finding list for every input is indistinguishable from a clean subject, and a
+  mutation arm does not always catch it. Add an arm that asserts the scanner LOCATED its subject: a non-zero
+  count of matched units, and the exact expected count of each named one."
+- **Confidence:** high (the dead detector in #2359, and the whole of #2362 is the same shape one layer up)
+- **Status:** proposed
+
+### P4 · `positive-control-first` — the dual of stripping comments: mutate the LIVE text
+- **Trigger (witnessed):** this skill already prescribes stripping comments so documentation cannot satisfy a
+  control. Applying it created the dual within minutes. In `scripts/agent-os/ciMemorySampler.test.mjs` the
+  mutation `String.replace("--concurrency=1", …)` hit the FIRST occurrence — which was in the comment recording
+  the change — and the stripper then erased the mutation, so the arm went green having proved nothing. Fixed at
+  `:154-165` by anchoring on the executable command string and asserting it occurs exactly once
+  (`workflow.split(live).length - 1 === 1`) before mutating it.
+- **Cost:** a mutation arm that certified a gate it never touched; caught only by re-reading the arm.
+- **Proposed edit:** append to the "So: after writing a control…" paragraph — "**And the dual: once the scanner
+  strips comments, the mutation must target the LIVE text.** `String.replace` takes the first match, which after
+  a repair is usually inside the comment documenting that repair; the stripper then erases your mutation and the
+  arm passes having changed nothing the scanner reads. Anchor the mutation on the executable line and assert it
+  occurs exactly once before mutating it."
+- **Confidence:** high (structural consequence of a remedy this skill already prescribes)
+- **Status:** proposed
+
+### P5 · `statenour-verify` (Traps) — a build-resource number is only a measurement if the run was COLD
+- **Trigger (witnessed):** #2362 wrote `peak 4962MB` and a `7695MB` collision into `.github/workflows/test.yml`
+  as the justification for `--concurrency=1`. Both were warm-`.next` artifacts: a warm build skips compile and
+  type-check, which are the phases that hold the memory. Cold, `next build` peaks at **6778MB**, not 4962. The
+  same warmth made `experimental.cpus: 1` look like a 36% win; measured cold on both arms it is 2.3%
+  (6778 → 6621MB) and was dropped. #2368 exists only to retract those figures.
+- **Cost:** one whole PR, and a near-miss in which a refuted lever would have shipped as a fix.
+- **Proposed edit:** "**Any build-resource number must be taken COLD.** CI always is (fresh checkout,
+  `Remote caching disabled`); a local repeat is not. `Compiled successfully in <10s` is the tell — that run
+  skipped the compile and type-check phases that hold the peak. Delete `.next` between arms, and never write a
+  locally-measured MB figure into a workflow comment without naming the cache state it was taken in."
+- **Confidence:** high (a wrong number shipped and required a retraction PR)
+- **Status:** proposed
+
+### P6 · `stranded-branch-rescue` — restarting a branch after its PR squash-merged, without rewriting history
+- **Trigger (witnessed):** after each squash-merge this session the working branch had to be restarted on `main`,
+  which leaves the old remote tip a non-ancestor — and rewriting pushed history is a Protected Operation.
+  Deleting the remote ref is not an escape either: this session's credential can push but not delete a ref
+  (HTTP 403, witnessed). The compliant move, used five times: re-point the local branch at `origin/main`, then
+  merge the old remote tip with the `ours` strategy so the restarted branch is a descendant of what the remote
+  already holds; the next push then fast-forwards with no force.
+- **Cost:** about five blocked pushes before the pattern was found; each would otherwise have stranded a branch.
+- **Proposed edit:** new section — "**Restarting a branch on `main` after its PR squash-merged.** The squash
+  makes your old tip unreachable, so a plain re-point cannot push and a rewrite is banned. Re-point at
+  `origin/main`, then merge the old remote tip with the `ours` strategy — content from `main`, ancestry from the
+  remote — and push as a fast-forward. Deleting the remote ref is not a fallback: the agent credential can push
+  but not delete. The bookkeeping merge appears as a commit on the branch; disclose it in the PR body rather
+  than trying to remove it."
+- **Confidence:** high (five recurrences in one session)
+- **Status:** proposed
