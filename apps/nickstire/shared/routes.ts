@@ -69,10 +69,10 @@ const CORE_PAGES: RouteEntry[] = [
     // 2026-06-19 GSC tune · /services held pos 3.4 but only 0.4% CTR over
     // 2,264 imp (90d) — strong rank, weak earn. Hub page ranks for broad
     // terms; the generic title lost the click. Applied the proven "No Pay
-    // Til You Say Yes" hook (winning on /diagnostics) + 4.9★/1,700+ social
+    // Til You Say Yes" hook (winning on /diagnostics) + 4.9★/1,710+ social
     // proof up front. Kept in sync with ServicesOverview.tsx SEOHead.
     title: "Cleveland Auto Repair & Tires · No Pay Til You Say Yes | Nick's",
-    description: "Tires, brakes, diagnostics, oil & emissions in one Euclid shop. Free check, written quote, you don't pay until you say yes. 4.9★ from 1,700+ drivers.",
+    description: "Tires, brakes, diagnostics, oil & emissions in one Euclid shop. Free check, written quote, you don't pay until you say yes. 4.9★ from 1,710+ drivers.",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -118,11 +118,11 @@ const CORE_PAGES: RouteEntry[] = [
     changefreq: "weekly",
     // wave-181.29 GSC tune · was pos 6.9 with 34 impr / 0 clicks (90d).
     // Page-1 ranking, zero CTR — title/desc not selling the click.
-    // Synced "1,683" → "1,700+" (count was stale + round number is more
+    // Synced "1,683" → "1,710+" (count was stale + round number is more
     // click-worthy). Description now leads with concrete number-of-drivers
     // + multi-platform (Google + Yelp + BBB) for trust anchoring.
-    title: "Nick's Tire & Auto · 4.9★ · 1,700+ Reviews Cleveland",
-    description: "1,700+ Cleveland drivers reviewed Nick's Tire & Auto on Euclid Ave. 4.9★ across Google, Yelp, BBB. Real customers on tires, brakes, check-engine light, honest pricing.",
+    title: "Nick's Tire & Auto · 4.9★ · 1,710+ Reviews Cleveland",
+    description: "1,710+ Cleveland drivers reviewed Nick's Tire & Auto on Euclid Ave. 4.9★ across Google, Yelp, BBB. Real customers on tires, brakes, check-engine light, honest pricing.",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -232,7 +232,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.85,
     changefreq: "monthly",
     title: "Wheel Alignment Cleveland · Same-Day · Free Pull-Check | Nick's",
-    description: "Wheel alignment in Cleveland · same-day four-wheel laser alignment, walk-in 7 days. Free pull-check before any work. ★4.9 · 1,700+ reviews. (216) 862-0005",
+    description: "Wheel alignment in Cleveland · same-day four-wheel laser alignment, walk-in 7 days. Free pull-check before any work. ★4.9 · 1,710+ reviews. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -395,7 +395,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // but 0% CTR — title lacked "near me" trigger + lacked a hard price
     // anchor. Rewrite leads with the literal search phrase.
     title: "Wheel Alignment Near Me · Cleveland · Same-Day Walk-In | Nick's",
-    description: "Wheel alignment near you in Cleveland — same-day four-wheel laser alignment, walk-in 7 days. ★4.9 · 1,700+ reviews. Free pull-check first. (216) 862-0005",
+    description: "Wheel alignment near you in Cleveland — same-day four-wheel laser alignment, walk-in 7 days. ★4.9 · 1,710+ reviews. Free pull-check first. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -408,7 +408,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // oil change" at 179 impr/mo (page 7). Title was verbose (62 chars)
     // and didn't lead with the literal query phrase + "near me" intent.
     title: "Synthetic Oil Change Near Me · Cleveland · $80 Same-Day | Nick's", // keep in sync with OIL_PRICE
-    description: "Full synthetic oil change in Cleveland · $80 walk-in same-day, 30 min. Mobil 1, Pennzoil, Valvoline. 10K-mile intervals. ★4.9 · 1,700+ reviews. (216) 862-0005",
+    description: "Full synthetic oil change in Cleveland · $80 walk-in same-day, 30 min. Mobil 1, Pennzoil, Valvoline. 10K-mile intervals. ★4.9 · 1,710+ reviews. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -469,7 +469,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // nothing on the metric wave-181.8 targeted and ends the split-brain
     // on the metric that's actually live (social previews).
     title: "Auto Repair Cleveland · Estimate Before Wrench | Nick's",
-    description: "Nick's Tire & Auto · Cleveland's local mechanic on Euclid Ave. Auto repair near you, walk-in 7 days, free written estimate, honest pricing. ★4.9 · 1,700+ reviews. (216) 862-0005",
+    description: "Nick's Tire & Auto · Cleveland's local mechanic on Euclid Ave. Auto repair near you, walk-in 7 days, free written estimate, honest pricing. ★4.9 · 1,710+ reviews. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -556,7 +556,7 @@ const CITY_PAGES: RouteEntry[] = [
     // 24.4 with 79 impr/mo but 0% CTR. Improved title leads with the
     // literal search intent + walk-in + price-anchor signal.
     title: "Auto Repair Cleveland OH · Nick's Tire & Auto Shop",
-    description: "Cleveland auto shop on Euclid Ave. Brakes, tires, diagnostics. We show you the worn parts before you pay. 4.9★, 1,700+ reviews. Open 7 days. (216) 862-0005.",
+    description: "Cleveland auto shop on Euclid Ave. Brakes, tires, diagnostics. We show you the worn parts before you pay. 4.9★, 1,710+ reviews. Open 7 days. (216) 862-0005.",
     group: "city",
     sitemap: true,
     prerender: true,
@@ -577,7 +577,7 @@ const CITY_PAGES: RouteEntry[] = [
     priority: 0.8,
     changefreq: "monthly",
     title: "Lakewood Auto Repair · Used Tires $25 · Open Sundays | Nick's",
-    description: "Lakewood drivers cross town for honest auto repair. Brakes, tires, check-engine light, emissions. Free check, written quote. 4.9★ 1,700+ reviews.",
+    description: "Lakewood drivers cross town for honest auto repair. Brakes, tires, check-engine light, emissions. Free check, written quote. 4.9★ 1,710+ reviews.",
     group: "city",
     sitemap: true,
     prerender: true,
@@ -586,7 +586,7 @@ const CITY_PAGES: RouteEntry[] = [
     path: "/parma-auto-repair",
     priority: 0.8,
     changefreq: "monthly",
-    // 2026-05-07 GSC tune (second pass): previous tune (★4.9 from 1,700+
+    // 2026-05-07 GSC tune (second pass): previous tune (★4.9 from 1,710+
     // Reviews) ran 736 impressions / 2 clicks at 0.27% CTR — still
     // underperforming. Hypothesis: searchers for "Parma auto repair"
     // want LOCAL TO PARMA, and Nick's is on Cleveland's East Side ~20 min
@@ -596,7 +596,7 @@ const CITY_PAGES: RouteEntry[] = [
     // shops don't offer). The drive-time bait isn't enough; the
     // money-and-time bait might be.
     title: "Parma Auto Repair · Used Tires $25 · Open Sundays | Nick's",
-    description: "Parma drivers — Nick's Tire & Auto. Used tires from $25 installed (chains won't sell them). Open Sundays 9a-4p when shops close. ★4.9 · 1,700+ reviews. (216) 862-0005",
+    description: "Parma drivers — Nick's Tire & Auto. Used tires from $25 installed (chains won't sell them). Open Sundays 9a-4p when shops close. ★4.9 · 1,710+ reviews. (216) 862-0005",
     group: "city",
     sitemap: true,
     prerender: true,
@@ -616,7 +616,7 @@ const CITY_PAGES: RouteEntry[] = [
     priority: 0.8,
     changefreq: "monthly",
     title: "Shaker Heights Auto Repair · Used Tires $25 · Open Sundays | Nick's",
-    description: "Shaker Heights drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, check-engine light. 4.9 stars, 1,700+ reviews. Call (216) 862-0005.",
+    description: "Shaker Heights drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, check-engine light. 4.9 stars, 1,710+ reviews. Call (216) 862-0005.",
     group: "city",
     sitemap: true,
     prerender: true,
@@ -646,7 +646,7 @@ const CITY_PAGES: RouteEntry[] = [
     priority: 0.8,
     changefreq: "monthly",
     title: "Strongsville Auto Repair · Used Tires $25 · Open Sundays | Nick's",
-    description: "Strongsville drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, check-engine light, emissions. 1,700+ five-star reviews. (216) 862-0005.",
+    description: "Strongsville drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, check-engine light, emissions. 1,710+ five-star reviews. (216) 862-0005.",
     group: "city",
     sitemap: true,
     prerender: true,
@@ -703,7 +703,7 @@ const CITY_PAGES: RouteEntry[] = [
     // (city + service + differentiator + brand). Was "Near Parma Heights
     // OH" which is bland; new title leads with the city.
     title: "Parma Heights Auto Repair · Used Tires $25 · Open Sundays | Nick's",
-    description: "Parma Heights drivers cross town for an honest mechanic. 4.9★ 1,700+ reviews. Free Uber drop-off + pick-up. Brakes, tires, check-engine light. Walk-ins 7 days.",
+    description: "Parma Heights drivers cross town for an honest mechanic. 4.9★ 1,710+ reviews. Free Uber drop-off + pick-up. Brakes, tires, check-engine light. Walk-ins 7 days.",
     group: "city",
     sitemap: true,
     prerender: true,
@@ -717,7 +717,7 @@ const CITY_PAGES: RouteEntry[] = [
     priority: 0.6,
     changefreq: "monthly",
     title: "Looking for Moe's Tire? — Nick's Tire & Auto, Euclid OH",
-    description: "Moe's Tire customers welcome at Nick's. Same neighborhood, same walk-in friendly service. 4.9★ from 1,700+ reviews. (216) 862-0005",
+    description: "Moe's Tire customers welcome at Nick's. Same neighborhood, same walk-in friendly service. 4.9★ from 1,710+ reviews. (216) 862-0005",
     group: "landing",
     // 301s to /moes-tire-euclid (redirects.ts) — keep out of sitemap.
     sitemap: false,
@@ -732,7 +732,7 @@ const CITY_PAGES: RouteEntry[] = [
     priority: 0.6,
     changefreq: "monthly",
     title: "Moe's Tire — Now Nick's Tire & Auto, Euclid OH",
-    description: "Looking for Moe's Tire? Nick's Tire & Auto serves the same Euclid neighborhood. Walk-ins 7 days. 4.9★ from 1,700+ reviews. (216) 862-0005",
+    description: "Looking for Moe's Tire? Nick's Tire & Auto serves the same Euclid neighborhood. Walk-ins 7 days. 4.9★ from 1,710+ reviews. (216) 862-0005",
     group: "landing",
     // 301s to /moes-tire-euclid (redirects.ts) — keep out of sitemap.
     sitemap: false,
@@ -747,7 +747,7 @@ const CITY_PAGES: RouteEntry[] = [
     priority: 0.6,
     changefreq: "monthly",
     title: "Moe's Tires — Now Nick's Tire & Auto, Euclid OH",
-    description: "Looking for Moe's Tires? Nick's Tire & Auto serves the same Euclid neighborhood. Walk-ins 7 days. 4.9★ from 1,700+ reviews. (216) 862-0005",
+    description: "Looking for Moe's Tires? Nick's Tire & Auto serves the same Euclid neighborhood. Walk-ins 7 days. 4.9★ from 1,710+ reviews. (216) 862-0005",
     group: "landing",
     // 301s to /moes-tire-euclid (redirects.ts) — keep out of sitemap.
     sitemap: false,
@@ -762,7 +762,7 @@ const CITY_PAGES: RouteEntry[] = [
     priority: 0.6,
     changefreq: "monthly",
     title: "Moe's Tire Euclid — Now Nick's Tire & Auto",
-    description: "Moe's Tire Euclid customers — Nick's Tire & Auto is right in the neighborhood. Walk-ins 7 days. 4.9★ from 1,700+ reviews. (216) 862-0005",
+    description: "Moe's Tire Euclid customers — Nick's Tire & Auto is right in the neighborhood. Walk-ins 7 days. 4.9★ from 1,710+ reviews. (216) 862-0005",
     group: "landing",
     sitemap: true,
     prerender: true,
@@ -888,21 +888,21 @@ const NEIGHBORHOOD_PAGES: RouteEntry[] = [
   { path: "/east-185th-street-auto-repair", priority: 0.7, changefreq: "monthly", title: "Auto Repair East 185th St — Nick's Tire & Auto", description: "Auto repair near East 185th Street, Cleveland. Nick's Tire & Auto — minutes away. Tires, brakes, check-engine light, emissions. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/euclid-square-mall-area", priority: 0.7, changefreq: "monthly", title: "Auto Repair Euclid Square Mall Area — Nick's Tire", description: "Auto repair near Euclid Square Mall. Nick's Tire & Auto on Euclid Ave. Tires, brakes, check-engine light. Walk-ins welcome 7 days.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/richmond-heights-mechanic", priority: 0.7, changefreq: "monthly", title: "Mechanic Richmond Heights OH — Nick's Tire & Auto", description: "Honest mechanic near Richmond Heights, OH. Nick's Tire & Auto — 4.9 stars. Tires, brakes, check-engine light. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/collinwood", priority: 0.7, changefreq: "monthly", title: "Auto Repair Collinwood Cleveland — Nick's Tire & Auto", description: "Auto repair in Collinwood, Cleveland. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, check-engine light. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/collinwood", priority: 0.7, changefreq: "monthly", title: "Auto Repair Collinwood Cleveland — Nick's Tire & Auto", description: "Auto repair in Collinwood, Cleveland. Nick's Tire & Auto — 4.9 stars, 1,710+ reviews. Tires, brakes, check-engine light. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/nottingham", priority: 0.7, changefreq: "monthly", title: "Auto Repair Nottingham Cleveland — Nick's Tire & Auto", description: "Auto repair in Nottingham, Cleveland. Nick's Tire & Auto — 4.9 stars. Tires, brakes, oil changes, diagnostics. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/five-points", priority: 0.7, changefreq: "monthly", title: "Auto Repair Five Points Cleveland — Nick's Tire & Auto", description: "Auto repair near Five Points, Cleveland. Nick's Tire & Auto — 4.9 stars. Tires, brakes, check-engine light, emissions. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/waterloo-arts-district", priority: 0.7, changefreq: "monthly", title: "Auto Repair Waterloo Arts District — Nick's Tire", description: "Auto repair near Waterloo Arts District, Cleveland. Nick's Tire & Auto — 4.9 stars. Tires, brakes, check-engine light. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/shore-cultural-centre", priority: 0.7, changefreq: "monthly", title: "Auto Repair Shore Cultural Centre Area — Nick's Tire", description: "Auto repair near Shore Cultural Centre, Euclid. Nick's Tire & Auto — 4.9 stars. Tires, brakes, check-engine light. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/severance-town-center", priority: 0.7, changefreq: "monthly", title: "Auto Repair Severance Town Center — Nick's Tire", description: "Auto repair near Severance Town Center, Cleveland Heights. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, check-engine light, oil changes.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/severance-town-center", priority: 0.7, changefreq: "monthly", title: "Auto Repair Severance Town Center — Nick's Tire", description: "Auto repair near Severance Town Center, Cleveland Heights. Nick's Tire & Auto — 4.9 stars, 1,710+ reviews. Tires, brakes, check-engine light, oil changes.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/university-circle", priority: 0.7, changefreq: "monthly", title: "Auto Repair University Circle Cleveland — Nick's Tire", description: "Auto repair near University Circle, Cleveland. Nick's Tire & Auto — 4.9 stars. Tires, brakes, check-engine light. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/wickliffe", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near Wickliffe OH — Nick's Tire & Auto", description: "Auto repair near Wickliffe, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, check-engine light. 15 min drive.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/willowick", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near Willowick OH — Nick's Tire & Auto", description: "Auto repair near Willowick, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, check-engine light. 15 min drive.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/eastlake", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near Eastlake OH — Nick's Tire & Auto", description: "Auto repair near Eastlake, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, check-engine light. 15 min drive.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/south-euclid-mechanic", priority: 0.7, changefreq: "monthly", title: "Mechanic South Euclid OH — Nick's Tire & Auto", description: "Honest mechanic near South Euclid, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, oil changes, diagnostics. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/lyndhurst-mechanic", priority: 0.7, changefreq: "monthly", title: "Mechanic Lyndhurst OH — Nick's Tire & Auto", description: "Honest mechanic near Lyndhurst, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, oil changes, diagnostics. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/mayfield-heights", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near Mayfield Heights OH — Nick's Tire", description: "Auto repair near Mayfield Heights, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, oil changes, diagnostics. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/highland-heights", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near Highland Heights OH — Nick's Tire", description: "Auto repair near Highland Heights, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, oil changes, diagnostics. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/beachwood", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near Beachwood OH — Nick's Tire & Auto", description: "Auto repair near Beachwood, OH. Nick's Tire & Auto — 4.9 stars, 1,700+ reviews. Tires, brakes, check-engine light. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/wickliffe", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near Wickliffe OH — Nick's Tire & Auto", description: "Auto repair near Wickliffe, OH. Nick's Tire & Auto — 4.9 stars, 1,710+ reviews. Tires, brakes, check-engine light. 15 min drive.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/willowick", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near Willowick OH — Nick's Tire & Auto", description: "Auto repair near Willowick, OH. Nick's Tire & Auto — 4.9 stars, 1,710+ reviews. Tires, brakes, check-engine light. 15 min drive.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/eastlake", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near Eastlake OH — Nick's Tire & Auto", description: "Auto repair near Eastlake, OH. Nick's Tire & Auto — 4.9 stars, 1,710+ reviews. Tires, brakes, check-engine light. 15 min drive.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/south-euclid-mechanic", priority: 0.7, changefreq: "monthly", title: "Mechanic South Euclid OH — Nick's Tire & Auto", description: "Honest mechanic near South Euclid, OH. Nick's Tire & Auto — 4.9 stars, 1,710+ reviews. Tires, brakes, oil changes, diagnostics. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/lyndhurst-mechanic", priority: 0.7, changefreq: "monthly", title: "Mechanic Lyndhurst OH — Nick's Tire & Auto", description: "Honest mechanic near Lyndhurst, OH. Nick's Tire & Auto — 4.9 stars, 1,710+ reviews. Tires, brakes, oil changes, diagnostics. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/mayfield-heights", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near Mayfield Heights OH — Nick's Tire", description: "Auto repair near Mayfield Heights, OH. Nick's Tire & Auto — 4.9 stars, 1,710+ reviews. Tires, brakes, oil changes, diagnostics. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/highland-heights", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near Highland Heights OH — Nick's Tire", description: "Auto repair near Highland Heights, OH. Nick's Tire & Auto — 4.9 stars, 1,710+ reviews. Tires, brakes, oil changes, diagnostics. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/beachwood", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near Beachwood OH — Nick's Tire & Auto", description: "Auto repair near Beachwood, OH. Nick's Tire & Auto — 4.9 stars, 1,710+ reviews. Tires, brakes, check-engine light. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/mentor-on-the-lake", priority: 0.6, changefreq: "monthly", title: "Auto Repair Mentor-on-the-Lake — Nick's Tire & Auto", description: "Honest auto repair serving Mentor-on-the-Lake, OH. Tires, brakes, check-engine light, oil changes, and emissions. Honest service, honest pricing.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/willoughby-hills", priority: 0.6, changefreq: "monthly", title: "Auto Repair Willoughby Hills OH — Nick's Tire & Auto", description: "Honest auto repair near Willoughby Hills, OH. Brakes, tires, check-engine light, oil changes, and emissions repair. 4.9 stars. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/euclid-ohio", priority: 0.8, changefreq: "monthly", title: "Auto Repair Euclid Ohio — Nick's Tire & Auto", description: "Your neighborhood auto repair shop in Euclid, OH. Tires, brakes, check-engine light, emissions, oil changes. Located on Euclid Ave. Walk-ins welcome 7 days.", group: "neighborhood", sitemap: true, prerender: true },
@@ -930,7 +930,7 @@ const NEIGHBORHOOD_PAGES: RouteEntry[] = [
   { path: "/bainbridge-ohio", priority: 0.5, changefreq: "monthly", title: "Auto Repair Bainbridge OH — Nick's Tire & Auto", description: "Honest auto repair for Bainbridge Township, OH. Brakes, tires, check-engine light, oil changes, and emissions. Honest pricing. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/pepper-pike", priority: 0.6, changefreq: "monthly", title: "Auto Repair Pepper Pike — Nick's Tire & Auto", description: "Honest auto repair near Pepper Pike, OH. Honest check-engine light, brakes, tires, oil changes, and emissions. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/gates-mills", priority: 0.5, changefreq: "monthly", title: "Auto Repair Gates Mills — Nick's Tire & Auto", description: "Honest auto repair for Gates Mills, OH. Brakes, tires, check-engine light, oil changes, and emissions. Honest OEM parts, honest work.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/independence-ohio", priority: 0.6, changefreq: "monthly", title: "Auto Repair Independence OH — Nick's Tire & Auto", description: "Auto repair for Independence, OH. Same-day brake, tire, diagnostic, and oil change service. 4.9 stars, 1,700+ reviews. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/independence-ohio", priority: 0.6, changefreq: "monthly", title: "Auto Repair Independence OH — Nick's Tire & Auto", description: "Auto repair for Independence, OH. Same-day brake, tire, diagnostic, and oil change service. 4.9 stars, 1,710+ reviews. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/strongsville-ohio", priority: 0.6, changefreq: "monthly", title: "Auto Repair Strongsville OH — Nick's Tire & Auto", description: "Honest auto repair serving Strongsville, OH. Tires, brakes, check-engine light, oil changes, and emissions repair. 4.9 stars. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/north-royalton", priority: 0.6, changefreq: "monthly", title: "Auto Repair North Royalton — Nick's Tire & Auto", description: "Honest auto repair for North Royalton, OH. Brakes, tires, check-engine light, oil changes, and emissions. Honest pricing, 4.9 stars. Walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/bay-village", priority: 0.5, changefreq: "monthly", title: "Auto Repair Bay Village OH — Nick's Tire & Auto", description: "Honest auto repair for Bay Village, OH. Tires, brakes, check-engine light, oil changes, and emissions repair. Professional service, walk-ins welcome.", group: "neighborhood", sitemap: true, prerender: true },

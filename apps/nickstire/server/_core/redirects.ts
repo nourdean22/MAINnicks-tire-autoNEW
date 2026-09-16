@@ -30,11 +30,6 @@ const REDIRECTS: RedirectRule[] = [
   // SEO service-alias pages. Generic service pages at /{slug} rank better
   // once Google consolidates signals from these aliases.
   { from: "/brake-repair-cleveland",          to: "/brakes",       reason: "duplicate of /brakes; was splitting rank" },
-  // wave-181.8 · REMOVED /tire-repair-cleveland redirect. We now have a
-  // dedicated TireRepairPage at /tire-repair-cleveland (wave-181.7) that
-  // targets the "tire repair near me" cluster currently at pos 7.2.
-  // Letting the redirect stay would 301 the new page back into /tires.
-  // { from: "/tire-repair-cleveland",        to: "/tires",        reason: "duplicate of /tires" },
   { from: "/ac-repair-cleveland",             to: "/ac-repair",    reason: "duplicate of /ac-repair" },
   { from: "/diagnostics-cleveland",           to: "/diagnostics",  reason: "duplicate of /diagnostics" },
   { from: "/check-engine-light-cleveland",    to: "/diagnostics",  reason: "symptom alias → canonical service page" },

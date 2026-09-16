@@ -31,7 +31,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
     metaTitle: "Cleveland Brake Shop · Free Inspection · 12mo | Nick's",
     metaDescription: "Cleveland's top brake shop. Pads, rotors, calipers, ABS. 12-month warranty, same-day service, free estimate. Walk-ins welcome. Call (216) 862-0005.",
     heroHeadline: "BRAKE REPAIR\nCLEVELAND OH",
-    heroSubline: "Looking for brake repair in Cleveland? Our Euclid Ave brake shop has served Cleveland drivers since 2018 — with 1,700+ verified Google reviews behind it. We inspect the entire braking system, show you the worn parts, and explain your options before any work begins. Free estimate, we tell you the cost before we touch anything.",
+    heroSubline: "Looking for brake repair in Cleveland? Our Euclid Ave brake shop has served Cleveland drivers since 2018 — with 1,710+ verified Google reviews behind it. We inspect the entire braking system, show you the worn parts, and explain your options before any work begins. Free estimate, we tell you the cost before we touch anything.",
     category: "service",
     parentService: "brakes",
     sections: [
@@ -81,7 +81,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
       },
       {
         question: "Where is the best brake shop in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 is Cleveland's top-rated brake shop with 4.9 stars from 1,700+ reviews. We offer competitive brake repair pricing with a 12-month warranty on parts and labor. Walk-ins welcome 7 days a week. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 is Cleveland's top-rated brake shop with 4.9 stars from 1,710+ reviews. We offer competitive brake repair pricing with a 12-month warranty on parts and labor. Walk-ins welcome 7 days a week. Call (216) 862-0005."
       }
     ],
     relatedPages: ["brakes", "diagnostics-cleveland", "car-shaking-while-driving", "brakes-grinding"]
