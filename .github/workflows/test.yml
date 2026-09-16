@@ -114,16 +114,21 @@ jobs:
       # 2026-09-16 · the "Runners have 16GB" note that used to sit here was
       # WRONG for this plan and is deleted, because it is the number 6144 was
       # chosen from. The sampler's first-ever reading (run 35107402800) says
-      # `max avail: 7000MB`. Measured locally, process-tree peak RSS:
+      # `max avail: 7000MB`.
       #
-      #   tsc --noEmit  @ cap 3072 -> EXIT 0, peak 2733MB
-      #   next build    @ cap 3072 -> OOM, "Failed to type check", peak 4245MB
-      #   next build    @ cap 6144 -> EXIT 0, peak 4962MB
+      # 3072 WAS TRIED AND OOMs: `next build` dies with "Ineffective
+      # mark-compacts near heap limit" / "Failed to type check". `tsc --noEmit`
+      # alone fits in 3072; next build's internal type-check does not. So 6144
+      # is a correct PERMISSION and must NOT be lowered — a ceiling only
+      # permits growth, it does not cause it.
       #
-      # So 6144 is a correct PERMISSION and must NOT be lowered — 3072
-      # reproduces the very OOM this line was added to fix. A ceiling only
-      # permits growth; it does not cause it. The lever is --concurrency
-      # below, and the arithmetic is there.
+      # DO NOT re-derive a budget from peak-RSS figures measured with a warm
+      # .next. An earlier revision of this block cited 4962MB from such a run;
+      # CI is always cold (fresh checkout, remote caching disabled) and the
+      # cold peak is 6778MB — build alone is 97% of the runner. The full cold
+      # table, the cross-check against CI's measured floor, and the corrected
+      # reasoning for --concurrency=1 are in the sweep step's comment below;
+      # read that, not a number remembered from here.
       NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - name: Checkout (full history for affected-detection)
@@ -172,30 +177,51 @@ jobs:
         # The sampler's first reading ever (run 35107402800, the one green job
         # of those four): `samples: 136 · min avail: 319MB · max avail: 7000MB`.
         # The box is ~7000MB and a GREEN run bottomed at 4.5% headroom, so
-        # memory is CONFIRMED, not refuted. Process-tree peak RSS, measured
-        # locally on @statenour/web:
+        # memory is CONFIRMED, not refuted.
         #
-        #   tsc --noEmit  @ cap 3072 -> EXIT 0, peak 2733MB
-        #   next build    @ cap 3072 -> OOM, "Failed to type check", peak 4245MB
-        #   next build    @ cap 6144 -> EXIT 0, peak 4962MB
+        # ONLY COLD NUMBERS ARE VALID HERE. CI does a fresh checkout with
+        # remote caching disabled, so its build is always cold. A warm .next
+        # skips the compile and type-check work that HOLDS the memory and
+        # reports ~3.2GB — an earlier revision of this comment cited 4962MB
+        # and a 7695MB collision from warm runs. Both were wrong. Cold,
+        # process-tree peak RSS on @statenour/web:
         #
-        #   concurrency=2 worst case: 4962 + 2733 = 7695MB vs 7000MB -> OVER by 695MB
-        #   concurrency=1 worst case:        4962MB vs 7000MB -> 2038MB spare
+        #   next build, 3 workers (default) -> 6778MB, 128s (compile 62s, tsc 55s)
+        #   next build, experimental.cpus=1 -> 6621MB, 132s (compile 64s, tsc 54s)
         #
-        # That is the death, and it also explains the 319MB floor on the run
-        # that survived: the two peaks overlapped partially instead of
-        # coinciding. Green vs red is currently a race between task timings.
+        # Cross-check: 7000 - 6778 = 222MB predicted headroom, against a
+        # measured `min avail` of 285MB whenever @statenour/web#build runs.
+        # The local harness reproduces CI.
+        #
+        # SO ONE TASK NEARLY FILLS THE BOX. `next build` alone is 97% of the
+        # runner. experimental.cpus was tried and moves it 2.3% — the peak
+        # lives in compile + type-check, which are single-process and
+        # identical in both rows above; static generation, the only thing
+        # `cpus` bounds, happens after the peak. There is no parallelism knob
+        # that fixes this.
+        #
+        # WHY --concurrency=1 REGARDLESS. Not because two peaks collide — that
+        # arithmetic was the warm-cache error. Because build alone leaves
+        # ~222MB, so ANY task scheduled beside it is fatal rather than merely
+        # tight. At 2 turbo may pair `check` with `build`; at 1 it cannot. All
+        # three deaths were at 2, none at 1. Proof it is not the whole fix:
+        # the floor is 319MB at 2 and 285MB at 1 — unchanged, because the
+        # floor is set by build by itself either way.
         #
         # The heap ceiling is deliberately NOT lowered: it was raised to fix a
         # real tsc OOM (exit 134), and a ceiling only PERMITS growth. 3072 was
-        # tried and reproduces that exact OOM (row 2 above) — tsc alone fits,
-        # next build's internal type-check does not. Bounding how many
-        # processes may grow at once is the targeted lever, and 2 was still
-        # one too many: build and check cluster at the tail, which is exactly
-        # when the deaths happen. Tradeoff: less parallelism on a 2-core box
-        # costs wall time. The budget is 50m and the green run took 11m18s, so
-        # there is room — if this now times out, raise timeout-minutes, do not
-        # raise concurrency back.
+        # tried and reproduces that exact OOM — tsc alone fits in it, next
+        # build's internal type-check does not.
+        #
+        # AT 97% THIS IS ONE DEPENDENCY BUMP FROM PERMANENTLY RED, and no
+        # code-side lever measured so far moves it. The remaining options are
+        # a larger runner for this job, or accepting flakes now that the
+        # always() step below makes each death self-explaining. That is a
+        # billing decision and belongs to the operator, not to a commit.
+        #
+        # Tradeoff of 1 over 2: less parallelism on a 2-core box costs wall
+        # time. Budget is 50m; the sweep runs ~12m. If this ever times out,
+        # raise timeout-minutes — do not raise concurrency back.
         #
         # --concurrency is passed as a FLAG, not TURBO_CONCURRENCY: `turbo run
         # --help` on the pinned version documents the flag and says nothing
