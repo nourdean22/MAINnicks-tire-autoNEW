@@ -212,11 +212,18 @@ export function GBPPostGenerator() {
                       ? "Re-run Google OAuth — use this to switch which Google account owns the connection"
                       : "Connect this app to Google Business Profile"
                   }
-                  className={
+                  /* min-h/min-w 48px per apps/nickstire/AGENTS.md: the operator
+                     runs this as an installed iOS PWA, where text-[10px] + py-1
+                     yields a touch box far under the 48px floor. It matters more
+                     here than on a typical control -- this button is the ONLY
+                     recovery action when the connection is bound to the wrong
+                     Google account, so a miss costs the whole recovery path.
+                     Styling differs by state; geometry deliberately does not. */
+                  className={`flex items-center justify-center gap-1 min-h-[48px] min-w-[48px] px-4 py-1 font-bold text-[10px] tracking-wider transition-colors disabled:opacity-50 ${
                     authStatus?.connected
-                      ? "flex items-center gap-1 border border-border/50 text-foreground/70 px-3 py-1 font-bold text-[10px] tracking-wider hover:text-foreground hover:border-border transition-colors disabled:opacity-50"
-                      : "flex items-center gap-1 bg-primary text-primary-foreground px-3 py-1 font-bold text-[10px] tracking-wider hover:bg-primary/95 transition-colors disabled:opacity-50"
-                  }
+                      ? "border border-border/50 text-foreground/70 hover:text-foreground hover:border-border"
+                      : "bg-primary text-primary-foreground hover:bg-primary/95"
+                  }`}
                 >
                   {authUrlLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />}
                   {authStatus?.connected ? "RECONNECT" : "CONNECT GBP"}

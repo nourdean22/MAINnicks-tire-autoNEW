@@ -155,6 +155,33 @@ describe("the regression this file exists for — connected must not hide the do
     await waitFor(() => expect(h.getAuthUrl).toHaveBeenCalledTimes(1));
   });
 
+  /**
+   * apps/nickstire/AGENTS.md requires a 48x48px minimum touch target: the
+   * operator uses this as an INSTALLED iOS PWA, and `text-[10px] py-1` gives a
+   * box far under that. It matters more here than on an average control —
+   * this button is the only recovery action when the connection is bound to the
+   * wrong Google account, so a missed tap costs the entire recovery path.
+   *
+   * LIMITATION, STATED RATHER THAN HIDDEN: jsdom does not run Tailwind, so
+   * getComputedStyle would report 0px regardless of correctness and asserting on
+   * it would be a test that cannot fail. The class assertion is therefore the
+   * strongest available check here. What it does verify meaningfully is that the
+   * constraint sits on the BUTTON element itself — the interactive box — rather
+   * than on a wrapper, which is the mistake that yields a big-looking control
+   * with a small tap area.
+   */
+  it.each([
+    ["connected", { connected: true, clientIdFingerprint: "…nt.com" }, /RECONNECT/i],
+    ["disconnected", { connected: false }, /CONNECT GBP/i],
+  ])("gives the OAuth control a 48px touch target when %s", (_label, status, label) => {
+    h.authStatus = status as Record<string, unknown>;
+    render(<GBPPostGenerator />);
+    const btn = screen.getByText(label).closest("button") as HTMLButtonElement;
+    expect(btn).toBeTruthy();
+    expect(btn.className).toMatch(/min-h-\[48px\]/);
+    expect(btn.className).toMatch(/min-w-\[48px\]/);
+  });
+
   it("does not disable the control merely because a token exists", () => {
     render(<GBPPostGenerator />);
     const btn = screen.getByText(/RECONNECT/i).closest("button");

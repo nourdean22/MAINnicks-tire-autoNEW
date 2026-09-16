@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { gbpRouter } from "../routers/gbp";
+import { listGbpAccounts } from "@nour/gbp-publisher";
 import type { TrpcContext } from "../_core/context";
 
 const h = vi.hoisted(() => ({
@@ -159,6 +160,70 @@ describe("gbpRouter - Authorization and Status", () => {
     expect(before.refreshTokenFingerprint).toMatch(/^sha256:[0-9a-f]{8}$/);
     expect(after.refreshTokenFingerprint).toMatch(/^sha256:[0-9a-f]{8}$/);
     expect(after.refreshTokenFingerprint).not.toBe(before.refreshTokenFingerprint);
+  });
+
+  /**
+   * reconnect exists to change WHICH Google account owns the connection, but it
+   * previously replaced only the refresh token. The saved accountId/locationId
+   * were resolved under the PREVIOUS grant and survived, and the UI renders
+   * saved targets read-only — so the new account's listing was unreachable, and
+   * publishing would either fail authorization or, worse, silently target the
+   * OLD listing if the new account also manages it.
+   */
+  function connectedSecretsWithTargets() {
+    return [
+      { k: "gbp_client_id", v: "cid" },
+      { k: "gbp_client_secret", v: "csec" },
+      { k: "gbp_redirect_uri", v: "https://nickstire.org/admin" },
+      { k: "gbp_account_id", v: "accounts/OLD-ACCOUNT" },
+      { k: "gbp_location_id", v: "locations/OLD-LOCATION" },
+    ];
+  }
+
+  it("clears the saved account/location targets on reconnect", async () => {
+    h.selectQueue.push(connectedSecretsWithTargets());
+    await gbpRouter.createCaller(adminContext()).reconnect({ code: "auth-code" });
+
+    const saved = Object.fromEntries(h.inserts.map((i) => [i.k, i.v]));
+    expect(saved["gbp_refresh_token"]).toBe("mock-refresh-token");
+    expect(saved["gbp_account_id"]).toBe("");
+    expect(saved["gbp_location_id"]).toBe("");
+  });
+
+  /**
+   * THE CASE THAT ACTUALLY HAPPENS IN PRODUCTION. listGbpAccounts 429s on every
+   * run today (Business Profile API quota is 0 on project 740034351591), so a
+   * clear placed after it would never execute on the live system — the code
+   * would look correct and do nothing. Assert the ordering, not just the effect.
+   */
+  it("clears the targets even when the accounts call fails, which is what prod does", async () => {
+    h.selectQueue.push(connectedSecretsWithTargets());
+    vi.mocked(listGbpAccounts).mockRejectedValueOnce(
+      new Error("Quota exceeded for quota metric 'Requests' ... consumer 'project_number:740034351591'"),
+    );
+
+    await expect(
+      gbpRouter.createCaller(adminContext()).reconnect({ code: "auth-code" }),
+    ).rejects.toThrow(/Quota exceeded/);
+
+    const saved = Object.fromEntries(h.inserts.map((i) => [i.k, i.v]));
+    expect(saved["gbp_refresh_token"]).toBe("mock-refresh-token");
+    expect(saved["gbp_account_id"]).toBe("");
+    expect(saved["gbp_location_id"]).toBe("");
+  });
+
+  it("does not write empty target rows when there were no saved targets to clear", async () => {
+    h.selectQueue.push([
+      { k: "gbp_client_id", v: "cid" },
+      { k: "gbp_client_secret", v: "csec" },
+      { k: "gbp_redirect_uri", v: "https://nickstire.org/admin" },
+    ]);
+    await gbpRouter.createCaller(adminContext()).reconnect({ code: "auth-code" });
+
+    const keys = h.inserts.map((i) => i.k);
+    expect(keys).toContain("gbp_refresh_token");
+    expect(keys).not.toContain("gbp_account_id");
+    expect(keys).not.toContain("gbp_location_id");
   });
 
   it("never leaks the refresh token itself through the status payload", async () => {

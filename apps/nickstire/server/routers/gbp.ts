@@ -257,6 +257,27 @@ export const gbpRouter = router({
           await saveGbpSecret("gbp_access_token", tokens.accessToken);
         }
 
+        // The saved account/location were resolved under the PREVIOUS grant, and
+        // reconnect exists specifically to change WHICH Google account owns the
+        // connection. So those targets are no longer known-valid: the new account
+        // may not manage that listing at all, or -- the dangerous case -- may
+        // manage a different listing while the stale id still points at the old
+        // one, which publishes to the wrong business rather than failing loudly.
+        //
+        // Clearing them also restores the operator's ability to reselect: the UI
+        // renders saved targets READ-ONLY (GBPPostGenerator, "GBP Location
+        // Targets"), so leaving them populated makes the new account's listing
+        // unreachable. Both fields fall back to manual text entry when empty, so
+        // this does NOT strand the operator behind the quota-blocked accounts API.
+        //
+        // Deliberately placed BEFORE listGbpAccounts below: that call currently
+        // 429s on every run (quota=0), and the clear must happen anyway.
+        if (secrets.accountId || secrets.locationId) {
+          await saveGbpSecret("gbp_account_id", "");
+          await saveGbpSecret("gbp_location_id", "");
+          log.info("GBP reconnect: cleared saved account/location targets — resolved under the previous grant");
+        }
+
         const authClient = getAuthenticatedClient({
           clientId: secrets.clientId,
           clientSecret: secrets.clientSecret,
