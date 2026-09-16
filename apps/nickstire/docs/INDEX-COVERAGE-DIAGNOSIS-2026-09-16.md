@@ -1,5 +1,30 @@
 # Index Coverage Diagnosis — 2026-09-16
 
+> ## ⚠ CORRECTION (same day, after first publication)
+>
+> **The URL Inspection API returns non-deterministic results on this property.** Measured: the
+> same URL (`https://nickstire.org/reviews`), inspected 3 times in a row seconds apart with
+> `siteOwner` permission, returned `"Discovered - currently not indexed"` twice and
+> `"URL is unknown to Google"` once. An earlier run that same hour returned a third framing.
+> `robotsTxtState` and `pageFetchState` both come back `*_UNSPECIFIED`.
+>
+> Permission is **not** the cause — `sites.list` confirms the service account
+> (`nickstire-server@teezy-491218.iam.gserviceaccount.com`) holds **`siteOwner`** on
+> `https://nickstire.org/`, which is what URL Inspection requires.
+>
+> **Consequence for §1 of this document:** the per-group indexing percentages were built from
+> single URL Inspection calls. With a demonstrated ~1-in-3 flip rate, **treat that table as
+> indicative of direction only, not as measured rates.** Do not quote those percentages as facts.
+>
+> **What is NOT affected**, because it never depended on URL Inspection:
+> - §5's impression counts (Search Analytics — a different API, stable, with a consistent daily
+>   series).
+> - §2's near-duplicate measurement (a local `diff` of two prerendered files; no API at all).
+> - The 150/129 split (read from the GSC web UI).
+>
+> The core conclusion — that the shortfall is concentrated in `neighborhood` and `tire-size`,
+> and that the neighborhood pages are near-duplicates — rests on those three, and stands.
+
 **Question this answers:** GSC's Page Indexing report (read live 2026-09-16) shows **150 indexed /
 129 NOT indexed** of 279 known pages. Which pages, and why?
 
@@ -58,22 +83,36 @@ problem is not closed.
 One sampled neighborhood page also returned **"Excluded by 'noindex' tag"** — worth identifying
 whether that is deliberate.
 
-## 3. Unresolved contradiction — do NOT act on either side yet
+## 3. `/reviews` — the contradiction, resolved, and the real finding underneath
 
-`/reviews` and `/compare` both returned **"URL is unknown to Google."**
+The first pass flagged `/reviews` and `/compare` returning **"URL is unknown to Google"** against
+Search Analytics reporting `/reviews` at ~2.2K impressions the same day. That is now resolved:
+**the URL Inspection side of the conflict is an artifact** (see the CORRECTION block at the top —
+the same URL returns different coverage states on repeated calls). It is not evidence that
+`/reviews` is uncrawled, and the earlier framing here should not be relied on.
 
-This **conflicts with** the GSC Search Analytics read taken earlier the same day, which showed
-`/reviews` at **2,155 impressions / 0 clicks over 90 days** — a page Google has never heard of
-cannot accumulate impressions.
+Everything checked and ruled out along the way:
+- **robots.txt does not block it.** `server/_core/robots.ts` disallows only `/admin`, `/admin/`,
+  `/my-garage`, `/portal`, `/api/`, `/status/`, `/inspection/`. `/reviews` is not among them.
+- **On-page signals are clean:** self-referencing canonical, `robots: index, follow`,
+  `sitemap: true`, `prerender: true`, priority 0.7.
+- **Permission is not the issue:** the service account holds `siteOwner`.
+- **Trailing-slash variance is not the explanation either** — both forms were probed, and the
+  non-slash form itself gave different answers across runs.
 
-On-page signals are clean for both (checked directly): self-referencing canonical, `robots:
-index, follow`, `sitemap: true`, `prerender: true`, priority 0.7 / 0.9. So nothing on the page
-explains it.
+**What survives, from the stable API, and is the actually interesting result:**
 
-Candidate explanations, none verified: trailing-slash URL variance between the two APIs; the
-impressions being historical while the page has since dropped out; a property-scope difference
-between the Search Analytics and URL Inspection reads. **Resolve this before drawing any
-conclusion about `/reviews`** — it is a money page and the two Google surfaces disagree.
+`/reviews` earns **2,216 impressions over 90 days at average position 8.3**, running a steady
+~30-49 impressions/day through 2026-09-14 — and **zero clicks. Every single day. All 90 of them.**
+
+That is the finding worth attention. Page-one visibility converting at exactly 0.00% is not
+normal decay; this session's own device-CTR bands, derived from this property's non-brand
+queries, put mobile position 4-10 at **1.10%**. Applied to 2,216 impressions that predicts roughly
+**24 clicks**. The observed count is 0.
+
+This is a `/reviews`-specific anomaly with real upside if explained, and it is **not** the
+neighborhood/tire-size story — different page, different failure. Worth a dedicated look at what
+the SERP result for those impressions actually renders as.
 
 ## 4. What this does and does not license
 
