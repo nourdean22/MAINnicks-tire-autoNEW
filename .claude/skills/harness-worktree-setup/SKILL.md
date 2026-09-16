@@ -137,6 +137,7 @@ Witnessed on #1843 (two new deps, ~25 minutes to find this path).
 | A follow-up PR from the same branch after an earlier PR from it squash-merged | Phantom-conflicts — its merge base predates the squash, so GitHub tries to re-apply already-merged commits. Don't resolve it: cherry-pick the new commit(s) onto a fresh branch cut from current `origin/main` and open a new PR from that |
 | `git add <dir>` after a `git mv` | Stages the RENAME but can leave in-file edits unstaged — shows as `RM` in `git status --short`. Stage moved files by explicit path and re-read `git status` before committing, to confirm edits made alongside the rename actually got staged too |
 | `worktree-setup.ps1` prints "Bypassing node_modules link… run pnpm install manually" | The advice can't be followed — every install variant is policy-blocked in a worktree, with no bypass. Do NOT create or keep that worktree; go straight to the scratchpad-clone recipe instead (clone the branch, install there, build any workspace-internal packages the app needs, push from the clone) |
+| `pnpm exec playwright test …` prints NOTHING and exits 1 | The junctioned `node_modules/.bin` has no playwright shim in a harness worktree (witnessed twice, 2026-09-15). Call the CLI directly: `node node_modules/@playwright/test/cli.js test …`. Expect the installed version to trail `package.json`'s pin (1.62.1 vs 1.63.0 that day) — CI installs the pin |
 
 ## 5 · Plain worktree (primary has no node_modules to junction from)
 

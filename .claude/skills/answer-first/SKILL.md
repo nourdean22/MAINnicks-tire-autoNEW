@@ -40,6 +40,11 @@ mechanical version: exactly what to cut and what shape to use.
 ## Shape
 
 - **Status update:** one screen. Outcome, evidence, what's next.
+- **A PR's CI state:** the tally from `gh pr checks <n>` read in THIS turn
+  (`13 pass · 1 fail (node, cancelled) · 2 skipping`), naming every non-pass
+  check. "Merged when green" and "CI running" are not statuses; the tally
+  is. Witnessed 2026-09-15: the operator had to say "looks red" twice and
+  "red too" once for PRs I had just reported on from memory.
 - **Findings:** table for enumerable facts; prose for the reasoning
   around it. Never put reasoning inside table cells.
 - **A failure:** what broke, the actual error text, what you tried, what
