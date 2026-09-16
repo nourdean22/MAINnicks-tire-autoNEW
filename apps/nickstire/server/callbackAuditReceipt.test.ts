@@ -32,9 +32,21 @@ const { logAdminAction, updateCallbackStatus, dispatch } = vi.hoisted(() => ({
 
 vi.mock("./services/auditTrail", () => ({ logAdminAction }));
 vi.mock("./services/eventBus", () => ({ dispatch }));
-// db() === null makes the linked-lead hygiene block return without touching a
-// database; that path is covered elsewhere and is not what this file pins.
-vi.mock("./lib/db-helper", () => ({ db: () => Promise.resolve(null) }));
+/**
+ * db() === null makes the linked-lead hygiene block return without touching a
+ * database; that path is covered elsewhere and is not what this file pins.
+ *
+ * Spread the real module: db-helper also exports `dbTyped` and `requireDb`, and
+ * a factory returning only `db` drops both. Serial vitest shares ONE mock
+ * registry across ALL files (apps/nickstire/AGENTS.md §3), so a later suite
+ * importing either one would get undefined — order-dependent failure in a file
+ * that never imported this mock. That is the exact partial-db-mock hazard the
+ * winback.test.ts incident recorded in §3.
+ */
+vi.mock("./lib/db-helper", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./lib/db-helper")>();
+  return { ...actual, db: () => Promise.resolve(null) };
+});
 /**
  * Spread the REAL ./db and replace exactly one function. A hand-written object
  * here would drop `getDb`, which server/services/adminSecurity.ts imports
