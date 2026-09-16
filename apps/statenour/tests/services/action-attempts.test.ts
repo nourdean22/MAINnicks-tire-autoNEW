@@ -90,17 +90,42 @@ describe("beginAttempt", () => {
     expect(actionAttempt.update).not.toHaveBeenCalled();
   });
 
-  it("re-claims an expired SUCCEEDED_UNVERIFIED row (the window is the dedupe bound, not forever) — pinning the expired deadline it decided from", async () => {
-    const expired = new Date(NOW.getTime() - 1);
+  // A store that BEHAVES: updateMany evaluates the WHERE against the current
+  // row and only then counts a hit — no hard-coded counts (Codex, #2345).
+  const same = (a: unknown, b: unknown) => (a instanceof Date && b instanceof Date ? a.getTime() === b.getTime() : a === b);
+  const swapAgainst = (row: Record<string, unknown>) => async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+    const hit = Object.entries(where).every(([k, v]) => same(row[k], v));
+    if (hit) Object.assign(row, data);
+    return { count: hit ? 1 : 0 };
+  };
+
+  it("re-claims an expired SUCCEEDED_UNVERIFIED row through a store that evaluates the swap (the window is the dedupe bound, not forever)", async () => {
+    const row: Record<string, unknown> = { id: "a1", state: "SUCCEEDED_UNVERIFIED", attemptNo: 3, holdUntil: new Date(NOW.getTime() - 1) };
     actionAttempt.create.mockRejectedValueOnce({ code: "P2002" });
-    actionAttempt.findUnique.mockResolvedValueOnce({ id: "a1", state: "SUCCEEDED_UNVERIFIED", attemptNo: 3, holdUntil: expired });
-    actionAttempt.updateMany.mockResolvedValueOnce({ count: 1 });
+    actionAttempt.findUnique.mockResolvedValueOnce({ ...row });
+    actionAttempt.updateMany.mockImplementationOnce(swapAgainst(row));
     const r = await beginAttempt({ operationKey: "k", tool: "t", argumentsHash: "h", windowMs: 1000 }, deps);
     expect(r).toEqual({ kind: "claimed", attemptId: "a1", attemptNo: 4 });
-    // THE RENEWAL RACE (Codex, #2343): another caller may move ONLY holdUntil
-    // (state and attemptNo untouched). A swap that did not pin the deadline
-    // would still match the stale observation and let this caller act too.
-    expect(actionAttempt.updateMany.mock.calls[0][0].where).toEqual({ id: "a1", attemptNo: 3, state: "SUCCEEDED_UNVERIFIED", holdUntil: expired });
+    expect(row).toMatchObject({ state: "EXECUTING", attemptNo: 4 }); // the swap really landed
+  });
+
+  it("THE RENEWAL RACE (Codex, #2343/#2345): another caller moves ONLY holdUntil between our read and our swap — we get a duplicate, the row is not claimed", async () => {
+    const expired = new Date(NOW.getTime() - 1);
+    const renewed = new Date(NOW.getTime() + 60_000);
+    const row: Record<string, unknown> = { id: "a1", state: "SUCCEEDED_UNVERIFIED", attemptNo: 3, holdUntil: expired };
+    actionAttempt.create.mockRejectedValueOnce({ code: "P2002" });
+    actionAttempt.findUnique
+      .mockImplementationOnce(async () => {
+        const stale = { ...row };
+        row.holdUntil = renewed; // the other caller's renewal lands right after our read: state and attemptNo untouched
+        return stale;
+      })
+      .mockImplementationOnce(async () => ({ ...row })); // our re-read after the swap missed
+    actionAttempt.updateMany.mockImplementationOnce(swapAgainst(row));
+    const r = await beginAttempt({ operationKey: "k", tool: "t", argumentsHash: "h", windowMs: 1000 }, deps);
+    expect(r).toEqual({ kind: "duplicate", attemptId: "a1", state: "SUCCEEDED_UNVERIFIED", holdUntil: renewed, attemptNo: 3 });
+    expect(row).toMatchObject({ state: "SUCCEEDED_UNVERIFIED", attemptNo: 3, holdUntil: renewed }); // nothing was reclaimed
+    expect(actionAttempt.updateMany).toHaveBeenCalledOnce();
   });
 
   it("THE RACE (Codex, #2338): two callers read the same reclaimable row — the one whose swap matched nothing is a duplicate, not a second claim", async () => {
