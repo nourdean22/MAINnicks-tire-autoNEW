@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 
 import { NicksRelationshipsBrief } from "@/components/relationships/nicks-relationships-brief";
+import { PeopleChangeLine } from "@/components/relationships/people-change-line";
 import { TodaysPicks } from "@/components/relationships/todays-picks";
 import {
   RelationshipsWatchlist,
@@ -367,6 +368,8 @@ function RelationshipsPageInner() {
        *  This is the page now. The dossier surface below collapses by
        *  default · the operator opens it only when researching a
        *  specific person. */}
+      {/* 2026-09-16 · what moved while you were away (ChangeSet, third consumer). */}
+      <PeopleChangeLine />
       <NicksRelationshipsBrief activePeopleCount={data?.totals.total ?? 0} />
       {/* Wave BC · 2026-05-28 · reorder · watchlist gives broad triage
        *  (categorized chips) · picks gives the focused single action.

@@ -25,6 +25,13 @@ const BUILD_TIME = new Date().toISOString();
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // 2026-09-16 · Next 16's agent-rules writer OFF. With it on, every `next dev`
+  // start appends a version-specific "This is NOT the Next.js you know" block
+  // to apps/statenour/AGENTS.md (a policy file capped at 200 lines by
+  // `pnpm agent:verify`) and rewrites next-env.d.ts — measured twice on
+  // 2026-09-15, reverted by hand before each commit. The block's one useful
+  // pointer: the installed Next's docs live in node_modules/next/dist/docs/.
+  agentRules: false,
   distDir,
   // CP5 · Railway Docker requires a self-contained server build.
   // `standalone` produces .next/standalone/server.js with all required

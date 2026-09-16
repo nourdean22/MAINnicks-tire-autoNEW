@@ -21,7 +21,13 @@ instrument `tests/e2e/inspector-view-transition.spec.ts` counts `document.startV
 four `Key` TS2322 errors in files the diff never touched; the fix is the catalog, never a per-app pin ·
 `next build` wipes `.next/`, so a scratch Playwright config under it must be rewritten before each e2e run ·
 Next 16.3.4 already vendors the stable `ViewTransition` (no `viewTransition` config flag exists in 16.3.4).
-**Next:** `device` renderer after ADR-0017 heartbeats · ChangeSet third consumer (People cadence).
+**Wave 4 (2026-09-16, follow-ups; same branch, restarted by merging main — `35f9a904f`):** `agentRules: false`
+(next.config.ts; the appended block is gone for good) · `/people` ChangeSet line (`task.peopleChangesSince`,
+`components/relationships/people-change-line.tsx`) — SILENT in prod by measurement (0 cadences, ledger last
+written 2026-07-10), which is the honest render, not a bug · `device` renderer BLOCKED: no device surface
+(`/system/devices` pruned, `G D` dangles) and the bridge heartbeats stopped 2026-09-11 — spec §5 has the
+receipts; needs an operator decision on restoring a device list.
+**Next:** whatever the operator decides on devices · retire/retarget `G D` + the hub's `/system/devices` link.
 
 ## UI workbench slices 1 + 2 (2026-09-15; #2337 merged 19:27Z, live 19:32Z)
 **Objective:** gate a pasted 38-section UI plan against live code, correct it, build the substrate as vertical

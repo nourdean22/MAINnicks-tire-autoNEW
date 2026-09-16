@@ -316,13 +316,30 @@ a CSS media block in `app/styles/base.css` (9px → 11px, 10px → 12px below md
 `tests/repo/phone-type-floor.test.ts`; the tab-bar and MORE-sheet classes still READ `text-[9px]` but
 render 11px on phones. Nothing to re-cut.
 
+**NOW · wave 4 (2026-09-16, the follow-ups):** `agentRules: false` in `next.config.ts` — the block Next
+appended on every `next dev` start broke the 200-line `AGENTS.md` cap and churned per Next version; the
+one useful pointer it carried (the installed Next's docs live in `node_modules/next/dist/docs/`) is in
+the config comment. ChangeSet's third consumer: `/people` gets "since your last visit"
+(`lib/services/people/changes-since.ts` → `task.peopleChangesSince` → `PeopleChangeLine` above Nick's
+brief): new people · interactions logged (every ledger source) · went overdue (an active person whose
+`lastInteraction + cadenceDays` crossed INTO the window; already-overdue people are the watchlist's, not
+news). **Base rates measured first (Neon, 2026-09-16): 20 active people, 0 with a cadence, 23 ledger rows
+ever, the last on 2026-07-10** — so the line is silent in production until a cadence is set or an
+interaction is logged. That silence is the honest render; the finding underneath it is that nothing has
+written to the relationship ledger in nine weeks.
+
+**BLOCKED, not built — the `device` renderer.** Two gates measured 2026-09-16, both closed: (1) there is no
+device surface to open it from — `/system/devices` was removed in the hub-grid prune, `G D` still points
+at it, and the fleet read (`system.deviceFleet`) has one consumer left, the ⌘K "Refresh Device Fleet"
+probe; a renderer reachable only by typing `?inspect=device:<id>` is BUILT-BUT-UNWIRED by definition.
+(2) The heartbeats the gate waited for landed for exactly one device — Shop Sign Camera, 5 events, last
+seen 2026-09-11 00:01 — and the bridge has been silent since; the other 19 rows were last seen in April
+(status OFFLINE). Unblocking is an operator decision, not a follow-up: restore a device list (a page
+design) once the camera bridge actually runs, then the renderer is a one-panel commit on this pattern.
+
 **NEXT:**
-1. A `device` renderer once the camera-bridge heartbeats land (ADR-0017).
-2. ChangeSet's third consumer: People ("cadence crossed threshold since your last visit").
-3. `next dev` (Next 16 `agentRules`) appends a `nextjs-agent-rules` block to `apps/statenour/AGENTS.md`
-   and rewrites `next-env.d.ts` on every start; both must be reverted before committing (measured
-   2026-09-15 in the session container). Either set `agentRules: false` in `next.config.ts` or commit
-   the block once — an operator call, since it edits a policy file.
+1. Restore a device list surface (if the camera bridge is coming back), then the `device` renderer.
+2. Retire or retarget the `G D` shortcut and the `/system/devices` hub link — both point at a pruned route.
 
 **LATER:** Time Travel scrubber (after Brain Wave 2 stamps `valid_from`); page archetypes on the first
 restructured page; TanStack Virtual on the first named long list; Observable Plot with the Stats surgery;
