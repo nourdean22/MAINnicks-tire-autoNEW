@@ -16,13 +16,27 @@
     A frozen-but-delivering camera is NOT a stall: that is reported as degraded vision, and
     restarting on it would loop against a dirty lens.
 
-    THE SECRET IS NEVER STORED IN PLAINTEXT NEXT TO THE CODE. `-EncryptSecret` reads
-    CAMERA_INGEST_KEY from camera-bridge/.env.local once and writes a DPAPI blob
-    (secrets/camera-ingest.xml) that only THIS user on THIS machine can decrypt. The
+    THE SECRET IS NEVER STORED IN PLAINTEXT NEXT TO THE CODE. `-EncryptSecret` writes a DPAPI
+    blob (secrets/camera-ingest.xml) that only THIS user on THIS machine can decrypt. The
     generated wrapper decrypts it into the child process's environment at start, so the key
     never reaches a command line (visible in Task Manager) or a log.
+
+    TWO SOURCES FOR THAT SECRET, and the second exists because the first one dead-ends.
+      * `.env.local` (default) -- for a box where the operator already has the file.
+      * `-SecretFromEnvironment` -- reads $env:CAMERA_INGEST_KEY, which is what
+        `railway run` injects. This is the ONLY route onto a fresh machine that does not
+        route a live credential through a human: the Railway MCP returns names with
+        `valuesRedacted: true`, and agents are barred from authoring `.env` files, so
+        "put the key in .env.local first" is an instruction nobody in the loop can carry
+        out. It stalled the shop PC's producer for days. Railway's CLI *can* read the
+        value, so the key goes Railway -> process env -> DPAPI blob and is never written
+        anywhere in plaintext.
+
+    DPAPI IS PER-USER PER-MACHINE, so the blob cannot be built on one box and copied to
+    another. Every machine runs its own encryption; that is the point, not a limitation.
 .EXAMPLE
     powershell -File scripts/install-edge-runtime.ps1 -EncryptSecret
+    railway run --service MAINnicks-tire-auto -- powershell -File scripts/install-edge-runtime.ps1 -SecretFromEnvironment -SecretOnly
     powershell -File scripts/install-edge-runtime.ps1 -Calibration .\scratchpad\shopsign_calibration.json
     powershell -File scripts/install-edge-runtime.ps1 -DryRun
     powershell -File scripts/install-edge-runtime.ps1 -Uninstall
@@ -32,6 +46,19 @@ param(
     [switch]$Uninstall,
     [switch]$DryRun,
     [switch]$EncryptSecret,
+    # Implies -EncryptSecret. There is no other thing this switch could mean, and a run that
+    # silently encrypted nothing because the operator passed one switch instead of two is
+    # exactly the "looks fine, did nothing" outcome this installer exists to prevent.
+    [switch]$SecretFromEnvironment,
+    # Encrypt the secret and STOP, leaving the registered task exactly as it is.
+    #
+    # Without this, -EncryptSecret falls through into the registration below and regenerates
+    # the wrapper from whatever flags THIS invocation carried -- i.e. the defaults. A box
+    # whose producer was installed with --scene/--channel/--calibration would silently have
+    # all of them dropped by someone who only meant to install a key, and the task would
+    # still read Running while watching the wrong thing. Installing a credential and
+    # reconfiguring a producer are different jobs; this switch lets you ask for only the first.
+    [switch]$SecretOnly,
     [string]$TaskName = "NickEdgeProducer",
     [string]$PythonPath = "",
     [string]$ConfigPath = "",
@@ -116,20 +143,59 @@ if ($Uninstall) {
     exit 0
 }
 
-# --- Secret: encrypt once, from the file the operator already has ------------
+# --- Secret: encrypt once, from a file or from the injected environment -------
+if ($SecretFromEnvironment) { $EncryptSecret = $true }
 if ($EncryptSecret) {
-    $envFile = Join-Path $root ".env.local"
-    if (-not (Test-Path $envFile)) { throw "$envFile not found. Create it with a CAMERA_INGEST_KEY=... line first." }
-    $line = Select-String -Path $envFile -Pattern '^CAMERA_INGEST_KEY=' | Select-Object -First 1
-    if (-not $line) { throw "$envFile has no CAMERA_INGEST_KEY= line." }
-    $value = ($line.Line -split '=', 2)[1].Trim()
-    if (-not $value) { throw "CAMERA_INGEST_KEY in $envFile is empty." }
+    if ($SecretFromEnvironment) {
+        $value = $env:CAMERA_INGEST_KEY
+        # NAME THE WRAPPER IN THE FAILURE. Run bare, this variable is simply absent, and
+        # "CAMERA_INGEST_KEY is not set" sends the reader hunting for a file that is not
+        # the mechanism. The fix is almost always the missing `railway run` prefix.
+        if (-not $value) {
+            throw ("CAMERA_INGEST_KEY is not in this process's environment. -SecretFromEnvironment " +
+                   "expects a wrapper that injects it, e.g.`n" +
+                   "  railway run --service MAINnicks-tire-auto -- powershell -File scripts/install-edge-runtime.ps1 -SecretFromEnvironment -SecretOnly`n" +
+                   "Check `railway whoami` first; the CLI must be logged in ON THIS MACHINE.")
+        }
+        $sourceLabel = "the injected environment (nothing was written in plaintext)"
+    } else {
+        $envFile = Join-Path $root ".env.local"
+        if (-not (Test-Path $envFile)) {
+            throw ("$envFile not found. Either create it with a CAMERA_INGEST_KEY=... line, or skip the " +
+                   "file entirely and pull the key straight from Railway with -SecretFromEnvironment.")
+        }
+        $line = Select-String -Path $envFile -Pattern '^CAMERA_INGEST_KEY=' | Select-Object -First 1
+        if (-not $line) { throw "$envFile has no CAMERA_INGEST_KEY= line." }
+        $value = ($line.Line -split '=', 2)[1].Trim()
+        if (-not $value) { throw "CAMERA_INGEST_KEY in $envFile is empty." }
+        $sourceLabel = $envFile
+    }
     if (-not (Test-Path $secretDir)) { New-Item -ItemType Directory -Path $secretDir | Out-Null }
     # DPAPI: ConvertTo-SecureString + Export-Clixml ties the blob to this user AND this
     # machine. Copying the file to another box, or reading it as another user, fails.
     ConvertTo-SecureString -String $value -AsPlainText -Force | Export-Clixml -Path $secretFile
+
+    # A FINGERPRINT, NEVER THE VALUE. Two boxes must carry the SAME key or one of them posts
+    # 401s forever, and "did the right secret land?" is otherwise only answerable by printing
+    # it. A truncated SHA-256 answers it without ever putting the key on a screen or in a log.
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $fp = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($value))).Replace('-', '').Substring(0, 12).ToLower()
+    $sha.Dispose()
     Write-Host "Secret encrypted to $secretFile (DPAPI: this user, this machine)." -ForegroundColor Green
-    Write-Host "You can now delete the plaintext CAMERA_INGEST_KEY line from .env.local if you want." -ForegroundColor Yellow
+    Write-Host "  source:      $sourceLabel" -ForegroundColor Gray
+    Write-Host "  fingerprint: sha256:$fp  (len $($value.Length)) -- compare across boxes; never the key itself." -ForegroundColor Gray
+    if (-not $SecretFromEnvironment) {
+        Write-Host "You can now delete the plaintext CAMERA_INGEST_KEY line from .env.local if you want." -ForegroundColor Yellow
+    }
+    if ($SecretOnly) {
+        Write-Host "-SecretOnly: the registered task was left untouched. Restart it to pick the key up." -ForegroundColor Yellow
+        exit 0
+    }
+}
+# A run that encrypts nothing and installs nothing has done NO work, and printing the plan as
+# if it had is how a no-op gets read as a success.
+if ($SecretOnly -and -not $EncryptSecret) {
+    throw "-SecretOnly needs a secret to install: add -SecretFromEnvironment, or -EncryptSecret to read .env.local."
 }
 
 # --- Preflight ---------------------------------------------------------------
