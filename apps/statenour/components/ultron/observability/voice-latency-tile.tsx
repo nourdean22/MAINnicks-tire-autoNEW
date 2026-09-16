@@ -57,9 +57,9 @@ export function VoiceLatencyTile({ state }: Props) {
   const tier = latencyTier(p50, amber, red);
 
   const tierBorder = {
-    green: "border-emerald-500/25 bg-emerald-500/[0.04]",
-    amber: "border-amber-500/30 bg-amber-500/[0.05]",
-    red: "border-rose-500/40 bg-rose-500/[0.06]",
+    green: "border-l-emerald-400/70",
+    amber: "border-l-amber-400",
+    red: "border-l-rose-400",
   }[tier];
 
   const tierText = {
@@ -84,7 +84,7 @@ export function VoiceLatencyTile({ state }: Props) {
   const streakIsAlarming = streak >= 3;
 
   return (
-    <GlassCard className={cn("min-h-[112px]", tierBorder)}>
+    <GlassCard ruled className={cn("min-h-[112px]", tierBorder)}>
       <div className="flex items-center justify-between mb-1">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
           <Phone size={11} />

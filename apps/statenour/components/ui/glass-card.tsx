@@ -5,6 +5,10 @@ import { cn } from "@/lib/utils";
 interface GlassCardBaseProps {
   children: React.ReactNode;
   className?: string;
+  /** 2026-09-16 · Visible Transformation: render as a RULED figure (a left rule,
+   *  no glass, no radius) with the same element variants and a11y. The tier /
+   *  state colour goes on the rule (`border-l-*`). */
+  ruled?: boolean;
   active?: boolean;
   critical?: boolean;
   success?: boolean;
@@ -50,7 +54,7 @@ type GlassCardProps =
 export function GlassCard(props: GlassCardProps) {
   const { children, className, active, critical, success } = props;
   const classes = cn(
-    "neural-glass",
+    props.ruled ? "border-l-2 border-edge py-1 pl-4 sm:pl-5" : "neural-glass",
     active && "neural-glass-active",
     critical && "neural-glass-critical critical-glow",
     success && "border-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.15)]",

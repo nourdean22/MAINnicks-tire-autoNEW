@@ -32,7 +32,6 @@ import { usePollingFetch } from "@/hooks/use-polling-fetch";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
@@ -161,19 +160,16 @@ function RelationshipsPageInner() {
     },
     [openInspector, closeInspector],
   );
-  // A selected person must be VISIBLE — browse open, cap lifted — the way
-  // revealPerson has always done it; derived, so a URL arrival needs no
-  // effect. The operator can still collapse either while a person is selected:
-  // that collapse records the person as dismissed and the derivation yields.
+  // A selected person must be VISIBLE — cap lifted — the way revealPerson
+  // has always done it; derived, so a URL arrival needs no effect. The
+  // operator can still re-cap the list while a person is selected: that
+  // records the person as dismissed and the derivation yields.
   const [revealDismissedFor, setRevealDismissedFor] = useState<string | null>(null);
   const revealForSelection = selectedPersonId !== null && revealDismissedFor !== selectedPersonId;
   const showAll = showAllState || revealForSelection;
-  // Wave AS · 2026-05-28 · controlled <details> so external CTAs (e.g.
-  // RelationshipsWatchlist Link href="/people#person-X") can auto-open
-  // the collapsed-by-default browse-all section. Without this, the row
-  // anchor sits in display:none and the smooth-scroll silently no-ops.
-  const [browseOpenState, setBrowseOpen] = useState(false);
-  const browseOpen = browseOpenState || revealForSelection;
+  // 2026-09-16 · Visible Transformation: the people list is always visible
+  // (the collapsed-by-default "browse all" <details> of Wave AS is gone), so
+  // a reveal now only lifts the cap and selects — no `browseOpen` to set.
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [logModalDirection, setLogModalDirection] = useState<
     "deposit" | "withdraw"
@@ -196,10 +192,10 @@ function RelationshipsPageInner() {
 
   // ── 2026-08-09 · the two compound intents this page actually has ──
   //
-  // Three pieces of state have to move TOGETHER or the operator sees nothing:
-  // `browseOpen` (the browse <details> is collapsed by default, so a row
-  // inside it is display:none), `showAll` (rows past VISIBLE_CAP are sliced
-  // out entirely), and `selectedPersonId`. Setting any one without the others
+  // Two pieces of state have to move TOGETHER or the operator sees nothing:
+  // `showAll` (rows past VISIBLE_CAP are sliced out entirely) and
+  // `selectedPersonId` (a third, `browseOpen`, gated a collapsed <details>
+  // until 2026-09-16). Setting one without the other
   // silently no-ops — that is the failure the hash-anchor comment above
   // describes, and it had been hand-written at SIX call sites, one of which
   // documented itself as "Mirrors the hash-anchor useEffect above" rather
@@ -212,20 +208,18 @@ function RelationshipsPageInner() {
   // defect with zero behavior change; rewriting the state model of a
   // 1,002-line page carries regression risk that nothing observed justifies.
 
-  /** Reveal a specific person's row: open browse, lift the cap, select them (via the URL). */
+  /** Reveal a specific person's row: lift the cap, select them (via the URL). */
   const revealPerson = useCallback(
     (personId: string) => {
-      setBrowseOpen(true);
       setShowAll(true); // ensure the row isn't past VISIBLE_CAP
       selectPerson(personId);
     },
     [selectPerson],
   );
 
-  /** Reveal the browse list itself, optionally re-sorted by a stat tile. */
+  /** Lift the cap on the list, optionally re-sorting it from a count in the verdict line. */
   const revealBrowse = useCallback(
     (sort?: (typeof VALID_SORTS)[number]) => {
-      setBrowseOpen(true);
       if (sort) setSortKey(sort);
       setShowAll(true);
     },
@@ -368,6 +362,44 @@ function RelationshipsPageInner() {
        *  This is the page now. The dossier surface below collapses by
        *  default · the operator opens it only when researching a
        *  specific person. */}
+      {/* NEEDS ATTENTION (2026-09-16 · Visible Transformation) · one verdict
+          from the totals, then the counts as a mono line — each re-sorts the
+          list below. Replaces the four stat tiles. */}
+      {data && (
+        <section
+          aria-labelledby="attention-heading"
+          className={cn(
+            "border-l-2 pl-5 sm:pl-6",
+            data.totals.neglected > 0 ? "border-amber-400" : "border-emerald-400/70",
+          )}
+        >
+          <h2 id="attention-heading" className="vt-eyebrow text-fg-secondary">
+            needs attention
+          </h2>
+          <p className={cn("vt-verdict mt-3 max-w-[16ch]", data.totals.neglected > 0 ? "text-amber-200" : "text-fg")}>
+            {data.totals.total === 0
+              ? "No one on the atlas yet."
+              : data.totals.neglected > 0
+                ? `${data.totals.neglected} ${data.totals.neglected === 1 ? "person is" : "people are"} going cold.`
+                : "No one is going cold."}
+          </p>
+          <div className="mt-4 flex flex-wrap gap-x-6 gap-y-0 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-tertiary">
+            <button type="button" onClick={() => revealBrowse()} className="min-h-[44px] transition-colors hover:text-fg">
+              <span className="text-fg tabular-nums">{data.totals.total}</span> people
+            </button>
+            <button type="button" onClick={() => revealBrowse("neglect")} className="min-h-[44px] transition-colors hover:text-fg">
+              <span className={cn("tabular-nums", data.totals.neglected > 0 ? "text-amber-300" : "text-fg")}>{data.totals.neglected}</span> neglected
+            </button>
+            <button type="button" onClick={() => revealBrowse("trust")} className="min-h-[44px] transition-colors hover:text-fg">
+              <span className="text-emerald-300 tabular-nums">{data.totals.high_trust}</span> high trust
+            </button>
+            <button type="button" onClick={() => revealBrowse()} className="min-h-[44px] transition-colors hover:text-fg">
+              <span className={cn("tabular-nums", data.totals.sparse > 5 ? "text-amber-300" : "text-fg")}>{data.totals.sparse}</span> needs info
+            </button>
+          </div>
+        </section>
+      )}
+
       {/* 2026-09-16 · what moved while you were away (ChangeSet, third consumer). */}
       <PeopleChangeLine />
       <NicksRelationshipsBrief activePeopleCount={data?.totals.total ?? 0} />
@@ -393,63 +425,16 @@ function RelationshipsPageInner() {
         }}
       />
 
-      {/* Roll-up stats · ALWAYS VISIBLE (2026-06-01 de-bulk: lifted out of
-       *  the collapsed browse section — these at-a-glance numbers are the
-       *  most useful thing on the page, they shouldn't be buried behind a
-       *  disclosure). Each tile taps through to the browse list, pre-sorted. */}
-      {data && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Stat
-            label="people"
-            value={data.totals.total}
-            tint="text-[var(--text-primary)]"
-            onClick={() => revealBrowse()}
-          />
-          <Stat
-            label="neglected"
-            value={data.totals.neglected}
-            tint={data.totals.neglected > 0 ? "text-amber-300" : "text-zinc-500"}
-            onClick={() => revealBrowse("neglect")}
-          />
-          <Stat
-            label="high trust"
-            value={data.totals.high_trust}
-            tint="text-emerald-300"
-            onClick={() => revealBrowse("trust")}
-          />
-          <Stat
-            label="needs info"
-            value={data.totals.sparse}
-            tint={data.totals.sparse > 5 ? "text-amber-300" : "text-zinc-500"}
-            onClick={() => revealBrowse()}
-          />
-        </div>
-      )}
-
-      {/* ═══ The full dossier surface · collapsed by default ═════════
-       *  Operator opens this only when researching a specific person.
-       *  Pre-Wave-AB this was the page · now it's secondary.
-       *  Wave AS · controlled `open` state so external CTAs + hash
-       *  anchors can pop the section open when targeting a row inside. */}
-      <details
-        open={browseOpen}
-        onToggle={(e) => {
-          setBrowseOpen(e.currentTarget.open);
-          if (!e.currentTarget.open && selectedPersonId) setRevealDismissedFor(selectedPersonId);
-        }}
-        className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)]"
-      >
-        <summary
-          aria-label={`Browse all people${data ? `, ${data.totals.total} total` : ""}`}
-          className="px-3 py-2.5 cursor-pointer text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] list-none"
-        >
-          <span aria-hidden="true">▸ </span>browse all people
-        </summary>
-        <div className="border-t border-[var(--border-default)]/60 p-3 space-y-3">
+      {/* ═══ THE PEOPLE LIST · always visible (2026-09-16) ═══════════════
+       *  Until the Visible Transformation this was a <details> collapsed by
+       *  default ("browse all people"); the list is the page's spine now —
+       *  hairline rows, the selected person marked by a gold rule — and the
+       *  Person Workspace opens beneath it. */}
+      <section aria-labelledby="people-list-heading" className="space-y-4">
 
       {/* Sort + show-all */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-[var(--text-secondary)]">
+      <div className="flex items-end justify-between gap-3 border-b border-edge pb-3">
+        <h2 id="people-list-heading" className="vt-eyebrow text-fg-secondary">
           {sortKey === "neglect"
             ? "needs attention"
             : sortKey === "trust"
@@ -470,7 +455,7 @@ function RelationshipsPageInner() {
 
       {/* People list · tap-to-select for in-page detail (no nav) */}
       {data && data.people.length === 0 && !loading && (
-        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-6 text-center text-sm text-[var(--text-tertiary)]">
+        <div className="border-l-2 border-edge py-2 pl-5 text-[15px] leading-relaxed text-fg-secondary sm:pl-6">
           No people profiles yet · the people-intelligence engine builds these
           from your chat history. Open a few chat conversations that mention
           specific people, then check back.
@@ -478,7 +463,7 @@ function RelationshipsPageInner() {
       )}
 
       {data && data.people.length > 0 && (
-        <div className="grid gap-2" data-selection-scope="people">
+        <div className="divide-y divide-edge border-y border-edge" data-selection-scope="people">
           {visiblePeople.map((p) => {
             const tone = trustTone(p.trustScore);
             const isSelected = selectedPersonId === p.id;
@@ -511,9 +496,8 @@ function RelationshipsPageInner() {
                 // sticky header. Matches MissionCard + GoalBoard pattern
                 // from Wave AR.
                 className={cn(
-                  "block w-full text-left rounded-lg border p-3 transition-all hover:scale-[1.005] active:scale-[0.99] scroll-mt-24 cursor-pointer",
-                  tone.bg,
-                  isSelected && "ring-1 ring-[var(--gold)]/50",
+                  "block w-full cursor-pointer border-l-2 py-3 pl-4 pr-2 text-left transition-colors scroll-mt-24 sm:pl-5",
+                  isSelected ? "border-l-gold bg-gold/[0.04]" : "border-l-transparent hover:bg-raised/40",
                 )}
                 aria-expanded={isSelected}
               >
@@ -522,19 +506,19 @@ function RelationshipsPageInner() {
                     <div className="flex items-center gap-2">
                       <span
                         className={cn(
-                          "text-sm font-semibold truncate",
+                          "truncate text-[17px] font-semibold",
                           tone.text,
                         )}
                       >
                         {p.name}
                       </span>
-                      <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+                      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                         {p.role}
                       </span>
                       {p.isNeglected && (
-                        <Badge className="h-auto rounded px-1.5 py-0.5 bg-transparent border-amber-500/30 text-amber-300 text-[10px] font-normal uppercase tracking-wider">
+                        <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300">
                           neglected
-                        </Badge>
+                        </span>
                       )}
                       {/* wave-AB.b · per-row Edit affordance · stopPropagation
                        *  so the outer expand toggle doesn't fire on tap. */}
@@ -616,22 +600,22 @@ function RelationshipsPageInner() {
                         {confirmDeleteId === p.id ? "sure?" : "delete"}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-[var(--text-secondary)] line-clamp-2">
+                    <p className="mt-1 text-[14px] text-fg-secondary line-clamp-2">
                       {p.relationship || "no relationship notes"}
                     </p>
                     {p.leverageNotes && (
-                      <p className="mt-1 text-[11px] italic text-[var(--text-tertiary)] line-clamp-1">
+                      <p className="mt-1 text-[12px] italic text-fg-tertiary line-clamp-1">
                         leverage: {p.leverageNotes}
                       </p>
                     )}
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+                  <div className="shrink-0 text-right">
+                    <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                       trust
                     </div>
                     <div
                       className={cn(
-                        "text-lg font-mono font-bold tabular-nums",
+                        "font-display text-2xl font-bold leading-none tabular-nums",
                         tone.text,
                       )}
                     >
@@ -639,14 +623,14 @@ function RelationshipsPageInner() {
                     </div>
                     {/* Tier in text, not color alone (WCAG 1.4.1) — also a
                         faster at-a-glance read for the operator. */}
-                    <div className="text-[9px] uppercase tracking-wider text-[var(--text-tertiary)]">
+                    <div className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                       {p.trustScore >= 0.7
                         ? "high"
                         : p.trustScore >= 0.4
                           ? "mid"
                           : "low"}
                     </div>
-                    <div className="text-[10px] text-[var(--text-tertiary)] tabular-nums">
+                    <div className="font-mono text-[11px] tabular-nums text-fg-tertiary">
                       {relativeTime(p.daysSinceInteraction)} ·{" "}
                       {p.interactionCount}×
                     </div>
@@ -663,7 +647,7 @@ function RelationshipsPageInner() {
                 if (showAll && selectedPersonId) setRevealDismissedFor(selectedPersonId);
                 setShowAll(!showAll);
               }}
-              className="text-xs text-[var(--text-tertiary)] hover:text-[var(--gold)] py-2 transition-colors"
+              className="min-h-[44px] font-mono text-[12px] uppercase tracking-[0.14em] text-fg-tertiary transition-colors hover:text-gold"
             >
               {showAll
                 ? `show fewer (cap ${VISIBLE_CAP})`
@@ -682,9 +666,16 @@ function RelationshipsPageInner() {
         </div>
       )}
 
-      {/* ─── Detail panel · bento layout ─── */}
+      </section>
+
+      {/* ─── PERSON WORKSPACE · dossier, promises, timeline, the power atlas
+           rail (2026-09-16: a gold-ruled section under the list, not a
+           bento bolted inside the disclosure) ─── */}
       {selectedPersonId && (
-        <div className="pt-4 border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+        <section aria-labelledby="workspace-heading" className="border-l-2 border-gold pl-5 sm:pl-6">
+          <h2 id="workspace-heading" className="vt-eyebrow mb-4 text-gold">
+            person workspace
+          </h2>
           {personDetail.isLoading && (
             <div className="text-sm text-[var(--text-tertiary)]">
               loading dossier…
@@ -732,12 +723,8 @@ function RelationshipsPageInner() {
               />
             </>
           )}
-        </div>
+        </section>
       )}
-
-      {/* ═══ Wave AB · close the collapsible "browse all" wrapper ═══════ */}
-        </div>
-      </details>
 
       {/* ═══ Wave AB.b · person CRUD drawer · mounted at page root so it
        *   floats above all content · operates in CREATE mode when
@@ -836,23 +823,23 @@ function DetailPanel({
       {/* Header strip · name · earned-XP chip · status */}
       <div className="flex items-baseline justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="font-serif text-2xl tracking-tight text-[var(--text-primary)]">
+          <h2 className="vt-verdict max-w-[14ch]">
             {person.name}
           </h2>
           <RelationshipXpChip xp={xp} />
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
+          <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary">
             status
           </span>
           <span
             className={cn(
-              "text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border",
+              "font-mono text-[11px] uppercase tracking-[0.14em]",
               blownUp
-                ? "border-rose-500/40 text-rose-300 bg-rose-500/[0.08]"
+                ? "text-rose-300"
                 : person.status === "active"
-                  ? "border-emerald-500/30 text-emerald-200 bg-emerald-500/[0.05]"
-                  : "border-zinc-500/30 text-zinc-300 bg-zinc-500/[0.05]",
+                  ? "text-emerald-300"
+                  : "text-fg-secondary",
             )}
           >
             {person.status.replace(/_/g, " ")}
@@ -861,10 +848,8 @@ function DetailPanel({
       </div>
 
       {blownUp && person.blowUpReason && (
-        <div
-          className="rounded-lg border border-rose-500/30 bg-rose-500/[0.05] px-3 py-2 text-xs text-rose-200"
-        >
-          <span className="uppercase tracking-wider text-[10px] mr-2">
+        <div className="border-l-2 border-rose-500/60 pl-4 text-[14px] text-rose-200">
+          <span className="mr-2 font-mono text-[11px] uppercase tracking-[0.14em]">
             blow-up reason:
           </span>
           {person.blowUpReason}
@@ -1033,44 +1018,4 @@ class DetailPanelErrorBoundary extends Component<
     }
     return this.props.children;
   }
-}
-
-function Stat({
-  label,
-  value,
-  tint,
-  onClick,
-}: {
-  label: string;
-  value: number;
-  tint: string;
-  onClick?: () => void;
-}) {
-  const inner = (
-    <>
-      <div className={cn("text-2xl font-bold font-mono tabular-nums", tint)}>
-        {value}
-      </div>
-      <div className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
-        {label}
-      </div>
-    </>
-  );
-  const base =
-    "rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-3 text-center";
-  if (onClick) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className={cn(
-          base,
-          "transition-all hover:border-[var(--gold)]/30 hover:scale-[1.01] active:scale-[0.99] cursor-pointer",
-        )}
-      >
-        {inner}
-      </button>
-    );
-  }
-  return <div className={base}>{inner}</div>;
 }

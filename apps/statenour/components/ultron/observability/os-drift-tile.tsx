@@ -65,7 +65,7 @@ export function OsDriftTile({ state }: Props) {
   const monsterThreshold = state.data.monsterLocThreshold ?? 800;
 
   return (
-    <GlassCard className="min-h-[112px] border-[var(--gold)]/25 bg-[var(--gold)]/[0.03]">
+    <GlassCard ruled className="min-h-[112px] border-l-gold/60">
       <div className="flex items-center justify-between mb-1">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
           <Activity size={11} />
