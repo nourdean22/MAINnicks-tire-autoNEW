@@ -17,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { buildPeopleChangesSince } from "@/lib/services/people/changes-since";
 import { PersonNotFoundError, recordInteraction } from "@/lib/services/people/record-interaction";
 import { LedgerRowNotFoundError, deleteLedgerRow } from "@/lib/services/people/delete-ledger-row";
+import { RESERVED_LEDGER_METADATA_KEYS } from "@/lib/services/people/contact-rows";
 
 export const powerAtlasProcedures = {
   /**
@@ -114,7 +115,26 @@ export const powerAtlasProcedures = {
             "greene_play",
           ])
           .default("manual"),
-        metadata: z.record(z.string(), z.unknown()).optional(),
+        // W8 (Codex P2 on #2348): this procedure writes through the CONTACT
+        // seam, which increments interactionCount — so it may not stamp a
+        // marker that excludes its own row from the counters. Refused here so
+        // the caller gets a BAD_REQUEST naming the key, rather than the seam's
+        // throw surfacing as an internal error.
+        metadata: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .superRefine((meta, ctx) => {
+            if (!meta) return;
+            for (const { key, value } of RESERVED_LEDGER_METADATA_KEYS) {
+              if ((meta as Record<string, unknown>)[key] === value) {
+                ctx.addIssue({
+                  code: "custom",
+                  message: `metadata.${key} is reserved — it marks a row as NOT a contact, but this writer counts one.`,
+                  path: [key],
+                });
+              }
+            }
+          }),
       }),
     )
     .mutation(async ({ input }) => {
