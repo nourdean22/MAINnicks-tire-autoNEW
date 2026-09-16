@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-15T12:56:40.570Z",
-  "count": 737,
+  "generatedAt": "2026-09-16T13:57:10.522Z",
+  "count": 738,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -691,6 +691,7 @@
     "query.specials.all",
     "query.specials.getActive",
     "query.system.health",
+    "query.system.llmLedger",
     "query.technicianReferrals.history",
     "query.technicianReferrals.list",
     "query.technicianReferrals.orphans",

@@ -5,6 +5,7 @@ import { TodaysMoneyRisks } from "../today/TodaysMoneyRisks";
 import { TodaysRealNumbers } from "../today/TodaysRealNumbers";
 import { NextBestActions } from "../today/NextBestActions";
 import { AIHealthPanel } from "./AIHealthPanel";
+import { LlmSpendPanel } from "./LlmSpendPanel";
 import { CustomerIntelligence } from "./CustomerIntelligence";
 import { LeadSLAMonitor } from "./LeadSLAMonitor";
 import { MarketIntelligence } from "./MarketIntelligence";
@@ -173,6 +174,9 @@ export default function IntelligenceHQSection() {
 
               {/* AI HEALTH PANEL */}
               <AIHealthPanel />
+
+              {/* AI USAGE BY LANE — the first consumer llm_calls has ever had */}
+              <LlmSpendPanel />
 
               {/* MARKET INTELLIGENCE */}
               <MarketIntelligence />
