@@ -90,7 +90,9 @@ export async function runFollowupCadence(): Promise<RunResult> {
   const d = await getDb();
   if (!d) return { recordsProcessed: 0, details: "No DB" };
 
-  const { bookings, customers, voiceFollowups } = await import("../../../drizzle/schema");
+  // `customers` was imported only for the local opt-out query that
+  // loadSuppressionIndex now owns — see the block below.
+  const { bookings, voiceFollowups } = await import("../../../drizzle/schema");
   const now = Date.now();
   const floor = new Date(now - FLOOR_DAYS * DAY_MS);
   const minAge = new Date(now - 7 * DAY_MS); // must be ≥7d old to have any touch due
@@ -139,17 +141,60 @@ export async function runFollowupCadence(): Promise<RunResult> {
     throw err;
   }
 
-  // 3. Opt-out set (SMS opt-out = don't auto-contact · conservative).
-  const optedOut = new Set<string>();
-  try {
-    const optRows = await d.select({ phone: customers.phone }).from(customers).where(eq(customers.smsOptOut, 1));
-    for (const c of optRows) {
-      const p10 = (c.phone ?? "").replace(/\D/g, "").slice(-10);
-      if (p10.length === 10) optedOut.add(p10);
-    }
-  } catch (err) {
-    log.warn("[followup-cadence] opt-out query failed (proceeding without)", { error: err instanceof Error ? err.message : String(err) });
+  /**
+   * 3. Suppression, from the SAME index the SMS path uses — and FAILING CLOSED.
+   *
+   * What was here until 2026-09-16 was the SECOND copy of the four-line bug
+   * `voiceRecovery.ts` had, found by sweeping every caller of
+   * `placeVapiOutboundCall` instead of stopping at the first one:
+   *
+   *   const optedOut = new Set<string>();
+   *   try { ...select customers where smsOptOut = 1... }
+   *   catch (err) { log.warn("opt-out query failed (proceeding without)") }
+   *
+   * It read ONLY `customers.smsOptOut`, so it missed `sms_preferences` (what
+   * `persistOptOutPreference` actually writes), the inbound message log (the
+   * 2026-07-20 ground truth: 10 numbers had said STOP and only 5 had a
+   * preference row) and carrier block notices. And "proceeding without" is an
+   * EMPTY set, which reads as "nobody opted out" — so an unreadable list meant
+   * every candidate got dialled. The log line said so out loud.
+   *
+   * ⚠ The file already applied the right reasoning one block up: the
+   * fired-touch query RETHROWS, because "an unreadable fired-touch set must not
+   * read as a clean run (it is the guard against re-texting)". The re-contact
+   * guard failed closed and the CONSENT guard failed open, twelve lines apart.
+   *
+   * This lane is squarely marketing, not transactional — the header says these
+   * touches "ask for the referral, and pull the customer back for the next
+   * job", and the safety block above promises "SMS-opted-out customers skipped"
+   * under the operator's no-spam bar. Fixing this keeps a promise the file
+   * already makes; it is not a new policy decision.
+   *
+   * `stale` is refused too, for the reason spelled out in voiceRecovery.ts:
+   * sms.ts's `stale()` never consults `optOutCacheLoadedAt`, so a stale
+   * snapshot's age is UNBOUNDED, not the 5-minute TTL.
+   */
+  const { loadSuppressionIndex } = await import("../../sms");
+  const suppression = await loadSuppressionIndex();
+  if (!suppression.ok) {
+    log.error("[followup-cadence] suppression index unreadable — placing NO calls", {
+      reason: suppression.reason,
+      candidates: candidates.length,
+      errorId: "FOLLOWUP_CADENCE_SUPPRESSION_UNREADABLE",
+    });
+    throw new Error(`followup cadence aborted — suppression index unreadable: ${suppression.reason}`);
   }
+  if (suppression.stale) {
+    log.error("[followup-cadence] suppression index is STALE (refresh failed, age unbounded) — placing NO calls", {
+      suppressed: suppression.phones.size,
+      candidates: candidates.length,
+      errorId: "FOLLOWUP_CADENCE_SUPPRESSION_STALE",
+    });
+    throw new Error(
+      "followup cadence aborted — suppression index is STALE: the last refresh failed, so its age is unbounded and an opt-out recorded since is invisible",
+    );
+  }
+  const optedOut = suppression.phones;
 
   // 4. Place calls · one touch per booking, hard daily cap.
   const { placeVapiOutboundCall } = await import("../../services/vapi");
