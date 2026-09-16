@@ -7,6 +7,9 @@
       V380 client  -> exits, or gets minimised, or comes back as an empty grid
       its window   -> must be un-minimised and showing SHOPSIGN's 3-channel view
       producer     -> exits 3 on a stall, or its task gets disabled
+      its AIM      -> the window stops being MAXIMISED, the client re-flows its panes,
+                      and the box the producer resolved at startup now frames letterbox
+                      or the wrong lens. Everything above still reads green.
 
     Each link had a separate fix and no single thing checked all of them, so a healthy
     report from any one of them meant nothing about the lot actually being counted. This
@@ -134,12 +137,80 @@ if (-not $task) {
     }
 }
 
+# --- link 4: is it looking at the RIGHT RECTANGLE? --------------------------
+# The link that had no check at all, and cost twelve uncounted minutes on 2026-09-16 with
+# `chain OK` in this very log. The producer resolves its channel box ONCE at startup, in
+# WINDOW coordinates ("channel 1: x=1084 y=65 552x310 of a 1920x1080 window"). Capture is
+# Windows Graphics Capture, so burying the window is harmless -- but RESIZING it re-flows
+# the client's panes, and that rectangle then frames black letterbox or the wrong lens.
+# Every frame after it is garbage that happens to be well-formed. Process alive, task
+# Running, view live, nothing red, lot uncounted.
+#
+# Deliberately NOT a ledger-staleness check: an empty lot at 3am is legitimately still,
+# and restarting on that would thrash this machine all night. `edge_health` reads the
+# producer's own once-a-minute complaint instead, scoped to the current run so a repaired
+# producer is not condemned by the broken run's lines (that is a restart loop, not a heal).
+$py = (Get-Command python -ErrorAction SilentlyContinue)
+$edgeLog = Join-Path $root "logs\edge.log"
+if ($py -and (Test-Path $edgeLog)) {
+    $health = Join-Path $root "edge_health.py"
+    $verdictText = (& $py.Source $health --log $edgeLog 2>&1) -join " "
+    $verdict = $LASTEXITCODE
+    if ($verdict -eq 1) {
+        $problems += "producer-pose"
+        if ($Status) { Log "STATUS pose: $verdictText" }
+        else {
+            Log "FAIL pose: $verdictText"
+            # The repair is the window, not the process: restart the producer against an
+            # un-maximised window and it re-resolves the same wrong box. Maximise FIRST,
+            # then restart so startup reads the restored layout. SW_SHOWNOACTIVATE is what
+            # un-maximises a maximised window, so it is exactly what must not be used here.
+            $v = Get-Process V380 -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($v -and $v.MainWindowHandle -ne 0) {
+                Add-Type -Name KA -Namespace W32 -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
+[DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int w, int t, uint f);
+'@ -ErrorAction SilentlyContinue
+                [void][W32.KA]::ShowWindow($v.MainWindowHandle, 3)   # SW_MAXIMIZE
+                Start-Sleep -Seconds 3
+                # Straight back under the user's work: HWND_BOTTOM, never activating. WGC
+                # still sees it perfectly down there -- that is what makes this headless.
+                [void][W32.KA]::SetWindowPos($v.MainWindowHandle, [IntPtr]1, 0, 0, 0, 0, 0x0013)
+                Log "ACTION re-maximised the V380 window and put it back at the bottom"
+            } else {
+                Log "WARN no V380 window to re-maximise; restarting the producer anyway"
+            }
+            # STOP before START. The task is registered -MultipleInstances IgnoreNew and
+            # the producer is, by definition of this fault, still Running -- so a bare
+            # Start-ScheduledTask here is silently discarded and the whole repair becomes
+            # a window nudge that logs ACTION and changes nothing. Stopping the task does
+            # not always reap the python child either, so the box is only really released
+            # once that process is gone; match it by command line, never by image name,
+            # because this machine runs other python.
+            Stop-ScheduledTask -TaskName $ProducerTask -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue |
+                Where-Object { $_.CommandLine -and $_.CommandLine -like "*edge_main.py*" } |
+                ForEach-Object {
+                    Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+                    Log "ACTION killed stale producer pid=$($_.ProcessId)"
+                }
+            Start-Sleep -Seconds 2
+            Start-ScheduledTask -TaskName $ProducerTask -ErrorAction SilentlyContinue
+            Log "ACTION restarted '$ProducerTask' so it re-resolves its channel box"
+        }
+    } elseif ($verdict -eq 2) {
+        Log "WARN pose: $verdictText"
+    } elseif ($Status) {
+        Log "STATUS pose: $verdictText"
+    }
+}
+
 # --- is it actually counting? ----------------------------------------------
 # Liveness is not the same as working. The producer can be up, on the right window, and
 # still recording nothing -- so report the store the lot actually lands in.
 $traj = Join-Path $root "data\trajectories.sqlite"
 if (Test-Path $traj) {
-    $py = (Get-Command python -ErrorAction SilentlyContinue)
     if ($py) {
         $q = "import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);" +
              "print(c.execute('select count(*),count(distinct track_id) from track_points').fetchone())"
