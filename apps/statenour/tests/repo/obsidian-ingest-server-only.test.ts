@@ -28,33 +28,72 @@
  */
 import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SERVER_ONLY_CONDITION, withServerOnlyShim } from "@/lib/obsidian/child-env";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const RUNNER = resolve(APP_ROOT, "scripts/obsidian-engine-runner.ts");
 
-/** The ingest's real entry into the server-only chain. */
-const PROBE = 'import("./lib/knowledge/candidate-store").then(m=>{if(typeof m.persistKnowledgeCandidate!=="function")throw new Error("chain moved: persistKnowledgeCandidate missing");console.log("CHAIN_LOADED")}).catch(e=>{console.log("CHAIN_THREW:"+e.message);process.exitCode=1})';
+/**
+ * THE PROBE RUNS FROM A FILE, NOT FROM `tsx -e`, and that is load-bearing.
+ *
+ * 2026-09-16 · measured in the Linux agent container (tsx 4.23.13 / node
+ * 22.22.2): a dynamic `import()` of a local `.ts` path inside a `tsx -e`
+ * script resolves to a namespace carrying ONLY `default` — every named export
+ * disappears. The same import from a `.ts` FILE resolves them all. Proven on
+ * `lib/db/soft-delete.ts`, which has no `server-only` anywhere in its chain:
+ *
+ *   npx tsx -e '...import("./lib/db/soft-delete")...'  ->  keys: default
+ *   npx tsx  <file containing the same import>         ->  keys: activeOnly, …
+ *
+ * That broke this file in the worst possible way. The shimmed arm asserted
+ * `typeof m.persistKnowledgeCandidate === "function"`, which was false under
+ * `-e` for a reason having nothing to do with the shim, so the arm failed
+ * while the fix it guards was working perfectly. A control that fails for an
+ * unrelated reason is as useless as one that passes for an unrelated reason:
+ * either way it has stopped reporting on its subject. Running from a file
+ * removes the loader's `-e` interop from the chain entirely.
+ */
+function probeSource(): string {
+  const target = resolve(APP_ROOT, "lib/knowledge/candidate-store").split("\\").join("/");
+  return [
+    `import(${JSON.stringify(target)})`,
+    `  .then((m) => {`,
+    `    if (typeof m.persistKnowledgeCandidate !== "function") throw new Error("chain moved: persistKnowledgeCandidate missing");`,
+    `    console.log("CHAIN_LOADED");`,
+    `  })`,
+    `  .catch((e) => { console.log("CHAIN_THREW:" + e.message); process.exitCode = 1; });`,
+    ``,
+  ].join("\n");
+}
+
+/** Same, against a module with NO `server-only` anywhere in its chain. */
+function namedExportProbeSource(): string {
+  const target = resolve(APP_ROOT, "lib/db/soft-delete").split("\\").join("/");
+  return `import(${JSON.stringify(target)}).then((m) => console.log("KEYS:" + Object.keys(m).join(","))).catch((e) => { console.log("THREW:" + e.message); process.exitCode = 1; });\n`;
+}
+
+function runProbeSource(source: string, env: NodeJS.ProcessEnv): string {
+  const dir = mkdtempSync(join(tmpdir(), "obsidian-probe-"));
+  const file = join(dir, "probe.ts");
+  try {
+    writeFileSync(file, source, "utf8");
+    const isWin = process.platform === "win32";
+    const result = isWin
+      ? spawnSync(`npx.cmd tsx "${file}"`, { cwd: APP_ROOT, env, shell: true, encoding: "utf8" })
+      : spawnSync("npx", ["tsx", file], { cwd: APP_ROOT, env, shell: false, encoding: "utf8" });
+    if (result.error) throw result.error;
+    return `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 function runProbe(env: NodeJS.ProcessEnv): string {
-  const isWin = process.platform === "win32";
-  const result = isWin
-    ? spawnSync(`npx.cmd tsx -e "${PROBE.replace(/"/g, '\\"')}"`, {
-        cwd: APP_ROOT,
-        env,
-        shell: true,
-        encoding: "utf8",
-      })
-    : spawnSync("npx", ["tsx", "-e", PROBE], {
-        cwd: APP_ROOT,
-        env,
-        shell: false,
-        encoding: "utf8",
-      });
-  if (result.error) throw result.error;
-  return `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  return runProbeSource(probeSource(), env);
 }
 
 /** process.env minus NODE_OPTIONS, so an operator's shell cannot mask the control. */
@@ -64,6 +103,23 @@ function envWithoutShim(): NodeJS.ProcessEnv {
 }
 
 describe("obsidian ingest · server-only under tsx", () => {
+  /**
+   * INSTRUMENT CONTROL, added 2026-09-16 after the loader silently broke the
+   * arm below. It reads named exports from a module with no `server-only` in
+   * its chain, so it is unaffected by the shim and by everything this file is
+   * about. If it fails, the probe MECHANISM is broken and every other verdict
+   * here is void — which is precisely what happened under `tsx -e`, where the
+   * behaviour arm went red and pointed at the shim instead of at the loader.
+   */
+  it("the probe mechanism can read named exports at all", () => {
+    const output = runProbeSource(namedExportProbeSource(), envWithoutShim());
+    expect(output, `the probe could not load a plain module:\n${output}`).toContain("KEYS:");
+    expect(
+      output,
+      "the probe read a namespace with no named exports — the loader collapsed it, so no verdict below means anything",
+    ).toContain("activeOnly");
+  }, 120_000);
+
   it("control: the unshimmed chain still throws (proves this probe can detect the regression)", () => {
     const output = runProbe(envWithoutShim());
     expect(output).toContain("CHAIN_THREW:");
