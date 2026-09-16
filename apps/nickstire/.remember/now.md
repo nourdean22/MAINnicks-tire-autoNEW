@@ -188,6 +188,24 @@ Total, AND every stated percentage (it checks all of them, not just the table's)
 (d) Probe phone numbers in that canary must NOT be 555 (exempt by NANP reservation, which would make every
 deny assertion vacuous), so the file depends on `.test.ts` staying OUT of `lint:pii`'s scope.
 
+★★ **#2375 — I fixed TWO of THREE git call sites in `lint-pii.mjs` and shipped #2374 believing the sweep was
+complete.** Found by running the gate **ON MAIN, under the real hook env, AFTER merging**: the branch had said
+`clean (919 files scanned)`, main said `clean (38 files scanned)`. The audit-mode `git ls-files` never got
+`env: GIT_ENV`. Under a real `GIT_DIR` it returns 8054 REPO-ROOT-relative paths (`apps/nickstire/server/…`)
+instead of 3673 app-relative ones, so `isInScope`'s `^server/` anchor misses everything and the 38 survivors are
+the **repo root's own `scripts/`** — a different package. Not a subset; a different set. Audit mode does not
+block, so nothing was waved through, but the receipt was meaningless.
+
+⚠ **A post-merge receipt is a DISTINCT check from a pre-merge one.** Nothing in CI or the PR could have shown
+this — the difference only appears when the gate runs from a checkout of `main` with `GIT_DIR` exported.
+
+⚠ **A canary for an enumeration needs TWO assertions:** invariance across environments AND a floor. Equality
+alone (`38 === 38`) passes if both environments collapse the same way. M24 proves the pair: both new tests RED,
+all 12 pre-existing tests GREEN.
+
+⚠ **`git checkout -- <file>` restores an UNCOMMITTED fix to the BUGGY HEAD version** — it wiped the fix mid-
+mutation instead of restoring it. Keep the original in memory and write it back.
+
 **Fixed in passing:** `services/nonCustomerFilter.ts` claimed unformatted storage dodges the Cleveland-phone
 pattern. False — the separators are optional, so `2168488888` matches as readily as the dashed form; the
 `// pii-allow:` marker is what silences it. Verified against the regex directly.

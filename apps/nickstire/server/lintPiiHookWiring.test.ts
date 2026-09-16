@@ -274,6 +274,60 @@ describe("the glob's blast radius is honest about itself", () => {
   });
 });
 
+describe("audit-mode enumeration is GIT_DIR-invariant", () => {
+  /**
+   * THE CALL SITE THE FAIL-CLOSED SWEEP MISSED. #2374 shipped this gate with
+   * `env: GIT_ENV` on the two staged-diff git calls and NOT on the audit-mode
+   * `git ls-files`. Measured from `apps/nickstire/` immediately after that
+   * merge:
+   *
+   *   clean env   -> clean (919 files scanned)
+   *   GIT_DIR set -> clean (38 files scanned)
+   *
+   * and the 38 were not a subset. With `GIT_DIR` set and `GIT_WORK_TREE`
+   * unset, git treats the cwd as the work-tree root, so `git ls-files` returns
+   * REPO-ROOT-relative paths (`apps/nickstire/server/…`) which miss
+   * `isInScope`'s `^server/` anchor entirely; what survived was the repo
+   * root's own `scripts/`. The run reported success over a different
+   * package's files and printed a green receipt doing it.
+   *
+   * Audit mode does not block, so no violation was ever waved through a
+   * commit — but "the receipt is meaningless" is the same defect this script
+   * exists to catch, and it was three tests away from being caught.
+   */
+  const auditCount = (extraEnv: Record<string, string> = {}): number => {
+    const r = spawnSync(process.execPath, [SCRIPT, "--audit"], {
+      cwd: APP,
+      env: { ...process.env, ...extraEnv },
+      encoding: "utf8",
+      timeout: 180_000,
+      maxBuffer: CHILD_MAX_BUFFER,
+    });
+    const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+    const m = /\((\d+) files scanned\)/.exec(out);
+    expect(m, `no files-scanned count in the receipt:\n${out.slice(0, 400)}`).not.toBeNull();
+    return Number(m![1]);
+  };
+
+  it("scans the SAME number of files with and without GIT_DIR", () => {
+    const clean = auditCount();
+    const hook = auditCount({ GIT_DIR: gitDirOf() });
+    expect(hook).toBe(clean);
+  });
+
+  /**
+   * Equality alone is not enough: if BOTH environments broke the same way,
+   * `38 === 38` would pass. The floor is what makes the pair load-bearing. It
+   * is set well below the real figure (919 at the time of writing) so ordinary
+   * growth and deletion never touch it, while the failure mode this test
+   * exists for — an enumeration that collapses to a different package's files
+   * — is far below it.
+   */
+  it("and that number is a real enumeration, not a collapsed one", () => {
+    expect(auditCount({ GIT_DIR: gitDirOf() })).toBeGreaterThan(500);
+  });
+});
+
 describe("the gate is actually WIRED into pre-commit", () => {
   /**
    * The tests above prove the linter blocks. They cannot prove git calls it —
