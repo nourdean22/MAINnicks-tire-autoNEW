@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { PACK_DESTINATIONS, DELIBERATELY_UNASSIGNED } from "@shared/reelDestinationMap";
-import { DEPLOYED_DESTINATIONS, destinationProblem, isHomepagePath } from "@shared/reelDestinations";
+import { destinationProblem, isDeployedDestination, isHomepagePath } from "@shared/reelDestinations";
 
 const entries = Object.entries(PACK_DESTINATIONS);
 
@@ -17,9 +17,16 @@ describe("every mapped destination is deployed and usable", () => {
     expect(entries.length).toBeGreaterThan(50);
   });
 
+  // 2026-09-16 · was a raw Set membership check against DEPLOYED_DESTINATIONS
+  // (bare paths only), which rejected a section anchor on a real deployed page
+  // (e.g. "/tires#tire-repair") even though reelDestinations.ts's own
+  // normalizeDestination() explicitly strips "?" and "#" before comparing —
+  // documented, deliberate support for anchors. isDeployedDestination() is
+  // that same module's normalization-aware helper for exactly this check;
+  // using the raw Set here was a gap in this test's coverage of its target
+  // module's actual contract, not a real restriction.
   it("every path is in the derived deployed set", () => {
-    const deployed = new Set(DEPLOYED_DESTINATIONS);
-    const bad = entries.filter(([, p]) => !deployed.has(p));
+    const bad = entries.filter(([, p]) => !isDeployedDestination(p));
     expect(bad, `not deployed: ${JSON.stringify(bad)}`).toEqual([]);
   });
 
