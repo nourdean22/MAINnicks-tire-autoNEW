@@ -28,6 +28,9 @@
 
 import { getToolStats, type ToolStat } from "@/lib/ai/tool-telemetry";
 import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("observability/tool-usage-census");
 
 export interface ToolCensusRow {
   name: string;
@@ -149,6 +152,23 @@ export function assembleToolUsageCensus(
  * names in tags.tools — see prepare-tools.ts). Returns null on any query
  * failure so the census degrades to the disclosed-confound reading
  * instead of rendering a false measured-zero.
+ *
+ * `${days}::int` IS LOAD-BEARING (2026-09-16). Without it these two queries
+ * had NEVER ONCE RUN. Prisma binds a JS number as int8; `make_interval` has
+ * no int8 overload and a named-argument call gets no implicit int8 -> int4
+ * cast, so every call threw 42883 and the catch below returned null every
+ * time. Measured, both layers:
+ *
+ *   prod SQL   SELECT now() - make_interval(days => 30::bigint)
+ *              -> function make_interval(days => bigint) does not exist
+ *   prod rows  system_metrics WHERE metric='tool.surfaced', 30d
+ *              -> 456 rows, 2026-08-25 .. 2026-09-16, none of them readable
+ *   Prisma     $queryRaw`... make_interval(days => ${days})`      -> THREW 42883
+ *              $queryRaw`... make_interval(days => ${days}::int)` -> OK
+ *
+ * So for three weeks /system/tools rendered "no surfacing data exists in the
+ * window yet" over 456 rows that did exist. The zeros were honestly labelled;
+ * the REASON was fabricated. Guarded by tests/repo/raw-sql-interval-cast.test.ts.
  */
 export async function getSurfacedStats(
   windowDays: number = SURFACED_WINDOW_DAYS,
@@ -161,14 +181,14 @@ export async function getSurfacedStats(
       FROM system_metrics m,
            LATERAL jsonb_array_elements_text(m.tags->'tools') AS t(tool)
       WHERE m.metric = 'tool.surfaced'
-        AND m.created_at > now() - make_interval(days => ${days})
+        AND m.created_at > now() - make_interval(days => ${days}::int)
       GROUP BY t.tool
     `;
     const meta = await prisma.$queryRaw<Array<{ turns: number; since: Date | null }>>`
       SELECT count(*)::int AS turns, min(created_at) AS since
       FROM system_metrics
       WHERE metric = 'tool.surfaced'
-        AND created_at > now() - make_interval(days => ${days})
+        AND created_at > now() - make_interval(days => ${days}::int)
     `;
     return {
       windowDays: days,
@@ -176,7 +196,13 @@ export async function getSurfacedStats(
       since: meta[0]?.since ? new Date(meta[0].since).getTime() : null,
       counts: new Map(rows.map((r) => [r.tool, r.surfaced])),
     };
-  } catch {
+  } catch (e) {
+    // NOT silent. Returning null is the right DEGRADATION, but it was also the
+    // only thing that happened for three weeks — no log line, no metric, no
+    // error row — which is why a query that could never succeed looked exactly
+    // like an empty dataset. A failed read may render as "unknown"; it may not
+    // pass silently.
+    log.warn("surfacing_query_failed", { error: e instanceof Error ? e.message : String(e) });
     return null;
   }
 }
