@@ -103,16 +103,21 @@ class FrameHealth:
         max_age: float = 5.0,
         min_distinct: int = 4,
         loop_min_repeats: int = 3,
-        freeze_epsilon: float = 0.02,
+        freeze_seconds: float = 3.0,
     ) -> None:
         self.window = window
         self.dup_hamming = dup_hamming
         self.freeze_run = freeze_run
-        #: A pair whose mean absolute pixel difference is at or below this is treated as
-        #: the SAME BUFFER handed back twice. Live static footage measured >= 0.26 on the
-        #: real feed, so 0.02 sits an order of magnitude below anything a live sensor
-        #: produces while still catching an exact repeat.
-        self.freeze_epsilon = freeze_epsilon
+        #: How long the picture must stand still IN WALL TIME before the capture is called
+        #: frozen. A sample COUNT cannot express this, because it silently means different
+        #: things at different read rates: `freeze_run=8` is 2.1s at the producer's 3.8fps
+        #: but 0.27s at 29fps, so the same healthy feed reads as dead the moment the loop
+        #: speeds up. Measured on the live SHOPSIGN channel-1 crop at the producer's own
+        #: cadence: byte-identical stretches DO occur (16 in 90s -- WGC hands back the same
+        #: `_latest` buffer when the pane has not repainted yet) but the LONGEST was 0.79s.
+        #: 3.0s is a ~4x margin over that, and a genuinely stalled capture stands still for
+        #: ever, so the discriminator does not need to be tight to be decisive.
+        self.freeze_seconds = freeze_seconds
         self.min_fps = min_fps
         self.max_age = max_age
         self.min_distinct = min_distinct
@@ -134,6 +139,10 @@ class FrameHealth:
         #: A/B/C loop entirely. A merely static scene never repeats exactly.
         self._thumbs: deque[np.ndarray] = deque(maxlen=window)
         self._freeze_streak = 0
+        #: Timestamp of the first frame of the current byte-identical run, so the verdict
+        #: can be stated in seconds rather than in samples.
+        self._freeze_start_ts: Optional[float] = None
+        self._prev_ts: Optional[float] = None
         self._repeats: deque[bool] = deque(maxlen=window)
         self.last_ts: Optional[float] = None
 
@@ -155,11 +164,26 @@ class FrameHealth:
         # rejected 18 of 40 frames of a real quiet lot as "frozen" -- which would mark
         # the camera unhealthy, re-arm the preexisting census, and classify every car
         # that arrived afterwards as PREEXISTING. Arrivals would never fire.
-        if image is not None and self._prev_image is not None:
-            same_buffer = mean_abs_diff(image, self._prev_image) <= self.freeze_epsilon
-            self._freeze_streak = self._freeze_streak + 1 if same_buffer else 0
+        #
+        # BYTE-EXACT, not "within an epsilon", for the same reason `_repeats` below is:
+        # a replayed buffer is the SAME BYTES handed back, so equality is its true
+        # signature and needs no threshold. The epsilon this replaces (0.02) was derived
+        # from the FULL SHOPSIGN frame, where live static footage measures >= 0.26 -- but
+        # once `--channel` landed, the thing being judged became a 552x310 crop of one
+        # lens. Re-measured there at the producer's own cadence, the median consecutive
+        # MAD is 0.0198: the threshold was sitting ON TOP of the live distribution, so
+        # 51% of healthy pairs counted as "same buffer" and the camera flapped in and out
+        # of degraded_vision every few minutes, re-arming the census each time. The
+        # threshold was never re-derived when the image under it changed.
+        if image is not None and self._prev_image is not None \
+                and np.array_equal(image, self._prev_image):
+            if self._freeze_streak == 0:
+                self._freeze_start_ts = self._prev_ts
+            self._freeze_streak += 1
         else:
             self._freeze_streak = 0
+            self._freeze_start_ts = None
+        self._prev_ts = ts
 
         if image is not None:
             thumb = _thumb(image)
@@ -199,7 +223,16 @@ class FrameHealth:
             fps = 0.0
         age = (now - self.last_ts) if self.last_ts is not None else float("inf")
         dup_ratio = (sum(self._dups) / len(self._dups)) if self._dups else 0.0
-        frozen = self._freeze_streak >= self.freeze_run
+        # BOTH gates, deliberately. `freeze_run` keeps the sample-count floor (and keeps
+        # `freeze_run=10**6` working as the "disable this detector" knob the pipeline
+        # tests rely on); `freeze_seconds` is what makes the verdict mean the same thing
+        # at 3.8fps and at 29fps. Either alone is rate-dependent or trivially trippable.
+        frozen = (
+            self._freeze_streak >= self.freeze_run
+            and self._freeze_start_ts is not None
+            and self.last_ts is not None
+            and (self.last_ts - self._freeze_start_ts) >= self.freeze_seconds
+        )
         distinct = len(set(self._hashes))
         # Only judged once the window has filled: a cold start legitimately shows few
         # distinct frames, and calling that a loop would be a false alarm.
