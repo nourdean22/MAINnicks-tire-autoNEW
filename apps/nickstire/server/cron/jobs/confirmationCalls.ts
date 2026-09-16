@@ -126,6 +126,51 @@ export async function runConfirmationCalls(): Promise<RunResult> {
 
   const { placeVapiOutboundCall, buildOutboundConfirmationPrompt, buildConfirmationVoicemail } = await import("../../services/vapi");
 
+  /**
+   * Suppression, from the SAME index every other outbound lane uses.
+   *
+   * WHY THIS LANE IS GATED, decided by the operator on 2026-09-16 and recorded
+   * here because the reasoning is the whole answer:
+   *
+   *   "we are first come first serve so it can confirm they are gonna come but
+   *    no holding spots" — plus "i need the opt outs to work too email, txt".
+   *
+   * This lane was the one plausible TRANSACTIONAL exception: a call confirming
+   * an appointment is service delivery, not marketing, and TCPA treats those
+   * differently. That defence does not apply HERE, because the shop is FCFS and
+   * holds no slot. There is no reservation to confirm and no appointment the
+   * customer would lose — the call asks whether they are still coming, which is
+   * outreach. So it is gated like every other lane.
+   *
+   * ⚠ If the shop ever starts holding actual slots, revisit this: a call about
+   * a slot the customer would otherwise forfeit is a different legal animal.
+   * The business fact is what makes the answer, not the cron's name.
+   */
+  const { loadSuppressionIndex } = await import("../../sms");
+  const suppression = await loadSuppressionIndex();
+  if (!suppression.ok) {
+    log.error("[confirmation-calls] suppression index unreadable — placing NO calls", {
+      reason: suppression.reason,
+      candidates: candidates.length,
+      errorId: "CONFIRMATION_CALLS_SUPPRESSION_UNREADABLE",
+    });
+    throw new Error(`confirmation calls aborted — suppression index unreadable: ${suppression.reason}`);
+  }
+  if (suppression.stale) {
+    // `stale` is NOT "5 minutes old" — that is the TTL, i.e. the fresh path.
+    // sms.ts's stale() returns optOutCache without consulting
+    // optOutCacheLoadedAt, so the snapshot's age is UNBOUNDED.
+    log.error("[confirmation-calls] suppression index is STALE (refresh failed, age unbounded) — placing NO calls", {
+      suppressed: suppression.phones.size,
+      candidates: candidates.length,
+      errorId: "CONFIRMATION_CALLS_SUPPRESSION_STALE",
+    });
+    throw new Error(
+      "confirmation calls aborted — suppression index is STALE: the last refresh failed, so its age is unbounded and an opt-out recorded since is invisible",
+    );
+  }
+  const optOutSet = suppression.phones;
+
   let placed = 0;
   let skipped = 0;
   let failed = 0;
@@ -140,6 +185,11 @@ export async function runConfirmationCalls(): Promise<RunResult> {
       continue;
     }
     if (!b.phone || !/^\+?\d/.test(b.phone)) {
+      skipped++;
+      continue;
+    }
+    // Last-10 match, the same normalisation the index is keyed on.
+    if (optOutSet.has(b.phone.replace(/\D/g, "").slice(-10))) {
       skipped++;
       continue;
     }

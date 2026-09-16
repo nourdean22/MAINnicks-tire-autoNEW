@@ -9,6 +9,17 @@ import { randomUUID } from "crypto";
 
 const log = createLogger("email-campaigns");
 
+/** How many recipients one run may email. Unchanged — this was the old SQL LIMIT. */
+const BATCH_SIZE = 15;
+/**
+ * How many candidate rows the query reads so the batch can be taken AFTER
+ * suppression. Four times the batch: wide enough that a realistic suppression
+ * rate still fills a run, bounded so this stays an indexed lookup rather than
+ * turning into a scan. When the window is exhausted the run says so loudly
+ * (EMAIL_CAMPAIGNS_WINDOW_EXHAUSTED) instead of quietly under-sending.
+ */
+const CANDIDATE_WINDOW = BATCH_SIZE * 4;
+
 export interface EmailCampaign {
   id: string;
   name: string;
@@ -116,18 +127,129 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
     if (!template) return { recordsProcessed: 0, details: "No template" };
 
     // Find customers with email who haven't been emailed in 30+ days and are lapsed
+    //
+    // ⚠ `sql.raw` for the LIMIT, deliberately. A plain interpolation compiles
+    // to `LIMIT ?` with the value BOUND — verified against the real dialect:
+    // sql `LIMIT ?`, params [60]. MySQL and TiDB do accept a placeholder there
+    // via prepared statements, but the query that shipped for months used a
+    // LITERAL, this is a live customer-facing lane, and a stubbed db in a test
+    // cannot tell the two apart (PR #2356's lesson: a stubbed drizzle chain
+    // hides the SQL from its own tests). Introducing a new SQL shape on
+    // "probably works" is not a trade worth making. The value is a
+    // compile-time constant, so there is no injection surface.
+    //
+    // `c.smsOptOut = 0` stays as a cheap pre-filter, but it is ONE of the four
+    // sources the shared index reads — see the suppression block below, which is
+    // what actually decides. Keeping it costs nothing and narrows the rows.
     const [rows] = await db.execute(sql`
-      SELECT c.id, c.firstName, c.email, c.vehicleMake, c.vehicleModel, c.segment
+      SELECT c.id, c.firstName, c.email, c.phone, c.vehicleMake, c.vehicleModel, c.segment
       FROM customers c
       WHERE c.email IS NOT NULL AND c.email != ''
         AND c.smsOptOut = 0
         AND c.segment IN ('lapsed', 'at-risk')
         AND (c.lastEmailCampaignAt IS NULL OR c.lastEmailCampaignAt < DATE_SUB(NOW(), INTERVAL 30 DAY))
-      LIMIT 15
+      LIMIT ${sql.raw(String(CANDIDATE_WINDOW))}
     `);
 
-    const customers = rows as any[];
-    if (!customers || customers.length === 0) return { recordsProcessed: 0, details: "No eligible customers" };
+    const candidates = rows as any[];
+    if (!candidates || candidates.length === 0) return { recordsProcessed: 0, details: "No eligible customers" };
+
+    /**
+     * Suppression, from the SAME index the SMS and voice lanes use.
+     *
+     * BEFORE 2026-09-16 this lane's only gate was `c.smsOptOut = 0` above —
+     * one of the FOUR sources `ensureOptOutCache()` reads. It missed
+     * `sms_preferences` (what `persistOptOutPreference` writes), the inbound
+     * message log (the 2026-07-20 ground truth: 10 numbers had said STOP and
+     * only 5 had a preference row) and carrier block notices.
+     *
+     * Two honest notes on severity, so nobody reads this as the voice bug:
+     *   · it was never FAIL-OPEN. The condition sat inside the WHERE clause, so
+     *     a query failure yields no rows and sends nothing. The defect was an
+     *     INCOMPLETE source, not an unreadable list impersonating a clean one.
+     *   · the CAN-SPAM plumbing below (unsubscribe mailto, List-Unsubscribe,
+     *     RFC 8058 one-click) was already correct and is untouched.
+     *
+     * CROSS-CHANNEL CONSENT, decided by the operator on 2026-09-16 ("i need the
+     * opt outs to work too email, txt"). Strictly, TCPA STOP governs calls and
+     * texts while CAN-SPAM unsubscribe governs email, so suppressing email on
+     * an SMS opt-out is OVER-suppression: safe, not required. This lane had
+     * already made that choice implicitly by filtering on `smsOptOut`, so the
+     * change is the same policy COMPLETELY applied, not a new one.
+     *
+     * The index is keyed by the last 10 digits of a PHONE, and this query
+     * selects by email, so the filter happens here rather than in SQL — a
+     * large `NOT IN` list pushed into TiDB is the worse trade.
+     *
+     * ⚠ STILL MISSING, and it is not this function's job to invent: an email
+     * unsubscribe is a `mailto:unsubscribe@nickstire.org` and is recorded
+     * NOWHERE machine-readable. Someone who unsubscribed by email but never
+     * texted STOP is not in this index at all.
+     */
+    const { loadSuppressionIndex } = await import("../sms");
+    const suppression = await loadSuppressionIndex();
+    if (!suppression.ok) {
+      log.error("[email-campaigns] suppression index unreadable — sending NOTHING", {
+        reason: suppression.reason,
+        candidates: candidates.length,
+        errorId: "EMAIL_CAMPAIGNS_SUPPRESSION_UNREADABLE",
+      });
+      throw new Error(`email campaigns aborted — suppression index unreadable: ${suppression.reason}`);
+    }
+    if (suppression.stale) {
+      // `stale` is NOT "5 minutes old" — that is the TTL, i.e. the fresh path.
+      log.error("[email-campaigns] suppression index is STALE (refresh failed, age unbounded) — sending NOTHING", {
+        suppressed: suppression.phones.size,
+        candidates: candidates.length,
+        errorId: "EMAIL_CAMPAIGNS_SUPPRESSION_STALE",
+      });
+      throw new Error(
+        "email campaigns aborted — suppression index is STALE: the last refresh failed, so its age is unbounded and an opt-out recorded since is invisible",
+      );
+    }
+    const unsuppressed = candidates.filter((c: { phone?: string | null }) => {
+      const p10 = (c.phone ?? "").replace(/\D/g, "").slice(-10);
+      // A customer with no phone on file cannot be in a phone-keyed index, so
+      // there is nothing to match — the SQL pre-filter is their only gate.
+      return p10.length === 10 ? !suppression.phones.has(p10) : true;
+    });
+    const suppressedCount = candidates.length - unsuppressed.length;
+
+    /**
+     * THE LIMIT GOES AFTER SUPPRESSION, NOT BEFORE. Codex P2 on PR #2371, and
+     * it was right about something worse than throughput:
+     *
+     *   The query used to be `LIMIT 15` and the suppression filter ran on those
+     *   15. A customer suppressed via sms_preferences or the inbound STOP log
+     *   still satisfies `c.smsOptOut = 0`, so they occupy a slot — and because
+     *   `lastEmailCampaignAt` is only stamped on a SUCCESSFUL send, they are
+     *   never aged out. There is no ORDER BY, so the same suppressed rows come
+     *   back every single day and re-occupy the batch: eligible customers
+     *   behind them are starved INDEFINITELY, not merely delayed.
+     *
+     * So the SQL now reads a wider bounded window and the batch is taken from
+     * the unsuppressed remainder. Bounded on purpose — a `NOT IN` list of every
+     * suppressed phone pushed into TiDB is the worse trade, and an unbounded
+     * fetch is how a "small" cron turns into a table scan.
+     */
+    const customers = unsuppressed.slice(0, BATCH_SIZE);
+    if (suppressedCount > 0) {
+      log.info(
+        `[email-campaigns] ${suppressedCount} of ${candidates.length} in the candidate window suppressed by the shared opt-out index`,
+      );
+    }
+    // The starvation condition, made VISIBLE rather than silent: if the whole
+    // window was consumed and still did not yield a full batch, the window is
+    // too small for the current suppression rate and someone should widen it.
+    if (candidates.length === CANDIDATE_WINDOW && customers.length < BATCH_SIZE) {
+      log.warn(
+        `[email-campaigns] the ${CANDIDATE_WINDOW}-row candidate window yielded only ${customers.length}/${BATCH_SIZE} sendable recipients — suppression is consuming it, so eligible customers may be waiting behind suppressed rows`,
+        { errorId: "EMAIL_CAMPAIGNS_WINDOW_EXHAUSTED" },
+      );
+    }
+    if (customers.length === 0) {
+      return { recordsProcessed: 0, details: `No eligible customers (${suppressedCount} suppressed)` };
+    }
 
     // Try Resend first
     const resendKey = process.env.RESEND_API_KEY;
