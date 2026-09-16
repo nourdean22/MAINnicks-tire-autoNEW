@@ -16,6 +16,7 @@ import { PERSON_ROLES } from "@/lib/brain/person-roles";
 import { prisma } from "@/lib/prisma";
 import { buildPeopleChangesSince } from "@/lib/services/people/changes-since";
 import { PersonNotFoundError, recordInteraction } from "@/lib/services/people/record-interaction";
+import { LedgerRowNotFoundError, deleteLedgerRow } from "@/lib/services/people/delete-ledger-row";
 
 export const powerAtlasProcedures = {
   /**
@@ -495,11 +496,12 @@ export const powerAtlasProcedures = {
 
   /**
    * 2026-05-28 · Wave AB.b · DELETE a single RelationshipLedger entry.
-   * Used when the operator added an entry in error. We delete the row
-   * AND decrement PersonProfile.interactionCount so the rollup stays
-   * honest. PersonProfile.lastInteraction is NOT reset · it's not
-   * worth a full scan to find the next-most-recent; the next ledger
-   * write will refresh it.
+   * Used when the operator added an entry in error. 2026-09-16 (W6): the
+   * delete goes through lib/services/people/delete-ledger-row.ts — the
+   * per-person lock, the delete, then BOTH counters recomputed from the
+   * remaining contact rows. The old body decremented unconditionally (a
+   * deleted synthetic or status-flip row cost a real contact) and never
+   * refreshed lastInteraction.
    */
   deleteLedger: operatorProcedure
     .input(
@@ -508,21 +510,18 @@ export const powerAtlasProcedures = {
       }),
     )
     .mutation(async ({ input }) => {
-      const ledger = await prisma.relationshipLedger.findUnique({
-        where: { id: input.ledgerId },
-        select: { personId: true },
-      });
-      if (!ledger) throw new Error("Ledger entry not found");
-      await prisma.relationshipLedger.delete({
-        where: { id: input.ledgerId },
-      });
-      await prisma.personProfile
-        .update({
-          where: { id: ledger.personId },
-          data: { interactionCount: { decrement: 1 } },
-        })
-        .catch(() => null);
-      return { ok: true, personId: ledger.personId };
+      try {
+        const deleted = await deleteLedgerRow(input.ledgerId);
+        return {
+          ok: true,
+          personId: deleted.personId,
+          interactionCount: deleted.interactionCount,
+          lastInteraction: deleted.lastInteraction,
+        };
+      } catch (err) {
+        if (err instanceof LedgerRowNotFoundError) throw new Error("Ledger entry not found");
+        throw err;
+      }
     }),
 
   /**

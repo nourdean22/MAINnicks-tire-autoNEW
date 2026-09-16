@@ -247,8 +247,9 @@ export async function resolvePersonByName(
       role: createDefaults.role ?? "unknown",
       relationship: createDefaults.relationship ?? "",
       trustScore: createDefaults.trustScore ?? 0.5,
-      lastInteraction: new Date(),
-      interactionCount: 1,
+      // 2026-09-16 (W6): adding a person is not a contact · only the ledger seam moves these.
+      lastInteraction: null,
+      interactionCount: 0,
       metadata: createDefaults.metadata as never,
       source: createDefaults.source ?? null,
       phone: createDefaults.phone?.trim() || null,
