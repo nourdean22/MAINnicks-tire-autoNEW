@@ -1707,7 +1707,7 @@ statenour primitives documented (existence re-verified at
   merge in the window is runner resource death during `@statenour/web#build` + `#check` in parallel — rerun once; if it
   recurs, the lever is `--concurrency=1` in `test.yml`, never a code hunt".
 - **Confidence:** high (2026-08-26 ×3 + 2026-09-15 ×3; the applied rule was bypassed by non-invocation)
-- **Status:** proposed
+- **Status:** applied 2026-09-15 (operator: "lets get on 5"; same PR as this status line)
 
 ### P2 · `positive-control-first` — a resolution / availability control must run in the CONSUMER's runtime
 - **Trigger (witnessed):** #2339 (67936deab): the first draft of the sharp-resolution control asserted that a bare
@@ -1722,7 +1722,7 @@ statenour primitives documented (existence re-verified at
   make bare specifiers resolve; scripts resolve from their own file's directory. Spawn the consumer's runtime (tsx/node child,
   `NODE_PATH` removed, cwd as in production), import the REAL symbol, and mutate the resolution to prove the child sees it."
 - **Confidence:** high (two instances, same session)
-- **Status:** proposed
+- **Status:** applied 2026-09-15 (operator: "lets get on 5"; same PR as this status line)
 
 ### P3 · `assert-the-consumer` — a field that names a PERSISTED state is written only by the code that saw the write succeed
 - **Trigger (witnessed):** #2338 Codex P1 (fixed 3ca841c9b): `sendTelegram` set `ledgerState: "SUCCEEDED_UNVERIFIED"` and
@@ -1734,7 +1734,7 @@ statenour primitives documented (existence re-verified at
   `receiptId`), the ONLY code allowed to set it is the branch that awaited the store's success. Canary: make the store write
   reject and assert the field is absent; make the store absent (fallback path) and assert the same."
 - **Confidence:** medium (once, clear; same family as the 2026-09-10 empty-vs-error wave's `{error, data: []}` restamp)
-- **Status:** proposed
+- **Status:** applied 2026-09-15 (operator: "lets get on 5"; same PR as this status line)
 
 ### P4 · NEW: `claim-before-act` (no repo skill covers a read-then-write that decides WHO acts)
 - **Trigger (witnessed):** #2338 Codex P1 (fixed 3ca841c9b): the expired-row reclaim in `beginAttempt` was `findUnique` →
@@ -1748,7 +1748,7 @@ statenour primitives documented (existence re-verified at
   callers on the same stale read and asserts exactly one `claimed`." Triggers: editing `tool-idempotency.ts`,
   `action-attempts.ts`, any `create` → `P2002` → `update` sequence.
 - **Confidence:** medium (once, clear, and the class is structural — every future claim store will face it)
-- **Status:** proposed
+- **Status:** applied 2026-09-15 (operator: "lets get on 5"; same PR as this status line)
 
 ### P5 · `answer-first` — a PR status sentence carries the check tally read at report time
 - **Trigger (witnessed):** the operator had to redirect three times in one day — "merge it when green and keep going, but
@@ -1759,7 +1759,7 @@ statenour primitives documented (existence re-verified at
   tally (`13 pass · 1 fail (node, cancelled) · 2 skipping`) and names every non-pass check. 'Merged when green' is not a
   status; the tally is."
 - **Confidence:** high (three corrections, same day)
-- **Status:** proposed
+- **Status:** applied 2026-09-15 (operator: "lets get on 5"; same PR as this status line)
 
 ### P6 · `harness-worktree-setup` — trap row: `pnpm exec playwright` is silent from a harness worktree
 - **Trigger (witnessed):** two invocations of `pnpm exec playwright test …` from
@@ -1770,7 +1770,7 @@ statenour primitives documented (existence re-verified at
 - **Proposed edit:** add the row: "`pnpm exec playwright` → no output, exit 1 | the `.bin` shim is missing in a junctioned
   worktree; call `node node_modules/@playwright/test/cli.js` directly; expect the installed version to trail the pin".
 - **Confidence:** medium (once, reproduced twice in a row)
-- **Status:** proposed
+- **Status:** applied 2026-09-15 (operator: "lets get on 5"; same PR as this status line)
 
 ### P7 · `statenour-wave-reconcile` — where to insert when a sibling session's same-day entries are already on top
 - **Trigger (witnessed):** Session B's #2337 had prepended two 2026-09-15 entries (lines 3 and 38) and its #2341 is open;
@@ -1781,4 +1781,4 @@ statenour primitives documented (existence re-verified at
   day's entries and name the placement in the commit — a queue conflict on `RECONCILIATION.md` is the most common way a docs
   commit stalls a merge."
 - **Confidence:** low (one avoidance, no witnessed conflict)
-- **Status:** proposed
+- **Status:** applied 2026-09-15 (operator: "lets get on 5"; same PR as this status line)

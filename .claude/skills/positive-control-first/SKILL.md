@@ -71,6 +71,15 @@ it (strip comments, anchor the pattern, name the file).
 4. Apply the fix; confirm green.
 5. Mutate the fix back out; confirm red again.
 6. Paste steps 2 and 5 into the PR body.
+7. **A control about module RESOLUTION, binary availability or environment
+   shape is evidence only in the runtime the consumer uses.** Vitest
+   workers carry `NODE_PATH` into pnpm's hoisted store, so a bare
+   `require.resolve("sharp")` inside a test RESOLVES and proves nothing
+   (witnessed 2026-09-15, #2339: the first draft of that control was
+   green for exactly this reason); scripts resolve from their own file's
+   directory, not the cwd. Spawn the consumer's runtime (a `tsx`/`node`
+   child with `NODE_PATH` removed, cwd as in production), import the REAL
+   symbol, and run step 5 against that child.
 
 Related: `assert-the-consumer` · `empty-vs-error` · `guard-red-team`
 (the same discipline for deny-lists and guard regexes).

@@ -42,13 +42,13 @@ When sources disagree, believe them in this order.
 Corollary: a `.env` file is NOT evidence of production config — verify via `cron_log` or `/api/health`.
 
 ## Branching — autonomous merging allowed
-
 **NEVER push or commit directly to `main`.** Named branches only: `nickstire/<task>` ·
 `statenour/<task>` · `docs/<task>` · `chore/<task>`. Push, then create and merge the PR yourself:
 
 ```bash
 [Environment]::SetEnvironmentVariable('GITHUB_TOKEN', $null, 'Process')  # Remove-Item Env:\ trips the deletion guard
 gh pr create --head <branch> --title "<message>" --body "<body>"
+gh pr list --state open --json number,statusCheckRollup  # HOLD the merge while another PR's node/e2e is in flight (it kills them)
 gh pr merge <pr-number> --squash ; gh api -X DELETE repos/<o>/<r>/git/refs/heads/<b>  # NOT --delete-branch: parks you on main
 git fetch origin main ; git merge --ff-only     # NEVER reset --hard: a sibling's work may be in your tree
 ```
