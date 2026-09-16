@@ -430,6 +430,16 @@ describe("every outbound voice lane is accounted for", () => {
  * ALREADY made that choice implicitly by filtering on `smsOptOut`, so this is
  * the same policy completely applied rather than a new one.
  *
+ * ⚠ WHAT THIS EMAIL BLOCK IS AND IS NOT. It is an ENUMERATION: it catches a NEW
+ * sender that consults nothing. It does NOT prove an existing lane behaves —
+ * Codex P2 on PR #2371 showed that a regression keeping every token while
+ * ignoring the index result left this block GREEN at 13/13 while a suppressed
+ * address reached the transport (demonstrated by mutation M19). The behavioural
+ * half lives in `server/emailLanes.suppression.test.ts`, which stubs each
+ * sender to THROW so "nothing was sent" is witnessed rather than inferred.
+ * Enumeration catches the lane nobody named; behaviour catches the regression
+ * inside a lane already named. Both, or neither is enough.
+ *
  * ⚠ STILL MISSING, named because a guard that implies completeness it lacks is
  * how this session's earlier overclaim happened: an EMAIL unsubscribe is a
  * `mailto:unsubscribe@nickstire.org` and is recorded NOWHERE machine-readable.

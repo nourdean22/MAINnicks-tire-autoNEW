@@ -248,7 +248,9 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
       );
     }
 
-    let sent = 0;
+    let sent = 0;       // messages that actually went out
+    let processed = 0;  // enrollments advanced (the old meaning of `sent`)
+    let suppressed = 0; // advanced but contacted nobody — on the opt-out index
 
     for (const enrollment of due) {
       const campaign = CAMPAIGNS.find(c => c.id === enrollment.campaignId);
@@ -375,6 +377,25 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
           }
         }
 
+        /**
+         * COUNT WHAT WAS SENT, NOT WHAT WAS PROCESSED. Codex P2 on PR #2371.
+         *
+         * `sent++` was unconditional, so an enrollment that contacted NOBODY
+         * still incremented it and cron_log reported "N/M drip steps sent".
+         * That predates this change for the SMS branch (an opted-out SMS also
+         * fell through), but suppressing email made it common enough to matter,
+         * and a receipt that counts suppressed contacts as successful sends is
+         * the same defect class as a gate reporting a pass over unread files.
+         *
+         * `processed` keeps the old meaning — the enrollment advanced, which it
+         * still does on purpose so a mid-campaign opt-out cannot leave a row
+         * due forever. `sent` now means a message actually went out.
+         */
+        processed++;
+        if (optedOut) {
+          suppressed++;
+          continue; // no send happened, so no rate-limit pause is owed either
+        }
         sent++;
         await new Promise(r => setTimeout(r, 1500)); // Rate limit
       } catch (err: unknown) {
@@ -382,7 +403,10 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
       }
     }
 
-    return { recordsProcessed: sent, details: `${sent}/${due.length} drip steps sent` };
+    return {
+      recordsProcessed: sent,
+      details: `${sent}/${due.length} drip steps sent · ${suppressed} suppressed · ${processed} advanced`,
+    };
   } catch (err: unknown) {
     // 2026-09-01 (audit F-9/F-17): a missing table is a deploy-state defect,
     // not a reason to report `completed` forever. Name it, then rethrow.
