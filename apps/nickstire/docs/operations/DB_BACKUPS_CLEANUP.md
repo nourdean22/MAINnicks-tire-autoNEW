@@ -61,7 +61,7 @@ Before performing any destructive drop actions in the database, the operator MUS
 Run the read-only audit script to verify row counts and table sizes across staging/production environments:
 ```bash
 # Verify environment is set correctly in your active shell / .env
-npx tsx scripts/check-backup-tables.ts
+npx tsx scripts/diagnostics/check-backup-tables.ts
 ```
 
 ### B. Export / Rollback Backup (Safety Export)
