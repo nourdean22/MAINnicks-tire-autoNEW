@@ -11,11 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import {
-  InputGroup,
-  InputGroupAddon,
-} from "@/components/ui/input-group"
-import { SearchIcon, CheckIcon } from "lucide-react"
+import { CheckIcon } from "lucide-react"
 
 function Command({
   className,
@@ -25,7 +21,9 @@ function Command({
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        "flex size-full flex-col overflow-hidden rounded-xl! neural-glass border border-primary/20 shadow-[0_0_40px_rgba(253,185,19,0.1)] p-1 text-popover-foreground",
+        // 2026-09-16 · Visible Transformation · the Resolver is a flat
+        // elevated sheet with a gold top rule, not a glowing glass palette.
+        "flex size-full flex-col overflow-hidden rounded-xl! border border-edge bg-elevated p-0 text-popover-foreground shadow-[0_32px_80px_rgba(0,0,0,0.65)] [border-top:2px_solid_var(--gold)]",
         className
       )}
       {...props}
@@ -55,7 +53,7 @@ function CommandDialog({
       </DialogHeader>
       <DialogContent
         className={cn(
-          "top-1/3 translate-y-0 overflow-hidden rounded-xl! p-0",
+          "top-[10vh] translate-y-0 overflow-hidden rounded-xl! p-0 sm:max-w-2xl",
           className
         )}
         showCloseButton={showCloseButton}
@@ -71,20 +69,24 @@ function CommandInput({
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Input>) {
   return (
-    <div data-slot="command-input-wrapper" className="p-1 pb-0">
-      <InputGroup className="h-8! rounded-lg! border-input/30 bg-input/30 shadow-none! *:data-[slot=input-group-addon]:pl-2!">
-        <CommandPrimitive.Input
-          data-slot="command-input"
-          className={cn(
-            "w-full text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
-            className
-          )}
-          {...props}
-        />
-        <InputGroupAddon>
-          <SearchIcon className="size-4 shrink-0 opacity-50" />
-        </InputGroupAddon>
-      </InputGroup>
+    <div
+      data-slot="command-input-wrapper"
+      className="flex h-14 items-center gap-3 border-b border-edge px-4"
+    >
+      <span aria-hidden className="shrink-0 font-mono text-xl leading-none text-gold">
+        ›
+      </span>
+      <CommandPrimitive.Input
+        data-slot="command-input"
+        className={cn(
+          "w-full bg-transparent font-mono text-[15px] text-fg outline-hidden placeholder:text-fg-tertiary disabled:cursor-not-allowed disabled:opacity-50",
+          className
+        )}
+        {...props}
+      />
+      <kbd className="hidden shrink-0 rounded border border-edge px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-wider text-fg-tertiary sm:inline">
+        esc
+      </kbd>
     </div>
   )
 }
@@ -97,7 +99,7 @@ function CommandList({
     <CommandPrimitive.List
       data-slot="command-list"
       className={cn(
-        "no-scrollbar max-h-72 scroll-py-1 overflow-x-hidden overflow-y-auto outline-none",
+        "no-scrollbar max-h-[60vh] scroll-py-2 overflow-x-hidden overflow-y-auto p-2 outline-none",
         className
       )}
       {...props}
@@ -126,7 +128,7 @@ function CommandGroup({
     <CommandPrimitive.Group
       data-slot="command-group"
       className={cn(
-        "overflow-hidden p-1 text-foreground **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-muted-foreground",
+        "overflow-hidden p-1 text-foreground **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:pb-1.5 **:[[cmdk-group-heading]]:pt-3 **:[[cmdk-group-heading]]:font-mono **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:uppercase **:[[cmdk-group-heading]]:tracking-[0.16em] **:[[cmdk-group-heading]]:text-fg-tertiary",
         className
       )}
       {...props}

@@ -65,7 +65,18 @@ export default function BrainPage() {
             Tab KEYS are deliberately unchanged: ?tab=memory&resolve=,
             ?tab=reason&q=, ?tab=wisdom&focus=, ?tab=board, ?tab=health
             and ?tab=continuity are live deep-link contracts from Home,
-            the ticker, the command palette and chat tool results. */}
+            the ticker, the command palette and chat tool results.
+
+            2026-09-16 · Visible Transformation: the nine tabs are grouped
+            into FIVE LENSES with genuinely different compositions —
+              GRAPH    canvas   · the map, full-bleed
+              LIBRARY  index    · memory · wisdom · discover, indexed on the left
+              THINK    reading  · board · reason, a centered reading column
+              REVIEW   ledger   · governed claims, full width
+              PULSE    board    · changed · health, a ruled board
+            The `tabs` list below is still the contract (nav-items mirrors
+            it, tests/repo/brain-nav-tabs.test.ts pins both); `lenses` only
+            groups it. */}
         <PageTabs
           defaultKey="graph"
           tabs={[
@@ -78,6 +89,13 @@ export default function BrainPage() {
             { key: "reason", label: "Reason", render: () => <ReasonTab /> },
             { key: "continuity", label: "Changed", render: () => <BrainContinuityView /> },
             { key: "health", label: "Health", render: () => <BrainHealthView /> },
+          ]}
+          lenses={[
+            { key: "graph", label: "Graph", hint: "where everything is", tabs: ["graph"], layout: "canvas" },
+            { key: "library", label: "Library", hint: "what we believe", tabs: ["memory", "wisdom", "discover"], layout: "index" },
+            { key: "think", label: "Think", hint: "operator cognition", tabs: ["board", "reason"], layout: "reading" },
+            { key: "review", label: "Review", hint: "governed claims", tabs: ["review"], layout: "ledger" },
+            { key: "pulse", label: "Pulse", hint: "what changed · is it healthy", tabs: ["continuity", "health"], layout: "board" },
           ]}
         />
       </StandardPage>

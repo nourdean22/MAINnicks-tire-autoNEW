@@ -105,7 +105,7 @@ export function JudgmentQueue({
 
   if (loading) {
     return (
-      <section aria-label="needs judgment" className="mt-8" aria-busy>
+      <section aria-label="needs judgment" className="mt-12" aria-busy>
         <div className="h-3 w-36 animate-pulse rounded bg-raised" />
       </section>
     );
@@ -119,9 +119,9 @@ export function JudgmentQueue({
     return (
       <section
         aria-label="needs judgment"
-        className="mt-8 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4"
+        className="mt-12 border-l-2 border-amber-500/60 pl-5"
       >
-        <p className="flex items-center gap-1.5 text-[11px] text-amber-300">
+        <p className="flex items-center gap-1.5 text-[13px] text-amber-300">
           <AlertCircle className="h-3.5 w-3.5" />
           Couldn&apos;t read: {judgment.failedSources.join(", ")} — state unknown, not empty.
         </p>
@@ -133,27 +133,21 @@ export function JudgmentQueue({
   const hiddenCount = judgment.items.length - judgment.visibleCap;
 
   return (
-    <section aria-label="needs judgment" className="mt-8">
-      <div className="flex items-baseline justify-between border-b border-edge pb-2">
-        <p
-          role="heading"
-          aria-level={2}
-          className="text-[10px] font-mono font-semibold uppercase tracking-[0.2em] text-fg-secondary"
-        >
-          Needs your judgment
-        </p>
-        <span className="font-mono text-[11px] tabular-nums text-rose-300">
+    <section aria-label="needs judgment" className="mt-12">
+      <div className="flex items-end justify-between border-b border-edge pb-3">
+        <h2 className="vt-eyebrow text-fg-secondary">Needs your judgment</h2>
+        <span className="font-display text-3xl font-bold leading-none tabular-nums text-rose-300">
           {judgment.totalCount}
         </span>
       </div>
 
       {judgment.failedSources.length > 0 && (
-        <p className="mt-2 flex items-center gap-1.5 text-[10px] text-amber-300">
+        <p className="mt-3 flex items-center gap-1.5 text-[12px] text-amber-300">
           <AlertCircle className="h-3 w-3" />
           Partial read — {judgment.failedSources.join(", ")} unavailable; the count above is a floor.
         </p>
       )}
-      {actionError && <p className="mt-2 text-[11px] text-amber-300">{actionError}</p>}
+      {actionError && <p className="mt-3 text-[13px] text-amber-300">{actionError}</p>}
 
       <ul className="divide-y divide-edge/60">
         {visible.map((item) => (
@@ -193,7 +187,7 @@ export function JudgmentQueue({
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1 text-[10px] font-mono uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1 font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
         >
           {expanded ? (
             <>
@@ -235,7 +229,7 @@ function JudgmentRow({
   onFollowupVerdict: (id: string, verdict: "task" | "dismiss") => void;
 }) {
   const kindChip = (
-    <span className="w-24 shrink-0 pt-0.5 font-mono text-[10px] uppercase tracking-wider text-fg-tertiary">
+    <span className="w-24 shrink-0 pt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary">
       {KIND_LABEL[item.kind]}
     </span>
   );
@@ -248,7 +242,7 @@ function JudgmentRow({
           className="group flex min-h-[52px] items-start gap-3 py-3 transition-colors duration-150 hover:bg-raised/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
         >
           {kindChip}
-          <span className="min-w-0 flex-1 text-[13px] leading-snug text-fg">
+          <span className="min-w-0 flex-1 text-[15px] leading-snug text-fg">
             {item.count > 0
               ? `${item.count} deferred action${item.count === 1 ? "" : "s"} await your verdict`
               : "no live approvals"}
@@ -259,7 +253,7 @@ function JudgmentRow({
               <span className="text-fg-tertiary"> · {item.expired} expired — re-request or dismiss</span>
             )}
           </span>
-          <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[11px] font-medium text-rose-300">
+          <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[12px] font-medium text-rose-300">
             Review <ArrowRight size={11} className="transition-transform duration-150 motion-safe:group-hover:translate-x-0.5" />
           </span>
         </Link>
@@ -276,15 +270,15 @@ function JudgmentRow({
         >
           {kindChip}
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] leading-snug text-fg">
+            <span className="block truncate text-[15px] leading-snug text-fg">
               now · {item.nowExcerpt}
             </span>
-            <span className="block truncate text-[12px] leading-snug text-fg-tertiary">
+            <span className="block truncate text-[13px] leading-snug text-fg-tertiary">
               before · {item.beforeExcerpt}
               {item.daysApart > 0 && ` · ${item.daysApart}d apart`}
             </span>
           </span>
-          <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[11px] font-medium text-fg-secondary">
+          <span className="flex shrink-0 items-center gap-1 pt-0.5 text-[12px] font-medium text-fg-secondary">
             Resolve <ArrowRight size={11} className="transition-transform duration-150 motion-safe:group-hover:translate-x-0.5" />
           </span>
         </Link>
@@ -299,8 +293,8 @@ function JudgmentRow({
       <li className={cn("flex min-h-[52px] flex-wrap items-start gap-3 py-3", busy && "opacity-50")}>
         {kindChip}
         <span className="min-w-0 flex-1 basis-52">
-          <span className="block text-[13px] leading-snug text-fg">{item.description}</span>
-          <span className="block text-[11px] text-fg-tertiary">
+          <span className="block text-[15px] leading-snug text-fg">{item.description}</span>
+          <span className="block text-[12px] text-fg-tertiary">
             {[item.domain, item.evidence].filter(Boolean).join(" · ") || "machine-proposed"}
           </span>
         </span>
@@ -310,7 +304,7 @@ function JudgmentRow({
             disabled={busy}
             onClick={() => onCommitmentVerdict(item.id, "accept")}
             title="Accept — goes on the books as active"
-            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2.5 font-mono text-[10px] uppercase tracking-wider text-emerald-300 transition-colors duration-150 hover:bg-emerald-500/20 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+            className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-emerald-300 transition-colors duration-150 hover:bg-emerald-500/20 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
           >
             <Check className="h-3 w-3" /> Accept
           </button>
@@ -333,14 +327,14 @@ function JudgmentRow({
   return (
     <li className={cn("flex min-h-[52px] flex-wrap items-start gap-3 py-3", busy && "opacity-50")}>
       {kindChip}
-      <span className="min-w-0 flex-1 basis-52 text-[13px] leading-snug text-fg">{item.title}</span>
+      <span className="min-w-0 flex-1 basis-52 text-[15px] leading-snug text-fg">{item.title}</span>
       <span className="ml-auto flex shrink-0 items-center gap-1.5">
         <button
           type="button"
           disabled={busy}
           onClick={() => onFollowupVerdict(item.id, "task")}
           title="Convert to task"
-          className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-edge px-2.5 font-mono text-[10px] uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-md border border-edge px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
         >
           <Plus className="h-3 w-3" /> Task
         </button>

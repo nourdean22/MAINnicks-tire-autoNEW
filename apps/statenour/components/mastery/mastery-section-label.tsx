@@ -16,11 +16,13 @@
  * the dark theme) instead of bare `text-white/40` so the surface
  * inherits any future palette evolution without code changes.
  *
- * The SectionHeader primitive (`components/ui/section-header.tsx`)
- * exists but uses `text-sm font-semibold` · that's the higher-density
- * idiom used in War Room, HQ, Actions, Chat. The mastery surfaces
- * deliberately use the lower-density editorial-minimalist pattern
- * (text-xs uppercase tracked).
+ * The denser `text-sm font-semibold` SectionHeader primitive it used
+ * to sit beside (`components/ui/section-header.tsx`) was DELETED
+ * 2026-09-16: the Visible Transformation wave moved its last caller
+ * (/journal) onto PageHeader, leaving it unreachable from any
+ * entrypoint. The mastery surfaces keep the lower-density
+ * editorial-minimalist pattern (text-xs uppercase tracked) — this
+ * primitive is now the only section-heading idiom here.
  *
  * Anatomy:
  *   LABEL · count                                          right-action

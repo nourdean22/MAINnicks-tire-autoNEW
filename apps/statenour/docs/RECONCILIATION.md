@@ -1,5 +1,122 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-16 · W10 · E4 RAN: the evidence gate is REFUTED, not pending (branch `claude/statenour-ui-architecture-intmaf`)
+>
+> `NICK_EVIDENCE_ENFORCEMENT` is the last layer of the fabrication-defense stack (§4 L6). It has been wired,
+> unit-tested and OFF since it shipped, with `persist-assistant-turn.ts` deferring it until "these numbers say the
+> FP rate is tolerable" and naming experiments **E2 / E3 / E4**. **Nobody had ever run them.** An unarmed control
+> that everyone believes is nearly ready is the same defect class as a silent canary, so they were run.
+> **Measured (Neon, read-only, 91 shadow turns 2026-09-11 → 2026-09-16):**
+>
+> | experiment | question | answer |
+> |---|---|---|
+> | E2 | share of turns naming a resource with no receipt | **21 / 91 = 23%** (avg 4.86 names each) |
+> | E4 | false-positive rate of the named-source check | **~50%** of the 73 distinct names were not resources |
+> | E3 | share of turns the pre-flush lane would buffer | **INSUFFICIENT DATA** — the stamp landed 09-15, so only 9 of 91 rows carry it (5 would buffer) |
+>
+> Verdicts: pass 57 · block 21 · repair 13. **The 50% is the finding.** `LISTED_TITLE_RE` is the only one of the
+> module's three patterns with NO resource noun anchoring it — it matches a bolded markdown list item, full stop —
+> and Nick writes the operator's itineraries and gym protocols as bolded list items. Enforcement DELETES list items
+> it cannot receipt, so arming the flag would have stripped the operator's travel plan and workout protocol out of
+> replies. Shape census of the 73: 14 ended in sentence punctuation · 10 were label-colon-value lines · 2 arrow
+> itinerary legs · 1 equation-style assertion · 2 parenthetical day labels.
+> **Shipped:** `isResourceTitle()` gating the `listed` kind on five rules drawn from that corpus, at **zero measured
+> true-positive cost** — every real channel and video title in the sample survives. Capitalization density was tried
+> as a rule and REJECTED with receipts: sentence-case video titles are indistinguishable from prose by
+> capitalization and it dropped three real titles. Both flags now carry the verdict inline so the next session
+> cannot read "experimental, ready" and switch it on.
+> **The old rows are now stale by construction** — they measure a detector that no longer exists. E4 must be re-run
+> on a fresh window before the flag is considered again; that is written into `lib/feature-flags.ts`, not just here.
+> **Not done, on purpose:** the ~25% residual FP rate (gym-log and plan fragments that are neither sentences nor
+> labels) is real and un-fixed; it is why the flag stays OFF rather than "nearly ready".
+> **Receipts:** `tsc --noEmit` exit 0 · eslint 0 errors on the three touched files · `vitest run tests/ai` **178
+> files, 2,352 passed, exit 0** (including the canonical end-to-end enforcement fixture, untouched) ·
+> `tests/ai/named-source-listed-precision.test.ts` 22 tests, mutation-proven: deleting the guard turns 3 of them RED,
+> one of which is an explicit instrument control proving the pattern still fires on a real title.
+> **Privacy:** the measured strings are the operator's private chat content and this repo is public, so the test
+> fixtures are SYNTHETIC reproductions of the measured shapes; the counts are recorded, the text is not.
+
+> ## 2026-09-16 · Honest-counter repair wave W8 (branch `claude/statenour-ui-architecture-intmaf`, sixth PR, on top of the Visible Transformation slices)
+>
+> Operator: fact-check the research, repair reality, keep shipping. This wave is the REPAIR half — every consumer
+> that was written while `interactionCount` was inflated and every ledger reader that could not tell a contact from
+> an audit row. **Re-measured on prod before touching anything** (Neon, read-only): 20 live profiles · 7 ever
+> logged · 13 at zero · max `interaction_count` 4 · `>= 3` matches 2 · `trustScore` 0.3–0.9.
+> **Shipped, five slices:**
+> · **Writer guard** — `RESERVED_LEDGER_METADATA_KEYS` + `assertWritableMetadata` in `contact-rows.ts`, called from
+>   `recordInteraction.normalize()` before any IO, plus a zod `superRefine` on `task.logLedger` so the operator gets a
+>   BAD_REQUEST naming the key. Codex P2 on #2348: the seam increments `interactionCount`, so it may not stamp a
+>   marker that excludes its own row — the profile would count a contact the ledger does not have.
+> · **Trust scale** — `unstableAlliances` compared a 0–1 Float to `50`, vacuously true for every person who has ever
+>   existed, while its other half (`>= 10`) was unreachable after the reconcile. Now `< 0.4` (the house RISK tier,
+>   `brain-graph.ts:605`) AND at least one logged contact. Canary `tests/repo/score-scale-mismatch.test.ts` fails on
+>   any 0–1 field compared to a literal above 1; it strips comments AND strings, because its first cut flagged its
+>   own explanation of the bug.
+> · **Reader contamination** — all 16 ledger read sites classified: 13 pipe through `contactRowsOnly`, 3 allowlisted
+>   WITH a reason (the audit timeline, the writer, the delete that re-derives through the predicate).
+>   `changes-since.ts` moves `count` → fetch-then-filter. The 8 synthetic rows each carry **+1**, so they had been
+>   earning relationship XP in `people-credit.ts` for chat messages that merely NAMED someone; the status-flip half
+>   (−50 / −5 / 0) is armed and unfired at 0 rows.
+> · **Counter consumers** — 4 bare `orderBy: { interactionCount: "desc" }` reads now lead with `lastInteraction`
+>   NULLS LAST (a count ordering is an arbitrary tie-break over 13 identical zeros); Greene law_16's
+>   `"interactionCount > 20 in the last 60 days"` trigger replaced with the observable saturation SHAPE, and the
+>   schema doc that offered the same comparison as its worked example fixed with it; the neglect predicate
+>   de-duplicated into `lib/services/people/neglect.ts` at `>= 1` (existence, not frequency — `>= 3` dropped 5 of the
+>   7 real candidates and dropped the worst cases first) with one boundary spelling, `floor()` not `round()`, so the
+>   day count the /people badge now shows matches the verdict beside it.
+> · **Gate fallout from W7** — `components/ui/{input-group,section-header}.tsx` deleted (256 lines; the wave took the
+>   last importer off each) and the anti-slop waiver canary repointed onto a fixture it plants itself, because its
+>   precondition read the one live waiver this wave correctly removed.
+> **Silent-instrument finding, kept:** the ledger canary's first cut tested `src.includes("contactRowsOnly")`, which
+> the import line alone satisfies — mutation proved it stayed GREEN after the call was deleted. Tightened to a real
+> call shape it immediately caught a REAL miss in this same diff (`relationship-weekly-synthesis` had the import and
+> the `metadata: true` select but never called the filter).
+> **Receipts:** `tsc --noEmit` exit 0 · eslint 0 errors (132 pre-existing warnings) · vitest **840 files, 8,405
+> passed, 6 skipped, 2 failed** · 10 static gates green (`runbooks`, `lint-baseline`, `raw-sql`, `crons`,
+> `soft-delete`, `get-auth`, `mutations:strict`, `anti-slop`, `et-clock`, `scripts`). Every new canary
+> mutation-proven RED against the real tree before being trusted.
+> **The 2 failures are environmental and pre-existing**, not this branch: `obsidian-ingest-server-only` and
+> `generate-pwa-icons-sharp` both spawn `npx tsx -e` probes, and in this Linux container a spawned `tsx -e` dynamic
+> import collapses every module's namespace to `default` — reproduced on `lib/db/soft-delete.ts`, which this branch
+> does not touch, WITHOUT the shim. Neither test's subject appears in the branch diff. `check:env` also fails here
+> for want of provider keys, which is the documented container constraint.
+
+> ## 2026-09-16 · Visible Transformation (branch `claude/statenour-ui-architecture-intmaf`, sixth PR; #2348 SHIPPED + DEPLOYED-VERIFIED `ef52c8e38`, prod counter reconcile DONE 10:28Z)
+>
+> Operator: the workbench substrate (#2337 / #2341 / #2344) shipped but "StateNour still looks 85–95% like before";
+> the new bar — *old vs new side-by-side from six feet away must be unmistakable; visual similarity to the
+> pre-workbench screenshots is now a failure condition* — reverses spec §2 correction 5 (recorded in
+> `docs/design/ui-workbench-2026-09-15.md`). **The bar is a test:** `tests/e2e/visible-transformation.spec.ts` renders
+> Home, Missions, Brain, People and System at 1440×900 and 390×844 on the hermetic stack and fails under **0.35
+> registered ink-mass distance** from the committed PRE-wave baselines (`…spec.ts-snapshots/`, generated once on
+> the pre-wave tree). The instrument had to be built twice: a pixel-share distance is capped by ink — this palette is
+> 2.5–10% ink, so a 30% bar was unreachable and a 64px slide scored 82–91% of ink pixels "changed" — so
+> `tests/e2e/visual-distance.ts` reduces both renders to 48px-cell ink-mass grids, takes the relative L1 minimised
+> over ±2 cells (shift proxies 0.11–0.26, same-tree noise 0.000), and `tests/repo/visual-distance-metric.test.ts`
+> pins it (identical → 0, a 64×40px slide → 0.11, a recomposition → >0.5; red under two mutants). Captures wait for
+> `[data-skeleton]` / `aria-busy` / `.animate-pulse` to leave and warm every route first — a capture racing a cold
+> `next dev` compile measured a skeleton at 0.34 / 1.3% ink.
+> **Shipped:** desktop spine (`components/layout/desktop-spine.tsx`, 4.5rem at ≥1280px via `--spine-w`; `<main>`
+> pads), workset strip, ruled bottom chrome, intent-resolver restyle · **Home** (display verdict `.vt-verdict`,
+> gold-rule lead, ruled command line, `empty:hidden` rail) · **Missions** (NEXT MOVE hero across the page; capture /
+> decide / board as ruled sections; mission cards → a ruled list with display titles; WAITING + DONE rail; the card
+> header's nested `<button>` hydration error fixed) · **People** (NEEDS ATTENTION verdict from the totals, the list
+> always visible as hairline rows, gold-ruled Person Workspace — the collapsed "browse all" `<details>` is gone) ·
+> **System** (Control Tower: `lib/system/control-tower.ts`, ALL SYSTEMS NOMINAL / N REQUIRE ATTENTION, exceptions
+> only, vitals as one mono line; unknown is never nominal — `tests/lib/system/control-tower.test.ts`, red first) ·
+> **Brain** (nine tabs grouped into five lenses with five layout archetypes via `PageTabs lenses=`; every `?tab=`
+> deep link unchanged; the graph toolbar and canvas de-carded) · **secondary pages** de-carded: Stats (glass tab bar +
+> the waived blue→purple accent gone), Journal (house display header), Pins, Links, Learn.
+> **Gate receipts (warm hermetic run):** desktop home 0.542 · missions 0.577 · brain 0.577 · people 0.477 · system
+> 0.504 · phone home 0.610 · missions 0.498 · people 0.510 · brain BRAIN_PHONE · system SYSTEM_PHONE (floor 0.35).
+> `tsc --noEmit` 0 · eslint 0 errors on every touched file · anti-slop clean · unit: 70 tests across the touched
+> components + the two new canaries.
+> **Also in this branch's history:** the prod counter reconcile ran and verified (entry below).
+> **Not done, on purpose:** the Brain phone hydration mismatch (pre-existing; the gate ignores hydration
+> pageerrors and tracks it) · `make_interval(days => bigint)` raw-query error on plain PG16 · the four genomes for the
+> OTHER products — `docs/design/SURFACE-DNA.md` (repo root) is the contract; Nick's Home / Admin Home are the
+> nickstire session's next wave, Lot Intelligence waits for the operator's camera session.
+
 > ## 2026-09-16 · Counter reconcile (branch `claude/statenour-ui-architecture-intmaf`, fifth PR #2348; #2346 SHIPPED + DEPLOYED-VERIFIED `e0f0275bd` at 02:49Z)
 >
 > Operator: "counter recon". **Measured on Neon (read-only) before any code:** 27 profiles whose
@@ -18,8 +135,14 @@
 > source-scan canary (`tests/repo/last-interaction-orderby-nulls.test.ts`) · `power-dynamics` reads NULL as
 > unknown, not neglected · `scripts/reconcile-person-counters.ts` (dry-run default; `--apply` snapshots to
 > `_bak_person_profiles_counter_recon_<yyyymmdd>`, then per person lock → re-derive → write, exits 1 on residual
-> drift; Neon PITR here is 6 h, so the table is the durable rollback). **The prod reconcile runs AFTER this deploys**
-> (creation leak closed + NULL orderings live first) — its receipts land in this entry when done.
+> drift; Neon PITR here is 6 h, so the table is the durable rollback).
+> **Prod reconcile — DONE 2026-09-16 10:28Z**, after #2348 was squash-merged (`ef52c8e38`), deployed-verified by
+> ancestry on `/api/version`, and main CI was green on that SHA (turbo-affected verify · e2e · Lighthouse · agent
+> policy · adoption gates). One Neon `run_sql_transaction`, the SQL twin of `--apply`: snapshot into
+> `_bak_person_profiles_counter_recon_20260916` (27 rows) → 27 per-person advisory locks in id order → one
+> corrective UPDATE → residual-drift SELECT. **Receipts:** 27 of 27 rows changed · `interaction_count` sum 200 → 15
+> · 20 profiles now `0 / NULL` · residual drift **0 rows** (re-measured after commit) · no deletes. Rollback is the
+> one-liner in #2348 §5 from the `_bak_` table, which stays until the change is confirmed good in use.
 > **Receipts.** Red first: creation `expected 1 to be +0`, delete module missing, canary 6 bare orderings in 5
 > files, analyzer `expected 2 to be 1` · green: 7 files / 29 tests · mutants: predicate forced true → 7 red across
 > 3 files, blind decrement → 3 red, golden 14/14 · `tsc --noEmit` 0 · eslint 0 on 20 files · mutations strict ·

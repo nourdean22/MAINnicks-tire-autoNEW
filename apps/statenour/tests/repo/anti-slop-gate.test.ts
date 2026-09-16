@@ -229,23 +229,41 @@ describe("the gate FIRES on the tree it is pointed at", () => {
     expect(run().code, "restore failed — the tree is dirty").toBe(0);
   });
 
-  it("the waiver is BY SIGNATURE: a NEW hit in an already-waived FILE still fires", () => {
-    // The script's own comment stakes this claim and nothing tested it:
-    //   "Waivers are BY SIGNATURE, not by filename ... Excluding whole files
-    //    would have made this check permanently blind to the file it was
-    //    waived for."
-    // app/(mastery)/stats/page.tsx carries a live `anti-slop-allow` marker. If
-    // waivers were file-scoped, the plant below would be invisible — which is
-    // the exact blindness the comment says was avoided. This is the arm that
-    // turns that sentence from a claim into a tested property.
-    const waived = "app/(mastery)/stats/page.tsx";
-    expect(rf(waived, "utf8"), "precondition: the waiver marker moved").toContain("anti-slop-allow");
-    expect(run().code, "precondition: the waived line alone must pass").toBe(0);
+  /**
+   * The script's own comment stakes this claim and nothing tested it:
+   *   "Waivers are BY SIGNATURE, not by filename ... Excluding whole files
+   *    would have made this check permanently blind to the file it was
+   *    waived for."
+   *
+   * 2026-09-16 · this arm used to read the repo's ONE live waiver
+   * (app/(mastery)/stats/page.tsx carried a waived blue→indigo→purple
+   * gradient) as its precondition. The Visible Transformation wave de-carded
+   * that page and removed the gradient — a correct edit — and the canary went
+   * red on its own precondition, with nothing wrong with the gate. That is the
+   * exact failure this FILE'S OWN HEADER warns about: a permanent control
+   * hard-coded to a temporary datum, where the rational move becomes deleting
+   * the control. So the waiver is now PLANTED here, and the arm holds whether
+   * or not any file in the tree happens to carry a marker today.
+   */
+  it("the waiver is BY SIGNATURE: a waived line passes, a NEW hit in that same FILE still fires", () => {
+    const victim = "components/ui/glass-card.tsx";
+    const waivedLine = '// anti-slop-allow 2026-09-16 canary <div className="from-purple-500 to-purple-700" />';
+    const freshHit = '// canary <div className="from-purple-400 to-purple-600" />';
 
-    withPlanted(waived, '// canary <div className="from-purple-400 to-purple-600" />', (r) => {
-      expect(r.code, "a new purple gradient in a waived FILE was not reported — the waiver is file-scoped").toBe(1);
-      expect(r.out).toContain(waived);
+    // Half 1 — the marker really exempts its own line, or the "fires" half
+    // below would be indistinguishable from a gate that ignores waivers.
+    withPlanted(victim, waivedLine, (r) => {
+      expect(r.code, `a line carrying anti-slop-allow was reported anyway:\n${r.out}`).toBe(0);
     });
+
+    // Half 2 — and the exemption does not spread to the file. If waivers were
+    // file-scoped the fresh hit below would be invisible, which is the exact
+    // blindness the script's comment says was avoided.
+    withPlanted(victim, `${waivedLine}\n${freshHit}`, (r) => {
+      expect(r.code, "a new purple gradient beside a waived one was not reported — the waiver is file-scoped").toBe(1);
+      expect(r.out).toContain(victim);
+    });
+
     expect(run().code, "restore failed — the tree is dirty").toBe(0);
   });
 });

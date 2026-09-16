@@ -20,6 +20,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 export async function draftDossierFor(
   personId: string,
@@ -39,12 +40,15 @@ export async function draftDossierFor(
       take: 30,
       select: { content: true, createdAt: true },
     }),
-    prisma.relationshipLedger.findMany({
-      where: { personId },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-      select: { amount: true, note: true, createdAt: true },
-    }),
+    prisma.relationshipLedger
+      .findMany({
+        where: { personId },
+        orderBy: { createdAt: "desc" },
+        take: 40,
+        select: { amount: true, note: true, createdAt: true, metadata: true },
+      })
+      // CONTACT rows only (W8) — the dossier describes the relationship.
+      .then((rows) => contactRowsOnly(rows).slice(0, 20)),
     prisma.brainMemory.findMany({
       where: {
         category: BRAIN_CATEGORIES.ALPHA_MOMENT,

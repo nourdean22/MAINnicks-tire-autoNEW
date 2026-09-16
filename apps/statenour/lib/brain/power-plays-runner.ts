@@ -18,6 +18,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 export type PlayKind =
   | "arc_plan"
@@ -46,12 +47,15 @@ export async function runPowerPlay(
   });
   if (!person) return null;
 
-  const recentLedger = await prisma.relationshipLedger.findMany({
-    where: { personId },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-    select: { amount: true, note: true, source: true, createdAt: true },
-  });
+  // CONTACT rows only (W8) — context handed to the play generator.
+  const recentLedger = contactRowsOnly(
+    await prisma.relationshipLedger.findMany({
+      where: { personId },
+      orderBy: { createdAt: "desc" },
+      take: 40,
+      select: { amount: true, note: true, source: true, createdAt: true, metadata: true },
+    }),
+  ).slice(0, 20);
 
   const context = `Person: ${person.name}
 Role: ${person.role}

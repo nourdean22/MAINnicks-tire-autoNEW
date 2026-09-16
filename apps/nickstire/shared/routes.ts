@@ -266,7 +266,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // page. Broadening to cover the full diagnostic intent space, and
     // anchoring on the brand-voice differentiator ("real cause" not
     // parts-cannon) which is the actual reason customers switch to us.
-    title: "Car Diagnostic Cleveland · Code Pull + Real Cause | Nick's",
+    title: "Check Engine Light Cleveland · Free Code Pull | Nick's",
     description: "Cleveland diagnostic shop where the code pull is free and the explanation is in real English. Same-day repair on most codes. Walk-ins 7 days. (216) 862-0005.",
     group: "service",
     sitemap: true,
@@ -369,8 +369,14 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/emissions",
     priority: 0.9,
     changefreq: "monthly",
-    title: "Ohio E-Check Cleveland — Failed Emissions? Pass Same Day | Nick's",
-    description: "Failed Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. Walk in 7 days, pass same-day. (216) 862-0005.",
+    // 2026-09-16 · claim-safety fix. Both this title and its old services.ts
+    // counterpart independently promised "Pass Same Day" / "Pass Guaranteed" —
+    // the shop's own turnaround field says "Most emissions repairs completed
+    // in 1-2 days," and AGENTS.md's content rule bans "guaranteed" outright.
+    // Unified with services.ts:401's metaTitle so the title/meta split-brain
+    // (prerender vs. live SPA) can't show two different claims either.
+    title: "Failed E-Check Cleveland · Free Readiness Check | Nick's",
+    description: "Failed Ohio E-Check? Free readiness check tells you what's wrong before you pay. We diagnose and repair — O2 sensors, EVAP, catalytics. Walk in 7 days. (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -393,7 +399,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/general-repair",
     priority: 0.8,
     changefreq: "monthly",
-    title: "General Auto Repair Services — Nick's Tire & Auto Cleveland",
+    title: "Auto Repair Cleveland · Estimate Before Wrench | Nick's",
     description: "Cleveland auto shop where the written estimate hits the counter before any wrench moves. Brakes, suspension, steering, exhaust. Walk-ins 7 days. (216) 862-0005.",
     group: "service",
     // 301s to /auto-repair-near-me (server/_core/redirects.ts) — a
@@ -490,15 +496,15 @@ const SERVICE_PAGES: RouteEntry[] = [
   // it. It now 301s to /tires (server/_core/redirects.ts), which is the real
   // page at priority 1.0 — and the sitemap builder already drops redirected
   // paths, so it cannot come back through this file.
-  { path: "/ac-repair", priority: 0.8, changefreq: "monthly", title: "AC Repair Cleveland OH — Nick's Tire & Auto", description: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Most jobs blow cold by lunch. Free check. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
-  { path: "/transmission", priority: 0.8, changefreq: "monthly", title: "Transmission Repair Cleveland OH — Nick's Tire & Auto", description: "Cleveland transmission shop where fluid service comes before rebuild quote. Solenoid, valve body, full rebuild as last resort. Estimate first. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
-  { path: "/electrical", priority: 0.8, changefreq: "monthly", title: "Auto Electrical Repair Cleveland — Nick's Tire & Auto", description: "Cleveland auto electrical shop where wiring gets traced before modules get swapped. Battery, alternator, starter, parasitic draws, CAN bus. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
-  { path: "/battery", priority: 0.8, changefreq: "monthly", title: "Battery Testing & Replacement Cleveland — Nick's Tire", description: "Cleveland battery replacement in 5 minutes. Free load test + alternator test before we sell you anything. Walk-ins 7 days. Open Sunday. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
-  { path: "/exhaust", priority: 0.8, changefreq: "monthly", title: "Exhaust & Muffler Repair Cleveland — Nick's Tire & Auto", description: "Cleveland muffler & exhaust shop where the rumble stops by lunch. Muffler, full exhaust, catalytic converter, weld jobs. Open Sunday. From $189. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
-  { path: "/cooling", priority: 0.8, changefreq: "monthly", title: "Cooling System Repair Cleveland — Nick's Tire & Auto", description: "Cleveland radiator shop where overheat diagnosis happens before the parts cannon. Water pump, thermostat, coolant flush, pressure test. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
-  { path: "/pre-purchase-inspection", priority: 0.8, changefreq: "monthly", title: "Pre-Purchase Car Inspection Cleveland — Nick's Tire", description: "Cleveland pre-purchase inspection — the 90-min check that catches what the seller didn't mention. Engine, trans, brakes, frame, tires. Same-day. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
-  { path: "/belts-hoses", priority: 0.7, changefreq: "monthly", title: "Belt & Hose Replacement Cleveland — Nick's Tire & Auto", description: "Cleveland belt + hose shop where the squeak gets diagnosed before it becomes a tow truck. Serpentine, timing belt, radiator hose. Same-day. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
-  { path: "/starter-alternator", priority: 0.8, changefreq: "monthly", title: "Starter & Alternator Repair Cleveland — Nick's Tire", description: "Cleveland starter + alternator shop where the charging system gets tested before parts get sold. Free voltage drop + load test. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  { path: "/ac-repair", priority: 0.8, changefreq: "monthly", title: "AC Repair Cleveland · Cold Air By Lunch · $10 Down | Nick's", description: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Most jobs blow cold by lunch. Free check. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  { path: "/transmission", priority: 0.8, changefreq: "monthly", title: "Transmission Repair Cleveland · We Try Fluid First | Nick's", description: "Cleveland transmission shop where fluid service comes before rebuild quote. Solenoid, valve body, full rebuild as last resort. Estimate first. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  { path: "/electrical", priority: 0.8, changefreq: "monthly", title: "Auto Electrical Cleveland · Trace, Don't Swap | Nick's", description: "Cleveland auto electrical shop where wiring gets traced before modules get swapped. Battery, alternator, starter, parasitic draws, CAN bus. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  { path: "/battery", priority: 0.8, changefreq: "monthly", title: "Car Battery Cleveland · Free Test, 5-Minute Install | Nick's", description: "Cleveland battery replacement in 5 minutes. Free load test + alternator test before we sell you anything. Walk-ins 7 days. Open Sunday. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  { path: "/exhaust", priority: 0.8, changefreq: "monthly", title: "Muffler Shop Cleveland · Stop Announcing Yourself | Nick's", description: "Cleveland muffler & exhaust shop where the rumble stops by lunch. Muffler, full exhaust, catalytic converter, weld jobs. Open Sunday. From $189. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  { path: "/cooling", priority: 0.8, changefreq: "monthly", title: "Radiator Repair Cleveland · Stop The Steam Cloud | Nick's", description: "Cleveland radiator shop where overheat diagnosis happens before the parts cannon. Water pump, thermostat, coolant flush, pressure test. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  { path: "/pre-purchase-inspection", priority: 0.8, changefreq: "monthly", title: "Used Car Inspection Cleveland · Before You Sign | Nick's", description: "Cleveland pre-purchase inspection — the 90-min check that catches what the seller didn't mention. Engine, trans, brakes, frame, tires. Same-day. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  { path: "/belts-hoses", priority: 0.7, changefreq: "monthly", title: "Belt & Hose Cleveland · Catch It Before The Tow | Nick's", description: "Cleveland belt + hose shop where the squeak gets diagnosed before it becomes a tow truck. Serpentine, timing belt, radiator hose. Same-day. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  { path: "/starter-alternator", priority: 0.8, changefreq: "monthly", title: "Starter Alternator Cleveland · Free Charge Test | Nick's", description: "Cleveland starter + alternator shop where the charging system gets tested before parts get sold. Free voltage drop + load test. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   {
     path: "/warranties",
     priority: 0.8,

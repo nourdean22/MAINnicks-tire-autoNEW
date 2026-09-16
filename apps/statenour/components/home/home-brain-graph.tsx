@@ -1055,7 +1055,9 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
               isSimActiveRef.current = true;
               triggerAnimationLoop();
             }}
-            className="w-full bg-(--bg-elevated) border border-(--border-default) rounded px-8 py-2.5 text-[11px] text-(--text-primary) placeholder:text-(--text-tertiary)/50 focus:border-(--gold)/40 focus:outline-none transition-colors min-h-[44px]"
+            // 2026-09-16 · Visible Transformation: a ruled search line (16px —
+            // the iOS no-zoom floor), not a boxed field.
+            className="min-h-[48px] w-full border-0 border-b-2 border-edge bg-transparent px-8 py-2 text-[16px] text-fg placeholder:text-fg-tertiary transition-colors focus:border-gold focus:outline-none"
           />
         </div>
 
@@ -1121,17 +1123,19 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
           WP-5: one horizontally-scrollable row. Wrapping cost up to three rows
           of vertical space and pushed the canvas below the fold. */}
       {variant === "full" && (
-        <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex gap-x-5 overflow-x-auto border-b border-edge [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {LENSES.map((l) => (
             <button
               key={l.key}
               type="button"
               onClick={() => setLens(l.key)}
+              // Lens chips are underline items (mono, 11px), not pills — the
+              // same grammar as every other switch on the page.
               className={cn(
-                "px-3 py-2 rounded-full border text-[9px] font-mono uppercase tracking-[0.14em] transition-colors min-h-[40px]",
+                "-mb-px inline-flex min-h-[44px] shrink-0 items-center border-b-2 px-1 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors",
                 lens === l.key
-                  ? "bg-(--gold)/12 border-(--gold)/40 text-(--gold)"
-                  : "bg-(--bg-elevated) border-(--border-default) text-(--text-tertiary) hover:text-(--text-secondary) hover:border-(--gold)/15",
+                  ? "border-gold text-gold"
+                  : "border-transparent text-fg-tertiary hover:text-fg-secondary",
               )}
             >
               {l.label}
@@ -1162,10 +1166,10 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
                 : undefined
             }
             className={cn(
-              "shrink-0 px-3 py-2 rounded-full border text-[9px] font-mono uppercase tracking-[0.14em] transition-colors min-h-[40px]",
+              "-mb-px inline-flex min-h-[44px] shrink-0 items-center border-b-2 px-1 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors",
               activityApplied
-                ? "bg-(--gold)/12 border-(--gold)/40 text-(--gold)"
-                : "bg-(--bg-elevated) border-(--border-default) text-(--text-tertiary) hover:text-(--text-secondary)",
+                ? "border-gold text-gold"
+                : "border-transparent text-fg-tertiary hover:text-fg-secondary",
               activityPending && "border-dashed opacity-70",
             )}
           >
@@ -1178,7 +1182,9 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
       <div
         ref={containerRef}
         className={cn(
-          "relative glass-card border-(--border-default) flex-1 overflow-hidden bg-[#030303]",
+          // The canvas is the page's material, not a card: a ruled full-width
+          // surface (2026-09-16), no glass, no radius.
+          "relative flex-1 overflow-hidden border-y border-edge bg-[#030303]",
           isMobile && variant === "home"
             ? "h-[220px] cursor-pointer"
             : "min-h-[min(55vh,560px)] lg:min-h-[min(70vh,640px)]",

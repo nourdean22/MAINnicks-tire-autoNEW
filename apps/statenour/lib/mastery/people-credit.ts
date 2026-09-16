@@ -23,6 +23,7 @@
 import { prisma } from "@/lib/prisma";
 import { creditStatXp, MASTERY_XP_CATEGORY } from "./credit";
 import { getSetting } from "@/lib/services/settings";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 /** Default XP weights — the single source of the numbers; operator
  *  overrides (stored under PEOPLE_XP_SETTING_KEY) layer on top. */
@@ -216,6 +217,10 @@ export async function backfillPeopleXp(): Promise<{
   deposits: number;
   plays: number;
 }> {
+  // CONTACT rows only (W8). MEASURED 2026-09-16: the 8 synthetic mention
+  // rows each carry amount +1, so every one of them passed `amount > 0` and
+  // had been earning relationship XP for a chat message that merely NAMED a
+  // person. A mention is not a deposit.
   const deposits = await prisma.relationshipLedger
     .findMany({
       where: { amount: { gt: 0 } },
@@ -224,9 +229,11 @@ export async function backfillPeopleXp(): Promise<{
         personId: true,
         amount: true,
         note: true,
+        metadata: true,
         person: { select: { role: true } },
       },
     })
+    .then(contactRowsOnly)
     .catch(
       (): {
         id: string;

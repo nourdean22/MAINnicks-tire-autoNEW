@@ -232,7 +232,7 @@ export function NickCommandLine() {
     <div className="w-full space-y-3">
       {visibleMessages.length > 0 && (
         <div
-          className="rounded-xl border border-edge bg-raised p-4"
+          className="border-l-2 border-edge pl-4"
           role="log"
           aria-label="Nick's response"
         >
@@ -259,10 +259,10 @@ export function NickCommandLine() {
 
       <form
         onSubmit={submit}
-        className="relative rounded-xl border border-edge bg-base-layer transition-colors duration-150 focus-within:border-edge-hover"
+        className="relative border-b-2 border-edge transition-colors duration-150 focus-within:border-gold"
       >
         {slashMenu.length > 0 && (
-          <ul aria-label="commands" className="border-b border-edge px-2 py-1.5">
+          <ul aria-label="commands" className="border-b border-edge py-1.5">
             {slashMenu.map((c) => (
               <li key={c.key}>
                 <button
@@ -273,8 +273,8 @@ export function NickCommandLine() {
                   }}
                   className="flex min-h-[36px] w-full items-baseline gap-3 rounded-md px-2 text-left transition-colors duration-150 hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
                 >
-                  <span className="font-mono text-[12px] text-gold">{c.token}</span>
-                  <span className="text-[11px] text-fg-tertiary">{c.hint}</span>
+                  <span className="font-mono text-[13px] text-gold">{c.token}</span>
+                  <span className="text-[12px] text-fg-tertiary">{c.hint}</span>
                 </button>
               </li>
             ))}
@@ -282,7 +282,7 @@ export function NickCommandLine() {
         )}
 
         {showChips && (
-          <div className="flex flex-wrap gap-1.5 border-b border-edge px-3 py-2">
+          <div className="flex flex-wrap gap-2 border-b border-edge py-2">
             {anticipatedQuestions.slice(0, 3).map((q) => (
               <button
                 key={q}
@@ -294,7 +294,7 @@ export function NickCommandLine() {
                   setInput(q);
                   taRef.current?.focus();
                 }}
-                className="rounded-full border border-edge bg-raised px-2.5 py-1 text-left text-[11px] text-fg-tertiary transition-colors duration-150 hover:border-gold/30 hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+                className="inline-flex min-h-[44px] items-center rounded-full border border-edge px-3 text-left text-[12px] text-fg-tertiary transition-colors duration-150 hover:border-gold/30 hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
               >
                 {q}
               </button>
@@ -302,7 +302,10 @@ export function NickCommandLine() {
           </div>
         )}
 
-        <div className="flex items-end gap-2 p-2">
+        <div className="flex items-end gap-3 py-1">
+          <span aria-hidden className="pb-3 font-mono text-2xl leading-none text-gold">
+            ›
+          </span>
           <label htmlFor="nick-line" className="sr-only">
             Ask, decide, capture, search, or execute
           </label>
@@ -321,10 +324,10 @@ export function NickCommandLine() {
             aria-label="Ask Nick"
             placeholder="Ask Nick, or / for commands…"
             rows={1}
-            className="min-h-[44px] flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-snug text-fg placeholder:text-fg-tertiary focus:outline-none sm:text-[16px]"
+            className="min-h-[44px] flex-1 resize-none bg-transparent px-0 py-3 text-[17px] leading-snug text-fg placeholder:text-fg-tertiary focus:outline-none sm:text-[18px]"
           />
           <div className="flex shrink-0 items-center gap-2 pb-1">
-            <span className="hidden select-none font-mono text-[9px] text-fg-tertiary sm:inline">
+            <span className="hidden select-none font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary sm:inline">
               / to focus
             </span>
             <button
@@ -352,7 +355,7 @@ export function NickCommandLine() {
         <button
           type="button"
           onClick={fireBrief}
-          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gold/30 bg-gold/10 px-3 text-[10px] font-mono uppercase tracking-[0.12em] text-gold transition-colors duration-150 hover:bg-gold/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-gold/30 bg-gold/10 px-4 font-mono text-[11px] uppercase tracking-[0.14em] text-gold transition-colors duration-150 hover:bg-gold/20 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold"
         >
           <Brain size={11} />
           Morning brief

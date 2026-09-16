@@ -6,6 +6,11 @@
  * Progress is receipts, not points: what actually got done, and a
  * 90-second shutdown that rolls the stragglers deliberately instead of
  * letting them ambush tomorrow morning. Skippable, never a wizard.
+ *
+ * 2026-09-16 · Visible Transformation: the rail's evidence column — an
+ * eyebrow h2 with the count in display type, hairline rows, and the
+ * close-the-day prompt as a section under a rule instead of a card in a
+ * card.
  */
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -24,6 +29,9 @@ function tomorrow6amIso(): string {
   d.setHours(6, 0, 0, 0);
   return d.toISOString();
 }
+
+const VERB =
+  "inline-flex min-h-[44px] items-center rounded-md border border-edge px-3 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary transition-colors hover:border-edge-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
 
 export function DeckEvidence({ evidence, tasks, onSnoozeTask }: Props) {
   const [closing, setClosing] = useState(false);
@@ -61,89 +69,79 @@ export function DeckEvidence({ evidence, tasks, onSnoozeTask }: Props) {
   };
 
   return (
-    <section
-      aria-labelledby="evidence-heading"
-      className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-base)] p-3 sm:p-4"
-    >
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 id="evidence-heading" className="text-sm font-semibold text-[var(--text-primary)]">
-          <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
-            done today
-          </span>{" "}
-          <span className="tabular-nums">({evidence.count})</span>
+    <section aria-labelledby="evidence-heading">
+      <div className="flex items-end justify-between gap-3 border-b border-edge pb-3">
+        <h2 id="evidence-heading" className="vt-eyebrow text-fg-secondary">
+          done today
         </h2>
-        <button
-          type="button"
-          onClick={() => setClosing((v) => !v)}
-          className="rounded-md border border-[var(--border-default)] px-2.5 py-2 text-[10px] font-mono uppercase tracking-[0.1em] text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)] min-h-[44px]"
-        >
-          🌙 close the day
-        </button>
+        <span className="font-display text-2xl font-bold leading-none tabular-nums text-gold">{evidence.count}</span>
       </div>
 
       {evidence.rows.length > 0 ? (
-        <ul className="mt-2 space-y-1">
+        <ul className="divide-y divide-edge">
           {evidence.rows.map((r) => (
-            <li key={r.id} className="flex items-center gap-2 text-[12.5px]">
-              <span aria-hidden className="text-[var(--gold)]">✓</span>
-              <span className="min-w-0 truncate text-[var(--text-secondary)]">{r.title}</span>
+            <li key={r.id} className="flex items-center gap-3 py-3 text-[15px]">
+              <span aria-hidden className="text-gold">✓</span>
+              <span className="min-w-0 truncate text-fg-secondary">{r.title}</span>
               {r.missionTitle && (
-                <span className="shrink-0 font-mono text-[10px] text-[var(--text-tertiary)]">
+                <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                   {r.missionTitle}
                 </span>
               )}
             </li>
           ))}
           {evidence.count > evidence.rows.length && (
-            <li className="font-mono text-[10px] text-[var(--text-tertiary)]">
+            <li className="py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
               +{evidence.count - evidence.rows.length} more
             </li>
           )}
         </ul>
       ) : (
-        <p className="mt-2 text-[12px] text-[var(--text-tertiary)]">Nothing finished yet today.</p>
+        <p className="py-3 text-[15px] text-fg-tertiary">Nothing finished yet today.</p>
       )}
 
+      <div className="mt-2">
+        <button type="button" onClick={() => setClosing((v) => !v)} className={VERB}>
+          🌙 close the day
+        </button>
+      </div>
+
       {closing && (
-        <div className="mt-3 rounded-lg border border-[var(--gold)]/25 bg-[var(--gold)]/[0.04] p-3">
+        <div className="mt-4 border-t border-edge pt-4">
           {stragglers.length > 0 ? (
             <>
-              <p className="text-[12.5px] text-[var(--text-primary)]">
+              <p className="text-[15px] text-fg">
                 {stragglers.length} chosen-for-today {stragglers.length === 1 ? "task is" : "tasks are"} still
                 open. Roll {stragglers.length === 1 ? "it" : "them"} to tomorrow 6am?
               </p>
-              <ul className="mt-1.5 space-y-0.5">
+              <ul className="mt-2 space-y-1">
                 {stragglers.slice(0, 5).map((t) => (
-                  <li key={t.id} className="truncate text-[11px] text-[var(--text-secondary)]">
+                  <li key={t.id} className="truncate text-[13px] text-fg-secondary">
                     · {t.title}
                   </li>
                 ))}
                 {stragglers.length > 5 && (
-                  <li className="font-mono text-[10px] text-[var(--text-tertiary)]">
+                  <li className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                     +{stragglers.length - 5} more
                   </li>
                 )}
               </ul>
-              <div className="mt-2 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
                   disabled={busy}
                   onClick={rollAll}
-                  className="rounded-md bg-[var(--gold)] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-black transition-colors hover:bg-[var(--gold)]/85 disabled:opacity-60 min-h-[44px]"
+                  className="inline-flex min-h-[44px] items-center rounded-md bg-gold px-4 font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-black transition-colors hover:bg-gold-dim disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
                 >
                   {busy ? "rolling…" : "roll to tomorrow"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setClosing(false)}
-                  className="rounded-md border border-[var(--border-default)] px-3 py-2 text-[11px] font-mono uppercase tracking-[0.1em] text-[var(--text-secondary)] min-h-[44px]"
-                >
+                <button type="button" onClick={() => setClosing(false)} className={VERB}>
                   leave them
                 </button>
               </div>
             </>
           ) : (
-            <p className="text-[12.5px] text-[var(--text-primary)]">
+            <p className="text-[15px] text-fg">
               Clean close — nothing left from today. {evidence.count} done.
             </p>
           )}

@@ -16,6 +16,7 @@ import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { logger as rootLogger } from "@/lib/logger";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 const log = rootLogger.withSurface("api/ai/draft-outreach");
 
@@ -68,12 +69,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ draft: "" }, { status: 200 });
     }
 
-    const recentLedger = await prisma.relationshipLedger.findMany({
-      where: { personId: body.personId },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { amount: true, note: true, createdAt: true, source: true },
-    });
+    // 2026-09-16 (W8): CONTACT rows only — a status-flip audit row ("Status:
+    // active → cooling", amount −5) read to the model as if the operator had
+    // done something to the person.
+    const recentLedger = contactRowsOnly(
+      await prisma.relationshipLedger.findMany({
+        where: { personId: body.personId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { amount: true, note: true, createdAt: true, source: true, metadata: true },
+      }),
+    ).slice(0, 5);
 
     const ledgerBlock = recentLedger.length
       ? recentLedger

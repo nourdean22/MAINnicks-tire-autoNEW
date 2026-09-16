@@ -148,31 +148,32 @@ function StatsContent() {
 
   return (
     <div className="space-y-6">
-      {/* Premium Glassmorphic Navigation Bar */}
-      <div className="sticky top-16 z-20 -mx-4 px-4 py-2 bg-black/40 backdrop-blur-md border-b border-white/[0.08] sm:mx-0 sm:px-0 sm:rounded-xl sm:border sm:bg-white/[0.02]">
-        <div className="flex space-x-1 p-1 overflow-x-auto scrollbar-none">
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`
-                  relative px-4 py-2 text-sm font-medium rounded-lg transition-all duration-300 whitespace-nowrap outline-none cursor-pointer
-                  ${isActive 
-                    ? "text-white bg-white/[0.08] shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-white/10" 
-                    : "text-zinc-400 hover:text-white hover:bg-white/[0.03] border border-transparent"
-                  }
-                `}
-              >
-                {tab.label}
-                {isActive && (
-                  <span /* anti-slop-allow · operator call 2026-07-30: blue→indigo accent bar on dark, not the purple-on-white SaaS gradient the gate hunts */ className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-0.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 rounded-full shadow-[0_0_8px_#3b82f6]" />
-                )}
-              </button>
-            );
-          })}
-        </div>
+      {/* Tab bar · 2026-09-16 Visible Transformation: the glassmorphic pill
+          bar (backdrop blur, white/[0.02] glass, a blue→indigo→purple accent
+          that carried an anti-slop waiver) is replaced by the house underline
+          bar — mono labels, a gold rule under the active tab, no glass. */}
+      <div
+        role="tablist"
+        aria-label="Stats sections"
+        className="sticky top-0 z-20 -mx-4 flex gap-x-6 overflow-x-auto border-b border-edge bg-void px-4 sm:mx-0 sm:px-0"
+      >
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => handleTabChange(tab.id)}
+              className={`-mb-px inline-flex min-h-[48px] shrink-0 items-center border-b-2 px-1 font-mono text-[12px] uppercase tracking-[0.14em] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold/40 ${
+                isActive ? "border-gold text-gold" : "border-transparent text-fg-tertiary hover:text-fg-secondary"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab content wrapper with smooth transitions */}

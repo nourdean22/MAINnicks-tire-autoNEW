@@ -2,7 +2,8 @@
  * buildPeopleChangesSince · the /people "since your last visit" read (2026-09-16).
  *
  * Pins the three claims: new people = createdAt ≥ since on LIVE rows; interactions
- * logged = ledger rows with createdAt ≥ since (every source); went overdue = an
+ * logged = CONTACT ledger rows with createdAt ≥ since (every source, but not the
+ * audit rows — a status flip is not an interaction, W8); went overdue = an
  * active person with a cadence whose threshold (lastInteraction + cadenceDays)
  * crossed INTO the window — already-overdue people are not news. A failed query is
  * named, the others still count. Positive control (run before commit): with
@@ -10,30 +11,38 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ personCount: vi.fn(), personFindMany: vi.fn(), ledgerCount: vi.fn() }));
+const mocks = vi.hoisted(() => ({ personCount: vi.fn(), personFindMany: vi.fn(), ledgerFindMany: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     personProfile: { count: mocks.personCount, findMany: mocks.personFindMany },
-    relationshipLedger: { count: mocks.ledgerCount },
+    relationshipLedger: { findMany: mocks.ledgerFindMany },
   },
 }));
 
 import { buildPeopleChangesSince, countWentOverdue } from "@/lib/services/people/changes-since";
 
 const DAY = 86_400_000;
+/** n CONTACT rows (metadata is NULL on most real rows — contact-rows.ts). */
+const contactRows = (n: number) => Array.from({ length: n }, () => ({ metadata: null }));
 const NOW = new Date("2026-09-16T01:00:00Z");
 const SINCE = NOW.getTime() - 2 * 3_600_000;
 
 beforeEach(() => {
   mocks.personCount.mockReset();
   mocks.personFindMany.mockReset();
-  mocks.ledgerCount.mockReset();
+  mocks.ledgerFindMany.mockReset();
 });
 
 describe("buildPeopleChangesSince", () => {
   it("queries the three claims with the clauses that make them changes, not reads", async () => {
     mocks.personCount.mockResolvedValueOnce(2);
-    mocks.ledgerCount.mockResolvedValueOnce(5);
+    // 5 contacts + 2 rows that are NOT contacts: a status-flip audit row and a
+    // synthetic mention. "interactions logged" must count 5, not 7.
+    mocks.ledgerFindMany.mockResolvedValueOnce([
+      ...contactRows(5),
+      { metadata: { kind: "status_flip", before: "active", after: "cooling" } },
+      { metadata: { synthetic: true, chatMessageId: "m1" } },
+    ]);
     // one crossed its threshold 1h ago (inside the window), one crossed 3 days ago (before the visit)
     mocks.personFindMany.mockResolvedValueOnce([
       { lastInteraction: new Date(NOW.getTime() - 3_600_000 - 7 * DAY), cadenceDays: 7 },
@@ -43,8 +52,14 @@ describe("buildPeopleChangesSince", () => {
 
     const created = (mocks.personCount.mock.calls[0][0] as { where: Record<string, unknown> }).where;
     expect(created).toMatchObject({ deletedAt: null, createdAt: { gte: new Date(SINCE) } });
-    const logged = (mocks.ledgerCount.mock.calls[0][0] as { where: Record<string, unknown> }).where;
-    expect(logged).toEqual({ createdAt: { gte: new Date(SINCE) } });
+    const ledgerArgs = mocks.ledgerFindMany.mock.calls[0][0] as {
+      where: Record<string, unknown>;
+      select: Record<string, unknown>;
+    };
+    expect(ledgerArgs.where).toEqual({ createdAt: { gte: new Date(SINCE) } });
+    // metadata must be SELECTED or the predicate sees undefined on every row and
+    // silently counts every audit row as a contact.
+    expect(ledgerArgs.select).toMatchObject({ metadata: true });
     const cadence = (mocks.personFindMany.mock.calls[0][0] as { where: Record<string, unknown> }).where;
     expect(cadence).toMatchObject({ deletedAt: null, status: "active", cadenceDays: { not: null }, lastInteraction: { not: null } });
 
@@ -61,16 +76,31 @@ describe("buildPeopleChangesSince", () => {
 
   it("names a failed source instead of zeroing it, and keeps the other claims", async () => {
     mocks.personCount.mockRejectedValueOnce(new Error("db down"));
-    mocks.ledgerCount.mockResolvedValueOnce(0);
+    mocks.ledgerFindMany.mockResolvedValueOnce([]);
     mocks.personFindMany.mockResolvedValueOnce([]);
     const set = await buildPeopleChangesSince(SINCE, NOW);
     expect(set.failedSources).toEqual(["new people"]);
     expect(set.parts).toEqual([]);
   });
 
+  it("a ledger full of AUDIT rows renders as no interactions, not as activity", async () => {
+    // The W8 defect this filter closes: `count` counted every row, so one status
+    // flip (or the 8 synthetic mention rows measured on prod) would have reported
+    // "interactions logged" on a week in which the operator contacted nobody.
+    mocks.personCount.mockResolvedValueOnce(0);
+    mocks.ledgerFindMany.mockResolvedValueOnce([
+      { metadata: { kind: "status_flip", before: "active", after: "blown_up" } },
+      { metadata: { synthetic: true } },
+    ]);
+    mocks.personFindMany.mockResolvedValueOnce([]);
+    const set = await buildPeopleChangesSince(SINCE, NOW);
+    expect(set.parts).toEqual([]);
+    expect(set.failedSources).toEqual([]);
+  });
+
   it("clamps a month-old cursor to the 7-day window and says so", async () => {
     mocks.personCount.mockResolvedValueOnce(0);
-    mocks.ledgerCount.mockResolvedValueOnce(0);
+    mocks.ledgerFindMany.mockResolvedValueOnce([]);
     mocks.personFindMany.mockResolvedValueOnce([]);
     const set = await buildPeopleChangesSince(NOW.getTime() - 30 * DAY, NOW);
     expect(set.clamped).toBe(true);

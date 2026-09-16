@@ -13,6 +13,10 @@
  *     queue read succeeded and returned zero
  *   · the clock ticks client-side but starts empty and fills in an effect,
  *     so the first client render matches SSR (home-hydration-safety.test).
+ *
+ * 2026-09-16 · Visible Transformation: the state sentence IS the page's NOW
+ * region — the one display line Home is allowed to shout (`.vt-verdict`).
+ * The wordmark stays the document's h1 (base.css styles it unlayered).
  */
 
 import { useEffect, useState } from "react";
@@ -66,43 +70,43 @@ export function BriefStateLine({
   const dotState = unreadable ? "unknown" : (health?.state ?? "unknown");
 
   return (
-    <header aria-label="operator state" className="border-b border-edge pb-5 pt-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+    <header aria-label="operator state" className="pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         {/* Real h1: the page's one document-outline root. base.css styles h1
             unlayered (display font, 1.75rem, uppercase) and BEATS utilities —
             don't add size/tracking classes here, they'd silently lose. */}
         <h1>Nour</h1>
-        <p className="text-[11px] font-mono uppercase tracking-[0.14em] text-fg-tertiary">
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-fg-tertiary">
           {dateStr}
           {timeStr && <span className="text-fg-secondary"> · {timeStr}</span>}
         </p>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Link
-          href="/system"
-          className="inline-flex min-h-[44px] items-center gap-2 rounded-md text-[11px] font-mono uppercase tracking-[0.12em] text-fg-tertiary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-          title={health?.detail || undefined}
-        >
-          <span aria-hidden className={cn("inline-block h-2 w-2 rounded-full", DOT[dotState])} />
-          {HEALTH_LABEL[dotState]}
-        </Link>
-        {state && !state.queues.measured && !unreadable && (
-          <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400/90">
-            some queues unread
-          </span>
-        )}
-      </div>
+      <div className="mt-6 border-t border-edge pt-6">
+        <h2 className="vt-eyebrow text-fg-secondary">Now</h2>
 
-      {loading ? (
-        <div className="mt-4 h-6 w-4/5 animate-pulse rounded bg-raised" aria-hidden />
-      ) : (
-        state && (
-          <p className="mt-4 text-balance text-xl font-medium leading-snug tracking-tight text-fg sm:text-2xl">
-            {state.summary}
-          </p>
-        )
-      )}
+        {loading ? (
+          <div className="mt-4 h-14 w-4/5 animate-pulse rounded bg-raised sm:h-20" aria-hidden />
+        ) : (
+          state && <p className="vt-verdict mt-3 max-w-[18ch]">{state.summary}</p>
+        )}
+
+        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1">
+          <Link
+            href="/system"
+            className="inline-flex min-h-[44px] items-center gap-2 rounded-md font-mono text-[12px] uppercase tracking-[0.14em] text-fg-tertiary transition-colors duration-150 hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            title={health?.detail || undefined}
+          >
+            <span aria-hidden className={cn("inline-block h-2 w-2 rounded-full", DOT[dotState])} />
+            {HEALTH_LABEL[dotState]}
+          </Link>
+          {state && !state.queues.measured && !unreadable && (
+            <span className="font-mono text-[12px] uppercase tracking-[0.14em] text-amber-400/90">
+              some queues unread
+            </span>
+          )}
+        </div>
+      </div>
     </header>
   );
 }

@@ -216,14 +216,16 @@ export function MissionTaskRow({
         // wraps to its own line on a narrow phone instead of squeezing the title
         // column to ~1 char wide (which made `break-words` stack the title
         // vertically, one letter per line). On desktop it stays single-line.
-        "group flex flex-wrap items-start gap-2 py-2 px-2.5 rounded-md transition-all scroll-mt-24 border",
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/50 data-[entity-focused=true]:border-[var(--gold)]/40 data-[entity-selected=true]:bg-[var(--gold)]/[0.05]",
+        // 2026-09-16 · Visible Transformation: a ruled row (the list divides
+        // rows with hairlines); state is a left rule, never a box.
+        "group flex flex-wrap items-start gap-2 py-2.5 pl-2 pr-2.5 sm:pr-3 border-l-2 border-l-transparent transition-colors scroll-mt-24",
+        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gold/50 data-[entity-focused=true]:border-l-gold/60 data-[entity-selected=true]:bg-gold/[0.05]",
         isDoing
-          ? "border-amber-500/30 bg-amber-500/[0.03] shadow-[0_0_12px_rgba(253,185,19,0.04)] animate-breath"
-          : "border-transparent hover:bg-[var(--bg-raised)]/[0.06]",
+          ? "border-l-amber-400 bg-amber-500/[0.03] animate-breath"
+          : "hover:bg-raised/40",
         isDone && "opacity-50",
-        indent === 1 && "ml-6 border-l border-[var(--border-default)]/40 pl-3",
-        isDraggedOver && "border-[var(--gold)]/40 bg-[var(--gold)]/[0.02]"
+        indent === 1 && "ml-6 pl-3",
+        isDraggedOver && "border-l-gold/60 bg-gold/[0.03]"
       )}
     >
       {/* Drag handle */}
@@ -318,7 +320,7 @@ export function MissionTaskRow({
       <div className="flex-1 min-w-0">
         <p
           className={cn(
-            "text-[13px] leading-snug text-[var(--text-primary)] break-words",
+            "text-[15px] leading-snug text-fg break-words",
             isDone && "line-through",
           )}
         >
@@ -331,7 +333,7 @@ export function MissionTaskRow({
           *  frame is "both" — the case where one fact alone misleads; a one-off
           *  DONE already says everything with a line-through. */}
         {showsCompletionFrame && (
-          <p className="mt-0.5 text-[10px] font-mono tracking-[0.06em] text-[var(--gold)]">
+          <p className="mt-0.5 font-mono text-[11px] tracking-[0.06em] text-gold">
             {completionDisplay.label}
           </p>
         )}
@@ -343,7 +345,7 @@ export function MissionTaskRow({
           task.waitingOn ||
           (task as unknown as { loopKind?: string }).loopKind === "DAILY" ||
           isNicksPick) && (
-          <div className="mt-0.5 flex items-center gap-2 text-[9px] font-mono uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+          <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
             {isDoing && <span className="text-amber-400">doing</span>}
             {isNicksPick && (
               <span className="text-[var(--gold)]/80 px-1 py-0.5 rounded border border-[var(--gold)]/20 bg-[var(--gold)]/[0.04]">
@@ -352,7 +354,7 @@ export function MissionTaskRow({
             )}
             {isComplex && <span className="text-[var(--gold)]/80">✨ complex</span>}
             {task.waitingOn && (
-              <span className="text-violet-300/80">⏸ {task.waitingOn}</span>
+              <span className="text-amber-200/80">⏸ {task.waitingOn}</span>
             )}
             {isDaily && (
               <span className="inline-flex items-center gap-1.5 text-[var(--gold)]">
@@ -549,7 +551,7 @@ export function MissionTaskRow({
               disabled={busy !== null}
               aria-label="hand to Nick"
               title="Hand to Nick — he drafts, you review"
-              className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-violet-300 hover:bg-violet-500/10 active:scale-95 transition-transform disabled:opacity-50"
+              className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-amber-300 hover:bg-amber-500/10 active:scale-95 transition-transform disabled:opacity-50"
             >
               <Bot size={12} strokeWidth={2} />
             </button>

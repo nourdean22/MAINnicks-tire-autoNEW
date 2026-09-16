@@ -24,7 +24,12 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   // improved from 51.8 but CTR is still 0% — title isn't differentiated
   // enough in SERP. Adding "FREE Code Pull" up-front as the click hook
   // (no competitor leads with FREE), price anchor for the full diag.
-  title: "Check Engine Light Cleveland · Free Scan · No Pay Til Yes | Nick's",
+  // 2026-09-16 · this string never actually got the "Free Code Pull" hook
+  // the comment above describes — services.ts's `diagnostics` metaTitle
+  // did, and routes.ts was aligned to it in the og:title split-brain fix
+  // (#2354), which would otherwise have left THIS page's live <title>
+  // permanently mismatched against og:title. Matching all three now.
+  title: "Check Engine Light Cleveland · Free Code Pull | Nick's",
   description: `Cleveland check-engine-light shop. Free scan, plain-English read, written quote before any wrench moves. You don't pay until you say yes. ${reviewRating}★ from ${reviewCountDisplay} drivers. (216) 862-0005`,
   eyebrow: "CHECK ENGINE LIGHT · CLEVELAND'S NOISE TRANSLATOR",
   // wave-177 · GSC: /diagnostics at pos 51.8 / 0% CTR over 204 imp.
@@ -140,7 +145,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
         icon: <AlertTriangle className="w-5 h-5" />,
         symptom: "E-Check failed with code P0420?",
         consequence: "Catalytic converter or O2 sensor — 30 days to remedy or your registration goes invalid.",
-        relief: "State-certified emissions repair, same-day pass guarantee.",
+        relief: "State-certified emissions repair, free readiness check first.",
         ctaLabel: "OHIO E-CHECK",
         ctaHref: "/emissions",
       },

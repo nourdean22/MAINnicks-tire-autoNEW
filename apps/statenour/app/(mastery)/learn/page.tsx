@@ -183,7 +183,7 @@ async function LearnPageInner({
         {hasFilter && (
           <Link
             href="/learn"
-            className="px-3 py-2 border border-[var(--border-default)] text-[var(--text-tertiary)] text-[11px] uppercase tracking-wider rounded-lg hover:text-[var(--text-secondary)] transition-colors"
+            className="inline-flex min-h-[44px] items-center rounded-md border border-edge px-3 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-tertiary transition-colors hover:text-fg-secondary"
           >
             Clear
           </Link>
@@ -220,7 +220,7 @@ async function LearnPageInner({
 
       {/* Category sections */}
       {filteredCats.length === 0 ? (
-        <div className="text-center py-12 border border-[var(--border-default)] rounded-lg bg-[var(--bg-raised)]">
+        <div className="border-l-2 border-edge py-2 pl-4 sm:pl-5">
           <p className="text-[var(--text-tertiary)] text-[13px]">
             no tutorials match those filters.
           </p>
@@ -239,7 +239,7 @@ async function LearnPageInner({
                 {c.tutorials.map((t, i) => (
                   <li
                     key={`${t.url}-${i}`}
-                    className="flex items-start gap-2 px-3 py-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] hover:border-[var(--gold)]/30 transition-colors"
+                    className="flex items-start gap-2 border-b border-l-2 border-edge border-l-transparent px-3 py-2 transition-colors hover:border-l-gold/60"
                   >
                     <a
                       href={t.url}
