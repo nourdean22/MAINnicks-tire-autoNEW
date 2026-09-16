@@ -5,6 +5,7 @@ import { db } from "../lib/db-helper";
 import { appSecretKv, socialDrafts } from "../../drizzle/schema";
 import { eq, inArray } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { createHash } from "node:crypto";
 import {
   getAuthUrl,
   exchangeCode,
@@ -155,6 +156,20 @@ export const gbpRouter = router({
       clientIdFingerprint: secrets.clientId ? `…${secrets.clientId.slice(-6)}` : null,
       accountId: secrets.accountId || null,
       locationId: secrets.locationId || null,
+      // docs/ENTITY-CONTINUITY-FILE.md tells the operator to verify a reconnect
+      // by checking whether the stored refresh-token fingerprint CHANGED. Until
+      // now nothing exposed one, so answering that question required a direct
+      // production DB read of app_secret_kv -- the same "capability with no
+      // door" shape as the reconnect button that only rendered while already
+      // disconnected. It matters because saveGbpSecret() swallows its own write
+      // failure, so "the save runs before the call that errored" proves the
+      // ATTEMPT, not the outcome; only a changed fingerprint proves persistence.
+      // A sha256 prefix over a 103-char random token identifies it without being
+      // reversible to it, and the token itself never leaves the server. Pattern
+      // precedent: clientIdFingerprint above, and services/metaSocial.ts:158.
+      refreshTokenFingerprint: secrets.refreshToken
+        ? `sha256:${createHash("sha256").update(secrets.refreshToken).digest("hex").slice(0, 8)}`
+        : null,
     };
   }),
 
@@ -240,6 +255,27 @@ export const gbpRouter = router({
         await saveGbpSecret("gbp_refresh_token", tokens.refreshToken);
         if (tokens.accessToken) {
           await saveGbpSecret("gbp_access_token", tokens.accessToken);
+        }
+
+        // The saved account/location were resolved under the PREVIOUS grant, and
+        // reconnect exists specifically to change WHICH Google account owns the
+        // connection. So those targets are no longer known-valid: the new account
+        // may not manage that listing at all, or -- the dangerous case -- may
+        // manage a different listing while the stale id still points at the old
+        // one, which publishes to the wrong business rather than failing loudly.
+        //
+        // Clearing them also restores the operator's ability to reselect: the UI
+        // renders saved targets READ-ONLY (GBPPostGenerator, "GBP Location
+        // Targets"), so leaving them populated makes the new account's listing
+        // unreachable. Both fields fall back to manual text entry when empty, so
+        // this does NOT strand the operator behind the quota-blocked accounts API.
+        //
+        // Deliberately placed BEFORE listGbpAccounts below: that call currently
+        // 429s on every run (quota=0), and the clear must happen anyway.
+        if (secrets.accountId || secrets.locationId) {
+          await saveGbpSecret("gbp_account_id", "");
+          await saveGbpSecret("gbp_location_id", "");
+          log.info("GBP reconnect: cleared saved account/location targets — resolved under the previous grant");
         }
 
         const authClient = getAuthenticatedClient({

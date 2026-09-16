@@ -76,38 +76,104 @@ task for the operator (sign in, verify the token changed), not a multi-party rec
   *"manages zero businesses"* on Google — that token can never read the shop's data. This is
   purely a matter of the nickstire.org admin app being signed into the wrong of the operator's
   own two Google accounts; nothing here is inaccessible to the operator.
-- A re-Connect as `moeseuclid@gmail.com` was logged **pending verification** as of 2026-07-29
-  (refresh-token fingerprint `sha256:16a903b7…`, length 103). The 2026-09-08 status entry still
-  describes this as outstanding — treat the reconnect as **not confirmed successful**.
-- **Blocking:** GCP project `740034351591` has **quota=0 on all three GBP APIs** until the
+- **RESOLVED 2026-09-16 — the reconnect is done and verified.** It had been logged *pending
+  verification* since 2026-07-29 (refresh-token fingerprint `sha256:16a903b7…`, length 103) and
+  the 2026-09-08 entry still called it outstanding. Both receipts, measured against production:
+  - The stored token **changed**: `app_secret_kv.gbp_refresh_token` now hashes to
+    `sha256:ef9fea01…` (length 103). Different token, same shape.
+  - The stored token **works**: exchanging it at `oauth2.googleapis.com/token` returns
+    **HTTP 200** with `scope=https://www.googleapis.com/auth/business.manage`, `expires_in=3599`.
+    A changed token could still be a dead token; this rules that out.
+- **What the reconnect does NOT prove: which Google account the token belongs to.** The grant's
+  scope is `business.manage` alone, so `oauth2.googleapis.com/tokeninfo` returns no `email` and
+  no `sub`. Account identity is unverifiable by this route and stays unverifiable while the
+  Business Profile APIs are quota-blocked (those are the only APIs that would name the account).
+  The consent screen was driven interactively and `moeseuclid@gmail.com` was selected; that is
+  operator observation, not an API-confirmed fact, and should not be written up as one.
+- **Blocking, and now measured rather than asserted:** GCP project `740034351591` has
+  **quota=0 on the GBP APIs** until the
   [Business Profile API access form](https://support.google.com/business/contact/api_default)
   is approved. The form requires the profile to be verified 60+ days with the website listed.
+  Two of the three were hit directly on 2026-09-16 with a live, valid token — both refused:
+
+  | API | Result |
+  |---|---|
+  | `mybusinessaccountmanagement.googleapis.com` | `Quota exceeded … consumer 'project_number:740034351591'` |
+  | `businessprofileperformance.googleapis.com` | **HTTP 429 `RESOURCE_EXHAUSTED`**, same consumer |
+
+  This kills an attractive-looking shortcut, so it is recorded to stop it being re-attempted:
+  **each Google API is quota'd separately**, and the only failure previously *observed* came from
+  account-management — the API that enumerates accounts. Since a location ID is already stored,
+  it looked like performance might be reachable by skipping enumeration. It is not. The two
+  quotas are set independently but both are zero. **The access form is the only path.**
 - **What's blocked meanwhile:** `gbp.performance` (calls, website clicks, direction requests,
-  search keywords), the map-pack scoreboard, review-ingest verification.
+  search keywords), the map-pack scoreboard, GBP post publishing, review replies, and any read
+  of reviews beyond the public five.
+- **What is NOT blocked — the open path, verified live 2026-09-16.** The **Places API** is a
+  separate product from the Business Profile family, with its own quota and **no access form**,
+  and it is already wired into this repo (`shared/const.ts` `buildPlaceDetailsUrl`,
+  `server/cron/jobs/reviewMonitor.ts`, `server/pipelines/gbp-reviews.ts`,
+  `server/services/competitorMonitor.ts`). It answers **HTTP 200** today and returns: name,
+  `business_status`, address, phone, website, **rating 4.9**, **1,712 ratings**, the 5
+  most-relevant reviews, full weekly hours, 10 photo refs, accessibility attributes.
+  Anything in the list above that only needs *public* profile data can be served from here
+  without waiting on Google. Note the legacy host (`maps.googleapis.com`) is the one that works;
+  **`places.googleapis.com/v1` (Places API New) returns `PERMISSION_DENIED`** — not enabled on
+  this project. Do not "modernise" that call path without enabling the new API first.
 - **Wart to know before reconnecting:** `gbp.reconnect` saves the token *before* its
   accounts-list call 429s, so an error toast after consent does not necessarily mean the
   connect failed — check whether the stored refresh-token fingerprint actually changed.
+  **Read that carefully: ordering alone is not proof.** `saveGbpSecret()`
+  (`server/routers/gbp.ts:67`) wraps its write in `try/catch` and only *logs* on failure, so
+  "the save runs before the call that errored" establishes that the save was **attempted**,
+  never that it **landed**. The changed fingerprint is the evidence; the call order is not.
+- **The fingerprint is now readable from the app** (added 2026-09-16). `gbp.getAuthStatus`
+  returns `refreshTokenFingerprint` (`sha256:` + 8 hex chars, derived from the stored token,
+  never the token itself). Until then this file instructed the operator to check a value nothing
+  exposed, so answering it took a direct production query against `app_secret_kv` — the same
+  *capability with no door* shape as the reconnect button that rendered only while disconnected.
 
 **Exact next operator action:**
-1. In nickstire.org admin → Content & AI → GBP, click Connect/Reconnect and sign in specifically
-   as **moeseuclid@gmail.com** — not nourdean22@gmail.com.
-2. Verify it actually took — check whether the stored refresh-token fingerprint changed from
-   `sha256:16a903b7…`.
-3. Submit the Business Profile API access form for project `740034351591`, once the profile has
-   been verified 60+ days with nickstire.org listed as the website.
-4. Treat any name/category edit on the GBP listing itself as a **major name change** under
+
+~~1. Sign in as `moeseuclid@gmail.com` via admin → Content & AI → GBP.~~ **DONE 2026-09-16.**
+~~2. Verify the stored refresh-token fingerprint changed from `sha256:16a903b7…`.~~
+**DONE 2026-09-16** — now `sha256:ef9fea01…`, and the token exchanges cleanly (HTTP 200).
+
+1. **Submit the Business Profile API access form** for project `740034351591`, once the profile
+   has been verified 60+ days with nickstire.org listed as the website. **This is now the single
+   remaining GBP blocker** — the connection itself is healthy and a location ID is stored. Both
+   quota refusals above are receipts to attach if the form asks what is failing.
+2. Treat any name/category edit on the GBP listing itself as a **major name change** under
    Google policy, not a minor field edit.
 
-On the GBP listing's current display name: the repo cannot read this live (API quota-blocked),
-but Maps URL slugs constructed elsewhere in the code ("Nick's+Tire+And+Auto+Euclid") suggest
-the listing's Name field is already Nick's — an inference from URL slugs, not a verified API
-read. Confirm directly once access is restored.
+**Do not re-run step 1 or 2 hoping they unblock the APIs.** They are complete, and they were
+never what the quota gates on — quota is per-GCP-project, not per-authenticated-account. A fresh
+reconnect changes the token and nothing else.
+
+**On the GBP listing's current display name — ANSWERED 2026-09-16, and the previous framing was
+wrong.** This paragraph used to read "the repo cannot read this live (API quota-blocked)" and
+fell back to inferring the name from Maps URL slugs. That conflated two different Google
+products: the *Business Profile* APIs are quota-blocked, but the *Places* API is not, and it
+returns the listing's public display name directly. Read live:
+
+```
+name            : Nick's Tire & Auto
+business_status : OPERATIONAL
+formatted_address: 17625 Euclid Ave, Cleveland, OH 44112, USA
+formatted_phone : (216) 862-0005
+```
+
+So the rename **has taken** on the anchor identity — verified, no longer inferred — and the
+phone on the listing is the canonical `862-0005`, not the transposed BBB value. The general
+lesson, worth more than the fact: *"the API is blocked"* was true of one API and got written
+down as true of the business question. Check which product actually answers the question before
+recording something as unknowable.
 
 ## 4. External identity matrix
 
 | Platform | What it currently shows | Claimed? | Correction needed |
 |---|---|---|---|
-| **Google Business Profile** | Likely already "Nick's..." by URL-slug inference; NAP otherwise canonical. Owning account `moeseuclid@gmail.com`. | Yes (by moeseuclid), but app-side API access is blocked and mis-connected | Fix access per §3. This is the anchor identity — settle it first. |
+| **Google Business Profile** | **Verified live 2026-09-16 via Places API:** name is `Nick's Tire & Auto`, `business_status: OPERATIONAL`, phone `(216) 862-0005`, rating **4.9 / 1,712**. NAP canonical. Owning account `moeseuclid@gmail.com`. | Yes (by moeseuclid). App-side OAuth is **connected and healthy** as of 2026-09-16; the Business Profile *APIs* remain quota-blocked. | Nothing on the identity itself — it is correct. Only the API access form (§3) is outstanding. |
 | **Birdeye** | Still under "Moe's" name, **1,763 reviews** | **Unclaimed** — excluded from the ranked list AI engines cite | `docs/website-audit-status.md:100`. Claim the profile, update to Nick's Tire & Auto. |
 | **BBB** | Phone **WRONG: 682-0005** (transposed — correct is 862-0005); founding year recorded as **2022** vs canonical 2018 | Needs correction | Phone correction + name-change request. Test-guarded: `canonical-business-truth.test.ts:12,23,31,110` exists specifically because "BBB already carries 682-0005." |
 | **Yelp** | A "Monro" ghost listing owns the address at 17625 Euclid Ave (most recent finding, supersedes an older note about searching "Moe's Tire Euclid" on Yelp) | Not claimed under Nick's | Claim/create the correct Nick's listing; separately resolve the Monro ghost entry with Yelp support. Yelp prohibits review solicitation once claimed. |
@@ -172,3 +238,20 @@ this location, not a former owner's or third party's. §3 and §4 corrected acco
 underlying facts (owning account, OAuth mismatch, blocked API quota, correction sequence) are
 unchanged — only the framing of *why* the account is separate from the app's current OAuth
 connection was overstated.
+
+**Second correction, 2026-09-16 (same day, after driving the reconnect live).** Four claims in
+this file were wrong or unverifiable as written. Each is now measured:
+
+| Was recorded as | Actually |
+|---|---|
+| Reconnect "not confirmed successful" | **Done.** Token fingerprint moved `16a903b7…` → `ef9fea01…`; it exchanges at HTTP 200 with `business.manage`. |
+| "Check whether the fingerprint changed" (an instruction) | **Was not performable.** Nothing exposed a refresh-token fingerprint; it took a direct `app_secret_kv` query. `getAuthStatus` now returns one. |
+| Display name knowable only by URL-slug inference | **Readable live.** Places API returns `Nick's Tire & Auto` / `OPERATIONAL` directly. |
+| "quota=0 on all three GBP APIs" (asserted) | **True, and now evidenced** on two of three by direct 429s. Recorded because "each API is quota'd separately" makes skipping the failing one look promising — it is not. |
+
+Method note, because it is the transferable part: three of those four came from **probing both
+sides of a distinction the document had collapsed** — Business Profile API vs Places API, and
+account-management quota vs performance quota. Two of my own hypotheses were refuted the same
+way (the legacy Places endpoint was predicted dead and is the live one; the performance API was
+predicted reachable and is not). A claim of the form *"X is impossible because the API is
+blocked"* is worth re-testing whenever more than one API could answer X.
