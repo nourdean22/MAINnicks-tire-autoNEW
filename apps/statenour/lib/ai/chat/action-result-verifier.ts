@@ -166,11 +166,16 @@ export const PHANTOM_CLAIM_PATTERNS: ReadonlyArray<{ regex: RegExp; action: stri
   { regex: /\b(?:profiles?|person)\b.{0,40}\b(?:created|added|updated|saved)\b/i, action: "person.create" },
   // "created profiles for Hamda and Nathan" · "added them to your people"
   { regex: /\b(?:created|added|saved)\b.{0,50}\b(?:profiles?|to (?:your|my|the) people)\b/i, action: "person.create" },
-  // 2026-09-16 · "Logged +5 for Dania" · "recorded the interaction" · "logged it in the ledger".
+  // 2026-09-16 · "Logged +5 for Dania" · "recorded the interaction" · "logged a +3 deposit for Mash".
   // A ledger write Nick narrates without emitting person.logInteraction is the
   // same confabulation shape as the 08-25 profiles — a counter that never moved.
+  // Codex P2 on #2346: a bare signed number matched "Logged +2 tasks" and
+  // "Recorded +5 lb on bench", so the numeric/deposit form needs a
+  // relationship cue — for/with/to + a capitalised name — within one word.
+  // Deliberately case-SENSITIVE (no /i): the cue is the capital letter.
   {
-    regex: /\b(?:logged|recorded)\b.{0,40}(?:\binteraction\b|\bledger\b|\bdeposit\b|\bwithdrawal\b|[+\-−]\d{1,3}\b)/i,
+    regex:
+      /\b(?:[Ll]ogged|[Rr]ecorded)\b.{0,40}(?:\b[Ii]nteraction\b|\b[Ll]edger\b|\b[Rr]elationship\b|(?:[+\-−]\d{1,3}|\b(?:[Dd]eposit|[Ww]ithdrawal)\b)(?:\s+\w+)?\s+(?:for|with|to)\s+[A-Z][\w'-]+)/,
     action: "person.logInteraction",
   },
 ];

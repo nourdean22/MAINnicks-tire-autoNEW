@@ -15,8 +15,9 @@
 > **Built:** `lib/services/people/record-interaction.ts` — the ONE writer: row + `interactionCount` +
 > `lastInteraction` in one transaction; `lastInteraction` moves forward only, by a WHERE predicate, so a
 > backdated row never rewinds a newer contact; embed + XP after the commit; `recordInteractionOnce` for
-> automatic writers (at most one row per person per window, Serializable — the racer's P2034 is `lost_race`,
-> never a duplicate). `task.logLedger` and `log-outreach` write through it. **Five producers now feed it:**
+> automatic writers (at most one row per person per window, behind a per-person transaction advisory lock EVERY
+> writer takes first — Codex P2 on #2346: Serializable alone never excluded the default-isolation operator
+> writers; the same mechanism google-oauth.ts uses). `task.logLedger` and `log-outreach` write through it. **Five producers now feed it:**
 > the modal / ⌘K (unchanged UI, shared grammar moved to `parse-ledger-query.ts`), the picks outreach button,
 > Telegram `/log <name> <+n|-n> [note]` (first writer of `source=telegram`, via `log-from-text.ts`), Nick's new
 > `person.logInteraction` action (name, note, amount ±25, kind; catalog row, dispatch, receipt card,
@@ -33,8 +34,9 @@
 > **Receipts.** Red first on the unfixed code: 4 files / 12 tests red (mention bumped the profile, no seam call,
 > no `interacted` in the prompt, `person.update` data carried counters, dispatcher "Unknown action type",
 > verifier membership + pattern missing) · green after: 17 files / 212 tests · four seam mutants each red on the
-> intended test and the golden restored with 0 diff lines (forward-only predicate dropped, Serializable dropped,
-> window check dropped, counter bump dropped) · `tsc --noEmit` 0 errors (1m39s) · eslint 0 errors on every
+> intended test and the golden restored with 0 diff lines (forward-only predicate dropped, advisory lock dropped,
+> window check dropped, counter bump dropped) · Codex round on `6afb54cd7`: 2 P2s, both real, both fixed red-first
+> (the lock above; the phantom-claim pattern now needs a relationship cue — "Logged +2 tasks" stays silent) · `tsc --noEmit` 0 errors (1m39s) · eslint 0 errors on every
 > touched file (the 1 warning is the pre-existing `set-state-in-effect` in the ⌘K component, in the baseline) ·
 > lint-baseline 132 ≤ 132 · anti-slop · et-clock · prompt-injection 58 files · get-auth 179 · mutations strict ·
 > knip 0 unused files · `pnpm build` exit 0 · stale-docs strict (see the PR).

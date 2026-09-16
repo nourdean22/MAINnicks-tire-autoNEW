@@ -5,14 +5,22 @@
  * counters land in one transaction; lastInteraction only moves forward, by a
  * WHERE predicate rather than a pre-read; XP is credited with the PRIOR
  * timestamp (the neglect-repair bonus depends on it) and never for automatic
- * writers; the exclusive variant runs its check and write under Serializable
- * isolation and turns the loser's P2034 into `lost_race` instead of a
- * duplicate row.
+ * writers; the exclusive variant takes the per-person advisory lock before
+ * its check and write, and maps a deadlock abort (P2034) to `lost_race`
+ * instead of throwing.
+ *
+ * Codex P2 on the first cut (2026-09-16, #2346): Serializable isolation only
+ * excludes OTHER Serializable transactions, and every operator writer ran at
+ * the default level — a same-instant human log and digest compile could both
+ * commit. Now every writer takes a per-person transaction advisory lock as
+ * its FIRST statement, so the once-variant's count cannot interleave with any
+ * writer at any isolation level (the same mechanism google-oauth.ts uses for
+ * its refresh race).
  *
  * Positive controls (run before commit; the PR body carries the receipts):
- *   · drop the guarded updateMany            → "moves forward only" red
- *   · drop { isolationLevel: "Serializable" } → "exclusive variant" red
- *   · drop the count check                    → "already_logged_in_window" red
+ *   · drop the guarded updateMany  → "moves forward only" red
+ *   · drop the advisory lock       → "every writer takes the lock" red
+ *   · drop the count check         → "already_logged_in_window" red
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,6 +32,7 @@ const m = vi.hoisted(() => ({
   txPersonUpdate: vi.fn(),
   txPersonUpdateMany: vi.fn(),
   txPersonFindUniqueOrThrow: vi.fn(),
+  txExecuteRaw: vi.fn(),
   embed: vi.fn(),
   credit: vi.fn(),
 }));
@@ -44,6 +53,7 @@ import {
 } from "@/lib/services/people/record-interaction";
 
 const tx = {
+  $executeRaw: m.txExecuteRaw,
   relationshipLedger: { create: m.txLedgerCreate, count: m.txLedgerCount },
   personProfile: {
     update: m.txPersonUpdate,
@@ -65,11 +75,33 @@ beforeEach(() => {
   m.txPersonUpdateMany.mockResolvedValue({ count: 1 });
   m.txPersonFindUniqueOrThrow.mockResolvedValue({ lastInteraction: AT, interactionCount: 3 });
   m.txLedgerCount.mockResolvedValue(0);
+  m.txExecuteRaw.mockResolvedValue(1);
   m.embed.mockResolvedValue(undefined);
   m.credit.mockResolvedValue(undefined);
 });
 
+/** The tagged-template call: [strings, ...values]. Join the strings to read the SQL. */
+function lockCall(index = 0): { sql: string; values: unknown[] } {
+  const call = m.txExecuteRaw.mock.calls[index] as [TemplateStringsArray, ...unknown[]];
+  return { sql: call[0].join("?"), values: call.slice(1) };
+}
+
 describe("recordInteraction", () => {
+  it("every writer takes the per-person transaction advisory lock as its FIRST statement, at the default isolation", async () => {
+    await recordInteraction({ personId: "p1", amount: 5, note: "coffee at the shop", source: "manual", at: AT });
+    expect(m.txExecuteRaw).toHaveBeenCalledTimes(1);
+    const lock = lockCall();
+    expect(lock.sql).toContain("pg_advisory_xact_lock(hashtext(?))");
+    expect(lock.values).toEqual(["relationship_ledger:p1"]);
+    // Lock before anything is read or written inside the transaction.
+    expect(m.txExecuteRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      m.txLedgerCreate.mock.invocationCallOrder[0],
+    );
+    // No isolation-level option: the lock is the exclusion; Serializable on top
+    // would only add spurious 40001 aborts between two writers on one person.
+    expect(m.transaction.mock.calls[0][1]).toBeUndefined();
+  });
+
   it("writes the row and both counters inside ONE transaction, dated `at`, and moves lastInteraction forward only", async () => {
     const out = await recordInteraction({
       personId: "p1",
@@ -175,14 +207,22 @@ describe("recordInteractionOnce — the exclusive variant for automatic writers"
     creditXp: false,
   };
 
-  it("runs the window check and the write in one Serializable transaction, predicated on the person AND the window", async () => {
+  it("takes the same per-person lock FIRST, then counts the window, then writes — all in one transaction", async () => {
     const out = await recordInteractionOnce(input);
     expect(m.transaction).toHaveBeenCalledTimes(1);
-    expect(m.transaction.mock.calls[0][1]).toEqual({ isolationLevel: "Serializable" });
+    expect(m.transaction.mock.calls[0][1]).toBeUndefined();
+    const lock = lockCall();
+    expect(lock.sql).toContain("pg_advisory_xact_lock(hashtext(?))");
+    expect(lock.values).toEqual(["relationship_ledger:p1"]);
     expect(m.txLedgerCount).toHaveBeenCalledWith({
       where: { personId: "p1", createdAt: { gte: SINCE } },
     });
-    // The count is read inside the SAME transaction as the write.
+    // lock → count → write. A writer that commits while we wait for the lock
+    // is visible to the count (default isolation reads a fresh snapshot per
+    // statement), so "human wins" holds whichever side arrives first.
+    expect(m.txExecuteRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      m.txLedgerCount.mock.invocationCallOrder[0],
+    );
     expect(m.txLedgerCount.mock.invocationCallOrder[0]).toBeLessThan(
       m.txLedgerCreate.mock.invocationCallOrder[0],
     );
@@ -201,7 +241,7 @@ describe("recordInteractionOnce — the exclusive variant for automatic writers"
     expect(m.embed).not.toHaveBeenCalled();
   });
 
-  it("the loser of the race (P2034) is reported as lost_race — never retried into a duplicate, never thrown", async () => {
+  it("a deadlock abort (P2034) is reported as lost_race — never retried into a duplicate, never thrown", async () => {
     m.transaction.mockRejectedValueOnce(Object.assign(new Error("write conflict"), { code: "P2034" }));
     const out = await recordInteractionOnce(input);
     expect(out).toEqual({ skipped: true, reason: "lost_race", recorded: null });

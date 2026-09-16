@@ -27,9 +27,14 @@
  * recordInteractionOnce is the exclusive variant for automatic writers: at
  * most one row per person inside a window (the conversation that produced
  * it). Two compiles of the same conversation, or a compile racing the
- * operator's own log, must not both write — the check and the write share a
- * SERIALIZABLE transaction, so the loser fails with P2034 and is reported as
- * `lost_race`, never retried into a duplicate (claim-before-act).
+ * operator's own log, must not both write. The check and the write sit
+ * behind a per-person TRANSACTION ADVISORY LOCK that every writer in this
+ * file takes as its first statement, so no writer can interleave with the
+ * count at any isolation level, and a writer that commits while we wait is
+ * visible to the count (claim-before-act). The first cut used Serializable
+ * isolation instead — Codex P2 on #2346: that only excludes OTHER
+ * Serializable transactions, and the operator writers ran at the default
+ * level, so a same-instant human log and digest compile could both commit.
  *
  * The deliberate exception: `flipPersonStatus` writes its status-flip audit
  * row straight to the table and does NOT go through here, because a status
@@ -123,7 +128,17 @@ async function readPrior(personId: string): Promise<Prior> {
   return prior;
 }
 
-/** The atomic core — row + both counters — inside the caller's transaction. */
+/**
+ * Per-person mutual exclusion for EVERY writer, at any isolation level.
+ * Transaction-scoped (released at commit or rollback), keyed by the person,
+ * namespaced so it cannot collide with other advisory keys in this database
+ * (lib/services/google-oauth.ts uses the same mechanism for its refresh race).
+ */
+async function lockPerson(tx: Prisma.TransactionClient, personId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`relationship_ledger:${personId}`}))`;
+}
+
+/** The atomic core — row + both counters — inside the caller's transaction, AFTER lockPerson. */
 async function writeRow(
   tx: Prisma.TransactionClient,
   input: RecordInteractionInput,
@@ -238,7 +253,10 @@ export async function recordInteraction(
 ): Promise<RecordedInteraction> {
   const n = normalize(input);
   const prior = await readPrior(input.personId);
-  const written = await prisma.$transaction((tx) => writeRow(tx, input, n));
+  const written = await prisma.$transaction(async (tx) => {
+    await lockPerson(tx, input.personId);
+    return writeRow(tx, input, n);
+  });
   afterCommit({
     ledgerId: written.ledgerId,
     personId: input.personId,
@@ -255,19 +273,23 @@ export type RecordOnceOutcome =
   | { skipped: false; recorded: RecordedInteraction }
   | { skipped: true; reason: "already_logged_in_window" | "lost_race"; recorded: null };
 
-function isSerializationFailure(err: unknown): boolean {
+function isDeadlockAbort(err: unknown): boolean {
   const code = (err as { code?: unknown } | null)?.code;
-  // P2034: Prisma's "write conflict or deadlock" — Postgres 40001 underneath.
-  return code === "P2034" || code === "40001";
+  // P2034: Prisma's "write conflict or deadlock" — Postgres 40001/40P01 underneath.
+  return code === "P2034" || code === "40001" || code === "40P01";
 }
 
 /**
  * Record at most ONE interaction per person inside a window: skipped when any
  * ledger row for the person (any source) already has createdAt >= noRowSince.
- * The count and the write share a Serializable transaction — two racers
- * cannot both observe zero rows and both insert; the loser's transaction is
- * aborted by Postgres (P2034) and reported as `lost_race`. A human's row in
- * the window wins over the automatic one by the same predicate.
+ * lock → count → write, in one transaction: because every writer takes the
+ * same per-person lock first, a row committed by a racer while we waited is
+ * visible to the count (each statement reads a fresh snapshot at the default
+ * level), so the human's row wins whichever side arrives first. A deadlock
+ * abort (P2034) is unreachable between two seam writers (one lock each, the
+ * same statement order) and is mapped to `lost_race` only so a
+ * fire-and-forget compile never throws on a store hiccup — the next compile
+ * retries.
  */
 export async function recordInteractionOnce(
   input: RecordInteractionInput & { noRowSince: Date },
@@ -276,18 +298,16 @@ export async function recordInteractionOnce(
   const prior = await readPrior(input.personId);
   let written: Awaited<ReturnType<typeof writeRow>> | null;
   try {
-    written = await prisma.$transaction(
-      async (tx) => {
-        const existing = await tx.relationshipLedger.count({
-          where: { personId: input.personId, createdAt: { gte: input.noRowSince } },
-        });
-        if (existing > 0) return null;
-        return writeRow(tx, input, n);
-      },
-      { isolationLevel: "Serializable" },
-    );
+    written = await prisma.$transaction(async (tx) => {
+      await lockPerson(tx, input.personId);
+      const existing = await tx.relationshipLedger.count({
+        where: { personId: input.personId, createdAt: { gte: input.noRowSince } },
+      });
+      if (existing > 0) return null;
+      return writeRow(tx, input, n);
+    });
   } catch (err) {
-    if (isSerializationFailure(err)) {
+    if (isDeadlockAbort(err)) {
       log.info("interaction_once_lost_race", { personId: input.personId, source: input.source });
       return { skipped: true, reason: "lost_race", recorded: null };
     }

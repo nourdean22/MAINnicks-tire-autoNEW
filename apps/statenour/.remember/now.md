@@ -7,7 +7,7 @@
 synthetic 05-29 backfill, 0 outreach/gmail/calendar/telegram rows ever — while `interaction_count` (sum 191) and
 `last_interaction` kept moving from chat MENTIONS, `person.update` edits and profile creation. **Shipped:** ONE
 writer `lib/services/people/record-interaction.ts` (row + both counters in one transaction, forward-only
-timestamp by predicate, embed + XP after commit; `recordInteractionOnce` = Serializable, one row per person per
+timestamp by predicate, embed + XP after commit; `recordInteractionOnce` = per-person advisory lock every writer takes, one row per person per
 window) fed by the modal / ⌘K, the picks button, Telegram `/log`, Nick's `person.logInteraction`, and the digest
 (model returns `interacted` per person; a mention writes nothing). `person.update` no longer bumps counters.
 **Left alone on purpose:** the historical counter drift (a prod write + a behaviour change — operator's call) ·

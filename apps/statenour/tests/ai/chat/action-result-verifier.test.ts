@@ -267,4 +267,20 @@ describe("detectPhantomActionClaims — a claimed ledger write that was never em
     expect(detectPhantomActionClaims([], "Want me to log that interaction with Dania?")).toEqual([]);
     expect(detectPhantomActionClaims([], "Logged the decision to hire a second tech.")).toEqual([]);
   });
+
+  // Codex P2 on #2346: a bare signed number near "logged/recorded" matched
+  // unrelated completion prose and persisted a chat_claim_warn for a
+  // relationship action nobody intended. The numeric form now needs a
+  // relationship cue: "+5 for Dania", "a +3 deposit for Mash".
+  it("a signed quantity with no relationship cue is NOT a ledger claim (tasks, lifts, money)", () => {
+    expect(detectPhantomActionClaims([], "Logged +2 tasks for the Bay 5 mission.")).toEqual([]);
+    expect(detectPhantomActionClaims([], "Recorded +5 lb on bench today.")).toEqual([]);
+    expect(detectPhantomActionClaims([], "Logged +140 in card sales for Monday.")).toEqual([]);
+  });
+
+  it("positive control: the same shapes WITH a relationship cue still fire", () => {
+    expect(detectPhantomActionClaims([], "Logged a +3 deposit for Mash.")).toHaveLength(1);
+    expect(detectPhantomActionClaims([], "Recorded the interaction with Dania.")).toHaveLength(1);
+    expect(detectPhantomActionClaims([], "Logged -2 with Nathan after the argument.")).toHaveLength(1);
+  });
 });
