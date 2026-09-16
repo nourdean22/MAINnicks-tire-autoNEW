@@ -38,6 +38,11 @@ if (typeof window !== "undefined") {
   window.scrollTo = () => {};
 }
 
+// Stub scrollIntoView for jsdom (PageLayout's hash-scroll effect calls it)
+if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 // Polyfill matchMedia for jsdom (used by ScrollProgressBar, theme detection,
 // responsive components). Returns a default-false MediaQueryList shaped object
 // so component code that calls .matches / .addEventListener doesn't throw.
