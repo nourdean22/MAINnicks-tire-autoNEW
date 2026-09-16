@@ -27,6 +27,39 @@ interface RedirectRule {
 
 // Exact-match redirects. Path is matched literally.
 const REDIRECTS: RedirectRule[] = [
+
+  // ── Municipality twin consolidation (2026-09-16) ────────────────────────
+  // 19 municipalities each had TWO indexable pages: a rich `city` page
+  // (CitySchema + CityReviewsBlock + BookingForm) and a thin `neighborhood`
+  // twin. Both self-canonicalised and both were `index, follow`, so the site
+  // told Google they were independent pages competing for the same
+  // municipality + intent.
+  //
+  // Measured before acting (GSC, 90d, page dimension): EVERY twin earned
+  // ZERO impressions and no twin outearned its city page, so nothing live is
+  // lost. Meanwhile the non-brand query demand these twins sat on is real —
+  // beachwood 116 impr, south euclid 92, cleveland heights 68, university
+  // heights 41, garfield heights 19 — and for those five NEITHER page
+  // captured any of it, which is the signature of self-competition.
+  { from: "/euclid-ohio",                 to: "/euclid-auto-repair",                 reason: "municipality twin — city page earns 3,397 impr @ 11.6; twin 0" },
+  { from: "/parma-ohio",                  to: "/parma-auto-repair",                  reason: "municipality twin — city page earns 2,057 impr @ 21.0; twin 0" },
+  { from: "/parma-heights",               to: "/parma-heights-auto-repair",          reason: "municipality twin — city page earns 10 impr @ 8.7; twin 0" },
+  { from: "/east-cleveland",              to: "/east-cleveland-auto-repair",         reason: "municipality twin — city page earns 30 impr @ 6.5; twin 0" },
+  { from: "/shaker-heights",              to: "/shaker-heights-auto-repair",         reason: "municipality twin — both 0; consolidate onto the rich template" },
+  { from: "/cleveland-heights-mechanic",  to: "/cleveland-heights-auto-repair",      reason: "municipality twin — 68 impr of demand, both pages 0" },
+  { from: "/mentor-ohio",                 to: "/mentor-auto-repair",                 reason: "municipality twin — city page earns 260 impr @ 25.9; twin 0" },
+  { from: "/strongsville-ohio",           to: "/strongsville-auto-repair",           reason: "municipality twin — city page earns 94 impr @ 14.5; twin 0" },
+  { from: "/south-euclid-mechanic",       to: "/south-euclid-auto-repair",           reason: "municipality twin — 92 impr of demand, both pages 0" },
+  { from: "/garfield-heights",            to: "/garfield-heights-auto-repair",       reason: "municipality twin — 19 impr of demand, both pages 0" },
+  { from: "/richmond-heights-mechanic",   to: "/richmond-heights-auto-repair",       reason: "municipality twin — both 0; consolidate onto the rich template" },
+  { from: "/lyndhurst-mechanic",          to: "/lyndhurst-auto-repair",              reason: "municipality twin — city page earns 306 impr @ 7.9; twin 0" },
+  { from: "/willoughby-ohio",             to: "/willoughby-auto-repair",             reason: "municipality twin — city page earns 350 impr @ 12.1; twin 0" },
+  { from: "/maple-heights",               to: "/maple-heights-auto-repair",          reason: "municipality twin — city page earns 808 impr @ 12.7; twin 0" },
+  { from: "/bedford-ohio",                to: "/bedford-auto-repair",                reason: "municipality twin — both 0; consolidate onto the rich template" },
+  { from: "/warrensville-heights",        to: "/warrensville-heights-auto-repair",   reason: "municipality twin — city page earns 432 impr @ 12.7; twin 0" },
+  { from: "/beachwood",                   to: "/beachwood-auto-repair",              reason: "municipality twin — 116 impr of demand, both pages 0" },
+  { from: "/mayfield-heights",            to: "/mayfield-heights-auto-repair",       reason: "municipality twin — both 0; consolidate onto the rich template" },
+  { from: "/university-heights",          to: "/university-heights-auto-repair",     reason: "municipality twin — 41 impr of demand, both pages 0" },
   // SEO service-alias pages. Generic service pages at /{slug} rank better
   // once Google consolidates signals from these aliases.
   { from: "/brake-repair-cleveland",          to: "/brakes",       reason: "duplicate of /brakes; was splitting rank" },
