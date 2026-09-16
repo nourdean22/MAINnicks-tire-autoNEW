@@ -7,11 +7,12 @@
  * the UI just makes it fast). Cancel goes through the in-DOM two-tap
  * (no window.confirm — iOS PWA rule). Overdue rows go red with hours.
  */
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { toast } from "sonner";
 import { CalendarClock, CheckCircle2, HandHeart, Loader2, Plus, XCircle } from "lucide-react";
+import { DUE_PICK_LABELS, resolveDueAt, type DuePickId, type DueResolution } from "@/lib/shopHours";
 
 const TYPE_LABELS: Record<string, string> = {
   callback: "Call back",
@@ -23,11 +24,26 @@ const TYPE_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const DUE_QUICK_PICKS: Array<{ label: string; hours: number }> = [
-  { label: "In 2h", hours: 2 },
-  { label: "End of day", hours: 6 },
-  { label: "Tomorrow", hours: 24 },
-];
+/**
+ * These used to be `{ label: "End of day", hours: 6 }` — a business semantic
+ * on the label and a bare duration underneath. `resolveDueAt` now puts the
+ * shop's real closing and opening times behind them; the ids are the contract.
+ */
+const DUE_QUICK_PICKS: DuePickId[] = ["in_2h", "end_of_day", "next_open"];
+
+/**
+ * `resolveDueAt` throws only when canon has no open day at all. In the render
+ * path a throw would white-screen the panel, and at submit it would lose the
+ * operator's typed sentence, so both callers take null and refuse instead.
+ * Module-level so it is a stable reference for the memo below.
+ */
+const resolveDueSafely = (pick: DuePickId): DueResolution | null => {
+  try {
+    return resolveDueAt(pick);
+  } catch {
+    return null;
+  }
+};
 
 export default function PromisesPanel() {
   const utils = trpc.useUtils();
@@ -42,7 +58,7 @@ export default function PromisesPanel() {
   const { data: open, isLoading, isError } = trpc.promises.listOpen.useQuery({ limit: 50 }, { staleTime: 60_000, retry: 1 });
 
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ promiseType: "callback", promisedAction: "", customerName: "", customerPhone: "", dueHours: 2 });
+  const [form, setForm] = useState({ promiseType: "callback", promisedAction: "", customerName: "", customerPhone: "", duePick: "in_2h" as DuePickId });
   const [keepFor, setKeepFor] = useState<string | null>(null);
   const [evidence, setEvidence] = useState("");
 
@@ -50,7 +66,7 @@ export default function PromisesPanel() {
   const create = trpc.promises.create.useMutation({
     onSuccess: (r) => {
       if (r && "ok" in r && !r.ok) toast.error(r.error);
-      else { toast.success("Promise logged"); setShowCreate(false); setForm({ promiseType: "callback", promisedAction: "", customerName: "", customerPhone: "", dueHours: 2 }); }
+      else { toast.success("Promise logged"); setShowCreate(false); setForm({ promiseType: "callback", promisedAction: "", customerName: "", customerPhone: "", duePick: "in_2h" as DuePickId }); }
       refresh();
     },
     onError: (e) => toast.error(e.message),
@@ -78,6 +94,28 @@ export default function PromisesPanel() {
   };
 
   const now = Date.now();
+
+  /**
+   * A pick resolves against the CURRENT time, so resolving once per pick goes
+   * stale two ways: a dashboard left open an hour would store "In 2h" as one
+   * hour away, and a form open across 6 PM would still read "today at close"
+   * after the honest answer became tomorrow.
+   *
+   * So there are two resolutions, deliberately. `formTick` re-resolves every
+   * 30s while the create form is open — that one is DISPLAY. The submit
+   * handler re-resolves at the instant of the click — that one is STORED.
+   * Display can therefore never be more than 30s behind the value actually
+   * written, which is the whole point of showing it.
+   */
+  const [formTick, setFormTick] = useState(0);
+  useEffect(() => {
+    if (!showCreate) return;
+    setFormTick((n) => n + 1);
+    const timer = setInterval(() => setFormTick((n) => n + 1), 30_000);
+    return () => clearInterval(timer);
+  }, [showCreate]);
+
+  const due = useMemo(() => resolveDueSafely(form.duePick), [form.duePick, formTick]);
 
   return (
     <section aria-label="Customer promises" className="rounded-lg border border-border/40 bg-card">
@@ -130,32 +168,49 @@ export default function PromisesPanel() {
               className="flex-1 min-w-[120px] text-sm rounded-md border border-border/40 bg-background px-3 py-2.5"
             />
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-muted-foreground mr-1">Due:</span>
-            {DUE_QUICK_PICKS.map((p) => (
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground mr-1">Due:</span>
+              {DUE_QUICK_PICKS.map((pick) => (
+                <button
+                  key={pick}
+                  onClick={() => setForm((f) => ({ ...f, duePick: pick }))}
+                  className={`text-[11px] px-2.5 py-1.5 rounded-full border ${form.duePick === pick ? "border-nick-yellow bg-nick-yellow/15 text-nick-yellow font-bold" : "border-border/40 text-foreground/60"}`}
+                >
+                  {DUE_PICK_LABELS[pick]}
+                </button>
+              ))}
               <button
-                key={p.label}
-                onClick={() => setForm((f) => ({ ...f, dueHours: p.hours }))}
-                className={`text-[11px] px-2.5 py-1.5 rounded-full border ${form.dueHours === p.hours ? "border-nick-yellow bg-nick-yellow/15 text-nick-yellow font-bold" : "border-border/40 text-foreground/60"}`}
+                disabled={create.isPending || form.promisedAction.trim().length < 5 || !due}
+                onClick={() => {
+                  // Re-resolve HERE, not from the memo: the stored instant must
+                  // be the one true at the moment of the click.
+                  const stored = resolveDueSafely(form.duePick);
+                  if (!stored) {
+                    toast.error("Shop hours unreadable — not logging a promise with a guessed due time.");
+                    return;
+                  }
+                  create.mutate({
+                    promiseType: form.promiseType as never,
+                    promisedAction: form.promisedAction.trim(),
+                    dueAtISO: stored.dueAt.toISOString(),
+                    customerName: form.customerName.trim() || undefined,
+                    customerPhone: form.customerPhone.trim() || undefined,
+                  });
+                }}
+                className="ml-auto text-[12px] font-bold bg-nick-yellow text-black px-4 py-2 rounded disabled:opacity-40 active:scale-95"
               >
-                {p.label}
+                {create.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Log it"}
               </button>
-            ))}
-            <button
-              disabled={create.isPending || form.promisedAction.trim().length < 5}
-              onClick={() =>
-                create.mutate({
-                  promiseType: form.promiseType as never,
-                  promisedAction: form.promisedAction.trim(),
-                  dueAtISO: new Date(Date.now() + form.dueHours * 3_600_000).toISOString(),
-                  customerName: form.customerName.trim() || undefined,
-                  customerPhone: form.customerPhone.trim() || undefined,
-                })
-              }
-              className="ml-auto text-[12px] font-bold bg-nick-yellow text-black px-4 py-2 rounded disabled:opacity-40 active:scale-95"
-            >
-              {create.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Log it"}
-            </button>
+            </div>
+            {/* The label is a shorthand; this line is what the ledger will actually store. */}
+            {due ? (
+              <p className="text-[10px] text-muted-foreground">Comes due {due.detail}</p>
+            ) : (
+              <p className="text-[10px] text-amber-600" role="status">
+                Shop hours unreadable — cannot compute a due time, so logging is blocked rather than storing a guess.
+              </p>
+            )}
           </div>
         </div>
       )}

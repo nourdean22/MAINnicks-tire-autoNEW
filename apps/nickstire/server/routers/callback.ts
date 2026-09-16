@@ -15,6 +15,7 @@ import { sendLeadEvent } from "../meta-capi";
 import { SITE_URL, BUSINESS } from "@shared/business";
 import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
 import { alertNewLead } from "../services/telegram";
+import { logAdminAction } from "../services/auditTrail";
 
 import { db } from "../lib/db-helper";
 
@@ -220,6 +221,33 @@ export const callbackRouter = router({
     }))
     .mutation(async ({ input }) => {
       const result = await updateCallbackStatus(input.id, input.status, input.notes);
+
+      /**
+       * Audit trail — this procedure was the ONLY one of the three Today-queue
+       * mutations with no server-side receipt. `booking.updateStatus` logs
+       * `booking.status_changed` and `lead.update` logs its own; this one wrote
+       * nothing, so the single receipt for a resolved callback was the SECOND,
+       * separate request the client fires (`adminSecurity.recordAction` in
+       * OverviewSection.logReceipt). Two client round trips means a phone that
+       * drops signal between them leaves the callback resolved in production
+       * with ZERO audit rows — and the operator staring at an error toast for
+       * an action that actually succeeded.
+       *
+       * Fire-and-forget with a warn, deliberately matching booking.ts:548 —
+       * an audit write must never block the status change the customer is
+       * waiting on. The client receipt is left exactly as it is: it carries a
+       * different action name, and silently dropping a name that historical
+       * audit queries may already filter on would be reinterpreting history
+       * (PROTECTED-CORE rule 2). Collapsing the two names is an operator
+       * decision, recorded rather than taken here.
+       */
+      logAdminAction({
+        action: "callback.status_changed",
+        entityType: "callback",
+        entityId: input.id,
+        details: `Callback status changed to ${input.status}`,
+        newValue: input.status,
+      }).catch(e => log.warn("[callback:updateStatus] audit trail logging failed:", e));
 
       // lead-source hygiene · close the linked duplicate lead when the
       // callback is resolved. callback.submit writes BOTH a callback_requests

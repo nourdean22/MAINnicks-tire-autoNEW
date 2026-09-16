@@ -33,6 +33,15 @@ export type AuditAction =
   | "customer.segment_changed"
   | "workorder.status_changed"
   | "workorder.assigned"
+  // 2026-09-16 · `callback.resolved` below has been declared here with ZERO
+  // writers anywhere in the repo — a reserved audit slot that was never wired,
+  // which is why a resolved callback's only receipt was the client's separate
+  // adminSecurity.recordAction request. `callback.status_changed` is the name
+  // callback.updateStatus now writes, matching its siblings lead./booking.
+  // `callback.resolved` is LEFT IN PLACE deliberately: prod rows may carry it
+  // from code since deleted, and dropping a name a historical query could
+  // filter on is the silent-reinterpretation PROTECTED-CORE rule 2 forbids.
+  | "callback.status_changed"
   | "callback.resolved"
   | "estimate.created"
   | "invoice.created"
@@ -49,8 +58,8 @@ export type AuditAction =
   // early (ends the 60-min takeover hold; humanTakeover.ts reads it)
   | "customer.sms_takeover_released"
   | "customer.sms_manual_send"
-  | "customer.sms_autosend_reply"
-  | "customer.sms_autosend_reply"
+  // Was listed three times; a repeated union member is a no-op to TS, so
+  // nothing ever flagged it. Collapsed to one — no behaviour change.
   | "customer.sms_autosend_reply"
   | "migrations.ran"
   // 2026-06-11 · refund action types
