@@ -70,10 +70,10 @@ function buildAllLinks(reviewCountDisplay: string, reviewRating: string): LinkIt
   // service page, every guide) drives authority into them. Rotation
   // hash means each visitor sees a different subset, but all 4 new
   // pages are now eligible to surface anywhere on the site.
-  { href: "/tire-repair-cleveland", label: "Tire Repair Cleveland", desc: "$25 plug or patch, 15-min walk-in 7 days" },
+  { href: "/tires#tire-repair", label: "Tire Repair Cleveland", desc: "$25 plug or patch, 15-min walk-in 7 days" },
   { href: "/wheel-alignment-cleveland", label: "Wheel Alignment Cleveland", desc: "Same-day · free pull-check · $89 typical" },
   { href: "/no-credit-check-tires-cleveland", label: "No-Credit-Check Tires", desc: "$10 down · 4 lenders · drive home today" },
-  { href: "/tire-shop-open-sunday-cleveland", label: "Tire Shop Open Sunday", desc: "9am-4pm every Sunday · walk-in · Chains closed" },
+  { href: "/tires#open-sundays", label: "Tire Shop Open Sunday", desc: "9am-4pm every Sunday · walk-in · Chains closed" },
   // Hub pages
   // 2026-08-19 · was "150+ locations" — a ONE-location shop describing its
   // service areas as "locations" reads as a doorway-page footprint to a

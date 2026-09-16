@@ -80,14 +80,11 @@ const BrakeRepairPage = lazy(() => import("./pages/BrakeRepairPage"));
 const NoCreditCheckTiresPage = lazy(() => import("./pages/NoCreditCheckTiresPage"));
 // 2026-08-11 · AEO proprietary-data page: live distributor pricing by size
 const TirePricesClevelandPage = lazy(() => import("./pages/TirePricesClevelandPage"));
-const TireShopOpenSundayPage = lazy(() => import("./pages/TireShopOpenSundayPage"));
-// wave-181.7 · keyword-led SERP-fix pages (Ahrefs/GSC audit moves #5, #6)
-const TireRepairPage = lazy(() => import("./pages/TireRepairPage"));
+// wave-181.7 · keyword-led SERP-fix page (Ahrefs/GSC audit move #5)
 const WheelAlignmentClevelandPage = lazy(() => import("./pages/WheelAlignmentClevelandPage"));
 const DiagnosticsPage = lazy(() => import("./pages/DiagnosticsPage"));
 const CheckEngineLightDiagnosticPage = lazy(() => import("./pages/CheckEngineLightDiagnosticPage"));
 const UsedTiresClevelandPage = lazy(() => import("./pages/UsedTiresClevelandPage"));
-const NewTiresClevelandPage = lazy(() => import("./pages/NewTiresClevelandPage"));
 const TireBrandPage = lazy(() => import("./pages/TireBrandPage"));
 const TireShopNearMePage = lazy(() => import("./pages/TireShopNearMePage"));
 const NonstopNickPage = lazy(() => import("./pages/NonstopNickPage"));
@@ -191,15 +188,12 @@ function Router() {
             {/* High-traffic / bespoke pages (hand-written copy + config) */}
             <Route path={"/brakes"} component={BrakeRepairPage} />
             <Route path={"/no-credit-check-tires-cleveland"} component={NoCreditCheckTiresPage} />
-            <Route path={"/tire-shop-open-sunday-cleveland"} component={TireShopOpenSundayPage} />
-            <Route path={"/tire-repair-cleveland"} component={TireRepairPage} />
             <Route path={"/wheel-alignment-cleveland"} component={WheelAlignmentClevelandPage} />
             <Route path={"/diagnostics"} component={DiagnosticsPage} />
             {/* v1.7 Grounded&Reliable strategy · diagnostic-authority silo */}
             <Route path={"/check-engine-light-diagnostic"} component={CheckEngineLightDiagnosticPage} />
-            {/* High-volume tire-intent silos — used vs new buyer journeys */}
+            {/* High-volume tire-intent silo — used-tire buyer journey */}
             <Route path={"/used-tires-cleveland"} component={UsedTiresClevelandPage} />
-            <Route path={"/new-tires-cleveland"} component={NewTiresClevelandPage} />
             {/* AEO proprietary-data page — live distributor pricing by size */}
             <Route path={"/tire-prices-cleveland"} component={TirePricesClevelandPage} />
             {/* Legacy-brand bridge page — captures "Moe's Tire" search traffic

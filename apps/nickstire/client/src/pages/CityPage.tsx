@@ -392,7 +392,7 @@ export default function CityPage() {
                 <Link href="/wheel-alignment-cleveland" className="bg-card/80 border border-border/50 rounded-lg p-4 text-center hover:border-primary/30 hover:bg-card transition-colors group">
                   <span className="font-semibold text-xs text-foreground/60 group-hover:text-primary transition-colors tracking-wider">WHEEL ALIGNMENT</span>
                 </Link>
-                <Link href="/tire-repair-cleveland" className="bg-card/80 border border-border/50 rounded-lg p-4 text-center hover:border-primary/30 hover:bg-card transition-colors group">
+                <Link href="/tires#tire-repair" className="bg-card/80 border border-border/50 rounded-lg p-4 text-center hover:border-primary/30 hover:bg-card transition-colors group">
                   <span className="font-semibold text-xs text-foreground/60 group-hover:text-primary transition-colors tracking-wider">TIRE REPAIR</span>
                 </Link>
               </div>
@@ -405,7 +405,7 @@ export default function CityPage() {
                   link-equity boost on the keyword-led targets. */}
               <Link href="/no-credit-check-tires-cleveland" className="text-emerald-400 hover:underline">No-credit-check tires · $10 down</Link>
               <span className="text-foreground/20">|</span>
-              <Link href="/tire-shop-open-sunday-cleveland" className="hover:text-primary transition-colors">Sunday tire shop</Link>
+              <Link href="/tires#open-sundays" className="hover:text-primary transition-colors">Sunday tire shop</Link>
               <span className="text-foreground/20">|</span>
               <Link href="/booking" className="hover:text-primary transition-colors">Schedule drop-off</Link>
               <span className="text-foreground/20">|</span>

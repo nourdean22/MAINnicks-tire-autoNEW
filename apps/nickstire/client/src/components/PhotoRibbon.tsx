@@ -133,42 +133,13 @@ const DEFAULT_PHOTOS: RibbonPhoto[] = [
 // 2026-05-06 wave-16 · pro photo pack: tire-authority shots lead.
 // Per PLACEMENT_GUIDE.md, the tire flow uses tread closeup, tire-changer
 // closeup, busy-shop, and the cones/walk-in line.
-export const TIRES_PHOTOS: RibbonPhoto[] = [
-  {
-    src: "/photos/rugged-tire-tread-closeup.webp",
-    alt: "Close-up of aggressive tire tread at Nick's Tire & Auto showing deep tread blocks and rugged pattern",
-    caption: "Tire authority. Real tread, real pattern.",
-    widthClass: "w-[78vw] sm:w-[440px] md:w-[520px]",
-    objectPosition: "center 50%",
-  },
-  {
-    src: "/photos/tire-wheel-changer-closeup.webp",
-    alt: "Tire mounted on a wheel at Nick's Tire & Auto on the tire changer machine during installation",
-    caption: "Mount, balance, valve stems. Free.",
-    widthClass: "w-[72vw] sm:w-[400px] md:w-[480px]",
-    objectPosition: "center 52%",
-  },
-  {
-    src: "/photos/busy-shop-action-mechanics.webp",
-    alt: "Nick's Tire & Auto technicians working inside the tire and auto repair bay with tires and equipment around them",
-    caption: "Real techs. Real shop. Real install.",
-    widthClass: "w-[80vw] sm:w-[480px] md:w-[560px]",
-    objectPosition: "center 50%",
-  },
-  {
-    src: "/photos/shop-exterior-cones-vertical.webp",
-    alt: "Nick's Tire & Auto exterior with yellow and black lane cones, open bays, and tire stacks",
-    caption: "The cones mean: pull up, line up.",
-    widthClass: "w-[64vw] sm:w-[340px] md:w-[400px]",
-    objectPosition: "center 40%",
-  },
-  {
-    src: "/photos/exterior-winter-allweather.webp",
-    alt: "Cleveland winter weather at Nick's Tire & Auto — same-day winter tire install",
-    caption: "Snow tires today. Today.",
-    widthClass: "w-[72vw] sm:w-[400px] md:w-[480px]",
-  },
-];
+// 2026-09-16 · TIRES_PHOTOS (rugged tread closeup, wheel-changer closeup,
+// busy-shop, exterior cones, winter-allweather) was deleted here: its only
+// consumer, NewTiresClevelandPage.tsx, was removed in the §11 tire-silo
+// consolidation (PR #2350) and nothing else imported it (knip orphan gate
+// caught it). /tires (the surviving hub) has no PhotoRibbon today — wiring
+// this set there is a real follow-up, not done in this fix. The five source
+// photos are untouched on disk if that's picked up later.
 
 // 2026-05-06 wave-16 · brakes lead with the under-car action shot,
 // supporting tiles show the bay/lift environment.

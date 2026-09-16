@@ -3998,7 +3998,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8am-6pm and Sunday 9am-4pm. The chains close. We don't. First-come-first-served — no appointment system, walk in any day we're awake. Used tires from $25 installed (mount, balance, valve stems, TPMS reset, alignment check, all free). New tires at competitive market rate, with the labor disclosed in writing before the wrench moves. Drop the car off and we'll Uber you back to work; call when it's ready. The yellow sign on Euclid Ave you've probably driven past. (216) 862-0005."
       }
     ],
-    relatedServices: ["/tires", "/used-tires-cleveland", "/new-tires-cleveland", "/alignment", "/best-tire-shops-cleveland"],
+    relatedServices: ["/tires", "/used-tires-cleveland", "/alignment", "/best-tire-shops-cleveland"],
     tags: ["Cleveland tire guide", "how to buy tires Cleveland", "tire sizing guide", "tire sidewall numbers", "Ohio winter tires", "Cleveland pothole tire damage", "used vs new tires Cleveland", "tire rotation Cleveland", "TPMS sensors", "all-weather tires Ohio"]
   },
   // 2026-05-06 wave-36 · PILLAR ARTICLE #2 — "Cleveland Auto Repair

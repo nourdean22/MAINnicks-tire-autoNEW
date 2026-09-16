@@ -220,30 +220,13 @@ const SERVICE_PAGES: RouteEntry[] = [
     sitemap: true,
     prerender: true,
   },
-  {
-    path: "/tire-shop-open-sunday-cleveland",
-    priority: 0.85,
-    changefreq: "monthly",
-    title: "Tire Shop Open Sunday Cleveland · 9am-4pm Every Sunday | Nick's",
-    description: "Tire shop open Sunday in Cleveland. Nick's Tire & Auto on Euclid Ave runs 9am-4pm every Sunday — walk-in tires, brakes, oil change. Conrad's closed. Mavis closed. (216) 862-0005",
-    group: "service",
-    sitemap: true,
-    prerender: true,
-  },
-  // wave-181.7 · keyword-led SERP-fix pages from Ahrefs/GSC audit
-  // moves #5 (wheel alignment) and #6 (tire repair). Both target
-  // clusters currently in striking distance (pos 7-43) with no
-  // dedicated page or with title that doesn't match the literal query.
-  {
-    path: "/tire-repair-cleveland",
-    priority: 0.85,
-    changefreq: "monthly",
-    title: "Tire Repair Cleveland · $25 Plug or Patch · 15-Min Walk-In | Nick's",
-    description: "Cleveland tire repair on Euclid Ave. Nail in your tire? Slow leak? We plug or patch in 15 min for $25 typical · walk-in 7 days. (216) 862-0005",
-    group: "service",
-    sitemap: true,
-    prerender: true,
-  },
+  // 2026-09-16 · §11 tire-silo consolidation. /tire-shop-open-sunday-cleveland
+  // and /tire-repair-cleveland removed: the 2026-08-19 War Room's pre-registered
+  // decision rule fired (homepage position on "used tires near me" did not
+  // improve, both pages logged zero impressions across the full 28-day window —
+  // /tire-repair-cleveland never logged one in its whole history, verified live
+  // against Search Console 2026-09-16). Content merged into /tires as sections
+  // (#tire-repair, #open-sundays); both URLs now 301 there (server/_core/redirects.ts).
   {
     path: "/wheel-alignment-cleveland",
     priority: 0.85,
@@ -288,10 +271,9 @@ const SERVICE_PAGES: RouteEntry[] = [
   },
   {
     // High-volume tire-intent silos. Distinct buyer journeys:
-    //   /tires                  — broad finder + brand grid
+    //   /tires                  — broad finder + brand grid + new-tire tiers (§11 merge)
     //   /tire-shop-near-me      — proximity intent
     //   /used-tires-cleveland   — value-conscious, "from $25 installed" framing
-    //   /new-tires-cleveland    — premium buyer, "free $266 install" framing
     path: "/used-tires-cleveland",
     priority: 0.85,
     changefreq: "monthly",
@@ -303,16 +285,9 @@ const SERVICE_PAGES: RouteEntry[] = [
     sitemap: true,
     prerender: true,
   },
-  {
-    path: "/new-tires-cleveland",
-    priority: 0.85,
-    changefreq: "monthly",
-    title: "New Tires Cleveland | Free $266 Install | Nick's",
-    description: "New tires in Cleveland — Michelin, Goodyear, Bridgestone, Continental, Firestone. FREE $266 install package: mount, balance, valve stems, TPMS, alignment check.",
-    group: "service",
-    sitemap: true,
-    prerender: true,
-  },
+  // 2026-09-16 · §11 tire-silo consolidation — /new-tires-cleveland removed,
+  // 0 impressions across the full 28-day post-rewrite window (verified live
+  // against Search Console). Content merged into /tires#new-tires; 301s there.
   // Tire-brand silos — one template, 5 routes. Each targets brand+geo
   // queries like "michelin tires cleveland", "goodyear tires near me".
   {

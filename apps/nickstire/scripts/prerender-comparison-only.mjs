@@ -54,7 +54,10 @@ const ROUTES = [
   "/firestone-vs-discount-tire-cleveland",
   // wave-181.5 · new keyword-led SERP-fix pages
   "/no-credit-check-tires-cleveland",
-  "/tire-shop-open-sunday-cleveland",
+  // 2026-09-16 · §11 tire-silo consolidation retired /tire-shop-open-sunday-cleveland
+  // (301 -> /tires#open-sundays). Left in this list, a real run would follow the
+  // redirect and write the resulting /tires DOM back under the deleted route's
+  // directory name, recreating a stale artifact with a 200-serving false positive.
   // wave-181.14 · 4 more title rewrites (specials, reviews, about, diagnose)
   // + the homepage which uses SiteFooter and needs to ship the updated
   // footer nav links to the new SERP-fix pages.
@@ -63,8 +66,9 @@ const ROUTES = [
   "/reviews",
   "/about",
   "/diagnose",
-  // wave-181.7 · audit moves #5 + #6
-  "/tire-repair-cleveland",
+  // wave-181.7 · audit move #5. #6 (/tire-repair-cleveland) was retired
+  // 2026-09-16 in the §11 tire-silo consolidation (301 -> /tires#tire-repair)
+  // -- same stale-artifact-recreation risk as the Sunday route above.
   "/wheel-alignment-cleveland",
   // wave-181.16 · these existing service pages all use FocusedServicePage
   // which had its review-count + offer-price-zero fixes this wave. Need

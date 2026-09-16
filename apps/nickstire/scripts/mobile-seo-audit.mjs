@@ -26,7 +26,10 @@ const PAGES = [
   { path: "/contact", label: "Contact" },
   { path: "/auto-repair-near-me", label: "Auto repair near me" },
   { path: "/used-tires-cleveland", label: "Used tires (new silo)" },
-  { path: "/new-tires-cleveland", label: "New tires (new silo)" },
+  // 2026-09-16 · /new-tires-cleveland retired (301 → /tires#new-tires,
+  // §11 tire-silo consolidation) — removed rather than repointed, since
+  // this list already audits /tires above as "Tires hub"; keeping both
+  // would still double-count it under two labels.
 ];
 
 const BASE = "https://nickstire.org";

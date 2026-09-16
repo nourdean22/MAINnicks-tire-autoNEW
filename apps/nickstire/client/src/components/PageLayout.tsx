@@ -31,7 +31,18 @@ export default function PageLayout({
   showChat = false,
 }: PageLayoutProps) {
   useEffect(() => {
-    window.scrollTo(0, 0);
+    // 2026-09-16 · Wouter's <Link> navigates via the History API, which
+    // (unlike a native <a> click) does NOT trigger the browser's own
+    // fragment scroll — so a cross-page link to e.g. /tires#tire-repair
+    // mounted here and landed at the top every time. Section anchors on
+    // /tires (`scroll-mt-20` already applied) were waiting for this.
+    const hash = window.location.hash;
+    const target = hash ? document.getElementById(hash.slice(1)) : null;
+    if (target) {
+      target.scrollIntoView();
+    } else {
+      window.scrollTo(0, 0);
+    }
   }, []);
 
   return (

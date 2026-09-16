@@ -26,7 +26,11 @@ const PAGES_TO_AUDIT = [
   "/",
   "/services",
   "/brakes",
-  "/new-tires-cleveland",
+  // 2026-09-16 · /new-tires-cleveland retired (301 → /tires#new-tires,
+  // §11 tire-silo consolidation); PSI/Lighthouse follows the redirect
+  // and would silently audit /tires under the old page's label. Point
+  // straight at the live page instead.
+  "/tires",
   "/diagnostics",
   "/cleveland-auto-repair",
 ];

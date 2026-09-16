@@ -105,8 +105,14 @@ export const BRAKE_REPAIR_FAQ: FAQItem[] = [
 
 export const TIRE_REPAIR_FAQ: FAQItem[] = [
   {
+    // 2026-09-16 · price corrected to distinguish the two tiers -- this
+    // answer previously said "starts at $25" for plug + patch specifically,
+    // which contradicted the $35 combo price on /tires' own pricing cards
+    // (both now render on the same page). Plug-only is the $25 tier; the
+    // combo is $35, matching the tier breakdown below and TireRepairPage's
+    // original copy this FAQ was written alongside.
     q: "How much does tire repair cost?",
-    a: "Plug + patch starts at $25 · most repairs $25-40. We'll tell you if the puncture is repairable before we touch it · sidewall damage usually means a new tire instead.",
+    a: "Plug repair starts at $25 · plug + patch combo starts at $35 · most repairs $25-40 depending on size and damage. We'll tell you if the puncture is repairable before we touch it · sidewall damage usually means a new tire instead.",
   },
   {
     q: "Can you repair my flat tire?",
@@ -114,7 +120,7 @@ export const TIRE_REPAIR_FAQ: FAQItem[] = [
   },
   {
     q: "How long does tire repair take?",
-    a: "Most plug-and-patch repairs are 30-60 minutes. Walk in 7 days · we work first-come-first-served · we'll text you when it's done.",
+    a: "About 15 minutes for a standard plug, 30 minutes for a plug + patch combo. Walk in 7 days · we work first-come-first-served · we'll text you when it's done.",
   },
   {
     q: "Do I need to schedule an appointment?",
@@ -176,6 +182,12 @@ export const TIRE_BUYING_FAQ: FAQItem[] = [
   {
     q: "Are used tires safe to buy?",
     a: "The ones we sell are. Every used tire passes a 4-point check before it goes on a car — tread depth, sidewall condition, DOT date, and plug history. We don't sell a tire we wouldn't put on our own family's car. From $25 installed (12-inch rims; most sizes $40-80).",
+  },
+  {
+    // 2026-09-16 · §11 tire-silo consolidation. Sunday hours had no FAQ
+    // anywhere in this file; the retiring TireShopOpenSundayPage covered it.
+    q: "Are you open Sundays?",
+    a: "Yes — every Sunday, 9am-4pm, same crew and pricing as the rest of the week. Walk in, no appointment needed. Most Cleveland chains are closed or run shorter Sunday hours.",
   },
 ];
 
