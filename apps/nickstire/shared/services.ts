@@ -154,7 +154,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where is the best tire shop near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 is Cleveland's top-rated tire shop with 4.9 stars from 1,700+ Google reviews. We carry new and quality used tires from all major brands, offer same-day installation, and are open 7 days a week for walk-ins. Call (216) 862-0005 for a free tire quote."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 is Cleveland's top-rated tire shop with 4.9 stars from 1,710+ Google reviews. We carry new and quality used tires from all major brands, offer same-day installation, and are open 7 days a week for walk-ins. Call (216) 862-0005 for a free tire quote."
       }
     ],
     includedItems: [
@@ -174,7 +174,7 @@ export const SERVICES: ServiceData[] = [
     duration: "30-60 min",
     startingPrice: "See tire prices",
     priceRange: "",
-    whyChooseUs: "Nick's carries all major tire brands plus quality used tires at prices that make sense. Every tire install includes mounting, balancing, TPMS reset, and a 12-month warranty backed by 4.9 stars and 1,700+ reviews. Walk in any day of the week -- no appointment needed.",
+    whyChooseUs: "Nick's carries all major tire brands plus quality used tires at prices that make sense. Every tire install includes mounting, balancing, TPMS reset, and a 12-month warranty backed by 4.9 stars and 1,710+ reviews. Walk in any day of the week -- no appointment needed.",
     commonSymptoms: [
       "Car shaking at highway speed",
       "Tire keeps losing air overnight",
@@ -279,7 +279,7 @@ export const SERVICES: ServiceData[] = [
     duration: "1-3 hours",
     startingPrice: "FREE check",
     priceRange: "",
-    whyChooseUs: "Every brake job at Nick's starts with a free check -- we show you the worn parts before quoting a penny. Our 12-month warranty on parts and labor, same-day turnaround, and the price up front before we touch anything are why Cleveland drivers give us 4.9 stars across 1,700+ reviews.",
+    whyChooseUs: "Every brake job at Nick's starts with a free check -- we show you the worn parts before quoting a penny. Our 12-month warranty on parts and labor, same-day turnaround, and the price up front before we touch anything are why Cleveland drivers give us 4.9 stars across 1,710+ reviews.",
     commonSymptoms: [
       "Car making grinding noise when braking",
       "Brake pedal goes to the floor",
@@ -664,7 +664,7 @@ export const SERVICES: ServiceData[] = [
     quickAnswers: [
       {
         question: "How do I find a trustworthy mechanic in Cleveland?",
-        answer: "Look for a shop with a high volume of verified Google reviews, transparent pricing, and technicians who explain repairs before performing them. Nick's Tire & Auto has over 1,700+ Google reviews at 4.9 stars. We provide written estimates, show you the problem before we fix it, and never pressure you into unnecessary repairs."
+        answer: "Look for a shop with a high volume of verified Google reviews, transparent pricing, and technicians who explain repairs before performing them. Nick's Tire & Auto has over 1,710+ Google reviews at 4.9 stars. We provide written estimates, show you the problem before we fix it, and never pressure you into unnecessary repairs."
       },
       {
         question: "What are signs my car needs suspension repair?",
@@ -680,11 +680,11 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I find auto repair near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is a full-service auto repair shop open 7 days a week. Whether you need brake repair, oil changes, engine diagnostics, or suspension work, we handle it all with free estimates, written quotes, and a 12-month warranty. 4.9 stars from 1,700+ Google reviews. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is a full-service auto repair shop open 7 days a week. Whether you need brake repair, oil changes, engine diagnostics, or suspension work, we handle it all with free estimates, written quotes, and a 12-month warranty. 4.9 stars from 1,710+ Google reviews. Call (216) 862-0005."
       },
       {
         question: "How do I find a good mechanic near me?",
-        answer: "Look for a mechanic with verified Google reviews, transparent pricing, and technicians who explain repairs in plain language. Nick's Tire & Auto has 4.9 stars from 1,700+ reviews because we show you the problem before we fix it, provide written estimates, and never pressure you into unnecessary repairs. Walk-ins welcome 7 days a week."
+        answer: "Look for a mechanic with verified Google reviews, transparent pricing, and technicians who explain repairs in plain language. Nick's Tire & Auto has 4.9 stars from 1,710+ reviews because we show you the problem before we fix it, provide written estimates, and never pressure you into unnecessary repairs. Walk-ins welcome 7 days a week."
       }
     ],
     includedItems: [
