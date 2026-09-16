@@ -25,7 +25,7 @@
  *   · an indeterminate index places ZERO calls and REJECTS  (fail closed)
  *   · a phone known only to the shared index is suppressed  (one definition)
  *   · the job no longer derives suppression itself           (no second copy)
- *   · a STALE index still sends                              (stale != unknown)
+ *   · a STALE index also places zero calls               (its age is UNBOUNDED)
  *
  * POSITIVE CONTROL FIRST. "Zero calls" is also what a broken harness prints,
  * so one test proves this rig CAN place a call. Without it every assertion
@@ -34,6 +34,8 @@
  * SYNTHETIC INPUTS ONLY — no network, no DB, no real phone number.
  */
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 type EstRow = {
   id: number;
@@ -208,7 +210,7 @@ describe("voice recovery · suppression gate", () => {
     expect(rig.selectCount).toBe(1);
   });
 
-  it("a STALE index still sends — stale is real data, unreadable is not", async () => {
+  it("BREAKS: a STALE index also places ZERO calls — its age is UNBOUNDED, not 5 minutes", async () => {
     armGates();
     mockVapi();
     mockSuppression({ ok: true, phones: new Set<string>(), carrierBlocked: new Set<string>(), stale: true });
@@ -219,12 +221,36 @@ describe("voice recovery · suppression gate", () => {
     }));
 
     const { runVoiceRecovery } = await import("./voiceRecovery");
-    const result = await runVoiceRecovery();
+    let message = "";
+    try {
+      await runVoiceRecovery();
+      throw new Error("runVoiceRecovery RESOLVED on a stale index — it placed the call");
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
+    }
 
-    // Refusing to call on a 5-minute-old index would be its own outage. Only
-    // the absence of ANY loaded index is indeterminate.
-    expect(result.recordsProcessed).toBe(1);
-    expect(placed).toEqual(["+12165550142"]);
+    // This test asserted the OPPOSITE until Codex's P1 on PR #2361. The reason
+    // it was wrong: `stale` is not "5 minutes old" — 5 minutes is the TTL, i.e.
+    // the FRESH path. `stale()` in sms.ts hands back `optOutCache` WITHOUT
+    // consulting `optOutCacheLoadedAt`, so in this long-lived process a
+    // persistent DB fault leaves the set hours or days old, and an opt-out
+    // recorded since — especially by another pod — is invisible.
+    expect(message).toMatch(/suppression index is STALE/);
+    expect(message).toMatch(/age is unbounded/);
+    expect(placed).toEqual([]);
+    // Nothing claimed either: a claim would burn the one-shot attempt marker.
+    expect(rig.updates).toEqual([]);
+  });
+
+  it("the refusal is VOICE-ONLY — SMS deliberately keeps the opposite bar", () => {
+    // Source assertion, and declared as one: sendSms's tolerance of a stale
+    // index is covered by the sms suite, not here. What is pinned is that
+    // nobody "consistency-fixes" the asymmetry away without reading why — a
+    // text is cheap and reversible, an unwanted phone call is neither.
+    const sms = readFileSync(resolve(__dirname, "..", "..", "sms.ts"), "utf8");
+    expect(sms).toMatch(/A STALE set is still `ok: true`/);
+    const voice = readFileSync(resolve(__dirname, "voiceRecovery.ts"), "utf8");
+    expect(voice).toMatch(/Do NOT generalise this to the SMS path/);
   });
 
   it("CANARY — the OLD fail-soft shape would RESOLVE here, proving the assertions bite", async () => {
