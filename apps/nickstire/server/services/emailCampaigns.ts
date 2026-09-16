@@ -128,6 +128,16 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
 
     // Find customers with email who haven't been emailed in 30+ days and are lapsed
     //
+    // ⚠ `sql.raw` for the LIMIT, deliberately. A plain interpolation compiles
+    // to `LIMIT ?` with the value BOUND — verified against the real dialect:
+    // sql `LIMIT ?`, params [60]. MySQL and TiDB do accept a placeholder there
+    // via prepared statements, but the query that shipped for months used a
+    // LITERAL, this is a live customer-facing lane, and a stubbed db in a test
+    // cannot tell the two apart (PR #2356's lesson: a stubbed drizzle chain
+    // hides the SQL from its own tests). Introducing a new SQL shape on
+    // "probably works" is not a trade worth making. The value is a
+    // compile-time constant, so there is no injection surface.
+    //
     // `c.smsOptOut = 0` stays as a cheap pre-filter, but it is ONE of the four
     // sources the shared index reads — see the suppression block below, which is
     // what actually decides. Keeping it costs nothing and narrows the rows.
@@ -138,7 +148,7 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
         AND c.smsOptOut = 0
         AND c.segment IN ('lapsed', 'at-risk')
         AND (c.lastEmailCampaignAt IS NULL OR c.lastEmailCampaignAt < DATE_SUB(NOW(), INTERVAL 30 DAY))
-      LIMIT ${CANDIDATE_WINDOW}
+      LIMIT ${sql.raw(String(CANDIDATE_WINDOW))}
     `);
 
     const candidates = rows as any[];
