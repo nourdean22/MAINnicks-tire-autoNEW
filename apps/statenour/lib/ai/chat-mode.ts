@@ -282,8 +282,57 @@ export async function pruneTools(
   }
 
   // Browser automation / scrape / page extraction
-  if (/\b(scrape|extract from (the )?page|automate (the )?browser|navigate (to|the)|click (on|the)? button|fill (out|in) (the )?form|browser (do|act|navigate|observe|extract))\b/.test(text)) {
-    addMatching(/browser_/i);
+  // 2026-09-16 · MEASURED: in 467 production turns the browser was used ZERO
+  // times. Both BROWSERBASE credentials are present, six tools are built, and
+  // the census put browser_navigate / browser_act / browser_observe /
+  // browser_extract in `neverSurfaced` — offered to the model not once.
+  //
+  // Two defects, both here:
+  //
+  // 1. THE TRIGGER DID NOT MATCH HOW AN OPERATOR SPEAKS. It required "scrape",
+  //    "automate the browser", "navigate to", or a literal "browser act". An
+  //    episode against this very function (six unambiguous prompts, both modes)
+  //    surfaced NO browser tool for any of them — including
+  //    "go to monro.com and tell me what they charge" and a prompt containing a
+  //    literal URL. A capability you cannot ask for in plain language is
+  //    unreachable, whatever its tools can do.
+  //
+  // 2. `/browser_/` CANNOT MATCH `browseAndDo` — the tool meta.ts:298 names as
+  //    the PREFERRED entry point ("For complete tasks … PREFER browseAndDo").
+  //    So even on the rare trigger, the family surfaced the surgical low-level
+  //    tools and skipped the recommended one. The comment at family #5 already
+  //    recorded half of this ("the browser family pattern is /browser_/ only")
+  //    and routed around it by adding a separate scrapeWebPage family instead.
+  //
+  // The split below follows the documented design rather than flattening it:
+  // natural browse intent offers the ONE-CALL entry point (cheap on a 24-slot
+  // budget); the surgical tools are offered only when named explicitly.
+  //
+  // Deliberately NOT stolen from family #5: "read the page", "fetch the url",
+  // "convert to markdown" stay with scrapeWebPage. A static fetch is
+  // deterministic and cheaper than a live browser session — prefer it when the
+  // task is only to read a public page.
+  if (
+    /\b(scrape|extract from (the )?page|automate (the )?browser|navigate (to|the)|click (on|the)? button|fill (out|in) (the )?form|browse (to|the)|log ?in ?(to|into)|sign ?in ?(to|into)|go to (https?:\/\/|www\.)|look at (this|the|that) (site|website|page|url|link)|check (a|the|their|our|his|her) (site|website|listing|page))\b/.test(
+      text,
+    ) ||
+    // "go to monro.com" — a bare domain, which no English-word pattern catches.
+    /\bgo to [a-z0-9][a-z0-9-]*\.(com|org|net|io|co|us|gov|edu|info|biz)\b/.test(text) ||
+    // The optional middle word carries "open our COMPETITOR'S website" and
+    // "open the MONRO listing" — the possessive is rarely adjacent to the noun
+    // in real phrasing, which is what the first cut of this pattern missed.
+    /\bopen (the |their |our |its |his |her )?([\w'’-]+ )?(site|website|web ?page|portal|dashboard|listing|profile page)\b/.test(
+      text,
+    )
+  ) {
+    addMatching(/^browseAndDo$|^browser_do$/i);
+  }
+
+  // Surgical low-level control, only when the operator names the tool shape.
+  // These are four extra budget slots; they should cost them on request, not
+  // on every mention of a website.
+  if (/\bbrowser (navigate|act|observe|extract)\b/.test(text)) {
+    addMatching(/^browser_/i);
   }
 
   // v10.0.517 · Python / runtime execution / calculation

@@ -1,5 +1,81 @@
 # Session ledger — statenour
 
+## Session C (overnight capability hardening) — branch `statenour/overnight-capability-hardening`
+
+**MISSION:** make StateNour materially more useful/reliable/measurable. Choose the highest-leverage
+move continuously; fix foundations before layering intelligence.
+
+**BASELINE (measured, not assumed):** origin/main `a4d0f14b8` was **RED** — 843 files, 4 failed
+tests in 2 files, `exit=1`. Now **844 files / 8,467 tests, exit 0**.
+
+**COMPLETED + PROVEN**
+- `f1ac75990` — suite red→green. Two causes, both "a test that cannot fail for its stated reason":
+  (a) obsidian probe used an absolute Windows path as an `import()` specifier — Node reads `C:` as a
+  URL scheme; `.split("\\").join("/")` fixed separators, not the scheme. `pathToFileURL` is correct
+  on both platforms. The failing arm was the file's own POSITIVE CONTROL, so it could not
+  discriminate shimmed from unshimmed. (b) `brain-engines-smoke` mocks only `@/lib/prisma` and calls
+  its subjects "100% DB-dominated"; `findTeachingMoments` reaches the **nickstire bridge over HTTP**
+  (`recentShopJobs`/`recentShopLeads` → `queryNick`), so its verdict depended on network
+  reachability — green in CI, red where the bridge answers. Mutation-verified non-vacuous.
+- `57f6ddbc1` — `compareActionDoneShadow` now has a production call site. It shipped with tests and
+  ZERO callers, so `legacyStrictGap` had never been observed. Extracted to
+  `lib/ai/receipts/action-done-shadow-recorder.ts` (injectable → testable; its only caller is a
+  ~700-line untested function). Writes `action.done.shadow` to `system_metrics` with the
+  disagreement CLASSES. 7 tests, mutation-verified.
+
+- `<browser slice>` — **browser capability was UNREACHABLE from chat and is now reachable.**
+  MEASURED from the census (first read since #2359 unblinded it): in **467 turns the browser was
+  used ZERO times**. Both BROWSERBASE creds PRESENT, 6 tools built; `browser_navigate/act/observe/
+  extract` all in `neverSurfaced`, `browseAndDo` surfaced 9/467 (1.9%) and chosen 0. An episode
+  against the real `pruneTools` surfaced NO browser tool for six unambiguous prompts in either
+  mode ("go to monro.com…", a literal URL, "log into…"). Cause, both in `chat-mode.ts:285`:
+  (a) the trigger wanted "scrape"/"automate the browser"/"browser act" — not how anyone speaks;
+  (b) `/browser_/` **cannot match `browseAndDo`**, the entry point meta.ts:298 says to PREFER, so
+  even on a hit it offered the surgical tools and skipped the recommended one. Fixed with a
+  natural-intent trigger + a high-level/low-level split (4 surgical tools now cost slots only when
+  named). All 6 prompts now surface `browseAndDo, browser_do`.
+- ★★ **The census's other headline: 8.4 of every turn's 24 tool slots go to a tool NEVER ONCE
+  CHOSEN** — 3,911 wasted slot-impressions / 101 tools / 467 turns. Worst: `getMasteryScores` (57%
+  of turns), `getHabitRevenueCorrelation` (50%), `findCustomer` (49%), `getCommitments` (49%),
+  `createCommitment` (48%). NOT acted on — pruning needs a per-tool judgement, and "zero calls" has
+  five different diagnoses. This is the best-evidenced backlog item in the app.
+- ★ `createMissionPlan`: 150 surfaces, 4 calls, **25% success** — a real quality defect invisible to
+  the `highFailure` bucket, which needs ≥10 calls. `getRepoMap`: 1 call, 0% ok.
+
+**IMPORTANT DISCOVERIES**
+- ★★ **"The full pruneTools() has a require()/path-alias issue in vitest" is STALE.**
+  `tests/ai/chat-mode-keyword-families.test.ts` mirrors regexes by hand because of that claim, so
+  its tests lock a COPY and cannot fail when the source narrows. `pruneTools` imports and runs
+  cleanly in vitest (11 tests, 103ms) — `tests/ai/chat-mode-browser-reachability.test.ts` now
+  asserts the REAL selector. Other families could be migrated the same way.
+- ★★ **The primary checkout `C:\Users\nourd\NOURCITY` is on `statenour/nextjs-critical-rce-advisory`,
+  160 commits BEHIND origin/main.** Reading source there is reading stale code — it cost me one wrong
+  conclusion. Work from a worktree at origin/main. (The RCE fix itself IS on main: `next ^16.3.4`.)
+- ★★ Two different functions are named `canClaimDone`. `receipts/action-receipt.ts` is WIRED (2 call
+  sites). `chat/action-result-verifier.ts` has **zero callers** and its docstring still says "Wired
+  directly into the live chat-finalize loop". Not dead — it wraps the shadow comparator — but the
+  docstring is false and the name collision is a trap for anyone hardening the honesty gate.
+- ★ `recentShopJobs`'s comment claimed "no bridge query exposes recent jobs; returns empty" — false;
+  it calls `recent_invoices` and returns live data. That stale comment is why the smoke test's
+  prisma-only mock looked sufficient. Corrected.
+- ★ **L6 evidence gate also runs in SHADOW** (`evidence_gate_shadow`, `tokenUsage.evidenceGate`);
+  AGENTS.md says enforcement waits "once the shadow false-positive rate is known". Unmeasured.
+- The tool-surfacing census (#2359) was fixed TODAY after 3 weeks blind; **456 rows of
+  `tool.surfaced` data (2026-08-25..09-16) exist and nobody has read them yet.**
+
+**NEXT BEST MOVES** (re-evaluate; do not treat as a fixed list)
+1. Read the tool census from prod — 3 weeks of just-unlocked data → real surfaced-never-chosen /
+   never-surfaced diagnoses (the mandate's tool-catalog rule).
+2. Measure the L6 evidence-gate shadow's false-positive rate; that is the stated gate on promotion.
+3. Fix the false "Wired directly into the live chat-finalize loop" docstring + the `canClaimDone`
+   name collision.
+4. `CURRENT-TRUTH.md` says "Last verified 2026-09-02" — 14 days of waves since.
+
+**RISKS / NOTES**
+- Test runs from this worktree can reach the **live nickstire bridge** (observed: real invoice data
+  with no `DATABASE_URL` set). Reads only, but it is a real network dependency in "unit" tests.
+- Worktree needed `apps/statenour` + `packages/*` node_modules junctions (was nickstire-only).
+
 **Updated:** 2026-09-16 (Session B: counter reconcile #2348 SHIPPED + DEPLOYED-VERIFIED `ef52c8e38`, prod reconcile DONE 10:28Z; Visible Transformation + honest-counter repair W8 open on `claude/statenour-ui-architecture-intmaf` — sixth PR #2349; Session A: execution truth + Dream-to-Proof #2335–#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`)
 
 ## (Session B) Honest-counter repair W8 (2026-09-16; same branch, on top of the Visible Transformation slices)
