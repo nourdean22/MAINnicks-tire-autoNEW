@@ -1912,9 +1912,23 @@ measurement. Every proposal below cites the moment in this wave that produced it
   after a squash merge, so the merged PR stays attached to the branch while new unlanded work sits on top. Run
   the `gh pr view <pr> --json commits` probe BEFORE concluding zombie, not only when a commit count looks
   suspicious." Shipping the restart pattern without this is how a rescue skill learns to skip live work.
+- **It also contradicts ROOT policy, which outranks any skill — filed by the reviewer, verified in the file.**
+  Root `AGENTS.md:52` defines the canonical post-merge lifecycle as `gh pr merge --squash ; gh api -X DELETE
+  .../refs/heads/<b>` followed by `git fetch origin main ; git merge --ff-only`. Delete-then-fresh IS the
+  procedure. `CLAUDE-OPERATING-PROFILE.md` states that engineering policy in `AGENTS.md` WINS on any conflict,
+  so a skill teaching preserve-and-reuse would leave agents holding two mandatory, incompatible instructions.
+- **And the 403 was mine, not everyone's.** The deletion failure is THIS session's credential — a remote agent
+  session — not a property of the repo. The operator's own machine running `gh` with a real token deletes the ref
+  fine, which is why the canonical flow was written that way. Generalising one environment's permission error
+  into a universal rule is the fossil-number error this queue's P2 is about, committed while writing P6.
+- **So P6 must be scoped as a FALLBACK, not a replacement:** "when ref deletion is unavailable (403), either
+  branch fresh for the next task — preferred, and what root policy already implies — or, if the branch name must
+  be kept, re-point at `origin/main` and merge the old tip with the `ours` strategy, and say in the PR body why."
+  Adopting even that requires root `AGENTS.md`'s Branching block to name the fallback, or the contradiction
+  simply moves rather than resolving. That edit is the operator's, not this queue's.
 - **Confidence:** high on the pattern (five recurrences in one session); high on the collision (read in the file,
-  not inferred)
-- **Status:** proposed
+  not inferred); high on the root conflict (read at `AGENTS.md:52`)
+- **Status:** proposed — NOT adoptable as first written; needs the fallback scoping plus a root `AGENTS.md` edit
 
 ### P7 · `statenour-verify` — the Traps list carries two byte-identical duplicate bullets
 - **Trigger (witnessed):** found while auditing this queue's own proposals against the skills they target, after
@@ -1966,7 +1980,12 @@ measurement. Every proposal below cites the moment in this wave that produced it
 > **Placement is the operator's call, and the options are not equal.** (a) Widen the three target descriptions —
 > cheapest, but widening `nickstire-shared-main-push` to cover statenour PR timing makes its name a lie.
 > (b) Move the cross-app PR/CI rules (P1, P2, P5, P6's restart half) to a new repo-wide skill — honest scoping,
-> one more skill in a library where 3.5% ever fire. (c) Put them in root `AGENTS.md`, which is where cross-app
+> and the option I understated: I first argued against it with the 3.5% figure, which is the rate for the WHOLE
+> 1,307-name installed library. `CLAUDE-OPERATING-PROFILE.md:83` gives the project cohort at **64%**, and the
+> same paragraph explicitly says to prefer `.claude/skills/` because it is "the cohort that actually fires". A
+> new repo-wide project skill belongs to that cohort, not the global one. Caught by the reviewer; it is a
+> base-rate substitution, in a repo that ships a `base-rate-check` skill for exactly this. The marginal rate for
+> a NEW skill is still unknown — 64% is the cohort's observed rate, not a prediction for one more entry. (c) Put them in root `AGENTS.md`, which is where cross-app
 > checkable rules belong by its own stated test — but it sits at its 200-line cap, so something goes to make
 > room. I am not choosing: this queue is propose-only, and the choice is a policy decision about where this
 > repo's PR mechanics live, not a defect with one correct fix.
