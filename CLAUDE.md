@@ -16,7 +16,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
 
 ## Claude-specific
 
-- **Skills** (`.claude/skills/`, 23 repo-specific — invoke by exact name). Each `SKILL.md` carries
+- **Skills** (`.claude/skills/`, 24 repo-specific — invoke by exact name). Each `SKILL.md` carries
   its own full trigger and rationale; this is only the index for picking one.
   - Before commit/push → **statenour-verify** · **nickstire-verify**; writing the report →
     **answer-first**.
@@ -34,6 +34,7 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
   - A read that RENDERS or SCORES → **empty-vs-error**; adding a WRITER (header, env var,
     column, tool registration) → **assert-the-consumer**; a new test or canary →
     **positive-control-first**; a new table/queue/tool/flag → **prior-art-grep**; a filtered ratio → **base-rate-check**.
+  - A read-then-write that decides WHO acts (claim, lease, reclaim, dedupe marker) → **claim-before-act**.
   - End of a wave → **statenour-wave-reconcile** (ship history lands in `apps/statenour/docs/RECONCILIATION.md`,
     never in an AGENTS.md header), then **session-observer** (propose-only; appends to
     `docs/skill-proposals.md`).

@@ -41,6 +41,15 @@ Before "done", for every writer the change introduces:
    reads as covered.
 3. **The canary asserts the CONSUMER end, never the producer.** A test
    that the header was set proves the bug, not the fix.
+4. **A result field that names a PERSISTED state is written only by the
+   code that awaited the store's success.** `ledgerState`, `persisted`,
+   `receiptId`, `attemptId` — if the branch that sets it did not itself
+   see the write resolve, it is a claim, not a fact. Witnessed 2026-09-15
+   (#2338, Codex P1): `sendTelegram` set `ledgerState: "SUCCEEDED_UNVERIFIED"`
+   inside its own result before `settleAttempt` ran, so the missing-table
+   fallback (no row) and a failed settle (row still EXECUTING) both told the
+   model a durable transition had happened. Canaries: make the store write
+   reject → the field is absent; make the store absent → the field is absent.
 
 ## Grep your own comment out
 

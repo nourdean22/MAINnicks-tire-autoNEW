@@ -19,6 +19,12 @@ when a wave of work lands, before ending the session.
    - a ship-by-ship roll-up — one bold line per commit
    - a `**Flagged · NOT fixed**` list for known-but-deferred issues
 
+   **If another OPEN branch already carries a same-day entry at the top,
+   insert yours BELOW that day's entries and say so in the commit** — a
+   conflict on this file's line 3 is the commonest way a docs commit stalls
+   a sibling's merge (2026-09-15: Session B's two entries sat at the top
+   with its next PR open; the waves 2-3 entry went beneath them).
+
    Then update the `**Last verified:**` stamp — **note there are TWO of
    them, and the guard reads the FIRST.** `check-stale-docs.ts` parses the
    first occurrence in the file, which is embedded mid-line inside the

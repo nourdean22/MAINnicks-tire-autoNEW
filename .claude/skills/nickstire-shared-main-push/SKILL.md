@@ -92,6 +92,14 @@ If `git push` fails with the pre-push hook citing the OTHER app's build:
    flight**; sequence your own merge → next PR's push so each gets one
    clean CI cycle; and read a shutdown-signal kill minutes after a main
    merge as THIS before blaming infra — rerun it, don't debug it.
+   Recurred 2026-09-15: merging #2340 killed #2338's and #2339's `node`
+   jobs 3-7 min later; the root `AGENTS.md` merge recipe now starts with
+   `gh pr list --state open` for exactly this reason. **The same
+   signature with NO merge in the window** (also witnessed that day, and
+   a 50-min job timeout after a run measured 232 MB free) is runner
+   resource death during `@statenour/web#build` + `#check` in parallel —
+   rerun once; if it recurs, the lever is `--concurrency=1` in
+   `.github/workflows/test.yml`, never a code hunt.
 
 ## A red gate whose own log says "unmodified tree" is main's condition, not yours
 
