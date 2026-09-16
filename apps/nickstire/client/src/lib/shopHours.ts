@@ -42,22 +42,54 @@ const clock = (minutes: number): string => {
 };
 
 /**
- * Minutes-since-midnight open/close for a weekday, or null when that day has
- * no usable range. Canon is 7-day right now, but a future `sunday: "Closed"`
- * must not silently become `NaN` and then a due date of `Invalid Date`.
+ * The canon string for a weekday, parsed — or null when it is not a range at
+ * all. Deliberately does NOT judge whether close comes after open; that is a
+ * separate question with a separate caller (see `hoursFor`).
  */
-const hoursFor = (day: number): { open: number; close: number } | null => {
+const parseHours = (day: number): { open: number; close: number } | null => {
   const raw = BUSINESS.hours.structured[DAYS[day]] as string | undefined;
   if (typeof raw !== "string") return null;
   const [open, close] = raw.split("-");
   if (!open || !close) return null;
   const o = toMinutes(open);
   const c = toMinutes(close);
-  return Number.isFinite(o) && Number.isFinite(c) && c > o ? { open: o, close: c } : null;
+  return Number.isFinite(o) && Number.isFinite(c) ? { open: o, close: c } : null;
 };
 
-/** Legacy shape for getOpenStatus — preserves the pre-2026-09-16 NaN behaviour exactly. */
-const rangeFor = (day: number) => hoursFor(day) ?? { open: NaN, close: NaN };
+/**
+ * Legacy shape for `getOpenStatus`, which drives the PUBLIC ShopStrip and the
+ * service pages — so its behaviour is not mine to change.
+ *
+ * Same result as the pre-2026-09-16 code for every value canon can hold today,
+ * and for any parseable range including an inverted one like "18:00-08:00".
+ *
+ * It differs in exactly one case, stated rather than glossed: an UNPARSEABLE
+ * string such as a future `sunday: "Closed"`. The old code called
+ * `toMinutes(undefined)` -> `undefined.split(":")` and **threw a TypeError**,
+ * taking the page down; this yields NaN, which `getOpenStatus` renders as
+ * "opens tomorrow". That is a behaviour change, and a better one — but it is
+ * not "exactly the same", which is what an earlier version of this comment
+ * claimed. The first draft of this refactor also folded the `close > open`
+ * check in here, which WOULD have changed the public answer for an inverted
+ * range; separating the two predicates is what keeps that from happening.
+ */
+const rangeFor = (day: number) => parseHours(day) ?? { open: NaN, close: NaN };
+
+/**
+ * A range usable for SCHEDULING a due time: parseable, and closing after
+ * opening. `resolveDueAt` needs the stronger guarantee, because an inverted
+ * range would make "today at close" an instant already in the past — a
+ * promise born overdue. `getOpenStatus` must keep its original answer, hence
+ * two predicates rather than one.
+ *
+ * Unreachable with canon as it stands (all seven days are well-formed), so it
+ * is a guard, not a covered path. Said plainly so nobody reads the branch as
+ * tested.
+ */
+const hoursFor = (day: number): { open: number; close: number } | null => {
+  const r = parseHours(day);
+  return r && r.close > r.open ? r : null;
+};
 
 /** Day-of-week and minutes-since-midnight in Cleveland, whatever the device clock says. */
 function easternDayAndMinutes(now: Date): { day: number; minutes: number } {
