@@ -163,7 +163,13 @@ if ($EncryptSecret) {
             throw ("CAMERA_INGEST_KEY is not in this process's environment. -SecretFromEnvironment " +
                    "expects a wrapper that injects it, e.g.`n" +
                    "  railway run --service MAINnicks-tire-auto -- pwsh -NoProfile -File scripts/install-edge-runtime.ps1 -SecretFromEnvironment -SecretOnly`n" +
-                   "Check `railway whoami` first; the CLI must be logged in ON THIS MACHINE.")
+                   # No backticks around the command. In a double-quoted PowerShell string a
+                   # backtick is the ESCAPE character, so "`railway" renders as a carriage
+                   # return followed by "ailway" -- this line printed "Check ailway whoami
+                   # first" on the shop PC. An error whose job is to hand the reader a
+                   # command they will copy cannot afford to mangle it, which is the same
+                   # defect class as printing `powershell` where only `pwsh` works.
+                   "Check 'railway whoami' first; the CLI must be logged in ON THIS MACHINE.")
         }
         $sourceLabel = "the injected environment (nothing was written in plaintext)"
     } else {

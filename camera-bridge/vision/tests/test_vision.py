@@ -1665,3 +1665,36 @@ def test_portal_must_straddle_the_lot_boundary():
 
     # census mode declares no portal at all, and that is a legitimate, honest state
     assert_portal_straddles(lot, [])
+
+
+def test_a_straddling_portal_actually_yields_a_crossing():
+    """Bind `assert_portal_straddles` to the behaviour it exists to protect.
+
+    That guard asserts a GEOMETRIC property -- part of the portal inside the lot, part
+    outside. On its own that is presence, not behaviour: it would still pass if
+    `EntryPortal` never reported a crossing at all. This asserts the consequence, using
+    the shape the guard accepts, and pins the two non-arrivals that matter operationally:
+    a vehicle that never enters, and one that was already parked when watching began.
+
+    The third case is why a freshly-started producer reports zero arrivals over a full
+    lot and is behaving correctly -- every car present at startup was born inside.
+    """
+    from vision.geometry import EntryPortal, Zone
+    from vision.run_live import assert_portal_straddles
+
+    lot = [(143, 117), (535, 130), (535, 294), (55, 294), (55, 192)]
+    portal = [(126, 97), (38, 172), (72, 212), (160, 137)]   # straddles the entry edge
+    assert_portal_straddles(lot, portal)                      # precondition, not the point
+
+    ep = EntryPortal(Zone("front_lot", lot), portal_zone=Zone("portal", portal))
+
+    arriving = [(100, 70), (110, 85), (126, 100), (140, 120), (160, 150), (200, 190)]
+    assert ep.evaluate(arriving)["crossed"] is True
+
+    # never enters -- the shape of traffic that must not be counted
+    passing = [(60, 40), (90, 55), (120, 70), (150, 85), (180, 95), (210, 105)]
+    assert ep.evaluate(passing)["crossed"] is False
+
+    # already inside when watching began: an occupant, not an arrival
+    parked = [(300, 240), (302, 241), (301, 240), (303, 242)]
+    assert ep.evaluate(parked)["crossed"] is False
