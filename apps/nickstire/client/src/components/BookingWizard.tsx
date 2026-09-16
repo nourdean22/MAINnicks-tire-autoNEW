@@ -35,9 +35,19 @@ interface BookingWizardProps {
   [key: string]: unknown;
 }
 
+// 2026-09-16 · this card is embedded on 40+ pages via one shared copy block,
+// but two services are documented sit-and-wait-only with NO drop-off
+// (operator rule 2026-07-04, `client/src/data/serviceConversionData.tsx`
+// oil-change + emissions entries) — a quick pull-up scan, not a drop-and-go
+// job. The generic "drop your car off" line was contradicting that rule on
+// both pages (verified live: /oil-change's own hero says "no appointment, no
+// drop-off" while this card, further down the SAME page, invited a drop-off).
+const NO_DROP_OFF_SERVICES = new Set(["oil-change", "emissions"]);
+
 export default function BookingWizard(props: BookingWizardProps = {}) {
   const service = props.service || props.defaultService;
   const source = typeof props.source === "string" ? props.source : "booking-wizard";
+  const allowsDropOff = !service || !NO_DROP_OFF_SERVICES.has(service);
 
   // Pre-fill SMS body with the service context if we have one.
   // Operator gets a richer first message · less "what does this person
@@ -75,7 +85,9 @@ export default function BookingWizard(props: BookingWizardProps = {}) {
             {service ? (
               <>Need <span className="text-primary font-semibold">{service}</span>? </>
             ) : null}
-            No appointments to chase. Drop your car off if you can&apos;t wait — we&apos;ll text you the second it&apos;s ready.
+            {allowsDropOff
+              ? <>No appointments to chase. Drop your car off if you can&apos;t wait — we&apos;ll text you the second it&apos;s ready.</>
+              : <>No appointments to chase, no drop-off needed — pull up, we work it while you wait.</>}
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-4 text-[13px] text-foreground/60">
