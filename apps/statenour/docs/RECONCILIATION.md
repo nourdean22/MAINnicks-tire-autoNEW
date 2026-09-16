@@ -1,5 +1,90 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-16 · W11 · the controls that could not see their subject · 5 ships
+>
+> A self-audit wave that turned into a measurement wave. Every defect below is the same shape — **a control that
+> existed, reported green, and could not see the thing it was pointed at** — and the wave's own instruments kept
+> reproducing it, which is the part worth carrying forward. Three canaries written this wave were broken when
+> first run and were caught ONLY by an instrument-control arm, never by the passing run. Three of my own proposed
+> fixes were refuted by measurement, each because the number behind them came from conditions production never
+> sees. **A green gate proves nothing until something has made it go red.**
+>
+> **#2355 · `fix · statenour · self-audit of the shipped W8 wave + the obsidian probe that asserted nothing`
+> `9837e5066` SHIPPED + DEPLOYED-VERIFIED (ancestry, not SHA equality).** Four controls repaired. (a) The ledger
+> canary failed OPEN: it checked that `contactRowsOnly` is CALLED, never that the call is FED — a Prisma `select`
+> omitting `metadata` makes `isContactRow` return true for every row and the filter passes everything. Now
+> brace-matches each ledger read's argument object and fails when a top-level `select` omits metadata. (b) The
+> tRPC edge schema had no test, invisibly by construction, since the seam behind it re-asserts anyway; the schema
+> moved next to the constant it shares and gained a test that edge and seam agree on EVERY input. (c) The obsidian
+> server-only probe ran from `tsx -e`, where a dynamic import resolves to a namespace carrying only `default`
+> (tsx compiles a bare .ts to CJS; CJS interop of an ESM namespace collapses it) — it asserted nothing while
+> failing loudly about the wrong subject. Now runs from a temp file with an instrument-control arm. (d) CI's one
+> red e2e test was **main's bug, not the PR's**: `floating-collision.spec.ts · /chat @ 1460px`, the desktop spine
+> covering the chat header's `/settings` pill by 3.23×44px. The W7 spine reserved its lane with
+> `xl:pl-[var(--spine-w)]` on `<main>`, but `/chat` is a `fixed inset-0` island and a fixed child resolves inset
+> against the VIEWPORT — the page already re-declares top and bottom for that exact reason and the left one was
+> never added. Fixed with `xl:left-[var(--spine-w,0px)]`; 16/16 green, mutation-proved, phone/tablet byte-identical.
+>
+> **#2359 · `fix · statenour · the tool-surfacing census has never once run` `0bcee15b6` SHIPPED + DEPLOYED-VERIFIED.**
+> `getSurfacedStats` filtered on `make_interval(days => ${days})`. Prisma binds a JS number as int8, `make_interval`
+> has only an int4 overload, and a named-argument call gets no implicit int8→int4 cast — so both queries threw
+> `42883` on EVERY call since the lane shipped, `catch { return null }` fired every time, and `/system/tools`
+> rendered "no surfacing data exists in the window yet" for three weeks over **456 rows that did exist**. Measured
+> at both layers before writing a line (prod SQL errors; Prisma `${days}` throws, `${days}::int` returns). Three
+> parts, because the cast alone leaves the mechanism intact: the `::int`; a catch that no longer passes silently
+> (null is the right degradation but it was the ONLY thing that happened); and a canary, since `check:raw-sql` is
+> static and the SQL is *valid* — it just resolves to no function. **Post-deploy the lane reads real data:** 142
+> tools surfaced in 30d, 50 ever invoked, 660 calls all-time, **101 surfaced-but-never-invoked** — the prune signal
+> the feature was built to produce and had never once delivered.
+>
+> **#2362 · `fix · ci · the node job's resource death, measured and fixed` `aec29c100` SHIPPED.** The `node` job had
+> been dying with the documented "fixed progress at varying times" signature; on 2026-09-16 a statenour-only sweep
+> died 3× (5 successful / 8 total at 5m10s, 5m23s, 7m11s) then passed on the 4th. **The instrument could never
+> speak:** the memory sampler's verdict echo sat INSIDE the step that gets killed, so it printed on SUCCESS and
+> went silent on FAILURE. Three deaths, zero readings. Moved to its own `if: always()` step with a "no samples"
+> positive control. Guarded by `scripts/agent-os/ciMemorySampler.test.mjs` (4 mutation arms). **The `--concurrency=1`
+> half was REFUTED by its own instrument** — see Flagged.
+>
+> **#2364 · `fix · statenour · harden the make_interval canary (two Codex P2s, both real)` `d29dfd5c6` SHIPPED.**
+> Codex reviewed #2359 ten seconds before it merged, so both findings landed on main. (a) `secs` is
+> `double precision`, not int — the gate demanded `::int` on every interpolation, so a correct
+> `make_interval(secs => ${s}::double precision)` would have failed it and the fix it forced TRUNCATES the interval.
+> A gate that forces an incorrect change is worse than one that nags, because it gets obeyed. (b) The paren matcher
+> was **fail-open**: a quoted `)` inside an interpolation truncated the argument block, the brace matcher returned
+> −1, and the violation was SKIPPED — clean report on an uncast value, the same shape the file exists to catch, one
+> commit after shipping. Both mutations proven to discriminate: each reddens only its own arm.
+>
+> **#2368 · `docs · ci · correct the node job's memory numbers` `107a27a12` SHIPPED.** The figures written into
+> `test.yml` in #2362 (`peak 4962MB`, the `7695MB` collision) were **warm-cache artifacts**. CI is always cold
+> (fresh checkout, remote caching disabled) and a warm `.next` skips the compile and type-check work that HOLDS the
+> memory. Cold: **6778MB** (3 workers) / 6621MB (`cpus: 1`) — validated against CI by 7000−6778 = 222MB predicted
+> vs 285MB measured. Codex caught a second copy of the stale figures in the `NODE_OPTIONS` block (fixed in
+> `69de22b79`) — **the first finding this session to arrive BEFORE a merge**, because this was the first PR marked
+> ready-for-review on open rather than seconds before merging.
+>
+> **Flagged · NOT fixed**
+> - **The `node` job runs at 97% of its runner and no measured code-side lever moves it.** statenour's cold
+>   `next build` peaks at 6778MB on a ~7000MB box, alone. Three levers refuted by measurement: heap ceiling 3072
+>   (reproduces the original OOM — tsc alone fits, next build's internal type-check does not), turbo
+>   `--concurrency` (floor 319MB at 2 vs 285MB at 1 — unchanged, because build by itself sets it), and
+>   `experimental.cpus` (6778→6621MB, 2.3%, because the peak lives in compile + type-check which are
+>   single-process). `--concurrency=1` is KEPT for a corrected reason — build alone leaves ~222MB so any companion
+>   task is fatal rather than tight, and all three deaths were at 2 — but it is not the fix. Remaining options are
+>   a larger runner, accepting flakes now that each death self-explains, or reducing what the app compiles.
+>   **Billing decision: the operator's, not a commit's.**
+> - **E4 cannot be re-run until ~2026-09-20.** The `isResourceTitle` repair deployed 12:56Z; only 11 shadow turns
+>   have accrued since, against E4's original 91. Early signal is 0 blocks in 11 (vs 21/91 = 23% before) — but if
+>   the true rate were still 23%, P(0 in 11) = 5.8%. Suggestive, NOT conclusive. Rate is ~20 turns/day. The verdict
+>   split alone cannot decide arming; the number that decides it is what fraction of blocked names are genuine
+>   resources vs the operator's own prose. `lib/feature-flags.ts` still reads REFUTED / flag OFF and stays that way.
+> - **~25% residual false-positive rate in the `listed` named-source detector** — gym-log and plan fragments that
+>   are neither sentences nor label-colon-value lines. Carried from W10, unchanged.
+> - **`tests/scripts/generate-pwa-icons-sharp.test.ts`** remains the suite's one failure, deliberately unfixed:
+>   `sharp` is bare-resolvable in this container but not in CI, so its anchor assertion is correct where it runs.
+> - **Codex reviews raced three merges** (#2359, #2362, #2364 — each by under 15s) because PRs were un-drafted at
+>   merge time; #2359's two P2s reached main as a result. Corrected from #2368 onward: mark ready on open so the
+>   ~4min review overlaps the ~13min sweep. Not a policy change, a timing one.
+
 > ## 2026-09-16 · W10 · E4 RAN: the evidence gate is REFUTED, not pending (branch `claude/statenour-ui-architecture-intmaf`)
 >
 > `NICK_EVIDENCE_ENFORCEMENT` is the last layer of the fabrication-defense stack (§4 L6). It has been wired,
