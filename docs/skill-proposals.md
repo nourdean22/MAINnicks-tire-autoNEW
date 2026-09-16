@@ -1893,5 +1893,20 @@ measurement. Every proposal below cites the moment in this wave that produced it
   remote — and push as a fast-forward. Deleting the remote ref is not a fallback: the agent credential can push
   but not delete. The bookkeeping merge appears as a commit on the branch; disclose it in the PR body rather
   than trying to remove it."
-- **Confidence:** high (five recurrences in one session)
+- **This collides with the skill's own zombie rule, and the proposal must carry the fix.** Filed by Codex as a
+  P2 against this block on 2026-09-16 and verified against the file: `stranded-branch-rescue/SKILL.md:23` reads
+  "**A MERGED PR = zombie. Stop. Never re-merge**, whatever `git cherry` says", and the branch check above it is
+  `gh pr list --head <branch> --state all`, which on a REUSED branch returns the merged PR forever. So a session
+  that reuses the branch, pushes new work, and dies before opening its next PR would be audited as a zombie and
+  its real commits abandoned — the precise failure this skill exists to prevent, introduced by this proposal.
+  The skill already carries the probe that disambiguates (`:31-34`: is the "stranded" SHA in the merged PR's own
+  commit list?), but it is framed as curing a commit-count false positive, not as an exception to the merged-PR
+  stop, so a reader applying the headline rule never reaches it.
+- **Second proposed edit, required alongside the first:** amend the zombie rule to "**A merged PR whose commit
+  list CONTAINS the branch head = zombie. Stop.** A merged PR alone is no longer sufficient: branches are reused
+  after a squash merge, so the merged PR stays attached to the branch while new unlanded work sits on top. Run
+  the `gh pr view <pr> --json commits` probe BEFORE concluding zombie, not only when a commit count looks
+  suspicious." Shipping the restart pattern without this is how a rescue skill learns to skip live work.
+- **Confidence:** high on the pattern (five recurrences in one session); high on the collision (read in the file,
+  not inferred)
 - **Status:** proposed
