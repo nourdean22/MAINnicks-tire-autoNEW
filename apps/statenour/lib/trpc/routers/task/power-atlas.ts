@@ -14,8 +14,18 @@ import { operatorProcedure } from "../../trpc";
 import { TaskStatus } from "@prisma/client";
 import { PERSON_ROLES } from "@/lib/brain/person-roles";
 import { prisma } from "@/lib/prisma";
+import { buildPeopleChangesSince } from "@/lib/services/people/changes-since";
 
 export const powerAtlasProcedures = {
+  /**
+   * 2026-09-16 · "since your last visit" for /people — the ChangeSet
+   * primitive's third consumer. `since` is the caller's per-device cursor
+   * (ms epoch); the service clamps it to 7 days and says so.
+   */
+  peopleChangesSince: operatorProcedure
+    .input(z.object({ since: z.number().int().nonnegative() }))
+    .query(async ({ input }) => buildPeopleChangesSince(input.since)),
+
   // ─── Power Atlas · 2026-05-27 ───────────────────────────────
   personProfile: operatorProcedure
     .input(z.object({ personId: z.string().min(1).max(64) }))
