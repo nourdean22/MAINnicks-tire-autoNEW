@@ -133,6 +133,21 @@ the evidence vocabulary it needs already exists and is the product's actual moat
    at 1280px; the inspector is the desktop's spatial shell. The plan's 2% "make it prettier" is right; the
    §5 program owns the type floor and colour semantics.
 
+   **Reversed by the operator, 2026-09-16.** After #2337 / #2341 / #2344 shipped, the operator's verdict was
+   that the substrate is inert until something is inspected — "StateNour still looks 85–95% like before" —
+   and set a new acceptance bar: *"If I put a screenshot of old and new side-by-side from six feet away, can
+   I immediately tell which is the redesigned StateNour? If not, that PR does not count as UI redesign.
+   Visual similarity to the pre-workbench screenshots is now a failure condition."* So the Visible
+   Transformation wave (branch `claude/statenour-ui-architecture-intmaf`, sixth PR) did the two things this
+   correction ruled out: a desktop spine (`components/layout/desktop-spine.tsx`, 4.5rem at ≥1280px, `<main>`
+   pads by `--spine-w`) and a deliberate recomposition of Home, Missions, People, System and Brain — display
+   verdicts, gold rules instead of cards, ruled lists, eyebrow `<h2>`s, mono 11–12px metadata, 15–18px body.
+   The bar is a test: `tests/e2e/visible-transformation.spec.ts` renders every flagship page at 1440×900 and
+   390×844 on the hermetic stack and fails when it is within 0.35 registered ink-mass distance of the committed
+   PRE-wave baseline (`visual-distance.ts`; a pixel count cannot work on a 2.5–10%-ink page, and a pixel count
+   reads a 64px slide as a redesign — the calibration is in that file's header). Correction 5 stays here as
+   the record of what the gate said before the operator overrode it; the KILL line below is amended.
+
 ---
 
 ## 3. The object grammar shipped on this branch
@@ -347,8 +362,11 @@ a `workset` field on the chat request; consolidating the two chat typed-card reg
 protocol; hidden-episode UI evaluation once the UI Lab has more than one gallery.
 
 **KILL / do not re-propose:** Perspective (no dataset warrants a WebGL grid); React Flow for Brain;
-Cmd+Shift+R as a shortcut; a desktop left rail before the inspector has been used for a month; a fourth
-tool-card taxonomy; any styling pass that is not one of the §5 program's numbered items.
+Cmd+Shift+R as a shortcut; ~~a desktop left rail before the inspector has been used for a month~~ (reversed
+2026-09-16 — see correction 5: the spine shipped with the Visible Transformation wave); a fourth
+tool-card taxonomy; ~~any styling pass that is not one of the §5 program's numbered items~~ (reversed the same
+day — visual similarity to the pre-wave screenshots is now the failure condition, gated by
+`tests/e2e/visible-transformation.spec.ts`).
 
 ---
 

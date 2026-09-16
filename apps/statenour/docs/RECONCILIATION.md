@@ -1,5 +1,41 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-16 · Visible Transformation (branch `claude/statenour-ui-architecture-intmaf`, sixth PR; #2348 SHIPPED + DEPLOYED-VERIFIED `ef52c8e38`, prod counter reconcile DONE 10:28Z)
+>
+> Operator: the workbench substrate (#2337 / #2341 / #2344) shipped but "StateNour still looks 85–95% like before";
+> the new bar — *old vs new side-by-side from six feet away must be unmistakable; visual similarity to the
+> pre-workbench screenshots is now a failure condition* — reverses spec §2 correction 5 (recorded in
+> `docs/design/ui-workbench-2026-09-15.md`). **The bar is a test:** `tests/e2e/visible-transformation.spec.ts` renders
+> Home, Missions, Brain, People and System at 1440×900 and 390×844 on the hermetic stack and fails under **0.35
+> registered ink-mass distance** from the committed PRE-wave baselines (`…spec.ts-snapshots/`, generated once on
+> the pre-wave tree). The instrument had to be built twice: a pixel-share distance is capped by ink — this palette is
+> 2.5–10% ink, so a 30% bar was unreachable and a 64px slide scored 82–91% of ink pixels "changed" — so
+> `tests/e2e/visual-distance.ts` reduces both renders to 48px-cell ink-mass grids, takes the relative L1 minimised
+> over ±2 cells (shift proxies 0.11–0.26, same-tree noise 0.000), and `tests/repo/visual-distance-metric.test.ts`
+> pins it (identical → 0, a 64×40px slide → 0.11, a recomposition → >0.5; red under two mutants). Captures wait for
+> `[data-skeleton]` / `aria-busy` / `.animate-pulse` to leave and warm every route first — a capture racing a cold
+> `next dev` compile measured a skeleton at 0.34 / 1.3% ink.
+> **Shipped:** desktop spine (`components/layout/desktop-spine.tsx`, 4.5rem at ≥1280px via `--spine-w`; `<main>`
+> pads), workset strip, ruled bottom chrome, intent-resolver restyle · **Home** (display verdict `.vt-verdict`,
+> gold-rule lead, ruled command line, `empty:hidden` rail) · **Missions** (NEXT MOVE hero across the page; capture /
+> decide / board as ruled sections; mission cards → a ruled list with display titles; WAITING + DONE rail; the card
+> header's nested `<button>` hydration error fixed) · **People** (NEEDS ATTENTION verdict from the totals, the list
+> always visible as hairline rows, gold-ruled Person Workspace — the collapsed "browse all" `<details>` is gone) ·
+> **System** (Control Tower: `lib/system/control-tower.ts`, ALL SYSTEMS NOMINAL / N REQUIRE ATTENTION, exceptions
+> only, vitals as one mono line; unknown is never nominal — `tests/lib/system/control-tower.test.ts`, red first) ·
+> **Brain** (nine tabs grouped into five lenses with five layout archetypes via `PageTabs lenses=`; every `?tab=`
+> deep link unchanged; the graph toolbar and canvas de-carded) · **secondary pages** de-carded: Stats (glass tab bar +
+> the waived blue→purple accent gone), Journal (house display header), Pins, Links, Learn.
+> **Gate receipts (warm hermetic run):** desktop home 0.542 · missions 0.577 · brain 0.577 · people 0.477 · system
+> 0.504 · phone home 0.610 · missions 0.498 · people 0.510 · brain BRAIN_PHONE · system SYSTEM_PHONE (floor 0.35).
+> `tsc --noEmit` 0 · eslint 0 errors on every touched file · anti-slop clean · unit: 70 tests across the touched
+> components + the two new canaries.
+> **Also in this branch's history:** the prod counter reconcile ran and verified (entry below).
+> **Not done, on purpose:** the Brain phone hydration mismatch (pre-existing; the gate ignores hydration
+> pageerrors and tracks it) · `make_interval(days => bigint)` raw-query error on plain PG16 · the four genomes for the
+> OTHER products — `docs/design/SURFACE-DNA.md` (repo root) is the contract; Nick's Home / Admin Home are the
+> nickstire session's next wave, Lot Intelligence waits for the operator's camera session.
+
 > ## 2026-09-16 · Counter reconcile (branch `claude/statenour-ui-architecture-intmaf`, fifth PR #2348; #2346 SHIPPED + DEPLOYED-VERIFIED `e0f0275bd` at 02:49Z)
 >
 > Operator: "counter recon". **Measured on Neon (read-only) before any code:** 27 profiles whose
@@ -18,8 +54,14 @@
 > source-scan canary (`tests/repo/last-interaction-orderby-nulls.test.ts`) · `power-dynamics` reads NULL as
 > unknown, not neglected · `scripts/reconcile-person-counters.ts` (dry-run default; `--apply` snapshots to
 > `_bak_person_profiles_counter_recon_<yyyymmdd>`, then per person lock → re-derive → write, exits 1 on residual
-> drift; Neon PITR here is 6 h, so the table is the durable rollback). **The prod reconcile runs AFTER this deploys**
-> (creation leak closed + NULL orderings live first) — its receipts land in this entry when done.
+> drift; Neon PITR here is 6 h, so the table is the durable rollback).
+> **Prod reconcile — DONE 2026-09-16 10:28Z**, after #2348 was squash-merged (`ef52c8e38`), deployed-verified by
+> ancestry on `/api/version`, and main CI was green on that SHA (turbo-affected verify · e2e · Lighthouse · agent
+> policy · adoption gates). One Neon `run_sql_transaction`, the SQL twin of `--apply`: snapshot into
+> `_bak_person_profiles_counter_recon_20260916` (27 rows) → 27 per-person advisory locks in id order → one
+> corrective UPDATE → residual-drift SELECT. **Receipts:** 27 of 27 rows changed · `interaction_count` sum 200 → 15
+> · 20 profiles now `0 / NULL` · residual drift **0 rows** (re-measured after commit) · no deletes. Rollback is the
+> one-liner in #2348 §5 from the `_bak_` table, which stays until the change is confirmed good in use.
 > **Receipts.** Red first: creation `expected 1 to be +0`, delete module missing, canary 6 bare orderings in 5
 > files, analyzer `expected 2 to be 1` · green: 7 files / 29 tests · mutants: predicate forced true → 7 red across
 > 3 files, blind decrement → 3 red, golden 14/14 · `tsc --noEmit` 0 · eslint 0 on 20 files · mutations strict ·

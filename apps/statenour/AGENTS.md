@@ -7,8 +7,8 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-16 · UI workbench #2337 + #2341 SHIPPED · Execution truth + Dream-to-Proof #2335–#2345 SHIPPED · Relationship
-ledger #2346 SHIPPED + counter reconcile #2348 (contact-row predicate, nulls-last orderings, reconcile script). RECONCILIATION top.
+**Last refreshed:** 2026-09-16 · Visible Transformation wave (spine + 5 pages recomposed, screenshot-distance gate) open · counter reconcile
+#2348 SHIPPED + prod reconcile DONE · UI workbench #2337/#2341 · Execution truth #2335–#2345 · ledger #2346. RECONCILIATION top.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--

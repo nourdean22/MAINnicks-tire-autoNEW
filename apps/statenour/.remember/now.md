@@ -1,6 +1,32 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-16 (Session B: counter reconcile #2348 open on `claude/statenour-ui-architecture-intmaf` after ledger wave #2346 merged + deployed `e0f0275bd`; Session A: execution truth + Dream-to-Proof #2335/#2336/#2338/#2339/#2340/#2342/#2343/#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`; Session B's UI workbench entry below is intact)
+**Updated:** 2026-09-16 (Session B: counter reconcile #2348 SHIPPED + DEPLOYED-VERIFIED `ef52c8e38`, prod reconcile DONE 10:28Z; Visible Transformation wave open on `claude/statenour-ui-architecture-intmaf` — sixth PR; Session A: execution truth + Dream-to-Proof #2335–#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`)
+
+## (Session B) Visible Transformation wave (2026-09-16; same branch, sixth PR, after #2348 shipped `ef52c8e38`)
+**Operator:** the workbench substrate shipped but the pages "still look 85–95% like before"; new bar: old vs new
+side-by-side from six feet away must be unmistakable, and *visual similarity to the pre-workbench screenshots is
+now a failure condition*. This reverses spec §2 correction 5 (no rail, no cosmetic pass) — recorded in the spec.
+**Shipped:** the bar as a test — `tests/e2e/visible-transformation.spec.ts` renders 5 pages × 2 viewports on the
+hermetic stack and fails under 0.35 REGISTERED INK-MASS distance from the committed PRE-wave baselines
+(`tests/e2e/visible-transformation.spec.ts-snapshots/`, never regenerate casually) · desktop spine (4.5rem at
+≥1280px, `--spine-w`, `<main>` pads) + workset strip + ruled bottom chrome + intent resolver restyle · Home
+(display verdict, gold-rule lead, ruled command line, `empty:hidden` rail) · Missions (NEXT MOVE hero across the
+page, capture / decide / board as ruled sections, mission cards → ruled list with display titles, WAITING + DONE
+rail, nested-button hydration error in the card header fixed) · People (NEEDS ATTENTION verdict from the totals,
+the list always visible as hairline rows, gold-ruled Person Workspace; the `browse all` <details> is gone) ·
+System (Control Tower: `lib/system/control-tower.ts` — ALL SYSTEMS NOMINAL / N REQUIRE ATTENTION, exceptions
+only, vitals as one mono line; unknown is never nominal) · Brain (nine tabs grouped into five lenses with five
+layout archetypes in `PageTabs lenses=`; every `?tab=` deep link unchanged).
+**Traps measured:** a pixel-share distance is capped by ink — the house palette is 2.5–10% ink, so a 30% bar was
+unreachable and a 64px slide scored 82–91% of ink pixels "changed"; the fix is a 48px-cell ink-mass grid,
+relative L1, minimised over ±2 cells (shift proxies 11–26%, recomposed pages ≥0.36, same-tree noise 0.000;
+canary `tests/repo/visual-distance-metric.test.ts`, red under two mutants) · a capture taken mid-load measures
+skeletons — the gate now waits for `[data-skeleton]` / `aria-busy` / `.animate-pulse` to leave (cap 20s) and
+gives a cold `next dev` compile 60s · the cloud container restarts kill background Postgres + `next dev`; every
+e2e run re-checks both first · `pkill -f <pattern>` matches the shell running it.
+**Next:** the secondary pages (Stats glass/purple, Journal, Intelligence, Content, Photo, Pins, Settings, Links,
+Learn) · Brain phone hydration mismatch (pre-existing, ignored by the gate on purpose) · `make_interval(days =>
+bigint)` raw-query error on plain PG16 · the eight unfiltered ledger readers (#2348 §7).
 
 ## (Session B) Counter reconcile wave (2026-09-16; same branch, PR #2348, after #2346 shipped + deployed `e0f0275bd`)
 **Operator:** "counter recon". **Measured (Neon, read-only):** 27 profiles, `interaction_count` sum 200 vs 15 contact
