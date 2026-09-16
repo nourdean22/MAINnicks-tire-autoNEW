@@ -17,6 +17,11 @@
  *   8 · WAITING — blocked work + Nick's desk
  *   9 · DONE TODAY — evidence + close the day
  *
+ * 2026-09-16 · Visible Transformation: NEXT MOVE spans the page as the
+ * one display-type line; capture, decide and the board are ruled sections
+ * under eyebrow headings (no cards); WAITING + DONE TODAY sit in a rail
+ * separated by a hairline at >=1280px. Same data, same handlers.
+ *
  * What left this page, deliberately: the LVL/XP pill (mis-aggregated,
  * reader-less — /stats keeps the character sheet), the on-page AI brief
  * (Home compiles THE brief), the always-on readiness strip, the RPG copy,
@@ -198,7 +203,7 @@ function MissionsPageInner() {
   return (
     <MissionDispatchProvider actions={actions}>
       <MissionInspectorActions />
-      <div className="mx-auto w-full max-w-5xl space-y-4 xl:max-w-[1360px]">
+      <div className="mx-auto w-full max-w-5xl space-y-8 xl:max-w-[1400px]">
         {!executionModeActive && (
           <PageHeader
             eyebrow="Execution Deck"
@@ -239,24 +244,23 @@ function MissionsPageInner() {
               onExit={() => setExecutionModeActive(false)}
             />
           ) : (
-            <div className="space-y-4 max-w-xl mx-auto py-12 text-center">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-zinc-950 border border-zinc-800 text-zinc-400 text-xl font-bold">✓</span>
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Nothing left to execute</h3>
-                <p className="text-xs text-[var(--text-secondary)]">The queue is clear. Close the day when you&apos;re ready.</p>
-              </div>
+            <div className="mx-auto max-w-xl border-l-2 border-edge py-4 pl-5 sm:pl-6">
+              <p className="vt-eyebrow text-fg-secondary">execution</p>
+              <h3 className="vt-verdict mt-3 max-w-[16ch]">Nothing left to execute</h3>
+              <p className="mt-4 text-lg text-fg-secondary">The queue is clear. Close the day when you&apos;re ready.</p>
               <button
                 onClick={() => setExecutionModeActive(false)}
-                className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs font-mono uppercase tracking-wider text-zinc-400 hover:text-zinc-200 transition-colors min-h-[44px]"
+                className="mt-6 inline-flex min-h-[44px] items-center rounded-md border border-edge px-4 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-secondary transition-colors hover:border-edge-hover hover:text-fg"
               >
                 Back to the deck
               </button>
             </div>
           )
         ) : (
-          // Section 5.4 (2026-09-08): deck on the left, waiting + evidence as a rail at >=1280px.
-          <div className="space-y-4 xl:grid xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start xl:gap-8 xl:space-y-0" data-missions-layout="deck">
-          <div className="min-w-0 space-y-4" data-missions-column="deck">
+          // 2026-09-16 · Visible Transformation: the NEXT MOVE hero spans the
+          // page above the board; below it, the deck on the left and the
+          // WAITING / DONE rail on the right at >=1280px (section 5.4, 2026-09-08).
+          <>
             {/* Pass the real promise — a `void` wrapper here made the modal
                 clear its text + close while the create was still in flight,
                 losing the capture on failure. */}
@@ -268,11 +272,11 @@ function MissionsPageInner() {
             />
             <CoachEventBanner surface="tasks" />
 
-            {/* 1 · NEXT MOVE */}
+            {/* 1 · NEXT MOVE — the one display line this page shouts */}
             {deckQuery.isLoading ? (
               <ShimmerSkeleton className="h-40 rounded-2xl" />
             ) : deckQuery.isError ? (
-              <p className="rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] px-3 py-3 text-[11px] font-mono uppercase tracking-widest text-rose-300/80">
+              <p className="border-l-2 border-rose-500/60 py-1 pl-4 font-mono text-[12px] uppercase tracking-[0.14em] text-rose-300/80">
                 Deck unreadable — the read failed. State unknown, not empty.
               </p>
             ) : (
@@ -289,6 +293,8 @@ function MissionsPageInner() {
             {/* 2 · readiness — dark cockpit, speaks only on exception */}
             {deck && <DeckReadinessLine readiness={deck.readiness} />}
 
+          <div className="space-y-10 xl:grid xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start xl:gap-12 xl:space-y-0" data-missions-layout="deck">
+          <div className="min-w-0 space-y-10" data-missions-column="deck">
             {/* 3 · DECIDE — the airlock */}
             {deck && (
               <DeckTriage
@@ -301,28 +307,28 @@ function MissionsPageInner() {
             )}
 
             {/* 4 · capture */}
-            <section aria-labelledby="capture-heading" className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-base)] p-3 sm:p-4">
-              <div className="flex items-center justify-between gap-3">
-                <h2 id="capture-heading" className="text-sm font-semibold text-[var(--text-primary)]">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">capture</span>
+            <section aria-labelledby="capture-heading">
+              <div className="flex items-end justify-between gap-3 border-b border-edge pb-3">
+                <h2 id="capture-heading" className="vt-eyebrow text-fg-secondary">
+                  capture
                 </h2>
-                <span className="hidden text-[10px] font-mono text-[var(--text-tertiary)] sm:block">
-                  Captured items go to Decide. Nothing is scheduled for today.
+                <span className="hidden font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary sm:block">
+                  lands in decide · nothing is scheduled for today
                 </span>
               </div>
-              <div className="mt-3">
+              <div className="mt-1">
                 <MissionsQuickAdd onSubmit={actions.handleQuickAdd} busy={actions.submitting} />
               </div>
             </section>
 
-            <div className="flex flex-wrap items-center gap-2 px-1" aria-label="mission actions">
+            <div className="flex flex-wrap items-center gap-2" aria-label="mission actions">
               <button
                 type="button"
                 onClick={() => {
                   openMissionEdit(null, undefined);
                   telemetry.event("createMissionOpen", { source: "button" });
                 }}
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-3 py-2 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/90 transition-colors hover:bg-[var(--gold)]/[0.08]"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-gold/40 px-4 font-mono text-[12px] uppercase tracking-[0.14em] text-gold transition-colors hover:bg-gold/10"
               >
                 + new mission
               </button>
@@ -332,7 +338,7 @@ function MissionsPageInner() {
                   setExecutionModeActive(true);
                   telemetry.event("executionModeOpen", { source: "button" });
                 }}
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] font-mono uppercase tracking-[0.15em] text-amber-400 transition-colors hover:bg-amber-500/10"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-edge px-4 font-mono text-[12px] uppercase tracking-[0.14em] text-fg-secondary transition-colors hover:border-edge-hover hover:text-fg"
               >
                 ⚡ Focus
               </button>
@@ -340,8 +346,8 @@ function MissionsPageInner() {
                 type="button"
                 onClick={() => filters.setShowFilters((v) => !v)}
                 className={cn(
-                  "inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-3 py-2 text-[11px] font-mono uppercase tracking-[0.15em] transition-colors",
-                  filters.showFilters ? "border-amber-500/50 bg-amber-500/10 text-amber-400" : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200"
+                  "inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-4 font-mono text-[12px] uppercase tracking-[0.14em] transition-colors",
+                  filters.showFilters ? "border-gold/50 bg-gold/10 text-gold" : "border-edge text-fg-secondary hover:border-edge-hover hover:text-fg"
                 )}
               >
                 {filters.showFilters ? "✕ Close Filters" : "⚙️ Filters"}
@@ -374,7 +380,7 @@ function MissionsPageInner() {
             )}
 
             {filters.filtersActive && (
-              <div className="flex items-center justify-between gap-2 px-1 flex-wrap">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <ActiveFiltersStrip
                   filters={[
                     ...(filters.searchQuery.trim() ? [{ label: `search · "${filters.searchQuery.trim().slice(0, 20)}"`, onRemove: () => filters.setSearchQuery("") }] : []),
@@ -389,12 +395,12 @@ function MissionsPageInner() {
             {/* 5 · MISSIONS — finite projects, WIP-capped */}
             {/* data-selection-scope · 2026-09-15 · task rows carry data-entity, so
                 j/k/Space/Enter/x work here (hooks/use-selection-keyboard.ts). */}
-            <section aria-labelledby="mission-board-heading" className="space-y-3" data-selection-scope="missions">
-              <div className="flex items-end justify-between gap-3 px-1">
-                <h2 id="mission-board-heading" className="text-base font-semibold tracking-tight text-[var(--text-primary)]">
-                  <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-tertiary)]">missions</span>
+            <section aria-labelledby="mission-board-heading" className="space-y-4" data-selection-scope="missions">
+              <div className="flex items-end justify-between gap-3 border-b border-edge pb-3">
+                <h2 id="mission-board-heading" className="vt-eyebrow text-fg-secondary">
+                  Active missions
                 </h2>
-                <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[var(--text-tertiary)] tabular-nums">
+                <span className="font-mono text-[12px] uppercase tracking-[0.14em] tabular-nums text-fg-tertiary">
                   {boardMissions.length} active · {openBoardCount} open
                   {deck ? ` · ${deck.missionSlotsOpen} slot${deck.missionSlotsOpen === 1 ? "" : "s"} open` : ""}
                 </span>
@@ -403,15 +409,13 @@ function MissionsPageInner() {
                   read used to fall through to <EmptyMissions /> — a dead
                   fetch rendered as a cleared board. */}
               {boardReadState === "unreadable" ? (
-                <div className="p-6 rounded-xl border border-dashed border-rose-500/30 bg-rose-500/[0.04] text-center">
-                  <p className="text-[11px] font-mono uppercase tracking-widest text-rose-300/80">
-                    Board unreadable — reads failed. State unknown, not empty.
-                  </p>
-                </div>
+                <p className="border-l-2 border-rose-500/60 py-1 pl-4 font-mono text-[12px] uppercase tracking-[0.14em] text-rose-300/80">
+                  Board unreadable — reads failed. State unknown, not empty.
+                </p>
               ) : (
                 <>
                   {boardReadState === "stale" && (
-                    <p className="rounded-lg border border-amber-400/30 bg-amber-400/[0.05] px-3 py-2 text-[10px] font-mono uppercase tracking-wide text-amber-200/90">
+                    <p className="border-l-2 border-amber-400/60 py-1 pl-4 font-mono text-[12px] uppercase tracking-[0.14em] text-amber-200/90">
                       Showing the last confirmed board — the latest refresh failed.
                     </p>
                   )}
@@ -427,7 +431,11 @@ function MissionsPageInner() {
             {deck && <DeckRhythms rhythms={deck.rhythms} onComplete={(id) => void actions.handleCompleteTask(id)} />}
 
           </div>
-          <aside aria-label="waiting and evidence" data-missions-column="context" className="space-y-4 xl:sticky xl:top-4">
+          <aside
+            aria-label="waiting and evidence"
+            data-missions-column="context"
+            className="space-y-10 border-t border-edge pt-8 xl:sticky xl:top-8 xl:border-l xl:border-t-0 xl:border-edge xl:pl-10 xl:pt-1"
+          >
             {/* 8 · WAITING */}
             {deck && (
               <DeckWaiting
@@ -448,12 +456,13 @@ function MissionsPageInner() {
             )}
 
             {deck && deck.unmeasured.length > 0 && (
-              <p className="px-1 font-mono text-[10px] text-[var(--text-tertiary)]">
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                 unmeasured this pass: {deck.unmeasured.join(" · ")}
               </p>
             )}
           </aside>
           </div>
+          </>
         )}
 
         <MissionModalsManager missions={missions} />

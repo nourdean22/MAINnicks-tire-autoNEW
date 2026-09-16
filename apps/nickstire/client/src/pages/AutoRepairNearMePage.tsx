@@ -30,7 +30,13 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
   // Wrench" — the actual differentiator. Sub rewritten with operator
   // 3 (useful absurd: "phone bill that never breaks") + operator 4
   // (anti-pattern: chains' diagnostic fee).
-  title: "Auto Repair Near Me Cleveland · Free Check · No Pay Til Yes | Nick's",
+  // 2026-09-16 · this string never actually got the "Estimate Before
+  // Wrench" anchor the comment above describes — services.ts's
+  // `general-repair` metaTitle did, and routes.ts was aligned to it in
+  // the og:title split-brain fix (#2354), which would otherwise have
+  // left THIS page's live <title> (served for both /auto-repair-near-me
+  // and /general-repair) permanently mismatched against og:title.
+  title: "Auto Repair Cleveland · Estimate Before Wrench | Nick's",
   description: `Cleveland auto shop. Free check. Written quote. You don't pay until you say yes. Brakes, tires, oil, alignment, AC. Walk in 7 days. ${reviewRating}★ from ${reviewCountDisplay} drivers.`,
   eyebrow: "LOCAL AUTO REPAIR",
   h1: "AUTO REPAIR THAT EXPLAINS ITSELF\nBEFORE IT BILLS YOU.",

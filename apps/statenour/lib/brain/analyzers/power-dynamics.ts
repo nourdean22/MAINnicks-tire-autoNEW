@@ -10,6 +10,7 @@
 import { prisma } from "@/lib/prisma";
 import { daysAgo } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 // ── helpers ───────────────────────────────────────────────────────────
 function mean(xs: number[]): number {
@@ -194,8 +195,22 @@ export function computePowerDynamics(args: {
   }
 
   const rivals = profiles.filter((p) => p.role === "rival" || p.role === "enemy").map((p) => p.name);
+  // 2026-09-16 (W8) · BOTH halves of this filter were broken, in opposite
+  // directions, and the bug survived because the two errors cancelled into an
+  // empty list.
+  //   · `trustScore < 50` — trustScore is a 0–1 Float (schema.prisma
+  //     `@default(0.5) // 0-1`; prod min 0.3, max 0.9). The comparison was
+  //     VACUOUSLY TRUE for every person, so the trust half never filtered
+  //     anything: a 0.9-trust ally was "unstable" the moment the count half
+  //     let them through. Fixed to the house RISK tier (`brain-graph.ts:605`,
+  //     and the `/people` "low" band): below 0.4.
+  //   · `interactionCount >= 10` — after the counter reconcile the honest prod
+  //     maximum is 4 and NOBODY reaches 10, so the rule became unreachable. A
+  //     threshold no row can meet is a dead rule, not a conservative one. The
+  //     honest evidence bar is ONE logged contact: without a single contact row
+  //     the trust number is a seeded default, not a judgment about a relationship.
   const unstableAlliances = profiles
-    .filter((p) => (p.interactionCount ?? 0) >= 10 && p.trustScore != null && p.trustScore < 50)
+    .filter((p) => (p.interactionCount ?? 0) >= 1 && p.trustScore != null && p.trustScore < 0.4)
     .map((p) => p.name);
 
   // ── guidance ──
@@ -249,10 +264,12 @@ export async function analyzePowerDynamics({
         where: { deletedAt: null },
         select: { id: true, name: true, role: true, status: true, trustScore: true, powerBalance: true, interactionCount: true, metadata: true, lastInteraction: true },
       }).catch((): never[] => []),
+      // CONTACT rows only (W8): `drainers` sums these amounts, and one
+      // blown_up status flip is −50 against a `net < -5` threshold.
       prisma.relationshipLedger.findMany({
         where: { createdAt: { gte: since } },
-        select: { personId: true, amount: true, source: true, createdAt: true },
-      }).catch((): never[] => []),
+        select: { personId: true, amount: true, source: true, createdAt: true, metadata: true },
+      }).then(contactRowsOnly).catch((): never[] => []),
       prisma.brainMemory.findMany({
         where: { category: BRAIN_CATEGORIES.POWER_PLAY, deletedAt: null },
         select: { metadata: true, createdAt: true },

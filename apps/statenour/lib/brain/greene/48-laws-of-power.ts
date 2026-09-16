@@ -382,7 +382,14 @@ export const LAWS_OF_POWER: GreeneEntry[] = [
       "The more you are seen and heard from, the more common you appear. If you are already established in a group, temporary withdrawal from it will make you more talked about, even more admired. You must learn when to leave. Create value through scarcity.",
     triggers: [
       "operator initiated 80%+ of recent interactions",
-      "interactionCount > 20 in the last 60 days",
+      // 2026-09-16 (W8): was "interactionCount > 20 in the last 60 days".
+      // These strings are read by an LLM applicability check and a substring
+      // matcher — they are instructions, so a threshold the data cannot reach
+      // is a false instruction. With honest counters (the 2026-09-16 reconcile)
+      // the whole-history prod maximum is 4, so ">20 in 60 days" could never be
+      // true and the law could only fire on a hallucinated reading. The real
+      // saturation signal is the SHAPE of the exchange, not a count.
+      "operator is the one restarting the thread each time, several threads running",
       "saturation signal: replies getting shorter, energy declining",
     ],
     actions: [
@@ -393,7 +400,7 @@ export const LAWS_OF_POWER: GreeneEntry[] = [
     ],
     relatedKeys: ["law_8", "strategy_withdraw", "seducer_coquette"],
     applicabilityPrompt:
-      "Has the operator initiated 80%+ of recent interactions AND interactionCount > 20? If yes, Law 16 applies.",
+      "Has the operator initiated 80%+ of recent contact AND is the other side's engagement flattening (shorter replies, longer gaps, the operator always restarting)? If yes, Law 16 applies. Judge the SHAPE of the exchange — do not require a raw interaction count; the ledger only counts deliberately logged contact and undercounts real life.",
   },
   {
     key: "law_17",

@@ -17,6 +17,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 export interface ArcProjection {
   do_nothing: string; // 5-year arc if operator changes nothing
@@ -34,11 +35,14 @@ export async function projectFiveYearArc(
   });
   if (!person) return null;
 
-  const ledger = await prisma.relationshipLedger.findMany({
-    where: { personId },
-    orderBy: { createdAt: "desc" },
-    take: 30,
-  });
+  // CONTACT rows only (W8): recentTrend/olderTrend below are amount sums.
+  const ledger = contactRowsOnly(
+    await prisma.relationshipLedger.findMany({
+      where: { personId },
+      orderBy: { createdAt: "desc" },
+      take: 60,
+    }),
+  ).slice(0, 30);
 
   const recentTrend = ledger.slice(0, 10).reduce((s, r) => s + r.amount, 0);
   const olderTrend = ledger.slice(10, 20).reduce((s, r) => s + r.amount, 0);

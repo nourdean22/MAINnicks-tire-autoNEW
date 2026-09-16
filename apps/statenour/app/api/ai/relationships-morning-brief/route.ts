@@ -11,6 +11,7 @@ import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
+import { contactRowsOnly } from "@/lib/services/people/contact-rows";
 
 const log = rootLogger.withSurface("api/ai/relationships-morning-brief");
 
@@ -54,10 +55,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     const since30 = new Date(Date.now() - 30 * DAY_MS);
-    const ledger = await prisma.relationshipLedger.findMany({
-      where: { createdAt: { gte: since30 } },
-      select: { personId: true, amount: true },
-    });
+    // CONTACT rows only (W8): the amounts below become a reciprocity signal,
+    // and a status flip or a synthetic mention is not reciprocity.
+    const ledger = contactRowsOnly(
+      await prisma.relationshipLedger.findMany({
+        where: { createdAt: { gte: since30 } },
+        select: { personId: true, amount: true, metadata: true },
+      }),
+    );
     const ledgerByPerson = new Map<string, number>();
     for (const l of ledger) {
       ledgerByPerson.set(

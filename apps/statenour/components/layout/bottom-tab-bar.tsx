@@ -96,7 +96,7 @@ export function BottomTabBar() {
       <BottomPulseTicker />
       <nav
         aria-label="Primary"
-        className="flex items-stretch border-t border-[var(--gold)]/20 bg-[var(--bg-void)]/95 backdrop-blur-xl"
+        className="flex items-stretch border-t border-edge bg-[var(--bg-void)]/95 backdrop-blur-xl"
       >
         {BOTTOM_TABS.map((tab) => {
           const Icon = tab.icon;
@@ -117,7 +117,7 @@ export function BottomTabBar() {
                 <span className="absolute top-0 h-0.5 w-8 rounded-full bg-gold" />
               )}
               <Icon size={20} strokeWidth={active ? 2.25 : 1.75} />
-              <span className="text-[9px] font-medium uppercase tracking-[0.12em]">
+              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em]">
                 {tab.label}
               </span>
             </Link>
@@ -129,7 +129,7 @@ export function BottomTabBar() {
           className="relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-fg-tertiary transition-colors hover:text-gold"
         >
           <LayoutGrid size={20} strokeWidth={1.75} />
-          <span className="text-[9px] font-medium uppercase tracking-[0.12em]">More</span>
+          <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em]">More</span>
         </button>
       </nav>
     </div>

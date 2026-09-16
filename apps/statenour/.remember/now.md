@@ -1,6 +1,65 @@
 # Session ledger — statenour
 
-**Updated:** 2026-09-16 (Session B: counter reconcile #2348 open on `claude/statenour-ui-architecture-intmaf` after ledger wave #2346 merged + deployed `e0f0275bd`; Session A: execution truth + Dream-to-Proof #2335/#2336/#2338/#2339/#2340/#2342/#2343/#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`; Session B's UI workbench entry below is intact)
+**Updated:** 2026-09-16 (Session B: counter reconcile #2348 SHIPPED + DEPLOYED-VERIFIED `ef52c8e38`, prod reconcile DONE 10:28Z; Visible Transformation + honest-counter repair W8 open on `claude/statenour-ui-architecture-intmaf` — sixth PR #2349; Session A: execution truth + Dream-to-Proof #2335–#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`)
+
+## (Session B) Honest-counter repair W8 (2026-09-16; same branch, on top of the Visible Transformation slices)
+**Operator:** fact-check the research, repair reality, keep shipping. **Re-measured on prod FIRST** (Neon,
+read-only) rather than trusting any number in a comment or an audit: 20 live profiles · 7 ever logged · 13 at
+zero · max `interaction_count` 4 · `>= 3` matches 2 · `trustScore` 0.3–0.9.
+**Shipped (5 commits):** writer guard — `RESERVED_LEDGER_METADATA_KEYS` + `assertWritableMetadata` in the
+`recordInteraction` seam + a zod `superRefine` on `task.logLedger` · trust scale — `unstableAlliances` compared a
+0–1 Float to `50` (vacuously true for everyone) while its other half `>= 10` was unreachable; now `< 0.4` AND one
+logged contact · reader contamination — all 16 ledger reads classified, 13 filtered through `contactRowsOnly`, 3
+allowlisted with a reason, `changes-since.ts` moved `count` → fetch-then-filter · counter consumers — 4 bare
+`orderBy: { interactionCount: "desc" }` now lead with `lastInteraction` NULLS LAST, Greene law_16's
+`"interactionCount > 20"` trigger replaced with the observable SHAPE (and the schema doc that taught it), the
+neglect predicate de-duplicated into `lib/services/people/neglect.ts` at `>= 1` · W7 gate fallout —
+`components/ui/{input-group,section-header}.tsx` deleted, anti-slop waiver canary repointed onto its own fixture.
+**Traps measured, all worth keeping:**
+· **A canary that cannot fail is not a canary.** The ledger scan's first cut tested
+  `src.includes("contactRowsOnly")` — the IMPORT line alone satisfies that, and mutation proved it stayed GREEN
+  after the call was deleted. Tightened to a real call shape it immediately caught a REAL miss in the same diff.
+· **A detector fires on its own documentation.** Both new source scans flagged the comment explaining the bug they
+  fix. The score-scale one strips comments AND strings (its subject is code); the threshold one strips comments and
+  KEEPS strings (its subject is prose an LLM reads). Mirror images, and each needs the "does not fire on a comment"
+  arm or the next fix is un-documentable.
+· **A threshold authored against a broken counter survives the fix.** `>= 3` was not dead, it was MIS-SCALED, and
+  it dropped the worst cases first. Re-measure every threshold downstream of a data repair, not just the ones that
+  went to zero.
+· **`git commit` commits the INDEX, not your pathspec.** A `git rm` staged earlier swept 256 lines of deletion into
+  an unrelated slice. Caught by reading `git show --stat`; fixed with `reset --soft` while nothing was pushed.
+**Environmental, NOT this branch (do not chase):** `obsidian-ingest-server-only` + `generate-pwa-icons-sharp` both
+spawn `npx tsx -e`, and in this Linux container a spawned `tsx -e` dynamic import collapses every module namespace
+to `default` — reproduced on untouched `lib/db/soft-delete.ts` WITHOUT the shim. `check:env` fails for want of
+provider keys (never export real keys into the test shell).
+**Next:** W9 nickstire public FCFS vs "SCHEDULE DROP-OFF" — HOLD, a sibling session is doing GSC/SEO work in those
+same files (`Home.tsx`, `FocusedServicePage.tsx`, `InternalLinks.tsx`, `SiteFooter.tsx`); coordinate before touching.
+
+## (Session B) Visible Transformation wave (2026-09-16; same branch, sixth PR, after #2348 shipped `ef52c8e38`)
+**Operator:** the workbench substrate shipped but the pages "still look 85–95% like before"; new bar: old vs new
+side-by-side from six feet away must be unmistakable, and *visual similarity to the pre-workbench screenshots is
+now a failure condition*. This reverses spec §2 correction 5 (no rail, no cosmetic pass) — recorded in the spec.
+**Shipped:** the bar as a test — `tests/e2e/visible-transformation.spec.ts` renders 5 pages × 2 viewports on the
+hermetic stack and fails under 0.35 REGISTERED INK-MASS distance from the committed PRE-wave baselines
+(`tests/e2e/visible-transformation.spec.ts-snapshots/`, never regenerate casually) · desktop spine (4.5rem at
+≥1280px, `--spine-w`, `<main>` pads) + workset strip + ruled bottom chrome + intent resolver restyle · Home
+(display verdict, gold-rule lead, ruled command line, `empty:hidden` rail) · Missions (NEXT MOVE hero across the
+page, capture / decide / board as ruled sections, mission cards → ruled list with display titles, WAITING + DONE
+rail, nested-button hydration error in the card header fixed) · People (NEEDS ATTENTION verdict from the totals,
+the list always visible as hairline rows, gold-ruled Person Workspace; the `browse all` <details> is gone) ·
+System (Control Tower: `lib/system/control-tower.ts` — ALL SYSTEMS NOMINAL / N REQUIRE ATTENTION, exceptions
+only, vitals as one mono line; unknown is never nominal) · Brain (nine tabs grouped into five lenses with five
+layout archetypes in `PageTabs lenses=`; every `?tab=` deep link unchanged).
+**Traps measured:** a pixel-share distance is capped by ink — the house palette is 2.5–10% ink, so a 30% bar was
+unreachable and a 64px slide scored 82–91% of ink pixels "changed"; the fix is a 48px-cell ink-mass grid,
+relative L1, minimised over ±2 cells (shift proxies 11–26%, recomposed pages ≥0.36, same-tree noise 0.000;
+canary `tests/repo/visual-distance-metric.test.ts`, red under two mutants) · a capture taken mid-load measures
+skeletons — the gate now waits for `[data-skeleton]` / `aria-busy` / `.animate-pulse` to leave (cap 20s) and
+gives a cold `next dev` compile 60s · the cloud container restarts kill background Postgres + `next dev`; every
+e2e run re-checks both first · `pkill -f <pattern>` matches the shell running it.
+**Next:** the secondary pages (Stats glass/purple, Journal, Intelligence, Content, Photo, Pins, Settings, Links,
+Learn) · Brain phone hydration mismatch (pre-existing, ignored by the gate on purpose) · `make_interval(days =>
+bigint)` raw-query error on plain PG16 · the eight unfiltered ledger readers (#2348 §7).
 
 ## (Session B) Counter reconcile wave (2026-09-16; same branch, PR #2348, after #2346 shipped + deployed `e0f0275bd`)
 **Operator:** "counter recon". **Measured (Neon, read-only):** 27 profiles, `interaction_count` sum 200 vs 15 contact

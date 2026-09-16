@@ -554,7 +554,7 @@ export const SERVICES: ServiceData[] = [
       "Correct oil weight per manufacturer spec",
       "Quality filters, not the cheapest option",
       "Free multi-point inspection with every oil change",
-      "Quick service, usually under 30 minutes",
+      "Quick service, usually 15-30 minutes",
       "No appointment needed for oil changes",
       "Honest recommendation on change intervals",
     ],
@@ -596,7 +596,7 @@ export const SERVICES: ServiceData[] = [
     duration: "15-30 min",
     startingPrice: "From $49",
     priceRange: "",
-    whyChooseUs: "Every oil change at Nick's uses the correct oil weight per your manufacturer spec -- not the cheapest option. We include a free multi-point inspection with every service so small problems get caught early. Walk in any day, no appointment needed, and most are done in under 30 minutes.",
+    whyChooseUs: "Every oil change at Nick's uses the correct oil weight per your manufacturer spec -- not the cheapest option. We include a free multi-point inspection with every service so small problems get caught early. Walk in any day, no appointment needed, and most are done in 15-30 minutes.",
     commonSymptoms: [
       "Oil change light on dashboard",
       "Engine oil looks dark and gritty",

@@ -303,3 +303,49 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
   [class*="text-[9px]"] { font-size: 11px !important; }
   [class*="text-[10px]"] { font-size: 12px !important; }
 }
+
+/* ── Visible Transformation wave (2026-09-16) ──────────────────────────────
+   The workbench waves shipped an object substrate the eye could not see; this
+   block is the part of the redesign every StandardPage adopter inherits at
+   once: the desktop spine's lane, and a masthead scale where the page title
+   is the loudest thing on the page. Unlayered on purpose (the h1/h2 rules
+   above are unlayered too, so a Tailwind utility would silently lose). */
+:root { --spine-w: 0px; }
+@media (min-width: 1280px) { :root { --spine-w: 4.5rem; } }
+
+.page-header { gap: 0.5rem; margin-bottom: 2rem; padding-bottom: 1.25rem; }
+.eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+}
+.page-title { font-size: 2.5rem; letter-spacing: -0.03em; line-height: 0.95; }
+@media (min-width: 768px)  { .page-title { font-size: 3.5rem; } }
+@media (min-width: 1280px) { .page-title { font-size: 4.5rem; } }
+.page-copy { font-size: 1rem; max-width: 60ch; }
+@media (min-width: 1280px) { .page-copy { font-size: 1.0625rem; } }
+
+/* A real <h2> that reads as an eyebrow (program §5.9): structure for screen
+   readers and ⌘K-style navigation, mono eyebrow to the eye. */
+.vt-eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin: 0;
+}
+/* The one verdict line a page is allowed to shout. */
+.vt-verdict {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.25rem;
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  color: var(--text-primary);
+}
+@media (min-width: 768px)  { .vt-verdict { font-size: 3.25rem; } }
+@media (min-width: 1280px) { .vt-verdict { font-size: 4.25rem; } }

@@ -428,8 +428,8 @@ export default function PinsPage() {
 
 function Stat({ label, value, tone = "text-zinc-300" }: { label: string; value: number; tone?: string }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2">
-      <div className="text-[9px] uppercase tracking-wider text-zinc-500">{label}</div>
+    <div className="border-l-2 border-edge py-1 pl-3">
+      <div className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">{label}</div>
       <div className={cn("mt-0.5 font-mono text-lg font-bold tabular-nums", tone)}>{value}</div>
     </div>
   );

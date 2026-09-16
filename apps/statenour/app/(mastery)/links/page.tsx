@@ -150,7 +150,7 @@ export default function LinksPage() {
       }
     >
       {error && (
-        <div className="rounded-lg border border-rose-500/20 bg-rose-500/[0.05] p-4 text-sm text-rose-300">
+        <div className="border-l-2 border-rose-500/60 py-1 pl-4 text-[14px] text-rose-300">
           {error}
         </div>
       )}
@@ -158,7 +158,7 @@ export default function LinksPage() {
       {showForm && (
         <form
           onSubmit={handleCreate}
-          className="rounded-lg border border-[var(--gold)]/20 bg-[var(--bg-raised)] p-4 space-y-3"
+          className="space-y-3 border-l-2 border-gold/60 py-1 pl-4 sm:pl-5"
         >
           <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--gold)]">
             Create Short Link
@@ -237,7 +237,7 @@ export default function LinksPage() {
           Links ({links?.length || 0})
         </h2>
 
-        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] overflow-hidden">
+        <div className="overflow-hidden border-y border-edge">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>

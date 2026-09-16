@@ -44,6 +44,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
+import { assertWritableMetadata } from "@/lib/services/people/contact-rows";
 
 const log = rootLogger.withSurface("services/people/record-interaction");
 
@@ -109,6 +110,11 @@ interface Normalized {
 }
 
 function normalize(input: RecordInteractionInput): Normalized {
+  // W8 (Codex P2 on #2348): this seam increments interactionCount, so it may
+  // not write a marker that excludes its own row from the counters. Checked
+  // here, before any IO, so EVERY caller is covered — including
+  // recordInteractionOnce and any future writer.
+  assertWritableMetadata(input.metadata);
   const note = input.note.trim().slice(0, 2000);
   if (!note) throw new Error("note_required");
   if (!Number.isFinite(input.amount)) throw new Error("amount_invalid");
