@@ -516,8 +516,12 @@ function RelationshipsPageInner() {
                         {p.role}
                       </span>
                       {p.isNeglected && (
+                        /* W8 · the badge carries its own evidence. A bare
+                         * "neglected" is a verdict the operator has to trust;
+                         * the day count is already in the payload, so show
+                         * the number that produced it. */
                         <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-amber-300">
-                          neglected
+                          neglected{p.daysSinceInteraction !== null ? ` · ${p.daysSinceInteraction}d` : ""}
                         </span>
                       )}
                       {/* wave-AB.b · per-row Edit affordance · stopPropagation
