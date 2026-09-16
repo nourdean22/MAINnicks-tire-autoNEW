@@ -173,11 +173,13 @@ export async function beginAttempt(input: BeginAttemptInput, override?: Partial<
   // Compare-and-swap on the row we observed (Codex review of #2338): two
   // identical calls arriving after the same expiry both read this reclaimable
   // row; an unconditional update by id would let BOTH win and both send. The
-  // WHERE pins the observed (attemptNo, state) — a settle changes the state, a
-  // reclaim bumps attemptNo — so exactly one update matches. The loser re-reads
-  // the winner's row and is reported as a duplicate with that row's real state.
+  // WHERE pins every field the decision read — (attemptNo, state) and the
+  // holdUntil the "expired" verdict came from (Codex review of #2343: a
+  // renewal that moves only the deadline would otherwise still match) — so
+  // exactly one update matches. The loser re-reads the winner's row and is
+  // reported as a duplicate with that row's real state.
   const reclaimed = await prisma.actionAttempt.updateMany({
-    where: { id: existing.id, attemptNo: existing.attemptNo, state: existing.state },
+    where: { id: existing.id, attemptNo: existing.attemptNo, state: existing.state, holdUntil: existing.holdUntil },
     data: { ...fresh, attemptNo: existing.attemptNo + 1, tool: input.tool.slice(0, 80), argumentsHash: input.argumentsHash.slice(0, 64) },
   });
   if (reclaimed.count === 1) {
