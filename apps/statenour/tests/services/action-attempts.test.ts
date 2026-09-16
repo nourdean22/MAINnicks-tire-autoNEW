@@ -85,17 +85,22 @@ describe("beginAttempt", () => {
     const r = await beginAttempt({ operationKey: "k", tool: "t", argumentsHash: "h", windowMs: 1000 }, deps);
     expect(r).toEqual({ kind: "claimed", attemptId: "a1", attemptNo: 2 });
     const cas = actionAttempt.updateMany.mock.calls[0][0];
-    expect(cas.where).toEqual({ id: "a1", attemptNo: 1, state: "FAILED" }); // the observed row, pinned
+    expect(cas.where).toEqual({ id: "a1", attemptNo: 1, state: "FAILED", holdUntil: null }); // every field the decision read, pinned
     expect(cas.data).toMatchObject({ state: "EXECUTING", attemptNo: 2, externalReference: null });
     expect(actionAttempt.update).not.toHaveBeenCalled();
   });
 
-  it("re-claims an expired SUCCEEDED_UNVERIFIED row (the window is the dedupe bound, not forever)", async () => {
+  it("re-claims an expired SUCCEEDED_UNVERIFIED row (the window is the dedupe bound, not forever) — pinning the expired deadline it decided from", async () => {
+    const expired = new Date(NOW.getTime() - 1);
     actionAttempt.create.mockRejectedValueOnce({ code: "P2002" });
-    actionAttempt.findUnique.mockResolvedValueOnce({ id: "a1", state: "SUCCEEDED_UNVERIFIED", attemptNo: 3, holdUntil: new Date(NOW.getTime() - 1) });
+    actionAttempt.findUnique.mockResolvedValueOnce({ id: "a1", state: "SUCCEEDED_UNVERIFIED", attemptNo: 3, holdUntil: expired });
     actionAttempt.updateMany.mockResolvedValueOnce({ count: 1 });
     const r = await beginAttempt({ operationKey: "k", tool: "t", argumentsHash: "h", windowMs: 1000 }, deps);
     expect(r).toEqual({ kind: "claimed", attemptId: "a1", attemptNo: 4 });
+    // THE RENEWAL RACE (Codex, #2343): another caller may move ONLY holdUntil
+    // (state and attemptNo untouched). A swap that did not pin the deadline
+    // would still match the stale observation and let this caller act too.
+    expect(actionAttempt.updateMany.mock.calls[0][0].where).toEqual({ id: "a1", attemptNo: 3, state: "SUCCEEDED_UNVERIFIED", holdUntil: expired });
   });
 
   it("THE RACE (Codex, #2338): two callers read the same reclaimable row — the one whose swap matched nothing is a duplicate, not a second claim", async () => {

@@ -42,8 +42,11 @@ scripts/night-shift/ruleset-night-shift-boundary.json`; it restricts updates, fo
 of `main` to repository admins — RepositoryRole id 5 — and to the GitHub Actions app — Integration id
 15368 — so the weekly prerender push keeps working; verify that bypass on first activation). Operator steps, once: create a machine account; add it
 as a collaborator with **read**; under Settings → Actions enable workflows on pull requests from forks;
-on that account mint a fine-grained token (its fork: contents read+write, pull requests read+write,
-metadata read) and store it as the user env var `NIGHT_SHIFT_GH_TOKEN` — never the operator's own token.
+on that account mint a **classic** token with only the `repo` scope (a fine-grained token cannot reach a
+repo owned by another personal account, so it could never open the cross-repo PR; `repo` on a read
+collaborator can fork, push to the fork and open the PR, and still cannot merge) and store it as the user
+env var `NIGHT_SHIFT_GH_TOKEN` — never the operator's own token. Enable 2FA on the account: GitHub
+requires it of every contributor within weeks of the first push.
 A refusal is recorded as `darwin.run_refused` in the ledger. The child process receives the token only
 as `GH_TOKEN`, and git pushes go through `gh auth git-credential` so they carry the same identity.
 Canaried in `scripts/agent-os/nightShiftIdentity.test.mjs` (`pnpm agent:verify`).

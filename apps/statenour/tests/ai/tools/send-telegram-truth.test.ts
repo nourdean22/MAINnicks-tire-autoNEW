@@ -96,7 +96,7 @@ describe("sendTelegram tool · completion truth (durable ActionAttempt)", () => 
     const r = await run({ message: "hi", urgency: "medium" });
     expect(r).toMatchObject({ sent: true, attemptId: "a-prior", ledgerState: "SUCCEEDED_UNVERIFIED" });
     const cas = actionAttempt.updateMany.mock.calls[0][0];
-    expect(cas.where).toEqual({ id: "a-prior", attemptNo: 1, state: "FAILED" });
+    expect(cas.where).toEqual({ id: "a-prior", attemptNo: 1, state: "FAILED", holdUntil: null });
     expect(cas.data).toMatchObject({ state: "EXECUTING", attemptNo: 2 });
   });
 
