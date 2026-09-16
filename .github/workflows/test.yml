@@ -256,9 +256,23 @@ jobs:
         if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto lint:hooks
 
+      # 2026-09-16 · `--range`, because the bare invocation was VACUOUS here.
+      #
+      # The script's default mode reads `git diff --cached`, and an
+      # actions/checkout stages nothing — so every run since this step was added
+      # scanned ZERO files and printed
+      #   `[brand-voice] 0 file(s) scanned · 52 kernel rules · 0 violations · ok`
+      # which is byte-identical to a genuinely clean commit. A banned claim added
+      # to customer copy passed this step for as long as it existed.
+      #
+      # `origin/main` exists because the checkout above is `fetch-depth: 0`, and
+      # three-dot means the comparison is against the MERGE BASE, so a PR is
+      # judged on what IT added rather than on what main moved on to. On a push
+      # to main the range is empty and the script says NOTHING CHANGED — which it
+      # now prints as its own line rather than borrowing the pass line.
       - name: Nickstire · brand-voice lint
         if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
-        run: pnpm --filter nicks-tire-auto lint:brand-voice
+        run: pnpm --filter nicks-tire-auto lint:brand-voice -- --range origin/main
 
       - name: Nickstire · pii lint
         if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}

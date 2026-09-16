@@ -22,9 +22,35 @@
  *   pnpm tsx scripts/scan-secrets.ts --json     # JSON output for tools
  *
  * Exits non-zero on any finding.
+ *
+ * ⚠ `--staged` SCANNED ZERO FILES ON EVERY COMMIT until 2026-09-16, and said
+ * "✓ no findings" while doing it. Measured end to end, not inferred:
+ *
+ *   A real `git commit` exports `GIT_DIR` (absolute) and no `GIT_WORK_TREE` to
+ *   its hooks, and lefthook runs this job with `root: "apps/statenour"`. With
+ *   `GIT_DIR` set and `GIT_WORK_TREE` unset git stops discovering the repo from
+ *   the filesystem and takes the CURRENT DIRECTORY as the work-tree root — so
+ *   `git rev-parse --show-toplevel` returned `<repo>/apps/statenour`, while
+ *   `git diff --cached --name-only` kept returning repo-root-relative paths
+ *   (`apps/statenour/lib/x.ts`). `join(repoRoot, f)` therefore built
+ *   `<repo>/apps/statenour/apps/statenour/lib/x.ts`, `statSync` threw, and the
+ *   loop `continue`d past it.
+ *
+ *   The receipt lied twice over: the count printed was `targetFiles.length`,
+ *   taken BEFORE the skip, so the output read "scanned 1 files · no findings"
+ *   about a file that was never opened.
+ *
+ *   PROBE (throwaway index, real file on disk, one fake `AKIA…` key):
+ *     clean env → ✗ 1 finding [CRITICAL] aws_access_key, exit 1
+ *     GIT_DIR set → ✓ no findings · scanned 1 files, exit 0
+ *
+ * Both halves are fixed below: git runs with the hook's `GIT_DIR` /
+ * `GIT_WORK_TREE` stripped, and a staged file that cannot be opened is now a
+ * LOUD failure instead of a `continue`. Same root cause and same fix as
+ * `apps/nickstire/scripts/lint-brand-voice.ts`.
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { globSync } from "glob";
@@ -121,10 +147,24 @@ const IGNORE_GLOBS = [
   "**/__mocks__/**",
 ];
 
+/**
+ * The hook environment, neutralised — see the header. `GIT_INDEX_FILE` is kept
+ * on purpose: git sets it to an absolute path, and it is what makes a PARTIAL
+ * commit (`git commit -- <paths>`, which builds a temporary index) scan the
+ * bytes actually being committed.
+ */
+const GIT_ENV: NodeJS.ProcessEnv = (() => {
+  const env = { ...process.env };
+  delete env.GIT_DIR;
+  delete env.GIT_WORK_TREE;
+  return env;
+})();
+
 function getStagedFiles(): string[] {
   try {
     const out = execSync("git diff --cached --name-only --diff-filter=ACM", {
       encoding: "utf8",
+      env: GIT_ENV,
     });
     return out
       .split("\n")
@@ -136,6 +176,33 @@ function getStagedFiles(): string[] {
   }
 }
 
+const MAX_SCAN_BYTES = 5 * 1024 * 1024;
+
+/**
+ * `--staged` reads the STAGED BYTES, not the working tree.
+ *
+ * Two reasons, and the first is a bug in its own right: `git add` a file with a
+ * key in it, then edit the key out of the working copy, and a disk-reading
+ * scanner finds nothing while the secret goes into the commit. A pre-commit
+ * gate has to inspect what is being committed. The second is structural — this
+ * path no longer builds a filesystem path at all, so it cannot be fooled by a
+ * wrong `--show-toplevel` the way `join(repoRoot, f)` was (see the header).
+ *
+ * `:<path>` is resolved by git relative to the TOP OF THE WORKING TREE, not
+ * cwd — verified from `apps/statenour/` with and without `GIT_DIR` set.
+ */
+function stagedBlob(repoRelPath: string): { content?: string; oversize?: boolean; error?: string } {
+  const g = (args: string[]) =>
+    execFileSync("git", args, { encoding: "utf8", env: GIT_ENV, maxBuffer: 64 * 1024 * 1024 });
+  try {
+    const size = Number(g(["cat-file", "-s", `:${repoRelPath}`]).trim());
+    if (Number.isFinite(size) && size > MAX_SCAN_BYTES) return { oversize: true };
+    return { content: g(["show", `:${repoRelPath}`]) };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 function scanFile(filePath: string, repoRoot: string): Finding[] {
   let content: string;
   try {
@@ -143,7 +210,11 @@ function scanFile(filePath: string, repoRoot: string): Finding[] {
   } catch {
     return [];
   }
-  const lines = content.split("\n");
+  return scanContent(relative(repoRoot, filePath).replace(/\\/g, "/"), content);
+}
+
+/** The rule loop, over text from either source. `label` is what a finding reports. */
+function scanContent(label: string, content: string): Finding[] {
   const findings: Finding[] = [];
   for (const rule of RULES) {
     // Reset regex state for each scan
@@ -158,7 +229,7 @@ function scanFile(filePath: string, repoRoot: string): Finding[] {
       const preview =
         matched.slice(0, 12) + "..." + matched.slice(matched.length - 4);
       findings.push({
-        file: relative(repoRoot, filePath).replace(/\\/g, "/"),
+        file: label,
         line,
         rule: rule.name,
         preview,
@@ -175,34 +246,94 @@ function main(): void {
   const jsonOut = argv.includes("--json");
   const repoRoot = execSync("git rev-parse --show-toplevel", {
     encoding: "utf8",
+    env: GIT_ENV,
   }).trim();
 
-  const targetFiles: string[] = [];
+  const allFindings: Finding[] = [];
+  /** What was actually OPENED. The old receipt printed `targetFiles.length`. */
+  let scanned = 0;
+  /** Deliberately skipped, and named in the output so a skip is never invisible. */
+  const oversize: string[] = [];
+  /**
+   * Could not be opened. In `--staged` mode this is NOT a skip: the file is
+   * about to enter history and the scanner has no idea what is in it.
+   */
+  const unreadable: string[] = [];
+
   if (stagedOnly) {
-    targetFiles.push(...getStagedFiles().map((f) => join(repoRoot, f)));
+    // Repo-root-relative paths straight from `--name-only`, handed to git as
+    // `:<path>` — no filesystem path is constructed, so nothing here depends on
+    // `--show-toplevel` being right.
+    for (const f of getStagedFiles()) {
+      const blob = stagedBlob(f);
+      if (blob.oversize) {
+        oversize.push(f);
+        continue;
+      }
+      if (blob.content === undefined) {
+        unreadable.push(f);
+        continue;
+      }
+      scanned += 1;
+      allFindings.push(...scanContent(f, blob.content));
+    }
   } else {
+    const targetFiles: string[] = [];
     for (const g of SCAN_GLOBS) {
       const matches = globSync(g, { cwd: repoRoot, ignore: IGNORE_GLOBS });
       targetFiles.push(...matches.map((f) => join(repoRoot, f)));
     }
+    for (const f of targetFiles) {
+      try {
+        const stat = statSync(f);
+        if (!stat.isFile()) continue;
+        if (stat.size > MAX_SCAN_BYTES) {
+          oversize.push(f);
+          continue;
+        }
+      } catch {
+        unreadable.push(f);
+        continue;
+      }
+      scanned += 1;
+      allFindings.push(...scanFile(f, repoRoot));
+    }
   }
 
-  const allFindings: Finding[] = [];
-  for (const f of targetFiles) {
-    try {
-      const stat = statSync(f);
-      if (!stat.isFile() || stat.size > 5 * 1024 * 1024) continue; // skip >5MB
-    } catch {
-      continue;
+  // UNKNOWN is not CLEAN. A staged file the scanner could not read is the exact
+  // state the GIT_DIR bug produced for EVERY file, silently, for months — and
+  // the pass line was indistinguishable from a real one.
+  if (stagedOnly && unreadable.length > 0) {
+    // `--json` gets the same verdict, in its own shape. Gating this on the
+    // human output would have left a consumer of the JSON reading `findings: []`
+    // as clean over files nothing had opened — the identical defect, one
+    // interface along.
+    if (jsonOut) {
+      console.log(JSON.stringify({ findings: allFindings, unreadable, scanned, oversize }, null, 2));
+    } else {
+      console.error(
+        `✗ scan-secrets · ${unreadable.length} staged file(s) could not be read from the index — NOT scanned, NOT a pass:`,
+      );
+      for (const f of unreadable) console.error(`  [UNREAD] ${f}`);
+      console.error(`  Nothing below has been verified for these files. Fix the read, do not bypass.`);
     }
-    allFindings.push(...scanFile(f, repoRoot));
+    process.exit(1);
   }
 
   if (jsonOut) {
-    console.log(JSON.stringify({ findings: allFindings }, null, 2));
+    // `scanned` travels with the findings so a consumer can tell "clean" from
+    // "read nothing" — the distinction this whole change is about.
+    console.log(JSON.stringify({ findings: allFindings, scanned, oversize }, null, 2));
   } else {
     if (allFindings.length === 0) {
-      console.log(`✓ scan-secrets · no findings · scanned ${targetFiles.length} files`);
+      // `scanned`, not `targetFiles.length` — the old count was taken before the
+      // skip, so it reported files it had never opened.
+      const skipped = oversize.length ? ` · ${oversize.length} skipped >5MB` : "";
+      console.log(
+        scanned === 0
+          ? `· scan-secrets · NOTHING SCANNED (0 files${stagedOnly ? " staged in scope" : " matched"}) — no findings is not a clean bill of health${skipped}`
+          : `✓ scan-secrets · no findings · scanned ${scanned} files${skipped}`,
+      );
     } else {
       console.error(`✗ scan-secrets · ${allFindings.length} finding(s):`);
       for (const f of allFindings) {

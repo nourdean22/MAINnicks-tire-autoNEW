@@ -13,12 +13,43 @@
  * If you want to add or change a rule, edit `shared/voice.ts`. Adding a local
  * list back here fails `voiceKernelParity.test.ts`.
  *
- * Two modes, unchanged:
+ * Three modes:
  *   - PRE-COMMIT (default) — scans only ADDED lines in `git diff --cached`, so
  *     pre-existing violations don't block; only new ones do. Exit 1 on a
  *     `block`-severity hit.
+ *   - RANGE (`--range <ref>`) — same added-lines semantics against
+ *     `<ref>...HEAD`. This is the CI mode: a CI checkout stages nothing, so
+ *     PRE-COMMIT mode there is structurally blind (see below).
  *   - AUDIT (`--audit`) — scans all in-scope files and reports the full set.
- *     Never exits non-zero; this is the inventory tool.
+ *     Never exits non-zero; this is the inventory tool. NOT gateable: measured
+ *     2026-09-16 it reported 28 blocking findings across 17 files, several of
+ *     them false positives on internal identifiers ("unmatched" invoice rows).
+ *     Re-measure before quoting that figure — it is a reading, not a fact. The
+ *     durable point is the reason the other two modes read ADDED LINES only.
+ *
+ * ⚠ TWO FAIL-OPENS, BOTH FIXED 2026-09-16, BOTH MEASURED — this gate had never
+ * scanned a single file on any automatic invocation:
+ *
+ *   1. PRE-COMMIT under a real `git commit`. Git exports `GIT_DIR` (absolute)
+ *      and no `GIT_WORK_TREE` to its hooks. With `GIT_DIR` set, git takes the
+ *      CURRENT DIRECTORY as the work-tree root — and this script runs git with
+ *      `cwd: APP_ROOT`. STAGE 1 (`--name-only`, no pathspec) still returned
+ *      repo-root paths, so the scope filter looked healthy; STAGE 3's pathspec
+ *      `server/...` was then resolved against `apps/nickstire`-as-root and
+ *      matched NOTHING in an index keyed `apps/nickstire/server/...`. Empty
+ *      diff, zero files scanned, printed as `ok`. Proved end to end: the same
+ *      staged `"your trusted neighborhood tire shop"` exits 1 with
+ *      `cliche.trusted` in a clean env and prints
+ *      `0 file(s) scanned · 0 violations · ok` with `GIT_DIR` set.
+ *   2. CI. `.github/workflows/test.yml` ran the bare script on a checkout with
+ *      NOTHING STAGED, so STAGE 1 returned an empty list every time — a real
+ *      pass shape, reached without reading a byte of the diff.
+ *
+ * The lesson is the one in the buffer comment below, one layer up: it is not
+ * enough to make the read robust, the ABSENCE of a read must be unable to
+ * impersonate a clean one. Hence `--range` for CI, a neutralised git env, and
+ * the STAGE 3 invariant that a changed in-scope file with an EMPTY per-file
+ * diff is UNREADABLE rather than clean.
  *
  * Ported from lint-brand-voice.mjs (deleted in the same change). Behaviour kept:
  * scope list, admin exclusion, comment skipping, diff line accounting, output
@@ -36,6 +67,17 @@ import { scopeOf, stripWorkspacePrefix } from "./lib/brandVoiceScope";
 const __filename = fileURLToPath(import.meta.url);
 const APP_ROOT = resolve(dirname(__filename), "..");
 const AUDIT_MODE = process.argv.includes("--audit");
+
+/**
+ * `--range <ref>` — the CI mode. Three-dot, so the comparison is against the
+ * MERGE BASE and a PR is judged on what it added, not on what main moved on to.
+ */
+const RANGE_IDX = process.argv.indexOf("--range");
+const RANGE_REF = RANGE_IDX >= 0 ? process.argv[RANGE_IDX + 1] : undefined;
+if (RANGE_IDX >= 0 && (!RANGE_REF || RANGE_REF.startsWith("--"))) {
+  console.error("[brand-voice] --range needs a ref, e.g. --range origin/main");
+  process.exit(1);
+}
 
 interface Finding {
   file: string;
@@ -64,27 +106,83 @@ function isCommentLine(text: string): boolean {
  */
 const GIT_MAX_BUFFER = 64 * 1024 * 1024;
 
+/**
+ * Git's hook environment, NEUTRALISED.
+ *
+ * `git commit` exports `GIT_DIR` (absolute) and NO `GIT_WORK_TREE` to hooks.
+ * With `GIT_DIR` set and `GIT_WORK_TREE` unset, git stops discovering the repo
+ * from the filesystem and treats the CURRENT DIRECTORY as the work-tree root —
+ * and every call below runs with `cwd: APP_ROOT`. So a pathspec of
+ * `server/services/vapi.ts` was resolved against `apps/nickstire` as if that
+ * were the repo root, and matched nothing in an index keyed
+ * `apps/nickstire/server/services/vapi.ts`. Header fail-open #1.
+ *
+ * Deleting the two variables restores ordinary discovery from `cwd`, which
+ * finds the same repository (worktree or primary) by walking up to the `.git`
+ * entry. `GIT_INDEX_FILE` is deliberately KEPT: git sets it to an absolute path,
+ * and it is what makes a PARTIAL commit (`git commit -- <paths>`, which builds a
+ * temporary index) gate the bytes actually being committed rather than the
+ * full index. Dropping it would have been a second, quieter bug.
+ */
+const GIT_ENV: NodeJS.ProcessEnv = (() => {
+  const env = { ...process.env };
+  delete env.GIT_DIR;
+  delete env.GIT_WORK_TREE;
+  return env;
+})();
+
 /** git with a bounded buffer and no shell — argv array, so paths are literal. */
 function git(args: string[]): string {
-  return execFileSync("git", args, { cwd: APP_ROOT, encoding: "utf8", maxBuffer: GIT_MAX_BUFFER });
+  return execFileSync("git", args, {
+    cwd: APP_ROOT,
+    encoding: "utf8",
+    maxBuffer: GIT_MAX_BUFFER,
+    env: GIT_ENV,
+  });
 }
 
-// ─── PRE-COMMIT MODE: scan only ADDED lines in the staged diff ──────────────
-function scanStagedDiff(): { findings: Finding[]; filesScanned: number; unreadable: string | null } {
+// ─── DIFF MODES: scan only ADDED lines (staged, or a ref range) ─────────────
+interface ScanResult {
+  findings: Finding[];
+  filesScanned: number;
+  unreadable: string | null;
+  /** Nothing CHANGED at all — a different statement from "nothing violated". */
+  nothingChanged?: boolean;
+}
+
+function scanDiff(rangeRef?: string): ScanResult {
+  // The two modes differ only in which revisions git is asked to compare.
+  const nameArgs = rangeRef
+    ? ["diff", "--name-only", `${rangeRef}...HEAD`]
+    : ["diff", "--cached", "--name-only"];
+  const fileArgs = (file: string) =>
+    rangeRef
+      ? ["diff", "-U0", `${rangeRef}...HEAD`, "--", file]
+      : ["diff", "--cached", "-U0", "--", file];
+  const source = rangeRef ? `${rangeRef}...HEAD` : "the staged diff";
+
   // STAGE 1 — names only. Bounded by the FILE COUNT, not by the diff size, so a
   // commit that stages a megabyte of prerendered HTML costs a few hundred bytes
   // here. This is what removes the overflow at the root rather than papering
   // over it with a bigger buffer.
-  let staged: string[];
+  let changed: string[];
   try {
-    staged = git(["diff", "--cached", "--name-only"])
+    changed = git(nameArgs)
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter(Boolean)
       .map(stripWorkspacePrefix);
   } catch (err) {
-    return { findings: [], filesScanned: 0, unreadable: `git diff --name-only failed: ${(err as Error).message}` };
+    // An unresolvable ref lands here, and it must be LOUD: a CI step pointed at
+    // a ref that does not exist would otherwise report a clean gate forever.
+    return { findings: [], filesScanned: 0, unreadable: `git ${nameArgs.join(" ")} failed: ${(err as Error).message}` };
   }
+
+  // Said explicitly rather than folded into "0 files scanned · ok", because the
+  // two are different facts and only one of them is a pass. In PRE-COMMIT mode
+  // this is unreachable under a real commit (a commit stages something); it is
+  // exactly what a CI checkout looks like, which is fail-open #2 in the header.
+  if (changed.length === 0) return { findings: [], filesScanned: 0, unreadable: null, nothingChanged: true };
 
   // STAGE 2 — keep only voice surfaces BEFORE asking for any content. Most
   // commits stage nothing in scope, so most runs now read no diff at all.
@@ -92,7 +190,7 @@ function scanStagedDiff(): { findings: Finding[]; filesScanned: number; unreadab
   // for the scopeOf() check and as the pathspec arg to `git diff -- <file>`
   // below, since pathspecs resolve relative to cwd (APP_ROOT), the opposite
   // direction from --name-only output. See stripWorkspacePrefix's doc comment.
-  const inScope = staged.filter((f) => scopeOf(f) !== null);
+  const inScope = changed.filter((f) => scopeOf(f) !== null);
   if (inScope.length === 0) return { findings: [], filesScanned: 0, unreadable: null };
 
   // STAGE 3 — one diff per file. Concatenated per-file diffs are still a valid
@@ -101,11 +199,31 @@ function scanStagedDiff(): { findings: Finding[]; filesScanned: number; unreadab
   // string, so a space or a quote in a filename cannot change the command.
   let diff = "";
   for (const file of inScope) {
+    let one: string;
     try {
-      diff += git(["diff", "--cached", "-U0", "--", file]);
+      one = git(fileArgs(file));
     } catch (err) {
       return { findings: [], filesScanned: 0, unreadable: `git diff of ${file} failed: ${(err as Error).message}` };
     }
+    // STAGE 3 INVARIANT — a file STAGE 1 just reported as changed cannot have an
+    // empty diff of its own. If it does, the pathspec did not resolve, and the
+    // file goes UNSCANNED while every count stays zero and renders as a pass.
+    // That is fail-open #1 in the header, and this check catches it whatever
+    // the cause: a git env change, a cwd change, a path-convention regression.
+    // Deliberately root-cause-independent — the env fix above removes the known
+    // trigger, this removes the whole failure SHAPE.
+    //
+    // No legitimate empty case exists: `--name-only` lists only changed entries,
+    // and mode-only changes, renames, deletions and binaries all still emit a
+    // non-empty per-file diff (a header, at minimum).
+    if (one.trim() === "") {
+      return {
+        findings: [],
+        filesScanned: 0,
+        unreadable: `${file} is in ${source} but its own diff came back EMPTY — the pathspec did not resolve, so the file was never scanned`,
+      };
+    }
+    diff += one;
   }
 
   const findings: Finding[] = [];
@@ -184,11 +302,11 @@ function scanStagedDiff(): { findings: Finding[]; filesScanned: number; unreadab
   }
 
   flush();
-  return { findings, filesScanned: filesScanned.size };
+  return { findings, filesScanned: filesScanned.size, unreadable: null };
 }
 
 // ─── AUDIT MODE: scan ALL in-scope files ────────────────────────────────────
-function scanAllFiles(): { findings: Finding[]; filesScanned: number } {
+function scanAllFiles(): ScanResult {
   const out = git(["ls-files"]);
   const files = out
     .split("\n")
@@ -228,7 +346,9 @@ function scanAllFiles(): { findings: Finding[]; filesScanned: number } {
 }
 
 // ─── MAIN ───────────────────────────────────────────────────────────────────
-const { findings, filesScanned, unreadable } = AUDIT_MODE ? scanAllFiles() : scanStagedDiff();
+const { findings, filesScanned, unreadable, nothingChanged } = AUDIT_MODE
+  ? scanAllFiles()
+  : scanDiff(RANGE_REF);
 const blocking = findings.filter((f) => f.severity === "block");
 
 // UNKNOWN is not CLEAN. Handled before any counting, because every count below
@@ -241,12 +361,28 @@ const blocking = findings.filter((f) => f.severity === "block");
 // them nothing and the unscanned copy ships. The three-stage read above makes
 // this branch essentially unreachable, so blocking costs nothing in practice.
 if (unreadable) {
-  console.error(`\n[brand-voice] SKIPPED — COULD NOT READ THE STAGED DIFF. Nothing was scanned.`);
+  console.error(`\n[brand-voice] SKIPPED — COULD NOT READ THE DIFF. Nothing was scanned.`);
   console.error(`  cause: ${unreadable}`);
   console.error(`  This is NOT a pass. The brand-voice kernel did not run against these changes.`);
   console.error(`  Re-run: pnpm run lint:brand-voice   ·   audit everything: pnpm exec tsx scripts/lint-brand-voice.ts --audit`);
   console.error(`  To commit anyway, deliberately: git commit --no-verify`);
   process.exit(1);
+}
+
+// NOTHING CHANGED is not CLEAN either, and it must not borrow the `ok` line.
+//
+// Exit 0, not 1: on a clean tree `pnpm run verify` legitimately has nothing to
+// compare, and a gate that fails there is a gate someone routes around. But the
+// wording has to make the vacuum visible, because this is exactly the shape CI
+// ran in for months (a checkout stages nothing) while reporting green. Under a
+// real `git commit` it cannot happen — a commit stages something.
+if (nothingChanged) {
+  console.log(
+    `[brand-voice] NOTHING CHANGED to scan — ${RANGE_REF ? `${RANGE_REF}...HEAD is empty` : "nothing is staged"}. ` +
+      `This is not a clean bill of health; nothing was read. ` +
+      `CI: --range <base> · everything: --audit`,
+  );
+  process.exit(0);
 }
 
 if (findings.length === 0) {
@@ -276,7 +412,9 @@ console.log(`\n${"-".repeat(60)}`);
 console.log(
   `Found ${findings.length} brand-voice violation(s) in ${byFile.size} file(s) · ${blocking.length} blocking.`,
 );
-console.log(`Mode: ${AUDIT_MODE ? "AUDIT (all files)" : "PRE-COMMIT (staged diff only)"}`);
+console.log(
+  `Mode: ${AUDIT_MODE ? "AUDIT (all files)" : RANGE_REF ? `RANGE (added lines in ${RANGE_REF}...HEAD)` : "PRE-COMMIT (staged diff only)"}`,
+);
 console.log(`Rules: shared/voice.ts (the Voice Kernel) — edit rules there, not here.`);
 
 if (AUDIT_MODE) {

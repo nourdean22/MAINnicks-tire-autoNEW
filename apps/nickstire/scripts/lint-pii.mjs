@@ -280,12 +280,41 @@ function isInScope(relPath) {
  */
 let stagedReadError = null;
 
+/**
+ * Staged in-scope files whose own diff came back EMPTY — i.e. never examined.
+ * See GIT_ENV below for why that used to happen to every file at once.
+ */
+const unscanned = [];
+
+/**
+ * The hook environment, neutralised.
+ *
+ * A real `git commit` exports `GIT_DIR` (absolute) and no `GIT_WORK_TREE` to its
+ * hooks. With `GIT_DIR` set and `GIT_WORK_TREE` unset git takes the CURRENT
+ * DIRECTORY as the work-tree root, and every call here runs with
+ * `cwd: APP_ROOT` — so `--name-only` kept returning repo-root-relative paths
+ * while the per-file pathspec below (`server/...`, workspace-relative) resolved
+ * against `apps/nickstire`-as-root and matched nothing. Empty diff, zero added
+ * lines, no warning, clean receipt.
+ *
+ * This gate is NOT in `lefthook.yml` pre-commit today, so the hole was latent
+ * rather than live — unlike `lint-brand-voice.ts` and
+ * `apps/statenour/scripts/scan-secrets.ts`, which were both in a hook and both
+ * measured scanning zero files on every commit. Fixed here at the same time so
+ * that wiring this into pre-commit later is safe. `GIT_INDEX_FILE` is kept: git
+ * sets it absolute, and it is what makes a partial commit read the right bytes.
+ */
+const GIT_ENV = { ...process.env };
+delete GIT_ENV.GIT_DIR;
+delete GIT_ENV.GIT_WORK_TREE;
+
 function getStagedFiles() {
   try {
     const out = execSync("git diff --cached --name-only --diff-filter=ACMR", {
       cwd: APP_ROOT,
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024,
+      env: GIT_ENV,
     });
     return out
       .split("\n")
@@ -305,7 +334,17 @@ function getAddedLines(relPath) {
       cwd: APP_ROOT,
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024,
+      env: GIT_ENV,
     });
+    // A file the staged-file list just reported cannot have an empty diff of its
+    // own. If it does, the pathspec did not resolve and this file went
+    // UNEXAMINED — which produced no warning and a clean receipt. Zero ADDED
+    // lines is a different, legitimate thing (a pure deletion), so the check is
+    // on the raw diff, not on the parsed array.
+    if (diff.trim() === "") {
+      unscanned.push(relPath);
+      return [];
+    }
     const lines = [];
     let lineNum = 0;
     for (const line of diff.split("\n")) {
@@ -432,8 +471,21 @@ if (mode === "pre-commit") {
 
 const allViolations = files.flatMap((f) => scanFile(f, mode));
 
+// UNKNOWN is not CLEAN. Handled before any counting, because every count below
+// is zero when the read failed and zero renders as a pass.
+if (unscanned.length > 0) {
+  console.error(`
+❌ lint-pii: ${unscanned.length} staged in-scope file(s) produced an EMPTY diff — their added lines were NOT scanned:`);
+  for (const f of unscanned) console.error(`  [UNSCANNED] ${f}`);
+  console.error(`  The pathspec did not resolve. This is NOT a pass — nothing below covers these files.`);
+  process.exit(1);
+}
+
 if (allViolations.length === 0) {
-  console.log(`✅ lint-pii (${mode}${stagedReadError ? " · STAGED READ FAILED, not a confirmation" : ""}): clean (${files.length} files scanned)`);
+  const receipt = files.length === 0
+    ? `NOTHING SCANNED (0 files) — no violations is not a clean bill of health`
+    : `clean (${files.length} files scanned)`;
+  console.log(`✅ lint-pii (${mode}${stagedReadError ? " · STAGED READ FAILED, not a confirmation" : ""}): ${receipt}`);
   process.exit(0);
 }
 
