@@ -100,19 +100,40 @@ Everything checked and ruled out along the way:
 - **Trailing-slash variance is not the explanation either** — both forms were probed, and the
   non-slash form itself gave different answers across runs.
 
-**What survives, from the stable API, and is the actually interesting result:**
+**What survives, from the stable API:**
 
 `/reviews` earns **2,216 impressions over 90 days at average position 8.3**, running a steady
-~30-49 impressions/day through 2026-09-14 — and **zero clicks. Every single day. All 90 of them.**
+~30-49 impressions/day through 2026-09-14, with **zero clicks on all 90 days**. Split: 1,202 of
+1,589 US impressions are MOBILE (pos 7.6), 386 DESKTOP (pos 10.1).
 
-That is the finding worth attention. Page-one visibility converting at exactly 0.00% is not
-normal decay; this session's own device-CTR bands, derived from this property's non-brand
-queries, put mobile position 4-10 at **1.10%**. Applied to 2,216 impressions that predicts roughly
-**24 clicks**. The observed count is 0.
+### ⚠ Second correction: this is probably NOT an anomaly
 
-This is a `/reviews`-specific anomaly with real upside if explained, and it is **not** the
-neighborhood/tire-size story — different page, different failure. Worth a dedicated look at what
-the SERP result for those impressions actually renders as.
+An earlier revision of this section called the zero CTR "not normal decay" and predicted ~24
+clicks by applying this property's measured **1.10%** mobile CTR band for positions 4-10. **That
+comparison was wrong and is withdrawn.** That band was derived from **non-brand** queries. Pulling
+the actual queries behind these impressions shows they are overwhelmingly **brand** queries:
+
+```
+  31 impr  0 clk  pos  3.9  "nick's tire and auto"
+  28 impr  0 clk  pos 10.3  "moes tire euclid"
+  20 impr  0 clk  pos  3.3  "nick tires"
+   8 impr  0 clk  pos  9.6  "moe's tires euclid"
+   5 impr  0 clk  pos  9.6  "nick's tire"
+   2 impr  0 clk  pos  1.0  "nick's tire & auto"
+```
+
+On a brand search the user wants the business, and gets it from the homepage and the GBP map pack
+which outrank `/reviews`. A secondary same-site result sitting below both earning ~0 clicks is
+**expected behaviour, not a defect** — applying a non-brand CTR band to it is apples-to-oranges.
+
+**Also note the sampling limit:** the named queries above account for only **157 of 2,216
+impressions**. Google anonymises the other ~93%, so the visible sample may not represent the whole
+and no strong claim about the full population is available from this data.
+
+Net: `/reviews` is not demonstrably broken. It is not evidence of a problem, and it should not be
+"fixed" on the strength of its CTR alone. If it is ever worth revisiting, the question is whether
+`/reviews` should rank for brand queries at all, or whether those impressions belong to the
+homepage — which is a positioning question, not a bug report.
 
 ## 4. What this does and does not license
 
