@@ -66,7 +66,10 @@ export async function runVoiceRecovery(): Promise<RunResult> {
   const d = await getDb();
   if (!d) return { recordsProcessed: 0, details: "No DB" };
 
-  const { algEstimates, customers } = await import("../../../drizzle/schema");
+  // `customers` was only ever imported for the local opt-out query that
+  // loadSuppressionIndex now owns; left in place it would be dead weight
+  // implying this job still derives suppression itself.
+  const { algEstimates } = await import("../../../drizzle/schema");
   const { placeVapiOutboundCall, buildOutboundRecoveryPrompt, buildRecoveryVoicemail } = await import("../../services/vapi");
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -108,14 +111,41 @@ export async function runVoiceRecovery(): Promise<RunResult> {
     return { recordsProcessed: 0, details: "No estimates eligible for voice recovery" };
   }
 
-  // Preload opt-outs (wave-181.61 pattern)
-  const optOutSet = new Set<string>();
-  try {
-    const rows = await d.select({ phone: customers.phone }).from(customers).where(eq(customers.smsOptOut, 1));
-    for (const r of rows) {
-      if (r.phone) optOutSet.add(r.phone.replace(/\D/g, "").slice(-10));
-    }
-  } catch { /* fail-soft */ }
+  /**
+   * Suppression, from the SAME index the SMS path uses — and FAILING CLOSED.
+   *
+   * What was here until 2026-09-16 was a second, weaker copy:
+   *
+   *   const optOutSet = new Set<string>();
+   *   try { ...select customers where smsOptOut = 1... } catch { /* fail-soft *\/ }
+   *
+   * Two defects in four lines. It read only `customers.smsOptOut`, missing
+   * `sms_preferences` — the table `persistOptOutPreference` actually writes —
+   * so an opt-out recorded there without a mirrored customer-row update was
+   * honoured by SMS and ignored here. And the empty-Set-on-failure catch made
+   * an unreadable opt-out list mean "nobody opted out", so every candidate got
+   * a call. That is the identical failure sms.ts documents with verified harm
+   * on 2026-07-20: a number that opted out on 07-13 still received automated
+   * messages on 07-16 and 07-19. SMS was fixed to fail closed; this lane was
+   * never revisited.
+   *
+   * Refusing to place a recovery call costs one delayed marketing touch.
+   * Calling someone who said STOP costs $500-$1,500 per contact and their
+   * trust. So an indeterminate index aborts the run LOUDLY rather than
+   * proceeding — consistent with the 2026-09-01 audit rule that cron handlers
+   * fail loudly instead of returning a soft "skipped".
+   */
+  const { loadSuppressionIndex } = await import("../../sms");
+  const suppression = await loadSuppressionIndex();
+  if (!suppression.ok) {
+    log.error("[voice-recovery] suppression index unreadable — placing NO calls", {
+      reason: suppression.reason,
+      candidates: candidates.length,
+      errorId: "VOICE_RECOVERY_SUPPRESSION_UNREADABLE",
+    });
+    throw new Error(`voice recovery aborted — suppression index unreadable: ${suppression.reason}`);
+  }
+  const optOutSet = suppression.phones;
 
   let placed = 0;
   let failed = 0;
