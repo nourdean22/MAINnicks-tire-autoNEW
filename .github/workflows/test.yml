@@ -114,16 +114,21 @@ jobs:
       # 2026-09-16 · the "Runners have 16GB" note that used to sit here was
       # WRONG for this plan and is deleted, because it is the number 6144 was
       # chosen from. The sampler's first-ever reading (run 35107402800) says
-      # `max avail: 7000MB`. Measured locally, process-tree peak RSS:
+      # `max avail: 7000MB`.
       #
-      #   tsc --noEmit  @ cap 3072 -> EXIT 0, peak 2733MB
-      #   next build    @ cap 3072 -> OOM, "Failed to type check", peak 4245MB
-      #   next build    @ cap 6144 -> EXIT 0, peak 4962MB
+      # 3072 WAS TRIED AND OOMs: `next build` dies with "Ineffective
+      # mark-compacts near heap limit" / "Failed to type check". `tsc --noEmit`
+      # alone fits in 3072; next build's internal type-check does not. So 6144
+      # is a correct PERMISSION and must NOT be lowered — a ceiling only
+      # permits growth, it does not cause it.
       #
-      # So 6144 is a correct PERMISSION and must NOT be lowered — 3072
-      # reproduces the very OOM this line was added to fix. A ceiling only
-      # permits growth; it does not cause it. The lever is --concurrency
-      # below, and the arithmetic is there.
+      # DO NOT re-derive a budget from peak-RSS figures measured with a warm
+      # .next. An earlier revision of this block cited 4962MB from such a run;
+      # CI is always cold (fresh checkout, remote caching disabled) and the
+      # cold peak is 6778MB — build alone is 97% of the runner. The full cold
+      # table, the cross-check against CI's measured floor, and the corrected
+      # reasoning for --concurrency=1 are in the sweep step's comment below;
+      # read that, not a number remembered from here.
       NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - name: Checkout (full history for affected-detection)
