@@ -109,8 +109,21 @@ jobs:
     env:
       # 2026-07-15 · @statenour/web tsc --noEmit outgrew Node's ~2GB default
       # old-space: deterministic OOM (exit 134) on runs 29408774484 and
-      # 29409229006, killing the pipeline before tests. Runners have 16GB;
-      # verified locally: the same check passes with this heap in ~44s.
+      # 29409229006, killing the pipeline before tests.
+      #
+      # 2026-09-16 · the "Runners have 16GB" note that used to sit here was
+      # WRONG for this plan and is deleted, because it is the number 6144 was
+      # chosen from. The sampler's first-ever reading (run 35107402800) says
+      # `max avail: 7000MB`. Measured locally, process-tree peak RSS:
+      #
+      #   tsc --noEmit  @ cap 3072 -> EXIT 0, peak 2733MB
+      #   next build    @ cap 3072 -> OOM, "Failed to type check", peak 4245MB
+      #   next build    @ cap 6144 -> EXIT 0, peak 4962MB
+      #
+      # So 6144 is a correct PERMISSION and must NOT be lowered — 3072
+      # reproduces the very OOM this line was added to fix. A ceiling only
+      # permits growth; it does not cause it. The lever is --concurrency
+      # below, and the arithmetic is there.
       NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - name: Checkout (full history for affected-detection)
@@ -143,6 +156,7 @@ jobs:
       # ─── Affected pipeline (Turbo handles parallelism + cache) ────────
       - name: Verify affected (check + lint + test + build)
         # 2026-07-28 · --concurrency=2 + a memory sampler.
+        # 2026-09-16 · --concurrency=1. The sampler answered; see MEASURED.
         #
         # SYMPTOM: every dependency PR reddens here. #1092 failed 4/4 with an
         # IDENTICAL signature — "27 successful, 33 total", zero FAILING tasks,
@@ -150,26 +164,38 @@ jobs:
         # nickstire) force-killed — at wildly different durations (10m, 10m,
         # 13m, 25m). A timeout yields varying progress at a fixed time; this
         # is fixed progress at varying times, which is resource death.
+        # It is no longer only dependency PRs: on 2026-09-16 a STATENOUR-ONLY
+        # sweep (8 tasks) died three times the same way — 5 successful / 8
+        # total at 5m10s, 5m23s and 7m11s — then passed on the fourth try.
         #
-        # MECHANISM (inferred, NOT yet directly observed): turbo defaults to
-        # concurrency 10 and the job sets NODE_OPTIONS=--max-old-space-size=6144
-        # for every process it spawns. The heavy tasks depend on package builds
-        # so they CLUSTER at the tail — several node processes, each permitted
-        # 6GB, on a 2-core runner measured at ~6.9GB total (e2e probe, same
-        # runner class; the note below claiming 16GB is wrong for this plan).
-        # A lockfile change makes --affected include all 33 packages, which is
-        # why only dependency PRs hit it.
+        # MEASURED 2026-09-16, replacing the inferred mechanism that was here.
+        # The sampler's first reading ever (run 35107402800, the one green job
+        # of those four): `samples: 136 · min avail: 319MB · max avail: 7000MB`.
+        # The box is ~7000MB and a GREEN run bottomed at 4.5% headroom, so
+        # memory is CONFIRMED, not refuted. Process-tree peak RSS, measured
+        # locally on @statenour/web:
+        #
+        #   tsc --noEmit  @ cap 3072 -> EXIT 0, peak 2733MB
+        #   next build    @ cap 3072 -> OOM, "Failed to type check", peak 4245MB
+        #   next build    @ cap 6144 -> EXIT 0, peak 4962MB
+        #
+        #   concurrency=2 worst case: 4962 + 2733 = 7695MB vs 7000MB -> OVER by 695MB
+        #   concurrency=1 worst case:        4962MB vs 7000MB -> 2038MB spare
+        #
+        # That is the death, and it also explains the 319MB floor on the run
+        # that survived: the two peaks overlapped partially instead of
+        # coinciding. Green vs red is currently a race between task timings.
         #
         # The heap ceiling is deliberately NOT lowered: it was raised to fix a
-        # real tsc OOM (exit 134), and a ceiling only PERMITS growth. Bounding
-        # how many processes may grow at once is the targeted lever.
-        # Tradeoff: less parallelism on a 2-core box costs wall time. The
-        # budget is 50m and these runs currently die at 10-25m, so there is
-        # room — if this now times out, raise timeout-minutes, do not raise
-        # concurrency back.
-        #
-        # The sampler makes the next run decisive: if `min avail` stays high,
-        # memory is refuted and the cause is elsewhere.
+        # real tsc OOM (exit 134), and a ceiling only PERMITS growth. 3072 was
+        # tried and reproduces that exact OOM (row 2 above) — tsc alone fits,
+        # next build's internal type-check does not. Bounding how many
+        # processes may grow at once is the targeted lever, and 2 was still
+        # one too many: build and check cluster at the tail, which is exactly
+        # when the deaths happen. Tradeoff: less parallelism on a 2-core box
+        # costs wall time. The budget is 50m and the green run took 11m18s, so
+        # there is room — if this now times out, raise timeout-minutes, do not
+        # raise concurrency back.
         #
         # --concurrency is passed as a FLAG, not TURBO_CONCURRENCY: `turbo run
         # --help` on the pinned version documents the flag and says nothing
@@ -180,16 +206,12 @@ jobs:
               free -m | awk '/^Mem:/ {print $7}' >> /tmp/mem-samples.txt
               sleep 5
             done ) &
-          SAMPLER=$!
+          echo $! > /tmp/mem-sampler.pid
           set +e
-          pnpm exec turbo run check lint test build --affected --output-logs=errors-only --concurrency=2
+          pnpm exec turbo run check lint test build --affected --output-logs=errors-only --concurrency=1
           STATUS=$?
           set -e
-          kill $SAMPLER 2>/dev/null || true
-          if [ -s /tmp/mem-samples.txt ]; then
-            echo "--- runner memory during the sweep ---"
-            echo "  samples: $(wc -l < /tmp/mem-samples.txt) · min avail: $(sort -n /tmp/mem-samples.txt | head -1)MB · max avail: $(sort -n /tmp/mem-samples.txt | tail -1)MB"
-          fi
+          kill "$(cat /tmp/mem-sampler.pid)" 2>/dev/null || true
           exit $STATUS
         env:
           TURBO_LOG_VERBOSITY: 0
@@ -197,6 +219,29 @@ jobs:
           CI: true
           BUILD_COMMIT: ${{ github.sha }}
           BUILD_BRANCH: ${{ github.ref_name }}
+
+      # 2026-09-16 · SEPARATE STEP, `if: always()`, and that is the whole point.
+      # The verdict echo used to live inside the sweep step above. A runner
+      # death kills that step, so the one instrument built to explain the death
+      # only ever printed when the job SUCCEEDED — an instrument that reports on
+      # success and goes silent on failure is backwards for a failure
+      # diagnostic. Three deaths on 2026-09-16 produced ZERO readings between
+      # them; the numbers now in the comment above exist only because the
+      # fourth run happened to pass. Guarded by
+      # apps/statenour/tests/repo/ci-memory-sampler-reports.test.ts, whose
+      # mutation is exactly this: fold the summary back into the sweep step.
+      - name: Runner memory during the sweep
+        if: always()
+        run: |
+          if [ ! -s /tmp/mem-samples.txt ]; then
+            # Positive control: distinguishes "the sampler never started" from
+            # "memory was fine". A missing file is not a high floor.
+            echo "no samples — the sampler never started, so this run says NOTHING about memory"
+            exit 0
+          fi
+          echo "--- runner memory during the sweep ---"
+          echo "  samples: $(wc -l < /tmp/mem-samples.txt) · min avail: $(sort -n /tmp/mem-samples.txt | head -1)MB · max avail: $(sort -n /tmp/mem-samples.txt | tail -1)MB"
+          echo "  last 12 samples (MB available, 5s apart): $(tail -12 /tmp/mem-samples.txt | tr '\n' ' ')"
 
       # ─── Nickstire-only custom validators ──
       - name: Nickstire · env validate
