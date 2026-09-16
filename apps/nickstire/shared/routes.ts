@@ -477,11 +477,23 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/auto-repair-near-me",
     priority: 0.95,
     changefreq: "weekly",
-    // wave-181.8 · brand-overflow fix · "nick's auto repair near me"
-    // ranks pos 23 per GSC audit. Putting both "Auto Repair Near Me"
-    // AND "Nick's" up front gives the page a stronger brand+intent
-    // match for the conflated brand+local query.
-    title: "Nick's Auto Repair Near Me · Cleveland · Walk-In Today · 1,700★",
+    // 2026-09-16 · replaces the wave-181.8 "brand-overflow" title. That
+    // fix targeted Google's organic SERP snippet for "nick's auto repair
+    // near me" (pos 23) — but this route is rendered by the DEDICATED
+    // AutoRepairNearMePage.tsx (shared with /general-repair), which sets
+    // its own live <title> client-side and never reads this field.
+    // scripts/prerender.mjs only overwrites <title> when the captured
+    // text matches a known-default pattern (it never did here), so this
+    // string has only ever reached og:title/twitter:title — social-share
+    // previews, not the organic snippet wave-181.8 was written for.
+    // Ground-truthed against the last real prerender (2026-09-14 cron):
+    // prerendered/auto-repair-near-me/index.html's <title> was already
+    // AutoRepairNearMePage's own copy, never this one. Aligning to what's
+    // actually live (and to routes.ts's already-aligned /general-repair
+    // entry + services.ts's general-repair metaTitle, PR #2354) costs
+    // nothing on the metric wave-181.8 targeted and ends the split-brain
+    // on the metric that's actually live (social previews).
+    title: "Auto Repair Cleveland · Estimate Before Wrench | Nick's",
     description: "Nick's Tire & Auto · Cleveland's local mechanic on Euclid Ave. Auto repair near you, walk-in 7 days, free written estimate, honest pricing. ★4.9 · 1,700+ reviews. (216) 862-0005",
     group: "service",
     sitemap: true,
