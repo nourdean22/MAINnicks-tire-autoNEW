@@ -15,7 +15,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { readFileSync, rmSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -25,8 +25,8 @@ const SCRIPT = "scripts/lint-brand-voice.ts";
 // 1 MiB spawnSync default on CI, which truncated the final mode receipt.
 const CHILD_MAX_BUFFER = 8 * 1024 * 1024;
 
-function run(env: Record<string, string> = {}) {
-  const r = spawnSync("pnpm", ["exec", "tsx", SCRIPT], {
+function run(env: Record<string, string> = {}, args: string[] = []) {
+  const r = spawnSync("pnpm", ["exec", "tsx", SCRIPT, ...args], {
     cwd: APP,
     env: { ...process.env, ...env },
     encoding: "utf8",
@@ -39,22 +39,135 @@ function run(env: Record<string, string> = {}) {
 
 const PASS_LINE = /· 0 violations · ok/;
 
+/**
+ * The environment a REAL `git commit` hands its hooks: `GIT_DIR` absolute,
+ * `GIT_WORK_TREE` unset. Measured, not assumed — a probe hook in a throwaway
+ * repo printed `GIT_INDEX_FILE=[.git/index]` in a plain checkout and an
+ * absolute `.../worktrees/<name>/index` inside a worktree, with `GIT_DIR`
+ * exported alongside.
+ *
+ * Every test above this line ran with a CLEAN env, which is why they all passed
+ * while the gate scanned nothing on every actual commit for months.
+ */
+function hookEnv(): Record<string, string> {
+  const r = spawnSync("git", ["rev-parse", "--absolute-git-dir"], { cwd: APP, encoding: "utf8" });
+  const gitDir = (r.stdout ?? "").trim();
+  expect(gitDir, "could not resolve the git dir for the hook-env probe").not.toBe("");
+  return { GIT_DIR: gitDir };
+}
+
 describe("lint-brand-voice does not fail open", () => {
   it("an UNREADABLE staged diff exits non-zero and prints NO pass line", () => {
-    // GIT_DIR at a path that does not exist makes every git invocation fail, which
-    // is the same observable state an ENOBUFS overflow produced.
-    const { out, code } = run({ GIT_DIR: "/nonexistent-git-dir-for-test" });
-    expect(code, "an unread diff must not exit 0").not.toBe(0);
-    expect(out).not.toMatch(PASS_LINE);
-    expect(out).toMatch(/COULD NOT READ THE STAGED DIFF/);
-    expect(out).toMatch(/NOT a pass/);
+    // A corrupt index makes every git invocation fail (`index file smaller than
+    // expected`, exit 128), which is the same observable state an ENOBUFS
+    // overflow produced.
+    //
+    // ⚠ This used to be driven by `GIT_DIR: "/nonexistent-git-dir-for-test"`.
+    // That stopped working on 2026-09-16 — ON PURPOSE. The script now strips
+    // `GIT_DIR` before invoking git, because a VALID one (which every real
+    // `git commit` exports) silently mis-resolved the pathspecs and blinded the
+    // whole gate. So `GIT_DIR` is no longer a lever on this script's behaviour
+    // in either direction, and the next test pins exactly that.
+    const indexFile = join(tmpdir(), `bv-corrupt-${process.pid}.index`);
+    try {
+      writeFileSync(indexFile, "not-an-index");
+      const { out, code } = run({ GIT_INDEX_FILE: indexFile });
+      expect(code, "an unread diff must not exit 0").not.toBe(0);
+      expect(out).not.toMatch(PASS_LINE);
+      expect(out).toMatch(/COULD NOT READ THE DIFF/);
+      expect(out).toMatch(/NOT a pass/);
+    } finally {
+      rmSync(indexFile, { force: true });
+    }
   }, 200_000);
 
-  it("a normal run still passes cleanly, so the guard is not just breaking the gate", () => {
+  it("an ambient GIT_DIR cannot steer the gate — it is stripped, not trusted", () => {
+    // The fix's contract, from the other side: a bogus GIT_DIR in the
+    // environment must change NOTHING, because the script deletes it and lets
+    // git discover the repo from cwd. Before the fix this exact input made the
+    // script fail loudly, which is how the original canary above "passed" while
+    // the real hook env (a VALID GIT_DIR) passed silently over unscanned code.
+    const bogus = run({ GIT_DIR: "/nonexistent-git-dir-for-test" });
+    const clean = run();
+    expect(bogus.code, "a bogus GIT_DIR must not change the outcome").toBe(clean.code);
+    expect(bogus.out).not.toMatch(/COULD NOT READ/);
+  }, 200_000);
+
+  it("a normal run does not crash, so the guard is not just breaking the gate", () => {
+    // Deliberately does NOT assert the pass line. Whether a bare run reports
+    // "N file(s) scanned ... ok" or "NOTHING CHANGED to scan" depends on what
+    // happens to be staged in the checkout this suite runs in, and a canary
+    // that depends on ambient state is a canary that will be deleted. The
+    // deterministic allow-canary below pins the pass line properly.
     const { out, code } = run();
     expect(code).toBe(0);
-    expect(out).toMatch(PASS_LINE);
     expect(out).not.toMatch(/COULD NOT READ/);
+    expect(out).toMatch(/· 0 violations · ok|NOTHING CHANGED to scan/);
+  }, 200_000);
+
+  it("NOTHING STAGED does not borrow the pass line — nothing read is not nothing wrong", () => {
+    // An empty throwaway index means "no changes staged" with certainty,
+    // whatever the real index holds. This is the exact shape CI ran in.
+    const indexFile = join(tmpdir(), `bv-empty-index-${process.pid}.index`);
+    try {
+      const seed = spawnSync("git", ["read-tree", "HEAD"], {
+        cwd: APP,
+        env: { ...process.env, GIT_INDEX_FILE: indexFile },
+        encoding: "utf8",
+      });
+      expect(seed.status, "could not seed the empty scratch index").toBe(0);
+      const { out, code } = run({ GIT_INDEX_FILE: indexFile });
+      expect(code, "an empty diff is not an error").toBe(0);
+      expect(out).toMatch(/NOTHING CHANGED to scan/);
+      expect(out, "a vacuous run must not be indistinguishable from a clean one").not.toMatch(PASS_LINE);
+    } finally {
+      rmSync(indexFile, { force: true });
+    }
+  }, 200_000);
+
+  it("--range needs a ref, and an unresolvable one FAILS CLOSED", () => {
+    const missing = run({}, ["--range"]);
+    expect(missing.code, "--range with no value must not proceed").not.toBe(0);
+    expect(missing.out).toMatch(/--range needs a ref/);
+
+    const bogus = run({}, ["--range", "zz-not-a-ref-bv-canary"]);
+    expect(bogus.code, "an unresolvable base must not exit 0").not.toBe(0);
+    expect(bogus.out).toMatch(/COULD NOT READ THE DIFF/);
+    expect(bogus.out).not.toMatch(PASS_LINE);
+  }, 200_000);
+
+  it("RANGE mode is not vacuous — a range that touches a voice surface scans it", () => {
+    // This is the CI mode, and the reason it exists: `.github/workflows/test.yml`
+    // used to run the BARE script on a checkout that stages nothing, so it
+    // scanned zero files on every run and printed the pass line.
+    //
+    // The range is derived, not hard-coded: the newest commit that touched
+    // `server/services/vapi.ts` (an IN_SCOPE path), diffed from its parent. That
+    // keeps the test meaningful on any branch instead of depending on what this
+    // particular branch happens to contain.
+    // WORKSPACE-relative, because a pathspec passed TO git resolves against
+    // cwd — the inverse of `--name-only`'s repo-root-relative OUTPUT. Getting
+    // this backwards returns an empty result rather than an error, which is the
+    // same convention trap that produced the bug this suite guards.
+    const log = spawnSync("git", ["log", "-1", "--format=%H", "--", "server/services/vapi.ts"], {
+      cwd: APP,
+      encoding: "utf8",
+    });
+    const sha = (log.stdout ?? "").trim();
+    expect(sha, "no commit in history touches the in-scope probe path").not.toBe("");
+
+    const { out } = run({}, ["--range", `${sha}^`]);
+
+    // The exit code is deliberately NOT asserted. That range reaches back over
+    // real history and legitimately contains pre-existing violations, so it
+    // exits 1 — which is the gate working, not failing. What this test is for is
+    // NON-VACUITY: the range mode must have read something.
+    expect(out, "range mode did not produce a report").toMatch(/Mode: RANGE \(added lines in/);
+    expect(
+      out,
+      "RANGE mode read NOTHING over a range that changes a voice surface — the CI vacuum is back",
+    ).toMatch(/\b[1-9]\d* file\(s\) scanned|in [1-9]\d* file\(s\)/);
+    expect(out).not.toMatch(/NOTHING CHANGED to scan/);
   }, 200_000);
 
   it("audit mode still works — it reads git ls-files through the same helper", () => {
@@ -107,11 +220,12 @@ describe("lint-brand-voice actually BLOCKS a real violation (the deny canary)", 
     "",
   ].join("\n");
 
-  function runWithStagedViolation() {
-    const indexFile = join(tmpdir(), `bv-deny-canary-${process.pid}.index`);
+  function runWithStagedBlob(source: string, extraEnv: Record<string, string> = {}) {
+    const indexFile = join(tmpdir(), `bv-deny-canary-${process.pid}-${Math.random().toString(36).slice(2)}.index`);
     // The child must NOT inherit an ambient GIT_INDEX_FILE/GIT_DIR from a hook
     // that spawned this run; every git call below is pinned to `indexFile`.
-    const env = { ...process.env, GIT_INDEX_FILE: indexFile };
+    // `extraEnv` exists to replay the REAL hook environment on purpose.
+    const env = { ...process.env, GIT_INDEX_FILE: indexFile, ...extraEnv };
     const git = (args: string[], input?: string) =>
       spawnSync("git", args, { cwd: APP, env, encoding: "utf8", input, maxBuffer: CHILD_MAX_BUFFER });
 
@@ -119,7 +233,7 @@ describe("lint-brand-voice actually BLOCKS a real violation (the deny canary)", 
       // Seed the throwaway index from HEAD so ONLY the probe differs.
       expect(git(["read-tree", "HEAD"]).status, "could not seed the scratch index").toBe(0);
 
-      const blob = git(["hash-object", "-w", "--stdin"], SOURCE);
+      const blob = git(["hash-object", "-w", "--stdin"], source);
       expect(blob.status, "could not write the probe blob").toBe(0);
       const sha = blob.stdout.trim();
 
@@ -143,7 +257,7 @@ describe("lint-brand-voice actually BLOCKS a real violation (the deny canary)", 
   }
 
   it("exits non-zero, names the rule, and prints NO pass line", () => {
-    const { out, code } = runWithStagedViolation();
+    const { out, code } = runWithStagedBlob(SOURCE);
 
     // Exit code alone is not proof — a config or parse error is also non-zero.
     // The specific rule id has to appear, or this passes on a broken script.
@@ -156,6 +270,52 @@ describe("lint-brand-voice actually BLOCKS a real violation (the deny canary)", 
     expect(out, "the gate scanned zero files — the path-scope bug is back").not.toMatch(
       /\b0 file\(s\) scanned/,
     );
+  }, 200_000);
+
+  /**
+   * THE SAME CANARY, UNDER THE ENVIRONMENT GIT ACTUALLY USES.
+   *
+   * This is the case the suite above missed for months, and it is the whole
+   * reason the gate never fired. The test above runs with a clean env and
+   * passes; add the `GIT_DIR` that every real `git commit` exports and, before
+   * 2026-09-16, the identical staged violation produced
+   * `0 file(s) scanned · 52 kernel rules · 0 violations · ok` and exit 0.
+   *
+   * Note the irony worth preserving: the FIRST test in this file already used
+   * `GIT_DIR` to simulate an unreadable diff — but pointed at a NONEXISTENT
+   * path, so git failed loudly. A VALID `GIT_DIR` is worse: git succeeds and
+   * silently resolves pathspecs against the wrong root.
+   */
+  it("BREAKS: it blocks the same violation under the REAL hook env (valid GIT_DIR)", () => {
+    const { out, code } = runWithStagedBlob(SOURCE, hookEnv());
+
+    expect(out, "the violating rule was not reported under the hook env").toContain(VIOLATION);
+    expect(code, "a blocking violation must not exit 0 under the hook env").not.toBe(0);
+    expect(out).not.toMatch(PASS_LINE);
+    expect(out, "scanned zero files under the hook env — the GIT_DIR fail-open is back").not.toMatch(
+      /\b0 file\(s\) scanned/,
+    );
+  }, 200_000);
+
+  /**
+   * The ALLOW half of the pair. Without it, a gate that blocks EVERYTHING —
+   * including clean copy — would score green on every test above, and the first
+   * person it blocked wrongly would switch it off.
+   */
+  it("a BENIGN in-scope change passes and reports one file scanned, in both envs", () => {
+    const BENIGN = [
+      "export function ZzAllowCanaryProbe() {",
+      "  return <p>Same-day on most tire jobs. Call (216) 862-0005.</p>;",
+      "}",
+      "",
+    ].join("\n");
+
+    for (const [label, env] of [["clean env", {}], ["hook env", hookEnv()]] as const) {
+      const { out, code } = runWithStagedBlob(BENIGN, env);
+      expect(code, `a clean in-scope change must pass (${label})`).toBe(0);
+      expect(out, `the gate did not scan the changed file (${label})`).toMatch(/\b1 file\(s\) scanned/);
+      expect(out).toMatch(PASS_LINE);
+    }
   }, 200_000);
 });
 
@@ -172,11 +332,31 @@ describe("the reads are bounded, so the overflow cannot recur", () => {
   it("it asks for NAMES first and filters to voice surfaces before reading content", () => {
     // This is what removes the overflow at the root: a megabyte of staged
     // prerendered HTML is never read, because it is not a voice surface.
-    const fn = src.slice(src.indexOf("function scanStagedDiff"), src.indexOf("const findings: Finding[]"));
+    const start = src.indexOf("function scanDiff");
+    expect(start, "scanDiff is gone — this assertion is measuring nothing").toBeGreaterThan(-1);
+    const fn = src.slice(start, src.indexOf("const findings: Finding[]"));
     expect(fn).toContain('"--name-only"');
     expect(fn).toContain("scopeOf(f) !== null");
     // Per-file diffs keep each read bounded regardless of total diff size.
     expect(fn).toMatch(/"diff", "--cached", "-U0", "--", file/);
+  });
+
+  it("git runs with GIT_DIR and GIT_WORK_TREE stripped, and GIT_INDEX_FILE kept", () => {
+    // Source assertion, and declared as one: the BEHAVIOURAL proof is the
+    // hook-env deny/allow pair above. This pins the intent so a future
+    // "simplify the env handling" edit has to argue with a named test.
+    expect(src).toContain("delete env.GIT_DIR;");
+    expect(src).toContain("delete env.GIT_WORK_TREE;");
+    // Keeping GIT_INDEX_FILE is what makes a PARTIAL commit gate the right bytes.
+    expect(src).not.toMatch(/delete env\.GIT_INDEX_FILE/);
+    expect(src).toContain("env: GIT_ENV");
+  });
+
+  it("a changed in-scope file with an EMPTY per-file diff is UNREADABLE, not clean", () => {
+    // Defence in depth behind the env fix: root-cause-independent, so a future
+    // cwd or path-convention regression cannot reopen the same silent hole.
+    expect(src).toContain('if (one.trim() === "")');
+    expect(src).toMatch(/came back EMPTY/);
   });
 
   it("paths reach git as argv, never interpolated into a shell string", () => {
