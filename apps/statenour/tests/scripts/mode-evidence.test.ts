@@ -14,7 +14,9 @@
 import { describe, it, expect } from "vitest";
 import {
   classifyModeEvidence,
+  assessJoinCoverage,
   CHOSEN_COVERAGE_FLOOR,
+  JOIN_COVERAGE_FLOOR,
 } from "../../scripts/lib/mode-evidence.mjs";
 
 /** The shape production actually returned on 2026-09-17. */
@@ -81,5 +83,43 @@ describe("classifyModeEvidence", () => {
     const r = classifyModeEvidence({ rows, total: 120 });
     expect(r.deepTurns).toBe(0);
     expect(r.verdict).toBe("no-deep");
+  });
+});
+
+/**
+ * An INNER JOIN drops non-matching rows SILENTLY. A per-group split computed
+ * over 40% of the population looks identical to one computed over all of it,
+ * because the dropped rows are absent from the output by construction.
+ */
+describe("assessJoinCoverage", () => {
+  it("reports full coverage when nothing is dropped", () => {
+    const c = assessJoinCoverage({ total: 1891, joined: 1891 });
+    expect(c.dropped).toBe(0);
+    expect(c.pct).toBe(100);
+    expect(c.usable).toBe(true);
+  });
+
+  it("counts the silently dropped rows", () => {
+    const c = assessJoinCoverage({ total: 1000, joined: 400 });
+    expect(c.dropped).toBe(600);
+    expect(c.pct).toBeCloseTo(40, 5);
+    expect(c.usable).toBe(false);
+  });
+
+  // ── CANARY ──────────────────────────────────────────────────────────
+  // An EMPTY population must not report "100% usable". 0/0 is the classic
+  // shape of a measured zero dressed as a clean bill of health: no rows to
+  // drop, therefore nothing was dropped, therefore trust the split.
+  it("CANARY — an empty population is NOT 100% usable", () => {
+    const c = assessJoinCoverage({ total: 0, joined: 0 });
+    expect(c.pct).toBe(0);
+    expect(c.usable).toBe(false);
+  });
+
+  it("holds the floor exactly at the boundary", () => {
+    const atFloor = assessJoinCoverage({ total: 100, joined: JOIN_COVERAGE_FLOOR * 100 });
+    const below = assessJoinCoverage({ total: 100, joined: JOIN_COVERAGE_FLOOR * 100 - 1 });
+    expect(atFloor.usable).toBe(true);
+    expect(below.usable).toBe(false);
   });
 });

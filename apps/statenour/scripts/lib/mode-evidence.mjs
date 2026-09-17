@@ -17,6 +17,33 @@
 /** Below this many `tool.chosen` rows, the `named>=1` column means nothing. */
 export const CHOSEN_COVERAGE_FLOOR = 30;
 
+/** Below this fraction surviving a join, a per-group split describes a subsample. */
+export const JOIN_COVERAGE_FLOOR = 0.9;
+
+/**
+ * How much of a population survives an INNER JOIN, and may the result be
+ * trusted as describing the whole?
+ *
+ * An INNER JOIN drops non-matching rows SILENTLY — the loss never appears in
+ * the grouped output, so a split computed over 40% of the data looks exactly
+ * like one computed over all of it. This makes the drop explicit.
+ *
+ * @param {{ total: number, joined: number, floor?: number }} args
+ * @returns {{ dropped: number, pct: number, usable: boolean }}
+ */
+export function assessJoinCoverage(args) {
+  const { total, joined } = args;
+  const floor = args.floor ?? JOIN_COVERAGE_FLOOR;
+  // No population means no coverage — not 100%. An empty join reporting
+  // "100% usable" is the same measured-zero lie as the floor above.
+  if (total <= 0) return { dropped: 0, pct: 0, usable: false };
+  return {
+    dropped: total - joined,
+    pct: (joined / total) * 100,
+    usable: joined / total >= floor,
+  };
+}
+
 /**
  * @param {{ rows: Array<{mode: string, turns: number, with_chosen_row: number, named_a_tool: number}>,
  *           total: number, floor?: number }} args

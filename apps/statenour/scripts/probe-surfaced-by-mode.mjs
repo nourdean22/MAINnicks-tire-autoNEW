@@ -87,6 +87,29 @@ async function main() {
     );
   }
 
+  // ── RECENCY SPLIT ───────────────────────────────────────────────────
+  // An all-time share hides a composition change. It did here: the standard
+  // turns all predate 2026-09-07, so the all-time figure UNDERSTATES how deep
+  // the current traffic is. Printing the last-10-day window separately stops a
+  // reader treating a historical mix as the live one.
+  const recent = await prisma.$queryRawUnsafe(
+    `SELECT coalesce(tags->>'mode','(none)') AS mode, count(*)::int AS turns
+       FROM system_metrics
+      WHERE metric = 'tool.surfaced'
+        AND created_at > now() - make_interval(days => $1::int)
+      GROUP BY 1 ORDER BY turns DESC`,
+    10,
+  );
+  const recentTotal = recent.reduce((n, r) => n + r.turns, 0);
+  console.log(`\nlast 10 days (${recentTotal} turns):`);
+  for (const r of recent) {
+    const p = recentTotal > 0 ? ((r.turns / recentTotal) * 100).toFixed(1) : "n/a";
+    console.log(`  ${pad(r.mode, 12)}${pad(r.turns, 8)}${p}%`);
+  }
+  if (recentTotal === 0) {
+    console.log("  (no recent traffic — the all-time figures below are all there is)");
+  }
+
   // Everything that decides what these numbers are ALLOWED to mean lives in
   // scripts/lib/mode-evidence.mjs, so it can be canaried without a database.
   const ev = classifyModeEvidence({ rows, total });
