@@ -431,7 +431,10 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // capturedToolCalls buffer) moved VERBATIM to
       // ./tool-telemetry-walk.ts.
       const { walkToolTelemetry } = await import("./tool-telemetry-walk");
-      const capturedToolCalls = walkToolTelemetry({ ev, convId });
+      // traceId is threaded through so the `tool.chosen` lane the walk records
+      // can be JOINED to `tool.surfaced` from prepare-tools.ts. Both stamp the
+      // same route-minted id; without it the pair is two unrelated counts.
+      const capturedToolCalls = walkToolTelemetry({ ev, convId, traceId });
 
 
       // ── EVIDENCE GATE (SHADOW) — 2026-09-10 ─────────────────────────

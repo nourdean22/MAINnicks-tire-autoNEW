@@ -69,8 +69,30 @@ function digestResult(result: unknown, max = 4000): string {
   return text.replace(/\s+/g, " ").slice(0, max);
 }
 
+/** One row this walk wants written. Pure data — no IO, no Prisma, no import. */
+interface MetricWrite {
+  metric: string;
+  value: number;
+  tags: Record<string, unknown>;
+  /**
+   * The instrument scope this lane reports failures under, built at the BUILDER
+   * with a string literal rather than derived from `metric` at the emit site.
+   *
+   * That is deliberate and it is not stylistic. `instrument-failures.test.ts`
+   * scans lib/ and app/ for `instrumentScope("<name>")` literals and asserts
+   * every entry in KNOWN_INSTRUMENTS has a producer — an instrument nothing
+   * reports under reads as healthy forever. A generic `instrumentScope(w.metric)`
+   * at the emit site compiles and runs identically, and makes both lanes
+   * INVISIBLE to that scan. Keeping the literal at the builder costs one line
+   * and keeps the orphan check able to see this file.
+   */
+  scope: string;
+  /** Correlation value for the failure log, so a dead lane names itself. */
+  logContext: Record<string, unknown>;
+}
+
 /**
- * Shadow-only: persist ONE operation-integrity receipt for the turn.
+ * Shadow-only: the ONE operation-integrity receipt for the turn, or null.
  *
  * `tool_telemetry` is deliberately aggregate-by-tool and therefore the wrong
  * place for per-turn operation state. `system_metrics` already accepts JSON
@@ -81,52 +103,177 @@ function digestResult(result: unknown, max = 4000): string {
  * The math comes from `summarizeOperations()`, the SAME compiler used by the
  * normalized TurnExecution summary. Shadow telemetry and future persistence
  * therefore cannot quietly disagree about what "provider accepted" means.
+ *
+ * Returns a payload instead of writing it. Both lanes want the same module, and
+ * issuing two dynamic imports per turn was worse than one — see `loadMetrics`.
  */
-function recordOperationIntegrityShadow(
+function buildOperationIntegrityShadow(
   calls: ReadonlyArray<CapturedToolCall>,
   convId: string | undefined,
-): void {
-  if (calls.length === 0) return;
+): MetricWrite | null {
+  if (calls.length === 0) return null;
   const summary = summarizeOperations(calls);
-  if (summary.consequentialCount === 0) return;
+  if (summary.consequentialCount === 0) return null;
 
-  // Non-blocking, but NOT silent. This is a shadow instrument: its write IS
-  // the measurement, so a failed write produces a missing row rather than a
-  // wrong one — and a shadow with missing rows reads as "no disagreement
-  // found", which is the conclusion it exists to earn rather than assume.
-  // See lib/observability/instrument-failures.ts.
-  // `instrumentScope` comes from the static, prisma-free import at the top of
-  // this file. Reaching for it through `instrument-failures` would drag the
-  // Prisma client into the chat hot path for the sake of a string helper —
-  // which is exactly what happened on the first cut of this change and what
-  // `instrument-scope.ts` exists to prevent.
-  void import("@/lib/services/metrics")
-    .then(({ recordMetricStrict }) =>
-      recordMetricStrict("operation.integrity_shadow", summary.consequentialCount, {
-        unit: "count",
-        tags: {
-          conversationId: convId ?? null,
-          legacySdkSuccesses: summary.legacySdkSuccesses,
-          strictVerified: summary.strictVerified,
-          legacyStrictGap: summary.legacyStrictGap,
-          strictDoneEligible: summary.strictDoneEligible,
-          operations: summary.operations,
-        },
-        source: "chat",
-      }).catch((err) =>
-        logError(instrumentScope("operation.integrity_shadow"), err, { conversationId: convId ?? null }, "warn"),
-      ),
-    )
-    .catch((err) => {
-      console.warn("[instrument.operation.integrity_shadow] failed to load writer", err);
+  return {
+    metric: ACTION_INTEGRITY_METRIC,
+    value: summary.consequentialCount,
+    scope: instrumentScope("operation.integrity_shadow"),
+    tags: {
+      conversationId: convId ?? null,
+      legacySdkSuccesses: summary.legacySdkSuccesses,
+      strictVerified: summary.strictVerified,
+      legacyStrictGap: summary.legacyStrictGap,
+      strictDoneEligible: summary.strictDoneEligible,
+      operations: summary.operations,
+    },
+    logContext: { conversationId: convId ?? null },
+  };
+}
+
+const ACTION_INTEGRITY_METRIC = "operation.integrity_shadow";
+const CHOSEN_TOOLS_METRIC = "tool.chosen";
+
+/**
+ * The metrics module, imported at most once per process.
+ *
+ * Not a micro-optimisation. Measured 2026-09-17: a SECOND dynamic import of
+ * this module issued while the first is still in flight never settles under
+ * vitest's module mock, so the second lane's write vanished and the test that
+ * asserted on it timed out with no row and no error. Memoising means there is
+ * only ever one in-flight import to race with.
+ *
+ * A REJECTED promise is deliberately not cached: a transient import failure
+ * must not disable the instrument for the lifetime of the process. Clearing on
+ * rejection costs one retry per failing turn and keeps the lane recoverable.
+ */
+let metricsModule: Promise<typeof import("@/lib/services/metrics")> | null = null;
+function loadMetrics(): Promise<typeof import("@/lib/services/metrics")> {
+  if (!metricsModule) {
+    metricsModule = import("@/lib/services/metrics").catch((err) => {
+      metricsModule = null;
+      throw err;
     });
+  }
+  return metricsModule;
+}
+
+/**
+ * Issue every metric this turn produced, through a SINGLE dynamic import.
+ *
+ * WHY ONE IMPORT AND NOT TWO. Each lane used to import
+ * `@/lib/services/metrics` for itself. In production that is merely wasteful —
+ * the module is already in the cache, so the second import resolves instantly.
+ * Under vitest's module mock it is worse than wasteful: measured 2026-09-17,
+ * only the FIRST dynamic import of the mocked module ever settles, and every
+ * later one hangs forever. Two lanes in one turn meant the second lane's write
+ * silently never happened, and a test asserting on it timed out with no row.
+ *
+ * That is a harness artifact, not a production bug — but it is the exact shape
+ * this file keeps warning about: a fire-and-forget instrument whose failure is
+ * a MISSING row, and a missing row reads as "nothing to report". Collapsing to
+ * one import removes the hazard instead of documenting it, and costs one fewer
+ * dynamic import on every chat turn.
+ *
+ * Non-blocking, never awaited, never throws — but NOT silent. Failures log
+ * under the shared instrument scope so `buildInstrumentFailures()` can name the
+ * instrument. `instrumentScope` comes from the static, prisma-free import at
+ * the top of this file; reaching for it through `instrument-failures` would
+ * drag the Prisma client onto the chat hot path for a string helper, which is
+ * what `instrument-scope.ts` exists to prevent.
+ */
+function emitMetricWrites(writes: ReadonlyArray<MetricWrite>): void {
+  if (writes.length === 0) return;
+  void loadMetrics()
+    .then(({ recordMetricStrict }) => {
+      for (const w of writes) {
+        void recordMetricStrict(w.metric, w.value, {
+          unit: "count",
+          tags: w.tags,
+          source: "chat",
+        }).catch((err) => logError(w.scope, err, w.logContext, "warn"));
+      }
+    })
+    .catch((err) => {
+      // The dynamic import itself failed — every lane for this turn is lost,
+      // and that must not be silent either.
+      console.warn("[instrument.chat-metrics] failed to load writer", err);
+    });
+}
+
+/**
+ * The CHOSEN half of the surfacing measurement — `tool.surfaced`'s mirror.
+ *
+ * WHY IT DID NOT EXIST, AND WHAT THAT COST. `prepare-tools.ts` has recorded
+ * one `tool.surfaced` row per turn (traceId + the offered names) since the
+ * census needed a denominator. Nothing recorded the matching NUMERATOR. The
+ * only record of what actually ran is `tool_telemetry`, which is aggregate-by-
+ * tool and lifetime-cumulative, so "was THIS tool chosen on THIS turn" has
+ * never been answerable. `chat_messages.parts` looks like it should answer it —
+ * the schema documents `tool-call` parts — but measured 2026-09-17 it holds
+ * only `text` and `file` parts and never has.
+ *
+ * The cost was concrete: a tier-4 budget investigation could not compare tier
+ * 4 against tier 5 per impression, because the best available proxy was
+ * "has this tool EVER been called, lifetime", which conflates a tool that was
+ * offered 109 times and declined with one that was never offered at all.
+ * Sharing `traceId` with `tool.surfaced` makes that a join instead of a guess.
+ *
+ * ⚠ WRITTEN ON EVERY TURN, INCLUDING ZERO-TOOL TURNS — deliberately, and this
+ * is the whole design. A turn where the model was offered 24 tools and chose
+ * NONE is the single most informative row for a prune decision. Skipping it
+ * would drop those turns out of the denominator and make "surfaced but never
+ * chosen" read as "never surfaced", which is the exact confound the census was
+ * built to resolve. `buildOperationIntegrityShadow` above returns null on an
+ * empty call list — correct for IT, since it measures consequential operations
+ * — and copying that guard here was the first thing I wrote and the first
+ * thing I removed. The same defect shipped once already (#2381: a shadow
+ * recorder nested inside `if (actions.length > 0)`, which made the zero case
+ * invisible), so it is spelled out rather than left to judgement.
+ *
+ * Fire-and-forget, never awaited, never throws — but NOT silent: a dead writer
+ * here produces a MISSING row, and a missing row reads as "that tool was never
+ * chosen". Failures log under the shared instrument scope so
+ * `buildInstrumentFailures()` can name this instrument.
+ */
+function buildChosenToolsWrite(
+  calls: ReadonlyArray<CapturedToolCall>,
+  traceId: string | undefined,
+  convId: string | undefined,
+): MetricWrite {
+  // Distinct names, so the value is directly comparable with `tool.surfaced`
+  // (which counts distinct offered names). Raw invocation count rides along as
+  // a tag rather than the value, so a tool called three times in one turn does
+  // not read as three separate conversions.
+  const chosen = [...new Set(calls.map((c) => c.name))].sort();
+  const failed = [...new Set(calls.filter((c) => !c.ok).map((c) => c.name))].sort();
+
+  return {
+    metric: CHOSEN_TOOLS_METRIC,
+    value: chosen.length,
+    scope: instrumentScope("tool.chosen"),
+    tags: {
+      traceId: traceId ?? null,
+      conversationId: convId ?? null,
+      tools: chosen,
+      failed,
+      invocations: calls.length,
+    },
+    logContext: { traceId: traceId ?? null },
+  };
 }
 
 export function walkToolTelemetry(args: {
   ev: { steps?: unknown };
   convId: string | undefined;
+  /**
+   * The SAME id `prepare-tools.ts` stamps on `tool.surfaced`, minted once per
+   * request in the chat route. Without it the chosen row cannot be joined to
+   * the offered row and the pair measures nothing.
+   */
+  traceId?: string;
 }): CapturedToolCall[] {
-  const { ev, convId } = args;
+  const { ev, convId, traceId } = args;
   const capturedToolCalls: CapturedToolCall[] = [];
 
   // Keep SDK field-name/version differences OUTSIDE the truth logic. The
@@ -210,9 +357,19 @@ export function walkToolTelemetry(args: {
     });
   }
 
-  // Shadow measurement only. This intentionally does NOT mutate `ok` or the
-  // existing ActionReceipt/Done guard yet; promotion requires real traffic.
-  recordOperationIntegrityShadow(capturedToolCalls, convId);
+  // Both lanes are built as pure payloads and issued through ONE import.
+  //
+  // The integrity shadow is measurement only: it intentionally does NOT mutate
+  // `ok` or the existing ActionReceipt/Done guard: promotion requires real
+  // traffic. It is null on a turn with no consequential operation.
+  //
+  // `tool.chosen` is UNCONDITIONAL — see its header. A zero-length call list is
+  // a measurement, not the absence of one.
+  const integrity = buildOperationIntegrityShadow(capturedToolCalls, convId);
+  emitMetricWrites([
+    ...(integrity ? [integrity] : []),
+    buildChosenToolsWrite(capturedToolCalls, traceId, convId),
+  ]);
 
   return capturedToolCalls;
 }
