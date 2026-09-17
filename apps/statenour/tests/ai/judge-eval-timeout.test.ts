@@ -53,6 +53,20 @@ describe("judge-eval guardian budget", () => {
     expect(JUDGE_GUARDIAN_OPTS.maxRetries).toBeGreaterThanOrEqual(1);
   });
 
+  /**
+   * The call site spreads this const and ALSO writes `reliabilityOnly: true`
+   * literally, because `guardian-registry-drift.test.ts` is a static source
+   * scan that only sees the text inside the `withGuardian(...)` call. That
+   * duplication is deliberate — but it means the const could be edited to
+   * `false` while the call site still passes `true`, leaving this exported
+   * object describing a configuration that is not the live one. Every other
+   * assertion in this file reads the const as if it were the live config, so
+   * that divergence would quietly invalidate all of them.
+   */
+  it("the exported config agrees with the literal at the call site", () => {
+    expect(JUDGE_GUARDIAN_OPTS.reliabilityOnly).toBe(true);
+  });
+
   // Two attempts at the full budget must not exceed a sane ceiling for
   // fire-and-forget work — judgeReplyAsync is post-stream and awaited by nobody,
   // but unbounded background work is still a cost.

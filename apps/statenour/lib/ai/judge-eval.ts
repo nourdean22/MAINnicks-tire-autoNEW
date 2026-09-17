@@ -252,7 +252,28 @@ export const JUDGE_GUARDIAN_OPTS = {
   reliabilityOnly: true, // internal post-stream telemetry sub-op (was a stale registry entry)
 } as const;
 
-export const judgeReply = withGuardian("judge-eval", _judgeReply, JUDGE_GUARDIAN_OPTS);
+/**
+ * ⚠⚠ `reliabilityOnly: true` IS WRITTEN LITERALLY HERE, not only carried by the
+ * spread — and removing this line would be a silent, CI-red regression.
+ *
+ * `tests/tools/guardian-registry-drift.test.ts:65` is a STATIC SOURCE SCAN: it
+ * tests `/reliabilityOnly\s*:\s*true/` against the text inside this
+ * `withGuardian(...)` call. Hoisting the opts into `JUDGE_GUARDIAN_OPTS` moved
+ * that literal out of the scanned window, so the guard reported this id as
+ * neither registered nor reliabilityOnly — the "Unknown tool ID" class that
+ * silently denied chat web search in July. The runtime behaviour was correct
+ * the whole time; the guard could not see it.
+ *
+ * ★ The guard is RIGHT to fail here and must not be loosened. Teaching it to
+ * follow a const means resolving identifiers, and a partial resolver would turn
+ * a false POSITIVE (safe: it stops a correct change) into false NEGATIVES
+ * (dangerous: it passes a broken one). A static guard is allowed to demand its
+ * marker at the call site. The duplication is the price, and it is cheap.
+ */
+export const judgeReply = withGuardian("judge-eval", _judgeReply, {
+  ...JUDGE_GUARDIAN_OPTS,
+  reliabilityOnly: true,
+});
 
 /**
  * Fire-and-forget · runs the eval async + persists score to a brain
