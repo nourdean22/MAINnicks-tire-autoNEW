@@ -285,13 +285,27 @@ export async function pruneTools(
   //   /mit|okr|target|goal|.../                  matches checkCom-MIT-ments
   //                                              and githubRecentCom-MIT-s
   //
-  // DO NOT "FIX" THIS EXPECTING A BUDGET WIN — it was tried and measured.
-  // Requiring the match to start at a camelCase token boundary is SAFE (zero
-  // ever-chosen tools lose every family) and WORTHLESS (zero never-chosen
-  // tools lose every family either). getHabitRevenueCorrelation drops
-  // /relation/ and keeps /revenue/ and /habit/, both legitimate, so it is
-  // still surfaced on all 109 of its impressions. The collisions are real and
-  // ugly; they are not what spends the budget.
+  // A TOKEN-BOUNDARY RULE IS A TRADE-OFF, NOT A FREE WIN — and not a no-op.
+  //
+  // ⚠ An earlier version of this comment said the rule was "SAFE and
+  // WORTHLESS". That was WRONG, and wrong for an instructive reason: the probe
+  // behind it treated "some other family still matches" as proof a tool stays
+  // reachable. Every family here is guarded by its OWN `if (user-text)` trigger
+  // — 53 families, 53 distinct triggers, none shared — so a surviving family
+  // only helps on the text that fires ITS trigger. Re-measured trigger-aware:
+  //
+  //   · 0 tools go fully dark
+  //   · 12 go CONDITIONALLY dark — reachable only under a different trigger —
+  //     and 4 of those are tools the model has actually chosen
+  //     (checkCommitments, githubRecentCommits, arsenalResearch,
+  //      arsenalDeepResearch)
+  //   · up to 276 of 1,877 tier-4 impressions (14.7%) would be reclaimed from
+  //     never-chosen tools
+  //
+  // So it buys real budget and costs real coverage. Whether that trade is good
+  // depends on whether those 4 tools are being chosen BECAUSE of the accidental
+  // match or in spite of it — which needs the per-turn `tool.chosen` join, and
+  // that lane has no data yet. Decide it then, not from this comment.
   //
   // What spends the budget: 136 of 181 catalog tools (75.1%) have never been
   // chosen in chat, and tier 4 surfaces them correctly, from their own

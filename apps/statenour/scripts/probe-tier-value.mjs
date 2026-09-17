@@ -128,18 +128,37 @@ async function main() {
   }
 
   // ── how often does tier 5 never get to run, and why ──────────────────────
+  // ⚠ `semantic_tier_attempted` is NULLABLE and the schema says why: null
+  // PREDATES the signal. Counting only FALSE in the numerator while dividing by
+  // ALL rows mixes "known skipped" with "no idea", and understates the skip rate
+  // by however many legacy rows exist. The denominator below is KNOWN rows only,
+  // and unknowns get their own line rather than being folded silently into
+  // either side — the same rule as `instrumentsWithNoFailures`: an absent
+  // measurement is not a measured zero.
   const turns = await prisma.$queryRawUnsafe(`
     SELECT COUNT(*)::int AS total,
-           SUM(CASE WHEN budget_truncated THEN 1 ELSE 0 END)::int              AS truncated,
+           SUM(CASE WHEN budget_truncated THEN 1 ELSE 0 END)::int                AS truncated,
+           SUM(CASE WHEN semantic_tier_attempted IS NULL  THEN 1 ELSE 0 END)::int AS semantic_unknown,
            SUM(CASE WHEN semantic_tier_attempted IS FALSE THEN 1 ELSE 0 END)::int AS semantic_skipped,
-           SUM(CASE WHEN search_tools_fired THEN 1 ELSE 0 END)::int             AS pruner_miss
+           SUM(CASE WHEN semantic_tier_attempted IS TRUE  THEN 1 ELSE 0 END)::int AS semantic_ran,
+           SUM(CASE WHEN search_tools_fired THEN 1 ELSE 0 END)::int               AS pruner_miss
       FROM tool_selection_turns`);
   const t = turns[0];
-  const p = (n) => (t.total ? `${((n / t.total) * 100).toFixed(1)}%` : "—");
+  const p = (n, d) => (d ? `${((n / d) * 100).toFixed(1)}%` : "—");
+  const known = t.semantic_skipped + t.semantic_ran;
   console.log(`\nturns: ${t.total}`);
-  console.log(`  budget truncated      ${t.truncated} (${p(t.truncated)})`);
-  console.log(`  semantic tier SKIPPED ${t.semantic_skipped} (${p(t.semantic_skipped)})`);
-  console.log(`  searchTools fired (model reports a pruner miss) ${t.pruner_miss} (${p(t.pruner_miss)})`);
+  console.log(`  budget truncated       ${t.truncated} (${p(t.truncated, t.total)} of all turns)`);
+  console.log(
+    `  semantic tier SKIPPED  ${t.semantic_skipped} (${p(t.semantic_skipped, known)} of the ${known} turns where it is KNOWN)`,
+  );
+  console.log(`  semantic tier RAN      ${t.semantic_ran}`);
+  console.log(
+    `  semantic state UNKNOWN ${t.semantic_unknown}` +
+      (t.semantic_unknown
+        ? `  <- legacy rows predating the signal; excluded from the rate, NOT counted as "ran"`
+        : `  (none — the rate above is over every turn)`),
+  );
+  console.log(`  searchTools fired (model reports a pruner miss) ${t.pruner_miss} (${p(t.pruner_miss, t.total)})`);
 
   const tier4 = await prisma.$queryRawUnsafe(`
     SELECT AVG(c)::float AS mean, MIN(c)::int AS min, MAX(c)::int AS max,
