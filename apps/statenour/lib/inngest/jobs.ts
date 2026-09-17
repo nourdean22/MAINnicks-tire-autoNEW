@@ -95,10 +95,40 @@ export const MORNING_JOBS: readonly string[] = [
   "/api/cron/greene-law-tag-refresh",
   // 2026-06-02 · v-truth · Nick Action Queue (NICK_AUTONOMY-gated). The
   // proposer + executor HARD-SKIP when the flag is off, so these are
-  // inert until the operator opts in. Ordered prewarm -> proposal ->
-  // execute (fan-out runs array order): prewarm warms the outreach pick,
-  // proposal writes pending rows + Telegrams a /qa list, execute runs
-  // only operator-APPROVED rows (send_sms_outreach drafts, never sends).
+  // inert while the flag is off.
+  //
+  // ⚠⚠ 2026-09-17 - TWO CORRECTIONS, BOTH MEASURED. This comment described a
+  // system that no longer matches production, on a path adjacent to customer
+  // contact, which is the worst place for stale documentation to sit.
+  //
+  // 1. NOT INERT. NICK_AUTONOMY reads `true` in Railway production (checked
+  //    2026-09-17). The operator opted in; "inert until the operator opts in"
+  //    invited a reader to treat this trio as dead code. It is live.
+  //
+  // 2. "fan-out runs array order" IS NOT TRUE. The dispatcher is
+  //    `Promise.allSettled(MORNING_JOBS.map(...))` in mega-fanout.ts - every
+  //    child starts concurrently, and array position controls only the order
+  //    dispatch is INITIATED, never the order work completes. Nothing here
+  //    sequences prewarm -> proposal -> execute.
+  //
+  // ★ THE ORDERING IS REAL, BUT IT IS NOT ENFORCED HERE. What actually
+  //   separates proposal from execute is the APPROVAL GATE: execute selects
+  //   `approval = 'approved'` only, and approval is a human action that takes
+  //   far longer than a fan-out slot. So execute structurally cannot act on
+  //   the rows this same run proposed - they are still pending. The safety
+  //   property holds; the mechanism named above was simply the wrong one, and
+  //   adding sequencing machinery to re-create a guarantee the approval gate
+  //   already provides would be complexity with no invariant behind it.
+  //
+  // ⚠ UNVERIFIED, left as a question rather than a claim: whether
+  //   nick-action-proposal actually consumes relationship-picks-prewarm's
+  //   output. If it does, concurrent dispatch means proposal can read a cold
+  //   pick - a QUALITY degradation, not a safety one. Prove the data
+  //   dependency before building anything to fix it.
+  //
+  // What each does: prewarm warms the outreach pick, proposal writes pending
+  // rows + Telegrams a /qa list, execute runs only operator-APPROVED rows
+  // (send_sms_outreach drafts, never sends).
   "/api/cron/relationship-picks-prewarm",
   "/api/cron/nick-action-proposal",
   "/api/cron/nick-action-execute",
