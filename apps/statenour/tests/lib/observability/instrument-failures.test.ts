@@ -14,7 +14,7 @@
  * swallowing. That half cannot be proved by calling this module.
  */
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   assembleInstrumentFailures,
@@ -151,6 +151,50 @@ describe("WIRING: measurement instruments do not swallow their own failures", ()
     // empty arrow body is never a correct handler for a measurement write.
     const silent = code.match(/\.catch\(\s*\(\s*\)\s*=>\s*\{\s*\}\s*\)/g) ?? [];
     expect(silent, `${file} still swallows a failure silently`).toEqual([]);
+  });
+
+  it("EVERY name in KNOWN_INSTRUMENTS has a real producer", () => {
+    // The trap this closes, found by self-review of this very file:
+    // `action.done.shadow` was listed as known while its recorder logged under
+    // the bespoke scope "chat.action-done-shadow". The reader's regex could
+    // never match it, so it would have sat in `instrumentsWithNoFailures`
+    // forever — reading as healthy precisely when broken. A roster that lists
+    // an instrument nothing reports is worse than omitting it: it converts an
+    // unknown into a false all-clear.
+    //
+    // Scanning the whole lib+app tree rather than a fixed file list, so moving
+    // a producer does not silently uncover its instrument.
+    const roots = ["lib", "app"];
+    const found = new Set<string>();
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== "node_modules") walk(p);
+          continue;
+        }
+        if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".tsx")) continue;
+        const src = readFileSync(p, "utf8")
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .split("\n")
+          .map((l) => l.replace(/\/\/.*$/, ""))
+          .join("\n");
+        for (const m of src.matchAll(/instrumentScope\(\s*["'`]([^"'`]+)["'`]\s*\)/g)) found.add(m[1]);
+        // The Done-shadow passes its metric constant rather than a literal.
+        if (src.includes("instrumentScope(ACTION_DONE_SHADOW_METRIC)")) found.add("action.done.shadow");
+      }
+    };
+    for (const r of roots) walk(join(process.cwd(), r));
+
+    // POSITIVE CONTROL: the scan found producers at all, so an empty result
+    // cannot make this vacuously green.
+    expect(found.size, "the producer scan found nothing — it is not seeing the tree").toBeGreaterThan(2);
+
+    const orphaned = KNOWN_INSTRUMENTS.filter((n) => !found.has(n));
+    expect(
+      orphaned,
+      "listed as known but nothing reports under that scope — it would read as healthy forever",
+    ).toEqual([]);
   });
 
   it("the two hot-path instruments use the PROPAGATING writer", () => {
