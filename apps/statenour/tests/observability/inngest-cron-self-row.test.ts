@@ -19,7 +19,7 @@
  * the tree clean. A first draft of this audit was per-file and would have done
  * precisely that.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -60,6 +60,52 @@ export function scanCronFunctions(dir: string = FN_DIR): CronFn[] {
 }
 
 const FNS = scanCronFunctions();
+
+/**
+ * ── CANARY · the "never throws" guarantee must be REAL ──────────────
+ *
+ * The first version used `prisma.cronJobLog.create(...).catch(...)` while its
+ * docstring promised it never throws. `.catch()` only handles a REJECTED
+ * PROMISE; an undefined `prisma.cronJobLog` throws SYNCHRONOUSLY on property
+ * access, before a promise exists, so the handler blew up —
+ * `TypeError: Cannot read properties of undefined (reading 'create')` — and
+ * took a real cron test down with it.
+ *
+ * ★ A telemetry write that can fail its own job is strictly worse than the
+ *   blindness it replaces. This asserts the guarantee against the exact shape
+ *   that broke it, rather than trusting the sentence in the docstring.
+ */
+describe("recordSelfRow · never throws", () => {
+  const stubStep = { run: async (_id: string, fn: () => Promise<unknown>) => fn() };
+
+  it("CANARY — survives a prisma client with no cronJobLog at all", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/prisma", () => ({ prisma: {} }));
+    vi.doMock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
+    const { recordSelfRow } = await import("../../lib/inngest/self-row");
+    await expect(recordSelfRow(stubStep, "some-cron")).resolves.toBeUndefined();
+  });
+
+  it("survives a rejected create as well", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/prisma", () => ({
+      prisma: { cronJobLog: { create: () => Promise.reject(new Error("db down")) } },
+    }));
+    vi.doMock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
+    const { recordSelfRow } = await import("../../lib/inngest/self-row");
+    await expect(recordSelfRow(stubStep, "some-cron")).resolves.toBeUndefined();
+  });
+
+  it("positive control: it really does write when the client works", async () => {
+    vi.resetModules();
+    const create = vi.fn(async () => ({}));
+    vi.doMock("@/lib/prisma", () => ({ prisma: { cronJobLog: { create } } }));
+    vi.doMock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
+    const { recordSelfRow } = await import("../../lib/inngest/self-row");
+    await recordSelfRow(stubStep, "goal-pruner");
+    expect(create).toHaveBeenCalledWith({ data: { jobName: "goal-pruner", status: "success" } });
+  });
+});
 
 describe("inngest cron self-row", () => {
   // POSITIVE CONTROL — a broken scanner makes every assertion below pass on an

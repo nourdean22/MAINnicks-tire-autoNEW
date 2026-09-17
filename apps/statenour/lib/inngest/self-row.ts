@@ -62,16 +62,26 @@ export interface SelfRowStep {
  */
 export async function recordSelfRow(step: SelfRowStep, jobName: string): Promise<void> {
   await step.run("self-row", async () => {
-    await prisma.cronJobLog
-      .create({ data: { jobName, status: "success" } })
-      .catch((e) =>
-        logError(
-          "inngest.self-row",
-          e,
-          { jobName, risk: "this cron becomes invisible to /system/crons again" },
-          "warn",
-        ),
+    // ⚠⚠ try/catch, NOT `.catch()` — and the difference is the whole guarantee.
+    // `.catch()` only handles a REJECTED PROMISE. `prisma.cronJobLog` being
+    // undefined (an uninitialised client, a partial test mock) throws
+    // SYNCHRONOUSLY on property access, before any promise exists, so
+    // `.catch()` never runs and the error escapes into the cron handler.
+    //
+    // The first version of this function used `.catch()` and carried the
+    // "NEVER THROWS" promise directly above it. It did throw — a real cron
+    // test caught it. A telemetry write that can fail its own job is strictly
+    // worse than the blindness it replaces, so the guarantee has to be real.
+    try {
+      await prisma.cronJobLog.create({ data: { jobName, status: "success" } });
+    } catch (e) {
+      logError(
+        "inngest.self-row",
+        e,
+        { jobName, risk: "this cron becomes invisible to /system/crons again" },
+        "warn",
       );
+    }
     return true;
   });
 }
