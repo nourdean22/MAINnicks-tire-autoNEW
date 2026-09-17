@@ -16,7 +16,7 @@ import {
   detectFailedActionClaims,
   detectPhantomActionClaims,
 } from "@/lib/ai/chat/action-result-verifier";
-import { recordMetric } from "@/lib/services/metrics";
+import { recordMetricStrict } from "@/lib/services/metrics";
 import { recordActionDoneShadow } from "@/lib/ai/receipts/action-done-shadow-recorder";
 import { logError } from "@/lib/utils/error-log";
 import { canClaimDone, summarizeClaimDoneShadow, toReceipt } from "@/lib/ai/receipts/action-receipt";
@@ -330,6 +330,31 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
 
       // Agent Layer — parse and execute any actions Nick embedded.
       const actions = parseActions(text);
+
+      // ── Strict-Done shadow · ZERO-ACTION arm · SHADOW ONLY ───────────────
+      // A turn can claim completion while emitting NO action block at all —
+      // "Done — both profiles created" with nothing attempted. That is the
+      // PHANTOM case, the one `phantomClaims` exists to classify, and the
+      // in-branch call below cannot see it because `if (actions.length > 0)`
+      // excludes it. Recording only the has-actions turns would leave the
+      // shadow's denominator silently narrower than its own documented
+      // contract — a rate measured over the wrong population.
+      //
+      // Separate call rather than a hoist: `withErrorCapture` below is
+      // deliberately NOT awaited, so `results` does not exist yet at this
+      // point in the turn. A single hoisted call would race it.
+      if (actions.length === 0 && traceId) {
+        await recordActionDoneShadow(
+          compareActionDoneShadow([], cleanedText),
+          { traceId, conversationId: convId ?? null },
+          {
+            recordMetric: recordMetricStrict,
+            logInfo: (event, data) => log.info(event, data),
+            logError: (scope, err, meta) => logError(scope, err, meta, "warn"),
+          },
+        );
+      }
+
       if (actions.length > 0) {
         withErrorCapture(
           "chat:actions",
@@ -575,7 +600,12 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                 compareActionDoneShadow(results, cleanedText),
                 { traceId, conversationId: convId ?? null },
                 {
-                  recordMetric,
+                  // STRICT, not the fail-soft `recordMetric`: this write IS the
+                  // measurement, so a dead writer must read as broken rather
+                  // than as "no gaps". The recorder's own catch turns a
+                  // rejection into outcome "failed" plus a logged error, so
+                  // propagating here still cannot break the turn.
+                  recordMetric: recordMetricStrict,
                   logInfo: (event, data) => log.info(event, data),
                   logError: (scope, err, meta) => logError(scope, err, meta, "warn"),
                 },

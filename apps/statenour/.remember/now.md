@@ -159,6 +159,29 @@ tests in 2 files, `exit=1`. Now **844 files / 8,467 tests, exit 0**.
   capability" when the tool exists and was merely unloaded (an L1-L6 fabrication, from the harness).
   11 tests, mutation kills 4 of 11 while the 7 boundary/preservation tests stay green.
 
+- `<review-P1s slice>` — ★★★ **Codex review found TWO REAL P1s in my own shadow wiring, and both were
+  the exact defect classes I spent this session hunting. Verified against source before acting.**
+  (a) **The instrument could not report its own failure.** I injected `lib/services/metrics.ts`'s
+  `recordMetric`, whose body ends `.catch(() => {})`. So the await could NEVER reject,
+  `recordActionDoneShadow` always returned `"recorded"`, and the "NOT a silent catch" branch I wrote
+  was DEAD CODE in prod. My test passed only because the injected mock rejected where the real
+  dependency cannot — **a test agreeing with its own double.** Fix: `recordMetricStrict` returning a
+  `MetricWriteReceipt`; `recordMetric` now delegates to it (ONE insert definition). ★ The deps type
+  demands the receipt, so `Promise<void>` is **unassignable** — a fail-soft writer can never be
+  wired to an instrument again without a COMPILE ERROR. A type where a comment would have been.
+  (b) **The denominator excluded the exact case it was built to measure.** My call sat inside
+  `if (actions.length > 0)`, so a completion claim with NO action block — the phantom
+  ("Done — both profiles created", nothing attempted) — never recorded, while the module docstring
+  claimed "a row for EVERY turn whose prose claimed completion". Fix: a zero-action arm passing
+  `compareActionDoneShadow([], cleanedText)`. ⚠ SEPARATE call site, not a hoist: `withErrorCapture`
+  is **not awaited**, so `results` does not exist yet — one hoisted call would race it.
+  ⚠ The recorder tests could not have caught (b) — they test the recorder, which was always willing.
+  Added an explicit WIRING guard (2 call expressions on COMMENT-STRIPPED source, per the repo's own
+  remedy) and labelled it as a wiring guard, not a behaviour guard. Mutation: removing the
+  zero-action arm reddens it; swallowing in `recordMetricStrict` reddens the propagation test.
+  ★ `completion-authority` CI was failing SOLELY on these two unresolved threads — one root cause,
+  three symptoms.
+
 **DELIBERATELY NOT DONE (scope discipline, not oversight)**
 - **Do NOT merge tier 4 and tier 5 into one ranked pool yet.** It is the natural completion of the
   budget-cliff fix — rank keyword + semantic candidates together and take the top 24, which would

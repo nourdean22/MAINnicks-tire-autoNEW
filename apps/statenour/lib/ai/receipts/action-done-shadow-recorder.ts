@@ -23,6 +23,7 @@
  */
 
 import type { ActionDoneShadowVerdict } from "@/lib/ai/chat/action-result-verifier";
+import type { MetricWriteReceipt } from "@/lib/services/metrics";
 
 export const ACTION_DONE_SHADOW_METRIC = "action.done.shadow";
 
@@ -40,11 +41,28 @@ export interface ActionDoneShadowContext {
 }
 
 export interface ActionDoneShadowDeps {
+  /**
+   * Must PROPAGATE a write failure — pass `recordMetricStrict`, never the
+   * fail-soft `recordMetric`.
+   *
+   * 2026-09-16 · review caught this as a P1 and it was correct. This was typed
+   * `=> Promise<void>`, and production passed `lib/services/metrics.ts`'s
+   * `recordMetric`, which ends in `.catch(() => {})`. So the await below could
+   * never reject, `recordActionDoneShadow` always returned "recorded", and the
+   * non-silent catch this module advertises was DEAD CODE on the only path
+   * that runs. The unit test passed solely because its injected mock rejected
+   * where the real dependency does not — a test agreeing with itself.
+   *
+   * The receipt return type is the fix, not a comment: `Promise<void>` is not
+   * assignable to `Promise<MetricWriteReceipt>`, so a writer that swallows its
+   * own failure cannot be passed here at all. The next person to wire this
+   * gets a compile error instead of a silent instrument.
+   */
   recordMetric: (
     metric: string,
     value: number,
     options?: { unit?: string; tags?: Record<string, unknown>; source?: string },
-  ) => Promise<void>;
+  ) => Promise<MetricWriteReceipt>;
   logInfo?: (event: string, data: Record<string, unknown>) => void;
   logError?: (scope: string, err: unknown, meta: Record<string, unknown>) => void;
 }
@@ -59,6 +77,18 @@ export interface ActionDoneShadowDeps {
  * Turns with no completion claim are deliberately NOT recorded: they are not in
  * the population the promotion question applies to, and including them would
  * bury the signal under ordinary conversation.
+ *
+ * ⚠ THIS IS A CONTRACT ON THE CALLER, AND THE FIRST CALLER BROKE IT. Review
+ * caught it as a P1 and was right: the call sat inside
+ * `if (actions.length > 0)` in deferred-background-work.ts, so a turn that
+ * claimed completion while emitting NO action block never reached this
+ * function. That is precisely the phantom case — "Done — both profiles
+ * created" with nothing attempted — which `phantomClaims` exists to classify.
+ * The dataset therefore excluded the exact fabrications it was built to
+ * measure, while this paragraph claimed a denominator of all completion-claim
+ * turns. A zero-action turn must call in with an EMPTY result list, not be
+ * skipped; `tests/ai/receipts/action-done-shadow-recorder.test.ts` pins that
+ * the empty-results case still records.
  */
 export async function recordActionDoneShadow(
   verdict: ActionDoneShadowVerdict,
