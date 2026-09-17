@@ -76,6 +76,69 @@ describe("Google Drive family · scoped to real, read-only capability", () => {
     // exactly how syncDriveMemory got in.
     const offered = await offeredFor("search my google drive for the lease");
     const driveish = offered.filter((n) => /drive/i.test(n));
-    expect(driveish.sort()).toEqual(["readDriveFile", "searchDriveFiles"]);
+    // The three FREE, READ-ONLY Drive tools — and nothing else. Notably not
+    // `syncDriveMemory`, which is side-effecting and spendy.
+    expect(driveish.sort()).toEqual([
+      "listRecentDriveFiles",
+      "readDriveFile",
+      "searchDriveFiles",
+    ]);
+  });
+});
+
+/**
+ * The boundary has to hold through EVERY family, not just the one I narrowed.
+ *
+ * Review: "read the PDF in my Google Drive" still surfaced
+ * `ingestDocumentFromUrl`, because the separate document family matched `pdf`
+ * and added every `/ingestDocument/` tool. My original prompts never contained
+ * `pdf`, `document` or `spreadsheet`, so the tests could not see it.
+ *
+ * Narrowing one matcher establishes nothing if a sibling matcher reopens the
+ * same hole — and the catalog was under-flagging the tool, so the flag-driven
+ * assertion above could not catch it either.
+ */
+describe("read-only boundary holds across families, not just the Drive one", () => {
+  it("the catalog now flags the ingest tool for what it does", async () => {
+    // tools/system.ts:292-299 — "fetches an arbitrary URL + parses + embeds ->
+    // real paid cost", with a daily quota guard. It was `cost: "cheap"` with no
+    // sideEffecting flag, which made every flag-reading guard blind to it.
+    const t = TOOL_CATALOG.find((x) => (x as { name: string }).name === "ingestDocumentFromUrl") as
+      | { sideEffecting?: boolean; cost?: string }
+      | undefined;
+    expect(t?.sideEffecting).toBe(true);
+    expect(t?.cost).toBe("spendy");
+  });
+
+  it.each([
+    "read the PDF in my Google Drive",
+    "open that spreadsheet from my drive",
+    "find the document in gdrive about the lease",
+  ])("CANARY: no paid ingest tool for the READ request: %s", async (prompt) => {
+    const offered = await offeredFor(prompt);
+    expect(
+      offered,
+      `"${prompt}" surfaced the paid ingest tool through the document family`,
+    ).not.toContain("ingestDocumentFromUrl");
+    expect(offered.filter((n) => SPENDY_SIDE_EFFECTING.includes(n))).toEqual([]);
+  });
+
+  it("POSITIVE CONTROL: an explicit INGEST request still gets the ingest tool", async () => {
+    // Without this, removing the tool everywhere would satisfy the canary and
+    // quietly delete a capability rather than scoping it.
+    const offered = await offeredFor("ingest this pdf into my documents");
+    expect(offered).toContain("ingestDocumentFromUrl");
+  });
+
+  it("a read-shaped document request still reaches searchDocuments", async () => {
+    const offered = await offeredFor("search my documents for the lease");
+    expect(offered).toContain("searchDocuments");
+  });
+
+  it("CANARY: the recent-files Drive tool is reachable again", async () => {
+    // It is free and read-only, and the only tool that answers this phrasing.
+    // The first cut of the anchored allowlist dropped it.
+    const offered = await offeredFor("what's new in my google drive?");
+    expect(offered).toContain("listRecentDriveFiles");
   });
 });

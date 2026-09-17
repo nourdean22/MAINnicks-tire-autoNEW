@@ -409,7 +409,12 @@ export async function pruneTools(
   // Anchored on purpose: `^(...)$` cannot acquire a new member by someone
   // adding a tool whose name happens to contain "drive".
   if (/\b(google ?drive|my drive|gdrive|shared (drive|folder))\b/.test(text)) {
-    addMatching(/^(searchDriveFiles|readDriveFile)$/);
+    // `listRecentDriveFiles` belongs here too — free, read-only, and the only
+    // tool that answers "what's new in my Google Drive?". The first cut of this
+    // allowlist dropped it, so that phrasing reached NO Drive tool at all on a
+    // cold semantic cache. Narrowing a family must not remove the capability it
+    // exists to reach.
+    addMatching(/^(searchDriveFiles|readDriveFile|listRecentDriveFiles)$/);
   }
 
   // Email / inbox / Gmail / Telegram
@@ -542,7 +547,17 @@ export async function pruneTools(
   // Triggers when operator references "that PDF", "the spreadsheet",
   // "this document", or asks Nick to read a URL.
   if (/\b(document|pdf|word doc|spreadsheet|excel|csv file|read (this|that) (file|doc|pdf)|ingest|that (doc|pdf|file)|the (doc|pdf|spreadsheet)|search (my |the )?(docs|documents|files))\b/.test(text)) {
-    addMatching(/Document|searchDocuments|ingestDocument/);
+    // READ tools on a read-shaped trigger. `ingestDocumentFromUrl` is NOT in
+    // this set: it fetches an arbitrary URL, parses and embeds it, and carries
+    // a paid daily quota (tools/system.ts:292-299). "read the PDF in my Google
+    // Drive" was surfacing it through THIS family, which made the read-only
+    // boundary the Drive family claims untrue by a different route — narrowing
+    // one matcher establishes nothing if a sibling matcher reopens it.
+    addMatching(/^(searchDocuments|getDocument|readDocument)/);
+    // Ingest is offered only when the operator actually ASKS to ingest.
+    if (/\b(ingest|import|upload|add (this|that) (doc|pdf|file)|save (this|that) (doc|pdf|file))\b/.test(text)) {
+      addMatching(/^ingestDocument/);
+    }
   }
 
   // v10.0.524 · #1 Cross-conversation recall. Operator references
