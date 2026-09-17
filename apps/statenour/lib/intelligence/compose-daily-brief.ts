@@ -269,8 +269,8 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
       // an empty trace name makes them the ONLY identity a trace carries.
       experimental_telemetry: langfuseTelemetry({
         functionId: "daily-executive-brief",
-        tags: ["cron", "intelligence"],
-        metadata: { source: "cron", pipeline: "intelligence" },
+        tags: ["intelligence"],
+        metadata: { source: "intelligence" },
       }),
       system: SYSTEM_PROMPT,
       prompt: `${promptText}\n\nCompose the brief now.`,

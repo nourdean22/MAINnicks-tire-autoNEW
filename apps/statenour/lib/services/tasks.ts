@@ -359,13 +359,57 @@ async function scoreSingleTask(
  * skips it entirely when a caller passed its own `tx` (that caller owns the
  * refresh, as `createMission`/`updateMission` already do).
  */
+let prioritySyncInFlight: Promise<void> | null = null;
+let prioritySyncQueued = false;
+
 export function scheduleGlobalPrioritySync(source: string): void {
-  void syncTaskPriorities().catch((err: unknown) => {
-    log.warn("priority_sync_deferred_failed", {
-      source,
-      error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
-    });
-  });
+  // ⚠⚠ COALESCED, NOT MERELY FIRED. Moving the refresh out of the transaction
+  // bought liveness (a derived write can no longer fail a user's write) but
+  // gave up the serialisation the transaction and its row locks used to
+  // provide — a trade this code did not originally name. Two mutations
+  // finishing close together would launch independent FULL-TABLE refreshes,
+  // and `syncTaskPriorities` reads every open task then writes derived scores
+  // with NO version predicate: the refresh that read FIRST can write LAST,
+  // leaving `autoPriority` computed from a stale due date, mission or rank
+  // until some later mutation happens to fix it.
+  //
+  // ★ Coalescing is sound precisely because a full-table refresh is IDEMPOTENT
+  // and order-independent — running it once after N mutations is equivalent to
+  // running it N times, and strictly cheaper. So a request arriving mid-flight
+  // sets a flag rather than starting a second pass, and exactly one more pass
+  // runs afterwards to pick up whatever landed in the meantime.
+  //
+  // ⚠ IN-PROCESS ONLY. Two Railway instances can still overlap; this removes
+  // the common case (one process, several mutations in quick succession), not
+  // the distributed one. A cross-instance fix needs a version predicate or an
+  // advisory lock, which is a bigger change than this defect warrants.
+  if (prioritySyncInFlight) {
+    prioritySyncQueued = true;
+    return;
+  }
+
+  prioritySyncInFlight = (async () => {
+    try {
+      await syncTaskPriorities();
+    } catch (err: unknown) {
+      log.warn("priority_sync_deferred_failed", {
+        source,
+        error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+      });
+    } finally {
+      // Cleared BEFORE the re-entry so the queued pass can actually start.
+      prioritySyncInFlight = null;
+      if (prioritySyncQueued) {
+        prioritySyncQueued = false;
+        scheduleGlobalPrioritySync(source);
+      }
+    }
+  })();
+}
+
+/** Test seam: await whatever refresh is currently in flight. */
+export function __awaitPrioritySyncForTest(): Promise<void> {
+  return prioritySyncInFlight ?? Promise.resolve();
 }
 
 export async function listTasks(filter: TaskFilter = {}) {

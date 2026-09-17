@@ -128,8 +128,8 @@ ${claims
       // an empty trace name makes them the ONLY identity a trace carries.
       experimental_telemetry: langfuseTelemetry({
         functionId: "score-claims",
-        tags: ["cron", "intelligence"],
-        metadata: { source: "cron", pipeline: "intelligence" },
+        tags: ["intelligence"],
+        metadata: { source: "intelligence" },
       }),
       system: systemPrompt,
       prompt: `${promptText}\n\nSynthesize into opportunities/threats now.`,
