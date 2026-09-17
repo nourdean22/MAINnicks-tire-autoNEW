@@ -8,6 +8,8 @@
  */
 
 import { recordToolInvocation, isConfigurationError } from "@/lib/ai/tool-telemetry";
+import { logError } from "@/lib/utils/error-log";
+import { instrumentScope } from "@/lib/observability/instrument-scope";
 import { classifyToolEffect, type ToolEffectClass } from "@/lib/ai/receipts/action-receipt";
 import { operationStateFrom, type OperationState } from "@/lib/ai/chat/turn-control-plane";
 import { summarizeOperations } from "@/lib/ai/chat/turn-execution-summary";
@@ -88,9 +90,19 @@ function recordOperationIntegrityShadow(
   const summary = summarizeOperations(calls);
   if (summary.consequentialCount === 0) return;
 
+  // Non-blocking, but NOT silent. This is a shadow instrument: its write IS
+  // the measurement, so a failed write produces a missing row rather than a
+  // wrong one — and a shadow with missing rows reads as "no disagreement
+  // found", which is the conclusion it exists to earn rather than assume.
+  // See lib/observability/instrument-failures.ts.
+  // `instrumentScope` comes from the static, prisma-free import at the top of
+  // this file. Reaching for it through `instrument-failures` would drag the
+  // Prisma client into the chat hot path for the sake of a string helper —
+  // which is exactly what happened on the first cut of this change and what
+  // `instrument-scope.ts` exists to prevent.
   void import("@/lib/services/metrics")
-    .then(({ recordMetric }) =>
-      recordMetric("operation.integrity_shadow", summary.consequentialCount, {
+    .then(({ recordMetricStrict }) =>
+      recordMetricStrict("operation.integrity_shadow", summary.consequentialCount, {
         unit: "count",
         tags: {
           conversationId: convId ?? null,
@@ -101,9 +113,13 @@ function recordOperationIntegrityShadow(
           operations: summary.operations,
         },
         source: "chat",
-      }),
+      }).catch((err) =>
+        logError(instrumentScope("operation.integrity_shadow"), err, { conversationId: convId ?? null }, "warn"),
+      ),
     )
-    .catch(() => {});
+    .catch((err) => {
+      console.warn("[instrument.operation.integrity_shadow] failed to load writer", err);
+    });
 }
 
 export function walkToolTelemetry(args: {
@@ -170,7 +186,16 @@ export function walkToolTelemetry(args: {
       // it stays a recorded failure but must not trip the breaker
       // and strip the tool from the catalog for 30 minutes.
       configError: errored && isConfigurationError(errorMessage),
-    }).catch(() => {});
+    }).catch((err) =>
+      // Found by the instrument-failures wiring sweep, not by reading — the
+      // third sibling of the same `.catch(() => {})` in one session. This is
+      // the writer for `tool_telemetry`, which backs the census's invoked /
+      // high-failure / stale buckets AND the stored `lastErrors` the
+      // description-rewrite cron reads as evidence. A silent failure here does
+      // not make those numbers wrong, it makes them SMALL — a tool that could
+      // not be recorded is indistinguishable from a tool nobody called.
+      logError(instrumentScope("tool_invocation"), err, { toolName, conversationId: convId ?? null }, "warn"),
+    );
 
     capturedToolCalls.push({
       name: toolName,

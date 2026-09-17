@@ -182,6 +182,37 @@ tests in 2 files, `exit=1`. Now **844 files / 8,467 tests, exit 0**.
   ★ `completion-authority` CI was failing SOLELY on these two unresolved threads — one root cause,
   three symptoms.
 
+- `<instrument-failures slice>` — ★★★ **I applied my own enum-legend lesson to my own P1 fix and
+  found THREE more siblings.** The review P1 was one instrument wired to the swallowing
+  `recordMetric`; sweeping the class found `tool.surfaced` (THE census instrument — its comment read
+  *"Fire-and-forget: recordMetric already swallows its own failures"*, the defect stated as a
+  feature, double-swallowed with a `.catch(() => {})` on top), `operation.integrity_shadow`, and —
+  found by the new wiring guard, not by reading — `recordToolInvocation`, the writer behind
+  `tool_telemetry` (census invoked/high-failure buckets AND the `lastErrors` the rewrite cron reads).
+  ⚠ These are HOT PATH and non-blocking by design, so "await strict everywhere" would trade a silent
+  instrument for latency. Fix = keep fire-and-forget, change only the FAILURE CHANNEL:
+  `logError(instrumentScope(name))` → persisted `errorLog` → `buildInstrumentFailures()` reader on
+  `system.digest`, deliberately next to the census whose zeros it disambiguates.
+  ★★ `getSelectionTelemetryHealth()` had ZERO callers and its own docstring claimed "the panel reads
+  that". Worse than unread: the counters are **lambda-instance scoped**, so a tRPC query answers from
+  a different instance and reads its own zeros — they *cannot* answer a cross-instance question, so
+  no panel could ever have been wired correctly. errorLog persists; that is why the reader uses it.
+  ⚠ HONESTY BOUND, stated in the payload: this detects instruments that FAILED, never ones that
+  NEVER RAN. A deleted call site logs nothing and looks healthy — only a wiring test sees that.
+  ⚠⚠ **A defect I introduced and a test caught:** first cut reached `instrumentScope` via
+  `Promise.all([import(metrics), import(instrument-failures)])` — and `instrument-failures` imports
+  prisma, so the chat hot path was loading the DB client for a STRING HELPER. Split into a
+  prisma-free `instrument-scope.ts`. Symptom was a test whose fire-and-forget writes landed one `it`
+  block late.
+  ⚠⚠⚠ **`tool-telemetry-operation-state.test.ts` was passing on a LEAKED call**: `mock.calls[0]`
+  read the PREVIOUS test's shadow write (both used `convId: "c1"`), so its `legacySdkSuccesses` /
+  `operations` assertions had never checked the turn they name. Replaced with a `shadowCallFor(convId)`
+  selector — order-independent, and 8x faster (1019ms → 128ms).
+  ⚠ Two MORE hand-written partial `vi.mock`s of `@/lib/services/metrics` broke on the new export —
+  4th and 5th this session. ★ `importOriginal()` spread is the usual cure but is WRONG here: the real
+  metrics module imports prisma, so spreading made the hot-path test RACE. Kept synthetic+fast and
+  covered the drift at SOURCE level via the wiring guard instead. **The cure has a cost; name it.**
+
 **DELIBERATELY NOT DONE (scope discipline, not oversight)**
 - **Do NOT merge tier 4 and tier 5 into one ranked pool yet.** It is the natural completion of the
   budget-cliff fix — rank keyword + semantic candidates together and take the top 24, which would

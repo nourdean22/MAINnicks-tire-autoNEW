@@ -20,6 +20,8 @@
 import { pruneTools, describeMode, type ChatMode } from "@/lib/ai/chat-mode";
 import { markInvokeToolFired, markSearchToolsFired } from "@/lib/ai/tool-selection-telemetry";
 import { nourTools } from "@/lib/ai/tools";
+import { logError } from "@/lib/utils/error-log";
+import { instrumentScope } from "@/lib/observability/instrument-scope";
 import { buildCapabilityPlan, type CapabilityPlan } from "@/lib/ai/chat/turn-control-plane";
 import type { detectQueryShape } from "@/lib/ai/query-shape";
 import type { getAiConfig } from "@/lib/settings/ai-config";
@@ -287,12 +289,28 @@ export async function prepareTools(args: {
   // 2026-09-13 · the same row now carries traceId plus the capability plan.
   // This makes a single turn answer "registered, disabled, surfaced, why?"
   // instead of joining an untethered aggregate to the current source tree.
-  // Fire-and-forget: recordMetric already swallows its own failures.
+  // Fire-and-forget on purpose — this must never add latency to a chat turn.
+  //
+  // 2026-09-16 · it used to say "recordMetric already swallows its own
+  // failures" and treat that as the reason no handling was needed. It is the
+  // reason handling WAS needed: this row is the surfaced-denominator for the
+  // tool census, so a dead writer does not produce a wrong number, it produces
+  // a MISSING one — and a census with fewer rows reads as "that tool was never
+  // surfaced". #2359 lost three weeks to exactly that reading. Two swallows
+  // were stacked here: the fail-soft writer, and this `.catch(() => {})`.
+  //
+  // Still non-blocking; only the failure channel changed. `recordMetricStrict`
+  // rejects, and the rejection is logged under the shared instrument scope so
+  // `buildInstrumentFailures()` can name this instrument instead of leaving a
+  // silence for someone to misread.
   {
     const surfacedNames = Object.keys(prunedTools).sort();
+    // `instrumentScope` is imported statically from the prisma-free
+    // `instrument-scope` module; pulling it from `instrument-failures` would
+    // load the Prisma client on the chat hot path just to build a string.
     void import("@/lib/services/metrics")
-      .then(({ recordMetric }) =>
-        recordMetric("tool.surfaced", surfacedNames.length, {
+      .then(({ recordMetricStrict }) =>
+        recordMetricStrict("tool.surfaced", surfacedNames.length, {
           unit: "count",
           tags: {
             traceId: traceId ?? null,
@@ -301,9 +319,15 @@ export async function prepareTools(args: {
             capabilityPlan,
           },
           source: "chat",
-        }),
+        }).catch((err) =>
+          logError(instrumentScope("tool.surfaced"), err, { traceId: traceId ?? null }, "warn"),
+        ),
       )
-      .catch(() => {});
+      .catch((err) => {
+        // The dynamic import itself failed — still an instrument outage, and
+        // still must not be silent.
+        console.warn("[instrument.tool.surfaced] failed to load writer", err);
+      });
   }
 
   // maxOutputTokens derived from mode default + query shape. Standard

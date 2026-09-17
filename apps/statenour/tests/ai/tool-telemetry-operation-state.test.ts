@@ -1,22 +1,65 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { recordToolInvocation, recordMetric } = vi.hoisted(() => ({
+const { recordToolInvocation, recordMetric, recordMetricStrict } = vi.hoisted(() => ({
   recordToolInvocation: vi.fn().mockResolvedValue(undefined),
+  /** Kept so the mocked module still exports what other consumers import. */
   recordMetric: vi.fn().mockResolvedValue(undefined),
+  // 2026-09-16 · was `recordMetric`. The integrity shadow now uses the
+  // PROPAGATING writer, because the fail-soft one could never reject and so
+  // made a dead instrument indistinguishable from a clean run. The mock
+  // resolves a RECEIPT, matching the real dependency's shape.
+  recordMetricStrict: vi.fn().mockResolvedValue({ id: "metric-row-1" }),
 }));
 
 vi.mock("@/lib/ai/tool-telemetry", () => ({
   recordToolInvocation,
   isConfigurationError: vi.fn(() => false),
 }));
-vi.mock("@/lib/services/metrics", () => ({ recordMetric }));
+// Both writers, explicitly — NOT `importOriginal()` here.
+//
+// The hand-written predecessor listed `recordMetric` alone, so when the subject
+// switched to `recordMetricStrict` the import resolved a module without it and
+// the spy never fired. Spreading the real module is the repo's usual cure, and
+// it was tried first: it makes this file's assertions RACE. The real
+// `lib/services/metrics` statically imports Prisma, so every dynamic
+// `import("@/lib/services/metrics")` inside the fire-and-forget shadow then
+// costs a client load — each write landed roughly one `it` block late, and
+// `shadowCallFor` saw the PREVIOUS test's conversation.
+//
+// So the mock stays synthetic and fast, and the drift it risks is covered at
+// the source level instead: `tests/lib/observability/instrument-failures.test.ts`
+// asserts this subject uses `recordMetricStrict` and has no silent catch.
+vi.mock("@/lib/services/metrics", () => ({ recordMetric, recordMetricStrict }));
 
 import { walkToolTelemetry } from "@/lib/services/chat/tool-telemetry-walk";
 
 beforeEach(() => {
   recordToolInvocation.mockClear();
-  recordMetric.mockClear();
+  recordMetricStrict.mockClear();
 });
+
+/**
+ * Pick the shadow write belonging to THIS test's conversation.
+ *
+ * `mock.calls[0]` is not safe here. The integrity shadow is fire-and-forget,
+ * so a previous test's write can resolve after `beforeEach` has cleared and
+ * land as the next test's first call — the assertion then reads a payload from
+ * another case and fails for a reason that has nothing to do with the subject.
+ * Selecting by conversationId makes each case independent of arrival order.
+ */
+function shadowCallFor(conversationId: string) {
+  const call = recordMetricStrict.mock.calls.find(
+    (c) => (c[2] as { tags?: { conversationId?: string } } | undefined)?.tags?.conversationId === conversationId,
+  );
+  if (!call) {
+    throw new Error(
+      `no integrity-shadow write for ${conversationId}; saw ${JSON.stringify(
+        recordMetricStrict.mock.calls.map((c) => (c[2] as { tags?: { conversationId?: string } })?.tags?.conversationId),
+      )}`,
+    );
+  }
+  return { value: call[1] as number, opts: call[2] as { tags: Record<string, unknown> } };
+}
 
 describe("tool telemetry operation-state truth", () => {
   it("a successful read with an observed result is VERIFIED", () => {
@@ -40,7 +83,7 @@ describe("tool telemetry operation-state truth", () => {
     expect(call.ok).toBe(true);
     // Reads do not create a side-effect integrity row: they cannot support a
     // mutation "Done" claim and would only pollute the denominator.
-    expect(recordMetric).not.toHaveBeenCalled();
+    expect(recordMetricStrict).not.toHaveBeenCalled();
   });
 
   it("a successful write result is PROVIDER_ACCEPTED, not VERIFIED", () => {
@@ -207,8 +250,8 @@ describe("tool telemetry operation-state truth", () => {
       }),
     );
 
-    await vi.waitFor(() => expect(recordMetric).toHaveBeenCalledTimes(1));
-    const [, value, opts] = recordMetric.mock.calls[0];
+    await vi.waitFor(() => shadowCallFor("c-tool-error"));
+    const { value, opts } = shadowCallFor("c-tool-error");
     expect(value).toBe(1);
     expect(opts.tags.legacySdkSuccesses).toBe(0);
     expect(opts.tags.strictVerified).toBe(0);
@@ -277,8 +320,11 @@ describe("tool telemetry operation-state truth", () => {
       convId: "conversation-7",
     });
 
-    await vi.waitFor(() => expect(recordMetric).toHaveBeenCalledTimes(1));
-    const [metric, value, opts] = recordMetric.mock.calls[0];
+    await vi.waitFor(() => shadowCallFor("conversation-7"));
+    const { value, opts } = shadowCallFor("conversation-7");
+    const metric = recordMetricStrict.mock.calls.find(
+      (c) => (c[2] as { tags?: { conversationId?: string } })?.tags?.conversationId === "conversation-7",
+    )![0];
     expect(metric).toBe("operation.integrity_shadow");
     expect(value).toBe(1); // only the write is consequential
     expect(opts.source).toBe("chat");
