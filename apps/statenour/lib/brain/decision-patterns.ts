@@ -292,7 +292,13 @@ export async function analyzeDecisionPatterns(): Promise<{
           content: `Find 2-3 decision patterns. Return JSON array: [{"pattern":"name","evidence":"specific","frequency":3,"actionable":"what to do"}]. Max 3.`,
         },
         { role: "user", content: decisionContext.join("\n") },
-      ], "fast");
+      // 2026-09-17 · was "fast". A structured-JSON task on OLLAMA_FAST_MODEL under
+      // the 1500-token/45s "terse responses" cap: measured on the sibling
+      // memory-consolidation lane, HALF of those calls returned zero tokens, and
+      // each empty result fell through to the METERED rescue tail where
+      // gemini/openrouter/openai failed on billing. "reason" stays on the same
+      // flat un-metered Ollama subscription with 8000 tokens / 100s.
+      ], "reason");
 
        
       const extracted = extractJsonArray<any>(result.content);
