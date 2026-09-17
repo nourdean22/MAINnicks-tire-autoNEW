@@ -7,8 +7,8 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-16 · W11 "the controls that could not see their subject" · 5 ships: #2355 #2359 #2362 #2364 #2368
-(SHAs in RECONCILIATION top) · #2355 /chat spine lane + #2359 census, dead 3wk, DEPLOYED · CI `node` at 97% runner memory, unfixed.
+**Last refreshed:** 2026-09-17 · W12 "instruments that never ran, and a capability nobody could reach" · #2381 `691c90d11`
+DEPLOYED-VERIFIED (SHA equality via public `GET /api/version`; `/api/health` is 401) · ⚠ tier-4 relevance ordering NOT prod-proven yet.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--
