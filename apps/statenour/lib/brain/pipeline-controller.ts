@@ -284,7 +284,13 @@ COMMITMENT RULES — be STRICT. Only count it as a commitment if ALL of:
 Return empty arrays if nothing found. Be specific, not generic.`,
     },
     { role: "user", content: `Nour said: "${userMessage.slice(0, 500)}"\nNick said: "${nickResponse.slice(0, 500)}"` },
-  ], "fast");
+  // 2026-09-17 · was "fast". A structured-JSON task on OLLAMA_FAST_MODEL under
+  // the 1500-token/45s "terse responses" cap: measured on the sibling
+  // memory-consolidation lane, HALF of those calls returned zero tokens, and
+  // each empty result fell through to the METERED rescue tail where
+  // gemini/openrouter/openai failed on billing. "reason" stays on the same
+  // flat un-metered Ollama subscription with 8000 tokens / 100s.
+  ], "reason");
 
   try {
      

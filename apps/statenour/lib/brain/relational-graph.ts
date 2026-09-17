@@ -203,7 +203,13 @@ BAD connections:
 - Connections between entities in the same category with the same content (duplicates)`,
     },
     { role: "user", content: `Entities:\n${entities.join("\n")}` },
-  ], "fast");
+  // 2026-09-17 · was "fast". A structured-JSON task on OLLAMA_FAST_MODEL under
+  // the 1500-token/45s "terse responses" cap: measured on the sibling
+  // memory-consolidation lane, HALF of those calls returned zero tokens, and
+  // each empty result fell through to the METERED rescue tail where
+  // gemini/openrouter/openai failed on billing. "reason" stays on the same
+  // flat un-metered Ollama subscription with 8000 tokens / 100s.
+  ], "reason");
 
   const extracted = extractJsonArray<{
     source: string; target: string; relationship: string; evidence: string;

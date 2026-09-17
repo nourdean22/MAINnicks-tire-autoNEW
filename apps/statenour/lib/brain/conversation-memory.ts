@@ -677,7 +677,14 @@ Rules:
       },
       { role: "user", content: userMessage },
     ],
-    "fast"
+    // 2026-09-17 · was "fast". This surface is one of the six Langfuse shows
+    // failing (26 ERROR observations in 7d). `fast` is OLLAMA_FAST_MODEL under
+    // the 1500-token / 45s "terse responses" cap, and this emits a
+    // `{connections:[...]}` object carrying prose context per connection —
+    // when it truncates or comes back empty the provider chain falls through
+    // to the METERED rescue tail, which then fails on billing.
+    // "reason" stays on the same flat un-metered Ollama subscription.
+    "reason"
   );
 
    

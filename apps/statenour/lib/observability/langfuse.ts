@@ -29,6 +29,17 @@
  * Deliberately NOT here (YAGNI until traces are visibly landing):
  * prompt management, score ingestion, propagateAttributes session
  * promotion. See docs/integrations/langfuse-observability.md.
+ *
+ * 2026-09-17 · THAT YAGNI CONDITION IS NOW MET — 672 traces in a 7d window.
+ * The one thing its absence costs is trace NAMING: every trace comes back with
+ * `name: ""`, so the Langfuse trace list cannot be filtered or scanned by
+ * surface and you must open a trace to read `metadata.source`. Closing it means
+ * adding `@langfuse/tracing` and wrapping each AI call in
+ * `propagateAttributes({ traceName }, cb)` — an AsyncLocalStorage frame around
+ * the hot chat path, unverifiable until deployed. Left OPEN deliberately rather
+ * than shipped on a guess: the identity is not lost, only unfilterable
+ * (userId 50/50, tags 47/50, metadata.source 50/50 — measured, see
+ * `scripts/probe-langfuse-errors.mjs`). Reopen when the UI cost bites.
  */
 
 import { logger as rootLogger } from "@/lib/logger";
@@ -107,7 +118,29 @@ export function langfuseTracingStatus(): TracingStatus {
 export type TelemetryAttribute = string | number | boolean | string[] | number[] | boolean[];
 
 export interface LangfuseTelemetryInput {
-  /** Trace name (`ai.telemetry.functionId`). kebab-case verb-noun, stable across deploys. */
+  /**
+   * OBSERVATION name prefix (`ai.telemetry.functionId`) — Langfuse renders it as
+   * `<functionId>:ai.generateText`. kebab-case verb-noun, stable across deploys.
+   *
+   * ⚠⚠ THIS IS NOT THE TRACE NAME, though this line said it was until
+   * 2026-09-17. Measured against `GET /api/public/traces` in production:
+   * **0 of 50 traces carried a name** (672 in the window) while `userId` landed
+   * 50/50, `tags` 47/50 and `metadata` on every row. The three metadata-borne
+   * channels below work; only this one was mis-documented.
+   *
+   * ★ The tell was the ASYMMETRY. Had the whole telemetry block been dead, every
+   * field would have been empty together. Three of four landing meant the block
+   * was fine and one specific mapping claim was false — the same lens
+   * ("does the code have the property its docstring claims?") that found four
+   * defects in this session's own merged work.
+   *
+   * Naming a trace needs `propagateAttributes({ traceName }, cb)` from
+   * `@langfuse/tracing`, which this app does not install — see the module
+   * header's YAGNI note, whose condition has now been met. The cost of the gap
+   * is bounded: all identity IS present in `metadata.source` / `tags`, so this
+   * is a UI-filterability gap, not a data-loss one, and
+   * `scripts/probe-langfuse-errors.mjs` groups on the fallback already.
+   */
   functionId: string;
   /** Private-mode turns are never traced: prompt + completion content stays in-process. */
   privateMode?: boolean;
@@ -156,6 +189,84 @@ export function langfuseTelemetry(input: LangfuseTelemetryInput): {
   if (input.tags && input.tags.length > 0) metadata.tags = input.tags;
   Object.assign(metadata, toTelemetryAttributes(input.metadata));
   return { isEnabled: isLangfuseTelemetryEnabled(input.privateMode), functionId: input.functionId, metadata };
+}
+
+/**
+ * Give the trace a NAME — the one identity `langfuseTelemetry()` cannot supply.
+ *
+ * ★★★ WHY THIS EXISTS. `functionId` names the OBSERVATION
+ * (`memory-consolidation:ai.generateText`), never the trace. Measured against
+ * `GET /api/public/traces`: 0 of 50 traces carried a name while `userId`,
+ * `tags` and `metadata` all landed. A trace name needs
+ * `propagateAttributes`, which establishes an OTel context that every span
+ * created inside the callback inherits — so the AI SDK's own spans pick it up
+ * without any call site passing it down.
+ *
+ * ⚠⚠ THE CALLBACK MUST NEVER RUN TWICE. If `propagateAttributes` throws we
+ * fall back to a bare call, and a naive `catch { return fn(); }` would re-issue
+ * an LLM request that had ALREADY been sent — duplicate spend and duplicate
+ * side effects, from code whose entire job is to add a label. `invoked` makes
+ * the fallback reachable only when the failure happened BEFORE `fn` ran; a
+ * failure from inside `fn` is rethrown untouched.
+ *
+ * ⚠ The specifier is held in a local const, matching `initLangfuseTracing`
+ * below: a literal would fail `tsc` (TS2307) in a checkout where the package
+ * is not physically installed, and agents here cannot run installs.
+ *
+ * Returns `fn()` unchanged when tracing never started, so an unconfigured
+ * deploy pays nothing — the same contract as `isLangfuseTelemetryEnabled`.
+ */
+export async function withLangfuseTraceName<T>(
+  input: {
+    traceName: string;
+    sessionId?: string;
+    userId?: string;
+    tags?: string[];
+    metadata?: Record<string, unknown>;
+  },
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (state().status !== "started" || !input.traceName) return fn();
+
+  let invoked = false;
+  const once = () => {
+    invoked = true;
+    return fn();
+  };
+
+  try {
+    // Propagated metadata is string-only and capped; non-strings are dropped
+    // with a warning by the SDK, so coerce here rather than ship silent holes.
+    const metadata: Record<string, string> = {};
+    for (const [k, v] of Object.entries(input.metadata ?? {})) {
+      if (v === undefined || v === null) continue;
+      metadata[k] = (typeof v === "string" ? v : JSON.stringify(v)).slice(0, 200);
+    }
+
+    const LANGFUSE_TRACING = "@langfuse/tracing";
+    const { propagateAttributes } = (await import(LANGFUSE_TRACING)) as {
+      propagateAttributes: <R>(params: Record<string, unknown>, cb: () => R) => R;
+    };
+
+    return await propagateAttributes(
+      {
+        traceName: input.traceName.slice(0, 200),
+        userId: input.userId ?? LANGFUSE_DEFAULT_USER_ID,
+        ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+        ...(input.tags && input.tags.length > 0 ? { tags: input.tags } : {}),
+        ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+      },
+      once,
+    );
+  } catch (err) {
+    // The call itself failed — that is the caller's error, not ours.
+    if (invoked) throw err;
+    log.warn("langfuse_trace_name_skipped", {
+      traceName: input.traceName,
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+    });
+    return fn();
+  }
 }
 
 // ---------------------------------------------------------------------------

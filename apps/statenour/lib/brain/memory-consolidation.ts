@@ -93,7 +93,43 @@ Rules:
 - Return [] if nothing should be merged`,
       },
       { role: "user", content: memList },
-    ], "fast");
+      // 2026-09-17 · was "fast". `fast` resolves to OLLAMA_FAST_MODEL (a
+      // light-filter model) under a 1500-token / 45s cap meant for "terse
+      // responses" (provider.ts). This call reads 30 memories and must emit a
+      // JSON array containing full merged prose.
+      //
+      // MEASURED on production `.doGenerate` spans (3d): the fast model
+      // returned EMPTY CONTENT on 7 of 31 calls (23%); the reason model on
+      // 0 of 16. The observed fast-lane max was exactly 1500 tokens — the
+      // ceiling truncating JSON mid-structure.
+      //
+      // ⚠ COUNT CHILD SPANS, NOT PARENTS. An earlier draft of this comment
+      // claimed "53 of 106 calls returned ZERO tokens". That was an artifact:
+      // every `ai.generateText` PARENT span reports 0 output tokens while its
+      // `.doGenerate` CHILD carries the real usage, so counting both halves
+      // manufactured an exact-50% failure rate that does not exist. The real
+      // zero-token rate is 0%. The signal is EMPTY CONTENT, not token count.
+      //
+      // Each empty/unparseable result made the provider chain fall through to
+      // the METERED rescue tail, where gemini/openrouter/openai then failed on
+      // billing — 2,963 Langfuse ERROR observations in 7d. So a task-type
+      // mismatch inside the FUNDED lane was manifesting as spend failures.
+      //
+      // "reason" keeps this on the same flat un-metered Ollama subscription
+      // (OLLAMA_MODEL) and lifts the budget to 8000 tokens / 100s.
+    ], "reason");
+
+    // aiChat NEVER throws on total provider failure — it returns a SENTINEL.
+    // Without this check the sentinel text simply fails to parse and the loop
+    // `continue`s, so a dead provider chain and "nothing to merge" are the SAME
+    // observable. That is why 7 days of total brain failure looked like quiet.
+    if (result.provider === "emergency" || result.provider === "none") {
+      log.warn("consolidation_provider_exhausted", {
+        category: cat.category,
+        provider: result.provider,
+      });
+      continue;
+    }
 
     const extracted = extractJsonArray<{ indices: number[]; merged: string }>(result.content);
     if (!extracted.ok) continue;
