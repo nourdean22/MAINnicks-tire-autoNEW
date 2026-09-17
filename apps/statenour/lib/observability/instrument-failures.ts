@@ -75,14 +75,28 @@ export interface InstrumentFailureView {
    * module header. An instrument that never ran also appears here.
    */
   instrumentsWithNoFailures: string[];
+  /**
+   * True when the query hit its row cap, so every count here is a FLOOR.
+   *
+   * Without this, a hard-failing instrument would silently read as exactly
+   * `sampleCap` failures — understating severity precisely when the number
+   * matters most, and looking identical to a genuine plateau. A capped count
+   * presented as a total is the same defect this module exists to expose.
+   */
+  truncated: boolean;
+  sampleCap: number;
   caveat: string;
 }
+
+/** Row cap for the live query. Exported so the view and the caller cannot disagree. */
+export const INSTRUMENT_FAILURE_SAMPLE_CAP = 500;
 
 /** Pure — extracted so the parsing and grouping are testable without a DB. */
 export function assembleInstrumentFailures(
   rows: ReadonlyArray<{ message: string; createdAt: Date }>,
   windowHours: number,
   since: Date,
+  sampleCap: number = INSTRUMENT_FAILURE_SAMPLE_CAP,
 ): InstrumentFailureView {
   const byInstrument = new Map<string, InstrumentFailureRow>();
 
@@ -105,6 +119,8 @@ export function assembleInstrumentFailures(
     }
   }
 
+  // The cap was hit, so every count below is a FLOOR, not a total.
+  const truncated = rows.length >= sampleCap;
   const failing = [...byInstrument.values()].sort((a, b) => b.failures - a.failures);
   const failingNames = new Set(failing.map((f) => f.instrument));
 
@@ -114,11 +130,14 @@ export function assembleInstrumentFailures(
     totalFailures: failing.reduce((sum, f) => sum + f.failures, 0),
     failing,
     instrumentsWithNoFailures: KNOWN_INSTRUMENTS.filter((n) => !failingNames.has(n)),
+    truncated,
+    sampleCap,
     caveat:
       "Detects instruments that FAILED to write, not instruments that never ran. " +
       "`instrumentsWithNoFailures` means no failure was logged in the window — an " +
       "instrument whose call site was removed, or whose branch is never entered, is " +
-      "indistinguishable from a healthy one here and needs a wiring test instead.",
+      "indistinguishable from a healthy one here and needs a wiring test instead." +
+      " When `truncated` is true the query hit its row cap and every count is a FLOOR.",
   };
 }
 
@@ -132,7 +151,7 @@ export async function buildInstrumentFailures(windowHours = 24): Promise<Instrum
     },
     select: { message: true, createdAt: true },
     orderBy: { createdAt: "desc" },
-    take: 500,
+    take: INSTRUMENT_FAILURE_SAMPLE_CAP,
   });
   return assembleInstrumentFailures(rows, windowHours, since);
 }

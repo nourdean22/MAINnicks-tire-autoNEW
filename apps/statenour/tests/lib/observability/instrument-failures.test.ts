@@ -94,6 +94,24 @@ describe("assembleInstrumentFailures", () => {
     expect(view.totalFailures).toBe(1);
   });
 
+  it("reports a capped read as TRUNCATED — a floor is not a total", () => {
+    // A hard-failing instrument produces more rows than the query returns.
+    // Without this flag the view would read as exactly `sampleCap` failures and
+    // look like a plateau, understating severity at the moment it matters most
+    // — a capped count presented as a total, which is the same defect this
+    // module exists to expose.
+    const rows = Array.from({ length: 4 }, (_, i) =>
+      row(instrumentScope("tool.surfaced"), `boom ${i}`, `2026-09-16T1${i}:00:00.000Z`),
+    );
+    const capped = assembleInstrumentFailures(rows, 24, SINCE, 4);
+    expect(capped.truncated).toBe(true);
+    expect(capped.sampleCap).toBe(4);
+    expect(capped.caveat).toMatch(/FLOOR/);
+
+    const uncapped = assembleInstrumentFailures(rows, 24, SINCE, 500);
+    expect(uncapped.truncated).toBe(false);
+  });
+
   it("lists known instruments with no logged failure — WITHOUT calling them healthy", () => {
     const view = assembleInstrumentFailures(
       [row(instrumentScope("tool.surfaced"), "x", "2026-09-16T10:00:00.000Z")],
