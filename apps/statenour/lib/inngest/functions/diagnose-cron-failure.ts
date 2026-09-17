@@ -1,6 +1,7 @@
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
+import { recordSelfRow } from "../self-row";
 
 const log = rootLogger.withSurface("inngest/diagnose-cron-failure");
 const inngest = getInngest();
@@ -111,6 +112,7 @@ export const diagnoseCronFailure = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    await recordSelfRow(step, "diagnose-cron-failure");
     // Step 1: Read Cron logs from database
     const failedLogs = await step.run("read-failed-logs", async () => {
       const { prisma } = await import("@/lib/prisma");

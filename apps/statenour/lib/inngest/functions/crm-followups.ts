@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { logger } from "@/lib/logger";
+import { recordSelfRow } from "../self-row";
 
 const log = logger.withSurface("inngest/crm-followups");
 const inngest = getInngest();
@@ -17,6 +18,7 @@ export const crmFollowups = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    await recordSelfRow(step, "crm-weekly-followups");
     // 1. Fetch active coaching clients and leads
     const contacts = await step.run("fetch-inactive-contacts", async () => {
       const allContacts = await prisma.contact.findMany({

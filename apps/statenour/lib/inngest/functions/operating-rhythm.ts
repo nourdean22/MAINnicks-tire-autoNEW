@@ -33,6 +33,7 @@ import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { executeRhythm } from "@/lib/brain/operating-rhythm";
 import { logger } from "@/lib/logger";
+import { recordSelfRow } from "../self-row";
 
 const log = logger.withSurface("inngest/operating-rhythm");
 const inngest = getInngest();
@@ -45,6 +46,7 @@ export const operatingRhythm = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    await recordSelfRow(step, "operating-rhythm");
     const result = await step.run("execute-rhythm", () => executeRhythm());
 
     // Logged at info either way. "did not send" is the COMMON outcome — one of

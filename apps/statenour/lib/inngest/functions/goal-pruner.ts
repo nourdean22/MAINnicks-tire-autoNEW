@@ -27,6 +27,7 @@ import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
 import { recordCoachEvent, ackCoachEvent, buildCoachEventKey } from "@/lib/services/coach-events";
+import { recordSelfRow } from "../self-row";
 
 const log = rootLogger.withSurface("inngest/goal-pruner");
 const inngest = getInngest();
@@ -174,6 +175,7 @@ export const goalPruner = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    await recordSelfRow(step, "goal-pruner");
     const { flagged, cleared } = await step.run("scan-stale-goals", () =>
       scanForStaleGoals(),
     );
