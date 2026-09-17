@@ -275,16 +275,27 @@ export function compareActionDoneShadow(
   };
 }
 
-/**
- * Determines if the action results allow claiming completion in prose.
- * Wired directly into the live chat-finalize loop to prevent fake completion claims.
+/*
+ * REMOVED 2026-09-16 · `canClaimDone(results, assistantText): boolean`
  *
- * IMPORTANT: legacy behavior is intentionally retained while the strict shadow
- * verdict is measured. Successful mutation execution alone still returns true.
+ * It had ZERO callers — not in lib, app, tests or scripts, and no barrel
+ * re-exported it — while its own docstring said "Wired directly into the live
+ * chat-finalize loop to prevent fake completion claims." That sentence was the
+ * reason to delete it rather than leave it: anyone hardening the honesty gate
+ * would find this function first, edit it, and ship nothing.
+ *
+ * The name collision made that worse. The gate that IS live is a DIFFERENT
+ * `canClaimDone` in `lib/ai/receipts/action-receipt.ts`, wired at
+ * persist-assistant-message.ts:172 and deferred-background-work.ts:381. Two
+ * functions, one name, one wired, and the dead one advertising itself as the
+ * live one. (This module's own history records the same hazard from the other
+ * direction: an audit called the REAL one "orphaned · zero production call
+ * sites" for six weeks while it was wired.)
+ *
+ * Nothing is lost. It was a one-line wrapper, and its body is available and
+ * clearer at the call site:
+ *
+ *     compareActionDoneShadow(results, assistantText).legacyDoneEligible
+ *
+ * which names the shadow it reads instead of hiding it behind a verb.
  */
-export function canClaimDone(
-  results: ReadonlyArray<ActionExecResult>,
-  assistantText: string,
-): boolean {
-  return compareActionDoneShadow(results, assistantText).legacyDoneEligible;
-}

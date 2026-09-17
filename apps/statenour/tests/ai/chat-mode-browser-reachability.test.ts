@@ -97,3 +97,44 @@ describe("browser capability is reachable from plain language", () => {
     expect(offered.filter((n) => BROWSER.has(n))).toEqual([]);
   });
 });
+
+/**
+ * The browser was ONE instance of a class, not a one-off.
+ *
+ * A sweep of eight capabilities against the real selector (2026-09-16) found
+ * THREE with no plain-language path at all — `searchSkills`, `solveMath` and
+ * `getCameraIntelligence`, none of them credential-gated in the catalog, so all
+ * three are unreachable by accident rather than by design.
+ *
+ * This table exists so that stays VISIBLE. A tool added without a way to ask
+ * for it is not a capability; it is 24-slot budget pressure with no upside, and
+ * nothing else in the repo would notice. The census can only report it after a
+ * month of production turns — this reports it at commit time.
+ *
+ * KNOWN-UNREACHABLE, deliberately not "fixed" here (surfacing a capability that
+ * returns nothing is worse than leaving it unreachable):
+ *   · solveMath             — the model does arithmetic natively; "redundant"
+ *                             may be the right verdict. The never-chosen
+ *                             rewrite queue will now draft exactly that.
+ *   · getCameraIntelligence — the camera pipeline is pre-G3; no live data.
+ *   · searchSkills          — the best candidate to make reachable, pending a
+ *                             check that the skills store actually has content.
+ */
+describe("capability reachability · a tool nobody can ask for is not a capability", () => {
+  const MUST_BE_REACHABLE: Array<{ tool: string; prompt: string }> = [
+    // Each verified surfacing at the time of writing. A regression here means
+    // someone narrowed a keyword family and silently removed a capability.
+    { tool: "runPython", prompt: "run this python and tell me the result" },
+    { tool: "searchDocuments", prompt: "search my documents for the lease" },
+    { tool: "generateSQL", prompt: "write me a SQL query for that table" },
+    { tool: "browseAndDo", prompt: "go to monro.com and check their oil change price" },
+  ];
+
+  it.each(MUST_BE_REACHABLE)("$tool is reachable by plain language", async ({ tool, prompt }) => {
+    const offered = await offeredFor(prompt);
+    expect(
+      offered,
+      `"${prompt}" no longer surfaces ${tool} — a keyword family was narrowed and a capability went dark.`,
+    ).toContain(tool);
+  });
+});
