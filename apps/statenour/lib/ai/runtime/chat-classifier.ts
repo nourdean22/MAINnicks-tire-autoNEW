@@ -21,7 +21,25 @@ export interface DomainRoute {
   domain: Domain;
   taskType: "fast" | "reason" | "deep" | "vision" | "code" | "creative" | "summary" | "classify" | "extract" | "math" | "sql";
   preferLargeContext: boolean;
-  /** Human label for debug logging */
+  /**
+   * Human label for debug logging — names the ROUTE, never a model id.
+   *
+   * ⚠ 2026-09-17 · three of these labels named RETIRED models. `qwen3-coder`
+   * is not servable by this account at all (a live census of the key's 20
+   * models found no such id, bare or tagged), and `qwen3-vl` was retired
+   * 2026-06-16 — `lib/ai/model-liveness.ts` records the six-week vision
+   * outage that retirement caused.
+   *
+   * The labels were harmless to EXECUTION — the model comes from `taskType`
+   * via `resolveProviderModel`, and `provider.try` already logs the id that
+   * actually served the turn. They were NOT harmless to debugging: a session
+   * reading `domain_route label="code → ollama qwen3-coder"` in production
+   * logs began filing a code-lane outage before checking that the label
+   * carries no routing power. A stale id in a debug label is worse than no
+   * id, because it is read as evidence.
+   *
+   * Guarded by `tests/ai/domain-route-labels.test.ts`.
+   */
   label: string;
 }
 
@@ -33,7 +51,7 @@ const PATTERNS: Array<{ test: RegExp; route: DomainRoute }> = [
       domain: "code",
       taskType: "code",
       preferLargeContext: true,
-      label: "code → ollama qwen3-coder",
+      label: "code",
     },
   },
   // ── VISION — image upload, photo analysis, OCR ──
@@ -43,7 +61,7 @@ const PATTERNS: Array<{ test: RegExp; route: DomainRoute }> = [
       domain: "vision",
       taskType: "vision",
       preferLargeContext: true,
-      label: "vision → ollama qwen3-vl",
+      label: "vision",
     },
   },
   // ── STRATEGY — multi-step planning, war-room, long-form ──
@@ -53,7 +71,7 @@ const PATTERNS: Array<{ test: RegExp; route: DomainRoute }> = [
       domain: "strategy",
       taskType: "deep",
       preferLargeContext: true,
-      label: "strategy → ollama deepseek-v4-pro",
+      label: "strategy",
     },
   },
   // ── MARKETING — content gen, captions, copy, hashtags ──
@@ -107,7 +125,7 @@ export function detectDomain(
       domain: "vision",
       taskType: "vision",
       preferLargeContext: true,
-      label: "vision → ollama qwen3-vl (auto-detected from attachment)",
+      label: "vision (auto-detected from attachment)",
     };
   }
   if (!message) {
