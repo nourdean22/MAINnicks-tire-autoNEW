@@ -142,20 +142,20 @@ function CitySchema({ city }: { city: CityData }) {
     sameAs: [...BUSINESS.sameAs],
   };
 
-  const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Home", item: "https://nickstire.org/" },
-      { "@type": "ListItem", position: 2, name: "Areas Served", item: "https://nickstire.org/areas-served" },
-      { "@type": "ListItem", position: 3, name: city.name, item: `https://nickstire.org/${city.slug}` },
-    ],
-  };
+  // 2026-09-17: the inline BreadcrumbList that used to live here was REMOVED.
+  // <Breadcrumbs> (components/SEO.tsx) already emits a BreadcrumbList of its
+  // own, so every city page shipped TWO competing trails — this one
+  // (Home -> Areas Served -> City, with URLs) and the component's
+  // (Home -> City, no URL on the tail). Two conflicting breadcrumb graphs for
+  // one page is invalid structured data, the same defect class as the
+  // duplicate WebSite / aggregateRating nodes #2173 removed. Confirmed live on
+  // /cleveland-auto-repair before the fix. The richer trail survives by being
+  // passed INTO the component (see <Breadcrumbs> below), so the visible trail
+  // and the emitted graph are now generated from one array and cannot drift.
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(businessSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       {/* wave-178: per-city Service entity so Google can match this
           URL to "[service] [city]" intent queries. Previously CityPage
           only emitted AutoRepair (LocalBusiness) — no Service entity
@@ -244,7 +244,12 @@ export default function CityPage() {
 
           <div className="relative container pb-16 pt-32 lg:pb-24">
             <FadeIn>
-              <Breadcrumbs items={[{ label: `${city.name} Auto Repair` }]} />
+              <Breadcrumbs
+                items={[
+                  { label: "Areas Served", href: "/areas-served" },
+                  { label: `${city.name} Auto Repair` },
+                ]}
+              />
             </FadeIn>
 
             <FadeIn delay={0.1}>

@@ -1,5 +1,92 @@
 # Session ledger - nickstire
 
+**Updated: 2026-09-17** (Unbacked-claim sweep on the public site. #2404 `5ce8f689c` + #2405 `1b09fbf69`
+MERGED; **#2406 open**. Three live falsehoods removed from what crawlers and readers are told, each with
+a canaried regression guard. Full research doc: `docs/PUBLIC-SITE-2026-DESIGN-SEO-BLUEPRINT.md`.)
+
+## 2026-09-17 · Claims the site could not back
+
+Three defects, same family: the site asserted things no data in this repo supports.
+
+**#2404 — tire-size pages.** All 30 `/tires/:size` routes emitted a byte-identical `AggregateOffer`:
+`lowPrice "40"`, `highPrice "200"`, `offerCount "2"`, `availability InStock`, derived from no feed and no
+per-size inventory. Two defects: `InStock` asserted stock that does not exist anywhere in this codebase
+(the `/tires` finder only ever sees the SUPPLIER's warehouse count, and `gatewayTire.ts` already refuses
+to invent one — `const inStock = false` under "Do not fabricate in-stock status"); and `lowPrice 40`
+contradicted the visible FAQ on the same page saying used tires "start around $25-60".
+
+**Review (Codex, P1) caught the real gap and was right:** removing it from the component does NOT remove
+it from what Googlebot reads. Railway does not regenerate `prerendered/`, and the middleware serves the
+COMMITTED snapshot. The render test was green while 30/30 snapshots still carried the claim. Fixed by
+adding an artifact scan of the committed HTML (red on purpose until regen) then dispatching
+`prerender-refresh.yml` on the branch — the precedent set by the 2026-09-08 wave. **Verified on main
+after merge: 0 snapshots carry `InStock`, 0 carry `lowPrice`, `/reviews` still 132,116 bytes so the
+GOOGLE_MAPS_API_KEY card-strip hazard did not fire.**
+
+**#2405 — the ticker called an 83-day-old review "New".** Live: `★★★★★ New 5-star review ... 1987h ago`.
+Root cause was server-side and narrow: in `activity.recent`, bookings and completed-jobs both bound to
+`todayStart`, but the review branch filtered on RATING ONLY — no date predicate — then stamped every row
+"New N-star review". A second bug: the client formatter stopped at hours, so anything past ~2 days
+rendered as an absurd hour count. A third, found while in there: rows with a null `reviewDate` fell back
+to `minutesAgo: 60` and rendered as "1h ago" — a fabricated timestamp on a public surface.
+
+**Review (Codex, P1) caught something sharper than the rule:** the age was JS-derived from a
+driver-parsed TiDB DATETIME, which is shifted on ET. That was COSMETIC while the age was only printed —
+my cutoff is what promoted it to behaviour, discarding genuinely recent reviews near the boundary hours
+early. Now `TIMESTAMPDIFF(MINUTE, reviewDate, NOW())` drives both the WHERE bound and the displayed age,
+so filter and label cannot disagree. NULL dates now fail the BETWEEN and are excluded.
+
+**#2406 — one breadcrumb, one business entity, no invented stock.** Every city page shipped TWO
+`BreadcrumbList` graphs (CityPage's own 3-level one plus the one `<Breadcrumbs>` emits). `/contact`
+hand-rolled a SECOND `AutoRepair` node with no `@id` and a live stringified `aggregateRating`
+(`"1711"`), disagreeing with the homepage's `1700` and the `1,712+` in visible copy — on a page that
+renders no reviews at all. And the tire-size FAQ still said "we typically have multiple options in
+stock" in prose, byte-identical on all 30 pages, after #2404 removed the same claim from the JSON-LD.
+
+### Traps worth carrying
+
+- **The knip orphan gate stops at the FIRST finding.** CI reported only `REVIEW_MAX_AGE_DAYS`; the second
+  orphan (`MAX_ENTRY_AGE_MINUTES`) surfaced only on a local run after fixing the first. Run the gate
+  locally before pushing an orphan fix, or you will burn a second CI cycle. Remedies differ per orphan:
+  the accidental one went module-private (#2187's lesson again), the genuine test-visible contract was
+  baselined WITH A REASON.
+- **`workflow_dispatch` of the prerender refresh commits with a skip-ci tag**, so the PR's checks do NOT
+  re-run on the regen commit and the PR's status stays stale at the pre-regen result. Verify the
+  artifacts by reading them, not by reading the check.
+- **A local `pnpm run regen` is not a substitute here** — `GOOGLE_MAPS_API_KEY` is absent from worktree
+  checkouts, and a regen without it strips the live review cards from `/reviews`. The workflow carries
+  the secret.
+- **The pre-push gate is blocked in junctioned worktrees** by `@statenour/web#build`: Turbopack refuses
+  the NTFS junction (`Symlink [project]/apps/statenour/node_modules is invalid, it points out of the
+  filesystem root`). Environmental, any branch. Pushed hook-free per the AGENTS.md other-app-blocked
+  branch; CI carried the real gate.
+
+### Measured, and it kills a recommendation
+
+**`trackPageView` must NOT be wired.** Measured live in real Chrome: `navigationEntries: 1` across two
+soft SPA navigations, with `/g/collect` beacons going **3 → 4** on the `/tires` → `/brakes` transition and
+no custom event pushed. GA4 Enhanced Measurement's history-change page_view is already firing. Adding an
+emitter would double-count. `docs/website-audit-status.md:70` said to confirm in DebugView first; it was
+right. An earlier draft of the blueprint doc recommended wiring it — that recommendation is dead.
+
+Also measured: route transitions blank the page for ~310ms on a warm desktop cache (spinner at 70ms,
+content at 380ms), during which the header, phone number and directions link are all gone. Not fixed —
+`PageLayout.tsx` and `App.tsx` are owned by the tire-silo sibling branch right now.
+
+### Refuted
+
+- **`www.nickstire.org` genuinely does not resolve** — `curl` exit 6, no A record, zone SOA is
+  `ns1.globaldomaingroup.com`. The fix belongs in that DNS panel, NOT Railway. Operator-gated.
+- **The sitemap is 412 `<loc>` entries in a flat `<urlset>`** (not a `<sitemapindex>`), plus 182 more
+  duplicated across three child sitemaps. Earlier reports said 108 and ~190; both were wrong.
+- **Used-tire two-tier pricing is NOT a defect.** `AGENTS.md` §5 states it is deliberate. An earlier
+  draft of the blueprint filed it as a P0 conflict; that was wrong.
+- **The homepage's `aggregateRating: 1700` is correct and deliberate** — pinned to the static
+  `BUSINESS.reviews` floor so it matches ReviewsPage's block for the same `@id`. `/contact` was the
+  outlier, not the floor.
+
+## 2026-09-16 · Outbound consent, and the gates that reported success over unread files
+
 **Updated: 2026-09-16** (Outbound-consent sweep, all three channels + the gates that were scanning
 nothing + the gate that was never wired. #2361 `34d53af5c` + #2363 `e94ab8998` + #2371 `46e3194f4` MERGED
 and DEPLOYED; **#2374 open** — `lint:pii` becomes a pre-commit gate and the consent contract finally lands

@@ -57,9 +57,17 @@ export default function TireSizePage() {
       q: `How much do ${page.size} tires cost?`,
       a: `Prices vary by brand and type. Used ${page.size} tires start around $25-60 each. New tires range from $89-200+ per tire depending on the brand. All prices include our free install package ($266 value).`,
     },
+    // 2026-09-17: this answer used to open "Yes — {size} is one of our most
+    // popular sizes. We typically have multiple options in stock, both new and
+    // used." It shipped byte-identical on all 30 size pages, so it called every
+    // size a most-popular one, and it asserted stock from nothing: there is no
+    // Nick's-shop inventory in this codebase, and the /tires finder only ever
+    // sees the SUPPLIER's warehouse count. It is the same unbacked claim that
+    // was removed from this page's JSON-LD in the same wave — left in prose it
+    // still misleads a human reader, who is the one who drives over.
     {
       q: `Do you have ${page.size} tires in stock?`,
-      a: `Yes — ${page.size} is one of our most popular sizes. We typically have multiple options in stock, both new and used. Call us at ${BUSINESS.phone.display} to confirm current availability.`,
+      a: `Stock moves daily, so the honest answer is: check before you drive over. Search ${page.size} on our tires page for current new and used options with installed pricing, or call ${BUSINESS.phone.display} and we'll look at what's on the rack right now. If we don't have it, we can usually source it.`,
     },
     {
       q: `Can I buy just one or two ${page.size} tires?`,
