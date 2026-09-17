@@ -146,6 +146,15 @@ export function ToolUsageCensusPanel() {
                       offered {t.surfacedCount}×
                     </span>
                   )}
+                  {/* Rendered ONLY when measured. `chosenCount === null` means
+                      the tool.chosen lane has no measured turns yet — showing a
+                      "0×" there would be the measured-zero lie this panel
+                      exists to avoid. */}
+                  {t.chosenCount !== null && (
+                    <span className="text-[8px] font-mono text-zinc-500">
+                      chosen {t.chosenCount}×
+                    </span>
+                  )}
                 </div>
                 {t.lastError && (
                   <p className="text-[10px] text-zinc-500 leading-snug mt-0.5 break-words line-clamp-2">
@@ -162,7 +171,14 @@ export function ToolUsageCensusPanel() {
         {hasSurfacing ? (
           <>
             Surfacing measured over {c.surfacedWindow.turns} turns / {c.surfacedWindow.windowDays}d
-            {c.surfacedWindow.since ? ` since ${c.surfacedWindow.since.slice(0, 10)}` : ""} · {c.caveat}
+            {c.surfacedWindow.since ? ` since ${c.surfacedWindow.since.slice(0, 10)}` : ""}
+            {c.chosenWindow.turns > 0
+              ? ` · choices measured over ${c.chosenWindow.turns} turns${
+                  c.chosenWindow.blindTurns > 0
+                    ? ` (${c.chosenWindow.blindTurns} blind turns excluded)`
+                    : ""
+                }`
+              : " · choice data not measured yet"} · {c.caveat}
           </>
         ) : (
           c.caveat

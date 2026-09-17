@@ -290,9 +290,23 @@ describe("raw SQL · make_interval never receives an uncast Prisma number", () =
     // subject is actually on disk and still contains the construct. Counted
     // AFTER stripping comments: the repair note names make_interval several
     // times, and a raw count would be an assertion about prose.
+    //
+    // ⚠ A FLOOR, NOT AN EXACT COUNT (2026-09-17). This asserted exactly 2 and
+    // went red the moment the census legitimately grew a third windowed query
+    // (`tool.chosen` + its comparable-surfaced join). An exact count makes this
+    // positive control fail on correct changes, which trains people to edit the
+    // number rather than read the gate — and the number was never the property.
+    // The property is: the construct is still present (so the scan has a real
+    // subject) AND every occurrence is cast. Both are asserted below, and
+    // neither cares how many queries exist.
     const census = stripComments(readFileSync(join(ROOT, "lib/observability/tool-usage-census.ts"), "utf8"));
-    expect(census.match(/make_interval/g) ?? [], "the two surfacing queries").toHaveLength(2);
+    const occurrences = census.match(/make_interval/g) ?? [];
+    expect(
+      occurrences.length,
+      "the census no longer contains a windowed query — this control has no subject",
+    ).toBeGreaterThanOrEqual(2);
     expect(census).toContain("make_interval(days => ${days}::int)");
+    // The real assertion: not one of them, however many there are, is uncast.
     expect(uncastIntervalArgs(census)).toEqual([]);
   });
 });
