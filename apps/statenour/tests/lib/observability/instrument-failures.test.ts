@@ -147,13 +147,54 @@ describe("WIRING: measurement instruments do not swallow their own failures", ()
     { file: "lib/ai/tool-selection-telemetry.ts", instrument: "tool_selection_turn" },
   ];
 
-  function codeOf(file: string): string {
-    return readFileSync(join(process.cwd(), file), "utf8")
+  /**
+   * Source with comments removed, so a guard cannot be satisfied — or tripped —
+   * by prose ABOUT the pattern it looks for.
+   *
+   * ⚠ CRLF IS NORMALISED FIRST, AND THAT LINE IS LOAD-BEARING. In a JS regex
+   * `.` excludes line terminators, and `\r` is one. On a CRLF checkout the old
+   * `l.replace(/\/\/.*$/, "")` therefore matched NOTHING: `.*` stopped before
+   * the `\r` and `$` (no `m` flag) wanted end-of-string, so every line comment
+   * survived and the silent-catch scan below ran against comment prose. Found
+   * 2026-09-17 when a file rewritten by a Windows tool picked up CRLF and this
+   * test started reporting a `.catch(() => {})` that exists only inside a
+   * sentence explaining `.catch(() => {})`.
+   *
+   * The failure mode is worse than the false positive: `.gitattributes`
+   * normalises to LF on commit, so CI checks out LF and passes while a Windows
+   * working tree fails — or, with the polarity reversed, a guard that is
+   * silently disabled on one of the two. A comment stripper that depends on
+   * line endings is not a comment stripper.
+   */
+  /** The stripper itself, as a pure function so the canary can exercise IT. */
+  function stripComments(src: string): string {
+    return src
+      .replace(/\r\n/g, "\n")
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .split("\n")
       .map((l) => l.replace(/\/\/.*$/, ""))
       .join("\n");
   }
+
+  function codeOf(file: string): string {
+    return stripComments(readFileSync(join(process.cwd(), file), "utf8"));
+  }
+
+  it("CANARY: the comment stripper works on CRLF as well as LF", () => {
+    // Exercises the REAL `stripComments` the two scans below use. An earlier
+    // cut of this canary re-implemented the pipeline inline, which is a mirror:
+    // it would have stayed green through any regression in the real one, since
+    // nothing connected them. A canary that tests a copy tests the copy.
+    const body = "const a = 1;\n// mentions .catch(() => {}) in prose\nconst b = 2;\n";
+    for (const [label, src] of [
+      ["LF", body],
+      ["CRLF", body.replace(/\n/g, "\r\n")],
+    ] as const) {
+      const out = stripComments(src);
+      expect(out, `${label}: line comment survived the stripper`).not.toContain("in prose");
+      expect(out, `${label}: real code was destroyed`).toContain("const b = 2;");
+    }
+  });
 
   it.each(SITES)("$file reports $instrument failures through the shared channel", ({ file, instrument }) => {
     const code = codeOf(file);

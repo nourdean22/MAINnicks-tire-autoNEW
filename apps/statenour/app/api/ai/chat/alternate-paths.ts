@@ -317,7 +317,17 @@ export async function runAlternatePaths(args: {
           chunkDelayMs: 8,
           onComplete: (finalWinner) => {
             log.info("deep_reasoning_path_completed", { intent: turnSignal.intent, hadSnapshot: liveSnapshot.length > 0 });
-            return __altPersist({ text: finalWinner, finishReason: "stop" });
+            // laneToolNames/laneReceiptsAvailable: this callback hands the walk
+            // NO `ev.steps`, so without these it would record a confident
+            // `tool.chosen = 0` for a turn that may well have invoked tools.
+            // This lane does not surface its calls, so it declares itself BLIND
+            // rather than being counted as a measured zero.
+            return __altPersist({
+              text: finalWinner,
+              finishReason: "stop",
+              laneToolNames: laneToolCalls.map((c) => c.name),
+              laneReceiptsAvailable: laneReceiptsAvailable,
+            });
           }
         });
 
@@ -547,7 +557,15 @@ export async function runAlternatePaths(args: {
           chunkSize: 24,
           chunkDelayMs: 8,
           onComplete: () =>
-            __altPersist({ text: winner, finishReason: "stop" }),
+            __altPersist({
+              text: winner,
+              finishReason: "stop",
+              // Same reason as the deep-reasoning lane above: no `ev.steps`
+              // reaches the walk, so the receipt state must be stated
+              // explicitly instead of inferred as zero.
+              laneToolNames: laneToolCalls.map((c) => c.name),
+              laneReceiptsAvailable: laneReceiptsAvailable,
+            }),
         });
         return buildChatResponse({
           streamResponse,

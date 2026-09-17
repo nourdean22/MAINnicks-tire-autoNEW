@@ -55,6 +55,12 @@ export const KNOWN_INSTRUMENTS: readonly string[] = [
   // `lastErrors` the description-rewrite cron reads as evidence. Found by the
   // wiring sweep rather than by reading — it had the same `.catch(() => {})`.
   "tool_invocation",
+  // 2026-09-17 · the per-turn NUMERATOR for `tool.surfaced`. Registered the
+  // same day it shipped: an unregistered instrument cannot be reported as
+  // failing, so its silence would be indistinguishable from health — and this
+  // one's whole purpose is to make "offered and declined" distinguishable from
+  // "never offered".
+  "tool.chosen",
 ];
 
 export interface InstrumentFailureRow {
