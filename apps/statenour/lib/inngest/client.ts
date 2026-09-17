@@ -41,6 +41,8 @@
 
 import { Inngest } from "inngest";
 
+import { CronLifecycleMiddleware } from "./cron-lifecycle";
+
 const APP_ID = "statenour-web";
 
 // Lazy singleton · same pattern as Mastra. Don't pay the construction
@@ -51,6 +53,19 @@ export function getInngest(): Inngest {
   if (_client) return _client;
   _client = new Inngest({
     id: APP_ID,
+    // ★★★ THE FLEET'S ONLY LIVENESS INSTRUMENT, REGISTERED ONCE.
+    //
+    // Inngest functions bypass the `cronHandler -> logCronRun` wrapper that
+    // makes `/api/cron/*` routes self-reporting, so without this every
+    // Inngest-native cron is invisible to `cron_job_log`, `/system/crons` and
+    // every audit built on them — measured 2026-09-17: 15 of 19 wrote nothing.
+    //
+    // ⚠ This is deliberately NOT 17 hand-placed calls inside the handlers. That
+    // was the previous design, and it needed a CI ratchet to stay applied —
+    // a ratchet that was itself blind twice in one night. Registration here
+    // covers every function this client serves, including ones added later, so
+    // a new cron cannot be born un-instrumented.
+    middleware: [CronLifecycleMiddleware],
     // eventKey is read from env automatically (INNGEST_EVENT_KEY)
     // when running in prod · the SDK falls back to a dev shim when
     // unset, which is what we want for local + first-deploy graceful

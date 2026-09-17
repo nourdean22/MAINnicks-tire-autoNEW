@@ -36,7 +36,6 @@ import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { automationEngine } from "@/lib/brain/automation-engine";
 import { logger } from "@/lib/logger";
-import { recordSelfRow } from "../self-row";
 
 const log = logger.withSurface("inngest/automation-engine");
 const inngest = getInngest();
@@ -49,7 +48,6 @@ export const automationEngineTick = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
-    await recordSelfRow(step, "automation-engine");
     const results = await step.run("run-rules", () => automationEngine.run());
 
     // Logged every tick including the empty one. "nothing fired" is the common

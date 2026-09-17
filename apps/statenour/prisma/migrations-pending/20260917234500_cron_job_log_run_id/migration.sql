@@ -1,0 +1,57 @@
+-- cron_job_logs · Inngest run id · 2026-09-17
+-- PARKED, NOT APPLIED. Operator-run only — see ../README.md.
+-- ADDITIVE · nullable · no backfill · no data loss.
+--
+-- WHY THIS EXISTS
+-- lib/inngest/cron-lifecycle.ts opens a `started` row when a cron begins and
+-- settles it to `success` or `failed` when the run actually ends. Settling has
+-- to find the row the run opened, and with no run identifier on the table the
+-- only available handle is "the newest `started` row for this job name".
+--
+-- That is a GUESS, and it is the same class of guess that made
+-- markCronRunFailed fragile. It is correct while a cron never overlaps itself,
+-- which is true today — every entry in config/crons.ts has a single schedule
+-- and Inngest does not run concurrent instances of one cron by default — but
+-- it fails silently the first time that stops being true: the earlier run's
+-- row is stranded at `started` and later reads as a stale hang.
+--
+-- This column turns the guess into a join. Inngest's ctx.runId is already in
+-- hand at both ends (the middleware reads it, and the failure event carries the
+-- same run_id), so matching becomes exact rather than positional.
+--
+-- NULL IS HONEST AND MUST STAY THE DEFAULT-LESS DEFAULT.
+--   NULL = this row was not opened by the lifecycle middleware. That covers
+--          every route cron (cron-manager.ts writes terminal rows directly and
+--          never opens a `started` row) and every row predating this column.
+-- DO NOT ADD A DEFAULT. A manufactured id would assert a run identity that
+-- never existed, which is the same fabrication class as backfilling a count.
+--
+-- COLUMN NAME — READ BEFORE "FIXING" THE CASING.
+-- The TABLE is "cron_job_logs" via @@map, but its COLUMNS are NOT mapped: they
+-- keep Prisma's camelCase spelling verbatim. Hence "runId", double-quoted. A
+-- snake_case or unquoted spelling silently creates a SECOND, unreachable
+-- column — this table already has two live queries with that exact bug, both
+-- hidden behind a .catch (app/api/cron/data-cleanup/route.ts and
+-- lib/services/autonomic-orchestrator.ts reference job_name / created_at).
+--
+-- INDEX INCLUDED, unlike the resultCount migration, because there IS a read
+-- path: the settle does findFirst({ jobName, status, runId }) on every cron
+-- completion, and the failure handler repeats it. Partial, because only
+-- lifecycle rows carry the column and only `started` rows are ever looked up
+-- by it — this keeps the index off the ~66,000 historical NULL rows.
+--
+-- Separate statements, IF NOT EXISTS so a re-run is a no-op. No DO $$ block:
+-- the apply route splits on ';' and would shatter one into invalid fragments
+-- while earlier statements still landed.
+--
+-- ⚠⚠ ORDER IS LOAD-BEARING: APPLY THIS BEFORE MERGING THE MODEL CHANGE.
+-- Prisma's `create` issues RETURNING over every scalar field in the model, so a
+-- generated client that knows "runId" while the database lacks it fails EVERY
+-- write to this table — including lib/services/cron-manager.ts, which logs all
+-- the route crons. Shipping the schema field first does not degrade gracefully;
+-- it takes cron logging down repo-wide. Hence the field is deliberately NOT in
+-- prisma/schema.prisma yet. Sequence: apply this SQL -> confirm the column
+-- exists -> then land the model change and its producer together.
+
+ALTER TABLE "cron_job_logs" ADD COLUMN IF NOT EXISTS "runId" TEXT;
+CREATE INDEX IF NOT EXISTS "cron_job_logs_runId_started_idx" ON "cron_job_logs" ("runId") WHERE "status" = 'started';

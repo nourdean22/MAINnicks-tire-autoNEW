@@ -25,6 +25,7 @@
  */
 
 import type { FailureEventArgs } from "inngest";
+import { CRON_STATUS } from "./cron-lifecycle";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("inngest/on-failure");
@@ -121,6 +122,28 @@ export const onInngestFailure = async (args: FailurePayload): Promise<void> => {
  *
  * ⚠ NEVER THROWS, for the reason stated above notifyTelegram: throwing here
  * makes Inngest re-trigger the failure handler in a loop.
+ *
+ * ★★★ 2026-09-17 SUPERSEDED AS THE PRIMARY PATH, AND DELIBERATELY KEPT.
+ * lib/inngest/cron-lifecycle.ts now settles runs in-process via the client
+ * middleware, and `onRunError` sees `isFinalAttempt`, so it marks `failed`
+ * before this handler ever fires. This function is no longer the mechanism -
+ * it is the BACKSTOP, and it covers a case the middleware structurally cannot.
+ *
+ * In-process instrumentation cannot report its own hard kill. If the container
+ * is OOM-killed, evicted, or hits an edge timeout, no middleware hook runs and
+ * the row is stranded at `started`. THIS handler is delivered out-of-band by
+ * Inngest Cloud, from a different process, after retries are exhausted - so it
+ * still lands. Two mechanisms, two failure domains, on purpose.
+ *
+ * ⚠ Both firing is safe and expected: whichever runs second finds no `started`
+ * row (the first already moved it to `failed`) and no-ops. The update is keyed
+ * on a row that must still be in the `started` state, which makes this
+ * idempotent rather than merely "usually fine".
+ *
+ * ⚠ The token it hunts is now `started`, NOT `partial`. `partial` went back to
+ * meaning only what mega-fanout means by it - "finished, some children failed" -
+ * and a handler still looking for `partial` here would silently upgrade a
+ * mega-fanout success to a failure, or more likely match nothing at all.
  */
 async function markCronRunFailed(args: FailurePayload): Promise<void> {
   try {
@@ -134,7 +157,7 @@ async function markCronRunFailed(args: FailurePayload): Promise<void> {
     // exist: whatever the prefix turns out to be, the job name is its tail.
     const { prisma } = await import("@/lib/prisma");
     const candidates = await prisma.cronJobLog.findMany({
-      where: { status: "partial", createdAt: { gte: new Date(Date.now() - 6 * 3_600_000) } },
+      where: { status: CRON_STATUS.started, createdAt: { gte: new Date(Date.now() - 6 * 3_600_000) } },
       orderBy: { createdAt: "desc" },
       select: { id: true, jobName: true },
       take: 200,

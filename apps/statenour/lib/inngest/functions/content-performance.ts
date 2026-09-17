@@ -19,7 +19,6 @@
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
-import { recordSelfRow } from "../self-row";
 
 const log = rootLogger.withSurface("inngest/content-performance");
 const inngest = getInngest();
@@ -59,7 +58,6 @@ export const contentPerformanceWeekly = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
-    await recordSelfRow(step, "content-performance-weekly");
     const token = process.env.META_PAGE_ACCESS_TOKEN?.trim();
     if (!token) {
       log.info("META_PAGE_ACCESS_TOKEN not configured; skipping (no fabricated metrics).");
