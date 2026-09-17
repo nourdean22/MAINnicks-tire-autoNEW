@@ -116,43 +116,50 @@ async function main() {
   const share = ev.deepShare === null ? "n/a" : ev.deepShare.toFixed(1);
   console.log(`\ndeep share of all surfaced turns: ${ev.deepTurns}/${total} = ${share}%`);
   console.log(
-    `chosen-row coverage: ${ev.chosenRows} rows across all modes ` +
+    `observed chosen rows FOR DEEP: ${ev.observedForDeep} ` +
       `(floor ${CHOSEN_COVERAGE_FLOOR}) -> named>=1 column is ` +
       `${ev.chosenIsInformative ? "INFORMATIVE" : "UNINFORMATIVE, ignore it"}`,
   );
 
   if (ev.verdict === "no-deep") {
-    console.log(
-      "\nVERDICT: no deep-mode turns recorded — the routing-artifact hypothesis is\n" +
-        "         NOT supported by this data. Catalog over-inclusion stands.",
-    );
+    console.log("\nVERDICT: no deep-mode turns recorded in this window.");
     return;
   }
 
   if (ev.verdict === "partly-refuted") {
     console.log(
-      `\nVERDICT: REFUTED in part — deep named a tool on some turns, so the path is\n` +
-        `         NOT uniformly tool-blind. One counterexample is enough here, and\n` +
-        `         it does not need the coverage floor. Re-read before acting.`,
+      `\nVERDICT: a turn tagged mode=deep DID name a tool. One counterexample is\n` +
+        `         enough, and it needs no coverage floor.`,
     );
     return;
   }
 
-  // The share alone is load-bearing: it is measured from `tool.surfaced`, which
-  // has written for weeks, and it is the denominator that matters.
+  // ⚠ THE REFUSAL IS THE POINT. An earlier version printed
+  // "<share>% of turns route to deep, which cannot call tools, so the
+  // never-chosen rate is inflated by ROUTING" — and that reached a PR body,
+  // agent memory and a spawned task before review caught it.
   console.log(
-    `\nVERDICT: ${share}% of surfaced turns route to deep. Per alternate-paths.ts\n` +
-      `         the deep branch pre-fetches a snapshot and CANNOT call tools, so\n` +
-      `         that share of the denominator can never reach the numerator. A\n` +
-      `         "tool was never chosen" rate computed over ALL surfaced turns is\n` +
-      `         therefore inflated by ROUTING before any catalog effect is read.`,
+    `\nVERDICT: ${share}% of surfaced turns carry the BUDGET mode "deep". This says\n` +
+      `         NOTHING about which lane ran or whether tools were callable.\n` +
+      `         alternate-paths.ts gates the tool-blind deep branch on\n` +
+      `         complexity==="complex" && intent IN (decision,analytical) and NEVER\n` +
+      `         reads mode — a turn logged complexity="simple" intent="factual"\n` +
+      `         (deepOn false) still carried mode="deep". A NAME IS NOT A WIRE.`,
   );
+  if (!ev.canAttributeLane) {
+    console.log(
+      `         ⚠ NOTHING persists which lane handled a turn, so "could this turn\n` +
+        `         have called a tool?" is UNANSWERABLE from the database today.\n` +
+        `         Record the lane before using any of this to decide the catalog.`,
+    );
+  }
 
   if (!ev.chosenIsInformative) {
     console.log(
-      `         ⚠ NOT proven here: that deep turns never name a tool. Only\n` +
-        `         ${ev.chosenRows} chosen row(s) exist, so the 0 in named>=1 is the lane's\n` +
-        `         age, not deep's behaviour. Re-run once coverage passes the floor.`,
+      `         ⚠ Separately NOT proven: that deep-tagged turns never name a tool.\n` +
+        `         Only ${ev.observedForDeep} OBSERVED chosen row(s) for deep, so the 0 in\n` +
+        `         named>=1 is the lane's age, not behaviour. (Blind rows and\n` +
+        `         other modes are excluded — they are different populations.)`,
     );
   }
 }

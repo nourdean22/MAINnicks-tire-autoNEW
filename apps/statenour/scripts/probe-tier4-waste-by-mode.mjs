@@ -29,7 +29,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
-import { assessJoinCoverage } from "./lib/mode-evidence.mjs";
+import { assessJoinCoverage, LANE_ATTRIBUTION_AVAILABLE } from "./lib/mode-evidence.mjs";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -129,26 +129,25 @@ async function main() {
   const std = pct["standard"];
   const deep = pct["deep"];
   console.log("");
+  // ⚠ THIS PROBE DELIBERATELY REFUSES THE CONCLUSION IT WAS BUILT FOR.
+  // Its first version read a `deep`/`standard` split as routing-vs-catalog.
+  // It cannot be: `mode` is the BUDGET mode, and alternate-paths.ts gates the
+  // tool-blind branch on complexity/intent WITHOUT reading mode. So a split by
+  // mode separates two budget classes, not a callable lane from a blind one.
+  console.log(
+    `VERDICT: this is a split by BUDGET MODE, not by execution lane.\n` +
+      `         It CANNOT tell you whether the wasted slots belonged to turns that\n` +
+      `         could have called a tool. alternate-paths.ts never reads mode.`,
+  );
   if (std === undefined) {
+    console.log(`         (No 'standard'-mode tier-4 impressions exist here at all.)`);
+  } else if (deep !== undefined) {
+    console.log(`         (standard ${std.toFixed(1)}% vs deep ${deep.toFixed(1)}% dead weight — descriptive only.)`);
+  }
+  if (!LANE_ATTRIBUTION_AVAILABLE) {
     console.log(
-      "VERDICT: no `standard`-mode tier-4 impressions recorded. The split cannot\n" +
-        "         separate routing from catalog on this data.",
-    );
-  } else if (deep === undefined) {
-    console.log(
-      `VERDICT: no deep-mode rows here — dead weight in standard mode is ${std.toFixed(1)}%,\n` +
-        `         and it cannot be explained by routing.`,
-    );
-  } else {
-    console.log(
-      `VERDICT: standard ${std.toFixed(1)}% vs deep ${deep.toFixed(1)}% dead weight.\n` +
-        (std >= deep - 5
-          ? `         Standard mode — where tools ARE callable — wastes slots at a\n` +
-            `         comparable rate. Routing does NOT explain tier-4 dead weight away;\n` +
-            `         the catalog/matcher conclusion SURVIVES for the turns that matter.`
-          : `         Dead weight is concentrated in deep, where no tool could have been\n` +
-            `         called anyway. Pruning the catalog would be treating the wrong cause;\n` +
-            `         fix ROUTING first, then re-measure.`),
+      `         ⚠ Nothing persists which lane handled a turn. Until it does, the\n` +
+        `         catalog-vs-routing question is UNMEASURABLE — do not decide it here.`,
     );
   }
   if (!cov.usable) {
