@@ -183,6 +183,16 @@ function anonymizeName(fullName: string): string {
   return parts[0] || "Someone";
 }
 
+/**
+ * How recent a review must be for the ticker to call it "New".
+ * Bookings and completed jobs are bounded to the current day; reviews arrive
+ * far less often, so a same-day bound would suppress them almost entirely.
+ * This is a display-honesty bound, not a business fact — widen or narrow it
+ * freely, but never remove it: without a bound the ticker calls the newest
+ * review "New" forever, which is what it did until 2026-09-17.
+ */
+export const REVIEW_MAX_AGE_DAYS = 7;
+
 export interface ActivityItem {
   type: "booking" | "completed" | "review";
   message: string;
@@ -262,6 +272,20 @@ export const activityRouter = router({
       }
 
       // 3. Recent positive reviews
+      //
+      // RECENCY IS PART OF THE CLAIM. The two branches above bound themselves
+      // to `todayStart`; this one filtered on RATING ONLY and then stamped
+      // every row "New N-star review". With no date bound it returned the five
+      // newest >=4-star reviews no matter how old, so on a quiet stretch the
+      // ticker announced a review from months back as new — observed live
+      // 2026-09-17 rendering "New 5-star review ... 1987h ago" (~83 days).
+      //
+      // Reviews are rarer than bookings, so `todayStart` would hide them almost
+      // always; REVIEW_MAX_AGE_DAYS is the smallest window that keeps "New"
+      // truthful while still letting real reviews surface. When nothing is
+      // recent the ticker shows nothing, which is the documented behaviour
+      // (see ./fomoEntries — hide rather than fake).
+      const reviewCutoff = new Date(Date.now() - REVIEW_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
       const recentReviews = await d
         .select({
           reviewerName: reviewReplies.reviewerName,
@@ -270,7 +294,7 @@ export const activityRouter = router({
           reviewDate: reviewReplies.reviewDate,
         })
         .from(reviewReplies)
-        .where(gte(reviewReplies.reviewRating, 4))
+        .where(and(gte(reviewReplies.reviewRating, 4), gte(reviewReplies.reviewDate, reviewCutoff)))
         .orderBy(desc(reviewReplies.reviewDate))
         .limit(5);
 
