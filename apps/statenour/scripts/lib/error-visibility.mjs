@@ -103,6 +103,49 @@ export function traceIdentity(trace) {
   return { label: "(unnamed, no source, no tags)", named: false, via: "none" };
 }
 
+/** Hours after which a cluster stops counting as live / recent. */
+export const LIVE_HOURS = 48;
+export const RECENT_HOURS = 24 * 8;
+
+/**
+ * How alive is a fault cluster?
+ *
+ * ★★★ MEASURED 2026-09-17, and it inverted the priority list. Ranking 30 days
+ * of `error_logs` by COUNT put these on top:
+ *
+ *     1091  brain.kept-word-tracker   last 2026-08-20T08:38
+ *      924  /api/cron/correlation-alarm   last 2026-08-20T08:38
+ *      291  /api/cron/weekly-review   last 2026-08-20T08:37
+ *       34  ai.agent-trace            last 2026-08-20T08:38
+ *       13  brain.memory-gateway      last 2026-08-20T08:38
+ *
+ * Those are not five problems. The identical `last_at` makes them ONE database
+ * outage on one morning a month ago, fragmented across five message shapes.
+ * The only cluster still arriving — `ai.judge-eval api_timeout`, 81 — ranked
+ * SIXTH and read as minor. It was the largest live fault in the system.
+ *
+ * ★ A COUNT WITHOUT A RECENCY IS NOT ACTIONABLE, and a shared `last_at` across
+ * unrelated surfaces is the signature of a single incident, not of many bugs.
+ *
+ * Ordering purely by recency would be the opposite error — one stray error from
+ * a minute ago would outrank an 80x live cluster. So: band by liveness, then by
+ * volume WITHIN the band.
+ *
+ * @param {string|Date} lastAt
+ * @param {number} [nowMs]
+ * @returns {{ band: "live"|"recent"|"stale", rank: 0|1|2, ageHours: number, label: string }}
+ */
+export function ageBand(lastAt, nowMs = Date.now()) {
+  const t = lastAt instanceof Date ? lastAt.getTime() : Date.parse(String(lastAt));
+  // An unparseable timestamp must NOT silently become "live" (age 0) and jump
+  // the queue — that is the empty-vs-missing trap in the time domain.
+  if (!Number.isFinite(t)) return { band: "stale", rank: 2, ageHours: Infinity, label: "age? " };
+  const ageHours = (nowMs - t) / 3_600_000;
+  if (ageHours < LIVE_HOURS) return { band: "live", rank: 0, ageHours, label: "LIVE " };
+  if (ageHours < RECENT_HOURS) return { band: "recent", rank: 1, ageHours, label: "recent" };
+  return { band: "stale", rank: 2, ageHours, label: "stale " };
+}
+
 /**
  * Is a sampled page a complete picture?
  *

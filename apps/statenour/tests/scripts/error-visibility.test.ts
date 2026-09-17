@@ -22,8 +22,11 @@ import {
   assessWriterControl,
   assessTraceControl,
   assessSampleCoverage,
+  ageBand,
   countBy,
   traceIdentity,
+  LIVE_HOURS,
+  RECENT_HOURS,
   WRITER_STALE_HOURS,
 } from "../../scripts/lib/error-visibility.mjs";
 
@@ -129,6 +132,67 @@ describe("countBy", () => {
 
   it("does not drop rows whose key is empty", () => {
     expect(countBy([{ m: "" }, { m: "" }], (r) => r.m || "(blank)")).toEqual([["(blank)", 2]]);
+  });
+});
+
+/**
+ * ageBand — a count without a recency is not actionable.
+ *
+ * Ranking 30d of error_logs by COUNT put a one-day outage from a month ago in
+ * the top three (1091 + 924 + 291, all sharing last_at 2026-08-20T08:38) and
+ * buried the only still-arriving fault — ai.judge-eval, 81 — at sixth.
+ */
+describe("ageBand", () => {
+  const NOW_MS = Date.parse("2026-09-17T12:00:00Z");
+  const hAgo = (h: number) => new Date(NOW_MS - h * 3_600_000).toISOString();
+
+  it("bands by age", () => {
+    expect(ageBand(hAgo(1), NOW_MS).band).toBe("live");
+    expect(ageBand(hAgo(LIVE_HOURS + 1), NOW_MS).band).toBe("recent");
+    expect(ageBand(hAgo(RECENT_HOURS + 1), NOW_MS).band).toBe("stale");
+  });
+
+  // ── CANARY ──────────────────────────────────────────────────────────
+  // The measured inversion. Volume alone ranks the dead outage first; the band
+  // must sort it BELOW the small live cluster. If this flips, the probe is
+  // handing the operator a month-old incident as today's top priority.
+  it("CANARY — a live 81x cluster outranks a stale 924x one", () => {
+    const stale = { n: 924, last: hAgo(24 * 28) };
+    const live = { n: 81, last: hAgo(20) };
+    const ranked = [stale, live].sort((a, b) => {
+      const d = ageBand(a.last, NOW_MS).rank - ageBand(b.last, NOW_MS).rank;
+      return d !== 0 ? d : b.n - a.n;
+    });
+    expect(ranked[0]).toBe(live);
+    // …and the ordering this replaced would have got it backwards.
+    expect([stale, live].sort((a, b) => b.n - a.n)[0]).toBe(stale);
+  });
+
+  it("still ranks by volume WITHIN a band, so recency alone cannot dominate", () => {
+    const small = { n: 1, last: hAgo(1) };
+    const big = { n: 80, last: hAgo(30) }; // both live
+    const ranked = [small, big].sort((a, b) => {
+      const d = ageBand(a.last, NOW_MS).rank - ageBand(b.last, NOW_MS).rank;
+      return d !== 0 ? d : b.n - a.n;
+    });
+    expect(ranked[0]).toBe(big);
+  });
+
+  // ── CANARY ──────────────────────────────────────────────────────────
+  // The worst possible failure: an unparseable timestamp becoming age 0 and
+  // jumping the queue. That is the empty-vs-missing trap in the time domain —
+  // the same defect as `t.name ?? "(unnamed)"`, one type over.
+  it("CANARY — an unparseable timestamp is stale, never live", () => {
+    for (const bad of ["", "not-a-date", null, undefined]) {
+      const r = ageBand(bad as never, NOW_MS);
+      expect(r.band).toBe("stale");
+      expect(r.rank).toBe(2);
+      expect(r.ageHours).toBe(Infinity);
+    }
+  });
+
+  it("accepts a Date as well as a string, since drivers return both", () => {
+    expect(ageBand(new Date(NOW_MS - 3_600_000), NOW_MS).band).toBe("live");
   });
 });
 
