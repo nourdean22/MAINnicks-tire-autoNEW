@@ -1135,15 +1135,43 @@ model ChatMessage {
   clientMessageId String? @map("client_message_id")
 
   // ── Rich content tree ──
-  /// Full UIMessage parts as the AI SDK v6 understands it. Captures:
+  /// UIMessage parts in the AI SDK v6 shape. On reload we hydrate from this
+  /// instead of the flat `content` string; `content` stays as the searchable
+  /// plaintext digest.
+  ///
+  /// WHAT IS ACTUALLY WRITTEN TODAY — only two variants:
   ///   - text:        { type:"text", text:"..." }
   ///   - file:        { type:"file", mediaType, url, filename? }
-  ///   - reasoning:   { type:"reasoning", text:"..." } — Claude thinking
-  ///   - tool-call:   { type:"tool-call", toolName, args, toolCallId }
-  ///   - tool-result: { type:"tool-result", toolCallId, result }
-  ///   - source:      { type:"source", url, title } — citations
-  /// On reload we hydrate from this instead of the flat `content`
-  /// string. `content` stays as the searchable plaintext digest.
+  ///
+  /// ⚠ THIS COMMENT USED TO LIST SIX. It described `reasoning`, `tool-call`,
+  /// `tool-result` and `source` as captured. They are not, and never have been.
+  /// MEASURED IN PRODUCTION 2026-09-17: of 5,278 chat_messages, 5,175 have an
+  /// array-valued `parts`, and across every one of them the only part types
+  /// present are `text` (5,171) and `file` (31). Zero of the other four.
+  ///
+  /// The gap is a MISSING WRITER, not a missing reader. `extractParts`
+  /// (lib/ai/chat/message-fields.ts) handles all six correctly; the producer,
+  /// `buildMessageParts` (lib/services/chat/message-parts.ts), only ever
+  /// constructs text and reasoning and is never given tool or source parts.
+  /// Three places already consume what is never written:
+  ///   · app/api/ai/chat/build-model-messages.ts whitelists tool-call /
+  ///     tool-result in replayed history and pairs them — hardened by a real
+  ///     2026-07-04 poison-pill incident, so the intent to persist them is on
+  ///     the record;
+  ///   · features/chat-v2/components/chat-message-list.tsx renders ToolResultCard
+  ///     from LIVE streaming parts, so tool cards show during a turn and vanish
+  ///     on reload;
+  ///   · extractParts itself.
+  ///
+  /// Consequence: a reloaded conversation replays the assistant's CLAIMS
+  /// without the tool receipts behind them.
+  ///
+  /// Persisting the rest is a real change, not a comment fix: it needs the
+  /// result payload bounded (a raw search result on every row would bloat both
+  /// the table and every replayed context) and the two part SHAPES reconciled
+  /// (persisted `{toolCallId, result}` vs the UI's `{state, output}`). Pinned
+  /// by tests/lib/chat/message-parts-contract.test.ts — if you add a writer,
+  /// that file fails and tells you to update this comment.
   parts Json?
 
   // ── Streaming lifecycle ──
