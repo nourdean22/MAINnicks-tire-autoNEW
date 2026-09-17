@@ -32,6 +32,19 @@ export interface LaneAttribution {
 }
 
 /**
+ * Sample text is NOT a stable identity on its own.
+ *
+ * `self-consistency.ts` TRIMS every sample before voting, so `sc.answer` is a
+ * trimmed string while the raw `r.text` recorded at generation time may carry
+ * leading or trailing whitespace. An exact `===` therefore misses in the common
+ * case and the lane silently stays blind — the fix would have been a no-op on
+ * the very lane it was written for.
+ */
+function normalise(text: string): string {
+  return text.trim();
+}
+
+/**
  * @returns the winning generation's calls, or `null` when the lane must stay
  *   blind (no samples, already attributed by a lane that saw its own result,
  *   or no sample whose text is the winner).
@@ -47,8 +60,19 @@ export function attributeWinningSample(args: {
 
   // Identity match, not similarity. A "closest" match would reintroduce the
   // guess this function exists to refuse.
-  const won = args.samples.find((s) => s.text === args.winningText);
-  if (!won) return null;
+  const target = normalise(args.winningText);
+  const matches = args.samples.filter((s) => normalise(s.text) === target);
+  if (matches.length === 0) return null;
 
-  return { toolNames: [...won.calls], receiptsAvailable: true };
+  // ⚠ TEXT IS NOT UNIQUE. Parallel samples can return the same answer having
+  // called different tools, and samples are recorded in COMPLETION order while
+  // the chooser works in invocation order — so a tie cannot be resolved by
+  // position either. When matching samples disagree about what they called,
+  // there is no way to know which one became the reply: stay BLIND rather than
+  // pick. Identical call lists are not a tie, because either answer is right.
+  const first = JSON.stringify(matches[0].calls);
+  const ambiguous = matches.some((m) => JSON.stringify(m.calls) !== first);
+  if (ambiguous) return null;
+
+  return { toolNames: [...matches[0].calls], receiptsAvailable: true };
 }

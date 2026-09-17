@@ -244,6 +244,22 @@ export async function runAlternatePaths(args: {
           .filter(Boolean);
         laneSamples.push({ text: String(r.text ?? ""), calls });
       };
+      /**
+       * TELEMETRY receipts, deliberately SEPARATE from `laneReceiptsAvailable`.
+       *
+       * ⚠ Those two flags feed different consumers and must not be conflated.
+       * `laneReceiptsAvailable` is the ENFORCEMENT channel: per the comment at
+       * the enforcement block below, blind SUPPRESSES BLOCKING, and flipping it
+       * true makes a named resource judgeable on this lane. Setting it from
+       * attribution — while `laneEvidenceText` stays empty, because these lanes
+       * capture names but not tool RESULTS — would strip the support that
+       * `checkNamedSources` looks for and could block a genuinely tool-backed
+       * answer. That is a live behaviour change, not measurement.
+       *
+       * So attribution feeds ONLY the `tool.chosen` lane. Enforcement keeps
+       * exactly the blindness it had before this change.
+       */
+      let laneTelemetryObserved = false;
       /** Attribute the winning generation's calls; blind when it cannot be identified. */
       const applyLaneAttribution = async (winningText: string) => {
         const { attributeWinningSample } = await import(
@@ -256,7 +272,7 @@ export async function runAlternatePaths(args: {
         });
         if (!a) return; // honest blind — never attribute a sample that did not win
         laneToolCalls = a.toolNames.map((name) => ({ name }));
-        laneReceiptsAvailable = a.receiptsAvailable;
+        laneTelemetryObserved = true;
       };
       // Shared generateText config for the regen + self-consistency
       // branches (identical shape) — hoisted so a new field is added
@@ -364,7 +380,7 @@ export async function runAlternatePaths(args: {
               text: finalWinner,
               finishReason: "stop",
               laneToolNames: laneToolCalls.map((c) => c.name),
-              laneReceiptsAvailable: laneReceiptsAvailable,
+              laneReceiptsAvailable: laneTelemetryObserved,
             });
           }
         });
@@ -481,6 +497,7 @@ export async function runAlternatePaths(args: {
           .filter(Boolean)
           .join(" | ");
         laneReceiptsAvailable = true;
+        laneTelemetryObserved = true;
         log.info("evidence_preflush_path", {
           intent: turnSignal.intent,
           register: preflushRisk.register,
@@ -525,13 +542,21 @@ export async function runAlternatePaths(args: {
               import("@/lib/ai/chat/named-source-claims"),
               import("@/lib/ai/chat/output-guardian"),
             ]);
-            // The regen/self-consistency/multi-agent lanes do not surface
-            // their tool calls, so for them the receipt channel is BLIND --
-            // not "no tool fired". That distinction is load-bearing: blind
-            // suppresses blocking, so enforcement there can only repair
-            // length and strip unearned tags. The pre-flush lane DOES
-            // surface its receipts (laneReceiptsAvailable), so a named
-            // resource with no receipt can be judged on that lane.
+            // The regen/self-consistency/multi-agent lanes reach ENFORCEMENT
+            // blind -- not "no tool fired". That distinction is load-bearing:
+            // blind suppresses blocking, so enforcement there can only repair
+            // length and strip unearned tags. The pre-flush lane DOES surface
+            // its receipts (laneReceiptsAvailable), so a named resource with
+            // no receipt can be judged on that lane.
+            //
+            // ⚠ 2026-09-17 · regen and self-consistency now attribute their
+            // winning generation's tool NAMES for `tool.chosen`, but that goes
+            // to `laneTelemetryObserved`, NOT here. They capture names without
+            // tool RESULTS, so `laneEvidenceText` stays empty; flipping
+            // `receiptsAvailable` true would end blind-suppression while giving
+            // `checkNamedSources` no evidence to find support in, and a
+            // genuinely tool-backed answer could be blocked or stripped.
+            // Measurement must not silently become enforcement.
             const receipts = {
               toolCalls: laneToolCalls,
               evidenceText: laneEvidenceText,
@@ -611,7 +636,7 @@ export async function runAlternatePaths(args: {
               // reaches the walk, so the receipt state must be stated
               // explicitly instead of inferred as zero.
               laneToolNames: laneToolCalls.map((c) => c.name),
-              laneReceiptsAvailable: laneReceiptsAvailable,
+              laneReceiptsAvailable: laneTelemetryObserved,
             }),
         });
         return buildChatResponse({

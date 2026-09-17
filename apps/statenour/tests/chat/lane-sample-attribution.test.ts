@@ -88,6 +88,49 @@ describe("attributeWinningSample", () => {
     ).toBeNull();
   });
 
+  // ── CANARY for the defect review found ──────────────────────────────
+  // `self-consistency.ts` TRIMS every sample before voting, so `sc.answer` is
+  // trimmed while the recorded `r.text` is raw. An exact `===` misses on any
+  // trailing newline — which the model emits constantly — and the fix would
+  // have been a silent no-op on the very lane it was written for.
+  it("CANARY — matches despite the trim self-consistency applies", () => {
+    const a = attributeWinningSample({
+      samples: [{ text: "  second draft\n", calls: ["getTasks"] }],
+      winningText: "second draft",
+      alreadyAvailable: false,
+    });
+    expect(a?.toolNames).toEqual(["getTasks"]);
+  });
+
+  // ── CANARY ──────────────────────────────────────────────────────────
+  // Text is not unique. Two samples can return the same answer having called
+  // DIFFERENT tools, and completion order != invocation order, so position
+  // cannot break the tie either. Staying blind is the only honest answer.
+  it("CANARY — identical text with different calls stays BLIND", () => {
+    expect(
+      attributeWinningSample({
+        samples: [
+          { text: "same answer", calls: ["getTasks"] },
+          { text: "same answer", calls: ["searchMemories"] },
+        ],
+        winningText: "same answer",
+        alreadyAvailable: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("identical text with identical calls is NOT ambiguous", () => {
+    const a = attributeWinningSample({
+      samples: [
+        { text: "same answer", calls: ["getTasks"] },
+        { text: "same answer", calls: ["getTasks"] },
+      ],
+      winningText: "same answer",
+      alreadyAvailable: false,
+    });
+    expect(a?.toolNames).toEqual(["getTasks"]);
+  });
+
   it("returns a copy, so a caller cannot mutate the recorded sample", () => {
     const a = attributeWinningSample({
       samples: SAMPLES,
