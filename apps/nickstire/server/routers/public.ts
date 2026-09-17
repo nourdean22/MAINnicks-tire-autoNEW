@@ -190,8 +190,14 @@ function anonymizeName(fullName: string): string {
  * This is a display-honesty bound, not a business fact — widen or narrow it
  * freely, but never remove it: without a bound the ticker calls the newest
  * review "New" forever, which is what it did until 2026-09-17.
+ *
+ * Module-private deliberately. Exporting it for documentation value made it an
+ * unconsumed export, which the knip orphan gate fails as a NEW ORPHAN — the
+ * same lesson #2187 recorded ("keep policy lists private"). The client-side
+ * bound that pairs with it, MAX_ENTRY_AGE_MINUTES, IS exported because its
+ * test imports it.
  */
-export const REVIEW_MAX_AGE_DAYS = 7;
+const REVIEW_MAX_AGE_DAYS = 7;
 
 export interface ActivityItem {
   type: "booking" | "completed" | "review";
