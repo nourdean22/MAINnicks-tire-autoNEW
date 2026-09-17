@@ -22,9 +22,21 @@
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { WRITE_DIRECT, excludeSelf } from "./lib/metric-sweep.mjs";
 
 const ROOT = join(process.cwd(), "apps/statenour");
 const SCAN_DIRS = ["lib", "app", "components", "scripts", "config"];
+
+/**
+ * This file's own path, relative to ROOT — it scans `scripts/`, so it scans
+ * ITSELF. Its source contains the literal `systemMetric` (in the very regex
+ * that detects readers) and every `MUST_SEE` lane name, so without this it
+ * classifies itself as the DATA reader for the orphans it exists to surface.
+ * It did: `action.done.shadow` and `operation.integrity_shadow` were reported
+ * as having a reader, and the summary said "1 lane nothing reads" when the
+ * honest answer was 3.
+ */
+const SELF_REL = "scripts/probe-metric-readers.mjs";
 
 /** Comments are prose, not code — the same rule the other source scans use. */
 function stripComments(src) {
@@ -104,6 +116,14 @@ for (const { f, code } of sources) {
   let m;
   while ((m = WRITE.exec(code)) !== null) add(m[1]);
 
+  // `prisma.systemMetric.create({ data: { metric: "name" } })`. A dozen files
+  // write lanes this way and the first version of this scan saw NONE of them,
+  // so it reported "5 metric lanes written" for an app that writes many more —
+  // and every unseen lane was silently exempt from the orphan check.
+  WRITE_DIRECT.lastIndex = 0;
+  let d;
+  while ((d = WRITE_DIRECT.exec(code)) !== null) add(d[1]);
+
   // Constants declared in the SAME file, e.g.
   //   const CHOSEN_TOOLS_METRIC = "tool.chosen";
   //   recordMetricStrict(CHOSEN_TOOLS_METRIC, …)
@@ -152,7 +172,18 @@ if (writers.size === 0) {
  * about the codebase, not about this script's regexes. If the scan cannot find
  * one, the scan is broken and must say so instead of printing a shorter list.
  */
-const MUST_SEE = ["tool.surfaced", "tool.chosen", "operation.integrity_shadow", "action.done.shadow"];
+const MUST_SEE = [
+  "tool.surfaced",
+  "tool.chosen",
+  "operation.integrity_shadow",
+  "action.done.shadow",
+  // Written via `prisma.systemMetric.create`, NOT recordMetric. Added after the
+  // scan was found blind to that whole shape: without a direct-write lane in
+  // the control, the recordMetric matchers alone satisfy it and the second
+  // write path can break without anything going red.
+  "specialist.route",
+  "quality_bench.pass_rate",
+];
 const blind = MUST_SEE.filter((m) => !writers.has(m));
 if (blind.length) {
   console.error(`ABORT — the scan could not see ${blind.length} known lane(s): ${blind.join(", ")}`);
@@ -202,7 +233,13 @@ const readsMetricTable = new Map(
 console.log(`scanned ${files.length} files · ${writers.size} metric lanes written\n`);
 const orphans = [];
 for (const [metric, wfiles] of [...writers.entries()].sort()) {
-  const all = [...mentions.get(metric)].filter((r) => !wfiles.includes(r));
+  // excludeSelf BEFORE splitting: this script mentions every MUST_SEE lane and
+  // matches the reader test on its own source, so leaving it in manufactures a
+  // reader for exactly the lanes that have none.
+  const all = excludeSelf(
+    [...mentions.get(metric)].filter((r) => !wfiles.includes(r)),
+    SELF_REL,
+  );
   const dataReaders = all.filter((r) => readsMetricTable.get(r));
   const nameOnly = all.filter((r) => !readsMetricTable.get(r));
   console.log(`  ${metric}`);
