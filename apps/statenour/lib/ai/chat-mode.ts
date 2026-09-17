@@ -274,6 +274,54 @@ export async function pruneTools(
 
   const keywordMatches = new Set<string>();
   // Keyword-based tool families
+  //
+  // The patterns below are tested against the TOOL NAME, not against the
+  // user's text, and the test is UNANCHORED. A family's vocabulary therefore
+  // leaks wherever one of its keywords appears inside an unrelated longer
+  // word. Two measured specimens (2026-09-17):
+  //
+  //   /customer|people|relation|person|profile/  matches getHabitRevenueCorrelation,
+  //                                              because cor-RELATION contains "relation"
+  //   /mit|okr|target|goal|.../                  matches checkCom-MIT-ments
+  //                                              and githubRecentCom-MIT-s
+  //
+  // A TOKEN-BOUNDARY RULE IS A TRADE-OFF, NOT A FREE WIN — and not a no-op.
+  //
+  // ⚠ An earlier version of this comment said the rule was "SAFE and
+  // WORTHLESS". That was WRONG, and wrong for an instructive reason: the probe
+  // behind it treated "some other family still matches" as proof a tool stays
+  // reachable. Every family here is guarded by its OWN `if (user-text)` trigger
+  // — 53 families, 53 distinct triggers, none shared — so a surviving family
+  // only helps on the text that fires ITS trigger. Re-measured trigger-aware:
+  //
+  //   · 0 tools go fully dark
+  //   · 12 go CONDITIONALLY dark — reachable only under a different trigger —
+  //     and 4 of those are tools the model has actually chosen
+  //     (checkCommitments, githubRecentCommits, arsenalResearch,
+  //      arsenalDeepResearch)
+  //   · up to 276 of 1,877 tier-4 impressions (14.7%) would be reclaimed from
+  //     never-chosen tools
+  //
+  // So it buys real budget and costs real coverage. Whether that trade is good
+  // depends on whether those 4 tools are being chosen BECAUSE of the accidental
+  // match or in spite of it — which needs the per-turn `tool.chosen` join, and
+  // that lane has no data yet. Decide it then, not from this comment.
+  //
+  // What spends the budget: 136 of 181 catalog tools (75.1%) have never been
+  // chosen in chat, and tier 4 surfaces them correctly, from their own
+  // families. On the median turn tier 4 takes all 15 non-core slots, and 65.3%
+  // of tier-4 impressions go to never-chosen tools — while searchTools (the
+  // model's own "you missed one" signal) fires on just 6.8% of turns. The
+  // error is over-inclusion, not starvation, and the remedy is a catalog
+  // decision, not a matcher change.
+  //
+  // Sample: 192 turns / 5,227 gate decisions, to 2026-09-17. SINGLE-SOURCED on
+  // tool_telemetry: chat_messages.parts was meant to corroborate and records no
+  // tool calls at all, so none of this is confirmed by a second instrument.
+  //
+  // Re-measure with scripts/probe-family-collisions.mjs before acting on any of
+  // the above. It reads the live catalog and live telemetry, and aborts rather
+  // than reporting a number it could not compute.
   const addMatching = (pattern: RegExp) => {
     for (const name of Object.keys(allTools)) {
       if (pattern.test(name)) keywordMatches.add(name);
