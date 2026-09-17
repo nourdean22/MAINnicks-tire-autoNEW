@@ -15,7 +15,10 @@
  * description-rewrite cron's `lastErrors` evidence all read this table.
  */
 import { describe, it, expect } from "vitest";
-import { isRecordableToolName } from "@/lib/ai/tool-telemetry";
+import {
+  isRecordableToolName,
+  describeRejectedToolName,
+} from "@/lib/ai/tool-telemetry";
 import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
 
 /** Byte-for-byte the value measured in production on 2026-09-17. */
@@ -65,4 +68,82 @@ describe("isRecordableToolName", () => {
       expect(isRecordableToolName(value)).toBe(false);
     },
   );
+});
+
+/**
+ * REJECTING A PAYLOAD MUST NOT PUBLISH IT.
+ *
+ * The first cut of this guard logged `JSON.stringify(name.slice(0, 160))`.
+ * `logError` persists its `message` VERBATIM into `ErrorLog.message` and also
+ * console-logs it, while `redactSensitive` covers only the structured `extra`
+ * object — never the message. So a malformed call carrying a customer phone
+ * number, message body, search query or token would have moved that payload out
+ * of the rejected telemetry key and into the database and infra logs.
+ *
+ * Not hypothetical: the production specimen already contained real operator
+ * content (`query: "nicks tire instagram post"`). A guard that keeps junk out of
+ * one table must not pipe it into another.
+ */
+describe("describeRejectedToolName · metadata only", () => {
+  // Built by joining, not as one literal with escapes — a `\n` escape written
+  // through a shell heredoc becomes a REAL newline and breaks the file, which
+  // it already did once in this session.
+  const SENSITIVE = [
+    "sendSms({",
+    '  to: "+12165551234",',
+    '  body: "Your car is ready, Mrs. Alvarez",',
+    '  token: "sk-live-abc123"',
+    "})</arg_value>",
+  ].join("\n");
+
+  it("CANARY: no fragment of the payload appears in the description", () => {
+    const d = describeRejectedToolName(SENSITIVE);
+    const blob = JSON.stringify(d);
+    for (const secret of [
+      "2165551234",
+      "Alvarez",
+      "sk-live",
+      "Your car is ready",
+      "sendSms",
+      "arg_value",
+    ]) {
+      expect(blob, `the description leaked "${secret}"`).not.toContain(secret);
+    }
+  });
+
+  it("still says enough to act on: reason, length, type, and a stable digest", () => {
+    // POSITIVE CONTROL — a describer that returned nothing would satisfy the
+    // canary above while making the refusal unactionable.
+    const d = describeRejectedToolName(SENSITIVE);
+    expect(d.reason).toBe("contains-newline");
+    expect(d.length).toBe(SENSITIVE.length);
+    expect(d.type).toBe("string");
+    expect(d.digest).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it("the digest is STABLE for the same value and differs for another", () => {
+    // Its only job is correlating repeats, so equality both ways is the contract.
+    expect(describeRejectedToolName(SENSITIVE).digest).toBe(
+      describeRejectedToolName(SENSITIVE).digest,
+    );
+    expect(describeRejectedToolName(SENSITIVE).digest).not.toBe(
+      describeRejectedToolName(SENSITIVE + "x").digest,
+    );
+  });
+
+  it.each([
+    ["getTasks({a:1})", "contains-call-syntax"],
+    ["7tools", "bad-first-char"],
+    ["", "empty"],
+    ["a".repeat(80), "too-long"],
+    ["has space", "disallowed-characters"],
+  ])("classifies %s as %s", (value, reason) => {
+    expect(describeRejectedToolName(value).reason).toBe(reason);
+  });
+
+  it("handles a non-string without throwing or stringifying it", () => {
+    const d = describeRejectedToolName({ secret: "tok-123" } as unknown);
+    expect(d.reason).toBe("not-a-string");
+    expect(JSON.stringify(d)).not.toContain("tok-123");
+  });
 });

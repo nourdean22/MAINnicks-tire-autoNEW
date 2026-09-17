@@ -159,6 +159,56 @@ export function isRecordableToolName(name: unknown): name is string {
 }
 
 /**
+ * Describe a rejected tool name WITHOUT reproducing any of it.
+ *
+ * ⚠ THE FIRST CUT OF THIS GUARD LEAKED THE PAYLOAD IT REJECTED. It logged
+ * `JSON.stringify(name.slice(0, 160))`, and `logError` persists its `message`
+ * VERBATIM into `ErrorLog.message` and also `console.warn`s it — while
+ * `redactSensitive` covers only the structured `extra` object, never the
+ * message. So a malformed call carrying a customer phone number, message body,
+ * search query or token would have moved that payload out of the rejected
+ * telemetry key and INTO the database and the infrastructure logs. The
+ * specimen that prompted this guard already contained real operator content
+ * (`query: "nicks tire instagram post"`).
+ *
+ * A guard that keeps junk out of one table must not pipe it into another. So:
+ * length, a stable non-reversible digest for correlating repeats, and a fixed
+ * reason code. No substring of the value, ever.
+ *
+ * The digest is FNV-1a — deliberately not a crypto import on a hot path, and
+ * its only job is "is this the same bad name as last time", not secrecy.
+ */
+export function describeRejectedToolName(name: unknown): {
+  reason: string;
+  length: number;
+  digest: string;
+  type: string;
+} {
+  const type = name === null ? "null" : typeof name;
+  if (typeof name !== "string") {
+    return { reason: "not-a-string", length: 0, digest: "-", type };
+  }
+  let h = 0x811c9dc5;
+  for (let i = 0; i < name.length; i++) {
+    h ^= name.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  const reason =
+    name.length === 0
+      ? "empty"
+      : /[\n\r]/.test(name)
+        ? "contains-newline"
+        : /[(){}[\]<>]/.test(name)
+          ? "contains-call-syntax"
+          : name.length > 64
+            ? "too-long"
+            : !/^[A-Za-z]/.test(name)
+              ? "bad-first-char"
+              : "disallowed-characters";
+  return { reason, length: name.length, digest: h.toString(16).padStart(8, "0"), type };
+}
+
+/**
  * Record a single tool invocation. Merges into an aggregate row per
  * tool (one row per tool, updated per call) so we can query recent
  * success rates without scanning a massive history.
@@ -173,12 +223,15 @@ export async function recordToolInvocation(inv: ToolInvocation): Promise<void> {
   // KNOWN_INSTRUMENTS, so `buildInstrumentFailures()` can name it on /system
   // instead of leaving a silence.
   if (!isRecordableToolName(inv.toolName)) {
-    const shown = typeof inv.toolName === "string" ? inv.toolName : String(inv.toolName);
+    // METADATA ONLY — never a substring of the value. See
+    // `describeRejectedToolName`: `logError` persists its message verbatim and
+    // echoes it to the console, and redaction covers only `extra`.
+    const d = describeRejectedToolName(inv.toolName);
     logError(
       instrumentScope("tool_invocation"),
       new Error(
-        `refused a non-identifier tool name (${shown.length} chars): ` +
-          `${JSON.stringify(shown.slice(0, 160))}`,
+        `refused a non-identifier tool name [reason=${d.reason} type=${d.type} ` +
+          `len=${d.length} digest=${d.digest}]`,
       ),
       { conversationId: inv.conversationId ?? null },
       "warn",
