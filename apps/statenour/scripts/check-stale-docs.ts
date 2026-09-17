@@ -170,10 +170,44 @@ function collectMarkdown(dir: string, acc: string[]): void {
  */
 export const CURRENT_TRUTH_DRIFT_DAYS = 14;
 
-/** Whole days from `a` to `b`. Exported so the drift rule is testable without files. */
-export function daysBetween(a: string, b: string): number {
-  const ms = Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`);
-  return Math.round(ms / 86_400_000);
+/**
+ * Parse a `YYYY-MM-DD` stamp STRICTLY — shape-valid impossibilities rejected.
+ *
+ * 2026-09-17 · review (P2) caught this: `2026-13-17` satisfies the `\d{4}-\d{2}-\d{2}`
+ * regex, `Date.parse` returns NaN, and every comparison against NaN is FALSE —
+ * so a malformed stamp read as perfectly fresh and strict mode exited 0. A
+ * guard against silent rot with a silent-rot path of its own.
+ *
+ * `Date.UTC` rolls over rather than rejecting (month 13 becomes next January),
+ * so the round-trip comparison below is what actually rejects it.
+ */
+export function parseStampDate(stamp: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(stamp.trim());
+  if (!m) return null;
+  const [, y, mo, d] = m;
+  const dt = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)));
+  if (
+    dt.getUTCFullYear() !== Number(y) ||
+    dt.getUTCMonth() !== Number(mo) - 1 ||
+    dt.getUTCDate() !== Number(d)
+  ) {
+    return null;
+  }
+  return dt;
+}
+
+/**
+ * Whole days from `a` to `b`, or `null` when either stamp is not a real date.
+ *
+ * Returning null rather than NaN is the point: NaN propagates silently through
+ * every `>` comparison as false, which is how the malformed stamp read as
+ * fresh. A null forces the caller to decide, and the caller reports it.
+ */
+export function daysBetween(a: string, b: string): number | null {
+  const from = parseStampDate(a);
+  const to = parseStampDate(b);
+  if (!from || !to) return null;
+  return Math.round((to.getTime() - from.getTime()) / 86_400_000);
 }
 
 export function checkDateSynchronization(cwd: string): Finding[] {
@@ -227,7 +261,24 @@ export function checkDateSynchronization(cwd: string): Finding[] {
   // red and train people to bump the date without reading the doc, which is
   // worse than no gate.
   const truthPath = path.join(cwd, "docs/CURRENT-TRUTH.md");
-  if (reconMatch && fs.existsSync(truthPath)) {
+  if (reconMatch && !fs.existsSync(truthPath)) {
+    // 2026-09-17 · review (P2) caught this: the file's ABSENCE used to skip the
+    // whole block and return nothing, so deleting or renaming the read-first
+    // doc left CI green — and the live-document test passed too, because it
+    // filters for findings on a file that no longer exists. Absence reading as
+    // success is the exact defect this guard was written to prevent.
+    // AGENTS.md:3 links this file as "Read first", so a missing one is a broken
+    // contract, not a clean scan.
+    findings.push({
+      file: "docs/CURRENT-TRUTH.md",
+      line: 1,
+      term: "Missing read-first doc",
+      severity: "critical",
+      recommendation:
+        "Restore docs/CURRENT-TRUTH.md, or update AGENTS.md if the read-first doc genuinely moved.",
+      text: "AGENTS.md points every session at docs/CURRENT-TRUTH.md and the file does not exist.",
+    });
+  } else if (reconMatch && fs.existsSync(truthPath)) {
     const truthMatch = /Last verified(?:\*\*|\s|:)*(\d{4}-\d{2}-\d{2})/i.exec(
       fs.readFileSync(truthPath, "utf8"),
     );
@@ -242,7 +293,20 @@ export function checkDateSynchronization(cwd: string): Finding[] {
       });
     } else {
       const drift = daysBetween(truthMatch[1], reconMatch[1]);
-      if (drift > CURRENT_TRUTH_DRIFT_DAYS) {
+      if (drift === null) {
+        // A stamp that LOOKS like a date but is not one (2026-13-17). Reported
+        // rather than skipped: the old NaN path made it read as fresh forever.
+        findings.push({
+          file: "docs/CURRENT-TRUTH.md",
+          line: 1,
+          term: "Unparseable verification date",
+          severity: "critical",
+          recommendation: "Use a real calendar date in YYYY-MM-DD form.",
+          text:
+            `Could not read a real date from the stamps (CURRENT-TRUTH "${truthMatch[1]}", ` +
+            `ship log "${reconMatch[1]}"). A shape-valid impossible date is not a verification.`,
+        });
+      } else if (drift > CURRENT_TRUTH_DRIFT_DAYS) {
         findings.push({
           file: "docs/CURRENT-TRUTH.md",
           line: 1,

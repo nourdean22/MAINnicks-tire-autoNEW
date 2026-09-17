@@ -6,6 +6,7 @@ import {
   SAFE_CONTEXT_WORDS,
   checkDateSynchronization,
   daysBetween,
+  parseStampDate,
 } from "../../scripts/check-stale-docs";
 
 describe("check-stale-docs guard", () => {
@@ -203,5 +204,85 @@ describe("CURRENT-TRUTH staleness", () => {
   it("the LIVE doc is inside the budget right now", () => {
     // The gate ships green, not as a cleanup project.
     expect(truthFindings(process.cwd())).toEqual([]);
+  });
+});
+
+/**
+ * Two ways this guard used to treat ABSENCE as SUCCESS — both found by review,
+ * both the exact defect the guard exists to prevent, sitting inside the guard.
+ *
+ *   1 · A DELETED read-first doc skipped the whole check and returned nothing.
+ *       CI stayed green while `AGENTS.md:3` pointed every session at a file that
+ *       was not there — and the live-document test passed too, because it
+ *       filters for findings on a file that no longer exists.
+ *
+ *   2 · A stamp like `2026-13-17` satisfies `\d{4}-\d{2}-\d{2}`, `Date.parse`
+ *       returns NaN, and EVERY comparison against NaN is false. The document
+ *       read as perfectly fresh, forever, and strict mode exited 0.
+ *
+ * The second is the more instructive: NaN does not fail loudly, it fails as
+ * `false`, which is indistinguishable from "within budget".
+ */
+describe("CURRENT-TRUTH guard · absence must not read as success", () => {
+  const { mkdtempSync, writeFileSync: wf, mkdirSync, rmSync } = require("node:fs") as typeof import("node:fs");
+  const os = require("node:os") as typeof import("node:os");
+  const p = require("node:path") as typeof import("node:path");
+
+  function dir(truth: string | null, recon = "2026-09-17"): string {
+    const d = mkdtempSync(p.join(os.tmpdir(), "stale-absence-"));
+    mkdirSync(p.join(d, "docs"), { recursive: true });
+    wf(p.join(d, "AGENTS.md"), `**Last refreshed:** ${recon}\n`);
+    wf(p.join(d, "docs/RECONCILIATION.md"), `**Last verified:** ${recon}\n`);
+    if (truth !== null) wf(p.join(d, "docs/CURRENT-TRUTH.md"), `> Last verified **${truth}**.\n`);
+    return d;
+  }
+  const truthFindings = (d: string) =>
+    checkDateSynchronization(d).filter((f) => f.file === "docs/CURRENT-TRUTH.md");
+
+  it("parseStampDate REJECTS a shape-valid impossible date", () => {
+    expect(parseStampDate("2026-09-17")).toBeInstanceOf(Date);
+    expect(parseStampDate("2026-13-17")).toBeNull(); // month 13
+    expect(parseStampDate("2026-02-31")).toBeNull(); // Feb 31 — Date.UTC would roll over
+    expect(parseStampDate("not-a-date")).toBeNull();
+  });
+
+  it("daysBetween returns null rather than NaN, so nothing compares false by accident", () => {
+    expect(daysBetween("2026-09-02", "2026-09-17")).toBe(15);
+    expect(daysBetween("2026-13-17", "2026-09-17")).toBeNull();
+  });
+
+  it("CANARY: a MISSING read-first doc is reported, not skipped", () => {
+    const d = dir(null);
+    try {
+      const found = truthFindings(d);
+      expect(found).toHaveLength(1);
+      expect(found[0].severity).toBe("critical");
+      expect(found[0].term).toBe("Missing read-first doc");
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("CANARY: an IMPOSSIBLE date is reported, not treated as fresh", () => {
+    const d = dir("2026-13-17");
+    try {
+      const found = truthFindings(d);
+      expect(found).toHaveLength(1);
+      expect(found[0].severity).toBe("critical");
+      expect(found[0].term).toBe("Unparseable verification date");
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("POSITIVE CONTROL: a real, fresh stamp still reports nothing", () => {
+    // Both canaries above would be satisfied by a rule that fired on
+    // everything. This is what stops that.
+    const d = dir("2026-09-17");
+    try {
+      expect(truthFindings(d)).toEqual([]);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
   });
 });
