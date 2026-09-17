@@ -17,7 +17,7 @@
  * READ-ONLY against Langfuse; touches no database.
  * Usage: railway run -s statenour-web -- node apps/statenour/scripts/probe-langfuse-errors.mjs
  */
-import { assessTraceControl, assessSampleCoverage } from "./lib/error-visibility.mjs";
+import { assessTraceControl, assessSampleCoverage, countBy, traceIdentity } from "./lib/error-visibility.mjs";
 
 const PUB = process.env.LANGFUSE_PUBLIC_KEY;
 const SEC = process.env.LANGFUSE_SECRET_KEY;
@@ -99,14 +99,40 @@ async function main() {
     return;
   }
 
-  // Trace-level names, so a failing surface is identifiable.
-  const byName = new Map();
-  for (const t of list) {
-    const k = t.name ?? "(unnamed)";
-    byName.set(k, (byName.get(k) ?? 0) + 1);
+  // ── Trace identity, so a failing surface is identifiable ────────────
+  //
+  // ⚠ This section used to read `t.name ?? "(unnamed)"` and was WRONG in a way
+  // that hid its own failure: production sends the name as `""`, not null, so
+  // the nullish coalesce passed it through and printed a blank label beside a
+  // count — which reads as a name too faint to see rather than as no name at
+  // all. traceIdentity() makes emptiness explicit and reports what identity
+  // SURVIVES instead. Measured: 0/50 named, but metadata.source on every row.
+  // ⚠⚠ SCOPE THE VERDICT TO WHAT WAS ACTUALLY READ. The page is capped at 100
+  // while the window held 341-672, so `named === 0` proves nothing about the
+  // traces we never fetched — in a mixed window (tracing changed between
+  // deploys) named traces could sit entirely outside the page. Printing "NO
+  // trace carries a name" from one page is a conclusion about PAGINATION, the
+  // very rule this file's own header states and this section then broke.
+  const nameCoverage = assessSampleCoverage({ total: totalTraces, sampled: list.length });
+  const named = list.filter((t) => traceIdentity(t).named).length;
+  const scope = nameCoverage.complete
+    ? `all ${totalTraces} in window`
+    : `sample of ${list.length} of ${totalTraces}, ${nameCoverage.pct.toFixed(0)}%`;
+  console.log(`\n── trace identity (${scope}) ──`);
+  console.log(`  named: ${named}/${list.length}`);
+  if (named === 0 && list.length > 0) {
+    console.log(
+      (nameCoverage.complete
+        ? "  ⚠ NO trace in the window carries a name.\n"
+        : `  ⚠ No trace IN THIS SAMPLE carries a name (${nameCoverage.pct.toFixed(0)}% of the\n` +
+          `    window; the rest were not fetched, so this is not a claim about them).\n`) +
+        "    `functionId` names the OBSERVATION, not the trace — naming traces\n" +
+        "    needs propagateAttributes({ traceName }) from @langfuse/tracing,\n" +
+        "    which is not installed. Identity below is the fallback, and it is\n" +
+        "    what the Langfuse UI cannot filter on.",
+    );
   }
-  console.log(`\n── recent trace names (sample of ${list.length}) ──`);
-  for (const [n, c] of [...byName].sort((a, b) => b[1] - a[1]).slice(0, 12)) {
+  for (const [n, c] of countBy(list, (t) => traceIdentity(t).label).slice(0, 12)) {
     console.log(`  ${String(c).padStart(4)}x ${n}`);
   }
 

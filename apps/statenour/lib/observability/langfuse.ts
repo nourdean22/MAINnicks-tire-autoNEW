@@ -29,6 +29,17 @@
  * Deliberately NOT here (YAGNI until traces are visibly landing):
  * prompt management, score ingestion, propagateAttributes session
  * promotion. See docs/integrations/langfuse-observability.md.
+ *
+ * 2026-09-17 · THAT YAGNI CONDITION IS NOW MET — 672 traces in a 7d window.
+ * The one thing its absence costs is trace NAMING: every trace comes back with
+ * `name: ""`, so the Langfuse trace list cannot be filtered or scanned by
+ * surface and you must open a trace to read `metadata.source`. Closing it means
+ * adding `@langfuse/tracing` and wrapping each AI call in
+ * `propagateAttributes({ traceName }, cb)` — an AsyncLocalStorage frame around
+ * the hot chat path, unverifiable until deployed. Left OPEN deliberately rather
+ * than shipped on a guess: the identity is not lost, only unfilterable
+ * (userId 50/50, tags 47/50, metadata.source 50/50 — measured, see
+ * `scripts/probe-langfuse-errors.mjs`). Reopen when the UI cost bites.
  */
 
 import { logger as rootLogger } from "@/lib/logger";
@@ -107,7 +118,29 @@ export function langfuseTracingStatus(): TracingStatus {
 export type TelemetryAttribute = string | number | boolean | string[] | number[] | boolean[];
 
 export interface LangfuseTelemetryInput {
-  /** Trace name (`ai.telemetry.functionId`). kebab-case verb-noun, stable across deploys. */
+  /**
+   * OBSERVATION name prefix (`ai.telemetry.functionId`) — Langfuse renders it as
+   * `<functionId>:ai.generateText`. kebab-case verb-noun, stable across deploys.
+   *
+   * ⚠⚠ THIS IS NOT THE TRACE NAME, though this line said it was until
+   * 2026-09-17. Measured against `GET /api/public/traces` in production:
+   * **0 of 50 traces carried a name** (672 in the window) while `userId` landed
+   * 50/50, `tags` 47/50 and `metadata` on every row. The three metadata-borne
+   * channels below work; only this one was mis-documented.
+   *
+   * ★ The tell was the ASYMMETRY. Had the whole telemetry block been dead, every
+   * field would have been empty together. Three of four landing meant the block
+   * was fine and one specific mapping claim was false — the same lens
+   * ("does the code have the property its docstring claims?") that found four
+   * defects in this session's own merged work.
+   *
+   * Naming a trace needs `propagateAttributes({ traceName }, cb)` from
+   * `@langfuse/tracing`, which this app does not install — see the module
+   * header's YAGNI note, whose condition has now been met. The cost of the gap
+   * is bounded: all identity IS present in `metadata.source` / `tags`, so this
+   * is a UI-filterability gap, not a data-loss one, and
+   * `scripts/probe-langfuse-errors.mjs` groups on the fallback already.
+   */
   functionId: string;
   /** Private-mode turns are never traced: prompt + completion content stays in-process. */
   privateMode?: boolean;

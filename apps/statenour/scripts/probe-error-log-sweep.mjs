@@ -24,6 +24,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { ageBand, LIVE_HOURS, RECENT_HOURS } from "./lib/error-visibility.mjs";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -116,8 +117,20 @@ async function main() {
     console.log(`  ${String(r.lane).padEnd(38)} ${String(r.n).padStart(5)}  last ${new Date(r.last_at).toISOString()}`);
   }
 
-  // ── 1 · WHAT IS ERRORING, CLUSTERED ─────────────────────────────────
-  console.log(`\n── top fault clusters, last ${DAYS}d (grouped by message prefix) ──`);
+  // ── 1 · WHAT IS ERRORING, CLUSTERED — LIVE FIRST ────────────────────
+  //
+  // ⚠⚠ THIS ORDERED BY `n DESC` AND THAT INVERTED THE PRIORITY LIST. Over 30d
+  // it put a ONE-DAY database outage from a month ago (1091 + 924 + 291 + 34 +
+  // 13, all sharing last_at 2026-08-20T08:38) in the top three, while the only
+  // still-arriving fault — ai.judge-eval api_timeout, 81 — ranked sixth and
+  // read as minor. It was the largest LIVE fault in the system. See ageBand().
+  //
+  // ★ THE RE-RANK MUST HAPPEN IN SQL, BEFORE THE LIMIT. Sorting in JS after
+  // `LIMIT 20` only reorders a sample that was already selected by volume — a
+  // live cluster sitting at rank 25 by count would never be fetched at all.
+  // Same shape as the Langfuse pagination trap: you cannot re-rank your way out
+  // of a biased draw.
+  console.log(`\n── top fault clusters, last ${DAYS}d · LIVE first, then volume ──`);
   const clusters = await prisma.$queryRawUnsafe(
     `SELECT left(message, 90) AS shape,
             level::text AS level,
@@ -132,13 +145,34 @@ async function main() {
             ) AS surface
        FROM error_logs
       WHERE created_at > now() - make_interval(days => $1::int)
-      GROUP BY 1, 2 ORDER BY n DESC LIMIT 20`,
+      GROUP BY 1, 2
+      ORDER BY CASE
+                 WHEN max(created_at) > now() - make_interval(hours => $2::int) THEN 0
+                 WHEN max(created_at) > now() - make_interval(hours => $3::int) THEN 1
+                 ELSE 2
+               END,
+               n DESC
+      LIMIT 20`,
     DAYS,
+    LIVE_HOURS,
+    RECENT_HOURS,
   );
   if (clusters.length === 0) console.log("  (no rows in window)");
   for (const c of clusters) {
+    const age = ageBand(c.last_at);
     console.log(
-      `  ${String(c.n).padStart(5)}x [${c.level}] ${new Date(c.last_at).toISOString().slice(5, 16)} ${c.surface}\n         ${String(c.shape).replace(/\s+/g, " ")}`,
+      `  ${age.label} ${String(c.n).padStart(5)}x [${c.level}] ${new Date(c.last_at).toISOString().slice(5, 16)} ${c.surface}\n         ${String(c.shape).replace(/\s+/g, " ")}`,
+    );
+  }
+  // A shared last_at across UNRELATED surfaces is one incident, not many bugs —
+  // say so, because the grouped view makes it look like a broad failure.
+  const staleClusters = clusters.filter((c) => ageBand(c.last_at).band === "stale");
+  const staleStamps = new Set(staleClusters.map((c) => new Date(c.last_at).toISOString().slice(0, 16)));
+  if (staleClusters.length >= 3 && staleStamps.size <= 2) {
+    console.log(
+      `\n  ⚠ ${staleClusters.length} stale clusters share ${staleStamps.size} timestamp(s) ` +
+        `(${[...staleStamps].join(", ")}) — that is ONE incident fragmented across\n` +
+        `    message shapes, not ${staleClusters.length} separate bugs. Do not work it as a backlog.`,
     );
   }
 
