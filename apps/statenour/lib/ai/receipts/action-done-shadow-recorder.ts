@@ -24,6 +24,8 @@
 
 import type { ActionDoneShadowVerdict } from "@/lib/ai/chat/action-result-verifier";
 import type { MetricWriteReceipt } from "@/lib/services/metrics";
+// Prisma-free helper module on purpose — see instrument-scope.ts.
+import { instrumentScope } from "@/lib/observability/instrument-scope";
 
 export const ACTION_DONE_SHADOW_METRIC = "action.done.shadow";
 
@@ -131,7 +133,18 @@ export async function recordActionDoneShadow(
     // NOT a silent catch. #2359's `catch { return null }` made a query that
     // could never succeed indistinguishable from an empty dataset for three
     // weeks. A broken instrument must say so rather than read as "no gaps".
-    deps.logError?.("chat.action-done-shadow", err, { stage: "record-shadow", traceId: ctx.traceId });
+    // MUST be the shared instrument scope, not a bespoke string. This logged
+    // under "chat.action-done-shadow", which `buildInstrumentFailures()` cannot
+    // match — while `KNOWN_INSTRUMENTS` listed "action.done.shadow" as covered.
+    // The reader would therefore have reported this instrument in
+    // `instrumentsWithNoFailures` forever, including while it was broken: a
+    // claim of coverage the wiring did not have, in the very module written to
+    // detect exactly that. Found by self-review, guarded by
+    // `tests/lib/observability/instrument-failures.test.ts`.
+    deps.logError?.(instrumentScope(ACTION_DONE_SHADOW_METRIC), err, {
+      stage: "record-shadow",
+      traceId: ctx.traceId,
+    });
     return "failed";
   }
 }

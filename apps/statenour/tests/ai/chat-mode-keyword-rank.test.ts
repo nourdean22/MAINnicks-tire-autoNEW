@@ -65,6 +65,30 @@ let cacheWarm = true;
 /** Deliberately INVERTED against the alphabet: the best tools sort last. */
 let SCORES: Record<string, number> = {};
 
+/**
+ * Every tool the business keyword family matches, scored.
+ *
+ * Ranking requires COMPLETE coverage — a single unscored candidate falls the
+ * turn back to alphabetical, so a partially-scored fixture would exercise the
+ * fallback while appearing to test the ranking. Ordered so the three
+ * alphabetically-LAST tools are the three most relevant, which is the inversion
+ * the production defect could not express.
+ */
+const FULL_BUSINESS_SCORES: Record<string, number> = {
+  triageStaleLead: 0.95,
+  stageCustomerAlert: 0.92,
+  queryNickstire: 0.9,
+  arsenalFindLeads: 0.05,
+  compareLiveRevenue: 0.04,
+  createQuickQuote: 0.03,
+  findCustomer: 0.02,
+  getEstimateLeaks: 0.02,
+  getHabitRevenueCorrelation: 0.01,
+  getPendingRevenueMoves: 0.01,
+  getRevenueStats: 0.01,
+  getShopSnapshot: 0.01,
+};
+
 const EMBEDDING = [0.1, 0.2, 0.3];
 
 function allTools(): Record<string, unknown> {
@@ -94,7 +118,15 @@ describe("orderKeywordCandidates · the pure ordering policy", () => {
   it("POSITIVE CONTROL: the function is capable of reordering at all", () => {
     // Without this, every assertion below could pass against a function that
     // returns its input untouched.
-    const out = orderKeywordCandidates(NAMES, new Map([["zulu", 0.9], ["alpha", 0.1]]));
+    //
+    // Scores EVERY name deliberately: ranking requires complete coverage, so a
+    // partial map here would fall back to alphabetical and this control would
+    // fail for the wrong reason — which is exactly what it did when the
+    // coverage guard was added.
+    const out = orderKeywordCandidates(
+      NAMES,
+      new Map([["zulu", 0.9], ["charlie", 0.5], ["bravo", 0.3], ["alpha", 0.1]]),
+    );
     expect(out).not.toEqual([...NAMES].sort());
     expect(out[0]).toBe("zulu");
   });
@@ -116,12 +148,39 @@ describe("orderKeywordCandidates · the pure ordering policy", () => {
     expect(out).toEqual(["bravo", "zulu", "charlie", "alpha"]);
   });
 
-  it("sorts UNSCORED names last, alphabetically among themselves", () => {
-    // A tool missing from the cache is unmeasured, not dissimilar. It must not
-    // outrank a tool with a real (even weak) score, and the order among
-    // unmeasured tools must stay deterministic.
-    const out = orderKeywordCandidates(["zulu", "alpha", "mike"], new Map([["zulu", 0.01]]));
-    expect(out).toEqual(["zulu", "alpha", "mike"]);
+  it("PARTIAL COVERAGE disables ranking entirely — it does not sink the unscored tool", () => {
+    // Found by self-review AFTER this shipped, and it is the defect this whole
+    // function exists to remove, wearing a quieter costume.
+    //
+    // The caller gates on `isToolEmbeddingCacheWarm()`, which is NOT a coverage
+    // guarantee: `warmToolEmbeddings` catches a per-tool embedding failure,
+    // logs it, SKIPS that tool ("keyword fallback will cover it") and still
+    // sets `warmComplete = true`. So a warm cache can omit individual tools.
+    // Under a score-descending order those tools sort BELOW every scored one —
+    // demoting a tool for failing to EMBED, exactly as the old code demoted one
+    // for its SPELLING.
+    //
+    // All candidates or none: `alpha` and `mike` are unscored, so the whole
+    // turn falls back to alphabetical rather than ranking `zulu` to the top.
+    const out = orderKeywordCandidates(["zulu", "alpha", "mike"], new Map([["zulu", 0.99]]));
+    expect(out).toEqual(["alpha", "mike", "zulu"]);
+  });
+
+  it("ranks when coverage is COMPLETE, including a weak score", () => {
+    // The other side of the guard: full coverage still ranks, and a genuinely
+    // weak score is a measurement, not an absence — it stays ranked, not demoted.
+    const out = orderKeywordCandidates(
+      ["zulu", "alpha", "mike"],
+      new Map([["zulu", 0.01], ["alpha", 0.9], ["mike", 0.5]]),
+    );
+    expect(out).toEqual(["alpha", "mike", "zulu"]);
+  });
+
+  it("the unscored-last tiebreak stays deterministic for any caller that bypasses the guard", () => {
+    // Unreachable through orderKeywordCandidates' own coverage check, kept as
+    // defence in depth. Asserted directly so it cannot rot into nondeterminism.
+    const out = orderKeywordCandidates(["zulu", "alpha"], new Map([["zulu", 0.5], ["alpha", 0.5]]));
+    expect(out).toEqual(["alpha", "zulu"]);
   });
 
   it("breaks score ties alphabetically — output must be deterministic", () => {
@@ -157,14 +216,11 @@ describe("pruneTools · relevance survives the budget cliff", () => {
 
   it("THE FIX: a high-scoring late-alphabet tool survives; a low-scoring early one is cut", async () => {
     process.env.NICK_TOOL_BUDGET = TIGHT_BUDGET;
-    SCORES = {
-      triageStaleLead: 0.95,
-      stageCustomerAlert: 0.92,
-      queryNickstire: 0.9,
-      arsenalFindLeads: 0.05,
-      compareLiveRevenue: 0.04,
-      createQuickQuote: 0.03,
-    };
+    // FULL coverage of the family. Ranking requires every candidate to be
+    // scored — a partial map falls back to alphabetical by design, so a
+    // half-scored fixture would silently test the fallback and still look green
+    // for the wrong reason.
+    SCORES = { ...FULL_BUSINESS_SCORES };
     const names = await offered(PROMPT, EMBEDDING);
 
     expect(names, "the three most relevant tools must survive truncation").toEqual(
@@ -202,20 +258,7 @@ describe("pruneTools · relevance survives the budget cliff", () => {
     // Score the whole family, not just two members. With a partial score map
     // the UNSCORED tools sort last by design, so a weakly-scored tool still
     // wins a slot — correct behaviour, but it would not exercise a cut here.
-    SCORES = {
-      triageStaleLead: 0.95,
-      stageCustomerAlert: 0.92,
-      queryNickstire: 0.9,
-      arsenalFindLeads: 0.05,
-      compareLiveRevenue: 0.04,
-      createQuickQuote: 0.03,
-      findCustomer: 0.02,
-      getEstimateLeaks: 0.02,
-      getHabitRevenueCorrelation: 0.01,
-      getPendingRevenueMoves: 0.01,
-      getRevenueStats: 0.01,
-      getShopSnapshot: 0.01,
-    };
+    SCORES = { ...FULL_BUSINESS_SCORES };
     await pruneTools("standard" as never, allTools(), PROMPT, EMBEDDING, {
       turnId: "t-rank-1",
     } as never);

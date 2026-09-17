@@ -87,12 +87,26 @@ export type { ChatMode };
  * down to the last tool. No tool becomes reachable that was not already
  * matched by a keyword family, so this cannot widen authority.
  *
- * Ranking applies only when `scores` covers the candidates (a warm cache),
- * so every candidate is comparable. Cold cache falls back to alphabetical:
- * partial scores would sort the measured against the unmeasured, which is a
- * different and worse policy than the one being replaced. Unscored names sort
- * last, alphabetically among themselves — the tie-break keeps the output
- * deterministic, which the tests depend on.
+ * Ranking applies only when `scores` COVERS EVERY CANDIDATE, so all of them are
+ * comparable. Otherwise this falls back to alphabetical, because partial scores
+ * sort the measured against the unmeasured — a different and worse policy than
+ * the one being replaced.
+ *
+ * ⚠ THE COVERAGE CHECK IS DONE HERE, NOT INFERRED FROM CACHE WARMTH. The
+ * caller gates on `isToolEmbeddingCacheWarm()`, and that is NOT the same claim:
+ * `warmToolEmbeddings` catches a per-tool embedding failure, logs it, SKIPS
+ * that tool — "keyword fallback will cover it" — and still sets
+ * `warmComplete = true` afterwards. So a warm cache can be missing individual
+ * tools, and under a score-descending order an unscored tool sorts below every
+ * scored one. That would silently demote a tool for failing to EMBED, which is
+ * the same shape as demoting one for its SPELLING — the defect this function
+ * exists to remove, in a quieter costume. Found by self-review after shipping;
+ * the earlier version of this paragraph claimed the coverage guarantee that the
+ * code did not actually have.
+ *
+ * The unscored-last tiebreak below is kept as defence in depth: it is now
+ * unreachable through the coverage guard, and must stay deterministic if some
+ * future caller bypasses it.
  */
 export function orderKeywordCandidates(
   names: Iterable<string>,
@@ -100,6 +114,9 @@ export function orderKeywordCandidates(
 ): string[] {
   const alphabetical = Array.from(names).sort();
   if (!scores || scores.size === 0) return alphabetical;
+  // Every candidate, or none. A single unscored tool disables ranking for this
+  // turn rather than quietly sinking that one tool to the bottom.
+  if (alphabetical.some((n) => !scores.has(n))) return alphabetical;
   return alphabetical.sort((a, b) => {
     const sa = scores.get(a);
     const sb = scores.get(b);

@@ -140,7 +140,14 @@ describe("action-done shadow recorder", () => {
     expect(out).toBe("failed");
     // The whole point: silence here would be indistinguishable from a clean run.
     expect(d.logError).toHaveBeenCalledTimes(1);
-    expect(String(d.logError.mock.calls[0][0])).toContain("action-done-shadow");
+    // The scope must be the SHARED instrument channel, not a bespoke string.
+    // This asserted only that it contained "action-done-shadow", which the old
+    // scope "chat.action-done-shadow" satisfied — while
+    // `buildInstrumentFailures()` could not match it and `KNOWN_INSTRUMENTS`
+    // listed this instrument as covered. The reader would have called it
+    // healthy forever. Assert the exact channel, so the roster cannot drift
+    // away from the producer again.
+    expect(String(d.logError.mock.calls[0][0])).toBe("instrument.action.done.shadow");
   });
 
   it("never throws into the turn — a shadow must not be able to break chat", async () => {
