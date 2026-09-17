@@ -222,11 +222,37 @@ export function computeCompositeScore(rubric: JudgeRubric): number {
  * rate-limit, network) up to 1 time. Returns null on failure · caller
  * should treat eval as best-effort and never block on it.
  */
-export const judgeReply = withGuardian("judge-eval", _judgeReply, {
-  timeoutMs: 8_000,
+/**
+ * ⚠ THE TIMEOUT WAS SET BELOW THE MEDIAN LATENCY.
+ *
+ * It was 8_000 — an override BELOW the guardian's own 30s default, evidently
+ * assuming this call is quick. Measured over 7 days of production
+ * `.doGenerate` spans (n=26): **p50 = 12.1s**, p90 = 25.1s, p95 = 30.0s,
+ * p99 = 40.9s.
+ *
+ * So more than HALF of all attempts exceeded the budget by construction, and
+ * with `maxRetries: 1` both attempts usually blew it — which is the
+ * `[guardian:judge-eval] api_timeout after 2 attempt(s)` cluster, 20 hard
+ * failures in 7d and the single largest fault group in `error_logs`. Each one
+ * costs the turn its reply score, and a missing score reads downstream as
+ * "not judged" rather than "judging failed".
+ *
+ * 35s sits above the measured p95 and below `PROVIDER_TIMEOUT` (45s in
+ * provider.ts), so the provider's own timeout stays the outer bound rather
+ * than being shadowed by this one. Nothing user-facing waits on it:
+ * `judgeReplyAsync` is fire-and-forget post-stream telemetry.
+ *
+ * Exported so `tests/ai/judge-eval-timeout.test.ts` can assert the budget
+ * still clears the measured p95 — a number in a comment is not a guard.
+ */
+export const JUDGE_MEASURED_P95_MS = 30_000;
+export const JUDGE_GUARDIAN_OPTS = {
+  timeoutMs: 35_000,
   maxRetries: 1,
   reliabilityOnly: true, // internal post-stream telemetry sub-op (was a stale registry entry)
-});
+} as const;
+
+export const judgeReply = withGuardian("judge-eval", _judgeReply, JUDGE_GUARDIAN_OPTS);
 
 /**
  * Fire-and-forget · runs the eval async + persists score to a brain
