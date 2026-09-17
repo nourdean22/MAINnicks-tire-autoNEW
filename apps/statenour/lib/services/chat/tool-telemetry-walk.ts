@@ -241,6 +241,7 @@ function buildChosenToolsWrite(
   traceId: string | undefined,
   convId: string | undefined,
   observation: ChosenObservation,
+  lane: string,
 ): MetricWrite {
   // Distinct names, so the value is directly comparable with `tool.surfaced`
   // (which counts distinct offered names). Raw invocation count rides along as
@@ -272,6 +273,25 @@ function buildChosenToolsWrite(
       observed: observation.observed,
       /** Where the names came from: the SDK step walk, or a lane's buffer. */
       source: observation.source,
+      /**
+       * WHICH LANE HANDLED THIS TURN — the gap that made the catalog-vs-routing
+       * question unanswerable.
+       *
+       * `alternate-paths.ts` routes to one of several mutually exclusive lanes
+       * or falls through to the tool-capable streaming path, and NOTHING
+       * recorded which one ran. So "could this turn have called a tool at all?"
+       * could not be answered from the database, and a session (me) tried to
+       * infer it from the `mode` tag instead — which is the BUDGET mode and
+       * gates nothing. That inference was published and had to be retracted.
+       *
+       * ⚠ `"streaming"` is the DEFAULT, not a measurement: it means no lane
+       * declared itself, which is what the normal streamText fallthrough does.
+       * A future lane that forgets to declare will therefore read as streaming.
+       * `tests/chat/chosen-lane-tag.test.ts` asserts the tag VARIES with input,
+       * so a constant — the failure mode that would quietly restore the gap —
+       * turns the suite red.
+       */
+      lane,
     },
     logContext: { traceId: traceId ?? null },
   };
@@ -335,8 +355,17 @@ export function walkToolTelemetry(args: {
   laneToolNames?: ReadonlyArray<string>;
   /** The lane's own receipt-visibility flag — see `classifyChosenObservation`. */
   laneReceiptsAvailable?: boolean;
+  /**
+   * WHICH lane handled the turn. Omitted means the streaming fallthrough,
+   * which is the only path that does not go through `alternate-paths.ts`.
+   *
+   * ⚠ This is an identity, NOT a capability claim. Whether that lane could call
+   * a tool is a property of the lane, read from the code — do not re-derive it
+   * from a tag, which is the mistake that produced a retracted finding.
+   */
+  lane?: string;
 }): CapturedToolCall[] {
-  const { ev, convId, traceId, laneToolNames, laneReceiptsAvailable } = args;
+  const { ev, convId, traceId, laneToolNames, laneReceiptsAvailable, lane } = args;
   // Captured BEFORE the walk: `normalizeAiSdkToolObservations` returns [] both
   // for "steps present, no tools ran" and for "no steps at all", so the
   // presence of the field is the only thing that tells them apart.
@@ -441,7 +470,7 @@ export function walkToolTelemetry(args: {
   });
   emitMetricWrites([
     ...(integrity ? [integrity] : []),
-    buildChosenToolsWrite(capturedToolCalls, traceId, convId, observation),
+    buildChosenToolsWrite(capturedToolCalls, traceId, convId, observation, lane ?? "streaming"),
   ]);
 
   return capturedToolCalls;
