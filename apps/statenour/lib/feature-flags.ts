@@ -198,6 +198,17 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
       "OFF: the two recall lanes render separately as today (memory-recall hybrid block + contextual pipeline block); recall_lane_overlap is logged per turn.",
     ownerDoc: "docs/research/2026-09-08-statenour-brain-intelligence-upgrade-plan.md",
   },
+  {
+    key: "NICK_CORRECTION_THRESHOLD_BOOST",
+    description:
+      "Premise-check wiring (2026-09-17): lib/brain/query-plan.ts already classifies a turn as `correction` (\"what changed\", \"which is current\", \"still true\", \"no longer\") but nothing consumed that classification — a dark wire, same shape `exactTerms` had until 2026-09-15. When on, a correction-classified turn lowers findRelevantContradictions' surfacing bar from 0.7 to 0.6: the user already signalled they are checking a premise, so a marginal contradiction hit is worth showing instead of requiring the same bar as an unprompted mid-conversation nudge. Off until measured against real correction-shaped turns — the 0.6 choice is a conservative starting guess, not calibrated. Set NICK_CORRECTION_THRESHOLD_BOOST=1 to enable.",
+    status: "experimental",
+    onValue: "true",
+    defaultOn: false,
+    defaultBehavior:
+      "OFF: findRelevantContradictions always uses its 0.7 SIMILARITY_THRESHOLD regardless of query-plan classification, exactly as before this flag existed.",
+    ownerDoc: "lib/brain/contradiction-injector.ts",
+  },
   // ── Memory-write gateway kill-switches (registered 2026-08-19) ────
   // Both were LIVE-by-default via raw `process.env.X !== "0"` reads in
   // memory-manager.ts and appeared NOWHERE on the flag board — the two

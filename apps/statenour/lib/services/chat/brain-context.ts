@@ -170,6 +170,7 @@ export async function buildBrainContext(
   let evidencePack: { candidates: number; items: number } | undefined;
   let contextReceipt: ContextReceipt | undefined;
   const arbiterOn = getFlag("NICK_RECALL_ARBITER")?.isOn ?? false;
+  const correctionBoostOn = getFlag("NICK_CORRECTION_THRESHOLD_BOOST")?.isOn ?? false;
   // Wave 3 · deterministic query plan: no LLM, the original query is always a lane; asOf below.
   const queryPlan = planQuery(userContent, { recentTurns: (messages as Array<{ content?: unknown }>).slice(-4).map((m) => (typeof m?.content === "string" ? m.content : "")).filter(Boolean) });
   let detectedContradictions: any[] = [];
@@ -394,8 +395,26 @@ export async function buildBrainContext(
             TRUTH_GROUNDING_UNAVAILABLE,
           )
         : Promise.resolve(null),
+      // 2026-09-17 · queryPlan.classes' "correction" class was computed and
+      // classified every turn but consumed by nothing (same dark-wire shape
+      // exactTerms had until 2026-09-15). NICK_CORRECTION_THRESHOLD_BOOST
+      // wires it into the ALREADY-LIVE contradiction injector rather than
+      // building a new premise-check mechanism: a turn asking "what
+      // changed" / "which is current" lowers the surfacing bar for THIS
+      // call only (contradiction-injector.ts stays free of query-plan
+      // knowledge — it just accepts an optional threshold override).
       contradictionInjectorMod
-        ? withTimeout(contradictionInjectorMod.findRelevantContradictions({ userMessage: userContent, conversationId: convId }), 3000, null)
+        ? withTimeout(
+            contradictionInjectorMod.findRelevantContradictions({
+              userMessage: userContent,
+              conversationId: convId,
+              ...(correctionBoostOn && queryPlan.classes.includes("correction")
+                ? { similarityThreshold: 0.6 }
+                : {}),
+            }),
+            3000,
+            null,
+          )
         : Promise.resolve(null),
       strategicFrameworksMod
         ? Promise.resolve(strategicFrameworksMod.composeStrategicLensBlock(userContent))

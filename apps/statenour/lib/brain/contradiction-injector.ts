@@ -64,6 +64,14 @@ export interface RelevantContradiction {
 interface InjectionContext {
   userMessage: string;
   conversationId?: string | null;
+  /**
+   * Overrides SIMILARITY_THRESHOLD for this call only. Caller-supplied so
+   * this module stays free of query-plan knowledge (mirrors
+   * retrieval-arbiter.ts's injected-function pattern) — see
+   * NICK_CORRECTION_THRESHOLD_BOOST in lib/feature-flags.ts for the one
+   * caller that sets it today.
+   */
+  similarityThreshold?: number;
 }
 
 /**
@@ -86,6 +94,7 @@ export async function findRelevantContradictions(
 ): Promise<RelevantContradiction | null> {
   const { userMessage, conversationId } = ctx;
   if (!userMessage || userMessage.length < 8) return null;
+  const threshold = Number.isFinite(ctx.similarityThreshold) ? (ctx.similarityThreshold as number) : SIMILARITY_THRESHOLD;
 
   try {
     const since = new Date(Date.now() - LOOKBACK_DAYS * 86400_000);
@@ -155,7 +164,7 @@ export async function findRelevantContradictions(
       const vec = await getEmbedding(text).catch((): number[] => []);
       if (vec.length === 0) continue;
       const sim = cosineSimilarity(userVec, vec);
-      if (sim < SIMILARITY_THRESHOLD) continue;
+      if (sim < threshold) continue;
       if (!best || sim > best.sim) {
         best = { ...c, sim };
       }
