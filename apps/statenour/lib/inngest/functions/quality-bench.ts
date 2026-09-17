@@ -22,9 +22,33 @@ import { prisma } from "@/lib/prisma";
 import { recordCoachEvent } from "@/lib/services/coach-events";
 import { sendTelegram, formatTelegramNotification } from "@/lib/services/telegram";
 import { logger as rootLogger } from "@/lib/logger";
-import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("inngest/quality-bench");
+
+/**
+ * What a bench run means, as three distinct states rather than two.
+ *
+ * ★ THE MISSING THIRD STATE WAS THE BUG. The original code branched on "should
+ * I alert?" and let everything else mean OK, so a suite failing 4 of 8 every
+ * week — never newly worse, therefore never alert-worthy — logged `bench_ok`.
+ * Naming `unresolved` separately is what stops a chronic failure from being
+ * reported as a healthy run.
+ *
+ * Pure and exported so the distinction is testable without executing a live
+ * benchmark against real model providers.
+ */
+export type BenchOutcome = "alert" | "unresolved" | "ok";
+
+export function classifyBenchOutcome(a: {
+  failed: number;
+  passRate: number;
+  prevRate: number | null;
+}): BenchOutcome {
+  const regressed = a.prevRate != null && a.passRate < a.prevRate;
+  if (a.failed > 0 && (regressed || a.prevRate == null)) return "alert";
+  if (a.failed > 0) return "unresolved";
+  return "ok";
+}
 
 const inngest = getInngest();
 
@@ -39,12 +63,12 @@ export const qualityBenchWeekly = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
-    await step.run("self-row", async () => {
-      await prisma.cronJobLog
-        .create({ data: { jobName: "quality-bench-weekly", status: "success" } })
-        .catch((e) => logError("inngest.quality-bench", e, { stage: "self-row" }, "warn"));
-      return true;
-    });
+    // ⚠⚠ 2026-09-17 — a `status: "success"` row used to be written HERE, before
+    // the benchmark ran. A weekly quality benchmark that records success before
+    // measuring anything is a false reassurance with a schedule attached: the
+    // run could crash mid-suite and `cron_job_log` would still show a clean
+    // weekly green. lib/inngest/cron-lifecycle.ts now writes `started` via the
+    // client middleware and settles it only on the handler's real outcome.
 
     // One step for the whole bench: the gold set is small (~8 prompts) and a
     // per-prompt step would checkpoint model outputs into Inngest state for no
@@ -83,7 +107,12 @@ export const qualityBenchWeekly = inngest.createFunction(
     });
 
     const regressed = baseline.prevRate != null && baseline.passRate < baseline.prevRate;
-    if (summary.failed > 0 && (regressed || baseline.prevRate == null)) {
+    const outcome = classifyBenchOutcome({
+      failed: summary.failed,
+      passRate: baseline.passRate,
+      prevRate: baseline.prevRate,
+    });
+    if (outcome === "alert") {
       const title = `Quality bench: ${summary.failed}/${summary.total} failing${regressed ? " (REGRESSION)" : ""}`;
       const body = `Pass rate ${(baseline.passRate * 100).toFixed(0)}%${
         baseline.prevRate != null ? ` (was ${(baseline.prevRate * 100).toFixed(0)}%)` : " (first measured run)"
@@ -103,6 +132,27 @@ export const qualityBenchWeekly = inngest.createFunction(
         return true;
       });
       log.warn("bench_failing", { failed: summary.failed, regressed });
+    } else if (outcome === "unresolved") {
+      // ★★★ THIS BRANCH USED TO FALL THROUGH TO `bench_ok`.
+      //
+      // The alert above only fires when the bench got WORSE (or on the very
+      // first run). A suite sitting at a steady 4/8 failing, week after week,
+      // satisfies neither condition — not a regression, not a first run — so it
+      // landed in the else and logged `bench_ok` with a passed/total pair that
+      // read as healthy at a glance.
+      //
+      // ⚠ An aggregate that stops getting worse is not an aggregate that is
+      // fine. Tying visibility to the DELTA means a failure becomes invisible
+      // exactly when it becomes chronic, which is the point at which someone
+      // most needs to see it. `bench_ok` now means what its name says, and a
+      // standing failure keeps saying so every week until it is fixed.
+      log.warn("bench_failing_unchanged", {
+        failed: summary.failed,
+        total: summary.total,
+        failedIds: summary.failedIds,
+        passRate: baseline.passRate,
+        note: "not a new regression, still unresolved - deliberately not silent",
+      });
     } else {
       log.info("bench_ok", { passed: summary.passed, total: summary.total });
     }

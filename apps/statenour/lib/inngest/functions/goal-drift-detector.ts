@@ -22,7 +22,6 @@ import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
 import { recordCoachEvent, ackCoachEvent, buildCoachEventKey } from "@/lib/services/coach-events";
-import { recordSelfRow } from "../self-row";
 import {
   classifyDrift,
   type DriftVerdict,
@@ -171,7 +170,6 @@ export const goalDriftDetector = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
-    await recordSelfRow(step, "goal-drift-detector");
     const { flagged, recovered } = await step.run("scan-drift", () => scanForDrift());
     await step.run("persist-flags", () => persistFlags(flagged));
     await step.run("ack-recovered", () => ackRecovered(recovered));

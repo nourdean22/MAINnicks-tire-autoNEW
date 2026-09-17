@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { executeApprovedToolAsync } from "@/lib/tools/guardian";
 import { logger } from "@/lib/logger";
 import { onInngestFailure } from "../on-failure";
-import { recordSelfRow } from "../self-row";
 
 const log = logger.withSurface("inngest/approval-sweeper");
 
@@ -29,7 +28,6 @@ export const approvalSweeper = getInngest().createFunction(
     // five-minute sweeper stayed invisible. Review caught it.
     // ★ A detector that shares an assumption with the thing it checks cannot
     //   catch that assumption being wrong; it just produces a confident green.
-    await recordSelfRow(step, "approval-sweeper");
 
     const staleTime = new Date(Date.now() - 5 * 60 * 1000); // 5 min
     const now = new Date();

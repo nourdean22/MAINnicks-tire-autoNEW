@@ -2,7 +2,6 @@ import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { fireSlotForCurrentHour, checkAndNudgeApprovals, fireDueReminders } from "@/lib/brain/proactive-pushes";
 import { logger as rootLogger } from "@/lib/logger";
-import { recordSelfRow } from "../self-row";
 
 const log = rootLogger.withSurface("inngest/proactive-push");
 const inngest = getInngest();
@@ -16,7 +15,6 @@ export const proactivePushCron = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
-    await recordSelfRow(step, "proactive-push-cron");
     const pushResult = await step.run("fire-push", async () => {
       return await fireSlotForCurrentHour();
     });

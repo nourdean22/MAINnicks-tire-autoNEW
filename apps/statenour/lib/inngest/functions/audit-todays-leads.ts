@@ -1,7 +1,6 @@
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
-import { recordSelfRow } from "../self-row";
 
 const log = rootLogger.withSurface("inngest/audit-todays-leads");
 const inngest = getInngest();
@@ -17,7 +16,6 @@ export async function auditTodaysLeadsHandler({ step }: { step: any }) {
     // whose handler is a NAMED export rather than an inline arrow, so the
     // insertion pass could not see it. It would have stayed invisible while
     // every sibling gained a row — the silent-minority shape.
-    await recordSelfRow(step, "audit-todays-leads");
 
     // Step 1: Fetch active leads from nickstire.org via cross-app client
     const leads = await step.run("get-active-leads", async () => {

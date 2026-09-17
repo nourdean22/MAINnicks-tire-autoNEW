@@ -21,7 +21,6 @@
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
-import { recordSelfRow } from "../self-row";
 
 const log = rootLogger.withSurface("inngest/journal-convergence");
 const inngest = getInngest();
@@ -35,7 +34,6 @@ export const journalConvergenceScan = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
-    await recordSelfRow(step, "journal-convergence-scan");
     const result = await step.run("scan-convergence", async () => {
       const { runConvergenceScan } = await import(
         "@/lib/services/journal-convergence"
@@ -57,7 +55,6 @@ export const journalThreadDormancy = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
-    await recordSelfRow(step, "journal-thread-dormancy");
     const result = await step.run("dormancy-scan", async () => {
       const { dormancyScan } = await import(
         "@/lib/services/journal-threads"

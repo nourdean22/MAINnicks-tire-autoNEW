@@ -34,7 +34,6 @@ import { logger as rootLogger } from "@/lib/logger";
 // Type-only import keeps the heavy module out of the cold path · the
 // runtime values are still dynamic-imported below.
 import type { CustomerDetailInput } from "@/lib/brain/customer-preferences";
-import { recordSelfRow } from "../self-row";
 
 const log = rootLogger.withSurface("inngest/customer-preferences");
 const inngest = getInngest();
@@ -149,7 +148,6 @@ export const customerPreferencesRecompute = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
-    await recordSelfRow(step, "customer-preferences-recompute");
     const { ids, source } = await step.run("fetch-active-customer-ids", () =>
       getActiveCustomerIds(),
     );

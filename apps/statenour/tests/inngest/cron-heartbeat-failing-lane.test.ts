@@ -200,17 +200,32 @@ describe("cron-heartbeat · the failing lane is actually wired to the alert", ()
     expect(src, "the body must be composed from both lines").toContain("${silentLine}${failingLine}");
   });
 
-  it("the outcome query excludes failed WITHOUT narrowing to success", () => {
-    expect(src).toContain('status: { not: "failed" }');
-    // Scope the negative assertion to the QUERY block only. The file legitimately
-    // contains `status: "success"` elsewhere — the watchdog writes its own
-    // proof-of-invocation row with that literal — and a whole-file check flags
-    // that write, failing for a reason unrelated to what is under test.
+  it("the outcome query accepts partial but NOT started", async () => {
+    // ⚠ THIS ASSERTION USED TO READ `expect(src).toContain('status: { not: "failed" }')`.
+    // The invariant it protected is unchanged and still asserted below: an
+    // equals-"success" filter false-pages every job that legitimately reports
+    // `partial`. What changed on 2026-09-17 is that the literal stopped being a
+    // safe way to express it.
+    //
+    // ★ A NEGATIVE PREDICATE SILENTLY ADMITS EVERY STATUS INVENTED AFTER IT.
+    // When `started` — proof-of-invocation, outcome not yet known — was added,
+    // `not: "failed"` began counting a cron that fired and crashed as HEALTHY,
+    // without anyone editing this query. So the test now pins the positive list
+    // that replaced it, which cannot be widened by someone else's new status.
+    const { TERMINAL_OK_STATUSES } = await import("../../lib/inngest/cron-lifecycle");
+    expect(TERMINAL_OK_STATUSES).toContain("partial");
+    expect(
+      TERMINAL_OK_STATUSES,
+      "counting `started` as a good outcome is the false green this lane exists to catch",
+    ).not.toContain("started");
+
+    // Scope the negative assertion to the QUERY block only, as before.
     const queryBlock = src.slice(
       src.indexOf("const [anyRows, okRows]"),
       src.indexOf("const lastByName"),
     );
     expect(queryBlock.length).toBeGreaterThan(0);
+    expect(queryBlock).toContain("TERMINAL_OK_STATUSES");
     expect(
       queryBlock.includes('status: "success"') || queryBlock.includes('equals: "success"'),
       "an equals-success filter false-pages every job that legitimately reports partial",

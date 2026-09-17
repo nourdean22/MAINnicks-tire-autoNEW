@@ -2752,6 +2752,20 @@ model CronJobLog {
   /// schema comment is a cache with no invalidation. Anything filtering this
   /// column must use `not: "failed"` rather than `equals: "success"`, or it
   /// silently reclassifies every partial run as broken.
+  ///
+  /// 2026-09-17 UPDATE - that advice is now UNSAFE ON ITS OWN, and this is the
+  /// second time this comment has been a stale cache of the real vocabulary.
+  /// A fourth value, "started", is written by lib/inngest/cron-lifecycle.ts
+  /// BEFORE the work runs, so it witnesses INVOCATION ONLY. It is neither
+  /// healthy nor failed: a row still at "started" past STALE_RUN_MINUTES means
+  /// the process died before any hook could settle it.
+  ///
+  /// So `not: "failed"` now counts a fired-and-crashed run as HEALTHY - exactly
+  /// the false green the started/terminal split exists to remove. To ask "did
+  /// this job actually work", name the terminal states you accept:
+  ///     status: { in: ["success", "partial"] }
+  /// which keeps mega-fanout's "finished, some children failed" out of the
+  /// failure bucket while refusing to count a run that never reported an end.
   status    String
   duration  Int?
   error     String?  @db.Text

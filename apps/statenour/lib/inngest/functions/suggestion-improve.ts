@@ -14,10 +14,8 @@
  */
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
-import { prisma } from "@/lib/prisma";
 import { recordCoachEvent } from "@/lib/services/coach-events";
 import { logger as rootLogger } from "@/lib/logger";
-import { logError } from "@/lib/utils/error-log";
 
 const log = rootLogger.withSurface("inngest/suggestion-improve");
 
@@ -33,12 +31,9 @@ export const suggestionImproveWeekly = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
-    await step.run("self-row", async () => {
-      await prisma.cronJobLog
-        .create({ data: { jobName: "suggestion-improve-weekly", status: "success" } })
-        .catch((e) => logError("inngest.suggestion-improve", e, { stage: "self-row" }, "warn"));
-      return true;
-    });
+    // ⚠ 2026-09-17 — a premature `status: "success"` row was written here before
+    // the work; lib/inngest/cron-lifecycle.ts now records the real outcome via
+    // the client middleware. See cron-heartbeat.ts for the full post-mortem.
 
     const result = await step.run("analyze-and-persist", async () => {
       const { runSuggestionImproveAgent } = await import("@/lib/brain/suggestion-improve");
