@@ -2,8 +2,44 @@
 
 > **The one-screen answer to "where am I and what's real?"** If any other doc
 > contradicts this file as a *present-tense instruction*, this file and live
-> code win. Last verified **2026-09-02**. When in doubt, **verify in code, git,
+> code win. Last verified **2026-09-17**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
+
+## Since 2026-09-17 — W12, and the things that cost a session time to learn
+
+Shipped in #2381-#2386, all DEPLOYED-VERIFIED. Full detail in `docs/RECONCILIATION.md`;
+only what changes how you WORK is repeated here.
+
+- **`GET /api/version` is the deploy-truth endpoint, and it is PUBLIC.** It returns
+  `build.commit` (full SHA), `commitShort`, `branch`, `environment`, `deploymentId`.
+  **`/api/health` is operator-gated and answers 401 unauthenticated** — reaching for it
+  first cost a session a cycle. SHA-equality deploy verification is therefore possible
+  and is now the standard, rather than "Railway said SUCCESS".
+- **Tool selection changed behaviour.** `pruneTools` tier 4 now orders keyword-family
+  candidates by semantic similarity instead of alphabetically, because the 24-slot budget
+  truncates on ~73% of turns and the old `.sort()` meant the cut was made by SPELLING.
+  Ordering only — membership is unchanged and asserted so. ⚠ **NOT yet proven in
+  production**: the check is whether the first-letter means of ALLOWED vs BUDGETED_OUT
+  converge (baseline 5.28 vs 11.78), and it needs ~100 post-deploy turns.
+- **`pruneTools` is NOT the surfacing path — `prepareTools` is.** It re-attaches the
+  `searchTools`/`invokeTool` recovery lane unconditionally AFTER pruning, plus operator
+  `alwaysOnTools`, the action-intent tool and the web-search pair. Any question of the
+  form "is this tool reachable?" must be answered there, not in the pruner.
+- **A broken instrument now says so, by name.** Failures report through
+  `instrumentScope(...)` → `errorLog` → `system.instrumentFailures`, surfaced on the tool
+  census panel. ⚠ It detects instruments that FAILED, never ones that NEVER RAN — a
+  deleted call site logs nothing and looks identical to a healthy one.
+- **`recordMetricStrict` vs `recordMetric`.** Use the strict one wherever the WRITE IS THE
+  MEASUREMENT; it propagates and returns a receipt. `recordMetric` is fail-soft and can
+  never reject, which made one instrument's error branch dead code. The receipt type makes
+  the fail-soft writer unassignable to an instrument's deps.
+- **The evidence gate readout exists** (`system.evidenceGateCalibration`, rendered by
+  `EvidenceGatePanel`). Current verdict: **DO NOT PROMOTE — n=12 against a floor of 40.**
+  It refuses to state a rate below the floor; do not compute one from the counts.
+- **Scratch debris is gated repo-wide** by `scripts/agent-os/scratchDebris.test.mjs`
+  (agent-policy workflow, every PR). Temp probes are welcome; committing them is not.
+- **The overnight operating doctrine is version-controlled** at repo-root
+  `OVERNIGHT-MANDATE.md`.
 
 ## Since 2026-09-02 — observability is deployed
 

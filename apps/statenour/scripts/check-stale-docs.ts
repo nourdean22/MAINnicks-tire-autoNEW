@@ -159,7 +159,24 @@ function collectMarkdown(dir: string, acc: string[]): void {
   }
 }
 
-function checkDateSynchronization(cwd: string): Finding[] {
+/**
+ * How far the read-first doc may lag the ship log before it is reported.
+ *
+ * 14 days is not arbitrary: the drift that prompted this check was 15 days, and
+ * it had already swallowed a behavioural change to tool selection. Under two
+ * weeks a "where am I" snapshot is still broadly true; past it, a session is
+ * being onboarded on facts nobody has checked this fortnight. Double it and the
+ * finding escalates to critical.
+ */
+export const CURRENT_TRUTH_DRIFT_DAYS = 14;
+
+/** Whole days from `a` to `b`. Exported so the drift rule is testable without files. */
+export function daysBetween(a: string, b: string): number {
+  const ms = Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`);
+  return Math.round(ms / 86_400_000);
+}
+
+export function checkDateSynchronization(cwd: string): Finding[] {
   const findings: Finding[] = [];
   const agentsPath = path.join(cwd, "AGENTS.md");
   const reconPath = path.join(cwd, "docs/RECONCILIATION.md");
@@ -194,6 +211,52 @@ function checkDateSynchronization(cwd: string): Finding[] {
       recommendation: "Please add a 'Last verified: YYYY-MM-DD' stamp to docs/RECONCILIATION.md.",
       text: "Could not find last verified date stamp in docs/RECONCILIATION.md",
     });
+  }
+
+  // CURRENT-TRUTH.md is the app's designated READ-FIRST doc, and until
+  // 2026-09-17 nothing checked its stamp at all. It sat at "Last verified
+  // 2026-09-02" through two waves and eleven merged PRs — accurate, but missing
+  // a behavioural change to tool selection and the fact that `/api/version`
+  // rather than `/api/health` is the public deploy-truth endpoint. A stamp with
+  // no consumer is the producer-without-consumer shape this repo keeps finding;
+  // this is its consumer.
+  //
+  // DRIFT BUDGET, not equality. AGENTS.md is a wave stamp and must MATCH the
+  // ship log exactly. CURRENT-TRUTH is a "where am I" snapshot that does not
+  // need re-verifying every wave — demanding equality would keep it permanently
+  // red and train people to bump the date without reading the doc, which is
+  // worse than no gate.
+  const truthPath = path.join(cwd, "docs/CURRENT-TRUTH.md");
+  if (reconMatch && fs.existsSync(truthPath)) {
+    const truthMatch = /Last verified(?:\*\*|\s|:)*(\d{4}-\d{2}-\d{2})/i.exec(
+      fs.readFileSync(truthPath, "utf8"),
+    );
+    if (!truthMatch) {
+      findings.push({
+        file: "docs/CURRENT-TRUTH.md",
+        line: 1,
+        term: "Last verified",
+        severity: "warn",
+        recommendation: "Add a 'Last verified: YYYY-MM-DD' stamp to docs/CURRENT-TRUTH.md.",
+        text: "Could not find a last-verified stamp in the read-first doc.",
+      });
+    } else {
+      const drift = daysBetween(truthMatch[1], reconMatch[1]);
+      if (drift > CURRENT_TRUTH_DRIFT_DAYS) {
+        findings.push({
+          file: "docs/CURRENT-TRUTH.md",
+          line: 1,
+          term: "Stale read-first doc",
+          severity: drift > CURRENT_TRUTH_DRIFT_DAYS * 2 ? "critical" : "warn",
+          recommendation:
+            `Re-verify docs/CURRENT-TRUTH.md against live code and re-stamp it. ` +
+            `Bumping the date without reading the doc defeats the check.`,
+          text:
+            `CURRENT-TRUTH.md was last verified ${truthMatch[1]}, ${drift} days behind the ` +
+            `ship log's ${reconMatch[1]}. Every session reads this file first.`,
+        });
+      }
+    }
   }
 
   if (agentsMatch && reconMatch) {
