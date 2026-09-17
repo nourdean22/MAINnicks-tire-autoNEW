@@ -28,6 +28,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
+// The prisma-free scope helper — see lib/observability/instrument-scope.ts.
+import { instrumentScope } from "@/lib/observability/instrument-scope";
 
 export interface ToolInvocation {
   toolName: string;
@@ -116,6 +118,47 @@ export function condenseToolError(raw: string): string {
 }
 
 /**
+ * Longest real catalog name is 26 chars (`getInstagramAutopostStatus`), and 181
+ * of 181 are pure `[A-Za-z][A-Za-z0-9_]*`. 64 leaves generous headroom while
+ * staying far below the column's VarChar(120) — the point is to reject payloads,
+ * not to police naming.
+ *
+ * Dots are allowed because historical keys like `arsenal.webSearch` and
+ * `memory.remember` exist in this table from an older namespacing scheme. They
+ * are not in today's catalog, but they ARE real invocations and must not be
+ * reclassified as junk by a guard added years later.
+ */
+const RECORDABLE_TOOL_NAME = /^[A-Za-z][A-Za-z0-9_.]{0,63}$/;
+
+/**
+ * Is this a tool NAME, or a tool CALL that something mistook for a name?
+ *
+ * THE ROW THAT FORCED THIS. Production held a `tool_telemetry` row whose
+ * `tool_name` was 101 characters of an entire tool-call payload — arguments,
+ * newlines, and a stray `</arg_value>` closing tag:
+ *
+ *     searchColdMemory({
+ *       query: "nicks tire instagram post",
+ *       ...
+ *     })</arg_value>
+ *
+ * Nothing in this repo emits that encoding — grepped `lib/` and `app/` for
+ * `arg_value` and found nothing — so it came from the MODEL's output through a
+ * provider/SDK parse that handed back the whole blob as `toolName`. We cannot
+ * fix that parser from here, which is exactly why the boundary has to hold.
+ *
+ * The damage is not one junk row. `tool_name` is the UNIQUE key every reader
+ * joins on: the usage census, the never-chosen analysis, and the
+ * description-rewrite cron's `lastErrors` evidence. A real `searchColdMemory`
+ * call was attributed to the garbage key, so that tool's `totalCalls` is short
+ * by at least one and every derived rate inherits the error. A telemetry table
+ * that accepts any string as a key cannot be trusted by anything that reads it.
+ */
+export function isRecordableToolName(name: unknown): name is string {
+  return typeof name === "string" && RECORDABLE_TOOL_NAME.test(name);
+}
+
+/**
  * Record a single tool invocation. Merges into an aggregate row per
  * tool (one row per tool, updated per call) so we can query recent
  * success rates without scanning a massive history.
@@ -123,6 +166,25 @@ export function condenseToolError(raw: string): string {
  * Graceful: never throws. Caller should fire-and-forget.
  */
 export async function recordToolInvocation(inv: ToolInvocation): Promise<void> {
+  // Refuse a malformed key rather than minting a row for it — but LOUDLY.
+  // Dropping it silently would trade a corrupt row for a missing one, and this
+  // module's own header is about exactly that trade being a bad one. Logged
+  // under the `tool_invocation` instrument scope, which is already in
+  // KNOWN_INSTRUMENTS, so `buildInstrumentFailures()` can name it on /system
+  // instead of leaving a silence.
+  if (!isRecordableToolName(inv.toolName)) {
+    const shown = typeof inv.toolName === "string" ? inv.toolName : String(inv.toolName);
+    logError(
+      instrumentScope("tool_invocation"),
+      new Error(
+        `refused a non-identifier tool name (${shown.length} chars): ` +
+          `${JSON.stringify(shown.slice(0, 160))}`,
+      ),
+      { conversationId: inv.conversationId ?? null },
+      "warn",
+    );
+    return;
+  }
   try {
     const successDelta = inv.success ? 1 : 0;
     const failDelta = inv.success ? 0 : 1;
