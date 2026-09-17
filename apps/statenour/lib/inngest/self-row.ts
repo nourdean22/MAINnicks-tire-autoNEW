@@ -73,7 +73,23 @@ export async function recordSelfRow(step: SelfRowStep, jobName: string): Promise
     // test caught it. A telemetry write that can fail its own job is strictly
     // worse than the blindness it replaces, so the guarantee has to be real.
     try {
-      await prisma.cronJobLog.create({ data: { jobName, status: "success" } });
+      // ⚠⚠ "partial", NOT "success". This row is written BEFORE the work, so
+      // it can only honestly claim INVOCATION — not completion. A first version
+      // wrote "success" here, and review caught what that costs: when a handler
+      // crashes after this step, the row is its ONLY CronJobLog entry, and
+      // /system/crons reads `status` as the OUTCOME. A failing job would have
+      // shown a fresh success and a healthy success rate.
+      //
+      // ★★★ THAT IS WORSE THAN THE BLINDNESS THIS REPLACES. Invisible is a
+      // known unknown; "visibly healthy while broken" is a false green that
+      // stops anyone looking. Understating is the only safe direction — never
+      // claim more than the row can actually witness.
+      //
+      // The three states stay distinguishable:
+      //   · no row  -> never fired
+      //   · partial -> fired; completion not confirmed
+      //   · failed  -> fired and failed (onInngestFailure upgrades it)
+      await prisma.cronJobLog.create({ data: { jobName, status: "partial" } });
     } catch (e) {
       logError(
         "inngest.self-row",

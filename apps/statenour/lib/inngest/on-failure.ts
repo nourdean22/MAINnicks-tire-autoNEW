@@ -97,4 +97,62 @@ function escapeHtml(s: string): string {
  */
 export const onInngestFailure = async (args: FailurePayload): Promise<void> => {
   await notifyTelegram(args);
+  await markCronRunFailed(args);
 };
+
+/**
+ * Upgrade this run's proof-of-invocation row from `partial` to `failed`.
+ *
+ * ★★★ THIS IS THE OTHER HALF OF `recordSelfRow`, and without it the liveness
+ * signal would lie by omission. That helper writes `partial` BEFORE the work,
+ * because a row written afterwards cannot witness a crash. `partial` honestly
+ * means "fired; completion not confirmed" — but a job that fired and then
+ * FAILED deserves to say so, and Telegram alone is a channel nobody queries
+ * when auditing `cron_job_log`.
+ *
+ * With both halves the three states are unambiguous, from the log alone:
+ *   · no row  -> never fired
+ *   · partial -> fired; completion not confirmed
+ *   · failed  -> fired and failed
+ *
+ * ⚠ ONE EDIT COVERS ALL 27 FUNCTIONS because this handler is wired to every
+ * one of them — the alternative was a second call at the end of 17 handlers,
+ * each with multiple return points.
+ *
+ * ⚠ NEVER THROWS, for the reason stated above notifyTelegram: throwing here
+ * makes Inngest re-trigger the failure handler in a loop.
+ */
+async function markCronRunFailed(args: FailurePayload): Promise<void> {
+  try {
+    const functionId = String(args.event?.data?.function_id ?? "");
+    if (!functionId) return;
+
+    // ⚠ DO NOT PARSE THE function_id. Inngest may prefix it with the app id,
+    // and a guessed split that is subtly wrong produces a SILENT no-op — the
+    // upgrade never fires and the row sits at `partial` forever, looking like a
+    // hang instead of a failure. Match by SUFFIX against rows that actually
+    // exist: whatever the prefix turns out to be, the job name is its tail.
+    const { prisma } = await import("@/lib/prisma");
+    const candidates = await prisma.cronJobLog.findMany({
+      where: { status: "partial", createdAt: { gte: new Date(Date.now() - 6 * 3_600_000) } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, jobName: true },
+      take: 200,
+    });
+    const latest = candidates.find(
+      (c) => functionId === c.jobName || functionId.endsWith(`-${c.jobName}`) || functionId.endsWith(`/${c.jobName}`),
+    );
+    if (!latest) return; // no invocation row — nothing to upgrade, and that is fine
+    await prisma.cronJobLog.update({
+      where: { id: latest.id },
+      data: {
+        status: "failed",
+        error: (args.error?.message ?? "inngest failure").slice(0, 500),
+      },
+    });
+  } catch (err) {
+    log.warn("inngest_failure_cron_row_skipped", {
+      message: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+  }
+}

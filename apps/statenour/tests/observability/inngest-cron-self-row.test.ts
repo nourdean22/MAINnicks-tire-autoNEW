@@ -33,27 +33,116 @@ interface CronFn {
   instrumented: boolean;
 }
 
+/**
+ * Is the proof-of-invocation call the FIRST statement of this handler?
+ *
+ * ⚠⚠ PRESENCE IS NOT POSITION, and an earlier version only checked presence by
+ * searching the flattened file. That passes when the call is moved BELOW
+ * fallible work — at which point an early crash again leaves no row, which is
+ * the entire failure being guarded against — and it also passes on a call that
+ * appears only inside a comment or a dead helper.
+ *
+ * Comments are stripped first so a commented-out call cannot satisfy the guard,
+ * and only the text BEFORE the call inside the handler body is inspected: any
+ * `await`/`step.run` ahead of it means something fallible runs first.
+ */
+/** Blank comments while preserving offsets, so a mention cannot pose as code. */
+export function stripComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => " ".repeat(m.length))
+    .split("\n")
+    .map((l) => {
+      const i = l.indexOf("//");
+      return i >= 0 ? l.slice(0, i) + " ".repeat(l.length - i) : l;
+    })
+    .join("\n");
+}
+
+export function isInstrumentedFirst(block: string, id: string, wholeFile = ""): boolean {
+  // Pre-existing inline writers (cron-heartbeat, mega-fanout) already place
+  // their row first; whitespace is collapsed because cron-heartbeat writes
+  // `prisma.cronJobLog\n  .create({…})` and a line-anchored pattern sees
+  // nothing — a trap that has cost this repo three separate detectors.
+  // Strip defensively as well as at the caller: stripComments is idempotent,
+  // and a helper whose correctness depends on the caller having remembered is
+  // one refactor away from silently accepting a commented-out call.
+  const flat = stripComments(block).replace(/\s+/g, " ");
+  if (/cronJobLog\s*\.\s*create/.test(flat)) return true;
+
+  const esc = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const call = new RegExp(`recordSelfRow\\(\\s*step\\s*,\\s*"${esc}"`);
+  let m = call.exec(flat);
+
+  // ⚠⚠ THE HANDLER IS NOT ALWAYS INSIDE THE createFunction BLOCK.
+  // `audit-todays-leads.ts` defines `auditTodaysLeadsHandler` as a NAMED export
+  // ~130 lines ABOVE its createFunction call, so a block-scoped search finds
+  // nothing and reports a correctly-instrumented cron as blind. Fall back to
+  // the whole file, then position-check inside whichever function body holds
+  // the call.
+  let scope = flat;
+  if (!m && wholeFile) {
+    scope = stripComments(wholeFile).replace(/\s+/g, " ");
+    m = call.exec(scope);
+  }
+  if (!m) return false;
+  return isFirstInItsBody(scope, m.index);
+}
+
+/** True when nothing fallible runs between the enclosing body's `{` and `at`. */
+function isFirstInItsBody(flat: string, at: number): boolean {
+  // ⚠ The NEAREST PRECEDING body opening, not the first one in scope. When the
+  // search widened to whole files (for named handlers), taking the first match
+  // measured from some unrelated function far above and silently compared the
+  // wrong span.
+  //
+  // Both shapes count: the inline `async ({ step }) => {` every sibling uses,
+  // and the `async function name({ step }…) {` that audit-todays-leads uses.
+  const OPENERS = /async\s*(?:function\s+\w+\s*)?\(\s*\{[^}]*\}[^)]*\)\s*(?:=>\s*)?\{/g;
+  let bodyStart = 0;
+  for (const o of flat.matchAll(OPENERS)) {
+    const end = o.index! + o[0].length;
+    if (end <= at) bodyStart = end;
+    else break;
+  }
+
+  // ⚠ Drop the trailing `await` — it belongs to the recordSelfRow call itself,
+  // not to work preceding it. Counting it made this reject the CORRECT shape,
+  // which the positive control caught immediately; without that control the
+  // ratchet would have reported all 17 crons blind and sent me hunting a
+  // defect that did not exist.
+  const before = flat.slice(bodyStart, at).replace(/\bawait\s*$/, "");
+  return !/\bawait\b|\bstep\s*\.\s*run\b|\breturn\b/.test(before);
+}
+
 /** Split each file into createFunction blocks and keep the cron-triggered ones. */
 export function scanCronFunctions(dir: string = FN_DIR): CronFn[] {
   const out: CronFn[] = [];
   for (const f of readdirSync(dir)) {
     if (!/\.tsx?$/.test(f)) continue;
-    const src = readFileSync(join(dir, f), "utf8");
-    const starts = [...src.matchAll(/inngest\.createFunction\(/g)].map((m) => m.index!);
+    // ⚠⚠ STRIP COMMENTS BEFORE SPLITTING, NOT AFTER — and this one bit for
+    // real. A comment in approval-sweeper.ts explaining the very bug this
+    // guard exists for contains the literal `.createFunction(...)` twice, so
+    // splitting the raw source on that pattern created two PHANTOM block
+    // boundaries, severed the handler from its config, and hid the call that
+    // had just been added. ★ Documenting a fix concealed its own fix —
+    // the identical failure this repo already recorded for the terse-lane
+    // guard, reproduced on the same night by the same hand.
+    const src = stripComments(readFileSync(join(dir, f), "utf8"));
+    // ⚠⚠ MATCH EVERY createFunction FORM, NOT JUST THE COMMON ONE.
+    // `approval-sweeper.ts` writes `getInngest().createFunction(...)` while
+    // every sibling uses a module-level `inngest.createFunction(...)`. A
+    // literal `inngest\.createFunction\(` pattern skips it — and BOTH the
+    // instrumentation pass AND this guard originally used that pattern, so the
+    // fix missed the five-minute sweeper and the guard reported the fleet
+    // clean. ★ A detector sharing an assumption with the thing it checks
+    // cannot catch that assumption being wrong; it just produces a green.
+    const starts = [...src.matchAll(/\.createFunction\s*\(/g)].map((m) => m.index!);
     for (let i = 0; i < starts.length; i++) {
       const block = src.slice(starts[i], i + 1 < starts.length ? starts[i + 1] : src.length);
       if (!/\{\s*cron:/.test(block)) continue;
       const id = /id:\s*"([^"]+)"/.exec(block)?.[1] ?? "(no id)";
       const cron = /\{\s*cron:\s*"([^"]+)"/.exec(block)?.[1] ?? "?";
-      // ⚠ Whitespace collapsed before matching: cron-heartbeat writes
-      // `prisma.cronJobLog\n  .create({…})`, and a line-anchored pattern sees
-      // nothing. That trap has now cost this repo three separate detectors.
-      const flat = src.replace(/\s+/g, " ");
-      const blockFlat = block.replace(/\s+/g, " ");
-      const instrumented =
-        /cronJobLog\s*\.\s*create/.test(blockFlat) ||
-        new RegExp(`recordSelfRow\\(\\s*step\\s*,\\s*"${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`).test(flat);
-      out.push({ file: f, id, cron, instrumented });
+      out.push({ file: f, id, cron, instrumented: isInstrumentedFirst(block, id, src) });
     }
   }
   return out;
@@ -103,7 +192,54 @@ describe("recordSelfRow · never throws", () => {
     vi.doMock("@/lib/utils/error-log", () => ({ logError: vi.fn() }));
     const { recordSelfRow } = await import("../../lib/inngest/self-row");
     await recordSelfRow(stubStep, "goal-pruner");
-    expect(create).toHaveBeenCalledWith({ data: { jobName: "goal-pruner", status: "success" } });
+    // "partial", not "success": the row is written BEFORE the work, so it can
+    // only witness invocation. Claiming success here would show a fresh green
+    // for a job that then crashed — see the helper's own note.
+    expect(create).toHaveBeenCalledWith({ data: { jobName: "goal-pruner", status: "partial" } });
+  });
+});
+
+/**
+ * ── NEGATIVE FIXTURES · the guard must REJECT, not just accept ──────
+ *
+ * Review asked for these, and they are the difference between a guard and a
+ * decoration: a check that only ever passes proves nothing about what it would
+ * catch. Each fixture is a regression that leaves an early crash with no
+ * invocation row while looking instrumented to a presence-only scan.
+ */
+describe("isInstrumentedFirst · rejects the regressions", () => {
+  const wrap = (body: string) => `.createFunction(\n  { id: "x", triggers: [{ cron: "0 1 * * *" }] },\n  async ({ step }) => {\n${body}\n  },\n)`;
+
+  it("accepts the correct shape (positive control)", () => {
+    expect(isInstrumentedFirst(wrap(`    await recordSelfRow(step, "x");\n    await step.run("work", async () => 1);`), "x")).toBe(true);
+  });
+
+  // ── CANARY ──────────────────────────────────────────────────────────
+  it("CANARY — rejects a call placed AFTER fallible work", () => {
+    expect(
+      isInstrumentedFirst(wrap(`    await step.run("work", async () => 1);\n    await recordSelfRow(step, "x");`), "x"),
+      "a row written after the work cannot witness an early crash",
+    ).toBe(false);
+  });
+
+  // ── CANARY ──────────────────────────────────────────────────────────
+  it("CANARY — rejects a call that exists only in a comment", () => {
+    expect(
+      isInstrumentedFirst(wrap(`    // await recordSelfRow(step, "x");\n    await step.run("work", async () => 1);`), "x"),
+      "a commented-out call instruments nothing",
+    ).toBe(false);
+  });
+
+  it("rejects a block-commented call too", () => {
+    expect(isInstrumentedFirst(wrap(`    /* await recordSelfRow(step, "x"); */\n    await step.run("w", async () => 1);`), "x")).toBe(false);
+  });
+
+  it("rejects a missing call outright", () => {
+    expect(isInstrumentedFirst(wrap(`    await step.run("work", async () => 1);`), "x")).toBe(false);
+  });
+
+  it("rejects a call for a DIFFERENT job id", () => {
+    expect(isInstrumentedFirst(wrap(`    await recordSelfRow(step, "other");`), "x")).toBe(false);
   });
 });
 
