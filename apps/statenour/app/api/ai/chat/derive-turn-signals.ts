@@ -161,8 +161,11 @@ export async function deriveTurnSignals(args: {
   // overridden per-environment. Naming models here just rots.
   const { detectDomain } = await import("@/lib/ai/domain-routing");
   // v8.6 BATCH 34 — peek at the LAST user message's parts to detect
-  // image attachments. If found, route to qwen3-vl regardless of text
-  // (closes the "user uploads photo and just types '?'" gap).
+  // image attachments. If found, route to the VISION lane (taskType
+  // "vision") regardless of text, closing the "user uploads photo and
+  // just types '?'" gap. Said "route to qwen3-vl" until 2026-09-17 —
+  // that model was retired 2026-06-16, and the line sat directly under
+  // the comment above explaining that naming models here rots.
   const lastMsg = messages[messages.length - 1] as unknown as {
     parts?: Array<{ type?: string; mediaType?: string; mimeType?: string }>;
   };

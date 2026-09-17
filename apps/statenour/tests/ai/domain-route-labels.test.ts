@@ -1,26 +1,31 @@
 /**
- * A debug label must not name a provider model.
+ * A debug label must name the ROUTE, never a model id.
  *
  * WHY THIS EXISTS. On 2026-09-17 three `DomainRoute` labels named RETIRED
  * models: `code → ollama qwen3-coder` and two `vision → ollama qwen3-vl`.
  * A live census of this Ollama key's 20 servable models found no `qwen3-coder`
- * at all, bare or tagged, and `lib/ai/model-liveness.ts` records `qwen3-vl`
- * being retired on 2026-06-16 along with the six-week vision outage it caused.
+ * at all, and `lib/ai/model-liveness.ts` records `qwen3-vl` retired 2026-06-16
+ * along with the six-week vision outage it caused.
  *
- * The labels never affected EXECUTION — the model is resolved from `taskType`
- * through `resolveProviderModel`, and `provider.try` logs the id that actually
- * served the turn. They affected DEBUGGING, which is the whole point of a
- * label: a session reading `domain_route label="code → ollama qwen3-coder"` in
- * production logs started filing a code-lane outage before discovering the
- * label carries no routing power.
+ * The labels never affected EXECUTION — the model resolves from `taskType`
+ * through `resolveProviderModel`. They affected DEBUGGING, which is a label's
+ * whole job: a session reading `domain_route label="code → ollama qwen3-coder"`
+ * in production logs started filing a code-lane outage.
  *
  * ★ A stale identifier inside a debug label is worse than no identifier,
  *   because a reader treats it as evidence about the running system.
  *
- * Model ids drift without warning; `taskType` does not. So the invariant is
- * structural rather than a list of dead names — a deny-list of retired models
- * would need updating every time a provider retires one, which is exactly the
- * maintenance that failed here.
+ * ⚠ THE FIRST VERSION OF THIS GUARD DID NOT GUARD ITS OWN INVARIANT. It only
+ * rejected PROVIDER words (`ollama`, `openai`, …), so `code → qwen3-coder`
+ * — a model id with no provider word — would have passed while the docstring
+ * claimed "never a model id". Review caught it. That is this repo's own lens
+ * (*does the code have the property its docstring claims?*) failing on the very
+ * guard written to stop the defect.
+ *
+ * Two layers now, because either alone is escapable:
+ *   1. every label parsed from source must be in ROUTE_ONLY (exact);
+ *   2. no ROUTE_ONLY entry may LOOK like a model id — otherwise the guard is
+ *      silenced by pasting the bad label into the allowlist.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -41,18 +46,36 @@ function stripComments(src: string): string {
     .join("\n");
 }
 
-const LABEL = /label:\s*"([^"]*)"/g;
-
 function labelsIn(src: string): string[] {
   const out: string[] = [];
-  const re = new RegExp(LABEL.source, "g");
+  const re = /label:\s*"([^"]*)"/g;
   let m;
   while ((m = re.exec(stripComments(src))) !== null) out.push(m[1]);
   return out;
 }
 
-/** Provider names are the drift vector: naming one invites naming its model. */
-const PROVIDER = /\b(ollama|openai|anthropic|gemini|openrouter|groq|venice)\b/i;
+/** The complete set of legitimate route labels. Adding a domain edits this. */
+const ROUTE_ONLY = [
+  "code",
+  "vision",
+  "strategy",
+  "marketing",
+  "creative",
+  "fast-classify",
+  "summary",
+  "vision (auto-detected from attachment)",
+  "general → default",
+  "intent-router",
+];
+
+/**
+ * Structural model-id shape. Model ids carry version digits; route names do
+ * not contain a digit at all. Catches `qwen3-coder`, `qwen3-vl`, `glm-5.3`,
+ * `deepseek-v4-pro`, `minimax-m3`, `gemma4:31b` without a deny-list of names —
+ * a deny-list would need updating on every provider retirement, which is
+ * exactly the maintenance that failed here.
+ */
+const MODEL_ID_SHAPE = /[a-z]+\d|-\d|:\d/i;
 
 describe("DomainRoute debug labels", () => {
   // POSITIVE CONTROL — if the matcher stops finding labels, every assertion
@@ -63,41 +86,43 @@ describe("DomainRoute debug labels", () => {
     expect(labels).toContain("code");
   });
 
-  it("no label names a provider", () => {
-    const offenders = labelsIn(SRC).filter((l) => PROVIDER.test(l));
-    expect(offenders).toEqual([]);
+  it("every label in source is a known route name", () => {
+    const unknown = labelsIn(SRC).filter((l) => !ROUTE_ONLY.includes(l));
+    expect(unknown).toEqual([]);
+  });
+
+  it("no label carries a model-id shape", () => {
+    expect(labelsIn(SRC).filter((l) => MODEL_ID_SHAPE.test(l))).toEqual([]);
   });
 
   // ── CANARY ──────────────────────────────────────────────────────────
-  // The exact string that shipped. If this stops failing, the guard is broken.
+  // The exact string that shipped.
   it("CANARY — the label that actually shipped is rejected", () => {
-    const shipped = labelsIn(`label: "code → ollama qwen3-coder",`);
-    expect(shipped).toEqual(["code → ollama qwen3-coder"]);
-    expect(shipped.filter((l) => PROVIDER.test(l))).toEqual([
-      "code → ollama qwen3-coder",
-    ]);
+    const shipped = "code → ollama qwen3-coder";
+    expect(ROUTE_ONLY).not.toContain(shipped);
+    expect(MODEL_ID_SHAPE.test(shipped)).toBe(true);
   });
 
-  it("CANARY — the retired vision label is rejected too", () => {
-    expect(PROVIDER.test("vision → ollama qwen3-vl")).toBe(true);
-  });
-
-  // The guard must not fire on the legitimate labels that remain.
-  it("accepts route-only labels", () => {
-    for (const ok of [
-      "code",
-      "vision",
-      "strategy",
-      "marketing",
-      "creative",
-      "fast-classify",
-      "summary",
-      "vision (auto-detected from attachment)",
-      "general → default",
-      "intent-router",
-    ]) {
-      expect(PROVIDER.test(ok)).toBe(false);
+  // ── CANARY for the defect review found in this guard ─────────────────
+  // A model id with NO provider word. The first version of this guard passed
+  // it, which is why the provider-word check alone was not the invariant.
+  it("CANARY — a model id with no provider word is still rejected", () => {
+    for (const bad of ["code → qwen3-coder", "vision → qwen3-vl", "strategy → glm-5.3"]) {
+      expect(MODEL_ID_SHAPE.test(bad)).toBe(true);
+      expect(ROUTE_ONLY).not.toContain(bad);
     }
+  });
+
+  // ── CANARY against silencing the guard ──────────────────────────────
+  // Layer 1 alone could be defeated by pasting the bad label into the
+  // allowlist. Layer 2 makes the allowlist itself checkable.
+  it("CANARY — the allowlist cannot legalise a model id", () => {
+    const polluted = [...ROUTE_ONLY, "code → qwen3-coder"];
+    expect(polluted.filter((l) => MODEL_ID_SHAPE.test(l))).toEqual(["code → qwen3-coder"]);
+  });
+
+  it("accepts every legitimate route label", () => {
+    for (const ok of ROUTE_ONLY) expect(MODEL_ID_SHAPE.test(ok)).toBe(false);
   });
 
   // The docstring above the interface deliberately names the dead models to
@@ -105,6 +130,8 @@ describe("DomainRoute debug labels", () => {
   // author to delete the explanation to get green.
   it("ignores model names that appear inside comments", () => {
     const withComment = `/** names ollama qwen3-vl on purpose */\nlabel: "vision",`;
-    expect(labelsIn(withComment).filter((l) => PROVIDER.test(l))).toEqual([]);
+    const found = labelsIn(withComment);
+    expect(found).toEqual(["vision"]);
+    expect(found.filter((l) => MODEL_ID_SHAPE.test(l))).toEqual([]);
   });
 });
