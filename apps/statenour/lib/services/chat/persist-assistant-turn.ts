@@ -434,7 +434,21 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // traceId is threaded through so the `tool.chosen` lane the walk records
       // can be JOINED to `tool.surfaced` from prepare-tools.ts. Both stamp the
       // same route-minted id; without it the pair is two unrelated counts.
-      const capturedToolCalls = walkToolTelemetry({ ev, convId, traceId });
+      //
+      // `laneToolNames` / `laneReceiptsAvailable` ride on the event because the
+      // alternate paths (NICK_VERIFIED_REGEN, NICK_SELF_CONSISTENCY, pre-flush
+      // evidence) call this callback with `{ text, finishReason }` and NO
+      // `steps`. Without them the walk saw nothing and recorded a confident
+      // `tool.chosen = 0` for turns that had actually invoked tools. The
+      // pre-flush lane DOES buffer its calls, so it is measured; the others
+      // declare themselves blind rather than being counted as zero.
+      const capturedToolCalls = walkToolTelemetry({
+        ev,
+        convId,
+        traceId,
+        laneToolNames: (ev as { laneToolNames?: ReadonlyArray<string> }).laneToolNames,
+        laneReceiptsAvailable: (ev as { laneReceiptsAvailable?: boolean }).laneReceiptsAvailable,
+      });
 
 
       // ── EVIDENCE GATE (SHADOW) — 2026-09-10 ─────────────────────────

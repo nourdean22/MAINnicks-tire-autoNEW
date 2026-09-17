@@ -240,27 +240,82 @@ function buildChosenToolsWrite(
   calls: ReadonlyArray<CapturedToolCall>,
   traceId: string | undefined,
   convId: string | undefined,
+  observation: ChosenObservation,
 ): MetricWrite {
   // Distinct names, so the value is directly comparable with `tool.surfaced`
   // (which counts distinct offered names). Raw invocation count rides along as
   // a tag rather than the value, so a tool called three times in one turn does
   // not read as three separate conversions.
-  const chosen = [...new Set(calls.map((c) => c.name))].sort();
+  const chosen = observation.observed
+    ? [...new Set(observation.names)].sort()
+    : [];
   const failed = [...new Set(calls.filter((c) => !c.ok).map((c) => c.name))].sort();
 
   return {
     metric: CHOSEN_TOOLS_METRIC,
+    // A blind turn's value is 0 because the field is a number, NOT because zero
+    // tools ran. `observed` is the field that says which of those it is.
     value: chosen.length,
     scope: instrumentScope("tool.chosen"),
     tags: {
       traceId: traceId ?? null,
       conversationId: convId ?? null,
       tools: chosen,
-      failed,
-      invocations: calls.length,
+      failed: observation.observed ? failed : [],
+      invocations: observation.observed ? observation.names.length : 0,
+      /**
+       * ⚠ CONSUMERS MUST FILTER ON THIS. False means the turn's receipts were
+       * not visible to this walk — NOT that the model chose nothing. Counting a
+       * blind turn as a measured zero corrupts the numerator in the one
+       * direction that looks like a finding: "tools were offered and declined".
+       */
+      observed: observation.observed,
+      /** Where the names came from: the SDK step walk, or a lane's buffer. */
+      source: observation.source,
     },
     logContext: { traceId: traceId ?? null },
   };
+}
+
+/**
+ * Did this turn's receipts reach the walk at all, and from where?
+ *
+ * THE DISTINCTION THIS ENCODES, and why it is not optional. `alternate-paths.ts`
+ * runs `generateText` with the pruned tools and then calls `buildOnFinish` with
+ * only `{ text, finishReason }` — no `steps`. So the walk sees nothing and,
+ * before this, wrote `tool.chosen = 0` for turns that HAD invoked tools. That is
+ * worse than a missing row: it is a confident zero, and "offered and declined"
+ * is exactly the conclusion the numerator exists to support.
+ *
+ * The codebase already drew this line and I missed it. `alternate-paths.ts` has
+ * carried `laneReceiptsAvailable` with the comment "for them the receipt channel
+ * is BLIND -- not 'no tool fired'. That distinction is load-bearing." The same
+ * rule now governs this lane.
+ *
+ * Three states, deliberately not two:
+ *   · sdk-steps  — the streaming path walked real `ev.steps`. A zero here IS a
+ *                  measured zero and is the most informative row we get.
+ *   · lane       — an alternate path could not give us steps but DID buffer the
+ *                  tool names it saw. Measured, from a different source.
+ *   · blind      — nobody could see. Never a finding, only an absence.
+ */
+type ChosenObservation =
+  | { observed: true; source: "sdk-steps" | "lane"; names: string[] }
+  | { observed: false; source: "blind"; names: never[] };
+
+export function classifyChosenObservation(args: {
+  sdkStepsPresent: boolean;
+  capturedNames: string[];
+  laneToolNames?: ReadonlyArray<string>;
+  laneReceiptsAvailable?: boolean;
+}): ChosenObservation {
+  if (args.sdkStepsPresent) {
+    return { observed: true, source: "sdk-steps", names: args.capturedNames };
+  }
+  if (args.laneReceiptsAvailable && args.laneToolNames) {
+    return { observed: true, source: "lane", names: [...args.laneToolNames] };
+  }
+  return { observed: false, source: "blind", names: [] };
 }
 
 export function walkToolTelemetry(args: {
@@ -272,8 +327,20 @@ export function walkToolTelemetry(args: {
    * the offered row and the pair measures nothing.
    */
   traceId?: string;
+  /**
+   * Tool names an alternate path buffered when it could not hand over
+   * `ev.steps`. Supplied WITH `laneReceiptsAvailable`, because a lane that
+   * buffered nothing and a lane that saw nothing are different facts.
+   */
+  laneToolNames?: ReadonlyArray<string>;
+  /** The lane's own receipt-visibility flag — see `classifyChosenObservation`. */
+  laneReceiptsAvailable?: boolean;
 }): CapturedToolCall[] {
-  const { ev, convId, traceId } = args;
+  const { ev, convId, traceId, laneToolNames, laneReceiptsAvailable } = args;
+  // Captured BEFORE the walk: `normalizeAiSdkToolObservations` returns [] both
+  // for "steps present, no tools ran" and for "no steps at all", so the
+  // presence of the field is the only thing that tells them apart.
+  const sdkStepsPresent = Array.isArray((ev as { steps?: unknown }).steps);
   const capturedToolCalls: CapturedToolCall[] = [];
 
   // Keep SDK field-name/version differences OUTSIDE the truth logic. The
@@ -366,9 +433,15 @@ export function walkToolTelemetry(args: {
   // `tool.chosen` is UNCONDITIONAL — see its header. A zero-length call list is
   // a measurement, not the absence of one.
   const integrity = buildOperationIntegrityShadow(capturedToolCalls, convId);
+  const observation = classifyChosenObservation({
+    sdkStepsPresent,
+    capturedNames: capturedToolCalls.map((c) => c.name),
+    laneToolNames,
+    laneReceiptsAvailable,
+  });
   emitMetricWrites([
     ...(integrity ? [integrity] : []),
-    buildChosenToolsWrite(capturedToolCalls, traceId, convId),
+    buildChosenToolsWrite(capturedToolCalls, traceId, convId, observation),
   ]);
 
   return capturedToolCalls;

@@ -31,7 +31,10 @@ vi.mock("@/lib/ai/tool-telemetry", () => ({
 // asserts this subject uses `recordMetricStrict` and has no silent catch.
 vi.mock("@/lib/services/metrics", () => ({ recordMetric, recordMetricStrict }));
 
-import { walkToolTelemetry } from "@/lib/services/chat/tool-telemetry-walk";
+import {
+  walkToolTelemetry,
+  classifyChosenObservation,
+} from "@/lib/services/chat/tool-telemetry-walk";
 
 beforeEach(() => {
   recordToolInvocation.mockClear();
@@ -492,5 +495,83 @@ describe("tool.chosen · the per-turn numerator", () => {
     expect(a.tags.tools).toEqual(["dailyPulse"]);
     expect(b.tags.tools).toEqual(["createTask"]);
     expect(a.tags.tools).not.toEqual(b.tags.tools);
+  });
+});
+
+/**
+ * BLIND IS NOT ZERO.
+ *
+ * `alternate-paths.ts` (NICK_VERIFIED_REGEN, NICK_SELF_CONSISTENCY, the
+ * pre-flush evidence lane) runs `generateText` with the pruned tools and then
+ * calls `buildOnFinish` with only `{ text, finishReason }` — no `steps`. The
+ * first cut of `tool.chosen` therefore recorded a confident `0` for turns that
+ * had actually invoked tools, which is worse than a missing row: "offered and
+ * declined" is precisely the conclusion the numerator exists to support.
+ *
+ * The codebase already drew this line — `alternate-paths.ts` carries
+ * `laneReceiptsAvailable` with the comment that the blind/zero distinction is
+ * "load-bearing". These tests hold the same line for this lane.
+ */
+describe("tool.chosen · a blind turn must not read as a measured zero", () => {
+  it("sdk steps present -> MEASURED, even when the list is empty", () => {
+    const o = classifyChosenObservation({ sdkStepsPresent: true, capturedNames: [] });
+    expect(o.observed).toBe(true);
+    expect(o.source).toBe("sdk-steps");
+    // The genuinely informative row: 24 offered, none chosen.
+    expect(o.names).toEqual([]);
+  });
+
+  it("no steps and no lane buffer -> BLIND", () => {
+    const o = classifyChosenObservation({ sdkStepsPresent: false, capturedNames: [] });
+    expect(o.observed).toBe(false);
+    expect(o.source).toBe("blind");
+  });
+
+  it("no steps but a lane WITH receipts -> MEASURED from the lane", () => {
+    const o = classifyChosenObservation({
+      sdkStepsPresent: false,
+      capturedNames: [],
+      laneToolNames: ["getTasks", "searchWebVerified"],
+      laneReceiptsAvailable: true,
+    });
+    expect(o.observed).toBe(true);
+    expect(o.source).toBe("lane");
+    expect(o.names).toEqual(["getTasks", "searchWebVerified"]);
+  });
+
+  it("a lane that buffered names but has NO receipts is still blind", () => {
+    // receiptsAvailable is the lane's own statement about whether it could see.
+    // Names without that flag are not evidence the list is complete.
+    const o = classifyChosenObservation({
+      sdkStepsPresent: false,
+      capturedNames: [],
+      laneToolNames: ["getTasks"],
+      laneReceiptsAvailable: false,
+    });
+    expect(o.observed).toBe(false);
+  });
+
+  it("CANARY: a steps-less turn writes observed=false, not a silent zero", async () => {
+    walkToolTelemetry({ ev: {}, convId: "c-blind", traceId: "trace-blind" });
+    const row = await waitForChosen("trace-blind");
+    expect(
+      row.tags.observed,
+      "a turn whose receipts were invisible was recorded as a measured zero",
+    ).toBe(false);
+    expect(row.tags.source).toBe("blind");
+  });
+
+  it("POSITIVE CONTROL: a real steps-bearing turn is still observed=true", async () => {
+    // Without this, marking EVERYTHING blind would satisfy the canary above and
+    // destroy the numerator entirely.
+    walkToolTelemetry({
+      ev: { steps: [{ toolResults: [{ toolName: "getTasks", result: { tasks: [] } }] }] },
+      convId: "c-seen",
+      traceId: "trace-seen",
+    });
+    const row = await waitForChosen("trace-seen");
+    expect(row.tags.observed).toBe(true);
+    expect(row.tags.source).toBe("sdk-steps");
+    expect(row.tags.tools).toEqual(["getTasks"]);
   });
 });
