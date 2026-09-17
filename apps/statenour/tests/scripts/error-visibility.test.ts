@@ -23,6 +23,7 @@ import {
   assessTraceControl,
   assessSampleCoverage,
   countBy,
+  traceIdentity,
   WRITER_STALE_HOURS,
 } from "../../scripts/lib/error-visibility.mjs";
 
@@ -128,5 +129,77 @@ describe("countBy", () => {
 
   it("does not drop rows whose key is empty", () => {
     expect(countBy([{ m: "" }, { m: "" }], (r) => r.m || "(blank)")).toEqual([["(blank)", 2]]);
+  });
+});
+
+/**
+ * traceIdentity — the empty-vs-missing distinction, in operator form.
+ *
+ * Production sends an unnamed trace as `name: ""`. The probe's first version
+ * wrote `t.name ?? "(unnamed)"`, and the nullish coalesce passed the empty
+ * string through: the report printed a count beside a BLANK label, which reads
+ * as a name too faint to see rather than as no name at all. The section was
+ * titled "so a failing surface is identifiable" and rendered the opposite.
+ */
+describe("traceIdentity", () => {
+  // POSITIVE CONTROL — a real name must still win, or every assertion below
+  // would pass on a function that returns "(unnamed)" unconditionally.
+  it("a named trace reports its own name", () => {
+    const r = traceIdentity({ name: "memory-consolidation", metadata: { source: "brain" } });
+    expect(r).toEqual({ label: "memory-consolidation", named: true, via: "name" });
+  });
+
+  // ── CANARY ──────────────────────────────────────────────────────────
+  // The exact production shape. This is the case `??` gets wrong.
+  it("CANARY — an EMPTY-STRING name is not-named, and `??` would miss it", () => {
+    const trace = { name: "", metadata: { source: "memory-consolidation" }, tags: ["brain"] };
+    expect(traceIdentity(trace).named).toBe(false);
+    // …and the naive form that shipped: it yields "" and reports a blank label.
+    expect(trace.name ?? "(unnamed)").toBe("");
+  });
+
+  it("a whitespace-only name is also not-named", () => {
+    expect(traceIdentity({ name: "   ", tags: ["brain"] }).named).toBe(false);
+  });
+
+  it("falls back to metadata.source, which is the identity that survives", () => {
+    const r = traceIdentity({ name: "", metadata: { source: "chain-of-verification" }, tags: ["brain"] });
+    expect(r.via).toBe("metadata.source");
+    expect(r.label).toContain("chain-of-verification");
+    expect(r.label).toContain("(unnamed)"); // never silently reads as a real name
+  });
+
+  it("falls back to tags when there is no source", () => {
+    const r = traceIdentity({ name: "", tags: ["brain", "chat"] });
+    expect(r.via).toBe("tags");
+    expect(r.label).toBe("(unnamed) tags=brain+chat");
+  });
+
+  // Absence of EVERY channel must say so out loud rather than collapse into the
+  // same bucket as "unnamed but attributable" — those are different findings.
+  it("says so explicitly when no channel identifies the trace", () => {
+    expect(traceIdentity({ name: "", metadata: {}, tags: [] })).toEqual({
+      label: "(unnamed, no source, no tags)",
+      named: false,
+      via: "none",
+    });
+  });
+
+  it("survives null/undefined metadata and tags without throwing", () => {
+    expect(traceIdentity({ name: null, metadata: null, tags: null }).via).toBe("none");
+    expect(traceIdentity({}).via).toBe("none");
+  });
+
+  // The measured production distribution: every trace unnamed, every one still
+  // attributable. A future regression that reported these as NAMED would make
+  // the probe claim the Langfuse UI is filterable when it is not.
+  it("reproduces the measured production shape: 0 named, all attributable", () => {
+    const sample = [
+      { name: "", metadata: { source: "memory-consolidation" }, tags: ["brain"] },
+      { name: "", metadata: { source: "chain-of-verification" }, tags: ["brain", "chat"] },
+      { name: "", metadata: { source: "conversation-memory" }, tags: ["brain"] },
+    ];
+    expect(sample.filter((t) => traceIdentity(t).named)).toEqual([]);
+    expect(sample.every((t) => traceIdentity(t).via === "metadata.source")).toBe(true);
   });
 });

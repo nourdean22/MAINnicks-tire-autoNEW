@@ -64,6 +64,46 @@ export function countBy(rows, keyFn) {
 }
 
 /**
+ * What identifies a trace, given that its NAME may be absent?
+ *
+ * ⚠⚠ MEASURED 2026-09-17, and it refuted a claim in our own docstring.
+ * `GET /api/public/traces` over production: **0 of 50 traces carried a name**
+ * (672 in the window), while `userId` landed 50/50, `tags` 47/50 and
+ * `metadata.source` on every row. `langfuse.ts` claimed `functionId` was the
+ * "Trace name" — it is not. Langfuse uses it as the OBSERVATION name prefix
+ * (`memory-consolidation:ai.generateText`); the trace name needs
+ * `propagateAttributes({ traceName })` from `@langfuse/tracing`, which this app
+ * does not install.
+ *
+ * ★★★ THE NAME ARRIVES AS `""`, NOT `null`. So `t.name ?? "(unnamed)"` — the
+ * nullish coalesce, which is the natural thing to write — passes the empty
+ * string straight through and prints a BLANK LABEL beside a count. That reads
+ * as "a name I can't see", the opposite of "unnamed", and it is why this gap
+ * sat in a note as a vague impression instead of a measured fact for a day.
+ * Emptiness is not absence; `??` cannot tell you which one you have.
+ *
+ * ★ So this returns the identity that SURVIVES rather than only the hole:
+ * fall back to `metadata.source`, then tags, then an explicit marker.
+ *
+ * @param {{ name?: unknown, metadata?: Record<string, unknown>|null, tags?: unknown }} trace
+ * @returns {{ label: string, named: boolean, via: "name"|"metadata.source"|"tags"|"none" }}
+ */
+export function traceIdentity(trace) {
+  const name = typeof trace?.name === "string" ? trace.name.trim() : "";
+  if (name) return { label: name, named: true, via: "name" };
+
+  const source = trace?.metadata && typeof trace.metadata === "object" ? trace.metadata.source : undefined;
+  if (typeof source === "string" && source.trim()) {
+    return { label: `(unnamed) source=${source.trim()}`, named: false, via: "metadata.source" };
+  }
+
+  const tags = Array.isArray(trace?.tags) ? trace.tags.filter((t) => typeof t === "string" && t.trim()) : [];
+  if (tags.length > 0) return { label: `(unnamed) tags=${tags.join("+")}`, named: false, via: "tags" };
+
+  return { label: "(unnamed, no source, no tags)", named: false, via: "none" };
+}
+
+/**
  * Is a sampled page a complete picture?
  *
  * One page of 50 out of thousands is a sample of whatever sorted FIRST, and
