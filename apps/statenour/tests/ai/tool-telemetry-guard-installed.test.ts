@@ -29,6 +29,7 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/utils/error-log", () => ({ logError: (...a: unknown[]) => mocks.logError(...a) }));
 
 import { recordToolInvocation } from "@/lib/ai/tool-telemetry";
+import { INSTRUMENT_SCOPE_PREFIX } from "@/lib/observability/instrument-scope";
 
 /** Byte-for-byte the value measured in production on 2026-09-17. */
 const THE_ROW = [
@@ -69,9 +70,38 @@ describe("recordToolInvocation · the guard is wired to the write", () => {
     // one, which this module's own header calls the worse trade.
     await recordToolInvocation({ toolName: THE_ROW, success: true, durationMs: 12 });
     expect(mocks.logError).toHaveBeenCalledTimes(1);
-    const [scope, err] = mocks.logError.mock.calls[0];
-    expect(scope).toBe("instrument.tool_invocation");
+    const [, err] = mocks.logError.mock.calls[0];
     expect(String((err as Error).message)).toMatch(/refused a non-identifier tool name/);
+  });
+
+  it("CANARY: a refusal must NOT be logged as an instrument FAILURE", () => {
+    // `buildInstrumentFailures()` defines every `instrument.*` row as an
+    // instrument that failed to WRITE. This path returns before the write, so
+    // scoping it there would render a guard working correctly as a broken
+    // telemetry writer on /system, and inflate totalFailures.
+    //
+    // The first cut did exactly that, for the worst reason: the name was
+    // already in KNOWN_INSTRUMENTS. Availability is not a licence to overload
+    // a channel that already means something.
+    return recordToolInvocation({ toolName: THE_ROW, success: true, durationMs: 12 }).then(() => {
+      const [scope] = mocks.logError.mock.calls[0];
+      expect(
+        String(scope).startsWith(`${INSTRUMENT_SCOPE_PREFIX}.`),
+        `refusal logged under "${scope}" — /system will read it as a failed write`,
+      ).toBe(false);
+      expect(scope).toBe("ai.tool-telemetry");
+    });
+  });
+
+  it("POSITIVE CONTROL: a genuine WRITE failure still uses the instrument scope", async () => {
+    // Without this, moving every log off the instrument channel would satisfy
+    // the canary above while blinding /system to real outages. The upsert
+    // throwing is the real failure, and it must stay nameable.
+    mocks.executeRaw.mockRejectedValueOnce(new Error("connection lost"));
+    await recordToolInvocation({ toolName: "getTasks", success: true, durationMs: 3 });
+    expect(mocks.logError).toHaveBeenCalledTimes(1);
+    const [scope] = mocks.logError.mock.calls[0];
+    expect(scope).toBe("ai.tool-telemetry");
   });
 
   it("the refusal log carries NO fragment of the payload", async () => {

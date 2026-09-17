@@ -28,8 +28,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
-// The prisma-free scope helper — see lib/observability/instrument-scope.ts.
-import { instrumentScope } from "@/lib/observability/instrument-scope";
 
 export interface ToolInvocation {
   toolName: string;
@@ -218,22 +216,32 @@ export function describeRejectedToolName(name: unknown): {
 export async function recordToolInvocation(inv: ToolInvocation): Promise<void> {
   // Refuse a malformed key rather than minting a row for it — but LOUDLY.
   // Dropping it silently would trade a corrupt row for a missing one, and this
-  // module's own header is about exactly that trade being a bad one. Logged
-  // under the `tool_invocation` instrument scope, which is already in
-  // KNOWN_INSTRUMENTS, so `buildInstrumentFailures()` can name it on /system
-  // instead of leaving a silence.
+  // module's own header is about exactly that trade being a bad one.
+  //
+  // ⚠ NOT UNDER `instrumentScope(...)`, AND THAT IS THE POINT. The first cut
+  // logged this as `instrument.tool_invocation` purely because that name was
+  // already in KNOWN_INSTRUMENTS — which is the wrong reason to pick a channel.
+  // `buildInstrumentFailures()` defines EVERY `instrument.*` row as an
+  // instrument that FAILED TO WRITE, and this path deliberately returns BEFORE
+  // the write. So a healthy validation rejection would have rendered on /system
+  // as a broken telemetry writer and inflated `totalFailures` — a guard working
+  // correctly, reported as the thing it prevents.
+  //
+  // A refusal is not a write failure. It goes to this module's ordinary error
+  // scope, the same one its other two logError calls use, where it is still
+  // persisted and still console-visible — just not masquerading as an outage.
   if (!isRecordableToolName(inv.toolName)) {
     // METADATA ONLY — never a substring of the value. See
     // `describeRejectedToolName`: `logError` persists its message verbatim and
     // echoes it to the console, and redaction covers only `extra`.
     const d = describeRejectedToolName(inv.toolName);
     logError(
-      instrumentScope("tool_invocation"),
+      "ai.tool-telemetry",
       new Error(
         `refused a non-identifier tool name [reason=${d.reason} type=${d.type} ` +
           `len=${d.length} digest=${d.digest}]`,
       ),
-      { conversationId: inv.conversationId ?? null },
+      { fn: "recordToolInvocation", rejected: true, conversationId: inv.conversationId ?? null },
       "warn",
     );
     return;
