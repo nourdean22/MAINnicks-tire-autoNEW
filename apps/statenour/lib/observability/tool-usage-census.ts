@@ -19,6 +19,17 @@
  *     they are separate buckets, each carrying its denominator
  *     (surfacedWindow.turns). Both stay EMPTY until surfacing data
  *     exists — an absent instrument must not read as a measured zero.
+ *
+ *     2026-09-17 · THE NUMERATOR WAS STILL WRONG. "chosen" came from
+ *     `tool_telemetry.totalCalls` — cumulative for the life of the table —
+ *     while the denominator was a 30-day window. A tool useful a year ago
+ *     and dead today had `totalCalls > 0` and never reached the prune
+ *     list; a tool surfaced 100 times this month with one call from six
+ *     months ago escaped it too. The `tool.chosen` lane supplies a
+ *     WINDOWED numerator on the same traceId as `tool.surfaced`, so the
+ *     two are finally the same window and unit. Falls back to the lifetime
+ *     counter until that lane has measured turns, and the caveat names
+ *     which of the two produced the numbers.
  *   · highFailure — ≥10 calls and success < 60%: the rewrite-draft
  *     cron's input queue (tool-description-rewrite).
  *   · stale — invoked at least once, but not in the trailing 30 days.
@@ -41,6 +52,48 @@ export interface ToolCensusRow {
   lastError: string | null;
   /** Turns this tool was offered to the model in the window (null = no surfacing data). */
   surfacedCount: number | null;
+  /**
+   * Turns the model actually INVOKED it, over the same window as
+   * `surfacedCount`. Null until the `tool.chosen` lane has measured turns —
+   * null means "not measured", never "zero".
+   */
+  chosenCount: number | null;
+}
+
+/**
+ * Per-tool CHOSEN counts from the `tool.chosen` metric lane — the numerator.
+ *
+ * WHY THIS EXISTS. `surfacedNeverChosen` was computed by comparing a LIFETIME
+ * numerator (`tool_telemetry.totalCalls`, cumulative since the table was
+ * created) against a 30-DAY denominator (`tool.surfaced`). Mixing the two makes
+ * the bucket wrong in both directions:
+ *
+ *   · a tool that was useful a year ago and is dead today has
+ *     `totalCalls > 0`, so it never reaches the prune list at all;
+ *   · a tool surfaced 100 times this month with one call from six months ago
+ *     reads as "invoked" and escapes the same list.
+ *
+ * `tool.chosen` (lib/services/chat/tool-telemetry-walk.ts) records the tools
+ * actually invoked per turn, stamped with the same route-minted `traceId` as
+ * `tool.surfaced`, so the two are finally the same window and the same unit.
+ *
+ * ⚠ ONLY `observed: true` ROWS COUNT. That lane deliberately records turns
+ * whose receipts it could not see (`observed: false`), because the alternate
+ * chat paths hand the walk no `ev.steps`. Counting a blind turn as a measured
+ * zero would inflate "never chosen" — the exact confound this bucket exists to
+ * remove, reintroduced one layer up.
+ */
+export interface ChosenStats {
+  /** Window the counts cover, in days. */
+  windowDays: number;
+  /** MEASURED turns in the window (observed=true only) — the honest denominator. */
+  turns: number;
+  /** Turns in the window whose receipts were invisible; excluded from `turns`. */
+  blindTurns: number;
+  /** Oldest measured row in the window (ms epoch). */
+  since: number | null;
+  /** tool name → turns the model actually invoked it. */
+  counts: Map<string, number>;
 }
 
 /** Per-tool surfaced counts from the `tool.surfaced` metric lane. */
@@ -68,6 +121,12 @@ export interface ToolUsageCensus {
   neverSurfaced: ToolCensusRow[];
   /** Denominators for the two buckets above; turns=0 means the instrument has no data yet. */
   surfacedWindow: { windowDays: number; turns: number; since: string | null };
+  /**
+   * Denominator for `chosenCount`. `turns` counts only MEASURED turns;
+   * `blindTurns` are turns whose receipts the walk could not see and which are
+   * excluded from both numerator and denominator rather than counted as zero.
+   */
+  chosenWindow: { windowDays: number; turns: number; blindTurns: number; since: string | null };
   /** Disclosure the panel must render — states whether zeros are measured or confounded. */
   caveat: string;
 }
@@ -82,9 +141,24 @@ export function assembleToolUsageCensus(
   stats: ToolStat[],
   now: number = Date.now(),
   surfaced: SurfacedStats | null = null,
+  chosen: ChosenStats | null = null,
 ): ToolUsageCensus {
   const byName = new Map(stats.map((s) => [s.toolName, s]));
   const hasSurfacing = surfaced !== null && surfaced.turns > 0;
+  const hasChosen = chosen !== null && chosen.turns > 0;
+
+  /**
+   * Was this tool chosen, over a window comparable to the surfacing window?
+   *
+   * When the `tool.chosen` lane has measured turns, this is a WINDOWED count
+   * and the bucket below is finally apples-to-apples. Until then it falls back
+   * to the lifetime counter — which is what the bucket always used, and which
+   * mixes a cumulative numerator with a 30-day denominator. The fallback is
+   * kept so the census keeps working before the lane accrues data, and the
+   * caveat says which of the two produced the numbers.
+   */
+  const chosenCount = (name: string, s?: ToolStat): number =>
+    hasChosen ? (chosen.counts.get(name) ?? 0) : (s?.totalCalls ?? 0);
 
   const toRow = (name: string, category: string, s?: ToolStat): ToolCensusRow => ({
     name,
@@ -94,6 +168,7 @@ export function assembleToolUsageCensus(
     lastCallAt: s?.lastCallAt ?? null,
     lastError: s?.lastErrors?.[0]?.message ?? null,
     surfacedCount: hasSurfacing ? (surfaced.counts.get(name) ?? 0) : null,
+    chosenCount: hasChosen ? (chosen.counts.get(name) ?? 0) : null,
   });
 
   const neverInvoked: ToolCensusRow[] = [];
@@ -104,13 +179,29 @@ export function assembleToolUsageCensus(
 
   for (const meta of TOOL_CATALOG) {
     const s = byName.get(meta.name);
-    if (!s || s.totalCalls === 0) {
+
+    // The prune buckets are decided by the WINDOWED chosen count when the
+    // `tool.chosen` lane has data. Before it does, this is `s.totalCalls` and
+    // behaves exactly as it always has.
+    //
+    // ⚠ This is why the split is evaluated separately from `neverInvoked`
+    // below: a tool with lifetime calls but ZERO in the window belongs in
+    // `surfacedNeverChosen` (it is dead NOW), and the old code could never put
+    // it there because `totalCalls > 0` sent it down the "invoked" path.
+    if (hasSurfacing) {
       const row = toRow(meta.name, meta.category, s);
-      neverInvoked.push(row);
-      if (hasSurfacing) {
-        if ((row.surfacedCount ?? 0) > 0) surfacedNeverChosen.push(row);
-        else neverSurfaced.push(row);
+      if ((row.surfacedCount ?? 0) > 0) {
+        if (chosenCount(meta.name, s) === 0) surfacedNeverChosen.push(row);
+      } else if (!s || s.totalCalls === 0) {
+        // Never offered in the window AND never called at all — the pruner's
+        // blind spot. A tool with lifetime calls but no recent surfacing is
+        // not a blind spot, it is simply out of the window.
+        neverSurfaced.push(row);
       }
+    }
+
+    if (!s || s.totalCalls === 0) {
+      neverInvoked.push(toRow(meta.name, meta.category, s));
       continue;
     }
     if (s.totalCalls >= HIGH_FAILURE_MIN_CALLS && s.successRate < HIGH_FAILURE_SUCCESS_FLOOR) {
@@ -141,8 +232,18 @@ export function assembleToolUsageCensus(
       turns: surfaced?.turns ?? 0,
       since: surfaced?.since ? new Date(surfaced.since).toISOString() : null,
     },
+    chosenWindow: {
+      windowDays: chosen?.windowDays ?? SURFACED_WINDOW_DAYS,
+      turns: chosen?.turns ?? 0,
+      blindTurns: chosen?.blindTurns ?? 0,
+      since: chosen?.since ? new Date(chosen.since).toISOString() : null,
+    },
     caveat: hasSurfacing
-      ? `Zeros are measured over ${surfaced.turns} turns / ${surfaced.windowDays}d: "surfaced, never chosen" is the model's verdict; "never surfaced" is the pruner's blind spot, NOT evidence of uselessness. Demote to search-only via searchTools/invokeTool before considering removal — never auto-delete.`
+      ? `Zeros are measured over ${surfaced.turns} turns / ${surfaced.windowDays}d: "surfaced, never chosen" is the model's verdict; "never surfaced" is the pruner's blind spot, NOT evidence of uselessness. ${
+          hasChosen
+            ? `Chosen counts are WINDOWED from ${chosen.turns} measured turns (${chosen.blindTurns} blind turns excluded, not counted as zero).`
+            : "Chosen counts fall back to LIFETIME tool_telemetry totals, so they mix a cumulative numerator with a 30d denominator — a tool useful a year ago and dead today will not appear here. The tool.chosen lane has no measured turns yet."
+        } Demote to search-only via searchTools/invokeTool before considering removal — never auto-delete.`
       : "A zero is pruner-confounded: tools the pruner never surfaces cannot accumulate calls, and no surfacing data exists in the window yet. This census says 'never invoked', never 'useless'. Demote to search-only via searchTools/invokeTool before considering removal — never auto-delete.",
   };
 }
@@ -207,8 +308,65 @@ export async function getSurfacedStats(
   }
 }
 
+/**
+ * Per-tool chosen counts over the same window as `getSurfacedStats`.
+ *
+ * `${days}::int` IS LOAD-BEARING here for the same reason it is there: Prisma
+ * binds a JS number as int8, `make_interval` has no int8 overload, and a named
+ * argument gets no implicit cast — so the un-cast form throws 42883 on every
+ * call and the catch turns a broken query into an innocent-looking empty
+ * dataset. That cost three weeks once; it is not repeated by accident.
+ *
+ * `tags->>'observed' = 'true'` is the other load-bearing clause — see
+ * `ChosenStats`.
+ */
+export async function getChosenStats(
+  windowDays: number = SURFACED_WINDOW_DAYS,
+): Promise<ChosenStats | null> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const days = Math.max(1, Math.min(365, Math.floor(windowDays)));
+    const rows = await prisma.$queryRaw<Array<{ tool: string; chosen: number }>>`
+      SELECT t.tool AS tool, count(*)::int AS chosen
+      FROM system_metrics m,
+           LATERAL jsonb_array_elements_text(m.tags->'tools') AS t(tool)
+      WHERE m.metric = 'tool.chosen'
+        AND m.tags->>'observed' = 'true'
+        AND m.created_at > now() - make_interval(days => ${days}::int)
+      GROUP BY t.tool
+    `;
+    const meta = await prisma.$queryRaw<
+      Array<{ turns: number; blind: number; since: Date | null }>
+    >`
+      SELECT
+        count(*) FILTER (WHERE tags->>'observed' = 'true')::int  AS turns,
+        count(*) FILTER (WHERE tags->>'observed' <> 'true')::int AS blind,
+        min(created_at) FILTER (WHERE tags->>'observed' = 'true') AS since
+      FROM system_metrics
+      WHERE metric = 'tool.chosen'
+        AND created_at > now() - make_interval(days => ${days}::int)
+    `;
+    return {
+      windowDays: days,
+      turns: meta[0]?.turns ?? 0,
+      blindTurns: meta[0]?.blind ?? 0,
+      since: meta[0]?.since ? new Date(meta[0].since).getTime() : null,
+      counts: new Map(rows.map((r) => [r.tool, r.chosen])),
+    };
+  } catch (e) {
+    // Same rule as the surfacing read: null is the right DEGRADATION, silence
+    // is not. A failed read may render as "unknown"; it may not pass as empty.
+    log.warn("chosen_query_failed", { error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}
+
 export async function buildToolUsageCensus(): Promise<ToolUsageCensus> {
   // The telemetry table is small (≤ catalog size); pull the whole thing.
-  const [stats, surfaced] = await Promise.all([getToolStats(500), getSurfacedStats()]);
-  return assembleToolUsageCensus(stats, Date.now(), surfaced);
+  const [stats, surfaced, chosen] = await Promise.all([
+    getToolStats(500),
+    getSurfacedStats(),
+    getChosenStats(),
+  ]);
+  return assembleToolUsageCensus(stats, Date.now(), surfaced, chosen);
 }

@@ -207,3 +207,104 @@ describe("buildRewritePrompt", () => {
     expect(prompt).toMatch(/ONLY the new description/);
   });
 });
+
+/**
+ * `tool.chosen` gives the prune bucket a WINDOWED numerator.
+ *
+ * THE DEFECT THIS CLOSES. `surfacedNeverChosen` compared
+ * `tool_telemetry.totalCalls` — cumulative since the table was created — against
+ * a 30-day `tool.surfaced` denominator. Mixing the two made the bucket wrong in
+ * both directions: a tool useful a year ago and dead today has `totalCalls > 0`
+ * and never reached the prune list, while a tool surfaced 100 times this month
+ * with one call from six months ago read as "invoked" and escaped it too.
+ *
+ * ⚠ And the fix has its own trap, which these tests pin: the `tool.chosen` lane
+ * records turns whose receipts it could NOT see (`observed: false`), because the
+ * alternate chat paths hand the walk no `ev.steps`. Counting those as measured
+ * zeros would inflate "never chosen" — the same confound this bucket exists to
+ * remove, reintroduced one layer up.
+ */
+describe("assembleToolUsageCensus · windowed chosen counts", () => {
+  const names = TOOL_CATALOG.map((t) => t.name);
+  const surfacedFor = (m: Record<string, number>, turns = 50) => ({
+    windowDays: 30,
+    turns,
+    since: NOW - 1000,
+    counts: new Map(Object.entries(m)),
+  });
+  const chosenFor = (m: Record<string, number>, turns = 50, blindTurns = 0) => ({
+    windowDays: 30,
+    turns,
+    blindTurns,
+    since: NOW - 1000,
+    counts: new Map(Object.entries(m)),
+  });
+
+  it("CANARY: a tool with LIFETIME calls but zero in the window IS a prune candidate", () => {
+    // The whole point. Before the windowed numerator this tool was invisible to
+    // the prune list purely because it had been useful once.
+    const dead = names[0];
+    const census = assembleToolUsageCensus(
+      [stat({ toolName: dead, totalCalls: 400, lastCallAt: NOW })],
+      NOW,
+      surfacedFor({ [dead]: 40 }),
+      chosenFor({}),
+    );
+    expect(census.surfacedNeverChosen.map((r) => r.name)).toContain(dead);
+    const row = census.surfacedNeverChosen.find((r) => r.name === dead)!;
+    expect(row.totalCalls).toBe(400); // lifetime still reported, just not decisive
+    expect(row.chosenCount).toBe(0);
+    expect(row.surfacedCount).toBe(40);
+  });
+
+  it("POSITIVE CONTROL: a tool chosen IN the window is not a prune candidate", () => {
+    // Without this, a bucket that swallowed everything would satisfy the canary.
+    const alive = names[0];
+    const census = assembleToolUsageCensus(
+      [stat({ toolName: alive, totalCalls: 400 })],
+      NOW,
+      surfacedFor({ [alive]: 40 }),
+      chosenFor({ [alive]: 7 }),
+    );
+    expect(census.surfacedNeverChosen.map((r) => r.name)).not.toContain(alive);
+  });
+
+  it("WITHOUT chosen data it behaves exactly as before, and SAYS so", () => {
+    // Degrading to the lifetime numerator is acceptable; degrading silently is
+    // not. The caveat has to name which numerator produced the buckets.
+    const dead = names[0];
+    const census = assembleToolUsageCensus(
+      [stat({ toolName: dead, totalCalls: 400 })],
+      NOW,
+      surfacedFor({ [dead]: 40 }),
+      null,
+    );
+    expect(census.surfacedNeverChosen.map((r) => r.name)).not.toContain(dead);
+    expect(census.caveat).toMatch(/LIFETIME/);
+    expect(census.caveat).toMatch(/no measured turns yet/i);
+    expect(census.chosenWindow.turns).toBe(0);
+    // Null means NOT MEASURED. It must never render as a zero.
+    expect(census.neverInvoked.every((r) => r.chosenCount === null)).toBe(true);
+  });
+
+  it("a chosen lane with only BLIND turns counts as no data at all", () => {
+    // turns=0 with blindTurns>0 is "we saw nothing", not "nothing was chosen".
+    const dead = names[0];
+    const census = assembleToolUsageCensus(
+      [stat({ toolName: dead, totalCalls: 400 })],
+      NOW,
+      surfacedFor({ [dead]: 40 }),
+      chosenFor({}, 0, 25),
+    );
+    expect(census.surfacedNeverChosen.map((r) => r.name)).not.toContain(dead);
+    expect(census.caveat).toMatch(/LIFETIME/);
+    expect(census.chosenWindow.blindTurns).toBe(25);
+  });
+
+  it("reports blind turns alongside measured ones when both exist", () => {
+    const census = assembleToolUsageCensus([], NOW, surfacedFor({}), chosenFor({}, 40, 12));
+    expect(census.chosenWindow).toMatchObject({ turns: 40, blindTurns: 12, windowDays: 30 });
+    expect(census.caveat).toMatch(/12 blind turns excluded/);
+    expect(census.caveat).toMatch(/WINDOWED/);
+  });
+});
