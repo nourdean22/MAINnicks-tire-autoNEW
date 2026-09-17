@@ -122,7 +122,13 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "runPython",                    category: "ai_analysis",                   cost: "cheap", riskClass: "critical", requiredEnv: ["E2B_API_KEY"] },
   // v10.0.515 · #10 Document Q&A · cheap (one embedding call + DB knn)
   { name: "searchDocuments",              category: "research",       battle: true,  cost: "cheap", riskClass: "low", requiredEnv: ["AUTH_GOOGLE_CLIENT_ID", "AUTH_GOOGLE_CLIENT_SECRET"] },
-  { name: "ingestDocumentFromUrl",        category: "research",                      cost: "cheap", riskClass: "low" },
+  // 2026-09-17 · REFLAGGED. Its own implementation (tools/system.ts:292-299)
+  // says it "fetches an arbitrary URL + parses + embeds → real paid cost on
+  // both Venice + Neon" and guards itself with a daily quota. It was catalogued
+  // `cost: "cheap"` with NO sideEffecting flag, so every guard that reads those
+  // flags — including the Drive read-intent test — treated a paid ingest as a
+  // free read. The flags now match what the tool does.
+  { name: "ingestDocumentFromUrl",        category: "research",       sideEffecting: true, cost: "spendy", riskClass: "low" },
   // v10.0.524 · #1 Cross-conversation recall + #4 multi-source search
   { name: "findRelatedConversations",     category: "brain",          battle: true,  cost: "cheap", riskClass: "low" },
   { name: "searchWebVerified",            category: "research",                      cost: "medium", riskClass: "low" },
