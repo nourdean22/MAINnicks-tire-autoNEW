@@ -93,13 +93,22 @@ Rules:
 - Return [] if nothing should be merged`,
       },
       { role: "user", content: memList },
-      // 2026-09-17 · was "fast". MEASURED: of 106 Ollama calls for this lane in
-      // 24h, 53 returned ZERO completion tokens and 46 had empty output — half
-      // the runs produced nothing. `fast` resolves to OLLAMA_FAST_MODEL (a
+      // 2026-09-17 · was "fast". `fast` resolves to OLLAMA_FAST_MODEL (a
       // light-filter model) under a 1500-token / 45s cap meant for "terse
       // responses" (provider.ts). This call reads 30 memories and must emit a
-      // JSON array containing full merged prose; the observed max was exactly
-      // 1500 tokens, i.e. the ceiling truncating JSON mid-structure.
+      // JSON array containing full merged prose.
+      //
+      // MEASURED on production `.doGenerate` spans (3d): the fast model
+      // returned EMPTY CONTENT on 7 of 31 calls (23%); the reason model on
+      // 0 of 16. The observed fast-lane max was exactly 1500 tokens — the
+      // ceiling truncating JSON mid-structure.
+      //
+      // ⚠ COUNT CHILD SPANS, NOT PARENTS. An earlier draft of this comment
+      // claimed "53 of 106 calls returned ZERO tokens". That was an artifact:
+      // every `ai.generateText` PARENT span reports 0 output tokens while its
+      // `.doGenerate` CHILD carries the real usage, so counting both halves
+      // manufactured an exact-50% failure rate that does not exist. The real
+      // zero-token rate is 0%. The signal is EMPTY CONTENT, not token count.
       //
       // Each empty/unparseable result made the provider chain fall through to
       // the METERED rescue tail, where gemini/openrouter/openai then failed on

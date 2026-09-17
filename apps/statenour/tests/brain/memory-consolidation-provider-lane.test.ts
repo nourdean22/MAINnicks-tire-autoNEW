@@ -4,9 +4,9 @@
  *
  * WHY THIS FILE EXISTS — measured in production 2026-09-17:
  *
- *   · 106 Ollama calls for this lane in 24h; **53 returned ZERO completion
- *     tokens** and 46 had empty output. The observed max was exactly 1500,
- *     i.e. the `fast`/`classify` ceiling truncating JSON mid-structure.
+ *   · the fast model returned EMPTY CONTENT on 7 of 31 `.doGenerate` spans (23%);
+ *     the reason model on 0 of 16. The fast lane's observed max was exactly
+ *     1500 tokens — the `fast`/`classify` ceiling truncating JSON mid-structure.
  *   · Each empty result made the provider chain fall through to the METERED
  *     rescue tail, where gemini/openrouter/openai failed on billing —
  *     2,963 Langfuse ERROR observations in 7d across six brain surfaces.
@@ -66,7 +66,13 @@ describe("mergeMemories · provider lane", () => {
 
   // ── CANARY ──────────────────────────────────────────────────────────
   // `fast` is the shipped defect. It resolves to the light-filter model under
-  // a 1500-token cap and produced zero tokens on half of all production runs.
+  // a 1500-token cap and returned empty content on 23% of production calls,
+  // while the reason model returned empty on none.
+  //
+  // ⚠ COUNT CHILD SPANS. An earlier version of this docstring claimed "zero
+  // tokens on half of all runs" — an artifact of counting `ai.generateText`
+  // PARENT spans, which never carry usage, alongside their `.doGenerate`
+  // children, which do. That manufactured an exact-50% rate that is not real.
   it("CANARY — does NOT request the terse `fast` lane for a structured merge", async () => {
     mocks.aiChat.mockResolvedValue({ content: "[]", provider: "ollama", model: "minimax-m3" });
     await mergeMemories();

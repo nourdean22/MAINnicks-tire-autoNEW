@@ -6,9 +6,16 @@
  *
  * `provider.ts` caps `fast`/`classify` at 1500 tokens / 45s, documented as
  * "terse responses", and resolves them to `OLLAMA_FAST_MODEL` (a light-filter
- * model). On the memory-consolidation lane that combination produced, in 24h:
- *   · 106 Ollama calls · **53 returned ZERO completion tokens** · 46 empty
- *   · observed max exactly 1500 — the ceiling truncating JSON mid-structure
+ * model). Measured over 3 days of production `.doGenerate` spans:
+ *   · the fast model returned EMPTY CONTENT on 7 of 31 (23%); the reason model
+ *     on 0 of 16
+ *   · the fast lane's observed max was exactly 1500 — the ceiling truncating
+ *     JSON mid-structure
+ *
+ * ⚠ COUNT CHILD SPANS, NOT PARENTS. `ai.generateText` parent spans never carry
+ * usage while their `.doGenerate` children do, so counting both manufactures an
+ * exact-50% "zero token" rate that does not exist. An earlier draft of this
+ * comment published that figure. The signal is EMPTY CONTENT, not token count.
  * Every empty or unparseable result fell through to the METERED rescue tail,
  * where gemini / openrouter / openai failed on billing: 2,963 Langfuse ERROR
  * observations in 7d across six brain surfaces.
