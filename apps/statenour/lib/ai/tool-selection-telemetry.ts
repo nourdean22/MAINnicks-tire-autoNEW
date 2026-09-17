@@ -19,12 +19,29 @@
  * is applied, so every write is wrapped. But a swallowed write that
  * reports nothing is exactly the "failed read rendering as a confident
  * zero" defect this module exists to prevent — so failures increment an
- * in-process counter that `getSelectionTelemetryHealth()` exposes, and
- * the panel reads that to distinguish "no pruner misses" from "the
- * recorder is broken".
+ * in-process counter that `getSelectionTelemetryHealth()` exposes.
+ *
+ * ⚠ 2026-09-16 · this used to end "and the panel reads that to distinguish
+ * 'no pruner misses' from 'the recorder is broken'". NO PANEL READ IT.
+ * `getSelectionTelemetryHealth` had zero callers, so the guard described here
+ * protected nothing — the module documenting the confident-zero defect had
+ * shipped one of its own.
+ *
+ * Worse than an oversight: these counters are module-level and
+ * LAMBDA-INSTANCE SCOPED, so a tRPC query answering from a different instance
+ * than the chat turn reads its own zeros. They cannot answer a cross-instance
+ * question, so no panel could have been wired to them correctly. Failures now
+ * ALSO report through `instrumentScope("tool_selection_turn")`, which persists
+ * to errorLog and is read by `buildInstrumentFailures()`. The counters stay as
+ * a live-instance view; they are no longer the only signal.
  */
 
 import { logError } from "@/lib/utils/error-log";
+// Failures report through the shared instrument channel so one reader can name
+// every broken instrument. The in-process counters below stay — they are a
+// live-instance view — but they cannot answer a cross-instance question, which
+// is why they were never enough on their own.
+import { instrumentScope } from "@/lib/observability/instrument-scope";
 
 export type GateVerdict =
   | "ALLOWED"
@@ -147,7 +164,7 @@ export async function recordToolSelection(turn: SelectionTurn): Promise<void> {
     writesFailed += 1;
     lastWriteError = err instanceof Error ? err.message : String(err);
     lastWriteErrorAt = Date.now();
-    void logError("ai.tool-selection-telemetry", err, {
+    void logError(instrumentScope("tool_selection_turn"), err, {
       fn: "recordToolSelection",
       turnId: turn.turnId,
     });
@@ -190,7 +207,7 @@ export async function markSearchToolsFired(
     writesFailed += 1;
     lastWriteError = err instanceof Error ? err.message : String(err);
     lastWriteErrorAt = Date.now();
-    void logError("ai.tool-selection-telemetry", err, {
+    void logError(instrumentScope("tool_selection_turn"), err, {
       fn: "markSearchToolsFired",
       turnId,
     });
@@ -241,7 +258,7 @@ export async function markForcedTool(
     writesFailed += 1;
     lastWriteError = err instanceof Error ? err.message : String(err);
     lastWriteErrorAt = Date.now();
-    void logError("ai.tool-selection-telemetry", err, {
+    void logError(instrumentScope("tool_selection_turn"), err, {
       fn: "markForcedTool",
       turnId,
     });
@@ -328,7 +345,7 @@ export async function resolveForcedTool(
     writesFailed += 1;
     lastWriteError = err instanceof Error ? err.message : String(err);
     lastWriteErrorAt = Date.now();
-    void logError("ai.tool-selection-telemetry", err, {
+    void logError(instrumentScope("tool_selection_turn"), err, {
       fn: "resolveForcedTool",
       turnId: traceId,
     });
@@ -366,7 +383,7 @@ export async function markInvokeToolFired(
     writesFailed += 1;
     lastWriteError = err instanceof Error ? err.message : String(err);
     lastWriteErrorAt = Date.now();
-    void logError("ai.tool-selection-telemetry", err, {
+    void logError(instrumentScope("tool_selection_turn"), err, {
       fn: "markInvokeToolFired",
       turnId,
     });

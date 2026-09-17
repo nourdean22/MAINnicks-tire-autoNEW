@@ -363,6 +363,38 @@ export function rankToolsBySimilarity(
   return scores.slice(0, topN);
 }
 
+/**
+ * Cosine scores for a SPECIFIC candidate set, rather than the global top-N.
+ *
+ * `rankToolsBySimilarity` answers "what are the best tools in the catalog?".
+ * The pruner's tier 4 needs a different question: "given these N tools the
+ * keyword families already matched, which matter most?" — no minScore floor
+ * (a weak match still outranks an arbitrary one) and no top-N cut (the caller
+ * owns the budget).
+ *
+ * Scores only the names asked for, so cost tracks the candidate set (typically
+ * 20-90 tools), not the 181-tool catalog.
+ *
+ * A name absent from the cache is OMITTED rather than scored 0 — those are
+ * different claims, and a 0 would sort an unmeasured tool below a genuinely
+ * dissimilar one. Callers must decide what to do with the omissions; see
+ * `orderKeywordCandidates` in chat-mode.ts, which ranks only when the cache is
+ * warm precisely so every candidate is comparable.
+ */
+export function scoreToolsBySimilarity(
+  userEmbedding: number[],
+  names: Iterable<string>,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  if (userEmbedding.length === 0 || toolEmbeddings.size === 0) return out;
+  for (const name of names) {
+    const emb = toolEmbeddings.get(name);
+    if (!emb) continue;
+    out.set(name, cosineSim(userEmbedding, emb));
+  }
+  return out;
+}
+
 /** Aggregate deadline for the on-demand embed — see embedUserMessage. */
 const EMBED_USER_MESSAGE_TIMEOUT_MS = 12_000;
 

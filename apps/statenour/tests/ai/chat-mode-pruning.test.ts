@@ -7,16 +7,29 @@ vi.mock("@/lib/ai/tool-telemetry", () => ({
   isToolBlocked: vi.fn().mockReturnValue(false),
 }));
 
-vi.mock("@/lib/ai/tool-embeddings", () => ({
-  rankToolsBySimilarity: vi.fn().mockImplementation(() => {
-    const results = [];
-    for (let i = 1; i <= 60; i++) {
-      results.push([`extraTool-${i}`, 0.9]);
-    }
-    return results;
-  }),
-  isToolEmbeddingCacheWarm: vi.fn().mockReturnValue(true),
-}));
+// Spread the REAL module and override only what this file steers. The
+// hand-written version omitted `scoreToolsBySimilarity` once pruneTools began
+// calling it for tier-4 ordering, so every call landed as `undefined`, threw,
+// and was swallowed by the caller's fallback — the file kept passing while
+// exercising an error path it never meant to test.
+vi.mock("@/lib/ai/tool-embeddings", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/tool-embeddings")>();
+  return {
+    ...actual,
+    rankToolsBySimilarity: vi.fn().mockImplementation(() => {
+      const results = [];
+      for (let i = 1; i <= 60; i++) {
+        results.push([`extraTool-${i}`, 0.9]);
+      }
+      return results;
+    }),
+    isToolEmbeddingCacheWarm: vi.fn().mockReturnValue(true),
+    // No cached embeddings in this suite, so tier-4 ranking has nothing to say
+    // and falls back to alphabetical — which is what these budget-capping
+    // assertions were written against.
+    scoreToolsBySimilarity: vi.fn(() => new Map<string, number>()),
+  };
+});
 
 vi.mock("@/lib/ai/tool-selection-telemetry", () => ({ recordToolSelection }));
 

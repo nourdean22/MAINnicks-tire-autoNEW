@@ -12,6 +12,8 @@ import { buildActionReceiptFeed } from "@/lib/services/action-receipt-feed";
 import { buildTrustLadder } from "@/lib/ai/trust-ladder";
 import { buildWiringCensus } from "@/lib/observability/wiring-census";
 import { buildToolUsageCensus } from "@/lib/observability/tool-usage-census";
+import { buildEvidenceGateCalibration } from "@/lib/observability/evidence-gate-calibration";
+import { buildInstrumentFailures } from "@/lib/observability/instrument-failures";
 import { buildHomeDecisionMetrics } from "@/lib/observability/home-decision-metrics";
 import { buildWisdomGateSpc, buildCalibrationReport } from "@/lib/brain/judgment-quality";
 
@@ -45,6 +47,29 @@ export const digestProcedures = {
    * pruner-confounded and the payload says so.
    */
   toolUsageCensus: operatorProcedure.query(async () => buildToolUsageCensus()),
+  /**
+   * Which measurement instruments FAILED to write, by name.
+   *
+   * Sits beside the census deliberately: every zero the census reports means
+   * "surfaced/invoked nothing" ONLY if the instruments were writing. When they
+   * were not, the census reads a shortfall of rows as a fact about the tools.
+   * #2359 lost three weeks to that reading, and review found the same shape
+   * again on `action.done.shadow` in 2026-09. This is the row that tells the
+   * two apart. Read-only.
+   */
+  instrumentFailures: operatorProcedure
+    .input(z.object({ windowHours: z.number().int().min(1).max(720).default(24) }).optional())
+    .query(async ({ input }) => buildInstrumentFailures(input?.windowHours ?? 24)),
+  /**
+   * The readout AGENTS.md §4 L6 defers enforcement on: "Enforcement goes live
+   * on the buffered path once the shadow false-positive rate is known."
+   * Verdicts have been persisted at `tokenUsage.evidenceGate` since 2026-09-10
+   * and nothing read them, so the number was only obtainable by writing a
+   * one-off script. Cohorted at the last precision change and silent about the
+   * rate when the sample is too thin — both rules exist because the first
+   * measurement got them wrong. Read-only.
+   */
+  evidenceGateCalibration: operatorProcedure.query(async () => buildEvidenceGateCalibration()),
   /** BDN-104 · did the compact-Home composition actually get used? */
   homeDecisionMetrics: operatorProcedure
     .input(z.object({ windowDays: z.number().int().min(1).max(90) }).optional())

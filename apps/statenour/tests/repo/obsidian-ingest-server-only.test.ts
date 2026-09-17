@@ -31,7 +31,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { SERVER_ONLY_CONDITION, withServerOnlyShim } from "@/lib/obsidian/child-env";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -57,8 +57,33 @@ const RUNNER = resolve(APP_ROOT, "scripts/obsidian-engine-runner.ts");
  * either way it has stopped reporting on its subject. Running from a file
  * removes the loader's `-e` interop from the chain entirely.
  */
+/**
+ * A dynamic `import()` specifier must be a file:// URL, not an absolute path.
+ *
+ * 2026-09-16 · this file's three probe arms failed on Windows for a reason
+ * having nothing to do with `server-only`:
+ *
+ *   Only URLs with a scheme in: file, data, and node are supported by the
+ *   default ESM loader. On Windows, absolute paths must be valid file:// URLs.
+ *   Received protocol 'c:'
+ *
+ * The previous `.split("\\").join("/")` turned `C:\…` into `C:/…`, which fixes
+ * the separators and NOT the problem — the loader still reads the drive letter
+ * as a URL scheme. `pathToFileURL` produces `file:///C:/…` and is correct on
+ * POSIX too, where it yields `file:///abs/path`.
+ *
+ * Note what this cost: the arm that failed was "the probe mechanism can read
+ * named exports at all" — this file's own POSITIVE CONTROL. Exactly the hazard
+ * the header above documents, a second time and from a different direction. The
+ * control correctly reported that its instrument could not run; nothing was
+ * wrong with the shim it guards.
+ */
+function toImportSpecifier(absPath: string): string {
+  return pathToFileURL(absPath).href;
+}
+
 function probeSource(): string {
-  const target = resolve(APP_ROOT, "lib/knowledge/candidate-store").split("\\").join("/");
+  const target = toImportSpecifier(resolve(APP_ROOT, "lib/knowledge/candidate-store"));
   return [
     `import(${JSON.stringify(target)})`,
     `  .then((m) => {`,
@@ -72,7 +97,7 @@ function probeSource(): string {
 
 /** Same, against a module with NO `server-only` anywhere in its chain. */
 function namedExportProbeSource(): string {
-  const target = resolve(APP_ROOT, "lib/db/soft-delete").split("\\").join("/");
+  const target = toImportSpecifier(resolve(APP_ROOT, "lib/db/soft-delete"));
   return `import(${JSON.stringify(target)}).then((m) => console.log("KEYS:" + Object.keys(m).join(","))).catch((e) => { console.log("THREW:" + e.message); process.exitCode = 1; });\n`;
 }
 

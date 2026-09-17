@@ -11,7 +11,13 @@ import { recordInteraction } from "@/lib/ai/memory";
 import { messageContentToText } from "@/lib/ai/chat/message-text";
 import { buildVerifierBanner, isVerifierRewritten } from "@/lib/ai/chat/fabrication-rewriter";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
-import { detectFailedActionClaims, detectPhantomActionClaims } from "@/lib/ai/chat/action-result-verifier";
+import {
+  compareActionDoneShadow,
+  detectFailedActionClaims,
+  detectPhantomActionClaims,
+} from "@/lib/ai/chat/action-result-verifier";
+import { recordMetricStrict } from "@/lib/services/metrics";
+import { recordActionDoneShadow } from "@/lib/ai/receipts/action-done-shadow-recorder";
 import { logError } from "@/lib/utils/error-log";
 import { canClaimDone, summarizeClaimDoneShadow, toReceipt } from "@/lib/ai/receipts/action-receipt";
 import { processConversation } from "@/lib/brain/pipeline-controller";
@@ -324,6 +330,31 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
 
       // Agent Layer — parse and execute any actions Nick embedded.
       const actions = parseActions(text);
+
+      // ── Strict-Done shadow · ZERO-ACTION arm · SHADOW ONLY ───────────────
+      // A turn can claim completion while emitting NO action block at all —
+      // "Done — both profiles created" with nothing attempted. That is the
+      // PHANTOM case, the one `phantomClaims` exists to classify, and the
+      // in-branch call below cannot see it because `if (actions.length > 0)`
+      // excludes it. Recording only the has-actions turns would leave the
+      // shadow's denominator silently narrower than its own documented
+      // contract — a rate measured over the wrong population.
+      //
+      // Separate call rather than a hoist: `withErrorCapture` below is
+      // deliberately NOT awaited, so `results` does not exist yet at this
+      // point in the turn. A single hoisted call would race it.
+      if (actions.length === 0 && traceId) {
+        await recordActionDoneShadow(
+          compareActionDoneShadow([], cleanedText),
+          { traceId, conversationId: convId ?? null },
+          {
+            recordMetric: recordMetricStrict,
+            logInfo: (event, data) => log.info(event, data),
+            logError: (scope, err, meta) => logError(scope, err, meta, "warn"),
+          },
+        );
+      }
+
       if (actions.length > 0) {
         withErrorCapture(
           "chat:actions",
@@ -558,6 +589,29 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                 })
                 .catch(() => undefined);
             }
+            // ── Strict-Done shadow · PROSE-AWARE arm · SHADOW ONLY ──────────
+            // Records a verdict; changes no behaviour. The contract, the
+            // denominator rule and the reason this is not a duplicate of the
+            // claim_done_shadow above all live in the recorder module, which is
+            // extracted precisely so they can be TESTED — this function has no
+            // harness of its own.
+            if (traceId) {
+              await recordActionDoneShadow(
+                compareActionDoneShadow(results, cleanedText),
+                { traceId, conversationId: convId ?? null },
+                {
+                  // STRICT, not the fail-soft `recordMetric`: this write IS the
+                  // measurement, so a dead writer must read as broken rather
+                  // than as "no gaps". The recorder's own catch turns a
+                  // rejection into outcome "failed" plus a logged error, so
+                  // propagating here still cannot break the turn.
+                  recordMetric: recordMetricStrict,
+                  logInfo: (event, data) => log.info(event, data),
+                  logError: (scope, err, meta) => logError(scope, err, meta, "warn"),
+                },
+              );
+            }
+
             // S3 · receipt-backed completion event (the audit's split:
             // attempt acknowledgment now, receipt-confirmed completion
             // later). This follow-up message is the ONLY voice that says

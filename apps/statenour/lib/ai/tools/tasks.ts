@@ -18,6 +18,7 @@
 
 import { tool } from "ai";
 import { z } from "zod";
+import { effortField, contextField, LOOP_KIND_LEGEND } from "@/lib/ai/tools/task-field-legends";
 import { prisma } from "@/lib/prisma";
 import { createTaskAndEnrich, liftGoalOnTaskComplete } from "@/lib/services/tasks";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
@@ -162,22 +163,12 @@ const tasksCoreTools = {
       // text, because "M30" and "DESK" are unguessable and neither field
       // carried a .describe(). A code enum with no legend is a schema the
       // model cannot satisfy.
-      effort: z
-        .enum(["M5", "M15", "M30", "H1", "H2PLUS"])
-        .default("M30")
-        .describe(
-          "Time budget as a CODE, not a duration string. Exactly one of: M5 (5 min) · M15 (15 min) · M30 (30 min) · H1 (1 hour) · H2PLUS (2+ hours)."
-        ),
-      context: z
-        .enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"])
-        .default("ANYWHERE")
-        .describe(
-          "WHERE the task gets done, as a CODE - not a topic or description. Exactly one of: DESK · PHONE · SHOP · CAR · HOME · ANYWHERE."
-        ),
-      loopKind: z
-        .enum(["ONCE", "DAILY", "PROMISE"])
-        .default("ONCE")
-        .describe("ONCE = one-shot · DAILY = repeats every day · PROMISE = commitment to someone"),
+      // 2026-09-16 · the legend text moved to task-field-legends.ts. It was
+      // inline here and nowhere else, which is precisely why the fix below
+      // reached this tool and none of the other five.
+      effort: effortField("M30"),
+      context: contextField(),
+      loopKind: z.enum(["ONCE", "DAILY", "PROMISE"]).default("ONCE").describe(LOOP_KIND_LEGEND),
       dueDate: z
         .string()
         .optional()
@@ -537,7 +528,7 @@ const tasksCoreTools = {
         .nullable()
         .optional()
         .describe("Set to null to UNLINK from goal · pass an id to link"),
-      loopKind: z.enum(["ONCE", "DAILY", "PROMISE"]).optional(),
+      loopKind: z.enum(["ONCE", "DAILY", "PROMISE"]).optional().describe(LOOP_KIND_LEGEND),
       dueDate: z.string().nullable().optional().describe("ISO · null to clear"),
     }),
     execute: async ({
@@ -810,7 +801,15 @@ const tasksCoreTools = {
     description: "Log a real situation for strategic analysis — AI matches relevant Greene laws and provides tactical advice",
     inputSchema: z.object({
       situation: z.string().describe("What happened or what decision you're facing"),
-      context: z.enum(["business", "personal", "negotiation", "conflict", "decision"]),
+      // NOT the task `context` field. Every other tool's `context` is a
+      // physical LOCATION code (DESK/PHONE/SHOP/…); here it is the KIND of
+      // situation. Same field name, different vocabulary, one model — say so,
+      // or the collision is the model's problem to guess at.
+      context: z
+        .enum(["business", "personal", "negotiation", "conflict", "decision"])
+        .describe(
+          "What KIND of situation this is (not a location — unrelated to the task `context` field). Exactly one of: business · personal · negotiation · conflict · decision."
+        ),
     }),
     execute: async ({ situation, context }) => {
       const keywords = situation.toLowerCase().split(/\s+/).filter(w => w.length > 4).slice(0, 5);
@@ -978,7 +977,9 @@ const tasksCoreTools = {
       customerName: z.string().min(1).describe("Customer to follow up with"),
       daysFromNow: z.number().min(0).max(180).default(3).describe("How many days from now the follow-up is due"),
       note: z.string().optional().describe("What the follow-up is about"),
-      effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M15"),
+      // M15 here, M30 in createTask — the defaults genuinely differ, so the
+      // shared factory takes the default rather than unifying it silently.
+      effort: effortField("M15"),
     }),
     execute: async ({ customerName, daysFromNow, note, effort }) => {
       // Resolve (or create) the Inbox mission for ad-hoc follow-ups.

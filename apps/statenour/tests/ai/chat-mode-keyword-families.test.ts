@@ -36,6 +36,30 @@ const PATTERNS = {
   help: /\b(tools?|capabilities|functions?|what (can you do|actions can you|tools do you)|help (me|menu)?)\b/i,
 };
 
+/**
+ * MIRRORS the browser-intent block in lib/ai/chat-mode.ts (2026-09-16).
+ *
+ * `pruneTools` lowercases `userContent` before matching (chat-mode.ts:95-98),
+ * which is why the source patterns carry no /i flag. `browserIntentFires`
+ * lowercases too — a mirror that skipped that would pass on inputs the real
+ * selector rejects, which is the failure mode this whole file exists to avoid.
+ */
+const BROWSER_INTENT = [
+  /\b(scrape|extract from (the )?page|automate (the )?browser|navigate (to|the)|click (on|the)? button|fill (out|in) (the )?form|browse (to|the)|log ?in ?(to|into)|sign ?in ?(to|into)|go to (https?:\/\/|www\.)|look at (this|the|that) (site|website|page|url|link)|check (a|the|their|our|his|her) (site|website|listing|page))\b/,
+  /\bgo to [a-z0-9][a-z0-9-]*\.(com|org|net|io|co|us|gov|edu|info|biz)\b/,
+  /\bopen (the |their |our |its |his |her )?([\w'’-]+ )?(site|website|web ?page|portal|dashboard|listing|profile page)\b/,
+];
+
+/** The one-call entry point meta.ts:298 says to prefer. */
+const BROWSER_PRIMARY = /^browseAndDo$|^browser_do$/i;
+/** Surgical control, offered only when named explicitly. */
+const BROWSER_LOWLEVEL = /^browser_/i;
+
+function browserIntentFires(q: string): boolean {
+  const text = q.toLowerCase();
+  return BROWSER_INTENT.some((re) => re.test(text));
+}
+
 describe("pruner keyword families · v10.0.509-510 fires correctly", () => {
   describe("SEO/GSC family", () => {
     it("matches the original failing query", () => {
@@ -123,6 +147,62 @@ describe("pruner keyword families · v10.0.509-510 fires correctly", () => {
       "Extract from the page",
       "Automate the browser to click X",
     ])("matches: %s", (q) => expect(PATTERNS.browser.test(q)).toBe(true));
+
+    /**
+     * 2026-09-16 · REGRESSION. In 467 production turns the browser was used
+     * ZERO times: both BROWSERBASE credentials present, six tools built, and
+     * the census put every low-level browser tool in `neverSurfaced`.
+     *
+     * The cause was here. An episode run against the real `pruneTools` with
+     * six unambiguous prompts surfaced NO browser tool for any of them, in
+     * either mode — the old pattern wanted "scrape" / "automate the browser" /
+     * a literal "browser act", none of which is how an operator speaks.
+     *
+     * These six ARE that episode, frozen. Each one failed before the fix.
+     */
+    it.each([
+      "go to monro.com and tell me what they charge for an oil change",
+      "open our competitor's website and pull their current tire prices",
+      "browse to the BBB listing for Nick's Tire and check what phone number it shows",
+      "log into the Google Business Profile page and tell me what the listing name is",
+      "look at this site and extract the pricing table: https://example.com/pricing",
+      "check a website for me",
+    ])("natural browse intent matches: %s", (q) =>
+      expect(browserIntentFires(q)).toBe(true),
+    );
+
+    /**
+     * The other half of the defect: `/browser_/` cannot match `browseAndDo`,
+     * the tool meta.ts:298 names as the PREFERRED entry point. So even on the
+     * rare trigger the family offered the surgical tools and skipped the
+     * recommended one.
+     */
+    it("the family pattern reaches browseAndDo, not just browser_*", () => {
+      expect(BROWSER_PRIMARY.test("browseAndDo")).toBe(true);
+      expect(BROWSER_PRIMARY.test("browser_do")).toBe(true);
+      // Surgical tools are a SEPARATE, explicitly-named family — four extra
+      // slots on a 24-slot budget should be spent on request, not on every
+      // mention of a website.
+      expect(BROWSER_PRIMARY.test("browser_navigate")).toBe(false);
+      expect(BROWSER_LOWLEVEL.test("browser_navigate")).toBe(true);
+    });
+
+    /**
+     * Over-firing is the opposite failure and just as real: every wrongly
+     * surfaced tool costs a slot the model could have used. The census
+     * measured 8.4 of 24 slots per turn already going to tools never once
+     * chosen — this family must not add to that.
+     */
+    it.each([
+      // Belongs to family #5 (scrapeWebPage): a static fetch is deterministic
+      // and cheaper than a live browser session.
+      "read the page and summarize it",
+      "fetch the url and convert it to markdown",
+      // Past tense / unrelated — no browsing is being requested.
+      "I opened a new site yesterday",
+      "the customer clicked the button twice",
+      "what's the website address again",
+    ])("does NOT fire on: %s", (q) => expect(browserIntentFires(q)).toBe(false));
   });
 
   describe("Help/tools family", () => {

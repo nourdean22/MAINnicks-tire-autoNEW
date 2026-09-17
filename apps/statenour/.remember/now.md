@@ -1,5 +1,282 @@
 # Session ledger — statenour
 
+## Session C (overnight capability hardening) — branch `statenour/overnight-capability-hardening`
+
+**MISSION:** make StateNour materially more useful/reliable/measurable. Choose the highest-leverage
+move continuously; fix foundations before layering intelligence.
+
+**BASELINE (measured, not assumed):** origin/main `a4d0f14b8` was **RED** — 843 files, 4 failed
+tests in 2 files, `exit=1`. Now **844 files / 8,467 tests, exit 0**.
+
+**COMPLETED + PROVEN**
+- `f1ac75990` — suite red→green. Two causes, both "a test that cannot fail for its stated reason":
+  (a) obsidian probe used an absolute Windows path as an `import()` specifier — Node reads `C:` as a
+  URL scheme; `.split("\\").join("/")` fixed separators, not the scheme. `pathToFileURL` is correct
+  on both platforms. The failing arm was the file's own POSITIVE CONTROL, so it could not
+  discriminate shimmed from unshimmed. (b) `brain-engines-smoke` mocks only `@/lib/prisma` and calls
+  its subjects "100% DB-dominated"; `findTeachingMoments` reaches the **nickstire bridge over HTTP**
+  (`recentShopJobs`/`recentShopLeads` → `queryNick`), so its verdict depended on network
+  reachability — green in CI, red where the bridge answers. Mutation-verified non-vacuous.
+- `57f6ddbc1` — `compareActionDoneShadow` now has a production call site. It shipped with tests and
+  ZERO callers, so `legacyStrictGap` had never been observed. Extracted to
+  `lib/ai/receipts/action-done-shadow-recorder.ts` (injectable → testable; its only caller is a
+  ~700-line untested function). Writes `action.done.shadow` to `system_metrics` with the
+  disagreement CLASSES. 7 tests, mutation-verified.
+
+- `<browser slice>` — **browser capability was UNREACHABLE from chat and is now reachable.**
+  MEASURED from the census (first read since #2359 unblinded it): in **467 turns the browser was
+  used ZERO times**. Both BROWSERBASE creds PRESENT, 6 tools built; `browser_navigate/act/observe/
+  extract` all in `neverSurfaced`, `browseAndDo` surfaced 9/467 (1.9%) and chosen 0. An episode
+  against the real `pruneTools` surfaced NO browser tool for six unambiguous prompts in either
+  mode ("go to monro.com…", a literal URL, "log into…"). Cause, both in `chat-mode.ts:285`:
+  (a) the trigger wanted "scrape"/"automate the browser"/"browser act" — not how anyone speaks;
+  (b) `/browser_/` **cannot match `browseAndDo`**, the entry point meta.ts:298 says to PREFER, so
+  even on a hit it offered the surgical tools and skipped the recommended one. Fixed with a
+  natural-intent trigger + a high-level/low-level split (4 surgical tools now cost slots only when
+  named). All 6 prompts now surface `browseAndDo, browser_do`.
+- ★★ **The census's other headline: 8.4 of every turn's 24 tool slots go to a tool NEVER ONCE
+  CHOSEN** — 3,911 wasted slot-impressions / 101 tools / 467 turns. Worst: `getMasteryScores` (57%
+  of turns), `getHabitRevenueCorrelation` (50%), `findCustomer` (49%), `getCommitments` (49%),
+  `createCommitment` (48%). NOT acted on — pruning needs a per-tool judgement, and "zero calls" has
+  five different diagnoses. This is the best-evidenced backlog item in the app.
+- ★ `createMissionPlan`: 150 surfaces, 4 calls, **25% success** — a real quality defect invisible to
+  the `highFailure` bucket, which needs ≥10 calls. `getRepoMap`: 1 call, 0% ok.
+
+- `<rewrite-queue slice>` — **the description-rewrite cron was drafting against an EMPTY queue.**
+  It filters `totalCalls >= 10 && success < 60%` (the `highFailure` bucket) — measured at **0**. So
+  it ran nightly and produced nothing, while the bucket the census itself calls "the actionable
+  prune list" held 101 tools costing 8.4 slots/turn. A never-called tool has no telemetry row, so
+  `getToolStats` structurally could not see it. Added a second evidence kind
+  (`surfaced_never_chosen`) with its OWN prompt — there are no errors to learn from, so it asks for
+  discriminative clarity and explicitly allows "this tool is redundant" as a valid answer.
+  Failures draft first; never-chosen fills the remainder, so the original queue cannot be starved.
+  Still DRAFT-ONLY (human carries it into code). Dry-run against prod: would draft
+  `getMasteryScores` (266/467 = 57%), `getHabitRevenueCorrelation` (50%), `findCustomer` (49%).
+  ★ `getMasteryScores`'s description is **33 chars** ("Get current mastery domain scores") — no
+  hint of when to use it, shown in 57% of turns, never chosen. Hypothesis well-supported.
+  ⚠ PROVEN: selection (10 tests + prod dry run). NOT EXERCISED: the LLM draft + upsert, which
+  would spend tokens and write prod rows — not authorised here.
+
+- `<gate-calibration slice>` — **the evidence-gate promotion decision is now computable.**
+  AGENTS.md §4 L6 defers enforcement "once the shadow false-positive rate is known". Verdicts have
+  been persisted at `tokenUsage.evidenceGate` since 2026-09-10 and **nothing read them** — no
+  `build*`, no digest procedure, no panel. Added
+  `lib/observability/evidence-gate-calibration.ts` + `system.evidenceGateCalibration`.
+  ⚠⚠ **I got this measurement WRONG first and the module encodes the fix.** A naive pass over ALL
+  verdicts gave 36.9% would-block with a sample full of itinerary/advice FPs — but
+  `isResourceTitle()` (5 rules targeting exactly those) shipped in `8ee86eb3b` at **2026-09-16
+  08:56**, and most of that sample predates it. The number measured the FIX'S ABSENCE.
+  Live readout now: before-fix 91 turns / 37.4% / named_claim 21 · after-fix 12 turns /
+  **rate WITHHELD** / named_claim 1, fact_check 3. Three rules: cohort at the last precision
+  change · state NO rate below n=40 · split by driver (named vs fact-check vs **length**, which is
+  not an evidence signal at all). 15 tests.
+  ★ Residual post-fix FP: `"TEE and Manny"` — two people's names in conversation still trip the
+  named-claim rule. ★ The dominant blocker CHANGED: fact-check, not named claims.
+  **DO NOT PROMOTE YET — n=12.** Re-read the readout once ~40 turns accumulate.
+
+- `<reachability guard>` — ★★ **the browser was one instance of a CLASS.** A sweep of 8
+  capabilities against the real selector found **3 with no plain-language path at all**:
+  `searchSkills`, `solveMath`, `getCameraIntelligence` — none credential-gated in the catalog, so
+  all unreachable BY ACCIDENT. Deliberately NOT blanket-fixed: surfacing a capability that returns
+  nothing is worse than leaving it dark (`solveMath` is plausibly redundant — the never-chosen
+  rewrite queue will now draft exactly that verdict; `getCameraIntelligence` is pre-G3 with no live
+  data; `searchSkills` is the best candidate IF the skills store has content — CHECK FIRST).
+  Added a MUST_BE_REACHABLE table to `tests/ai/chat-mode-browser-reachability.test.ts`: a narrowed
+  keyword family now fails at commit time instead of showing up in the census a month later.
+- Removed the DEAD `canClaimDone` from `chat/action-result-verifier.ts` — zero callers anywhere,
+  while its docstring said "Wired directly into the live chat-finalize loop". The live one is a
+  DIFFERENT function of the same name in `receipts/action-receipt.ts`. Anyone hardening the honesty
+  gate would have found the corpse first and shipped nothing.
+
+- `<telemetry evidence>` — ★★★ **stored tool errors kept the INPUT and threw away the REASON.**
+  `recordToolInvocation` did `errorMessage.slice(0, 200)` — a HEAD truncation. AI SDK validation
+  errors are shaped `…Value: {big json}. Error message: <REASON>`, so the reason is at the TAIL and
+  was always cut. Measured: all three `createMissionPlan` failures were EXACTLY 200 chars, each cut
+  mid-payload — a tool known to fail 75% of the time and not one row said why.
+  ⚠ It COMPOUNDS: `tool-description-rewrite.ts` feeds `lastErrors` to an LLM as failure evidence on
+  the premise that one pass over recent failures fixes the description. Evidence with no reason
+  cannot. The rewriter was reading input fragments and guessing. Fixed with head+tail
+  (`condenseToolError`, 140+300, states how much was elided). 6 tests, mutation-verified.
+
+- `<budget-cliff slice>` — ★★★ **the pruner truncated by ALPHABET, and that is the mechanism behind
+  the 8.4-wasted-slots headline above.** Tier 4 ordered candidates with `Array.from(m).sort()`;
+  `addIfSpace` stops at TOOL_BUDGET, so that order IS the selection policy past slot 24. Tier 5
+  (semantic rank) is gated on `selectedNames.size < TOOL_BUDGET`, so it is skipped on exactly the
+  turns that truncate. Measured over 192 turns / 5,227 gate decisions:
+  **72.9% of turns hit the cliff · 70.3% skipped the semantic tier · tier-4 ALLOWED averaged
+  first-letter index 5.28 ("f") vs BUDGETED_OUT 11.78 ("l") · 65.3% of tier-4 ALLOWED impressions
+  went to NEVER-CHOSEN tools.** A 6.5-letter gap across 5,227 decisions is not relevance correlating
+  with spelling. `searchWebVerified` cut 52x, `githubRecentCommits` 53x — and **5 of 13 recorded
+  searchTools recoveries were for a web-search tool the keyword family HAD matched and truncation
+  had dropped**, costing a whole extra generation step each time.
+  Fixed with `orderKeywordCandidates` (pure, exported, 11 tests, mutation kills 5 of 11).
+  ⚠ SCOPE DISCIPLINE: **ordering only — membership is asserted unchanged**, so no tool becomes
+  reachable that a keyword family had not already matched; this cannot widen authority. Cold cache
+  falls back to alphabetical rather than ranking on partial data.
+  ★ Also populated `ToolGateDecision.rank`/`score`, which existed since the table shipped with **no
+  producer** — the diagnosis above had to be reconstructed from first letters because of it.
+  **NOT YET MEASURED IN PROD:** re-read the alphabetical skew after ~100 post-deploy turns; if the
+  fix works the two means converge. That is the promotion evidence, and it does not exist yet.
+
+- `<enum-legend slice>` — ★★ **a 2026-09-03 fix landed on 1 of SIX call sites, and only a mechanical
+  sweep found the other five.** Prod `tool_telemetry`: `createTask` failed 7x because `effort` and
+  `context` are CODE enums with no `.describe()` — the model answered `{"effort":"30 min"}`,
+  `{"context":"Newsletter creation"}`, and twice put a whole task description / journal reflection
+  in `context`. Fixed in `tasks.ts` on 2026-09-03 — **inline, in that one block**. `missions.ts`
+  kept two byte-identical bare copies, so `createMissionPlan` was STILL failing two months later at
+  4 calls / 1 ok (25%), stored failure `{"context":"Shop Operat…` — identical shape.
+  ⚠ I started to re-fix `createTask` before reading its source and finding it ALREADY FIXED; its 7
+  failures are historical (their own payloads carry July 2026 dueDates). Second near-miss of this
+  kind this session — measuring a fix's ABSENCE and calling it a defect.
+  Wrote `tests/ai/tool-enum-legends.test.ts`, which walks every AI-facing `inputSchema` via zod
+  introspection. It immediately found THREE more I had not: `updateTask.loopKind`,
+  `logSituation.context`, `scheduleFollowUp.effort`. Legends now live in ONE module
+  (`lib/ai/tools/task-field-legends.ts`) — six copies of a string is *why* one fix reached one site.
+  ★ `logSituation.context` is a DIFFERENT `context` (situation KIND, not location) — same field
+  name, different vocabulary, one model. Now says so explicitly.
+  ⚠⚠ **The sweep's shape-rule does NOT catch `context`** — its values (DESK/PHONE/SHOP/…) are plain
+  English, so nothing looks cryptic. The defect was the misleading field NAME, not the vocabulary.
+  Proven by mutation: dropping `contextField`'s describe leaves the opaque-code test GREEN and only
+  the by-name rule red. Both rules are load-bearing; deleting either halves the file.
+  ★ Rewrote `tool-example-validity.test.ts`'s createTask regression from a SOURCE-TEXT assertion to
+  a built-schema one. It had coupled a claim about the schema to a fact about file layout and went
+  red on a refactor that *extended* the property it names.
+  Receipts: 212 files / 2,689 tests exit 0 · tsc exit 0 · contract-drift snapshot flagged exactly
+  the 6 intended tools and nothing else.
+
+- `<repair-lane slice>` — **a pruned-out tool is now recoverable; a hallucinated one still is not.**
+  `buildRepairToolCall` shipped with ZERO direct tests and a docstring promising it only ever maps
+  "to a tool that actually exists in the live set" — which was also its ceiling: steps 1 and 2 both
+  require `target in toolSet`, so the pruner-dropped case (the larger half of the 6 measured
+  "Model tried to call unavailable tool" failures) could never be rescued. Step 3 routes it through
+  `invokeTool`, which IS on every turn. ★ The boundary cuts both ways and is tested both ways:
+  `getRepoMap` (real, pruned) is rescued; **`getGoals` is NOT IN THE CATALOG AT ALL** — a
+  hallucination, and repairing it would invent a capability.
+  ★ Authority is deliberately NOT re-decided in the repair: `invokeTool` already enforces
+  read-safety + circuit-breaker + operator `disabledTools`, and a second copy of that gate could
+  drift from the one the approval flow depends on. A write tool routed there is refused BY NAME —
+  strictly better than today's dead end, which teaches the model to say "I don't have that
+  capability" when the tool exists and was merely unloaded (an L1-L6 fabrication, from the harness).
+  11 tests, mutation kills 4 of 11 while the 7 boundary/preservation tests stay green.
+
+- `<review-P1s slice>` — ★★★ **Codex review found TWO REAL P1s in my own shadow wiring, and both were
+  the exact defect classes I spent this session hunting. Verified against source before acting.**
+  (a) **The instrument could not report its own failure.** I injected `lib/services/metrics.ts`'s
+  `recordMetric`, whose body ends `.catch(() => {})`. So the await could NEVER reject,
+  `recordActionDoneShadow` always returned `"recorded"`, and the "NOT a silent catch" branch I wrote
+  was DEAD CODE in prod. My test passed only because the injected mock rejected where the real
+  dependency cannot — **a test agreeing with its own double.** Fix: `recordMetricStrict` returning a
+  `MetricWriteReceipt`; `recordMetric` now delegates to it (ONE insert definition). ★ The deps type
+  demands the receipt, so `Promise<void>` is **unassignable** — a fail-soft writer can never be
+  wired to an instrument again without a COMPILE ERROR. A type where a comment would have been.
+  (b) **The denominator excluded the exact case it was built to measure.** My call sat inside
+  `if (actions.length > 0)`, so a completion claim with NO action block — the phantom
+  ("Done — both profiles created", nothing attempted) — never recorded, while the module docstring
+  claimed "a row for EVERY turn whose prose claimed completion". Fix: a zero-action arm passing
+  `compareActionDoneShadow([], cleanedText)`. ⚠ SEPARATE call site, not a hoist: `withErrorCapture`
+  is **not awaited**, so `results` does not exist yet — one hoisted call would race it.
+  ⚠ The recorder tests could not have caught (b) — they test the recorder, which was always willing.
+  Added an explicit WIRING guard (2 call expressions on COMMENT-STRIPPED source, per the repo's own
+  remedy) and labelled it as a wiring guard, not a behaviour guard. Mutation: removing the
+  zero-action arm reddens it; swallowing in `recordMetricStrict` reddens the propagation test.
+  ★ `completion-authority` CI was failing SOLELY on these two unresolved threads — one root cause,
+  three symptoms.
+
+- `<instrument-failures slice>` — ★★★ **I applied my own enum-legend lesson to my own P1 fix and
+  found THREE more siblings.** The review P1 was one instrument wired to the swallowing
+  `recordMetric`; sweeping the class found `tool.surfaced` (THE census instrument — its comment read
+  *"Fire-and-forget: recordMetric already swallows its own failures"*, the defect stated as a
+  feature, double-swallowed with a `.catch(() => {})` on top), `operation.integrity_shadow`, and —
+  found by the new wiring guard, not by reading — `recordToolInvocation`, the writer behind
+  `tool_telemetry` (census invoked/high-failure buckets AND the `lastErrors` the rewrite cron reads).
+  ⚠ These are HOT PATH and non-blocking by design, so "await strict everywhere" would trade a silent
+  instrument for latency. Fix = keep fire-and-forget, change only the FAILURE CHANNEL:
+  `logError(instrumentScope(name))` → persisted `errorLog` → `buildInstrumentFailures()` reader on
+  `system.digest`, deliberately next to the census whose zeros it disambiguates.
+  ★★ `getSelectionTelemetryHealth()` had ZERO callers and its own docstring claimed "the panel reads
+  that". Worse than unread: the counters are **lambda-instance scoped**, so a tRPC query answers from
+  a different instance and reads its own zeros — they *cannot* answer a cross-instance question, so
+  no panel could ever have been wired correctly. errorLog persists; that is why the reader uses it.
+  ⚠ HONESTY BOUND, stated in the payload: this detects instruments that FAILED, never ones that
+  NEVER RAN. A deleted call site logs nothing and looks healthy — only a wiring test sees that.
+  ⚠⚠ **A defect I introduced and a test caught:** first cut reached `instrumentScope` via
+  `Promise.all([import(metrics), import(instrument-failures)])` — and `instrument-failures` imports
+  prisma, so the chat hot path was loading the DB client for a STRING HELPER. Split into a
+  prisma-free `instrument-scope.ts`. Symptom was a test whose fire-and-forget writes landed one `it`
+  block late.
+  ⚠⚠⚠ **`tool-telemetry-operation-state.test.ts` was passing on a LEAKED call**: `mock.calls[0]`
+  read the PREVIOUS test's shadow write (both used `convId: "c1"`), so its `legacySdkSuccesses` /
+  `operations` assertions had never checked the turn they name. Replaced with a `shadowCallFor(convId)`
+  selector — order-independent, and 8x faster (1019ms → 128ms).
+  ⚠ Two MORE hand-written partial `vi.mock`s of `@/lib/services/metrics` broke on the new export —
+  4th and 5th this session. ★ `importOriginal()` spread is the usual cure but is WRONG here: the real
+  metrics module imports prisma, so spreading made the hot-path test RACE. Kept synthetic+fast and
+  covered the drift at SOURCE level via the wiring guard instead. **The cure has a cost; name it.**
+
+**DELIBERATELY NOT DONE (scope discipline, not oversight)**
+- **Do NOT merge tier 4 and tier 5 into one ranked pool yet.** It is the natural completion of the
+  budget-cliff fix — rank keyword + semantic candidates together and take the top 24, which would
+  also reach the ~35 `neverSurfaced` tools. But it changes tier PRIORITY semantics, and the tier-4
+  ordering fix it builds on is NOT YET PROVEN IN PROD. Verification first.
+
+**CORRECTIONS THIS SESSION (I was wrong, twice, and checked)**
+- The recovery lane is NOT unreachable. `pruneTools` never offers `searchTools`/`invokeTool` (no
+  CORE_TOOLS entry, no keyword family) — but `prepare-tools.ts:184-194` **re-attaches both
+  unconditionally after pruning**. I probed the pruner alone and nearly filed a false finding.
+  Prod confirms it works: **13/192 turns fired searchTools, 6 reached invokeTool.**
+  Lesson: `pruneTools` is not the surfacing path; `prepareTools` is.
+- `.remember/now.md` is BOTH: the `.remember/` **directory** matches a .gitignore rule, AND this
+  file is already **tracked** (it is in `12802d7c1`). So `git status` shows it as modified and it
+  commits normally, but a plain `git add <path>` is REFUSED and needs `-f`. `git check-ignore` on
+  the file returns "not ignored", which is why an earlier note recorded only half of this.
+
+**OPEN / NEXT (evidence in hand, not acted on)**
+- `createMissionPlan` 150 surfaces / 4 calls / **25% ok**. Real cause now visible: the model sends
+  free text where an enum is required (`context: "Shop Operations"` vs `DESK|PHONE|SHOP|CAR|HOME|
+  ANYWHERE`) and one call sent `tasks: []`. The enum fields carry NO `.describe()` while
+  `nextPhysicalAction` does. Below the rewrite cron's ≥10-call floor, so nothing else will surface
+  it. Candidate fix: describe() the enums + consider `.catch(default)` so one bad enum does not
+  lose the whole mission plan.
+- ★★ **6 tools failed with "Model tried to call unavailable tool"** — `arsenal.webSearch`,
+  `person.update`, `getGoals`, `memory.remember`, `getRepoMap`. Note the DOT NOTATION: the catalog
+  is camelCase (`arsenalWebSearch`) but action-blocks use dots (`task.create`), so **two naming
+  conventions coexist and the model mixes them**. One entry is a whole call expression plus a stray
+  `</arg_value>` XML fragment stored AS the tool name — a tool-call parsing leak worth its own look.
+
+**IMPORTANT DISCOVERIES**
+- ★★ **"The full pruneTools() has a require()/path-alias issue in vitest" is STALE.**
+  `tests/ai/chat-mode-keyword-families.test.ts` mirrors regexes by hand because of that claim, so
+  its tests lock a COPY and cannot fail when the source narrows. `pruneTools` imports and runs
+  cleanly in vitest (11 tests, 103ms) — `tests/ai/chat-mode-browser-reachability.test.ts` now
+  asserts the REAL selector. Other families could be migrated the same way.
+- ★★ **The primary checkout `C:\Users\nourd\NOURCITY` is on `statenour/nextjs-critical-rce-advisory`,
+  160 commits BEHIND origin/main.** Reading source there is reading stale code — it cost me one wrong
+  conclusion. Work from a worktree at origin/main. (The RCE fix itself IS on main: `next ^16.3.4`.)
+- ★★ Two different functions are named `canClaimDone`. `receipts/action-receipt.ts` is WIRED (2 call
+  sites). `chat/action-result-verifier.ts` has **zero callers** and its docstring still says "Wired
+  directly into the live chat-finalize loop". Not dead — it wraps the shadow comparator — but the
+  docstring is false and the name collision is a trap for anyone hardening the honesty gate.
+- ★ `recentShopJobs`'s comment claimed "no bridge query exposes recent jobs; returns empty" — false;
+  it calls `recent_invoices` and returns live data. That stale comment is why the smoke test's
+  prisma-only mock looked sufficient. Corrected.
+- ★ **L6 evidence gate also runs in SHADOW** (`evidence_gate_shadow`, `tokenUsage.evidenceGate`);
+  AGENTS.md says enforcement waits "once the shadow false-positive rate is known". Unmeasured.
+- The tool-surfacing census (#2359) was fixed TODAY after 3 weeks blind; **456 rows of
+  `tool.surfaced` data (2026-08-25..09-16) exist and nobody has read them yet.**
+
+**NEXT BEST MOVES** (re-evaluate; do not treat as a fixed list)
+1. Read the tool census from prod — 3 weeks of just-unlocked data → real surfaced-never-chosen /
+   never-surfaced diagnoses (the mandate's tool-catalog rule).
+2. Measure the L6 evidence-gate shadow's false-positive rate; that is the stated gate on promotion.
+3. Fix the false "Wired directly into the live chat-finalize loop" docstring + the `canClaimDone`
+   name collision.
+4. `CURRENT-TRUTH.md` says "Last verified 2026-09-02" — 14 days of waves since.
+
+**RISKS / NOTES**
+- Test runs from this worktree can reach the **live nickstire bridge** (observed: real invoice data
+  with no `DATABASE_URL` set). Reads only, but it is a real network dependency in "unit" tests.
+- Worktree needed `apps/statenour` + `packages/*` node_modules junctions (was nickstire-only).
+
 **Updated:** 2026-09-16 (Session B: counter reconcile #2348 SHIPPED + DEPLOYED-VERIFIED `ef52c8e38`, prod reconcile DONE 10:28Z; Visible Transformation + honest-counter repair W8 open on `claude/statenour-ui-architecture-intmaf` — sixth PR #2349; Session A: execution truth + Dream-to-Proof #2335–#2345 all SHIPPED + DEPLOYED-VERIFIED, last `6f5059b7c`)
 
 ## (Session B) Honest-counter repair W8 (2026-09-16; same branch, on top of the Visible Transformation slices)

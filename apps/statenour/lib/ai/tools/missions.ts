@@ -29,6 +29,20 @@ import { createTaskAndEnrich } from "@/lib/services/tasks";
 import { isUserProject } from "@/lib/services/mission-helpers";
 import { logError } from "@/lib/utils/error-log";
 
+// The legends live in ONE module — six copies of the string is why the
+// 2026-09-03 fix reached only one of six call sites. See task-field-legends.ts.
+import {
+  effortField,
+  contextField,
+  LOOP_KIND_LEGEND_WEEKLY,
+} from "@/lib/ai/tools/task-field-legends";
+
+/** WEEKLY is valid here but not in tasks.ts — the vocabularies really differ. */
+const loopKindWeeklyField = z
+  .enum(["ONCE", "DAILY", "PROMISE", "WEEKLY"])
+  .default("ONCE")
+  .describe(LOOP_KIND_LEGEND_WEEKLY);
+
 export const missionsTools = {
   getMissions: tool({
     description: "Get active missions",
@@ -260,9 +274,9 @@ export const missionsTools = {
         title: z.string(),
         missionId: z.string().optional().describe("Specific mission ID for this task. Use to route different tasks to different missions (e.g. Health, Business, Personal)"),
         nextPhysicalAction: z.string().describe("The literal first physical step"),
-        effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
-        context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
-        loopKind: z.enum(["ONCE", "DAILY", "PROMISE", "WEEKLY"]).default("ONCE"),
+        effort: effortField(),
+        context: contextField(),
+        loopKind: loopKindWeeklyField,
         recurringDays: z.array(z.number().int().min(0).max(6)).optional().describe("For WEEKLY loopKind · 0=Sunday .. 6=Saturday"),
         dueDate: z.string().optional().describe("ISO date string"),
         goalId: z.string().optional().describe("Associated goal ID"),
@@ -298,18 +312,21 @@ export const missionsTools = {
   }),
 
   createMissionPlan: tool({
-    description: "Create a mission with multiple linked tasks in one call. Use when Nour describes a multi-step project or goal.",
+    description:
+      "Create a mission with multiple linked tasks in one call. Use when Nour describes a multi-step project or goal. `tasks` must hold AT LEAST ONE task — an empty array is rejected and nothing is created, so if the steps are not known yet, create the tasks later with addTasksToProject rather than sending [].",
     inputSchema: z.object({
       title: z.string().describe("Mission title"),
-      domain: z.enum(["BUSINESS", "PERSONAL", "HEALTH", "CONTENT", "FINANCE"]),
-      priority: z.number().min(1).max(100).default(50),
+      domain: z
+        .enum(["BUSINESS", "PERSONAL", "HEALTH", "CONTENT", "FINANCE"])
+        .describe("Which life area this mission belongs to. Exactly one of: BUSINESS · PERSONAL · HEALTH · CONTENT · FINANCE."),
+      priority: z.number().min(1).max(100).default(50).describe("1-100, higher is more important."),
       successMetric: z.string().optional().describe("How to measure success"),
       tasks: z.array(z.object({
         title: z.string(),
         nextPhysicalAction: z.string().describe("The literal first physical step"),
-        effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
-        context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
-        loopKind: z.enum(["ONCE", "DAILY", "PROMISE", "WEEKLY"]).default("ONCE"),
+        effort: effortField(),
+        context: contextField(),
+        loopKind: loopKindWeeklyField,
         recurringDays: z.array(z.number().int().min(0).max(6)).optional().describe("For WEEKLY loopKind · 0=Sunday .. 6=Saturday"),
         dueDate: z.string().optional().describe("ISO date string"),
         goalId: z.string().optional().describe("Associated goal ID"),

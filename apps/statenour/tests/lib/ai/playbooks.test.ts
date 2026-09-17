@@ -49,7 +49,13 @@ describe("wiring", () => {
     expect(SELECTION_TIER.PLAYBOOK).toBe(7);
     const kw = src.indexOf("addIfSpace(name, 4);");
     const pb = src.indexOf("for (const name of playbook.tools) addIfSpace(name, 7);");
-    const sem = src.indexOf("Tier 5");
+    // 2026-09-16 · was `indexOf("Tier 5")`, a PROSE anchor among two call-
+    // expression anchors. It broke the moment a docstring elsewhere in the file
+    // mentioned "Tier 5" — the ordering it guards had not moved at all, only
+    // the first place that string appears. Same shape as the mention-blind
+    // sweep guards that a COMMENT could satisfy; the cure is the same, anchor
+    // on the code that actually runs.
+    const sem = src.indexOf("addIfSpace(name, 5);");
     expect(kw).toBeGreaterThan(0);
     expect(pb).toBeGreaterThan(kw);
     expect(sem).toBeGreaterThan(pb);

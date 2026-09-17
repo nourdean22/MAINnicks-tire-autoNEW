@@ -1,13 +1,39 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
-/** Record a metric data point */
-export async function recordMetric(
+/**
+ * Proof that a metric row actually landed.
+ *
+ * Deliberately NOT `void`. A caller that swallows its own write failure cannot
+ * produce an id it never observed, so any instrument that needs to tell "wrote
+ * a zero" apart from "could not write" can demand this type and a fail-soft
+ * writer will not type-check. That is a compile-time guard where a comment
+ * would have been a suggestion.
+ */
+export interface MetricWriteReceipt {
+  id: string;
+}
+
+/**
+ * Record a metric data point, PROPAGATING a write failure to the caller.
+ *
+ * 2026-09-16 · added after review found that the fail-soft `recordMetric` below
+ * made a broken instrument unreadable: `action.done.shadow` recorded 0 for "no
+ * gap" and recorded nothing at all when `system_metrics` was unavailable, and
+ * because the write never rejected, its own error branch could not run. A zero
+ * and a dead writer looked identical — the exact confusion the census (#2359)
+ * documents as its worst failure.
+ *
+ * Use this anywhere the WRITE ITSELF is the measurement. Use `recordMetric`
+ * for incidental telemetry on a hot path, where losing a point is preferable to
+ * failing the operation.
+ */
+export async function recordMetricStrict(
   metric: string,
   value: number,
   options: { unit?: string; tags?: Record<string, unknown>; source?: string } = {}
-): Promise<void> {
-  await prisma.systemMetric.create({
+): Promise<MetricWriteReceipt> {
+  const row = await prisma.systemMetric.create({
     data: {
       metric,
       value,
@@ -15,7 +41,24 @@ export async function recordMetric(
       tags: options.tags ? (options.tags as Prisma.InputJsonValue) : undefined,
       source: options.source ?? "api",
     },
-  }).catch(() => {}); // Never fail the main operation
+    select: { id: true },
+  });
+  return { id: row.id };
+}
+
+/**
+ * Record a metric data point, never failing the caller.
+ *
+ * Delegates to `recordMetricStrict` so there is ONE definition of the insert —
+ * two copies would be free to drift, and the fail-soft behaviour is the only
+ * intended difference.
+ */
+export async function recordMetric(
+  metric: string,
+  value: number,
+  options: { unit?: string; tags?: Record<string, unknown>; source?: string } = {}
+): Promise<void> {
+  await recordMetricStrict(metric, value, options).catch(() => {}); // Never fail the main operation
 }
 
 /** Query metrics with aggregation */
