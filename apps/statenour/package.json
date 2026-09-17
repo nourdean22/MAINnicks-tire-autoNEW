@@ -91,6 +91,7 @@
     "@browserbasehq/stagehand": "3.7.0",
     "@e2b/code-interpreter": "2.4.2",
     "@langfuse/otel": "5.10.1",
+    "@langfuse/tracing": "5.10.1",
     "@mendable/firecrawl-js": "4.28.2",
     "@modelcontextprotocol/sdk": "1.29.0",
     "@next/env": "16.2.3",

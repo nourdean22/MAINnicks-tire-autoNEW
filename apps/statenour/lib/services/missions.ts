@@ -5,7 +5,7 @@ import { getDemoState, makeDemoId, type DemoMission, type DemoTask } from "@/lib
 import { prisma } from "@/lib/prisma";
 import { isDemoMode } from "@/lib/runtime";
 import { rankMissions } from "@/lib/scoring/mission-ranking";
-import { syncTaskPriorities, TASK_TX_OPTS } from "@/lib/services/tasks";
+import { syncTaskPriorities, scheduleGlobalPrioritySync } from "@/lib/services/tasks";
 import { serializeForJson } from "@/lib/utils/serialize";
 import { ServiceError } from "@/lib/utils/service-error";
 import { missionCreateSchema, missionUpdateSchema } from "@/lib/validators/missions";
@@ -251,11 +251,17 @@ export async function createMission(input: unknown, tx?: Prisma.TransactionClien
       data: payload as Prisma.MissionCreateInput
     });
 
-    await syncTaskPriorities(client);
     return mission;
   };
-  // runCore calls syncTaskPriorities — see TASK_TX_OPTS in tasks.ts.
-  const created = tx ? await runCore(tx) : await prisma.$transaction(runCore, TASK_TX_OPTS);
+  // ⚠ Was `await syncTaskPriorities(client)` INSIDE this transaction, which
+  // made a mission write scale with the open-task count and fail at ~212 tasks.
+  // A mission write returns only the mission — no task view model depends on
+  // the re-score — so it is purely a derived refresh and belongs after commit.
+  // The transaction is now a single create, so it needs no enlarged budget.
+  const created = tx ? await runCore(tx) : await prisma.$transaction(runCore);
+  // A new mission changes the RANKING every task is scored against, so the
+  // refresh is global by nature; there is no single-task shortcut here.
+  if (!tx) scheduleGlobalPrioritySync("createMission");
 
   // v8.0 Phase 2A — log create.
   void logCreate("mission", created.id, created as unknown as Record<string, unknown>, {
@@ -322,9 +328,12 @@ export async function updateMission(id: string, input: unknown) {
       data: payload as Prisma.MissionUpdateInput
     });
 
-    await syncTaskPriorities(tx);
     return mission;
-  }, TASK_TX_OPTS); // contains syncTaskPriorities — see the constant in tasks.ts
+  });
+  // ⚠ Was `await syncTaskPriorities(tx)` inside — same defect as createMission.
+  // A mission's status/priority change re-ranks every task, so the refresh is
+  // global, but it is derived data and must not be able to veto the write.
+  scheduleGlobalPrioritySync("updateMission");
 
   // v8.0 Phase 2A — entity-audit diff log.
   void logUpdate(

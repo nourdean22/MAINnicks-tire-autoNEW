@@ -37,6 +37,7 @@ import {
   recordTrace,
   type TraceSource,
 } from "./agent-trace";
+import { withLangfuseTraceName } from "@/lib/observability/langfuse";
 
 export interface TracedAiChatOpts {
   /** Free-form label, e.g. "coach-goal", "weekly-review-plan". */
@@ -122,13 +123,30 @@ export async function tracedAiChat(
     // wave-AO follow-up · forward runtime opts (signal, force) so the
     // factory returned by makeTracedAiChat is a true drop-in for bare
     // aiChat (callers passing { signal } no longer fail typecheck).
-    const result = await aiChat(messages, taskType, {
-      ...runtimeOpts,
-      budgetNearingLimit,
-      // Langfuse: the AgentTrace label is the trace name, the source is a
-      // tag, and the AgentTrace id rides along so the two ledgers join.
-      telemetry: { functionId: opts.label, tags: [opts.source], metadata: { source: opts.source, agentTraceId: traceId, ...(opts.metadata ?? {}) } },
-    });
+    // ⚠⚠ THIS COMMENT USED TO SAY "the AgentTrace label is the trace name".
+    // It was not. `functionId` names the OBSERVATION
+    // (`<label>:ai.generateText`); measured 2026-09-17, 0 of 50 production
+    // traces carried a name at all. `withLangfuseTraceName` establishes the
+    // OTel context that actually sets it, and every span the AI SDK creates
+    // inside the callback inherits it — which is why no call site has to pass
+    // it down. This wrapper is the chokepoint for ~94 of every 100 traces
+    // (the ones carrying a `source`), so naming it here names almost all of them.
+    const result = await withLangfuseTraceName(
+      {
+        traceName: opts.label,
+        tags: [opts.source],
+        metadata: { source: opts.source, agentTraceId: traceId, ...(opts.metadata ?? {}) },
+      },
+      () =>
+        aiChat(messages, taskType, {
+          ...runtimeOpts,
+          budgetNearingLimit,
+          // Still set: this is what tags the OBSERVATION and carries session /
+          // user / tags onto the spans themselves. The wrapper adds the one
+          // field this block cannot express.
+          telemetry: { functionId: opts.label, tags: [opts.source], metadata: { source: opts.source, agentTraceId: traceId, ...(opts.metadata ?? {}) } },
+        }),
+    );
     // v10.0.26 — aiChat returns { provider: "none", content: "<sentinel>" }
     // when every provider in the chain failed (graceful-degradation
     // sentinel, not an exception). Pre-v10.0.26 this was recorded as
