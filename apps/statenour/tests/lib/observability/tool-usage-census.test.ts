@@ -232,12 +232,21 @@ describe("assembleToolUsageCensus · windowed chosen counts", () => {
     since: NOW - 1000,
     counts: new Map(Object.entries(m)),
   });
-  const chosenFor = (m: Record<string, number>, turns = 50, blindTurns = 0) => ({
+  const chosenFor = (
+    m: Record<string, number>,
+    turns = 50,
+    blindTurns = 0,
+    comparable?: Record<string, number>,
+  ) => ({
     windowDays: 30,
     turns,
     blindTurns,
     since: NOW - 1000,
     counts: new Map(Object.entries(m)),
+    // No default: "was it offered on a turn we could also SEE the choices for"
+    // is a separate fact from "how often was it chosen", and defaulting one to
+    // the other is the very conflation these tests exist to prevent.
+    comparableSurfaced: new Map(Object.entries(comparable ?? {})),
   });
 
   it("CANARY: a tool with LIFETIME calls but zero in the window IS a prune candidate", () => {
@@ -248,7 +257,8 @@ describe("assembleToolUsageCensus · windowed chosen counts", () => {
       [stat({ toolName: dead, totalCalls: 400, lastCallAt: NOW })],
       NOW,
       surfacedFor({ [dead]: 40 }),
-      chosenFor({}),
+      // offered on 12 turns we could also see the choices for, chosen on none.
+      chosenFor({}, 50, 0, { [dead]: 12 }),
     );
     expect(census.surfacedNeverChosen.map((r) => r.name)).toContain(dead);
     const row = census.surfacedNeverChosen.find((r) => r.name === dead)!;
@@ -264,7 +274,7 @@ describe("assembleToolUsageCensus · windowed chosen counts", () => {
       [stat({ toolName: alive, totalCalls: 400 })],
       NOW,
       surfacedFor({ [alive]: 40 }),
-      chosenFor({ [alive]: 7 }),
+      chosenFor({ [alive]: 7 }, 50, 0, { [alive]: 12 }),
     );
     expect(census.surfacedNeverChosen.map((r) => r.name)).not.toContain(alive);
   });
@@ -306,5 +316,83 @@ describe("assembleToolUsageCensus · windowed chosen counts", () => {
     expect(census.chosenWindow).toMatchObject({ turns: 40, blindTurns: 12, windowDays: 30 });
     expect(census.caveat).toMatch(/12 blind turns excluded/);
     expect(census.caveat).toMatch(/WINDOWED/);
+  });
+});
+
+/**
+ * A numerator and a denominator drawn from DIFFERENT populations.
+ *
+ * `getSurfacedStats` covers the whole 30-day window; the `tool.chosen` lane
+ * only exists from the moment it deployed, and it excludes blind turns. If the
+ * bucket compares them directly, then the instant ONE observed chosen row
+ * appears, every tool with no chosen count is scored as a measured zero against
+ * a MONTH of pre-instrument surfacing history.
+ *
+ * On the day the lane ships that is very nearly the whole catalog, and the
+ * prune list would be worthless and confidently wrong. Same defect family as
+ * the lifetime-vs-window mismatch this change fixes — one level up.
+ */
+describe("assembleToolUsageCensus · both sides must cover the same turns", () => {
+  const names = TOOL_CATALOG.map((t) => t.name);
+  const surfacedFor = (m: Record<string, number>, turns = 50) => ({
+    windowDays: 30,
+    turns,
+    since: NOW - 1000,
+    counts: new Map(Object.entries(m)),
+  });
+  const chosenFor = (
+    m: Record<string, number>,
+    turns: number,
+    comparable: Record<string, number>,
+  ) => ({
+    windowDays: 30,
+    turns,
+    blindTurns: 0,
+    since: NOW - 1000,
+    counts: new Map(Object.entries(m)),
+    comparableSurfaced: new Map(Object.entries(comparable)),
+  });
+
+  it("CANARY: a tool offered only BEFORE the lane existed is not 'never chosen'", () => {
+    // 400 surfaced turns across 30 days, but the chosen lane has seen 1 turn and
+    // this tool was not offered on it. Against the wide window it looks like
+    // "offered 400x, chosen 0" — the exact false verdict.
+    const preLane = names[0];
+    const census = assembleToolUsageCensus(
+      [],
+      NOW,
+      surfacedFor({ [preLane]: 400 }, 400),
+      chosenFor({}, 1, {}), // comparably offered: never
+    );
+    expect(
+      census.surfacedNeverChosen.map((r) => r.name),
+      "a tool only offered before the chosen lane existed was labelled never-chosen",
+    ).not.toContain(preLane);
+  });
+
+  it("POSITIVE CONTROL: a tool offered ON comparable turns and never chosen IS flagged", () => {
+    // Without this, excluding everything would satisfy the canary and empty the
+    // prune list permanently.
+    const live = names[1];
+    const census = assembleToolUsageCensus(
+      [],
+      NOW,
+      surfacedFor({ [live]: 400 }, 400),
+      chosenFor({}, 30, { [live]: 30 }),
+    );
+    expect(census.surfacedNeverChosen.map((r) => r.name)).toContain(live);
+  });
+
+  it("a tool offered only on BLIND turns is not flagged either", () => {
+    // Blind turns carry no observed chosen row, so they contribute nothing to
+    // comparableSurfaced — the tool simply was not comparably observed.
+    const blindOnly = names[2];
+    const census = assembleToolUsageCensus(
+      [],
+      NOW,
+      surfacedFor({ [blindOnly]: 50 }, 50),
+      chosenFor({}, 10, {}),
+    );
+    expect(census.surfacedNeverChosen.map((r) => r.name)).not.toContain(blindOnly);
   });
 });

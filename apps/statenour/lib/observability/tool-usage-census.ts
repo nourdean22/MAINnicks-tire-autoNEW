@@ -94,6 +94,27 @@ export interface ChosenStats {
   since: number | null;
   /** tool name → turns the model actually invoked it. */
   counts: Map<string, number>;
+  /**
+   * tool name → turns it was OFFERED, counted over exactly the same turns as
+   * `counts`. This is the denominator the prune bucket must use, and it is not
+   * the same as `SurfacedStats.counts`.
+   *
+   * ⚠ WHY A SECOND SURFACED COUNT EXISTS. `SurfacedStats` covers the whole
+   * 30-day window; this lane only exists from the moment it deployed, and it
+   * excludes blind turns. Comparing them directly means that as soon as ONE
+   * observed chosen row appears, every tool with no chosen count is scored as a
+   * measured zero against a MONTH of pre-instrument surfacing history — so a
+   * tool offered only before the lane existed, or only on blind turns, is
+   * falsely labelled "offered, never chosen". On the day the lane ships that is
+   * almost the entire catalog, and the prune list would be worthless and
+   * confidently wrong.
+   *
+   * Restricting both sides to turns that carry an OBSERVED chosen row makes
+   * "offered N, chosen 0" a statement about the same set of turns. Same defect
+   * family as the lifetime-vs-window mismatch this whole change fixes, one
+   * level up: a numerator and a denominator drawn from different populations.
+   */
+  comparableSurfaced: Map<string, number>;
 }
 
 /** Per-tool surfaced counts from the `tool.surfaced` metric lane. */
@@ -190,7 +211,15 @@ export function assembleToolUsageCensus(
     // it there because `totalCalls > 0` sent it down the "invoked" path.
     if (hasSurfacing) {
       const row = toRow(meta.name, meta.category, s);
-      if ((row.surfacedCount ?? 0) > 0) {
+      // ⚠ THE DENOMINATOR MUST COME FROM THE SAME TURNS AS THE NUMERATOR.
+      // When the chosen lane has data, "was it offered?" is answered over the
+      // turns that lane could SEE — not over the whole 30-day surfacing window,
+      // most of which predates the lane. Using the wide window would mark a
+      // tool offered only before the lane existed as "offered, never chosen".
+      const offeredComparably = hasChosen
+        ? (chosen.comparableSurfaced.get(meta.name) ?? 0)
+        : (row.surfacedCount ?? 0);
+      if (offeredComparably > 0) {
         if (chosenCount(meta.name, s) === 0) surfacedNeverChosen.push(row);
       } else if (!s || s.totalCalls === 0) {
         // Never offered in the window AND never called at all — the pruner's
@@ -346,12 +375,29 @@ export async function getChosenStats(
       WHERE metric = 'tool.chosen'
         AND created_at > now() - make_interval(days => ${days}::int)
     `;
+    // Surfaced counts over EXACTLY the turns above — joined on the shared
+    // traceId, restricted to observed chosen rows. Without this the bucket
+    // compares a numerator from today against a denominator from the last 30
+    // days; see `comparableSurfaced`.
+    const comparable = await prisma.$queryRaw<Array<{ tool: string; surfaced: number }>>`
+      SELECT t.tool AS tool, count(*)::int AS surfaced
+      FROM system_metrics c
+      JOIN system_metrics f
+        ON f.metric = 'tool.surfaced'
+       AND f.tags->>'traceId' = c.tags->>'traceId',
+           LATERAL jsonb_array_elements_text(f.tags->'tools') AS t(tool)
+      WHERE c.metric = 'tool.chosen'
+        AND c.tags->>'observed' = 'true'
+        AND c.created_at > now() - make_interval(days => ${days}::int)
+      GROUP BY t.tool
+    `;
     return {
       windowDays: days,
       turns: meta[0]?.turns ?? 0,
       blindTurns: meta[0]?.blind ?? 0,
       since: meta[0]?.since ? new Date(meta[0].since).getTime() : null,
       counts: new Map(rows.map((r) => [r.tool, r.chosen])),
+      comparableSurfaced: new Map(comparable.map((r) => [r.tool, r.surfaced])),
     };
   } catch (e) {
     // Same rule as the surfacing read: null is the right DEGRADATION, silence
