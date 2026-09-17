@@ -18,7 +18,7 @@ import { X, Star, Clock, Wrench, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { resolveFomoEntries, type FomoEntry } from "./fomoEntries";
+import { resolveFomoEntries, formatAgo, type FomoEntry } from "./fomoEntries";
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -224,9 +224,7 @@ export default function FomoTicker() {
               }}
             >
               {getIcon(currentEntry.type)}
-              {currentEntry.minutesAgo < 60
-                ? `${currentEntry.minutesAgo} min ago`
-                : `${Math.round(currentEntry.minutesAgo / 60)}h ago`}
+              {formatAgo(currentEntry.minutesAgo)}
             </p>
           </div>
 
