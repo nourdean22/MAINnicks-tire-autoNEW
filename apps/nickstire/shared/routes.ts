@@ -295,7 +295,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.7,
     changefreq: "monthly",
     title: "Michelin Tires Cleveland | Free $266 Install Package | Nick's",
-    description: "Michelin tires in Cleveland — Defender, Premier A/S, Pilot Sport, X-Ice. Stocked or 24-hr special order. FREE install package on every set. (216) 862-0005",
+    description: "Michelin tires in Cleveland — Defender, Premier A/S, Pilot Sport, X-Ice. Full lineup available to order. FREE install package on every set. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -305,7 +305,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.7,
     changefreq: "monthly",
     title: "Goodyear Tires Cleveland | Free $266 Install Package | Nick's",
-    description: "Goodyear tires in Cleveland — Assurance, Eagle, Wrangler, WeatherReady. Akron-based brand, full lineup stocked. FREE install package. (216) 862-0005",
+    description: "Goodyear tires in Cleveland — Assurance, Eagle, Wrangler, WeatherReady. Akron-based brand, full lineup available. FREE install package. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -1017,7 +1017,7 @@ const SEO_SERVICE_PAGES: RouteEntry[] = [
   // competitor page can replicate. Hybrid price-intent queries ("how
   // much do tires cost in cleveland") trigger AI answer engines at the
   // highest observed rates, and engines cite verifiable numbers.
-  { path: "/tire-prices-cleveland", priority: 0.8, changefreq: "daily", title: "Tire Prices Cleveland — Live In-Stock Pricing | Nick's", description: "Real tire prices in Cleveland from our live distributor feed. Used tires from $25 installed (12-inch rims; most $40-80), new from $89 installed. Walk-ins 7 days.", group: "seo-service", sitemap: true, prerender: true },
+  { path: "/tire-prices-cleveland", priority: 0.8, changefreq: "daily", title: "Tire Prices Cleveland — Live Installed Pricing | Nick's", description: "Real tire prices in Cleveland from our live distributor feed. Used tires from $25 installed (12-inch rims; most $40-80), new from $89 installed. Walk-ins 7 days.", group: "seo-service", sitemap: true, prerender: true },
 ];
 
 // ─── VEHICLE MAKE PAGES ──────────────────────────────────
