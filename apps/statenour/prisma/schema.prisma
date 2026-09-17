@@ -1139,20 +1139,32 @@ model ChatMessage {
   /// instead of the flat `content` string; `content` stays as the searchable
   /// plaintext digest.
   ///
-  /// WHAT IS ACTUALLY WRITTEN TODAY — only two variants:
+  /// WHAT HAS A WRITER (the producer can emit these):
   ///   - text:        { type:"text", text:"..." }
   ///   - file:        { type:"file", mediaType, url, filename? }
+  ///   - reasoning:   { type:"reasoning", text:"..." } — SUPPORTED but not
+  ///                  observed in the sample below; `buildMessageParts` appends
+  ///                  it whenever a provider supplies non-whitespace
+  ///                  reasoningText, and build-model-messages.ts had to strip
+  ///                  replayed reasoning parts after a 2026-07-04 incident,
+  ///                  which is independent proof they do get persisted.
   ///
-  /// ⚠ THIS COMMENT USED TO LIST SIX. It described `reasoning`, `tool-call`,
-  /// `tool-result` and `source` as captured. They are not, and never have been.
+  /// WHAT HAS NO WRITER AT ALL:
+  ///   - tool-call, tool-result, source
+  ///
+  /// ⚠ THIS COMMENT USED TO CLAIM ALL SIX WERE CAPTURED, and a first correction
+  /// over-swung and claimed reasoning was never written either. Both were wrong.
   /// MEASURED IN PRODUCTION 2026-09-17: of 5,278 chat_messages, 5,175 have an
-  /// array-valued `parts`, and across every one of them the only part types
-  /// present are `text` (5,171) and `file` (31). Zero of the other four.
+  /// array-valued `parts`, and across every one the only types present are
+  /// `text` (5,171) and `file` (31). That establishes reasoning was not
+  /// OBSERVED in this sample — not that no writer exists. An absent observation
+  /// and an absent writer are different claims, and this file has now made the
+  /// mistake in both directions.
   ///
-  /// The gap is a MISSING WRITER, not a missing reader. `extractParts`
+  /// The real gap is a MISSING WRITER for three variants. `extractParts`
   /// (lib/ai/chat/message-fields.ts) handles all six correctly; the producer,
-  /// `buildMessageParts` (lib/services/chat/message-parts.ts), only ever
-  /// constructs text and reasoning and is never given tool or source parts.
+  /// `buildMessageParts` (lib/services/chat/message-parts.ts), has no parameter
+  /// for tool or source parts, so no caller can supply one.
   /// Three places already consume what is never written:
   ///   · app/api/ai/chat/build-model-messages.ts whitelists tool-call /
   ///     tool-result in replayed history and pairs them — hardened by a real

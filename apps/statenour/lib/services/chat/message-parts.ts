@@ -9,6 +9,21 @@
 import type { MessagePart } from "@/lib/ai/chat/message-fields";
 
 /**
+ * The part types this producer can emit — the ONE place that fact is stated.
+ *
+ * `extractParts` accepts six variants; this producer constructs three. The
+ * difference is not documentation, it is the actual persistence boundary, and
+ * `prisma/schema.prisma`'s `parts` comment must agree with this list.
+ * `tests/lib/chat/message-parts-contract.test.ts` asserts that agreement, so a
+ * writer added here without updating the schema comment fails the suite.
+ *
+ * `file` is included because `extractParts` converts an `image` part into one
+ * and passes `file` parts through; this producer does not build them directly
+ * but they reach `parts` through the same call.
+ */
+export const PRODUCIBLE_PART_TYPES = ["text", "file", "reasoning"] as const;
+
+/**
  * Build the `parts` tree + flattened `searchableContent` for a persisted
  * assistant ChatMessage. Shared by the initial persist (text part guarded
  * on non-empty) and the fabrication-rewrite patch (text part always

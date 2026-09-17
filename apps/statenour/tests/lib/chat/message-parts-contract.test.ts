@@ -24,7 +24,12 @@
  */
 import { describe, it, expect } from "vitest";
 import { extractParts } from "@/lib/ai/chat/message-fields";
-import { buildMessageParts } from "@/lib/services/chat/message-parts";
+import {
+  buildMessageParts,
+  PRODUCIBLE_PART_TYPES,
+} from "@/lib/services/chat/message-parts";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 describe("extractParts · the CONSUMER supports all six variants", () => {
   it("round-trips every documented part type", () => {
@@ -70,22 +75,92 @@ describe("buildMessageParts · the PRODUCER emits only text and reasoning", () =
     ]);
   });
 
-  it("PINS THE GAP: it has no parameter for tool or source parts at all", async () => {
-    // The producer's own signature is the proof — it takes (text, reasoning,
-    // alwaysIncludeText) and nothing else, so no caller CAN supply a tool part.
-    // `length` counts parameters before the first default, hence 2.
+  it("PINS THE GAP: there is no parameter for tool or source parts", async () => {
+    // The producer's signature is the proof: (text, reasoning, alwaysIncludeText)
+    // and nothing else, so no caller CAN supply a tool part today.
+    //
+    // ⚠ WHAT THIS DOES **NOT** GUARANTEE, stated plainly because the first
+    // version of this test promised it and was wrong: adding an optional fourth
+    // `parts` argument leaves `.length` at 2 and this call supplies no tool
+    // input, so a new writer would NOT fail here. A canary cannot exercise
+    // behaviour that does not exist yet. The real drift guard is the
+    // doc-vs-constant assertion below, which a new writer cannot satisfy
+    // without also updating the schema comment.
     expect(buildMessageParts.length).toBe(2);
 
-    // And nothing it returns is ever a tool/source part, whatever it is given.
     const { partsArray } = await buildMessageParts("a turn that called tools", "reasoned");
     const types = new Set(partsArray?.map((p) => p.type));
     for (const absent of ["tool-call", "tool-result", "source"]) {
+      expect(types.has(absent as never)).toBe(false);
+    }
+  });
+
+  it("emits nothing outside PRODUCIBLE_PART_TYPES", async () => {
+    const produced = new Set<string>();
+    for (const [text, reasoning] of [
+      ["hello", undefined],
+      ["hello", "because"],
+      ["", "because"],
+    ] as Array<[string, string | undefined]>) {
+      const { partsArray } = await buildMessageParts(text, reasoning, true);
+      for (const p of partsArray ?? []) produced.add(p.type);
+    }
+    for (const t of produced) {
       expect(
-        types.has(absent as never),
-        `buildMessageParts now emits "${absent}" — GOOD, but prisma/schema.prisma's ` +
-          `parts comment and this test both describe the old two-variant reality ` +
-          `and must be updated in the same change.`,
+        (PRODUCIBLE_PART_TYPES as readonly string[]).includes(t),
+        `buildMessageParts emitted "${t}", which PRODUCIBLE_PART_TYPES does not list`,
+      ).toBe(true);
+    }
+  });
+});
+
+/**
+ * THE DRIFT GUARD THAT ACTUALLY BINDS.
+ *
+ * A behaviour canary cannot fire for a writer that does not exist yet — review
+ * was right that the earlier `buildMessageParts.length` check promised exactly
+ * that and could not deliver it. What CAN be enforced is that the schema
+ * comment and the producer agree about which variants have a writer. Someone
+ * adding tool-call persistence has to extend `PRODUCIBLE_PART_TYPES` for their
+ * own code to be coherent, and this test then fails until the schema comment
+ * is updated in the same change.
+ *
+ * It is a DOC-vs-CODE guard, not a behaviour canary, and it says so rather than
+ * claiming more than it does — which is the whole failure mode this file exists
+ * to document.
+ */
+describe("schema comment and producer agree on what has a writer", () => {
+  // Strip CR without writing an escape sequence — a `\r` literal is exactly
+  // what a shell heredoc mangles, and on a CRLF checkout an unnormalised read
+  // makes every line-oriented assertion below line-ending dependent.
+  const CR = String.fromCharCode(13);
+  const schema = readFileSync(join(process.cwd(), "prisma/schema.prisma"), "utf8").split(CR).join("");
+
+  const block = (() => {
+    const i = schema.indexOf("WHAT HAS A WRITER");
+    const j = schema.indexOf("WHAT HAS NO WRITER AT ALL", i);
+    expect(i, "the parts comment lost its 'WHAT HAS A WRITER' section").toBeGreaterThan(-1);
+    expect(j, "the parts comment lost its 'WHAT HAS NO WRITER AT ALL' section").toBeGreaterThan(i);
+    return { has: schema.slice(i, j), hasNot: schema.slice(j, j + 400) };
+  })();
+
+  it("every PRODUCIBLE type is listed as having a writer", () => {
+    for (const t of PRODUCIBLE_PART_TYPES) {
+      expect(
+        block.has.includes(t),
+        `PRODUCIBLE_PART_TYPES lists "${t}" but the schema comment does not say it has a writer`,
+      ).toBe(true);
+    }
+  });
+
+  it("nothing listed as writer-less is actually producible", () => {
+    for (const t of ["tool-call", "tool-result", "source"]) {
+      expect(
+        (PRODUCIBLE_PART_TYPES as readonly string[]).includes(t),
+        `the schema comment says "${t}" has no writer, but PRODUCIBLE_PART_TYPES lists it — ` +
+          `update prisma/schema.prisma in the same change`,
       ).toBe(false);
+      expect(block.hasNot.includes(t)).toBe(true);
     }
   });
 });
