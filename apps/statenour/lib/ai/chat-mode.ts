@@ -274,6 +274,40 @@ export async function pruneTools(
 
   const keywordMatches = new Set<string>();
   // Keyword-based tool families
+  //
+  // The patterns below are tested against the TOOL NAME, not against the
+  // user's text, and the test is UNANCHORED. A family's vocabulary therefore
+  // leaks wherever one of its keywords appears inside an unrelated longer
+  // word. Two measured specimens (2026-09-17):
+  //
+  //   /customer|people|relation|person|profile/  matches getHabitRevenueCorrelation,
+  //                                              because cor-RELATION contains "relation"
+  //   /mit|okr|target|goal|.../                  matches checkCom-MIT-ments
+  //                                              and githubRecentCom-MIT-s
+  //
+  // DO NOT "FIX" THIS EXPECTING A BUDGET WIN — it was tried and measured.
+  // Requiring the match to start at a camelCase token boundary is SAFE (zero
+  // ever-chosen tools lose every family) and WORTHLESS (zero never-chosen
+  // tools lose every family either). getHabitRevenueCorrelation drops
+  // /relation/ and keeps /revenue/ and /habit/, both legitimate, so it is
+  // still surfaced on all 109 of its impressions. The collisions are real and
+  // ugly; they are not what spends the budget.
+  //
+  // What spends the budget: 136 of 181 catalog tools (75.1%) have never been
+  // chosen in chat, and tier 4 surfaces them correctly, from their own
+  // families. On the median turn tier 4 takes all 15 non-core slots, and 65.3%
+  // of tier-4 impressions go to never-chosen tools — while searchTools (the
+  // model's own "you missed one" signal) fires on just 6.8% of turns. The
+  // error is over-inclusion, not starvation, and the remedy is a catalog
+  // decision, not a matcher change.
+  //
+  // Sample: 192 turns / 5,227 gate decisions, to 2026-09-17. SINGLE-SOURCED on
+  // tool_telemetry: chat_messages.parts was meant to corroborate and records no
+  // tool calls at all, so none of this is confirmed by a second instrument.
+  //
+  // Re-measure with scripts/probe-family-collisions.mjs before acting on any of
+  // the above. It reads the live catalog and live telemetry, and aborts rather
+  // than reporting a number it could not compute.
   const addMatching = (pattern: RegExp) => {
     for (const name of Object.keys(allTools)) {
       if (pattern.test(name)) keywordMatches.add(name);
