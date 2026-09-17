@@ -99,9 +99,32 @@ export default function TireSizePage() {
           LocalBusiness + FAQPage. Adding a per-page Service entity
           tells Google "this URL is the canonical answer for [size]
           tire install" so rich results can fire on size-specific
-          queries. Each page gets a unique Service.name / offers
-          tied to the size, so Google's entity graph doesn't
-          collapse the 30 pages into one. */}
+          queries. Each page gets a unique Service.name tied to the
+          size, so Google's entity graph doesn't collapse the 30
+          pages into one.
+
+          2026-09-17: the `offers: AggregateOffer` block was REMOVED.
+          It hard-coded lowPrice "40" / highPrice "200" / offerCount
+          "2" / availability InStock, byte-identical on all 30 size
+          routes and derived from nothing — no feed, no per-size
+          inventory, no price lookup. Two concrete defects:
+            1. availability:InStock asserted stock this app cannot
+               verify. There is no Nick's-shop inventory in this path
+               at all; even the /tires finder only ever sees the
+               SUPPLIER's warehouse count, and its catalog fallback
+               already refuses to fabricate stock
+               (server/routers/gatewayTire.ts: `const inStock = false`
+               under "Do not fabricate in-stock status"). This block
+               contradicted that standard on 30 indexable URLs.
+            2. lowPrice "40" contradicted the visible FAQ on THIS page,
+               which states used tires "start around $25-60 each".
+               Google's structured-data policy requires markup to match
+               what the user is shown; a price floor 60% above the
+               visible one is exactly the mismatch that draws a manual
+               action.
+          Restore ONLY with real per-size price/availability wired to a
+          source with a freshness guarantee — and then as Product/Offer
+          on a genuine product surface, not a templated category page. */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -109,7 +132,7 @@ export default function TireSizePage() {
             "@context": "https://schema.org",
             "@type": "Service",
             name: `${page.size} Tire Sales & Installation`,
-            description: `${page.size} tires in Cleveland — new and used in stock, fits ${vehicleList}. Free install package: mounting, balancing, valve stems, TPMS reset, alignment check, lifetime rotations. Walk in 7 days.`,
+            description: `${page.size} tires in Cleveland — new and used, fits ${vehicleList}. Free install package: mounting, balancing, valve stems, TPMS reset, alignment check, lifetime rotations. Walk in 7 days.`,
             serviceType: "Tire Installation",
             image: "https://nickstire.org/photos/rugged-tire-tread-closeup.webp",
             provider: {
@@ -126,15 +149,6 @@ export default function TireSizePage() {
               { "@type": "City", name: "Lyndhurst" },
               { "@type": "City", name: "Shaker Heights" },
             ],
-            offers: {
-              "@type": "AggregateOffer",
-              priceCurrency: "USD",
-              lowPrice: "40",
-              highPrice: "200",
-              offerCount: "2",
-              availability: "https://schema.org/InStock",
-              itemOffered: { "@type": "Product", name: `${page.size} Tires` },
-            },
           }),
         }}
       />
