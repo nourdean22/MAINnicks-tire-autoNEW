@@ -84,11 +84,28 @@ async function main() {
   // stopped existing, and every consumer of that lane silently reads zero.
   console.log(`\n── INSTRUMENT FAILURES (a dead lane reads as "nothing happened") ──`);
   const instr = await prisma.$queryRawUnsafe(
-    `SELECT coalesce(context->>'surface', context->>'fn', '(no surface)') AS surface,
+    // ⚠ IDENTITY COMES FROM `context.source`, NOT `surface`/`fn`.
+    // `logError(source, msg, extra)` writes `context: { source, ...extra }` and
+    // prefixes the message `[<source>]`. There is no `surface` key at all — the
+    // first version grouped on one, so every lane collapsed into `(no surface)`
+    // and a dead instrument could not be NAMED. The message prefix is the
+    // fallback for rows whose context predates the convention.
+    // ⚠ NO REGEX. A backslash class inside a JS template literal is consumed
+    // before Postgres sees it (`\[` becomes `[`), which silently turns the
+    // pattern into something that matches the wrong thing. The bracket prefix
+    // is extracted with plain string functions instead, so what is written is
+    // what the database receives.
+    `SELECT coalesce(
+              context->>'source',
+              CASE WHEN message LIKE '[%' AND position(']' in message) > 2
+                   THEN substring(message from 2 for position(']' in message) - 2)
+              END,
+              '(unattributed)'
+            ) AS lane,
             count(*)::int AS n, max(created_at) AS last_at
        FROM error_logs
       WHERE created_at > now() - make_interval(days => $1::int)
-        AND (context->>'surface' LIKE 'instrument.%' OR message ILIKE '%instrument.%')
+        AND (context->>'source' LIKE 'instrument.%' OR message LIKE '[instrument.%')
       GROUP BY 1 ORDER BY n DESC LIMIT 20`,
     DAYS,
   );
@@ -96,7 +113,7 @@ async function main() {
     console.log("  none — no metric lane reported a write failure in the window.");
   }
   for (const r of instr) {
-    console.log(`  ${String(r.surface).padEnd(38)} ${String(r.n).padStart(5)}  last ${new Date(r.last_at).toISOString()}`);
+    console.log(`  ${String(r.lane).padEnd(38)} ${String(r.n).padStart(5)}  last ${new Date(r.last_at).toISOString()}`);
   }
 
   // ── 1 · WHAT IS ERRORING, CLUSTERED ─────────────────────────────────
@@ -106,7 +123,13 @@ async function main() {
             level::text AS level,
             count(*)::int AS n,
             max(created_at) AS last_at,
-            coalesce(max(context->>'surface'), '-') AS surface
+            coalesce(
+              max(context->>'source'),
+              CASE WHEN max(message) LIKE '[%' AND position(']' in max(message)) > 2
+                   THEN substring(max(message) from 2 for position(']' in max(message)) - 2)
+              END,
+              '-'
+            ) AS surface
        FROM error_logs
       WHERE created_at > now() - make_interval(days => $1::int)
       GROUP BY 1, 2 ORDER BY n DESC LIMIT 20`,

@@ -17,11 +17,37 @@
  * READ-ONLY against Langfuse; touches no database.
  * Usage: railway run -s statenour-web -- node apps/statenour/scripts/probe-langfuse-errors.mjs
  */
+import { assessTraceControl, assessSampleCoverage } from "./lib/error-visibility.mjs";
+
 const PUB = process.env.LANGFUSE_PUBLIC_KEY;
 const SEC = process.env.LANGFUSE_SECRET_KEY;
 const BASE = (process.env.LANGFUSE_BASE_URL || "https://cloud.langfuse.com").replace(/\/+$/, "");
 const DAYS = Number(process.env.DAYS ?? 7);
 const TIMEOUT_MS = 20_000;
+
+/**
+ * ⚠ SCOPE THE QUERY TO ONE ENVIRONMENT.
+ *
+ * The exporter tags every span (`resolveLangfuseEnvironment`, langfuse.ts). A
+ * project-wide query counts local, preview and staging spans as production:
+ * non-production traffic can inflate error totals, and worse, it can make the
+ * TRACE CONTROL look alive while production export is actually dead — the
+ * control would then vouch for a number it never measured.
+ *
+ * Precedence mirrors the exporter. If it resolves to the wrong value the
+ * control catches it honestly: the run reports "0 traces — check the exporter,
+ * keys or environment", which is the correct answer rather than a false zero.
+ */
+const ENVIRONMENT = (
+  process.env.LANGFUSE_QUERY_ENVIRONMENT ||
+  process.env.LANGFUSE_TRACING_ENVIRONMENT ||
+  process.env.RAILWAY_ENVIRONMENT_NAME ||
+  process.env.NODE_ENV ||
+  "default"
+)
+  .trim()
+  .toLowerCase();
+const ENV_Q = `&environment=${encodeURIComponent(ENVIRONMENT)}`;
 
 if (!PUB || !SEC) {
   console.error(
@@ -31,7 +57,8 @@ if (!PUB || !SEC) {
   process.exit(2);
 }
 console.log(
-  `base: ${BASE}  ·  public key present (${PUB.length} chars) · secret present (${SEC.length} chars), neither shown`,
+  `base: ${BASE}  ·  public key present (${PUB.length} chars) · secret present (${SEC.length} chars), neither shown
+  environment filter: ${ENVIRONMENT}`,
 );
 
 const auth = "Basic " + Buffer.from(`${PUB}:${SEC}`).toString("base64");
@@ -50,7 +77,7 @@ async function api(path) {
 
 async function main() {
   // ── CONTROL: is anything being traced at all? ───────────────────────
-  const traces = await api(`/traces?fromTimestamp=${encodeURIComponent(since)}&limit=100`);
+  const traces = await api(`/traces?fromTimestamp=${encodeURIComponent(since)}&limit=100${ENV_Q}`);
   if (!traces.ok) {
     console.error(
       `\nABORT — /traces returned ${traces.status}. Cannot distinguish "no errors" from\n` +
@@ -60,8 +87,10 @@ async function main() {
   }
   const list = traces.json?.data ?? [];
   const meta = traces.json?.meta ?? {};
-  console.log(`\ncontrol: ${meta.totalItems ?? list.length} trace(s) in the last ${DAYS}d`);
-  if ((meta.totalItems ?? list.length) === 0) {
+  const totalTraces = meta.totalItems ?? list.length;
+  const traceControl = assessTraceControl({ totalTraces });
+  console.log(`\ncontrol: ${totalTraces} trace(s) in the last ${DAYS}d · env=${ENVIRONMENT}`);
+  if (!traceControl.trustZeroErrors) {
     console.log(
       "\nVERDICT: ZERO traces in the window. This says NOTHING about error rates —\n" +
         "         it says the exporter, the keys, or the project selection is the\n" +
@@ -90,7 +119,7 @@ async function main() {
     let total = null;
     for (let page = 1; page <= 6; page++) {
       const obs = await api(
-        `/observations?fromStartTime=${encodeURIComponent(since)}&level=${level}&limit=100&page=${page}`,
+        `/observations?fromStartTime=${encodeURIComponent(since)}&level=${level}&limit=100&page=${page}${ENV_Q}`,
       );
       if (!obs.ok) {
         console.log(`\n⚠ /observations?level=${level} p${page} returned ${obs.status} — UNKNOWN, not zero.`);
@@ -102,7 +131,16 @@ async function main() {
       if (batch.length < 100) break;
     }
     total ??= rows.length;
-    console.log(`\n── ${level}: ${total} total · ${rows.length} sampled ──`);
+    // A partial page must not masquerade as the whole population.
+    const cov = assessSampleCoverage({ total, sampled: rows.length });
+    const covNote = cov.complete
+      ? " · COMPLETE"
+      : cov.representative
+        ? " · partial but representative"
+        : " · ⚠ THIN SAMPLE, do not generalise";
+    console.log(
+      `\n── ${level}: ${total} total · ${rows.length} sampled (${cov.pct.toFixed(0)}%)${covNote} ──`,
+    );
     // WHICH SURFACE is failing decides whether this is contained or systemic.
     const bySurface = new Map();
     for (const o of rows) {
@@ -114,9 +152,15 @@ async function main() {
     }
     // WHICH MODEL failed matters as much as which surface. The provider chain
     // is ordered (funded Ollama first, metered rescue as a tail), so the set of
-    // models appearing here says how FAR down the chain a call got — and a
-    // provider that never appears was never reached, which is a different fact
-    // from "it worked".
+    // models appearing here says how FAR down the chain a call got.
+    //
+    // ⚠⚠ DO NOT READ ABSENCE FROM THIS LIST. A provider missing here has TWO
+    // opposite explanations — it was never reached, or it SUCCEEDED and so
+    // produced no error. This file previously asserted the first, and the
+    // conclusion drawn from it ("Ollama is never reached for brain calls") was
+    // wrong and had to be retracted: querying ALL levels showed 106 successful
+    // Ollama calls on the same surface. To decide which it is, drop the `level`
+    // filter and group by model across every level, not just ERROR.
     const byModel = new Map();
     for (const o of rows) {
       const m = o.model ?? "(no model)";
