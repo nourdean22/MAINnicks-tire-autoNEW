@@ -39,10 +39,17 @@ import { trpc } from "@/lib/trpc";
  *     states the rule this violated: only emit a rating where reviews are
  *     visible, or risk a manual action.
  *
- * The shared component is strictly richer anyway (canonical @id, brand
- * alternateNames incl. the former Moe's identity, a spec-compliant image,
- * hours derived from BUSINESS rather than hard-coded) and correctly emits NO
- * aggregateRating by default. Nothing was lost but the contradiction.
+ * The shared component is richer in every other respect (canonical @id, brand
+ * alternateNames incl. the former Moe's identity, hours derived from BUSINESS
+ * rather than hard-coded) and correctly emits NO aggregateRating by default.
+ *
+ * ONE thing the old block got right and the default does not: its image was
+ * the roadside sign, picked wayfinding-first for this page per
+ * PLACEMENT_GUIDE.md, where the shared default is the shop-exterior hero.
+ * That is a deliberate per-page choice, not an accident, so it is preserved
+ * through `additionalSchema` (spread last in the component, so it wins)
+ * instead of being quietly dropped. The rest of the old block was the
+ * contradiction.
  */
 
 export default function Contact() {
@@ -71,7 +78,13 @@ export default function Contact() {
         canonicalPath="/contact"
       />
       <Breadcrumbs items={[{ label: "Contact", href: "/contact" }]} />
-      <LocalBusinessSchema />
+      <LocalBusinessSchema
+        additionalSchema={{
+          // Wayfinding-first image for the contact page (PLACEMENT_GUIDE.md) —
+          // a driver reading /contact is about to look for this sign.
+          image: `${BUSINESS.urls.website}/photos/roadside-sign-exterior-wide.webp`,
+        }}
+      />
       
       
         {/* Hero */}
