@@ -260,6 +260,8 @@ export async function runAlternatePaths(args: {
        * exactly the blindness it had before this change.
        */
       let laneTelemetryObserved = false;
+      /** Identity of the lane that handled this turn, stamped on `tool.chosen`. */
+      let laneName = "unknown";
       /** Attribute the winning generation's calls; blind when it cannot be identified. */
       const applyLaneAttribution = async (winningText: string) => {
         const { attributeWinningSample } = await import(
@@ -286,6 +288,7 @@ export async function runAlternatePaths(args: {
       };
 
       if (multiAgentOn) {
+        laneName = "multi-agent";
         const { runAutoDecompose } = await import(
           "@/lib/ai/chat/multi-agent-detect"
         );
@@ -295,6 +298,7 @@ export async function runAlternatePaths(args: {
         );
         log.info("multi_agent_auto_path", { intent: turnSignal.intent });
       } else if (deepOn) {
+        laneName = "deep";
         // v-truth · LIVE-DATA ACCESS for deep reasoning. The reasoning
         // engine can't call tools, so it would otherwise reason blind to
         // current numbers. Pre-fetch a compact real-business snapshot and
@@ -381,6 +385,7 @@ export async function runAlternatePaths(args: {
               finishReason: "stop",
               laneToolNames: laneToolCalls.map((c) => c.name),
               laneReceiptsAvailable: laneTelemetryObserved,
+              laneName,
             });
           }
         });
@@ -402,6 +407,7 @@ export async function runAlternatePaths(args: {
           onFinishPromise: Promise.resolve(),
         });
       } else if (regenOn) {
+        laneName = "regen";
         const { generateText } = await import("ai");
         const genOnce = async (sys: string, temp: number): Promise<string> => {
           const r = await generateText({
@@ -432,6 +438,7 @@ export async function runAlternatePaths(args: {
           intent: turnSignal.intent,
         });
       } else if (selfConsistencyOn) {
+        laneName = "self-consistency";
         const { generateText } = await import("ai");
         const { selfConsistentAnswer } = await import(
           "@/lib/ai/chat/self-consistency"
@@ -456,6 +463,7 @@ export async function runAlternatePaths(args: {
           intent: turnSignal.intent,
         });
       } else if (preflushOn && preflushRisk) {
+        laneName = "preflush";
         // ONE full generation, no regen, no sampling: the point of this lane
         // is not a better draft, it is a draft that exists BEFORE the flush so
         // the enforcement block below can strip an unearned claim.
@@ -637,6 +645,7 @@ export async function runAlternatePaths(args: {
               // explicitly instead of inferred as zero.
               laneToolNames: laneToolCalls.map((c) => c.name),
               laneReceiptsAvailable: laneTelemetryObserved,
+              laneName,
             }),
         });
         return buildChatResponse({

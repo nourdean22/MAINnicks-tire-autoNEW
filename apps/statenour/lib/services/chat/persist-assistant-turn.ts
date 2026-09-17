@@ -448,6 +448,10 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         traceId,
         laneToolNames: (ev as { laneToolNames?: ReadonlyArray<string> }).laneToolNames,
         laneReceiptsAvailable: (ev as { laneReceiptsAvailable?: boolean }).laneReceiptsAvailable,
+        // Which lane ran. Absent for the streaming fallthrough, which is the
+        // only path that never enters alternate-paths.ts — so the tag's default
+        // is "streaming" rather than "unknown".
+        lane: (ev as { laneName?: string }).laneName,
       });
 
 
