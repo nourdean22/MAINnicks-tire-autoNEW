@@ -46,7 +46,23 @@ vi.mock("@/lib/runtime", () => ({
   isDemoMode: false,
 }));
 
-vi.mock("@/lib/services/tasks", () => ({
+/**
+ * ⚠⚠ PARTIAL MOCK VIA `importOriginal`, NOT A HAND-WRITTEN OBJECT.
+ *
+ * This was `() => ({ syncTaskPriorities })` — every other export of the module
+ * silently became undefined. Adding `TASK_TX_OPTS` to `tasks.ts` (the
+ * transaction budget) therefore broke this file with
+ * `No "TASK_TX_OPTS" export is defined on the mock`, because `missions.ts`
+ * reads it at the `$transaction` call site.
+ *
+ * ★ A hand-written partial mock makes the blast radius of ADDING AN EXPORT as
+ *   wide as the set of files that mock the module — invisible from the module
+ *   itself, and not something a reviewer of `tasks.ts` would ever see.
+ *   `importOriginal` keeps every real export and overrides only what the test
+ *   actually needs to control, so the next added export cannot break it.
+ */
+vi.mock("@/lib/services/tasks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/tasks")>()),
   syncTaskPriorities: vi.fn(async () => undefined),
 }));
 
