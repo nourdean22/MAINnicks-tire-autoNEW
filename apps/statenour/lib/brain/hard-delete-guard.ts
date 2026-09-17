@@ -60,6 +60,36 @@ export const NEVER_HARD_DELETE_CATEGORIES: readonly string[] = [
   "counter_intuitive",
   "hidden_correlation",
   "teaching_moment",
+
+  // ── 2026-09-17 · the operator's OWN record, added after a dry run ──
+  //
+  // Measured before adding: a sweep would have hard-deleted 274 rows across
+  // these six — 53 wins, 86 concerns, 59 emotional_state, 52 prediction_lesson,
+  // 17 learning_journal, 7 business_event — while the rest of each category
+  // (158, 373, 438, 240, 98, 47 respectively) stayed. That split is the tell.
+  //
+  // ★★★ THE TTLs ARE DECENTRALISED AND UNAUDITED. Every one of those rows was
+  // in range via a deliberately-set `expiresAt` (2,911 of 2,912 candidates came
+  // from the TTL arm; exactly ONE came from the low-confidence heuristic), and
+  // `config/retention.ts` — the one place that is supposed to decide what
+  // expires — covers only five categories, NONE of them these. So the expiry
+  // was chosen by whatever happened to write each row, and nobody ever decided
+  // that a `win` should die.
+  //
+  // ⚠ These are not instrumentation. `memory_gateway_shadow` (2,140 of the same
+  // sweep) is; a win, a concern, a lesson learned from a prediction is the
+  // operator's own record of their life and business. Hard-delete is
+  // irreversible, so the asymmetry decides it: keeping a stale `win` costs a
+  // row, losing a real one cannot be undone.
+  //
+  // Operator decision 2026-09-17: protect these, then re-enable the sweeper
+  // that had been switched off since 2026-09-08 precisely to avoid this.
+  "win",
+  "concern",
+  "emotional_state",
+  "prediction_lesson",
+  "learning_journal",
+  "business_event",
 ];
 
 /**

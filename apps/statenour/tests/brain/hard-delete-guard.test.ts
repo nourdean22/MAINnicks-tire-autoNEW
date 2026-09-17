@@ -84,4 +84,41 @@ describe("NEVER_HARD_DELETE_CATEGORIES · what a TTL sweep may never touch", () 
       .filter((c) => NEVER_HARD_DELETE_CATEGORIES.includes(c));
     expect(overlap).toEqual([]);
   });
+
+  /**
+   * ── CANARY · the operator's own record ──────────────────────────────
+   *
+   * Measured against production 2026-09-17, before these were protected: a
+   * sweep would have hard-deleted 274 rows across these six — 53 wins, 86
+   * concerns, 59 emotional_state, 52 prediction_lesson, 17 learning_journal,
+   * 7 business_event — while the REST of each category survived (158, 373,
+   * 438, 240, 98, 47 total). Only a fraction of each was dying, which is what
+   * made it invisible: the categories never emptied.
+   *
+   * ★★★ ALL OF THEM CAME FROM A DELIBERATELY-SET `expiresAt` — 2,911 of 2,912
+   * candidates arrived via the TTL arm, exactly ONE via the low-confidence
+   * heuristic. But `config/retention.ts`, the one place that decides what
+   * expires, covers five categories and NONE of these. So each TTL was chosen
+   * by whatever happened to write the row, and nobody ever decided a `win`
+   * should die.
+   *
+   * The asymmetry settles it: keeping a stale win costs one row; losing a real
+   * one is irreversible. Removing any name below re-arms a silent, permanent
+   * delete of the operator's own history.
+   */
+  it("CANARY — the operator's own record is never hard-deletable", () => {
+    for (const c of [
+      "win",
+      "concern",
+      "emotional_state",
+      "prediction_lesson",
+      "learning_journal",
+      "business_event",
+    ]) {
+      expect(
+        NEVER_HARD_DELETE_CATEGORIES.includes(c),
+        `${c} is the operator's own record — removing it re-arms a permanent delete`,
+      ).toBe(true);
+    }
+  });
 });
