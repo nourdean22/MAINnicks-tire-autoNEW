@@ -31,6 +31,9 @@ const BUCKETS: Array<{ key: Bucket; label: string; tone: string; needsSurfacing?
 
 export function ToolUsageCensusPanel() {
   const censusQ = trpc.system.toolUsageCensus.useQuery(undefined, { staleTime: 60_000 });
+  // A failing WRITER is why a census zero may be a floor rather than a finding.
+  // Read separately so a failure here degrades to "unknown", never to a green.
+  const instrumentsQ = trpc.system.instrumentFailures.useQuery(undefined, { staleTime: 60_000 });
   const [bucket, setBucket] = useState<Bucket>("highFailure");
 
   if (censusQ.isLoading) {
@@ -53,6 +56,7 @@ export function ToolUsageCensusPanel() {
   }
 
   const c = censusQ.data;
+  const failing = instrumentsQ.data?.failing ?? [];
   const hasSurfacing = c.surfacedWindow.turns > 0;
   const visibleBuckets = BUCKETS.filter((b) => !b.needsSurfacing || hasSurfacing);
   const rows = c[bucket];
@@ -70,6 +74,31 @@ export function ToolUsageCensusPanel() {
           {c.invokedCount}/{c.catalogSize} invoked · {c.highFailure.length} failing · {c.neverInvoked.length} never
         </span>
       </div>
+
+      {/*
+        INSTRUMENT HEALTH — rendered ONLY when something is actually failing.
+        Every bucket below counts rows, so a dead writer does not make a number
+        wrong, it makes it SMALL: a tool that could not be recorded reads as a
+        tool nobody called. This panel already gates two buckets on
+        `surfacedWindow.turns > 0` for that reason; this is the same guard for
+        the writers themselves, named rather than inferred.
+        Absent = nothing FAILED. It is not a health claim — see the reader's
+        own caveat — so nothing renders in the quiet case.
+      */}
+      {failing.length > 0 && (
+        <p
+          data-testid="instrument-failures"
+          className="flex items-start gap-1.5 rounded border border-rose-400/20 bg-rose-400/[0.04] px-2 py-1.5 text-[9px] font-mono text-rose-200"
+        >
+          <AlertCircle className="mt-[1px] h-3 w-3 shrink-0" />
+          <span>
+            {failing.length} instrument{failing.length === 1 ? "" : "s"} failed to write in the last
+            24h — counts below are understated, not measured:{" "}
+            {failing.map((f) => `${f.instrument} ×${f.failures}`).join(" · ")}
+            {instrumentsQ.data?.truncated ? " (capped — these are floors)" : ""}
+          </span>
+        </p>
+      )}
 
       <div className="flex gap-1.5" role="tablist" aria-label="census buckets">
         {visibleBuckets.map((b) => (
