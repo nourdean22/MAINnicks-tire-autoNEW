@@ -11,6 +11,7 @@ import { getModel } from "@/lib/ai/provider";
 import { generateText } from "ai";
 import { logger as rootLogger } from "@/lib/logger";
 import { pushBodyFromBrief } from "./morning-brief";
+import { recordSelfRow } from "../self-row";
 
 const log = rootLogger.withSurface("inngest/intelligence-brief");
 const inngest = getInngest();
@@ -218,6 +219,7 @@ export const intelligenceDailyBrief = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    await recordSelfRow(step, "intelligence-daily-brief");
     // 1. Run Ingestion for all active sources
     const ingestionReport = await step.run("ingest-active-sources", async () => {
       const { prisma } = await import("@/lib/prisma");
@@ -450,6 +452,7 @@ export const intelligenceWeeklyBrief = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    await recordSelfRow(step, "intelligence-weekly-brief");
     const briefContent = await step.run("compose-weekly-brief", async () => {
       const { prisma } = await import("@/lib/prisma");
       

@@ -24,6 +24,7 @@ import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { pullIndustryFeeds } from "@/lib/automotive/industry-monitor";
 import { logger as rootLogger } from "@/lib/logger";
+import { recordSelfRow } from "../self-row";
 
 const log = rootLogger.withSurface("inngest/industry-pull");
 const inngest = getInngest();
@@ -37,6 +38,7 @@ export const industryPull = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    await recordSelfRow(step, "industry-pull");
     // pullIndustryFeeds is already timeout-guarded (10s/source) + per-source
     // try/catch, so one dead source can't starve the run. Persisting is
     // idempotent by guid, so a function retry re-pulls cleanly.

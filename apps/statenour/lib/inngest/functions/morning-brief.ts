@@ -42,6 +42,7 @@
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
+import { recordSelfRow } from "../self-row";
 
 const log = rootLogger.withSurface("inngest/morning-brief");
 const inngest = getInngest();
@@ -472,6 +473,7 @@ export const operatorMorningBrief = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    await recordSelfRow(step, "operator-morning-brief");
     const brief = await step.run("compose", composeBrief);
     const push = await step.run("hand-off-for-combine", () => handOffForCombine(brief));
     // Wave-3 (2026-07-29) · delivery truth: the brief joins the outcome
