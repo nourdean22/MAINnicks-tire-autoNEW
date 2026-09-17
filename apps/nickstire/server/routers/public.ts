@@ -291,23 +291,40 @@ export const activityRouter = router({
       // truthful while still letting real reviews surface. When nothing is
       // recent the ticker shows nothing, which is the documented behaviour
       // (see ./fomoEntries — hide rather than fake).
-      const reviewCutoff = new Date(Date.now() - REVIEW_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
+      //
+      // THE AGE IS COMPUTED IN SQL, NOT JS. Driver-parsed TiDB DATETIME values
+      // come back shifted on ET (AGENTS.md "Time — Cleveland/Eastern"), so a
+      // JS-derived age is off by the offset. That was cosmetic while the age
+      // was only printed; the moment a cutoff CONSUMES it, the skew becomes
+      // behaviour — a genuinely recent review sitting near the boundary gets
+      // discarded hours early. Raised by review on #2405. TIMESTAMPDIFF runs
+      // in the database against the same clock that wrote the row, so the
+      // filter and the displayed age agree and neither depends on how the
+      // driver parsed the value.
+      const reviewAgeMinutes = sql<number>`TIMESTAMPDIFF(MINUTE, ${reviewReplies.reviewDate}, NOW())`;
       const recentReviews = await d
         .select({
           reviewerName: reviewReplies.reviewerName,
           reviewText: reviewReplies.reviewText,
           reviewRating: reviewReplies.reviewRating,
           reviewDate: reviewReplies.reviewDate,
+          ageMinutes: reviewAgeMinutes,
         })
         .from(reviewReplies)
-        .where(and(gte(reviewReplies.reviewRating, 4), gte(reviewReplies.reviewDate, reviewCutoff)))
+        .where(
+          and(
+            gte(reviewReplies.reviewRating, 4),
+            // NULL reviewDate yields NULL here, which fails the comparison —
+            // so undated rows are excluded rather than defaulting to "1h ago",
+            // which is what the old `: 60` fallback rendered.
+            sql`${reviewAgeMinutes} BETWEEN 0 AND ${REVIEW_MAX_AGE_DAYS * 24 * 60}`
+          )
+        )
         .orderBy(desc(reviewReplies.reviewDate))
         .limit(5);
 
       for (const r of recentReviews) {
-        const ago = r.reviewDate
-          ? Math.max(1, Math.round((Date.now() - new Date(r.reviewDate).getTime()) / 60000))
-          : 60;
+        const ago = Math.max(1, Math.round(Number(r.ageMinutes)));
         const stars = "\u2605".repeat(r.reviewRating || 5);
         const excerpt = r.reviewText
           ? `"${r.reviewText.slice(0, 80)}${r.reviewText.length > 80 ? "..." : ""}"`
