@@ -382,13 +382,34 @@ export async function pruneTools(
     addMatching(/github|repo|deploy|file|code|architecture|coding/i);
   }
 
-  // 2026-09-17 · cloud DOCUMENT storage, distinct from the code/repo family
-  // above. `searchDriveFiles` reached 0 of 2 phrasings: "search my google
-  // drive" names the product exactly and still missed, because the code family
-  // matches on `files?` and `addMatching(/file/i)` never reaches a tool whose
-  // name is about DRIVE. Naming the product must be enough.
-  if (/\b(google ?drive|my drive|gdrive|dropbox|cloud storage|shared (drive|folder))\b/.test(text)) {
-    addMatching(/drive|document/i);
+  // 2026-09-17 · GOOGLE DRIVE reads, distinct from the code/repo family above.
+  // `searchDriveFiles` reached 0 of 2 phrasings: "search my google drive" names
+  // the product exactly and still missed, because the code family matches on
+  // `files?` and never reaches a tool whose name is about DRIVE. Naming the
+  // product must be enough.
+  //
+  // ⚠ SCOPED TWICE, both narrowings found by review the same day:
+  //
+  // 1 · THE TRIGGER NAMES ONLY PROVIDERS THAT EXIST. It used to include
+  //     `dropbox` and a generic `cloud storage`. There is no Dropbox connector
+  //     anywhere in this app — measured: the string "dropbox" appears in
+  //     lib/ and app/ exactly once, in this file, in the trigger itself. So
+  //     asking about Dropbox offered Google Drive tools: the wrong datastore,
+  //     confidently. A capability you cannot actually perform must not be
+  //     surfaced as if you can.
+  //
+  // 2 · THE READ TOOLS ARE NAMED, NOT PATTERN-MATCHED. `/drive|document/i` also
+  //     matched `syncDriveMemory`, which the catalog marks
+  //     `sideEffecting: true, cost: "spendy"` — a bulk ingest offered on every
+  //     "search my drive". It also pulled in `ingestDocumentFromUrl`. A READ
+  //     intent must not put a write-and-spend tool in front of the model;
+  //     `syncDriveMemory` stays reachable by exact name and by the semantic
+  //     tier, which is where an explicit "sync my drive" belongs.
+  //
+  // Anchored on purpose: `^(...)$` cannot acquire a new member by someone
+  // adding a tool whose name happens to contain "drive".
+  if (/\b(google ?drive|my drive|gdrive|shared (drive|folder))\b/.test(text)) {
+    addMatching(/^(searchDriveFiles|readDriveFile)$/);
   }
 
   // Email / inbox / Gmail / Telegram
