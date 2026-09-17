@@ -55,6 +55,62 @@ export type { ChatMode };
  * RUNTIME_PROVIDERS and every live provider in the chain is
  * tool-capable. The prune's job is purely context-budget control.)
  */
+/**
+ * Priority order for tier-4 keyword-family candidates.
+ *
+ * WHY THIS EXISTS. Tier 4 used `Array.from(keywordMatches).sort()` — plain
+ * alphabetical. That reads as a harmless determinism device, and it is, right
+ * up until the budget truncates: `addIfSpace` stops adding at TOOL_BUDGET, so
+ * whatever order this list is in IS the selection policy for every tool past
+ * slot 24. Measured on production 2026-09-16, over 192 recorded turns and
+ * 5,227 gate decisions:
+ *
+ *   · 140/192 turns (72.9%) hit the budget cliff
+ *   · ALLOWED tier-4 names averaged first-letter index 5.28 ("f")
+ *   · BUDGETED_OUT names averaged 11.78 ("l")
+ *   · 65.3% of tier-4 ALLOWED impressions went to tools the model NEVER chose
+ *
+ * A 6.5-letter gap is not relevance wearing an alphabetical disguise; the
+ * pruner was choosing `analyzeSleep`/`getBodyData` over `searchWebVerified`
+ * (cut 52x) and `githubRecentCommits` (cut 53x) because of their spelling. The
+ * model then paid a whole extra generation step to claw those two back through
+ * the searchTools/invokeTool recovery lane — 5 of 13 recorded recoveries were
+ * for a web-search tool the keyword family HAD already matched and truncation
+ * had dropped.
+ *
+ * Tier 5 (semantic rank) cannot fix this: it is gated on
+ * `selectedNames.size < TOOL_BUDGET`, so it is skipped on exactly the turns
+ * where ranking matters (70.3% of turns skipped it).
+ *
+ * WHAT THIS CHANGES — and does not. Ordering ONLY. The candidate set is
+ * identical; when the budget does not truncate, the surfaced set is unchanged
+ * down to the last tool. No tool becomes reachable that was not already
+ * matched by a keyword family, so this cannot widen authority.
+ *
+ * Ranking applies only when `scores` covers the candidates (a warm cache),
+ * so every candidate is comparable. Cold cache falls back to alphabetical:
+ * partial scores would sort the measured against the unmeasured, which is a
+ * different and worse policy than the one being replaced. Unscored names sort
+ * last, alphabetically among themselves — the tie-break keeps the output
+ * deterministic, which the tests depend on.
+ */
+export function orderKeywordCandidates(
+  names: Iterable<string>,
+  scores: ReadonlyMap<string, number> | null,
+): string[] {
+  const alphabetical = Array.from(names).sort();
+  if (!scores || scores.size === 0) return alphabetical;
+  return alphabetical.sort((a, b) => {
+    const sa = scores.get(a);
+    const sb = scores.get(b);
+    if (sa === undefined && sb === undefined) return a < b ? -1 : a > b ? 1 : 0;
+    if (sa === undefined) return 1;
+    if (sb === undefined) return -1;
+    if (sb !== sa) return sb - sa;
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
+}
+
 export async function pruneTools(
   mode: ChatMode,
   allTools: Record<string, unknown>,
@@ -645,8 +701,38 @@ export async function pruneTools(
     addIfSpace(name, 3);
   }
 
-  // Tier 4: Deterministic natural-language keyword-family matches
-  const sortedKeyword = Array.from(keywordMatches).sort();
+  // Tier 4: Deterministic natural-language keyword-family matches.
+  //
+  // ORDER IS POLICY here, not presentation — see orderKeywordCandidates for
+  // the production measurement. Rank by semantic similarity so that when the
+  // budget truncates it drops the least relevant candidates instead of the
+  // alphabetically-last ones.
+  let keywordScores: Map<string, number> | null = null;
+  if (userEmbedding && userEmbedding.length > 0 && keywordMatches.size > 0) {
+    try {
+      const { scoreToolsBySimilarity, isToolEmbeddingCacheWarm } = await import("./tool-embeddings");
+      // Rank only against a WARM cache, so every candidate is comparable.
+      // A partial score map would sort the measured against the unmeasured —
+      // a different policy from the alphabetical one, and not obviously better.
+      if (isToolEmbeddingCacheWarm()) {
+        keywordScores = scoreToolsBySimilarity(userEmbedding, keywordMatches);
+      }
+    } catch (err) {
+      // Ranking is an optimisation. A failure here must never change WHICH
+      // tools are candidates — fall through to the alphabetical order this
+      // replaced, and say so rather than swallowing it.
+      void import("@/lib/utils/error-log")
+        .then(({ logError }) => logError("ai.chat-mode", err, { fn: "pruneTools/keywordRank" }))
+        .catch((e) => console.error("ai.chat-mode import error", e));
+    }
+  }
+  const sortedKeyword = orderKeywordCandidates(keywordMatches, keywordScores);
+  // Position within the tier-4 priority list, so the telemetry can later show
+  // WHERE the cliff fell and whether ranking moved the right tools above it.
+  // `rank`/`score` have existed on GateDecision since the table shipped and
+  // nothing ever wrote them — a column with no producer reports nothing.
+  const keywordRank = new Map<string, number>();
+  sortedKeyword.forEach((name, i) => keywordRank.set(name, i));
   for (const name of sortedKeyword) {
     addIfSpace(name, 4);
   }
@@ -719,11 +805,18 @@ export async function pruneTools(
               toolName: name,
               verdict: "ALLOWED" as const,
               tier: tierOf.get(name),
+              rank: keywordRank.get(name),
+              score: keywordScores?.get(name),
             })),
             ...Array.from(budgetedOut.entries()).map(([name, tier]) => ({
               toolName: name,
               verdict: "BUDGETED_OUT" as const,
               tier: tier || undefined,
+              // A cut candidate's rank is the whole point: it says how far
+              // past the cliff the tool sat, which distinguishes "just
+              // missed" from "never close".
+              rank: keywordRank.get(name),
+              score: keywordScores?.get(name),
             })),
           ],
         })

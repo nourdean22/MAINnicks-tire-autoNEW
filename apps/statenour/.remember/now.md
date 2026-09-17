@@ -42,6 +42,106 @@ tests in 2 files, `exit=1`. Now **844 files / 8,467 tests, exit 0**.
 - ★ `createMissionPlan`: 150 surfaces, 4 calls, **25% success** — a real quality defect invisible to
   the `highFailure` bucket, which needs ≥10 calls. `getRepoMap`: 1 call, 0% ok.
 
+- `<rewrite-queue slice>` — **the description-rewrite cron was drafting against an EMPTY queue.**
+  It filters `totalCalls >= 10 && success < 60%` (the `highFailure` bucket) — measured at **0**. So
+  it ran nightly and produced nothing, while the bucket the census itself calls "the actionable
+  prune list" held 101 tools costing 8.4 slots/turn. A never-called tool has no telemetry row, so
+  `getToolStats` structurally could not see it. Added a second evidence kind
+  (`surfaced_never_chosen`) with its OWN prompt — there are no errors to learn from, so it asks for
+  discriminative clarity and explicitly allows "this tool is redundant" as a valid answer.
+  Failures draft first; never-chosen fills the remainder, so the original queue cannot be starved.
+  Still DRAFT-ONLY (human carries it into code). Dry-run against prod: would draft
+  `getMasteryScores` (266/467 = 57%), `getHabitRevenueCorrelation` (50%), `findCustomer` (49%).
+  ★ `getMasteryScores`'s description is **33 chars** ("Get current mastery domain scores") — no
+  hint of when to use it, shown in 57% of turns, never chosen. Hypothesis well-supported.
+  ⚠ PROVEN: selection (10 tests + prod dry run). NOT EXERCISED: the LLM draft + upsert, which
+  would spend tokens and write prod rows — not authorised here.
+
+- `<gate-calibration slice>` — **the evidence-gate promotion decision is now computable.**
+  AGENTS.md §4 L6 defers enforcement "once the shadow false-positive rate is known". Verdicts have
+  been persisted at `tokenUsage.evidenceGate` since 2026-09-10 and **nothing read them** — no
+  `build*`, no digest procedure, no panel. Added
+  `lib/observability/evidence-gate-calibration.ts` + `system.evidenceGateCalibration`.
+  ⚠⚠ **I got this measurement WRONG first and the module encodes the fix.** A naive pass over ALL
+  verdicts gave 36.9% would-block with a sample full of itinerary/advice FPs — but
+  `isResourceTitle()` (5 rules targeting exactly those) shipped in `8ee86eb3b` at **2026-09-16
+  08:56**, and most of that sample predates it. The number measured the FIX'S ABSENCE.
+  Live readout now: before-fix 91 turns / 37.4% / named_claim 21 · after-fix 12 turns /
+  **rate WITHHELD** / named_claim 1, fact_check 3. Three rules: cohort at the last precision
+  change · state NO rate below n=40 · split by driver (named vs fact-check vs **length**, which is
+  not an evidence signal at all). 15 tests.
+  ★ Residual post-fix FP: `"TEE and Manny"` — two people's names in conversation still trip the
+  named-claim rule. ★ The dominant blocker CHANGED: fact-check, not named claims.
+  **DO NOT PROMOTE YET — n=12.** Re-read the readout once ~40 turns accumulate.
+
+- `<reachability guard>` — ★★ **the browser was one instance of a CLASS.** A sweep of 8
+  capabilities against the real selector found **3 with no plain-language path at all**:
+  `searchSkills`, `solveMath`, `getCameraIntelligence` — none credential-gated in the catalog, so
+  all unreachable BY ACCIDENT. Deliberately NOT blanket-fixed: surfacing a capability that returns
+  nothing is worse than leaving it dark (`solveMath` is plausibly redundant — the never-chosen
+  rewrite queue will now draft exactly that verdict; `getCameraIntelligence` is pre-G3 with no live
+  data; `searchSkills` is the best candidate IF the skills store has content — CHECK FIRST).
+  Added a MUST_BE_REACHABLE table to `tests/ai/chat-mode-browser-reachability.test.ts`: a narrowed
+  keyword family now fails at commit time instead of showing up in the census a month later.
+- Removed the DEAD `canClaimDone` from `chat/action-result-verifier.ts` — zero callers anywhere,
+  while its docstring said "Wired directly into the live chat-finalize loop". The live one is a
+  DIFFERENT function of the same name in `receipts/action-receipt.ts`. Anyone hardening the honesty
+  gate would have found the corpse first and shipped nothing.
+
+- `<telemetry evidence>` — ★★★ **stored tool errors kept the INPUT and threw away the REASON.**
+  `recordToolInvocation` did `errorMessage.slice(0, 200)` — a HEAD truncation. AI SDK validation
+  errors are shaped `…Value: {big json}. Error message: <REASON>`, so the reason is at the TAIL and
+  was always cut. Measured: all three `createMissionPlan` failures were EXACTLY 200 chars, each cut
+  mid-payload — a tool known to fail 75% of the time and not one row said why.
+  ⚠ It COMPOUNDS: `tool-description-rewrite.ts` feeds `lastErrors` to an LLM as failure evidence on
+  the premise that one pass over recent failures fixes the description. Evidence with no reason
+  cannot. The rewriter was reading input fragments and guessing. Fixed with head+tail
+  (`condenseToolError`, 140+300, states how much was elided). 6 tests, mutation-verified.
+
+- `<budget-cliff slice>` — ★★★ **the pruner truncated by ALPHABET, and that is the mechanism behind
+  the 8.4-wasted-slots headline above.** Tier 4 ordered candidates with `Array.from(m).sort()`;
+  `addIfSpace` stops at TOOL_BUDGET, so that order IS the selection policy past slot 24. Tier 5
+  (semantic rank) is gated on `selectedNames.size < TOOL_BUDGET`, so it is skipped on exactly the
+  turns that truncate. Measured over 192 turns / 5,227 gate decisions:
+  **72.9% of turns hit the cliff · 70.3% skipped the semantic tier · tier-4 ALLOWED averaged
+  first-letter index 5.28 ("f") vs BUDGETED_OUT 11.78 ("l") · 65.3% of tier-4 ALLOWED impressions
+  went to NEVER-CHOSEN tools.** A 6.5-letter gap across 5,227 decisions is not relevance correlating
+  with spelling. `searchWebVerified` cut 52x, `githubRecentCommits` 53x — and **5 of 13 recorded
+  searchTools recoveries were for a web-search tool the keyword family HAD matched and truncation
+  had dropped**, costing a whole extra generation step each time.
+  Fixed with `orderKeywordCandidates` (pure, exported, 11 tests, mutation kills 5 of 11).
+  ⚠ SCOPE DISCIPLINE: **ordering only — membership is asserted unchanged**, so no tool becomes
+  reachable that a keyword family had not already matched; this cannot widen authority. Cold cache
+  falls back to alphabetical rather than ranking on partial data.
+  ★ Also populated `ToolGateDecision.rank`/`score`, which existed since the table shipped with **no
+  producer** — the diagnosis above had to be reconstructed from first letters because of it.
+  **NOT YET MEASURED IN PROD:** re-read the alphabetical skew after ~100 post-deploy turns; if the
+  fix works the two means converge. That is the promotion evidence, and it does not exist yet.
+
+**CORRECTIONS THIS SESSION (I was wrong, twice, and checked)**
+- The recovery lane is NOT unreachable. `pruneTools` never offers `searchTools`/`invokeTool` (no
+  CORE_TOOLS entry, no keyword family) — but `prepare-tools.ts:184-194` **re-attaches both
+  unconditionally after pruning**. I probed the pruner alone and nearly filed a false finding.
+  Prod confirms it works: **13/192 turns fired searchTools, 6 reached invokeTool.**
+  Lesson: `pruneTools` is not the surfacing path; `prepareTools` is.
+- `.remember/now.md` is BOTH: the `.remember/` **directory** matches a .gitignore rule, AND this
+  file is already **tracked** (it is in `12802d7c1`). So `git status` shows it as modified and it
+  commits normally, but a plain `git add <path>` is REFUSED and needs `-f`. `git check-ignore` on
+  the file returns "not ignored", which is why an earlier note recorded only half of this.
+
+**OPEN / NEXT (evidence in hand, not acted on)**
+- `createMissionPlan` 150 surfaces / 4 calls / **25% ok**. Real cause now visible: the model sends
+  free text where an enum is required (`context: "Shop Operations"` vs `DESK|PHONE|SHOP|CAR|HOME|
+  ANYWHERE`) and one call sent `tasks: []`. The enum fields carry NO `.describe()` while
+  `nextPhysicalAction` does. Below the rewrite cron's ≥10-call floor, so nothing else will surface
+  it. Candidate fix: describe() the enums + consider `.catch(default)` so one bad enum does not
+  lose the whole mission plan.
+- ★★ **6 tools failed with "Model tried to call unavailable tool"** — `arsenal.webSearch`,
+  `person.update`, `getGoals`, `memory.remember`, `getRepoMap`. Note the DOT NOTATION: the catalog
+  is camelCase (`arsenalWebSearch`) but action-blocks use dots (`task.create`), so **two naming
+  conventions coexist and the model mixes them**. One entry is a whole call expression plus a stray
+  `</arg_value>` XML fragment stored AS the tool name — a tool-call parsing leak worth its own look.
+
 **IMPORTANT DISCOVERIES**
 - ★★ **"The full pruneTools() has a require()/path-alias issue in vitest" is STALE.**
   `tests/ai/chat-mode-keyword-families.test.ts` mirrors regexes by hand because of that claim, so

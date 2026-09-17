@@ -1710,7 +1710,14 @@ model ToolGateDecision {
   /// Which of the 6 pruner tiers selected it (1..6), null when the
   /// tool was never selected.
   tier      Int?
-  /// Semantic rank + cosine score when tier 5 supplied the candidate.
+  /// Priority position + cosine score within the tier that supplied the
+  /// candidate. 2026-09-16: written for tier 4 (keyword families), where
+  /// order decides who survives the budget cliff — on 72.9% of measured
+  /// turns tier 4 alone exhausts the budget, so `rank` relative to
+  /// `SelectionTurn.budget` says whether a cut tool just missed or was
+  /// never close. Null for tiers with no intra-tier ordering, and for every
+  /// row written before that date (the columns existed from the start but
+  /// nothing populated them).
   rank      Int?
   score     Float?
   reason    String?  @db.VarChar(200)
