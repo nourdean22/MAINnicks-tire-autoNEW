@@ -15,67 +15,35 @@ import { BUSINESS } from "@shared/business";
 import { Link } from "wouter";
 import { GBP_REVIEW_URL } from "@shared/const";
 import FadeIn from "@/components/FadeIn";
+import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+// Still used for the VISIBLE rating/count in the page copy. Live numbers are
+// fine to show a human; what was wrong was asserting them in JSON-LD on a page
+// with no reviews rendered (see the note below).
 import { trpc } from "@/lib/trpc";
 
-function ContactSchema() {
-  const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
-  const reviewRating = googleData?.rating ?? BUSINESS.reviews.rating;
-  const reviewCount = googleData?.totalReviews ?? BUSINESS.reviews.count;
-
-  const schema = {
-    "@context": "https://schema.org",
-    "@type": "AutoRepair",
-    name: "Nick's Tire & Auto",
-    telephone: `+1-${BUSINESS.phone.dashed}`,
-    url: "https://nickstire.org/contact",
-    address: {
-      "@type": "PostalAddress",
-      streetAddress: BUSINESS.address.street,
-      addressLocality: "Cleveland",
-      addressRegion: "OH",
-      postalCode: "44112",
-      addressCountry: "US",
-    },
-    geo: {
-      "@type": "GeoCoordinates",
-      latitude: BUSINESS.geo.lat,
-      longitude: BUSINESS.geo.lng,
-    },
-    openingHoursSpecification: [
-      {
-        "@type": "OpeningHoursSpecification",
-        dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-        opens: "08:00",
-        closes: "18:00",
-      },
-      {
-        "@type": "OpeningHoursSpecification",
-        dayOfWeek: "Sunday",
-        opens: "09:00",
-        closes: "16:00",
-      },
-    ],
-    hasMap: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid/@41.5525118,-81.5571875,17z/",
-    sameAs: [...BUSINESS.sameAs],
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: String(reviewRating),
-      reviewCount: String(reviewCount),
-      bestRating: "5",
-    },
-    // 2026-05-06 wave-16 · pro photo pack: contact page schema image
-    // uses the roadside sign (wayfinding-first) per PLACEMENT_GUIDE.md
-    image: `${BUSINESS.urls.website}/photos/roadside-sign-exterior-wide.webp`,
-    priceRange: "$$",
-  };
-
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
-    />
-  );
-}
+/*
+ * 2026-09-17: the hand-rolled `ContactSchema` that lived here was REPLACED by
+ * the shared <LocalBusinessSchema />. It minted a SECOND business entity —
+ * `@type: AutoRepair` with no `@id` and `url: .../contact` — so /contact
+ * described a different node than every other page's canonical
+ * `…/#localbusiness`, instead of referencing it. Same duplicate-entity defect
+ * #2173 removed from the city pages.
+ *
+ * It also carried its own `aggregateRating` built from the LIVE review query
+ * and stringified (`ratingValue: "4.9"`, `reviewCount: "1711"`, no
+ * `worstRating`). Three consequences, all real:
+ *   - it disagreed with the homepage's node for the same business (1700 vs
+ *     1711 vs the 1,712+ rendered in copy) — confirmed live 2026-09-17;
+ *   - schema.org expects Number there, not String;
+ *   - /contact shows NO reviews, and LocalBusinessSchema's own comment already
+ *     states the rule this violated: only emit a rating where reviews are
+ *     visible, or risk a manual action.
+ *
+ * The shared component is strictly richer anyway (canonical @id, brand
+ * alternateNames incl. the former Moe's identity, a spec-compliant image,
+ * hours derived from BUSINESS rather than hard-coded) and correctly emits NO
+ * aggregateRating by default. Nothing was lost but the contradiction.
+ */
 
 export default function Contact() {
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
@@ -103,7 +71,7 @@ export default function Contact() {
         canonicalPath="/contact"
       />
       <Breadcrumbs items={[{ label: "Contact", href: "/contact" }]} />
-      <ContactSchema />
+      <LocalBusinessSchema />
       
       
         {/* Hero */}

@@ -76,6 +76,32 @@ function walk(value: unknown, out: Node[] = []): Node[] {
 
 const typeOf = (n: Node): string[] => ([] as unknown[]).concat(n["@type"] ?? []).map(String);
 
+/**
+ * Exactly one breadcrumb graph per page.
+ *
+ * 2026-09-17: every city page shipped TWO. CityPage built its own
+ * BreadcrumbList (Home -> Areas Served -> City, with URLs) while
+ * <Breadcrumbs> emitted a second one (Home -> City, no URL on the tail).
+ * Two conflicting trails for one page is invalid structured data — the same
+ * defect class as the duplicate WebSite / aggregateRating nodes above.
+ * Confirmed live on /cleveland-auto-repair. The fix passes the richer trail
+ * into the component so one array drives both the visible trail and the graph.
+ */
+function breadcrumbViolations(roots: unknown[]): string[] {
+  const lists = walk(roots).filter((n) => typeOf(n).includes("BreadcrumbList"));
+  const out: string[] = [];
+  if (lists.length !== 1) out.push(`expected exactly 1 BreadcrumbList, found ${lists.length}`);
+  for (const l of lists) {
+    const items = (l["itemListElement"] as Node[] | undefined) ?? [];
+    if (items.length < 2) out.push(`BreadcrumbList has ${items.length} item(s) — a trail needs at least Home + self`);
+    // Every item but the last should be navigable.
+    items.slice(0, -1).forEach((it, i) => {
+      if (!it["item"]) out.push(`breadcrumb position ${i + 1} ("${String(it["name"])}") has no item URL`);
+    });
+  }
+  return out;
+}
+
 /** The rules, as a pure function so the canary below can prove they bite. */
 function violations(roots: unknown[]): string[] {
   const nodes = walk(roots);
@@ -120,6 +146,68 @@ describe("CityPage JSON-LD", () => {
     expect(types).toContain("AutoRepair");
     expect(types).toContain("Service");
     expect(violations(roots)).toEqual([]);
+  });
+
+  it("emits exactly one breadcrumb trail, not two competing ones", async () => {
+    routeState.slug = CITIES[0].slug;
+    const { default: CityPage } = await import("../pages/CityPage");
+    const { container } = render(React.createElement(CityPage));
+    const roots = Array.from(container.querySelectorAll('script[type="application/ld+json"]'))
+      .map((s) => JSON.parse(s.textContent || "null"));
+    expect(breadcrumbViolations(roots)).toEqual([]);
+  });
+
+  it("every city page emits exactly one breadcrumb trail", async () => {
+    const { default: CityPage } = await import("../pages/CityPage");
+    const offenders: string[] = [];
+    for (const city of CITIES) {
+      routeState.slug = city.slug;
+      const { container, unmount } = render(React.createElement(CityPage));
+      const roots = Array.from(container.querySelectorAll('script[type="application/ld+json"]'))
+        .map((s) => JSON.parse(s.textContent || "null"));
+      const v = breadcrumbViolations(roots);
+      if (v.length) offenders.push(`${city.slug}: ${v.join("; ")}`);
+      unmount();
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("canary: the breadcrumb checker flags the duplicate that shipped", () => {
+    // The exact pair that rendered together before the fix.
+    const both = [
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: "https://nickstire.org/" },
+          { "@type": "ListItem", position: 2, name: "Areas Served", item: "https://nickstire.org/areas-served" },
+          { "@type": "ListItem", position: 3, name: "Cleveland", item: "https://nickstire.org/cleveland-auto-repair" },
+        ],
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: "https://nickstire.org/" },
+          { "@type": "ListItem", position: 2, name: "Cleveland Auto Repair" },
+        ],
+      },
+    ];
+    expect(breadcrumbViolations(both).some((m) => m.startsWith("expected exactly 1"))).toBe(true);
+    // And a single well-formed trail must pass.
+    expect(breadcrumbViolations([both[0]])).toEqual([]);
+  });
+
+  it("canary: the breadcrumb checker flags a trail whose middle link has no URL", () => {
+    const noUrl = [
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: "https://nickstire.org/" },
+          { "@type": "ListItem", position: 2, name: "Areas Served" },
+          { "@type": "ListItem", position: 3, name: "Cleveland" },
+        ],
+      },
+    ];
+    expect(breadcrumbViolations(noUrl).some((m) => m.includes("has no item URL"))).toBe(true);
   });
 
   it("canary: the checker flags each of the three removed shapes", () => {
