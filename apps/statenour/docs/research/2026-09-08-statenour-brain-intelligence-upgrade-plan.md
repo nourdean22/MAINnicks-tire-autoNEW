@@ -307,7 +307,7 @@ onto work already ranked here:
 | Pasted-plan feature | This doc | Status today (2026-09-17) |
 |---|---|---|
 | Claim Receipts | §6.10 claim receipt (Wave 6) | not started |
-| Context Packet Debugger | §6.5 context receipt (Wave 3) | not started |
+| Context Packet Debugger | §6.5 context receipt (Wave 3) | **SHIPPED same PR, observability-only** — `lib/ai/context-budget.ts`, see delta below |
 | Decision Delta Dossiers / Evidence Rejection Memory | `docs/UPSTREAMS.md` register | **already exists, in daily use** — every REJECT/WATCH row there is exactly this, for external tools |
 | ProcedureMemory / Environment Gotcha Memory | `AGENTS.md` §5 + `CURRENT-TRUTH.md` gotcha sections, as prose | not a queryable table — genuine gap, and this doc doesn't propose one either |
 | Premise Firewall | §6.6 query planner's correction/change class (Wave 3) | not started |
@@ -335,8 +335,15 @@ convergent validation of §8, not new information.
 - **Wave 2 validity-at-write — still not flipped.** 0 evidence of a change since the 2026-08-14
   probe (0/40,889 rows with `valid_from`/`valid_until`/`superseded_by_id`); nothing in
   `CURRENT-TRUTH.md`'s 2026-09-17 (W12) section mentions it.
-- **Wave 3 context budget allocator + context receipt — confirmed genuinely missing.** No
-  `context.?receipt`, `blocksConsidered` or `blocksDropped` anywhere in `lib/`.
+- **Wave 3 context budget allocator + context receipt — SHIPPED same PR (2026-09-17), observability
+  only.** Was genuinely missing when this line was first written (no `context.?receipt`,
+  `blocksConsidered` or `blocksDropped` anywhere in `lib/`); `lib/ai/context-budget.ts` +
+  `tests/ai/context-budget.test.ts` now exist, wired into `brain-context.ts` right after the
+  existing block-append loop. `systemPromptAddendum` is unchanged — nothing acts on an
+  `over_budget`/`redundant` verdict yet; see that file's header for the deliberate no-op MMR pass.
+  Flagged by Codex review on this PR: this line originally still said "confirmed genuinely missing"
+  after the commit that shipped it, which would have sent the next reader looking for a missing
+  feature that already exists.
 - **Wave 5 document RAG 2.0 — confirmed genuinely missing.** No `contextHeader`/`retrievalText` in
   `document-ingest.ts`; still the flag-only state §4.2 described.
 - **Wave 6 claim receipt / derived-memory invalidation — confirmed genuinely missing.** No

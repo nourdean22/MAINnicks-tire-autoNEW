@@ -635,12 +635,13 @@ export async function buildBrainContext(
     // addendum (see lib/ai/context-budget.ts file header: observability
     // only, no similarityFn wired yet, so the MMR pass is a no-op today).
     contextReceipt = buildContextReceipt(reranked, DEFAULT_CONTEXT_TOKEN_BUDGET);
-    console.info("[brain-context] context_receipt", JSON.stringify({
-      tokensKept: contextReceipt.tokensKept,
-      tokensDropped: contextReceipt.tokensDropped,
-      tokensBudget: contextReceipt.tokensBudget,
-      droppedCount: contextReceipt.droppedCount,
-    }));
+    // 2026-09-17 (Codex review, PR #2414) · the aggregate counts alone can't
+    // answer "why was THIS block dropped" -- the entries array (name, tokens,
+    // similarity, reason) is the whole point of a receipt. Log the full
+    // object; it's ~13 blocks max, not a size concern. Threading this into
+    // the on-finish persistence path (recallReceipts in route.ts) so it
+    // survives past the log window stays the documented follow-up.
+    console.info("[brain-context] context_receipt", JSON.stringify(contextReceipt));
 
     // Populate contextBlocksFired for onFinish + headers
     contextBlocksFired = {
