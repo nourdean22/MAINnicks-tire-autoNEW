@@ -144,6 +144,27 @@ tests in 2 files, `exit=1`. Now **844 files / 8,467 tests, exit 0**.
   Receipts: 212 files / 2,689 tests exit 0 · tsc exit 0 · contract-drift snapshot flagged exactly
   the 6 intended tools and nothing else.
 
+- `<repair-lane slice>` — **a pruned-out tool is now recoverable; a hallucinated one still is not.**
+  `buildRepairToolCall` shipped with ZERO direct tests and a docstring promising it only ever maps
+  "to a tool that actually exists in the live set" — which was also its ceiling: steps 1 and 2 both
+  require `target in toolSet`, so the pruner-dropped case (the larger half of the 6 measured
+  "Model tried to call unavailable tool" failures) could never be rescued. Step 3 routes it through
+  `invokeTool`, which IS on every turn. ★ The boundary cuts both ways and is tested both ways:
+  `getRepoMap` (real, pruned) is rescued; **`getGoals` is NOT IN THE CATALOG AT ALL** — a
+  hallucination, and repairing it would invent a capability.
+  ★ Authority is deliberately NOT re-decided in the repair: `invokeTool` already enforces
+  read-safety + circuit-breaker + operator `disabledTools`, and a second copy of that gate could
+  drift from the one the approval flow depends on. A write tool routed there is refused BY NAME —
+  strictly better than today's dead end, which teaches the model to say "I don't have that
+  capability" when the tool exists and was merely unloaded (an L1-L6 fabrication, from the harness).
+  11 tests, mutation kills 4 of 11 while the 7 boundary/preservation tests stay green.
+
+**DELIBERATELY NOT DONE (scope discipline, not oversight)**
+- **Do NOT merge tier 4 and tier 5 into one ranked pool yet.** It is the natural completion of the
+  budget-cliff fix — rank keyword + semantic candidates together and take the top 24, which would
+  also reach the ~35 `neverSurfaced` tools. But it changes tier PRIORITY semantics, and the tier-4
+  ordering fix it builds on is NOT YET PROVEN IN PROD. Verification first.
+
 **CORRECTIONS THIS SESSION (I was wrong, twice, and checked)**
 - The recovery lane is NOT unreachable. `pruneTools` never offers `searchTools`/`invokeTool` (no
   CORE_TOOLS entry, no keyword family) — but `prepare-tools.ts:184-194` **re-attaches both
