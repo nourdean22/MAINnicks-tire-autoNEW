@@ -151,6 +151,18 @@ export async function buildModelMessages(
   // conversation. Stripping is safe: this function only sees request
   // history (runs once, pre-streamText), so same-turn multi-step
   // reasoning is unaffected.
+  //
+  // ⚠ 2026-09-17 · `tool-call` / `tool-result` ARE NEVER PRESENT IN REPLAYED
+  // HISTORY TODAY. They can only reach here from a reloaded conversation, which
+  // hydrates from `ChatMessage.parts` — and the producer
+  // (lib/services/chat/message-parts.ts) has no parameter for tool parts, so it
+  // has never written one. Measured across 5,175 array-valued rows in
+  // production: only `text` and `file` exist. Keep them whitelisted: this is a
+  // missing writer, not a decision to exclude them, and the pairing pass below
+  // is the hardened handling a future writer will need. Just do not read the
+  // pairing logic as evidence that tool context survives a reload — it does
+  // not, so a reloaded turn replays the assistant's claims without its
+  // receipts.
   const CHAT_COMPLETIONS_SAFE_TYPES = new Set([
     "text",
     "image",
