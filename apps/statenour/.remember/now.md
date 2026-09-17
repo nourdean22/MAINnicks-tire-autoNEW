@@ -118,6 +118,32 @@ tests in 2 files, `exit=1`. Now **844 files / 8,467 tests, exit 0**.
   **NOT YET MEASURED IN PROD:** re-read the alphabetical skew after ~100 post-deploy turns; if the
   fix works the two means converge. That is the promotion evidence, and it does not exist yet.
 
+- `<enum-legend slice>` — ★★ **a 2026-09-03 fix landed on 1 of SIX call sites, and only a mechanical
+  sweep found the other five.** Prod `tool_telemetry`: `createTask` failed 7x because `effort` and
+  `context` are CODE enums with no `.describe()` — the model answered `{"effort":"30 min"}`,
+  `{"context":"Newsletter creation"}`, and twice put a whole task description / journal reflection
+  in `context`. Fixed in `tasks.ts` on 2026-09-03 — **inline, in that one block**. `missions.ts`
+  kept two byte-identical bare copies, so `createMissionPlan` was STILL failing two months later at
+  4 calls / 1 ok (25%), stored failure `{"context":"Shop Operat…` — identical shape.
+  ⚠ I started to re-fix `createTask` before reading its source and finding it ALREADY FIXED; its 7
+  failures are historical (their own payloads carry July 2026 dueDates). Second near-miss of this
+  kind this session — measuring a fix's ABSENCE and calling it a defect.
+  Wrote `tests/ai/tool-enum-legends.test.ts`, which walks every AI-facing `inputSchema` via zod
+  introspection. It immediately found THREE more I had not: `updateTask.loopKind`,
+  `logSituation.context`, `scheduleFollowUp.effort`. Legends now live in ONE module
+  (`lib/ai/tools/task-field-legends.ts`) — six copies of a string is *why* one fix reached one site.
+  ★ `logSituation.context` is a DIFFERENT `context` (situation KIND, not location) — same field
+  name, different vocabulary, one model. Now says so explicitly.
+  ⚠⚠ **The sweep's shape-rule does NOT catch `context`** — its values (DESK/PHONE/SHOP/…) are plain
+  English, so nothing looks cryptic. The defect was the misleading field NAME, not the vocabulary.
+  Proven by mutation: dropping `contextField`'s describe leaves the opaque-code test GREEN and only
+  the by-name rule red. Both rules are load-bearing; deleting either halves the file.
+  ★ Rewrote `tool-example-validity.test.ts`'s createTask regression from a SOURCE-TEXT assertion to
+  a built-schema one. It had coupled a claim about the schema to a fact about file layout and went
+  red on a refactor that *extended* the property it names.
+  Receipts: 212 files / 2,689 tests exit 0 · tsc exit 0 · contract-drift snapshot flagged exactly
+  the 6 intended tools and nothing else.
+
 **CORRECTIONS THIS SESSION (I was wrong, twice, and checked)**
 - The recovery lane is NOT unreachable. `pruneTools` never offers `searchTools`/`invokeTool` (no
   CORE_TOOLS entry, no keyword family) — but `prepare-tools.ts:184-194` **re-attaches both
