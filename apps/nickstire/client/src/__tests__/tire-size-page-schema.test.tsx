@@ -29,7 +29,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import React from "react";
+import { readFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import { TIRE_SIZE_PAGES } from "@shared/tireSizes";
+
+const PRERENDERED_TIRES = resolve(dirname(fileURLToPath(import.meta.url)), "../../../prerendered/tires");
 
 const routeState = vi.hoisted(() => ({ slug: "" }));
 
@@ -170,6 +175,60 @@ describe("TireSizePage JSON-LD", () => {
     expect(v.some((m) => m.startsWith("lowPrice asserted")), "lowPrice rule bites").toBe(true);
     expect(v.some((m) => m.startsWith("highPrice asserted")), "highPrice rule bites").toBe(true);
     expect(v.some((m) => m.startsWith("offerCount asserted")), "offerCount rule bites").toBe(true);
+  });
+
+  /**
+   * THE COMPONENT IS NOT WHAT GOOGLEBOT READS.
+   *
+   * Railway deploys do not regenerate prerendered/ (PRERENDER_ON_BUILD is off),
+   * and the prerender middleware serves the COMMITTED
+   * prerendered/tires/<size>/index.html to crawlers. So a render-only test can
+   * be green while the unsupported claim is still crawler-visible — which is
+   * exactly the state this PR opened in (30/30 snapshots still carried it).
+   * Raised by review on #2404; this is the assertion that closes it.
+   *
+   * The committed artifact is refreshed by prerender-refresh.yml
+   * (Mondays 08:00 UTC, or workflow_dispatch). Never by a local
+   * `pnpm run regen` without GOOGLE_MAPS_API_KEY — that strips the live review
+   * cards off /reviews.
+   */
+  it("the committed crawler snapshots carry no unbacked price or availability claim", () => {
+    const missing: string[] = [];
+    const offenders: string[] = [];
+
+    for (const page of TIRE_SIZE_PAGES) {
+      const file = resolve(PRERENDERED_TIRES, page.slug, "index.html");
+      if (!existsSync(file)) {
+        missing.push(page.slug);
+        continue;
+      }
+      const html = readFileSync(file, "utf8");
+      const hits: string[] = [];
+      // Scoped to the JSON-LD claim shape, not to prose. "InStock" as a
+      // schema.org URL, and price keys as JSON-LD properties.
+      if (/schema\.org\/InStock/.test(html)) hits.push("availability InStock");
+      if (/"lowPrice"\s*:/.test(html)) hits.push("lowPrice");
+      if (/"highPrice"\s*:/.test(html)) hits.push("highPrice");
+      if (/"offerCount"\s*:/.test(html)) hits.push("offerCount");
+      if (hits.length) offenders.push(`${page.slug}: ${hits.join(", ")}`);
+    }
+
+    expect(missing, "every size page has a committed snapshot").toEqual([]);
+    expect(offenders).toEqual([]);
+  });
+
+  it("canary: the snapshot scanner detects the exact block that shipped", () => {
+    // The literal JSON-LD fragment found in all 30 snapshots before the regen.
+    const shipped =
+      '{"@type":"AggregateOffer","priceCurrency":"USD","lowPrice":"40","highPrice":"200",' +
+      '"offerCount":"2","availability":"https://schema.org/InStock"}';
+    expect(/schema\.org\/InStock/.test(shipped)).toBe(true);
+    expect(/"lowPrice"\s*:/.test(shipped)).toBe(true);
+    expect(/"highPrice"\s*:/.test(shipped)).toBe(true);
+    expect(/"offerCount"\s*:/.test(shipped)).toBe(true);
+    // And a clean snapshot must not trip it.
+    const clean = '{"@type":"Service","name":"205/55R16 Tire Sales & Installation"}';
+    expect(/schema\.org\/InStock|"lowPrice"\s*:|"highPrice"\s*:|"offerCount"\s*:/.test(clean)).toBe(false);
   });
 
   it("canary: a clean Service node, and a priceless service-catalog Offer, produce no violations", () => {
