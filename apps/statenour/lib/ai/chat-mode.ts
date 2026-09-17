@@ -108,6 +108,52 @@ export type { ChatMode };
  * unreachable through the coverage guard, and must stay deterministic if some
  * future caller bypasses it.
  */
+/**
+ * Generic verbs that carry no capability signal on their own.
+ *
+ * Without this, `getTasks` would match on "get" + "tasks" and so would half the
+ * catalog on any sentence containing a common verb — turning a precise
+ * exact-mention tier into a flood that crowds out the keyword families beneath
+ * it. A name must contribute at least one word that is actually ABOUT something.
+ */
+const GENERIC_NAME_TOKENS = new Set([
+  "get", "set", "run", "do", "add", "list", "create", "update", "delete",
+  "find", "search", "my", "the", "a", "an", "to", "of", "for", "and", "is",
+]);
+
+/** `sendTelegram` → `["send", "telegram"]`. Splits camelCase and separators. */
+export function toolNameTokens(name: string): string[] {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+/**
+ * Does `text` mention every word of a multi-word tool name?
+ *
+ * Order-insensitive and gap-tolerant, so "send me a telegram" reaches
+ * `sendTelegram` while the old concatenated check could not. Deliberately
+ * conservative in three ways, because this feeds the high-priority exact tier:
+ *
+ *   · single-token names are left to the existing substring check — "do" or
+ *     "summarize" alone is not evidence of intent;
+ *   · EVERY token must appear, so `searchDriveFiles` does not fire on a bare
+ *     "search";
+ *   · at least one token must be non-generic, so a sentence containing "get"
+ *     and "the" cannot drag in a tool named `getThe…`.
+ *
+ * Word-boundary matched, so "telegram" does not match inside "telegrams" — it
+ * does, via the \w* tail — but "gram" alone never matches "telegram".
+ */
+export function mentionsAllTokens(text: string, name: string): boolean {
+  const tokens = toolNameTokens(name);
+  if (tokens.length < 2) return false;
+  if (!tokens.some((t) => !GENERIC_NAME_TOKENS.has(t) && t.length >= 4)) return false;
+  return tokens.every((t) => new RegExp(`\\b${t}\\w*\\b`).test(text));
+}
+
 export function orderKeywordCandidates(
   names: Iterable<string>,
   scores: ReadonlyMap<string, number> | null,
@@ -204,11 +250,24 @@ export async function pruneTools(
   const ACTION_CORE = ["createTask", "completeTask"];
 
   // ── Exact tool name mention ──
-  // If the user explicitly mentions a tool name (case-insensitive check), always include it
+  // If the user explicitly mentions a tool name, always include it.
+  //
+  // 2026-09-17 · this was `text.includes(name.toLowerCase())` ONLY — a single
+  // concatenated token. `sendTelegram` therefore required the literal string
+  // "sendtelegram", so "send me a telegram" — naming the tool's own transport —
+  // did not reach it. MEASURED: sendTelegram was offered on 1 of 5 natural
+  // phrasings and NEVER ONCE surfaced across 467 production turns, despite
+  // carrying the entire durable-delegation contract (claim-before-send,
+  // fail-closed idempotency, UNKNOWN fencing). The machinery was built, proven
+  // and shipped for a capability nobody could ask for.
+  //
+  // The concatenated check stays (it is exact and cheap); a TOKEN check is
+  // added beside it, so a camelCase name is reachable when its words appear in
+  // any order with anything between them.
   const exactMentioned = new Set<string>();
   for (const name of Object.keys(allTools)) {
     const lowerName = name.toLowerCase();
-    if (text.includes(lowerName)) {
+    if (text.includes(lowerName) || mentionsAllTokens(text, name)) {
       exactMentioned.add(name);
     }
   }
@@ -323,15 +382,47 @@ export async function pruneTools(
     addMatching(/github|repo|deploy|file|code|architecture|coding/i);
   }
 
+  // 2026-09-17 · cloud DOCUMENT storage, distinct from the code/repo family
+  // above. `searchDriveFiles` reached 0 of 2 phrasings: "search my google
+  // drive" names the product exactly and still missed, because the code family
+  // matches on `files?` and `addMatching(/file/i)` never reaches a tool whose
+  // name is about DRIVE. Naming the product must be enough.
+  if (/\b(google ?drive|my drive|gdrive|dropbox|cloud storage|shared (drive|folder))\b/.test(text)) {
+    addMatching(/drive|document/i);
+  }
+
   // Email / inbox / Gmail / Telegram
-  if (/\b(email|inbox|gmail|message me|send (a |the )?(message|note|email|telegram)|reply to|draft|compose|forward)\b/.test(text)) {
+  //
+  // 2026-09-17 · the trigger required VERB-OBJECT ADJACENCY —
+  // `send (a|the)? (message|note|email|telegram)` — so "send ME a telegram"
+  // missed on the pronoun, and "ping me on telegram" / "notify me" missed
+  // entirely. MEASURED: 1 of 5 natural phrasings reached `sendTelegram`, which
+  // had never once surfaced in 467 turns. Bare "telegram" is now a trigger in
+  // its own right (nobody says it accidentally), and the common self-notify
+  // verbs are covered.
+  if (
+    /\b(email|inbox|gmail|telegram|message me|send (me )?(a |the )?(message|note|email|telegram)|reply to|draft|compose|forward)\b/.test(text) ||
+    /\b(ping|text|notify|dm) me\b/.test(text) ||
+    /\blet me know\b/.test(text)
+  ) {
     addMatching(/email|gmail|telegram|compose/i);
   }
 
   // Image / generation / analysis / multimedia
   // CAREFUL · "image" is a common word · narrowing with intent triggers
+  // 2026-09-17 · the READ side required "analyze this image" almost verbatim,
+  // so "what's in this photo" and "look at this screenshot" were both dark and
+  // `analyzeImage` reached 0 of 2 natural phrasings. Generation stays narrow —
+  // "image" is a common word and the generate lane is expensive — but asking
+  // ABOUT a supplied picture is a distinct, cheap, read-only intent.
   if (/\b(generate (an?|the)? (image|picture|photo|graphic)|create (an?|the)? (image|picture|photo)|draw (me )?(an?|the)? |make (an?|the)? (image|picture|photo)|analyze (this|the|that) (image|photo|picture)|extract from|run (this|the) code|solve (this|the)? (math|equation)|summarize this)\b/.test(text)) {
     addMatching(/image|analyze|extract|generateImage|runCode|solveMath|summarize|writeCreative/i);
+  }
+  // Asking about a picture that already exists — read-only, narrow on purpose:
+  // it needs a demonstrative or possessive, so "a photo of the shop" (a topic)
+  // does not drag the vision tools in.
+  if (/\b(what('?s| is) (in|on)|look at|read|describe|what does)\b[^.?!]{0,30}\b(this|that|the|my|his|her|their) (photo|image|picture|screenshot|screen ?shot|scan)\b/.test(text)) {
+    addMatching(/^analyzeImage$|^extractData$/i);
   }
 
   // Research / web search / external lookup
