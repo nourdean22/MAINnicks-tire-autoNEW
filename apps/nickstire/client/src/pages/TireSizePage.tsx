@@ -174,7 +174,7 @@ export default function TireSizePage() {
           </FadeIn>
           <FadeIn delay={0.1}>
             <p className="mt-6 text-lg sm:text-xl text-foreground/80 max-w-2xl font-light leading-relaxed">
-              New and used {page.size} tires in stock. Fits {vehicleList}. Free install package
+              New and used {page.size} tires. Fits {vehicleList}. Free install package
               included with every set — mounting, balancing, alignment check, and lifetime rotations.
             </p>
           </FadeIn>
@@ -277,7 +277,7 @@ export default function TireSizePage() {
                     </ul>
                     <p>
                       This size is commonly found on {page.category.toLowerCase() === "truck" ? "trucks" : page.category.toLowerCase() === "sedan" ? "sedans" : page.category.toLowerCase() === "performance" ? "performance vehicles" : "SUVs and crossovers"} including {vehicleList}.
-                      At Nick's Tire & Auto, we keep {page.size} tires in stock — both new and inspected used options.
+                      At Nick's Tire & Auto, we fit {page.size} in both new and inspected used options. Stock moves daily — call before you drive over.
                     </p>
                   </div>
                 );
