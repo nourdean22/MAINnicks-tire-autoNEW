@@ -1,135 +1,166 @@
 /**
- * Canaries for the metric-lane sweep's matchers.
+ * Canaries for the metric-lane sweep.
  *
  * WHY THIS FILE EXISTS — the sweep shipped in #2397 reporting
  * "5 metric lanes written · 1 lane nothing reads". Both numbers were wrong, and
  * wrong in the flattering direction. The honest figures are 14 and 8.
  *
- * 1. WRITER DISCOVERY SAW ONE SHAPE. It matched `recordMetric…("name"` only,
- *    while a dozen files write straight through
- *    `prisma.systemMetric.create({ data: { metric: "name" } })`. Nine lanes were
- *    invisible, and an invisible lane is silently exempt from the orphan check.
+ * 1. WRITER DISCOVERY SAW ONE SHAPE — `recordMetric…("name")` only, while a
+ *    dozen files write through `prisma.systemMetric.create`.
+ * 2. THE PROBE COUNTED ITSELF AS A READER — it scans `scripts/`, so it scans
+ *    itself, and its source contains `systemMetric` inside the very regex that
+ *    detects readers.
+ * 3. NONLITERAL DIRECT WRITES WERE DROPPED, not reported as unresolved.
  *
- * 2. THE PROBE COUNTED ITSELF AS A READER. It scans `scripts/`, so it scans
- *    itself; its source contains `systemMetric` — inside the very regex that
- *    detects readers — and every lane name from its own positive control. It
- *    therefore reported itself as the DATA reader for `action.done.shadow` and
- *    `operation.integrity_shadow`, hiding two of the three orphans it existed
- *    to surface.
- *
- * ★ An instrument that scans the tree it lives in must exclude itself, or it
- *   reports its own existence as coverage.
+ * ⚠ AND THE FIRST VERSION OF THIS TEST FILE WAS A MIRROR. It re-implemented
+ * classification by calling `excludeSelf` and `isDataReader` side by side and
+ * never executed the probe — so deleting the `excludeSelf` call inside
+ * `probe-metric-readers.mjs` left every test green while the self-reader bug
+ * returned. Review caught it. The suite now drives the exported `runSweep`
+ * against a fixture tree, so breaking the real guard turns this red.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { runSweep } from "../../scripts/probe-metric-readers.mjs";
 import {
   collectLiteralWrites,
-  excludeSelf,
-  isDataReader,
-  WRITE_DIRECT,
+  collectDirectWrites,
+  resolveMetricLiteral,
 } from "../../scripts/lib/metric-sweep.mjs";
 
-const RECORD_METRIC_SRC = `
-  await recordMetric("tool.surfaced", tools.length, "count");
-`;
+const SELF = "scripts/probe-metric-readers.mjs";
+let root: string;
 
-/** Verbatim shape from lib/ai/agents/router-metrics.ts. */
-const DIRECT_PRISMA_SRC = `
-  await prisma.systemMetric.create({
-    data: {
-      metric: "specialist.route",
-      value: confidence,
-      unit: "confidence",
-    },
+/**
+ * A miniature tree with the exact shapes that matter:
+ *  · a lane with a genuine data reader
+ *  · a lane whose ONLY mention is the probe itself — the real orphan shape
+ *  · a non-literal direct write, which must surface as unresolved
+ */
+beforeAll(() => {
+  root = mkdtempSync(join(tmpdir(), "metric-sweep-"));
+  mkdirSync(join(root, "lib"), { recursive: true });
+  mkdirSync(join(root, "scripts"), { recursive: true });
+
+  writeFileSync(join(root, "lib/writer.ts"), `recordMetric("fixture.lane", 1, "count");`);
+  writeFileSync(
+    join(root, "lib/reader.ts"),
+    `const rows = await sql\`SELECT * FROM system_metrics WHERE metric = 'fixture.lane'\`;`,
+  );
+  writeFileSync(
+    join(root, "lib/orphan-writer.ts"),
+    `await prisma.systemMetric.create({ data: { metric: "fixture.orphan", value: 1 } });`,
+  );
+  writeFileSync(
+    join(root, "lib/dynamic-writer.ts"),
+    "await prisma.systemMetric.create({ data: { metric: `fixture.dyn.${name}`, value: 1 } });",
+  );
+  // Impersonates the probe: queries the table AND names the orphan lane, which
+  // is exactly how the real probe manufactured a reader for its own orphans.
+  writeFileSync(
+    join(root, SELF),
+    `const READS = /system_metrics|systemMetric\\b/;\nconst MUST_SEE = ["fixture.orphan"];`,
+  );
+});
+
+afterAll(() => {
+  try {
+    rmSync(root, { recursive: true, force: true });
+  } catch {
+    /* best-effort */
+  }
+});
+
+const sweep = (selfRel: string) =>
+  runSweep({ root, scanDirs: ["lib", "scripts"], selfRel, mustSee: [], minFiles: 0 });
+
+describe("runSweep — the production path", () => {
+  it("finds both write shapes", () => {
+    const metrics = sweep(SELF).lanes.map((l) => l.metric);
+    expect(metrics).toContain("fixture.lane"); // recordMetric
+    expect(metrics).toContain("fixture.orphan"); // prisma.systemMetric.create
   });
-`;
 
-describe("collectLiteralWrites", () => {
-  it("finds a recordMetric literal", () => {
-    expect(collectLiteralWrites(RECORD_METRIC_SRC)).toContain("tool.surfaced");
+  it("reports a genuine data reader", () => {
+    const lane = sweep(SELF).lanes.find((l) => l.metric === "fixture.lane");
+    expect(lane?.dataReaders.map((p) => p.replace(/\\/g, "/"))).toEqual(["lib/reader.ts"]);
   });
 
-  // ── CANARY ──────────────────────────────────────────────────────────
-  // This is the whole defect: without WRITE_DIRECT the direct-Prisma shape
-  // yields nothing and the lane never enters the inventory.
-  it("CANARY — finds a direct prisma.systemMetric.create write", () => {
-    expect(collectLiteralWrites(DIRECT_PRISMA_SRC)).toEqual(["specialist.route"]);
-    // And prove it is WRITE_DIRECT doing the work, not an accident:
-    WRITE_DIRECT.lastIndex = 0;
-    expect(WRITE_DIRECT.exec(DIRECT_PRISMA_SRC)?.[1]).toBe("specialist.route");
+  it("reports a non-literal direct write as UNRESOLVED, not silently dropped", () => {
+    const u = sweep(SELF).unresolved.join(" | ");
+    expect(u).toMatch(/dynamic-writer/);
+    expect(u).toMatch(/non-literal/);
+    // And it must NOT have invented a lane named after the template text.
+    expect(sweep(SELF).lanes.map((l) => l.metric)).not.toContain("fixture.dyn");
   });
 
-  it("is not stateful across calls — a /g regex reused without reset skips matches", () => {
-    expect(collectLiteralWrites(DIRECT_PRISMA_SRC)).toEqual(["specialist.route"]);
-    expect(collectLiteralWrites(DIRECT_PRISMA_SRC)).toEqual(["specialist.route"]);
+  // ── BEHAVIOURAL CANARY ──────────────────────────────────────────────
+  // The orphan's only mention is the probe itself. With self-exclusion the
+  // lane is an ORPHAN; without it the probe vouches for itself and the orphan
+  // disappears. Both assertions run through runSweep, so deleting or moving
+  // the excludeSelf call in the probe fails this test.
+  it("CANARY — a lane mentioned only by the probe itself stays an ORPHAN", () => {
+    expect(sweep(SELF).orphans).toContain("fixture.orphan");
+  });
+
+  it("CANARY — disabling self-exclusion makes that orphan vanish", () => {
+    const unguarded = sweep("scripts/not-the-probe.mjs");
+    expect(unguarded.orphans).not.toContain("fixture.orphan");
+    // Proves the two runs differ ONLY because of self-exclusion.
+    expect(sweep(SELF).orphans).toContain("fixture.orphan");
+  });
+
+  it("normalises separators, so a Windows-spelled self path still excludes", () => {
+    expect(sweep("scripts\\probe-metric-readers.mjs").orphans).toContain("fixture.orphan");
+  });
+});
+
+describe("runSweep — controls that must refuse to produce a number", () => {
+  it("aborts when the tree is too small to be real", () => {
+    const r = runSweep({ root, scanDirs: ["lib"], selfRel: SELF, mustSee: [], minFiles: 999 });
+    expect(r.abort).toMatch(/not seeing the tree/);
+    expect(r.orphans).toEqual([]);
+  });
+
+  it("aborts when a known lane is invisible, instead of printing a shorter list", () => {
+    const r = runSweep({
+      root,
+      scanDirs: ["lib", "scripts"],
+      selfRel: SELF,
+      mustSee: ["a.lane.that.does.not.exist"],
+      minFiles: 0,
+    });
+    expect(r.abort).toMatch(/could not see/);
+  });
+});
+
+describe("matchers", () => {
+  it("resolves a plain literal and refuses an interpolated one", () => {
+    expect(resolveMetricLiteral('"a.b"')).toBe("a.b");
+    expect(resolveMetricLiteral("`a.b`")).toBe("a.b");
+    expect(resolveMetricLiteral("`a.${x}`")).toBeNull();
+    expect(resolveMetricLiteral('m.name || "x"')).toBeNull();
+  });
+
+  it("separates literal from non-literal direct writes", () => {
+    const src =
+      'prisma.systemMetric.create({ data: { metric: "lit.one", value: 1 } });\n' +
+      "prisma.systemMetric.create({ data: { metric: `dyn.${k}`, value: 1 } });";
+    const d = collectDirectWrites(src);
+    expect(d.literals).toEqual(["lit.one"]);
+    expect(d.nonliteral.length).toBe(1);
+  });
+
+  it("is not stateful across calls — a reused /g regex skips matches", () => {
+    const src = 'prisma.systemMetric.create({ data: { metric: "s.one" } });';
+    expect(collectLiteralWrites(src)).toEqual(["s.one"]);
+    expect(collectLiteralWrites(src)).toEqual(["s.one"]);
   });
 
   it("does not leap across call sites to attribute a distant metric name", () => {
     const far = `prisma.systemMetric.create({ data: {${" ".repeat(400)}metric: "nope" } });`;
     expect(collectLiteralWrites(far)).toEqual([]);
-  });
-});
-
-describe("isDataReader", () => {
-  it("counts a file that queries the table", () => {
-    expect(isDataReader(`FROM system_metrics WHERE metric = $1`)).toBe(true);
-  });
-
-  it("does not count a file that merely names a lane", () => {
-    expect(isDataReader(`const KNOWN = ["tool.chosen", "action.done.shadow"];`)).toBe(false);
-  });
-});
-
-describe("excludeSelf", () => {
-  it("drops the scanning script from its own candidate list", () => {
-    const out = excludeSelf(
-      ["lib/observability/tool-usage-census.ts", "scripts/probe-metric-readers.mjs"],
-      "scripts/probe-metric-readers.mjs",
-    );
-    expect(out).toEqual(["lib/observability/tool-usage-census.ts"]);
-  });
-
-  // ── CANARY ──────────────────────────────────────────────────────────
-  // The walker yields OS-native separators. On Windows the candidate arrives
-  // as `scripts\probe-metric-readers.mjs` while SELF_REL is written with
-  // forward slashes — a naive === comparison silently re-admits the probe and
-  // restores the exact defect. CI runs Linux, so only this test catches it.
-  it("CANARY — excludes the self path spelled with Windows separators", () => {
-    const out = excludeSelf(
-      ["scripts\\probe-metric-readers.mjs"],
-      "scripts/probe-metric-readers.mjs",
-    );
-    expect(out).toEqual([]);
-  });
-});
-
-/**
- * BEHAVIOURAL CANARY — the known orphans must stay detected.
- *
- * Reconstructs the probe's decision for a lane whose ONLY candidate reader is
- * the probe itself. That is the real shape of `action.done.shadow` and
- * `operation.integrity_shadow`, and before the fix it produced "has a reader".
- */
-describe("orphan detection", () => {
-  const classify = (candidates: string[], codeFor: Record<string, string>) =>
-    excludeSelf(candidates, "scripts/probe-metric-readers.mjs").filter((c) =>
-      isDataReader(codeFor[c] ?? ""),
-    );
-
-  it("CANARY — a lane read only by the probe itself is still an ORPHAN", () => {
-    const readers = classify(["scripts\\probe-metric-readers.mjs"], {
-      "scripts\\probe-metric-readers.mjs": `/system_metrics|systemMetric\\b/`,
-    });
-    expect(readers).toEqual([]);
-  });
-
-  it("still reports a genuine reader", () => {
-    const readers = classify(
-      ["lib/observability/tool-usage-census.ts", "scripts\\probe-metric-readers.mjs"],
-      {
-        "lib/observability/tool-usage-census.ts": `SELECT * FROM system_metrics`,
-        "scripts\\probe-metric-readers.mjs": `/system_metrics|systemMetric\\b/`,
-      },
-    );
-    expect(readers).toEqual(["lib/observability/tool-usage-census.ts"]);
   });
 });
