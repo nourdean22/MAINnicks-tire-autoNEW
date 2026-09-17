@@ -33,6 +33,7 @@ import { planQuery, type QueryPlan } from "@/lib/brain/query-plan";
 import { buildEvidencePack } from "@/lib/brain/evidence-pack";
 import { computeLaneOverlap, type LaneOverlap } from "@/lib/brain/lane-overlap";
 import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
+import { buildContextReceipt, DEFAULT_CONTEXT_TOKEN_BUDGET, type ContextReceipt } from "@/lib/ai/context-budget";
 import { fenceContent, truncateFenced } from "@/lib/ai/tool-result-fencing";
 import { formatPrefetchContext } from "@/lib/ai/predictive-prefetch";
 import type { PrefetchResult } from "@/lib/ai/predictive-prefetch";
@@ -100,6 +101,12 @@ export interface BuildBrainContextOutput {
   queryPlan?: QueryPlan;
   /** Wave 2 · when NICK_RECALL_ARBITER is on: how many candidates the two lanes offered and how many survived. */
   evidencePack?: { candidates: number; items: number };
+  /**
+   * Wave 3 (2026-09-17) · what the block-assembly stage kept/dropped and why
+   * (lib/ai/context-budget.ts). OBSERVABILITY ONLY — does not change
+   * `systemPromptAddendum`; see that module's file header.
+   */
+  contextReceipt?: ContextReceipt;
   detectedContradictions?: any[];
 }
 
@@ -161,6 +168,7 @@ export async function buildBrainContext(
   let contextualRankedRows: import("@/lib/brain/contextual-recall").RankedRecallRow[] = [];
   let laneOverlap: LaneOverlap | undefined;
   let evidencePack: { candidates: number; items: number } | undefined;
+  let contextReceipt: ContextReceipt | undefined;
   const arbiterOn = getFlag("NICK_RECALL_ARBITER")?.isOn ?? false;
   // Wave 3 · deterministic query plan: no LLM, the original query is always a lane; asOf below.
   const queryPlan = planQuery(userContent, { recentTurns: (messages as Array<{ content?: unknown }>).slice(-4).map((m) => (typeof m?.content === "string" ? m.content : "")).filter(Boolean) });
@@ -602,6 +610,19 @@ export async function buildBrainContext(
       addendum += `\n\n${block.content}`;
     }
 
+    // Wave 3 (2026-09-17) · context receipt. Reuses the SAME `reranked` array
+    // the append loop just walked, so it can never disagree with what
+    // actually went into `addendum` — this call does not itself change
+    // addendum (see lib/ai/context-budget.ts file header: observability
+    // only, no similarityFn wired yet, so the MMR pass is a no-op today).
+    contextReceipt = buildContextReceipt(reranked, DEFAULT_CONTEXT_TOKEN_BUDGET);
+    console.info("[brain-context] context_receipt", JSON.stringify({
+      tokensKept: contextReceipt.tokensKept,
+      tokensDropped: contextReceipt.tokensDropped,
+      tokensBudget: contextReceipt.tokensBudget,
+      droppedCount: contextReceipt.droppedCount,
+    }));
+
     // Populate contextBlocksFired for onFinish + headers
     contextBlocksFired = {
       recall: !!recallBlock,
@@ -785,6 +806,7 @@ export async function buildBrainContext(
     laneOverlap,
     queryPlan,
     evidencePack,
+    contextReceipt,
     detectedContradictions,
   };
 }
