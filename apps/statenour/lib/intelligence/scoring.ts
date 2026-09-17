@@ -124,7 +124,13 @@ ${claims
 
     const result = await generateText({
       model,
-      experimental_telemetry: langfuseTelemetry({ functionId: "score-claims" }),
+      // See extraction.ts for why tags + metadata.source are load-bearing:
+      // an empty trace name makes them the ONLY identity a trace carries.
+      experimental_telemetry: langfuseTelemetry({
+        functionId: "score-claims",
+        tags: ["cron", "intelligence"],
+        metadata: { source: "cron", pipeline: "intelligence" },
+      }),
       system: systemPrompt,
       prompt: `${promptText}\n\nSynthesize into opportunities/threats now.`,
     });

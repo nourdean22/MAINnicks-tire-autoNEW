@@ -55,7 +55,20 @@ JSON Schema:
   try {
     const result = await generateText({
       model,
-      experimental_telemetry: langfuseTelemetry({ functionId: "extract-claims" }),
+      // ⚠ `tags` + `metadata.source` are NOT decoration — without them this
+      // trace is WHOLLY UNATTRIBUTABLE in Langfuse. Measured 2026-09-17: trace
+      // `name` comes back empty for every trace (functionId names the
+      // OBSERVATION, not the trace), so `metadata.source` and `tags` are the
+      // only identity a trace carries. These three intelligence surfaces passed
+      // functionId alone and were 6 of 100 sampled traces with no name, no
+      // source and no tags — invisible in the UI and in every probe.
+      // Source is "cron": this runs inside intelligenceDailyBrief
+      // (`cron: "15 10 * * *"`), which matches the observed 10:15-10:17 traces.
+      experimental_telemetry: langfuseTelemetry({
+        functionId: "extract-claims",
+        tags: ["cron", "intelligence"],
+        metadata: { source: "cron", pipeline: "intelligence" },
+      }),
       system: systemPrompt,
       prompt: `Raw Text Source:\n${rawContent}\n\nExtract all key intelligence claims now.`,
     });
