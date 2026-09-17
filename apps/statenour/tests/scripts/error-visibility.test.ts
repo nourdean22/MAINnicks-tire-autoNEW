@@ -136,6 +136,31 @@ describe("countBy", () => {
 });
 
 /**
+ * The trace-naming verdict must be SCOPED to what was fetched.
+ *
+ * Review caught this on PR #2407: the probe printed "NO trace carries a name"
+ * from a page capped at 100 while the window held 341-672. That is a universal
+ * claim from a sample — a conclusion about PAGINATION, and the exact rule this
+ * probe's own header states. In a mixed window (tracing changed between
+ * deploys) named traces could sit entirely outside the page.
+ */
+describe("trace-name verdict scoping", () => {
+  // ── CANARY ──────────────────────────────────────────────────────────
+  // The measured production shape. `complete` must be false here, because it
+  // is what selects the sampled wording over the universal one.
+  it("CANARY — 100 fetched of 341 is NOT complete coverage", () => {
+    const c = assessSampleCoverage({ total: 341, sampled: 100 });
+    expect(c.complete).toBe(false);
+    expect(Math.round(c.pct)).toBe(29);
+  });
+
+  it("only a full fetch licenses the universal claim", () => {
+    expect(assessSampleCoverage({ total: 50, sampled: 50 }).complete).toBe(true);
+    expect(assessSampleCoverage({ total: 672, sampled: 100 }).complete).toBe(false);
+  });
+});
+
+/**
  * ageBand — a count without a recency is not actionable.
  *
  * Ranking 30d of error_logs by COUNT put a one-day outage from a month ago in

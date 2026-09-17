@@ -5,7 +5,7 @@ import { getDemoState, makeDemoId, type DemoMission, type DemoTask } from "@/lib
 import { prisma } from "@/lib/prisma";
 import { isDemoMode } from "@/lib/runtime";
 import { rankMissions } from "@/lib/scoring/mission-ranking";
-import { syncTaskPriorities } from "@/lib/services/tasks";
+import { syncTaskPriorities, TASK_TX_OPTS } from "@/lib/services/tasks";
 import { serializeForJson } from "@/lib/utils/serialize";
 import { ServiceError } from "@/lib/utils/service-error";
 import { missionCreateSchema, missionUpdateSchema } from "@/lib/validators/missions";
@@ -254,7 +254,8 @@ export async function createMission(input: unknown, tx?: Prisma.TransactionClien
     await syncTaskPriorities(client);
     return mission;
   };
-  const created = tx ? await runCore(tx) : await prisma.$transaction(runCore);
+  // runCore calls syncTaskPriorities — see TASK_TX_OPTS in tasks.ts.
+  const created = tx ? await runCore(tx) : await prisma.$transaction(runCore, TASK_TX_OPTS);
 
   // v8.0 Phase 2A — log create.
   void logCreate("mission", created.id, created as unknown as Record<string, unknown>, {
@@ -323,7 +324,7 @@ export async function updateMission(id: string, input: unknown) {
 
     await syncTaskPriorities(tx);
     return mission;
-  });
+  }, TASK_TX_OPTS); // contains syncTaskPriorities — see the constant in tasks.ts
 
   // v8.0 Phase 2A — entity-audit diff log.
   void logUpdate(

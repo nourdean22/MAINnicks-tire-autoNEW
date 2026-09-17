@@ -141,6 +141,51 @@ function sortTasks(tasks: ReturnType<typeof buildTaskViewModels>, sort = "priori
   return clone;
 }
 
+/**
+ * Worst elapsed time OBSERVED on a task-write transaction in production, ms.
+ *
+ * Three `/api/sync/nour-os` failures, 2026-09-16/17:
+ *   `Transaction already closed ... timeout for this transaction was 5000 ms,
+ *    however 5115 ms passed` (also 5089, 5073).
+ *
+ * ★ ALL THREE OVERRUN BY UNDER 115 ms — 1.5-2.3% past the limit. That tight
+ * clustering IS the diagnosis: work that is pathologically too large overruns
+ * by seconds, not milliseconds. This is a budget sitting just under the tail,
+ * which is the judge-eval defect inverted (there an 8s budget sat far BELOW a
+ * 12.1s median, failing >50% by construction; here it fails ~0.3%). Same root
+ * cause either way: AN UNMEASURED DEFAULT.
+ */
+export const TASK_TX_MEASURED_OVERRUN_MS = 5_115;
+
+/**
+ * Explicit budget for the four task/mission transactions that run
+ * `syncTaskPriorities`, replacing Prisma's unmeasured 5000 ms default.
+ *
+ * SIZED FROM PRODUCTION: 408 task rows, 212 non-terminal (173 INBOX · 35 READY
+ * · 3 WAITING · 1 DOING) and 104 with a NULL `autoPriority` — each of those a
+ * guaranteed UPDATE on the next sync. At ~24 ms per Neon round trip, ~212
+ * updates is ~5.1 s, which is exactly the observed overrun. 20 s leaves ~4x
+ * headroom, i.e. roughly 800 open tasks.
+ *
+ * ⚠ `maxWait` is deliberately LEFT AT ITS DEFAULT. The failures are timeouts,
+ * not pool-acquisition waits, and bundling an unmeasured change with a measured
+ * one is how a fix stops being attributable. Only change what was measured.
+ *
+ * ⚠⚠ THIS IS A STOPGAP, NOT THE STRUCTURAL FIX, and the distinction matters
+ * because the cliff still exists — it has only moved. `syncTaskPriorities`
+ * re-scores EVERY open task inside the caller's transaction, so the budget is
+ * consumed by work that does not need to be atomic with the write at all:
+ * `autoPriority` is derived ranking data. The consequence today is that a
+ * best-effort denormalisation can VETO A USER'S WRITE — when the sync tips past
+ * the budget, task CREATION fails. Moving the sync outside the transaction
+ * removes the cliff instead of deferring it, but it touches four transaction
+ * call sites (here at :478 and :971, missions.ts :257 and :311) on the core
+ * task/mission write paths, so it wants an operator's eyes rather than an
+ * autonomous refactor. Raising the number is the safe half; this note is the
+ * other half, so the real fix is not lost.
+ */
+export const TASK_TX_OPTS = { timeout: 20_000 } as const;
+
 export async function syncTaskPriorities(db: DbClient = prisma) {
   if (isDemoMode) {
     const state = getDemoState();
@@ -475,7 +520,9 @@ export async function createTask(input: unknown, tx?: Prisma.TransactionClient) 
 
     return { task, vm: buildTaskViewModels(hydrated ? [hydrated] : [], missions)[0] };
   };
-  const result = tx ? await runCore(tx) : await prisma.$transaction(runCore);
+  // TASK_TX_OPTS: runCore calls syncTaskPriorities, which re-scores every open
+  // task inside this transaction. See the constant for the measurement.
+  const result = tx ? await runCore(tx) : await prisma.$transaction(runCore, TASK_TX_OPTS);
 
   // Apr 26 · TaskEvent emit — fire-and-forget after the transaction
   // commits so analytics never blocks the user-facing write path.
@@ -1000,7 +1047,7 @@ export async function updateTask(id: string, input: unknown) {
     });
 
     return { task, vm: buildTaskViewModels(hydrated ? [hydrated] : [], missions)[0] };
-  });
+  }, TASK_TX_OPTS); // contains syncTaskPriorities — see the constant
 
   // v8.0 Phase 2A — log the field-level diff to entity_audits so the
   // brain layer + admin UI can ask "what did Nick change about this
