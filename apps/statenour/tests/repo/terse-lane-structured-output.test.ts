@@ -1,43 +1,65 @@
 /**
- * An `aiChat` call that PARSES STRUCTURED OUTPUT must not request the terse lane.
+ * An `aiChat` call that PARSES STRUCTURED OUTPUT must not silently sit on the
+ * terse lane.
  *
  * WHY THIS GUARD EXISTS — measured in production 2026-09-17.
  *
  * `provider.ts` caps `fast`/`classify` at 1500 tokens / 45s, documented as
  * "terse responses", and resolves them to `OLLAMA_FAST_MODEL` (a light-filter
- * model). Five brain call sites asked for that lane and then ran
- * `extractJsonArray` / `extractJsonObject` on the result.
+ * model). On the memory-consolidation lane that combination produced, in 24h:
+ *   · 106 Ollama calls · **53 returned ZERO completion tokens** · 46 empty
+ *   · observed max exactly 1500 — the ceiling truncating JSON mid-structure
+ * Every empty or unparseable result fell through to the METERED rescue tail,
+ * where gemini / openrouter / openai failed on billing: 2,963 Langfuse ERROR
+ * observations in 7d across six brain surfaces.
  *
- * On the memory-consolidation lane that combination produced, in 24h:
- *   · 106 Ollama calls · **53 returned ZERO completion tokens** · 46 empty output
- *   · observed max exactly 1500 tokens — the ceiling truncating JSON mid-structure
+ * ⚠⚠ THE FIRST VERSION OF THIS GUARD MATCHED A LINE SHAPE, NOT A CALL.
+ * It required `], "fast")` on ONE line, so every multiline call — the majority —
+ * was invisible. It reported the tree clean while EIGHT instances remained.
+ * Review caught it. The detector now keys on ARGUMENT POSITION: the task-type
+ * literal preceded by `]` or `,` and followed by an optional trailing comma and
+ * the closing paren, which matches both formattings.
  *
- * Every empty or unparseable result made the provider chain fall through to the
- * METERED rescue tail, where gemini / openrouter / openai failed on billing:
- * 2,963 Langfuse ERROR observations in 7d across six brain surfaces, while
- * `error_logs` showed 44. **A task-type mismatch inside the FUNDED lane was
- * presenting as a spend problem.**
- *
- * ⚠ THIS IS A SWEEP, NOT A SITE FIX. The first four siblings were found only by
- * scanning for the shape after fixing one — and three of them were exactly the
- * surfaces production was already failing on. The repo's own rule: a fix applied
- * per-site leaves siblings behind.
- *
- * NOT flagged: a terse call whose result is used as PROSE (e.g. a generated
- * brief). Those cannot fail to parse, so they do not cause the fall-through.
- * The guard keys on the parse, not on the task type alone.
+ * ⚠ AND THE FIX IS NOT "CHANGE THEM ALL". A terse lane is CORRECT when the
+ * structured output is genuinely small — `specialist-router` emits
+ * `{intent, mode, targets}` and fits 1500 tokens easily; forcing it to `reason`
+ * would slow every turn's routing for nothing. So this is a RATCHET: existing
+ * sites are allowlisted with a reason, and any NEW one fails until it is either
+ * fixed or justified here.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 const ROOT = process.cwd();
 const SCAN_DIRS = ["lib", "app"];
-/** How many lines after the call may still count as "this call's result". */
-const WINDOW = 6;
 
-const TERSE_CALL = /\],\s*"(fast|classify)"\)/;
-const PARSES_STRUCTURE = /extractJson(Array|Object)|JSON\.parse\(\s*result\.content/;
+/**
+ * Argument position, not line shape. Matches `], "fast")`, `],\n "fast"\n)`,
+ * and `],\n "fast",\n)`.
+ */
+const TERSE_ARG = /[\],]\s*"(fast|classify)"\s*,?\s*\)/g;
+const PARSES_STRUCTURE = /extractJson(Array|Object)|JSON\.parse\(\s*(result|aiResult)\.content/;
+/** How far after the call the result may still be parsed. */
+const WINDOW_CHARS = 700;
+
+/**
+ * Sites where a terse lane is DELIBERATE because the structured payload is
+ * small. Each needs a reason; an unexplained entry is how a ratchet rots.
+ *
+ * ⚠ These are NOT verified-good, they are UNMEASURED. None appears in the six
+ * failing Langfuse surfaces, which is why they were not changed on speculation.
+ * If one starts spilling onto metered providers, fix it and delete the line.
+ */
+const ALLOWLIST: Record<string, string> = {
+  "lib/ai/agents/router.ts": "classify -> {intent, mode, targets}; small by construction",
+  "lib/ai/memory.ts": "fact extraction, short list; not in the failing set",
+  "lib/brain/contextual-recall.ts": "recall ids; not in the failing set",
+  "lib/brain/journal-ingest.ts": "ingest tags; not in the failing set",
+  "lib/brain/people-intelligence.ts": "per-person enrichment object; not in the failing set",
+  "lib/brain/session-distiller.ts": "distill object; not in the failing set",
+  "lib/brain/strategic-plans.ts": "plan array; not in the failing set",
+};
 
 function walk(dir: string, acc: string[] = []): string[] {
   let entries;
@@ -56,63 +78,103 @@ function walk(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
-/** @returns `file:line` for every terse call whose result is parsed as structure. */
-function findMismatches(files: string[]): string[] {
+/** @returns `relativePath:line` for every terse call whose result is parsed. */
+export function findMismatches(files: string[]): string[] {
   const out: string[] = [];
   for (const f of files) {
     const src = readFileSync(f, "utf8");
     if (!src.includes("aiChat(")) continue;
-    const lines = src.split("\n");
-    lines.forEach((l, i) => {
-      if (!TERSE_CALL.test(l)) return;
-      if (PARSES_STRUCTURE.test(lines.slice(i, i + WINDOW).join("\n"))) {
-        out.push(`${f.replace(/\\/g, "/")}:${i + 1}`);
-      }
-    });
+    const re = new RegExp(TERSE_ARG.source, "g");
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      if (!PARSES_STRUCTURE.test(src.slice(m.index, m.index + WINDOW_CHARS))) continue;
+      const rel = relative(ROOT, f).split("\\").join("/");
+      out.push(`${rel}:${src.slice(0, m.index).split("\n").length}`);
+    }
   }
   return out;
 }
 
 const FILES = SCAN_DIRS.flatMap((d) => walk(join(ROOT, d)));
+const MISMATCHES = findMismatches(FILES);
 
 describe("terse lane vs structured output", () => {
-  // POSITIVE CONTROL — without this, a broken walker or a renamed helper makes
+  // POSITIVE CONTROL — without this, a broken walker or renamed helper makes
   // every assertion below pass on an empty file list.
-  it("the scan actually sees the tree and finds aiChat callers", () => {
+  it("the scan sees the tree and finds aiChat callers", () => {
     expect(FILES.length).toBeGreaterThan(200);
     expect(FILES.filter((f) => readFileSync(f, "utf8").includes("aiChat(")).length).toBeGreaterThan(5);
   });
 
-  it("no aiChat call requests fast/classify and then parses structured output", () => {
-    expect(findMismatches(FILES)).toEqual([]);
-  });
-
   // ── CANARY ──────────────────────────────────────────────────────────
-  // The exact shape that shipped. If this stops matching, the detector is
-  // broken and the clean result above means nothing.
-  it("CANARY — the shipped shape is detected", () => {
-    const shipped = [
-      '    const result = await aiChat([',
-      '      { role: "user", content: memList },',
-      '    ], "fast");',
-      '',
-      '    const extracted = extractJsonArray<{ indices: number[] }>(result.content);',
+  // The detector must see MULTILINE calls. The previous line-anchored regex
+  // reported the tree clean while eight of these existed.
+  it("CANARY — detects the multiline form the first version missed", () => {
+    const multiline = [
+      "      aiChat(",
+      "        [",
+      '          { role: "user", content: x },',
+      "        ],",
+      '        "fast"',
+      "      );",
+      "",
+      "      const e = extractJsonObject<any>(result.content);",
     ].join("\n");
-    const lines = shipped.split("\n");
-    const hit = lines.some(
-      (l, i) => TERSE_CALL.test(l) && PARSES_STRUCTURE.test(lines.slice(i, i + WINDOW).join("\n")),
-    );
-    expect(hit).toBe(true);
+    const re = new RegExp(TERSE_ARG.source, "g");
+    const m = re.exec(multiline);
+    expect(m).not.toBeNull();
+    expect(PARSES_STRUCTURE.test(multiline.slice(m!.index, m!.index + WINDOW_CHARS))).toBe(true);
   });
 
-  // The guard must not fire on a terse call whose output is prose — that shape
-  // is legitimate and still exists in pipeline-controller.
+  it("CANARY — also detects the trailing-comma form", () => {
+    const trailing = ['        ],', '        "classify",', "      );", "", "      extractJsonArray<any>(result.content);"].join("\n");
+    const re = new RegExp(TERSE_ARG.source, "g");
+    const m = re.exec(trailing);
+    expect(m).not.toBeNull();
+  });
+
+  it("CANARY — and the original single-line form", () => {
+    const single = ['    ], "fast");', "", "    const e = extractJsonArray<any>(result.content);"].join("\n");
+    const re = new RegExp(TERSE_ARG.source, "g");
+    expect(re.exec(single)).not.toBeNull();
+  });
+
+  // The guard must not fire on prose results — those cannot fail to parse and
+  // do not cause the fall-through. pipeline-controller still has one.
   it("does NOT flag a terse call whose result is used as prose", () => {
     const prose = ['  ], "fast");', "", "  return { brief: result.content };"].join("\n");
-    const lines = prose.split("\n");
-    const hit = lines.some(
-      (l, i) => TERSE_CALL.test(l) && PARSES_STRUCTURE.test(lines.slice(i, i + WINDOW).join("\n")),
-    );
-    expect(hit).toBe(false);
+    const re = new RegExp(TERSE_ARG.source, "g");
+    const m = re.exec(prose);
+    expect(m).not.toBeNull(); // the call matches…
+    expect(PARSES_STRUCTURE.test(prose.slice(m!.index, m!.index + WINDOW_CHARS))).toBe(false); // …but is not parsed
+  });
+
+  // ── THE RATCHET ─────────────────────────────────────────────────────
+  it("every terse+structured site is explicitly allowlisted with a reason", () => {
+    const unexplained = MISMATCHES.filter((hit) => !ALLOWLIST[hit.split(":")[0]]);
+    expect(unexplained).toEqual([]);
+  });
+
+  it("the allowlist has no stale entries", () => {
+    const seen = new Set(MISMATCHES.map((h) => h.split(":")[0]));
+    expect(Object.keys(ALLOWLIST).filter((f) => !seen.has(f))).toEqual([]);
+  });
+
+  it("every allowlist entry carries a non-empty reason", () => {
+    expect(Object.entries(ALLOWLIST).filter(([, why]) => !why || why.length < 10)).toEqual([]);
+  });
+
+  // The lanes that were actually failing in production must stay fixed.
+  it("the six failing surfaces are not on the terse lane", () => {
+    const failing = [
+      "lib/brain/memory-consolidation.ts",
+      "lib/brain/conversation-memory.ts",
+      "lib/brain/relational-graph.ts",
+      "lib/brain/decision-patterns.ts",
+      "lib/brain/pipeline-controller.ts",
+      "lib/brain/thinking-engine.ts",
+    ];
+    const stillTerse = MISMATCHES.filter((h) => failing.includes(h.split(":")[0]));
+    expect(stillTerse).toEqual([]);
   });
 });
