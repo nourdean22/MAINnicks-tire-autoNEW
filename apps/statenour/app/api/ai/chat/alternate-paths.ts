@@ -220,6 +220,44 @@ export async function runAlternatePaths(args: {
       let laneToolCalls: Array<{ name: string }> = [];
       let laneEvidenceText = "";
       let laneReceiptsAvailable = false;
+
+      /**
+       * 2026-09-17 · regen and self-consistency DO pass `tools` (they spread
+       * `genBase`), so they can invoke tools — but they discarded
+       * `r.toolCalls` and returned only `r.text`. Both therefore declared
+       * themselves BLIND, and `tool.chosen` under-reported every turn they
+       * handled. Only the pre-flush lane captured receipts.
+       *
+       * ⚠ ATTRIBUTION IS NOT A UNION. Regen generates up to twice and
+       * self-consistency samples three times; exactly ONE generation becomes
+       * the reply. Recording every sample's calls would over-report tools that
+       * never reached the operator — the mirror of the measured-zero problem.
+       * So each generation is remembered with its text, and after the lane
+       * picks a winner the calls are taken from the generation whose text IS
+       * the winner. No match (e.g. a synthesised answer) means the lane stays
+       * BLIND rather than guessing.
+       */
+      const laneSamples: Array<{ text: string; calls: string[] }> = [];
+      const rememberLaneSample = (r: { text?: string; toolCalls?: unknown }) => {
+        const calls = ((r.toolCalls ?? []) as Array<{ toolName?: string }>)
+          .map((c) => String(c.toolName ?? ""))
+          .filter(Boolean);
+        laneSamples.push({ text: String(r.text ?? ""), calls });
+      };
+      /** Attribute the winning generation's calls; blind when it cannot be identified. */
+      const applyLaneAttribution = async (winningText: string) => {
+        const { attributeWinningSample } = await import(
+          "@/lib/services/chat/lane-sample-attribution"
+        );
+        const a = attributeWinningSample({
+          samples: laneSamples,
+          winningText,
+          alreadyAvailable: laneReceiptsAvailable,
+        });
+        if (!a) return; // honest blind — never attribute a sample that did not win
+        laneToolCalls = a.toolNames.map((name) => ({ name }));
+        laneReceiptsAvailable = a.receiptsAvailable;
+      };
       // Shared generateText config for the regen + self-consistency
       // branches (identical shape) — hoisted so a new field is added
       // once, not in two places that could silently disagree.
@@ -356,6 +394,7 @@ export async function runAlternatePaths(args: {
             system: sys,
             temperature: temp,
           } as Parameters<typeof generateText>[0]);
+          rememberLaneSample(r);
           return r.text;
         };
         const regen = await maybePreStreamRegen({
@@ -390,6 +429,7 @@ export async function runAlternatePaths(args: {
               system: finalSystemPrompt,
               temperature: Math.min(0.9, turnSignal.temperature + 0.15),
             } as Parameters<typeof generateText>[0]);
+            rememberLaneSample(r);
             return r.text;
           },
         });
@@ -449,6 +489,13 @@ export async function runAlternatePaths(args: {
           webSearchPinned,
         });
       }
+
+      // Runs for every lane. The pre-flush lane already set
+      // `laneReceiptsAvailable` from its own generateText result and is left
+      // untouched; regen and self-consistency are attributed here from the
+      // generation whose text actually won. A lane that recorded no samples
+      // (multi-agent, deep) is unaffected and stays honestly blind.
+      await applyLaneAttribution(winner);
 
       if (winner && winner.trim().length > 0) {
         // ── EVIDENCE ENFORCEMENT — 2026-09-10 ───────────────────────
