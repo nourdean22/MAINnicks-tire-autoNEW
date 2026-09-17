@@ -148,14 +148,24 @@ export async function deriveTurnSignals(args: {
 
   // v6 · BATCH 3 · Apr 28 — Domain-routed model selection.
   // detectDomain() reads the message and picks the best taskType +
-  // preferLargeContext combo. Code asks → ollama qwen3-coder. Vision →
-  // qwen3-vl. Strategy → deepseek-v4-pro. Marketing → venice-uncensored
-  // for brand voice. Fast classify → cheap fast Venice. Falls through to
-  // mode-driven defaults when no specific domain matches.
+  // preferLargeContext combo: code / vision / strategy / marketing /
+  // creative / fast-classify / summary, falling through to mode-driven
+  // defaults when no specific domain matches.
+  //
+  // ⚠ 2026-09-17 · this comment used to name a MODEL per domain
+  // (qwen3-coder, qwen3-vl, deepseek-v4-pro, two Venice lanes). Three of
+  // the five were dead: qwen3-coder is not servable by this account at
+  // all, qwen3-vl was retired 2026-06-16 (see lib/ai/model-liveness.ts),
+  // and Venice is retired outright. detectDomain returns a taskType, NOT
+  // a model — the id is resolved later by resolveProviderModel and can be
+  // overridden per-environment. Naming models here just rots.
   const { detectDomain } = await import("@/lib/ai/domain-routing");
   // v8.6 BATCH 34 — peek at the LAST user message's parts to detect
-  // image attachments. If found, route to qwen3-vl regardless of text
-  // (closes the "user uploads photo and just types '?'" gap).
+  // image attachments. If found, route to the VISION lane (taskType
+  // "vision") regardless of text, closing the "user uploads photo and
+  // just types '?'" gap. Said "route to qwen3-vl" until 2026-09-17 —
+  // that model was retired 2026-06-16, and the line sat directly under
+  // the comment above explaining that naming models here rots.
   const lastMsg = messages[messages.length - 1] as unknown as {
     parts?: Array<{ type?: string; mediaType?: string; mimeType?: string }>;
   };
