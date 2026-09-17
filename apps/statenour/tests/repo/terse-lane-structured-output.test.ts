@@ -42,10 +42,17 @@ const ROOT = process.cwd();
 const SCAN_DIRS = ["lib", "app"];
 
 /**
- * Argument position, not line shape. Matches `], "fast")`, `],\n "fast"\n)`,
- * and `],\n "fast",\n)`.
+ * Argument position, not line shape.
+ *
+ * The task type is `aiChat`'s SECOND argument and may be followed by a THIRD
+ * (`{ signal }`), so this must not require the closing paren straight after.
+ * Requiring `)` was the third formatting this detector missed — it hid
+ * `chain-of-verification.ts`, a surface production was already failing on.
+ *
+ * Matches: `], "fast")` · `],\n "fast"\n)` · `],\n "fast",\n)` ·
+ *          `],\n "fast",\n { signal },\n)`
  */
-const TERSE_ARG = /[\],]\s*"(fast|classify)"\s*,?\s*\)/g;
+const TERSE_ARG = /[\],]\s*"(fast|classify)"\s*[,)]/g;
 const PARSES_STRUCTURE = /extractJson(Array|Object)|JSON\.parse\(\s*(result|aiResult)\.content/;
 /** How far after the call the result may still be parsed. */
 const WINDOW_CHARS = 700;
@@ -66,6 +73,8 @@ const ALLOWLIST: Record<string, string> = {
   "lib/brain/people-intelligence.ts": "per-person enrichment object; not in the failing set",
   "lib/brain/session-distiller.ts": "distill object; not in the failing set",
   "lib/brain/strategic-plans.ts": "plan array; not in the failing set",
+  "lib/services/chat-suggestions.ts":
+    "3 strings of <=48 chars each; latency-sensitive UI path with its own AbortController",
 };
 
 function walk(dir: string, acc: string[] = []): string[] {
@@ -85,11 +94,34 @@ function walk(dir: string, acc: string[] = []): string[] {
   return acc;
 }
 
+/**
+ * Blank out comments while PRESERVING line numbers, so a reported `file:line`
+ * still points at the real call.
+ *
+ * ⚠⚠ THIS IS LOAD-BEARING, AND IT WAS MISSING. The detector anchors on `]` or
+ * `,` immediately before the task type. A comment between them — exactly what
+ * an explanatory note above the argument looks like — breaks the anchor and the
+ * call becomes invisible. Proven: adding a rationale comment above
+ * `chain-of-verification`'s task type made a verified `"fast"` mutation pass the
+ * guard. So the very act of documenting a fix could hide its regression.
+ *
+ * Stripping also stops a task type MENTIONED in prose from counting as a call —
+ * the mention-blind defect this repo has already recorded twice.
+ */
+function stripComments(src: string): string {
+  return src
+    .replace(/\r\n/g, "\n")
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => "\n".repeat((m.match(/\n/g) || []).length))
+    .split("\n")
+    .map((l) => l.replace(/\/\/.*$/, ""))
+    .join("\n");
+}
+
 /** @returns `relativePath:line` for every terse call whose result is parsed. */
 export function findMismatches(files: string[]): string[] {
   const out: string[] = [];
   for (const f of files) {
-    const src = readFileSync(f, "utf8");
+    const src = stripComments(readFileSync(f, "utf8"));
     if (!src.includes("aiChat(")) continue;
     const re = new RegExp(TERSE_ARG.source, "g");
     let m;
@@ -131,6 +163,49 @@ describe("terse lane vs structured output", () => {
     const m = re.exec(multiline);
     expect(m).not.toBeNull();
     expect(PARSES_STRUCTURE.test(multiline.slice(m!.index, m!.index + WINDOW_CHARS))).toBe(true);
+  });
+
+  // ── CANARY ──────────────────────────────────────────────────────────
+  // The task type is aiChat's SECOND argument and may be followed by a THIRD
+  // (`{ signal }`). Requiring the close paren straight after hid
+  // chain-of-verification.ts — a surface production was ALREADY failing on.
+  it("CANARY — detects a task type followed by a further argument", () => {
+    const withOpts = [
+      "      ],",
+      '      "fast",',
+      "      { signal: opts.signal },",
+      "    );",
+      "",
+      "    const parsed = extractJsonArray<string>(planRes.content);",
+    ].join("\n");
+    const re = new RegExp(TERSE_ARG.source, "g");
+    const m = re.exec(withOpts);
+    expect(m).not.toBeNull();
+    expect(PARSES_STRUCTURE.test(withOpts.slice(m!.index, m!.index + WINDOW_CHARS))).toBe(true);
+  });
+
+  // ── CANARY ──────────────────────────────────────────────────────────
+  // A comment between the messages array and the task type must NOT hide the
+  // call. Without comment-stripping this exact shape made a verified "fast"
+  // mutation pass — i.e. documenting a fix could conceal its own regression.
+  it("CANARY — a comment above the task type does not hide the call", () => {
+    const commented = [
+      "      ],",
+      "      // 2026-09-17 · was \"fast\". Long rationale that sits between the",
+      "      // messages array and the argument being guarded.",
+      '      "fast",',
+      "      { signal: opts.signal },",
+      "    );",
+      "",
+      "    const parsed = extractJsonArray<string>(planRes.content);",
+    ].join("\n");
+    const stripped = stripComments(commented);
+    const re = new RegExp(TERSE_ARG.source, "g");
+    const m = re.exec(stripped);
+    expect(m).not.toBeNull();
+    expect(PARSES_STRUCTURE.test(stripped.slice(m!.index, m!.index + WINDOW_CHARS))).toBe(true);
+    // …and the raw form is exactly what slipped through before.
+    expect(new RegExp(TERSE_ARG.source, "g").exec(commented)).toBeNull();
   });
 
   it("CANARY — also detects the trailing-comma form", () => {
@@ -180,6 +255,7 @@ describe("terse lane vs structured output", () => {
       "lib/brain/decision-patterns.ts",
       "lib/brain/pipeline-controller.ts",
       "lib/brain/thinking-engine.ts",
+      "lib/ai/chat/chain-of-verification.ts",
     ];
     const stillTerse = MISMATCHES.filter((h) => failing.includes(h.split(":")[0]));
     expect(stillTerse).toEqual([]);
