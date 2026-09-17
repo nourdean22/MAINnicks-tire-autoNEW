@@ -80,6 +80,41 @@ export function isConfigurationError(message?: string | null): boolean {
   return CONFIG_ERROR_RE.test(message) || CONFIG_ENV_VAR_RE.test(message);
 }
 
+/** Head kept: enough to identify the tool and the shape of the input. */
+const ERROR_HEAD = 140;
+/** Tail kept: where the REASON lives. Deliberately the larger half. */
+const ERROR_TAIL = 300;
+
+/**
+ * Condense a tool error for storage WITHOUT discarding why it failed.
+ *
+ * THE DEFECT THIS REPLACES. This was `errorMessage.slice(0, 200)` — a head
+ * truncation. AI SDK validation errors are shaped:
+ *
+ *   Invalid input for tool X: Type validation failed: Value: {…big json…}.
+ *   Error message: <THE ACTUAL REASON>
+ *
+ * The reason is at the TAIL, and the value dump in front of it is routinely
+ * longer than 200 characters. So the stored evidence was the input prefix and
+ * never the cause. Measured on production 2026-09-16: all three
+ * `createMissionPlan` failures were EXACTLY 200 chars, every one cut off
+ * mid-payload — the tool was known to fail 75% of the time and no row said why.
+ *
+ * It compounds. `lib/ai/tool-description-rewrite.ts` feeds `lastErrors` to an
+ * LLM as failure evidence, on the premise that "one LLM pass over a tool's
+ * recent failures" fixes the description. Evidence containing no failure reason
+ * cannot do that — the rewriter was reading input fragments and guessing.
+ *
+ * Keeping both ends is format-agnostic: it survives a reason at the tail (AI
+ * SDK), a reason at the head (most thrown Errors), and gives up nothing when
+ * the message is short enough to keep whole.
+ */
+export function condenseToolError(raw: string): string {
+  const msg = raw.trim();
+  if (msg.length <= ERROR_HEAD + ERROR_TAIL) return msg;
+  return `${msg.slice(0, ERROR_HEAD)} … [${msg.length - ERROR_HEAD - ERROR_TAIL} chars elided] … ${msg.slice(-ERROR_TAIL)}`;
+}
+
 /**
  * Record a single tool invocation. Merges into an aggregate row per
  * tool (one row per tool, updated per call) so we can query recent
@@ -92,7 +127,7 @@ export async function recordToolInvocation(inv: ToolInvocation): Promise<void> {
     const successDelta = inv.success ? 1 : 0;
     const failDelta = inv.success ? 0 : 1;
     const errorMessage = !inv.success && inv.errorMessage
-      ? inv.errorMessage.slice(0, 200)
+      ? condenseToolError(inv.errorMessage)
       : null;
 
     // v10.0.194 → v10.0.529.106 Wave 53 · canonical typed write.
