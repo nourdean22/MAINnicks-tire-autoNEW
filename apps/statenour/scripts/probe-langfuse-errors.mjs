@@ -112,6 +112,20 @@ async function main() {
     for (const [s, c] of [...bySurface].sort((a, b) => b[1] - a[1]).slice(0, 12)) {
       console.log(`  surface ${String(c).padStart(5)}x ${s}`);
     }
+    // WHICH MODEL failed matters as much as which surface. The provider chain
+    // is ordered (funded Ollama first, metered rescue as a tail), so the set of
+    // models appearing here says how FAR down the chain a call got — and a
+    // provider that never appears was never reached, which is a different fact
+    // from "it worked".
+    const byModel = new Map();
+    for (const o of rows) {
+      const m = o.model ?? "(no model)";
+      byModel.set(m, (byModel.get(m) ?? 0) + 1);
+    }
+    console.log(`  ── by model (how far down the provider chain calls got) ──`);
+    for (const [m, c] of [...byModel].sort((a, b) => b[1] - a[1]).slice(0, 10)) {
+      console.log(`  model   ${String(c).padStart(5)}x ${m}`);
+    }
     const cluster = new Map();
     for (const o of rows) {
       const key = `${o.name ?? "(unnamed)"} · ${String(o.statusMessage ?? "").slice(0, 70).replace(/\s+/g, " ")}`;
