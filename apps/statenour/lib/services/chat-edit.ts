@@ -321,7 +321,7 @@ export async function deleteMessageCascade({
     "chat_message",
     doomed.map((m) => m.id),
     "chat-edit.truncate",
-  );
+  ).catch(() => 0);
 
   void logUpdate(
     "chatMessage",

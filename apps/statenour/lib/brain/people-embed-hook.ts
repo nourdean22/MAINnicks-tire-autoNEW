@@ -139,26 +139,53 @@ export async function enqueueLedgerEmbed(ledgerId: string, note: string): Promis
     const vec = await getEmbedding(note);
     if (vec.length === 0) return;
 
-    const existing = await prisma.vectorEmbedding.findFirst({
-      where: { sourceType: "relationship_ledger", sourceId: ledgerId },
-      select: { id: true },
-    });
+    // ⚠ RE-CHECK THE LEDGER ROW AFTER THE EMBEDDING CALL, NOT BEFORE IT.
+    //
+    // This runs fire-and-forget from record-interaction.ts:201
+    // (`void (async () => { await enqueueLedgerEmbed(...) })()`), and
+    // `getEmbedding` is a network round-trip to a provider — SECONDS, not
+    // milliseconds. Delete the note in that window and the old code still wrote
+    // the embedding afterwards: deleteLedgerRow's tombstone had already run, so
+    // the deleted note stayed searchable with no row behind it. A delete that
+    // loses a race to a writer it never knew about is not a delete.
+    //
+    // Checking INSIDE the same transaction as the write is what makes this
+    // worth doing — a check outside it would just be a second place to be
+    // stale. Neon is READ COMMITTED, so this narrows the window from the
+    // provider call to one statement boundary rather than closing it to zero;
+    // full closure would need a row lock on a hot fire-and-forget path. The
+    // residual is bounded and SELF-HEALING: an embedding that wins that
+    // sub-millisecond race is marked `row_absent` by the nightly
+    // lib/db/embedding-shadow sweep and stops surfacing in recall. Stating the
+    // limit rather than claiming the race is gone.
+    await prisma.$transaction(async (tx) => {
+      const live = await tx.relationshipLedger.findUnique({
+        where: { id: ledgerId },
+        select: { id: true },
+      });
+      if (!live) return; // deleted while we were embedding — write nothing
 
-    if (existing) {
-      await prisma.vectorEmbedding.update({
-        where: { id: existing.id },
-        data: { content: note, embedding: JSON.stringify(vec) },
+      const existing = await tx.vectorEmbedding.findFirst({
+        where: { sourceType: "relationship_ledger", sourceId: ledgerId },
+        select: { id: true },
       });
-    } else {
-      await prisma.vectorEmbedding.create({
-        data: {
-          sourceType: "relationship_ledger",
-          sourceId: ledgerId,
-          content: note,
-          embedding: JSON.stringify(vec),
-        },
-      });
-    }
+
+      if (existing) {
+        await tx.vectorEmbedding.update({
+          where: { id: existing.id },
+          data: { content: note, embedding: JSON.stringify(vec) },
+        });
+      } else {
+        await tx.vectorEmbedding.create({
+          data: {
+            sourceType: "relationship_ledger",
+            sourceId: ledgerId,
+            content: note,
+            embedding: JSON.stringify(vec),
+          },
+        });
+      }
+    });
   } catch (err) {
     log.warn("ledger_embed_failed", {
       ledgerId,

@@ -71,6 +71,11 @@ export async function deleteLedgerRow(ledgerId: string): Promise<DeletedLedgerRo
     return { ledgerId, personId: row.personId, wasContact, ...after };
   });
 
-  await dropEmbeddingsForSource("relationship_ledger", [ledgerId], "people:delete-ledger-row");
+  // .catch here as well as inside the helper: the row is ALREADY deleted and the
+  // counters ALREADY recomputed, so a cleanup failure must not turn a completed
+  // delete into a reported error. Pinned by a canary in this file's test.
+  await dropEmbeddingsForSource("relationship_ledger", [ledgerId], "people:delete-ledger-row").catch(
+    () => 0,
+  );
   return result;
 }

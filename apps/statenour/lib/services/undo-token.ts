@@ -136,7 +136,9 @@ export async function consumeUndoToken(token: string): Promise<UndoResult> {
       // exists. Undoing a create must undo the index entry too, or the undo is partial in
       // exactly the way nobody looks at. Best-effort: the person is already gone, and
       // turning a cleanup miss into a throw would fail an undo that already succeeded.
-      await dropEmbeddingsForSource("person_profile", [payload.personId], "undo:person.create");
+      await dropEmbeddingsForSource("person_profile", [payload.personId], "undo:person.create").catch(
+        () => 0,
+      );
       break;
     }
     default: {
