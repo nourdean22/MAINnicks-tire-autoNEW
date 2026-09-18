@@ -323,7 +323,18 @@ export default function VoiceReceptionistSection() {
        * door anywhere. This is the door. */}
       <AttributionReviewCard />
 
-      <VoiceAchievements />
+      {/* ─── wave-181.67: Live in-flight calls (Phase 4 state machine) ──
+          Real-time roster of calls the agent is currently handling +
+          their position in the 5-state flow (greeted → intent → tool →
+          confirmed → ended). 5s refetch interval. Hides itself when
+          zero calls are in flight so quiet hours stay clean.
+
+          2026-09-18 · PROMOTED above routing config and gamification. A
+          customer talking to Nick RIGHT NOW outranks a configuration card and
+          an XP gauge; it previously rendered below both. The card already
+          hides itself when nothing is in flight, so promoting it costs a quiet
+          day nothing. */}
+      <LiveCallsCard onSelectCall={setSelectedCallId} />
 
       {/* ─── Transfer destination quick-control ─────── */}
       <TransferDestinationCard />
@@ -333,12 +344,13 @@ export default function VoiceReceptionistSection() {
           operator sees both phone-routing surfaces at a glance. */}
       <FollowUpTransferCard />
 
-      {/* ─── wave-181.67: Live in-flight calls (Phase 4 state machine) ──
-          Real-time roster of calls the agent is currently handling +
-          their position in the 5-state flow (greeted → intent → tool →
-          confirmed → ended). 5s refetch interval. Hides itself when
-          zero calls are in flight so quiet hours stay clean. */}
-      <LiveCallsCard onSelectCall={setSelectedCallId} />
+      {/* 2026-09-18 · DEMOTED from above Live Calls to the bottom of the page.
+          XP, levels and badges reward call VOLUME, not outcomes, and returned
+          no time, money or decision quality to the operator — while occupying
+          the vertical space directly above a customer who is on the phone
+          right now. Kept rather than deleted (it is harmless here and the
+          operator may enjoy it), but it no longer outranks live demand. */}
+      <VoiceAchievements />
 
       {/* wave-181.x Voice Phase 5 ELON cut · OutboundCallCard deleted
        * (~102 LOC inline + ~5 KB of UI). Per audit agent HIGH-confidence
@@ -383,7 +395,7 @@ export default function VoiceReceptionistSection() {
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          Missed Revenue Queue
+          Needs Attention
           {/* The old pill rendered on `activeTab !== "queue"` alone — a
               permanent red badge with zero connection to queue contents. A
               badge that is always on trains the operator to ignore red
@@ -703,7 +715,12 @@ export default function VoiceReceptionistSection() {
           </Panel>
         </div>
       ) : (
-        /* ─── Missed Revenue Queue Tab ──────────────────────── */
+        /* ─── Needs Attention Tab ────────────────────────────────
+             Renamed 2026-09-18. "Missed Revenue" asserted that every row was
+             money the shop lost — a claim the data never supported, and which
+             this wave measured as substantially false: a large share were calls
+             that had been ANSWERED. The label now states what the operator is
+             being asked to do, which is the only thing the row can prove. */
         <div className="space-y-4">
           {/*
             WHERE THE ROWS WENT. The operator used to face a 1,118-row wall
@@ -898,9 +915,21 @@ export default function VoiceReceptionistSection() {
                           {item.customerName || maskPhone(item.phoneNumber)}
                         </span>
                         
-                        {item.isRepeatCaller && (
+                        {/* The old badge read "Repeat Caller (+3)" and fired on
+                            any number seen twice in NINETY DAYS - brakes in June
+                            and tires in September scored as urgency - and each
+                            call was its own row, so the badge inflated the very
+                            backlog it described. A row is now one EPISODE (same
+                            caller, same unresolved need, inside a day), so this
+                            states the contact count as a fact and claims no score. */}
+                        {item.contactCount > 1 && (
                           <span className="bg-rose-500/15 text-rose-400 text-[10px] px-2 py-0.5 rounded font-bold border border-rose-500/20">
-                            Repeat Caller (+3)
+                            Called {item.contactCount}x about this
+                          </span>
+                        )}
+                        {item.slaBreached && (
+                          <span className="bg-red-500/15 text-red-400 text-[10px] px-2 py-0.5 rounded font-bold border border-red-500/20">
+                            Past response target
                           </span>
                         )}
 
@@ -934,6 +963,19 @@ export default function VoiceReceptionistSection() {
                       <div className="text-xs">
                         <span className="text-amber-400 font-semibold">Recommended Action:</span>{" "}
                         <span className="text-foreground/70">{recAction}</span>
+                        {/* 2026-09-18 - the priority score is now the SUM of
+                            these stated reasons, so the operator can audit the
+                            ranking instead of trusting it. An opaque number is a
+                            number nobody trusts and nobody can debug. */}
+                        {Array.isArray(item.priorityReasons) && item.priorityReasons.length > 0 && (
+                          <span className="block mt-1 text-[11px] text-muted-foreground">
+                            Why it ranks here:{" "}
+                            {item.priorityReasons
+                              .map((r: { label: string; delta: number }) =>
+                                r.label + " (" + (r.delta > 0 ? "+" : "") + r.delta + ")")
+                              .join(" · ")}
+                          </span>
+                        )}
                       </div>
 
                       {/* SMS Draft Sub-Panel */}
