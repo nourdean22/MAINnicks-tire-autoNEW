@@ -2876,6 +2876,31 @@ model VectorEmbedding {
   /// tool is re-embedded once, and the row is rewritten with both columns
   /// correct. The lane self-heals rather than needing a data migration.
   contentFingerprint String?
+  /// WHEN A SWEEP OBSERVED THAT THIS ROW'S SOURCE WAS NO LONGER LIVE.
+  ///
+  /// Written ONLY by lib/db/embedding-shadow.ts, in raw SQL, and read by the
+  /// recall boundary (lib/db/pgvector.ts) as `"sourceUnavailableAt" IS NULL`.
+  /// Declared here for the same reason as embedding_vec/embedding_dim above —
+  /// so `prisma db push` leaves the column alone instead of dropping it — NOT
+  /// because application code reads it through the client.
+  ///
+  /// NULL = the source is live, or has never been swept. Non-NULL = the row is
+  /// held out of recall. NOTHING IS DELETED: `content` here is frequently the
+  /// LAST SURVIVING COPY of a hard-deleted source (measured 2026-08-16: 100% of
+  /// 4,867 brain_memory orphans had no surviving row with the same key), so the
+  /// repair marks the DERIVED INDEX and leaves the evidence in place.
+  ///
+  /// Reversible in one statement — see the migration header for the restore.
+  sourceUnavailableAt     DateTime?
+  /// WHICH FLAVOUR of unavailable: 'row_absent' | 'soft_deleted'.
+  ///
+  /// Separate from the timestamp on purpose. 'row_absent' means the source was
+  /// hard-deleted or never existed, so this embedding may be the only copy of
+  /// the text. 'soft_deleted' means the source row is still there and can be
+  /// restored. Those call for opposite operator actions, and folding them into
+  /// one token would repeat the defect fixed in cron_job_log.status and in
+  /// `model` directly above.
+  sourceUnavailableReason String?
   updatedAt          DateTime                     @updatedAt
 
   @@index([sourceType, sourceId]) // composite — fixes slow lookup queries
