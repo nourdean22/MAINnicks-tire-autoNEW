@@ -308,3 +308,75 @@ revenue. Seasonal routing priority.
 **Do not build yet:** a third opportunity queue; an ML lead score before outcomes are
 clean; multi-vendor telephony failover; appointment scheduling for a first-come-first-served
 shop; any auto-send SMS before the approval-first phase has a clean hallucination record.
+
+---
+
+## 10 · Live verification on the deployed page — what the audit could not have learned by reading
+
+Every capability-ledger entry written during this pass carries `liveRuns: NONE`. This
+section closes four of them, and it exists because **opening the admin page found more in
+ten minutes than re-reading either prior audit would have.**
+
+Loaded `nickstire.org/admin?tab=voiceReceptionist` after the wave deployed.
+
+| Shipped claim | What the live page shows |
+|---|---|
+| Tab rename | Reads **Needs Attention · 960** |
+| Attribution collapse | **"13 same-invoice contact(s) collapsed across 3 invoice(s)… would have overstated attributed revenue by 3.17x"** |
+| The collapse works on the cluster it was built from | Invoice **#5160005** — claimed by **eight** separate calls when the defect was found — is now claimed by **exactly one**, call #16260032 |
+| Review queue shrank honestly | **20 weak matches → 7**, with the reason stated rather than the rows silently gone |
+| Transfer connection measurable | **Forward Redials ≤15m (14d): 24% · 57/240 redialed · 183 quiet · 22 failed hand-offs** |
+
+### The defect the live page found in the attribution path
+
+The review query dedupes by `call_id` and **nothing deduped by `invoice_id`**. Eight calls
+each said "this call produced invoice #5160005". Confirming them all would have counted that
+invoice eight times.
+
+This matters more than the queue defect at the top of this document. **That one inflated
+demand, which wastes attention. This one inflated revenue** — the number the system is judged
+by, and the one an operator would quote to justify the whole programme. A recovery tool that
+over-reports its own winnings is the failure most likely to survive scrutiny, because nobody
+audits a number they like.
+
+Duplicates are **retained and rendered**, not dropped. Those seven other calls are real
+contacts from the same customer; they stop being separate decisions about separate money,
+they do not stop existing. A payload nobody displays is a row silently removed from the
+operator's view — the sin this wave was fixing elsewhere.
+
+### Still open after the live check — P1
+
+The panel reads **AWAITING V1 EVALUATIONS · 0 v1 · 25 legacy excluded**, and all 25 of that
+day's calls show outcome `Unknown`. The new classifier has scored none of them; the eval
+cron had not processed the day at load time.
+
+This is the **empty-vs-error discipline working**: the panel says *awaiting evaluations* and
+shows its denominator instead of rendering a fabricated 0%. But it means **no voice KPI on
+that page is trustworthy until the cron has run**, and the first-deploy classification count
+— the amber "could not be read well enough to classify" number — is still unread. That
+number is the single most important operator reading of this wave, because it says whether
+production transcripts carry speaker attribution at all.
+
+## 11 · What this audit got wrong about itself
+
+Recorded because a self-audit that finds nothing is not a self-audit.
+
+1. **A claim in the fix, of the exact kind the fix was removing.** The `VoiceAchievements`
+   demotion said, in its source comment, its PR body and its shipped completion evidence,
+   that the panel had moved *"to the bottom of the page"*. It had moved below Live Calls and
+   stopped — still above the Performance Dashboard and the entire call list. Typecheck,
+   lint, 1,434 client tests and the completion-authority gate were all green on a false
+   comment. Only loading the page caught it.
+2. **A guard that protected only the branches its author had thought of.** The
+   `drivability_safety_verdict` pattern guarded two of its three alternatives against a
+   preceding conditional and left the third bare, so *"let me know if you can make it here
+   before six"* — routine scheduling speech — scored as a safety verdict. Every CLEAN test
+   written at the time exercised the two guarded branches. Testing the false positives you
+   already thought of is the same as not testing.
+3. **A legend that had stopped describing its own list.** The daily voice-claim alert named
+   three claim classes from 2026-07-27 while the guard grew to nine. A stale legend does not
+   go quiet; it misinforms.
+4. **Green gates that proved nothing, three times.** A vitest exit code swallowed by `tail`;
+   a `\b` eaten into an invisible backspace byte by a shell heredoc; and
+   `(data ?? []) as Array<...>`, a cast that *asserts* rather than checks and hid a live
+   render break through every gate in the repo.
