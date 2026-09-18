@@ -180,3 +180,41 @@ export function prettyOutcome(outcome: string | null | undefined): { label: stri
   if (!outcome) return OUTCOME_PRETTY.unknown;
   return OUTCOME_PRETTY[outcome] ?? { label: outcome.replace(/_/g, " "), color: "text-foreground/50", bg: "bg-foreground/5 border-foreground/10" };
 }
+
+/**
+ * Is the measurement pipeline PENDING, or is it BEHIND?
+ *
+ * Both render as `0 v1` and they mean opposite things. On 2026-09-18 the voice
+ * scorecard showed `0 v1 · 25 legacy excluded` under a permanent amber
+ * "Awaiting v1 evaluations" — and nothing was broken. Two cadences make a
+ * same-day zero inevitable: `vapi-call-eval` is a TIER 4 job that ticks once
+ * every 24 hours, and inside it a call is deferred until its provider analysis
+ * is ready or the call is 24h old. A warning guaranteed to be lit is a warning
+ * nobody reads.
+ *
+ * The threshold is TWO cadences, derived from the cadence the server reports
+ * rather than hardcoded: one cycle for the call to become eligible, one for the
+ * tick that scores it. Past that, the pipeline is genuinely stalled.
+ *
+ * FAILS CLOSED. A missing timestamp or a missing cadence returns "behind", not
+ * "pending" — a state we cannot read must never render as the reassuring one.
+ *
+ * Exported so the component and its tests share ONE implementation. A test that
+ * re-implements the thing it tests is a proxy, and proxies pass while the real
+ * code is wrong.
+ */
+export function classifyEvaluationLag(args: {
+  oldestUnversionedAt: string | null | undefined;
+  evalCadenceHours: number | null | undefined;
+  now?: number;
+}): "pending" | "behind" {
+  const now = args.now ?? Date.now();
+  const hours = args.oldestUnversionedAt
+    ? Math.floor((now - new Date(args.oldestUnversionedAt).getTime()) / 3_600_000)
+    : null;
+  return hours != null
+    && args.evalCadenceHours != null
+    && hours < args.evalCadenceHours * 2
+    ? "pending"
+    : "behind";
+}

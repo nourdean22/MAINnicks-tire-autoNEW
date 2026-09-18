@@ -1962,6 +1962,34 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "voice-eval-cadence-honesty",
+      "name": "A zero on the voice scorecard says whether it is too soon or the pipeline is stalled",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. The scorecard read 0 v1 / 25 legacy excluded with every ratio saying 'not enough denominator', and NOTHING WAS BROKEN. vapi-call-eval is a TIER 4 job (24h) and additionally defers each call until its provider analysis is ready or the call is 24h old, so a same-day call cannot be scored the same day - while the page defaulted to the 'today' range and auto-polled it every 60 seconds. The default view was the one window guaranteed to be empty. Four changes: the default range is now 7d (the shortest preset that can contain scored calls); voiceScorecard returns an evaluation block carrying evalCadenceHours and oldestUnversionedAt; VoiceBrief renders three states instead of one permanent amber badge; and 'legacy excluded' became 'awaiting scoring' when the calls are merely pending, because the count was identical while the meaning was opposite.",
+        "tests": "17 tests in client/src/__tests__/voice-eval-cadence.test.ts, importing the REAL classifyEvaluationLag rather than re-implementing it - a test that reproduces its subject is a proxy and passes while the code is wrong. MUTATION VERIFIED: hardcoding the classifier to 'pending' turned 10 of the 17 red. Positive controls pin that it returns BOTH values across the range (a constant would satisfy every one-sided case) and that the cadence is load-bearing (60h is behind at a 24h cadence and pending at 48h). 1,379 client tests, 87 files; 695 server tests, 80 files; typecheck exit 0.",
+        "liveRuns": "NONE. The change has not been observed on a deployed page.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "VoiceBrief is still hardcoded to startOfTodayIso() and ignores the range selector entirely. Its SCORED tiles therefore remain structurally empty on a normal day; only its honesty improved, not its content. Making it follow the selector is a larger change that would mix two windows in one panel, and was not attempted."
+        },
+        {
+          "severity": "P2",
+          "description": "The 2x-cadence threshold is a judgement, not a measurement. It is derived from the server-reported cadence rather than hardcoded, but nobody has yet observed how long a healthy pipeline actually takes in production. If real scoring routinely lands past 48h the amber badge becomes wallpaper again - which is the exact failure this change removed."
+        }
+      ],
+      "deferredScope": [
+        "Running vapi-call-eval more often than daily. Not attempted: the provider-analysis defer would still hold a call for up to 24h, so a faster tier buys far less than it appears to and costs provider fetches on every tick."
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

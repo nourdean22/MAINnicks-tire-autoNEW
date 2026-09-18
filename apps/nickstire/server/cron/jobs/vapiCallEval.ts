@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, isNull, sql } from "drizzle-orm";
 import { vapiCallLogs } from "../../../drizzle/schema";
 import { createLogger } from "../../lib/logger";
 import { sendTelegram } from "../../services/telegram";
@@ -17,7 +17,37 @@ import {
 } from "../../services/vapiMeasurement";
 
 const log = createLogger("cron:vapi-eval");
-const LOOKBACK_DAYS = 2;
+/**
+ * How far back to look for calls that have never been evaluated.
+ *
+ * WAS 2, AND 2 COULD LOSE A CALL FOREVER. Three facts compose badly:
+ *
+ *   1. the selection filters on `evalAt IS NULL` — a call is only ever picked
+ *      up while it is inside this window;
+ *   2. this job is TIER 4, so it ticks once per 24 hours;
+ *   3. a call is DEFERRED below until its provider analysis is ready or it is
+ *      24h old, so most calls are skipped on their first eligible tick.
+ *
+ * That leaves roughly one tick of margin. A tier skip (the scheduler has
+ * `cron_tier_skip_state`), a deploy at the wrong moment, or a provider outage
+ * spanning a tick pushes a call past 48h — after which nothing ever selects it
+ * again. It stays `evalAt IS NULL` permanently and reads on the dashboard as
+ * "legacy excluded", which is indistinguishable from a call that genuinely
+ * predates the metric. Silent, permanent, and invisible in every green check.
+ *
+ * Five days gives four tick-widths of margin. The window is not a cost: the
+ * `evalAt IS NULL` filter means a widened window returns only calls that were
+ * never scored, which is precisely the set that should be scored.
+ */
+const LOOKBACK_DAYS = 5;
+
+/**
+ * Upper bound on one run, so widening the window cannot turn a backlog into an
+ * unbounded batch of provider fetches. Paired with OLDEST-FIRST ordering: a cap
+ * with newest-first ordering would starve exactly the calls this widening
+ * exists to rescue.
+ */
+const EVAL_BATCH_LIMIT = 200;
 
 interface ProcessResult {
   recordsProcessed: number;
@@ -147,7 +177,12 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
     })
     .from(vapiCallLogs)
     .where(and(gte(vapiCallLogs.createdAt, cutoff), isNull(vapiCallLogs.evalAt)))
-    .orderBy(desc(vapiCallLogs.createdAt));
+    // OLDEST FIRST, deliberately. These are the calls closest to ageing out of
+    // the window and becoming permanently unscorable, so under a cap they must
+    // be served first. Nothing downstream depends on the order — the worst-call
+    // alert re-sorts, and every other use is an aggregate.
+    .orderBy(asc(vapiCallLogs.createdAt))
+    .limit(EVAL_BATCH_LIMIT);
 
   if (!rows.length) return { recordsProcessed: 0, details: `no calls to evaluate${archiveDetails}` };
 

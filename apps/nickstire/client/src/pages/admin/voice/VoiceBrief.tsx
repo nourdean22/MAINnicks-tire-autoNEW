@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { classifyEvaluationLag } from "./format";
 import {
   Activity,
   AlertTriangle,
@@ -8,6 +9,7 @@ import {
   Phone,
   PhoneCall,
   SearchCheck,
+  Clock,
   ShieldAlert,
 } from "lucide-react";
 
@@ -81,6 +83,26 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
   const inFlightCount = live?.count ?? 0;
   const stuckCount = live?.byState?.tool_called ?? 0;
   const noVersionedData = counts.versionedCalls === 0;
+
+  /**
+   * "Not scored yet" and "not scored, and the job is stuck" are the same zero.
+   *
+   * They are separated here by the age of the oldest unscored call against the
+   * cadence the server reports. Under two full cycles is PENDING and expected;
+   * beyond that the pipeline is BEHIND and the amber alarm is earned.
+   *
+   * `null` cadence or a missing timestamp resolves to "behind" rather than
+   * "pending" on purpose: an unreadable state must never render as the
+   * reassuring one.
+   */
+  const evaluation = scorecard?.evaluation;
+  const oldestUnversionedHours = evaluation?.oldestUnversionedAt
+    ? Math.floor((Date.now() - new Date(evaluation.oldestUnversionedAt).getTime()) / 3_600_000)
+    : null;
+  const evaluationLag = classifyEvaluationLag({
+    oldestUnversionedAt: evaluation?.oldestUnversionedAt,
+    evalCadenceHours: evaluation?.evalCadenceHours,
+  });
   // null = query has no data — renders "—" (house pattern, see the verified
   // revenue tile), never a fabricated 0.
   const manualReviewCount = callReview == null
@@ -98,9 +120,24 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
             Version {scorecard.metricDefinitionVersion} · source {scorecard.source} · refreshed {scorecard.dataAsOf ? new Date(scorecard.dataAsOf).toLocaleTimeString() : "not available"}
           </p>
         </div>
-        {noVersionedData ? (
+        {noVersionedData && evaluationLag === "pending" ? (
+          /* EXPECTED, NOT BROKEN — so it does not wear the alarm colour.
+             This panel is pinned to TODAY, and `vapi-call-eval` is a 24-hour
+             tier job that further defers a call until VAPI analysis is ready or
+             the call is 24h old. Today's calls therefore cannot be scored
+             today. Showing a permanent amber warning for a guaranteed state is
+             how a real alarm gets trained away. */
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border border-border/40 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-foreground/55"
+            title="Calls are scored by a daily job, and each call waits for its provider analysis. Today's calls are evaluated on the next cycle."
+          >
+            <Clock className="h-3 w-3" /> Scored on the next daily cycle
+          </span>
+        ) : noVersionedData ? (
+          /* GENUINELY BEHIND. An unscored call older than two full cycles is a
+             stalled pipeline, not a pending one, and it keeps the alarm. */
           <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-300">
-            <ShieldAlert className="h-3 w-3" /> Awaiting v1 evaluations
+            <ShieldAlert className="h-3 w-3" /> Evaluations behind · oldest {oldestUnversionedHours}h
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
@@ -113,7 +150,15 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
         <div className="border border-border/30 bg-background/30 p-3">
           <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Inbound records</p>
           <p className="mt-1 text-xl font-bold tabular-nums">{counts.totalInboundRecords}</p>
-          <p className="text-[11px] text-foreground/45">{counts.versionedCalls} v1 · {counts.legacyUnversioned} legacy excluded</p>
+          {/* "LEGACY EXCLUDED" WAS THE WRONG WORD FOR TODAY'S CALLS. It reads
+              as "these predate the metric and never will be counted", when the
+              truth for a same-day call is "these have not been scored yet and
+              will be". The count is identical; the meaning is opposite, and the
+              operator acts differently on each. */}
+          <p className="text-[11px] text-foreground/45">
+            {counts.versionedCalls} v1 · {counts.legacyUnversioned}{" "}
+            {evaluationLag === "pending" ? "awaiting scoring" : "unscored"}
+          </p>
         </div>
         <div className="border border-border/30 bg-background/30 p-3">
           <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/40">Qualified inquiries</p>
