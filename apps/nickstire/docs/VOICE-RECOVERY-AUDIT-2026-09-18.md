@@ -71,6 +71,9 @@ Graded. Vendor claims are marked as such; three widely-repeated statistics did n
 | Vapi supports native simultaneous/sequential ring | **Refuted** | Multiple `destinations` are choices for the model, not a ring list. No `ringAll`/hunt-group field exists. `fallbackPlan` speaks a message and optionally ends the call; it does not dial a second number. |
 | Configurable ring timeout on the default path | **Refuted** | `dialTimeout` applies only when `sipVerb: "dial"`; default is SIP `refer`, where Vapi has already left the call. |
 | Warm transfer that verifies a HUMAN answered | **Exists, labelled experimental** | `warm-transfer-experimental` with `transferSuccessful` / `transferCancel`. |
+| No-answer / voicemail detection is impossible inside Vapi | **Refuted — both prior audits assumed this** | `warm-transfer-experimental` + the always-available `transferCancel` tool + `fallbackPlan` **does** detect voicemail, busy, IVR and no-answer and returns the caller to the assistant. The real trade-off is depending on a mode Vapi labels *Experimental* — not building custom Twilio orchestration. This materially reorders the roadmap: see §9 P3. |
+| A ring-timeout exists on the default transfer path | **Refuted** | `maxDurationSeconds` (default 120s) bounds the *transfer-assistant leg*, not destination ring time. No ring timer is documented for blind transfer. |
+| Multiple `destinations` on a transfer tool give failover | **Refuted** | "it does not call every destination in the array" — the model selects ONE by description. Not a ring strategy. |
 | Vapi assistant/tool versioning + rollback | **Exists** | Assistants and tools both version; an assistant restore publishes immediately, a tool restore only loads a draft. Version pinning does not work with a transient inline assistant. |
 | Webhook idempotency guarantee | **None documented** | No delivery id, no retry policy. Dedupe on `call.id` yourself. |
 | FCC treats AI voices as "artificial or prerecorded" | **Verified** | FCC 24-17, adopted 2026-02-02, docket CG 23-362 (not 02-278). |
@@ -78,10 +81,10 @@ Graded. Vendor claims are marked as such; three widely-repeated statistics did n
 | One-to-one consent rule | **Vacated and removed** | 11th Cir. 2026-01-24; FCC conformed the CFR 2026-08-29. |
 | Opt-out requires the literal word STOP | **Refuted** | 64.1200(a)(10): "any reasonable method", honored within 10 business days. |
 | 8am–9pm quiet hours clearly cover texts | **Contested** | EIA petition (DA 25-216) unresolved; 7th Cir. *Steidinger* (2026-07-14) held texts are not "calls" under §227(c)(5). Cleveland is in the 6th Circuit, which has ruled on neither. Keep the 8–8 window regardless. |
-| "Respond in 5 minutes → 8x–100x conversion" | **Contested, and misstated** | Traces to InsideSales/XANT; the HBR article was co-authored by InsideSales' CEO. It measures **contact and qualify odds, not sales**. The funder's own site now publishes 10x/6x, not 100x/21x. No independent replication found. |
+| "Respond in 5 minutes → 8x conversion" | **Refuted as stated** | Original located and read. The real figures are **100× (contacting)** and **21× (qualifying)** at 5 vs 30 minutes, and the study says in terms: *"This study did not address close ratios."* So the common "8x conversion" is wrong on both the multiplier and the outcome measured. Funded by InsideSales.com, which sells the remedy; the population is **outbound calls to web-form leads** — the opposite motion from an inbound caller to a tire shop. No independent 2023-2026 replication found. |
 | "78% buy from the first responder" | **Unsourced** | No traceable study in any year. |
 | "Up to 85% of callers who don't reach a human never call back" | **Unsourced** | Six vendors citing each other; no study. |
-| Text is the preferred service-update channel | **Real, but commonly misquoted** | J.D. Power 2025 ASI: 56% covers tire replacement **and quick oil change customers combined** — not tire customers alone. |
+| Text is the preferred service-update channel | **Secondary-sourced only — do not cite as primary** | One research pass reached J.D. Power's 2025 ASI figure via trade press and found the 56% covers tire replacement **and quick oil change customers combined**, not tire customers alone. A second, independent pass could not retrieve it at all (jdpower.com returned 403). Directionally useful, **unciteable** until someone puts the actual release in front of you. |
 | Price-shopper close rate ~8.3% vs ~44% overall | **Published, vendor-origin** | 3,144 opportunities, 40 stores; author consults for a firm selling sales training. No methodology disclosed. |
 | Missed-call text-back conversion lift | **No credible independent evidence exists** | Every trail ends at a vendor. Treat any lift number as an assumption to be measured, not cited. |
 
@@ -269,8 +272,11 @@ gate. Surface `getRecoveryQueueSummary` in the UI so "Needs Attention: N" replac
 Approval-first bulk SMS with batch send. Attribution confidence bands. Demote XP/levels
 below the operational surface.
 
-**P3 — 60–90 days.** Warm-transfer canary *only if* P1's measurement shows blind transfer
-is actually failing. Recovery holdout experiment to estimate incremental (not linked)
+**P3 — 60–90 days.** Warm-transfer canary *only if* P1's measurement shows blind transfer is
+actually failing. Note the roadmap correction: no-answer detection is **not** a custom-orchestration
+project. `warm-transfer-experimental` + `transferCancel` + `fallbackPlan` already does it. The
+decision is whether to depend on a mode Vapi labels *Experimental* — a much smaller, much cheaper
+question than both prior audits assumed, and one that should be answered by measurement, not taste. Recovery holdout experiment to estimate incremental (not linked)
 revenue. Seasonal routing priority.
 
 **Do not build yet:** a third opportunity queue; an ML lead score before outcomes are
