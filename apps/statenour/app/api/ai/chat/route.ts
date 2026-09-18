@@ -7,6 +7,7 @@ import {
   detectEscalationTier,
   ESCALATION_DAILY_CAP,
   countEscalationsToday,
+  isEscalationEnabled,
   type EscalationDecision,
 } from "@/lib/ai/vnext/escalation";
 import { buildSystemPrompt, detectTopicTier, computePromptVariant } from "@/lib/ai/system-prompt";
@@ -455,7 +456,7 @@ async function chatPostInner(req: Request) {
       apiKeyPresent: Boolean((process.env.ANTHROPIC_API_KEY ?? "").trim()),
       escalationsToday: __wantsDepth ? await countEscalationsToday() : 0,
       dailyCap: ESCALATION_DAILY_CAP,
-      enabled: process.env.NICK_ESCALATION_DISABLED !== "1",
+      enabled: isEscalationEnabled(),
       privateMode,
       untrustedInput: __webSearchIntent || __webSearchRecency,
       conversationEffort: undefined,

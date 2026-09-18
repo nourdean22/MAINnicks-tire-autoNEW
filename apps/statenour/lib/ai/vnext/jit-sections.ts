@@ -36,11 +36,21 @@ export interface JitGateResult {
   reason: "casual" | "content" | null;
 }
 
+/**
+ * 2026-09-18 · exported so the flag-board mirror can be verified by CALLING it.
+ * The registry entry for NICK_JIT_SECTIONS claims to mirror this expression;
+ * a test that pins the source TEXT instead passes on a stale comment, so the
+ * predicate is centralised here and the test invokes it (review, #2429).
+ */
+export function isJitSectionsOn(): boolean {
+  return process.env.NICK_JIT_SECTIONS !== "0";
+}
+
 export function applyJitSectionGate(
   prompt: string,
   userMessage: string | null | undefined,
 ): JitGateResult {
-  if (process.env.NICK_JIT_SECTIONS === "0") return { prompt, dropped: [], reason: null };
+  if (!isJitSectionsOn()) return { prompt, dropped: [], reason: null };
   const msg = (userMessage ?? "").trim();
   if (!msg) return { prompt, dropped: [], reason: null };
 

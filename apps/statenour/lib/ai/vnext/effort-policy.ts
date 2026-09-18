@@ -176,9 +176,21 @@ function pinEffort(input: RouteInput, decision: RouteDecision): RouteDecision {
  * the chat route's force precedence (tool-mandatory force and the user's
  * validated override always win).
  */
+/**
+ * 2026-09-18 · ONE predicate for BOTH consumers below.
+ *
+ * They previously carried the same expression twice. Review (#2429) named the
+ * exact failure that enables: change one consumer's semantics and a source-text
+ * pin stays green because the old text still exists in the other. Centralised,
+ * there is only one thing to change and the test calls it.
+ */
+export function isDeepAnthropicCanaryOn(): boolean {
+  return process.env.NICK_CANARY_DEEP_ANTHROPIC === "1";
+}
+
 export function canaryDeepForce(
   mode: string,
-  enabled = process.env.NICK_CANARY_DEEP_ANTHROPIC === "1",
+  enabled = isDeepAnthropicCanaryOn(),
 ): "anthropic" | undefined {
   return enabled && mode === "deep" ? "anthropic" : undefined;
 }
@@ -193,7 +205,7 @@ export function claude5EffortForAttempt(input: {
   modelId: string;
   enabled?: boolean;
 }): ClaudeEffort | undefined {
-  const enabled = input.enabled ?? process.env.NICK_CANARY_DEEP_ANTHROPIC === "1";
+  const enabled = input.enabled ?? isDeepAnthropicCanaryOn();
   if (!enabled || input.mode !== "deep") return undefined;
   return isClaude5ThinkingModel(input.modelId) ? "high" : undefined;
 }

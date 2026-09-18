@@ -828,6 +828,17 @@ export function isCostFirewallOn(): boolean {
 }
 
 /**
+ * Failover rescue — OFF unless NICK_FAILOVER_RESCUE=1. Enabling it authorizes
+ * real per-token spend, which is the operator's call.
+ *
+ * 2026-09-18 · exported so the flag-board mirror is verified by CALLING it
+ * rather than by pinning source text (review, #2429).
+ */
+export function isFailoverRescueOn(): boolean {
+  return process.env.NICK_FAILOVER_RESCUE === "1";
+}
+
+/**
  * 2026-08-11 · the cost firewall, as a pure filter. Under the firewall a
  * normal lane may only try zero-incremental providers (the Ollama flat
  * subscription); metered lanes require explicit consent (allowMetered).
@@ -1221,7 +1232,7 @@ export async function aiChat(
   // OFF by default: enabling it authorizes real per-token spend, which is
   // the operator's call, not this file's. Set NICK_FAILOVER_RESCUE=1.
   if (
-    process.env.NICK_FAILOVER_RESCUE === "1" &&
+    isFailoverRescueOn() &&
     isCostFirewallOn() &&
     !(opts.allowMetered ?? false)
   ) {
