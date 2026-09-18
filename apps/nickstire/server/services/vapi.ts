@@ -88,17 +88,81 @@ export interface VapiAssistantLite {
   name?: string;
 }
 
+/**
+ * ASSISTANTS THAT MUST NEVER BE DISPATCHED TO, WHATEVER POINTS AT THEM.
+ *
+ * `afcad79e` is a THIRD assistant on this VAPI account carrying the same
+ * display name as the live inbound receptionist ("Nick's Tire & Auto
+ * Receptionist"). Verified 2026-09-18 against production: the inbound line
+ * +12164249249 answers with `150fe622`, and the dedicated outbound caller is
+ * the separately-named `0daaf7dc`. `afcad79e` is an orphaned older copy.
+ *
+ * The duplicate NAME is what makes it dangerous rather than merely untidy:
+ * every name-match fallback in this file could select it, and the operator's
+ * own notes record this confusion biting twice before. This list removes it
+ * from selection entirely — by id, so a later rename in VAPI cannot
+ * reintroduce it, and so the guard does not depend on the naming convention
+ * that failed in the first place.
+ *
+ * DELIBERATELY A CODE-SIDE UNHOOK, NOT A DELETION. The assistant still exists
+ * in VAPI and can be renamed or deleted there when convenient; nothing here
+ * destroys operator state. Removing an id from this list restores it.
+ */
+export const RETIRED_ASSISTANT_IDS: readonly string[] = [
+  "afcad79e-ec33-4156-98fe-7eb325c1222a",
+];
+
+/** True when this id must not be dispatched to. Null/blank is not retired. */
+export function isRetiredAssistant(id: string | null | undefined): boolean {
+  if (!id) return false;
+  return RETIRED_ASSISTANT_IDS.includes(id.trim());
+}
+
+/**
+ * The outbound follow-up assistant id, or null when it must not be used.
+ *
+ * Three call sites read `VAPI_FOLLOWUP_ASSISTANT_ID` directly and hand it
+ * straight to VAPI without checking that it still resolves. If that pin still
+ * names a retired assistant, those paths would place real outbound calls with
+ * it. This is the one chokepoint they now share, so a retired pin degrades to
+ * "no outbound assistant configured" — the cron skips, which is the safe
+ * direction for an unattended customer-facing rail.
+ */
+export function followUpAssistantIdOrNull(): string | null {
+  const pinned = (process.env.VAPI_FOLLOWUP_ASSISTANT_ID || "").trim();
+  if (!pinned) return null;
+  if (isRetiredAssistant(pinned)) {
+    log.warn(
+      "VAPI_FOLLOWUP_ASSISTANT_ID points at a RETIRED assistant — refusing to dispatch outbound. Repoint it at the dedicated follow-up caller.",
+      { pinned },
+    );
+    return null;
+  }
+  return pinned;
+}
+
 export function pickReceptionistAssistantId(
-  assistants: VapiAssistantLite[],
+  allAssistants: VapiAssistantLite[],
 ): { id: string; reason: "env" | "name-match" | "name-match-ambiguous" | "name-exclude" | "fallback-first" } | null {
+  // Retired ids are removed BEFORE any rung runs, so no fallback can reach
+  // one. Filtering here rather than at each step means a future rung added
+  // below inherits the guard instead of having to remember it.
+  const assistants = allAssistants.filter((a) => !isRetiredAssistant(a.id));
   if (!assistants.length) return null;
 
   // 1. Env-pinned ID
   const pinned = process.env.VAPI_RECEPTIONIST_ASSISTANT_ID;
   if (pinned) {
-    const hit = assistants.find((a) => a.id === pinned);
-    if (hit) return { id: hit.id, reason: "env" };
-    log.warn("VAPI_RECEPTIONIST_ASSISTANT_ID set but no matching assistant found", { pinned });
+    if (isRetiredAssistant(pinned)) {
+      log.warn(
+        "VAPI_RECEPTIONIST_ASSISTANT_ID points at a RETIRED assistant — ignoring the pin and resolving by name.",
+        { pinned },
+      );
+    } else {
+      const hit = assistants.find((a) => a.id === pinned);
+      if (hit) return { id: hit.id, reason: "env" };
+      log.warn("VAPI_RECEPTIONIST_ASSISTANT_ID set but no matching assistant found", { pinned });
+    }
   }
 
   // 2. Prefer name containing "receptionist".
@@ -141,12 +205,15 @@ export function pickReceptionistAssistantId(
 // Returns null if there is only one assistant configured (no follow-up
 // in the org). The admin treats null as "no follow-up card to render".
 export function pickFollowUpAssistantId(
-  assistants: VapiAssistantLite[],
+  allAssistants: VapiAssistantLite[],
 ): { id: string; reason: "env" | "name-match" } | null {
+  // Same pre-filter as the receptionist picker, for the same reason: a retired
+  // id must be unreachable by every rung, including ones added later.
+  const assistants = allAssistants.filter((a) => !isRetiredAssistant(a.id));
   if (!assistants.length) return null;
 
   // 1. Env-pinned ID
-  const pinned = process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+  const pinned = followUpAssistantIdOrNull();
   if (pinned) {
     const hit = assistants.find((a) => a.id === pinned);
     if (hit) return { id: hit.id, reason: "env" };

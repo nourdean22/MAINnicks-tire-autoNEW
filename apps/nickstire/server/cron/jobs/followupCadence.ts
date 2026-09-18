@@ -70,7 +70,14 @@ function getClevelandHour(): number {
 export async function runFollowupCadence(): Promise<RunResult> {
   if (!process.env.VAPI_API_KEY) return { recordsProcessed: 0, details: "Skipped · VAPI_API_KEY missing" };
   if (process.env.FEATURE_FOLLOWUP_CADENCE !== "1") return { recordsProcessed: 0, details: "Skipped · FEATURE_FOLLOWUP_CADENCE != '1' (off by default)" };
-  if (!process.env.VAPI_FOLLOWUP_ASSISTANT_ID) return { recordsProcessed: 0, details: "Skipped · VAPI_FOLLOWUP_ASSISTANT_ID missing" };
+  // Routed through the shared chokepoint rather than reading the env directly:
+  // a pin naming a RETIRED assistant returns null here, so this rail skips
+  // instead of placing real outbound calls with a retired assistant. Skipping
+  // an unattended customer-facing rail is the safe direction; misdialling is not.
+  const { followUpAssistantIdOrNull } = await import("../../services/vapi");
+  if (!followUpAssistantIdOrNull()) {
+    return { recordsProcessed: 0, details: "Skipped · VAPI_FOLLOWUP_ASSISTANT_ID missing or retired" };
+  }
   // wave-145 · resolve the outbound number (env override → else auto-lookup
   // the shop's VAPI line). Was a bare VAPI_PHONE_NUMBER_ID env check that
   // skipped forever because the var was never set.
