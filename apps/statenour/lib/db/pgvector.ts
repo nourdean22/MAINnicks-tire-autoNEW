@@ -252,6 +252,30 @@ export async function knnSearch(
                  ? ""
                  : " AND bm.deleted_at IS NULL AND bm.superseded_by_id IS NULL AND (bm.valid_until IS NULL OR bm.valid_until > NOW())"
              }${catClause}))`;
+  /**
+   * SHADOW REPAIR (2026-09-18) · the liveness predicate above covers exactly
+   * ONE source type, and its own first line says so. `"sourceType" <>
+   * 'brain_memory' OR EXISTS(...)` short-circuits to TRUE for every other type,
+   * so situation_log / brain_dump / mission / chat_message / reflection had NO
+   * liveness filter at all. Measured 2026-09-18: 396 such rows surfaced in
+   * semantic search, consumed a LIMIT slot, and were then dropped by the caller
+   * when the source join returned nothing — a silently shortened result set.
+   *
+   * This is the MATERIALISED form of the same question, maintained by
+   * lib/db/embedding-shadow.ts. Two reasons it is a column and not six more
+   * EXISTS clauses: six correlated subqueries per row over a 97k-row vector
+   * scan is a real cost for an answer that changes at most once a day; and the
+   * column also lets brain_memory's 17,325 dead rows stop being scanned, which
+   * the EXISTS cannot do because it must read them to reject them.
+   *
+   * ADDITIVE ON PURPOSE — this does NOT replace `liveOnly`. If the sweeper
+   * never runs, every row has a NULL mark and behaviour is exactly what it is
+   * today; brain_memory keeps its real-time EXISTS so a memory deleted one
+   * second ago still vanishes immediately rather than waiting for a sweep.
+   * Today's behaviour is the floor, not the ceiling.
+   */
+  const shadowOnly =
+    opts.includeDeletedSources === true ? "" : ` AND "sourceUnavailableAt" IS NULL`;
   const sourceType = opts.sourceType;
   const op = opts.metric === "l2" ? "<->" : "<=>";
   const lit = vectorLiteral(embedding);
@@ -279,7 +303,7 @@ export async function knnSearch(
                 embedding_vec ${op} '${lit}'::vector AS distance
          FROM vector_embeddings
          WHERE "sourceType" = $1 AND embedding_vec IS NOT NULL
-           AND vector_dims(embedding_vec) = ${dim}${liveOnly}
+           AND vector_dims(embedding_vec) = ${dim}${liveOnly}${shadowOnly}
          ORDER BY embedding_vec ${op} '${lit}'::vector
          LIMIT ${limit}`,
         sourceType,
@@ -291,7 +315,7 @@ export async function knnSearch(
                 embedding_vec ${op} '${lit}'::vector AS distance
          FROM vector_embeddings
          WHERE embedding_vec IS NOT NULL
-           AND vector_dims(embedding_vec) = ${dim}${liveOnly}
+           AND vector_dims(embedding_vec) = ${dim}${liveOnly}${shadowOnly}
          ORDER BY embedding_vec ${op} '${lit}'::vector
          LIMIT ${limit}`,
       );
