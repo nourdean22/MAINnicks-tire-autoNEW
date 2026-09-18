@@ -2,24 +2,32 @@
 
 This project's Railway infrastructure is defined in [`railway.ts`](./railway.ts).
 
-**Status: PREPARED, NOT APPLIED.** The file is verified and committed; the `apply` is an
-operator action. Nothing in this directory has changed the live project yet.
+**Status: APPLIED 2026-09-18.** `railway config apply` ran against production, the three legacy
+`railway.json` files are deleted, and this file is now the single source of truth for build and
+deploy config.
+
+Verification immediately after the apply:
+
+```
+railway config plan
+✓ Your Railway configuration is already up to date.
+
+railway status
+  Services   statenour-worker · perplexica · statenour-web · MAINnicks-tire-auto · searxng-perplexica
+  Databases  Redis (redis-volume)
+  Buckets    nickstire-media
+```
+
+All nine resources still present — **nothing was deleted**, which is the risk that actually
+mattered: IaC removes any resource omitted from `resources:`.
 
 ---
 
 ## Why this exists
 
 `railway.json` / `railway.toml` ("Config as Code") is **deprecated with a hard cutoff of
-2026-12-01**. After that date the three `railway.json` files in this repo stop being read and each
-service falls back to its dashboard values — with **no error, no failed deploy, and no diff**.
-
-Three files are affected:
-
-| file | service |
-|---|---|
-| `apps/statenour/railway.json` | `statenour-web` |
-| `apps/nickstire/railway.json` | `MAINnicks-tire-auto` |
-| `apps/worker/railway.json` | `statenour-worker` |
+2026-12-01**. After that date those files stop being read and each service falls back to its
+dashboard values — with **no error, no failed deploy, and no diff**.
 
 ## ⚠ This file is not a straight `railway config pull`
 
@@ -35,59 +43,39 @@ pull-and-commit therefore silently drops every override. Measured 2026-09-18:
 
 **22 watch patterns**, including every `packages/**` entry — exactly the defect repaired in #2418
 (*"a shared-package change could not trigger the deploy that consumes it"*). It would have reverted
-on 2026-12-01 with nothing to notice. Those three arrays in `railway.ts` are **ported from the
-`railway.json` files on purpose**; everything else is verbatim live state.
+on 2026-12-01 with nothing to notice. Those three arrays were **ported by hand**; everything else is
+verbatim live state.
 
-## Verification already done
+## What was done (2026-09-18)
 
-```
-railway config plan
-Plan: 0 to add, 3 to change, 0 to destroy
-  ~ Update statenour-worker      build.watchPatterns
-  ~ Update MAINnicks-tire-auto   build.watchPatterns
-  ~ Update statenour-web         build.watchPatterns
-```
+1. `railway config pull` imported live state — missing the 22 patterns above.
+2. The three `watchPatterns` arrays were ported from the `railway.json` files.
+3. `railway config plan` → `0 to add, 3 to change, 0 to destroy`.
+4. `railway config apply` → 3 services updated; all three rebuilt, none went offline.
+5. `railway config plan` again → `already up to date`.
+6. The three `apps/*/railway.json` files were deleted — a service cannot be managed by both systems.
+7. `scripts/agent-os/railwayWatchCoverage.test.mjs` was rewritten to read **this file** as the
+   source of truth. It previously asserted `apps/<app>/railway.json` exists, so step 6 would have
+   turned CI red; and it inspected only the JSON, so dropping a `packages/**` entry here would have
+   left it green while production silently stopped redeploying on that package. It now also refuses
+   when the two sources disagree, which is the only dangerous state during a migration.
 
-**`0 to destroy` is the safety proof.** IaC deletes any resource omitted from the `resources:`
-array, and this project holds **5 services + a Redis database + 2 volumes + 1 storage bucket**
-(`statenour-web`, `MAINnicks-tire-auto`, `statenour-worker`, `perplexica`, `searxng-perplexica`,
-`Redis`, `redis-volume`, `perplexica-volume`, `nickstire-media`). All nine are captured.
+## If you need to run it again
 
-## Operator runbook — in this order
-
-Run from the **primary checkout** (`C:\Users\nourd\NOURCITY`), never a `.worktrees/*` worktree:
-every `node_modules` there is an NTFS junction, and a package install inside one offers to wipe the
-shared tree with the prompt defaulting to yes.
-
-**1. Railway CLI must be ≥ 5.42.1.** The IaC engine now ships in the CLI, not the TypeScript SDK.
+The IaC engine ships in the **Railway CLI ≥ 5.42.1**, not the TypeScript SDK:
 
 ```bash
 npm install -g @railway/cli@latest
 ```
 
-**2. Install the SDK at the repo root** so `railway.ts`'s `import ... from "railway/iac"` resolves.
-This edits `package.json` + `pnpm-lock.yaml`, and `pnpm-lock.yaml` is itself a watch pattern for all
-three services — expect a deploy.
+Run from the **primary checkout**, never a `.worktrees/*` worktree — every `node_modules` there is
+an NTFS junction, and a package install inside one offers to wipe the shared tree with the prompt
+defaulting to yes.
 
-```bash
-pnpm add -w -D railway
-```
+`railway.ts` imports `railway/iac`, so the `railway` package must resolve from wherever the file is
+evaluated (`pnpm add -w -D railway`, or evaluate a copy with `--file` from a directory that has it).
 
-**3. Re-verify the plan before applying.** It must still read `0 to destroy`.
-
-```bash
-railway config plan --verbose
-```
-
-**4. Apply** — this is a deploy-config change against production.
-
-```bash
-railway config apply
-```
-
-**5. Only after a green apply, delete the three `railway.json` files.** A service cannot be managed
-by both systems, so they are removed *after* the handover, never before — deleting them first drops
-the overrides immediately.
+**Always run `railway config plan` and confirm `0 to destroy` before `apply`.**
 
 ## Notes
 

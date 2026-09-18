@@ -82,6 +82,16 @@ async function runHybridSearch(opts: {
       ? `'brain_memory','chat_message'`
       : `'${source}'`;
 
+  // SHADOW FILTER (2026-09-18 · review on #2430). This route runs its OWN KNN
+  // instead of lib/db/pgvector.ts knnSearch, so it inherited NEITHER liveness
+  // guard — and unlike memory-recall / contextual-recall / brain-save it does not
+  // JOIN a source table, it returns `content` straight off the embedding. That is
+  // what made it the worst of the twelve raw vector-search paths: a hard-deleted
+  // chat message could be READ BACK here in full, from the index's own copy.
+  //
+  // The rule this encodes: a query that joins its source table is safe by
+  // construction; one that reads `content` off vector_embeddings must filter
+  // explicitly. tests/repo/vector-search-shadow-filter.test.ts pins it.
   const knnRows = await prisma
     .$queryRawUnsafe<
       Array<{
@@ -97,6 +107,7 @@ async function runHybridSearch(opts: {
               (embedding_vec_1536 <=> '${vecLit}'::vector(${TARGET_DIM})) AS distance
        FROM vector_embeddings
        WHERE embedding_vec_1536 IS NOT NULL
+         AND "sourceUnavailableAt" IS NULL
          AND "sourceType" = ANY(ARRAY[${sourceFilter}]::text[])
        ORDER BY embedding_vec_1536 <=> '${vecLit}'::vector(${TARGET_DIM})
        LIMIT ${KNN_TOP}`,
