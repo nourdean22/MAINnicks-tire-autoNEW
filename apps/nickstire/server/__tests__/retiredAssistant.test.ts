@@ -16,10 +16,15 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+// Only the PUBLIC surface is imported. `RETIRED_ASSISTANT_IDS` and
+// `isRetiredAssistant` are module-private on purpose: no production module
+// imports them, and the knip orphan gate is right that an export consumed only
+// by its own test is an orphan. Exporting them to make testing easier would
+// have been inventing a consumer. Everything below is asserted through the
+// three functions production actually calls, which is the stronger test anyway
+// — it pins BEHAVIOUR rather than the mechanism that produces it.
 import {
-  RETIRED_ASSISTANT_IDS,
   followUpAssistantIdOrNull,
-  isRetiredAssistant,
   pickFollowUpAssistantId,
   pickReceptionistAssistantId,
 } from "../services/vapi";
@@ -52,29 +57,33 @@ afterEach(() => {
   if (ORIG_FOLLOWUP !== undefined) process.env.VAPI_FOLLOWUP_ASSISTANT_ID = ORIG_FOLLOWUP;
 });
 
-describe("the retired id is named, and only that one", () => {
-  it("the duplicate receptionist is retired", () => {
-    expect(RETIRED_ASSISTANT_IDS).toContain(RETIRED);
-    expect(isRetiredAssistant(RETIRED)).toBe(true);
+describe("the retired id is unreachable, and only that one", () => {
+  it("the duplicate receptionist can never be selected", () => {
+    expect(pickReceptionistAssistantId([{ id: RETIRED, name: "Receptionist" }])).toBeNull();
   });
 
-  it("POSITIVE CONTROL: the two LIVE assistants are NOT retired", () => {
-    // Without this, a predicate returning true for everything would satisfy
-    // every assertion below and silently disable the whole voice system.
-    expect(isRetiredAssistant(INBOUND)).toBe(false);
-    expect(isRetiredAssistant(OUTBOUND)).toBe(false);
+  it("POSITIVE CONTROL: the two LIVE assistants are still selectable", () => {
+    // Without this, a guard that retired everything would satisfy every
+    // assertion below and silently disable the whole voice system.
+    expect(pickReceptionistAssistantId([{ id: INBOUND, name: "Receptionist" }])?.id).toBe(INBOUND);
+    process.env.VAPI_FOLLOWUP_ASSISTANT_ID = OUTBOUND;
+    expect(followUpAssistantIdOrNull()).toBe(OUTBOUND);
   });
 
-  it("null, undefined and blank are not retired", () => {
-    expect(isRetiredAssistant(null)).toBe(false);
-    expect(isRetiredAssistant(undefined)).toBe(false);
-    expect(isRetiredAssistant("")).toBe(false);
+  it("an unset outbound pin is null, not retired-by-accident", () => {
+    expect(followUpAssistantIdOrNull()).toBeNull();
   });
 
-  it("matches on the trimmed id — a padded env value is still retired", () => {
+  it("a PADDED retired pin is still caught", () => {
     // `NICK_AGENT_FOLLOWUPS=" 1 "` is prior art for a padded env value in this
-    // repo; a padded pin must not slip past the guard.
-    expect(isRetiredAssistant(`  ${RETIRED}  `)).toBe(true);
+    // repo; a padded pin must not slip past the guard on whitespace alone.
+    process.env.VAPI_FOLLOWUP_ASSISTANT_ID = `  ${RETIRED}  `;
+    expect(followUpAssistantIdOrNull()).toBeNull();
+  });
+
+  it("a PADDED live pin still works — trimming must not break the healthy case", () => {
+    process.env.VAPI_FOLLOWUP_ASSISTANT_ID = `  ${OUTBOUND}  `;
+    expect(followUpAssistantIdOrNull()).toBe(OUTBOUND);
   });
 });
 

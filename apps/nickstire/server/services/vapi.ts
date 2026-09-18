@@ -108,12 +108,12 @@ export interface VapiAssistantLite {
  * in VAPI and can be renamed or deleted there when convenient; nothing here
  * destroys operator state. Removing an id from this list restores it.
  */
-export const RETIRED_ASSISTANT_IDS: readonly string[] = [
+const RETIRED_ASSISTANT_IDS: readonly string[] = [
   "afcad79e-ec33-4156-98fe-7eb325c1222a",
 ];
 
 /** True when this id must not be dispatched to. Null/blank is not retired. */
-export function isRetiredAssistant(id: string | null | undefined): boolean {
+function isRetiredAssistant(id: string | null | undefined): boolean {
   if (!id) return false;
   return RETIRED_ASSISTANT_IDS.includes(id.trim());
 }
