@@ -216,13 +216,34 @@ export const vapiRouter = router({
       return createProductionAssistant(serverUrl);
     }),
 
+  /**
+   * Does the line callers dial answer with the assistant we push config to?
+   *
+   * Sits immediately above `updateAssistant` because it is the question that
+   * makes that mutation meaningful: a push can be perfectly deterministic and
+   * still land on an assistant nobody reaches. Read-only.
+   */
+  assistantRouting: adminProcedure.query(async () => {
+    const { getAssistantRoutingTruth } = await import("../services/vapi");
+    return getAssistantRoutingTruth();
+  }),
+
   updateAssistant: adminProcedure
     .input(z.object({
       // Optional — defaults to the canonical INBOUND receptionist
       // (VAPI_RECEPTIONIST_ASSISTANT_ID). The panel used to pass the first
-      // assistant in the list, which is actually the OUTBOUND follow-up
-      // (afcad79e) — so "Push Latest Config" silently updated the wrong
-      // assistant and the receptionist never got the new prompt/config.
+      // assistant in the list rather than the pinned one, so "Push Latest
+      // Config" silently updated the wrong assistant and the receptionist
+      // never got the new prompt/config.
+      //
+      // THE ID-TO-ROLE MAPPING THIS COMMENT USED TO ASSERT IS NO LONGER TRUE,
+      // so it has been removed rather than corrected. It named afcad79e as the
+      // outbound follow-up; as the panel lists them on 2026-09-18 that id is
+      // one of TWO assistants called "Nick's Tire & Auto Receptionist", and the
+      // follow-up is a separately-named third (0daaf7dc). Assistant ids and
+      // names are operator-editable state in VAPI, so hardcoding either into a
+      // comment creates a cache with no invalidation. Trust the env pin and the
+      // log line, which report what actually happened on the day.
       assistantId: z.string().min(1).max(100).optional(),
       serverUrl: z.string().url().optional(),
     }))

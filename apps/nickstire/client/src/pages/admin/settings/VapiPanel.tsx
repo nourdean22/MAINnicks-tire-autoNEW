@@ -27,6 +27,10 @@ export default function VapiPanel() {
     staleTime: 60_000,
     enabled: status?.connected ?? false,
   });
+  // Whether the line callers dial answers with the assistant "Push Latest
+  // Config" writes to. Read-only; three states, and an unread binding is
+  // "unverified" rather than a green.
+  const { data: routing } = trpc.vapi.assistantRouting.useQuery(undefined, { staleTime: 60_000 });
   // Lessons the receptionist prompt will absorb on the next "Push Latest Config".
   const { data: promptLessons } = trpc.vapi.promptLessons.useQuery(undefined, {
     staleTime: 60_000,
@@ -131,6 +135,31 @@ export default function VapiPanel() {
               </button>
             )}
           </div>
+          {/* DOES THE PUSH REACH THE LINE CALLERS DIAL?
+              Rendered directly under the button because it is the only thing
+              that makes the button's success meaningful. Three states, never
+              two: an unread binding says "unverified", never "match" — the
+              whole point is that a confident green here is earned. */}
+          {routing && (
+            <div
+              className={
+                routing.state === "mismatch"
+                  ? "border border-red-400/40 bg-red-500/5 p-2.5"
+                  : routing.state === "match"
+                    ? "border border-emerald-400/25 bg-emerald-500/[0.04] p-2.5"
+                    : "border border-border/30 bg-background/30 p-2.5"
+              }
+            >
+              <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-foreground/60 mb-1">
+                {routing.state === "mismatch"
+                  ? "Pushes are not reaching the answering assistant"
+                  : routing.state === "match"
+                    ? "Push target answers the inbound line"
+                    : "Routing unverified"}
+              </p>
+              <p className="text-[11px] text-foreground/60">{routing.detail}</p>
+            </div>
+          )}
           {promptLessons && promptLessons.length > 0 && (
             <div className="border border-primary/20 bg-primary/[0.04] p-2.5">
               <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-primary/80 mb-1">
