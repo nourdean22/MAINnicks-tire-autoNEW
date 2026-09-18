@@ -751,6 +751,30 @@ export const lotRouter = router({
         LIMIT 20
       `));
 
+      // HOW STEADY HAS IT BEEN, not just what is it now.
+      //
+      // A card showing `HEALTHY` says nothing about whether the source has been dropping all
+      // morning, and the 20-row transition list above is shared across every camera, so a
+      // busy one crowds the others out of it entirely. Measured 2026-09-18: `sign` went to
+      // CAMERA_OFFLINE 17 times and DEGRADED_VISION 12 times between 08:05 and 10:50 while
+      // the badge read HEALTHY whenever anyone happened to look -- which is exactly how a
+      // flapping source gets reported as a stable one.
+      //
+      // `drops` counts only the states where the lot is NOT being watched. A return to
+      // HEALTHY is not an incident, so counting every transition would double every outage
+      // and make a recovering camera look worse than one that stayed down.
+      const stability = rowsOf(await d.execute(sql`
+        SELECT camera,
+               SUM(CASE WHEN toState IN ('CAMERA_OFFLINE','DEGRADED_VISION','PRODUCER_OFFLINE',
+                                         'CALIBRATION_INVALID','STALE') THEN 1 ELSE 0 END) AS drops,
+               COUNT(*) AS transitions
+        FROM camera_health_events
+        WHERE ${sql.raw("DATE(CONVERT_TZ(at, '+00:00', 'America/New_York'))")}
+            = ${sql.raw("DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))")}
+        GROUP BY camera
+      `));
+      const byStability = new Map(stability.map((s) => [String(s.camera), s]));
+
       const byCamera = new Map(runtime.map((r) => [String(r.camera), r]));
       const bool = (v: unknown): boolean | null =>
         v === null || v === undefined ? null : Boolean(Number(v));
@@ -785,6 +809,15 @@ export const lotRouter = router({
           reason: verdict.reason,
           ageSeconds: r ? numOrNull(r.ageSeconds) : null,
           stateForSeconds: r ? numOrNull(r.stateForSeconds) : null,
+          // NULL, not 0, when this camera has no row today. "It has not dropped" and "no
+          // event was ever recorded for it" are different claims, and a camera that has
+          // never reported must not render as the steadiest one on the screen.
+          stability: byStability.has(camera)
+            ? {
+                dropsToday: num(byStability.get(camera)!.drops),
+                transitionsToday: num(byStability.get(camera)!.transitions),
+              }
+            : null,
           mode: r ? String(r.mode ?? "PRODUCTION") : null,
           commissioningRunId: r ? str(r.commissioningRunId) : null,
           producer: r
