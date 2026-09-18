@@ -149,6 +149,44 @@ describe("planQuery — classes", () => {
     }
   });
 
+  /**
+   * 2026-09-18 · anaphoric coverage, pinned both ways.
+   *
+   * Why precision matters as much as recall here: the referent is prepended to
+   * getContextualMemories' message array, and deriveFastTopics caps at 8
+   * topics. On a SELF-CONTAINED question the prior turn's words would crowd
+   * out the real ones, so a false anaphoric match degrades recall rather than
+   * improving it.
+   */
+  it("anaphoric · recall: third-person pronouns resolve, not just object pronouns", () => {
+    const anaphoric = [
+      "how much was it?",
+      "what about that?",
+      "how did that go?",
+      "did they ever get back?",
+      "did he approve it?",
+      "what did she say?",
+      "are they still coming?",
+      "send them the invoice",
+    ];
+    const missed = anaphoric.filter((m) => !plan(m, ["We agreed Moe would handle the supplier call."]).classes.includes("anaphoric_followup"));
+    expect(missed).toEqual([]);
+  });
+
+  it("anaphoric · precision: a self-contained question takes no referent", () => {
+    const selfContained = [
+      "what did the alignment rack cost",
+      "remind me about the Acima rollout",
+      "how much do tires cost in Cleveland",
+      "book an oil change for Tuesday",
+      "what is my current balance",
+      "call Moe about the supplier",
+      "draft the pricing sheet",
+    ];
+    const falsePositives = selfContained.filter((m) => plan(m, ["We agreed Moe would handle the supplier call."]).classes.includes("anaphoric_followup"));
+    expect(falsePositives).toEqual([]);
+  });
+
   it("correction: 'which one is current?' and a changed amount", () => {
     expect(plan("which one is current?").classes[0]).toBe("correction");
     const p = plan("I no longer take 20mg, it's 10mg");
