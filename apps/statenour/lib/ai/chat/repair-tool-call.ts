@@ -21,10 +21,27 @@
  * invariant that survives is narrower and truer: **a repair never targets a
  * name that is not in the catalog**, because that is a hallucination rather
  * than a pruned tool.
+ *
+ * 2026-09-18 · this file repaired only hallucinated NAMES, and declined
+ * argument failures on the stated grounds that they were "a different failure
+ * mode we deliberately leave to the SDK". `scripts/tool-input-failure-census.ts`
+ * measured the split for the first time and it is the other way round: among
+ * failures from tools still called in the last 14 days, ARGUMENT leads 11 to 1.
+ * Worse, the three prod examples this header cites as motivation for the
+ * 2026-09-16 change — `arsenal.webSearch`, `person.update`, `getRepoMap` — are
+ * now 68, 68 and 37 days cold, so the name lane was itself tuned on evidence
+ * that has since expired. The name repair stays (it is cheap and correct); step
+ * 0 adds the argument lane, which is where the live traffic actually is.
  */
 
-import { NoSuchToolError, type ToolCallRepairFunction, type ToolSet } from "ai";
+import {
+  InvalidToolInputError,
+  NoSuchToolError,
+  type ToolCallRepairFunction,
+  type ToolSet,
+} from "ai";
 import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
+import { salvageToolInput, type InputValidator } from "@/lib/ai/chat/salvage-tool-input";
 
 /**
  * Every tool that EXISTS, as opposed to every tool attached this turn. The
@@ -76,6 +93,31 @@ const ALIASES: Record<string, Alias> = {
 const dotToCamel = (n: string): string =>
   n.replace(/[.\-_ ]+([a-z0-9])/gi, (_, c: string) => c.toUpperCase());
 
+/**
+ * A validator backed by the tool's OWN zod schema, so a salvaged argument set
+ * is only returned when it will actually parse.
+ *
+ * Returns undefined when the tool exposes nothing with `safeParse` — then
+ * `salvageToolInput` falls back to "first parseable object" and the SDK
+ * re-validates it, which is the same outcome the operator gets today if it is
+ * wrong. Never throws: a schema whose `safeParse` blows up counts as a failed
+ * candidate, not a failed turn.
+ */
+function validatorFor(toolSet: ToolSet, name: string): InputValidator | undefined {
+  const entry = (toolSet as Record<string, { inputSchema?: unknown } | undefined>)[name];
+  const schema = entry?.inputSchema as
+    | { safeParse?: (v: unknown) => { success: boolean } }
+    | undefined;
+  if (typeof schema?.safeParse !== "function") return undefined;
+  return (value: unknown) => {
+    try {
+      return schema.safeParse!(value).success;
+    } catch {
+      return false;
+    }
+  };
+}
+
 function safeParse(text: string): Record<string, unknown> {
   try {
     const v = JSON.parse(text) as unknown;
@@ -95,8 +137,28 @@ export function buildRepairToolCall(
   knownTools: ReadonlySet<string> = CATALOG_NAMES,
 ): ToolCallRepairFunction<ToolSet> {
   return async ({ toolCall, error }) => {
-    // Only handle "no such tool" — argument-validation errors are a different
-    // failure mode we deliberately leave to the SDK.
+    // 0) 2026-09-18 · ARGUMENT failures. This branch used to read "argument-
+    // validation errors are a different failure mode we deliberately leave to
+    // the SDK" — a design note written without a measurement, and backwards.
+    // `scripts/tool-input-failure-census.ts` split every recorded tool failure
+    // by class AND by whether the tool is still in use: LIVE argument 11, LIVE
+    // name 1. The class this file declined is the only one still happening,
+    // and all 11 are one shape — several tool calls glued into one arguments
+    // string, which `JSON.parse` then rejects whole. Rationale and the three
+    // no-regression guards live in `salvage-tool-input.ts`.
+    if (InvalidToolInputError.isInstance(error)) {
+      // A tool the set does not hold cannot be argument-repaired; that is a
+      // NAME problem wearing an argument error, and steps 1-3 own it.
+      if (!(toolCall.toolName in toolSet)) return null;
+      const salvaged = salvageToolInput(
+        toolCall.input ?? "",
+        validatorFor(toolSet, toolCall.toolName),
+      );
+      if (!salvaged) return null;
+      return { ...toolCall, input: salvaged.input };
+    }
+
+    // Everything below repairs a hallucinated tool NAME.
     if (!NoSuchToolError.isInstance(error)) return null;
 
     const name = toolCall.toolName;
