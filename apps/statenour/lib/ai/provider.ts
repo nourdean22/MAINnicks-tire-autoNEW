@@ -1539,7 +1539,7 @@ export async function aiChat(
 // context-reranker.ts's EMBED_CACHE). getEmbedding has a fixed text-only
 // signature with a hardcoded input_type, so a text key is safe. Successes only
 // — never cache the [] fail-soft path, so a transient embedder error retries.
-const EMBED_MEMO = new Map<string, { vec: number[]; expiresAt: number }>();
+const EMBED_MEMO = new Map<string, { vec: number[]; model: string | null; expiresAt: number }>();
 const EMBED_MEMO_TTL_MS = 45_000;
 
 // djb2 — tiny, fast, no deps. Cache-key only over the embed window, so a
@@ -1551,19 +1551,56 @@ function embedMemoKey(s: string): string {
   return `${s.length}:${h >>> 0}`;
 }
 
+/**
+ * An embedding plus the identity of the space it belongs to.
+ *
+ * ★★★ WHY THE MODEL COMES BACK WITH THE VECTOR. Measured 2026-09-18: of 97,401
+ * rows in `vector_embeddings`, the embedding SPACE was knowable on 4.3%. Not
+ * because a backfill was skipped — because this function has always returned a
+ * bare `number[]`, so no writer could record what produced it even when it
+ * wanted to. The `model` column was filled by whoever happened to have a guess
+ * in scope, which is how it ended up holding real model names, the literal
+ * string "default", and content fingerprints all at once.
+ *
+ * Two vectors from different models are not comparable, and cosine similarity
+ * between them is a number with no meaning rather than an error. Provenance has
+ * to travel with the vector or it does not exist.
+ */
+export interface EmbeddingResult {
+  vec: number[];
+  /** Provider-qualified model id, or null when every provider failed. */
+  model: string | null;
+}
+
+/**
+ * Embed `text`, discarding provenance.
+ *
+ * ⚠ PREFER `getEmbeddingWithModel` ON ANY PATH THAT PERSISTS THE VECTOR.
+ * This wrapper exists because ~14 read-side callers only ever compare or rank
+ * in-process, where the space is implicitly "whatever the query used" and
+ * recording it would be noise. A WRITE that drops the model is how the 4.3%
+ * happened.
+ */
 export async function getEmbedding(text: string): Promise<number[]> {
+  return (await getEmbeddingWithModel(text)).vec;
+}
+
+/** Embed `text` and report which model produced it. */
+export async function getEmbeddingWithModel(text: string): Promise<EmbeddingResult> {
   const memoKey = embedMemoKey(text.slice(0, 30_000));
   const now = Date.now();
   const hit = EMBED_MEMO.get(memoKey);
-  if (hit && hit.expiresAt > now) return hit.vec;
+  if (hit && hit.expiresAt > now) return { vec: hit.vec, model: hit.model };
 
-  const vec = await getEmbeddingUncached(text);
+  const out = await getEmbeddingUncached(text);
   // Cache successes only; the [] fail-soft path must stay retryable.
-  if (vec.length > 0) EMBED_MEMO.set(memoKey, { vec, expiresAt: now + EMBED_MEMO_TTL_MS });
-  return vec;
+  if (out.vec.length > 0) {
+    EMBED_MEMO.set(memoKey, { vec: out.vec, model: out.model, expiresAt: now + EMBED_MEMO_TTL_MS });
+  }
+  return out;
 }
 
-async function getEmbeddingUncached(text: string): Promise<number[]> {
+async function getEmbeddingUncached(text: string): Promise<EmbeddingResult> {
   const input = text.slice(0, 30_000);
 
   const COHERE_API_KEY = cleanEnv(process.env.COHERE_API_KEY);
@@ -1615,9 +1652,9 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
               `[ai:embedding] Cohere returned ${vec.length}-dim (contract: 1024) — normalizing`,
             );
             const { padToVectorDim } = await import("@/lib/db/pgvector");
-            return padToVectorDim(vec, 1024);
+            return { vec: padToVectorDim(vec, 1024), model: `cohere:${model}` };
           }
-          return vec;
+          return { vec, model: `cohere:${model}` };
         }
         console.warn(
           `[ai:embedding] Cohere returned 200 but no embedding in payload (keys: ${Object.keys(data ?? {}).join(",")})`,
@@ -1638,10 +1675,10 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
   // Spanish + 100 langs · ~$0.0001/call. See lib/ai/hf-embeddings.ts +
   // docs/runbooks/hf-embeddings-cutover.md.
   {
-    const { getHfEmbedding, isHfEmbeddingAvailable } = await import("./hf-embeddings");
+    const { getHfEmbedding, isHfEmbeddingAvailable, hfEmbeddingModel } = await import("./hf-embeddings");
     if (isHfEmbeddingAvailable()) {
       const vec = await getHfEmbedding(input);
-      if (vec && vec.length > 0) return vec;
+      if (vec && vec.length > 0) return { vec, model: `hf:${hfEmbeddingModel()}` };
     }
   }
 
@@ -1657,7 +1694,7 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
       if (res.ok) {
         const data = await res.json();
         const vec = data.data?.[0]?.embedding;
-        if (vec?.length > 0) return vec;
+        if (vec?.length > 0) return { vec, model: "openai:text-embedding-3-small" };
       } else {
         const errBody = await res.text().catch(() => "");
         console.warn(
@@ -1687,7 +1724,7 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
       if (res.ok) {
         const data = await res.json();
         const vec = data.data?.[0]?.embedding;
-        if (vec && vec.length > 0) return vec;
+        if (vec && vec.length > 0) return { vec, model: "openrouter:openai/text-embedding-3-small" };
       } else {
         const errBody = await res.text().catch(() => "");
         console.warn(
@@ -1702,7 +1739,10 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
   log.warn("embedding.all_failed", {
     tried: ["cohere", "hf", "openai", "openrouter"],
   });
-  return [];
+  // ⚠ model null, NOT a placeholder. "unknown" written into the identity column
+  // is what produced the 1,431 rows reading "default" — a value that names
+  // nothing while looking like it names something.
+  return { vec: [], model: null };
 }
 
 // ---------------------------------------------------------------------------
