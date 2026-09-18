@@ -2846,7 +2846,36 @@ model VectorEmbedding {
   embedding_vec      Unsupported("vector")?
   embedding_vec_1536 Unsupported("vector(1536)")?
   embedding_dim      Int?
+  /// WHICH EMBEDDING SPACE THIS VECTOR BELONGS TO, and nothing else.
+  ///
+  /// Provider-qualified, written by lib/ai/provider.ts `getEmbeddingWithModel`
+  /// (e.g. `cohere:embed-v4.0`, `openai:text-embedding-3-small`). Two vectors
+  /// from different models are NOT comparable, and cosine similarity between
+  /// them returns a plausible number rather than an error — so an unrecorded
+  /// space is a silent correctness hazard, not merely missing metadata.
+  ///
+  /// ⚠⚠ THIS COLUMN WAS OVERLOADED THREE WAYS UNTIL 2026-09-18: real model
+  /// identities, the literal string "default" (1,431 rows, naming nothing), and
+  /// 16-hex-char CONTENT FINGERPRINTS that tool-embeddings.ts used for cache
+  /// staleness. The space was knowable on 4.3% of 97,401 rows. The fingerprint
+  /// moved to `contentFingerprint`; do not put anything but a model id here.
+  ///
+  /// NULL means "we do not know" and is the honest value for the ~91.5k rows
+  /// written before the provider reported its own identity. It is NOT
+  /// backfillable — nothing recorded which provider produced them, and a guess
+  /// would manufacture provenance.
   model              String?                      @db.VarChar(64)
+  /// Cache-staleness key for `sourceType = "tool_catalog"`, NOT an identity.
+  ///
+  /// lib/ai/tool-embeddings.ts hashes the tool's description and compares; a
+  /// mismatch means re-embed. It lived in `model` until 2026-09-18 ("model
+  /// column doubles as the fingerprint", per its own comment), which is what
+  /// made `model` untrustworthy.
+  ///
+  /// NULL on every pre-migration row BY DESIGN — the comparison then fails, the
+  /// tool is re-embedded once, and the row is rewritten with both columns
+  /// correct. The lane self-heals rather than needing a data migration.
+  contentFingerprint String?
   updatedAt          DateTime                     @updatedAt
 
   @@index([sourceType, sourceId]) // composite — fixes slow lookup queries

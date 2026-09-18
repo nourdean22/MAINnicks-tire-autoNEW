@@ -43,7 +43,7 @@ async function main() {
   // Dynamic imports AFTER env load · same pattern as translate-skills.
   const provMod = await import("@/lib/ai/provider");
   const prismaMod = await import("@/lib/prisma");
-  const getEmbedding = provMod.getEmbedding;
+  const getEmbeddingWithModel = provMod.getEmbeddingWithModel;
   const prisma = prismaMod.prisma;
 
   const regPath = resolve(process.cwd(), "data", "skills-registry.json");
@@ -87,7 +87,7 @@ async function main() {
     ].filter(Boolean).join("\n").slice(0, 4000);
 
     try {
-      const vec = await getEmbedding(probeText);
+      const { vec, model } = await getEmbeddingWithModel(probeText);
       if (!Array.isArray(vec) || vec.length === 0) {
         failed++;
         continue;
@@ -99,7 +99,12 @@ async function main() {
           content: probeText.slice(0, 1000),
           embedding: JSON.stringify(vec),
           embedding_dim: vec.length,
-          model: "default",
+          // ⚠ 2026-09-18 · this wrote the literal string "default" on 1,431
+          // rows. A placeholder in an identity column is worse than NULL: it
+          // looks like an answer, so a reader stops asking. The provider now
+          // reports which model produced the vector; if it could not, `model`
+          // stays null and says so honestly.
+          model,
         },
       });
       success++;

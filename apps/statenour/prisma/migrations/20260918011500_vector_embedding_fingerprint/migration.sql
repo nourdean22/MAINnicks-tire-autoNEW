@@ -1,0 +1,55 @@
+-- vector_embeddings · separate the cache fingerprint from the model identity · 2026-09-18
+-- PARKED until applied. ADDITIVE · nullable · NO DATA MUTATION · no backfill.
+--
+-- WHY THIS EXISTS
+-- `vector_embeddings."model"` is an OVERLOADED COLUMN. Measured 2026-09-18 over
+-- 97,401 rows it simultaneously held three incompatible things:
+--
+--   cohere-embed-v4.0 / embed-v4.0 / venice-bge-m3   4201  a real model identity
+--   "default"                                        1431  a placeholder naming nothing
+--   16-hex-char strings                               189  a CONTENT FINGERPRINT used for
+--                                                          cache staleness by
+--                                                          lib/ai/tool-embeddings.ts, whose
+--                                                          own comment says "model column
+--                                                          doubles as the fingerprint"
+--   NULL                                            91580
+--
+-- ⇒ the embedding SPACE was knowable on 4.3% of rows.
+--
+-- Two vectors from different models are not comparable, and cosine similarity
+-- between them returns a plausible number rather than an error. So an identity
+-- column that is only sometimes an identity is worse than an empty one: a
+-- reader would eventually believe it. This is the same defect repaired in
+-- cron_job_log.status on 2026-09-17, where one token meant both "invoked" and
+-- "finished, some children failed" and every consumer was silently wrong.
+--
+-- ⚠⚠ NO UPDATE STATEMENT HERE, ON PURPOSE. The obvious migration moves the 189
+-- hex values from "model" into the new column. It is not needed: the fingerprint
+-- exists ONLY to detect a stale cache entry, so a NULL "contentFingerprint" on a
+-- pre-migration row simply fails the comparison, the tool is re-embedded once,
+-- and the row is rewritten with BOTH columns correct. The lane self-heals on its
+-- next hydrate at the cost of ~189 cheap re-embeds.
+--
+-- That matters beyond tidiness: a data-moving UPDATE against production is a far
+-- bigger authorization than a nullable ADD COLUMN, and the repo's own rule is to
+-- repair derived state in shadow rather than mutate original rows. Choosing the
+-- self-healing path means this migration cannot corrupt anything it touches,
+-- because it touches no rows.
+--
+-- ⚠ HISTORICAL NULLs IN "model" ARE NOT BACKFILLABLE AND MUST STAY NULL.
+-- Nothing records which provider produced the 91,580 older vectors; the chain
+-- (Cohere -> HF -> OpenAI -> OpenRouter) fell over silently. Writing a guess
+-- would manufacture provenance, which is the exact fabrication class that made
+-- "default" worthless. NULL is the honest value for "we do not know".
+--
+-- COLUMN NAME — READ BEFORE "FIXING" THE CASING.
+-- The TABLE is "vector_embeddings" via @@map, but its COLUMNS are NOT mapped:
+-- they keep Prisma's camelCase spelling verbatim ("sourceType", "sourceId",
+-- "embedding_dim" is the exception and is already snake). Hence
+-- "contentFingerprint", double-quoted. A snake_case spelling silently creates a
+-- SECOND, unreachable column.
+--
+-- NO INDEX. The only read is a per-row equality check during hydrate, already
+-- reached via the ("sourceType") index. Add one when a query needs it.
+
+ALTER TABLE "vector_embeddings" ADD COLUMN IF NOT EXISTS "contentFingerprint" TEXT;
