@@ -1,5 +1,11 @@
 import { scoreVapiQuality } from "./vapiMeasurement";
 
+import {
+  extractCustomerTurns,
+  extractCustomerTurnsFromMessages,
+  type CustomerTurns,
+} from "./customerTurns";
+
 export type VapiOutcomeCategory =
   | "hard_conversion"
   | "walk_in_directed"
@@ -60,11 +66,26 @@ export interface ClassificationInput {
   successEvaluation?: string | null;
   sentiment?: string | null;
   reachedTool?: boolean;
+  /**
+   * VAPI `artifact.messages` — role-tagged and therefore AUTHORITATIVE for
+   * speaker attribution. Preferred over `transcript` whenever present: no
+   * transcript-formatting change can misattribute a speaker in this shape.
+   */
+  messages?: unknown;
 }
+
+/**
+ * Where the caller words came from. Exposed so coverage is MEASURABLE rather
+ * than assumed: "unavailable" means we could not tell who spoke, which is not
+ * the same as "the caller said nothing" and must never be scored as demand.
+ */
+export type SpeakerAttribution = "messages" | "transcript" | "unavailable";
 
 export interface ClassificationResult {
   outcome: VapiOutcomeCategory;
   intents: VapiIntent[];
+  /** Provenance of the customer speech this outcome was derived from. */
+  speakerAttribution: SpeakerAttribution;
   score: number | null;
   reasoning: string;
   qualityVersion: string;
@@ -144,10 +165,60 @@ export function extractCallSignals(input: {
   return { objections, competitorMentions, priceSensitivity };
 }
 
+/**
+ * Resolve the caller OWN words, preferring role-tagged messages.
+ *
+ * `unparsed` is load-bearing: it means we could not tell who said what, which
+ * is NOT the same as "the caller said nothing". That difference decides whether
+ * a call may enter the recovery queue at all.
+ */
+function resolveCustomerSpeech(input: ClassificationInput): CustomerTurns {
+  if (input.messages !== undefined && input.messages !== null) {
+    const fromMessages = extractCustomerTurnsFromMessages(input.messages);
+    if (!fromMessages.unparsed) return fromMessages;
+  }
+  return extractCustomerTurns(input.transcript);
+}
+
+/**
+ * THE SPEAKER-ATTRIBUTION RULE (2026-09-18).
+ *
+ * Demand may only ever be inferred from what the CUSTOMER said. Assistant
+ * speech may only ever REMOVE a call from the queue, never add one.
+ *
+ * WHY THIS EXISTS — measured, not theorised. This function classified on
+ * `transcript + aiSummary`, which contains Nick own turns. Nick greeting
+ * necessarily names the shop or the address, and both were load-bearing:
+ *
+ *   "17625 Euclid Ave"   -> `euclid` matches inferredWalkIn -> walk_in_directed
+ *   "Nick Tire & Auto"   -> `auto`   matches the fallback   -> lost_opportunity
+ *
+ * Both are Missed Revenue Queue candidates, so a call where the caller never
+ * spoke produced a queue row — and so did a caller who only asked what time the
+ * shop closes. The queue was measuring its own greeting: it could not emit "no
+ * demand" for the exact case it existed to detect. `customerTurns.ts`
+ * diagnosed this same contamination on 2026-07-26 ("aiSummary is written BY a
+ * tire-first assistant, so keyword-counting it measures the assistant
+ * vocabulary"), built the cure, documented `firstSubstantive` as "the field
+ * demand classification should read" — then wired it only into the webhook
+ * recorder, never into this decider. BUILT-UNWIRED; this closes it.
+ *
+ * Pinned by `vapiCallClassifierSpeakerAttribution.test.ts`, which mutates the
+ * greeting and asserts the outcome does NOT move.
+ */
 export function classifyCall(input: ClassificationInput): ClassificationResult {
-  const text = `${input.transcript || ""} ${input.aiSummary || ""}`.trim();
-  const intents = detectIntents(text);
-  const lower = text.toLowerCase();
+  const speech = resolveCustomerSpeech(input);
+  /** The caller own words. The ONLY admissible evidence of demand. */
+  const customerText = speech.turns.join(" ").trim();
+  /**
+   * Assistant-visible text. EXCLUSION-ONLY: may route a call OUT of the queue
+   * (spam, technical failure) but must never route one in. Every read below
+   * sits on a branch whose sole effect is to exclude.
+   */
+  const assistantVisibleText = `${input.transcript || ""} ${input.aiSummary || ""}`.trim();
+
+  const intents = detectIntents(customerText);
+  const lower = assistantVisibleText.toLowerCase();
 
   const isTechFailure =
     /silence-timed-out|assistant-error|websocket|error-/i.test(input.endedReason || "") ||
@@ -156,14 +227,30 @@ export function classifyCall(input: ClassificationInput): ClassificationResult {
     /wrong number|spam|robocall|telemarket|solicitation|marketer/i.test(lower) ||
     ((input.transcript || "").toLowerCase().trim() === "hello" && input.durationSeconds < 15) ||
     ((input.transcript || "").trim().length < 3 && input.durationSeconds <= 2 && input.endedReason !== "assistant-forwarded-call");
-  const isAbandoned = input.durationSeconds <= 5 || (!text && input.endedReason !== "assistant-forwarded-call");
+  /**
+   * Abandoned = the caller never got a substantive word in. `firstSubstantive`
+   * already discards filler ("hello?", "yeah"), the most common opener while
+   * the assistant is still connecting.
+   *
+   * Guarded by `!speech.unparsed`: when attribution failed we do not know
+   * whether the caller spoke, so we must not assert that they did not.
+   */
+  const noCustomerSpeech = speech.firstSubstantive === null && !speech.unparsed;
+  const isAbandoned =
+    input.durationSeconds <= 5 ||
+    (noCustomerSpeech && input.endedReason !== "assistant-forwarded-call");
 
   // Only persisted operational records prove capture. `convertedToLead` and
   // reachedTool remain accepted inputs for compatibility/diagnostics but do not
   // turn a tool interaction into a verified conversion.
   const verifiedCapture = input.leadId != null || input.callbackId != null || input.bookingId != null;
-  const inferredWalkIn = /\b(swing by|pull up|drop.?off|FCFS|first-come|first.?serve|euclid|head over|come today)\b/i.test(text);
-  const callbackIntent = /\b(call.?me.?back|call.?back|contact.?me|reach.?me)\b/i.test(text);
+  /**
+   * CUSTOMER text only. `euclid` stays in the pattern because a caller saying
+   * "I can come to Euclid" is genuine walk-in intent — but Nick SAYING the shop
+   * address no longer counts, which is what manufactured the queue.
+   */
+  const inferredWalkIn = /\b(swing by|pull up|drop.?off|FCFS|first-come|first.?serve|euclid|head over|come today|on my way|be right there)\b/i.test(customerText);
+  const callbackIntent = /\b(call.?me.?back|call.?back|contact.?me|reach.?me)\b/i.test(customerText);
 
   let outcome: VapiOutcomeCategory = "unknown";
   const reasons: string[] = [];
@@ -183,6 +270,15 @@ export function classifyCall(input: ClassificationInput): ClassificationResult {
   } else if (/forward/i.test(input.endedReason || "")) {
     outcome = "human_handoff";
     reasons.push("transfer_attempted");
+  } else if (speech.unparsed && !customerText) {
+    /**
+     * Not one turn could be attributed. Demand is UNPROVEN, not absent.
+     * `unknown` is deliberately NOT a queue candidate: a call we cannot read
+     * must not manufacture an obligation — and must not be booked as "no
+     * demand" either. `speakerAttribution:"unavailable"` makes the rate visible
+     * so this can never become a silent hole in the denominator.
+     */
+    reasons.push("speaker_attribution_unavailable");
   } else if (inferredWalkIn) {
     outcome = "walk_in_directed";
     reasons.push("walk_in_language_detected");
@@ -195,10 +291,10 @@ export function classifyCall(input: ClassificationInput): ClassificationResult {
   } else if (intents.some((intent) => !["hours_location", "financing", "general_repair"].includes(intent))) {
     outcome = "quote_or_inspection_intent";
     reasons.push("service_or_quote_intent_detected");
-  } else if (intents.includes("hours_location") || /\b(hours|address|directions|close|open)\b/i.test(text)) {
+  } else if (intents.includes("hours_location") || /\b(hours|address|directions|close|open)\b/i.test(customerText)) {
     outcome = "resolved_info";
     reasons.push("operational_information_request");
-  } else if (intents.length > 0 || /\b(fix|repair|car|auto)\b/i.test(text)) {
+  } else if (intents.length > 0 || /\b(fix|repair|car|auto)\b/i.test(customerText)) {
     outcome = "lost_opportunity";
     reasons.push("customer_intent_without_next_step");
   } else {
@@ -220,12 +316,21 @@ export function classifyCall(input: ClassificationInput): ClassificationResult {
     durationSeconds: input.durationSeconds,
   });
 
+  const speakerAttribution: SpeakerAttribution = speech.unparsed
+    ? "unavailable"
+    : input.messages !== undefined && input.messages !== null
+        && !extractCustomerTurnsFromMessages(input.messages).unparsed
+      ? "messages"
+      : "transcript";
+
   return {
     outcome,
     intents,
+    speakerAttribution,
     score: quality.score,
     reasoning: [
       `outcome=${outcome}`,
+      `speaker=${speakerAttribution}`,
       `evidence=${reasons.join(",")}`,
       `quality=${quality.score ?? "unavailable"}`,
       `quality_version=${quality.version}`,

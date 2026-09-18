@@ -21,7 +21,7 @@ describe("vapiCallClassifier evidence levels", () => {
       durationSeconds: 50,
       endedReason: "customer-ended-call",
       aiSummary: "Customer asked about an alignment.",
-      transcript: "Can you check my alignment price?",
+      transcript: "AI: Nick's Tire and Auto.\nUser: Can you check my alignment price?",
       reachedTool: true,
       convertedToLead: 1,
     });
@@ -33,7 +33,7 @@ describe("vapiCallClassifier evidence levels", () => {
       durationSeconds: 50,
       endedReason: "customer-ended-call",
       aiSummary: "Customer requested service.",
-      transcript: "I need brake service.",
+      transcript: "AI: Nick's Tire and Auto.\nUser: I need brake service.",
     };
     expect(classifyCall({ ...base, leadId: 11 }).outcome).toBe("hard_conversion");
     expect(classifyCall({ ...base, callbackId: 12 }).outcome).toBe("hard_conversion");
@@ -41,13 +41,33 @@ describe("vapiCallClassifier evidence levels", () => {
   });
 
   it("does not turn walk-in direction into arrival or paid work", () => {
+    // 2026-09-18 · fixture corrected. This case previously asserted
+    // walk_in_directed from the transcript "Pull up today and we can inspect
+    // it." — which is the ASSISTANT speaking. It passed by reading Nick's own
+    // words as customer demand, and so encoded the very defect that
+    // manufactured the Missed Revenue Queue. Walk-in intent must come from the
+    // CALLER. See vapiCallClassifierSpeakerAttribution.test.ts.
+    const result = classifyCall({
+      durationSeconds: 60,
+      endedReason: "customer-ended-call",
+      aiSummary: "Customer said they would come by today.",
+      transcript: "AI: You can pull up today and we'll inspect it.\nUser: Ok, I'll swing by today then.",
+    });
+    expect(result.outcome).toBe("walk_in_directed");
+  });
+
+  it("REGRESSION: the assistant offering a walk-in is NOT customer walk-in intent", () => {
+    // The exact shape that used to fire: the caller never speaks, Nick recites
+    // the address. Must land on abandoned_before_connect — not a queue
+    // candidate — and never on walk_in_directed.
     const result = classifyCall({
       durationSeconds: 60,
       endedReason: "customer-ended-call",
       aiSummary: "Customer was told to stop by Euclid Avenue.",
-      transcript: "Pull up today and we can inspect it.",
+      transcript: "AI: Pull up today at 17625 Euclid Ave and we can inspect it.",
     });
-    expect(result.outcome).toBe("walk_in_directed");
+    expect(result.outcome).toBe("abandoned_before_connect");
+    expect(result.outcome).not.toBe("walk_in_directed");
   });
 
   it("separates transfer attempt from conversion", () => {
@@ -92,7 +112,7 @@ describe("vapiCallClassifier quality independence", () => {
       durationSeconds: 75,
       endedReason: "customer-ended-call",
       aiSummary: "Customer asked about brakes and received a next step.",
-      transcript: "My brakes grind. Please tell me what to do next.",
+      transcript: "AI: Nick's Tire and Auto.\nUser: My brakes grind. Please tell me what to do next.",
       reachedTool: true,
       successEvaluation: "pass",
       sentiment: "neutral",
