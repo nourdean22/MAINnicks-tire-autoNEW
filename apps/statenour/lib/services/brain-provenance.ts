@@ -98,7 +98,16 @@ export interface ProvenanceResult {
    * field or its persist path skipped buildBrainContext (e.g. an
    * alternate path) -- never treat `null` here as "nothing was kept".
    */
-  contextReceipt: ContextReceipt | null;
+  /**
+   * 2026-09-18 · `Partial` on purpose. This is a JSON blob read back out of
+   * `tokenUsage`, so it is whatever the receipt schema looked like on the day
+   * that turn was persisted — a row from before `enforced` / `tokensAppended`
+   * existed has neither, and typing it as a full ContextReceipt would promise
+   * a reader fields that are `undefined` at runtime. Same reasoning as the
+   * null case documented above, one level down: the receipt outlives its
+   * schema exactly as it outlives its rows.
+   */
+  contextReceipt: Partial<ContextReceipt> | null;
   feedback: ProvenanceFeedback;
 }
 
@@ -140,7 +149,7 @@ export async function readMessageProvenance(args: {
   }>;
   const hasReceipts = Array.isArray(receipts) && receipts.length > 0;
   const contextReceipt = (
-    (msg.tokenUsage as { contextReceipt?: ContextReceipt } | null)?.contextReceipt ?? null
+    (msg.tokenUsage as { contextReceipt?: Partial<ContextReceipt> } | null)?.contextReceipt ?? null
   );
 
   let trimmed: Array<{

@@ -52,10 +52,44 @@ export interface ContextReceiptEntry {
 export interface ContextReceipt {
   entries: ContextReceiptEntry[];
   tokensBudget: number;
+  /**
+   * 2026-09-18 · ALWAYS false today, and present so a reader of the logged
+   * JSON cannot mistake this receipt for a record of what happened.
+   *
+   * The module header says "observability only", but the header is not what
+   * gets logged — the receipt is. `brain-context.ts` appends every block whose
+   * RERANK `kept` is true, and does it BEFORE calling this function; the
+   * budget verdict below never touches `addendum`. So an entry reading
+   * `{ kept: false, reason: "over_budget" }` describes a block the model very
+   * much did receive. Without this flag the receipt reports drops that did not
+   * occur, which is the same empty-vs-error defect shape the 2026-09-10 wave
+   * was about: an operator surface that is confidently wrong.
+   *
+   * Flip to true in the same commit that makes `addendum` respect the receipt.
+   */
+  enforced: false;
+  /**
+   * 2026-09-18 · Tokens that ACTUALLY reached the model: every threshold
+   * survivor, budget ignored. This is the honest size of the context block.
+   *
+   * It exists because `tokensKept` cannot answer the calibration question.
+   * `tokensKept` is capped by `tokensBudget` by construction, so once the
+   * budget binds it stops measuring the context and starts measuring the cap —
+   * which is precisely why DEFAULT_CONTEXT_TOKEN_BUDGET could never be set
+   * from the receipts it produces. Read the distribution of THIS field across
+   * a week of turns to pick a real number; `tokensKept` would only ever
+   * confirm the number already chosen.
+   */
+  tokensAppended: number;
   /** Sum of tokens for entries this receipt marks kept (includes critical). */
   tokensKept: number;
-  /** Sum of tokens for entries this receipt marks dropped, for any reason. */
+  /**
+   * ADVISORY — what a budget pass WOULD have dropped. Nothing was dropped;
+   * see `enforced`. Do not render this to the operator as a count of lost
+   * context without saying "would have".
+   */
   tokensDropped: number;
+  /** ADVISORY, same caveat as `tokensDropped`. */
   droppedCount: number;
   /**
    * 2026-09-17 · the point-in-time filter recall ran under, ISO, or absent for
@@ -126,6 +160,8 @@ export function buildContextReceipt(
     return {
       entries: [],
       tokensBudget,
+      enforced: false,
+      tokensAppended: 0,
       tokensKept: 0,
       tokensDropped: 0,
       droppedCount: 0,
@@ -194,10 +230,17 @@ export function buildContextReceipt(
 
   const tokensKept = entries.filter((e) => e.kept).reduce((sum, e) => sum + e.tokens, 0);
   const tokensDropped = entries.filter((e) => !e.kept).reduce((sum, e) => sum + e.tokens, 0);
+  // Every THRESHOLD survivor, budget ignored — brain-context.ts appends on
+  // `block.kept` alone, so this is what the model actually received. Computed
+  // from `scored`, not from `entries`, because entries carry this function's
+  // own budget verdict, which nothing acts on.
+  const tokensAppended = scored.filter((s) => s.kept).reduce((sum, s) => sum + s.tokens, 0);
 
   return {
     entries,
     tokensBudget: budget,
+    enforced: false,
+    tokensAppended,
     tokensKept,
     tokensDropped,
     droppedCount: entries.filter((e) => !e.kept).length,
