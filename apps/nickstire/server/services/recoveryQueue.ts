@@ -36,6 +36,7 @@ import {
   type CallLane,
   type CallOutcome,
 } from "@shared/callTaxonomy";
+import type { ExtractedDemand } from "@shared/callDemandExtraction";
 
 /** The row shape the router selects. Deliberately narrow. */
 export interface QueueSourceRow {
@@ -72,6 +73,38 @@ export interface QueueEpisode {
   disposition: CallDisposition;
   /** Every call id in the episode, so the drawer can show the full timeline. */
   callIds: number[];
+  /**
+   * Buying specifics extracted from the caller's own turns. Every field may be
+   * null — extraction fails closed, and the SMS compiler degrades gracefully
+   * rather than inventing a size.
+   */
+  demand: ExtractedDemand;
+  /** True when a VERIFIED transfer failure is on record for this episode. */
+  transferFailed: boolean;
+}
+
+const EMPTY_DEMAND: ExtractedDemand = {
+  tireSize: null, quantity: null, condition: null,
+  vehicle: null, urgency: null, hasCapturedSpecifics: false,
+};
+
+/** Read the persisted demand record, tolerating rows written before it existed. */
+function demandFrom(meta: Record<string, unknown>): ExtractedDemand {
+  const d = meta.demand;
+  if (!d || typeof d !== "object") return EMPTY_DEMAND;
+  const r = d as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  return {
+    tireSize: str(r.tireSize),
+    quantity: typeof r.quantity === "number" ? r.quantity : null,
+    condition: r.condition === "new" || r.condition === "used" ? r.condition : null,
+    vehicle: str(r.vehicle),
+    urgency:
+      r.urgency === "today" || r.urgency === "this_week" || r.urgency === "flexible"
+        ? r.urgency
+        : null,
+    hasCapturedSpecifics: r.hasCapturedSpecifics === true,
+  };
 }
 
 export interface RecoveryQueueResult {
@@ -221,6 +254,8 @@ export function buildRecoveryQueue(
         queueStatus: typeof meta.queueStatus === "string" ? meta.queueStatus : "pending",
         disposition,
         callIds: calls.map((c) => c.id),
+        demand: demandFrom(meta),
+        transferFailed: meta.transferFailed === true,
       });
     }
   }

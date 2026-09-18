@@ -14,6 +14,7 @@
  * Server-side memo'd 60s; client polls every 60s.
  */
 import { useState } from "react";
+import { compileRecoverySms, type CompiledSms, type ObservedCallFacts } from "@shared/smsFactCompiler";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import {
@@ -213,32 +214,44 @@ export default function VoiceReceptionistSection() {
     );
   };
 
-  const getSmsDraft = (intents: string[], outcome: string): string => {
-    if (intents.includes("used_tire") || intents.includes("tire_size_request")) {
-      return "Thanks for calling Nick’s Tire & Auto. Used tire availability changes quickly. Stop by 17625 Euclid Ave and we’ll check available options for your vehicle.";
-    }
-    if (intents.includes("new_tire")) {
-      return "Thanks for calling Nick’s Tire & Auto. We stock all major brands of new tires. Stop by 17625 Euclid Ave and we'll show you options and give you a written quote.";
-    }
-    if (intents.includes("flat_tire") || intents.includes("tire_leak")) {
-      return "Thanks for calling Nick’s Tire & Auto. Bring your vehicle by 17625 Euclid Ave and we'll inspect the tire leak. Flat repairs are done while you wait.";
-    }
-    if (intents.includes("brakes") || intents.includes("suspension") || intents.includes("exhaust")) {
-      return "Thanks for calling Nick’s Tire & Auto. You can bring the vehicle in or drop it off at 17625 Euclid Ave and we’ll inspect it before any work is approved.";
-    }
-    if (intents.includes("diagnostics") || intents.includes("check_engine")) {
-      return "Thanks for calling Nick’s Tire & Auto. Bring the vehicle in for a free diagnostic light check and quote before 6 PM today.";
-    }
-    if (intents.includes("battery") || intents.includes("alternator") || intents.includes("starter")) {
-      return "Thanks for calling Nick’s Tire & Auto. Stop by 17625 Euclid Ave for a free battery and alternator test. We can replace batteries on the spot.";
-    }
-    if (intents.includes("oil_change") || intents.includes("alignment")) {
-      return "Thanks for calling Nick’s Tire & Auto. Oil changes and alignments are handled on a first-come, first-served basis. Swing by the shop at your convenience.";
-    }
-    // 2026-07-20 · never apologize for missing a call we may well have taken —
-    // this is the no-intent-matched fallback and fires regardless of whether the
-    // caller reached a human. Keep it neutral and forward-looking.
-    return "Thanks for calling Nick’s Tire & Auto. Let us know what you need, or stop by 17625 Euclid Ave.";
+  /**
+   * 2026-09-18 · replaced eight hardcoded paragraphs with the fact compiler.
+   *
+   * The previous implementation selected among eight literal strings by intent
+   * flag and interpolated NOTHING — not the caller's name, vehicle, tire size,
+   * quantity or urgency, all of which the assistant had already heard. Worse,
+   * the strings made claims the shop cannot verify from a React component:
+   * "we stock all major brands", "flat repairs are done while you wait",
+   * "free battery and alternator test", and a hardcoded "before 6 PM today"
+   * that was false every Sunday, when the shop closes at 4.
+   *
+   * `compileRecoverySms` lives in `shared/`, so this preview is the EXACT
+   * string the server would send — a preview that differs from the send is not
+   * a preview. It states only observed facts, canonical shop facts (address,
+   * phone, TODAY'S real hours) and asks, and it reports what it refused to
+   * claim so the operator can see the restraint.
+   */
+  const buildSmsDraft = (item: {
+    demand?: Partial<ObservedCallFacts> | null;
+    customerName?: string | null;
+    transferFailed?: boolean;
+    evalOutcome?: string;
+    intents?: string[];
+  }): CompiledSms => {
+    const d = item.demand ?? {};
+    return compileRecoverySms(
+      {
+        customerName: item.customerName ?? null,
+        tireSize: d.tireSize ?? null,
+        vehicle: d.vehicle ?? null,
+        quantity: d.quantity ?? null,
+        condition: d.condition ?? null,
+        urgency: d.urgency ?? null,
+        transferFailed: item.transferFailed === true,
+        callbackRequested: item.evalOutcome === "callback_needed",
+      },
+      { now: new Date(), isFirstInThread: true },
+    );
   };
 
   const reasonsChart = m
@@ -714,7 +727,8 @@ export default function VoiceReceptionistSection() {
             <div className="space-y-4">
               {queueItems.map((item: any) => {
                 const outcome = prettyOutcome(item.evalOutcome);
-                const smsText = getSmsDraft(item.intents, item.evalOutcome);
+                const smsDraft = buildSmsDraft(item);
+                const smsText = smsDraft.body;
                 const recAction = 
                   item.evalOutcome === "callback_needed" ? "Call customer back immediately to schedule service." :
                   item.evalOutcome === "lost_opportunity" ? "Reach out to recover the repair/tire opportunity." :

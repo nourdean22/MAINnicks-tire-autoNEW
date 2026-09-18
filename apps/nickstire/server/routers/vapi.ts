@@ -586,6 +586,9 @@ export const vapiRouter = router({
           e.disposition.slaMinutes !== null && e.ageMinutes > e.disposition.slaMinutes,
         /** Why this is here, and why it ranks where it does. */
         priorityReasons: e.disposition.reasons,
+        /** Buying specifics, for the fact-bound SMS draft. Fields may be null. */
+        demand: e.demand,
+        transferFailed: e.transferFailed,
       }));
 
       return input.status === "all"
