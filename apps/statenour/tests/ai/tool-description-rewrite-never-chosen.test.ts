@@ -116,3 +116,73 @@ describe("buildNeverChosenPrompt", () => {
     expect(prompt).toMatch(/under 500 characters/i);
   });
 });
+
+/**
+ * A tool surfaced by a POLICY tier is not evidence of a description defect.
+ *
+ * WHAT PROD SHOWED, 2026-09-18. This cron had written six drafts in two days,
+ * and three were for tools the pruner attaches to EVERY turn on purpose:
+ *
+ *   rankNextActions  259/259 tier 1 (core)        -> 100% policy
+ *   createTask       259/259 tier 2 (action-core) -> 100% policy
+ *   completeTask     259/259 tier 2               -> 100% policy
+ *   findCustomer     t4=76 t3=40 t6=15            ->  11% policy
+ *   getHabitRevenueCorrelation t4=124             ->   0% policy
+ *   getMasteryScores t4=98 t3=40                  ->   0% policy
+ *
+ * For the first three, `surfacedCount / turns` is ~1.0 BY CONSTRUCTION, so the
+ * 0.20 ratio gate is cleared regardless of what the description says, and the
+ * prompt then tells the model "Other tools were available in the same turns and
+ * won" — framing unconditional presence as competitive failure.
+ *
+ * The other three are genuinely keyword-surfaced and ARE legitimate candidates.
+ * This file has to keep both halves: exclude the policy tools, keep the rest.
+ */
+describe("pickNeverChosenCandidates · policy-tier exclusion", () => {
+  const TURNS = 259;
+  const rows = [
+    { name: "rankNextActions", category: "brain", surfacedCount: 259 },
+    { name: "createTask", category: "tasks", surfacedCount: 259 },
+    { name: "getMasteryScores", category: "brain", surfacedCount: 138 },
+    { name: "findCustomer", category: "business", surfacedCount: 131 },
+  ];
+  // Measured shares, not invented.
+  const share = new Map<string, number>([
+    ["rankNextActions", 1.0],
+    ["createTask", 1.0],
+    ["getMasteryScores", 0.0],
+    ["findCustomer", 0.11],
+  ]);
+
+  it("EXCLUDES a tool whose impressions are ~all POLICY tier", () => {
+    const picked = pickNeverChosenCandidates(rows, TURNS, 10, share).map((c) => c.name);
+    expect(picked).not.toContain("rankNextActions");
+    expect(picked).not.toContain("createTask");
+  });
+
+  it("KEEPS a genuinely keyword-surfaced tool — the cron's real job", () => {
+    const picked = pickNeverChosenCandidates(rows, TURNS, 10, share).map((c) => c.name);
+    expect(picked).toContain("getMasteryScores");
+    // 11% policy. I first mislabelled this one as tier-6 by reading it out of
+    // the defaults array in chat-mode.ts; measured, it is a real candidate.
+    expect(picked).toContain("findCustomer");
+  });
+
+  it("treats an UNKNOWN tool as NOT policy — absent data must not change behaviour", () => {
+    const partial = new Map<string, number>([["rankNextActions", 1.0]]);
+    const picked = pickNeverChosenCandidates(rows, TURNS, 10, partial).map((c) => c.name);
+    expect(picked).not.toContain("rankNextActions");
+    expect(picked).toContain("createTask"); // no entry -> unknown -> kept
+  });
+
+  it("BACKWARD COMPATIBLE: omitting the map reproduces the old behaviour exactly", () => {
+    const withMap = pickNeverChosenCandidates(rows, TURNS, 10, new Map()).map((c) => c.name);
+    const without = pickNeverChosenCandidates(rows, TURNS, 10).map((c) => c.name);
+    expect(without).toEqual(withMap);
+    expect(without).toContain("rankNextActions"); // the pre-fix outcome
+  });
+
+  it("still declines on a thin window, exclusion or not", () => {
+    expect(pickNeverChosenCandidates(rows, 10, 10, share)).toEqual([]);
+  });
+});
