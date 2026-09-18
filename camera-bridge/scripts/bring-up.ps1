@@ -51,6 +51,30 @@ function Step {
     if ($Status -eq "FAIL") { $script:failed++ }
 }
 
+# THE TASK STATE IS NOT THE PRODUCER'S STATE, and believing it cost a full day on 2026-09-17.
+#
+# Task Scheduler kills the WRAPPER (cmd.exe) but the python child SURVIVES, orphaned. Measured:
+# `ppid 26160 is GONE` while that producer kept heartbeating every 30s for two hours on one
+# unbroken instance id, no `==== edge exit ====` banner ever written because the wrapper died
+# before it could. `Get-ScheduledTask` read `Ready` the whole time and `LastTaskResult` was
+# 0xC000013A (STATUS_CONTROL_C_EXIT) -- the wrapper's death, not the producer's.
+#
+# Two different wrong answers came out of trusting that:
+#   * step 5 reported `FAIL bound ... task is Ready after start` while the lot was being watched
+#     perfectly -- a false alarm that sent three separate debugging sessions chasing nothing.
+#   * step 4 read `Ready` and STARTED A SECOND PRODUCER on a lens that already had one, both
+#     writing the same ledger and fighting over the metrics port.
+#
+# So ask the OS what is running, keyed on the scene the producer was told to watch. The command
+# line is the only thing that distinguishes two producers of the same executable.
+function Get-ProducerProcess {
+    param([string]$SceneId)
+    Get-CimInstance Win32_Process -Filter "Name like '%python%'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -and $_.CommandLine -match 'edge_main' -and
+                       $_.CommandLine -match ('--scene\s+"?' + [regex]::Escape($SceneId) + '"?(\s|$)') } |
+        Select-Object -First 1
+}
+
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host " Nick's Tire - lot producer bring-up"      -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
@@ -93,8 +117,17 @@ if ($probe -match "status=live") {
 $locatable = @{}
 foreach ($task in ($Cameras.Keys | Sort-Object)) {
     $scene = $Cameras[$task]
-    $out = & python (Join-Path $PSScriptRoot "locate_scene.py") $scene 2>&1 | Select-Object -Last 1
-    if ($out -match "^FOUND") {
+    # READ THE VERDICT, NOT THE LAST LINE. `locate_scene.py` prints its answer and then tears
+    # down the WGC capture thread, which on this box intermittently dies in interpreter
+    # shutdown with `Fatal Python error: gilstate_tss_set: failed to set current tstate (TSS)`.
+    # The measurement already succeeded -- observed printing `FOUND 778x440 ... inliers=70` and
+    # THEN crashing -- but a last-line read returns the crash text and this step reported a
+    # perfectly locatable camera as FAIL, which then withheld a producer that would have run.
+    # A crash after the verdict is a teardown bug, not a locate failure; scan for the verdict.
+    $lines = & python (Join-Path $PSScriptRoot "locate_scene.py") $scene 2>&1
+    $verdict = $lines | Where-Object { $_ -match "^FOUND" } | Select-Object -First 1
+    $out = if ($verdict) { $verdict } else { $lines | Select-Object -Last 1 }
+    if ($verdict) {
         $locatable[$task] = $true
         Step "scene $scene" "PASS" $out
     } else {
@@ -107,6 +140,10 @@ foreach ($task in ($Cameras.Keys | Sort-Object)) {
 foreach ($task in ($Cameras.Keys | Sort-Object)) {
     $t = Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue
     if (-not $t) { Step "task $task" "FAIL" "not registered -- run scripts/install-edge-runtime.ps1"; continue }
+    # The PROCESS, not the task state -- see Get-ProducerProcess. Starting on top of an orphan
+    # gives one lens two producers sharing a ledger, which is worse than not starting at all.
+    $existing = Get-ProducerProcess -SceneId $Cameras[$task]
+    if ($existing) { Step "task $task" "PASS" "producer pid $($existing.ProcessId) already watching $($Cameras[$task]); left alone"; continue }
     if ($t.State -eq "Running") { Step "task $task" "PASS" "already running; left alone"; continue }
     if (-not $locatable[$task]) { Step "task $task" "WARN" "not started: its scene is not on screen"; continue }
     if ($SkipStart) { Step "task $task" "WARN" "-SkipStart: would have started it"; continue }
@@ -127,8 +164,14 @@ Start-Sleep -Seconds 45
 foreach ($task in ($Cameras.Keys | Sort-Object)) {
     $suffix = if ($task -eq "NickEdgeProducer") { "" } else { "-$task" }
     $log = Join-Path $root "logs\edge$suffix.log"
+    $proc = Get-ProducerProcess -SceneId $Cameras[$task]
     $state = (Get-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue).State
-    if ($state -ne "Running") { Step "bound $task" "FAIL" "task is $state after start"; continue }
+    if (-not $proc) { Step "bound $task" "FAIL" "no producer process for $($Cameras[$task]) (task reads $state)"; continue }
+    # An orphaned producer is WATCHING THE LOT, which is the thing this script exists to confirm.
+    # Report the detachment so it is visible and fixable, but never call a working lot a failure.
+    if ($state -ne "Running") {
+        Step "task $task" "WARN" "producer pid $($proc.ProcessId) is alive but DETACHED from the task (task reads $state); it will not be restarted automatically"
+    }
     if (-not (Test-Path $log)) { Step "bound $task" "FAIL" "no log at $log"; continue }
     $line = Select-String -Path $log -Pattern "scene located: scene=(\S+)" | Select-Object -Last 1
     if (-not $line) { Step "bound $task" "FAIL" "started but has not located a scene yet"; continue }
