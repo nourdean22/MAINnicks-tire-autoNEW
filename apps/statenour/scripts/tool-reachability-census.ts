@@ -41,6 +41,27 @@ loadEnvConfig(process.cwd());
   };
 }
 
+/**
+ * ⚠⚠ 2026-09-18 · TWO-STAGE SELECTION MOVED THIS BASELINE'S DENOMINATOR.
+ *
+ * `budgetTruncated` and `candidateCount` are NOT comparable across the
+ * two-stage cutover. The single pass SKIPPED tier 5 whenever earlier tiers had
+ * already filled the budget, so on those turns its candidates were never
+ * considered and never recorded as budgeted-out — invisible to the count.
+ * Stage 1 now gathers from every tier unconditionally, so identical traffic
+ * reports MORE candidates and MORE truncation.
+ *
+ * So a rise in `budget truncated` after the cutover is the instrument seeing
+ * what it previously missed, NOT the cliff getting worse. The metric that IS
+ * comparable, and the one this fix is actually aimed at, is
+ * **semantic tier SKIPPED** — it should fall hard from 73.2% toward zero,
+ * because the guard that produced it is gone.
+ *
+ * Read the two together or not at all. This is exactly the shape this script
+ * was written to prevent (tuning against a stale measurement), turned on the
+ * script itself by a change that landed after it.
+ */
+
 /** The recorded pre-fix baseline, for comparison only. */
 const BASELINE = {
   label: "pre-fix census (.remember, 467 turns)",
@@ -116,7 +137,10 @@ async function main(): Promise<void> {
   const p50 = (a: number[]) => (a.length ? a[Math.floor(a.length * 0.5)] : 0);
 
   console.log("POST-FIX (n=" + rows.length + ")");
-  console.log(`  budget truncated      : ${truncated} (${pct(truncated, rows.length)}%)   baseline ${BASELINE.budgetTruncatedPct}%`);
+  console.log(
+    `  budget truncated      : ${truncated} (${pct(truncated, rows.length)}%)   baseline ${BASELINE.budgetTruncatedPct}%` +
+      "  <- NOT COMPARABLE across the two-stage cutover (see header)",
+  );
   console.log(`  semantic tier SKIPPED : ${semanticSkipped} (${pct(semanticSkipped, rows.length)}%)   baseline ${BASELINE.semanticTierSkippedPct}%`);
   if (semanticUnknown > 0) {
     console.log(`  semantic tier UNKNOWN : ${semanticUnknown} (${pct(semanticUnknown, rows.length)}%) <- null, NOT counted as skipped`);

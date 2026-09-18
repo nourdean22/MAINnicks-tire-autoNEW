@@ -204,6 +204,21 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/brain/contextual-recall.ts",
   },
   {
+    key: "NICK_TOOL_RANK_MERGED",
+    // readOnly because `lib/ai/chat-mode.ts` reads process.env directly rather
+    // than through getFlag(). The board must not offer a toggle it cannot
+    // honour — a writable row here would contradict the runtime.
+    readOnly: true,
+    description:
+      "Two-stage tool selection (2026-09-18). Selection used to be ONE pass in which every tier called addIfSpace and stopped at TOOL_BUDGET, so each tier's share of the 24 slots was decided by ARRIVAL ORDER, not relevance. Measured over 2,616 prod gate decisions: candidates p50 43 vs selected p50 24, budget truncated on 80.4% of turns, and the SEMANTIC tier skipped on 73.2% because tier 4 (keyword families) had already filled the budget — while 65.3% of tier-4 allowed impressions went to tools the model never chose. Now: stage 1 gathers from every tier and drops nothing; stage 2 seats the INTENT tiers (core, action-core, exact mention, playbook) and then ranks tiers 4/5/6 TOGETHER on one cosine scale before truncating. Tier 4 and tier 5 already scored against the same embedding with the same metric, so they were always comparable — just never compared. LIVE by default; set NICK_TOOL_RANK_MERGED=0 to disable.",
+    status: "experimental",
+    onValue: "true",
+    defaultOn: true,
+    defaultBehavior:
+      "LIVE: contested tiers are ranked together before the budget cut. Kill-switch NICK_TOOL_RANK_MERGED=0 restores arrival order (tier 4, then 5, then 6) without a deploy. Note the merged ranking ALSO self-disables whenever any contested candidate is unscored — no embedding and a cold cache both fall back to arrival order structurally, so =0 is a manual override of an already-conditional path. NOT prod-proven: re-run scripts/tool-reachability-census.ts after deploy; it withholds a verdict below 100 post-fix turns.",
+    ownerDoc: "lib/ai/chat-mode.ts",
+  },
+  {
     key: "NICK_RECALL_ARBITER",
     description:
       "Brain plan Wave 2 (2026-09-08): one evidence pack across the two chat recall lanes (memory-recall hybrid + contextual pipeline) — union by id, content-identity dedupe, RRF k=60, one rerank, MMR redundancy penalty — rendered as a single block instead of two overlapping ones. Off until the frozen 28-case corpus shows no regression (plan section 6.4). Set NICK_RECALL_ARBITER=1 to enable.",
