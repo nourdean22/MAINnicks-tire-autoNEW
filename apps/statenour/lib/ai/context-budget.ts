@@ -57,6 +57,20 @@ export interface ContextReceipt {
   /** Sum of tokens for entries this receipt marks dropped, for any reason. */
   tokensDropped: number;
   droppedCount: number;
+  /**
+   * 2026-09-17 · the point-in-time filter recall ran under, ISO, or absent for
+   * "current". This is here because of a defect the same PR fixed: a false
+   * `asOf` from the query planner made recall answer as of a past instant and
+   * there was NO signal anywhere that it had happened — validityWhere(asOf)
+   * degrades to `createdAt <= asOf` for every row without validFrom (all
+   * 40,889 of them as of the 2026-09-08 probe), so the turn silently answered
+   * from a fraction of the brain.
+   *
+   * Fixing the classifier removed today's trigger; recording the instant here
+   * removes the SILENCE, which is the part that made it survive. A stored ISO
+   * string, not a Date: this object round-trips through a Prisma Json column.
+   */
+  recallAsOf?: string;
 }
 
 /**
@@ -95,10 +109,28 @@ export const DEFAULT_CONTEXT_TOKEN_BUDGET = 7250; // ~29,000 chars at the chars/
 export function buildContextReceipt(
   blocks: ContextBudgetBlock[],
   tokensBudget: number,
-  options: { redundancyPenalty?: number; similarityFn?: (a: string, b: string) => number } = {},
+  options: {
+    redundancyPenalty?: number;
+    similarityFn?: (a: string, b: string) => number;
+    /** The point-in-time filter recall ran under; omitted/invalid = current. */
+    asOf?: Date | null;
+  } = {},
 ): ContextReceipt {
+  // A Date that is not a Date, or an Invalid Date, must not become the string
+  // "Invalid Date" in a persisted receipt — it reads as a real filter.
+  const asOfIso =
+    options.asOf instanceof Date && Number.isFinite(options.asOf.getTime())
+      ? options.asOf.toISOString()
+      : undefined;
   if (!Array.isArray(blocks)) {
-    return { entries: [], tokensBudget, tokensKept: 0, tokensDropped: 0, droppedCount: 0 };
+    return {
+      entries: [],
+      tokensBudget,
+      tokensKept: 0,
+      tokensDropped: 0,
+      droppedCount: 0,
+      ...(asOfIso ? { recallAsOf: asOfIso } : {}),
+    };
   }
   const { redundancyPenalty = DEFAULT_REDUNDANCY_PENALTY, similarityFn } = options;
   const budget = Number.isFinite(tokensBudget) && tokensBudget >= 0 ? tokensBudget : 0;
@@ -169,5 +201,6 @@ export function buildContextReceipt(
     tokensKept,
     tokensDropped,
     droppedCount: entries.filter((e) => !e.kept).length,
+    ...(asOfIso ? { recallAsOf: asOfIso } : {}),
   };
 }

@@ -100,6 +100,33 @@ describe("buildContextReceipt · MMR redundancy", () => {
   });
 });
 
+describe("buildContextReceipt · recallAsOf (2026-09-17) — the silence, not just the trigger", () => {
+  const block: ContextBudgetBlock = { name: "identity", content: "abcd", similarity: 0.9, kept: true };
+
+  it("records the point-in-time filter recall ran under", () => {
+    const receipt = buildContextReceipt([block], 100, { asOf: new Date("2026-05-01T00:00:00.000Z") });
+    expect(receipt.recallAsOf).toBe("2026-05-01T00:00:00.000Z");
+  });
+
+  it("is ABSENT for a current-time turn — an always-present field would read as a filter", () => {
+    expect(buildContextReceipt([block], 100).recallAsOf).toBeUndefined();
+    expect(buildContextReceipt([block], 100, { asOf: null }).recallAsOf).toBeUndefined();
+  });
+
+  it("an Invalid Date is dropped, never persisted as the string 'Invalid Date'", () => {
+    const receipt = buildContextReceipt([block], 100, { asOf: new Date("not a date") });
+    expect(receipt.recallAsOf).toBeUndefined();
+  });
+
+  it("survives the garbage-input path too (a truncating filter must still be recorded)", () => {
+    const receipt = buildContextReceipt(null as unknown as ContextBudgetBlock[], 100, {
+      asOf: new Date("2026-05-01T00:00:00.000Z"),
+    });
+    expect(receipt.entries).toEqual([]);
+    expect(receipt.recallAsOf).toBe("2026-05-01T00:00:00.000Z");
+  });
+});
+
 describe("buildContextReceipt · garbage tolerance (never throws)", () => {
   it("non-array blocks yields an empty receipt, budget still reported", () => {
     const receipt = buildContextReceipt(null as unknown as ContextBudgetBlock[], 100);

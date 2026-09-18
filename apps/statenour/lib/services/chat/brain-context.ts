@@ -667,7 +667,13 @@ export async function buildBrainContext(
     // actually went into `addendum` — this call does not itself change
     // addendum (see lib/ai/context-budget.ts file header: observability
     // only, no similarityFn wired yet, so the MMR pass is a no-op today).
-    contextReceipt = buildContextReceipt(reranked, DEFAULT_CONTEXT_TOKEN_BUDGET);
+    // asOf rides along so the receipt records WHICH INSTANT recall answered
+    // as of. A false asOf silently truncates memory (see ContextReceipt's
+    // recallAsOf docstring); the classifier fix removed today's trigger, this
+    // removes the silence that let it survive unnoticed.
+    contextReceipt = buildContextReceipt(reranked, DEFAULT_CONTEXT_TOKEN_BUDGET, {
+      asOf: queryPlan.asOf,
+    });
     // 2026-09-17 (Codex review, PR #2414) · the aggregate counts alone can't
     // answer "why was THIS block dropped" -- the entries array (name, tokens,
     // similarity, reason) is the whole point of a receipt. Log the full
