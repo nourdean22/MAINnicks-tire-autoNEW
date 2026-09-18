@@ -86,7 +86,7 @@ vi.mock("@/lib/brain/contextual-recall", async (importOriginal) => {
   };
 });
 
-import { buildBrainContext } from "@/lib/services/chat/brain-context";
+import { buildBrainContext, buildRecallMessages } from "@/lib/services/chat/brain-context";
 
 const silentLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never;
 
@@ -111,6 +111,53 @@ function recallQueryTexts(): string[] {
 beforeEach(() => {
   contextualCalls.length = 0;
   vi.clearAllMocks();
+});
+
+/**
+ * buildRecallMessages decides what the contextual lane derives TOPICS from,
+ * and topics build the embedding. Unit-tested directly (not only through the
+ * heavy harness) because the interesting cases are combinatorial.
+ */
+describe("buildRecallMessages · topic-poor turns (2026-09-18)", () => {
+  // Stand-in for contextual-recall's real deriveFastTopics: a turn is
+  // topic-poor when it has no word outside the stopword set.
+  const mod = {
+    deriveFastTopics: (messages: string[]) =>
+      messages
+        .join(" ")
+        .toLowerCase()
+        .match(/[a-z][a-z0-9'-]{2,}/g)
+        ?.filter((w) => !["what", "you", "think", "why", "not", "should", "can", "tell", "more", "did", "say", "how", "that", "about"].includes(w)) ?? [],
+  };
+  const PRIOR = ["We moved the Instagram cadence to three reels a week."];
+
+  it("a stopword-only turn gains the prior turn — it would otherwise recall NOTHING relevant", () => {
+    expect(buildRecallMessages(mod, "what do you think?", undefined, PRIOR)).toEqual([
+      PRIOR[0],
+      "what do you think?",
+    ]);
+  });
+
+  it("a topic-BEARING turn is left alone — this is the dilution guard", () => {
+    const rich = "what did the alignment rack cost";
+    expect(buildRecallMessages(mod, rich, undefined, PRIOR)).toEqual([rich]);
+  });
+
+  it("an anaphoric referent still wins regardless of topic richness", () => {
+    const rich = "what did the alignment rack cost";
+    expect(buildRecallMessages(mod, rich, "REF", PRIOR)).toEqual(["REF", rich]);
+  });
+
+  it("no history: unchanged, never a phantom context turn", () => {
+    expect(buildRecallMessages(mod, "why not?", undefined, [])).toEqual(["why not?"]);
+  });
+
+  it("a broken or absent derive must NOT change recall inputs (fail safe, not open)", () => {
+    const broken = { deriveFastTopics: () => { throw new Error("boom"); } };
+    expect(buildRecallMessages(broken, "why not?", undefined, PRIOR)).toEqual(["why not?"]);
+    expect(buildRecallMessages(null, "why not?", undefined, PRIOR)).toEqual(["why not?"]);
+    expect(buildRecallMessages({}, "why not?", undefined, PRIOR)).toEqual(["why not?"]);
+  });
 });
 
 describe("brain-context · anaphoric referent reaches the recall lane", () => {

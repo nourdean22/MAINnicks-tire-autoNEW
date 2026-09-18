@@ -116,6 +116,48 @@ const EMPTY_FIRED: ContextBlocksFired = {
   concerns: false, anticipated: false, physical: false,
 };
 
+/**
+ * Which messages the contextual lane derives its TOPICS from — and therefore
+ * its embedding, since `queryText = topics.join(", ")` in contextual-recall.
+ *
+ * Two distinct reasons to include the prior turn, deliberately kept separate:
+ *
+ *  1. ANAPHORA — the turn has a referent ("what about that?"). The pronoun's
+ *     antecedent lives in the prior turn, so it must come along.
+ *
+ *  2. TOPIC-POOR (2026-09-18) — the turn yields ZERO topics because every word
+ *     is a stopword ("what do you think?", "why not?", "should i?"). Measured
+ *     9 of 14 ordinary short turns. deriveFastTopics returning [] makes
+ *     getContextualMemories bail to getFallbackMemories: generic, untargeted,
+ *     and silent. Those turns recall nothing relevant today.
+ *
+ * ★ Why this cannot dilute a good turn: the objection to prepending history is
+ * that topics cap at 8 and are taken newest-first, so prior-turn words could
+ * crowd out real ones. That applies only to turns that HAVE topics — and this
+ * branch fires only when there are NONE. Measured: 7 turns rescued from the
+ * generic fallback, 0 topic-bearing turns altered.
+ *
+ * Pure and defensive: an unavailable module or an empty history returns the
+ * current behaviour unchanged.
+ */
+export function buildRecallMessages(
+  mod: { deriveFastTopics?: (messages: string[]) => string[] } | null,
+  userContent: string,
+  referent: string | undefined,
+  priorTurns: string[],
+): string[] {
+  const contextTurn = referent ?? priorTurns[priorTurns.length - 1];
+  if (!contextTurn) return [userContent];
+  if (referent) return [referent, userContent];
+  let topicPoor = false;
+  try {
+    topicPoor = mod?.deriveFastTopics?.([userContent])?.length === 0;
+  } catch {
+    topicPoor = false; // a broken derive must not change recall inputs
+  }
+  return topicPoor ? [contextTurn, userContent] : [userContent];
+}
+
 export async function buildBrainContext(
   input: BuildBrainContextInput,
 ): Promise<BuildBrainContextOutput> {
@@ -356,7 +398,7 @@ export async function buildBrainContext(
       (userContent.length > 10 || forceRecall) && contextualRecallMod
         ? withTimeout(
             contextualRecallMod.getContextualMemories(
-              queryPlan.referent ? [queryPlan.referent, userContent] : [userContent],
+              buildRecallMessages(contextualRecallMod, userContent, queryPlan.referent, __priorTurns),
               mode === "deep" ? 10 : 5,
               {
                 queryEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
