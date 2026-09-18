@@ -141,6 +141,30 @@ describe("brain-context · anaphoric referent reaches the recall lane", () => {
     expect(texts[0]).not.toBe(FOLLOW_UP);
   });
 
+  it("BOUNDED LOOKBACK · empty recent turns yield NO referent, not an ancient one", async () => {
+    // The window is deliberately bounded and sliced BEFORE empties are
+    // filtered. It matters in exactly one case, which is this one: when the
+    // recent turns carry no text (tool-only turns, empty parts), an unbounded
+    // filter-then-slice reaches back until it finds *something* and hands a
+    // years-old turn to the recall lane as the antecedent of "that".
+    //
+    // A pronoun refers to what was just said. No referent is the correct
+    // answer here; a stale one is worse than none. A self-audit of this change
+    // briefly introduced exactly that regression — this pins it.
+    const ANCIENT = "Back in 2019 we used a different tire supplier called Greenline.";
+    const messages = [
+      { role: "user", content: ANCIENT },
+      ...Array.from({ length: 6 }, () => ({ role: "assistant", content: "" })),
+      { role: "user", content: FOLLOW_UP },
+    ];
+
+    await build(FOLLOW_UP, messages);
+
+    const texts = recallQueryTexts();
+    expect(texts).toEqual([FOLLOW_UP]);
+    expect(JSON.stringify(texts)).not.toContain("Greenline");
+  });
+
   it("negative control · a self-contained question passes ONLY its own text", async () => {
     const standalone = "how much did I pay for the alignment rack in March";
     await build(standalone, [{ role: "user", content: standalone }]);

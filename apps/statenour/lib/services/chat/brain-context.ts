@@ -183,7 +183,12 @@ export async function buildBrainContext(
   // gained one in this commit, so the feed is corrected first. Defensive by
   // design: the pop only fires when the tail really is the current turn, so a
   // caller that already passes prior-only history is unaffected.
+  // slice FIRST, deliberately: the original bounded how far back a referent
+  // could come from, and that bound is correct -- a pronoun refers to the
+  // turn just spoken, not to turn 50. Taking 5 leaves up to 4 once the
+  // current turn is dropped, preserving the original window.
   const __priorTurns = (messages as Array<{ content?: unknown }>)
+    .slice(-5)
     .map((m) => (typeof m?.content === "string" ? m.content : ""))
     .filter(Boolean);
   if (__priorTurns[__priorTurns.length - 1] === userContent) __priorTurns.pop();
