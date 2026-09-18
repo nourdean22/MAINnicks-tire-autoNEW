@@ -115,48 +115,47 @@ beforeEach(() => {
 
 /**
  * buildRecallMessages decides what the contextual lane derives TOPICS from,
- * and topics build the embedding. Unit-tested directly (not only through the
- * heavy harness) because the interesting cases are combinatorial.
+ * and topics drive the lexical lane, cross-source search and the reranker.
+ *
+ * 2026-09-18 · REWRITTEN. This block used to assert that a stopword-only turn
+ * GAINS the prior turn ("it would otherwise recall NOTHING relevant"). That was
+ * true when written: zero topics meant getFallbackMemories(), i.e. top-N by
+ * confidence with the query thrown away.
+ *
+ * #2425 made zero topics a GOOD outcome — it routes to the semantic and KNN
+ * lanes on the user's own embedding — which removed the justification, and
+ * review on #2433 found the heuristic had become harmful: "is everything done"
+ * is not classified anaphoric, derives zero topics, and was therefore handed an
+ * unrelated prior turn's topics to search with.
+ *
+ * The rule is now simply: prepend the referent, nothing else.
  */
-describe("buildRecallMessages · topic-poor turns (2026-09-18)", () => {
-  // Stand-in for contextual-recall's real deriveFastTopics: a turn is
-  // topic-poor when it has no word outside the stopword set.
-  const mod = {
-    deriveFastTopics: (messages: string[]) =>
-      messages
-        .join(" ")
-        .toLowerCase()
-        .match(/[a-z][a-z0-9'-]{2,}/g)
-        ?.filter((w) => !["what", "you", "think", "why", "not", "should", "can", "tell", "more", "did", "say", "how", "that", "about"].includes(w)) ?? [],
-  };
-  const PRIOR = ["We moved the Instagram cadence to three reels a week."];
+describe("buildRecallMessages · only the referent is ever prepended", () => {
+  const PRIOR_SUBJECT = "what is my rent on the euclid apartment";
 
-  it("a stopword-only turn gains the prior turn — it would otherwise recall NOTHING relevant", () => {
-    expect(buildRecallMessages(mod, "what do you think?", undefined, PRIOR)).toEqual([
-      PRIOR[0],
-      "what do you think?",
-    ]);
+  it("a referent is prepended — the anaphoric case still works", () => {
+    expect(buildRecallMessages("REF", "is it still true")).toEqual(["REF", "is it still true"]);
   });
 
-  it("a topic-BEARING turn is left alone — this is the dilution guard", () => {
+  it("NO referent: the turn recalls on its own text, even with zero topics", () => {
+    // The #2433 regression, pinned. Previously this returned
+    // [PRIOR_SUBJECT, "is everything done"] and searched the prior subject.
+    expect(buildRecallMessages(undefined, "is everything done")).toEqual(["is everything done"]);
+    expect(buildRecallMessages(undefined, "what do you think?")).toEqual(["what do you think?"]);
+  });
+
+  it("a topic-bearing turn is untouched, referent or not", () => {
     const rich = "what did the alignment rack cost";
-    expect(buildRecallMessages(mod, rich, undefined, PRIOR)).toEqual([rich]);
+    expect(buildRecallMessages(undefined, rich)).toEqual([rich]);
+    expect(buildRecallMessages("REF", rich)).toEqual(["REF", rich]);
   });
 
-  it("an anaphoric referent still wins regardless of topic richness", () => {
-    const rich = "what did the alignment rack cost";
-    expect(buildRecallMessages(mod, rich, "REF", PRIOR)).toEqual(["REF", rich]);
-  });
-
-  it("no history: unchanged, never a phantom context turn", () => {
-    expect(buildRecallMessages(mod, "why not?", undefined, [])).toEqual(["why not?"]);
-  });
-
-  it("a broken or absent derive must NOT change recall inputs (fail safe, not open)", () => {
-    const broken = { deriveFastTopics: () => { throw new Error("boom"); } };
-    expect(buildRecallMessages(broken, "why not?", undefined, PRIOR)).toEqual(["why not?"]);
-    expect(buildRecallMessages(null, "why not?", undefined, PRIOR)).toEqual(["why not?"]);
-    expect(buildRecallMessages({}, "why not?", undefined, PRIOR)).toEqual(["why not?"]);
+  it("no prior turn can leak in — there is no history parameter left to leak from", () => {
+    // The old signature took the full prior-turn array; the shape of the bug
+    // was that it could reach the output without an anaphoric signal. The
+    // parameter is gone, so that is now unrepresentable rather than guarded.
+    expect(buildRecallMessages.length).toBe(2);
+    expect(buildRecallMessages(undefined, PRIOR_SUBJECT)).toEqual([PRIOR_SUBJECT]);
   });
 });
 

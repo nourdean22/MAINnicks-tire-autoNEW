@@ -117,45 +117,37 @@ const EMPTY_FIRED: ContextBlocksFired = {
 };
 
 /**
- * Which messages the contextual lane derives its TOPICS from — and therefore
- * its embedding, since `queryText = topics.join(", ")` in contextual-recall.
+ * Which messages the contextual lane derives its TOPICS from.
  *
- * Two distinct reasons to include the prior turn, deliberately kept separate:
+ * ONLY the anaphoric referent is ever prepended. A turn with no referent
+ * recalls on its own text, full stop.
  *
- *  1. ANAPHORA — the turn has a referent ("what about that?"). The pronoun's
- *     antecedent lives in the prior turn, so it must come along.
+ * 2026-09-18 · this used to ALSO prepend the last turn whenever the current
+ * one derived zero topics. That heuristic was correct when it was written
+ * (#2422) and is not any more, so it is deleted rather than special-cased.
  *
- *  2. TOPIC-POOR (2026-09-18) — the turn yields ZERO topics because every word
- *     is a stopword ("what do you think?", "why not?", "should i?"). Measured
- *     9 of 14 ordinary short turns. deriveFastTopics returning [] makes
- *     getContextualMemories bail to getFallbackMemories: generic, untargeted,
- *     and silent. Those turns recall nothing relevant today.
+ * Its whole justification was that zero topics meant `getFallbackMemories()` —
+ * top-N by CONFIDENCE with the query discarded — so borrowing the prior turn's
+ * topics beat recalling nothing relevant. #2425 removed that: zero topics plus
+ * a query embedding now routes to the semantic and KNN lanes on the user's own
+ * message, which is strictly better than borrowing a neighbouring subject.
  *
- * ★ Why this cannot dilute a good turn: the objection to prepending history is
- * that topics cap at 8 and are taken newest-first, so prior-turn words could
- * crowd out real ones. That applies only to turns that HAVE topics — and this
- * branch fires only when there are NONE. Measured: 7 turns rescued from the
- * generic fallback, 0 topic-bearing turns altered.
+ * With the justification gone the heuristic was actively harmful, and review
+ * (#2433) caught it: "is everything done" is NOT classified anaphoric, yet it
+ * derives zero topics, so it was handed the previous turn's topics and those
+ * drove the lexical lane, cross-source search and the reranker toward an
+ * unrelated subject. Measured: prior turn "what is my rent on the euclid
+ * apartment" made that turn search `apartment, euclid, rent`.
  *
- * Pure and defensive: an unavailable module or an empty history returns the
- * current behaviour unchanged.
+ * The bias is the same one every classifier in this path uses: a MISS costs
+ * one turn that recalls on its own embedding; a FALSE prepend steers three
+ * lanes at the wrong subject. Prefer the miss.
  */
 export function buildRecallMessages(
-  mod: { deriveFastTopics?: (messages: string[]) => string[] } | null,
-  userContent: string,
   referent: string | undefined,
-  priorTurns: string[],
+  userContent: string,
 ): string[] {
-  const contextTurn = referent ?? priorTurns[priorTurns.length - 1];
-  if (!contextTurn) return [userContent];
-  if (referent) return [referent, userContent];
-  let topicPoor = false;
-  try {
-    topicPoor = mod?.deriveFastTopics?.([userContent])?.length === 0;
-  } catch {
-    topicPoor = false; // a broken derive must not change recall inputs
-  }
-  return topicPoor ? [contextTurn, userContent] : [userContent];
+  return referent ? [referent, userContent] : [userContent];
 }
 
 export async function buildBrainContext(
@@ -398,7 +390,7 @@ export async function buildBrainContext(
       (userContent.length > 10 || forceRecall) && contextualRecallMod
         ? withTimeout(
             contextualRecallMod.getContextualMemories(
-              buildRecallMessages(contextualRecallMod, userContent, queryPlan.referent, __priorTurns),
+              buildRecallMessages(queryPlan.referent, userContent),
               mode === "deep" ? 10 : 5,
               {
                 queryEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
