@@ -149,6 +149,61 @@ describe("planQuery — classes", () => {
     }
   });
 
+  /**
+   * 2026-09-18 · anaphoric coverage, pinned both ways.
+   *
+   * Why precision matters as much as recall here: the referent is prepended to
+   * getContextualMemories' message array, and deriveFastTopics caps at 8
+   * topics. On a SELF-CONTAINED question the prior turn's words would crowd
+   * out the real ones, so a false anaphoric match degrades recall rather than
+   * improving it.
+   */
+  it("anaphoric · recall: third-person pronouns resolve, not just object pronouns", () => {
+    const anaphoric = [
+      "how much was it?",
+      "what about that?",
+      "how did that go?",
+      "did they ever get back?",
+      "did he approve it?",
+      "what did she say?",
+      "are they still coming?",
+      "send them the invoice",
+      // Deictic pronouns still resolve even when the turn names someone —
+      // "that" points OUT of the turn regardless of a local name.
+      "Did Moe approve that?",
+    ];
+    const missed = anaphoric.filter((m) => !plan(m, ["We agreed Moe would handle the supplier call."]).classes.includes("anaphoric_followup"));
+    expect(missed).toEqual([]);
+  });
+
+  /**
+   * ★ The first version of this fixture contained no `he`/`she`/`they` at all,
+   * so it could not detect the regression it was written to guard — Codex
+   * caught that on PR #2422. A precision test whose fixtures exclude the risky
+   * input is decoration. The locally-resolved cases below are the ones that
+   * actually discriminate: measured 5/12 false positives before the fix.
+   */
+  it("anaphoric · precision: a self-contained question takes no referent", () => {
+    const selfContained = [
+      // Pronoun resolved by a name in THIS turn — not a follow-up.
+      "Did Moe say he approved the order?",
+      "Did Moe and Nick say they approved?",
+      "Has Nick confirmed he is coming?",
+      "Did Sarah mention she called back?",
+      "Ask Moe if they delivered",
+      // Pronoun-free self-contained turns.
+      "what did the alignment rack cost",
+      "remind me about the Acima rollout",
+      "how much do tires cost in Cleveland",
+      "book an oil change for Tuesday",
+      "what is my current balance",
+      "call Moe about the supplier",
+      "draft the pricing sheet",
+    ];
+    const falsePositives = selfContained.filter((m) => plan(m, ["We agreed Moe would handle the supplier call."]).classes.includes("anaphoric_followup"));
+    expect(falsePositives).toEqual([]);
+  });
+
   it("correction: 'which one is current?' and a changed amount", () => {
     expect(plan("which one is current?").classes[0]).toBe("correction");
     const p = plan("I no longer take 20mg, it's 10mg");

@@ -25,7 +25,7 @@
  * to inspect a string table.
  */
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -119,10 +119,25 @@ describe("apply-pending-migration registry · nothing irreversible reaches produ
     // copies of the same statements. They drift the moment someone edits one —
     // the same duplicated-fact problem this session removed from the tool
     // registries. Assert the index NAMES agree; formatting may differ.
+    //
+    // 2026-09-18 · the parked file is now OPTIONAL, because #2421 ("promote and
+    // record the five already-applied migrations") deletes a migration's file
+    // once it has been applied to production. This assertion compares two
+    // copies; once promotion removes the second copy there is nothing left to
+    // drift, and the check became an ENOENT that reddened main for every
+    // branch cut from it.
+    //
+    // ★ This does NOT relax the safety property. The guard against irreversible
+    // SQL is the additive-only scan over the WHOLE registry in the first test,
+    // plus the per-statement CREATE ... IF NOT EXISTS assertions in the second
+    // — both read the ROUTE and neither needs the file. What is conditional
+    // here is only the cross-copy provenance check, and only when the copy has
+    // been deliberately removed. The route side stays asserted unconditionally,
+    // so a registry that loses these names still fails.
     const src = readFileSync(resolve(APP_ROOT, ROUTE), "utf8");
-    const sql = readFileSync(
-      resolve(APP_ROOT, "prisma/migrations-pending/20260902000000_restore_idempotency_partials/migration.sql"),
-      "utf8",
+    const parked = resolve(
+      APP_ROOT,
+      "prisma/migrations-pending/20260902000000_restore_idempotency_partials/migration.sql",
     );
     const names = [
       "scheduled_actions_idempotency_key_uniq",
@@ -134,6 +149,10 @@ describe("apply-pending-migration registry · nothing irreversible reaches produ
     ];
     for (const n of names) {
       expect(src, `${n} missing from the route registry`).toContain(n);
+    }
+    if (!existsSync(parked)) return; // promoted: applied to prod, file removed by design
+    const sql = readFileSync(parked, "utf8");
+    for (const n of names) {
       expect(sql, `${n} missing from the parked migration`).toContain(n);
     }
   });

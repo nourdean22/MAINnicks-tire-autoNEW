@@ -154,7 +154,35 @@ const DURABLE_NOUNS = /\b(name|birthday|address|doctor|medication|meds|wife|husb
  */
 const CORRECTION_RE =
   /\b(what('?s| has)? changed|(has|have) (that|it|this|they|things) changed|which (one )?is (current|right|correct)|did (i|that|it|we) change|now vs|still (true|current|accurate|right|correct|the case|valid)|(am|are|is|do|does) (i|we|that|it|they) still|no longer|up[- ]to[- ]date|out of date|changed since|superseded)\b/i;
+/**
+ * 2026-09-18 · `they`, `he` and `she` added. `them` was already here and
+ * `they` was not — an oversight in the same list, not a judgement call.
+ *
+ * It matters more than pronoun tidiness because of what sits downstream:
+ * deriveFastTopics builds `queryText` for the contextual lane's EMBEDDING out
+ * of topics, and a short turn made entirely of stopwords yields zero topics,
+ * which drops the turn to getFallbackMemories (generic, untargeted). Measured
+ * on 14 ordinary short turns: 9 produced zero topics. The referent is what
+ * supplies vocabulary for those, so a pronoun this predicate misses is a turn
+ * that silently recalls nothing relevant.
+ *
+ * Measured 9/9 anaphoric matched at 0/7 false positives on self-contained
+ * turns — the false-positive side matters because a referent on a
+ * self-contained question ADDS noise: topics cap at 8, so prior-turn words
+ * would crowd out the real ones. Both sets pinned in the test file.
+ */
+/**
+ * Discourse-deictic pronouns: they point OUT of the turn, so their antecedent
+ * is in a prior turn almost by definition.
+ */
 const PRONOUN_RE = /\b(it|that|this|those|these|the same|again|there|them)\b/i;
+/**
+ * Personal pronouns, which routinely resolve LOCALLY — "Did Moe say he
+ * approved?" answers itself. Only anaphoric when the turn names no one.
+ * Split out after Codex flagged (PR #2422) that folding these into the
+ * deictic set misfired on 5 of 12 self-contained turns.
+ */
+const PERSONAL_PRONOUN_RE = /\b(they|he|she)\b/i;
 const HOP_RE = /\b(and then|because of|which led to|compare|difference between)\b/i;
 const SYNTH_RE = /^(summari[sz]e|overview|everything about|what do you know about)\b/i;
 
@@ -274,7 +302,16 @@ export function planQuery(message: string, opts?: { recentTurns?: string[]; now?
 
   let referent: string | undefined;
   const recent = (opts?.recentTurns ?? []).filter((t) => typeof t === "string" && t.trim().length > 0);
-  if (trimmed.length < 60 && PRONOUN_RE.test(trimmed) && recent.length > 0) {
+  // A personal pronoun whose antecedent is NAMED IN THIS TURN ("Did Moe say he
+  // approved?") is not a follow-up: attaching a prior turn as its referent
+  // injects that turn's keywords into topic extraction, which is the opposite
+  // of helpful. Deictic pronouns point out of the turn and are unaffected, so
+  // "Did Moe approve that?" still resolves. capitalisedNames() already exists
+  // for entity detection and is reused rather than duplicated.
+  const namesThisTurn = capitalisedNames(trimmed).length > 0;
+  const isFollowUpPronoun =
+    PRONOUN_RE.test(trimmed) || (PERSONAL_PRONOUN_RE.test(trimmed) && !namesThisTurn);
+  if (trimmed.length < 60 && isFollowUpPronoun && recent.length > 0) {
     matched.add("anaphoric_followup");
     referent = recent[recent.length - 1].trim().slice(-200);
     reasons.push("short follow-up with a pronoun; referent from the last turn");
