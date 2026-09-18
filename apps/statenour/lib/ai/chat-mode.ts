@@ -1037,8 +1037,16 @@ export async function pruneTools(
   // fallback is arrival order — byte-identical to the single-pass behaviour.
   // That is also what makes "no embedding" and "cold cache" structurally safe:
   // both leave every candidate unscored, so both keep today's exact output.
+  // `Number.isFinite`, NOT `typeof === "number"`. Cosine similarity divides by
+  // the product of two magnitudes, so a zero-magnitude embedding yields NaN —
+  // and `typeof NaN === "number"` is TRUE. A NaN would pass this guard, then
+  // `b.score - a.score` is NaN, and `NaN !== 0` is true, so the comparator
+  // RETURNS NaN. A comparator that returns NaN makes the sort order
+  // implementation-defined: the budget would then cut by nothing in particular
+  // while every log said ranking was applied. Non-finite scores fall the whole
+  // pool back to arrival order instead, which is the documented safe path.
   const everyContenderScored =
-    contested.length > 0 && contested.every((c) => typeof c.score === "number");
+    contested.length > 0 && contested.every((c) => Number.isFinite(c.score));
   const ranked = [...contested];
   if (everyContenderScored && process.env.NICK_TOOL_RANK_MERGED !== "0") {
     ranked.sort((a, b) => {

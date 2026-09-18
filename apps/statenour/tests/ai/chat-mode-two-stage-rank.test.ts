@@ -226,6 +226,23 @@ describe("pruneTools · two-stage ranking", () => {
     expect(names).not.toContain("searchWebVerified");
   });
 
+  it("a NaN score disables ranking rather than corrupting the sort", async () => {
+    // Found by self-review, not by a failing test. Cosine similarity divides by
+    // the product of two magnitudes, so a zero-magnitude embedding yields NaN —
+    // and `typeof NaN === "number"` is TRUE, so a NaN would have passed the
+    // coverage guard. Then `b.score - a.score` is NaN and `NaN !== 0` is true,
+    // so the comparator RETURNS NaN and the sort order becomes
+    // implementation-defined: the budget cuts by nothing in particular while
+    // every log still says ranking was applied.
+    process.env.NICK_TOOL_BUDGET = TIGHT_BUDGET;
+    SCORES = { queryNickstire: Number.NaN };
+    SEMANTIC = [["searchWebVerified", 0.99]];
+    const names = await offered(PROMPT, EMBEDDING);
+    expect(names, "a non-finite score must fall back to arrival order").not.toContain(
+      "searchWebVerified",
+    );
+  });
+
   it("ESCAPE HATCH: NICK_TOOL_RANK_MERGED=0 restores arrival order without a deploy", async () => {
     process.env.NICK_TOOL_BUDGET = TIGHT_BUDGET;
     process.env.NICK_TOOL_RANK_MERGED = "0";
