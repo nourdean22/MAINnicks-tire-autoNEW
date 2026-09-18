@@ -18,11 +18,18 @@
  * preference). When neither is reachable, the caller falls back to
  * identity ordering (existing graceful-degradation pattern).
  *
- * NOTE on HF rerank shape: HF's `text-ranking` task returns a single
- * relevance score per (query, passage) pair. We call it ONCE per
- * candidate. To save round-trips, the candidates are sent as
- * `query: "<q>", text: "<candidate>"` and HF returns a sentence-
- * similarity-style score. We rescale to 0-1 and sort descending.
+ * NOTE on HF rerank shape — CORRECTED 2026-09-18 after measuring the live
+ * endpoint. This paragraph previously described sending
+ * `query: "<q>", text: "<candidate>"`, which the code NEVER sent; the code sent
+ * the sentence-similarity shape `{inputs:{source_sentence,sentences}}` and
+ * therefore 400'd on every candidate since the module shipped. Comment and
+ * implementation had never agreed, and neither matched the API.
+ *
+ * The one shape that works, of seven probed:
+ *     {inputs:[{text:"<query>", text_pair:"<candidate>"}]}
+ * scoring relevant 0.9963 vs irrelevant 0.0000. One request PER CANDIDATE —
+ * batching two pairs in a single request is untested (the account hit its
+ * credit ceiling mid-probe) and would be the obvious next saving.
  *
  * For batch efficiency at scale, switch to BGE-reranker-v2-m3 hosted
  * on HF Inference ENDPOINTS (dedicated GPU) which supports batched
@@ -33,6 +40,36 @@ import { withGuardian, GuardianError } from "@/lib/tools/guardian";
 
 const BGE_RERANK_URL = "https://router.huggingface.co/hf-inference/models";
 const DEFAULT_MODEL = "BAAI/bge-reranker-v2-m3";
+
+/**
+ * Pull the relevance score out of whatever HF returned, or null.
+ *
+ * ⚠ RECURSIVE ON PURPOSE. Text-classification endpoints return the score at
+ * varying depths — `0.99`, `[0.99]`, `[{score}]`, and `[[{label,score}]]` are
+ * all shapes this family of models emits, and the nesting is not stable across
+ * router versions. The previous parser only inspected `data[0]` for a number or
+ * an object-with-score, so a NESTED array silently returned null and the caller
+ * counted it as a failed candidate — a payload fix alone would have kept
+ * failing, just further from the cause.
+ *
+ * This exact function extracted 0.9963 from the live endpoint during the
+ * 2026-09-18 probe, which is the only reason it is trusted. Exported for tests.
+ */
+export function extractRerankScore(data: unknown): number | null {
+  if (typeof data === "number") return Number.isFinite(data) ? data : null;
+  if (Array.isArray(data)) {
+    if (data.length === 0) return null;
+    return extractRerankScore(data[0]);
+  }
+  if (data && typeof data === "object") {
+    const o = data as Record<string, unknown>;
+    if (typeof o.score === "number" && Number.isFinite(o.score)) return o.score;
+    if (typeof o.relevance_score === "number" && Number.isFinite(o.relevance_score)) {
+      return o.relevance_score;
+    }
+  }
+  return null;
+}
 
 export interface BgeRerankCandidate<T> {
   item: T;
@@ -45,13 +82,11 @@ export interface BgeRerankResult<T> {
   originalIndex: number;
 }
 
-interface HfRerankResponse {
-  // text-ranking/cross-encoder task: { score: number } per call
-  score?: number;
-  // Some HF models return [{ label, score }, ...] in a list
-  // (zero-shot-style); we handle both shapes.
-  label?: string;
-}
+// (The former `HfRerankResponse` interface was removed 2026-09-18. It declared
+// the two response shapes this endpoint was BELIEVED to return, and the parser
+// keyed off it — which is exactly why a third, NESTED shape read as "no score".
+// extractRerankScore() now walks the value structurally instead, so a new
+// nesting depth costs nothing rather than silently failing every candidate.)
 
 async function rerankSingleCandidate(args: {
   apiKey: string;
@@ -65,11 +100,28 @@ async function rerankSingleCandidate(args: {
       Authorization: `Bearer ${args.apiKey}`,
       "Content-Type": "application/json",
     },
+    // ⚠ PAYLOAD SHAPE MEASURED AGAINST THE LIVE API 2026-09-18, NOT ASSUMED.
+    //
+    // This previously sent `{inputs:{source_sentence,sentences}}` — the
+    // SENTENCE-SIMILARITY shape — to a cross-encoder that HF routes through
+    // TextClassificationPipeline, so EVERY candidate 400'd with
+    //   "TextClassificationPipeline.__call__() missing 1 required positional
+    //    argument: 'inputs'"
+    // and every rerank silently fell through to Cohere. Per this file's own
+    // header that is a 5000x cost difference ($0.0001/1000 vs $2/1000) which
+    // the module was built to capture and never did.
+    //
+    // ⚠ The header ALSO described a `query`/`text` shape the code never sent —
+    // comment and implementation had disagreed since the module shipped.
+    //
+    // Seven shapes were probed against the real endpoint. Exactly one works,
+    // and it discriminates properly (a scorer that returns the same number for
+    // a relevant and an irrelevant passage is not a reranker):
+    //   {inputs:[{text,text_pair}]}  ->  relevant 0.9963 · irrelevant 0.0000
+    // All six others returned HTTP 400, including both /pipeline/<task>/ routes
+    // ("Model not supported by provider hf-inference").
     body: JSON.stringify({
-      inputs: {
-        source_sentence: args.query,
-        sentences: [args.candidateText],
-      },
+      inputs: [{ text: args.query, text_pair: args.candidateText }],
     }),
     signal: AbortSignal.timeout(6_000),
   });
@@ -78,24 +130,26 @@ async function rerankSingleCandidate(args: {
     // Model loading on cold cache · caller decides whether to retry
     throw new Error(`HF model loading (503) · ${args.model}`);
   }
+  if (res.status === 402) {
+    // ⚠ NAME THIS ONE SPECIFICALLY. Observed live 2026-09-18: "You have
+    // depleted your monthly included credits." A depleted quota is an OPERATOR
+    // spend decision, not a bug, and it is indistinguishable from a code fault
+    // inside a generic `HF rerank 402: ...` line — which is how a working
+    // module reads as broken (and a broken one reads as merely unfunded).
+    throw new Error(
+      `HF INFERENCE CREDITS DEPLETED (402) · ${args.model} · bge-rerank cannot run until the HF account is topped up; the orchestrator is falling back to Cohere at ~5000x the per-rerank cost`,
+    );
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`HF rerank ${res.status}: ${body.slice(0, 200)}`);
   }
 
-  const data = (await res.json()) as number[] | HfRerankResponse[] | { error?: string };
-  // Sentence-similarity task returns a flat array of scores
-  if (Array.isArray(data) && data.length > 0) {
-    const first = data[0];
-    if (typeof first === "number") return first;
-    if (typeof first === "object" && first !== null && "score" in first && typeof (first as HfRerankResponse).score === "number") {
-      return (first as HfRerankResponse).score!;
-    }
+  const data: unknown = await res.json();
+  if (data && typeof data === "object" && !Array.isArray(data) && "error" in data) {
+    throw new Error(`HF rerank error: ${String((data as { error: unknown }).error)}`);
   }
-  if (data && typeof data === "object" && "error" in data) {
-    throw new Error(`HF rerank error: ${(data as { error: string }).error}`);
-  }
-  return null;
+  return extractRerankScore(data);
 }
 
 async function _bgeRerank<T>(args: {
