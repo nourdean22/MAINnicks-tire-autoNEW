@@ -51,6 +51,7 @@ import type { ProviderName } from "@/lib/ai/provider";
 import type { TraceStartInput, TraceFinishInput } from "@/lib/ai/agent-trace";
 import type { TurnSignal } from "@/lib/ai/turn-intelligence";
 import type { ContextBlocksFired } from "./brain-context";
+import type { ContextReceipt } from "@/lib/ai/context-budget";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { runDeferredBackgroundWork } from "./deferred-background-work";
 import { reconcileStreamText } from "./reconcile-stream-text";
@@ -120,6 +121,10 @@ export interface BuildOnFinishInput {
   // read time (brain-provenance's reconstruction). Optional: alternate
   // paths that skip recall pass nothing and persist nothing.
   recallReceipts?: RecallReceipt[];
+  // 2026-09-17 · Wave 3 follow-up (PR #2414). Same optionality rule as
+  // recallReceipts: alternate paths that skip buildBrainContext pass
+  // nothing and persist nothing.
+  contextReceipt?: ContextReceipt;
   // ─── timing refs ──────────────────────────────────────────────
   startedAt: number;
   firstTokenRef: FirstTokenRef;
@@ -171,6 +176,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
     messages,
     topicTier,
     recallReceipts,
+    contextReceipt,
   } = deps;
   // modeOverride is part of the deps interface for completeness/future
   // header use; the lifted onFinish body doesn't reference it directly.
@@ -603,6 +609,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         deeperContextCount,
         deeperContextTypes,
         recallReceipts,
+        contextReceipt,
         personality,
         userContent,
         posture: deps.posture,

@@ -289,3 +289,74 @@ and the 0-row fact); the "approval UI missing" gap in `docs/SECURITY.md` (closed
 
 Not shipped, by rule: the embedding backfill (production write → operator-run, §6.2), the
 supersession flip (needs its shadow week, §6.3), any flag flip.
+
+## 12 · 2026-09-17 — a second external plan, checked (and the wave delta since this doc shipped)
+
+A ~5,700-word plan pasted by the operator (unattributed, web-research citations to Hindsight
+v0.10.0 / LongMemEval-V2 / Cohere rerank-v4 / etc., dated 2026-09) proposes the same territory as
+this document: 12 "custom features," a StateNourEval-250 benchmark, a three-receipt execution
+model, Graphify MCP wiring, an Obsidian Bases cockpit. Checked claim by claim (`plan-gate` skill)
+before writing anything, per the operator's standing "careful, other sessions working this repo
+too" caution.
+
+**Verdict: near-total overlap with §5/§6/§8 above, at lower rigor — do not build from it.** Its own
+§55 "what I would not build" list matches this document's §8 register almost verbatim (no Neo4j,
+no shoving the graph into memory, no mass-reembed-before-bakeoff). Its 12 "custom features" map
+onto work already ranked here:
+
+| Pasted-plan feature | This doc | Status today (2026-09-17) |
+|---|---|---|
+| Claim Receipts | §6.10 claim receipt (Wave 6) | not started |
+| Context Packet Debugger | §6.5 context receipt (Wave 3) | **SHIPPED same PR, observability-only** — `lib/ai/context-budget.ts`, see delta below |
+| Decision Delta Dossiers / Evidence Rejection Memory | `docs/UPSTREAMS.md` register | **already exists, in daily use** — every REJECT/WATCH row there is exactly this, for external tools |
+| ProcedureMemory / Environment Gotcha Memory | `AGENTS.md` §5 + `CURRENT-TRUTH.md` gotcha sections, as prose | not a queryable table — genuine gap, and this doc doesn't propose one either |
+| Premise Firewall | §6.6 query planner's correction/change class (Wave 3) | not started |
+| CommandReceipt / RunReceipt / EffectReceipt | out of this doc's scope (chat recall, not job execution) | **a sibling session shipped proof-of-invocation for 21 Inngest crons the same day** (#2412 "every inngest cron now proves it was invoked", #2410 cron-manifest reconciliation) — adjacent subsystem, same shape, already real |
+
+**No external-tool verdict in §8 changes.** Hindsight, Mem0, Graphiti/Zep/Neo4j, GraphRAG/LightRAG,
+ColBERT, DSPy/GEPA all already carry a dated, evidenced row there. The pasted plan reaches the same
+PATTERN / WATCH / REJECT calls independently, with web citations instead of production probes —
+convergent validation of §8, not new information.
+
+**Delta since this doc shipped (2026-09-08 → 2026-09-17), verified against `origin/main`
+(`9c4f30f4c`) file-by-file, not trusted from the wave table:**
+- **Wave 2 retrieval arbiter — DONE (code), gated.** `lib/brain/retrieval-arbiter.ts` (pure core:
+  union → content dedupe → RRF k=60 → MMR cut) + `lib/brain/evidence-pack.ts` (caller: rerank,
+  validity filter, format) both exist with tests; `evidence-pack.ts`'s `buildEvidencePack()` is
+  imported and called live in `brain-context.ts:33,490` behind `arbiterOn` (`NICK_RECALL_ARBITER`,
+  still `defaultOn: false`).
+- **Wave 3 query planner — DONE (code), WIRED AND CALLED, no flag.** `lib/brain/query-plan.ts`
+  (`planQuery`) is imported at `brain-context.ts:32` and called unconditionally at `:166` —
+  `const queryPlan = planQuery(userContent, { recentTurns: … })`. This corrects an earlier pass in
+  this same edit that read the wave table instead of the tree and reported Wave 3 as not started.
+  **Not independently confirmed:** whether `queryPlan`'s output (`asOf`, `exactTerms`, `classes`)
+  actually changes lane behavior downstream, or is computed and only logged/received by
+  `recallReceipts` — worth a follow-up read of `brain-context.ts:166-260` before trusting either way.
+- **Wave 2 validity-at-write — still not flipped.** 0 evidence of a change since the 2026-08-14
+  probe (0/40,889 rows with `valid_from`/`valid_until`/`superseded_by_id`); nothing in
+  `CURRENT-TRUTH.md`'s 2026-09-17 (W12) section mentions it.
+- **Wave 3 context budget allocator + context receipt — SHIPPED same PR (2026-09-17), observability
+  only.** Was genuinely missing when this line was first written (no `context.?receipt`,
+  `blocksConsidered` or `blocksDropped` anywhere in `lib/`); `lib/ai/context-budget.ts` +
+  `tests/ai/context-budget.test.ts` now exist, wired into `brain-context.ts` right after the
+  existing block-append loop. `systemPromptAddendum` is unchanged — nothing acts on an
+  `over_budget`/`redundant` verdict yet; see that file's header for the deliberate no-op MMR pass.
+  Flagged by Codex review on this PR: this line originally still said "confirmed genuinely missing"
+  after the commit that shipped it, which would have sent the next reader looking for a missing
+  feature that already exists.
+- **Wave 5 document RAG 2.0 — confirmed genuinely missing.** No `contextHeader`/`retrievalText` in
+  `document-ingest.ts`; still the flag-only state §4.2 described.
+- **Wave 6 claim receipt / derived-memory invalidation — confirmed genuinely missing.** No
+  `stale_due_to_source_change` or `ClaimReceipt` anywhere outside this doc.
+- **Wave 4 tool funnel — NOT genuinely missing, actively in flight.** See concurrency note below.
+
+**Concurrency, 2026-09-17:** 23 active worktrees; ≥6 same-day statenour branches with
+tool/metric-adjacent names (`statenour/tool-name-guard` ×3, `statenour/tool-chosen-lane`,
+`statenour/chosen-census`, `statenour/metric-reader-sweep`) that may already be mid-flight on
+Wave 4 territory (§6.7) — not confirmed either way without opening them. Check before starting any
+tool-funnel work.
+
+**Recommendation:** do not implement the pasted plan. If the operator wants the brain plan
+advanced, the next gated action is a specific Wave 2/3 item from §10 (most likely: check the
+28-case corpus and promote `NICK_RECALL_ARBITER`, or run the Wave 2 shadow week for the
+supersession flip) — chosen and confirmed against the active branch list above, not started blind.

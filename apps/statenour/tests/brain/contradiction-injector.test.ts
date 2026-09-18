@@ -166,4 +166,56 @@ describe("findRelevantContradictions", () => {
     // not re-marking.
     expect(prisma.brainMemory.create).not.toHaveBeenCalled();
   });
+
+  // Unit-length so its cosine against SAME_DIRECTION_EMBEDDING ([1,0,0,0])
+  // is exactly 0.65: below the 0.7 default, above a 0.6 override.
+  const BELOW_DEFAULT_ABOVE_LOWERED_THRESHOLD_EMBEDDING = [0.65, 0.7599341943872264, 0, 0];
+
+  it("similarityThreshold override (2026-09-17, NICK_CORRECTION_THRESHOLD_BOOST) · a ~0.65 hit misses the 0.7 default and is caught when the caller lowers the bar", async () => {
+    (prisma.brainMemory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      makeUnresolvedRow(),
+    ]);
+    (prisma.brainMemory.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (prisma.brainMemory.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "log" });
+
+    (getEmbedding as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING)
+      .mockResolvedValueOnce(BELOW_DEFAULT_ABOVE_LOWERED_THRESHOLD_EMBEDDING);
+    const missedAtDefault = await findRelevantContradictions({
+      userMessage: USER_MESSAGE,
+      conversationId: "conv-5",
+    });
+    expect(missedAtDefault).toBeNull();
+
+    // Same ~0.65 pair; caller passes the exact override
+    // NICK_CORRECTION_THRESHOLD_BOOST sends (brain-context.ts) — now it hits.
+    (getEmbedding as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING)
+      .mockResolvedValueOnce(BELOW_DEFAULT_ABOVE_LOWERED_THRESHOLD_EMBEDDING);
+    const hitWithBoost = await findRelevantContradictions({
+      userMessage: USER_MESSAGE,
+      conversationId: "conv-6",
+      similarityThreshold: 0.6,
+    });
+    expect(hitWithBoost).not.toBeNull();
+    expect(hitWithBoost?.key).toBe("abc123");
+    expect(hitWithBoost?.similarity).toBeCloseTo(0.65, 6);
+  });
+
+  it("similarityThreshold is ignored when non-finite (garbage tolerance — falls back to the 0.7 default)", async () => {
+    (prisma.brainMemory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      makeUnresolvedRow(),
+    ]);
+    (prisma.brainMemory.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (getEmbedding as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING)
+      .mockResolvedValueOnce(BELOW_DEFAULT_ABOVE_LOWERED_THRESHOLD_EMBEDDING);
+
+    const hit = await findRelevantContradictions({
+      userMessage: USER_MESSAGE,
+      conversationId: "conv-7",
+      similarityThreshold: NaN,
+    });
+    expect(hit).toBeNull();
+  });
 });

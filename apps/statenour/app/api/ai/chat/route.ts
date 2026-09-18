@@ -953,6 +953,11 @@ ${priorsBlock}`;
     deeperContextCount,
     deeperContextTypes,
     recallReceipts,
+    // 2026-09-17 · Wave 3 follow-up (PR #2414): thread the context receipt
+    // (lib/ai/context-budget.ts) through the SAME persist path recallReceipts
+    // already rides, so "why was this block in the prompt" survives past the
+    // console.info window the same way recallReceipts answers "why this memory".
+    contextReceipt: brainCtx.contextReceipt,
     startedAt,
     firstTokenRef: __firstTokenRef,
     partialRef: __partialRef,
