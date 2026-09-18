@@ -92,12 +92,20 @@ const MONTH_TOKENS = `${MONTHS.join("|")}|jan|feb|mar|apr|jun|jul|aug|sep|sept|o
  * and 7 false `asOf` instants.
  *
  * ★ A false `asOf` is not cosmetic — it SILENTLY SHRINKS MEMORY. `asOf` flows
- * to getContextualMemories -> validityWhere(asOf), whose clause is
- * `{ validFrom: null, createdAt: { lte: asOf } }`, and the 2026-09-08
- * production probe found 0 of 40,889 live rows carrying validFrom. So every
- * row falls into that branch: "that may be the right call" resolved to
- * asOf = May 1st and hid every memory created since. No error, no log — the
- * turn just answers with a fraction of the brain.
+ * to getContextualMemories -> validityWhere(asOf), which keeps a row when
+ * `validFrom <= asOf`, or when validFrom is null and `createdAt <= asOf`.
+ * Either branch excludes anything newer than `asOf`, so "that may be the right
+ * call" resolved to asOf = May 1st and hid every memory since. No error, no
+ * log — the turn just answers with a fraction of the brain.
+ *
+ * Do NOT restate this as "0 of 40,889 rows carry validFrom" (the 2026-09-08
+ * probe, quoted for months after it went stale). Wave 2 shipped validity at
+ * write: remember() stamps `validFrom: new Date()` unconditionally
+ * (memory-manager.ts:509), so rows written since then DO carry it. Pre-Wave-2
+ * rows and the 107 allowlisted direct writers
+ * (tests/repo/brain-memory-direct-writers.allowlist.json) still take the
+ * createdAt fallback. The severity above is unchanged either way — which is
+ * exactly why the stale premise survived so long unchallenged.
  *
  * Requiring a preposition/determiner or an adjacent number keeps every real
  * date phrasing (12/12 recall on the fixture set) at 0 false positives.

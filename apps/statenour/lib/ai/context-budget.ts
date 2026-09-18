@@ -62,9 +62,9 @@ export interface ContextReceipt {
    * "current". This is here because of a defect the same PR fixed: a false
    * `asOf` from the query planner made recall answer as of a past instant and
    * there was NO signal anywhere that it had happened — validityWhere(asOf)
-   * degrades to `createdAt <= asOf` for every row without validFrom (all
-   * 40,889 of them as of the 2026-09-08 probe), so the turn silently answered
-   * from a fraction of the brain.
+   * excludes every row newer than `asOf` (via `validFrom <= asOf`, or the
+   * `createdAt <= asOf` fallback on a row with no validFrom), so the turn
+   * silently answered from a fraction of the brain.
    *
    * Fixing the classifier removed today's trigger; recording the instant here
    * removes the SILENCE, which is the part that made it survive. A stored ISO

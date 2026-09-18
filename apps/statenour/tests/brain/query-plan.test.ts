@@ -34,11 +34,13 @@ describe("planQuery — classes", () => {
   /**
    * 2026-09-17 · temporal PRECISION, and why it is not cosmetic.
    *
-   * `asOf` flows to getContextualMemories -> validityWhere(asOf), whose clause
-   * is `{ validFrom: null, createdAt: { lte: asOf } }`. The 2026-09-08
-   * production probe found 0 of 40,889 live rows carrying validFrom, so EVERY
-   * row takes that branch: a false asOf silently hides every memory created
-   * after it, with no error and no log.
+   * `asOf` flows to getContextualMemories -> validityWhere(asOf), which keeps
+   * a row when `validFrom <= asOf`, or when validFrom is null and
+   * `createdAt <= asOf`. BOTH branches exclude anything newer than `asOf`, so
+   * a false asOf silently hides every memory recorded after it, with no error
+   * and no log. (An earlier version of this comment justified that via the
+   * 2026-09-08 probe's "0 of 40,889 rows carry validFrom" — stale since Wave 2
+   * made remember() stamp it. The conclusion never depended on that premise.)
    *
    * The original matcher accepted a bare month token anywhere, so "that may be
    * the right call" resolved to asOf = May 1st — roughly four months of memory
