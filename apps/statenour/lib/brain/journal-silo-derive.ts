@@ -44,6 +44,7 @@
  */
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
+import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
 import type { ThoughtType } from "@/lib/brain/journal-ingest";
 
 type PrismaLike = typeof defaultPrisma;
@@ -163,7 +164,13 @@ export async function deriveJournalSilos(input: DeriveInput): Promise<DeriveResu
           // a novel category could, by falling through every switch.
           scope: "triggered",
           category: "reflection",
-          insight: text.slice(0, 4000),
+          // SANITIZED, because this text REACHES A PROMPT. reflection-engine.ts
+          // builds prompt lines straight from `r.insight` (:278, :492), and
+          // journal-ingest.ts already sanitizes every other operator string it
+          // stores for later prompt use (:434, :512). Storing raw here would have
+          // been a role-flip surface in a repo that has a dedicated sanitizer for
+          // exactly this.
+          insight: sanitizeForPrompt(text, 4000),
           evidence: `derived from brain_dump ${input.brainDumpId} · captured via /dump`,
           confidence: 0.7,
           actionable: false,
@@ -191,13 +198,13 @@ export async function deriveJournalSilos(input: DeriveInput): Promise<DeriveResu
     const reviewAt = new Date(Date.now() + DERIVED_REVIEW_DAYS * 86_400_000);
     const row = await prisma.decisionReplay.create({
       data: {
-        title: (input.summary?.trim() || firstSentence(text, 120)).slice(0, 200),
-        context: text.slice(0, 4000),
+        title: sanitizeForPrompt(input.summary?.trim() || firstSentence(text, 120), 200),
+        context: sanitizeForPrompt(text, 4000),
         // ⚠ LOSSY AND SAID SO. A free-text dump has no separately-stated
         // "choice"; the opening sentence is the closest honest approximation.
         // The full text is preserved in `context`, so nothing is lost — only
         // the split between choice and reasoning is approximate.
-        choiceMade: firstSentence(text, 500),
+        choiceMade: sanitizeForPrompt(firstSentence(text, 500), 500),
         reviewAt,
         idempotencyKey,
         ...grounding,
