@@ -13,51 +13,41 @@ import { sendSms } from "../sms";
 import { alertAfterHours } from "./telegram";
 
 import { BUSINESS } from "@shared/business";
+import { businessState } from "@shared/shopState";
 const log = createLogger("after-hours");
 
 const STORE_PHONE = BUSINESS.phone.display;
 
-/** Check if current time is outside business hours (Eastern Time) */
+/**
+ * Check if current time is outside business hours.
+ *
+ * 2026-09-18 · rewired to `businessState`. This function used to re-type the
+ * hours as literals (`day === 0 ? hour < 9 || hour >= 16 : ...`) while
+ * importing `BUSINESS` for the phone and timezone — so the shop's hours lived
+ * in two places and only one of them was canonical. It was not WRONG when
+ * audited, which is exactly why it was dangerous: editing
+ * `BUSINESS.hours.structured` would have left this copy silently stale, and the
+ * app has already paid for that class of drift (ROS-043, and the
+ * "before 6 PM today" SMS template that was false every Sunday).
+ *
+ * `businessState` is the one reader of `BUSINESS.hours.structured` and handles
+ * the before-open, open and after-close arms.
+ */
 export function isAfterHours(): boolean {
-  const now = new Date();
-  const hour = parseInt(
-    now.toLocaleString("en-US", {
-      timeZone: BUSINESS.timezone,
-      hour: "numeric",
-      hour12: false,
-    }),
-    10
-  );
-  const day = new Date(
-    now.toLocaleString("en-US", { timeZone: BUSINESS.timezone })
-  ).getDay(); // 0=Sun
-
-  if (day === 0) return hour < 9 || hour >= 16; // Sunday 9-4
-  if (day >= 1 && day <= 6) return hour < 8 || hour >= 18; // Mon-Sat 8-6
-  return true;
+  return businessState(new Date(), BUSINESS.timezone, BUSINESS.hours.structured).state === "closed";
 }
 
-/** Get next opening time as a human-readable string */
+/**
+ * Next opening time, human-readable.
+ *
+ * Derived from the same single source. Returns a stable fallback rather than a
+ * fabricated time if hours are ever unconfigured — an unknown must not render
+ * as a specific promise to a customer.
+ */
 export function getNextOpenTime(): string {
-  const now = new Date();
-  const et = new Date(
-    now.toLocaleString("en-US", { timeZone: BUSINESS.timezone })
-  );
-  const day = et.getDay();
-  const hour = et.getHours();
-
-  if (day === 0) {
-    if (hour < 9) return "9:00 AM today";
-    return "8:00 AM tomorrow (Monday)";
-  }
-  if (day === 6) {
-    if (hour < 8) return "8:00 AM today";
-    return "9:00 AM Sunday";
-  }
-  // Mon-Fri
-  if (hour < 8) return "8:00 AM today";
-  if (day === 5) return "8:00 AM Saturday";
-  return "8:00 AM tomorrow";
+  const st = businessState(new Date(), BUSINESS.timezone, BUSINESS.hours.structured);
+  if (st.state === "open") return "now (we're open)";
+  return st.nextChange ?? "our next business day";
 }
 
 /**
