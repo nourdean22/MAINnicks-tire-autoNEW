@@ -136,6 +136,31 @@ export function maskPhone(num: string | null): string {
   return num.slice(0, -4) + "****";
 }
 
+/**
+ * Why an episode is NOT an obligation, in the operator's words.
+ *
+ * Rendered verbatim under the queue, because "it disappeared" is how a queue
+ * loses trust. Each key is an ExclusionReason from `shared/callTaxonomy.ts`;
+ * the phrasing deliberately states the EVIDENCE rather than the verdict —
+ * "the caller never spoke" is checkable, "not a lead" is an opinion.
+ *
+ * `unattributable` is kept distinct from `no_customer_speech` on purpose: one
+ * means we could not read the call, the other means we read it and nobody
+ * spoke. Collapsing them is the empty-vs-error defect this repo has paid for
+ * repeatedly.
+ */
+export const EXCLUSION_LABELS: Record<string, string> = {
+  no_customer_speech: "the caller never spoke",
+  unattributable: "could not tell who was speaking",
+  spam_or_wrong_number: "spam or wrong number",
+  informational_only: "answered in full (hours, directions)",
+  expected_to_arrive: "said they are coming in",
+  operational_not_sales: "car already at the shop",
+  already_invoiced: "already paid an invoice",
+  already_resolved: "resolved on the call",
+  safety_lane: "safety — handled by a human",
+};
+
 export const OUTCOME_PRETTY: Record<string, { label: string; color: string; bg: string }> = {
   hard_conversion:            { label: "Hard Conversion",            color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
   walk_in_directed:           { label: "Walk-In Directed",           color: "text-teal-400",    bg: "bg-teal-500/10 border-teal-500/20" },

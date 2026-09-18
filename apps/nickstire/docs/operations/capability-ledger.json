@@ -1837,6 +1837,40 @@
         "deploymentId": "railway statenour-web 4cb7dbf4d SUCCESS (23:58Z) then 6f5059b7c SUCCESS (00:46Z 2026-09-16); the nickstire half runs in GitHub Actions (nickstire-proof.yml run 35036353033 green, all 7 main workflows green for 4cb7dbf4d)"
       },
       "verificationExpiresAt": "2026-10-07"
+    },
+    {
+      "capabilityId": "voice-demand-speaker-attribution",
+      "name": "Voice demand is classified from CUSTOMER speech only; one taxonomy kernel decides queue membership",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18 (PR #2444). classifyCall scored transcript + aiSummary, which contains the assistant own turns. Nick greeting necessarily names the shop or the address, and both were load-bearing: \"17625 Euclid Ave\" matched euclid in inferredWalkIn -> walk_in_directed, and \"Nick Tire & Auto\" matched auto in the lost_opportunity fallback. Both are Missed Revenue Queue candidates, so a call where the caller never spoke produced a queue row, as did a caller who only asked closing time. MEASURED by executing the real function, not inferred. Fix: prefer VAPI role-tagged artifact.messages, fall back to prefix parsing via the already-built extractCustomerTurns (shipped 2026-07-26, wired to the webhook recorder and never to this decider), and expose speakerAttribution so coverage is measurable. shared/callTaxonomy.ts replaces ten hand-typed outcome lists and resolves two live contradictions (walk_in_directed was SUCCESS and MISSED REVENUE at once; tech_failure was not-a-valid-conversation and an operator obligation at once). server/services/recoveryQueue.ts collapses calls into episodes.",
+        "tests": "142 passed across 5 suites: vapiCallClassifierSpeakerAttribution.test.ts (mutation canary - varies the greeting and asserts the outcome does NOT move; before the fix that set was {walk_in_directed, lost_opportunity}), callTaxonomy.test.ts (parity against the classifier union, plus two canaries proving the parity check fails on a mismatch and matched real content), recoveryQueue.test.ts (94-call corpus collapsing to 1 actionable episode with all 93 others attributable to a stated exclusion reason, plus a positive control that 12 real demand episodes are NOT filtered), callDemandExtraction.test.ts, smsFactCompiler.test.ts. Full suite 8,190 passed / 663 files, typecheck exit 0.",
+        "liveRuns": "NONE. No production call has been evaluated under the new classifier; the eval cron runs on deploy. No live Vapi config or production DB was touched.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "speakerAttribution coverage on real production rows is UNMEASURED. If prod transcripts are not speaker-prefixed and lack role-tagged messages, unattributable calls yield unknown (not a queue candidate) and the queue would thin sharply. The field exists precisely so this is observable rather than silent - read the unclassified count on getRecoveryQueueSummary after first deploy."
+        },
+        {
+          "severity": "P2",
+          "description": "Transfer connection rate is still not measurable. transferFailed derives from VAPI *-transfer-* error reasons only; assistant-forwarded-call means INITIATED, not answered. artifact.transfers[].status is the real signal and is not yet read."
+        },
+        {
+          "severity": "P2",
+          "description": "safetyFlag and existingVehicleAtShop have no writer, so the safety and operations lanes cannot fire from the queue path yet. expectedArrivalOpen and invoiceMatched are now injected by the router; these two are not."
+        }
+      ],
+      "deferredScope": [
+        "Ohio OAC 109:4-3-13 estimate/authorization guard (spec verified against primary rule text and recorded in docs/VOICE-RECOVERY-AUDIT-2026-09-18.md; deliberately NOT encoded this pass)",
+        "retiring the vapi.ts queue into revenue_opportunities, which already dedupes and has a guarded send path",
+        "reading artifact.transfers[].status from end-of-call-report"
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

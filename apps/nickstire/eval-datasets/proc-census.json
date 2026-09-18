@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-18T13:04:23.109Z",
-  "count": 739,
+  "generatedAt": "2026-09-18T14:36:41.240Z",
+  "count": 740,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -706,6 +706,7 @@
     "query.vapi.callStateHistory",
     "query.vapi.getFollowUpTransferDestination",
     "query.vapi.getMissedRevenueQueue",
+    "query.vapi.getRecoveryQueueSummary",
     "query.vapi.getTransferDestination",
     "query.vapi.listTransferPresets",
     "query.vapi.promptLessons",

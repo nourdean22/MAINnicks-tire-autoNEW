@@ -4,6 +4,9 @@ import { createLogger } from "../../lib/logger";
 import { sendTelegram } from "../../services/telegram";
 import { getCallStateHistory } from "../../services/voice-call-state";
 import { classifyCall, extractCallSignals } from "../../services/vapiCallClassifier";
+import { extractCustomerTurns } from "../../services/customerTurns";
+import { extractDemand } from "@shared/callDemandExtraction";
+import { disposeCall } from "@shared/callTaxonomy";
 import { trailReachedTool } from "../../services/vapiConversionSignals";
 import {
   buildVapiMeasurementRecord,
@@ -202,6 +205,24 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
 
       const stateHistory = await getCallStateHistory(row.vapiCallId).catch(() => []);
       const reachedTool = trailReachedTool(stateHistory);
+
+      /**
+       * Buying specifics, from the CALLER's turns only.
+       *
+       * Until now nothing extracted a tire size, vehicle, quantity or
+       * new-vs-used anywhere in this app — `detectIntents` only set booleans —
+       * so the follow-up text could not name what the caller spent the call
+       * describing. Deterministic and cheap: no per-call model spend, and it
+       * fails closed (`null`, never a guess) because a wrong size sends a
+       * customer home with tires that do not fit.
+       *
+       * `extractCustomerTurns` — not the raw transcript. Parsing Nick's speech
+       * would attribute his read-back confirmation to the caller, which is the
+       * contamination that manufactured the missed-revenue queue.
+       */
+      const speech = extractCustomerTurns(detail.transcript ?? null);
+      const demand = extractDemand(speech.turns);
+
       const result = classifyCall({
         durationSeconds: row.durationSeconds ?? 0,
         endedReason: row.endedReason,
@@ -245,12 +266,28 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       });
 
       const existingMetadata = asRecord(row.metadata);
-      const queueCandidate = ["lost_opportunity", "callback_needed", "walk_in_directed", "tech_failure"].includes(result.outcome);
-      const queueUrgency = result.outcome === "callback_needed" ? 9
-        : result.outcome === "lost_opportunity" ? 7
-          : result.outcome === "walk_in_directed" ? 6
-            : result.outcome === "tech_failure" ? 5
-              : 4;
+
+      /**
+       * Queue membership now comes from the ONE kernel, not a re-typed list.
+       *
+       * This array and the one in `routers/vapi.ts` were maintained by hand and
+       * had drifted apart — the write side stamped `queueStatus` using one copy
+       * while the read side re-derived membership from another. Both also
+       * treated `walk_in_directed` as missed revenue, though the scorecard
+       * counts it as a SUCCESS, and `tech_failure` as an operator obligation,
+       * though the same dashboard excludes it as "not a valid conversation".
+       * `disposeCall` resolves both contradictions in one place.
+       */
+      const disposition = disposeCall({
+        outcome: result.outcome,
+        speakerAttribution: result.speakerAttribution,
+        hasCustomerSpeech: speech.firstSubstantive !== null,
+        durationSeconds: row.durationSeconds ?? 0,
+        ageMinutes: Math.max(0, Math.floor((Date.now() - row.createdAt.getTime()) / 60_000)),
+        hasCapturedSpecifics: demand.hasCapturedSpecifics,
+      });
+      const queueCandidate = disposition.queueEligible;
+      const queueUrgency = disposition.priority;
 
       await db.update(vapiCallLogs).set({
         evalScore: result.score,
@@ -262,6 +299,16 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
           intents: result.intents,
           callSignals,
           revenueOpsV1: measurement,
+          /** Buying specifics from the caller's own turns. Null-safe throughout. */
+          demand,
+          /**
+           * Where the outcome's evidence came from. Persisted so queue and
+           * dashboard can separate "no demand" from "we could not read the
+           * call" — an UNKNOWN must never be averaged in as a zero.
+           */
+          speakerAttribution: result.speakerAttribution,
+          lane: disposition.lane,
+          priorityReasons: disposition.reasons,
           ...(queueCandidate ? { queueStatus: "pending", queueUrgency } : {}),
         },
       }).where(eq(vapiCallLogs.id, row.id));
