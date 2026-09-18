@@ -35,6 +35,7 @@ const log = rootLogger.withSurface("brain/journal-ingest");
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { logError } from "@/lib/utils/error-log";
+import { deriveJournalSilos } from "@/lib/brain/journal-silo-derive";
 
 // v9.1.24 · journal-ingest sanitization. Telegram messages are HTML-
 // parse-mode and can contain unescaped <, >, & + emoji + control
@@ -68,6 +69,10 @@ interface JournalResult {
   insightsStored: number;
   commitmentsFound: number;
   summary: string;
+  /** Set when the dump was classified `reflection` and promoted to a silo row. */
+  reflectionId?: string;
+  /** Set when the dump was classified `decision` and promoted to a silo row. */
+  decisionReplayId?: string;
 }
 
 // ─── v10.0.232 · entryType-based extraction gates ──────────────────
@@ -732,6 +737,35 @@ ${rawText}`,
   // above — durable steps with retries; the enrichedAt-null cron sweep
   // remains the last-resort net.)
 
+  // ── Structured silos, derived from what he already writes ──────────────
+  // Measured 2026-09-18: brain_dumps had 162 entries in 30 days while
+  // `reflections` had ZERO since June and `decision_replays` ZERO since March.
+  // He never stopped journaling — he journals here, in Telegram, and the
+  // structured silos were a UI-era artifact he never adopted. `entryType` is
+  // already classified above, so the two types that map onto a silo without
+  // invention are written through. No new surface, no new habit; the 26 files
+  // reading `reflections` simply stop feeding on three-month-old input.
+  //
+  // AWAITED, not fire-and-forget: it is two cheap queries, and a `void` here
+  // would make the derived row's existence depend on the process surviving a
+  // response that has already been sent. `situation_log` is deliberately NOT
+  // derived — see the module header.
+  const derived = await deriveJournalSilos({
+    brainDumpId: brainDump.id,
+    entryType,
+    text: rawText,
+    summary,
+    dateStr,
+  });
+  if (derived.reflectionId || derived.decisionReplayId) {
+    log.info("journal_silo_derived", {
+      brainDumpId: brainDump.id,
+      entryType,
+      reflectionId: derived.reflectionId ?? null,
+      decisionReplayId: derived.decisionReplayId ?? null,
+    });
+  }
+
   return {
     brainDumpId: brainDump.id,
     entryType,
@@ -739,6 +773,8 @@ ${rawText}`,
     insightsStored,
     commitmentsFound,
     summary,
+    reflectionId: derived.reflectionId,
+    decisionReplayId: derived.decisionReplayId,
   };
 }
 
