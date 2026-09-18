@@ -156,6 +156,21 @@ const HEDGE = String.raw`(?:\b(?:about|around|roughly|maybe|like|approximately|u
 const TIME_UNIT = String.raw`(?:minutes?|mins?|hours?|hrs?)`;
 
 /**
+ * A conditional connector immediately before the match position.
+ *
+ * Used as a negative lookbehind so a verdict INSIDE a condition is not scored as
+ * a verdict. "If it's safe to drive, bring it by" and "let me know if you can
+ * make it here" are correct assistant speech that happen to contain the literal
+ * words of a claim; declaring the condition is what makes them honest.
+ *
+ * JavaScript is unusual in allowing a variable-length lookbehind, so one
+ * alternation covers every connector instead of a stack of fixed-width ones.
+ * Declared once because a guard that protects only the branches its author
+ * happened to think of is the defect this constant exists to prevent.
+ */
+const NOT_CONDITIONAL = String.raw`(?<!\b(?:if|whether|unless|when|once|assuming)\s)`;
+
+/**
  * Any money figure at all. Applied only AFTER the approved anchors are removed,
  * so a match here is an unapproved price by construction.
  */
@@ -297,6 +312,82 @@ export const PROHIBITED_VOICE_CLAIMS: ProhibitedClaim[] = [
      */
     label: "awd_absolute_claim",
     re: /\b(?:will|would|'ll)\s+(?:destroy|ruin|wreck|blow|burn\s+up)\s+(?:your\s+)?(?:differential|drivetrain|transfer\s+case|transmission)\b|\byou\s+(?:have\s+to|must|need\s+to)\s+replace\s+all\s+four\b(?!\s*(?:if|when|unless|on\s+some))/i,
+  },
+
+  /* ── REPAIR INTAKE · added 2026-09-18 ──
+   *
+   * The tire claims above cover the product the shop is named for. This pair
+   * covers the OTHER half of the phone traffic: a caller describing a symptom
+   * on a car nobody has seen.
+   *
+   * No primary document is needed for the boundary, because the boundary is
+   * epistemic rather than regulatory: a noise the assistant has not heard, on a
+   * vehicle it has not inspected, cannot be attributed to a part. Naming one is
+   * a guess wearing the shop's authority — and the caller then either declines
+   * a repair they need or arrives expecting one they do not.
+   *
+   * Same under-matching discipline as the tire block. Every pattern fires on an
+   * UNHEDGED VERDICT only: "it's your wheel bearing" is a claim, while "that
+   * could be a bearing, a heat shield, or the brakes — we'd have to drive it"
+   * is exactly the answer wanted and must stay clean. Hedged forms are allowed
+   * through on purpose.
+   */
+  {
+    /*
+     * NAMING THE FAILED PART FROM A DESCRIPTION.
+     *
+     * The part list is deliberately the common intake vocabulary rather than an
+     * exhaustive catalogue — an unmatched part is a missed violation, which is
+     * the safe direction, while a list padded with ambiguous words ("belt",
+     * "line", "pump") would fire on ordinary speech.
+     *
+     * Note what is NOT allowed between the subject and the part: no adverb slot
+     * exists, so "it's probably the alternator" and "it's usually the pads"
+     * never match. That is the hedge allowance, implemented by omission rather
+     * than by a second list that could drift out of step.
+     */
+    label: "phone_diagnosis_verdict",
+    re: /\b(?:that|it|this)'?s\s+(?:your\s+|the\s+|an?\s+)*(?:bad\s+|worn\s+|shot\s+|failing\s+|blown\s+|seized\s+)?(?:wheel\s+bearing|brake\s+(?:pads?|rotors?|calipers?)|rotors?|calipers?|alternator|starter|cv\s+(?:joint|axle)|tie\s+rod|ball\s+joint|serpentine\s+belt|water\s+pump|fuel\s+pump|catalytic\s+converter|head\s+gasket|control\s+arm|wheel\s+hub)\b|\byou\s+need\s+(?:an?\s+|new\s+)*(?:wheel\s+bearing|brake\s+(?:pads?|rotors?|calipers?)|rotors?|calipers?|alternator|starter|cv\s+(?:joint|axle)|tie\s+rod|ball\s+joint|serpentine\s+belt|water\s+pump|fuel\s+pump|catalytic\s+converter|head\s+gasket|control\s+arm|wheel\s+hub)\b|\byour\s+(?:wheel\s+bearing|brake\s+(?:pads?|rotors?|calipers?)|rotors?|calipers?|alternator|starter|cv\s+(?:joint|axle)|tie\s+rod|ball\s+joint|serpentine\s+belt|water\s+pump|fuel\s+pump|catalytic\s+converter|head\s+gasket|control\s+arm|wheel\s+hub)s?\s+(?:is|are|'s|'re)\s+(?:bad|shot|gone|toast|blown|seized|worn\s+out|failing)\b/i,
+  },
+  {
+    /*
+     * TELLING A CALLER WHETHER THE CAR IS SAFE TO DRIVE.
+     *
+     * The most consequential sentence on the whole line, in both directions. A
+     * green light nobody is qualified to give can put a caller on I-90 on a
+     * failing hub; a red light nobody is qualified to give sells a tow the car
+     * did not need.
+     *
+     * The correct answer is conditional and returns the judgement to the person
+     * who can actually feel the car: if it feels unsafe, do not drive it.
+     *
+     * THE CONDITIONAL LOOKBEHIND IS LOAD-BEARING, ON EVERY BRANCH. Without it
+     * this pattern fires on the compliant phrasings themselves — "we can't tell
+     * you WHETHER it's safe to drive" and "IF it's safe to drive, bring it by"
+     * both contain the literal verdict. A guard that flags the correct script is
+     * a guard staff route around, which is the failure this module's header
+     * warns about.
+     *
+     * CAUGHT IN SELF-REVIEW, 2026-09-18, and the miss is the lesson: the first
+     * version guarded the two branches whose false positives I had thought of
+     * and left the third bare, so "let me know IF YOU CAN MAKE IT HERE before
+     * six" — ordinary scheduling speech, four words of it — scored as a safety
+     * verdict. Every CLEAN test I had written exercised the two guarded
+     * branches. A guard is only as good as its least-tested alternative, so the
+     * lookbehind is now hoisted into one constant that each branch must use.
+     */
+    label: "drivability_safety_verdict",
+    re: new RegExp(
+      [
+        // an assertive green light
+        `${NOT_CONDITIONAL}\\b(?:you'?re|you\\s+are|you'?ll\\s+be|it'?s)\\s+(?:totally\\s+|perfectly\\s+|definitely\\s+|completely\\s+|absolutely\\s+)?(?:fine|safe|okay|ok)\\s+to\\s+drive\\b`,
+        // the same permission phrased as ability
+        `${NOT_CONDITIONAL}\\byou\\s+can\\s+(?:definitely\\s+|for\\s+sure\\s+|safely\\s+)?(?:make\\s+it\\s+(?:here|in|over)|drive\\s+(?:it|that|on\\s+it))\\b`,
+        // an assertive red light — unsupported in the other direction
+        `${NOT_CONDITIONAL}\\bit'?s\\s+(?:not|never)\\s+safe\\s+to\\s+drive\\b`,
+      ].join("|"),
+      "i",
+    ),
   },
 ];
 

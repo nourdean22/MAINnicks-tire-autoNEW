@@ -1922,8 +1922,41 @@
         }
       ],
       "deferredScope": [
-        "repair-intake guardrails (symptom capture vs diagnosis) - same shape, not yet written",
-        "Ohio OAC 109:4-3-13 estimate/authorization guard - spec verified, no consumer exists because ALG is read-only"
+        "Ohio OAC 109:4-3-13 estimate/authorization guard - spec verified, no consumer exists because ALG is read-only",
+        "repair-intake guardrails (symptom capture vs diagnosis) SHIPPED 2026-09-18 as voice-repair-intake-claim-guard - see that entry; this line is kept so the history shows it was deferred and then closed, not quietly dropped"
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "voice-repair-intake-claim-guard",
+      "name": "The assistant is scored for naming a failed part, or ruling on whether the car is safe to drive",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. PROHIBITED_VOICE_CLAIMS gains two repair-intake entries, covering the half of phone traffic the tire claims do not: a caller describing a symptom on a car nobody has seen. No primary document is cited because the boundary is epistemic rather than regulatory - a noise the assistant has not heard cannot be attributed to a part. The same commit corrects the alert legend in vapiCallEval.ts, which had said 'repair quotes, live stock, capacity/wait promises' since 2026-07-27 and by then omitted six of the twelve classes it was legending.",
+        "tests": "36 tests in voiceClaimGuardRepairIntake.test.ts, every one run in both directions. The CLEAN cases are the point, and five of them exist because of a SELF-REVIEW CATCH: the first version applied the conditional lookbehind to two of the three drivability branches and left the ability branch bare, so ordinary scheduling speech - let me know IF YOU CAN MAKE IT HERE before six - scored as a safety verdict. Every CLEAN test written at the time exercised the two guarded branches. The lookbehind is now one NOT_CONDITIONAL constant each branch must use. MUTATION VERIFIED TWICE: renaming the phone_diagnosis_verdict label turned 10 of the tests red, and emptying NOT_CONDITIONAL turned 9 red. 108 passed across all three claim-guard suites; 78 server test files, 711 passed; typecheck exit 0.",
+        "liveRuns": "NONE. No production call has been scored under the new patterns.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "DELIBERATELY UNDER-MATCHING, same as the tire block. Only unhedged verdicts fire, and the hedge allowance is implemented by omission - the pattern has no adverb slot, so 'it's probably the alternator' never matches. A tentatively phrased real violation is missed on purpose. A clean report is not proof of a clean call."
+        },
+        {
+          "severity": "P2",
+          "description": "The part list is the common intake vocabulary, not a catalogue. An unnamed part is a missed violation. Padding the list with ambiguous words (belt, line, pump) would fire on ordinary speech, and noise buries the claims that cost money."
+        },
+        {
+          "severity": "P1",
+          "description": "DETECTION ONLY, and this cannot be fixed in code. VAPI streams model output straight to TTS with no pre-speech hook, so nothing here prevents an utterance. The operator signal is the daily Telegram aggregate in vapiCallEval.ts, which fires only when a violation is found or when coverage collapses."
+        }
+      ],
+      "deferredScope": [
+        "Ohio OAC 109:4-3-13 authorization language. The rule was read in full and its estimate and authorization duties attach to work performed, not to a telephone enquiry; the fifty dollar floor does not reach a phone call, and the 2026-03-21 amendment is editorial. There is no unsupported claim for a guard to catch here, so no pattern was written. Recorded so the question is not re-opened as though it were unexamined.",
+        "Free-diagnosis promises. Deliberately NOT guarded: the free tire check is a verified-true shop claim, and a pattern wide enough to catch an invented free engine diagnosis would flag the true one. Needs a narrower subject than a regex can honestly decide."
       ],
       "lastVerifiedAt": "2026-09-18",
       "codeState": "merged",

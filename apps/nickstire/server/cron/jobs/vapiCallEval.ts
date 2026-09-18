@@ -434,7 +434,19 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
         // phrasing and an unsourced price are not the same severity, and one
         // blended number would hide which is happening.
         `Bot-tells (banned phrasings, separate severity): ${withBotTells}/${scanned} calls`,
-        "Claims = repair quotes, live stock, capacity/wait promises. Detection only — voice cannot be blocked mid-call.",
+        // THE LEGEND MUST LIST THE CLASSES THAT ACTUALLY EXIST. This line read
+        // "repair quotes, live stock, capacity/wait promises" from 2026-07-27
+        // until 2026-09-18, by which point the guard also carried four tire
+        // safety claims and two repair-intake claims. An operator seeing
+        // `phone_repairability_verdict` in the breakdown above had no way to
+        // tell what class it belonged to, or that safety claims were being
+        // scored at all. A legend that stops describing its own list is worse
+        // than no legend: it actively misinforms.
+        "Classes: money (unapproved price, stock, capacity, wait, callback) · "
+          + "tire safety (repairability, improper repair, tire age, AWD) · "
+          + "repair intake (part named over the phone, safe-to-drive verdict).",
+        "Detection only — voice cannot be blocked mid-call, and the safety "
+          + "patterns under-match on purpose, so a clean report is not proof of a clean call.",
       ].join("\n")).catch(() => undefined);
     }
   } catch (error) {
