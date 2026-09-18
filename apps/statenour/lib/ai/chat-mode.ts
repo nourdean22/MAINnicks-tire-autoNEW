@@ -78,9 +78,15 @@ export type { ChatMode };
  * for a web-search tool the keyword family HAD already matched and truncation
  * had dropped.
  *
- * Tier 5 (semantic rank) cannot fix this: it is gated on
- * `selectedNames.size < TOOL_BUDGET`, so it is skipped on exactly the turns
+ * Tier 5 (semantic rank) could not fix this: it was gated on
+ * `selectedNames.size < TOOL_BUDGET`, so it was skipped on exactly the turns
  * where ranking matters (70.3% of turns skipped it).
+ *
+ * 2026-09-18 · THAT GATE IS GONE. Selection is now two-stage — every tier
+ * gathers candidates, then tiers 4/5/6 are ranked TOGETHER on one cosine scale
+ * before the cut. So this function no longer decides the cliff on its own; it
+ * supplies tier 4's arrival order, which is the fallback whenever scoring does
+ * not cover every contender. See STAGE 1 / STAGE 2 in `pruneTools`.
  *
  * WHAT THIS CHANGES — and does not. Ordering ONLY. The candidate set is
  * identical; when the budget does not truncate, the surfaced set is unchanged
@@ -860,37 +866,72 @@ export async function pruneTools(
   let semanticTierAttempted = false;
   let embeddingCacheWarm = false;
 
-  const addIfSpace = (name: string, tier?: number) => {
-    if (selectedNames.size >= TOOL_BUDGET) {
-      // Candidate considered but no room. Record it once, with the
-      // tier that WOULD have supplied it.
-      if (allTools[name] && !selectedNames.has(name) && !budgetedOut.has(name)) {
-        budgetedOut.set(name, tier ?? 0);
-      }
-      return;
-    }
-    if (allTools[name]) {
-      if (!selectedNames.has(name) && tier !== undefined) {
-        tierOf.set(name, tier);
-      }
-      selectedNames.add(name);
-    }
+  // ── STAGE 1 · GATHER ──────────────────────────────────────────────────
+  //
+  // 2026-09-18 · two-stage selection. This used to be ONE pass: every tier
+  // called `addIfSpace`, which stopped adding at TOOL_BUDGET, so each tier's
+  // share of the 24 slots was decided by ARRIVAL ORDER rather than relevance.
+  // Measured over 2,616 prod gate decisions: candidates p50 43 against
+  // selected p50 24, the budget truncating on 80.4% of turns, and tier 4
+  // (keyword families) taking the median turn's entire non-core allowance —
+  // which left the SEMANTIC tier skipped on 73.2% of turns while 65.3% of
+  // tier-4 ALLOWED impressions went to tools the model never chose.
+  //
+  // A pre-emptive RESERVE for the semantic tier was tried first and reverted:
+  // it allocates before it knows, so it changed membership even on turns where
+  // the budget never truncated. Two-stage ranks AFTER it knows — stage 1 drops
+  // nothing, and stage 2 owns the entire cliff.
+  //
+  // Tiers 1/2/3/7 are INTENT, not similarity: core, action-core, an explicit
+  // tool name in the prompt, a matched playbook. They are never contested, so
+  // no similarity score can displace something the operator literally asked
+  // for. Only tiers 4/5/6 compete.
+  //
+  // ⚠ ONE DELIBERATE REORDER, CALLED OUT BECAUSE IT IS A BEHAVIOUR CHANGE:
+  // the single pass ran 1,2,3,4,7,5,6, so tier 7 (playbook) filled AFTER the
+  // keyword families and could be truncated away by them. Splitting on
+  // intent-vs-similarity necessarily moves it to 1,2,3,7 then 4/5/6. A
+  // playbook is a small curated bundle matched on explicit intent; the ~40
+  // tier-4 regex families are generic. Under truncation the bundle should win,
+  // and 65.3% of tier-4 impressions going to never-chosen tools is the
+  // evidence that it was losing to the wrong thing. Putting tier 7 into the
+  // contested pool instead is NOT an option: it carries no similarity score,
+  // and one unscored candidate disables ranking for the whole pool.
+  const guaranteed: { name: string; tier: number }[] = [];
+  const contested: { name: string; tier: number; arrival: number; score?: number }[] = [];
+  const offeredOnce = new Set<string>();
+
+  /**
+   * FIRST TIER WINS on a duplicate. A tool offered by both the keyword families
+   * and the semantic ranker is attributed to keywords — which is what the
+   * single-pass version did, and what the tier telemetry has always meant.
+   * Attribution is not a union.
+   */
+  const keep = (name: string, tier: number) => {
+    if (!allTools[name] || offeredOnce.has(name)) return;
+    offeredOnce.add(name);
+    guaranteed.push({ name, tier });
+  };
+  const contend = (name: string, tier: number, score?: number) => {
+    if (!allTools[name] || offeredOnce.has(name)) return;
+    offeredOnce.add(name);
+    contested.push({ name, tier, arrival: contested.length, score });
   };
 
   // Tier 1: CORE_TOOLS
   for (const name of CORE_TOOLS) {
-    addIfSpace(name, 1);
+    keep(name, 1);
   }
 
   // Tier 2: ACTION_CORE
   for (const name of ACTION_CORE) {
-    addIfSpace(name, 2);
+    keep(name, 2);
   }
 
   // Tier 3: Exact tool-name mentions (explicit user intent)
   const sortedExact = Array.from(exactMentioned).sort();
   for (const name of sortedExact) {
-    addIfSpace(name, 3);
+    keep(name, 3);
   }
 
   // Tier 4: Deterministic natural-language keyword-family matches.
@@ -926,7 +967,7 @@ export async function pruneTools(
   const keywordRank = new Map<string, number>();
   sortedKeyword.forEach((name, i) => keywordRank.set(name, i));
   for (const name of sortedKeyword) {
-    addIfSpace(name, 4);
+    contend(name, 4, keywordScores?.get(name));
   }
 
   // Tier 7 (U7 · 2026-09-08): intent playbooks — one bundle per recurring job
@@ -934,11 +975,17 @@ export async function pruneTools(
   // telemetry can answer whether the bundle was used.
   const playbook = matchPlaybook(userContent);
   if (playbook) {
-    for (const name of playbook.tools) addIfSpace(name, 7);
+    for (const name of playbook.tools) keep(name, 7);
   }
 
-  // Tier 5: Semantic-ranked tools
-  if (userEmbedding && userEmbedding.length > 0 && selectedNames.size < TOOL_BUDGET) {
+  // Tier 5: Semantic-ranked tools.
+  //
+  // The `selectedNames.size < TOOL_BUDGET` guard that used to sit here is GONE,
+  // and removing it is the point of the rewrite: that guard is precisely what
+  // made the semantic tier a leftovers tier, skipped on 73.2% of prod turns
+  // because tier 4 had already filled the budget. Gathering costs one cosine
+  // pass over a warm in-memory cache; the cliff moved to stage 2.
+  if (userEmbedding && userEmbedding.length > 0) {
     semanticTierAttempted = true;
     try {
       const { rankToolsBySimilarity, isToolEmbeddingCacheWarm } = await import("./tool-embeddings");
@@ -946,8 +993,8 @@ export async function pruneTools(
       if (embeddingCacheWarm) {
         const topN = isDeep ? 40 : 15;
         const ranked = rankToolsBySimilarity(userEmbedding, topN, 0.25);
-        for (const [name] of ranked) {
-          addIfSpace(name, 5);
+        for (const [name, score] of ranked) {
+          contend(name, 5, score);
         }
       }
     } catch (err) {
@@ -955,17 +1002,71 @@ export async function pruneTools(
     }
   }
 
-  // Tier 6: Default extras (if only core tools were matched)
+  // Tier 6: Default extras (if only core tools were matched).
+  //
+  // The old condition was `selectedNames.size === coreAndActionInRegistry.length`
+  // — "nothing but core got in". Stage 1 has not selected anything yet, so the
+  // equivalent test is the one below: no exact mention, no keyword family, no
+  // playbook and no semantic candidate offered anything. Same turns, stated
+  // against what is actually known at this point.
   const coreAndActionInRegistry = [...CORE_TOOLS, ...ACTION_CORE].filter(n => allTools[n]);
-  if (selectedNames.size === coreAndActionInRegistry.length) {
+  if (guaranteed.length === coreAndActionInRegistry.length && contested.length === 0) {
     // 2026-08-12 · getAgendaItems added: the default tier fires exactly
     // on casual turns — the same turns the JIT prompt gate drops the
     // inline agenda section on, so the retrieval path must be present.
     const defaults = ["getCommitments", "getAgendaItems", "getTasks", "dailyPulse", "findCustomer"];
     for (const name of defaults) {
-      addIfSpace(name, 6);
+      contend(name, 6);
     }
   }
+
+  // ── STAGE 2 · RANK, THEN TRUNCATE ─────────────────────────────────────
+  //
+  // Guaranteed tools take their slots first, in tier order, exactly as before.
+  // Whatever remains is fought over by tiers 4/5/6 on ONE comparable scale.
+  //
+  // WHY THE SCALES ARE COMPARABLE AT ALL, which is the fact this rests on:
+  // tier 4 scores its candidates with `scoreToolsBySimilarity(userEmbedding, …)`
+  // and tier 5 ranks with `rankToolsBySimilarity(userEmbedding, …)` — the same
+  // cosine metric against the same embedding. They were never incomparable;
+  // they were just never compared.
+  //
+  // PARTIAL COVERAGE DISABLES RANKING, matching `orderKeywordCandidates`. If any
+  // contested candidate is unscored, sorting would rank the measured against the
+  // unmeasured, which is a different policy and not obviously a better one. The
+  // fallback is arrival order — byte-identical to the single-pass behaviour.
+  // That is also what makes "no embedding" and "cold cache" structurally safe:
+  // both leave every candidate unscored, so both keep today's exact output.
+  const everyContenderScored =
+    contested.length > 0 && contested.every((c) => typeof c.score === "number");
+  const ranked = [...contested];
+  if (everyContenderScored && process.env.NICK_TOOL_RANK_MERGED !== "0") {
+    ranked.sort((a, b) => {
+      const d = (b.score ?? 0) - (a.score ?? 0);
+      // Ties break by arrival, which is tier order then within-tier rank, so
+      // the output is deterministic for a fixed input.
+      return d !== 0 ? d : a.arrival - b.arrival;
+    });
+  }
+
+  // THE BUDGET BINDS ON GUARANTEED TOOLS TOO. The single-pass version ran
+  // every tier through the same `addIfSpace`, so even CORE_TOOLS stopped at
+  // TOOL_BUDGET. Exempting `guaranteed` here would let an operator who sets
+  // NICK_TOOL_BUDGET=10 still receive core + exact mentions + a playbook well
+  // past their own ceiling — a budget that is not a budget.
+  const take = (name: string, tier: number) => {
+    if (selectedNames.size >= TOOL_BUDGET) {
+      // Considered and lost. Recorded under the tier that offered it, so the
+      // telemetry still answers "which tier paid for the cliff".
+      if (!budgetedOut.has(name)) budgetedOut.set(name, tier);
+      return;
+    }
+    tierOf.set(name, tier);
+    selectedNames.add(name);
+  };
+
+  for (const { name, tier } of guaranteed) take(name, tier);
+  for (const { name, tier } of ranked) take(name, tier);
 
   const kept: Record<string, unknown> = {};
   for (const name of selectedNames) {
