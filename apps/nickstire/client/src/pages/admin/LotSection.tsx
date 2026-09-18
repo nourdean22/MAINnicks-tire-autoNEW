@@ -178,6 +178,9 @@ type CameraHealth = {
   source: { type: string | null; generation: string | null; fps: number | null; restores: number | null } | null;
   vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; inferenceAgeSeconds: number | null; poseDelta: number | null; calibrationVersion: string | null; relocateFailures: number | null; preexistingCrossed: number | null } | null;
   cloud: { outboxDepth: number | null; oldestOutboxAgeSeconds: number | null; deadLetterDepth: number | null; cloudAckAgeSeconds: number | null; diskFreeBytes: number | null } | null;
+  /** Null when no health event was recorded for this camera today -- which is NOT the same
+   *  as a steady day, and must not render as one. */
+  stability: { dropsToday: number; transitionsToday: number } | null;
   openVisits: number;
 };
 
@@ -255,9 +258,26 @@ function CameraCard({ c }: { c: CameraHealth }) {
             )}
           </div>
         </div>
-        <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize ${stateTone(c.state, c.commissioned)}`}>
-          {c.state === "NEVER_INGESTED" && !c.commissioned ? "not commissioned yet" : stateLabel}
-        </span>
+        <div className="shrink-0 flex flex-col items-end gap-1">
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize ${stateTone(c.state, c.commissioned)}`}>
+            {c.state === "NEVER_INGESTED" && !c.commissioned ? "not commissioned yet" : stateLabel}
+          </span>
+          {/* TODAY'S RECORD, beside the badge that only knows about NOW.
+              The badge above said "healthy" all morning on 2026-09-18 while this camera
+              dropped 17 times, because whoever looked happened to look during an up phase.
+              A steady source and a flapping one are indistinguishable from a single glance,
+              and the count is the only thing on this card that can tell them apart. */}
+          {c.stability !== null && c.state !== "NEVER_INGESTED" && (
+            <span
+              className={`text-[10px] ${c.stability.dropsToday === 0 ? "text-foreground/40" : "text-amber-400/80"}`}
+              title={`${c.stability.transitionsToday} state change(s) recorded today, of which ${c.stability.dropsToday} left the camera unusable. A drop is any move to offline, degraded, stale or calibration-invalid; returning to healthy is not counted.`}
+            >
+              {c.stability.dropsToday === 0
+                ? "steady today"
+                : `${c.stability.dropsToday} drop${c.stability.dropsToday === 1 ? "" : "s"} today`}
+            </span>
+          )}
+        </div>
       </div>
 
       {c.state !== "NEVER_INGESTED" && (

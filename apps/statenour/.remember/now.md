@@ -80,6 +80,57 @@ exists yet; do not quote one.**
   --local`; never `--no-verify`.
 - ⚠ harvest logs 4 `slow_query` warnings at 773-874ms.
 
+### Session D · final state (full detail: agent-memory `statenour-recall-measurability-2026-09-18`)
+
+**MERGED + DEPLOYED, live `18cd753`:** #2442 `57dc3b217` (situation_log derivation) ·
+#2443 `18cd75352` (five instrument fixes) · #2446 (frozen manifest + convergence).
+**OPEN:** #2449 (lexical lane counters).
+
+★★★ **TWO INDEPENDENT CORPORA CONVERGE.** 2026-08-27 dense hit@5 = **39%** (28 cases,
+hand-labelled, verbatim queries) vs 2026-09-18 vector precision@5 = **0.368** (76 scored,
+auto-harvested, paraphrased). Opposite construction, 2.7x size apart, 3 weeks apart, within
+~2 points — neither built to confirm the other. Comparable ONLY because
+`precisionAtK = hit / min(k, relevant.length)` makes a 1-key case identical to hit@5, and all
+68 harvested cases are 1-key (verified). Record as "hit@5 for 89% of the corpus".
+
+**Corpus FROZEN:** `data/recall-corpus.manifest.json` = 121 cases, sha256 `bbcc62558397`
+(COMMITTED; the corpus itself stays gitignored). `eval:recall` now prints `corpus frozen ✓`
+or `corpus CHANGED`. ⚠ The paraphrase arm is NON-DETERMINISTIC, so the corpus is NOT
+reproducible from the repo — the manifest says "which corpus produced this row", never
+"run this to reproduce it".
+
+⚠⚠ **THE HYBRID NUMBER IS UNOBTAINABLE FROM THIS WORKTREE — declared BLOCKED after 3
+attempts, 3 failure modes** (SIGTERM · `Connection terminated` · `Query read timeout` at
+`connection_limit=1`). Root cause: `DATABASE_URL` points at Neon's `-pooler` but carries NO
+`connection_limit`, so every script process opens a default pool (`cpus*2+1`) and contends
+with the live app. **Neon connection exhaustion is THE limiting factor on all measurement
+here.** The hybrid figure stays RETRACTED, not restated. Anything wanting a complete
+121-case hybrid number must solve the connection story first.
+
+**Lexical lane: alarm raised then WITHDRAWN.** 48% skip was confounded by my own eval load;
+sequential/unloaded re-measure = **9 of 25 over budget (36%)**, matching 2026-08-27 exactly.
+No degradation. ⚠ That re-probe had its own flaw (8 of 25 were connection-pool failures at
+~10s, not the 900ms statement timeout; its labels miscounted them) — the 36% stands, the
+skip/empty split does not.
+
+⚠ **`HF_API_KEY` gates TWO consumers**, not one: bge-rerank AND embedding fallback #4
+(`provider.ts:1689`). Credits DEPLETED (402 live). The embedding chain's tail is now two dead
+providers (HF #4 + the known-bad OpenAI `sk-proj-` #5). Not biting — providers 1-3 healthy —
+but it is a latent total-failure path for `semanticSearch`.
+
+★ **MY OWN TEST WAS THE DEFECT.** `computeLexicalSkipRate` first read module state, so it
+could not be driven without a DB; the test I wrote computed arithmetic on its own local
+objects and asserted it equalled itself — it would have passed with the function DELETED.
+**The impossibility of testing it was the signal the design was wrong.** Cure: pure predicate,
+stats passed in.
+
+**UNLOCKED, NOT ATTEMPTED:** RETRIEVAL-BASELINE-2026-08-27 gated weighted RRF fusion on
+">=50 labelled pairs". There are now **68**.
+
+**Live baseline for verifying #2442** (captured 15:29:30Z on `18cd753`): situation_logs **0**
+(never held a row) · reflections 217 · decision_replays 9 · brain_dumps 1450. A `/dump` about
+OTHER PEOPLE'S MOVES should write the first situation_logs row ever.
+
 ## Session C (overnight capability hardening) — branch `statenour/overnight-capability-hardening`
 
 **MISSION:** make StateNour materially more useful/reliable/measurable. Choose the highest-leverage
