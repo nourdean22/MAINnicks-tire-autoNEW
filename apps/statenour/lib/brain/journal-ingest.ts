@@ -60,7 +60,12 @@ export type ThoughtType =
   | "decision"    // a choice made or intent committed
   | "reflection"  // looking back on an event / day / outcome
   | "planning"    // organizing what to do next
-  | "venting";    // emotional release, low-actionability
+  | "venting"     // emotional release, low-actionability
+  // 2026-09-18 · a strategic situation involving other people — power
+  // dynamics, negotiation, conflict. Added so situation_logs can be derived
+  // from the capture habit the operator ACTUALLY has (Telegram /dump) rather
+  // than from the tool nobody invokes. That table had never held a row.
+  | "situation";  // a power/relationship situation worth logging against a law
 
 interface JournalResult {
   brainDumpId: string;
@@ -100,6 +105,10 @@ export const COMMITMENT_CREATING_TYPES: ThoughtType[] = ["decision", "planning"]
  *  that aren't really insights. */
 export const INSIGHT_CREATING_TYPES: ThoughtType[] = [
   "insight", "reflection", "decision", "planning", "reasoning",
+  // 2026-09-18 · parity with `reasoning`. Without this, adding the type would
+  // make a dump that USED to yield insights suddenly yield none — a silent
+  // extraction regression caused by a classifier change, not a policy one.
+  "situation",
 ];
 
 /** Wins · accomplishments belong with reflection / planning / decision.
@@ -113,6 +122,7 @@ export const WIN_CREATING_TYPES: ThoughtType[] = [
  *  real concerns surface. */
 export const CONCERN_CREATING_TYPES: ThoughtType[] = [
   "thinking", "reasoning", "venting", "decision", "planning", "reflection",
+  "situation", // same parity argument as INSIGHT_CREATING_TYPES above
 ];
 
 /** Mood · valid value allowlist. The AI sometimes returns weird
@@ -164,6 +174,11 @@ export async function ingestJournal(
   let insightsStored = 0;
   let commitmentsFound = 0;
   let summary = "";
+  // 2026-09-18 · free-form arena for a `situation` entry ("pricing", "supplier").
+  // `situation_logs.context` is a free string in the schema, not an enum, so the
+  // extractor's own words go through verbatim rather than being forced into a
+  // closed set that would have to be invented.
+  let situationContext = "";
   let entryType: ThoughtType = opts.entryTypeHint ?? "raw";
 
   // v10.0.529.25 · /journal audit #4b · rawThoughts dedup window.
@@ -279,7 +294,8 @@ Return ONLY valid JSON with this structure:
   "patterns": "any recurring themes or behaviors you notice (or null)",
   "concerns": ["worries or risks mentioned"],
   "wins": ["positive things mentioned, accomplishments"],
-  "linkedTopics": ["tasks, people, missions, or events this connects to"]
+  "linkedTopics": ["tasks, people, missions, or events this connects to"],
+  "situationContext": "ONLY when entryType is situation: 2-3 words naming the arena (e.g. pricing, supplier, employee, landlord). Otherwise null."
 }
 
 Thought-type classification rules (assign ONE):
@@ -291,6 +307,10 @@ Thought-type classification rules (assign ONE):
 - "reflection" — looking back on an event, day, or outcome
 - "planning"   — laying out what to do next
 - "venting"    — emotional release with low actionable content
+- "situation"  — a STRATEGIC situation involving other people: a negotiation, a
+                 conflict, a power dynamic, someone's behaviour Nour is reading.
+                 Pick this over "venting"/"reasoning" only when the entry is
+                 ABOUT other people's moves, not about Nour's own options.
 
 Other rules:
 - Action items must be SPECIFIC and actionable (not vague)
@@ -334,6 +354,7 @@ ${rawText}`,
       commitments?: unknown[];
       concerns?: unknown[];
       wins?: unknown[];
+      situationContext?: string;
     }>(extraction.content);
     if (parsed.ok) {
       const data = parsed.value;
@@ -345,6 +366,8 @@ ${rawText}`,
       }
 
       summary = data.summary || "";
+      situationContext =
+        typeof data.situationContext === "string" ? data.situationContext.trim().slice(0, 80) : "";
 
       // Validate the AI's entryType classification — fall back to "raw" if
       // the model hallucinates a type outside our enum.
@@ -357,6 +380,7 @@ ${rawText}`,
         "reflection",
         "planning",
         "venting",
+        "situation",
       ];
       // Operator-declared mode (entryTypeHint) outranks the blind AI
       // classification — he chose what he was writing.
@@ -756,6 +780,7 @@ ${rawText}`,
     text: rawText,
     summary,
     dateStr,
+    situationContext,
   });
   if (derived.reflectionId || derived.decisionReplayId) {
     log.info("journal_silo_derived", {

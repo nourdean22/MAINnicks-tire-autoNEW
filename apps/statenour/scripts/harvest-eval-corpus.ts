@@ -25,12 +25,42 @@
  */
 
 import { loadEnvConfig } from "@next/env";
+import Module from "node:module";
 
 loadEnvConfig(process.cwd());
 
+// ── `server-only` stub · 2026-09-18 ──────────────────────────────────────
+// Same pattern as scripts/recall-eval.ts:32 and scripts/measure-prompt-size.ts.
+// WHY IT IS NEEDED, MEASURED RATHER THAN ASSUMED: `server-only` is a tripwire
+// package whose entry point throws by design; Next's bundler rewrites it to a
+// no-op in server builds, and under plain tsx there is no bundler, so it fires.
+// `@/lib/ai/provider` pulls it in transitively, which is what made --paraphrase
+// unrunnable and left retrieval precision unmeasurable (recorded in #2426).
+//
+// Probed 2026-09-18 with one control per process, because a module that throws
+// during evaluation is cached as errored and re-throws on later imports without
+// re-evaluating — both controls in one process would have shown the stub
+// failing even when it works:
+//   A · no stub   -> threw "This module cannot be imported from a Client Component module."
+//   B · with stub -> resolved, getModel is a function
+{
+  const cjs = Module as unknown as {
+    _load: (request: string, parent: unknown, isMain: boolean) => unknown;
+  };
+  const original = cjs._load;
+  cjs._load = (request, parent, isMain) => {
+    if (request === "server-only") return {};
+    return original(request, parent, isMain);
+  };
+}
+
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { buildRealRecallCases, describeCorpus } from "../lib/brain/recall-corpus-builder";
+import {
+  buildRealRecallCases,
+  describeCorpus,
+  paraphraseVerdict,
+} from "../lib/brain/recall-corpus-builder";
 import type { RecallEvalCase } from "../lib/brain/recall-eval";
 
 function flag(name: string): string | undefined {
@@ -130,6 +160,7 @@ async function main(): Promise<void> {
   }
 
   const composition = describeCorpus(cases);
+  const verdict = paraphraseVerdict(paraphrase);
 
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(
@@ -146,22 +177,11 @@ async function main(): Promise<void> {
         : `  FAILED  ${s.source} -> ${s.error}`,
     ),
     `  cases   : ${cases.length} real`,
-    ...(paraphrase
-      ? paraphrase.blocked
-        ? [
-            `  queries : PARAPHRASE BLOCKED — ${paraphrase.blocked}`,
-            "            The corpus below is still written, with VERBATIM queries. Its",
-            "            positive arm therefore measures ECHO (query == document), not",
-            "            recall. Do not read precision on it as retrieval quality.",
-          ]
-        : [
-            `  queries : ${paraphrase.rewritten} paraphrased · ${paraphrase.failed} kept verbatim` +
-              (paraphrase.failed > 0 ? " (those measure echo, not recall)" : ""),
-          ]
-      : [
-          "  queries : VERBATIM content slices — the positive arm is an ECHO check, not a",
-          "            recall benchmark. Re-run with --paraphrase for real queries.",
-        ]),
+    // ONE source for the interpretability rule — lib/brain/recall-corpus-builder
+    // .paraphraseVerdict(). The banner and the exit code below read the SAME
+    // verdict object, so a change to the rule cannot move one without the other.
+    `  queries : ${verdict.status.toUpperCase()} — ${verdict.reason}`,
+    `  scorable: ${verdict.scorable ? "yes" : "NO — do not publish a precision figure from this corpus"}`,
     `  note    : ${composition.note}`,
     `  output  : ${out} (gitignored — contains real operator content)`,
     "",
@@ -175,6 +195,28 @@ async function main(): Promise<void> {
     process.stderr.write(
       "HARVEST DEGRADED — at least one source failed. The corpus above is INCOMPLETE,\n" +
         "not merely small. Do not read its composition as a quality measurement.\n",
+    );
+    process.exit(1);
+  }
+
+  // ⚠ A REQUESTED ARM THAT PRODUCED NOTHING IS A FAILURE, NOT A FOOTNOTE.
+  // Until 2026-09-18 a blocked paraphrase printed its warning and then exited 0,
+  // so every non-human reader — CI, a wrapper script, a future scheduled harvest
+  // — saw SUCCESS while the corpus it produced measured echo instead of recall.
+  // Same shape as the cron-manager defect fixed this week: a failure rendered
+  // for a human and hidden from the exit code.
+  //
+  // `failedRequest`, NOT `scorable`, is the gate. A plain `pnpm harvest:evals`
+  // is also unscorable and must still exit 0 — the operator did not ask for a
+  // scorable corpus. And a PARTIAL rewrite exits 0 on purpose: each case's
+  // provenance records whether it was paraphrased, so the eval can separate the
+  // arms rather than being poisoned by the verbatim remainder.
+  if (verdict.failedRequest) {
+    process.stderr.write(
+      `PARAPHRASE FAILED (${verdict.status}) — ${verdict.reason}\n` +
+        "The corpus was still written, but its positive arm is query==document,\n" +
+        "which cannot lose and therefore measures nothing. Do NOT publish a\n" +
+        "precision figure from it.\n",
     );
     process.exit(1);
   }

@@ -20,11 +20,42 @@ import { z } from "zod";
 import { router, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { createLogger } from "../lib/logger";
+import { RECOVERY_FETCH_OUTCOMES } from "@shared/callTaxonomy";
+import {
+  buildRecoveryQueue,
+  breachedSla,
+  phoneLast10,
+  type QueueSourceRow,
+} from "../services/recoveryQueue";
 import { getDb } from "../db";
 import { shopSettings, vapiCallLogs, type VapiCallLog } from "../../drizzle/schema";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { pickReceptionistAssistantId, pickFollowUpAssistantId, SHOP_LANDLINE_E164 } from "../services/vapi";
 import { BUSINESS } from "@shared/business";
+
+/**
+ * Last-10 phones with an OPEN expected arrival today.
+ *
+ * The `arrival` lane exists so a caller who said "I will come by" is treated as
+ * a provisional SUCCESS rather than missed revenue. That lane can only fire if
+ * something actually supplies the arrivals — they live in `expected_arrivals`,
+ * not on the call row. Fails OPEN to an empty set: if the read breaks, walk-ins
+ * fall back into the recovery queue, which is noisier but never drops a real
+ * obligation. The reverse default would silently hide customers.
+ */
+async function openExpectedArrivalPhones(): Promise<ReadonlySet<string>> {
+  try {
+    const { listExpectedArrivals } = await import("../services/expectedArrivals");
+    const rows = await listExpectedArrivals({ limit: 200 });
+    return new Set(
+      rows
+        .map((r) => phoneLast10(String(r.customerPhone ?? "")))
+        .filter((p) => p.length === 10),
+    );
+  } catch {
+    return new Set();
+  }
+}
 
 const log = createLogger("vapi");
 
@@ -497,8 +528,17 @@ export const vapiRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
       const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-      const candidates = ["lost_opportunity", "callback_needed", "walk_in_directed", "tech_failure"];
-      
+      /**
+       * DERIVED, never re-typed. This list was one of ten hand-maintained
+       * copies (audit 2026-09-18) and the read side had drifted from the write
+       * side. It is now computed from the taxonomy kernel: an outcome is
+       * fetched if the kernel can EVER route it to recovery. The kernel then
+       * makes the real per-call decision using facts a SQL WHERE cannot see
+       * (did the caller actually speak, is an arrival already open, did an
+       * invoice already land). Widening the kernel widens this automatically.
+       */
+      const candidates = RECOVERY_FETCH_OUTCOMES;
+
       const rows = await db
         .select({
           id: vapiCallLogs.id,
@@ -520,54 +560,120 @@ export const vapiRouter = router({
         ))
         .orderBy(desc(vapiCallLogs.createdAt));
 
-      // Calculate repeat callers
-      const phoneCounts: Record<string, number> = {};
-      for (const r of rows) {
-        if (r.phoneNumber) {
-          phoneCounts[r.phoneNumber] = (phoneCounts[r.phoneNumber] || 0) + 1;
-        }
-      }
-
-      const queueItems = rows.map((r: any) => {
-        const meta = typeof r.metadata === "string" ? JSON.parse(r.metadata) : (r.metadata || {});
-        const qStatus = meta.queueStatus || "pending";
-        const qUrgency = meta.queueUrgency || 4;
-        const intents = meta.intents || [];
-        const isRepeatCaller = r.phoneNumber ? (phoneCounts[r.phoneNumber] > 1) : false;
-        const priorityScore = qUrgency + (isRepeatCaller ? 3 : 0);
-
-        return {
-          id: r.id,
-          vapiCallId: r.vapiCallId,
-          phoneNumber: r.phoneNumber,
-          customerName: r.customerName,
-          durationSeconds: r.durationSeconds,
-          endedReason: r.endedReason,
-          aiSummary: r.aiSummary,
-          evalScore: r.evalScore,
-          evalOutcome: r.evalOutcome,
-          createdAt: r.createdAt,
-          intents,
-          queueStatus: qStatus,
-          queueUrgency: qUrgency,
-          priorityScore,
-          isRepeatCaller,
-          notes: meta.notes || "",
-        };
+      /**
+       * ONE CUSTOMER WITH ONE NEED IS ONE ROW.
+       *
+       * This used to emit one row per CALL and add "+3" to any number seen
+       * twice in the ninety-day window. Both were wrong in the same direction:
+       * a caller whose transfer failed and who redialled twice became three
+       * obligations AND a "Repeat Caller" badge, so repetition inflated the
+       * backlog it was describing — while brakes in June and tires in
+       * September scored as urgency. `buildRecoveryQueue` collapses contacts
+       * into episodes and lets the kernel decide the lane; repetition now
+       * raises PRIORITY inside one episode instead of adding rows.
+       */
+      const built = buildRecoveryQueue(rows as QueueSourceRow[], new Date(), {
+        expectedArrivalPhones: await openExpectedArrivalPhones(),
       });
 
-      const filtered = input.status === "all" 
-        ? queueItems 
-        : queueItems.filter((item: any) => item.queueStatus === input.status);
+      /**
+       * Legacy-compatible projection. The admin UI reads these field names, so
+       * the shape is preserved while the MEANING is repaired underneath. New
+       * consumers should read `disposition` (lane, SLA, explainable reasons)
+       * and `contactCount` rather than the flattened `priorityScore`.
+       */
+      const queueItems = built.episodes.map((e) => ({
+        id: e.latestCallId,
+        vapiCallId: e.vapiCallId,
+        phoneNumber: e.phoneNumber,
+        customerName: e.customerName,
+        durationSeconds: null as number | null,
+        endedReason: null as string | null,
+        aiSummary: e.aiSummary,
+        evalScore: null as number | null,
+        evalOutcome: e.outcome,
+        createdAt: e.latestCallAt,
+        intents: e.intents,
+        queueStatus: e.queueStatus,
+        queueUrgency: e.disposition.priority,
+        priorityScore: e.disposition.priority,
+        /** Retained for the badge, but it now means "same unresolved need". */
+        isRepeatCaller: e.contactCount > 1,
+        notes: "",
+        // ── new, honest fields ──
+        episodeKey: e.episodeKey,
+        contactCount: e.contactCount,
+        callIds: e.callIds,
+        firstCallAt: e.firstCallAt,
+        ageMinutes: e.ageMinutes,
+        intentFamily: e.intentFamily,
+        lane: e.disposition.lane,
+        slaMinutes: e.disposition.slaMinutes,
+        slaBreached:
+          e.disposition.slaMinutes !== null && e.ageMinutes > e.disposition.slaMinutes,
+        /** Why this is here, and why it ranks where it does. */
+        priorityReasons: e.disposition.reasons,
+        /** Buying specifics, for the fact-bound SMS draft. Fields may be null. */
+        demand: e.demand,
+        transferFailed: e.transferFailed,
+      }));
 
-      filtered.sort((a: any, b: any) => {
-        if (b.priorityScore !== a.priorityScore) {
-          return b.priorityScore - a.priorityScore;
-        }
-        return b.createdAt.getTime() - a.createdAt.getTime();
+      return input.status === "all"
+        ? queueItems
+        : queueItems.filter((item) => item.queueStatus === input.status);
+    }),
+
+  /**
+   * The denominators the wall never showed.
+   *
+   * "1,118 pending" was reported as missed revenue while being, in large part,
+   * a census of calls that were ANSWERED. This returns the same population
+   * decomposed by lane and by exclusion reason, so the operator can see where
+   * the other rows went instead of being asked to trust that they were junk.
+   * Counts are EPISODES, except `sourceCallCount`, which is raw calls — the
+   * number the old UI printed as leads.
+   */
+  getRecoveryQueueSummary: adminProcedure
+    .input(z.object({ days: z.number().int().min(1).max(90).default(90) }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const cutoff = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
+      const rows = await db
+        .select({
+          id: vapiCallLogs.id,
+          vapiCallId: vapiCallLogs.vapiCallId,
+          phoneNumber: vapiCallLogs.phoneNumber,
+          customerName: vapiCallLogs.customerName,
+          durationSeconds: vapiCallLogs.durationSeconds,
+          endedReason: vapiCallLogs.endedReason,
+          aiSummary: vapiCallLogs.aiSummary,
+          evalScore: vapiCallLogs.evalScore,
+          evalOutcome: vapiCallLogs.evalOutcome,
+          createdAt: vapiCallLogs.createdAt,
+          metadata: vapiCallLogs.metadata,
+        })
+        .from(vapiCallLogs)
+        .where(gte(vapiCallLogs.createdAt, cutoff));
+
+      const built = buildRecoveryQueue(rows as QueueSourceRow[], new Date(), {
+        expectedArrivalPhones: await openExpectedArrivalPhones(),
       });
-
-      return filtered;
+      return {
+        windowDays: input.days,
+        sourceCallCount: built.sourceCallCount,
+        needsAttention: built.episodes.length,
+        slaBreached: breachedSla(built).length,
+        laneCounts: built.laneCounts,
+        exclusionCounts: built.exclusionCounts,
+        /**
+         * UNKNOWN, not zero. Calls whose speaker attribution failed — mostly
+         * rows written before `customerSpeech` existed (2026-07-26). This must
+         * be shown as "not measured", never folded into "no demand".
+         */
+        unclassified: built.unclassifiedCount,
+      };
     }),
 
   updateQueueStatus: adminProcedure

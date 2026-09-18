@@ -14,6 +14,7 @@
  * Server-side memo'd 60s; client polls every 60s.
  */
 import { useState } from "react";
+import { compileRecoverySms, type CompiledSms, type ObservedCallFacts } from "@shared/smsFactCompiler";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import {
@@ -70,6 +71,7 @@ import {
   prettyReason,
   maskPhone,
   prettyOutcome,
+  EXCLUSION_LABELS,
 } from "./voice/format";
 import { DateRangeSelector } from "./voice/DateRangeSelector";
 import { FilterChip } from "./voice/FilterChip";
@@ -140,6 +142,20 @@ export default function VoiceReceptionistSection() {
   }, {
     staleTime: 60_000,
   });
+
+  /**
+   * The denominators the wall never showed.
+   *
+   * "1,118 pending" was rendered as missed revenue while being, in large part,
+   * a census of calls that were ANSWERED. This returns the same population
+   * decomposed by lane and by stated exclusion reason, so "where did the other
+   * rows go" has an answer on screen instead of becoming a support question.
+   */
+  const {
+    data: queueSummary,
+    isError: queueSummaryError,
+    isLoading: queueSummaryLoading,
+  } = trpc.vapi.getRecoveryQueueSummary.useQuery({ days: 90 }, { staleTime: 60_000 });
 
   const updateQueueMutation = trpc.vapi.updateQueueStatus.useMutation({
     onSuccess: () => {
@@ -213,32 +229,44 @@ export default function VoiceReceptionistSection() {
     );
   };
 
-  const getSmsDraft = (intents: string[], outcome: string): string => {
-    if (intents.includes("used_tire") || intents.includes("tire_size_request")) {
-      return "Thanks for calling Nick’s Tire & Auto. Used tire availability changes quickly. Stop by 17625 Euclid Ave and we’ll check available options for your vehicle.";
-    }
-    if (intents.includes("new_tire")) {
-      return "Thanks for calling Nick’s Tire & Auto. We stock all major brands of new tires. Stop by 17625 Euclid Ave and we'll show you options and give you a written quote.";
-    }
-    if (intents.includes("flat_tire") || intents.includes("tire_leak")) {
-      return "Thanks for calling Nick’s Tire & Auto. Bring your vehicle by 17625 Euclid Ave and we'll inspect the tire leak. Flat repairs are done while you wait.";
-    }
-    if (intents.includes("brakes") || intents.includes("suspension") || intents.includes("exhaust")) {
-      return "Thanks for calling Nick’s Tire & Auto. You can bring the vehicle in or drop it off at 17625 Euclid Ave and we’ll inspect it before any work is approved.";
-    }
-    if (intents.includes("diagnostics") || intents.includes("check_engine")) {
-      return "Thanks for calling Nick’s Tire & Auto. Bring the vehicle in for a free diagnostic light check and quote before 6 PM today.";
-    }
-    if (intents.includes("battery") || intents.includes("alternator") || intents.includes("starter")) {
-      return "Thanks for calling Nick’s Tire & Auto. Stop by 17625 Euclid Ave for a free battery and alternator test. We can replace batteries on the spot.";
-    }
-    if (intents.includes("oil_change") || intents.includes("alignment")) {
-      return "Thanks for calling Nick’s Tire & Auto. Oil changes and alignments are handled on a first-come, first-served basis. Swing by the shop at your convenience.";
-    }
-    // 2026-07-20 · never apologize for missing a call we may well have taken —
-    // this is the no-intent-matched fallback and fires regardless of whether the
-    // caller reached a human. Keep it neutral and forward-looking.
-    return "Thanks for calling Nick’s Tire & Auto. Let us know what you need, or stop by 17625 Euclid Ave.";
+  /**
+   * 2026-09-18 · replaced eight hardcoded paragraphs with the fact compiler.
+   *
+   * The previous implementation selected among eight literal strings by intent
+   * flag and interpolated NOTHING — not the caller's name, vehicle, tire size,
+   * quantity or urgency, all of which the assistant had already heard. Worse,
+   * the strings made claims the shop cannot verify from a React component:
+   * "we stock all major brands", "flat repairs are done while you wait",
+   * "free battery and alternator test", and a hardcoded "before 6 PM today"
+   * that was false every Sunday, when the shop closes at 4.
+   *
+   * `compileRecoverySms` lives in `shared/`, so this preview is the EXACT
+   * string the server would send — a preview that differs from the send is not
+   * a preview. It states only observed facts, canonical shop facts (address,
+   * phone, TODAY'S real hours) and asks, and it reports what it refused to
+   * claim so the operator can see the restraint.
+   */
+  const buildSmsDraft = (item: {
+    demand?: Partial<ObservedCallFacts> | null;
+    customerName?: string | null;
+    transferFailed?: boolean;
+    evalOutcome?: string;
+    intents?: string[];
+  }): CompiledSms => {
+    const d = item.demand ?? {};
+    return compileRecoverySms(
+      {
+        customerName: item.customerName ?? null,
+        tireSize: d.tireSize ?? null,
+        vehicle: d.vehicle ?? null,
+        quantity: d.quantity ?? null,
+        condition: d.condition ?? null,
+        urgency: d.urgency ?? null,
+        transferFailed: item.transferFailed === true,
+        callbackRequested: item.evalOutcome === "callback_needed",
+      },
+      { now: new Date(), isFirstInThread: true },
+    );
   };
 
   const reasonsChart = m
@@ -677,6 +705,84 @@ export default function VoiceReceptionistSection() {
       ) : (
         /* ─── Missed Revenue Queue Tab ──────────────────────── */
         <div className="space-y-4">
+          {/*
+            WHERE THE ROWS WENT. The operator used to face a 1,118-row wall
+            labelled "Missed Revenue" — a number that was never a count of
+            recoverable demand. Rows are now episodes (one customer, one need),
+            and everything NOT in the recovery lane is accounted for here under
+            a stated reason rather than silently filtered away. A queue that
+            shrinks without explaining itself is a queue nobody trusts.
+          */}
+          {queueSummaryLoading ? (
+            <div className="bg-card border border-border/20 rounded-lg p-4 text-xs text-muted-foreground">
+              Loading the call population…
+            </div>
+          ) : queueSummaryError ? (
+            /* Unknown, never zero — the same contract as the queue read above. */
+            <div className="bg-card border border-amber-500/30 rounded-lg p-4 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                Call population unreadable — the breakdown below is{" "}
+                <span className="text-amber-400 font-medium">unknown, not empty</span>. The roster
+                itself may still be accurate; this panel is not.
+              </p>
+            </div>
+          ) : queueSummary ? (
+            <div className="bg-card border border-border/20 rounded-lg p-4 space-y-3">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Needs attention
+                </span>
+                <span className="text-2xl font-semibold text-foreground tabular-nums">
+                  {queueSummary.needsAttention}
+                </span>
+                {queueSummary.slaBreached > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400">
+                    {queueSummary.slaBreached} past its response target
+                  </span>
+                )}
+                <span className="text-xs text-muted-foreground ml-auto">
+                  from {queueSummary.sourceCallCount.toLocaleString()} call records ·{" "}
+                  {queueSummary.windowDays}d
+                </span>
+              </div>
+
+              {Object.keys(queueSummary.exclusionCounts).length > 0 && (
+                <div className="pt-2 border-t border-border/10">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                    Not an obligation, and why
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {Object.entries(queueSummary.exclusionCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([reason, count]) => (
+                        <span key={reason} className="text-xs text-muted-foreground">
+                          <span className="text-foreground font-medium tabular-nums">{count}</span>{" "}
+                          {EXCLUSION_LABELS[reason] ?? reason.replace(/_/g, " ")}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {queueSummary.unclassified > 0 && (
+                /*
+                  UNKNOWN is its own state. These are calls whose speaker could
+                  not be attributed — mostly rows written before the customer
+                  speech record existed. Folding them into "no demand" would be
+                  asserting a measurement that was never taken.
+                */
+                <p className="text-[11px] text-muted-foreground pt-2 border-t border-border/10">
+                  <span className="text-amber-400 font-medium tabular-nums">
+                    {queueSummary.unclassified}
+                  </span>{" "}
+                  could not be read well enough to classify — not measured, not &ldquo;no
+                  demand&rdquo;.
+                </p>
+              )}
+            </div>
+          ) : null}
+
           <div className="flex items-center gap-2 flex-wrap mb-2">
             <span className="text-xs text-muted-foreground mr-1">Roster Status:</span>
             {(["pending", "reviewed", "converted", "came_in", "ignored"] as const).map((status) => (
@@ -714,7 +820,8 @@ export default function VoiceReceptionistSection() {
             <div className="space-y-4">
               {queueItems.map((item: any) => {
                 const outcome = prettyOutcome(item.evalOutcome);
-                const smsText = getSmsDraft(item.intents, item.evalOutcome);
+                const smsDraft = buildSmsDraft(item);
+                const smsText = smsDraft.body;
                 const recAction = 
                   item.evalOutcome === "callback_needed" ? "Call customer back immediately to schedule service." :
                   item.evalOutcome === "lost_opportunity" ? "Reach out to recover the repair/tire opportunity." :

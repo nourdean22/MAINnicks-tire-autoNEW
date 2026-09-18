@@ -812,18 +812,12 @@ const tasksCoreTools = {
         ),
     }),
     execute: async ({ situation, context }) => {
-      const keywords = situation.toLowerCase().split(/\s+/).filter(w => w.length > 4).slice(0, 5);
-      const matchingLaws = await prisma.strategicLaw.findMany({
-        where: {
-          OR: keywords.map(k => ({
-            OR: [
-              { title: { contains: k, mode: "insensitive" as const } },
-              { essence: { contains: k, mode: "insensitive" as const } },
-            ],
-          })),
-        },
-        take: 3,
-      });
+      // 2026-09-18 · the keyword match moved to lib/brain/strategic-law-match.ts
+      // so the journal-dump derivation uses the SAME predicate. Two copies of a
+      // scoring rule always diverge — the same defect as the two task scorers
+      // that each carried their own "is this terminal" test and disagreed.
+      const { matchStrategicLaws } = await import("@/lib/brain/strategic-law-match");
+      const matchingLaws = await matchStrategicLaws(situation);
       const situationRow = await prisma.situationLog.create({
         data: { situation, context, lawId: matchingLaws[0]?.id || null },
       });
