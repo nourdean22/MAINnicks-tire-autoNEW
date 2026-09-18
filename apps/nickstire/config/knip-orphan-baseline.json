@@ -5370,6 +5370,16 @@
       "file": "apps/nickstire/shared/smsFactCompiler.ts",
       "symbol": "FORBIDDEN_SMS_PHRASES",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The claim denylist. Live consumer is the test sweep that runs it against every compiled message, plus a positive control proving it catches the four old templates and the three proposed financing drafts verbatim. A denylist that only ran inside the compiler could not be positive-controlled, which is how a permanently-vacuous guard scores green."
+    },
+    {
+      "file": "apps/nickstire/server/lib/transferArtifact.ts",
+      "symbol": "TRANSFER_STATUSES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. VAPI documented transfer-status vocabulary. Live consumer is readTransferArtifact in the same module, which uses it to separate a status we model from one we do not - the unrecognised case is kept and logged rather than silently bucketed. Exported so the test pins the exact set; duplicating it in the test would mean the test could not detect VAPI adding a status."
+    },
+    {
+      "file": "apps/nickstire/server/lib/transferArtifact.ts",
+      "symbol": "MIN_CONNECT_SAMPLE",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The floor below which computeConnectRate returns null instead of a percentage. Live consumer is computeConnectRate in the same module. Exported so the test asserts the real boundary rather than pinning a literal that stops tracking it - the defect being replaced was a metric that always had a confident number and was always wrong, so the threshold is the load-bearing part."
     }
   ]
 }

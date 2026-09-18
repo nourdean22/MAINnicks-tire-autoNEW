@@ -1871,6 +1871,35 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "voice-transfer-connect-truth",
+      "name": "Transfer outcome is read from the provider artifact, not inferred from assistant-forwarded-call",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. Every transfer metric in this app was built on endedReason === assistant-forwarded-call, which VAPI documents as confirming the transfer was INITIATED, not completed; its troubleshooting page sends you to the provider call log for the outcome. A call that rang an empty counter and dropped to voicemail therefore scored identically to one answered on the second ring. server/lib/transferArtifact.ts reads call.artifact.transfers[].status into a three-state verdict (connected / not_connected / unknown); the webhook persists it per call; recoveryQueue prefers it over the endedReason heuristic; getRecoveryQueueSummary exposes a connect rate that travels with its coverage.",
+        "tests": "22 tests in server/lib/transferArtifact.test.ts plus 3 in recoveryQueue.test.ts. The load-bearing ones: a forwarded call with NO transfers array resolves to unknown and explicitly not connected; unknowns lower coverage rather than inflating the rate (8 connected + 2 not + 90 unknown = 80% at 10% coverage); all-unknown yields a null rate and 0% coverage, not 0% and not 100%; and a POSITIVE CONTROL proving the rate moves with the data, without which a function hardcoded to return null would pass every other assertion.",
+        "liveRuns": "NONE. No production call has been observed carrying artifact.transfers.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "VAPI gates blind-transfer outcome detection PER ORGANISATION. Whether this account receives a populated artifact.transfers is empirical and unsettled. If it does not, coverage reads 0%, the connect rate stays null, and the panel says the provider reported nothing - which is correct behaviour, not a bug. artifactPresent is persisted per call specifically so this is answered from production data rather than from documentation."
+        },
+        {
+          "severity": "P2",
+          "description": "The redial-based instrument (transferOutcomeEvidence.ts) is deliberately NOT merged into this one. Two independent instruments on the same question is the design; if they disagree, that disagreement is the finding and should be investigated rather than averaged."
+        }
+      ],
+      "deferredScope": [
+        "switching sipVerb from refer to dial to gain a bounded dialTimeout",
+        "warm-transfer-experimental canary, only if measurement shows blind transfer actually failing"
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

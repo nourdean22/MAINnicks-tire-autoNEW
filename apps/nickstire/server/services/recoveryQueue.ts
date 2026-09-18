@@ -232,8 +232,25 @@ export function buildRecoveryQueue(
      * Computed ONCE. Feeding the disposition a derived value while exposing a
      * different one on the episode is exactly the split-brain this whole wave
      * exists to remove — and it is how the first draft of this file shipped.
+     *
+     * EVIDENCE ORDER. `artifact.transfers[].status` is the provider's own
+     * per-attempt outcome and outranks everything else: a `connected` verdict
+     * means the caller reached a human, so the episode is NOT a failed handoff
+     * even if some other reason looks like one. Only when the provider gave us
+     * no verdict do we fall back to VAPI's `*-transfer-*` error reasons.
+     *
+     * Note what is still NOT inferred: `assistant-forwarded-call` means the
+     * transfer was INITIATED. It never implies either verdict, in either
+     * direction. A call carrying only that reason stays unresolved here.
      */
-    const transferFailed = calls.some((c) => isTransferFailure(c.endedReason));
+    const artifactVerdicts = calls
+      .map((c) => asRecord(asRecord(c.metadata).transferArtifact).verdict)
+      .filter((v): v is string => typeof v === "string");
+    const transferFailed = artifactVerdicts.includes("connected")
+      ? false
+      : artifactVerdicts.includes("not_connected")
+        ? true
+        : calls.some((c) => isTransferFailure(c.endedReason));
 
     const disposition = disposeCall({
       outcome: (latest.evalOutcome as CallOutcome) ?? "unknown",

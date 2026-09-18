@@ -765,6 +765,66 @@ export default function VoiceReceptionistSection() {
                 </div>
               )}
 
+              {queueSummary.transferConnect.attempted > 0 && (
+                /*
+                  DID THE TRANSFER REACH A HUMAN — the question no metric here
+                  could answer until now. Derived from the provider's own
+                  per-attempt status, never from `assistant-forwarded-call`,
+                  which means the transfer was INITIATED: a call that rang an
+                  empty counter carries that reason too.
+
+                  Coverage is printed FIRST and the rate renders "—" without it.
+                  VAPI gates blind-transfer outcome detection per organisation,
+                  so 0% coverage is a real and likely answer — and it must read
+                  as "we are not being told", not as a transfer problem or a
+                  clean bill of health.
+                */
+                <div className="pt-2 border-t border-border/10">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                    Transfers — did they reach a human
+                  </p>
+                  {queueSummary.transferConnect.coveragePct === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="text-amber-400 font-medium">Not reported.</span> The phone
+                      provider returned no outcome for any of the{" "}
+                      <span className="text-foreground tabular-nums">
+                        {queueSummary.transferConnect.attempted}
+                      </span>{" "}
+                      transfer attempts, so connect rate is{" "}
+                      <span className="text-amber-400">unknown</span> — not good, not bad.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                      <span className="text-muted-foreground">
+                        <span className="text-emerald-400 font-medium tabular-nums">
+                          {queueSummary.transferConnect.connected}
+                        </span>{" "}
+                        reached a human
+                      </span>
+                      <span className="text-muted-foreground">
+                        <span className="text-red-400 font-medium tabular-nums">
+                          {queueSummary.transferConnect.notConnected}
+                        </span>{" "}
+                        reached nobody
+                      </span>
+                      {queueSummary.transferConnect.unknown > 0 && (
+                        <span className="text-muted-foreground">
+                          <span className="text-amber-400 font-medium tabular-nums">
+                            {queueSummary.transferConnect.unknown}
+                          </span>{" "}
+                          not reported
+                        </span>
+                      )}
+                      <span className="text-muted-foreground ml-auto">
+                        {queueSummary.transferConnect.connectRate === null
+                          ? "rate withheld — too few resolved to be meaningful"
+                          : `${queueSummary.transferConnect.connectRate}% connected, over ${queueSummary.transferConnect.coveragePct}% coverage`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {queueSummary.unclassified > 0 && (
                 /*
                   UNKNOWN is its own state. These are calls whose speaker could
