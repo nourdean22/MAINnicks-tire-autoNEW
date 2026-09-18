@@ -163,13 +163,20 @@ async function recordBriefShown(
   brief: ComposedBrief,
   push: { sent: number; failed: number },
 ): Promise<{ id: string | null }> {
-  const { recordShown } = await import("@/lib/services/outcome-ledger");
+  const { recordShown, setShownSurface } = await import("@/lib/services/outcome-ledger");
+  const surface = push.sent > 0 ? "web-push+home" : "home";
   const id = await recordShown({
     kind: "daily_brief",
     sourceEngine: "morning-brief",
     summary: brief.text,
-    shownSurface: push.sent > 0 ? "web-push+home" : "home",
+    shownSurface: surface,
   });
+  // 2026-09-18 · sendBriefPush now ledgers FIRST, because the notification's
+  // rating button has to carry a row id that already exists. recordShown dedups
+  // on content hash and RETURNS the existing id without updating, so this step
+  // would otherwise leave the pre-send guess frozen in place. Correct it here,
+  // where the delivery outcome is finally known.
+  if (id) await setShownSurface(id, surface);
   return { id };
 }
 
@@ -189,7 +196,7 @@ async function briefTelegramFallback(
   const ok = await sendTelegram(
     `🌅 Morning brief (${brief.date}) — delivered via Telegram because ${reason}. ` +
       `Re-enable push in Settings → Notifications.\n\n${pushBodyFromBrief(brief.text)}\n\n` +
-      `Full brief: https://bdnick.info/command`,
+      `Full brief: https://bdnick.info/intelligence/brief`,
   ).catch(() => false);
   return { status: ok ? "sent" : "failed" };
 }
@@ -199,14 +206,58 @@ async function sendBriefPush(brief: ComposedBrief): Promise<{
   failed: number;
 }> {
   const { sendPush } = await import("@/lib/notifications/push");
+
+  // LEDGER FIRST, THEN SEND (2026-09-18). The button has to carry a ledger id,
+  // so the row must exist before the notification does — the same order
+  // inversion sendRatablePush made for the Telegram pushes in #2424.
+  //
+  // WHY THE BRIEF WAS UNRATEABLE UNTIL NOW: #2424 gave proactive pushes their
+  // Telegram buttons, but the brief's PRIMARY surface is web push, which had no
+  // affordance at all. ~90 daily_brief rows in intelligence_outcomes carried
+  // zero labels — not operator neglect; nothing anywhere could express a
+  // verdict on them.
+  //
+  // FAIL-SOFT: no ledger id means no buttons, but the brief still ships. A
+  // brief the operator cannot rate beats a brief they never get.
+  let ledgerId: string | null = null;
+  try {
+    const { recordShown } = await import("@/lib/services/outcome-ledger");
+    ledgerId = await recordShown({
+      kind: "daily_brief",
+      sourceEngine: "morning-brief",
+      summary: brief.text,
+      // Pre-send guess; recordBriefShown corrects it once delivery is known.
+      shownSurface: "web-push",
+    });
+  } catch {
+    // recordShown logs its own failure; the push path must never break on
+    // bookkeeping.
+  }
+
   const result = await sendPush({
     title: "Morning brief",
     // Trim aggressively · push body has a hard limit ~120 chars on
     // most platforms before the OS truncates with "…".
     body: pushBodyFromBrief(brief.text),
     level: "high",
-    url: "/command",
+    // `chatSeed` below OVERRIDES this, so it is the no-seed fallback only. It
+    // pointed at the retired /command route (which redirects home — a hop, not
+    // a break, but misleading). The brief's real page is this one.
+    url: "/intelligence/brief",
     tag: `morning-brief-${brief.date}`,
+    // Rating buttons, only when there is a row for them to land on. The service
+    // worker routes an `oc_*` action to POST /api/outcomes/rate and
+    // deliberately does NOT navigate — opening the app on a 👍 would punish the
+    // operator for answering.
+    ...(ledgerId
+      ? {
+          data: { ledgerId },
+          actions: [
+            { action: "oc_useful", title: "👍 Useful" },
+            { action: "oc_not_useful", title: "👎 Not useful" },
+          ],
+        }
+      : {}),
     chatSeed: {
       prompt: `morning brief for ${brief.date} just landed · walk me through the highest-leverage item and what to do about it today`,
       suggKind: "morning-brief",

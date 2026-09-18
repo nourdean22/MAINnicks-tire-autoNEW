@@ -63,6 +63,16 @@ export interface PushPayload {
   // is explicitly set — the level-default tag is shared across unrelated
   // callers and must never let one caller's push suppress another's.
   cooldownMs?: number;
+  // 2026-09-18 · notification ACTION BUTTONS, overriding the level default
+  // below. Added so the daily brief can be RATED from the notification itself:
+  // `intelligence_outcomes` had ~90 daily_brief rows that were structurally
+  // unlabelable because the brief's primary surface is web push, and web push
+  // had no affordance. The service worker already forwarded `data.actions` to
+  // the Notification API — nothing ever set it.
+  //
+  // Pair with `data.ledgerId`; public/sw.js routes an `oc_*` action to
+  // POST /api/outcomes/rate instead of navigating.
+  actions?: Array<{ action: string; title: string }>;
 }
 
 /**
@@ -258,6 +268,9 @@ export async function sendPush(payload: PushPayload): Promise<{ sent: number; fa
     } : {
       silent: true,
     }),
+    // AFTER the level spread on purpose: an explicit caller list wins over the
+    // level default, without losing that level's vibrate/requireInteraction.
+    ...(payload.actions && payload.actions.length > 0 ? { actions: payload.actions } : {}),
   };
 
   const notificationPayload = JSON.stringify(options);
