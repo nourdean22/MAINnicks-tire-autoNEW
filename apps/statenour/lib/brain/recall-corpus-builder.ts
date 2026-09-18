@@ -184,6 +184,107 @@ export function describeCorpus(cases: readonly RecallEvalCase[]): CorpusComposit
   };
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+ * IS A PRECISION FIGURE FROM THIS CORPUS WORTH ANYTHING?
+ * ════════════════════════════════════════════════════════════════════════════
+ * `caseFromDurableFact` builds a positive case's query FROM THE MEMORY'S OWN
+ * WORDING, so without paraphrasing the query IS the document: both the lexical
+ * and the vector lane match it trivially, score ~1.0, and prove nothing. A
+ * benchmark that cannot lose is not a benchmark.
+ *
+ * That makes "was the paraphrase arm applied?" a precondition on whether any
+ * number off this corpus is readable — not a cosmetic detail. Kept as a PURE
+ * function beside describeCorpus() rather than inline in the runner, because a
+ * predicate that lives inside main() cannot be tested, and an untested
+ * interpretability rule is how a tautological benchmark gets published.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+export type ParaphraseStatus =
+  /** --paraphrase was not passed. Queries are verbatim content slices. */
+  | "not-requested"
+  /** Requested, but the model path was unreachable (e.g. the server-only guard). */
+  | "blocked"
+  /** Requested, eligible cases existed, and NONE were rewritten. */
+  | "produced-nothing"
+  /** Requested, but no case carried relevantKeys, so there was nothing to rewrite. */
+  | "vacuous"
+  /** Some eligible cases rewritten, some kept verbatim. */
+  | "partial"
+  /** Every eligible case rewritten. */
+  | "complete";
+
+export interface ParaphraseVerdict {
+  status: ParaphraseStatus;
+  /** True when a precision number off this corpus measures recall rather than echo. */
+  scorable: boolean;
+  /** True when --paraphrase was asked for and did not deliver a scorable corpus. */
+  failedRequest: boolean;
+  reason: string;
+}
+
+/**
+ * Pure. `result` is null when --paraphrase was not passed.
+ *
+ * ⚠ `scorable` and `failedRequest` are DELIBERATELY NOT THE SAME FLAG. A plain
+ * `pnpm harvest:evals` yields a corpus that is not scorable and that is fine —
+ * the operator did not ask for one. Collapsing the two would either make the
+ * default run exit non-zero, or make a blocked arm exit zero; the repo has
+ * already shipped the second of those once.
+ */
+export function paraphraseVerdict(
+  result: { rewritten: number; failed: number; blocked?: string } | null,
+): ParaphraseVerdict {
+  if (result === null) {
+    return {
+      status: "not-requested",
+      scorable: false,
+      failedRequest: false,
+      reason:
+        "queries are verbatim content slices — the positive arm is an echo check. Re-run with --paraphrase.",
+    };
+  }
+  if (result.blocked) {
+    return {
+      status: "blocked",
+      scorable: false,
+      failedRequest: true,
+      reason: `paraphrase blocked — ${result.blocked}`,
+    };
+  }
+  const eligible = result.rewritten + result.failed;
+  if (eligible === 0) {
+    return {
+      status: "vacuous",
+      scorable: false,
+      failedRequest: false,
+      reason:
+        "no case carried relevantKeys, so there was nothing to paraphrase — an abstention-only corpus measures no positive recall.",
+    };
+  }
+  if (result.rewritten === 0) {
+    return {
+      status: "produced-nothing",
+      scorable: false,
+      failedRequest: true,
+      reason: `paraphrase rewrote 0 of ${eligible} eligible case(s) — every positive query is still its own document.`,
+    };
+  }
+  if (result.failed > 0) {
+    return {
+      status: "partial",
+      scorable: true,
+      failedRequest: false,
+      reason: `${result.rewritten} of ${eligible} paraphrased; ${result.failed} kept verbatim and marked as such in provenance.`,
+    };
+  }
+  return {
+    status: "complete",
+    scorable: true,
+    failedRequest: false,
+    reason: `all ${eligible} eligible case(s) paraphrased.`,
+  };
+}
+
 /**
  * Pure: a discovery the operator judged NOISE becomes the first
  * label-bearing harvested case — the judged row's own key is the
@@ -314,6 +415,78 @@ export function caseFromDurableFact(row: {
   };
 }
 
+/**
+ * Rows to keep per category when building the positive arm.
+ *
+ * ════════════════════════════════════════════════════════════════════════════
+ * WHY A QUOTA AND NOT A GLOBAL TOP-N — MEASURED ON PROD 2026-09-18
+ * ════════════════════════════════════════════════════════════════════════════
+ * The previous sampler was `orderBy: updatedAt desc, take: 75` across all 14
+ * curated categories, under a comment claiming "Recency gives a spread of real,
+ * current operator facts across the curated categories."
+ *
+ * THAT CLAIM WAS FALSE. Measured: 75 of 75 sampled rows were
+ * `customer_preference`, and 74 of them died on the >=60-char filter, leaving
+ * the entire positive arm at ONE CASE. Precision@k on n=1 is not a measurement.
+ *
+ * The cause is that a LIMIT applied before a diversity requirement is won by
+ * whichever category CHURNS most, not whichever is most useful —
+ * `customer_preference` rows are machine-written customer records (~42 chars,
+ * numeric keys) that are touched constantly. It is the WORST category in the
+ * set (3 eligible rows out of 283) and it consumed 100% of the sample.
+ *
+ * Same defect shape as the error-ranking bug fixed 2026-09-17: RECENCY INVERTS
+ * A VOLUME RANKING — re-rank BEFORE the LIMIT. An earlier pass today already
+ * swapped `confidence: desc` (which surfaced machine categories) for recency;
+ * that traded one sampling bug for another rather than removing the class.
+ *
+ * Eligible rows actually available, per category (prod, 2026-09-18):
+ *   insight 1079 · nick_advice 454 · wisdom 367 · concern 166 · decision_log
+ *   137 · emotional_state 104 · win 45 · business_event 26 · blind_spot 11 ·
+ *   preference 11 · friction 7 · customer_preference 3 · prediction_lesson 2 ·
+ *   learning_journal 0                                        TOTAL 2,412
+ *
+ * A FLAT quota is deliberate. Weighting by volume would hand the corpus back to
+ * `insight` (45% of all eligible rows) and measure recall on one category
+ * again — the same failure with a friendlier distribution.
+ */
+export const DURABLE_FACT_PER_CATEGORY = 6;
+
+/**
+ * Rows FETCHED per category before viability filtering.
+ *
+ * Deliberately much larger than the quota: eligibility varies enormously by
+ * category (insight 95% of rows are viable, blind_spot 5%, learning_journal 0%),
+ * so a thin category needs headroom to fill a quota at all. Over-fetching is
+ * safe here because buildRealRecallCases has NO request-path caller — only
+ * scripts/harvest-eval-corpus.ts and its tests (checked 2026-09-18).
+ */
+export const DURABLE_FACT_FETCH_PER_CATEGORY = 60;
+
+/**
+ * Pure: balance fetched rows into at most `perCategory` VIABLE rows per
+ * category.
+ *
+ * ⚠ VIABILITY IS TESTED WITH caseFromDurableFact ITSELF, not with a copy of its
+ * rules. A second predicate here would drift from the real one, and the drift
+ * would be invisible: the quota would silently fill with rows the builder then
+ * rejects, starving the arm exactly as the global top-N did. Exported for tests.
+ */
+export function selectBalancedDurableFactRows<
+  T extends { id: string; key: string; category: string; content: string },
+>(rows: readonly T[], perCategory: number = DURABLE_FACT_PER_CATEGORY): T[] {
+  const kept = new Map<string, T[]>();
+  for (const row of rows) {
+    const cat = row.category ?? "(uncategorised)";
+    const list = kept.get(cat) ?? [];
+    if (list.length >= perCategory) continue;
+    if (caseFromDurableFact(row) === null) continue;
+    list.push(row);
+    kept.set(cat, list);
+  }
+  return [...kept.values()].flat();
+}
+
 export async function countLabeledEvalCases(): Promise<number> {
   const cats = [...DISCOVERY_CATEGORIES];
   const rows = await prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
@@ -432,23 +605,36 @@ export async function buildRealRecallCases(): Promise<RealCorpusResult> {
     // ⚠ Same liveness + quarantine contract as every recall path: a case built
     // on a soft-deleted or quarantined row would grade the retriever for
     // failing to return something it is CORRECT to withhold.
-    read("brain_memory(durable facts · positive)", () =>
-      prisma.brainMemory.findMany({
-        where: {
-          deletedAt: null,
-          category: { in: [...HUMAN_FACT_CATEGORIES] },
-          confidence: { gte: 0.5 },
-          // Long enough to state a fact, short enough not to be a document.
-          content: { not: "" },
-        },
-        // ⚠ NOT `confidence: desc` — that sorted the machine categories to the
-        // top and produced telemetry cases. Recency gives a spread of real,
-        // current operator facts across the curated categories.
-        orderBy: { updatedAt: "desc" },
-        take: MAX_PER_SOURCE * 3,
-        select: { id: true, key: true, category: true, content: true },
-      }),
-    ),
+    // ⚠ ONE QUERY PER CATEGORY, NOT ONE GLOBAL TOP-N.
+    //
+    // A single `orderBy: updatedAt desc, take: 75` across the curated set
+    // returned 75 of 75 rows from `customer_preference` — the WORST category in
+    // the set (3 eligible of 283) — because it is machine-churned and therefore
+    // wins on recency. The positive arm was left at ONE case. The previous
+    // comment here asserted the opposite ("Recency gives a spread"); it was
+    // never measured. See DURABLE_FACT_PER_CATEGORY for the full census.
+    //
+    // Promise.all on purpose: if any category query throws, the whole source is
+    // reported broken rather than silently thin — `read()` already distinguishes
+    // a BROKEN source from an EMPTY one, and that distinction must survive here.
+    read("brain_memory(durable facts · positive)", async () => {
+      const perCategory = await Promise.all(
+        HUMAN_FACT_CATEGORIES.map((category) =>
+          prisma.brainMemory.findMany({
+            where: {
+              deletedAt: null,
+              category,
+              confidence: { gte: 0.5 },
+              content: { not: "" },
+            },
+            orderBy: { updatedAt: "desc" },
+            take: DURABLE_FACT_FETCH_PER_CATEGORY,
+            select: { id: true, key: true, category: true, content: true },
+          }),
+        ),
+      );
+      return selectBalancedDurableFactRows(perCategory.flat());
+    }),
   ]);
 
   const sources = [
