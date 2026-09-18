@@ -11,7 +11,7 @@ import { requireSession } from "@/lib/auth-guard";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { checkAiRateLimit } from "@/lib/rate-limit";
 import { logger as rootLogger } from "@/lib/logger";
-import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { BRAIN_CATEGORIES, RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("api/ai/assist");
 
@@ -43,6 +43,14 @@ export async function POST(req: NextRequest) {
             ...keywords.map(k => ({ content: { contains: k, mode: "insensitive" as const } })),
             { category: { in: ["lesson", "insight", "preference", "pattern"] } },
           ],
+          // 2026-09-18 · this OR ran unguarded, so a keyword match pulled
+          // SOFT-DELETED memories and quarantined categories straight into an
+          // AI prompt. `deletedAt` is explicit operator deletion — the schema
+          // is emphatic that it differs from `expiresAt` decay — and
+          // RECALL_EXCLUDE_CATEGORIES holds un-promoted research claims that
+          // categories.ts says belong to /brain, not to the model.
+          deletedAt: null,
+          category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
         },
         orderBy: { confidence: "desc" },
         take: 12,
