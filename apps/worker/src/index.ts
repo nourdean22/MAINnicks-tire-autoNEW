@@ -66,7 +66,11 @@ function requireCronSecret(req: express.Request, res: express.Response, next: ex
   next();
 }
 
-// ── Liveness / deploy gate · Railway probes THIS path (railway.json) ──
+// ── Liveness / deploy gate · Railway probes THIS path ──
+//
+// Declared as `healthcheck` on this service in .railway/railway.ts. It used to
+// live in apps/worker/railway.json, deleted 2026-09-18 when the project moved to
+// Infrastructure as Code.
 //
 // DUMB BY DESIGN: 200 whenever the process can serve a request. It does NOT
 // gate on scheduler state, the DB, or any downstream service.
@@ -127,7 +131,8 @@ app.get("/health", (_req, res) => {
 // ── Scheduler freshness · DIAGNOSTIC ONLY ──
 //
 // 503 when the loop has gone quiet longer than the derived window. Safe to
-// alert on, safe to poll. **Never point railway.json healthcheckPath at this**
+// alert on, safe to poll. **Never point the service `healthcheck` in
+// .railway/railway.ts at this**
 // — that is exactly the coupling the split above exists to prevent.
 app.get("/health/scheduler", (_req, res) => {
   const h = getSchedulerHealth();

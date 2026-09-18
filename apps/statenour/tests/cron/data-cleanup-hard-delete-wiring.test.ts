@@ -209,4 +209,33 @@ describe("the embedding reconciliation cannot fail silently", () => {
     const out = await runRoute();
     expect(out.ok).toBeUndefined();
   });
+
+  it("BREAKS: a SKIPPED source files the run as FAILED (refused:false is not enough)", async () => {
+    // A source the sweep declines individually — missing table, renamed
+    // soft-delete column, or the 100%-mark mapping guard — leaves refused:false.
+    // In steady state this list is empty, so a skip means the schema moved under
+    // the allowlist and that source went unreconciled.
+    shadowMocks.sweep.mockResolvedValue({
+      ...OK_SWEEP,
+      sources: [
+        { sourceType: "mission", marked: 0, cleared: 0, skipped: 'table "Mission" does not exist' },
+      ],
+    });
+
+    const out = await runRoute();
+
+    expect(out.ok).toBe(false);
+    expect(String(out.reason)).toContain("mission");
+  });
+
+  it("CANARY: sources present WITHOUT a skip leave the run green", async () => {
+    shadowMocks.sweep.mockResolvedValue({
+      ...OK_SWEEP,
+      sources: [{ sourceType: "mission", marked: 3, cleared: 1 }],
+    });
+
+    const out = await runRoute();
+
+    expect(out.ok).toBeUndefined();
+  });
 });

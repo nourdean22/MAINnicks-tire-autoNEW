@@ -32,10 +32,18 @@
 // 2 volumes and a storage bucket. The 3 changes are precisely the ported
 // watchPatterns.
 //
-// ⚠ THE railway.json FILES ARE DELIBERATELY STILL PRESENT. They remain the
-// effective config until `railway config apply` runs, and a service cannot be
-// managed by both systems — so they are removed as part of the apply step, not
-// before it. See .railway/README.md for the ordered runbook.
+// APPLIED 2026-09-18, and the three railway.json files are DELETED.
+//
+// `railway config apply` ran against production: 3 services updated, all rebuilt,
+// none went offline; the re-plan reads "already up to date"; all 9 resources are
+// present. A service cannot be managed by both systems, so the legacy files came
+// out as part of that handover.
+//
+// ⇒ THIS FILE IS NOW THE ONLY SOURCE OF BUILD/DEPLOY CONFIG IN THE REPO. Nothing
+// else overrides it, including after the 2026-12-01 cutoff. `healthcheckPath`
+// used to live in apps/<app>/railway.json; comments still pointing there are
+// pointing at a deleted file. The gate that enforces watch coverage
+// (scripts/agent-os/railwayWatchCoverage.test.mjs) reads THIS file.
 //
 // No secrets here: every variable renders as `preserve()`, which keeps the
 // value Railway already holds. Never run `config plan --show-values` into a log.

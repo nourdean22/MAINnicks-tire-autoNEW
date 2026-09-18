@@ -403,12 +403,28 @@ export const GET = cronHandler(async () => {
   // where three jobs wrote `status: "success"` before doing the work and
   // /system/fleet was green for seven weeks. Reintroducing it one layer down,
   // in the same file, is exactly how that class survives being "fixed".
+  // A SKIPPED SOURCE IS ALSO A FAILURE, and that is not obvious (2026-09-18,
+  // review on #2434). `refused` covers the cap; it does NOT cover a source the
+  // sweep declined individually — a missing table, a renamed soft-delete column,
+  // or the 100%-mark mapping guard. Those leave `refused:false` with an empty
+  // reason list, so the cron logged SUCCESS while that source went unreconciled
+  // and its stale embeddings stayed searchable.
+  //
+  // In steady state this list is EMPTY: all 11 allowlisted tables exist, all
+  // their soft-delete columns exist, and situation_log carries allowFullSweep.
+  // So a skip is never routine — it means the schema moved under the allowlist,
+  // which is exactly the thing that must not be discovered a month later.
+  const skipped = (shadowSweep?.sources ?? [])
+    .filter((s) => s.skipped)
+    .map((s) => `${s.sourceType}: ${s.skipped}`);
+
   const failureReasons = [
     ...blockedSweeps.map((b) => b.reason),
     ...(shadowSweep === null ? ["embedding shadow sweep threw — see error_logs"] : []),
     ...(shadowSweep?.refused && shadowSweep.refusedReason
       ? [`embedding shadow sweep refused — ${shadowSweep.refusedReason}`]
       : []),
+    ...(skipped.length > 0 ? [`embedding shadow sources skipped — ${skipped.join(" | ")}`] : []),
   ];
 
   return {
@@ -429,7 +445,7 @@ export const GET = cronHandler(async () => {
           cleared: shadowSweep.totalCleared,
           refused: shadowSweep.refused,
           refusedReason: shadowSweep.refusedReason,
-          skipped: shadowSweep.sources.filter((s) => s.skipped).map((s) => `${s.sourceType}: ${s.skipped}`),
+          skipped,
         }
       : { error: "sweep threw — see error_logs" },
   };
