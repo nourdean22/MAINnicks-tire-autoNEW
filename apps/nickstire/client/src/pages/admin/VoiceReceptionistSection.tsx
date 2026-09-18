@@ -71,6 +71,7 @@ import {
   prettyReason,
   maskPhone,
   prettyOutcome,
+  EXCLUSION_LABELS,
 } from "./voice/format";
 import { DateRangeSelector } from "./voice/DateRangeSelector";
 import { FilterChip } from "./voice/FilterChip";
@@ -141,6 +142,20 @@ export default function VoiceReceptionistSection() {
   }, {
     staleTime: 60_000,
   });
+
+  /**
+   * The denominators the wall never showed.
+   *
+   * "1,118 pending" was rendered as missed revenue while being, in large part,
+   * a census of calls that were ANSWERED. This returns the same population
+   * decomposed by lane and by stated exclusion reason, so "where did the other
+   * rows go" has an answer on screen instead of becoming a support question.
+   */
+  const {
+    data: queueSummary,
+    isError: queueSummaryError,
+    isLoading: queueSummaryLoading,
+  } = trpc.vapi.getRecoveryQueueSummary.useQuery({ days: 90 }, { staleTime: 60_000 });
 
   const updateQueueMutation = trpc.vapi.updateQueueStatus.useMutation({
     onSuccess: () => {
@@ -690,6 +705,84 @@ export default function VoiceReceptionistSection() {
       ) : (
         /* ─── Missed Revenue Queue Tab ──────────────────────── */
         <div className="space-y-4">
+          {/*
+            WHERE THE ROWS WENT. The operator used to face a 1,118-row wall
+            labelled "Missed Revenue" — a number that was never a count of
+            recoverable demand. Rows are now episodes (one customer, one need),
+            and everything NOT in the recovery lane is accounted for here under
+            a stated reason rather than silently filtered away. A queue that
+            shrinks without explaining itself is a queue nobody trusts.
+          */}
+          {queueSummaryLoading ? (
+            <div className="bg-card border border-border/20 rounded-lg p-4 text-xs text-muted-foreground">
+              Loading the call population…
+            </div>
+          ) : queueSummaryError ? (
+            /* Unknown, never zero — the same contract as the queue read above. */
+            <div className="bg-card border border-amber-500/30 rounded-lg p-4 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                Call population unreadable — the breakdown below is{" "}
+                <span className="text-amber-400 font-medium">unknown, not empty</span>. The roster
+                itself may still be accurate; this panel is not.
+              </p>
+            </div>
+          ) : queueSummary ? (
+            <div className="bg-card border border-border/20 rounded-lg p-4 space-y-3">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Needs attention
+                </span>
+                <span className="text-2xl font-semibold text-foreground tabular-nums">
+                  {queueSummary.needsAttention}
+                </span>
+                {queueSummary.slaBreached > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400">
+                    {queueSummary.slaBreached} past its response target
+                  </span>
+                )}
+                <span className="text-xs text-muted-foreground ml-auto">
+                  from {queueSummary.sourceCallCount.toLocaleString()} call records ·{" "}
+                  {queueSummary.windowDays}d
+                </span>
+              </div>
+
+              {Object.keys(queueSummary.exclusionCounts).length > 0 && (
+                <div className="pt-2 border-t border-border/10">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                    Not an obligation, and why
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {Object.entries(queueSummary.exclusionCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([reason, count]) => (
+                        <span key={reason} className="text-xs text-muted-foreground">
+                          <span className="text-foreground font-medium tabular-nums">{count}</span>{" "}
+                          {EXCLUSION_LABELS[reason] ?? reason.replace(/_/g, " ")}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {queueSummary.unclassified > 0 && (
+                /*
+                  UNKNOWN is its own state. These are calls whose speaker could
+                  not be attributed — mostly rows written before the customer
+                  speech record existed. Folding them into "no demand" would be
+                  asserting a measurement that was never taken.
+                */
+                <p className="text-[11px] text-muted-foreground pt-2 border-t border-border/10">
+                  <span className="text-amber-400 font-medium tabular-nums">
+                    {queueSummary.unclassified}
+                  </span>{" "}
+                  could not be read well enough to classify — not measured, not &ldquo;no
+                  demand&rdquo;.
+                </p>
+              )}
+            </div>
+          ) : null}
+
           <div className="flex items-center gap-2 flex-wrap mb-2">
             <span className="text-xs text-muted-foreground mr-1">Roster Status:</span>
             {(["pending", "reviewed", "converted", "came_in", "ignored"] as const).map((status) => (
