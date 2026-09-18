@@ -1465,7 +1465,16 @@ export async function getContextualMemories(
     // denominator, and one turn cannot supply one. `null` rather than 0 when
     // the lane has never been attempted: an unknown rate that renders as 0%
     // is the silent-instrument shape these counters exist to remove.
-    lexicalSkipPct: skipRate === null ? null : Math.round(skipRate * 100),
+    //
+    // ⚠ CUMULATIVE MEANS INSENSITIVE TO RECENT CHANGE, and the field name says
+    // `Cum` so nobody reads it as "the rate right now". On a long-lived process
+    // early history dominates forever: a lane that degrades from 36% to 90%
+    // after 10k healthy queries barely moves this number. It answers "has this
+    // lane been dropping queries?", NOT "is it dropping them now". A windowed
+    // rate would answer the second, and is worth building only once this one
+    // shows the first is interesting — a ring buffer per process is real
+    // complexity to buy before there is any evidence it is needed.
+    lexicalSkipPctCum: skipRate === null ? null : Math.round(skipRate * 100),
     timings,
     ms: Date.now() - t0,
   });
