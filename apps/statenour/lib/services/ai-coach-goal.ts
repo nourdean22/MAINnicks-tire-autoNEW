@@ -23,6 +23,7 @@
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { applyOperatorStyle } from "@/lib/ai/style-adapter";
 import { prisma } from "@/lib/prisma";
+import { RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -108,6 +109,11 @@ export async function runCoachGoal(input: {
     .findMany({
       where: {
         content: { contains: searchTerm, mode: "insensitive" as const },
+        // 2026-09-18 · unguarded, a keyword match fed SOFT-DELETED memories and
+        // quarantined categories into the goal coach's prompt. Explicit
+        // operator deletion has to win over a substring hit.
+        deletedAt: null,
+        category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
       },
       orderBy: { confidence: "desc" },
       take: 5,
