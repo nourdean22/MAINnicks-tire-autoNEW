@@ -25,7 +25,8 @@ function fakePrisma(opts: { parentEnriched?: boolean; existing?: boolean } = {})
   const calls = {
     reflectionCreate: vi.fn(async (a: unknown) => ({ id: "r1", ...(a as object) })),
     decisionCreate: vi.fn(async (a: unknown) => ({ id: "d1", ...(a as object) })),
-    situationCreate: vi.fn(),
+    situationCreate: vi.fn(async (a: unknown) => ({ id: "s1", ...(a as object) })),
+    lawFindMany: vi.fn(async () => [{ id: "law-48", book: "48 Laws", number: 1, title: "x", essence: "y" }]),
   };
   const client = {
     brainDump: {
@@ -45,7 +46,11 @@ function fakePrisma(opts: { parentEnriched?: boolean; existing?: boolean } = {})
       findFirst: vi.fn(async () => (opts.existing ? { id: "existing-d" } : null)),
       create: calls.decisionCreate,
     },
-    situationLog: { create: calls.situationCreate },
+    situationLog: {
+      create: calls.situationCreate,
+      findFirst: vi.fn(async () => (opts.existing ? { id: "existing-s" } : null)),
+    },
+    strategicLaw: { findMany: calls.lawFindMany },
   };
   return { calls, client: client as never };
 }
@@ -89,16 +94,19 @@ describe("only types that map onto a silo WITHOUT invention are derived", () => 
     },
   );
 
-  it("NEVER writes a situation_log — nothing in a dump maps onto it", async () => {
-    // situation_logs has literally never held a row. Inventing a mapping would
-    // manufacture entries the operator never authored, which is the fabrication
-    // class this repo has a whole defence stack against.
-    for (const entryType of ["reflection", "decision", "insight", "raw"] as ThoughtType[]) {
+  it("writes a situation_log ONLY for the first-class `situation` type", async () => {
+    // The original rule was "never" — because no ORIGINAL thought type mapped
+    // onto it, and mapping one on would have manufactured rows the operator
+    // never authored. The classifier now has a real `situation` type, so the
+    // boundary moved; it did not disappear. Nothing ELSE may write this table.
+    for (const entryType of ["reflection", "decision", "insight", "raw", "venting"] as ThoughtType[]) {
       const f = fakePrisma();
       await deriveJournalSilos({ ...base, entryType, prisma: f.client });
-      expect(f.calls.situationCreate).not.toHaveBeenCalled();
+      expect(f.calls.situationCreate, `${entryType} must not write a situation_log`).not.toHaveBeenCalled();
     }
-    expect(Object.values(DERIVABLE_TYPES)).not.toContain("situation_log");
+    const f = fakePrisma();
+    const r = await deriveJournalSilos({ ...base, entryType: "situation", prisma: f.client });
+    expect(r.situationLogId).toBe("s1");
   });
 });
 
@@ -244,5 +252,58 @@ describe("guards", () => {
       "utf8",
     );
     expect(src).not.toMatch(/storeGenericEmbedding|dispatchJournalFanout|vectorEmbedding\.create/);
+  });
+});
+
+describe("derived situation_logs", () => {
+  it("uses the extractor's own arena, and 'unspecified' when it gave none", async () => {
+    const f1 = fakePrisma();
+    await deriveJournalSilos({
+      ...base,
+      entryType: "situation",
+      situationContext: "supplier",
+      prisma: f1.client,
+    });
+    expect((f1.calls.situationCreate.mock.calls[0][0] as { data: { context: string } }).data.context)
+      .toBe("supplier");
+
+    const f2 = fakePrisma();
+    await deriveJournalSilos({ ...base, entryType: "situation", prisma: f2.client });
+    // "unspecified" is honest. Guessing an arena would invent operator intent.
+    expect((f2.calls.situationCreate.mock.calls[0][0] as { data: { context: string } }).data.context)
+      .toBe("unspecified");
+  });
+
+  it("attaches a matched law as a HINT, via the shared matcher", async () => {
+    const f = fakePrisma();
+    await deriveJournalSilos({ ...base, entryType: "situation", prisma: f.client });
+    expect(f.calls.lawFindMany).toHaveBeenCalled();
+    expect((f.calls.situationCreate.mock.calls[0][0] as { data: { lawId: string | null } }).data.lawId)
+      .toBe("law-48");
+  });
+
+  it("stores lawId NULL when nothing matches, rather than forcing a law", async () => {
+    const f = fakePrisma();
+    f.calls.lawFindMany.mockResolvedValueOnce([]);
+    await deriveJournalSilos({ ...base, entryType: "situation", prisma: f.client });
+    expect((f.calls.situationCreate.mock.calls[0][0] as { data: { lawId: string | null } }).data.lawId)
+      .toBeNull();
+  });
+
+  it("keeps the provenance marker OUT of the leading text", async () => {
+    // journal-fanout renders `[situation <context>] <situation>` into the
+    // embedding; a leading marker would dominate the vector.
+    const f = fakePrisma();
+    await deriveJournalSilos({ ...base, entryType: "situation", prisma: f.client });
+    const { data } = f.calls.situationCreate.mock.calls[0][0] as { data: { situation: string } };
+    expect(data.situation.startsWith("[derived")).toBe(false);
+    expect(data.situation).toContain("brain_dump bd1");
+  });
+
+  it("does not re-derive when a marked row already exists", async () => {
+    const f = fakePrisma({ existing: true });
+    const r = await deriveJournalSilos({ ...base, entryType: "situation", prisma: f.client });
+    expect(r.situationLogId).toBe("existing-s");
+    expect(f.calls.situationCreate).not.toHaveBeenCalled();
   });
 });
