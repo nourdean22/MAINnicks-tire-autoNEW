@@ -216,6 +216,18 @@ export const vapiRouter = router({
       return createProductionAssistant(serverUrl);
     }),
 
+  /**
+   * Does the line callers dial answer with the assistant we push config to?
+   *
+   * Sits immediately above `updateAssistant` because it is the question that
+   * makes that mutation meaningful: a push can be perfectly deterministic and
+   * still land on an assistant nobody reaches. Read-only.
+   */
+  assistantRouting: adminProcedure.query(async () => {
+    const { getAssistantRoutingTruth } = await import("../services/vapi");
+    return getAssistantRoutingTruth();
+  }),
+
   updateAssistant: adminProcedure
     .input(z.object({
       // Optional — defaults to the canonical INBOUND receptionist

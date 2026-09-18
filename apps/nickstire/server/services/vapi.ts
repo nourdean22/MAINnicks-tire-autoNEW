@@ -1111,6 +1111,135 @@ export async function resolveVapiPhoneNumberId(): Promise<string | null> {
   }
 }
 
+/**
+ * DOES THE NUMBER CALLERS DIAL ROUTE TO THE ASSISTANT WE EDIT?
+ *
+ * Every resolver in this file answers "which assistant do we WRITE to".
+ * None answered "which assistant ANSWERS the phone" — so a push could be
+ * perfectly deterministic and still land on something no caller ever reaches.
+ * That gap was recorded as a blocker on 2026-09-18 and this closes it.
+ *
+ * The provider already knew: VAPI's phone-number object carries `assistantId`,
+ * and `resolveVapiPhoneNumberId` has been fetching that exact payload since
+ * wave-145 while parsing only `{id, number}` — the answer was in the response
+ * body the whole time and was being discarded on the way past.
+ *
+ * THREE STATES, NEVER TWO. A failed read is `unknown`, never `match` — an
+ * unverified binding must not render as a verified one. `unknown` also covers
+ * the legitimate cases where the question has no yes/no answer: the number may
+ * route to a squad or a live `assistantRequest` server URL rather than a static
+ * assistant, in which case there is no id to compare and saying "mismatch"
+ * would be a fabricated alarm.
+ *
+ * Read-only. No write, no push, no side effect.
+ */
+export async function getAssistantRoutingTruth(): Promise<{
+  state: "match" | "mismatch" | "unknown";
+  /** Plain sentence for the operator. Never blank. */
+  detail: string;
+  /** The assistant the inbound line actually routes to, when VAPI states one. */
+  answeringAssistantId: string | null;
+  /** The assistant "Push Latest Config" writes to. */
+  editTargetAssistantId: string | null;
+  number: string;
+}> {
+  const number = DEFAULT_VAPI_OUTBOUND_NUMBER;
+  const editTargetAssistantId = process.env.VAPI_RECEPTIONIST_ASSISTANT_ID ?? null;
+
+  if (!process.env.VAPI_API_KEY) {
+    return {
+      state: "unknown",
+      detail: "No VAPI API key on this server, so the routing could not be read. This is not a clean bill of health.",
+      answeringAssistantId: null,
+      editTargetAssistantId,
+      number,
+    };
+  }
+
+  try {
+    const res = await vapiFetch("/phone-number");
+    if (!res.ok) {
+      return {
+        state: "unknown",
+        detail: `VAPI returned ${res.status} for the phone-number list, so routing is unverified — not confirmed wrong, just unread.`,
+        answeringAssistantId: null,
+        editTargetAssistantId,
+        number,
+      };
+    }
+    const numbers = (await res.json()) as Array<{ id: string; number: string; assistantId?: string | null }>;
+    if (!Array.isArray(numbers)) {
+      return {
+        state: "unknown",
+        detail: "VAPI returned an unexpected shape for the phone-number list; routing is unverified.",
+        answeringAssistantId: null,
+        editTargetAssistantId,
+        number,
+      };
+    }
+
+    const line = numbers.find((n) => n.number === number);
+    if (!line) {
+      return {
+        state: "unknown",
+        detail: `${number} is not in this VAPI account's phone-number list, so nothing here describes the line callers dial.`,
+        answeringAssistantId: null,
+        editTargetAssistantId,
+        number,
+      };
+    }
+
+    const answeringAssistantId = line.assistantId ?? null;
+    if (!answeringAssistantId) {
+      // Legitimate and common: squads and assistant-request server URLs both
+      // leave this null. Claiming a mismatch here would invent an alarm.
+      return {
+        state: "unknown",
+        detail: `${number} has no static assistant bound to it — it may route via a squad or a live assistant-request URL, so there is no id to compare.`,
+        answeringAssistantId: null,
+        editTargetAssistantId,
+        number,
+      };
+    }
+
+    if (!editTargetAssistantId) {
+      return {
+        state: "unknown",
+        detail: `${number} answers with assistant ${answeringAssistantId}, but VAPI_RECEPTIONIST_ASSISTANT_ID is unset, so there is no pinned edit target to compare it against.`,
+        answeringAssistantId,
+        editTargetAssistantId,
+        number,
+      };
+    }
+
+    if (answeringAssistantId === editTargetAssistantId) {
+      return {
+        state: "match",
+        detail: `${number} answers with the same assistant that Push Latest Config writes to (${answeringAssistantId}).`,
+        answeringAssistantId,
+        editTargetAssistantId,
+        number,
+      };
+    }
+
+    return {
+      state: "mismatch",
+      detail: `${number} answers with assistant ${answeringAssistantId}, but Push Latest Config writes to ${editTargetAssistantId}. Config pushes are not reaching the line callers dial.`,
+      answeringAssistantId,
+      editTargetAssistantId,
+      number,
+    };
+  } catch (error) {
+    return {
+      state: "unknown",
+      detail: `Could not reach VAPI to read the routing (${error instanceof Error ? error.message : String(error)}). Unverified, not verified-wrong.`,
+      answeringAssistantId: null,
+      editTargetAssistantId,
+      number,
+    };
+  }
+}
+
 // ─── PUBLIC API ──────────────────────────────────────────
 
 export async function getVapiStatus(): Promise<{
