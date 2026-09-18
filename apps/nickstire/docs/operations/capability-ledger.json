@@ -1990,6 +1990,38 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "vapi-assistant-resolution-determinism",
+      "name": "An operator edit lands on a named assistant, and an ambiguous pick says so out loud",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. Surfaced by the operator pushing Vapi config. THAT PUSH WAS CORRECT - production logged Updated Vapi assistant id=150fe622-0b9f-4b03-b8c7-3063812717ae, POST 200, the env-pinned inbound receptionist, exactly as the wave-113b fix intended. But the same panel lists TWO assistants both named \"Nick s Tire & Auto Receptionist\" (afcad79e and 150fe622) plus a separately-named follow-up. pickReceptionistAssistantId step 2 did find(/receptionist/i), so with two matches it returned whichever VAPI listed first - an order this code does not control and VAPI does not promise - and logged nothing. A coin flip deciding which assistant an operator edit lands on. New reason name-match-ambiguous logs both candidates with the pick and tells the operator to pin the id or rename the duplicate. Also deleted a source comment that had become false: it named afcad79e as the outbound follow-up, which the current panel contradicts.",
+        "tests": "11 tests in server/__tests__/pickReceptionistAssistant.test.ts, using the real assistant ids as the fixture. The resolver had NO tests despite deciding where Push Latest Config, the transfer-destination card and the transfer editor all write. Load-bearing cases: the pin wins REGARDLESS OF LIST ORDER (the entire point of pinning); a pin naming a deleted assistant falls through rather than stranding; one match stays name-match while two become ambiguous - without that pair, marking everything ambiguous would satisfy the first assertion and make the warning meaningless. POSITIVE CONTROL asserts all five outcomes are reachable, so a function hardcoded to any single reason fails. MUTATION VERIFIED: collapsing name-match-ambiguous back to name-match turned 2 of 11 red. Typecheck exit 0.",
+        "liveRuns": "PARTIAL, and this is the unusual one. The push itself is a live run and is recorded above with its production log line and status 200. The new ambiguity branch has NOT run in production, because the env pin is set and therefore step 1 always wins today.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "THE ROOT CAUSE IS NOT IN CODE AND IS NOT FIXED. Two assistants share a name in the VAPI account. This guard only makes the resulting ambiguity visible; renaming or deleting the stale duplicate is an operator action in VAPI and was deliberately not taken by the agent."
+        },
+        {
+          "severity": "P2",
+          "description": "The ambiguous branch returns a usable id rather than failing closed, so a wrong pick is still possible when the pin is absent - it is merely announced. Failing closed was rejected because a null would break the admin transfer card entirely; here guessing loudly beats failing, since the operator can act on the warning. That trade is a judgement, not a measurement."
+        },
+        {
+          "severity": "P2",
+          "description": "Nothing verifies that the pinned assistant is the one the live phone number actually routes to. The resolver answers which assistant we EDIT, not which one ANSWERS. If those ever diverge, every path here is deterministic and still wrong."
+        }
+      ],
+      "deferredScope": [
+        "Reading the phone-number to assistant binding from VAPI to prove the pinned id is the one that answers 216-424-9249. Not attempted this pass: it needs a live provider read, and the failure it would catch has no evidence of occurring."
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
