@@ -184,6 +184,107 @@ export function describeCorpus(cases: readonly RecallEvalCase[]): CorpusComposit
   };
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+ * IS A PRECISION FIGURE FROM THIS CORPUS WORTH ANYTHING?
+ * ════════════════════════════════════════════════════════════════════════════
+ * `caseFromDurableFact` builds a positive case's query FROM THE MEMORY'S OWN
+ * WORDING, so without paraphrasing the query IS the document: both the lexical
+ * and the vector lane match it trivially, score ~1.0, and prove nothing. A
+ * benchmark that cannot lose is not a benchmark.
+ *
+ * That makes "was the paraphrase arm applied?" a precondition on whether any
+ * number off this corpus is readable — not a cosmetic detail. Kept as a PURE
+ * function beside describeCorpus() rather than inline in the runner, because a
+ * predicate that lives inside main() cannot be tested, and an untested
+ * interpretability rule is how a tautological benchmark gets published.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+export type ParaphraseStatus =
+  /** --paraphrase was not passed. Queries are verbatim content slices. */
+  | "not-requested"
+  /** Requested, but the model path was unreachable (e.g. the server-only guard). */
+  | "blocked"
+  /** Requested, eligible cases existed, and NONE were rewritten. */
+  | "produced-nothing"
+  /** Requested, but no case carried relevantKeys, so there was nothing to rewrite. */
+  | "vacuous"
+  /** Some eligible cases rewritten, some kept verbatim. */
+  | "partial"
+  /** Every eligible case rewritten. */
+  | "complete";
+
+export interface ParaphraseVerdict {
+  status: ParaphraseStatus;
+  /** True when a precision number off this corpus measures recall rather than echo. */
+  scorable: boolean;
+  /** True when --paraphrase was asked for and did not deliver a scorable corpus. */
+  failedRequest: boolean;
+  reason: string;
+}
+
+/**
+ * Pure. `result` is null when --paraphrase was not passed.
+ *
+ * ⚠ `scorable` and `failedRequest` are DELIBERATELY NOT THE SAME FLAG. A plain
+ * `pnpm harvest:evals` yields a corpus that is not scorable and that is fine —
+ * the operator did not ask for one. Collapsing the two would either make the
+ * default run exit non-zero, or make a blocked arm exit zero; the repo has
+ * already shipped the second of those once.
+ */
+export function paraphraseVerdict(
+  result: { rewritten: number; failed: number; blocked?: string } | null,
+): ParaphraseVerdict {
+  if (result === null) {
+    return {
+      status: "not-requested",
+      scorable: false,
+      failedRequest: false,
+      reason:
+        "queries are verbatim content slices — the positive arm is an echo check. Re-run with --paraphrase.",
+    };
+  }
+  if (result.blocked) {
+    return {
+      status: "blocked",
+      scorable: false,
+      failedRequest: true,
+      reason: `paraphrase blocked — ${result.blocked}`,
+    };
+  }
+  const eligible = result.rewritten + result.failed;
+  if (eligible === 0) {
+    return {
+      status: "vacuous",
+      scorable: false,
+      failedRequest: false,
+      reason:
+        "no case carried relevantKeys, so there was nothing to paraphrase — an abstention-only corpus measures no positive recall.",
+    };
+  }
+  if (result.rewritten === 0) {
+    return {
+      status: "produced-nothing",
+      scorable: false,
+      failedRequest: true,
+      reason: `paraphrase rewrote 0 of ${eligible} eligible case(s) — every positive query is still its own document.`,
+    };
+  }
+  if (result.failed > 0) {
+    return {
+      status: "partial",
+      scorable: true,
+      failedRequest: false,
+      reason: `${result.rewritten} of ${eligible} paraphrased; ${result.failed} kept verbatim and marked as such in provenance.`,
+    };
+  }
+  return {
+    status: "complete",
+    scorable: true,
+    failedRequest: false,
+    reason: `all ${eligible} eligible case(s) paraphrased.`,
+  };
+}
+
 /**
  * Pure: a discovery the operator judged NOISE becomes the first
  * label-bearing harvested case — the judged row's own key is the

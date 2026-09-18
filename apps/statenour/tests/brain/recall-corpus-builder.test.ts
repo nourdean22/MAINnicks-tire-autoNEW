@@ -27,6 +27,7 @@ import {
   caseFromClaimWarning,
   caseFromFailedToolCall,
   describeCorpus,
+  paraphraseVerdict,
 } from "@/lib/brain/recall-corpus-builder";
 import { SEED_CASES } from "@/lib/brain/recall-eval";
 
@@ -258,5 +259,105 @@ describe("describeCorpus", () => {
     expect(d.total).toBe(SEED_CASES.length + 1);
     expect(d.hasRealEvidence).toBe(true);
     expect(d.note).toContain("1 real case");
+  });
+});
+
+/**
+ * paraphraseVerdict — 2026-09-18.
+ *
+ * The harvest's --paraphrase arm was unrunnable (a transitive `server-only`
+ * guard threw under plain tsx), and a blocked arm printed a warning and then
+ * EXITED 0 — so every non-human reader saw success while the corpus it wrote
+ * measured echo (query == document) instead of recall.
+ *
+ * These pin the rule that decides both the banner and the exit code.
+ */
+describe("paraphraseVerdict decides whether a precision figure is readable", () => {
+  it("a plain harvest is unscorable but is NOT a failed request", () => {
+    const v = paraphraseVerdict(null);
+    expect(v.status).toBe("not-requested");
+    expect(v.scorable).toBe(false);
+    expect(v.failedRequest).toBe(false);
+  });
+
+  it("a blocked arm IS a failed request — the exit code must move", () => {
+    const v = paraphraseVerdict({ rewritten: 0, failed: 4, blocked: "server-only threw" });
+    expect(v.status).toBe("blocked");
+    expect(v.failedRequest).toBe(true);
+    expect(v.reason).toContain("server-only threw");
+  });
+
+  it("requested, eligible cases existed, zero rewritten -> failed request", () => {
+    const v = paraphraseVerdict({ rewritten: 0, failed: 6 });
+    expect(v.status).toBe("produced-nothing");
+    expect(v.scorable).toBe(false);
+    expect(v.failedRequest).toBe(true);
+  });
+
+  it("nothing eligible to rewrite is vacuous, not a failure", () => {
+    // An abstention-only corpus has no positive arm to make tautological, so
+    // exiting 1 here would punish a harvest that did exactly what it could.
+    const v = paraphraseVerdict({ rewritten: 0, failed: 0 });
+    expect(v.status).toBe("vacuous");
+    expect(v.scorable).toBe(false);
+    expect(v.failedRequest).toBe(false);
+  });
+
+  it("a PARTIAL rewrite is scorable — provenance separates the arms", () => {
+    const v = paraphraseVerdict({ rewritten: 3, failed: 2 });
+    expect(v.status).toBe("partial");
+    expect(v.scorable).toBe(true);
+    expect(v.failedRequest).toBe(false);
+    expect(v.reason).toContain("kept verbatim");
+  });
+
+  it("every eligible case rewritten is complete and scorable", () => {
+    const v = paraphraseVerdict({ rewritten: 5, failed: 0 });
+    expect(v.status).toBe("complete");
+    expect(v.scorable).toBe(true);
+    expect(v.failedRequest).toBe(false);
+  });
+
+  /**
+   * ★ THE CANARY. `scorable` and `failedRequest` are two different questions,
+   * and the cheap "simplification" is to collapse them into one flag. Doing so
+   * silently reintroduces one of the two original defects, depending on which
+   * flag survives:
+   *   - keep `scorable`      -> a plain `pnpm harvest:evals` starts exiting 1
+   *   - keep `failedRequest` -> a blocked arm goes back to exiting 0
+   * This asserts the BEHAVIOUR that makes them non-identical: at least one
+   * input is unscorable WITHOUT being a failed request. Delete the distinction
+   * and this test goes red.
+   */
+  it("CANARY: unscorable does not imply failed-request", () => {
+    const inputs: Array<Parameters<typeof paraphraseVerdict>[0]> = [
+      null,
+      { rewritten: 0, failed: 0 },
+      { rewritten: 0, failed: 6 },
+      { rewritten: 0, failed: 4, blocked: "x" },
+      { rewritten: 3, failed: 2 },
+      { rewritten: 5, failed: 0 },
+    ];
+    const verdicts = inputs.map((i) => paraphraseVerdict(i));
+    const divergent = verdicts.filter((v) => !v.scorable && !v.failedRequest);
+    expect(divergent.length).toBeGreaterThan(0);
+    // And the converse holds too: nothing scorable is ever a failed request.
+    expect(verdicts.filter((v) => v.scorable && v.failedRequest)).toHaveLength(0);
+  });
+
+  it("CANARY: every status is reachable, so none is dead code", () => {
+    const seen = new Set(
+      [
+        null,
+        { rewritten: 0, failed: 4, blocked: "x" },
+        { rewritten: 0, failed: 6 },
+        { rewritten: 0, failed: 0 },
+        { rewritten: 3, failed: 2 },
+        { rewritten: 5, failed: 0 },
+      ].map((i) => paraphraseVerdict(i).status),
+    );
+    expect(seen).toEqual(
+      new Set(["not-requested", "blocked", "produced-nothing", "vacuous", "partial", "complete"]),
+    );
   });
 });
