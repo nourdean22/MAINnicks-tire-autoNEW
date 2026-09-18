@@ -1,5 +1,16 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "watchPatterns": [
+      "apps/worker/**",
+      "apps/statenour/lib/**",
+      "packages/reel-engine/**",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "package.json",
+      "turbo.json"
+    ]
+  },
   "deploy": {
     "healthcheckPath": "/health",
     "restartPolicyType": "ALWAYS",

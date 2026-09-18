@@ -1,5 +1,18 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "watchPatterns": [
+      "apps/statenour/**",
+      "packages/ai-capabilities/**",
+      "packages/lenses/**",
+      "packages/social-assets/**",
+      "packages/utils/**",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "package.json",
+      "turbo.json"
+    ]
+  },
   "deploy": {
     "healthcheckPath": "/api/system/heartbeat",
     "restartPolicyType": "ALWAYS",
