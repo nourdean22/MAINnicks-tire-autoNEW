@@ -1087,6 +1087,21 @@ export async function pruneTools(
           turnId,
           conversationId,
           mode,
+          // ⚠⚠ 2026-09-18 · TWO-STAGE MOVED THIS METRIC'S DENOMINATOR. Do not
+          // compare a post-two-stage `candidateCount` or `budgetTruncated`
+          // against a pre-two-stage baseline.
+          //
+          // The single pass SKIPPED tier 5 whenever the budget was already
+          // full, so on those turns its candidates were never considered and
+          // never landed in `budgetedOut` — they were invisible to this count.
+          // Stage 1 now gathers from every tier unconditionally, so the same
+          // traffic reports MORE candidates and MORE truncation. Both numbers
+          // going up is the instrument seeing what it previously missed, not
+          // the cliff getting worse.
+          //
+          // `scripts/tool-reachability-census.ts` compares `budgetTruncated`
+          // to a 72.9% baseline and will read the rise as a regression unless
+          // the reader knows this. Its header carries the same warning.
           candidateCount: selectedNames.size + budgetedOut.size,
           selectedCount: selectedNames.size,
           budget: TOOL_BUDGET,
