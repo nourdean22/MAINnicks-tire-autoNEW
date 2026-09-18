@@ -5,6 +5,7 @@
       "apps/worker/**",
       "apps/statenour/lib/**",
       "packages/reel-engine/**",
+      "apps/nickstire/patches/**",
       "pnpm-lock.yaml",
       "pnpm-workspace.yaml",
       "package.json",

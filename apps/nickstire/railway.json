@@ -1,5 +1,17 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "watchPatterns": [
+      "apps/nickstire/**",
+      "packages/gbp-publisher/**",
+      "packages/meta-ads-architect/**",
+      "packages/utils/**",
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      "package.json",
+      "turbo.json"
+    ]
+  },
   "deploy": {
     "healthcheckPath": "/api/health",
     "restartPolicyType": "ON_FAILURE",
