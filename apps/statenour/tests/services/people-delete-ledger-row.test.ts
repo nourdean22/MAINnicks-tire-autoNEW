@@ -20,6 +20,7 @@ const m = vi.hoisted(() => ({
   txLedgerDelete: vi.fn(),
   txLedgerFindMany: vi.fn(),
   txPersonUpdate: vi.fn(),
+  dropEmbeddings: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -27,6 +28,16 @@ vi.mock("@/lib/prisma", () => ({
     relationshipLedger: { findUnique: m.ledgerFindUnique },
     $transaction: m.transaction,
   },
+}));
+
+// MOCKED EXPLICITLY, and that is the whole point (2026-09-18, review on #2432).
+// `dropEmbeddingsForSource` try/catches and returns 0 by design, so with the
+// prisma mock above lacking `vectorEmbedding` the real helper threw, the throw
+// was swallowed, and every case in this file stayed GREEN whether the tombstone
+// ran, was broken, or was deleted outright. A suite that cannot tell those three
+// apart is not testing the tombstone.
+vi.mock("@/lib/brain/memory-tombstone", () => ({
+  dropEmbeddingsForSource: m.dropEmbeddings,
 }));
 
 import { LedgerRowNotFoundError, deleteLedgerRow } from "@/lib/services/people/delete-ledger-row";
@@ -43,6 +54,7 @@ beforeEach(() => {
   for (const fn of Object.values(m)) fn.mockReset();
   m.transaction.mockImplementation(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx));
   m.txExecuteRaw.mockResolvedValue(1);
+  m.dropEmbeddings.mockResolvedValue(1);
   m.txLedgerDelete.mockResolvedValue({ id: "L1" });
   m.txPersonUpdate.mockResolvedValue({ id: "p1" });
 });
@@ -106,5 +118,53 @@ describe("deleteLedgerRow", () => {
     m.ledgerFindUnique.mockResolvedValue(null);
     await expect(deleteLedgerRow("ghost")).rejects.toBeInstanceOf(LedgerRowNotFoundError);
     expect(m.transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteLedgerRow · the embedding tombstone actually fires", () => {
+  const row = { personId: "p1", metadata: {} };
+
+  beforeEach(() => {
+    m.ledgerFindUnique.mockResolvedValue(row);
+    m.txLedgerDelete.mockResolvedValue({ id: "L1" });
+    m.txLedgerFindMany.mockResolvedValue([]);
+    m.txPersonUpdate.mockResolvedValue({ id: "p1" });
+  });
+
+  it("drops the ledger row's embedding — relationship_ledger is a LIVE index", () => {
+    // Measured 2026-09-18: 16 relationship_ledger embeddings, newest written the
+    // previous day. This is a rate, not a historical total.
+    return deleteLedgerRow("L1").then(() => {
+      expect(m.dropEmbeddings).toHaveBeenCalledWith(
+        "relationship_ledger",
+        ["L1"],
+        expect.any(String),
+      );
+    });
+  });
+
+  it("drops it AFTER the transaction commits, not inside it", async () => {
+    const order: string[] = [];
+    m.txLedgerDelete.mockImplementation(async () => {
+      order.push("tx:delete");
+      return { id: "L1" };
+    });
+    m.dropEmbeddings.mockImplementation(async () => {
+      order.push("tombstone");
+      return 1;
+    });
+
+    await deleteLedgerRow("L1");
+
+    // Outside the tx on purpose: a failed index cleanup must not roll back a
+    // completed delete and leave the person counters half-updated.
+    expect(order).toEqual(["tx:delete", "tombstone"]);
+  });
+
+  it("CANARY — a throwing tombstone does not fail the delete", async () => {
+    m.dropEmbeddings.mockRejectedValue(new Error("connection reset"));
+    // dropEmbeddingsForSource swallows its own errors in production; this pins
+    // that the CALLER does not reintroduce a throw path around it.
+    await expect(deleteLedgerRow("L1")).resolves.toMatchObject({ ledgerId: "L1" });
   });
 });

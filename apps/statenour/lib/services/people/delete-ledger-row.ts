@@ -20,6 +20,7 @@ import { isContactRow } from "./contact-rows";
 import { deriveCounters } from "./counter-reconcile";
 import { lockPerson } from "./record-interaction";
 import { dropEmbeddingsForSource } from "@/lib/brain/memory-tombstone";
+import { logError } from "@/lib/utils/error-log";
 
 export class LedgerRowNotFoundError extends Error {
   constructor(ledgerId: string) {
@@ -71,6 +72,16 @@ export async function deleteLedgerRow(ledgerId: string): Promise<DeletedLedgerRo
     return { ledgerId, personId: row.personId, wasContact, ...after };
   });
 
-  await dropEmbeddingsForSource("relationship_ledger", [ledgerId], "people:delete-ledger-row");
+  // .catch here as well as inside the helper: the row is ALREADY deleted and the
+  // counters ALREADY recomputed, so a cleanup failure must not turn a completed
+  // delete into a reported error. Pinned by a canary in this file's test.
+  await dropEmbeddingsForSource("relationship_ledger", [ledgerId], "people:delete-ledger-row").catch(
+    (err: unknown) => {
+      // REPORT, do not swallow. The helper logs its own failures, so reaching
+      // here means something around it broke — the case most worth seeing.
+      logError("services.delete-ledger-row", err, { fn: "dropEmbeddingsForSource", ledgerId }, "warn");
+      return 0;
+    },
+  );
   return result;
 }
