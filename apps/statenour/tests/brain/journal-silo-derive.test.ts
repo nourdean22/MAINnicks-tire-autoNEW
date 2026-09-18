@@ -15,6 +15,7 @@ import {
   derivedKey,
   DERIVABLE_TYPES,
   DERIVED_REVIEW_DAYS,
+  describeUniqueViolation,
 } from "@/lib/brain/journal-silo-derive";
 import type { ThoughtType } from "@/lib/brain/journal-ingest";
 
@@ -191,12 +192,35 @@ describe("idempotency — a retry must not double-create", () => {
   });
 
   it("treats a unique-violation as success, not failure", async () => {
+    // ⚠ UPDATED 2026-09-18. This used to assert /concurrent derive/ for ANY
+    // P2002 — and that assertion is precisely what let the defect ship: a
+    // 214-dump backfill with no concurrent writer reported "concurrent derive
+    // won the race" 117 times, when the real constraint was (date, scope,
+    // category). The test encoded the bug, so it could never catch it.
+    //
+    // The contract now: a P2002 is still SUCCESS (not a failure), but the reason
+    // must name the constraint that actually fired. With no `meta.target`,
+    // Prisma has told us nothing, and saying so is the honest answer.
     const f = fakePrisma();
     f.calls.reflectionCreate.mockRejectedValueOnce(
       Object.assign(new Error("dup"), { code: "P2002" }),
     );
     const r = await deriveJournalSilos({ ...base, entryType: "reflection", prisma: f.client });
-    expect(r.skipped).toMatch(/concurrent derive/);
+    expect(r.skipped).toBeTruthy();
+    expect(r.skipped).toMatch(/no target fields/);
+    // Still treated as success: no error surfaced, nothing thrown.
+    expect(r.reflectionId).toBeUndefined();
+  });
+
+  it("★ a DATE collision is reported as a per-day rule, through the real path", async () => {
+    // The production shape: Prisma reports the (date, scope, category) target.
+    const f = fakePrisma();
+    f.calls.reflectionCreate.mockRejectedValueOnce(
+      Object.assign(new Error("dup"), { code: "P2002", meta: { target: ["date", "scope", "category"] } }),
+    );
+    const r = await deriveJournalSilos({ ...base, entryType: "reflection", prisma: f.client });
+    expect(r.skipped).toMatch(/already exists for this date/);
+    expect(r.skipped).not.toMatch(/race/);
   });
 });
 
@@ -305,5 +329,50 @@ describe("derived situation_logs", () => {
     const r = await deriveJournalSilos({ ...base, entryType: "situation", prisma: f.client });
     expect(r.situationLogId).toBe("existing-s");
     expect(f.calls.situationCreate).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * describeUniqueViolation — 2026-09-18, FOUND BY RUNNING THE BACKFILL.
+ *
+ * The P2002 handler returned "concurrent derive won the race" for EVERY unique
+ * violation. A 214-dump backfill with no concurrent writer anywhere reported
+ * that reason 117 times. The real error was
+ *   Unique constraint failed on the fields: (`date`,`scope`,`category`)
+ * — a raw-SQL constraint Prisma cannot see, NOT the idempotency key. Because
+ * this path writes a fixed scope/category, that rule means ONE derived
+ * reflection PER DAY.
+ *
+ * A defensible product rule was being reported as a phantom concurrency bug.
+ */
+describe("describeUniqueViolation names the constraint that actually fired", () => {
+  const p2002 = (target: unknown) => Object.assign(new Error("dup"), { code: "P2002", meta: { target } });
+
+  it("★ the DATE constraint is reported as a per-day rule, not a race", () => {
+    const msg = describeUniqueViolation(p2002(["date", "scope", "category"]));
+    expect(msg).toMatch(/already exists for this date/);
+    expect(msg).not.toMatch(/race/);
+  });
+
+  it("★ the IDEMPOTENCY constraint is the only thing called a race", () => {
+    const msg = describeUniqueViolation(p2002(["idempotency_key"]));
+    expect(msg).toMatch(/race/);
+    expect(msg).not.toMatch(/this date/);
+  });
+
+  it("CANARY: the two causes never produce the same message", () => {
+    // Collapsing them back to one string is the regression — it would pass any
+    // test that only checked "some message came back".
+    const a = describeUniqueViolation(p2002(["date", "scope", "category"]));
+    const b = describeUniqueViolation(p2002(["idempotency_key"]));
+    expect(a).not.toBe(b);
+  });
+
+  it("an unknown constraint is named, not guessed at", () => {
+    expect(describeUniqueViolation(p2002(["some_other_col"]))).toContain("some_other_col");
+  });
+
+  it("missing target metadata says so rather than inventing a cause", () => {
+    expect(describeUniqueViolation(p2002(undefined))).toMatch(/no target fields/);
   });
 });
