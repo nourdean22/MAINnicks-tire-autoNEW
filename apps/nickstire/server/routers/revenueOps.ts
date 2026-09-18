@@ -48,6 +48,20 @@ export const revenueOpsRouter = router({
     let abandoned = 0;
     let spam = 0;
     let legacyUnversioned = 0;
+    /**
+     * The oldest call in this window that carries no v1 measurement.
+     *
+     * Exposed so a reader can tell "not scored YET" from "not scored, and the
+     * job is behind" — two states that look identical in a `0 v1` count and
+     * have opposite meanings. `vapi-call-eval` is a 24-hour tier job and
+     * additionally defers a call until VAPI analysis is ready or the call is
+     * 24h old, so unversioned calls younger than that are EXPECTED. One that is
+     * two days old is a stalled pipeline.
+     *
+     * Null when every call in the window is versioned — which is a measured
+     * absence, not a missing reading.
+     */
+    let oldestUnversionedAt: Date | null = null;
     const qualityScores: number[] = [];
     let dataAsOf: Date | null = null;
 
@@ -58,6 +72,9 @@ export const revenueOpsRouter = router({
       const facts = asRecord(measurement.facts);
       if (measurement.metricDefinitionVersion !== "revenue-ops-v1") {
         legacyUnversioned++;
+        if (!oldestUnversionedAt || row.createdAt < oldestUnversionedAt) {
+          oldestUnversionedAt = row.createdAt;
+        }
         continue;
       }
       const outcome = row.evalOutcome ?? "unknown";
@@ -82,6 +99,20 @@ export const revenueOpsRouter = router({
       window: { sinceISO: input.sinceISO, untilISO: input.untilISO ?? null, timeZone: "America/New_York" },
       source: "vapi_call_logs" as const,
       dataAsOf: dataAsOf?.toISOString() ?? null,
+      /**
+       * How the measurement pipeline is doing, stated rather than inferred.
+       *
+       * `evalCadenceHours` is not a guess: `vapi-call-eval` sits in TIER 4 of
+       * `server/cron/scheduler.ts`, which the file's own header documents as
+       * "TIER 4 (24 hr): Daily". A reader needs it to know whether a zero means
+       * "too soon" or "broken".
+       */
+      evaluation: {
+        evalCadenceHours: 24,
+        oldestUnversionedAt: oldestUnversionedAt
+          ? (oldestUnversionedAt as Date).toISOString()
+          : null,
+      },
       counts: {
         totalInboundRecords: rows.length,
         versionedCalls,

@@ -99,7 +99,29 @@ export default function VoiceReceptionistSection() {
   // defaulted to 7 days back · clicking "Custom" fresh silently
   // double-counted with the "Last 7 days" preset. Default to TODAY
   // so "Custom" is opt-in narrowing, not duplicate widening.
-  const [rangePreset, setRangePreset] = useState<RangePreset>("today");
+  /**
+   * DEFAULTS TO 7 DAYS, NOT TODAY, BECAUSE TODAY CANNOT CONTAIN SCORED CALLS.
+   *
+   * Measured 2026-09-18: the page opened on "today" and read `0 v1 · 25 legacy
+   * excluded`, with every ratio saying "not enough denominator". Nothing was
+   * broken. Two cadences make it structural:
+   *
+   *   1. `vapi-call-eval` is a TIER 4 job — it runs once every 24 hours
+   *      (`server/cron/scheduler.ts`, "TIER 4 (24 hr)").
+   *   2. Inside that job a call is deferred unless VAPI's analysis is ready OR
+   *      the call is already 24h old (`jobs/vapiCallEval.ts`, `analysisReady`).
+   *
+   * So a call taken this afternoon is scored on a later tick, never this one.
+   * The default window was the ONE window guaranteed to be empty — and it
+   * auto-polled every 60 seconds to show the same zeros, which is how an
+   * honest "Awaiting v1 evaluations" badge becomes wallpaper the operator
+   * learns to ignore.
+   *
+   * 7 days is the shortest preset that can contain evaluated calls. "Today" is
+   * still one click away and still auto-polls, because live call volume IS
+   * same-day truth — it is the SCORED metrics that are not.
+   */
+  const [rangePreset, setRangePreset] = useState<RangePreset>("7d");
   const [customSince, setCustomSince] = useState<string>(() => defaultDateString(0));
   const [customUntil, setCustomUntil] = useState<string>(() => defaultDateString(0));
 
