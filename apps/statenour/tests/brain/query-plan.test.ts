@@ -59,6 +59,11 @@ describe("planQuery — classes", () => {
     "what do you know about my insurance",
     "how much did the tires cost",
     "remind me to call Moe",
+    // The looser prepositions (about/for/of/over) are admitted ONLY before
+    // months that are not also English words — these are why.
+    "what do you think of may as a launch window",
+    "i asked for march instead",
+    "we talked about august as an option",
   ];
 
   it("temporal · precision: an ordinary turn is never classified temporal", () => {
@@ -85,6 +90,21 @@ describe("planQuery — classes", () => {
     }
     expect(plan("since March have I changed the pricing").classes).toContain("temporal");
     expect(plan("what did I decide on July 5").classes).toContain("temporal");
+
+    // Phrasings the first tightening pass lost. "up to <month>" matters most:
+    // parseAsOf's own before/until branch already handles it, so dropping it
+    // from the context list made that code unreachable.
+    for (const m of [
+      "up to August what was the plan",
+      "what was true about July",
+      "the numbers for June",
+      "through September we held the price",
+      "throughout October I kept it",
+      "last March we raised it",
+      "this December",
+    ]) {
+      expect(plan(m).classes, m).toContain("temporal");
+    }
   });
 
   it("correction: 'which one is current?' and a changed amount", () => {

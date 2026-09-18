@@ -74,10 +74,32 @@ const MONTH_TOKENS = `${MONTHS.join("|")}|jan|feb|mar|apr|jun|jul|aug|sep|sept|o
  * date phrasing (12/12 recall on the fixture set) at 0 false positives.
  * Pinned in tests/brain/query-plan.test.ts.
  */
+/**
+ * The ambiguity is concentrated: only some month tokens are also ordinary
+ * English. Those get the STRICT preposition list; the rest also accept the
+ * looser ones, which is what rescues "the numbers for June" and "what was
+ * true about July" without readmitting "what do you think of may" or "i asked
+ * for march instead".
+ *
+ * The bias is deliberate and asymmetric: a MISS here just means no `asOf`,
+ * which falls back to full current recall — the correct default. A FALSE
+ * POSITIVE silently truncates memory. So this errs toward missing.
+ */
+/** Month tokens that are also ordinary English words (modal verb, verbs, adjective). */
+const MONTHS_AMBIGUOUS = new Set(["may", "march", "mar", "august", "aug"]);
+/** Derived, not hand-listed, so the two sets cannot drift apart. */
+const MONTHS_UNAMBIGUOUS = MONTH_TOKENS.split("|")
+  .filter((m) => !MONTHS_AMBIGUOUS.has(m))
+  .join("|");
+/** `up to` is here because parseAsOf's own before/until branch already expects it. */
+const PREP_STRICT =
+  "in|by|on|since|before|after|until|through|throughout|during|from|around|early|late|mid|up to|as of";
+const PREP_LOOSE = "about|for|of|over";
+
 const MONTH_CONTEXT_RE = new RegExp(
-  `\\b(?:in|by|on|since|before|after|until|through|during|from|around|early|late|mid)\\s+(?:${MONTH_TOKENS})\\b` +
+  `\\b(?:${PREP_STRICT})\\s+(?:${MONTH_TOKENS})\\b` +
+    `|\\b(?:${PREP_LOOSE})\\s+(?:${MONTHS_UNAMBIGUOUS})\\b` +
     `|\\b(?:last|this|next)\\s+(?:${MONTH_TOKENS})\\b` +
-    `|\\bas of\\s+(?:${MONTH_TOKENS})\\b` +
     `|\\b(?:${MONTH_TOKENS})\\s+\\d{1,4}\\b` +
     `|\\b\\d{1,2}\\s+(?:${MONTH_TOKENS})\\b`,
   "i",
