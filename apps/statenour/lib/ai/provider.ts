@@ -1611,6 +1611,44 @@ export async function getEmbeddingWithModel(text: string): Promise<EmbeddingResu
   return out;
 }
 
+/** The one width every embedding provider in this chain is pinned to. */
+export const EMBEDDING_CONTRACT_DIM = 1024;
+
+/**
+ * Enforce the 1024-dim contract at the PROVIDER BOUNDARY, loudly.
+ *
+ * ⚠ THE BELT EXISTED BUT WAS WORN ON ONLY ONE OF THREE PATHS. The Cohere branch
+ * already normalized-and-warned on an off-contract width; the HuggingFace and
+ * OpenAI branches returned whatever arrived, unchecked. All three now share this
+ * ONE implementation — three copies of a normalization rule diverge, and the
+ * divergence here is invisible by construction (see below).
+ *
+ * WHY THIS MATTERS MORE NOW THAN IT DID. `padToVectorDim` silently truncates or
+ * ZERO-PADS, by design: the store has two vector spaces (1024 and 1536) and
+ * padding 1024 -> 1536 is intentional. But that same silence means an
+ * off-contract vector arriving from a PROVIDER is repaired into nonsense with no
+ * signal — a 768-dim vector zero-padded into a 1024-dim space has 256 dead
+ * dimensions and ranks essentially at random against real neighbours. Recall
+ * degrades; nothing errors.
+ *
+ * And the tail of the chain is now two dead providers (HF has no credits,
+ * OpenAI's key is bad, and Ollama Cloud refuses embeddings outright), leaving
+ * Cohere as the ONLY live embedder. The realistic next event is someone adding a
+ * replacement in a hurry — which is exactly when an unchecked width lands.
+ *
+ * Measured 2026-09-18: prod is clean, 97,622 of 97,622 stored vectors at 1024.
+ * This is preventive, and it preserves the existing repair rather than throwing —
+ * a degraded embedding still beats no embedding on a live chat turn.
+ */
+export async function enforceEmbeddingDim(vec: number[], provider: string): Promise<number[]> {
+  if (vec.length === EMBEDDING_CONTRACT_DIM) return vec;
+  console.warn(
+    `[ai:embedding] ${provider} returned ${vec.length}-dim (contract: ${EMBEDDING_CONTRACT_DIM}) — normalizing`,
+  );
+  const { padToVectorDim } = await import("@/lib/db/pgvector");
+  return padToVectorDim(vec, EMBEDDING_CONTRACT_DIM);
+}
+
 async function getEmbeddingUncached(text: string): Promise<EmbeddingResult> {
   const input = text.slice(0, 30_000);
 
@@ -1655,17 +1693,9 @@ async function getEmbeddingUncached(text: string): Promise<EmbeddingResult> {
           // v1 fallback shape · { embeddings: [[...]] }
           (Array.isArray(data?.embeddings) ? data.embeddings[0] : undefined);
         if (Array.isArray(vec) && vec.length > 0) {
-          if (vec.length !== 1024) {
-            // Belt for env-pinned models that ignore output_dimension:
-            // never let an off-contract width escape into the vector
-            // space. padToVectorDim is the single canonical normalizer.
-            console.warn(
-              `[ai:embedding] Cohere returned ${vec.length}-dim (contract: 1024) — normalizing`,
-            );
-            const { padToVectorDim } = await import("@/lib/db/pgvector");
-            return { vec: padToVectorDim(vec, 1024), model: `cohere:${model}` };
-          }
-          return { vec, model: `cohere:${model}` };
+          // Belt for env-pinned models that ignore output_dimension. Now shared
+          // with the HF and OpenAI branches — see enforceEmbeddingDim.
+          return { vec: await enforceEmbeddingDim(vec, "Cohere"), model: `cohere:${model}` };
         }
         console.warn(
           `[ai:embedding] Cohere returned 200 but no embedding in payload (keys: ${Object.keys(data ?? {}).join(",")})`,
@@ -1689,7 +1719,12 @@ async function getEmbeddingUncached(text: string): Promise<EmbeddingResult> {
     const { getHfEmbedding, isHfEmbeddingAvailable, hfEmbeddingModel } = await import("./hf-embeddings");
     if (isHfEmbeddingAvailable()) {
       const vec = await getHfEmbedding(input);
-      if (vec && vec.length > 0) return { vec, model: `hf:${hfEmbeddingModel()}` };
+      // Was returned UNCHECKED. multilingual-e5-large happens to be 1024-dim, so
+      // this never bit — but "happens to be right" is not a contract, and the
+      // model is env-overridable via the HF model config.
+      if (vec && vec.length > 0) {
+        return { vec: await enforceEmbeddingDim(vec, "HuggingFace"), model: `hf:${hfEmbeddingModel()}` };
+      }
     }
   }
 
@@ -1705,7 +1740,15 @@ async function getEmbeddingUncached(text: string): Promise<EmbeddingResult> {
       if (res.ok) {
         const data = await res.json();
         const vec = data.data?.[0]?.embedding;
-        if (vec?.length > 0) return { vec, model: "openai:text-embedding-3-small" };
+        // Was returned UNCHECKED. The request asks for `dimensions: 1024`, but a
+        // requested dimension is not a verified one — that is the whole reason
+        // the Cohere branch grew a belt.
+        if (vec?.length > 0) {
+          return {
+            vec: await enforceEmbeddingDim(vec, "OpenAI"),
+            model: "openai:text-embedding-3-small",
+          };
+        }
       } else {
         const errBody = await res.text().catch(() => "");
         console.warn(
