@@ -46,6 +46,25 @@ export interface QueryPlan {
    * deliberately, not overlooked. `brain-context.ts` logs only its LENGTH, so
    * a non-zero number in the logs does not mean anything acted on it.
    *
+   * ★ 2026-09-18 · MEASURED BEFORE ANY WIRING, and it is a good thing nobody
+   * skipped that step: the matcher scored 36% PRECISION / 80% recall over a
+   * 17-turn hand-labelled corpus, 7 of its 11 firings false. "I closed up and
+   * then went home" split into two lookups; so did "he quit because of the
+   * hours". `and then` / `because of` are ordinary narrative far more often
+   * than they are a request for two retrievals — the same defect the bare
+   * month matcher had with "may".
+   *
+   * The connective arm is now gated on the turn being INTERROGATIVE, which
+   * takes it to 100% precision / 80% recall, pinned by the precision gate in
+   * tests/brain/query-plan.test.ts. The one remaining miss ("which is cheaper,
+   * X or Y") is left missed on purpose: a miss costs one ordinary single-lookup
+   * turn, a false positive costs a bogus second retrieval.
+   *
+   * This does not change the decision below — it removes the landmine under
+   * it. Wiring a 36%-precision signal would have made its defects load-bearing
+   * the moment it gained a consumer, which is exactly what happened to the
+   * `correction` class (41% recall / 53% false positives on the day it got one).
+   *
    * Wiring it is not a parameter thread like `asOf` and `referent` were: the
    * clauses are substrings of `original`, so feeding them to topic derivation
    * adds nothing. The value requires a genuine SECOND retrieval per clause
@@ -191,7 +210,38 @@ const PRONOUN_RE = /\b(it|that|this|those|these|the same|again|there|them)\b/i;
  * deictic set misfired on 5 of 12 self-contained turns.
  */
 const PERSONAL_PRONOUN_RE = /\b(they|he|she)\b/i;
-const HOP_RE = /\b(and then|because of|which led to|compare|difference between)\b/i;
+/**
+ * Multi-hop detection, split into two arms 2026-09-18 after MEASURING the
+ * single-arm version that shipped: 36% precision / 80% recall over 17 turns,
+ * 7 of 11 firings false. This is the SAME defect the bare month matcher had
+ * ("may" is the modal verb far more often than the month): `and then` and
+ * `because of` are overwhelmingly ORDINARY NARRATIVE, not multi-hop questions.
+ * "I closed up and then went home" split into two lookups; so did "the tire
+ * blew because of the pothole", "he quit because of the hours", and four more.
+ *
+ * `subQueries` is consumed by nothing today except a log line, so none of that
+ * reached production — which is exactly why the measurement had to happen
+ * BEFORE wiring it. The `correction` class was 41% recall / 53% false
+ * positives the moment it got its first consumer, and that is the precedent:
+ * a dark wire's defects are free until they are load-bearing.
+ *
+ * CONNECTIVE arm: only counts inside an INTERROGATIVE turn. A narrative
+ * sentence using "and then" is not a request for two lookups; a question
+ * using it is. COMPARE arm needs no such gate — `splitHops`'s comparison
+ * regex already requires an explicit "X and/vs/versus Y", which narrative
+ * prose does not accidentally satisfy.
+ *
+ * Biased toward MISSING, deliberately, same as every other classifier here: a
+ * miss costs one ordinary single-lookup turn (today's behaviour), a false
+ * positive costs a bogus second retrieval. Measured after: 100% precision,
+ * 80% recall — the one remaining miss ("which is cheaper, X or Y") is a shape
+ * the comparison regex does not cover, and is left missed on purpose.
+ */
+const HOP_CONNECTIVE_RE = /\b(and then|because of|which led to)\b/i;
+const HOP_COMPARE_RE = /\b(compare|difference between)\b/i;
+/** Starts with a wh-word or an auxiliary, i.e. reads as a question. */
+const INTERROGATIVE_RE =
+  /^(what|whats|how|hows|why|when|where|which|who|did|does|do|is|are|was|were|can|could|should|would|will)\b/i;
 const SYNTH_RE = /^(summari[sz]e|overview|everything about|what do you know about)\b/i;
 
 function monthIndex(name: string): number {
@@ -325,7 +375,13 @@ export function planQuery(message: string, opts?: { recentTurns?: string[]; now?
     reasons.push("short follow-up with a pronoun; referent from the last turn");
   }
 
-  const subQueries = HOP_RE.test(trimmed) || /\?\s+\S.*\?/.test(trimmed) ? splitHops(trimmed) : [];
+  // See HOP_CONNECTIVE_RE's header for the measurement that produced this shape.
+  const interrogative = INTERROGATIVE_RE.test(trimmed) || trimmed.includes("?");
+  const hopSignal =
+    (HOP_CONNECTIVE_RE.test(trimmed) && interrogative) ||
+    HOP_COMPARE_RE.test(trimmed) ||
+    /\?\s+\S.*\?/.test(trimmed);
+  const subQueries = hopSignal ? splitHops(trimmed) : [];
   if (subQueries.length === 2) { matched.add("multi_hop"); reasons.push("two clauses that need two lookups"); }
 
   const names = capitalisedNames(trimmed);

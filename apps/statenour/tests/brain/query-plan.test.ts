@@ -324,3 +324,77 @@ describe("planQuery — contract", () => {
     expect(planQuery(undefined as unknown as string).original).toBe("");
   });
 });
+
+/**
+ * 2026-09-18 · MULTI-HOP PRECISION GATE.
+ *
+ * `subQueries` is a dark wire: computed every turn, consumed by nothing but a
+ * log line. Before wiring it, it was measured — and the single-arm HOP_RE that
+ * shipped scored 36% PRECISION / 80% recall over these turns, with 7 of its 11
+ * firings false. "I closed up and then went home" split into two lookups.
+ *
+ * That is the same defect the bare month matcher had: `and then` and
+ * `because of` are ordinary English far more often than they are a request for
+ * two retrievals. None of it reached production precisely BECAUSE the wire was
+ * dark — which is the argument for measuring at the moment of wiring, not
+ * after. The `correction` class was 41% recall / 53% false positives the
+ * moment it got its first consumer.
+ *
+ * This gate is the measurement, kept. The corpus is small and hand-labelled;
+ * its value is that it FAILS if someone widens the matcher back out.
+ */
+describe("multi_hop · precision gate (measured, not asserted by eyeball)", () => {
+  /** [turn, genuinely needs TWO separate lookups] */
+  const CORPUS: Array<[string, boolean]> = [
+    // genuine multi-hop
+    ["compare the euclid shop and the madison shop", true],
+    ["what is the difference between the alignment promo and the tire promo", true],
+    ["how did revenue do last month? what about hiring?", true],
+    ["what did I decide about pricing and then what happened to margins", true],
+
+    // narrative prose that the old matcher split — the whole point of the gate
+    ["I closed up and then went home", false],
+    ["the tire blew because of the pothole", false],
+    ["we lost the sale because of the wait time", false],
+    ["I opened the bay and then a customer walked in", false],
+    ["he quit because of the hours", false],
+    ["she came in and then left without buying", false],
+    ["it cracked because of the cold", false],
+
+    // ordinary single questions
+    ["what is my rent", false],
+    ["how much did we make yesterday", false],
+    ["can you compare that for me", false],
+    ["what changed", false],
+  ];
+
+  const scored = CORPUS.map(([msg, expected]) => ({
+    msg,
+    expected,
+    fired: plan(msg).subQueries.length > 0,
+  }));
+
+  it("positive control: the corpus contains both classes and the matcher fires at all", () => {
+    // Without this, a matcher that never fires would score 100% precision.
+    expect(scored.some((s) => s.expected)).toBe(true);
+    expect(scored.some((s) => !s.expected)).toBe(true);
+    expect(scored.filter((s) => s.fired).length, "matcher never fired — precision below is vacuous").toBeGreaterThan(0);
+  });
+
+  it("ZERO false positives — a bogus split costs a second retrieval on a narrative turn", () => {
+    const fp = scored.filter((s) => s.fired && !s.expected).map((s) => s.msg);
+    expect(fp, "these are ordinary sentences being split into two lookups").toEqual([]);
+  });
+
+  it("recall stays at or above 75% — biased toward missing, never toward splitting", () => {
+    const tp = scored.filter((s) => s.fired && s.expected).length;
+    const total = scored.filter((s) => s.expected).length;
+    expect(tp / total).toBeGreaterThanOrEqual(0.75);
+  });
+
+  it("a connective only counts inside a question — this is the actual fix", () => {
+    // Identical connective, two registers. The narrative one must not split.
+    expect(plan("I closed up and then went home").subQueries).toEqual([]);
+    expect(plan("what did I decide about pricing and then what happened to margins").subQueries).toHaveLength(2);
+  });
+});
