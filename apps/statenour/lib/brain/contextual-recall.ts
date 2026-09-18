@@ -517,6 +517,92 @@ export function buildLexicalTsQuery(topics: string[]): string {
  */
 const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
 
+/* ════════════════════════════════════════════════════════════════════════════
+ * LEXICAL LANE OUTCOME COUNTERS — an accepted trade-off nobody can currently see
+ * ════════════════════════════════════════════════════════════════════════════
+ * getLexicalMatches returns `[]` for FOUR different things, and no caller can
+ * tell them apart:
+ *   1. no usable ts_query could be built from the topics  (nothing was asked)
+ *   2. the query ran and genuinely matched nothing        (asked, no answer)
+ *   3. the 900ms statement_timeout fired, lane dropped    (asked, gave up)
+ *   4. the query failed for some other reason             (broken)
+ *
+ * (3) is the designed trade-off recorded above — and it is a bare console.warn,
+ * so its RATE is invisible in production. That matters because the trade-off was
+ * accepted ON a measurement ("10 of 28 corpus queries, contributing exactly ONE
+ * lexical hit"), and nothing re-checks that measurement as brain_memories grows.
+ * A decision made on data, with no instrument watching the data.
+ *
+ * Measured 2026-09-18 on a sequential unloaded probe: 9 of 25 queries over
+ * budget (36%) — matching the 2026-08-27 figure exactly, so there is no
+ * degradation today. The point is that nobody would have known either way.
+ *
+ * ⚠ AGGREGATE COUNTERS ARE SAFE HERE; PER-REQUEST STATE WOULD NOT BE. Several
+ * chat turns share this module concurrently. A "last outcome" variable would be
+ * clobbered by whichever turn finished most recently and would misattribute the
+ * result to another turn. A monotonic COUNT is the one shape concurrent writers
+ * cannot corrupt into a wrong answer — it is exactly what a rate needs, and it
+ * is why this is a counter rather than the obvious out-parameter.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+export interface LexicalLaneStats {
+  /** No ts_query could be built — the lane was never asked. */
+  noQuery: number;
+  /** The query ran. Includes genuine zero-row results. */
+  ok: number;
+  /** 57014 statement_timeout — the lane was DROPPED mid-flight. */
+  skippedTimeout: number;
+  /** Any other failure. */
+  failedOther: number;
+}
+
+const lexicalLaneCounters: LexicalLaneStats = {
+  noQuery: 0,
+  ok: 0,
+  skippedTimeout: 0,
+  failedOther: 0,
+};
+
+/** Snapshot of lexical-lane outcomes since process start. Exported for tests
+ *  and for the structured `[brain-recall]` line. */
+export function lexicalLaneStats(): LexicalLaneStats {
+  return { ...lexicalLaneCounters };
+}
+
+/** Test seam only. */
+export function resetLexicalLaneStats(): void {
+  lexicalLaneCounters.noQuery = 0;
+  lexicalLaneCounters.ok = 0;
+  lexicalLaneCounters.skippedTimeout = 0;
+  lexicalLaneCounters.failedOther = 0;
+}
+
+/**
+ * Fraction of ATTEMPTED queries that were dropped on the statement timeout.
+ *
+ * `noQuery` is excluded from the denominator on purpose: a turn that produced
+ * no search terms did not attempt the lane, and counting it would dilute the
+ * rate toward zero exactly when topic extraction is failing — the rate would
+ * look healthiest when the pipeline is sickest. Returns null when nothing has
+ * been attempted: an UNKNOWN rate must never render as 0%.
+ *
+ * ⚠ PURE, TAKING STATS AS AN ARGUMENT, DELIBERATELY. The first cut read the
+ * module counters directly, which left no way to drive it without a database —
+ * and the test written against it computed the arithmetic on its own local
+ * objects and asserted that equalled itself. It would have passed with this
+ * function deleted. A predicate that cannot be fed cannot be tested, and an
+ * untested rate is how the invisible thing stays invisible.
+ */
+export function computeLexicalSkipRate(s: LexicalLaneStats): number | null {
+  const attempted = s.ok + s.skippedTimeout + s.failedOther;
+  return attempted === 0 ? null : s.skippedTimeout / attempted;
+}
+
+/** The live rate, read off the module counters. */
+export function lexicalSkipRate(): number | null {
+  return computeLexicalSkipRate(lexicalLaneCounters);
+}
+
 /**
  * Rerank call-site budget (2026-08-27 levers): the backends' own
  * AbortSignals are 7.5s (Cohere) / 6s (BGE) — sized before the chat
@@ -543,11 +629,14 @@ export async function withRerankBudget<T>(p: Promise<T | null>, budgetMs: number
 
 export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Date): Promise<LexicalRow[]> {
   const tsQueryText = buildLexicalTsQuery(topics);
-  if (!tsQueryText) return [];
+  if (!tsQueryText) {
+    lexicalLaneCounters.noQuery++;
+    return [];
+  }
   try {
     // $1 = tsQueryText (parameterized — no injection). `limit` is an internal
     // numeric constant interpolated as a literal, mirroring memory-recall.ts.
-    return await prisma.$transaction(async (tx) => {
+    const rows = await prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = ${LEXICAL_STATEMENT_TIMEOUT_MS}`);
       return tx.$queryRawUnsafe<LexicalRow[]>(
       `SELECT bm.id::text          AS id,
@@ -574,12 +663,19 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
       ...(asOf ? [asOf] : []),
       );
     });
+    // Counted AFTER the await resolves, so a query that threw is never scored
+    // as ok. A zero-row result IS ok — that is a genuine empty, and conflating
+    // it with a dropped lane is the whole defect these counters exist to undo.
+    lexicalLaneCounters.ok++;
+    return rows;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     // 57014 = statement_timeout — expected on the slow tail, not a defect.
     if (msg.includes("57014") || msg.includes("statement timeout")) {
+      lexicalLaneCounters.skippedTimeout++;
       console.warn(`[brain-recall] lexical FTS exceeded ${LEXICAL_STATEMENT_TIMEOUT_MS}ms — lane skipped this turn`);
     } else {
+      lexicalLaneCounters.failedOther++;
       console.warn(
         "[brain-recall] lexical FTS query failed (pre-migration?) — falling back:",
         msg.slice(0, 120),
@@ -1354,6 +1450,7 @@ export async function getContextualMemories(
   const linesBeforeRelated = lines.length;
   await timed("related", () => appendRelatedContext(lines, topicLower));
 
+  const skipRate = lexicalSkipRate();
   console.log("[brain-recall]", {
     outcome: "ok",
     mode,
@@ -1364,6 +1461,11 @@ export async function getContextualMemories(
     crossSourceLines,
     relatedLines: lines.length - linesBeforeRelated,
     budgetDropped,
+    // CUMULATIVE since process start, not this turn — a rate needs a
+    // denominator, and one turn cannot supply one. `null` rather than 0 when
+    // the lane has never been attempted: an unknown rate that renders as 0%
+    // is the silent-instrument shape these counters exist to remove.
+    lexicalSkipPct: skipRate === null ? null : Math.round(skipRate * 100),
     timings,
     ms: Date.now() - t0,
   });
