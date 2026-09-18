@@ -33,10 +33,42 @@
  */
 import { prisma } from "@/lib/prisma";
 import { DISCOVERY_CATEGORIES } from "./discoveries";
+import { RECALL_EXCLUDE_CATEGORIES } from "./categories";
 import type { RecallEvalCase } from "./recall-eval";
 
 /** Cap so one bad week can't flood the corpus. */
 const MAX_PER_SOURCE = 25;
+
+/**
+ * Categories a HUMAN would actually ask about.
+ *
+ * ⚠⚠ MEASURED 2026-09-18, AND THIS LIST IS THE DIFFERENCE BETWEEN A BENCHMARK
+ * AND A TAUTOLOGY. Ordering durable memory by confidence surfaces MACHINE rows,
+ * not personal facts: `semantic_edge` (18,388 rows, avg 44 chars — graph
+ * edges), `mastery_xp_event` (2,330), `nick_quality` (971), `reply_judgment`
+ * (731), `data_source_probe` (386). The first cut of this builder produced
+ * cases like `surface=missions day=2026-09-06 mount=2 deleteTask=5` — telemetry
+ * nobody will ever type as a query, graded against itself.
+ *
+ * These are the categories that hold things the operator says and asks about.
+ */
+const HUMAN_FACT_CATEGORIES: readonly string[] = [
+  "concern",
+  "emotional_state",
+  "blind_spot",
+  "decision_log",
+  "friction",
+  "insight",
+  "wisdom",
+  "prediction_lesson",
+  "customer_preference",
+  "nick_advice",
+  "preference",
+  "win",
+  "learning_journal",
+  "business_event",
+];
+
 
 const slug = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "case";
@@ -196,6 +228,92 @@ const NOISE_VERDICT_SQL = `CASE WHEN metadata ? 'discoveryVerdict'
  * (untouched) 200 fine-tune gate. Counts the accumulating total, not
  * the MAX_PER_SOURCE harvest page.
  */
+/**
+ * ★★★ THE FIRST POSITIVE CASE BUILDER. Every source above harvests a FAILURE —
+ * a dismissed recommendation, a warned claim, an error trace, a noise verdict —
+ * so every case it produces is `kind: "abstention"` with `relevantKeys: []`.
+ *
+ * That has a consequence nobody stated, and it is easy to misread: on a corpus
+ * with no relevant items, precision@k is ZERO BY ARITHMETIC. Measured
+ * 2026-09-18, all three lanes reported precision@5=0 on 39 harvested cases —
+ * which says nothing whatever about whether retrieval finds things. It only
+ * says the corpus contains nothing to find.
+ *
+ * `RecallEvalCase` has declared the LongMemEval taxonomy since 2026-07-29
+ * (exact_fact | temporal | preference | contradiction | name_number |
+ * abstention | knowledge_update). Six of those seven had no builder.
+ *
+ * ⚠ NON-CIRCULAR BY CONSTRUCTION. The ground truth is the memory's own `key` —
+ * a human/system-written slug naming the fact, written independently of any
+ * ranking. Deriving cases from what the retriever PREVIOUSLY returned would
+ * grade the retriever against its own past output and could only ever confirm
+ * it.
+ *
+ * ⚠ AND THE QUERY DELIBERATELY AVOIDS THE KEY'S OWN WORDS. Asking with the key
+ * text would let the lexical lane match the answer verbatim and report a win
+ * that means nothing. The query is built from CONTENT with every key token
+ * stripped, so a hit requires finding the row by what it SAYS rather than by
+ * what it is called. A case that cannot be built that way is skipped rather
+ * than weakened — returning null is the honest outcome.
+ */
+export function caseFromDurableFact(row: {
+  id: string;
+  key: string;
+  category: string;
+  content: string;
+}): RecallEvalCase | null {
+  const key = (row.key ?? "").trim();
+  const content = (row.content ?? "").replace(/\s+/g, " ").trim();
+  if (!key || content.length < 60) return null;
+
+  // ⚠ REJECT ROWS THAT CANNOT MAKE AN HONEST CASE.
+  //
+  // A serialized blob is not something an operator would ever type, so a case
+  // built from one measures nothing a user will do. And a key that is mostly an
+  // identifier (`journal-take:cmok6ukiz0005…`) names the row's TYPE, not the
+  // fact — stripping its tokens from the content removes almost nothing, so the
+  // query ends up being the document itself and any retriever "wins"
+  // tautologically.
+  //
+  // ★ A benchmark that cannot lose is not a benchmark. Dropping these rows
+  //   shrinks the corpus and keeps it meaningful; keeping them would have
+  //   manufactured a green number, which is the failure this whole wave exists
+  //   to remove.
+  if (/^[[{]/.test(content)) return null;
+  const keyName = key.split(":")[0] ?? key;
+  if (/^[0-9a-z]{20,}$/i.test(keyName)) return null;
+
+  // Tokens the key already contains — the query must not lean on them.
+  const keyTokens = new Set(
+    key
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length > 2),
+  );
+
+  const words = content.split(" ");
+  const kept: string[] = [];
+  for (const w of words) {
+    const bare = w.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (bare.length > 2 && keyTokens.has(bare)) continue;
+    kept.push(w);
+    if (kept.join(" ").length > 140) break;
+  }
+  const query = kept.join(" ").trim();
+  // Too short after stripping means the content was mostly the key restated;
+  // such a case would test nothing.
+  if (query.split(" ").filter(Boolean).length < 6) return null;
+
+  return {
+    id: `real-fact-${row.id}`,
+    query,
+    relevantKeys: [key],
+    forbiddenKeys: [],
+    kind: "exact_fact",
+    provenance: `brain_memory:${row.id} · category=${row.category} · key-stripped content query`,
+  };
+}
+
 export async function countLabeledEvalCases(): Promise<number> {
   const cats = [...DISCOVERY_CATEGORIES];
   const rows = await prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
@@ -254,7 +372,7 @@ export async function buildRealRecallCases(): Promise<RealCorpusResult> {
     }
   }
 
-  const [outcomes, warnings, toolFailures, noiseDiscoveries] = await Promise.all([
+  const [outcomes, warnings, toolFailures, noiseDiscoveries, durableFacts] = await Promise.all([
     read("intelligence_outcomes(dismissed|not-useful)", () =>
       prisma.intelligenceOutcome.findMany({
         where: { OR: [{ decision: "dismissed" }, { outcomeUseful: false }] },
@@ -305,6 +423,32 @@ export async function buildRealRecallCases(): Promise<RealCorpusResult> {
         [...DISCOVERY_CATEGORIES],
       ),
     ),
+    // FIFTH source (2026-09-18) and the first POSITIVE one. Every source above
+    // harvests a failure, so every case they produce is `abstention` with
+    // `relevantKeys: []` — on which precision@k is zero BY ARITHMETIC, not by
+    // any property of retrieval. Without this source the eval can only measure
+    // whether the brain correctly refuses noise, never whether it finds things.
+    //
+    // ⚠ Same liveness + quarantine contract as every recall path: a case built
+    // on a soft-deleted or quarantined row would grade the retriever for
+    // failing to return something it is CORRECT to withhold.
+    read("brain_memory(durable facts · positive)", () =>
+      prisma.brainMemory.findMany({
+        where: {
+          deletedAt: null,
+          category: { in: [...HUMAN_FACT_CATEGORIES] },
+          confidence: { gte: 0.5 },
+          // Long enough to state a fact, short enough not to be a document.
+          content: { not: "" },
+        },
+        // ⚠ NOT `confidence: desc` — that sorted the machine categories to the
+        // top and produced telemetry cases. Recency gives a spread of real,
+        // current operator facts across the curated categories.
+        orderBy: { updatedAt: "desc" },
+        take: MAX_PER_SOURCE * 3,
+        select: { id: true, key: true, category: true, content: true },
+      }),
+    ),
   ]);
 
   const sources = [
@@ -312,6 +456,7 @@ export async function buildRealRecallCases(): Promise<RealCorpusResult> {
     warnings.report,
     toolFailures.report,
     noiseDiscoveries.report,
+    durableFacts.report,
   ];
 
   return {
@@ -320,6 +465,9 @@ export async function buildRealRecallCases(): Promise<RealCorpusResult> {
       ...warnings.rows.map(caseFromClaimWarning),
       ...toolFailures.rows.map(caseFromFailedToolCall),
       ...noiseDiscoveries.rows.map(caseFromNoiseDiscovery),
+      // null when the content was mostly the key restated — such a case would
+      // test nothing, so it is dropped rather than weakened.
+      ...durableFacts.rows.map(caseFromDurableFact).filter((c): c is RecallEvalCase => c !== null),
     ],
     sources,
     degraded: sources.some((s) => !s.ok),

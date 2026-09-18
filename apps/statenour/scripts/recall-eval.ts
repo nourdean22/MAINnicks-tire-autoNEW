@@ -154,13 +154,45 @@ async function main() {
   console.log(line("lexical", lexical));
   console.log(line("hybrid", hybrid));
 
-  const verdict =
-    lexical.meanPrecisionAtK > vector.meanPrecisionAtK
-      ? "lexical leads on this corpus"
-      : lexical.meanPrecisionAtK < vector.meanPrecisionAtK
-        ? "vector leads on this corpus"
-        : "tied on this corpus";
+  // ★★★ REFUSE A VERDICT THE CORPUS CANNOT SUPPORT.
+  //
+  // Measured 2026-09-18: this line printed "lexical leads on this corpus" off a
+  // run whose positive cases were ECHO cases — the query was a verbatim slice of
+  // the very memory it was meant to find. Lexical matches its own input
+  // trivially, so it "led" by construction. The same run also mixed in synthetic
+  // seeds whose targets do not exist in this brain (0 for every lane) and
+  // abstention cases with no targets at all (precision is 0 BY ARITHMETIC).
+  //
+  // Three incompatible case types averaged into one number, under a confident
+  // one-line verdict. A benchmark that always prints a winner will eventually be
+  // believed, and that is worse than one that prints nothing.
+  //
+  // A case earns its place in the precision denominator only if it has a target
+  // AND its query was rewritten away from the source text (`--paraphrase`).
+  const positives = cases.filter((c) => (c.relevantKeys?.length ?? 0) > 0);
+  const paraphrased = positives.filter((c) => /paraphrased by model/.test(c.provenance ?? ""));
+  const echoOnly = positives.length > 0 && paraphrased.length === 0;
+
+  const verdict = echoOnly
+    ? "NO VERDICT — positive cases are ECHO (query is a slice of its own target). " +
+      "Lexical wins these by construction. Re-harvest with --paraphrase."
+    : positives.length === 0
+      ? "NO VERDICT — corpus has no positive cases; precision is 0 by arithmetic, not by retrieval."
+      : lexical.meanPrecisionAtK > vector.meanPrecisionAtK
+        ? "lexical leads on this corpus"
+        : lexical.meanPrecisionAtK < vector.meanPrecisionAtK
+          ? "vector leads on this corpus"
+          : "tied on this corpus";
+
+  console.log(
+    `corpus: ${positives.length} positive (${paraphrased.length} paraphrased) · ${cases.length - positives.length} abstention`,
+  );
   console.log(`verdict: ${verdict}${syntheticOnly ? " (synthetic corpus — not decision-grade)" : ""}`);
+  if (echoOnly || positives.length === 0) {
+    console.log(
+      "note: abstentionClean + contradictionInjection above ARE interpretable — they need no targets.",
+    );
+  }
 
   const outDir = join(process.cwd(), "eval-datasets");
   mkdirSync(outDir, { recursive: true });
