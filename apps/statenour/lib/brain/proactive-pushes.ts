@@ -33,14 +33,37 @@
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 
-/** Wave-3 (2026-07-29): every FIRED proactive push lands in the outcome
- *  ledger so delivery coverage + actionable-rate become measurable
- *  (recordShown dedups identical summaries within 24h). Fire-and-forget —
- *  a ledger failure must never block the push path. */
-async function recordProactiveShown(slot: string, text: string): Promise<void> {
+/**
+ * Ledger the push, then send it WITH a usefulness control.
+ *
+ * ★★★ WHY THIS REPLACED send-then-ledger. Measured 2026-09-18:
+ * `intelligence_outcomes` held 293 rows and SIX labels, the newest from
+ * 2026-08-31 — 64 new rows and zero new labels in the preceding fortnight.
+ * That was not operator neglect. `recordShown` had 24 callers and
+ * `recordOutcome` had TWO, both inside discoveries.ts, so every one of the
+ * ~214 proactive_push and daily_brief rows was STRUCTURALLY UNLABELABLE:
+ * nothing anywhere could express a verdict on them.
+ *
+ * ★ An outcome ledger with a writer and no rater measures delivery, not
+ *   usefulness — and a usefulness column nobody can write is indistinguishable
+ *   from one nobody cares about. The fix is an affordance, not a reminder.
+ *
+ * ⚠ ORDER INVERTED ON PURPOSE. This used to send first and ledger after, which
+ * meant a ledger failure shipped an unledgered push — and, more to the point,
+ * the message could not carry an id that did not exist yet. Telegram caps
+ * `callback_data` at 64 bytes, so the BUTTON CARRIES THE LEDGER ID (a ~25-char
+ * cuid), not the content; the rating then lands on the exact row by id instead
+ * of re-deriving a content hash.
+ *
+ * ⚠ FAIL-SOFT, BOTH WAYS. The push is the product; the ledger is bookkeeping.
+ * If ledgering fails we still send, just without buttons — a nudge the operator
+ * cannot rate beats a nudge they never get.
+ */
+async function sendRatablePush(slot: string, text: string): Promise<boolean> {
+  let ledgerId: string | null = null;
   try {
     const { recordShown } = await import("@/lib/services/outcome-ledger");
-    await recordShown({
+    ledgerId = await recordShown({
       kind: "proactive_push",
       sourceEngine: `proactive-${slot}`,
       summary: text,
@@ -49,6 +72,28 @@ async function recordProactiveShown(slot: string, text: string): Promise<void> {
   } catch {
     // recordShown already logs; belt-and-suspenders so the push path
     // can never be broken by ledger bookkeeping.
+  }
+
+  if (!ledgerId) {
+    return await sendTelegram(text).catch((err) => {
+      logError("brain.proactive-pushes", err, { fn: `${slot}.sendTelegram` });
+      return false;
+    });
+  }
+
+  try {
+    const { sendTelegramWithButtons } = await import("@/lib/services/telegram");
+    const res = await sendTelegramWithButtons(text, [
+      [
+        { text: "👍 Useful", callback_data: `oc:u:${ledgerId}` },
+        { text: "👎 Not useful", callback_data: `oc:n:${ledgerId}` },
+      ],
+    ]);
+    return res.ok;
+  } catch (err) {
+    logError("brain.proactive-pushes", err, { fn: `${slot}.sendWithButtons`, ledgerId });
+    // Buttons are the enhancement, the nudge is the product.
+    return await sendTelegram(text).catch(() => false);
   }
 }
 import { logger as rootLogger } from "@/lib/logger";
@@ -308,13 +353,9 @@ export async function fireMorningPush(options?: { dryRun?: boolean; now?: Date }
     return { kind: "live", slot: "morning", fired: false, reason: "no_anticipated_set" };
   }
 
-  const ok = await sendTelegram(text).catch((err) => {
-    logError("brain.proactive-pushes", err, { fn: "fireMorningPush.sendTelegram" });
-    return false;
-  });
+  const ok = await sendRatablePush("morning", text);
   if (ok) {
     await markPushSent("morning", dateKey);
-    await recordProactiveShown("morning", text);
   }
   return {
     kind: "live",
@@ -431,13 +472,9 @@ export async function fireAfternoonPush(options?: { dryRun?: boolean; now?: Date
     return { kind: "live", slot: "afternoon", fired: false, reason: "no_open_threads" };
   }
 
-  const ok = await sendTelegram(text).catch((err) => {
-    logError("brain.proactive-pushes", err, { fn: "fireAfternoonPush.sendTelegram" });
-    return false;
-  });
+  const ok = await sendRatablePush("afternoon", text);
   if (ok) {
     await markPushSent("afternoon", dateKey);
-    await recordProactiveShown("afternoon", text);
   }
   return {
     kind: "live",
@@ -543,13 +580,9 @@ export async function fireEveningPush(options?: { dryRun?: boolean; now?: Date }
     return { kind: "live", slot: "evening", fired: false, reason: "already_pushed_today" };
   }
 
-  const ok = await sendTelegram(text).catch((err) => {
-    logError("brain.proactive-pushes", err, { fn: "fireEveningPush.sendTelegram" });
-    return false;
-  });
+  const ok = await sendRatablePush("evening", text);
   if (ok) {
     await markPushSent("evening", dateKey);
-    await recordProactiveShown("evening", text);
   }
   return {
     kind: "live",

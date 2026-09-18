@@ -219,6 +219,61 @@ async function handleCallback(callback: {
       }
     });
 
+    // ★★★ OUTCOME RATING · the first affordance that can label a proactive push.
+    // callback_data: oc:u|n:<ledgerId>
+    //
+    // Measured 2026-09-18: `intelligence_outcomes` had 293 rows and SIX labels,
+    // newest 2026-08-31 — 64 new rows and zero new labels in a fortnight. Not
+    // neglect: `recordShown` had 24 callers and `recordOutcome` had TWO, both in
+    // discoveries.ts, so every proactive_push row was STRUCTURALLY unlabelable.
+    // An outcome ledger with a writer and no rater measures delivery, not
+    // usefulness.
+    //
+    // ⚠ THE ID TRAVELS IN callback_data, NOT THE CONTENT. Telegram caps it at 64
+    // bytes; a cuid is ~25, a brief is not. Rating by id lands on the exact row
+    // rather than re-deriving a content hash and hoping it still matches.
+    if (action === "oc") {
+      const parts = (callback.data ?? "").split(":");
+      const useful = parts[1] === "u";
+      const ledgerId = parts.slice(2).join(":");
+      if (!ledgerId) {
+        await answerCallbackQuery(callback.id, "Malformed rating.");
+      } else {
+        try {
+          const { recordOutcome } = await import("@/lib/services/outcome-ledger");
+          // ⚠ USE THE RETURN VALUE. recordOutcome updates `where: { id,
+          // outcomeAt: null }` and returns count === 1, so a second tap is a
+          // deliberate no-op returning false. Answering "Noted" regardless
+          // would confirm a write that did not happen — the same
+          // false-reassurance class this whole wave has been removing.
+          const recorded = await recordOutcome({
+            id: ledgerId,
+            useful,
+            resultRef: "telegram:rating",
+          });
+          await answerCallbackQuery(
+            callback.id,
+            recorded
+              ? useful
+                ? "Noted — useful ✓"
+                : "Noted — not useful"
+              : "Already rated.",
+          );
+        } catch (err) {
+          void import("@/lib/utils/error-log").then(({ logError }) =>
+            logError("api.telegram.webhook", err, { fn: "outcomeRating", ledgerId }, "warn"),
+          );
+          // ⚠ Say so. A silent failure here would recreate the defect being
+          // fixed: the operator believes they labelled it and nothing did.
+          await answerCallbackQuery(callback.id, "Could not record that — try again.");
+        }
+      }
+      await (prisma as any).actionReceipt
+        .update({ where: { id: receipt.id }, data: { status: "DONE" } })
+        .catch(() => {});
+      return;
+    }
+
     // Journal Brain · confirm/reject a proposed goal link from the phone.
     // callback_data: jlink:c|r:<silo>:<id>
     if (action === "jlink") {
