@@ -123,6 +123,49 @@ export function derivedKey(brainDumpId: string): string {
  *  reflection, and a silo row made of it is noise for 26 readers. */
 const MIN_TEXT = 40;
 
+/**
+ * Say WHICH uniqueness rule a P2002 hit, because there are two and they mean
+ * completely different things.
+ *
+ * ⚠ FOUND BY RUNNING IT (backfill, 2026-09-18). This used to return
+ * "concurrent derive won the race" for EVERY P2002. A 214-dump backfill with no
+ * concurrent writer anywhere reported that reason 117 times. The real error was
+ *
+ *     Unique constraint failed on the fields: (`date`,`scope`,`category`)
+ *
+ * a raw-SQL constraint Prisma cannot see (hence no upsert), and NOT the
+ * idempotency key. Since this function writes a fixed scope="triggered" and
+ * category="reflection", that constraint means exactly one derived reflection
+ * PER DAY — so on a day with several reflective dumps, only the first derives.
+ *
+ * That is a defensible model. Reporting it as a phantom race is not: it sends
+ * the next reader hunting for a concurrency bug that does not exist, and it
+ * hides a real product rule behind a plausible-sounding excuse.
+ *
+ * `meta.target` carries the violated field list, so the two causes are
+ * distinguishable rather than guessed at.
+ */
+export function describeUniqueViolation(err: unknown): string {
+  const target = (err as { meta?: { target?: unknown } })?.meta?.target;
+  const fields = Array.isArray(target) ? target.map(String) : target ? [String(target)] : [];
+  const joined = fields.join(",").toLowerCase();
+
+  if (joined.includes("idempotency")) {
+    // The genuine race: another writer derived THIS dump first.
+    return "already derived — a concurrent write won the race";
+  }
+  if (joined.includes("date")) {
+    return (
+      "a reflection already exists for this date — reflections are unique on " +
+      "(date, scope, category) and this path writes a fixed scope/category, so " +
+      "only the first reflective dump of a day derives one"
+    );
+  }
+  return fields.length > 0
+    ? `unique constraint on (${fields.join(", ")}) already satisfied`
+    : "unique constraint hit — Prisma reported no target fields";
+}
+
 function firstSentence(text: string, cap: number): string {
   const s = text.replace(/\s+/g, " ").trim();
   const cut = s.search(/[.!?]\s/);
@@ -277,7 +320,7 @@ export async function deriveJournalSilos(input: DeriveInput): Promise<DeriveResu
     // A unique-violation means a concurrent ingest won the race — that is the
     // idempotency working, not a failure.
     const code = (err as { code?: string })?.code;
-    if (code === "P2002") return { skipped: "concurrent derive won the race" };
+    if (code === "P2002") return { skipped: describeUniqueViolation(err) };
     logError(
       "brain.journal-silo-derive",
       err,
