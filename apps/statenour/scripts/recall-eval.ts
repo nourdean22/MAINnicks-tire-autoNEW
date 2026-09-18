@@ -178,6 +178,30 @@ async function main() {
   }
   const { cases, syntheticOnly } = loadCorpus();
   checkManifest(cases);
+
+  // ── SEALED EVALUATION BOUNDARY ────────────────────────────────────────────
+  // Until 2026-09-18 every case was scored on every run, so any weight, prompt
+  // or ranking change could be tuned against the same corpus used to report the
+  // result. A number measured on the data it was fitted to is not a measurement.
+  //
+  // The visible corpus is now split development / regression; the SEALED tier
+  // lives outside every checkout (see recall-corpus-tiers.sealedCorpusPath) and
+  // is loaded only if present. Absent, it prints UNMEASURED — never a pass.
+  const { splitByTier, sealedCorpusPath, describeSealed } = await import(
+    "../lib/brain/recall-corpus-tiers"
+  );
+  const tiers = splitByTier(cases);
+  console.log(
+    `tiers · development=${tiers.development.length} regression=${tiers.regression.length}` +
+      ` sealed-in-visible-corpus=${tiers.sealed.length}`,
+  );
+  if (tiers.sealed.length > 0) {
+    console.log(
+      `  ⚠ ${tiers.sealed.length} sealed-tier cases are still IN the visible corpus at` +
+        ` eval-datasets/recall-corpus.json — the boundary is DECLARED, not yet ENFORCED.` +
+        ` Move them to ${sealedCorpusPath()} to seal them.`,
+    );
+  }
   console.log(
     `recall-eval · ${cases.length} cases (${syntheticOnly ? "SYNTHETIC ONLY — run pnpm harvest:evals for real cases; this run proves the harness, not the ranking" : "seed + harvested"}) · k=${K}`,
   );
