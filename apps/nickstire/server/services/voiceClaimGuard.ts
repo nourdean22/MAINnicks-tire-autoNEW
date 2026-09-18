@@ -156,6 +156,21 @@ const HEDGE = String.raw`(?:\b(?:about|around|roughly|maybe|like|approximately|u
 const TIME_UNIT = String.raw`(?:minutes?|mins?|hours?|hrs?)`;
 
 /**
+ * A conditional connector immediately before the match position.
+ *
+ * Used as a negative lookbehind so a verdict INSIDE a condition is not scored as
+ * a verdict. "If it's safe to drive, bring it by" and "let me know if you can
+ * make it here" are correct assistant speech that happen to contain the literal
+ * words of a claim; declaring the condition is what makes them honest.
+ *
+ * JavaScript is unusual in allowing a variable-length lookbehind, so one
+ * alternation covers every connector instead of a stack of fixed-width ones.
+ * Declared once because a guard that protects only the branches its author
+ * happened to think of is the defect this constant exists to prevent.
+ */
+const NOT_CONDITIONAL = String.raw`(?<!\b(?:if|whether|unless|when|once|assuming)\s)`;
+
+/**
  * Any money figure at all. Applied only AFTER the approved anchors are removed,
  * so a match here is an unapproved price by construction.
  */
@@ -346,14 +361,33 @@ export const PROHIBITED_VOICE_CLAIMS: ProhibitedClaim[] = [
      * The correct answer is conditional and returns the judgement to the person
      * who can actually feel the car: if it feels unsafe, do not drive it.
      *
-     * THE LOOKBEHINDS ARE LOAD-BEARING. Without them this pattern fires on the
-     * compliant phrasings themselves — "we can't tell you WHETHER it's safe to
-     * drive" and "IF it's safe to drive, bring it by" both contain the literal
-     * verdict. A guard that flags the correct script is a guard staff route
-     * around, which is the failure this module's header warns about.
+     * THE CONDITIONAL LOOKBEHIND IS LOAD-BEARING, ON EVERY BRANCH. Without it
+     * this pattern fires on the compliant phrasings themselves — "we can't tell
+     * you WHETHER it's safe to drive" and "IF it's safe to drive, bring it by"
+     * both contain the literal verdict. A guard that flags the correct script is
+     * a guard staff route around, which is the failure this module's header
+     * warns about.
+     *
+     * CAUGHT IN SELF-REVIEW, 2026-09-18, and the miss is the lesson: the first
+     * version guarded the two branches whose false positives I had thought of
+     * and left the third bare, so "let me know IF YOU CAN MAKE IT HERE before
+     * six" — ordinary scheduling speech, four words of it — scored as a safety
+     * verdict. Every CLEAN test I had written exercised the two guarded
+     * branches. A guard is only as good as its least-tested alternative, so the
+     * lookbehind is now hoisted into one constant that each branch must use.
      */
     label: "drivability_safety_verdict",
-    re: /(?<!\bwhether\s)(?<!\bif\s)\b(?:you'?re|you\s+are|you'?ll\s+be|it'?s)\s+(?:totally\s+|perfectly\s+|definitely\s+|completely\s+|absolutely\s+)?(?:fine|safe|okay|ok)\s+to\s+drive\b|\byou\s+can\s+(?:definitely\s+|for\s+sure\s+|safely\s+)?(?:make\s+it\s+(?:here|in|over)|drive\s+(?:it|that|on\s+it))\b|(?<!\bwhether\s)(?<!\bif\s)\bit'?s\s+(?:not|never)\s+safe\s+to\s+drive\b/i,
+    re: new RegExp(
+      [
+        // an assertive green light
+        `${NOT_CONDITIONAL}\\b(?:you'?re|you\\s+are|you'?ll\\s+be|it'?s)\\s+(?:totally\\s+|perfectly\\s+|definitely\\s+|completely\\s+|absolutely\\s+)?(?:fine|safe|okay|ok)\\s+to\\s+drive\\b`,
+        // the same permission phrased as ability
+        `${NOT_CONDITIONAL}\\byou\\s+can\\s+(?:definitely\\s+|for\\s+sure\\s+|safely\\s+)?(?:make\\s+it\\s+(?:here|in|over)|drive\\s+(?:it|that|on\\s+it))\\b`,
+        // an assertive red light — unsupported in the other direction
+        `${NOT_CONDITIONAL}\\bit'?s\\s+(?:not|never)\\s+safe\\s+to\\s+drive\\b`,
+      ].join("|"),
+      "i",
+    ),
   },
 ];
 

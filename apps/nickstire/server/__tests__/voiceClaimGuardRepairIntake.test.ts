@@ -72,6 +72,16 @@ describe("telling a caller whether the car is safe to drive", () => {
     "If it's safe to drive, bring it by and we'll look at it.",
     "If it feels unsafe, don't drive it - call a tow and we'll take it from there.",
     "You're the one who can feel the car, so trust that over anything I could guess at.",
+    // ORDINARY SCHEDULING SPEECH. The first version of this pattern fired on
+    // every one of these: the conditional lookbehind guarded two of the three
+    // branches and the ability branch was left bare, so four words of routine
+    // "let me know if you can make it" scored as a safety verdict. Caught in
+    // self-review, not by a test - which is why they are tests now.
+    "Let me know if you can make it here before six.",
+    "If you can make it in today we'll take a look.",
+    "Just call us back if you can drive it over.",
+    "We close at four, so let me know whether you can make it here.",
+    "Unless you can drive it over safely, we'd rather you called a tow.",
   ])("CLEAN: %s", (t) => {
     expect(voiceClaimViolations(turns(t))).not.toContain("drivability_safety_verdict");
   });
