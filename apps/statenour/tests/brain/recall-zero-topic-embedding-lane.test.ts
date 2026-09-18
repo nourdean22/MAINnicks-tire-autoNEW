@@ -59,15 +59,21 @@ const ZERO_TOPIC_TURNS = [
 ];
 
 /**
- * Found by the positive control below, on its first run: "is it still the same"
- * derives exactly one topic, ["same"], because "same" is not in
- * FAST_TOPIC_STOPWORDS. That turn therefore skips the fallback for the WRONG
- * reason — it has a topic, but one that lexically matches any memory containing
- * the word "same". Left as a fixture here rather than fixed, because widening
- * the stopword list is a ranking change that belongs with a recall-eval run,
- * not with this guard. Recorded so the next reader knows it is known.
+ * CLOSED 2026-09-18. This file used to carry a fixture recording that "is it
+ * still the same" derived the useless topic ["same"], deferred with "widening
+ * the stopword list is a ranking change that belongs with a recall-eval run".
+ *
+ * It was then MEASURED: 14 of 20 anaphoric follow-ups derived pro-form-only
+ * topics, and removing them turned out not to be a precision/recall trade at
+ * all — the lexical lane matches memory CONTENT, and for a pro-form every
+ * content match is coincidental, so there is no true positive to lose. The
+ * class is now closed in FAST_TOPIC_STOPWORDS and gated by
+ * tests/brain/fast-topics-proforms.test.ts.
+ *
+ * The fixture and its assertion are deleted rather than inverted, because the
+ * new file owns that behaviour now and two homes for one rule is how they
+ * drift. The original note said to do exactly this if the gap was ever closed.
  */
-const TOPIC_BUT_USELESS = "is it still the same";
 
 describe("zero-topic turns · positive control", () => {
   it("every fixture really does derive zero topics (else this file tests nothing)", () => {
@@ -81,12 +87,6 @@ describe("zero-topic turns · positive control", () => {
   it("and the detector is not simply always-zero — a normal turn DOES derive topics", () => {
     // Without this, a broken deriveFastTopics would make the control above pass.
     expect(deriveFastTopics(["the tire inventory at the euclid shop"]).length).toBeGreaterThan(0);
-  });
-
-  it("documents the near-miss the control caught: one stopword gap yields a useless topic", () => {
-    // Not a fix, a record — see TOPIC_BUT_USELESS above. If someone later adds
-    // "same" to FAST_TOPIC_STOPWORDS this flips, and the comment should go too.
-    expect(deriveFastTopics([TOPIC_BUT_USELESS])).toEqual(["same"]);
   });
 });
 
