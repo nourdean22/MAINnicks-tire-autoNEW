@@ -148,3 +148,13 @@ describe("the predicates are actually WIRED (a correct unused helper proves noth
     expect(SRC).not.toContain("for: ${topics.join");
   });
 });
+
+describe("buildQueryText · hot-path hardening (found in self-audit)", () => {
+  it("a non-string message does not throw — a throw here reads as an EMPTY brain block", () => {
+    // getContextualMemories runs under withTimeout(..., 3000, ""), so an
+    // exception is indistinguishable from "recall found nothing".
+    expect(() => buildQueryText([], [123 as unknown as string])).not.toThrow();
+    expect(buildQueryText([], [123 as unknown as string])).toBe("123");
+    expect(() => buildQueryText([], [null as unknown as string])).not.toThrow();
+  });
+});

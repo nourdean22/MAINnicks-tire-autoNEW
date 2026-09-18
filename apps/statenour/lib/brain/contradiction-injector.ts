@@ -176,7 +176,13 @@ export async function findRelevantContradictions(
       const vec = await getEmbedding(text).catch((): number[] => []);
       if (vec.length === 0) continue;
       const sim = cosineSimilarity(userVec, vec);
-      if (!bestAny || sim > bestAny.sim) bestAny = { key: c.key, sim };
+      // Number.isFinite guard: cosineSimilarity returns NaN on a zero-magnitude
+      // vector, and NaN poisons a running max — `sim > NaN` is false forever,
+      // so a single NaN arriving FIRST would pin bestAny at NaN and publish
+      // `bestSim: null` (JSON.stringify(NaN)) into the very distribution this
+      // instrument exists to collect. Skip it; a candidate we cannot score is
+      // not a near miss.
+      if (Number.isFinite(sim) && (!bestAny || sim > bestAny.sim)) bestAny = { key: c.key, sim };
       if (sim < threshold) continue;
       if (!best || sim > best.sim) {
         best = { ...c, sim };

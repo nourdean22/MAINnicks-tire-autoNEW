@@ -281,7 +281,12 @@ export function shouldFallbackToConfidence(topics: string[], queryEmbedding?: nu
  */
 export function buildQueryText(topics: string[], recentMessages: string[]): string {
   if (topics.length > 0) return topics.join(", ");
-  return (recentMessages[recentMessages.length - 1] ?? "").slice(0, 500);
+  // String(...) not a bare .slice: the param is typed string[], but this module
+  // is on the chat hot path under a withTimeout whose fallback is "", so a
+  // throw here would surface as a silently EMPTY brain block rather than an
+  // error — the exact failure mode this file keeps getting bitten by. Cheap
+  // insurance against a caller that hands over a non-string.
+  return String(recentMessages[recentMessages.length - 1] ?? "").slice(0, 500);
 }
 
 async function extractTopics(messages: string[]): Promise<string[]> {

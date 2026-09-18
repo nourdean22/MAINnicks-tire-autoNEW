@@ -327,3 +327,26 @@ describe("findRelevantContradictions · near-miss instrument", () => {
     expect(hit!.similarity).toBeLessThan(0.7);
   });
 });
+
+describe("near-miss instrument · NaN hardening (found in self-audit)", () => {
+  it("an unscoreable candidate never lands in the distribution as null", () => {
+    // cosineSimilarity returns NaN for a zero-magnitude vector. NaN poisons a
+    // running max (`sim > NaN` is false forever) and JSON.stringify(NaN) is
+    // null — so without the isFinite guard a single bad vector would publish
+    // `bestSim: null` into the data this instrument exists to collect.
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    (prisma.brainMemory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([makeUnresolvedRow()]);
+    (getEmbedding as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING)
+      .mockResolvedValueOnce([0, 0, 0, 0]); // non-empty, but zero magnitude
+
+    return findRelevantContradictions({ userMessage: USER_MESSAGE, conversationId: "conv-nan" }).then((hit) => {
+      expect(hit).toBeNull();
+      const lines = info.mock.calls.filter((c) => String(c[0]).includes("near_miss"));
+      for (const l of lines) {
+        expect(JSON.parse(String(l[1])).bestSim, "a null/NaN score reached the distribution").not.toBeNull();
+      }
+      info.mockRestore();
+    });
+  });
+});
