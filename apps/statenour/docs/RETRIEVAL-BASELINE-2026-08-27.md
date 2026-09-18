@@ -237,3 +237,58 @@ over-budget figure stands; the skip/empty split within it does not.
 - **Neon connection exhaustion is the limiting factor** on every measurement attempt tonight: it
   killed two full eval runs and contaminated the lexical probe. Anything that wants a complete
   121-case hybrid number needs to solve that first.
+
+## Weighted RRF fusion — ANSWERED 2026-09-18, and the answer is "do not tune"
+
+The gate above ("stay on RRF k=60 until >=50 labelled pairs exist") cleared at 68
+labelled pairs. `scripts/rrf-weight-sweep.ts` retrieves each case ONCE per lane and
+fuses the whole weight grid offline, so N weights cost the same database work as one.
+
+⚠ Weighted fusion was never missing — `lib/brain/rrf.ts` already takes `opts.weights`.
+Only the measurement was missing.
+
+| vecW | lexW | precision@5 | vs incumbent |
+|---|---|---|---|
+| 1 | 0 | 0.4412 | -0.0147 |
+| 3 | 1 | 0.4559 | 0.0000 |
+| 2 | 1 | 0.4559 | 0.0000 |
+| 1.5 | 1 | 0.4559 | 0.0000 |
+| **1** | **1** | **0.4559** | **INCUMBENT** |
+| 1 | 1.5 | 0.3529 | -0.1029 |
+| 1 | 2 | 0.3529 | -0.1029 |
+| 0 | 1 | 0.3676 | -0.0882 |
+
+**VERDICT: 1:1 is already optimal. Do not change it.**
+
+★ **AND IT INDEPENDENTLY REPRODUCES THIS DOCUMENT'S OWN `C` ROW.** The baseline table
+above measured `C · RRF(A+B), k=60` at **hit@5 = 43%** on 28 hand-labelled verbatim
+cases. This sweep measures the same fusion at **0.4559 (45.6%)** on 68 auto-harvested
+PARAPHRASED cases — within 2.6 points, on a corpus built by the opposite method. That
+is the THIRD independent agreement in this document (dense 39% vs 0.368 is the first).
+Three convergences across two corpora is why these numbers should now be treated as
+properties of the system rather than of any single measurement.
+
+⚠ AND IT DOES NOT OVERTURN THE `C` ROW'S CONCLUSION. The AFTER section records the
+FIXED live lane (`D`) at **50%**, above fusion either way — so "no further fusion build
+into memory-recall is justified by these numbers" still stands. Weighted fusion was the
+last open question about the fusion lane, and the answer is that there was nothing there.
+
+Three things the numbers say:
+
+1. **A PLATEAU, not a peak.** Every weighting favouring vector >=1:1 scores
+   IDENTICALLY. With k=60 and <=25 items per lane, RRF contributions span only
+   1/61..1/85, so cross-lane weight cannot reorder the top-5 until it is large
+   enough to flip ties. Tuning inside the plateau is a no-op dressed as progress.
+2. **Favouring lexical is actively harmful** (-0.1029 at 1:1.5). The downside is
+   ~7x the available upside — an asymmetry that argues against tuning at all.
+3. **Lexical earns its seat, but barely.** Fusion 0.4559 vs vector-alone 0.4412 =
+   **+1.5 points**, and only at weight <=1. Consistent with lexical returning
+   nothing on **26 of 68 cases (38%)**, matching the ~36% lane-skip rate.
+
+⚠ LIMITS, STATED. One corpus, one run, NO HOLDOUT. This says which weight fits
+THESE 68 cases, not which generalises — a weight chosen on the data it was
+measured on is fitted, not validated. That the answer is "change nothing" is what
+makes it safe to act on: the null result needs no validation set to be honest.
+
+Also note the 26 lexical-empty cases are "empty OR skipped" — `getLexicalMatches`
+still cannot distinguish them (#2449 added counters for the rate, not per-call).
