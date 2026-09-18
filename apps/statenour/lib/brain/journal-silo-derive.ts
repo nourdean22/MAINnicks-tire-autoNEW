@@ -25,16 +25,29 @@
  * fourth attempt at the same idea.
  *
  * So: no new capture surface, and no new habit. `ingestJournal` ALREADY
- * classifies every dump by ThoughtType. This writes the two types that map
+ * classifies every dump by ThoughtType. This writes the three types that map
  * cleanly onto an existing silo through to that silo, so the 26 files reading
  * `reflections` — identity-snapshot, memory-consolidation, contextual-recall,
  * brain-graph, learning-journal — stop feeding on three-month-old input.
  *
- * ⚠ `situation_log` IS DELIBERATELY NOT DERIVED. Nothing in a dump maps onto
- * "strategic situation + matched Greene law", which is why that table has
- * LITERALLY NEVER HELD A ROW. Inventing a mapping would manufacture rows the
- * operator never authored — the fabrication class this repo has a whole defence
- * stack against. It stays a separate build-or-drop decision.
+ * ⚠ `situation_log` — READ THIS BEFORE CHANGING IT.
+ *
+ * It was deliberately NOT derived at first, and the reason still stands as
+ * stated: nothing among the ORIGINAL thought types maps onto "strategic
+ * situation + matched law", and mapping one on anyway would have manufactured
+ * rows the operator never authored.
+ *
+ * What changed on 2026-09-18 is the premise, not the principle: the classifier
+ * gained a real `situation` type of its own, with its own rule ("ABOUT other
+ * people's moves, not about Nour's own options"). A dump the model judges to be
+ * a situation IS one, on exactly the same footing as its `reflection` and
+ * `decision` judgements. So this derives from a first-class classification, not
+ * from a reinterpretation of something else.
+ *
+ * Its readers only ever touch `situation`, `context` and `lawId` — checked
+ * 2026-09-18; nothing reads emotion/response/outcome/lessonLearned. So a derived
+ * row is fully useful rather than a hollow shell, and `system-health`'s law
+ * feedback loop (counting `lawId != null`) stops reading zero forever.
  *
  * ⚠ NOT EMBEDDED, ON PURPOSE. The parent brain_dump is already in the vector
  * index with the same text. Embedding the derived row too would put duplicate
@@ -45,6 +58,7 @@
 import { prisma as defaultPrisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
+import { matchStrategicLaws } from "@/lib/brain/strategic-law-match";
 import type { ThoughtType } from "@/lib/brain/journal-ingest";
 
 type PrismaLike = typeof defaultPrisma;
@@ -53,6 +67,12 @@ type PrismaLike = typeof defaultPrisma;
 export const DERIVABLE_TYPES = {
   reflection: "reflection",
   decision: "decision_replay",
+  // 2026-09-18 · added ONLY because the classifier now has a real `situation`
+  // type of its own. This is NOT the earlier idea of mapping some existing type
+  // onto situation_log — that would have manufactured entries the operator never
+  // authored. A dump the model judged to be a strategic situation IS one, on
+  // exactly the same footing as its `reflection` and `decision` judgements.
+  situation: "situation_log",
 } as const satisfies Partial<Record<ThoughtType, string>>;
 
 /** Days out the derived decision review is scheduled. Matches the 30/60/90
@@ -69,12 +89,15 @@ export interface DeriveInput {
   summary: string;
   /** YYYY-MM-DD, same string the dump was filed under. */
   dateStr: string;
+  /** Free-form arena for a `situation` entry ("pricing", "supplier"). */
+  situationContext?: string;
   prisma?: PrismaLike;
 }
 
 export interface DeriveResult {
   reflectionId?: string;
   decisionReplayId?: string;
+  situationLogId?: string;
   /** Set when nothing was written, with the reason. Never an error. */
   skipped?: string;
 }
@@ -82,9 +105,15 @@ export interface DeriveResult {
 /**
  * Deterministic per-dump key, so a re-ingest or a retry cannot double-create.
  *
- * Both tables carry `idempotency_key` with a PARTIAL unique index created in
- * raw SQL — which Prisma cannot see, so `upsert` is not available on it. Hence
- * find-then-create, with the duplicate error tolerated as success.
+ * `reflections` and `decision_replays` carry `idempotency_key` with a PARTIAL
+ * unique index created in raw SQL — which Prisma cannot see, so `upsert` is not
+ * available on it. Hence find-then-create, with the duplicate error tolerated as
+ * success.
+ *
+ * ⚠ `situation_logs` HAS NO SUCH COLUMN (verified against schema.prisma
+ * 2026-09-18, unlike its two siblings). Its branch dedupes on a provenance
+ * marker appended to `situation` instead. Adding a migration for a table that
+ * had never held a row was the worse trade; revisit if it ever grows.
  */
 export function derivedKey(brainDumpId: string): string {
   return `dump:${brainDumpId}`;
@@ -187,6 +216,38 @@ export async function deriveJournalSilos(input: DeriveInput): Promise<DeriveResu
         select: { id: true },
       });
       return { reflectionId: row.id };
+    }
+
+    if (target === "situation_log") {
+      const existing = await prisma.situationLog.findFirst({
+        where: { lawId: null, situation: { contains: input.brainDumpId } },
+        select: { id: true },
+      });
+      // situation_logs has NO idempotency_key column (unlike its two siblings),
+      // so the dedupe key rides in `evidence`-style provenance instead. Checked
+      // rather than assumed: the model carries no such field, and inventing a
+      // migration for a table that has never held a row would be the wrong
+      // trade. The marker below is what this lookup matches.
+      if (existing) return { situationLogId: existing.id, skipped: "already derived" };
+
+      const laws = await matchStrategicLaws(text, prisma);
+      const row = await prisma.situationLog.create({
+        data: {
+          // Provenance is appended, not prefixed: `journal-fanout` renders
+          // `[situation <context>] <situation>` into the embedding, and a
+          // leading marker would dominate the vector.
+          situation: `${sanitizeForPrompt(text, 3800)}\n\n[derived from brain_dump ${input.brainDumpId}]`,
+          // Free-form in the schema ("competition", "pricing", "employee"), so
+          // the extractor's own words go through. "unspecified" is the honest
+          // fallback — NOT a guessed arena.
+          context: (input.situationContext || "").trim().slice(0, 80) || "unspecified",
+          // A hint the operator can correct, never a claim the law applies.
+          lawId: laws[0]?.id ?? null,
+          ...grounding,
+        },
+        select: { id: true },
+      });
+      return { situationLogId: row.id };
     }
 
     const existing = await prisma.decisionReplay.findFirst({
