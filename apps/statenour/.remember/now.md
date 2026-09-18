@@ -1,5 +1,85 @@
 # Session ledger — statenour
 
+## Session D (recall measurability) — branch `statenour/paraphrase-arm-2026-09-18` — PR #2443
+
+**MISSION:** make retrieval precision measurable. It was recorded as blocked in #2426 on a
+`server-only` guard. That was true AND it was the smaller of two blockers.
+
+**THE HEADLINE, MEASURED ON PROD 2026-09-18**
+
+| | before | after |
+|---|---|---|
+| total corpus cases | 40 | 107 |
+| POSITIVE (scorable) cases | **1** | **68** |
+| categories represented | 1 | 13 |
+| blocked paraphrase arm exit code | **0** | 1, with the reason |
+
+**WHAT WAS ACTUALLY WRONG (the second blocker, found while verifying the first)**
+
+`caseFromDurableFact` had 2,412 eligible rows available and the harvest produced ONE case.
+`orderBy updatedAt desc, take 75` let `customer_preference` — the WORST category in the curated
+set, 3 eligible of 283, machine-written customer records with numeric keys and ~42-char content —
+consume 100% of the sample because it is churned constantly and therefore wins on recency.
+
+★★★ **A LIMIT APPLIED BEFORE A DIVERSITY REQUIREMENT IS WON BY WHATEVER CHURNS MOST.** Identical
+class to the error-ranking defect fixed 2026-09-17 (five families sharing one `last_at` read as
+five bugs, not one outage). Re-rank BEFORE the LIMIT.
+
+⚠ An earlier pass THE SAME DAY had already swapped `confidence: desc` (which surfaced machine
+categories) for `updatedAt: desc`, under a comment asserting *"Recency gives a spread of real,
+current operator facts across the curated categories."* That claim was never measured and was
+FALSE. **Both sorts carried the same bug; only the winning category changed.** Fixing an instance
+without naming the class leaves the class alive.
+
+**FIX:** one query per category + flat quota (`DURABLE_FACT_PER_CATEGORY = 6`) +
+`selectBalancedDurableFactRows()`. Flat NOT volume-weighted — weighting hands the corpus to
+`insight` (45% of all eligible) and measures one category again. Viability is tested with
+`caseFromDurableFact` ITSELF, never a copy: a second predicate drifts, the quota fills with rows
+the builder then rejects, and the arm starves SILENTLY.
+
+**Per-category eligibility (prod, for whoever grows this next):** insight 1079 · nick_advice 454 ·
+wisdom 367 · concern 166 · decision_log 137 · emotional_state 104 · win 45 · business_event 26 ·
+blind_spot 11 · preference 11 · friction 7 · customer_preference 3 · prediction_lesson 2 ·
+learning_journal 0.
+
+**THE server-only BLOCKER WAS REAL — and measured, not trusted.** A/B probe, ONE CONTROL PER
+PROCESS: without stub it throws `This module cannot be imported from a Client Component module.`;
+with the `Module._load` stub it resolves and `getModel` is a function. ⚠ One control per process
+because **a module that throws during ESM evaluation is cached as errored and re-throws on later
+imports without re-evaluating** — both controls in one process manufacture a false negative.
+
+**SECOND DEFECT FIXED:** a blocked paraphrase printed a warning and **exited 0**. Same shape as the
+cron-manager defect this week: a failure rendered for a human and hidden from the exit code.
+`paraphraseVerdict()` is now the ONE predicate; banner and exit code read the same object.
+`scorable` and `failedRequest` are deliberately SEPARATE — a plain `pnpm harvest:evals` is also
+unscorable and must still exit 0.
+
+**PROOF LADDER:** paraphrase arm is EXERCISED (`COMPLETE - all 68 eligible paraphrased`,
+`scorable: yes`, exit 0; 68/68 queries changed, 0 identical, all marked in provenance).
+`pnpm eval:recall` on the paraphrased corpus was still RUNNING at handoff — **no precision figure
+exists yet; do not quote one.**
+
+**TRAPS FOR THE NEXT SESSION**
+- ⚠⚠ **NO `.env` EXISTS IN ANY CHECKOUT** — not the worktree, not primary; only `.env.example`.
+  Every statenour script needs `railway run -s statenour-web -- <cmd>`. `railway whoami` works;
+  never export `RAILWAY_TOKEN` (the stored one is dead and shadows the session).
+- ⚠ `eval-datasets/` is gitignored and holds REAL operator content. `eval:recall` reads
+  `eval-datasets/recall-corpus.json`; the harvest's `--out` defaults there.
+- ⚠ 12 scripts face `server-only` via TWO competing mechanisms: 9 use `Module._load`, 3 use
+  `Module._resolveFilename` -> `scripts/.server-only-noop.js`. The minority resolves that path
+  against `process.cwd()`, so those 3 BREAK when run from the repo root. Not fixed here.
+- ⚠ `harvest-eval-corpus.ts`'s header claims read-only is "pinned by a source-scan test". It is
+  NOT — `tests/brain/recall-corpus-builder.test.ts` mocks a prisma object carrying only
+  `findMany`, so a write throws on `undefined`. Incidental structural pin, not the scan promised.
+- ⚠ statenour's recall corpus has **NO holdout of any kind** — `runRecallEval` scores every case
+  every run, no tiers. The `HOLDOUT_EPISODES_B64` mechanism is **nickstire's Playwright episodes**,
+  a different system. Do not describe statenour as having a sealed eval boundary.
+- ⚠ pre-push `build:affected` fails on `@statenour/web#build` with `Symlink
+  [project]/apps/statenour/node_modules is invalid, it points out of the filesystem root`
+  (Turbopack + NTFS junction). Resolution, not compilation. Push from a hook-free `git clone
+  --local`; never `--no-verify`.
+- ⚠ harvest logs 4 `slow_query` warnings at 773-874ms.
+
 ## Session C (overnight capability hardening) — branch `statenour/overnight-capability-hardening`
 
 **MISSION:** make StateNour materially more useful/reliable/measurable. Choose the highest-leverage
