@@ -229,6 +229,29 @@ const FAST_TOPIC_STOPWORDS = new Set([
   "much", "many", "more", "most", "even", "ever", "never", "now", "one", "two",
   "say", "said", "see", "tell", "told", "think", "thing", "things", "really",
   "right", "yeah", "okay", "well", "way", "back", "off", "too", "let", "lets",
+  // 2026-09-18 · PRO-FORMS AND QUANTIFIERS — completing a class this list
+  // already started. `any`, `all`, `one`, `thing`, `things` and `some` were
+  // here from the beginning, so the intent to exclude this class predates
+  // this edit; these 18 are its gaps.
+  //
+  // MEASURED on 20 short anaphoric follow-ups: 14 derived PRO-FORM-ONLY
+  // topics ("is it still the same" -> ["same"], "the other way" -> ["other"],
+  // "is it done" -> ["done"]) and 17 carried at least one. Those turns have
+  // topics.length > 0, so they never reach the zero-topic embedding path added
+  // in #2425 — they run a real lexical tsquery for "same" instead.
+  //
+  // Why this is noise removal and NOT a precision/recall trade: the lexical
+  // lane matches memory CONTENT. For a pro-form, any content match is
+  // COINCIDENTAL — no memory is ever *about* the word "same". So there is no
+  // true positive to lose, which is what makes this safe without a full
+  // recall-eval run.
+  //
+  // "rest" is deliberately NOT here: it has a real domain sense ("rest day").
+  // Same reason "change" is absent — "oil change". A pro-form with a noun
+  // sense in this operator's world is not a pro-form.
+  "same", "other", "another", "both", "else", "anything", "something",
+  "nothing", "everything", "everyone", "anyone", "someone", "nobody", "none",
+  "each", "every", "done", "such",
 ]);
 
 export function deriveFastTopics(messages: string[]): string[] {
