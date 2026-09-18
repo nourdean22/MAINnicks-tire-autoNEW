@@ -155,10 +155,11 @@ describe("the 1,118 wall · a realistic corpus collapses without hiding anything
         phoneNumber: "216-555-9999",
         createdAt: minutesAgo(40 - i * 8),
         evalOutcome: "callback_needed",
+        // Ground truth from VAPI's own reason, not a hand-set metadata flag.
+        endedReason: "call.in-progress.error-transfer-failed",
         meta: {
           intents: ["used_tire", "tire_size_request"],
           customerSpeech: { unparsed: false, first: "I need two used 215/60R17 today" },
-          transferFailed: true,
         },
       }));
     }
@@ -195,12 +196,82 @@ describe("the 1,118 wall · a realistic corpus collapses without hiding anything
   });
 });
 
+/* ─────────── the facts the kernel reads must have real writers ─────────── */
+
+describe("wired facts · a reader with no writer is not a feature", () => {
+  // Caught in self-review: disposeCall read meta.expectedArrivalOpen and
+  // meta.transferFailed, and NOTHING wrote either. Four of the seven lanes
+  // could never fire, and the 25-point transfer-failure priority never
+  // triggered. The kernel was correct and starved.
+
+  it("an open expected arrival moves a walk-in OUT of recovery", () => {
+    const walkIn = row({
+      phoneNumber: "216-555-7777",
+      evalOutcome: "walk_in_directed",
+      meta: { intents: [], customerSpeech: { unparsed: false, first: "I will come by today" } },
+    });
+    const withArrival = buildRecoveryQueue([walkIn], NOW, {
+      expectedArrivalPhones: new Set(["2165557777"]),
+    });
+    expect(withArrival.episodes).toHaveLength(0);
+    expect(withArrival.laneCounts.arrival).toBe(1);
+    expect(withArrival.exclusionCounts.expected_to_arrive).toBe(1);
+  });
+
+  it("FAIL-OPEN: with no arrival set the walk-in stays in recovery, never vanishes", () => {
+    // If the arrivals read breaks, the safe direction is a noisier queue —
+    // never a silently dropped customer.
+    const walkIn = row({
+      phoneNumber: "216-555-7777",
+      evalOutcome: "walk_in_directed",
+      meta: { intents: [], customerSpeech: { unparsed: false, first: "I will come by today" } },
+    });
+    const noSet = buildRecoveryQueue([walkIn], NOW);
+    expect(noSet.episodes).toHaveLength(1);
+    expect(noSet.laneCounts.arrival).toBe(0);
+  });
+
+  it("transferFailed is derived from the REAL endedReason predicate", () => {
+    const failed = buildRecoveryQueue(
+      [row({ endedReason: "call.in-progress.error-transfer-failed" })],
+      NOW,
+    );
+    expect(failed.episodes[0].transferFailed).toBe(true);
+    expect(failed.episodes[0].disposition.reasons.map((r) => r.code)).toContain("transfer_failed");
+    expect(failed.episodes[0].disposition.slaMinutes).toBe(15);
+  });
+
+  it("assistant-forwarded-call is NOT treated as a failure — nor as a success", () => {
+    // Vapi's docs: that reason means the transfer was INITIATED. A call that
+    // rang an empty counter and hit voicemail carries it too, so it may not be
+    // read either way.
+    const forwarded = buildRecoveryQueue(
+      [row({ endedReason: "assistant-forwarded-call" })],
+      NOW,
+    );
+    const ep = forwarded.episodes[0];
+    if (ep) {
+      expect(ep.transferFailed).toBe(false);
+      expect(ep.disposition.reasons.map((r) => r.code)).not.toContain("transfer_failed");
+    }
+  });
+
+  it("a matched invoice closes the episode", () => {
+    const r = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
+      invoicedPhones: new Set(["2165558888"]),
+    });
+    expect(r.episodes).toHaveLength(0);
+    expect(r.exclusionCounts.already_invoiced).toBe(1);
+  });
+});
+
 describe("SLA clocks", () => {
   it("a verified transfer failure breaches in 15 minutes, a quote shopper does not", () => {
     const failed = row({
       createdAt: minutesAgo(20),
       evalOutcome: "callback_needed",
-      meta: { intents: ["used_tire"], customerSpeech: { unparsed: false, first: "call me back about tires" }, transferFailed: true },
+      endedReason: "call.in-progress.error-transfer-failed",
+      meta: { intents: ["used_tire"], customerSpeech: { unparsed: false, first: "call me back about tires" } },
     });
     const shopper = row({
       phoneNumber: "216-555-0002",

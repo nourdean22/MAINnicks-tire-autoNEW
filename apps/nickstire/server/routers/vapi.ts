@@ -24,6 +24,7 @@ import { RECOVERY_FETCH_OUTCOMES } from "@shared/callTaxonomy";
 import {
   buildRecoveryQueue,
   breachedSla,
+  phoneLast10,
   type QueueSourceRow,
 } from "../services/recoveryQueue";
 import { getDb } from "../db";
@@ -31,6 +32,30 @@ import { shopSettings, vapiCallLogs, type VapiCallLog } from "../../drizzle/sche
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { pickReceptionistAssistantId, pickFollowUpAssistantId, SHOP_LANDLINE_E164 } from "../services/vapi";
 import { BUSINESS } from "@shared/business";
+
+/**
+ * Last-10 phones with an OPEN expected arrival today.
+ *
+ * The `arrival` lane exists so a caller who said "I will come by" is treated as
+ * a provisional SUCCESS rather than missed revenue. That lane can only fire if
+ * something actually supplies the arrivals — they live in `expected_arrivals`,
+ * not on the call row. Fails OPEN to an empty set: if the read breaks, walk-ins
+ * fall back into the recovery queue, which is noisier but never drops a real
+ * obligation. The reverse default would silently hide customers.
+ */
+async function openExpectedArrivalPhones(): Promise<ReadonlySet<string>> {
+  try {
+    const { listExpectedArrivals } = await import("../services/expectedArrivals");
+    const rows = await listExpectedArrivals({ limit: 200 });
+    return new Set(
+      rows
+        .map((r) => phoneLast10(String(r.customerPhone ?? "")))
+        .filter((p) => p.length === 10),
+    );
+  } catch {
+    return new Set();
+  }
+}
 
 const log = createLogger("vapi");
 
@@ -547,7 +572,9 @@ export const vapiRouter = router({
        * into episodes and lets the kernel decide the lane; repetition now
        * raises PRIORITY inside one episode instead of adding rows.
        */
-      const built = buildRecoveryQueue(rows as QueueSourceRow[], new Date());
+      const built = buildRecoveryQueue(rows as QueueSourceRow[], new Date(), {
+        expectedArrivalPhones: await openExpectedArrivalPhones(),
+      });
 
       /**
        * Legacy-compatible projection. The admin UI reads these field names, so
@@ -630,7 +657,9 @@ export const vapiRouter = router({
         .from(vapiCallLogs)
         .where(gte(vapiCallLogs.createdAt, cutoff));
 
-      const built = buildRecoveryQueue(rows as QueueSourceRow[], new Date());
+      const built = buildRecoveryQueue(rows as QueueSourceRow[], new Date(), {
+        expectedArrivalPhones: await openExpectedArrivalPhones(),
+      });
       return {
         windowDays: input.days,
         sourceCallCount: built.sourceCallCount,

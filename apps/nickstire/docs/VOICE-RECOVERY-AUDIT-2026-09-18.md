@@ -93,6 +93,32 @@ last five rows. The `$6–15k/mo` figure in the dashboard's own copy has no loca
 
 ---
 
+## 2b · Ohio repair law — verified against the primary rule text
+
+A supplied report urged encoding "Ohio's repair rule changed 2026-03-21; estimates over $50; 10%
+re-authorization" as software. The rule is real and the 10% test is real, but **four of the five
+framing claims are wrong**, and each would have produced a defective guard. Source throughout:
+[OAC 109:4-3-13](https://codes.ohio.gov/ohio-administrative-code/rule-109:4-3-13), full text
+retrieved and diffed against the archived 2015 version.
+
+| Claim | Verdict | What the rule actually says |
+|---|---|---|
+| "The rule changed 2026-03-21" | **Technically true, materially false** | The date is real; the amendment is **purely editorial** — "his" → "the consumer's" in four places. Zero substantive change. **The 10% obligation has been in force since at least 2015; the rule dates to 1978.** Presenting it as a new duty to adapt to would misdirect whoever schedules the work. |
+| "Estimates required over $50" | **Incomplete, and wrong for this channel** | The $50 floor governs **paragraph (A) only** — face-to-face, at the shop, during posted hours. **A phone call is the no-face-to-face path, governed by (B), which has NO dollar floor at all.** (B)(2) requires informing the consumer of the right to an estimate "upon the first contact". A guard keyed on `cost > 50` **under-triggers on precisely the channel Nick operates in.** |
+| "10% or more of the original estimate" | **Verified verbatim — with four parameters, not one** | (C)(2): "ten per cent **or more** (excluding tax) of the original estimate", and **only where an estimate was requested**. So: `>=` not `>`; excluding tax; against the original estimate; gated on an estimate having been requested. A customer who chose "no estimate" falls under (C)(3) instead, whose trigger is a $50 running total. |
+| "Record-retention requirements" | **Refuted — none exist** | No retention period appears in 109:4-3-13, or anywhere in Chapter 109:4-3 (all 31 rules enumerated). The "two years" in circulation is **ORC 1345.10(C)'s statute of limitations** — a different thing. Logging oral authorizations is sound defensive practice; the rule does not command it, and a comment claiming it does would be false. |
+| — | **Trap neither report flagged** | **(J) expressly disapplies 109:4-3-05 to motor vehicles.** That general rule uses **$25** and "$5 or 10%, whichever is greater". The Ohio AG's own business guide blurs the two. Importing those numbers would be wrong. |
+
+**Also corrected, same pass:** "NHTSA says replace tires at 6–10 years" is a **misattribution to a
+regulator** — NHTSA's words are "*Some vehicle and tire manufacturers recommend*…"; it sets no
+interval. The AWD drivetrain-damage warning rests on a single Subaru bulletin **scoped to the 2015
+WRX STI**, about a warning light — not a general law of AWD, and the per-brand tread tolerance
+tables in circulation are unsourced retailer marketing. Google's anti-review-gating rule is real
+and current but **was live by June 2024 and traces to 2018** — the "April 2026" date is wrong.
+
+None of this is encoded yet. It is recorded here so the guard, when written, is written against the
+rule rather than against a summary of it.
+
 ## 3 · Is transfer failure the dominant root cause?
 
 **Unknown, and not measurable with today's instrumentation — which is itself the finding.**

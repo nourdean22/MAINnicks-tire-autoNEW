@@ -37,6 +37,7 @@ import {
   type CallOutcome,
 } from "@shared/callTaxonomy";
 import type { ExtractedDemand } from "@shared/callDemandExtraction";
+import { isTransferFailure } from "../lib/warmTransferConnect";
 
 /** The row shape the router selects. Deliberately narrow. */
 export interface QueueSourceRow {
@@ -175,7 +176,21 @@ function speechFacts(meta: Record<string, unknown>): {
 export function buildRecoveryQueue(
   rows: readonly QueueSourceRow[],
   now: Date,
-  opts: { windowMinutes?: number } = {},
+  opts: {
+    windowMinutes?: number;
+    /**
+     * Last-10 phones with an OPEN expected arrival.
+     *
+     * Injected rather than read from row metadata, because nothing writes an
+     * `expectedArrivalOpen` flag onto a call — the arrivals live in their own
+     * table. Without this the `arrival` lane could never fire and every
+     * walk-in would fall back into recovery, which is the exact behaviour this
+     * queue was being repaired for. A reader with no writer is not a feature.
+     */
+    expectedArrivalPhones?: ReadonlySet<string>;
+    /** Last-10 phones with a paid invoice matched after the call. */
+    invoicedPhones?: ReadonlySet<string>;
+  } = {},
 ): RecoveryQueueResult {
   const grouped = new Map<string, QueueSourceRow[]>();
 
@@ -212,6 +227,13 @@ export function buildRecoveryQueue(
       Math.floor((now.getTime() - latest.createdAt.getTime()) / 60_000),
     );
     const { speakerAttribution, hasCustomerSpeech } = speechFacts(meta);
+    const phone = phoneLast10(latest.phoneNumber);
+    /**
+     * Computed ONCE. Feeding the disposition a derived value while exposing a
+     * different one on the episode is exactly the split-brain this whole wave
+     * exists to remove — and it is how the first draft of this file shipped.
+     */
+    const transferFailed = calls.some((c) => isTransferFailure(c.endedReason));
 
     const disposition = disposeCall({
       outcome: (latest.evalOutcome as CallOutcome) ?? "unknown",
@@ -222,11 +244,19 @@ export function buildRecoveryQueue(
       // Repetition is a PRIORITY signal within one episode — never a row count,
       // and never the old 90-day "seen this number before" heuristic.
       repeatWithinWindow: calls.length > 1,
-      transferFailed: meta.transferFailed === true,
+      /**
+       * VERIFIED failure only — VAPI's own `*-transfer-*` error reasons, via the
+       * same predicate `transferOutcomeEvidence` uses. Never inferred from
+       * `assistant-forwarded-call`, which Vapi's docs confirm means the transfer
+       * was INITIATED, not answered: a call that rang an empty counter and hit
+       * voicemail carries that reason too.
+       */
+      transferFailed,
       safetyFlag: meta.safetyFlag === true,
       existingVehicleAtShop: meta.existingVehicleAtShop === true,
-      invoiceMatched: meta.invoiceMatched === true,
-      expectedArrivalOpen: meta.expectedArrivalOpen === true,
+      invoiceMatched: opts.invoicedPhones?.has(phone) === true || meta.invoiceMatched === true,
+      expectedArrivalOpen:
+        opts.expectedArrivalPhones?.has(phone) === true || meta.expectedArrivalOpen === true,
       hasCapturedSpecifics: intents.includes("tire_size_request") || meta.hasCapturedSpecifics === true,
     });
 
@@ -255,7 +285,7 @@ export function buildRecoveryQueue(
         disposition,
         callIds: calls.map((c) => c.id),
         demand: demandFrom(meta),
-        transferFailed: meta.transferFailed === true,
+        transferFailed,
       });
     }
   }
