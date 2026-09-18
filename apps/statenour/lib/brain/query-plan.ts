@@ -54,7 +54,23 @@ const MONTHS = ["january", "february", "march", "april", "may", "june", "july", 
 const MONTH_RE = new RegExp(`\\b(${MONTHS.join("|")}|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\\b`, "i");
 const ISO_RE = /\b(20\d{2})-(\d{2})-(\d{2})\b/;
 const DURABLE_NOUNS = /\b(name|birthday|address|doctor|medication|meds|wife|husband|daughter|son|kid|car|plate|license|insurance|rent|mortgage|salary|passport|allerg\w*|blood type|routine|preference|prefer|always|never)\b/i;
-const CORRECTION_RE = /\b(what changed|which (one )?is current|did i change|now vs|still true|updated?|corrected?|no longer|instead of)\b/i;
+/**
+ * 2026-09-17 · MEASURED and retuned. The first cut carried bare `updated?`,
+ * `corrected?` and `instead of`, which are ordinary verbs and a preposition,
+ * not premise checks: on a 36-case fixture set it classified 10 of 19 ordinary
+ * turns as corrections ("update the shop hours to 8am", "send Moe an updated
+ * invoice", "book the oil change instead of the rotation") while MISSING 10 of
+ * 17 real ones ("has that changed?", "am i still paying 1900", "is that out of
+ * date now") — 41% recall at a 53% false-positive rate. It cost nothing while
+ * the class had no consumer; it gained one (NICK_CORRECTION_THRESHOLD_BOOST)
+ * in this same PR, and a false correction there loosens contradiction
+ * surfacing on an ordinary turn — the trust-killer contradiction-injector.ts's
+ * own header warns about. Retuned to 17/17 recall at 0/19 false positives on
+ * the same fixtures; both sets are pinned in tests/brain/query-plan.test.ts so
+ * a future widening has to beat them, not just look reasonable.
+ */
+const CORRECTION_RE =
+  /\b(what('?s| has)? changed|(has|have) (that|it|this|they|things) changed|which (one )?is (current|right|correct)|did (i|that|it|we) change|now vs|still (true|current|accurate|right|correct|the case|valid)|(am|are|is|do|does) (i|we|that|it|they) still|no longer|up[- ]to[- ]date|out of date|changed since|superseded)\b/i;
 const PRONOUN_RE = /\b(it|that|this|those|these|the same|again|there|them)\b/i;
 const HOP_RE = /\b(and then|because of|which led to|compare|difference between)\b/i;
 const SYNTH_RE = /^(summari[sz]e|overview|everything about|what do you know about)\b/i;
