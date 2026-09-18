@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { BUSINESS } from "./business";
 import {
   FORBIDDEN_SMS_PHRASES,
+  PAYMENT_PROGRAMS_LINE,
   compileRecoverySms,
   todayHoursPhrase,
   type ObservedCallFacts,
@@ -197,6 +198,75 @@ describe("compliance mechanics", () => {
       const c = compileRecoverySms(facts as ObservedCallFacts, opts());
       expect(c.segments).toBeGreaterThan(0);
       expect(c.segments).toBeLessThanOrEqual(3);
+    }
+  });
+});
+
+/* ───────────────────── payment programs · 2026-09-18 ───────────────────── */
+
+describe("payment programs · offered, but sayable only one way", () => {
+  // Operator confirmed 2026-09-18 that payment programs ARE offered. Three
+  // separate repo rules govern how that may be worded, and an outside proposal
+  // reviewed the same day violated all three at once.
+
+  it("is mentioned ONLY when the caller raised cost", () => {
+    expect(compileRecoverySms(TIRE, opts()).body).not.toMatch(/payment program/i);
+    expect(compileRecoverySms({ ...TIRE, priceHesitation: true }, opts()).body)
+      .toMatch(/payment programs/i);
+  });
+
+  it("the approved line itself passes the forbidden-phrase sweep", () => {
+    // The line contains the URL .../financing — a path, not a self-description.
+    for (const pattern of FORBIDDEN_SMS_PHRASES) {
+      expect(PAYMENT_PROGRAMS_LINE).not.toMatch(pattern);
+    }
+  });
+
+  it("promises nothing: no approval, no down payment, no credit outcome", () => {
+    const { body, refusedClaims } = compileRecoverySms(
+      { ...TIRE, priceHesitation: true },
+      opts(),
+    );
+    expect(body).not.toMatch(/\$\d/);
+    expect(body).not.toMatch(/approved/i);
+    expect(body).not.toMatch(/credit check/i);
+    expect(refusedClaims.join(" ")).toMatch(/provider/i);
+  });
+
+  it("POSITIVE CONTROL: the sweep catches the drafts that were actually proposed", () => {
+    // Verbatim from an external report reviewed 2026-09-18. Each breaks a
+    // different rule, and each reads perfectly reasonable — which is why the
+    // guard is mechanical rather than a style note.
+    const proposed: Array<[string, string]> = [
+      [
+        "we actually offer financing starting at just $10 down with no hard credit check",
+        "banned self-description + a down payment + a credit-outcome promise",
+      ],
+      [
+        "a lot of our customers just put $10 down and finance a brand new set of 4",
+        "a fixed initial payment we may not promise",
+      ],
+      [
+        "We have used tires starting at $25",
+        "web-only price stated on a quoting channel, where the anchor is $60",
+      ],
+    ];
+    for (const [draft, why] of proposed) {
+      const caught = FORBIDDEN_SMS_PHRASES.some((p) => p.test(draft));
+      expect(caught, `should have been caught (${why}): ${draft}`).toBe(true);
+    }
+  });
+
+  it("no compiled message can carry a banned payment phrase", () => {
+    const variants: ObservedCallFacts[] = [
+      { ...TIRE, priceHesitation: true },
+      { symptom: "brakes grinding", priceHesitation: true },
+      { priceHesitation: true },
+      { condition: "used", priceHesitation: true },
+    ];
+    for (const facts of variants) {
+      const { body } = compileRecoverySms(facts, opts());
+      for (const pattern of FORBIDDEN_SMS_PHRASES) expect(body).not.toMatch(pattern);
     }
   });
 });

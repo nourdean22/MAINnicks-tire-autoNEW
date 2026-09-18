@@ -50,7 +50,36 @@ export interface ObservedCallFacts {
   callbackRequested?: boolean;
   /** Caller's vehicle is already at the shop. */
   existingVehicleAtShop?: boolean;
+  /**
+   * The caller raised cost as an obstacle ("that's too much", "can't afford
+   * that right now"). Operator-confirmed 2026-09-18 that payment programs are
+   * offered, so this is a legitimate, useful thing to mention — but ONLY in the
+   * exact wording the brand voice kernel permits. See `PAYMENT_PROGRAMS_LINE`.
+   */
+  priceHesitation?: boolean;
 }
+
+/**
+ * THE ONLY APPROVED PAYMENT-PROGRAMS SENTENCE.
+ *
+ * Nick's does offer third-party payment programs (Acima, Snap Finance, Koalafi,
+ * American First Finance — `shared/financing.ts`). Three separate rules govern
+ * how that may be said, and a plausible-sounding draft breaks all three:
+ *
+ *   1. `shared/voice.ts:826` blocks "We Offer Financing" outright — the approved
+ *      term is "Payment Programs". This is a HARD gate (`lint:brand-voice`).
+ *   2. `shared/financing.ts` forbids collapsing lease-to-own, installment credit
+ *      and loans into generic "financing", and forbids promising "approval, a
+ *      fixed initial payment, a credit outcome, or a promotional payoff result".
+ *      So no "$10 down", no "no credit check", no "90-day same as cash".
+ *   3. Acima's own recorded disclosure is `creditCheck: "Uses consumer-reporting
+ *      and other application data"` — which is NOT "no hard credit check".
+ *
+ * This sentence states that programs exist and routes to the page that carries
+ * each provider's real disclosure. It promises nothing.
+ */
+export const PAYMENT_PROGRAMS_LINE =
+  "We have payment programs through several providers — terms and approval come from them, and you can see the options at nickstire.org/financing.";
 
 export type SmsBlocker =
   | "opted_out"
@@ -221,6 +250,20 @@ export function compileRecoverySms(
     usedFacts.push("address");
   }
 
+  /**
+   * Payment programs, in the ONLY approved wording, and ONLY when the CALLER
+   * raised cost. Never volunteered — an unsolicited credit pitch to someone who
+   * asked about a flat repair is exactly the pushy call-centre behaviour a
+   * trusted neighbourhood shop should not adopt.
+   */
+  if (facts.priceHesitation) {
+    lines.push(PAYMENT_PROGRAMS_LINE);
+    usedFacts.push("priceHesitation");
+    refusedClaims.push(
+      "did not promise approval, a down-payment amount, a credit outcome or a payoff result — those are the provider's decision",
+    );
+  }
+
   if (opts.isFirstInThread !== false) lines.push(OPT_OUT);
 
   const body = blockers.length ? "" : lines.join(" ");
@@ -241,6 +284,7 @@ export function compileRecoverySms(
  * shop cannot keep — and the old templates contained four of these verbatim.
  */
 export const FORBIDDEN_SMS_PHRASES: readonly RegExp[] = [
+  // — inventory, price, capacity and outcome promises —
   /\bin stock\b/i,
   /\ball major brands\b/i,
   /\bwhile you wait\b/i,
@@ -249,4 +293,13 @@ export const FORBIDDEN_SMS_PHRASES: readonly RegExp[] = [
   /\$\d/,
   /\bguarantee/i,
   /\bwe can fix\b/i,
+  // — payment programs: three separate rules, each independently violated by a
+  //   plausible-sounding draft. See PAYMENT_PROGRAMS_LINE for the full reasoning.
+  // The WORD as self-description. A URL path (…org/financing) is fine, so the
+  // lookbehind excludes a preceding slash.
+  /(?<!\/)\bfinancing\b/i,
+  /no\s+(hard\s+)?credit\s+check/i, // contradicts Acima's recorded disclosure
+  /\bpre.?approved\b/i,      // approval is the provider's decision, never ours
+  /same[\s-]as[\s-]cash/i,   // a promotional payoff result we may not promise
+  /\bno\s+fico\b/i,
 ];
