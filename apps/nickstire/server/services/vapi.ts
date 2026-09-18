@@ -1209,9 +1209,50 @@ export async function getAssistantRoutingTruth(): Promise<{
   /** The assistant "Push Latest Config" writes to. */
   editTargetAssistantId: string | null;
   number: string;
+  /**
+   * Health of the OUTBOUND pin, reported alongside the inbound one because an
+   * operator asking "is my config wired correctly" means both rails.
+   *
+   * Reports the assistant ID, never the env var itself: an assistant id is
+   * already displayed on this page and is not a secret, whereas dumping the
+   * environment to answer one question is not a trade worth making.
+   *
+   *  · healthy  - a pin is set and names a live assistant
+   *  · retired  - the pin names a retired assistant, so outbound SKIPS
+   *  · unset    - no pin, so outbound was never configured
+   */
+  followUp: {
+    state: "healthy" | "retired" | "unset";
+    assistantId: string | null;
+    detail: string;
+  };
 }> {
   const number = DEFAULT_VAPI_OUTBOUND_NUMBER;
   const editTargetAssistantId = process.env.VAPI_RECEPTIONIST_ASSISTANT_ID ?? null;
+
+  // Computed ONCE and returned on every path, including the failure paths: the
+  // outbound pin is knowable from this process regardless of whether the VAPI
+  // phone-number read succeeds, so a failed inbound read must not blank it.
+  const rawFollowUpPin = (process.env.VAPI_FOLLOWUP_ASSISTANT_ID || "").trim();
+  const resolvedFollowUp = followUpAssistantIdOrNull();
+  const followUp: { state: "healthy" | "retired" | "unset"; assistantId: string | null; detail: string } =
+    !rawFollowUpPin
+      ? {
+          state: "unset",
+          assistantId: null,
+          detail: "No outbound assistant is pinned, so the follow-up rail is not configured.",
+        }
+      : resolvedFollowUp
+        ? {
+            state: "healthy",
+            assistantId: resolvedFollowUp,
+            detail: `Outbound follow-up is pinned to ${resolvedFollowUp}.`,
+          }
+        : {
+            state: "retired",
+            assistantId: rawFollowUpPin,
+            detail: `Outbound follow-up is pinned to ${rawFollowUpPin}, which is RETIRED — the rail is skipping rather than dialling. Repoint it at the dedicated follow-up caller.`,
+          };
 
   if (!process.env.VAPI_API_KEY) {
     return {
@@ -1220,6 +1261,7 @@ export async function getAssistantRoutingTruth(): Promise<{
       answeringAssistantId: null,
       editTargetAssistantId,
       number,
+      followUp,
     };
   }
 
@@ -1232,6 +1274,7 @@ export async function getAssistantRoutingTruth(): Promise<{
         answeringAssistantId: null,
         editTargetAssistantId,
         number,
+        followUp,
       };
     }
     const numbers = (await res.json()) as Array<{ id: string; number: string; assistantId?: string | null }>;
@@ -1242,6 +1285,7 @@ export async function getAssistantRoutingTruth(): Promise<{
         answeringAssistantId: null,
         editTargetAssistantId,
         number,
+        followUp,
       };
     }
 
@@ -1253,6 +1297,7 @@ export async function getAssistantRoutingTruth(): Promise<{
         answeringAssistantId: null,
         editTargetAssistantId,
         number,
+        followUp,
       };
     }
 
@@ -1266,6 +1311,7 @@ export async function getAssistantRoutingTruth(): Promise<{
         answeringAssistantId: null,
         editTargetAssistantId,
         number,
+        followUp,
       };
     }
 
@@ -1276,6 +1322,7 @@ export async function getAssistantRoutingTruth(): Promise<{
         answeringAssistantId,
         editTargetAssistantId,
         number,
+        followUp,
       };
     }
 
@@ -1286,6 +1333,7 @@ export async function getAssistantRoutingTruth(): Promise<{
         answeringAssistantId,
         editTargetAssistantId,
         number,
+        followUp,
       };
     }
 
@@ -1295,6 +1343,7 @@ export async function getAssistantRoutingTruth(): Promise<{
       answeringAssistantId,
       editTargetAssistantId,
       number,
+      followUp,
     };
   } catch (error) {
     return {
@@ -1303,6 +1352,7 @@ export async function getAssistantRoutingTruth(): Promise<{
       answeringAssistantId: null,
       editTargetAssistantId,
       number,
+      followUp,
     };
   }
 }

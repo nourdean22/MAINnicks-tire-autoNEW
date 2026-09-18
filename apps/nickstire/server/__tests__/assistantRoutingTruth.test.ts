@@ -23,6 +23,7 @@ const OTHER = "afcad79e-ec3a-0000-0000-000000000000";
 
 const ORIGINAL_KEY = process.env.VAPI_API_KEY;
 const ORIGINAL_PIN = process.env.VAPI_RECEPTIONIST_ASSISTANT_ID;
+const ORIGINAL_FOLLOWUP = process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
 
 /** Stub only the phone-number fetch; everything else stays real. */
 function stubPhoneNumbers(body: unknown, ok = true, status = 200) {
@@ -36,6 +37,9 @@ function stubPhoneNumbers(body: unknown, ok = true, status = 200) {
 beforeEach(() => {
   process.env.VAPI_API_KEY = "test-key";
   process.env.VAPI_RECEPTIONIST_ASSISTANT_ID = PINNED;
+  // Cleared per-test, not just restored after: the outbound-pin cases below
+  // each set it, and serial mode shares ONE process.env across every file.
+  delete process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
 });
 
 afterEach(() => {
@@ -44,8 +48,10 @@ afterEach(() => {
   // undefined, and assigning undefined stores the literal string "undefined".
   delete process.env.VAPI_API_KEY;
   delete process.env.VAPI_RECEPTIONIST_ASSISTANT_ID;
+  delete process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
   if (ORIGINAL_KEY !== undefined) process.env.VAPI_API_KEY = ORIGINAL_KEY;
   if (ORIGINAL_PIN !== undefined) process.env.VAPI_RECEPTIONIST_ASSISTANT_ID = ORIGINAL_PIN;
+  if (ORIGINAL_FOLLOWUP !== undefined) process.env.VAPI_FOLLOWUP_ASSISTANT_ID = ORIGINAL_FOLLOWUP;
 });
 
 describe("the question has a real answer", () => {
@@ -164,5 +170,57 @@ describe("the contract holds regardless of state", () => {
       stubPhoneNumbers(body);
       await expect(getAssistantRoutingTruth()).resolves.toBeDefined();
     }
+  });
+});
+
+describe("the outbound pin is reported beside the inbound one", () => {
+  const RETIRED = "afcad79e-ec33-4156-98fe-7eb325c1222a";
+  const OUTBOUND = "0daaf7dc-1394-4731-908f-5c91788c2d3d";
+
+  it("a healthy pin reports healthy, with its id", async () => {
+    process.env.VAPI_FOLLOWUP_ASSISTANT_ID = OUTBOUND;
+    stubPhoneNumbers([{ id: "pn_1", number: NUMBER, assistantId: PINNED }]);
+    const r = await getAssistantRoutingTruth();
+    expect(r.followUp.state).toBe("healthy");
+    expect(r.followUp.assistantId).toBe(OUTBOUND);
+  });
+
+  it("a RETIRED pin reports retired, and names the id so it can be repointed", async () => {
+    // The whole reason this field exists: answering the question without
+    // dumping the environment to read one value.
+    process.env.VAPI_FOLLOWUP_ASSISTANT_ID = RETIRED;
+    stubPhoneNumbers([{ id: "pn_1", number: NUMBER, assistantId: PINNED }]);
+    const r = await getAssistantRoutingTruth();
+    expect(r.followUp.state).toBe("retired");
+    expect(r.followUp.assistantId).toBe(RETIRED);
+    expect(r.followUp.detail).toContain("skipping");
+  });
+
+  it("an unset pin reports unset, not retired", async () => {
+    delete process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+    stubPhoneNumbers([{ id: "pn_1", number: NUMBER, assistantId: PINNED }]);
+    expect((await getAssistantRoutingTruth()).followUp.state).toBe("unset");
+  });
+
+  it("the outbound reading SURVIVES a failed inbound read", async () => {
+    // The pin is knowable from this process regardless of whether VAPI answers.
+    // A 503 on the phone-number call must not blank an answer we already have.
+    process.env.VAPI_FOLLOWUP_ASSISTANT_ID = RETIRED;
+    stubPhoneNumbers({}, false, 503);
+    const r = await getAssistantRoutingTruth();
+    expect(r.state).toBe("unknown");
+    expect(r.followUp.state).toBe("retired");
+  });
+
+  it("POSITIVE CONTROL: all three outbound states are reachable", async () => {
+    const seen = new Set<string>();
+    for (const pin of [OUTBOUND, RETIRED, undefined]) {
+      vi.unstubAllGlobals();
+      if (pin) process.env.VAPI_FOLLOWUP_ASSISTANT_ID = pin;
+      else delete process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+      stubPhoneNumbers([{ id: "pn_1", number: NUMBER, assistantId: PINNED }]);
+      seen.add((await getAssistantRoutingTruth()).followUp.state);
+    }
+    expect([...seen].sort()).toEqual(["healthy", "retired", "unset"]);
   });
 });

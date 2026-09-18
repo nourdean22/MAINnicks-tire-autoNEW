@@ -158,6 +158,20 @@ export default function VapiPanel() {
                     : "Routing unverified"}
               </p>
               <p className="text-[11px] text-foreground/60">{routing.detail}</p>
+              {/* The OUTBOUND rail, reported beside the inbound one because
+                  "is my config wired correctly" means both. Retired is red: it
+                  means the follow-up rail is skipping rather than dialling. */}
+              {routing.followUp && (
+                <p
+                  className={
+                    routing.followUp.state === "retired"
+                      ? "mt-1.5 text-[11px] text-red-300"
+                      : "mt-1.5 text-[11px] text-foreground/45"
+                  }
+                >
+                  {routing.followUp.detail}
+                </p>
+              )}
             </div>
           )}
           {promptLessons && promptLessons.length > 0 && (
