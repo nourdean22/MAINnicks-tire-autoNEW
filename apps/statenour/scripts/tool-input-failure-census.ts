@@ -29,11 +29,22 @@
  * while `failCount` is the count — never add the string counts and call it a
  * total. Both limits are printed with the output rather than left implicit.
  *
- * `lastCallAt` IS THE TOOL'S LAST CALL, NOT THE ERROR'S TIMESTAMP — the rows
- * carry no per-error time. So "LIVE" means "this tool is still in use", which
- * is the weaker claim: a live tool whose bug was fixed still reads LIVE until
- * its five strings are pushed out. Read it as a floor on staleness, not proof
- * of currency, and confirm against the tool's source before acting on it.
+ * THE FIRST VERSION OF THIS FILE CARRIED A CAVEAT THAT WAS ITSELF FALSE.
+ * It stated "lastCallAt IS THE TOOL'S LAST CALL, NOT THE ERROR'S TIMESTAMP —
+ * the rows carry no per-error time", and dated everything by the tool. The rows
+ * DO carry a per-error time: `lastErrors` is typed `{ message, at }[]` at
+ * `lib/ai/tool-telemetry.ts:348`, and all 33 stored entries populate `at`. The
+ * caveat was never checked against the field's own type. It named a real class
+ * of error and hedged in the right direction, which made it read as diligence
+ * while being fiction — a caveat asserting a limitation is a factual claim, and
+ * needs verifying exactly like the finding it qualifies.
+ *
+ * It also changed the answer. Tool-level dating scored the live split argument
+ * 11 / name 1, and that one "live" name failure was `arsenalWebSearch` — whose
+ * TOOL was called 7d ago but whose ERROR is 37d old. Per-error dating gives
+ * argument 11 / name 0: every tool-call failure in the last 14 days is an
+ * argument failure. `lastCallAt` survives below only as a fallback for legacy
+ * rows carrying no `at`, and those are marked rather than silently dated.
  *
  * Read-only: findMany only.
  *
@@ -97,19 +108,28 @@ export function classifyToolError(message: string): FailureClass {
   return "execution";
 }
 
-function asMessages(raw: unknown): string[] {
+interface StoredError {
+  message: string;
+  /** Epoch ms off the row itself, or null for a legacy entry with no `at`. */
+  at: number | null;
+}
+
+function asErrors(raw: unknown): StoredError[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((e) => {
-      if (typeof e === "string") return e;
+    .map((e): StoredError => {
+      if (typeof e === "string") return { message: e, at: null };
       if (e && typeof e === "object") {
         const o = e as Record<string, unknown>;
         const v = o.message ?? o.error ?? o.text;
-        return typeof v === "string" ? v : JSON.stringify(e);
+        return {
+          message: typeof v === "string" ? v : JSON.stringify(e),
+          at: typeof o.at === "number" ? o.at : null,
+        };
       }
-      return String(e);
+      return { message: String(e), at: null };
     })
-    .filter((s) => s.length > 0);
+    .filter((x) => x.message.length > 0);
 }
 
 async function main(): Promise<void> {
@@ -133,7 +153,7 @@ async function main(): Promise<void> {
   const ageDays = (d: Date | null) =>
     d === null ? Infinity : Math.floor((now - d.getTime()) / 86_400_000);
 
-  type Item = { tool: string; msg: string; age: number; stale: boolean };
+  type Item = { tool: string; msg: string; age: number; stale: boolean; dated: boolean };
   const byClass: Record<FailureClass, Item[]> = {
     name: [],
     argument: [],
@@ -142,13 +162,26 @@ async function main(): Promise<void> {
   };
   let sampled = 0;
   let totalFailCount = 0;
+  let legacyUndated = 0;
 
   for (const r of rows) {
     totalFailCount += r.failCount;
-    const age = ageDays(r.lastCallAt);
-    for (const msg of asMessages(r.lastErrors)) {
+    const toolAge = ageDays(r.lastCallAt);
+    for (const { message: msg, at } of asErrors(r.lastErrors)) {
       sampled += 1;
-      byClass[classifyToolError(msg)].push({ tool: r.toolName, msg, age, stale: age > STALE_DAYS });
+      // Prefer the ERROR's own time. Fall back to the tool's last call only for
+      // a legacy entry, and mark it, so the weaker basis never passes as the
+      // strong one — that substitution is what cost this script its first answer.
+      const dated = at !== null;
+      if (!dated) legacyUndated += 1;
+      const age = dated ? Math.floor((now - at) / 86_400_000) : toolAge;
+      byClass[classifyToolError(msg)].push({
+        tool: r.toolName,
+        msg,
+        age,
+        stale: age > STALE_DAYS,
+        dated,
+      });
     }
   }
 
@@ -158,7 +191,12 @@ async function main(): Promise<void> {
 
   console.log(`POPULATION : ${totalFailCount} recorded failures across ${rows.length} tools`);
   console.log(`SAMPLE     : ${sampled} error strings retained in lastErrors`);
-  console.log(`LIVE SAMPLE: ${liveSample} from a tool called within ${STALE_DAYS}d\n`);
+  console.log(`LIVE SAMPLE: ${liveSample} errors recorded within ${STALE_DAYS}d`);
+  console.log(
+    legacyUndated === 0
+      ? "DATING     : every entry carries its own timestamp — tool-level fallback unused\n"
+      : `DATING     : ${legacyUndated} legacy entries have no timestamp and fall back to the TOOL's last call\n`,
+  );
 
   if (sampled === 0) {
     console.log("NO ERROR STRINGS RETAINED. This is UNMEASURED, not 'no failures' —");
@@ -175,9 +213,10 @@ async function main(): Promise<void> {
       console.log("   (none)\n");
       continue;
     }
-    for (const { tool, msg, age, stale } of items.slice(0, 8)) {
+    for (const { tool, msg, age, stale, dated } of items.slice(0, 8)) {
       const tag = stale ? "STALE" : "LIVE ";
-      const when = age === Infinity ? "never" : `${age}d`;
+      // A leading "~" marks an age inherited from the TOOL, not the error.
+      const when = age === Infinity ? "never" : `${dated ? "" : "~"}${age}d`;
       console.log(`   ${tag} ${tool.padEnd(20)} (${when}) ${msg.replace(/\s+/g, " ").slice(0, 160)}`);
     }
     if (items.length > 8) console.log(`   ... and ${items.length - 8} more`);
@@ -195,8 +234,13 @@ async function main(): Promise<void> {
     );
   } else if (arg > name) {
     console.log(
-      `VERDICT: ARGUMENT failures outnumber NAME failures among LIVE evidence (${arg} vs ${name}).` +
-        " repair-tool-call.ts covers only the SMALLER class.",
+      `VERDICT: ARGUMENT failures outnumber NAME failures among LIVE evidence (${arg} vs ${name}).`,
+    );
+    console.log(
+      name === 0
+        ? `  NAME has ZERO live instances — every tool-call failure inside ${STALE_DAYS}d is an` +
+            " argument failure, and the name lane is maintained on history alone."
+        : "  repair-tool-call.ts covers the smaller class.",
     );
   } else {
     console.log(
