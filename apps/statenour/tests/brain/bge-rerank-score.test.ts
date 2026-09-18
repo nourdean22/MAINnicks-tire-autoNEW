@@ -18,8 +18,14 @@
  * These pin #2. #1 is pinned by the measured payload comment in the module and
  * cannot be unit-tested without hitting the paid endpoint.
  */
-import { describe, it, expect } from "vitest";
-import { extractRerankScore } from "@/lib/brain/bge-rerank";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import {
+  extractRerankScore,
+  noteBgeOutcome,
+  resetBgeBreaker,
+  bgeBreakerState,
+  isBgeRerankAvailable,
+} from "@/lib/brain/bge-rerank";
 
 describe("extractRerankScore survives every nesting HF actually emits", () => {
   it("a bare number", () => {
@@ -83,5 +89,78 @@ describe("extractRerankScore refuses what it cannot read", () => {
     expect(extractRerankScore(0)).toBe(0);
     expect(extractRerankScore([{ score: 0 }])).toBe(0);
     expect(extractRerankScore([[{ label: "LABEL_0", score: 0 }]])).toBe(0);
+  });
+});
+
+/**
+ * The circuit breaker. isBgeRerankAvailable() was `Boolean(process.env.HF_API_KEY)`,
+ * so a key that is revoked, invalid, or OUT OF CREDITS (402, observed live
+ * 2026-09-18) read as AVAILABLE forever — and rerank.ts would fire one doomed
+ * request PER CANDIDATE (25 on the observed recall path) before falling back to
+ * Cohere, on every chat turn, indefinitely.
+ */
+describe("bge circuit breaker: a present key is not a working backend", () => {
+  const KEY = "HF_API_KEY";
+  let saved: string | undefined;
+
+  beforeEach(() => {
+    saved = process.env[KEY];
+    process.env[KEY] = "test-key";
+    resetBgeBreaker();
+  });
+
+  afterEach(() => {
+    if (saved === undefined) delete process.env[KEY];
+    else process.env[KEY] = saved;
+    resetBgeBreaker();
+  });
+
+  const T0 = 1_000_000;
+
+  it("CONTROL: with a key and no failures, the backend is available", () => {
+    // Without this a breaker stuck permanently open would pass every test below.
+    expect(isBgeRerankAvailable(T0)).toBe(true);
+  });
+
+  it("one total failure does NOT trip it — a single blip is not an outage", () => {
+    noteBgeOutcome("total-failure", T0);
+    expect(isBgeRerankAvailable(T0)).toBe(true);
+    expect(bgeBreakerState().consecutiveTotalFailures).toBe(1);
+  });
+
+  it("★ two consecutive total failures go cold", () => {
+    noteBgeOutcome("total-failure", T0);
+    noteBgeOutcome("total-failure", T0);
+    expect(isBgeRerankAvailable(T0)).toBe(false);
+  });
+
+  it("★ and it comes BACK after the cooldown — cold is not dead", () => {
+    // A breaker that never recovers is just a permanent outage with extra steps.
+    noteBgeOutcome("total-failure", T0);
+    noteBgeOutcome("total-failure", T0);
+    expect(isBgeRerankAvailable(T0 + 9 * 60_000)).toBe(false);
+    expect(isBgeRerankAvailable(T0 + 11 * 60_000)).toBe(true);
+  });
+
+  it("a success resets the streak, so failures must be CONSECUTIVE", () => {
+    noteBgeOutcome("total-failure", T0);
+    noteBgeOutcome("success", T0);
+    noteBgeOutcome("total-failure", T0);
+    expect(isBgeRerankAvailable(T0)).toBe(true);
+    expect(bgeBreakerState().consecutiveTotalFailures).toBe(1);
+  });
+
+  it("a success while COLD clears the cooldown immediately", () => {
+    noteBgeOutcome("total-failure", T0);
+    noteBgeOutcome("total-failure", T0);
+    expect(isBgeRerankAvailable(T0)).toBe(false);
+    noteBgeOutcome("success", T0);
+    expect(isBgeRerankAvailable(T0)).toBe(true);
+    expect(bgeBreakerState().coldUntilMs).toBe(0);
+  });
+
+  it("no key means unavailable regardless of breaker state", () => {
+    delete process.env[KEY];
+    expect(isBgeRerankAvailable(T0)).toBe(false);
   });
 });

@@ -191,11 +191,22 @@ async function _bgeRerank<T>(args: {
   // Filter out failed candidates · if too many failed, return null so
   // the orchestrator falls back to Cohere or identity
   const successful = scoresOrNulls.filter((s) => typeof s.score === "number");
-  if (successful.length === 0) return null;
-  if (successful.length < Math.ceil(args.candidates.length * 0.5)) {
-    // >50% failure rate · likely model loading or auth · don't trust partial result
+  if (successful.length === 0) {
+    // ⚠ TOTAL failure — every candidate errored. This is the signal the breaker
+    // exists for: a key that is present but dead produces exactly this, on every
+    // single call, forever.
+    noteBgeOutcome("total-failure");
     return null;
   }
+  if (successful.length < Math.ceil(args.candidates.length * 0.5)) {
+    // >50% failure rate · likely model loading or auth · don't trust partial
+    // result. Deliberately NOT a breaker trip: some candidates DID score, so the
+    // backend is reachable and the fault is per-request (oversized passage,
+    // transient 503). Tripping here would disable a working backend over one
+    // awkward batch — the opposite mistake to the one above.
+    return null;
+  }
+  noteBgeOutcome("success");
 
   // Sort by score descending
   successful.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
@@ -246,6 +257,64 @@ export async function bgeRerank<T>(args: {
   }
 }
 
-export function isBgeRerankAvailable(): boolean {
-  return Boolean(process.env.HF_API_KEY);
+/* ════════════════════════════════════════════════════════════════════════════
+ * CIRCUIT BREAKER — because A KEY BEING PRESENT IS NOT THE BACKEND WORKING
+ * ════════════════════════════════════════════════════════════════════════════
+ * isBgeRerankAvailable() used to be `Boolean(process.env.HF_API_KEY)`. A key
+ * that is revoked, invalid, or — as observed live 2026-09-18 — OUT OF CREDITS
+ * (HTTP 402) therefore read as AVAILABLE forever.
+ *
+ * The cost of that is not one failed call. rerank.ts routes to BGE first when
+ * the flag is on, _bgeRerank fires ONE REQUEST PER CANDIDATE (25 on the
+ * observed recall path), every one fails, and only then does Cohere run. That
+ * whole doomed round trip is paid on EVERY rerank, on every chat turn, forever,
+ * with a correct-looking fallback hiding it.
+ *
+ * So: after two consecutive TOTAL failures the backend goes cold for ten
+ * minutes. Any success resets it immediately. This is deliberately not a
+ * per-error-code policy — a 402 is persistent and a 503 is transient, but both
+ * are answered correctly by "stop hammering, retry later", and one rule has no
+ * branches to get wrong.
+ *
+ * ⚠ SCOPE, STATED: this is per-process state. On serverless each instance
+ * learns independently, so it bounds waste WITHIN an instance's life rather
+ * than globally. That is a real limit, not an oversight — a shared breaker
+ * needs a store, and this is worth having before that is worth building.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+const BREAKER_TRIP_AFTER = 2;
+const BREAKER_COOLDOWN_MS = 10 * 60 * 1000;
+
+const breaker = { consecutiveTotalFailures: 0, coldUntilMs: 0 };
+
+/** Record the outcome of one _bgeRerank attempt. Exported for tests. */
+export function noteBgeOutcome(
+  outcome: "success" | "total-failure",
+  now: number = Date.now(),
+): void {
+  if (outcome === "success") {
+    breaker.consecutiveTotalFailures = 0;
+    breaker.coldUntilMs = 0;
+    return;
+  }
+  breaker.consecutiveTotalFailures += 1;
+  if (breaker.consecutiveTotalFailures >= BREAKER_TRIP_AFTER) {
+    breaker.coldUntilMs = now + BREAKER_COOLDOWN_MS;
+  }
+}
+
+/** Test seam only — never called in production paths. */
+export function resetBgeBreaker(): void {
+  breaker.consecutiveTotalFailures = 0;
+  breaker.coldUntilMs = 0;
+}
+
+/** Inspect the breaker without mutating it. Exported for tests + diagnostics. */
+export function bgeBreakerState(): { consecutiveTotalFailures: number; coldUntilMs: number } {
+  return { ...breaker };
+}
+
+export function isBgeRerankAvailable(now: number = Date.now()): boolean {
+  if (!process.env.HF_API_KEY) return false;
+  return now >= breaker.coldUntilMs;
 }
