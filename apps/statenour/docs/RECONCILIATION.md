@@ -68,8 +68,14 @@
 >   starts collecting. Do not flip it on the 0.6 guess.
 > - **`subQueries` still dark, on purpose.** Wiring needs a second retrieval plus a merge; the
 >   natural merge (`retrieval-arbiter.arbitrate()`) is behind `NICK_RECALL_ARBITER`, default off.
-> - **11 `NICK_*` switches remain unregistered**, baselined in the ratchet. Worst:
->   `NICK_FAILOVER_RESCUE`, live in production and invisible on the flag board.
+> - **11 `NICK_*` keys baselined in the ratchet — 7 switches + 4 tuning knobs, and only the
+>   7 are a defect.** The knobs (`NICK_CALIBRATION_K`, `NICK_TOOL_BUDGET`,
+>   `NICK_TOOL_TIMEOUT_MS`, `NICK_ESCALATION_DAILY_CAP`) are numeric VALUES, excluded on
+>   purpose — the ratchet's own header says forcing them onto an on/off board would be worse
+>   than leaving them. Counting all 11 as "unregistered switches" would file four deliberate
+>   exclusions as bugs. Worst of the real 7: `NICK_FAILOVER_RESCUE`, live in production and
+>   invisible on the flag board. Follow-up #2429 registers all 7 as `readOnly` mirrors and
+>   takes the baseline to the 4 knobs.
 > - **`FAST_TOPIC_STOPWORDS` gap.** "is it still the same" derives the useless topic `["same"]`.
 >   Widening the list is a ranking change and belongs with a recall-eval run.
 > - **`packages/reel-engine` does not build in a junctioned worktree** (`@remotion/bundler` absent,

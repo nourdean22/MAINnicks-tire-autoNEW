@@ -28,10 +28,16 @@ when a wave of work lands, before ending the session.
    Then update the `**Last verified:**` stamp. **Do not trust a line number
    for it — find it with the guard's own regex.** `check-stale-docs.ts:226`
    matches `/Last verified:(?:\*\*|\s)*(\d{4}-\d{2}-\d{2})/i`, i.e. the first
-   occurrence *followed by a DATE*. Verified 2026-09-18:
+   occurrence *followed by a DATE*. Verified 2026-09-18.
+
+   Run it from the REPO ROOT (the normal working directory) — the path is
+   `apps/statenour/docs/RECONCILIATION.md`. A bare `docs/RECONCILIATION.md`
+   throws `ENOENT` from the root, which is exactly how the first version of
+   this probe shipped: broken, in the step whose entire purpose is to stop you
+   editing the wrong stamp. Caught in review on #2428.
 
    ```bash
-   node -e "const fs=require('fs');const m=/Last verified:(?:\*\*|\s)*(\d{4}-\d{2}-\d{2})/i.exec(fs.readFileSync('docs/RECONCILIATION.md','utf8'));console.log(m&&m[1], 'line', m&&fs.readFileSync('docs/RECONCILIATION.md','utf8').slice(0,m.index).split('\n').length)"
+   node -e "const fs=require('fs');const p='apps/statenour/docs/RECONCILIATION.md';const c=fs.readFileSync(p,'utf8');const m=/Last verified:(?:\*\*|\s)*(\d{4}-\d{2}-\d{2})/i.exec(c);console.log(m&&m[1],'line',m&&c.slice(0,m.index).split('\n').length)"
    ```
 
    This skill previously said the guard reads a stamp "embedded mid-line
