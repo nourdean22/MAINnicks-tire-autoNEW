@@ -583,6 +583,54 @@ async function processCallEndReport(
           });
         }
 
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // Write only when there is something to say. A call that never
+          // attempted a transfer should not carry an "unknown" verdict that a
+          // later reader could mistake for a failed handoff.
+          if (read.artifactPresent || read.transfers.length) {
+            const { sql } = await import("drizzle-orm");
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(read)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
+          });
+        }
+
         // VOICE CLAIM GUARD · the assistant side of the same artifact.
         //
         // SMS drafts are gated before send by `planViolations`; voice had no

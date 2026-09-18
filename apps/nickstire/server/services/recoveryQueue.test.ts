@@ -256,6 +256,49 @@ describe("wired facts · a reader with no writer is not a feature", () => {
     }
   });
 
+  it("the provider's verdict OUTRANKS the endedReason heuristic", () => {
+    // artifact says the caller reached a human; a reason that looks like a
+    // failure must not re-open the episode as a failed handoff.
+    const r = buildRecoveryQueue(
+      [row({
+        endedReason: "call.in-progress.error-transfer-failed",
+        meta: {
+          intents: ["used_tire"],
+          customerSpeech: { unparsed: false, first: "I need two used tires" },
+          transferArtifact: { verdict: "connected", artifactPresent: true },
+        },
+      })],
+      NOW,
+    );
+    expect(r.episodes[0].transferFailed).toBe(false);
+  });
+
+  it("a not_connected verdict marks the failure even when the reason looks clean", () => {
+    const r = buildRecoveryQueue(
+      [row({
+        endedReason: "assistant-forwarded-call",
+        meta: {
+          intents: ["used_tire"],
+          customerSpeech: { unparsed: false, first: "I need two used tires" },
+          transferArtifact: { verdict: "not_connected", artifactPresent: true },
+        },
+      })],
+      NOW,
+    );
+    expect(r.episodes[0].transferFailed).toBe(true);
+    expect(r.episodes[0].disposition.slaMinutes).toBe(15);
+  });
+
+  it("assistant-forwarded-call ALONE resolves neither way", () => {
+    // The defect: that reason means INITIATED. With no artifact verdict it must
+    // not be read as a success or as a failure.
+    const r = buildRecoveryQueue(
+      [row({ endedReason: "assistant-forwarded-call" })],
+      NOW,
+    );
+    if (r.episodes[0]) expect(r.episodes[0].transferFailed).toBe(false);
+  });
+
   it("a matched invoice closes the episode", () => {
     const r = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
       invoicedPhones: new Set(["2165558888"]),
