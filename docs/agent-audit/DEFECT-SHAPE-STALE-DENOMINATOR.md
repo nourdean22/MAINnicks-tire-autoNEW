@@ -80,6 +80,35 @@ the retained strings are a *sample* while `failCount` is the *population*. Addin
 the sampled counts and calling the result a total is the same error wearing a
 different hat — and the two numbers disagreed by six on the first run.
 
+## A sixth, in a file already fixed for this exact shape
+
+`apps/statenour/lib/observability/tool-usage-census.ts:23-32` carries its own
+account of being repaired on 2026-09-17: the `surfacedNeverChosen` bucket
+compared a **lifetime** numerator (`tool_telemetry.totalCalls`, cumulative since
+the table was created) against a **30-day** denominator (`tool.surfaced`), so a
+tool useful a year ago and dead today never reached the prune list, and a tool
+surfaced 100 times this month with one call from six months ago escaped it too.
+Both halves are now windowed on the same `traceId`. That repair is sound.
+
+The next layer survived it. The bucket feeds a live cron that drafts
+tool-description rewrites, gated on `surfacedCount / turns >= 0.20`. For a tool
+in `CORE_TOOLS` or `ACTION_CORE` that ratio is **≈ 1.0 by construction** — those
+tiers are attached to every turn on purpose — so the threshold is cleared
+unconditionally and the ratio carries no information about the description at
+all. Measured 2026-09-18: of six drafts written in two days, four were for
+guaranteed-tier tools (`rankNextActions`, `createTask`, `completeTask`,
+`findCustomer`), and the prompt told the model *"Other tools were available in
+the same turns and won"* — framing unconditional presence as competitive
+failure.
+
+→ **A denominator fixed by policy is not a measurement.** Windowing the numerator
+and denominator together is necessary and not sufficient; ask additionally
+whether anything in the system *forces* the ratio, before reading it as signal.
+
+This is also the clearest warning the shape gives: the same file, fixed for the
+same defect one day earlier, still had it. Finding an instance is not the same
+as clearing the file.
+
 ## The rule
 
 State the denominator in the output, not in a comment:
