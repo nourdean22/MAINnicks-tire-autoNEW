@@ -344,14 +344,6 @@ export default function VoiceReceptionistSection() {
           operator sees both phone-routing surfaces at a glance. */}
       <FollowUpTransferCard />
 
-      {/* 2026-09-18 · DEMOTED from above Live Calls to the bottom of the page.
-          XP, levels and badges reward call VOLUME, not outcomes, and returned
-          no time, money or decision quality to the operator — while occupying
-          the vertical space directly above a customer who is on the phone
-          right now. Kept rather than deleted (it is harmless here and the
-          operator may enjoy it), but it no longer outranks live demand. */}
-      <VoiceAchievements />
-
       {/* wave-181.x Voice Phase 5 ELON cut · OutboundCallCard deleted
        * (~102 LOC inline + ~5 KB of UI). Per audit agent HIGH-confidence
        * delete: it was a free-form "dial any number" power-tool with
@@ -1082,6 +1074,22 @@ export default function VoiceReceptionistSection() {
           </div>
         )}
       </div>
+
+      {/* 2026-09-18 · DEMOTED, and this time actually to the bottom.
+          XP, levels and badges reward call VOLUME, not outcomes, and return no
+          time, money or decision quality to the operator — while occupying the
+          vertical space above a customer who is on the phone right now. Kept
+          rather than deleted (harmless here, and the operator may enjoy it),
+          but it no longer outranks live demand.
+
+          THE FIRST ATTEMPT MOVED IT AND THEN OVERSTATED THE MOVE. It went below
+          Live Calls but stayed ABOVE the date range, the tabs, the Performance
+          Dashboard and the whole call list — while the comment and the shipped
+          completion evidence both said "to the bottom of the page". Caught by
+          loading the deployed page and reading the render order, not by any
+          gate. A wave about the UI making claims it cannot support should not
+          leave one in its own source. */}
+      <VoiceAchievements />
 
       {/* ─── Drawer: full transcript + tool calls ────── */}
       {selectedCallId && (
