@@ -496,6 +496,118 @@ export const lotRouter = router({
     }
   }),
 
+  /**
+   * WHEN the lot is busy, and how much of that is real.
+   *
+   * Every other counter here is a scalar for "now" or "today", which cannot answer the
+   * question the shop actually asks -- when do cars come in, and is this morning unusual.
+   * This buckets arrivals by ET hour across an 8-day window so today can be read against
+   * its own history.
+   *
+   * ⚠ BUCKET IN SQL, NEVER IN JS. `arrivedAt` is stored UTC and the node driver hands
+   * JS a Date shifted +4h (verified 2026-09-18: stored 12:50 while the driver rendered
+   * 16:50Z), so an hour computed in TypeScript is wrong by a third of a workday and
+   * looks plausible. `CONVERT_TZ(col,'+00:00','America/New_York')` is the only correct
+   * basis and is what `ET_DAY_START` already uses.
+   *
+   * ⚠ PASS_THROUGH ROWS CARRY AN `arrivedAt`. They are cars that crossed the portal and
+   * left without staying -- someone turning around, not a customer. `counts.arrivalsToday`
+   * includes them, so it overstates arrivals (17 of 111 rows measured 2026-09-18). Here
+   * they are counted SEPARATELY and never folded into `arrivals`, and both numbers ship
+   * so a share can never be read without its denominator.
+   */
+  activity: adminProcedure.query(async () => {
+    const d = await dbTyped();
+    if (!d) return { ok: false as const, reason: "database unavailable" };
+
+    try {
+      const etDate = (col: string) =>
+        sql.raw(`DATE(CONVERT_TZ(${col}, '+00:00', 'America/New_York'))`);
+      const rows = rowsOf(await d.execute(sql`
+        SELECT
+          DATEDIFF(${etDate("NOW()")}, ${etDate("arrivedAt")}) AS dayOffset,
+          ${sql.raw("HOUR(CONVERT_TZ(arrivedAt, '+00:00', 'America/New_York'))")} AS etHour,
+          SUM(CASE WHEN state <> 'PASS_THROUGH' THEN 1 ELSE 0 END) AS arrivals,
+          SUM(CASE WHEN state =  'PASS_THROUGH' THEN 1 ELSE 0 END) AS passThroughs
+        FROM vehicle_visits
+        WHERE dataClass = 'PRODUCTION'
+          AND preexisting = 0
+          AND arrivedAt IS NOT NULL
+          AND ${etDate("arrivedAt")} > DATE_SUB(${etDate("NOW()")}, INTERVAL 8 DAY)
+        GROUP BY dayOffset, etHour
+      `));
+
+      const byDay = new Map<number, { arrivals: number; passThroughs: number }>();
+      const today = Array.from({ length: 24 }, () => ({ arrivals: 0, passThroughs: 0 }));
+      const priorTotals = Array.from({ length: 24 }, () => 0);
+
+      for (const row of rows) {
+        const off = num(row.dayOffset);
+        const hour = num(row.etHour);
+        const arrivals = num(row.arrivals);
+        const passThroughs = num(row.passThroughs);
+        if (hour < 0 || hour > 23) continue;
+
+        const day = byDay.get(off) ?? { arrivals: 0, passThroughs: 0 };
+        day.arrivals += arrivals;
+        day.passThroughs += passThroughs;
+        byDay.set(off, day);
+
+        if (off === 0) {
+          today[hour] = { arrivals, passThroughs };
+        } else if (off >= 1 && off <= 7) {
+          priorTotals[hour] += arrivals;
+        }
+      }
+
+      // A DAY WITH NO ROWS IS NOT A QUIET DAY. The producer has been up for hours, not
+      // weeks, and it dies unpredictably -- so dividing by a fixed 7 would spread real
+      // traffic across days that were never observed and render a flat, reassuring
+      // baseline out of missing data. Average over days that ACTUALLY reported, and ship
+      // the count so the UI can say how thin the history is (or refuse to draw it).
+      const priorDaysWithData = [...byDay.keys()].filter((o) => o >= 1 && o <= 7).length;
+      const baseline = priorDaysWithData === 0
+        ? null
+        : priorTotals.map((t) => t / priorDaysWithData);
+
+      const todayArrivals = byDay.get(0)?.arrivals ?? 0;
+      const todayPassThroughs = byDay.get(0)?.passThroughs ?? 0;
+      const crossings = todayArrivals + todayPassThroughs;
+
+      return {
+        ok: true as const,
+        asOf: new Date().toISOString(),
+        hours: today.map((h, hour) => ({
+          hour,
+          arrivals: h.arrivals,
+          passThroughs: h.passThroughs,
+          baselineArrivals: baseline === null ? null : baseline[hour],
+        })),
+        totals: {
+          arrivals: todayArrivals,
+          passThroughs: todayPassThroughs,
+          // The denominator ships with the share, always. A share on its own invites
+          // "15% drive-by" off a sample of two.
+          crossings,
+          passThroughShare: crossings === 0 ? null : todayPassThroughs / crossings,
+        },
+        history: {
+          priorDaysWithData,
+          days: [...byDay.entries()]
+            .filter(([off]) => off >= 0 && off <= 7)
+            .sort((a, b) => a[0] - b[0])
+            .map(([dayOffset, v]) => ({ dayOffset, ...v })),
+        },
+      };
+    } catch (err) {
+      // Same rule as `now`: a failed read is reported, never rendered as an empty chart.
+      return {
+        ok: false as const,
+        reason: err instanceof Error ? err.message : "vehicle_visits activity read failed",
+      };
+    }
+  }),
+
   /** Recent visit rows for the operator table. */
   visits: adminProcedure
     .input(z.object({
