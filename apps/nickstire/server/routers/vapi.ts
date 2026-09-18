@@ -21,6 +21,7 @@ import { router, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { createLogger } from "../lib/logger";
 import { RECOVERY_FETCH_OUTCOMES } from "@shared/callTaxonomy";
+import { computeConnectRate } from "../lib/transferArtifact";
 import {
   buildRecoveryQueue,
   breachedSla,
@@ -54,6 +55,16 @@ async function openExpectedArrivalPhones(): Promise<ReadonlySet<string>> {
     );
   } catch {
     return new Set();
+  }
+}
+
+/** Parse a metadata JSON column without letting a malformed row throw a read. */
+function safeJsonObject(v: string): Record<string, unknown> | null {
+  try {
+    const p = JSON.parse(v);
+    return p && typeof p === "object" ? (p as Record<string, unknown>) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -673,6 +684,35 @@ export const vapiRouter = router({
          * be shown as "not measured", never folded into "no demand".
          */
         unclassified: built.unclassifiedCount,
+        /**
+         * THE QUESTION BOTH AUDITS COULD NOT ANSWER: do transfers connect?
+         *
+         * Derived from `artifact.transfers[].status` — the provider's own
+         * per-attempt outcome — and NEVER from `assistant-forwarded-call`,
+         * which VAPI documents as meaning the transfer was INITIATED. A call
+         * that rang an empty counter carries that reason too.
+         *
+         * `coveragePct` travels with the rate on purpose. VAPI gates
+         * blind-transfer outcome detection per organisation, so if this account
+         * does not receive the artifact, coverage is 0 and `connectRate` stays
+         * null rather than reporting a confident number over a handful of
+         * calls. Read coverage FIRST; the rate is meaningless without it.
+         */
+        transferConnect: computeConnectRate({
+          // EVERY call that ATTEMPTED a transfer, including the ones the
+          // provider never resolved. Filtering unknowns out here would delete
+          // the coverage signal and hand back a confident rate over whatever
+          // happened to be classifiable — the precise failure being replaced.
+          verdicts: (rows as QueueSourceRow[])
+            .filter((r) => /forward|transfer/i.test(r.endedReason ?? ""))
+            .map((r) => {
+              const parsed =
+                typeof r.metadata === "string" ? safeJsonObject(r.metadata) : r.metadata;
+              const v = (parsed as { transferArtifact?: { verdict?: unknown } } | null)
+                ?.transferArtifact?.verdict;
+              return v === "connected" || v === "not_connected" ? v : ("unknown" as const);
+            }),
+        }),
       };
     }),
 
