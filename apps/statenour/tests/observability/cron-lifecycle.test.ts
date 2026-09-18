@@ -131,21 +131,19 @@ describe("cron lifecycle · the acceptance test from the 2026-09-17 audit", () =
   });
 
   /**
-   * ⚠ THIS TEST PINS A KNOWN LIMITATION, NOT A CAPABILITY.
+   * ★ THIS TEST REPLACED ONE NAMED `LIMITATION`.
    *
-   * `cron_job_logs` has no run-id column yet, so a settle matches the NEWEST
-   * `started` row for the job rather than its own. With two overlapping runs
-   * of the SAME cron, the first to finish settles the newer row and the older
-   * one is stranded until `isStaleRun` catches it.
+   * Before the `runId` column existed (applied to prod 2026-09-17), a settle
+   * could only match "newest `started` row for this job", so the previous
+   * version of this test PINNED the wrong behaviour on purpose: with two runs
+   * in flight, the first to finish settled the newer row and stranded the
+   * older. It was written to start failing the day the column landed, and it
+   * did — this is its replacement.
    *
-   * It is pinned rather than left undefined for two reasons: the behaviour is
-   * survivable today (one schedule per cron, no concurrent instances), and
-   * writing it down is what makes the follow-up legible — when the `runId`
-   * column lands, THIS test should start failing, and its replacement is the
-   * exact-match assertion. A limitation nobody encoded is a limitation the
-   * next person rediscovers as a bug.
+   * ⚠ A limitation nobody encodes is one the next person rediscovers as a bug.
+   * Encoding it is also what made the upgrade path obvious.
    */
-  it("LIMITATION — overlapping runs of one cron settle by recency, not identity", async () => {
+  it("settles the row belonging to ITS OWN run when two runs overlap", async () => {
     const { prisma, rows } = makeStore();
     const { CronLifecycleMiddleware } = await loadMiddleware(prisma);
     const mw = new CronLifecycleMiddleware({ client: {} as never });
@@ -155,10 +153,33 @@ describe("cron lifecycle · the acceptance test from the 2026-09-17 audit", () =
     await mw.onRunStart({ ctx: { runId: "run-2" }, fn });
     await mw.onRunComplete({ ctx: { runId: "run-1" }, fn });
 
-    // Two rows exist; run-1 finishing settled the NEWER one.
-    expect(rows).toHaveLength(2);
-    expect(rows[1].status).toBe("success");
-    expect(rows[0].status).toBe("started");
+    const byRun = Object.fromEntries(rows.map((r) => [r.runId, r.status]));
+    expect(byRun["run-1"], "the finishing run must settle its OWN row").toBe("success");
+    expect(byRun["run-2"], "the still-running row must be left alone").toBe("started");
+  });
+
+  it("records runId on the started row", async () => {
+    const { prisma, rows } = makeStore();
+    const { CronLifecycleMiddleware } = await loadMiddleware(prisma);
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    await mw.onRunStart({ ctx: { runId: "run-xyz" }, fn: cronFn("goal-pruner") });
+    expect(rows[0].runId).toBe("run-xyz");
+  });
+
+  it("FALLBACK — a run with no readable runId still settles by recency", async () => {
+    // Not dead code: rows written before the column existed have runId NULL,
+    // and a run whose id cannot be read still deserves a terminal status
+    // rather than being stranded at `started` forever.
+    const { prisma, rows } = makeStore();
+    const { CronLifecycleMiddleware } = await loadMiddleware(prisma);
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    const fn = cronFn("industry-pull");
+
+    await mw.onRunStart({ ctx: {}, fn });
+    await mw.onRunComplete({ ctx: {}, fn });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("success");
   });
 });
 

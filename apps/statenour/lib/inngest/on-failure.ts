@@ -156,6 +156,32 @@ async function markCronRunFailed(args: FailurePayload): Promise<void> {
     // hang instead of a failure. Match by SUFFIX against rows that actually
     // exist: whatever the prefix turns out to be, the job name is its tail.
     const { prisma } = await import("@/lib/prisma");
+
+    // ★★★ EXACT MATCH FIRST — THE SUFFIX SCAN IS NOW ONLY A FALLBACK.
+    // Rows opened by lib/inngest/cron-lifecycle.ts carry the Inngest run id,
+    // and this failure event carries the same id, so the two join precisely.
+    // The scan below survives for rows written before that column existed
+    // (pre-2026-09-17T23:58Z) — it was always a guess, and a guess that is
+    // subtly wrong here produces a SILENT no-op rather than a visible error.
+    const failedRunId = args.event?.data?.run_id;
+    if (failedRunId) {
+      const exact = await prisma.cronJobLog.findFirst({
+        where: { runId: String(failedRunId), status: CRON_STATUS.started },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      });
+      if (exact) {
+        await prisma.cronJobLog.update({
+          where: { id: exact.id },
+          data: {
+            status: "failed",
+            error: (args.error?.message ?? "inngest failure").slice(0, 500),
+          },
+        });
+        return;
+      }
+    }
+
     const candidates = await prisma.cronJobLog.findMany({
       where: { status: CRON_STATUS.started, createdAt: { gte: new Date(Date.now() - 6 * 3_600_000) } },
       orderBy: { createdAt: "desc" },
