@@ -68,6 +68,22 @@ export interface FeatureFlag {
   /** Runtime reads a raw env var directly; the settings board must not offer
    * controls that imply a database override can change behavior. */
   readOnly?: boolean;
+  /**
+   * 2026-09-18 · trim the raw env value before resolving, for a `readOnly`
+   * mirror whose runtime ALSO trims.
+   *
+   * The readOnly path deliberately does not trim (see getFlag) so the board
+   * sees exactly the bytes the runtime sees. But a runtime that itself calls
+   * `.trim()` then disagrees with the board on a padded value: measured
+   * 2026-09-18, `NICK_AGENT_FOLLOWUPS=" 1 "` made lib/agent/follow-up.ts:76
+   * return TRUE while the board rendered OFF — a flag board that is
+   * confidently wrong is worse than one that is merely missing an entry.
+   *
+   * Opt-in and default-off, so every existing flag keeps its exact current
+   * behaviour. Set it ONLY when the mirrored expression trims, and pin the
+   * agreement with a test.
+   */
+  trimRawValue?: boolean;
 }
 
 export const FLAG_REGISTRY: FeatureFlag[] = [
@@ -439,6 +455,94 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/ai/multi-agent-orchestrator.ts",
   },
 
+  // ── Raw-env runtime switches, registered 2026-09-18 ──────────────
+  // Every entry here mirrors a `process.env.X` read that the code performs
+  // DIRECTLY — none of them route through getFlag(). That is why all seven are
+  // `readOnly: true`: the board reports what the runtime actually sees, and a
+  // stale DB override can never make it contradict the code.
+  //
+  // Registered because the visibility ratchet (tests/repo/
+  // flag-board-visibility-ratchet.test.ts) exists to drive this list to zero,
+  // and a baseline that never shrinks is just a permanent excuse. Each
+  // `offValue`/`onValue`/`defaultOn` below was read off the exact expression
+  // at the cited line — a registry entry whose default disagrees with its code
+  // is WORSE than an unregistered switch, because it looks authoritative.
+  {
+    key: "NICK_COST_FIREWALL",
+    readOnly: true,
+    description: "Per-request AI spend ceiling. LIVE by default; set to 0 to disable the firewall entirely. Reads `process.env.NICK_COST_FIREWALL !== \"0\"` at lib/ai/provider.ts:827.",
+    status: "stable",
+    onValue: "1",
+    offValue: "0",
+    defaultOn: true,
+    defaultBehavior: "Cost firewall ENFORCED (unset = on).",
+    ownerDoc: "lib/ai/provider.ts",
+  },
+  {
+    key: "NICK_CALIBRATION_ENFORCER",
+    readOnly: true,
+    description: "Rewrites over-confident model claims to calibrated language before persist. LIVE by default; set to 0 to disable. Reads `process.env.NICK_CALIBRATION_ENFORCER !== \"0\"` at lib/ai/chat/calibration-enforcer.ts:57.",
+    status: "stable",
+    onValue: "1",
+    offValue: "0",
+    defaultOn: true,
+    defaultBehavior: "Calibration enforcement ON (unset = on).",
+    ownerDoc: "lib/ai/chat/calibration-enforcer.ts",
+  },
+  {
+    key: "NICK_JIT_SECTIONS",
+    readOnly: true,
+    description: "Just-in-time prompt-section dropping to fit budget. LIVE by default; set to 0 for a full early return with nothing dropped. Reads `process.env.NICK_JIT_SECTIONS === \"0\"` at lib/ai/vnext/jit-sections.ts:43.",
+    status: "stable",
+    onValue: "1",
+    offValue: "0",
+    defaultOn: true,
+    defaultBehavior: "JIT section dropping ACTIVE (unset = on).",
+    ownerDoc: "lib/ai/vnext/jit-sections.ts",
+  },
+  {
+    key: "NICK_ESCALATION_DISABLED",
+    readOnly: true,
+    description: "★ INVERTED NAME — read the polarity before acting. `isOn` here means ESCALATION IS DISABLED. The route computes `enabled: process.env.NICK_ESCALATION_DISABLED !== \"1\"` (app/api/ai/chat/route.ts:458), so unset leaves escalation RUNNING. Registered with the key's own polarity rather than the feature's, because the board shows keys.",
+    status: "stable",
+    onValue: "1",
+    defaultOn: false,
+    defaultBehavior: "Escalation ENABLED (the kill-switch is off).",
+    ownerDoc: "app/api/ai/chat/route.ts",
+  },
+  {
+    key: "NICK_FAILOVER_RESCUE",
+    readOnly: true,
+    description: "Retries a failed provider call down the fallback chain instead of returning the emergency sentinel. Reads `process.env.NICK_FAILOVER_RESCUE === \"1\"` at lib/ai/provider.ts:1224. ★ docs/CURRENT-TRUTH.md records the operator ENABLING this in production on 2026-08-15 — it was a live prod switch with no board entry until today, which is precisely the failure the visibility ratchet was built to stop.",
+    status: "experimental",
+    onValue: "1",
+    defaultOn: false,
+    defaultBehavior: "No failover rescue · a total provider failure returns the sentinel (check `result.provider`).",
+    ownerDoc: "lib/ai/provider.ts",
+  },
+  {
+    key: "NICK_AGENT_FOLLOWUPS",
+    readOnly: true,
+    // The mirrored runtime trims; without this the board says OFF for " 1 "
+    // while the feature runs. Measured, then pinned in the agreement test.
+    trimRawValue: true,
+    description: "Agent-authored follow-up items after a turn. Reads `(process.env.NICK_AGENT_FOLLOWUPS ?? \"\").trim() === \"1\"` at lib/agent/follow-up.ts:76 — note the trim, so whitespace-padded values still count.",
+    status: "experimental",
+    onValue: "1",
+    defaultOn: false,
+    defaultBehavior: "No agent follow-ups generated.",
+    ownerDoc: "lib/agent/follow-up.ts",
+  },
+  {
+    key: "NICK_CANARY_DEEP_ANTHROPIC",
+    readOnly: true,
+    description: "Routes deep-reasoning effort to the Anthropic canary lane. Reads `process.env.NICK_CANARY_DEEP_ANTHROPIC === \"1\"` at lib/ai/vnext/effort-policy.ts:181 and :196 (the second is an `input.enabled ??` fallback, so a caller can override per-call).",
+    status: "experimental",
+    onValue: "1",
+    defaultOn: false,
+    defaultBehavior: "Deep reasoning uses the standard lane.",
+    ownerDoc: "lib/ai/vnext/effort-policy.ts",
+  },
   // ── Operational / routing flags ────────────────────────────────
   // These are read via raw `process.env.X` across the code; registered
   // here (Phase Q.2 coexistence pattern · call sites untouched) so the
@@ -616,9 +720,10 @@ export function getFlag(key: string): ResolvedFlag | null {
   const dbOverride = overridesCache[key];
   // Read-only entries are observational mirrors of raw runtime env checks.
   // An old database override must not make the board contradict runtime.
+  const rawEnv = process.env[key] ?? "";
   const rawValue = spec.readOnly
-    ? (process.env[key] ?? "")
-    : (dbOverride !== undefined ? dbOverride : (process.env[key] ?? "")).trim();
+    ? (spec.trimRawValue ? rawEnv.trim() : rawEnv)
+    : (dbOverride !== undefined ? dbOverride : rawEnv).trim();
   const isOn = computeIsOn(spec, rawValue);
 
   return { ...spec, rawValue, isOn, overrideValue: dbOverride ?? null };

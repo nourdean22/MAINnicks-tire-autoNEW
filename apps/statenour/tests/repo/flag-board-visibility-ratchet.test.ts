@@ -17,19 +17,25 @@
  * says the operator ENABLED it in production on 2026-08-15. A live production
  * switch that the flag board cannot show is exactly the failure this guards.
  *
- * RATCHET, not a wall. Ten keys are unregistered today; failing on all of them
- * would make this red on arrival and get it routed around. It freezes the
- * known set and fails on anything NEW — the same shape as
- * `pnpm check:scripts` (`.scripts-tsc-baseline.json`) and the brain plan's
- * direct-writer ratchet. The list may only SHRINK: registering a key and
- * leaving it here also fails, so the baseline cannot rot into a permanent
- * excuse.
+ * RATCHET, not a wall. Failing on every unregistered key at once would have
+ * made this red on arrival and got it routed around. It freezes the known set
+ * and fails on anything NEW — the same shape as `pnpm check:scripts`
+ * (`.scripts-tsc-baseline.json`) and the brain plan's direct-writer ratchet.
+ * The list may only SHRINK: registering a key and leaving it here also fails,
+ * so the baseline cannot rot into a permanent excuse.
  *
- * Numeric tuning knobs (NICK_CALIBRATION_K, NICK_TOOL_BUDGET,
- * NICK_TOOL_TIMEOUT_MS, NICK_ESCALATION_DAILY_CAP) are in the baseline too.
- * They are values, not switches, and forcing them onto a board built for
- * on/off state would be worse than leaving them — but they still may not
- * multiply unnoticed.
+ * ★ IT WORKED, SAME DAY: the baseline opened at 11 keys and is now 4. Every
+ * real SWITCH among them is registered as a `readOnly` mirror (the runtime
+ * still reads raw `process.env`; readOnly means a stale DB override cannot
+ * make the board contradict it). What is left is exactly the four NUMERIC
+ * KNOBS — NICK_CALIBRATION_K, NICK_TOOL_BUDGET, NICK_TOOL_TIMEOUT_MS,
+ * NICK_ESCALATION_DAILY_CAP. Those stay baselined on purpose: they are values,
+ * not on/off state, and a board built for switches would misrepresent them.
+ * They still may not multiply unnoticed.
+ *
+ * Keep this header honest as the number moves. An out-of-date count in a
+ * comment is a cache with no invalidation — the exact defect the wave that
+ * created this file spent a commit correcting elsewhere.
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
@@ -46,18 +52,16 @@ const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
  * the argument for the wider scan in one line.
  */
 const KNOWN_UNREGISTERED = [
-  "NICK_AGENT_FOLLOWUPS",
-  "NICK_CALIBRATION_ENFORCER",
+  // 2026-09-18, SECOND PASS: the seven real SWITCHES that were here are now
+  // registered (readOnly mirrors — see lib/feature-flags.ts). What remains is
+  // exactly the four NUMERIC KNOBS, which stay baselined deliberately: they
+  // are values, not on/off state, and a board built for switches would
+  // misrepresent them. If this list ever reaches zero, delete the baseline
+  // rather than leaving an empty array to rot.
   "NICK_CALIBRATION_K",
-  "NICK_CANARY_DEEP_ANTHROPIC",
-  "NICK_COST_FIREWALL",
   "NICK_ESCALATION_DAILY_CAP",
-  "NICK_FAILOVER_RESCUE",
-  "NICK_JIT_SECTIONS",
   "NICK_TOOL_BUDGET",
   "NICK_TOOL_TIMEOUT_MS",
-  // found only once `app/` was scanned:
-  "NICK_ESCALATION_DISABLED",
   // NB: `NICK_HIGH_SPEC_GATE` is also read raw in app/, but it IS registered,
   // so it does not belong here. I added it anyway on the first pass and the
   // shrink-only rule rejected it — the rule catching its author is the best
