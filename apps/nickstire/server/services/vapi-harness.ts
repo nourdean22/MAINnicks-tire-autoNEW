@@ -49,6 +49,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { followUpAssistantIdOrNull } from "./vapi";
 
 const log = createLogger("services:vapi-harness");
 
@@ -364,7 +365,10 @@ export async function runVapiHarness(): Promise<HarnessResult> {
   const assistants: AssistantUnderTest[] = [
     { id: INBOUND_ASSISTANT_ID, label: "inbound" },
   ];
-  const followupId = (process.env.VAPI_FOLLOWUP_ASSISTANT_ID || "").trim();
+  // Shared chokepoint: a retired pin yields null, so the harness does not probe
+  // an assistant the rest of the system refuses to dispatch to. Probing it would
+  // report health for something that can never be used.
+  const followupId = followUpAssistantIdOrNull();
   if (followupId) {
     assistants.push({ id: followupId, label: "followup" });
   }

@@ -1205,12 +1205,15 @@ export const vapiRouter = router({
     }))
     .mutation(async ({ input }) => {
       const apiKey = process.env.VAPI_API_KEY;
-      const assistantId = process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+      // Shared chokepoint, not a direct env read — a pin naming a RETIRED
+      // assistant resolves to null here rather than being handed to VAPI.
+      const { followUpAssistantIdOrNull } = await import("../services/vapi");
+      const assistantId = followUpAssistantIdOrNull();
       if (!apiKey) {
         return { success: false, error: "VAPI_API_KEY not configured" };
       }
       if (!assistantId) {
-        return { success: false, error: "VAPI_FOLLOWUP_ASSISTANT_ID not configured. Run scripts/vapi-create-followup-assistant.ts first." };
+        return { success: false, error: "VAPI_FOLLOWUP_ASSISTANT_ID is not configured, or points at a retired assistant. Repoint it at the dedicated follow-up caller." };
       }
 
       // Normalize phone to E.164

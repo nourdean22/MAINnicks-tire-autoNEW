@@ -18,6 +18,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { pickReceptionistAssistantId } from "../services/vapi";
 
+// TRUNCATED on purpose — this is NOT the real `afcad79e-ec33-4156-…`, which is
+// now on the retirement list and therefore unselectable. These fixtures keep
+// exercising the generic ambiguity branch, which stays reachable for any FUTURE
+// duplicate pair. The real account's duplicate is covered in
+// `retiredAssistant.test.ts` instead.
 const RECEPTIONIST_A = { id: "afcad79e-ec3", name: "Nick's Tire & Auto Receptionist" };
 const RECEPTIONIST_B = { id: "150fe622-0b9", name: "Nick's Tire & Auto Receptionist" };
 const FOLLOW_UP = { id: "0daaf7dc-139", name: "Nick's Tire Follow-Up Caller" };
