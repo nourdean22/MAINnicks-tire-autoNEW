@@ -172,7 +172,22 @@ export async function buildBrainContext(
   const arbiterOn = getFlag("NICK_RECALL_ARBITER")?.isOn ?? false;
   const correctionBoostOn = getFlag("NICK_CORRECTION_THRESHOLD_BOOST")?.isOn ?? false;
   // Wave 3 · deterministic query plan: no LLM, the original query is always a lane; asOf below.
-  const queryPlan = planQuery(userContent, { recentTurns: (messages as Array<{ content?: unknown }>).slice(-4).map((m) => (typeof m?.content === "string" ? m.content : "")).filter(Boolean) });
+  //
+  // 2026-09-17 · `recentTurns` must be the turns BEFORE this one. query-plan.ts
+  // sets `referent = recentTurns[last]` and its own test feeds the PRIOR turn
+  // ("We discussed moving the shop's Instagram cadence...") while the message
+  // under test is the follow-up. But `messages` is the AI-SDK history, which
+  // ENDS with the current user turn — so the last element was `userContent`
+  // itself and every anaphoric referent resolved to the question instead of
+  // what the pronoun points at. Harmless while referent had no consumer; it
+  // gained one in this commit, so the feed is corrected first. Defensive by
+  // design: the pop only fires when the tail really is the current turn, so a
+  // caller that already passes prior-only history is unaffected.
+  const __priorTurns = (messages as Array<{ content?: unknown }>)
+    .map((m) => (typeof m?.content === "string" ? m.content : ""))
+    .filter(Boolean);
+  if (__priorTurns[__priorTurns.length - 1] === userContent) __priorTurns.pop();
+  const queryPlan = planQuery(userContent, { recentTurns: __priorTurns.slice(-4) });
   let detectedContradictions: any[] = [];
 
   try {
@@ -319,17 +334,35 @@ export async function buildBrainContext(
       // agent_traces, which lost the whole block to the timeout on the median
       // turn. fastTopics keeps the chat hot path deterministic and in-budget;
       // non-chat callers keep the LLM path.
+      // 2026-09-17 · queryPlan.referent (anaphoric_followup: "what about
+      // that?", "is it still true?") was computed and never consumed --
+      // third dark wire in this file, same shape exactTerms had until
+      // 2026-09-15 and the correction class had until this PR. A short
+      // pronoun-only follow-up carries near-zero semantic signal alone;
+      // deriveFastTopics(recentMessages) walks the array BACKWARDS and lets
+      // the LAST element's terms win the 8-topic cap, so the referent goes
+      // FIRST -- it adds vocabulary from the turn the pronoun points at
+      // without displacing userContent's own priority. The embedding lane is
+      // unchanged (queryEmbedding stays userEmbedding): recomputing it would
+      // add a round-trip to the 3s hot-path budget for a rare query class.
+      // NOTE: this comment sits ABOVE withTimeout( on purpose --
+      // tests/ai/brain-context-timeouts.test.ts pins the fetcher within 120
+      // chars of its wrapper, and a comment block between them fails it.
       (userContent.length > 10 || forceRecall) && contextualRecallMod
         ? withTimeout(
-            contextualRecallMod.getContextualMemories([userContent], mode === "deep" ? 10 : 5, {
-              queryEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
-              fastTopics: true,
-              asOf: queryPlan.asOf,
-              onRanked: (rows: import("@/lib/brain/contextual-recall").RankedRecallRow[]) => {
-                contextualRankedIds = rows.map((r) => r.id);
-                contextualRankedRows = rows;
+            contextualRecallMod.getContextualMemories(
+              queryPlan.referent ? [queryPlan.referent, userContent] : [userContent],
+              mode === "deep" ? 10 : 5,
+              {
+                queryEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
+                fastTopics: true,
+                asOf: queryPlan.asOf,
+                onRanked: (rows: import("@/lib/brain/contextual-recall").RankedRecallRow[]) => {
+                  contextualRankedIds = rows.map((r) => r.id);
+                  contextualRankedRows = rows;
+                },
               },
-            }),
+            ),
             3000,
             null,
           )
