@@ -134,4 +134,32 @@ describe("readMessageProvenance · receipt-first", () => {
     await readMessageProvenance({ messageId: "m1" });
     expect(mocks.recallMemoriesForQuery).toHaveBeenCalledTimes(1);
   });
+
+  // 2026-09-17 · Wave 3 follow-up (PR #2414). Unlike `recall`, contextReceipt
+  // has no reconstruction fallback -- the blocks are gone by read time, so
+  // it is simply present or null, never re-derived.
+  it("contextReceipt (2026-09-17, PR #2414) · reads through from tokenUsage when present", async () => {
+    const CONTEXT_RECEIPT = {
+      entries: [{ name: "identity", tokens: 2, similarity: 0.5, critical: true, kept: true, reason: "critical" }],
+      tokensBudget: 7250,
+      tokensKept: 2,
+      tokensDropped: 0,
+      droppedCount: 0,
+    };
+    mocks.chatMessage.findUnique.mockResolvedValue(
+      message({ recall: [RECEIPT], contextReceipt: CONTEXT_RECEIPT }),
+    );
+
+    const res = await readMessageProvenance({ messageId: "m1" });
+
+    expect(res.contextReceipt).toEqual(CONTEXT_RECEIPT);
+  });
+
+  it("contextReceipt · null (not undefined, not thrown) when the turn never persisted one", async () => {
+    mocks.chatMessage.findUnique.mockResolvedValue(message({ recall: [RECEIPT] }));
+
+    const res = await readMessageProvenance({ messageId: "m1" });
+
+    expect(res.contextReceipt).toBeNull();
+  });
 });

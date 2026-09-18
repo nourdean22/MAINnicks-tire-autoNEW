@@ -25,6 +25,7 @@ import type { TurnSignal } from "@/lib/ai/turn-intelligence";
 import type { runReplyGate, runReplyGateWithContract } from "@/lib/ai/reply-gate";
 import type { ContextBlocksFired } from "./brain-context";
 import type { RecallReceipt } from "./persist-assistant-turn";
+import type { ContextReceipt } from "@/lib/ai/context-budget";
 import type { critiqueOutput, ContentCriticScore } from "@/lib/ai/output-critic";
 
 /**
@@ -93,6 +94,10 @@ export async function persistAssistantMessage(a: {
    *  on this turn, persisted as receipts (see RecallReceipt). Absent on
    *  paths that skip recall. */
   recallReceipts?: RecallReceipt[];
+  /** 2026-09-17 · Wave 3 follow-up (PR #2414) · lib/ai/context-budget.ts.
+   *  Same optionality rule as recallReceipts: absent on paths that skip
+   *  buildBrainContext. */
+  contextReceipt?: ContextReceipt;
   personality: string;
   userContent: string;
   posture: string | undefined;
@@ -103,7 +108,7 @@ export async function persistAssistantMessage(a: {
     traceId, provider, modelId, startedAt, firstTokenRef, capturedToolCalls,
     truthFlags, critic, citations, gate, evidenceGate, factClaims, unverifiedCount,
     turnSignal, contextBlocksFired, deeperContextCount, deeperContextTypes,
-    recallReceipts, personality, userContent, posture, log,
+    recallReceipts, contextReceipt, personality, userContent, posture, log,
   } = a;
   let cleanedText = a.cleanedText;
   // (the `void userContent` keep-alive is gone — the calibration
@@ -347,6 +352,12 @@ export async function persistAssistantMessage(a: {
               recall: recallReceipts && recallReceipts.length > 0
                 ? (recallReceipts.map((r) => ({ ...r })) as never)
                 : undefined,
+              // 2026-09-17 · Wave 3 follow-up (PR #2414): the block-assembly
+              // receipt (lib/ai/context-budget.ts) rides the SAME JSON blob
+              // recall does, for the same reason -- "why was this block in
+              // front of Nick" should survive past the console.info window
+              // the way "why this memory" already does via `recall` above.
+              contextReceipt: contextReceipt ? ({ ...contextReceipt } as never) : undefined,
               persona: personality,
               turnSignal: {
                 complexity: turnSignal.complexity,
