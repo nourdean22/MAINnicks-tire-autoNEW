@@ -298,6 +298,63 @@ export const PROHIBITED_VOICE_CLAIMS: ProhibitedClaim[] = [
     label: "awd_absolute_claim",
     re: /\b(?:will|would|'ll)\s+(?:destroy|ruin|wreck|blow|burn\s+up)\s+(?:your\s+)?(?:differential|drivetrain|transfer\s+case|transmission)\b|\byou\s+(?:have\s+to|must|need\s+to)\s+replace\s+all\s+four\b(?!\s*(?:if|when|unless|on\s+some))/i,
   },
+
+  /* ── REPAIR INTAKE · added 2026-09-18 ──
+   *
+   * The tire claims above cover the product the shop is named for. This pair
+   * covers the OTHER half of the phone traffic: a caller describing a symptom
+   * on a car nobody has seen.
+   *
+   * No primary document is needed for the boundary, because the boundary is
+   * epistemic rather than regulatory: a noise the assistant has not heard, on a
+   * vehicle it has not inspected, cannot be attributed to a part. Naming one is
+   * a guess wearing the shop's authority — and the caller then either declines
+   * a repair they need or arrives expecting one they do not.
+   *
+   * Same under-matching discipline as the tire block. Every pattern fires on an
+   * UNHEDGED VERDICT only: "it's your wheel bearing" is a claim, while "that
+   * could be a bearing, a heat shield, or the brakes — we'd have to drive it"
+   * is exactly the answer wanted and must stay clean. Hedged forms are allowed
+   * through on purpose.
+   */
+  {
+    /*
+     * NAMING THE FAILED PART FROM A DESCRIPTION.
+     *
+     * The part list is deliberately the common intake vocabulary rather than an
+     * exhaustive catalogue — an unmatched part is a missed violation, which is
+     * the safe direction, while a list padded with ambiguous words ("belt",
+     * "line", "pump") would fire on ordinary speech.
+     *
+     * Note what is NOT allowed between the subject and the part: no adverb slot
+     * exists, so "it's probably the alternator" and "it's usually the pads"
+     * never match. That is the hedge allowance, implemented by omission rather
+     * than by a second list that could drift out of step.
+     */
+    label: "phone_diagnosis_verdict",
+    re: /\b(?:that|it|this)'?s\s+(?:your\s+|the\s+|an?\s+)*(?:bad\s+|worn\s+|shot\s+|failing\s+|blown\s+|seized\s+)?(?:wheel\s+bearing|brake\s+(?:pads?|rotors?|calipers?)|rotors?|calipers?|alternator|starter|cv\s+(?:joint|axle)|tie\s+rod|ball\s+joint|serpentine\s+belt|water\s+pump|fuel\s+pump|catalytic\s+converter|head\s+gasket|control\s+arm|wheel\s+hub)\b|\byou\s+need\s+(?:an?\s+|new\s+)*(?:wheel\s+bearing|brake\s+(?:pads?|rotors?|calipers?)|rotors?|calipers?|alternator|starter|cv\s+(?:joint|axle)|tie\s+rod|ball\s+joint|serpentine\s+belt|water\s+pump|fuel\s+pump|catalytic\s+converter|head\s+gasket|control\s+arm|wheel\s+hub)\b|\byour\s+(?:wheel\s+bearing|brake\s+(?:pads?|rotors?|calipers?)|rotors?|calipers?|alternator|starter|cv\s+(?:joint|axle)|tie\s+rod|ball\s+joint|serpentine\s+belt|water\s+pump|fuel\s+pump|catalytic\s+converter|head\s+gasket|control\s+arm|wheel\s+hub)s?\s+(?:is|are|'s|'re)\s+(?:bad|shot|gone|toast|blown|seized|worn\s+out|failing)\b/i,
+  },
+  {
+    /*
+     * TELLING A CALLER WHETHER THE CAR IS SAFE TO DRIVE.
+     *
+     * The most consequential sentence on the whole line, in both directions. A
+     * green light nobody is qualified to give can put a caller on I-90 on a
+     * failing hub; a red light nobody is qualified to give sells a tow the car
+     * did not need.
+     *
+     * The correct answer is conditional and returns the judgement to the person
+     * who can actually feel the car: if it feels unsafe, do not drive it.
+     *
+     * THE LOOKBEHINDS ARE LOAD-BEARING. Without them this pattern fires on the
+     * compliant phrasings themselves — "we can't tell you WHETHER it's safe to
+     * drive" and "IF it's safe to drive, bring it by" both contain the literal
+     * verdict. A guard that flags the correct script is a guard staff route
+     * around, which is the failure this module's header warns about.
+     */
+    label: "drivability_safety_verdict",
+    re: /(?<!\bwhether\s)(?<!\bif\s)\b(?:you'?re|you\s+are|you'?ll\s+be|it'?s)\s+(?:totally\s+|perfectly\s+|definitely\s+|completely\s+|absolutely\s+)?(?:fine|safe|okay|ok)\s+to\s+drive\b|\byou\s+can\s+(?:definitely\s+|for\s+sure\s+|safely\s+)?(?:make\s+it\s+(?:here|in|over)|drive\s+(?:it|that|on\s+it))\b|(?<!\bwhether\s)(?<!\bif\s)\bit'?s\s+(?:not|never)\s+safe\s+to\s+drive\b/i,
+  },
 ];
 
 /**
