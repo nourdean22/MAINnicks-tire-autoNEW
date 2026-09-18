@@ -156,18 +156,51 @@ describe("lint-brand-voice does not fail open", () => {
     const sha = (log.stdout ?? "").trim();
     expect(sha, "no commit in history touches the in-scope probe path").not.toBe("");
 
-    const { out } = run({}, ["--range", `${sha}^`]);
+    // `~1`, NOT `^`. The helper spawns with `shell: true`, and on Windows that
+    // is cmd.exe, where `^` is the ESCAPE character — it is stripped before git
+    // ever sees it. The ref then resolves to the commit itself, the range
+    // collapses to `<sha>...HEAD`, and when that sha IS head the range is empty:
+    // the linter correctly reports NOTHING CHANGED and the test fails for a
+    // reason that has nothing to do with the gate. `~1` means the same thing to
+    // git and is inert in both shells.
+    const { out } = run({}, ["--range", `${sha}~1`]);
 
-    // The exit code is deliberately NOT asserted. That range reaches back over
-    // real history and legitimately contains pre-existing violations, so it
-    // exits 1 — which is the gate working, not failing. What this test is for is
-    // NON-VACUITY: the range mode must have read something.
-    expect(out, "range mode did not produce a report").toMatch(/Mode: RANGE \(added lines in/);
+    // The exit code is deliberately NOT asserted. That range may reach back over
+    // real history and legitimately contain pre-existing violations, so it can
+    // exit 1 — which is the gate working, not failing. What this test is for is
+    // NON-VACUITY: the range mode must have READ something.
+    //
+    // WHAT THIS USED TO ASSERT, AND WHY IT WAS WRONG. It required the output to
+    // match `Mode: RANGE (added lines in`. That line is printed ONLY inside the
+    // findings report (`lint-brand-voice.ts`, after `Found N violation(s)`); a
+    // clean scan exits earlier on the `N file(s) scanned … ok` line and never
+    // prints it. So the assertion did not test non-vacuity at all — it required
+    // the probe range to CONTAIN VIOLATIONS, and passed only because the newest
+    // commit touching the probe path happened to be old enough that the range
+    // swept up months of history.
+    //
+    // It broke on 2026-09-18 the moment a commit touched `server/services/
+    // vapi.ts` cleanly: the range narrowed to that one commit, the linter
+    // scanned the file and found nothing — the correct outcome — and the test
+    // failed. A test that goes red when the code is RIGHT is a test that will be
+    // deleted or worked around, so it is fixed rather than tolerated.
+    //
+    // Non-vacuity is now asserted on what it actually means: something was read.
     expect(
       out,
       "RANGE mode read NOTHING over a range that changes a voice surface — the CI vacuum is back",
     ).toMatch(/\b[1-9]\d* file\(s\) scanned|in [1-9]\d* file\(s\)/);
     expect(out).not.toMatch(/NOTHING CHANGED to scan/);
+
+    // The mode LABEL is still pinned — but only where it is actually emitted.
+    // This keeps the original intent (range mode must announce itself as range,
+    // not silently fall back to staged-diff mode) without requiring violations
+    // to exist for the check to run.
+    if (/Found [1-9]\d* brand-voice violation/.test(out)) {
+      expect(out, "reported findings but did not announce RANGE mode").toMatch(
+        /Mode: RANGE \(added lines in/,
+      );
+    }
   }, 200_000);
 
   it("audit mode still works — it reads git ls-files through the same helper", () => {

@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-18T14:36:41.240Z",
-  "count": 740,
+  "generatedAt": "2026-09-18T19:48:51.451Z",
+  "count": 741,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -702,6 +702,7 @@
     "query.trafficFunnel.topBookingPages",
     "query.vapi.achievements",
     "query.vapi.activeCallStates",
+    "query.vapi.assistantRouting",
     "query.vapi.callDetails",
     "query.vapi.callStateHistory",
     "query.vapi.getFollowUpTransferDestination",
