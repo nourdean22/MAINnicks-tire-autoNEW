@@ -1922,8 +1922,8 @@
         }
       ],
       "deferredScope": [
-        "repair-intake guardrails (symptom capture vs diagnosis) - same shape, not yet written",
-        "Ohio OAC 109:4-3-13 estimate/authorization guard - spec verified, no consumer exists because ALG is read-only"
+        "Ohio OAC 109:4-3-13 estimate/authorization guard - spec verified, no consumer exists because ALG is read-only",
+        "repair-intake guardrails (symptom capture vs diagnosis) SHIPPED 2026-09-18 as voice-repair-intake-claim-guard - see that entry; this line is kept so the history shows it was deferred and then closed, not quietly dropped"
       ],
       "lastVerifiedAt": "2026-09-18",
       "codeState": "merged",
