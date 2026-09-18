@@ -51,7 +51,39 @@ const CLASS_ORDER: QueryClass[] = [
 ];
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-const MONTH_RE = new RegExp(`\\b(${MONTHS.join("|")}|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\\b`, "i");
+const MONTH_TOKENS = `${MONTHS.join("|")}|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec`;
+
+/**
+ * 2026-09-17 · a month name only counts inside a TEMPORAL CONTEXT.
+ *
+ * The first cut matched a bare month token anywhere, and several month names
+ * are ordinary English: "may" is the modal verb far more often than the month,
+ * "march" is a verb, "mar" is a verb, "august" is an adjective. Measured on 13
+ * ordinary turns, the bare matcher produced 10 false temporal classifications
+ * and 7 false `asOf` instants.
+ *
+ * ★ A false `asOf` is not cosmetic — it SILENTLY SHRINKS MEMORY. `asOf` flows
+ * to getContextualMemories -> validityWhere(asOf), whose clause is
+ * `{ validFrom: null, createdAt: { lte: asOf } }`, and the 2026-09-08
+ * production probe found 0 of 40,889 live rows carrying validFrom. So every
+ * row falls into that branch: "that may be the right call" resolved to
+ * asOf = May 1st and hid every memory created since. No error, no log — the
+ * turn just answers with a fraction of the brain.
+ *
+ * Requiring a preposition/determiner or an adjacent number keeps every real
+ * date phrasing (12/12 recall on the fixture set) at 0 false positives.
+ * Pinned in tests/brain/query-plan.test.ts.
+ */
+const MONTH_CONTEXT_RE = new RegExp(
+  `\\b(?:in|by|on|since|before|after|until|through|during|from|around|early|late|mid)\\s+(?:${MONTH_TOKENS})\\b` +
+    `|\\b(?:last|this|next)\\s+(?:${MONTH_TOKENS})\\b` +
+    `|\\bas of\\s+(?:${MONTH_TOKENS})\\b` +
+    `|\\b(?:${MONTH_TOKENS})\\s+\\d{1,4}\\b` +
+    `|\\b\\d{1,2}\\s+(?:${MONTH_TOKENS})\\b`,
+  "i",
+);
+/** The month token itself — used to read WHICH month once context qualified it. */
+const MONTH_TOKEN_RE = new RegExp(`\\b(${MONTH_TOKENS})\\b`, "i");
 const ISO_RE = /\b(20\d{2})-(\d{2})-(\d{2})\b/;
 const DURABLE_NOUNS = /\b(name|birthday|address|doctor|medication|meds|wife|husband|daughter|son|kid|car|plate|license|insurance|rent|mortgage|salary|passport|allerg\w*|blood type|routine|preference|prefer|always|never)\b/i;
 /**
@@ -119,7 +151,7 @@ function parseAsOf(msg: string, now: Date): Date | undefined {
     else d.setUTCFullYear(d.getUTCFullYear() - 1);
     return d;
   }
-  const mm = MONTH_RE.exec(msg);
+  const mm = MONTH_CONTEXT_RE.test(msg) ? MONTH_TOKEN_RE.exec(msg) : null;
   if (mm) {
     const mi = monthIndex(mm[1]);
     if (mi >= 0) {
@@ -142,9 +174,12 @@ function isTemporal(msg: string): boolean {
   const lower = msg.toLowerCase();
   return (
     ISO_RE.test(msg) ||
-    MONTH_RE.test(msg) ||
+    MONTH_CONTEXT_RE.test(msg) ||
     /\b(last (week|month|year)|yesterday|\d+\s+(day|week|month|year)s?\s+ago|(a|an|one|two|three)\s+(day|week|month|year)s?\s+ago|as of|back in)\b/.test(lower) ||
-    /\b(before|after|since|until)\s+(\d|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|last|the)/i.test(msg)
+    // `the` dropped 2026-09-17: "clean up after the install", "look after the
+    // shop" are not temporal, and a bare "before the X" never resolves to an
+    // instant anyway — it only mislabelled the turn.
+    /\b(before|after|since|until)\s+(\d|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|last)/i.test(msg)
   );
 }
 

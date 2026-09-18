@@ -31,6 +31,62 @@ describe("planQuery — classes", () => {
     expect(plan("how do I feel today").classes).not.toContain("temporal");
   });
 
+  /**
+   * 2026-09-17 · temporal PRECISION, and why it is not cosmetic.
+   *
+   * `asOf` flows to getContextualMemories -> validityWhere(asOf), whose clause
+   * is `{ validFrom: null, createdAt: { lte: asOf } }`. The 2026-09-08
+   * production probe found 0 of 40,889 live rows carrying validFrom, so EVERY
+   * row takes that branch: a false asOf silently hides every memory created
+   * after it, with no error and no log.
+   *
+   * The original matcher accepted a bare month token anywhere, so "that may be
+   * the right call" resolved to asOf = May 1st — roughly four months of memory
+   * dropped from that turn. Measured: 10 false temporal classifications and 7
+   * false asOf instants across 13 ordinary turns.
+   */
+  const TEMPORAL_ORDINARY = [
+    "that may be the right call",
+    "it may work if we push the cadence",
+    "we may need a second alignment rack",
+    "may I get the invoice",
+    "we may as well book it",
+    "march the inventory list over to the shop",
+    "that might mar the finish",
+    "I'll clean up after the install",
+    "check in after the oil change",
+    "look after the shop while I'm out",
+    "what do you know about my insurance",
+    "how much did the tires cost",
+    "remind me to call Moe",
+  ];
+
+  it("temporal · precision: an ordinary turn is never classified temporal", () => {
+    const falsePositives = TEMPORAL_ORDINARY.filter((m) => plan(m).classes.includes("temporal"));
+    expect(falsePositives).toEqual([]);
+  });
+
+  it("temporal · an ordinary turn NEVER produces an asOf (a false one silently shrinks recall)", () => {
+    const withAsOf = TEMPORAL_ORDINARY.filter((m) => plan(m).asOf !== undefined);
+    expect(withAsOf).toEqual([]);
+    // The headline case, named so a regression is unmistakable: the modal verb.
+    expect(plan("that may be the right call").asOf).toBeUndefined();
+  });
+
+  it("temporal · recall: a month still resolves when it sits in a real date phrase", () => {
+    const intended: Array<[string, string]> = [
+      ["what did I believe back in July", "2026-07-01T00:00:00.000Z"],
+      ["what was the cadence in May", "2026-05-01T00:00:00.000Z"],
+      ["my plan from December", "2025-12-01T00:00:00.000Z"],
+    ];
+    for (const [msg, iso] of intended) {
+      expect(plan(msg).classes, msg).toContain("temporal");
+      expect(plan(msg).asOf?.toISOString(), msg).toBe(iso);
+    }
+    expect(plan("since March have I changed the pricing").classes).toContain("temporal");
+    expect(plan("what did I decide on July 5").classes).toContain("temporal");
+  });
+
   it("correction: 'which one is current?' and a changed amount", () => {
     expect(plan("which one is current?").classes[0]).toBe("correction");
     const p = plan("I no longer take 20mg, it's 10mg");
