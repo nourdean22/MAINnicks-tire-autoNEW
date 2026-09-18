@@ -53,7 +53,19 @@ export function AttributionReviewCard() {
     );
   }
 
-  const rows = (data ?? []) as Array<{
+  /*
+   * 2026-09-18 - reviewQueue now returns an OBJECT, not an array, because an
+   * invoice can be paid once and so can be claimed once. Live that day: of 20
+   * weak matches, EIGHT claimed invoice #5160005 - one customer who rang eight
+   * times - and each row read "this call produced this invoice". Confirming
+   * them all would have counted that invoice eight times.
+   *
+   * NOTE THE CAST BELOW WAS WHY TYPECHECK STAYED GREEN through that shape
+   * change: `as Array<...>` asserts rather than checks, so `.map` would have
+   * thrown at render while every gate passed. Reading `data?.rows` explicitly
+   * is the fix; the cast is kept only to name the row fields.
+   */
+  const rows = (data?.rows ?? []) as Array<{
     runId?: number | null;
     callId: number;
     leadId?: number | null;
@@ -108,6 +120,26 @@ export function AttributionReviewCard() {
         <p className="text-xs text-muted-foreground">No call ↔ invoice matches are waiting for a ruling.</p>
       ) : (
         <ul className="divide-y divide-border/30">
+          {/* Same-invoice contacts are collapsed, never silently dropped. An
+              operator who sees eight rows become one deserves to know why, and
+              a queue that shrinks without explaining itself is a queue nobody
+              trusts. */}
+          {(data?.duplicates?.length ?? 0) > 0 && (
+            <div className="mb-3 text-xs text-muted-foreground bg-amber-500/5 border border-amber-500/20 rounded p-2">
+              <span className="text-amber-400 font-medium">
+                {data!.duplicates.length} same-invoice contact(s) collapsed
+              </span>
+              {" "}across {data!.contestedInvoiceIds.length} invoice(s). An invoice can be
+              paid once, so it is claimed once - the rest are the same customer
+              calling again, kept as history rather than counted as separate money.
+              {data!.counts.overcountFactor != null && data!.counts.overcountFactor > 1 && (
+                <span className="block mt-1">
+                  Counting each row as a conversion would have overstated attributed
+                  revenue by {data!.counts.overcountFactor}x.
+                </span>
+              )}
+            </div>
+          )}
           {rows.map((row) => {
             const rowKey = `${row.callId}:${row.invoiceId ?? "x"}:${row.runId ?? "x"}`;
             const busy = busyKey?.startsWith(`${row.callId}:`) ?? false;
