@@ -147,7 +147,9 @@ export async function beginCronRun(fn: unknown, ctx: unknown): Promise<void> {
   if (!jobName) return;
   try {
     const { prisma } = await import("@/lib/prisma");
-    await prisma.cronJobLog.create({ data: { jobName, status: CRON_STATUS.started } });
+    await prisma.cronJobLog.create({
+      data: { jobName, status: CRON_STATUS.started, ...(runId ? { runId } : {}) },
+    });
   } catch (e) {
     await warn("begin", { jobName, runId }, e);
   }
@@ -156,25 +158,24 @@ export async function beginCronRun(fn: unknown, ctx: unknown): Promise<void> {
 /**
  * Settle a cron run to its terminal status.
  *
- * ⚠⚠ KNOWN LIMITATION, STATED RATHER THAN HIDDEN: this matches the NEWEST
- * `started` row for the job, not this run's own row, because `cron_job_logs`
- * has no run-id column yet. If two runs of the SAME cron overlap, the first to
- * finish settles the newer row and the older one is left to go stale.
+ * ★ MATCHES BY `runId` — THE RUN SETTLES ITS OWN ROW, NOT A RECENT ONE.
  *
- * That is survivable here — every cron in config/crons.ts has a single
- * schedule and Inngest does not run concurrent instances of one cron by
- * default — but it is a guess of exactly the kind that made
- * `markCronRunFailed` fragile, so it is documented, tested, and temporary.
+ * The first cut of this had no run id and matched "newest `started` row for
+ * this job", which is correct only while a cron never overlaps itself. That is
+ * the same class of guess that made `markCronRunFailed` fragile: with two runs
+ * in flight, the first to finish settles the WRONG row and strands the other.
  *
- * ★ THE FIX IS A COLUMN, AND IT IS DELIBERATELY NOT IN THIS CHANGE.
- * `ctx.runId` is already read below for logs, and the Inngest failure event
- * carries the same id, so a nullable `runId` column would make this an exact
- * join. Adding it to the Prisma schema BEFORE the migration is applied to prod
- * would break far more than it fixes: Prisma's `create` issues `RETURNING` over
- * every scalar field, so a client that knows a column the database lacks fails
- * EVERY write to this table — including `lib/services/cron-manager.ts`, which
- * logs all the route crons. Applying that migration is an operator action.
- * See prisma/migrations-pending/ for the parked SQL and the follow-up.
+ * `ctx.runId` is stable across every request a run spans, which is what makes
+ * it usable as the key — the middleware instance is NOT (Inngest constructs a
+ * fresh one per request), so the join has to live in the database.
+ *
+ * ⚠ THE FALLBACK IS RETAINED AND IS NOT DEAD CODE. Rows written before
+ * 2026-09-17T23:58Z have `runId` NULL, and a run whose id could not be read
+ * still deserves to be settled. When `runId` is absent this degrades to the
+ * old recency match rather than refusing to settle at all.
+ *
+ * Column applied to prod 2026-09-17 ·
+ * prisma/migrations/20260917234500_cron_job_log_run_id/.
  */
 export async function settleCronRun(
   fn: unknown,
@@ -189,7 +190,7 @@ export async function settleCronRun(
   try {
     const { prisma } = await import("@/lib/prisma");
     const row = await prisma.cronJobLog.findFirst({
-      where: { jobName, status: CRON_STATUS.started },
+      where: { jobName, status: CRON_STATUS.started, ...(runId ? { runId } : {}) },
       orderBy: { createdAt: "desc" },
       select: { id: true, createdAt: true },
     });

@@ -2776,6 +2776,25 @@ model CronJobLog {
   /// @@map on the table itself, so the DB column is the double-quoted
   /// "resultCount". A snake_case spelling creates a second, unreachable column.
   resultCount Int?
+  /// Inngest run id, for rows opened by lib/inngest/cron-lifecycle.ts.
+  ///
+  /// The JOIN KEY that lets a run's terminal update find the exact row its own
+  /// invocation created. Without it the settle had to guess "newest started row
+  /// for this job" - the same class of guess that made markCronRunFailed
+  /// fragile, and wrong the moment two runs of one cron overlap.
+  ///
+  /// NULL is honest and must stay default-less: route crons (cron-manager.ts)
+  /// write terminal rows directly and never open a started row, and every row
+  /// before 2026-09-17 predates the column. A manufactured id would assert a
+  /// run identity that never existed.
+  ///
+  /// ⚠ ITS INDEX IS DELIBERATELY NOT DECLARED HERE. The real index is PARTIAL -
+  /// `("runId") WHERE "status" = 'started'` - which Prisma cannot express. An
+  /// `@@index([runId])` would declare a DIFFERENT, full index over ~68k mostly
+  /// NULL rows and invite `db push` to replace the partial one with it. Same
+  /// convention as the pgvector HNSW index: raw SQL owns it. See
+  /// prisma/migrations/20260917234500_cron_job_log_run_id/migration.sql.
+  runId     String?
   createdAt DateTime @default(now())
 
   @@index([jobName])
