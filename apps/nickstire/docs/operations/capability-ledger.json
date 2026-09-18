@@ -1900,6 +1900,35 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "voice-tire-safety-claim-guard",
+      "name": "Tire and AWD safety claims are detected, and every boundary is sourced to a primary document",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. PROHIBITED_VOICE_CLAIMS gains four tire-safety entries. These differ in kind from the rest of the guard: a fabricated wait time costs goodwill, a repairability verdict given over the phone can put an unsafe tire back on a car.",
+        "tests": "31 tests in voiceClaimGuardTireSafety.test.ts, EVERY ONE RUN IN BOTH DIRECTIONS - each violating phrase is paired with the correct phrasing of the same thought, which must stay clean. Plus a canary asserting the guard is not simply flagging all text, and a full compliant tire-safety script that must produce zero violations. 72 passed with the existing guard suite; 1,434 client tests green.",
+        "liveRuns": "NONE. No production call has been scored under the new patterns.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "DELIBERATELY UNDER-MATCHING. Only unhedged verdicts fire, so real violations phrased tentatively will be missed. This is the safe direction for a detector that cannot block speech - the module header records that a guessing detector buries the claims that cost money - but it means a clean report is not proof of a clean call."
+        },
+        {
+          "severity": "P2",
+          "description": "DETECTION ONLY. VAPI streams to TTS with no pre-speech hook, so this cannot prevent an utterance. It makes drift visible after the fact; the prompt remains the only preventive control."
+        }
+      ],
+      "deferredScope": [
+        "repair-intake guardrails (symptom capture vs diagnosis) - same shape, not yet written",
+        "Ohio OAC 109:4-3-13 estimate/authorization guard - spec verified, no consumer exists because ALG is read-only"
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

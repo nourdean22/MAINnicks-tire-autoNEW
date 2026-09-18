@@ -1,8 +1,89 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-17** (Unbacked-claim sweep on the public site. #2404 `5ce8f689c` + #2405 `1b09fbf69`
-MERGED; **#2406 open**. Three live falsehoods removed from what crawlers and readers are told, each with
-a canaried regression guard. Full research doc: `docs/PUBLIC-SITE-2026-DESIGN-SEO-BLUEPRINT.md`.)
+**Updated: 2026-09-18** (Voice recovery wave. **#2444 MERGED** `0bd467708`; **#2448 open**. The
+missed-revenue queue was measuring Nick's own greeting. Full audit, graded evidence and the
+pre-"Reset to Shop" checklist: `docs/VOICE-RECOVERY-AUDIT-2026-09-18.md`.)
+
+## 2026-09-18 · The queue was a census of ANSWERED calls
+
+**THE DEFECT.** `classifyCall` scored `transcript + aiSummary` — text containing the ASSISTANT's own
+turns. Nick's greeting necessarily names the shop or the address, and both were load-bearing tokens:
+`"17625 Euclid Ave"` matched `euclid` in `inferredWalkIn` -> `walk_in_directed`; `"Nick's Tire & Auto"`
+matched `auto` in the `lost_opportunity` fallback. Both are queue candidates. **Measured by executing
+the real function:** a call where the caller never spoke produced a queue row, and so did a caller who
+only asked what time the shop closes. The queue could not emit "no demand" for the exact case it
+existed to detect. The reported 1,118 was substantially a count of calls that were ANSWERED.
+
+**THE CURE ALREADY EXISTED.** `customerTurns.ts` diagnosed this same contamination on 2026-07-26 — its
+header says *"aiSummary is written BY a tire-first assistant, so keyword-counting it measures the
+assistant's vocabulary"* — shipped `extractCustomerTurns`, documented `firstSubstantive` as "the field
+demand classification should read", and was wired into the webhook RECORDER, never the DECIDER.
+`metadata.customerSpeech` had been written since then and read by nothing. **Fifth BUILT-UNWIRED
+instance.** The fix was wiring, not building — which is why the proposed Shop Knowledge Console was
+NOT built: this repo's recurring failure is unwired systems, not missing ones.
+
+**THE COLLAPSE NEEDS NO DB WRITE.** It happens at READ time in `buildRecoveryQueue`: `speechFacts()`
+reads `metadata.customerSpeech`, and `disposeCall` excludes on `hasCustomerSpeech === false`
+regardless of the `evalOutcome` already stamped. Pre-2026-07-26 rows have no speech record and land in
+`unclassified` — shown as an amber "not measured" count, never as "no demand". **The backfill script is
+kernel-derived and safe but NOT required; it touches prod, so it needs an explicit operator instruction.**
+
+**WHAT SHIPPED (#2444).** `shared/callTaxonomy.ts` — one kernel replacing TEN hand-typed outcome lists
+and resolving two live contradictions (`walk_in_directed` was SUCCESS in `promptEvolution.ts:125` and
+MISSED REVENUE in `vapi.ts:500`; `tech_failure` was "not a valid conversation" in `vapi.ts:287` and an
+operator obligation simultaneously). `recoveryQueue.ts` — one customer with one need is one EPISODE;
+the old "+3 Repeat Caller" fired on any number seen twice in 90 days, so repetition inflated the
+backlog it described. `callDemandExtraction.ts` — deterministic tire size / qty / condition / vehicle,
+handling the SPOKEN forms ("two fifteen sixty seventeen"); nothing extracted these before.
+`smsFactCompiler.ts` — replaces eight hardcoded templates that asserted stock, capacity and pricing
+from a React component, carried no opt-out, and said "before 6 PM today" (false every Sunday; the shop
+closes at 4). Plus an ELEVENTH copy of the outcome list found in
+`scripts/maintenance/backfill-vapi-classification.ts`, which `tsconfig.json` excludes so no gate saw it.
+
+**#2448 (OPEN) — transfer truth.** Every transfer metric was built on `assistant-forwarded-call`, which
+VAPI documents as meaning the transfer was INITIATED. A call that rang an empty counter and hit
+voicemail scored identically to one Nick answered. `server/lib/transferArtifact.ts` reads
+`artifact.transfers[].status` into connected / not_connected / **unknown**, and a forwarded call with no
+transfers array is UNKNOWN, never connected.
+
+### READ THIS BEFORE TRUSTING ANY OF IT
+
+- **P1 · `speakerAttribution` coverage on real rows is UNMEASURED.** If prod transcripts are neither
+  speaker-prefixed nor role-tagged, unattributable calls yield `unknown` and the queue thins for the
+  WRONG reason. The amber "could not be read well enough to classify" count on the queue panel is the
+  falsifiable test. **Read it on first load.**
+- **P1 · transfer connect coverage may be 0%.** VAPI gates blind-transfer outcome detection PER
+  ORGANISATION. 0% is a real answer meaning "the provider is not telling us" — not a transfer problem
+  and not a clean bill of health. `artifactPresent` settles it from production data.
+- **Counter answer rate before AI pickup is still unmeasured and invisible to this codebase.** Both
+  prior audits missed it. Everything in this wave is DOWNSTREAM of the AI answering; if the counter is
+  missing calls first, this is the second-best lever. Needs the carrier/Vapi ring config.
+- **`safetyFlag` and `existingVehicleAtShop` have no writer**, so those two lanes cannot fire from the
+  queue path yet. A documented lane that cannot fire is worse than no lane.
+
+### Verified against primary sources, deliberately NOT encoded
+
+Ohio **OAC 109:4-3-13** — the 2026-03-21 amendment is **purely editorial** ("his" -> "the consumer's",
+four places); the 10% duty dates to at least 2015 and the rule to 1978. The **$50 floor is paragraph
+(A), FACE-TO-FACE only** — a phone call is paragraph (B), which has **no dollar floor**, so a guard keyed
+on `cost > 50` under-triggers on exactly the channel the assistant works in. The test is "ten per cent
+OR MORE", excluding tax, against the original estimate, and only where an estimate was REQUESTED.
+There is **no record-retention requirement** anywhere in Chapter 109:4-3 (the "two years" in circulation
+is ORC 1345.10(C)'s limitations period), and **(J) expressly disapplies 109:4-3-05**, so its $25 /
+"$5 or 10%" numbers must never be imported.
+
+**Not built on purpose:** estimates live in ALG, which is READ-ONLY by operator directive, and the only
+approval surfaces in this app are reel-content approval. An authorization guard would have no consumer
+— the BUILT-UNWIRED pattern this wave exists to close. The spec is in the audit doc, ready to encode
+when an authorization workflow exists.
+
+Also corrected and worth not re-deriving: "NHTSA says replace tires at 6-10 years" is a
+**misattribution** (NHTSA says "some manufacturers recommend"); the AWD drivetrain-damage warning
+traces to ONE Subaru bulletin scoped to the 2015 WRX STI; Google's anti-review-gating rule was live by
+June 2024, not April 2026; and the "5-minute speed-to-lead" canon measures CONTACT and QUALIFY odds and
+says in terms "This study did not address close ratios."
+
+## 2026-09-17 · Claims the site could not back
 
 ## 2026-09-17 · Claims the site could not back
 

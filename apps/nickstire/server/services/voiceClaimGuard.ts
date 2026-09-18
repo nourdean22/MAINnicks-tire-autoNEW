@@ -214,6 +214,90 @@ export const PROHIBITED_VOICE_CLAIMS: ProhibitedClaim[] = [
     label: "unbacked_callback_promise",
     re: /\b(?:i'?ll|we'?ll|someone\s+will|(?:i|we)\s+(?:am|are)\s+going\s+to)\s+(?:call|ring|get\s+back\s+to|reach\s+out\s+to)\s+(?:you|ya)\b(?!\s*(?:if|when\s+we\s+open|first\s+thing))/i,
   },
+
+  /* ── TIRE SAFETY · added 2026-09-18, sourced to primary documents ──
+   *
+   * These differ in kind from the claims above. The others cost money when
+   * wrong; these can put an unsafe tire back on a car, so the boundary is not
+   * "what can we prove" but "what can anyone determine over a phone".
+   *
+   * DELIBERATELY UNDER-MATCHING. This module's own header records why: a
+   * detector that guesses buries the claims that cost money. Every pattern
+   * below matches an UNHEDGED VERDICT only. "It's usually repairable if it's in
+   * the tread, but we can't confirm until we get it off the wheel" is correct
+   * assistant behaviour and must stay clean, so the hedged forms are allowed
+   * through on purpose and some real violations will be missed. Under-matching
+   * is the safe direction for a detector that cannot block speech.
+   */
+  {
+    /*
+     * A REPAIRABILITY VERDICT OVER THE PHONE.
+     *
+     * USTMA, Puncture Repair Procedures for Passenger and Light Truck Tires:
+     * "Repairs must be performed by removing the tire from the rim/wheel
+     * assembly to perform a complete inspection to assess all damage that may
+     * be present." The injury limit is 1/4 inch and shoulder/sidewall damage is
+     * not repairable at all — none of which is visible from a description.
+     *
+     * Nick may state the CRITERIA. He may not apply them to a tire nobody has
+     * seen.
+     */
+    label: "phone_repairability_verdict",
+    re: /\b(?:yeah|yes|sure)?,?\s*(?:we|i)\s+can\s+(?:definitely\s+|for\s+sure\s+)?(?:patch|plug)\s+(?:that|it|those)\b|\bwe'?ll\s+just\s+(?:patch|plug)\s+(?:that|it)\b|\bthat'?s\s+(?:definitely\s+|totally\s+)?(?:repairable|patchable|fixable)\b/i,
+  },
+  {
+    /*
+     * AN OUTSIDE-IN OR ON-THE-WHEEL REPAIR.
+     *
+     * USTMA is unambiguous: "NEVER perform an outside-in tire repair or
+     * on-the-wheel repair", and "A repair using a plug only or a patch only is
+     * NOT ACCEPTABLE." Offering one on the phone promises a procedure the shop
+     * should not perform.
+     */
+    label: "improper_tire_repair_offer",
+    re: /\b(?:patch|plug|repair|fix)\s+(?:it|that|the\s+tire)\s+(?:right\s+)?(?:while\s+it'?s\s+)?(?:still\s+)?on\s+the\s+(?:car|wheel|rim|vehicle)\b/i,
+  },
+  {
+    /*
+     * A SAFETY VERDICT FROM TIRE AGE.
+     *
+     * NHTSA sets NO replacement interval. Its exact wording is "SOME VEHICLE
+     * AND TIRE MANUFACTURERS RECOMMEND replacing tires that are six to ten
+     * years old" — an attribution, not a rule. Goodyear says six; Bridgestone
+     * and Michelin say ten; USTMA says calendar age alone cannot predict
+     * serviceable life. No federal rule expires a tire, and Ohio has no
+     * age-based tire law.
+     *
+     * Declaring a customer's tires expired, illegal or unsafe on age is both
+     * unsupported and a sales pressure this shop does not need.
+     */
+    /*
+     * Subject widened 2026-09-18 after a test miss: the verdict is just as
+     * unsupported without the noun. "Those are too old, they're unsafe" carries
+     * exactly the same claim as "your tires are unsafe", and a caller hears no
+     * difference. The compliant phrasings stay clean because they attribute
+     * ("some manufacturers recommend") rather than declare, and because
+     * "that are six to ten years old" is not "too old".
+     */
+    label: "tire_age_safety_verdict",
+    re: /\b(?:your\s+tires?|those|they|these)\s+(?:are|is|'re)\s+(?:expired|too\s+old|unsafe|illegal|no\s+longer\s+(?:safe|legal))\b|\bnhtsa\s+(?:says|recommends|requires|mandates)\b/i,
+  },
+  {
+    /*
+     * AN ABSOLUTE AWD CLAIM.
+     *
+     * The only primary document carrying a drivetrain-damage warning is Subaru
+     * Service Bulletin 03-75-15, whose stated applicability is the 2015MY WRX
+     * STI and whose subject is the DCCD warning light. It is not a general law
+     * of all-wheel drive. The per-brand tread-tolerance tables in wide
+     * circulation ("Toyota allows 2/32in") are unsourced retailer marketing.
+     *
+     * Correct behaviour is conditional: AWD vehicles CAN have matching
+     * requirements, and we would check what this vehicle calls for.
+     */
+    label: "awd_absolute_claim",
+    re: /\b(?:will|would|'ll)\s+(?:destroy|ruin|wreck|blow|burn\s+up)\s+(?:your\s+)?(?:differential|drivetrain|transfer\s+case|transmission)\b|\byou\s+(?:have\s+to|must|need\s+to)\s+replace\s+all\s+four\b(?!\s*(?:if|when|unless|on\s+some))/i,
+  },
 ];
 
 /**
