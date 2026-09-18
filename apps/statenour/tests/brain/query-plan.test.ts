@@ -107,6 +107,48 @@ describe("planQuery — classes", () => {
     }
   });
 
+  /**
+   * 2026-09-17 · exact_identifier PRECISION, pinned after an audit that
+   * expected a defect and found none.
+   *
+   * The ALL-CAPS matcher DOES match "ASAP"; the guard below it (requires a
+   * digit, an underscore, or a camelCase transition) is what rejects it. That
+   * guard is one easily-deleted line, and the exact lane's entire value is
+   * precision — a spurious term sends recallMemoriesForQuery hunting for
+   * "ASAP". Measured 0 noise across 12 ordinary turns; pinned so it stays 0.
+   */
+  it("exact_identifier · precision: ordinary chat yields no exact terms", () => {
+    const ordinary = [
+      "get back to me ASAP",
+      "that is OKAY with me",
+      "call Moe NOW",
+      "the tires cost 240",
+      "I need this DONE today",
+      "send the invoice PLEASE",
+      "what do you know about my insurance",
+      "the shop opens at 8am",
+      "HVAC is acting up again",
+      "check the DOT date on that tire",
+    ];
+    const noisy = ordinary.filter((m) => plan(m).exactTerms.length > 0);
+    expect(noisy).toEqual([]);
+  });
+
+  it("exact_identifier · recall: real identifiers of every supported shape survive", () => {
+    const cases: Array<[string, string]> = [
+      ["look at BDN-319", "BDN-319"],
+      ["what happened in #2414", "#2414"],
+      ["check lib/brain/query-plan.ts", "lib/brain/query-plan.ts"],
+      ["the commit was a750125", "a750125"],
+      ["is NICK_RECALL_ARBITER on", "NICK_RECALL_ARBITER"],
+      ["look at buildContextReceipt", "buildContextReceipt"],
+      ["the brain_memories table", "brain_memories"],
+    ];
+    for (const [msg, want] of cases) {
+      expect(plan(msg).exactTerms, msg).toContain(want);
+    }
+  });
+
   it("correction: 'which one is current?' and a changed amount", () => {
     expect(plan("which one is current?").classes[0]).toBe("correction");
     const p = plan("I no longer take 20mg, it's 10mg");
