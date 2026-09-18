@@ -82,8 +82,9 @@ export const PUBLIC_EXACT = [
   //     to any unauthenticated client. It also lacked a route-level auth wrapper
   //     (unlike /api/system/health), so this middleware entry was its ONLY guard.
   //     Now owner-gated here AND at the route (defense-in-depth). External
-  //     uptime monitors must use /api/system/heartbeat (Railway healthcheckPath
-  //     already points there — see railway.json — so deploys are unaffected).
+  //     uptime monitors must use /api/system/heartbeat (Railway's healthcheck
+  //     already points there — see .railway/railway.ts, which replaced
+  //     railway.json on 2026-09-18 — so deploys are unaffected).
   "/api/system/health",    // owner-gated at the route ({ auth: "owner" }); kept here as coexistence path
   "/api/system/heartbeat", // External monitors (UptimeRobot, etc.) — returns only { status, db_latency_ms }
   "/api/system/perplexica-diag", // CRON_SECRET-gated at the route ({ auth: "cron" }); bypasses the session gate so the /perplexica diagnostic is reachable with the cron bearer, exactly like /api/cron/*

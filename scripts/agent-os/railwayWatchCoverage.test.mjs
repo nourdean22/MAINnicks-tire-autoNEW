@@ -60,9 +60,11 @@ const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
 
 /** Services that build from this monorepo and deploy from a Railway service. */
 const SERVICES = [
-  { app: "apps/statenour", label: "statenour-web" },
-  { app: "apps/worker", label: "statenour-worker" },
-  { app: "apps/nickstire", label: "nicks-tire-auto" },
+  { app: "apps/statenour", label: "statenour-web", service: "statenour-web" },
+  { app: "apps/worker", label: "statenour-worker", service: "statenour-worker" },
+  // `label` is the pnpm package name; `service` is what Railway calls it. They
+  // differ for nickstire, and reading railway.ts needs the Railway one.
+  { app: "apps/nickstire", label: "nicks-tire-auto", service: "MAINnicks-tire-auto" },
 ];
 
 /** Inputs every build reads regardless of app. */
@@ -138,16 +140,66 @@ export function patchInputs() {
   return [...new Set(Object.values(patched).map((p) => String(p).replace(/\\/g, "/")))].sort();
 }
 
-for (const { app, label } of SERVICES) {
+/**
+ * Watch patterns this service declares in `.railway/railway.ts`, or null.
+ *
+ * THE SOURCE OF TRUTH MOVED (2026-09-18). railway.json / railway.toml is
+ * deprecated with a HARD CUTOFF of 2026-12-01; the effective config now lives in
+ * `.railway/railway.ts` (Railway Infrastructure as Code, applied 2026-09-18).
+ *
+ * This gate used to read ONLY apps/<app>/railway.json and assert it existed.
+ * Both halves became wrong the moment the migration landed: deleting the legacy
+ * files -- the documented final step of the handover -- would have turned this
+ * gate RED, while dropping a `packages/**` entry from railway.ts would have left
+ * it GREEN as production silently stopped redeploying on that package. A gate
+ * that reads the file which no longer decides anything is not a gate.
+ *
+ * Parsed with a regex rather than imported: railway.ts imports `railway/iac`,
+ * which is not a dependency of this repo, so importing it would fail the gate
+ * for an unrelated reason. A parse miss returns null and the caller REFUSES --
+ * it never degrades quietly to "no patterns required".
+ */
+export function iacWatchPatterns(serviceName) {
+  const p = join(REPO, ".railway", "railway.ts");
+  if (!existsSync(p)) return null;
+  const src = readFileSync(p, "utf8");
+  const start = src.indexOf("service(" + JSON.stringify(serviceName));
+  if (start === -1) return null;
+  // Bound the slice to this service's own block, so the NEXT service's
+  // patterns can never be read as this one's.
+  const next = src.indexOf("service(", start + 10);
+  const block = src.slice(start, next === -1 ? undefined : next);
+  const m = block.match(/watchPatterns:\s*\[([^\]]*)\]/);
+  if (!m) return null;
+  return [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+}
+
+for (const { app, label, service } of SERVICES) {
   test(`${label} watches everything its build consumes`, () => {
+    const iac = iacWatchPatterns(service);
     const cfgPath = join(REPO, app, "railway.json");
-    assert.ok(existsSync(cfgPath), `${app}/railway.json must exist`);
-    const patterns = readJson(cfgPath)?.build?.watchPatterns ?? [];
+    const legacy = existsSync(cfgPath) ? (readJson(cfgPath)?.build?.watchPatterns ?? null) : null;
+
     assert.ok(
-      patterns.length > 0,
-      `${app}/railway.json has no build.watchPatterns. Without it Railway falls back to the ` +
-        `dashboard setting, which is invisible to code review and was measured wrong on 2026-09-18.`,
+      (iac && iac.length > 0) || (legacy && legacy.length > 0),
+      `${service} declares watchPatterns in NEITHER .railway/railway.ts NOR ${app}/railway.json. ` +
+        `Railway then falls back to the dashboard setting, which is invisible to code review and ` +
+        `was measured WRONG on 2026-09-18: 1 pattern live against 10 in the repo.`,
     );
+
+    // Both present = mid-migration. They MUST agree, because which one wins
+    // depends on the 2026-12-01 cutoff rather than on anything in this repo.
+    if (iac && legacy) {
+      assert.deepEqual(
+        [...iac].sort(),
+        [...legacy].sort(),
+        `${service}: .railway/railway.ts and ${app}/railway.json declare DIFFERENT watchPatterns. ` +
+          `Until 2026-12-01 the JSON wins at deploy time and the .ts wins afterwards, so this is a ` +
+          `dated time bomb, not a preference.`,
+      );
+    }
+
+    const patterns = iac ?? legacy;
 
     const required = [app, ...workspaceClosure(app), ...patchInputs(), ...ALWAYS_REQUIRED];
     const missing = missingPatterns(required, patterns);

@@ -79,6 +79,10 @@ export async function GET(req: Request) {
     const embedding = await getEmbedding(q);
     if (embedding && embedding.length > 0) {
       const vecLit = `[${embedding.join(",")}]`;
+      // SHADOW FILTER (2026-09-18 · review on #2430). No JOIN to person_profiles
+      // here — the query returns ids only — so a person whose row is gone still
+      // costs one of `limit * 3` candidate slots and silently shortens the
+      // result set. Cheaper than the search-hybrid leak, same root cause.
       const cosineRows = await prisma.$queryRawUnsafe<
         Array<{ source_id: string; distance: number }>
       >(
@@ -87,6 +91,7 @@ export async function GET(req: Request) {
            (ve.embedding_vec_1536 <=> '${vecLit}'::vector(1536))::double precision AS distance
          FROM vector_embeddings ve
          WHERE ve."sourceType" = 'person_profile'
+           AND ve."sourceUnavailableAt" IS NULL
            AND ve.embedding_vec_1536 IS NOT NULL
          ORDER BY ve.embedding_vec_1536 <=> '${vecLit}'::vector(1536)
          LIMIT $1`,

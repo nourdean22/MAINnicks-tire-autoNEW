@@ -392,9 +392,44 @@ export const GET = cronHandler(async () => {
   // on every run to date — including the night 54,107 rows were deleted.
   // ok:false files the run as FAILED (lib/services/cron-manager.ts
   // reportedFailureReason) so a blocked sweep is an alarm, not a footnote.
+  // ⚠ FAILURE MUST BE TOP-LEVEL OR IT IS NOT A FAILURE (2026-09-18 · review on
+  // #2430). `reportedFailureReason` in lib/services/cron-manager.ts reads ONLY a
+  // top-level `ok: false` — CronJobLog stores status/error/count, never this
+  // payload. So the first cut, which reported the shadow sweep's refusal nested
+  // under `embeddingShadow`, would have filed a run as SUCCESS while dead
+  // embeddings stayed searchable and nobody was told.
+  //
+  // That is precisely the defect repaired across this cron fleet on 2026-09-17,
+  // where three jobs wrote `status: "success"` before doing the work and
+  // /system/fleet was green for seven weeks. Reintroducing it one layer down,
+  // in the same file, is exactly how that class survives being "fixed".
+  // A SKIPPED SOURCE IS ALSO A FAILURE, and that is not obvious (2026-09-18,
+  // review on #2434). `refused` covers the cap; it does NOT cover a source the
+  // sweep declined individually — a missing table, a renamed soft-delete column,
+  // or the 100%-mark mapping guard. Those leave `refused:false` with an empty
+  // reason list, so the cron logged SUCCESS while that source went unreconciled
+  // and its stale embeddings stayed searchable.
+  //
+  // In steady state this list is EMPTY: all 11 allowlisted tables exist, all
+  // their soft-delete columns exist, and situation_log carries allowFullSweep.
+  // So a skip is never routine — it means the schema moved under the allowlist,
+  // which is exactly the thing that must not be discovered a month later.
+  const skipped = (shadowSweep?.sources ?? [])
+    .filter((s) => s.skipped)
+    .map((s) => `${s.sourceType}: ${s.skipped}`);
+
+  const failureReasons = [
+    ...blockedSweeps.map((b) => b.reason),
+    ...(shadowSweep === null ? ["embedding shadow sweep threw — see error_logs"] : []),
+    ...(shadowSweep?.refused && shadowSweep.refusedReason
+      ? [`embedding shadow sweep refused — ${shadowSweep.refusedReason}`]
+      : []),
+    ...(skipped.length > 0 ? [`embedding shadow sources skipped — ${skipped.join(" | ")}`] : []),
+  ];
+
   return {
-    ...(blockedSweeps.length > 0
-      ? { ok: false as const, reason: blockedSweeps.map((b) => b.reason).join(" | ") }
+    ...(failureReasons.length > 0
+      ? { ok: false as const, reason: failureReasons.join(" | ") }
       : {}),
     resultCount: totalDeleted,
     deletedByTable,
@@ -410,7 +445,7 @@ export const GET = cronHandler(async () => {
           cleared: shadowSweep.totalCleared,
           refused: shadowSweep.refused,
           refusedReason: shadowSweep.refusedReason,
-          skipped: shadowSweep.sources.filter((s) => s.skipped).map((s) => `${s.sourceType}: ${s.skipped}`),
+          skipped,
         }
       : { error: "sweep threw — see error_logs" },
   };

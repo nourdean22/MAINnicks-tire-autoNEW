@@ -188,6 +188,15 @@ export async function searchPhotos(opts: {
   }
   const vecLit = `[${padded.join(",")}]`;
 
+  // SHADOW FILTER (2026-09-18) — found by tests/repo/vector-search-shadow-filter,
+  // NOT by the hand sweep that preceded it. Same shape as search-hybrid: ranked,
+  // returns `content` off the embedding, joins no source table.
+  //
+  // ⚠ A NO-OP TODAY, ON PURPOSE. `photo` is in UNMAPPED_SOURCE_TYPES because no
+  // `photos` table exists, so these rows are never marked and this clause never
+  // excludes anything. It is here so the path is already correct if a photos
+  // table ever lands and `photo` joins the shadow allowlist — at which point the
+  // leak would otherwise reappear in a file nobody was looking at.
   const rows = await prisma
     .$queryRawUnsafe<
       Array<{
@@ -201,6 +210,7 @@ export async function searchPhotos(opts: {
               (embedding_vec_1536 <=> $1::vector(${TARGET_DIM})) AS distance
        FROM vector_embeddings
        WHERE "sourceType" = 'photo'
+         AND "sourceUnavailableAt" IS NULL
          AND embedding_vec_1536 IS NOT NULL
        ORDER BY embedding_vec_1536 <=> $1::vector(${TARGET_DIM})
        LIMIT ${limit}`,

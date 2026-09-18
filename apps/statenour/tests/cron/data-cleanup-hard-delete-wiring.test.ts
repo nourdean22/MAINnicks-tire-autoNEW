@@ -31,6 +31,26 @@ vi.mock("@/lib/system/stale-data-purger", () => ({
   purgeStaleCategory: (...a: unknown[]) => purgeStaleCategory(...a),
 }));
 
+// 2026-09-18 (review on #2430) · data-cleanup now reconciles vector_embeddings
+// and propagates a REFUSED or THROWN sweep into the route's TOP-LEVEL `ok:false`
+// -- lib/services/cron-manager.ts reads only the top level, so a nested failure
+// would have filed the run as SUCCESS while dead embeddings stayed searchable.
+//
+// Mocked here so the positive control below describes a NORMAL night. Without
+// this the unmocked sweep throws against the partial prisma stub, and "a normal
+// night reports success" would assert the failure path by accident.
+const shadowMocks = vi.hoisted(() => ({ sweep: vi.fn() }));
+vi.mock("@/lib/db/embedding-shadow", () => ({
+  sweepEmbeddingShadow: shadowMocks.sweep,
+}));
+const OK_SWEEP = {
+  sources: [],
+  totalMarked: 0,
+  totalCleared: 0,
+  refused: false,
+  dryRun: false,
+};
+
 vi.mock("@/lib/utils/http", () => ({
   cronHandler: (h: (req: Request, ctx: unknown) => Promise<unknown>) => h,
 }));
@@ -84,6 +104,12 @@ beforeEach(() => {
   // harness rather than on the assertion.
   brainDeleteMany.mockReset();
   brainDeleteMany.mockResolvedValue({ count: 7 });
+  // Same re-arm, same reason as the comment above — the shadow sweep mock walked
+  // straight into it: with no implementation it returns undefined, the route
+  // calls `.catch` on undefined, and every case dies in the harness instead of
+  // on its assertion.
+  shadowMocks.sweep.mockReset();
+  shadowMocks.sweep.mockResolvedValue(OK_SWEEP);
   brainCountFn.mockClear();
   purgeStaleCategory.mockReset();
   purgeStaleCategory.mockResolvedValue({ category: "pending_actions_7d", purged: 0, note: "" });
@@ -150,5 +176,66 @@ describe("data-cleanup route · the hard-delete breaker is actually wired", () =
     const cat = where!.category as { notIn?: string[] };
     expect(cat?.notIn, "durable categories must be excluded by the predicate").toContain("belief");
     expect(JSON.stringify(where!.NOT), "operator-authored rows must be excluded").toMatch(/createdBy/);
+  });
+});
+
+describe("the embedding reconciliation cannot fail silently", () => {
+  it("BREAKS: a REFUSED sweep files the run as FAILED, not a green zero", async () => {
+    // cron-manager's reportedFailureReason reads ONLY a top-level `ok: false`,
+    // and CronJobLog stores status/error/count — never the response payload. So
+    // a refusal reported only under `embeddingShadow` is invisible forever.
+    shadowMocks.sweep.mockResolvedValue({
+      ...OK_SWEEP,
+      refused: true,
+      refusedReason: "17720 rows exceeds MAX_NEW_MARKS_PER_RUN=2000; re-run with force",
+    });
+
+    const out = await runRoute();
+
+    expect(out.ok).toBe(false);
+    expect(String(out.reason)).toContain("MAX_NEW_MARKS_PER_RUN");
+  });
+
+  it("BREAKS: a THROWN sweep files the run as FAILED too", async () => {
+    shadowMocks.sweep.mockRejectedValue(new Error("connection reset"));
+
+    const out = await runRoute();
+
+    expect(out.ok).toBe(false);
+    expect(String(out.reason)).toContain("embedding shadow sweep threw");
+  });
+
+  it("CANARY: a clean sweep leaves the run green, so the two above are not vacuous", async () => {
+    const out = await runRoute();
+    expect(out.ok).toBeUndefined();
+  });
+
+  it("BREAKS: a SKIPPED source files the run as FAILED (refused:false is not enough)", async () => {
+    // A source the sweep declines individually — missing table, renamed
+    // soft-delete column, or the 100%-mark mapping guard — leaves refused:false.
+    // In steady state this list is empty, so a skip means the schema moved under
+    // the allowlist and that source went unreconciled.
+    shadowMocks.sweep.mockResolvedValue({
+      ...OK_SWEEP,
+      sources: [
+        { sourceType: "mission", marked: 0, cleared: 0, skipped: 'table "Mission" does not exist' },
+      ],
+    });
+
+    const out = await runRoute();
+
+    expect(out.ok).toBe(false);
+    expect(String(out.reason)).toContain("mission");
+  });
+
+  it("CANARY: sources present WITHOUT a skip leave the run green", async () => {
+    shadowMocks.sweep.mockResolvedValue({
+      ...OK_SWEEP,
+      sources: [{ sourceType: "mission", marked: 3, cleared: 1 }],
+    });
+
+    const out = await runRoute();
+
+    expect(out.ok).toBeUndefined();
   });
 });
