@@ -12,6 +12,10 @@ This is the sibling of
 [the orphaned subject](DEFECT-SHAPE-ORPHANED-SUBJECT.md): that one is a control
 nothing consumes, this one is a control that consumes nothing.
 
+A third sibling is [the stale denominator](DEFECT-SHAPE-STALE-DENOMINATOR.md):
+there the probe DOES report, correctly and specifically, and still answers a
+different question than the one asked, because its window went unstated.
+
 ## Three cases in one session — 2026-08-29
 
 **1. A `sed` mutation that silently matched nothing.**
