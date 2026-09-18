@@ -366,7 +366,7 @@ complete — an unlisted control is not a covered one.
 | nickstire **hidden holdout** — `scripts/proof/unpack-holdout.mjs` + `holdout-summary.mjs` + the runner's holdout mode | 1 | **1** | The evaluator the optimising agent cannot see. `shared/proofHoldout.test.ts` (10) proves the leak surfaces are shut — a holdout's title is its id only, an assertion label names only the oracle's KIND, a failure record carries a fixed phrase — and that an ABSENT holdout is posted as `unmeasured`, never as a pass (the silent-instrument shape, on the one instrument whose silence nobody would notice). Replayed live 2026-09-15: 3/3 pass in holdout mode, nothing written under the uploaded artifact |
 | statenour **Repo Time Machine** — `lib/services/proof-timeline.ts` + `/api/proof/timeline` | 1 | **1** | Groups the proof lane on the commit the site actually SERVED when judged. `tests/services/proof-timeline.test.ts` (8): newest-first grouping, latest run wins, failures unioned, deltas name what was fixed and what broke, an unmeasured holdout never becomes "zero failures" in a delta, garbage payloads cannot take the page down, P2021 degrades and other errors surface |
 | statenour **ActionAttempt reclaim CAS** — `beginAttempt` in `lib/services/action-attempts.ts` | 1 | **1** | The claim-before-act shape: two racers reading the same expired row must yield ONE claim. `tests/services/action-attempts.test.ts` drives a store whose `updateMany` evaluates the WHERE against the current row (no hard-coded counts): the two-caller race returns one `claimed` and one `duplicate`, and the RENEWAL race — another caller moves only `holdUntil` between the read and the swap — returns `duplicate` with nothing reclaimed. Dropping the deadline from the predicate flips the renewal race to `claimed` (Codex, #2343/#2345) |
-| **Total** | **74** | **28** | **37.8 %** |
+| **Total** | **75** | **29** | **38.7 %** |
 
 ---
 
@@ -494,7 +494,7 @@ The failure class in its purest form: **a control that works correctly, whose ha
 2026-05-10, and which has never once run inside a gate.**
 
 `apps/statenour/scripts/check-policy-coverage.ts` was defined as `check:policy-coverage` in
-`package.json` and invoked by **nothing** — not `verify:hard` (20 links today; it was 16, then 17, then 18, then 19, and none of
+`package.json` and invoked by **nothing** — not `verify:hard` (21 links today; it was 16, then 17, then 18, then 19, then 20, and none of
 them was this), not `.github/workflows`, not `lefthook.yml`. Run by hand on 2026-08-22 it exited **1**
 immediately. Verbatim, not reconstructed:
 
