@@ -40,16 +40,48 @@ export async function dropEmbeddingsForMemories(
   memoryIds: string[],
   reason: string,
 ): Promise<number> {
-  if (memoryIds.length === 0) return 0;
+  return dropEmbeddingsForSource("brain_memory", memoryIds, reason);
+}
+
+/**
+ * The same tombstone for any source type whose rows are HARD-deleted.
+ *
+ * ⚠ THIS FILE'S HEADER WAS TRUE AND INCOMPLETE. It said four brain_memory
+ * paths hard-delete without cleaning up, and fixed those. Measured 2026-09-18,
+ * two MORE hard-delete paths exist on other source types and neither cascaded:
+ *
+ *   · app/api/cron/data-cleanup   deleted situation_logs nightly on a 90-day
+ *     timer → 205 situation_log embeddings, 0 source rows, ever. (That sweep
+ *     is removed in the same change; see the route for why.)
+ *   · lib/system/stale-data-purger  deletes orphan chat_conversations AND
+ *     their chat_messages → 7 chat_message orphans measured, and it runs on a
+ *     schedule, so the count is a rate, not a total.
+ *
+ * Generalising is the point: the next writer of a hard delete needs one
+ * obvious function to call, not a per-table convention to rediscover. Only
+ * HARD deletes belong here — a soft delete leaves the row addressable, and
+ * lib/db/embedding-shadow.ts marks those instead so they stay recoverable.
+ *
+ * Best-effort by design, exactly like the brain_memory path: the caller has
+ * already removed the rows, and turning a cleanup miss into a throw converts a
+ * storage leak into a failed prune.
+ */
+export async function dropEmbeddingsForSource(
+  sourceType: string,
+  sourceIds: string[],
+  reason: string,
+): Promise<number> {
+  if (sourceIds.length === 0) return 0;
   try {
     const res = await prisma.vectorEmbedding.deleteMany({
-      where: { sourceType: "brain_memory", sourceId: { in: memoryIds } },
+      where: { sourceType, sourceId: { in: sourceIds } },
     });
     return res.count;
   } catch (err) {
     log.warn("embedding_cleanup_failed", {
       reason,
-      memoryCount: memoryIds.length,
+      sourceType,
+      memoryCount: sourceIds.length,
       error: String((err as { message?: string })?.message ?? err).slice(0, 200),
     });
     return 0;

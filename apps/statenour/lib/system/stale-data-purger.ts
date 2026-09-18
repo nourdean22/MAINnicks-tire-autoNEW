@@ -250,10 +250,24 @@ async function purgeOrphanConvos(): Promise<PurgeResult> {
       .filter((c) => c._count.messages <= 2)
       .map((c) => c.id);
     if (confirmedOrphans.length === 0) {
-      return { count: 0, changed: 0 };
+      // Same shape as the success branch — an early return with a narrower
+      // object is how `result.messageIds.length` becomes a runtime throw on the
+      // one path nobody exercises locally.
+      return { count: 0, changed: 0, messageIds: [] as string[], conversationIds: [] as string[] };
     }
     // FK order: messages first (though for a ≤2-msg set this is trivial),
     // then the conversation row.
+    //
+    // Capture the message ids BEFORE deleting them. `vector_embeddings` indexes
+    // chat_message by id through a plain text column with no foreign key, so
+    // once the rows are gone there is nothing left to join against and the
+    // embedding becomes permanently unreachable-but-searchable. Measured
+    // 2026-09-18: 7 chat_message orphans, and this purge runs on a schedule, so
+    // that number is a RATE, not a total.
+    const doomedMessages = await tx.chatMessage.findMany({
+      where: { conversationId: { in: confirmedOrphans } },
+      select: { id: true },
+    });
     await tx.chatMessage.deleteMany({
       where: { conversationId: { in: confirmedOrphans } },
     });
@@ -263,8 +277,25 @@ async function purgeOrphanConvos(): Promise<PurgeResult> {
     return {
       count: del.count,
       changed: snapshotOrphans.length - confirmedOrphans.length,
+      messageIds: doomedMessages.map((m) => m.id),
+      conversationIds: confirmedOrphans,
     };
   });
+
+  // Outside the transaction ON PURPOSE. The embeddings are a DERIVED index, so
+  // a failure to clean them must not roll back a completed purge — that would
+  // trade a storage leak for a failed prune, which is the trade
+  // memory-tombstone.ts already refused for brain_memory. Best-effort, logged,
+  // never throws.
+  if (result.messageIds.length > 0 || result.conversationIds.length > 0) {
+    const { dropEmbeddingsForSource } = await import("@/lib/brain/memory-tombstone");
+    await dropEmbeddingsForSource("chat_message", result.messageIds, "purge:orphan_conversations");
+    await dropEmbeddingsForSource(
+      "chat_conversation",
+      result.conversationIds,
+      "purge:orphan_conversations",
+    );
+  }
   const note =
     result.changed > 0
       ? `Deleted ${result.count} orphan conversations (${result.changed} caught live + skipped)`
