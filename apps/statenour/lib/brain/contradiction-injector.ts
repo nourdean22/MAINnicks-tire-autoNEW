@@ -159,17 +159,43 @@ export async function findRelevantContradictions(
     // contradiction is relevant — embed the concatenation so we catch
     // semantic overlap with either side.
     let best: { key: string; parsed: Contradiction; createdAt: Date; sim: number } | null = null;
+    // 2026-09-18 · highest score across ALL candidates, threshold ignored.
+    // NICK_CORRECTION_THRESHOLD_BOOST has been off since 2026-09-17 with the
+    // reason "the 0.6 choice is a conservative starting guess, not
+    // calibrated" — and there was no way to calibrate it, because a turn that
+    // surfaced nothing recorded nothing, so the scores that ALMOST cleared the
+    // bar were exactly the data nobody had. This is that data.
+    //
+    // It is free. The threshold is applied on the line AFTER the per-candidate
+    // getEmbedding() above, so every candidate is embedded regardless of where
+    // the bar sits; tracking the max costs one comparison, no extra I/O, and
+    // changes no behaviour — `best` and the return value below are untouched.
+    let bestAny: { key: string; sim: number } | null = null;
     for (const c of candidates) {
       const text = `${c.parsed.new_excerpt}\n${c.parsed.old_excerpt}`;
       const vec = await getEmbedding(text).catch((): number[] => []);
       if (vec.length === 0) continue;
       const sim = cosineSimilarity(userVec, vec);
+      if (!bestAny || sim > bestAny.sim) bestAny = { key: c.key, sim };
       if (sim < threshold) continue;
       if (!best || sim > best.sim) {
         best = { ...c, sim };
       }
     }
-    if (!best) return null;
+    if (!best) {
+      // The near-miss band: something scored, nothing cleared the bar. Read the
+      // distribution of `sim` here across real correction turns to pick the
+      // boost threshold from evidence instead of from a guess. A turn with no
+      // candidates at all logs nothing — that is an absence of signal, not a
+      // near miss, and conflating the two would bias the distribution upward.
+      if (bestAny) {
+        console.info(
+          "[contradiction-injector] near_miss",
+          JSON.stringify({ threshold, bestSim: Number(bestAny.sim.toFixed(4)), candidates: candidates.length }),
+        );
+      }
+      return null;
+    }
 
     // Per-conversation-per-day idempotency. The dedup marker is a
     // tiny BrainMemory row in its own category so the contradiction
