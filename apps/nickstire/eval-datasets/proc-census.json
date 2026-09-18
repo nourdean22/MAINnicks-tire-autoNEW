@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-16T13:57:10.522Z",
-  "count": 738,
+  "generatedAt": "2026-09-18T13:04:23.109Z",
+  "count": 739,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -575,6 +575,7 @@
     "query.lead.sheetUrl",
     "query.localGrowth.automationArmedState",
     "query.localGrowth.reviewsHealth",
+    "query.lot.activity",
     "query.lot.clock",
     "query.lot.commissioningReport",
     "query.lot.commissioningRuns",
