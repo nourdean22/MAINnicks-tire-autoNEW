@@ -68,19 +68,44 @@
 >   starts collecting. Do not flip it on the 0.6 guess.
 > - **`subQueries` still dark, on purpose.** Wiring needs a second retrieval plus a merge; the
 >   natural merge (`retrieval-arbiter.arbitrate()`) is behind `NICK_RECALL_ARBITER`, default off.
-> - **11 `NICK_*` keys baselined in the ratchet — 7 switches + 4 tuning knobs, and only the
->   7 are a defect.** The knobs (`NICK_CALIBRATION_K`, `NICK_TOOL_BUDGET`,
+> - **CLOSED by #2429 `18adea836`.** All 7 switches are now registered as `readOnly` mirrors and
+>   the baseline is the 4 knobs. Measuring board-vs-runtime agreement while doing it found a real
+>   divergence (`NICK_AGENT_FOLLOWUPS=" 1 "` reads TRUE in code, OFF on the board) and, worse, that
+>   `getAllFlags()` — the path the operator board actually renders through — carried its own copy
+>   of the resolver, so the first fix reached only the path its test called. Original entry kept
+>   below for the reasoning about why the knobs stay excluded:
+> - ~~**11 `NICK_*` keys baselined in the ratchet — 7 switches + 4 tuning knobs, and only the
+>   7 are a defect.**~~ The knobs (`NICK_CALIBRATION_K`, `NICK_TOOL_BUDGET`,
 >   `NICK_TOOL_TIMEOUT_MS`, `NICK_ESCALATION_DAILY_CAP`) are numeric VALUES, excluded on
 >   purpose — the ratchet's own header says forcing them onto an on/off board would be worse
 >   than leaving them. Counting all 11 as "unregistered switches" would file four deliberate
 >   exclusions as bugs. Worst of the real 7: `NICK_FAILOVER_RESCUE`, live in production and
 >   invisible on the flag board. Follow-up #2429 registers all 7 as `readOnly` mirrors and
 >   takes the baseline to the 4 knobs.
-> - **`FAST_TOPIC_STOPWORDS` gap.** "is it still the same" derives the useless topic `["same"]`.
->   Widening the list is a ranking change and belongs with a recall-eval run.
-> - **`packages/reel-engine` does not build in a junctioned worktree** (`@remotion/bundler` absent,
->   plus 2 pre-existing strict-null errors in `src/render.ts`). Pre-existing, not from this wave;
->   it blocks the pre-push hook for anyone working from a worktree.
+> - **CLOSED by #2433 `e3bf7b4f2` — and the deferral reason I wrote was WRONG.** The original
+>   entry said the `FAST_TOPIC_STOPWORDS` gap ("is it still the same" → `["same"]`) was "a ranking
+>   change and belongs with a recall-eval run". Measuring killed that premise: 14 of 20 anaphoric
+>   follow-ups derived pro-form-ONLY topics, and removing them is not a precision/recall trade at
+>   all — the lexical lane matches memory CONTENT, and for a pro-form every content match is
+>   COINCIDENTAL, so there is no true positive to lose and nothing for an eval to weigh. It also
+>   completed a class the list already started (`any`, `all`, `one`, `thing` were stopwords from
+>   the beginning). `rest` (rest day) and `change` (oil change) stay topics on purpose.
+>   Review then caught that the fix exposed a SECOND defect: the topic-poor prepend in
+>   `buildRecallMessages` had outlived its own justification — #2425 removed it — and was steering
+>   non-anaphoric turns at the previous turn's subject. Deleted, not special-cased.
+> - **RESOLVED 2026-09-18 — and my diagnosis of it was WRONG.** I recorded this as
+>   "`packages/reel-engine` does not build in a junctioned worktree", implying a junction problem.
+>   It was not. `@remotion/bundler` was declared in `packages/reel-engine/package.json` and pinned
+>   in `pnpm-lock.yaml` but **installed nowhere** — absent from the package's `node_modules` AND
+>   from the root `.pnpm` store — and the build failed in the PRIMARY checkout too. All 9
+>   `packages/*` junctions were intact the whole time. The operator ran the install and `tsc` is
+>   now silent; the "2 pre-existing strict-null errors in `src/render.ts`" were downstream of the
+>   unresolvable module and vanished with it. This had been forcing every worktree session to push
+>   hook-free, so it was costing more than it looked.
+>   ⚠ Use the UNFILTERED workspace install. The filtered form prunes sibling workspace packages:
+>   run with `--filter "@nour/reel-engine..."` it stripped `styled-jsx` out of
+>   `apps/statenour/node_modules` and broke local `tsc` on an untouched file. CI was unaffected
+>   (it resolves from the lockfile, which never changed).
 
 > ## 2026-09-17 · W12 · instruments that never ran, and a capability nobody could reach · 1 PR / 13 slices
 >
