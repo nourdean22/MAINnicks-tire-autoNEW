@@ -90,7 +90,7 @@ export interface VapiAssistantLite {
 
 export function pickReceptionistAssistantId(
   assistants: VapiAssistantLite[],
-): { id: string; reason: "env" | "name-match" | "name-exclude" | "fallback-first" } | null {
+): { id: string; reason: "env" | "name-match" | "name-match-ambiguous" | "name-exclude" | "fallback-first" } | null {
   if (!assistants.length) return null;
 
   // 1. Env-pinned ID
@@ -101,9 +101,30 @@ export function pickReceptionistAssistantId(
     log.warn("VAPI_RECEPTIONIST_ASSISTANT_ID set but no matching assistant found", { pinned });
   }
 
-  // 2. Prefer name containing "receptionist"
-  const byName = assistants.find((a) => /receptionist/i.test(a.name || ""));
-  if (byName) return { id: byName.id, reason: "name-match" };
+  // 2. Prefer name containing "receptionist".
+  //
+  // AMBIGUITY IS ANNOUNCED, NOT SWALLOWED. Observed on the live panel
+  // 2026-09-18: the account carries TWO assistants both named "Nick's Tire &
+  // Auto Receptionist" (afcad79e… and 150fe622…), plus a separately-named
+  // "Nick's Tire Follow-Up Caller". With two matches, `find` returns whichever
+  // VAPI happened to list first — an order this code does not control and VAPI
+  // does not promise. That is a coin flip deciding which assistant an operator
+  // edit lands on, and it would resolve silently.
+  //
+  // The env pin (step 1) is the real answer and is currently set, so this path
+  // is a fallback. But a fallback that guesses without saying so is how the
+  // wave-113b defect happened in the first place: edits went to the wrong
+  // assistant while the inbound receptionist kept stale numbers, and nothing
+  // in the logs said which one had been chosen.
+  const named = assistants.filter((a) => /receptionist/i.test(a.name || ""));
+  if (named.length > 1) {
+    log.warn("Multiple assistants match /receptionist/ — picking by VAPI list order, which is not guaranteed. Pin VAPI_RECEPTIONIST_ASSISTANT_ID, or rename the duplicates in VAPI.", {
+      candidates: named.map((a) => ({ id: a.id, name: a.name || "(unnamed)" })),
+      picked: named[0].id,
+    });
+    return { id: named[0].id, reason: "name-match-ambiguous" };
+  }
+  if (named.length === 1) return { id: named[0].id, reason: "name-match" };
 
   // 3. Exclude obvious outbound/follow-up assistants
   const inbound = assistants.find((a) => !/follow.?up|outbound/i.test(a.name || ""));
