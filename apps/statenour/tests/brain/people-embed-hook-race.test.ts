@@ -24,6 +24,10 @@ const m = vi.hoisted(() => ({
   getEmbedding: vi.fn(),
   transaction: vi.fn(),
   txLedgerFindUnique: vi.fn(),
+  txPersonFindUnique: vi.fn(),
+  brainMemoryUpsert: vi.fn(),
+  personFindFirst: vi.fn(),
+  embedFindFirst: vi.fn(),
   txEmbedFindFirst: vi.fn(),
   txEmbedCreate: vi.fn(),
   txEmbedUpdate: vi.fn(),
@@ -31,13 +35,21 @@ const m = vi.hoisted(() => ({
 
 vi.mock("@/lib/ai/provider", () => ({ getEmbedding: m.getEmbedding }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { $transaction: m.transaction },
+  prisma: {
+    $transaction: m.transaction,
+    brainMemory: { upsert: m.brainMemoryUpsert },
+    // enqueuePersonEmbed loads the person and probes for an existing embedding
+    // BEFORE the provider call — both on the non-tx client.
+    personProfile: { findFirst: m.personFindFirst },
+    vectorEmbedding: { findFirst: m.embedFindFirst },
+  },
 }));
 
-import { enqueueLedgerEmbed } from "@/lib/brain/people-embed-hook";
+import { enqueueLedgerEmbed, enqueuePersonEmbed } from "@/lib/brain/people-embed-hook";
 
 const tx = {
   relationshipLedger: { findUnique: m.txLedgerFindUnique },
+  personProfile: { findUnique: m.txPersonFindUnique },
   vectorEmbedding: {
     findFirst: m.txEmbedFindFirst,
     create: m.txEmbedCreate,
@@ -52,6 +64,15 @@ beforeEach(() => {
   m.transaction.mockImplementation(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx));
   m.getEmbedding.mockResolvedValue([0.1, 0.2, 0.3]);
   m.txEmbedFindFirst.mockResolvedValue(null);
+  m.brainMemoryUpsert.mockResolvedValue({ id: "bm1" });
+  m.personFindFirst.mockResolvedValue({
+    name: "Nour",
+    role: "owner",
+    relationship: "self",
+    dossierMd: "a dossier long enough to be worth embedding",
+    leverageNotes: null,
+  });
+  m.embedFindFirst.mockResolvedValue(null);
   m.txEmbedCreate.mockResolvedValue({ id: "v1" });
   m.txEmbedUpdate.mockResolvedValue({ id: "v1" });
 });
@@ -116,5 +137,33 @@ describe("enqueueLedgerEmbed · deleted-while-embedding", () => {
     m.getEmbedding.mockResolvedValue([]);
     await enqueueLedgerEmbed("L1", NOTE);
     expect(m.transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("enqueuePersonEmbed · the SAME race, one function above", () => {
+  // Found by self-review, not by a reviewer: enqueueLedgerEmbed was fixed first
+  // and this sibling was left behind — the identical slip a review had just
+  // caught (undo-person.test.ts fixed, people-delete-ledger-row.test.ts not).
+  // Both callers are fire-and-forget (`void enqueuePersonEmbed(...)`) and
+  // undo-token.ts hard-deletes personProfile on an undone `person.create`.
+  it("writes NOTHING when the person vanished during the embedding call", async () => {
+    m.txPersonFindUnique.mockResolvedValue(null);
+
+    await enqueuePersonEmbed("p1");
+
+    expect(m.txEmbedCreate).not.toHaveBeenCalled();
+    expect(m.txEmbedUpdate).not.toHaveBeenCalled();
+  });
+
+  it("CANARY — a live person still gets embedded, so the above is not vacuous", async () => {
+    m.txPersonFindUnique.mockResolvedValue({ id: "p1" });
+
+    await enqueuePersonEmbed("p1");
+
+    expect(m.txEmbedCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sourceType: "person_profile", sourceId: "p1" }),
+      }),
+    );
   });
 });

@@ -24,6 +24,7 @@ import {
 } from "@/lib/ai/chat/message-fields";
 import { logUpdate } from "@/lib/db/entity-audit";
 import { dropEmbeddingsForSource } from "@/lib/brain/memory-tombstone";
+import { logError } from "@/lib/utils/error-log";
 
 const MAX_HISTORY_ENTRIES = 10;
 export const MAX_CONTENT_CHARS = 10_000;
@@ -321,7 +322,10 @@ export async function deleteMessageCascade({
     "chat_message",
     doomed.map((m) => m.id),
     "chat-edit.truncate",
-  ).catch(() => 0);
+  ).catch((err: unknown) => {
+    logError("services.chat-edit", err, { fn: "dropEmbeddingsForSource", messageId }, "warn");
+    return 0;
+  });
 
   void logUpdate(
     "chatMessage",

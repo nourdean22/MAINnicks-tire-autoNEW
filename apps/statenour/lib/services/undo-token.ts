@@ -137,7 +137,10 @@ export async function consumeUndoToken(token: string): Promise<UndoResult> {
       // exactly the way nobody looks at. Best-effort: the person is already gone, and
       // turning a cleanup miss into a throw would fail an undo that already succeeded.
       await dropEmbeddingsForSource("person_profile", [payload.personId], "undo:person.create").catch(
-        () => 0,
+        (err: unknown) => {
+          logError("services.undo-token", err, { fn: "dropEmbeddingsForSource", personId: payload.personId }, "warn");
+          return 0;
+        },
       );
       break;
     }

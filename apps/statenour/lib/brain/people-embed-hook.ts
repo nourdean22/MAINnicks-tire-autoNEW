@@ -107,21 +107,44 @@ export async function enqueuePersonEmbed(personId: string): Promise<void> {
     const vec = await getEmbedding(content);
     if (vec.length === 0) return; // provider unavailable · degrade silently
 
-    if (existing) {
-      await prisma.vectorEmbedding.update({
-        where: { id: existing.id },
-        data: { content, embedding: JSON.stringify(vec) },
+    // ⚠ SAME RACE AS enqueueLedgerEmbed BELOW — and I fixed that one first and
+    // missed this one, which is the identical "fixed one sibling, not the other"
+    // slip a review had just caught me on. Both callers are fire-and-forget
+    // (`void enqueuePersonEmbed(...)` in trpc/routers/task/power-atlas.ts), and
+    // undo-token.ts HARD-DELETES personProfile on an undone `person.create`. So:
+    // create a person, undo it while the provider call is in flight, and the
+    // embedding landed AFTER the tombstone — an orphaned, searchable profile.
+    //
+    // `existing` above was read BEFORE the provider call and is stale by now, so
+    // it is re-read here rather than reused.
+    await prisma.$transaction(async (tx) => {
+      const live = await tx.personProfile.findUnique({
+        where: { id: personId },
+        select: { id: true },
       });
-    } else {
-      await prisma.vectorEmbedding.create({
-        data: {
-          sourceType: "person_profile",
-          sourceId: personId,
-          content,
-          embedding: JSON.stringify(vec),
-        },
+      if (!live) return; // deleted while we were embedding — write nothing
+
+      const current = await tx.vectorEmbedding.findFirst({
+        where: { sourceType: "person_profile", sourceId: personId },
+        select: { id: true },
       });
-    }
+
+      if (current) {
+        await tx.vectorEmbedding.update({
+          where: { id: current.id },
+          data: { content, embedding: JSON.stringify(vec) },
+        });
+      } else {
+        await tx.vectorEmbedding.create({
+          data: {
+            sourceType: "person_profile",
+            sourceId: personId,
+            content,
+            embedding: JSON.stringify(vec),
+          },
+        });
+      }
+    });
   } catch (err) {
     log.warn("person_embed_failed", {
       personId,
