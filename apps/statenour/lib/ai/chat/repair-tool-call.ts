@@ -42,6 +42,9 @@ import {
 } from "ai";
 import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
 import { salvageToolInput, type InputValidator } from "@/lib/ai/chat/salvage-tool-input";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("ai/repair-tool-call");
 
 /**
  * Every tool that EXISTS, as opposed to every tool attached this turn. The
@@ -155,6 +158,18 @@ export function buildRepairToolCall(
         validatorFor(toolSet, toolCall.toolName),
       );
       if (!salvaged) return null;
+      // A SUCCESSFUL salvage is otherwise INVISIBLE. The repaired call simply
+      // works, so it leaves no tool-error part, nothing reaches
+      // `tool-telemetry-walk.ts`, and `failCount` just stops growing. That
+      // makes the only available proof an ABSENCE — indistinguishable from the
+      // absence you get when no one used the chat that week. This line is the
+      // known positive: one structured event per firing, so the fix can be
+      // shown to have worked rather than merely not observed to have failed.
+      log.info("tool_input_salvaged", {
+        tool: toolCall.toolName,
+        candidates: salvaged.candidates,
+        chosenIndex: salvaged.index,
+      });
       return { ...toolCall, input: salvaged.input };
     }
 

@@ -22,9 +22,33 @@
  * quote-blind scanner that one case returns ZERO candidates instead of two, so
  * it fails loudly if the string handling is ever "simplified" away.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { InvalidToolInputError, NoSuchToolError, type ToolSet } from "ai";
 import { z } from "zod";
+
+/**
+ * Spread the REAL logger and override only `info`. A hand-written stub would
+ * silently drop whatever the logger gains next, and the call would then land as
+ * `undefined` — which reads as "the salvage never fired" rather than "the mock
+ * is incomplete". Same trap the tool-embeddings mocks in the sibling chat-mode
+ * files document.
+ */
+// `vi.hoisted`, not a bare const: vi.mock factories are hoisted ABOVE
+// module-scope declarations, so a plain `const logInfo = vi.fn()` is still in
+// the temporal dead zone when the factory runs and the whole file fails to
+// collect with "Cannot access 'logInfo' before initialization".
+const { logInfo } = vi.hoisted(() => ({ logInfo: vi.fn() }));
+vi.mock("@/lib/logger", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/logger")>();
+  return {
+    ...actual,
+    logger: {
+      ...actual.logger,
+      withSurface: (s: string) => ({ ...actual.logger.withSurface(s), info: logInfo }),
+    },
+  };
+});
+
 import { buildRepairToolCall } from "@/lib/ai/chat/repair-tool-call";
 import { salvageToolInput, splitTopLevelJson } from "@/lib/ai/chat/salvage-tool-input";
 
@@ -151,6 +175,39 @@ describe("buildRepairToolCall · argument lane", () => {
       query: "master prompt identity patterns reframe rules",
       limit: 10,
     });
+  });
+
+  it("EMITS a known positive when it fires — a successful salvage is otherwise invisible", async () => {
+    // Without this line the only evidence a repair ever worked is that
+    // failCount stopped growing, and an absence of failures is identical to an
+    // absence of traffic. Assert the event, its name, and its fields.
+    logInfo.mockClear();
+    await repair({
+      toolCall: call("searchMemories", PROD_TWO_OBJECTS),
+      error: inputErrorFor("searchMemories", PROD_TWO_OBJECTS),
+      tools: toolSet,
+      system: undefined,
+      messages: [],
+      inputSchema: () => ({}),
+    } as never);
+    expect(logInfo).toHaveBeenCalledWith(
+      "tool_input_salvaged",
+      expect.objectContaining({ tool: "searchMemories", candidates: 2, chosenIndex: 0 }),
+    );
+  });
+
+  it("STAYS SILENT when it declines — the event must mean a repair, not an attempt", async () => {
+    logInfo.mockClear();
+    const raw = '{"limit":5}'; // single malformed object -> declined
+    await repair({
+      toolCall: call("searchMemories", raw),
+      error: inputErrorFor("searchMemories", raw),
+      tools: toolSet,
+      system: undefined,
+      messages: [],
+      inputSchema: () => ({}),
+    } as never);
+    expect(logInfo).not.toHaveBeenCalledWith("tool_input_salvaged", expect.anything());
   });
 
   it("DECLINES an argument error for a tool the set does not hold", async () => {
