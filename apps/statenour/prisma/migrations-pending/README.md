@@ -4,6 +4,42 @@ Migrations parked here are NOT in the live `prisma/migrations/`
 directory · `prisma migrate deploy` will not apply them. Move
 them back when ready.
 
+## ⚠⚠ 2026-09-17 — EVERY FILE PARKED HERE IS ALREADY APPLIED TO PRODUCTION
+
+Measured read-only against Neon prod (`ep-quiet-wave-am320eo1-pooler`, `neondb`)
+on 2026-09-17. **This directory's whole premise — "not yet applied" — is false
+for all five entries.** Running any of them today is a complete no-op:
+
+| parked migration | live state |
+|---|---|
+| `20260806120000_drop_duplicate_indexes` | 0 of its 8 target indexes exist |
+| `20260822230000_cron_job_log_result_count` | `cron_job_logs."resultCount"` PRESENT |
+| `20260823010000_discovery_index_narrow` | `brain_memories_discovery_scoped_idx` PRESENT |
+| `20260823010001_discovery_index_drop_broad` | `brain_memories_discovery_verdict_idx` GONE |
+| `20260902000000_restore_idempotency_partials` | all 3 `*_idempotency_key_uniq` PRESENT, 0 duplicate keys |
+
+★ A "pending" directory that is 100% applied is worse than an empty one: it
+tells every future reader there is outstanding schema work, and it hides the
+one entry that IS genuinely pending behind five that are not. That is the same
+stale-cache defect this repo keeps finding in comments and doc headers, wearing
+a directory for a costume.
+
+**These were applied via the guarded endpoint, which deliberately does NOT write
+`_prisma_migrations`** (#1231) — so the ledger has no row, `prisma/migrations/`
+has no dir, and `prisma migrate status` reads "Database schema is up to date!"
+precisely because neither side knows about them. Status being green is NOT
+evidence these were recorded.
+
+Two ways to make it honest, operator's call, neither urgent:
+  · **Promote + record** — `prisma/migrations/<name>/` then
+    `prisma migrate resolve --applied <name>` for each. Preserves history.
+    ⚠ Do BOTH or neither: a dir with no ledger row turns `migrate status` RED,
+    and a ledger row with no dir is the 2026-07-30 orphan incident (9 rows).
+  · **Delete them** — they are applied; the SQL is the only history lost.
+
+Left in place pending that decision rather than silently swept, because a
+deletion that loses migration history should be chosen, not assumed.
+
 > **Preferred path — no prod creds needed (use this).** Apply via the guarded
 > endpoint `POST /api/system/apply-pending-migration { name }`. It runs an
 > idempotent (IF NOT EXISTS) copy of the migration's statements from inside the
