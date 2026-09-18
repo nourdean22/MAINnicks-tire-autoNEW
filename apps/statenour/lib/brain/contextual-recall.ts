@@ -247,6 +247,58 @@ export function deriveFastTopics(messages: string[]): string[] {
   return topics;
 }
 
+/**
+ * 2026-09-18 · Should recall abandon the query and return top-N by confidence?
+ *
+ * The guard this replaces was a bare `topics.length === 0`, written before the
+ * Wave-81 `queryEmbedding` pass-through existed. With an embedding of the
+ * operator's own message in hand, two of the four lanes need no topics at all:
+ * `getSemanticScores` prefers `precomputedEmbedding` over `queryText`, and the
+ * KNN pool is pure vector. `buildLexicalTsQuery([])` yields `""` so the lexical
+ * lane returns `[]`. So zero topics is a reason to lean on the embedding lanes,
+ * not a reason to stop answering.
+ *
+ * ⚠ CORRECTION (review, PR #2425) — an earlier version of this comment said
+ * `keywordScore(m, [])` returns 0 for every row "and therefore cannot reorder
+ * anything". THAT WAS WRONG, and wrong in the direction that mattered. RRF
+ * ignores absolute scores and reads POSITION, and the sort is stable, so an
+ * all-tied lane degrades into input order and gets paid out as
+ * 1/(k+1), 1/(k+2), ... The pool is `orderBy confidence desc` with KNN-only
+ * hits unioned in afterward, so that phantom lane boosted generic
+ * high-confidence memories over the vector hits — reintroducing, through the
+ * back door, the very failure this guard was changed to fix. Uniform is
+ * neutral for a SCORE-based fusion; this one is RANK-based. `fuseRankings` now
+ * drops a fully-tied lane (see lib/brain/rrf.ts).
+ *
+ * Only when BOTH signals are missing is there genuinely no query to run, and
+ * confidence-ranked fallback is the honest answer.
+ *
+ * Exported so the test can call the real predicate — a re-implemented copy in
+ * the test would pass while this rotted (see the measurement-proxies rule).
+ */
+export function shouldFallbackToConfidence(topics: string[], queryEmbedding?: number[]): boolean {
+  return topics.length === 0 && (queryEmbedding?.length ?? 0) === 0;
+}
+
+/**
+ * The text handed to the reranker and the cross-source semantic search.
+ *
+ * `topics.join(", ")` is `""` when topics are empty, and that empty string does
+ * NOT stop at the embedding lane — it reaches `rerank({ query })` and
+ * `semanticSearch()`, both of which would then score against nothing. The
+ * operator's own last message IS the query in that case, so use it. Capped
+ * because it only ever feeds a reranker and a log line.
+ */
+export function buildQueryText(topics: string[], recentMessages: string[]): string {
+  if (topics.length > 0) return topics.join(", ");
+  // String(...) not a bare .slice: the param is typed string[], but this module
+  // is on the chat hot path under a withTimeout whose fallback is "", so a
+  // throw here would surface as a silently EMPTY brain block rather than an
+  // error — the exact failure mode this file keeps getting bitten by. Cheap
+  // insurance against a caller that hands over a non-string.
+  return String(recentMessages[recentMessages.length - 1] ?? "").slice(0, 500);
+}
+
 async function extractTopics(messages: string[]): Promise<string[]> {
   const recentText = messages.slice(-3).join("\n").slice(0, 1000);
 
@@ -751,17 +803,29 @@ export async function getContextualMemories(
     opts.fastTopics ? Promise.resolve(deriveFastTopics(recentMessages)) : extractTopics(recentMessages),
   );
 
-  if (topics.length === 0) {
+  // 2026-09-18 · this used to be a bare `topics.length === 0` -> fallback, which
+  // returns top-N by CONFIDENCE with the query discarded entirely. That guard
+  // predates the Wave-81 queryEmbedding pass-through and now throws away a working
+  // query: when the caller supplies an embedding of the user's own message, two of
+  // the four lanes need no topics at all — getSemanticScores prefers
+  // precomputedEmbedding over queryText (:1466), and the KNN pool is pure vector
+  // (:818). The other two degrade safely rather than wrongly:
+  // buildLexicalTsQuery([]) returns "" so the lexical lane yields [], and
+  // keywordScore(m, []) returns 0 for EVERY row, which is uniform and therefore
+  // ranking-neutral. So zero topics is a reason to lean on the embedding lanes,
+  // not a reason to stop answering the question.
+  if (shouldFallbackToConfidence(topics, opts.queryEmbedding)) {
     console.log("[brain-recall]", {
       outcome: "fallback",
-      reason: "no-topics",
+      // Renamed from "no-topics": the fallback now requires BOTH to be missing,
+      // and a log line that still said "no-topics" would misattribute the cause.
+      reason: "no-topics-no-embedding",
       ms: Date.now() - t0,
     });
     return getFallbackMemories(maxMemories);
   }
 
-  // Build a natural language query for embedding
-  const queryText = topics.join(", ");
+  const queryText = buildQueryText(topics, recentMessages);
 
   // Load all viable memories from DB
   // v10.0.46 — added `deletedAt: null` filter. Pre-fix soft-deleted
@@ -1188,7 +1252,9 @@ export async function getContextualMemories(
   // Format for system prompt
   const mode = useEmbeddings ? "semantic" : "keyword";
   const lines: string[] = [
-    `## Nick Brain — Context-Matched Memories [${mode}] (${relevant.length} for: ${topics.join(", ")})`,
+    // queryText, not topics.join: on a zero-topic turn the latter renders a bare
+    // "for: )" into the model's own prompt, which reads as a broken retrieval.
+    `## Nick Brain — Context-Matched Memories [${mode}] (${relevant.length} for: ${queryText.slice(0, 120)})`,
   ];
 
   const direct = relevant.filter((m) => m.relevance === "direct");

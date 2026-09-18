@@ -244,6 +244,19 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     readOnly: true,
   },
   {
+    key: "NICK_MEMORY_SUPERSESSION",
+    description:
+      "Brain plan Wave 2 §6.3, the SUPERSESSION half. On a gateway `supersede` verdict, freezes the outgoing row as walkable history (snapshotSupersededVersion, memory-manager.ts:133) and stamps validUntil + supersededById on it. OFF = legacy overwrite-in-place: the prior version is lost and the supersession columns keep no writer. ★ Registered 2026-09-18 because it was the LAST memory switch still invisible — a raw `process.env.NICK_MEMORY_SUPERSESSION === \"1\"` read at memory-manager.ts:461, exactly the defect the two gateway switches above were registered to fix on 2026-08-19. A switch nobody can see on the flag board cannot be given the shadow week §6.3 requires before it flips. ★ NOTE the other half of Wave 2 is ALREADY LIVE and unflagged: `validFrom` is stamped on every row written THROUGH remember() (memory-manager.ts:509), so the widely-quoted \"0 of 40,889 rows carry validFrom\" is a 2026-09-08 SNAPSHOT, not current state. It is NOT every new row either — the 107 allowlisted direct writers (tests/repo/brain-memory-direct-writers.allowlist.json) bypass remember() entirely, so they plus pre-Wave-2 rows still take the created_at fallback in validityWhere(). Harmless for them in practice: a row whose validFrom would equal its createdAt gets the identical answer from either branch. The fallback only loses information for a writer that should BACKDATE, which is what admitMemory({ effectiveFrom }) exists for.",
+    status: "experimental",
+    onValue: "1",
+    defaultOn: false,
+    offValue: "0",
+    defaultBehavior:
+      "OFF: a supersede verdict overwrites in place; valid_until and superseded_by_id stay null and the prior version is not recoverable. Turning it on needs the shadow week in the Wave 2 plan — compare shadowMemoryCommit receipts against what the flip WOULD have stamped before trusting it.",
+    ownerDoc: "docs/research/2026-09-08-statenour-brain-intelligence-upgrade-plan.md",
+    readOnly: true,
+  },
+  {
     key: "NICK_VERIFIED_REGEN",
     description: "WIRED. On factual/decision/analytical/procedural/instructional turns, generates the reply non-streaming, runs the critic, and regenerates ONCE (critic-gated best-of-2) before shipping the winner as a stream. Persists via the normal pipeline. Falls through to the normal stream on any error. OFF = single-pass (today's behavior). Adds latency on the regen path only.",
     status: "experimental",

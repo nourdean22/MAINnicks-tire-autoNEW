@@ -502,9 +502,13 @@ export class BrainMemoryManager {
           ? computeExpiresAt(effectiveCategory)
           : new Date(Date.now() + 24 * 60 * 60 * 1000),
         metadata: { ...(metadata ?? {}), ...gateMetadata } as any,
-        // Brain plan Wave 2 (2026-09-08): every new row starts its validity interval. The
-        // as-of recall (validityWhere) reads valid_from/valid_until, and the 2026-09-08 prod
-        // probe found 0 of 40,889 rows carrying either — the temporal machinery was data-empty.
+        // Brain plan Wave 2 (2026-09-08): every row written THROUGH remember() starts its
+        // validity interval. As-of recall (validityWhere) reads valid_from/valid_until, and
+        // the 2026-09-08 prod probe found 0 of 40,889 rows carrying either — data-empty then.
+        // That probe is now a SNAPSHOT, not current state: rows created here since Wave 2 do
+        // carry valid_from. It is NOT "every new row" — the 107 allowlisted direct writers
+        // (tests/repo/brain-memory-direct-writers.allowlist.json) bypass remember() and still
+        // land valid_from null, so validityWhere keeps its created_at fallback branch.
         // valid_until stays null until a correction or a gateway supersede stamps it.
         validFrom: new Date(),
       },

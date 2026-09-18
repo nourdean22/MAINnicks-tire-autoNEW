@@ -130,7 +130,18 @@ describe("buildContextReceipt · recallAsOf (2026-09-17) — the silence, not ju
 describe("buildContextReceipt · garbage tolerance (never throws)", () => {
   it("non-array blocks yields an empty receipt, budget still reported", () => {
     const receipt = buildContextReceipt(null as unknown as ContextBudgetBlock[], 100);
-    expect(receipt).toEqual({ entries: [], tokensBudget: 100, tokensKept: 0, tokensDropped: 0, droppedCount: 0 });
+    // Exact shape on purpose: this receipt gets logged as JSON, so a field
+    // appearing or vanishing here changes what a reader sees. `enforced` and
+    // `tokensAppended` added 2026-09-18.
+    expect(receipt).toEqual({
+      entries: [],
+      tokensBudget: 100,
+      enforced: false,
+      tokensAppended: 0,
+      tokensKept: 0,
+      tokensDropped: 0,
+      droppedCount: 0,
+    });
   });
 
   it("a non-finite similarity is treated as 0, not NaN-poisoned", () => {
@@ -150,5 +161,68 @@ describe("buildContextReceipt · garbage tolerance (never throws)", () => {
     const block = { name: "x", similarity: 0.9, kept: true } as ContextBudgetBlock;
     const receipt = buildContextReceipt([block], 100);
     expect(receipt.entries[0].tokens).toBe(0);
+  });
+});
+
+/**
+ * 2026-09-18 · The receipt is logged and read as a record of what happened.
+ * It is not one: brain-context.ts appends every THRESHOLD survivor, and does
+ * it BEFORE this function runs, so a `reason: "over_budget"` entry describes a
+ * block the model actually received. These pin the two fields that keep the
+ * logged JSON honest, and the reason DEFAULT_CONTEXT_TOKEN_BUDGET could never
+ * be calibrated from its own receipts.
+ */
+describe("buildContextReceipt · the receipt must not claim drops that never happened", () => {
+  /** 400 chars -> 100 tokens each, so a budget of 250 fits exactly two. */
+  const big = (name: string, sim: number): ContextBudgetBlock => ({
+    name,
+    content: "x".repeat(400),
+    similarity: sim,
+    kept: true,
+  });
+
+  it("enforced is false — nothing is dropped on this receipt's say-so", () => {
+    expect(buildContextReceipt([big("a", 0.9)], 1000).enforced).toBe(false);
+    // Also on the garbage path, where a reader is most likely to be misled.
+    expect(buildContextReceipt(null as unknown as ContextBudgetBlock[], 1000).enforced).toBe(false);
+  });
+
+  it("tokensAppended counts EVERY threshold survivor, including ones marked over_budget", () => {
+    const receipt = buildContextReceipt([big("a", 0.9), big("b", 0.8), big("c", 0.7)], 250);
+
+    // Positive control: the budget must actually bind, or this proves nothing.
+    const overBudget = receipt.entries.filter((e) => e.reason === "over_budget");
+    expect(overBudget.length, "budget did not bind — pick smaller budget/bigger blocks").toBeGreaterThan(0);
+
+    // The model got all three (brain-context appends on threshold `kept`).
+    expect(receipt.tokensAppended).toBe(300);
+    // ...while tokensKept stops at the cap and cannot see past it.
+    expect(receipt.tokensKept).toBeLessThanOrEqual(250);
+    expect(receipt.tokensAppended).toBeGreaterThan(receipt.tokensKept);
+  });
+
+  it("THE CALIBRATION POINT: tokensKept is bounded by the budget, tokensAppended is not", () => {
+    // Same blocks, three very different budgets. tokensKept tracks the CAP,
+    // so a week of receipts would only ever restate the number already set.
+    // tokensAppended is identical across all three — the real context size,
+    // which is the only thing a budget can be calibrated against.
+    const blocks = [big("a", 0.9), big("b", 0.8), big("c", 0.7)];
+    const tiny = buildContextReceipt(blocks, 100);
+    const mid = buildContextReceipt(blocks, 250);
+    const huge = buildContextReceipt(blocks, 99_000);
+
+    expect([tiny.tokensAppended, mid.tokensAppended, huge.tokensAppended]).toEqual([300, 300, 300]);
+    expect(tiny.tokensKept).toBeLessThan(mid.tokensKept);
+    expect(mid.tokensKept).toBeLessThan(huge.tokensKept);
+  });
+
+  it("with a budget that never binds, the advisory counts are zero — the failure mode being fixed", () => {
+    // This is today's production state at 7250: droppedCount 0 on every turn,
+    // so the receipt's budget dimension teaches nothing. tokensAppended still
+    // reports the real size, which is what makes the number pickable.
+    const receipt = buildContextReceipt([big("a", 0.9), big("b", 0.8)], 7250);
+    expect(receipt.droppedCount).toBe(0);
+    expect(receipt.tokensDropped).toBe(0);
+    expect(receipt.tokensAppended).toBe(200);
   });
 });
