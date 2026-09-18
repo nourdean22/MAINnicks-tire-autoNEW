@@ -26,11 +26,40 @@ export interface QueryPlan {
   classes: QueryClass[];
   /** Always present, never rewritten. */
   original: string;
-  /** temporal: the instant the message refers to (UTC). */
+  /**
+   * temporal: the instant the message refers to (UTC).
+   * CONSUMED (2026-09-08) — brain-context passes it to getContextualMemories,
+   * which applies it to all four lanes. ⚠ It NARROWS recall: see the
+   * MONTH_CONTEXT_RE docstring below before loosening anything that sets it.
+   */
   asOf?: Date;
-  /** anaphoric_followup: the prior turn text a lane may append. */
+  /**
+   * anaphoric_followup: the PRIOR turn's text (never this turn's) that a lane
+   * may append. CONSUMED (2026-09-17) — prepended to getContextualMemories'
+   * message array for topic derivation.
+   */
   referent?: string;
-  /** multi_hop only: at most two clauses, never the original. */
+  /**
+   * multi_hop only: at most two clauses, never the original.
+   *
+   * ⚠ COMPUTED BUT NOT CONSUMED as of 2026-09-17 — a known dark wire, left
+   * deliberately, not overlooked. `brain-context.ts` logs only its LENGTH, so
+   * a non-zero number in the logs does not mean anything acted on it.
+   *
+   * Wiring it is not a parameter thread like `asOf` and `referent` were: the
+   * clauses are substrings of `original`, so feeding them to topic derivation
+   * adds nothing. The value requires a genuine SECOND retrieval per clause
+   * plus a merge — and the natural merge already exists as
+   * `lib/brain/retrieval-arbiter.ts` `arbitrate()`, which unions candidates by
+   * id and rank. That arbiter is currently reachable only behind
+   * NICK_RECALL_ARBITER (default off), so a multi-hop lane built on it would
+   * depend on an off-by-default component. Cost is real too: 2x recall on the
+   * hot path's 3s budget, for a class that needs an "and then"/"because of"/
+   * compare pattern AND a clean two-way split to fire at all.
+   *
+   * Reopen when the arbiter is promoted, or if multi-hop turns are measured
+   * frequent enough to justify the latency.
+   */
   subQueries: string[];
   /** exact_identifier: quoted phrases / ticket tokens / identifiers found. */
   exactTerms: string[];
