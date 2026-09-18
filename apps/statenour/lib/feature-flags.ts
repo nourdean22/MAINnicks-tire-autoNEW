@@ -709,6 +709,25 @@ export interface ResolvedFlag extends FeatureFlag {
  * Resolve a single flag by key. Returns null if the key is not
  * registered (forces caller to add it to FLAG_REGISTRY first).
  */
+/**
+ * 2026-09-18 · ONE resolver for both getFlag() and getAllFlags().
+ *
+ * These two had independent copies of this logic, and the copies drifted the
+ * moment `trimRawValue` was added: getFlag honoured it, getAllFlags did not.
+ * The operator board renders through getAllFlags, so the board kept showing
+ * OFF for a padded value while getFlag — and the test that used it — said ON.
+ * A fix that only reaches the path the test looks at is not a fix. Caught in
+ * review on #2429.
+ *
+ * Duplicated logic is the defect here, not the missing branch, so this is a
+ * shared function rather than the same three lines patched twice.
+ */
+function resolveRawValue(spec: FeatureFlag, dbOverride: string | undefined): string {
+  const rawEnv = process.env[spec.key] ?? "";
+  if (spec.readOnly) return spec.trimRawValue ? rawEnv.trim() : rawEnv;
+  return (dbOverride !== undefined ? dbOverride : rawEnv).trim();
+}
+
 export function getFlag(key: string): ResolvedFlag | null {
   const spec = FLAG_REGISTRY.find((f) => f.key === key);
   if (!spec) return null;
@@ -720,10 +739,7 @@ export function getFlag(key: string): ResolvedFlag | null {
   const dbOverride = overridesCache[key];
   // Read-only entries are observational mirrors of raw runtime env checks.
   // An old database override must not make the board contradict runtime.
-  const rawEnv = process.env[key] ?? "";
-  const rawValue = spec.readOnly
-    ? (spec.trimRawValue ? rawEnv.trim() : rawEnv)
-    : (dbOverride !== undefined ? dbOverride : rawEnv).trim();
+  const rawValue = resolveRawValue(spec, dbOverride);
   const isOn = computeIsOn(spec, rawValue);
 
   return { ...spec, rawValue, isOn, overrideValue: dbOverride ?? null };
@@ -738,9 +754,7 @@ export function getAllFlags(): ResolvedFlag[] {
   triggerBackgroundRefresh();
   return FLAG_REGISTRY.map((spec) => {
     const dbOverride = overridesCache[spec.key];
-    const rawValue = spec.readOnly
-      ? (process.env[spec.key] ?? "")
-      : (dbOverride !== undefined ? dbOverride : (process.env[spec.key] ?? "")).trim();
+    const rawValue = resolveRawValue(spec, dbOverride);
     return { ...spec, rawValue, isOn: computeIsOn(spec, rawValue), overrideValue: dbOverride ?? null };
   });
 }
