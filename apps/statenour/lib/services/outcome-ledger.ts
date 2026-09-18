@@ -81,6 +81,33 @@ export async function recordShown(input: RecordShownInput): Promise<string | nul
   }
 }
 
+/**
+ * Correct a row's delivery surface after the fact.
+ *
+ * WHY THIS EXISTS (2026-09-18). `recordShown` dedups on content hash within
+ * 24h and RETURNS THE EXISTING ID — it does not update. That is right for
+ * retries, but it means the FIRST caller's `shownSurface` wins permanently.
+ *
+ * The daily brief now has to ledger BEFORE it sends (the notification's rating
+ * button must carry a row id that exists), and at that moment nobody knows yet
+ * whether web push reached a device. Without this, the pre-send guess would
+ * freeze and the "did it actually deliver" signal recordBriefShown used to
+ * record would be silently lost — a field quietly becoming less true, which is
+ * the defect shape this ledger exists to avoid.
+ */
+export async function setShownSurface(id: string, shownSurface: string): Promise<boolean> {
+  try {
+    const res = await prisma.intelligenceOutcome.updateMany({
+      where: { id },
+      data: { shownSurface },
+    });
+    return res.count === 1;
+  } catch (err) {
+    logError("intel.outcome-ledger", err, { stage: "set-shown-surface", id }, "warn");
+    return false;
+  }
+}
+
 /** The operator acted on (or dismissed) a recommendation. */
 export async function recordDecision(params: {
   id: string;
