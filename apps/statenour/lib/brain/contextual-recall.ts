@@ -254,11 +254,21 @@ export function deriveFastTopics(messages: string[]): string[] {
  * Wave-81 `queryEmbedding` pass-through existed. With an embedding of the
  * operator's own message in hand, two of the four lanes need no topics at all:
  * `getSemanticScores` prefers `precomputedEmbedding` over `queryText`, and the
- * KNN pool is pure vector. The two that do need topics degrade neutrally rather
- * than wrongly — `buildLexicalTsQuery([])` yields `""` so the lexical lane
- * returns `[]`, and `keywordScore(m, [])` returns 0 for EVERY row, which cannot
- * reorder anything. So zero topics is a reason to lean on the embedding lanes,
+ * KNN pool is pure vector. `buildLexicalTsQuery([])` yields `""` so the lexical
+ * lane returns `[]`. So zero topics is a reason to lean on the embedding lanes,
  * not a reason to stop answering.
+ *
+ * ⚠ CORRECTION (review, PR #2425) — an earlier version of this comment said
+ * `keywordScore(m, [])` returns 0 for every row "and therefore cannot reorder
+ * anything". THAT WAS WRONG, and wrong in the direction that mattered. RRF
+ * ignores absolute scores and reads POSITION, and the sort is stable, so an
+ * all-tied lane degrades into input order and gets paid out as
+ * 1/(k+1), 1/(k+2), ... The pool is `orderBy confidence desc` with KNN-only
+ * hits unioned in afterward, so that phantom lane boosted generic
+ * high-confidence memories over the vector hits — reintroducing, through the
+ * back door, the very failure this guard was changed to fix. Uniform is
+ * neutral for a SCORE-based fusion; this one is RANK-based. `fuseRankings` now
+ * drops a fully-tied lane (see lib/brain/rrf.ts).
  *
  * Only when BOTH signals are missing is there genuinely no query to run, and
  * confidence-ranked fallback is the honest answer.

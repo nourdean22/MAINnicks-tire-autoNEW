@@ -38,7 +38,13 @@ import { fileURLToPath } from "node:url";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-/** Unregistered as of 2026-09-18. May only shrink — see the header. */
+/**
+ * Unregistered as of 2026-09-18. May only shrink — see the header.
+ *
+ * The last two were invisible to the first version of this gate, which walked
+ * `lib/` only. Widening the scan to `app/` surfaced them immediately, which is
+ * the argument for the wider scan in one line.
+ */
 const KNOWN_UNREGISTERED = [
   "NICK_AGENT_FOLLOWUPS",
   "NICK_CALIBRATION_ENFORCER",
@@ -50,6 +56,12 @@ const KNOWN_UNREGISTERED = [
   "NICK_JIT_SECTIONS",
   "NICK_TOOL_BUDGET",
   "NICK_TOOL_TIMEOUT_MS",
+  // found only once `app/` was scanned:
+  "NICK_ESCALATION_DISABLED",
+  // NB: `NICK_HIGH_SPEC_GATE` is also read raw in app/, but it IS registered,
+  // so it does not belong here. I added it anyway on the first pass and the
+  // shrink-only rule rejected it — the rule catching its author is the best
+  // evidence it works, so this note stays instead of a silent deletion.
 ].sort();
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -62,9 +74,31 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/**
+ * 2026-09-18 · `app/` is scanned too, added on review of PR #2425.
+ *
+ * The first version walked only `lib/`, which made the gate narrower than the
+ * claim above it: a new raw switch in a route stayed invisible AND kept this
+ * green. That is not hypothetical — the sweep immediately found two live ones
+ * it had been blind to, `NICK_ESCALATION_DISABLED`
+ * (app/api/ai/chat/route.ts:458) and `NICK_HIGH_SPEC_GATE`.
+ *
+ * Standing lesson, already in the agent memory as "a gate is only as wide as
+ * its file list": assert the SUBJECT, not just the verdict. A ratchet that
+ * scans the wrong tree reports a clean baseline forever.
+ */
+const SCAN_ROOTS = ["lib", "app"];
+
 function rawEnvSwitches(): Map<string, string[]> {
   const found = new Map<string, string[]>();
-  for (const f of walk(join(APP_ROOT, "lib"))) {
+  const files = SCAN_ROOTS.flatMap((r) => {
+    try {
+      return walk(join(APP_ROOT, r));
+    } catch {
+      return []; // root absent in this checkout
+    }
+  });
+  for (const f of files) {
     const src = readFileSync(f, "utf8");
     for (const m of src.matchAll(/process\.env\.(NICK_[A-Z0-9_]+)/g)) {
       const rel = f.slice(APP_ROOT.length + 1).replace(/\\/g, "/");
@@ -87,6 +121,15 @@ describe("flag board visibility · a switch nobody can see cannot be reviewed", 
     const reads = rawEnvSwitches();
     expect(reads.size, "found no process.env.NICK_* reads — scanner is broken").toBeGreaterThan(5);
     expect(registeredKeys().size, "found no FLAG_REGISTRY keys — scanner is broken").toBeGreaterThan(10);
+
+    // EVERY scan root must contribute, or the gate silently narrows back to
+    // whatever still resolves. `walk` swallows a missing root by design (other
+    // checkouts), so without this a renamed/absent `app/` would return the
+    // gate to exactly the blind spot review caught it in.
+    for (const root of SCAN_ROOTS) {
+      const fromRoot = [...reads.values()].flat().filter((p) => p.startsWith(`${root}/`));
+      expect(fromRoot.length, `no NICK_* reads found under ${root}/ — is that root still being scanned?`).toBeGreaterThan(0);
+    }
   });
 
   it("no NEW unregistered NICK_ switch (the ratchet)", () => {

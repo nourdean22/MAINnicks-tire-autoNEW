@@ -111,3 +111,63 @@ describe("fuseRankings · convenience over a single corpus", () => {
     expect(fused.map((x) => x.id)).toContain("1");
   });
 });
+
+/**
+ * 2026-09-18 · A FULLY TIED LANE IS NOT NEUTRAL (found in review of PR #2425).
+ *
+ * RRF ignores absolute scores and reads POSITION. `fuseRankings` sorts each
+ * lane by score, and Array#sort is stable — so a lane where every score is
+ * identical degrades into INPUT ORDER and then gets paid out as
+ * 1/(k+1), 1/(k+2), ..., a monotonically decreasing signal manufactured from
+ * nothing.
+ *
+ * It bit contextual-recall concretely: on a zero-topic turn `keywordScore` is
+ * 0 for every candidate, and that pool is `orderBy confidence desc` with
+ * KNN-only vector hits unioned in afterward — so the phantom lane boosted
+ * generic high-confidence rows over the vector hits.
+ */
+describe("fuseRankings · a lane with no information must not vote", () => {
+  const docs = [
+    { id: "a" }, { id: "b" }, { id: "c" }, { id: "d" },
+  ];
+
+  it("a constant lane does not change the ordering the real lane produced", () => {
+    const realOnly = fuseRankings(docs, [(d) => ({ a: 1, b: 4, c: 3, d: 2 } as Record<string, number>)[d.id]]);
+    const withPhantom = fuseRankings(docs, [
+      (d) => ({ a: 1, b: 4, c: 3, d: 2 } as Record<string, number>)[d.id],
+      () => 0, // every doc ties — carries zero information
+    ]);
+    expect(withPhantom.map((r) => r.id)).toEqual(realOnly.map((r) => r.id));
+    // The headline: input order must not leak in. "a" is FIRST in `docs` and
+    // LAST by real score; a phantom positional lane would drag it up.
+    expect(withPhantom[withPhantom.length - 1].id).toBe("a");
+  });
+
+  it("the phantom lane's weight cannot shift the surviving lanes' weights", () => {
+    // Dropping a lane must drop its weight with it, or weights[] silently
+    // re-indexes onto the wrong lane — a worse bug than the one being fixed.
+    const fused = fuseRankings(
+      docs,
+      [() => 0, (d) => ({ a: 1, b: 4, c: 3, d: 2 } as Record<string, number>)[d.id]],
+      { weights: [99, 1] },
+    );
+    expect(fused[0].id).toBe("b"); // highest real score still wins
+    expect(fused[fused.length - 1].id).toBe("a");
+  });
+
+  it("when EVERY lane is tied it still returns all items, never an empty result", () => {
+    // Degenerate input must not silently erase the corpus.
+    const fused = fuseRankings(docs, [() => 0, () => 7]);
+    expect(fused).toHaveLength(4);
+    expect(fused.map((r) => r.id).sort()).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("a genuinely informative lane is still fused (the fix is not 'drop everything')", () => {
+    const fused = fuseRankings(docs, [
+      (d) => ({ a: 4, b: 1, c: 1, d: 1 } as Record<string, number>)[d.id],
+      (d) => ({ a: 1, b: 4, c: 1, d: 1 } as Record<string, number>)[d.id],
+    ]);
+    // Both lanes carry signal; a and b each top one lane, so they lead.
+    expect(fused.slice(0, 2).map((r) => r.id).sort()).toEqual(["a", "b"]);
+  });
+});
