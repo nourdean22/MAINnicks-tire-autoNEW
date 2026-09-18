@@ -289,6 +289,43 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     matchByDefinition: true,
     reason: "HNSW vector index (vector_embeddings_hnsw_1536) — without it, KNN queries sequential-scan",
   },
+  // ── 2026-09-18 · embedding source-shadow (#2430) ────────────────
+  // Added because the sentinel was BLIND to the columns that landed with it:
+  // `/api/system/schema-drift` would have reported green with
+  // `sourceUnavailableAt` missing, while knnSearch errored on every call. An
+  // instrument consulted about schema drift that cannot see the newest schema
+  // is worse than no instrument, because it answers.
+  //
+  // The failure is invisible rather than loud, which is why it needs a guard:
+  // knnSearch catches, returns null, and semanticSearch falls through to the
+  // legacy in-memory cosine scan — correct results, but that scan under
+  // getContextualMemories' 3s withTimeout (fallback `""`) means the brain
+  // block silently drops out of the prompt instead of surfacing an error.
+  {
+    kind: "column_exists",
+    table: "vector_embeddings",
+    column: "sourceUnavailableAt",
+    nullable: true,
+    reason: "knnSearch filters `AND \"sourceUnavailableAt\" IS NULL` unconditionally (pgvector.ts) — dropping it errors every KNN query, which degrades SILENTLY to the in-memory scan",
+  },
+  {
+    kind: "column_exists",
+    table: "vector_embeddings",
+    column: "sourceUnavailableReason",
+    nullable: true,
+    reason: "written by the shadow sweeper (lib/db/embedding-shadow.ts) — dropping it breaks the sweep write, so the marks stop being maintained and the filter above silently goes stale",
+  },
+  {
+    kind: "index_exists",
+    table: "vector_embeddings",
+    // Matched by DEFINITION, not name, for the same reason as the HNSW entry
+    // above: this is a PARTIAL index (`WHERE "sourceUnavailableAt" IS NOT
+    // NULL`), and a plain btree on the same columns would satisfy a
+    // name-or-column check while losing the property that makes it useful.
+    indexName: "WHERE (\"sourceUnavailableAt\" IS NOT NULL)",
+    matchByDefinition: true,
+    reason: "partial index vector_embeddings_source_unavailable_idx — the sweeper's lookups sequential-scan a ~97k-row table without it, and nothing in lib/ references it by name so its loss is otherwise undetectable",
+  },
   {
     kind: "column_exists",
     table: "prompt_versions",
