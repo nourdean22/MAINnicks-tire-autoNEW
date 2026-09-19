@@ -98,8 +98,23 @@ describe("derived rule policies", () => {
     expect(tail, "main().catch must exit non-zero — it previously logged and returned, so " +
       "a broken import printed 'crashed: Cannot find module' and verify:hard still passed",
     ).toContain("process.exit(1)");
-    expect(src).toContain('from "@/lib/brain/autonomous-engine"');
+    // 2026-09-19 · was `from "@/lib/brain/autonomous-engine"`. The specifier is
+    // unchanged and still the point — this file imports the same one, so a
+    // rename still breaks here. What moved is the import FORM: the gate now
+    // loads it with `await import(...)` inside main(), because a static import
+    // hoists above the `server-only` stub and was killing the script at module
+    // load. Asserting the `from "` prefix pinned the SHAPE, not the dependency,
+    // and would have blocked the repair while claiming to protect it.
+    expect(src, "the gate must still reference this exact specifier, static or dynamic").toContain(
+      '"@/lib/brain/autonomous-engine"',
+    );
   });
+
+  // The assertion above is source text and can only see a rename. That the gate
+  // can RUN AT ALL is asserted behaviourally, by spawning it, in
+  // tests/scripts/check-policy-coverage-runs.test.ts — which is what caught
+  // that this gate had been dead in verify:hard since the server-only import
+  // landed, while still being wired and in HARD mode.
 
   // The derivation is complete by construction, but only if the seed script still
   // CALLS it. Deleting that one line would silently restore the hand-kept list —
