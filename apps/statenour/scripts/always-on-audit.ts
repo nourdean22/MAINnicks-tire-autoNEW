@@ -39,9 +39,31 @@
 import { loadEnvConfig } from "@next/env";
 import Module from "node:module";
 
-loadEnvConfig(process.cwd());
-
-{
+/**
+ * ⚠⚠ THESE SIDE EFFECTS MUST STAY INSIDE `main()`, NOT AT MODULE SCOPE.
+ *
+ * Both are PROCESS-GLOBAL: `loadEnvConfig` mutates `process.env`, and the
+ * `Module._load` stub replaces a Node internal for every subsequent require in
+ * the process. The sibling census scripts run them at module scope and get away
+ * with it only because they call `main()` unconditionally and so are
+ * un-importable.
+ *
+ * This file IS importable — that is the point of the entry guard at the bottom,
+ * which is what lets `splitByRecency` have a unit test. But vitest shares a
+ * worker process across test FILES, so a module-scope stub here would leak into
+ * every other test in that worker: `server-only` silently becomes a no-op, and
+ * whatever `loadEnvConfig` finds overwrites env the other tests were relying
+ * on. Importability and module-scope global mutation cannot both be safe.
+ *
+ * Found after CI failed `tests/intelligence/wave2-predictions.test.ts` with a
+ * 20s DB timeout on this branch while the same suite passed on main. I could
+ * not reproduce it locally (the full suite is green here, and CI has no DB), so
+ * the causal link is INFERRED rather than proven — but the scoping is wrong
+ * either way, and a global mutation reaching unrelated tests is not something
+ * to leave in on the grounds that it might be innocent.
+ */
+function installScriptEnvironment(): void {
+  loadEnvConfig(process.cwd());
   const cjs = Module as unknown as {
     _load: (request: string, parent: unknown, isMain: boolean) => unknown;
   };
@@ -95,6 +117,7 @@ export function splitByRecency(
 }
 
 async function main(): Promise<void> {
+  installScriptEnvironment();
   if (!process.env.DATABASE_URL) {
     console.error("DATABASE_URL required — run under `railway run -s statenour-web --`");
     process.exit(1);

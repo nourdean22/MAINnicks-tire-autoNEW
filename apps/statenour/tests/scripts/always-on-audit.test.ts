@@ -15,7 +15,7 @@
  * why the audit prints `lastCallAt` beside the surfaced count and never divides
  * them — see docs/agent-audit/DEFECT-SHAPE-STALE-DENOMINATOR.md.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { splitByRecency, type AlwaysOnRow } from "../../scripts/always-on-audit";
 
 const row = (tool: string, lastCallDays: number, lifetimeCalls = 1): AlwaysOnRow => ({
@@ -24,6 +24,40 @@ const row = (tool: string, lastCallDays: number, lifetimeCalls = 1): AlwaysOnRow
   surfaced: 259,
   lifetimeCalls,
   lastCallDays,
+});
+
+/**
+ * CANARY for the import being PURE.
+ *
+ * The script needs two process-global side effects to run — `loadEnvConfig`
+ * mutates `process.env`, and a `Module._load` stub makes `server-only` a no-op.
+ * Both live inside `main()` on purpose. At module scope they would fire the
+ * moment this test file imports the script, and vitest shares a worker process
+ * across test FILES: `server-only` would silently stop throwing for every other
+ * test in that worker, and loaded env would overwrite what they rely on.
+ *
+ * CI caught the consequence before this guard existed — an unrelated DB test
+ * timed out at 20s on this branch while the same suite passed on main.
+ */
+describe("importing the script is free of global side effects", () => {
+  // ⚠ THE OBVIOUS ASSERTION HERE DOES NOT WORK, and the reason is worth
+  // keeping: `expect(import("server-only")).rejects.toThrow()` ALWAYS passes-
+  // as-resolved, because `vitest.config.ts:65` already aliases `server-only` to
+  // an empty shim for the whole suite. That test cannot return the other
+  // answer — it measures the vitest config, not this script. Caught by writing
+  // it, watching it fail against already-correct code, and checking why.
+  //
+  // So the assertion is on `Module._load` IDENTITY across a reset + re-import.
+  // `vi.resetModules()` clears the registry, so a module-scope stub would
+  // re-install and replace the function; with the stub inside `main()`, the
+  // identity is stable.
+  it("does not replace Module._load when imported", async () => {
+    vi.resetModules();
+    const M = (await import("node:module")).default as unknown as { _load: unknown };
+    const before = M._load;
+    await import("../../scripts/always-on-audit");
+    expect(M._load, "a module-scope server-only stub would have replaced this").toBe(before);
+  });
 });
 
 describe("splitByRecency", () => {
