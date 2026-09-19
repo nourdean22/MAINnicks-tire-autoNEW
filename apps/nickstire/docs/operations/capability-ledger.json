@@ -2030,6 +2030,34 @@
       "operationalState": "live_verified",
       "exposure": "internal",
       "verificationExpiresAt": "2026-12-18"
+    },
+    {
+      "capabilityId": "attribution-confidence-bands",
+      "name": "The attribution queue says what its confidence numbers mean, and that they are not probabilities",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. The review queue showed 0.9 and 0.75 beside real invoices, and an operator confirming money reads those as percentages. Reading the producer, they are ordinal labels for two evidence recipes that differ by EXACTLY ONE FACT - whether the service text overlapped - and neither has ever been calibrated against outcomes. lib/attributionConfidenceBands.ts names each band, states the evidence that produced it, and states what would RAISE it, which is the only actionable part. bandMix reports inferredPct, the share of rows resting on inference rather than a recorded link. The card renders the mix and, above 80% inferred, says plainly that confirming in bulk is guessing in bulk - which is how the eight-calls-one-invoice over-count happened.",
+        "tests": "20 tests in server/__tests__/attributionConfidenceBands.test.ts. The producer's real ladder is mapped case by case; only VERIFIED is observed and every other band is marked inference. An empty queue reports inferredPct null, not 0 - unmeasured is not measured-zero. The calibration caveat is PINNED BY ASSERTION, including the sentence admitting nobody has measured the hit rate, so if that ever becomes false the caveat has to change with it. Positive control asserts the mix discriminates rather than returning a constant. 169 test files, 2,135 passed, exit 0.",
+        "liveRuns": "NONE. The bands have not been observed against a production queue.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "THE BANDS ARE UNCALIBRATED AND SAY SO. Nobody has measured how often a phone-and-time match turns out to be the right invoice, so the ordering is evidence-strength, not probability. Calibrating it needs a labelled sample of confirmed and rejected decisions, which does not exist because the decision log is young. Inventing a percentage would have been the defect this module exists to prevent."
+        },
+        {
+          "severity": "P3",
+          "description": "The 80% inferred threshold that triggers the bulk-confirm warning is a judgement, not a measurement. It is coarse on purpose - the module's job is to make an inference-heavy queue obvious, not to score it."
+        }
+      ],
+      "deferredScope": [
+        "Calibrating the bands against confirmed/rejected outcomes. Blocked on data rather than effort: it needs a labelled sample from the decision log, which is young. Recorded so the uncalibrated state is a known gap rather than an unexamined one."
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

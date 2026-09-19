@@ -140,6 +140,30 @@ export function AttributionReviewCard() {
               )}
             </div>
           )}
+          {/* WHAT THE CONFIDENCE NUMBERS MEAN, AND WHAT THEY DO NOT.
+              0.9 and 0.75 sit beside real invoices and read as percentages.
+              They are ordinal labels for two evidence recipes differing by one
+              fact — whether the service text overlapped — and neither has been
+              calibrated against outcomes. `inferredPct` is the number worth
+              watching: a queue that is mostly inference is a queue where
+              confirming in bulk is guessing in bulk, which is exactly how the
+              eight-calls-one-invoice over-count happened. */}
+          {data?.bands && data.bands.total > 0 && (
+            <div className="mb-3 text-xs text-muted-foreground border border-border/20 rounded p-2">
+              <span className="text-foreground/70 font-medium">Evidence mix:</span>{" "}
+              {data.bands.verified > 0 && <>{data.bands.verified} verified link(s) · </>}
+              {data.bands.strong > 0 && <>{data.bands.strong} phone+time+service · </>}
+              {data.bands.weak > 0 && <>{data.bands.weak} phone+time only · </>}
+              {data.bands.unscored > 0 && <>{data.bands.unscored} no single invoice</>}
+              {data.bands.inferredPct != null && (
+                <span className={data.bands.inferredPct >= 80 ? "block mt-1 text-amber-300" : "block mt-1"}>
+                  {data.bands.inferredPct}% of these rest on inference rather than a
+                  recorded link{data.bands.inferredPct >= 80 ? " — confirming in bulk here is guessing in bulk." : "."}
+                </span>
+              )}
+              <span className="block mt-1 text-foreground/40">{data.bandCaveat}</span>
+            </div>
+          )}
           {rows.map((row) => {
             const rowKey = `${row.callId}:${row.invoiceId ?? "x"}:${row.runId ?? "x"}`;
             const busy = busyKey?.startsWith(`${row.callId}:`) ?? false;

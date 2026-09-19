@@ -282,32 +282,81 @@ and G.** The `$6–15k/mo` in the current UI copy should be removed, not restate
 
 ---
 
-## 9 · Roadmap
+## 9 · Order of work — not a calendar
 
-**P0 — done in this pass:** classifier fix, taxonomy kernel, episode collapse, fact-bound
-SMS, hours drift. Plus the verification checklist in §5, which is operator work and is not
-started.
+**This section used to be a 7/30/90-day roadmap. That was wrong twice over.**
 
-**P1 — 7 days.** Wire `artifact.transfers[].status` from the `end-of-call-report` webhook
-into `transferOutcomeEvidence` so transfer connection becomes measurable. Run the
-production decomposition query in §5. Measure counter answer rate. Read the live consent
-gate. Surface `getRecoveryQueueSummary` in the UI so "Needs Attention: N" replaces the wall.
+It was wrong as policy: the standing instruction on this repo is to finish the
+work in-session, not to hand back a schedule for work the agent can do now.
+And it was wrong in substance — filing "reconcile the two transfer instruments"
+under thirty days is how a *finding* becomes a *calendar entry*, and the
+instruments then sat in two different procedures for a month with nobody able
+to compute their disagreement.
 
-**P2 — 30 days.** Retire the dead-end queue; fold voice evidence into
-`revenue_opportunities`, which already dedupes and already has a guarded send path.
-Approval-first bulk SMS with batch send. Attribution confidence bands. Demote XP/levels
-below the operational surface.
+What follows is the state of every item, in three honest buckets.
 
-**P3 — 60–90 days.** Warm-transfer canary *only if* P1's measurement shows blind transfer is
-actually failing. Note the roadmap correction: no-answer detection is **not** a custom-orchestration
-project. `warm-transfer-experimental` + `transferCancel` + `fallbackPlan` already does it. The
-decision is whether to depend on a mode Vapi labels *Experimental* — a much smaller, much cheaper
-question than both prior audits assumed, and one that should be answered by measurement, not taste. Recovery holdout experiment to estimate incremental (not linked)
-revenue. Seasonal routing priority.
+### Done, merged, and verifiable on `main`
 
-**Do not build yet:** a third opportunity queue; an ML lead score before outcomes are
-clean; multi-vendor telephony failover; appointment scheduling for a first-come-first-served
-shop; any auto-send SMS before the approval-first phase has a clean hallucination record.
+| Item | Where |
+|---|---|
+| Classifier reads CUSTOMER speech only; one taxonomy kernel decides queue membership | #2444 |
+| Episode collapse — one customer, one need, one row | #2444 |
+| Fact-bound SMS compiler replacing eight asserting templates | #2444 |
+| Transfer outcome read from `artifact.transfers[].status` | #2448 |
+| Tire-safety claim guard, each boundary sourced to a primary document | #2451 |
+| Four UI labels that were claims | #2451 |
+| Attribution dedupe — an invoice can be paid once, so it is claimed once | #2453 |
+| Repair-intake guard — no part named, no safe-to-drive verdict, over a phone | #2455 |
+| Gamification demoted below live demand | #2457 |
+| Scorecard no longer defaults to the one window it can never fill | #2460 |
+| `LOOKBACK_DAYS` widened so a skipped tick cannot orphan a call forever | #2460 |
+| Assistant resolution is deterministic, and ambiguity announces itself | #2462 |
+| The panel says whether a config push reaches the line callers dial | #2462 |
+| The redundant assistant is unreachable from this codebase | #2464 |
+| Outbound pin health readable without dumping the environment | #2465, #2466 |
+| **The two transfer instruments are compared, and a contradiction states what it implies** | this pass |
+| **Attribution confidence bands, with the calibration caveat that must travel with them** | this pass |
+
+### Open, and buildable without anyone's permission
+
+Listed in the order they should be done, with why — no dates attached, because
+a date is not a dependency.
+
+1. **Retire the dead-end queue into `revenue_opportunities`.** The voice queue
+   is a second opportunity store that dedupes separately and has no guarded
+   send path. `revenue_opportunities` already has both. This is the largest
+   remaining structural item and the one most likely to cause the *next*
+   double-count, because two stores of the same thing is the shape that
+   produced the last one.
+2. **Recovery holdout.** Every revenue number here is *linked*, not
+   *incremental* — it says this call preceded this invoice, never that the
+   recovery caused it. A holdout is the only way to tell those apart, and
+   without it the programme's headline number is an association.
+3. **Seasonal routing priority.** The smallest of the three and the only one
+   that is purely an optimisation rather than a correction.
+
+### Blocked on a human, and that is the correct state
+
+Not deferred — *blocked*. Each needs a decision or an action an agent should
+not take alone.
+
+- **Approval-first bulk SMS send.** Customer contact. The drafting and review
+  path can be built; pressing send is the operator's, every time.
+- **`sipVerb` refer→dial, and the warm-transfer canary.** Live VAPI config.
+  These are now **decidable by measurement rather than taste** — the agreement
+  instrument says whether they would help at all. If it reports a counter
+  problem, they would not, and doing them anyway spends on the wrong half of
+  the call.
+- **Three production readings** nobody has taken: the classification count once
+  the eval cron has run, transfer coverage once the account carries
+  `artifact.transfers`, and the counter answer rate before AI pickup.
+
+### Still do not build
+
+A third opportunity queue. An ML lead score before outcomes are clean.
+Multi-vendor telephony failover. Appointment scheduling for a
+first-come-first-served shop. Any auto-send SMS before the approval-first path
+has a clean hallucination record.
 
 ---
 
