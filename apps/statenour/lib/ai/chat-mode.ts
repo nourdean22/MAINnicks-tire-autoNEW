@@ -227,13 +227,42 @@ export async function pruneTools(
   const CORE_TOOLS = [
     // ingestThought removed Apr 15 — brain-dump NL interceptor in
     // /api/ai/chat handles capture before the model is invoked.
-    "classifyThought",
     "searchMemories",
     "getRecentReflections",
     "searchReflections",
-    "rankNextActions",
-    "getBlindSpots",
-    "dailyPulse",
+    // 2026-09-19 · DEMOTED: classifyThought, rankNextActions, getBlindSpots,
+    // dailyPulse. FOUR of the five the audit flagged — createTask was flagged
+    // too and is deliberately KEPT; see ACTION_CORE below for why the number
+    // was not the whole answer there.
+    //
+    // Second application of the 2026-08-25 prescription, on the same evidence
+    // shape and with the same discipline.
+    //
+    // MEASURED by `scripts/always-on-audit.ts` over 30 days / 259 turns: each
+    // was surfaced on 259 of 259 turns and chosen ZERO times INSIDE that
+    // window. Last calls were 66d, 66d, 43d and 37d — all predating the
+    // window, so this is not "quiet lately", it is "earned nothing in the
+    // period measured". Together with createTask below that is 1,295 always-on
+    // impressions per 30 days returning nothing.
+    //
+    // ⚠ `lifetime_calls` is NOT the discriminator and must never be divided
+    // into `surfaced` — createTask has 76 lifetime calls and is still cold.
+    // See docs/agent-audit/DEFECT-SHAPE-STALE-DENOMINATOR.md.
+    //
+    // EACH KEEPS A DETERMINISTIC PATH — verified per tool, not assumed:
+    //   · dailyPulse      → keyword families /daily/ and /dailyPulse/
+    //   · getBlindSpots   → the `reflect` playbook, whose regex literally
+    //                       contains "blind spot"
+    //   · rankNextActions → the `execute` playbook ("what should i do next").
+    //                       NOTE its only `addMatching` hit is the SEO family
+    //                       via the substring "rank" — a FALSE match that
+    //                       fires on marketing text, so it was never real
+    //                       coverage and is not being relied on here.
+    //   · classifyThought → had NONE. Family #14 was added above as a
+    //                       precondition of this demotion.
+    // Plus, for all four: exact-name mention (tier 3), semantic rank (tier 5,
+    // which now competes rather than being skipped — #2468), and the
+    // searchTools/invokeTool recovery lane.
     // 2026-08-25 · DEMOTED from always-on, on corrected numbers — the
     // first prune the surfacing instrumentation's discipline allows.
     // These three were offered on effectively EVERY standard/deep turn
@@ -253,6 +282,28 @@ export async function pruneTools(
   ];
 
   // 2026-07-06 · the most-used WRITE tools are always attached too.
+  //
+  // 2026-09-19 · createTask was MEASURED COLD (259 impressions, 0 calls
+  // inside a 30-day window, last call 37d) and is KEPT ANYWAY. Recording why,
+  // because the number alone argues the other way.
+  //
+  // It looked like the safest demotion of the five — three apparent paths
+  // back: the /task|…/ keyword family, the `execute` playbook, and the
+  // action-intent force in `prepare-tools.ts:207-218`. Checking the third
+  // against the actual patterns killed the idea. The regression this tier
+  // exists for is a KEYWORD-LESS action turn — the pinned fixture is
+  // literally "ok do it" — and `action-intent-detector.ts` requires either
+  // "add/put/throw … to my todo/task list" or "add:"/"create:" with a colon
+  // or quote. **"ok do it" matches none of them.** No family fires on it
+  // either, and a cold cache silences the semantic tier. Demoting createTask
+  // therefore re-opens the exact 2026-07-06 hole where the operator could not
+  // create a task at all on that turn shape.
+  //
+  // ★ USAGE IS NOT THE ONLY CRITERION. A tool can be cold for 37 days and
+  // still be load-bearing for a failure MODE rather than a volume. The audit
+  // measures impressions-per-outcome; it cannot see "this is the last path on
+  // a turn where every other path is silent". completeTask stays for the same
+  // reason and is also warm (11d, inside the window).
   const ACTION_CORE = ["createTask", "completeTask"];
 
   // ── Exact tool name mention ──
@@ -799,6 +850,26 @@ export async function pruneTools(
   // daily family catches "log" but its pattern doesn't match logSituation.
   if (/\b(log (this |the )?situation|record (this|a) (strategic )?(moment|situation)|i just (encountered|hit|ran into)|note this situation)\b/.test(text)) {
     addMatching(/logSituation/i);
+  }
+
+  // #14 · 2026-09-19 · Thought classification. `classifyThought` answers
+  // "am I overthinking this" / "what am I doing right now" — it labels a
+  // thought (raw / thinking / reasoning / insight / decision / reflection /
+  // planning / venting) and stores NOTHING.
+  //
+  // ADDED AS A PRECONDITION OF DEMOTING IT, not as a nice-to-have. It was in
+  // CORE_TOOLS, so it reached every turn for free and needed no family. A
+  // coverage sweep of all 54 `addMatching` name-patterns found **zero** that
+  // match it — and the reflect playbook does not carry it either. Demoting it
+  // without this family would have removed its only deterministic path and
+  // left exact-name mention plus a warm embedding cache, which is precisely
+  // the "made it unreachable" outcome a demotion must not produce.
+  //
+  // Deliberately NOT keyed on bare "thought"/"thinking": those appear in
+  // ordinary conversation constantly and would re-create the flood this tier
+  // exists to avoid. Keyed on the ASKING shapes the description names.
+  if (/\b(overthink(ing)?|am i (overthinking|spiralling|spiraling|ruminating)|what am i doing (right now|here)|classify (this|my) (thought|thinking)|what kind of thought|is this (a )?(decision|venting|reasoning|reflection)|just venting)\b/.test(text)) {
+    addMatching(/classifyThought/i);
   }
 
   // ── v10.0.532 · TOOL-ATTACHMENT FOLLOWUPS ──
