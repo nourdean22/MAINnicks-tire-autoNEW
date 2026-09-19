@@ -22,6 +22,8 @@ import { TRPCError } from "@trpc/server";
 import { createLogger } from "../lib/logger";
 import { RECOVERY_FETCH_OUTCOMES } from "@shared/callTaxonomy";
 import { computeConnectRate } from "../lib/transferArtifact";
+import { compareTransferInstruments } from "../lib/transferInstrumentAgreement";
+import { computeTransferOutcomeEvidence } from "../lib/transferOutcomeEvidence";
 import {
   buildRecoveryQueue,
   breachedSla,
@@ -734,6 +736,46 @@ export const vapiRouter = router({
               return v === "connected" || v === "not_connected" ? v : ("unknown" as const);
             }),
         }),
+        /**
+         * DO THE TWO INSTRUMENTS AGREE?
+         *
+         * The provider verdict (above) and the caller's redial behaviour were
+         * deliberately kept as separate instruments, on the stated grounds that
+         * "if they disagree, that disagreement is the finding". That was right
+         * and incomplete: they were computed in two DIFFERENT procedures, so
+         * nothing could ever compare them, and reconciling them was filed under
+         * a 30-day bucket — which is how a finding becomes a calendar entry.
+         *
+         * Both are derived from the SAME `rows` already in hand: the select
+         * carries phoneNumber, endedReason and createdAt, which is everything
+         * the behaviour instrument needs. No second query.
+         *
+         * The comparison never averages them. It reports what each says and
+         * whether they point the same way — and when they contradict, what that
+         * implies about WHERE the problem is. A provider-connected transfer
+         * whose caller immediately redials is a counter problem, and every
+         * telephony fix on the roadmap would be spent on the wrong half.
+         */
+        transferAgreement: compareTransferInstruments(
+          computeConnectRate({
+            verdicts: (rows as QueueSourceRow[])
+              .filter((r) => /forward|transfer/i.test(r.endedReason ?? ""))
+              .map((r) => {
+                const parsed =
+                  typeof r.metadata === "string" ? safeJsonObject(r.metadata) : r.metadata;
+                const v = (parsed as { transferArtifact?: { verdict?: unknown } } | null)
+                  ?.transferArtifact?.verdict;
+                return v === "connected" || v === "not_connected" ? v : ("unknown" as const);
+              }),
+          }),
+          computeTransferOutcomeEvidence(
+            (rows as QueueSourceRow[]).map((r) => ({
+              phoneNumber: r.phoneNumber ?? null,
+              createdAt: r.createdAt,
+              endedReason: r.endedReason ?? null,
+            })),
+          ),
+        ),
       };
     }),
 
