@@ -1,5 +1,112 @@
 # Session ledger — statenour
 
+**Updated: 2026-09-18** (Session E · tool-call failure classes + two-stage tool ranking)
+
+## Session E (tool routing) — 5 MERGED + DEPLOYED, 1 in CI
+
+**All five merged PRs are LIVE.** Deployed SHA `f1f7718b20d5` (`environment: production`),
+verified by **SHA equality on the head plus git ancestry for the rest** — equality alone covers
+only the head, ancestry alone never proves what is running.
+
+| PR | SHA | what |
+|---|---|---|
+| #2467 | `094736674` | repair the tool failure that is actually still happening |
+| #2468 | `fa45b1d50` | rank tool tiers together instead of filling by arrival order |
+| #2469 | `10edcd431` | docs · the stale-denominator defect shape |
+| #2470 | `167d596b6` | make a successful tool-input salvage observable |
+| #2471 | `f1f7718b2` | stop drafting rewrites for tools surfaced by POLICY |
+| #2472 | in CI | make the always-on audit re-runnable instead of a number |
+
+Deploy chain observed: `b0668294c` → `094736674` → `fa45b1d50` → `167d596b6` → `f1f7718b2`.
+**Every step verified by an uptime DROP, never an absolute uptime.**
+
+⚠⚠ **DEPLOYED IS NOT PROVEN.** At 00:11Z there were **0 post-deploy chat turns**, so every
+"no errors" reading is NO DATA. Proof recipe and watermarks are in agent memory
+(`statenour-budget-cliff-alphabet-2026-09-16.md`, section W14p).
+
+**MISSION:** stop guessing which tool-routing defect is real, and fix the ones that are.
+
+**#2467 — the repair was aimed at the class that stopped happening**
+
+`lib/ai/chat/repair-tool-call.ts` repaired hallucinated tool NAMES and declined argument
+failures with a confident design note: *"a different failure mode we deliberately leave to the
+SDK."* Nobody had counted. `scripts/tool-input-failure-census.ts` (new) counted:
+
+| class | sampled | LIVE (error <=14d) |
+|---|---|---|
+| argument | 24/33 | **11** |
+| name | 9/33 | **0** |
+
+Every live tool-call failure is `searchMemories` receiving 2-3 JSON objects glued into one
+arguments string. `lib/ai/chat/salvage-tool-input.ts` takes the FIRST complete object — each
+concatenated object is a separate call the model intended, and merging `{"query":"A"}` with
+`{"query":"B"}` has no honest result.
+
+★★★ **A DESIGN NOTE EXPLAINING A DECLINE IS NOT EVIDENCE THE DECLINE IS RIGHT.** Read one as an
+untested hypothesis.
+
+★★★ **A CAVEAT IS A FACTUAL CLAIM.** The census shipped saying "the rows carry no per-error
+time." They do — `lastErrors` is `{ message, at }[]` at `lib/ai/tool-telemetry.ts:348`, 33/33
+entries populate `at`. I parsed the field without reading its type. The caveat hedged in the
+RIGHT direction, which is exactly why nobody re-checked it. Fixed in `c433a4b`; it moved the
+answer from argument 11 / name 1 to argument 11 / **name 0**.
+
+**#2468 — the semantic tier was a leftovers tier**
+
+Selection was ONE pass: every tier called `addIfSpace`, which stopped at `TOOL_BUDGET`. Tier 5
+ran last AND was gated on `selectedNames.size < TOOL_BUDGET`, so it was skipped on 73.2% of prod
+turns — the turns that truncate are the turns ranking is FOR. Now two-stage: stage 1 gathers from
+every tier and drops nothing; stage 2 seats INTENT (tiers 1/2/3/7) then ranks tiers 4/5/6
+together before cutting.
+
+★★★ **A RESERVE ALLOCATES BEFORE IT KNOWS; TWO-STAGE RANKS AFTER.** The reserve attempt was
+reverted because it bound even when nothing truncated. Two-stage holds
+`MEMBERSHIP IS UNCHANGED when the budget does not truncate` *structurally*, not by a test.
+
+★★★ **THE TWO TIERS WERE NEVER INCOMPARABLE, JUST NEVER COMPARED** — tier 4 and tier 5 already
+call the same cosine metric on the same embedding.
+
+**DEFECTS IN MY OWN WORK, all self-caught**
+1. Headline test RED first: fixture scored 4 of 12 family tools, so partial-coverage disabled
+   ranking and it tested the FALLBACK while claiming to test the fix.
+2. Mutation test silently did not mutate — 16/16 green read as "canary survived." **`grep -c` the
+   mutated token before trusting the result.**
+3. First draft exempted `guaranteed` tiers from the budget. A budget that does not bind on its
+   highest-priority input is not a budget.
+4. The false caveat above.
+
+**TRAPS**
+- `pruneTools` fires telemetry via `void import(...).then(...)`, never awaited, and only when
+  `opts.turnId` is set. Without both, telemetry assertions read `undefined` — which is NOT
+  `false`. Use `await vi.waitFor(...)`.
+- `check:policy-coverage` is RED on a clean tree (`lib/ai/budget.ts:9` imports `server-only`,
+  which throws under plain `tsx`). Pre-existing — reproduce before blaming a diff.
+- `git -C <main-checkout> status/checkout -- apps/...` operates on the MAIN checkout, not on the
+  worktree you are standing in.
+
+**OPEN**
+- **NO PR IS PROD-PROVEN.** #2467 IS deploy-verified (SHA equality on public `GET /api/version`
+  = `094736674edc`, uptime DROP 3136s -> 36s) — deployed is not proven. Route: re-run
+  `scripts/tool-reachability-census.ts` and `tool-input-failure-census.ts`; both refuse to
+  conclude below their floors. **Read `semantic tier SKIPPED` (73.2% -> should approach 0), NOT
+  `budget truncated`** — two-stage moved that metric denominator, so it RISES, and the rise is
+  the instrument seeing candidates the single pass never recorded.
+- ⚠⚠ **`lib/ai/tool-description-rewrite.ts` is ACTIVE, not latent — I measured only ONE of its
+  TWO trigger paths and called it quiet.** The failure path does have 0 candidates; the
+  `surfaced_never_chosen` path fired **6 drafts in 2 days**, and **3 of 6** are 100% POLICY-
+  surfaced, MEASURED from `ToolGateDecision.tier`: `rankNextActions` 259/259 t1, `createTask`
+  259/259 t2, `completeTask` 259/259 t2. ⚠ I first said 4 of 6, putting `findCustomer` in that
+  bucket because it appears in the tier-6 defaults LIST IN THE SOURCE — measured it is 11%
+  policy (t4=76 t3=40 t6=15), i.e. genuinely keyword-surfaced, and the cron is RIGHT to draft
+  it. `getHabitRevenueCorrelation` and `getMasteryScores` are 0% policy. **Code-grep is not
+  evidence; the tier telemetry is.** Gate is `surfacedCount/turns >= 0.20`; tiers 1/2 are ~100%
+  by construction. **A gate with two independent predicates needs BOTH measured before it is quiet.**
+  FIX QUEUED: export CORE_TOOLS/ACTION_CORE from `chat-mode.ts` as ONE list (never a copy),
+  exclude them. Blocked on #2468 touching that file.
+- `NICK_TOOL_RANK_MERGED=0` reverts two-stage to arrival order via a Railway env edit, no deploy.
+
+---
+
 ## Session D (recall measurability) — branch `statenour/paraphrase-arm-2026-09-18` — PR #2443
 
 **MISSION:** make retrieval precision measurable. It was recorded as blocked in #2426 on a

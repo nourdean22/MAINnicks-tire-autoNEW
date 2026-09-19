@@ -1,5 +1,149 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-18 · W14 · the failure class nobody had counted · 6 PRs / 9 slices
+>
+> **#2467 `statenour · repair the tool failure that is actually still happening`
+> `094736674` MERGED + DEPLOYED-VERIFIED** (SHA EQUALITY, not ancestry: public
+> `GET /api/version` -> `build.commit 094736674edc…`, `branch main`, and an uptime DROP
+> from 3136s to 36s, which is the tell that the process actually restarted rather than the read
+> being stale.) · **#2468 `statenour · rank tool tiers together instead of filling by arrival
+> order` `fa45b1d50` MERGED** · **#2469 `agent-audit · the stale denominator`
+> `10edcd431` MERGED** · **#2470 `statenour · make a successful tool-input salvage
+> observable` `167d596b6` MERGED** · **#2471 `statenour · stop drafting rewrites
+> for tools surfaced by POLICY, not relevance` `f1f7718b2` MERGED** · **#2472 `statenour · make the always-on
+> audit re-runnable instead of a number` `850be17fc` MERGED.**
+>
+> W13 found instruments that were working as written and still could not answer their own
+> question. W14 is the next layer out: two tool-routing designs, each aimed at a real defect and
+> each documented confidently, pointed at the wrong half of the problem — because in both cases
+> the split between the halves had never been measured.
+>
+> **Slice 1 · the repair covered the class that had stopped happening.**
+> `lib/ai/chat/repair-tool-call.ts` repaired hallucinated tool NAMES and declined argument
+> failures with a design note: "argument-validation errors are a different failure mode we
+> deliberately leave to the SDK." Nobody had counted. `scripts/tool-input-failure-census.ts`
+> (new) classifies every string in `tool_telemetry.lastErrors` and splits by recency:
+> **LIVE argument 11, LIVE name 0.** Every live tool-call failure is `searchMemories`
+> receiving two or three JSON objects glued into one arguments string. The three prod examples
+> the file's own header cites as motivation for its 2026-09-16 change — `arsenal.webSearch`,
+> `person.update`, `getRepoMap` — measure 68d, 68d and 37d cold.
+> **A design note explaining a decline is not evidence the decline is right.**
+>
+> **Slice 2 · the salvage, and why first-intent-wins.** `lib/ai/chat/salvage-tool-input.ts`
+> takes the FIRST complete JSON object. Each concatenated object is a separate call the model
+> intended; merging two different queries has no honest result. Three structural guards make it
+> unable to regress: it only ever sees input the SDK already rejected, a clean single value
+> returns null so a genuine type error stays with the SDK, and a candidate failing the tool's own
+> zod schema is skipped. The SDK re-validates any repair regardless, so the worst case is exactly
+> today's behaviour.
+>
+> **Slice 3 · a caveat that was itself false.** The census shipped saying "the rows carry no
+> per-error time." They do — `lastErrors` is typed with a per-entry timestamp at
+> `lib/ai/tool-telemetry.ts:348` and 33/33 entries populate it. The field had been parsed
+> without its type being read. The caveat named a real class of error and hedged in the right
+> direction, which is exactly why nobody re-checked it. It also changed the answer: tool-level
+> dating gave argument 11 / name **1**, and that lone "live" name failure was
+> `arsenalWebSearch` — tool called 7d ago, error 37d old.
+> **A caveat asserting a limitation is a factual claim; a wrong hedge is worse than no hedge.**
+>
+> **Slice 4 · the semantic tier was a leftovers tier.** Selection was ONE pass: every tier called
+> `addIfSpace`, which stopped at `TOOL_BUDGET`, so each tier's share of the 24 slots
+> was decided by ARRIVAL ORDER. Measured over 2,616 prod gate decisions: candidates p50 43 vs
+> selected p50 24, budget truncated 80.4% of turns, **semantic tier skipped 73.2%** — it ran last
+> AND was gated on there being room left, so it was skipped on exactly the turns that truncate.
+> Now two-stage: stage 1 gathers from every tier and drops nothing; stage 2 seats INTENT (tiers
+> 1/2/3/7) then ranks tiers 4/5/6 together. The enabling fact: tier 4 and tier 5 already scored
+> against the same embedding with the same cosine metric — **never incomparable, just never
+> compared.** A pre-emptive RESERVE was tried first and reverted: it allocates before it knows.
+>
+> **Slice 5 · two gates caught what my own verification did not.** I reported "tests/ai — 194
+> files, 2,571 passed" as covering the change; `tests/ai` is a subdirectory and the full
+> suite is **896 files / 9,177 tests**. Both failures were outside the part I ran.
+> (a) `NICK_TOOL_RANK_MERGED` was an unregistered switch — now in `FLAG_REGISTRY` as
+> `readOnly`, since `chat-mode.ts` reads `process.env` directly and a writable
+> row would contradict the runtime. (b) The playbook wiring guard compared BYTE OFFSETS of three
+> literal call expressions; it had been repaired once already on 2026-09-16 with the conclusion
+> "anchor on the code that actually runs", and anchoring on source TEXT has the same defect one
+> level down — it would have passed if `addIfSpace` were left in as dead code. Rewritten to
+> RUN the pruner. **A receipt is only as wide as the path you hand the runner.**
+>
+> **Slice 6 · the shape got a page, because it had already survived being fixed.**
+> `docs/agent-audit/DEFECT-SHAPE-STALE-DENOMINATOR.md` (new). A rate with no clock, and a
+> rate whose clock you just moved, both read as current. Six measured cases, five from this day.
+> The argument for a page rather than a comment: the cure was written into
+> `tool-reachability-census.ts:141` and the identical defect was then rebuilt from scratch
+> the same evening in a new instrument — so the rule is stated as five OUTPUT requirements rather
+> than five things to remember. A sixth case was added after the first commit, from a sweep:
+> `lib/observability/tool-usage-census.ts` carries its own 2026-09-17 repair for this exact
+> shape and STILL has the next layer, where the denominator is fixed by POLICY rather than merely
+> unwindowed. **Finding an instance is not clearing the file.**
+>
+> **Slice 7 · my own verification plan was PROOF BY ABSENCE.** A successful salvage is invisible:
+> the repaired call simply works, so it emits no tool-error part, nothing reaches
+> `tool-telemetry-walk.ts`, and `failCount` merely stops growing. The only evidence
+> available was "searchMemories.failCount is still 8" — the identical observation you get when
+> nobody used the chat that week. I captured the denominator (259 turns, 0 post-deploy) to stop
+> that reading from being wrong, but **a denominator makes an absence interpretable; it never
+> makes it positive.** #2470 emits one structured event per firing, with a test PAIR — it emits
+> on a real salvage, and stays silent on a decline, so the event means a repair and not an
+> attempt. **A fix that works by making a failure not happen needs a positive emission, or it can
+> only ever be un-disproven.**
+>
+> **Slice 8 · a live cron was drafting LLM rewrites for tools surfaced by POLICY.** The
+> never-chosen gate is `surfacedCount / turns >= 0.20`, and a CORE_TOOLS or ACTION_CORE
+> tool is ~1.0 by construction, so it clears the bar regardless of its wording — while the prompt
+> tells the model "Other tools were available in the same turns and won". Measured against
+> `ToolGateDecision`: `rankNextActions` 259/259 tier 1, `createTask` and
+> `completeTask` 259/259 tier 2. **Two corrections to my own reports inside one slice:** I
+> first called this cron latent, having measured only ONE of its two trigger predicates; then I
+> said "4 of 6", having put `findCustomer` in the defect bucket by reading it out of the
+> tier-6 array in the source — measured it is 11% policy and a legitimate candidate. It is 3 of 6.
+> That is exactly why #2471 keys on the TELEMETRY and not on imported arrays: gate decisions
+> cannot drift from the pruner, and **reading a name out of a code list is not evidence that the
+> list is why the tool got surfaced.**
+>
+> **Slice 9 · the wave re-derives its own headline number instead of storing it.** The
+> 2026-08-25 always-on demotion was argued from a hand-run query whose result went into a code
+> comment — a cache with no invalidation. I repeated it: measured **5 of 9 always-on tools
+> chosen ZERO times in 30 days, 1,295 impressions earning nothing** by hand, and wrote it into
+> a memory file that will be stale within the week. #2472 makes it a script. At `--days=14`
+> the same data says **7 of 9 and 1,813**, which is the design working: the boundary is the
+> WINDOW, not a constant. `createTask` is the row that proves the no-ratio rule — **76
+> lifetime calls, last called 37 days ago** — so calls-per-impression would rank it the
+> healthiest tool in the list while it is cold. It PROPOSES nothing: demoting an always-on tool
+> changes every turn, and two of this wave's changes to that path are not prod-proven yet.
+>
+> **Flagged · NOT fixed**
+> - **NO PR IN THIS WAVE IS PROD-PROVEN**, #2467's deploy verification notwithstanding — deployed
+>   is not proven. Route: re-run `scripts/tool-reachability-census.ts` and
+>   `tool-input-failure-census.ts`; both refuse to conclude below their stated floors.
+>   ⚠ Read `semantic tier SKIPPED` (73.2% -> should approach 0), NOT `budget truncated`:
+>   two-stage moved that metric's denominator, so it will RISE and that rise is the instrument
+>   seeing candidates the single pass never recorded.
+> - **`lib/ai/tool-description-rewrite.ts` is drafting LLM rewrites for tools whose surfacing
+>   is guaranteed by their TIER.** ACTIVE, not latent — 6 drafts in 2 days, and 3 of 6 are 100% POLICY-surfaced, measured from ToolGateDecision.tier:
+>   `rankNextActions` 259/259 tier 1, `createTask` and `completeTask` 259/259 tier 2.
+>   I first reported 4 of 6, putting `findCustomer` in that bucket because it appears in the
+>   tier-6 defaults LIST IN THE SOURCE; measured it is 11% policy and genuinely keyword-surfaced,
+>   so the cron is RIGHT to draft it. **Code-grep is not evidence; the tier telemetry is.**
+>   The gate is `surfacedCount / turns >= 0.20` and tiers 1/2 are ~100% by construction. I first measured this cron's OTHER trigger path,
+>   found 0 candidates and called it latent; **a gate with two independent predicates needs both
+>   measured before it can be called quiet.** Fix should key on `ToolGateDecision.tier` —
+>   exclude a tool whose ALLOWED impressions are ~100% from POLICY tiers (1 core, 2 action-core,
+>   6 defaults) — NOT on an imported array. The telemetry is ground truth and cannot drift from
+>   the pruner; a copied list can.
+> - `check:policy-coverage` is RED on a clean tree (`lib/ai/budget.ts:9` imports
+>   `server-only`, which throws under plain `tsx`). Pre-existing, reproduced with this
+>   wave's diff set aside.
+> - The tier-7 reorder is a **deliberate behaviour change**: the single pass ran 1,2,3,4,7,5,6, so
+>   a playbook bundle could be truncated away by the generic keyword families. Splitting on
+>   intent-vs-similarity moves it to 1,2,3,7 then 4/5/6.
+> - `lib/services/system-pages.ts:957` renders a LIFETIME success rate on the ops page.
+>   MITIGATED (query is `orderBy lastCallAt desc take 20`, and the payload already carries
+>   the timestamps) but not fixed. The pattern to copy is
+>   `lib/observability/evidence-gate-calibration.ts:126`: return null below MIN_SAMPLE
+>   rather than a ratio.
+>
 > ## 2026-09-18 · W13 · instruments that could not answer their own question · 1 PR / 7 slices
 >
 > **#2425 · `statenour · three brain follow-ups` `d61763004` SHIPPED + DEPLOYED-VERIFIED** (SHA
