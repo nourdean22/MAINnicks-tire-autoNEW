@@ -78,7 +78,14 @@ const FULL_BUSINESS_SCORES: Record<string, number> = {
   triageStaleLead: 0.95,
   stageCustomerAlert: 0.92,
   queryNickstire: 0.9,
-  arsenalFindLeads: 0.05,
+  // 2026-09-19 · was 0.05, which made it the FOURTH-highest score. That was
+  // fine while the budget left exactly 3 tier-4 slots, and silently wrong the
+  // moment the CORE demotion freed more: at 5 slots it survived on merit and
+  // the test failed for a reason that was not a regression. Pinned to the
+  // LOWEST score so the claim — an alphabetically-early but IRRELEVANT tool
+  // loses its slot — holds at any slot count, instead of being re-tuned every
+  // time the guaranteed-tier list moves.
+  arsenalFindLeads: 0.001,
   compareLiveRevenue: 0.04,
   createQuickQuote: 0.03,
   findCustomer: 0.02,
@@ -204,8 +211,16 @@ describe("pruneTools · relevance survives the budget cliff", () => {
   // Fires the business family only (12 real catalog tools), so the cliff is
   // deterministic without depending on how large the catalog grows.
   const PROMPT = "pull the invoice and revenue numbers for that customer";
-  // CORE_TOOLS (7) + ACTION_CORE (2) = 9 guaranteed, leaving 3 tier-4 slots.
-  const TIGHT_BUDGET = "12";
+  // 2026-09-19 · was 12, when CORE_TOOLS (7) + ACTION_CORE (2) = 9 guaranteed
+  // left 3 tier-4 slots. The 4-tool CORE demotion makes it 3 + 2 = 5
+  // guaranteed, so 12 would leave SEVEN free slots and this fixture would stop
+  // truncating at all — the tests below would pass while measuring nothing.
+  //
+  // The constant that matters is the tier-4 PRESSURE (3 slots), not the
+  // budget, so the budget is re-derived from the new guaranteed count rather
+  // than left alone. A fixture calibrated against a list that moved is the
+  // stale-denominator shape wearing a test's clothes.
+  const TIGHT_BUDGET = "10"; // 10 is the FLOOR in pruneTools; lower values clamp to it.
 
   it("baseline: with NO embedding the cut is alphabetical — the old behaviour", async () => {
     process.env.NICK_TOOL_BUDGET = TIGHT_BUDGET;
