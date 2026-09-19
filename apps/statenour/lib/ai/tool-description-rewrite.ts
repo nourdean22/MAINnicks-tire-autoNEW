@@ -70,6 +70,88 @@ export const DRAFT_CATEGORY = "tool_description_draft";
 const NEVER_CHOSEN_MIN_TURNS = 50;
 const NEVER_CHOSEN_MIN_SURFACED_RATIO = 0.2;
 
+/**
+ * Tiers whose surfacing is decided by POLICY rather than by relevance to the
+ * turn: 1 core, 2 action-core, 6 defaults. A tool in those tiers is attached
+ * unconditionally, so `surfacedCount / turns` is ~1.0 BY CONSTRUCTION and
+ * clears NEVER_CHOSEN_MIN_SURFACED_RATIO no matter what its description says.
+ */
+const POLICY_TIERS: ReadonlySet<number> = new Set([1, 2, 6]);
+
+/**
+ * Above this share of POLICY-tier impressions, "offered a lot and never chosen"
+ * is a fact about the tool's TIER, not about its wording — so there is nothing
+ * for a description rewrite to fix.
+ *
+ * MEASURED 2026-09-18 on the six tools this cron had actually drafted. The
+ * separation is not marginal:
+ *
+ *   rankNextActions   259/259 tier 1  -> 100% policy   (nothing to rewrite)
+ *   createTask        259/259 tier 2  -> 100% policy   (nothing to rewrite)
+ *   completeTask      259/259 tier 2  -> 100% policy   (nothing to rewrite)
+ *   findCustomer      t4=76 t3=40 t6=15 ->  11% policy (legitimate candidate)
+ *   getHabitRevenueCorrelation t4=124 ->   0% policy   (legitimate candidate)
+ *   getMasteryScores  t4=98 t3=40     ->   0% policy   (legitimate candidate)
+ *
+ * Any threshold between 0.2 and 0.9 separates them identically; 0.9 is chosen
+ * to exclude only tools that are essentially ALWAYS policy-surfaced.
+ *
+ * ⚠ I first called this defect "4 of 6" by reading `findCustomer` out of the
+ * tier-6 defaults array in `chat-mode.ts`. It is 11% policy in practice.
+ * Reading a name out of a code list is not evidence that the list is why the
+ * tool got surfaced — which is the whole argument for keying on the TELEMETRY
+ * here rather than importing those arrays. The telemetry cannot drift from the
+ * pruner; a copied array can.
+ */
+const POLICY_TIER_MAX_SHARE = 0.9;
+
+/**
+ * For each tool, what share of its recent ALLOWED impressions came from a
+ * POLICY tier. Read-only groupBy.
+ *
+ * ⚠ WINDOWED ON PURPOSE. An all-time share would be the very defect
+ * `docs/agent-audit/DEFECT-SHAPE-STALE-DENOMINATOR.md` describes: a tool
+ * DEMOTED out of CORE_TOOLS (three were, on 2026-08-25) would keep reading as
+ * 100% policy forever off impressions it can no longer earn, and would be
+ * excluded from drafting for a tier it no longer belongs to. 30 days matches
+ * the window `tool-usage-census.ts` already uses for `surfacedCount`, so the
+ * share and the count it qualifies are measured over the same period.
+ *
+ * Returns an EMPTY map on any failure. Empty means "unknown" downstream, which
+ * restores the previous behaviour rather than silently excluding every tool —
+ * a query failure must not quietly switch the cron off.
+ */
+export async function policyTierShareByTool(
+  windowDays = 30,
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  try {
+    const since = new Date(Date.now() - windowDays * 86_400_000);
+    const rows = await prisma.toolGateDecision.groupBy({
+      by: ["toolName", "tier"],
+      where: { verdict: "ALLOWED", createdAt: { gte: since } },
+      _count: { _all: true },
+    });
+    const total = new Map<string, number>();
+    const policy = new Map<string, number>();
+    for (const r of rows) {
+      const n = r._count._all;
+      total.set(r.toolName, (total.get(r.toolName) ?? 0) + n);
+      if (r.tier !== null && POLICY_TIERS.has(r.tier)) {
+        policy.set(r.toolName, (policy.get(r.toolName) ?? 0) + n);
+      }
+    }
+    for (const [name, t] of total) {
+      if (t > 0) out.set(name, (policy.get(name) ?? 0) / t);
+    }
+  } catch (e) {
+    log.warn("policy_tier_share_failed", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+  return out;
+}
+
 export interface NeverChosenCandidate {
   name: string;
   category: string;
@@ -82,11 +164,22 @@ export function pickNeverChosenCandidates(
   surfacedNeverChosen: ReadonlyArray<{ name: string; category: string; surfacedCount: number | null }>,
   turns: number,
   limit: number,
+  /**
+   * tool -> share of its ALLOWED impressions that came from a POLICY tier
+   * (0..1), from `policyTierShareByTool()`.
+   *
+   * Optional, and a MISSING entry means "unknown", which is deliberately
+   * treated as NOT policy. An absence of tier data must not silently change
+   * behaviour — the same rule this file already applies to thin windows. When
+   * the map is absent entirely the function behaves exactly as it did before.
+   */
+  policyShare?: ReadonlyMap<string, number>,
 ): NeverChosenCandidate[] {
   // An absent instrument must not read as a measured zero. With too few turns
   // we cannot tell "never chosen" from "barely observed", so we decline.
   if (turns < NEVER_CHOSEN_MIN_TURNS || limit <= 0) return [];
   return surfacedNeverChosen
+    .filter((r) => (policyShare?.get(r.name) ?? 0) < POLICY_TIER_MAX_SHARE)
     .filter((r) => (r.surfacedCount ?? 0) / turns >= NEVER_CHOSEN_MIN_SURFACED_RATIO)
     .sort((a, b) => (b.surfacedCount ?? 0) - (a.surfacedCount ?? 0))
     .slice(0, limit)
@@ -196,11 +289,15 @@ export async function runToolDescriptionRewrite(): Promise<RewriteRunResult> {
   let neverChosen: NeverChosenCandidate[] = [];
   try {
     const { buildToolUsageCensus } = await import("@/lib/observability/tool-usage-census");
-    const census = await buildToolUsageCensus();
+    const [census, policyShare] = await Promise.all([
+      buildToolUsageCensus(),
+      policyTierShareByTool(),
+    ]);
     neverChosen = pickNeverChosenCandidates(
       census.surfacedNeverChosen,
       census.surfacedWindow.turns,
       MAX_TOOLS_PER_RUN - failureCandidates.length,
+      policyShare,
     );
   } catch (e) {
     // NOT silent: a census that cannot be read must not look like "no
