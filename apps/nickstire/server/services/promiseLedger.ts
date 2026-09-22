@@ -488,8 +488,42 @@ export async function listOpenPromises(limit = 100): Promise<PromiseRow[]> {
  * action — the ledger tells the truth about broken promises instead of
  * letting them rot as "open".
  */
+/**
+ * How many open promises one sweep examines. The page is fine; reporting it as
+ * if it were the total is not — see the disclosure in the return value below.
+ */
+const SWEEP_PAGE = 200;
+
+/**
+ * The true number of open promises, which is NOT the same as the number the
+ * sweep looked at.
+ *
+ * This mattered very little while every promise was typed by hand — the table
+ * never approached 200 rows. Voice capture changes that: a promise is now
+ * created per qualifying call, so the open set can genuinely exceed the page.
+ * A reader assumption that was safe for a hand-typed table is not safe for an
+ * auto-populated one, and the reader was not revisited when the writer changed.
+ */
+async function countOpenPromises(): Promise<number | null> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const rows = rowsFromExecute(await db.execute(sql`
+      SELECT COUNT(*) AS n FROM customer_promises WHERE status = 'open'
+    `));
+    const n = rows[0]?.n;
+    return n == null ? null : Number(n);
+  } catch {
+    // A failed count must not fail the sweep. Null means "unknown", and the
+    // caller says so rather than substituting the page size for the total.
+    return null;
+  }
+}
+
 export async function sweepOverduePromises(): Promise<{ recordsProcessed: number; details: string }> {
-  const open = await listOpenPromises(200);
+  const open = await listOpenPromises(SWEEP_PAGE);
   if (open.length === 0) return { recordsProcessed: 0, details: "no open promises" };
 
   const now = new Date();
@@ -548,9 +582,30 @@ export async function sweepOverduePromises(): Promise<{ recordsProcessed: number
     }
   }
 
+  // REPORT THE TOTAL, AND SAY SO WHEN IT EXCEEDS WHAT WAS EXAMINED.
+  //
+  // This used to read `${open.length} open`, which is the PAGE SIZE, not the
+  // number of open promises. At 500 open it would have reported "200 open" —
+  // not a truncation warning but a wrong total wearing the costume of a
+  // measurement, in the one line an operator reads to decide whether the
+  // ledger is healthy.
+  //
+  // The queue itself degrades gracefully: ORDER BY due_at ASC puts the
+  // most-overdue in the examined page, and rows leave the open set as they
+  // flip to missed, so later runs reach the rest. The defect was never a stuck
+  // queue — it was an instrument that under-reported while everything appeared
+  // to work, which is the version that survives review.
+  const totalOpen = await countOpenPromises();
+  const openLabel =
+    totalOpen == null
+      ? `${open.length} examined (total unknown — the count query failed)`
+      : totalOpen > open.length
+        ? `${totalOpen} open · only the ${open.length} most overdue examined this run, the rest wait for the next`
+        : `${totalOpen} open`;
+
   return {
     recordsProcessed: escalated + markedMissed,
-    details: `${open.length} open · ${escalated} escalated to inbox · ${markedMissed} marked missed (48h+)`,
+    details: `${openLabel} · ${escalated} escalated to inbox · ${markedMissed} marked missed (48h+)`,
   };
 }
 
