@@ -1,12 +1,26 @@
 /**
  * Expected-arrivals service (NCSOS business-action-tools).
  *
- * Captures "the customer said they're coming / dropping off" as a durable record.
- * The shop is FCFS and drop-off-preferred, so this is NOT a booking (operator
- * directive: voice/SMS don't mint bookings) and NOT a lead (sms-no-lead-noise) —
- * it is a planning signal the shop can see on the Today screen and later
- * reconcile to a real arrival / paid invoice. It makes the bookSlot/scheduleDropoff
- * "phantom" real: agenticAuditor flagged "dropoff promised but not persisted".
+ * Captures an EXPECTED ARRIVAL as a durable record. The shop is FCFS and
+ * drop-off-preferred, so this is NOT a booking (operator directive: voice/SMS
+ * don't mint bookings) and NOT a lead (sms-no-lead-noise) — it is a planning
+ * signal the shop can see on the Today screen and later reconcile to a real
+ * arrival / invoice. It makes the bookSlot/scheduleDropoff "phantom" real:
+ * agenticAuditor flagged "dropoff promised but not persisted".
+ *
+ * WHAT A ROW IS, measured 2026-09-22 rather than assumed. This header used to
+ * say "the customer said they're coming". In production every row for 30 days
+ * came from voice (116; SMS has written ONE row in its life), and the voice
+ * writer is the bookSlot tool handler — which the prompt makes MANDATORY as
+ * "the lead record for any non-tire walk-in", fires in parallel with every
+ * transfer, and hardcodes preferredDay "today" in two scripts. So a row means
+ * "the assistant recorded an expected walk-in"; whether the CUSTOMER stated an
+ * intent is only signalled by `whenText`, the day phrase they actually used
+ * (present on 23 of the 89 rows that expired unmet). Readers that turn an
+ * expired row into a claim about the customer — a "no-show rate", a "said they
+ * were coming" queue reason — are overstating their evidence. 15 of 116 rows
+ * reconciled to an invoice inside the window; the other 89 had no invoice under
+ * that phone in ±7 or +14 days, and 77 of them none ever.
  */
 import { createLogger } from "../lib/logger";
 import { affectedRowCount } from "../lib/db-affected";
