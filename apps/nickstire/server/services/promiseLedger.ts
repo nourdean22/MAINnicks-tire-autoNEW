@@ -169,6 +169,105 @@ async function closePromiseOpportunity(promiseId: string, resolution: string, by
 }
 
 /** Kept requires EVIDENCE — "what did you actually do" is the receipt. */
+/**
+ * A SHOP COMMITMENT made on a voice call becomes a promise. A customer
+ * REQUEST does not.
+ *
+ * Those are different facts and this repo already keeps them in different
+ * places. A caller saying "can someone ring me back?" is a request, and it is
+ * already recorded as a `callbackRequests` row — an intake queue. It is NOT a
+ * promise, because nobody has yet accepted responsibility or named a time.
+ *
+ * This function is for the other case: the assistant OFFERED and the customer
+ * accepted, so the shop now owes the call. Only the two tool paths where that
+ * offer is scripted may call it (`escalate`, `scheduleCallback`) — never a
+ * classifier outcome like `callback_needed`, which only proves the caller
+ * wanted one.
+ *
+ * TWO REFUSALS ARE THE POINT:
+ *
+ * 1. NO DERIVABLE DUE TIME, NO PROMISE. `due_at` is what the ledger scores
+ *    kept-vs-missed against, so an invented deadline manufactures a breach the
+ *    shop never agreed to. When the hours config cannot yield a next-open
+ *    instant, this returns `skipped` and the `callbackRequests` row remains the
+ *    (untimed) obligation. That is the honest degradation.
+ *
+ * 2. IDEMPOTENT ON THE CALL. VAPI redelivers webhooks, and the eval cron can
+ *    re-read the same call. Without a guard, one promise becomes three and the
+ *    kept-rate denominator silently inflates. Dedupe is on
+ *    (source_kind, source_id, promise_type).
+ *
+ * The dedupe is currently a read-then-write, which closes sequential retries
+ * (the common case) but NOT two truly concurrent deliveries. Migration 0103
+ * adds the UNIQUE index that makes it race-proof; until an operator applies it
+ * this remains best-effort, and that limit is stated rather than hidden.
+ */
+export async function createVoicePromise(params: {
+  promiseType: PromiseType;
+  promisedAction: string;
+  /** VAPI call id — the idempotency key and the audit trail. */
+  vapiCallId: string;
+  /** Derived, never invented. Null means "cannot promise a time". */
+  dueAt: Date | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  owner?: string | null;
+}): Promise<
+  | { ok: true; id: string; created: true }
+  | { ok: true; id: string; created: false; reason: "duplicate" }
+  | { ok: false; skipped: true; reason: "no_due_time" | "no_call_id" }
+  | { ok: false; error: string }
+> {
+  if (!params.vapiCallId) {
+    // Without a call id there is no idempotency key, so a retry would
+    // duplicate. Refuse rather than create an unauditable row.
+    return { ok: false, skipped: true, reason: "no_call_id" };
+  }
+  if (!params.dueAt) {
+    log.warn("voice promise skipped — no derivable due time", { vapiCallId: params.vapiCallId });
+    return { ok: false, skipped: true, reason: "no_due_time" };
+  }
+
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return { ok: false, error: "DB unavailable" };
+
+  try {
+    const existing = await db.execute(sql`
+      SELECT id FROM customer_promises
+      WHERE source_kind = 'voice'
+        AND source_id = ${params.vapiCallId}
+        AND promise_type = ${params.promiseType}
+      LIMIT 1
+    `);
+    const found = rowsFromExecute(existing)[0] as { id?: unknown } | undefined;
+    if (found?.id) {
+      return { ok: true, id: String(found.id), created: false, reason: "duplicate" };
+    }
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      warnMissingOnce("create-voice");
+      return { ok: false, error: "table not applied (migration 0102)" };
+    }
+    throw err;
+  }
+
+  const created = await createPromise({
+    promiseType: params.promiseType,
+    promisedAction: params.promisedAction,
+    dueAt: params.dueAt,
+    customerName: params.customerName ?? null,
+    customerPhone: params.customerPhone ?? null,
+    owner: params.owner ?? "Front Counter",
+    sourceKind: "voice",
+    sourceId: params.vapiCallId,
+    createdBy: "voice-agent",
+  });
+  if (!created.ok) return created;
+  return { ok: true, id: created.id, created: true };
+}
+
 export async function keepPromise(params: {
   id: string;
   evidence: string;

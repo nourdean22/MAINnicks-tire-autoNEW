@@ -1,0 +1,32 @@
+-- 0103 · Make voice-sourced promises idempotent at the DATABASE, not just in code.
+--
+-- WHY. `createVoicePromise()` dedupes with a read-then-write on
+-- (source_kind, source_id, promise_type). That closes the common case — VAPI
+-- redelivering the same end-of-call webhook sequentially — but NOT two truly
+-- concurrent deliveries, which can both read "absent" and both insert.
+--
+-- The consequence of a duplicate is not cosmetic: the Promise Ledger scores
+-- kept-vs-missed, so one promise counted twice inflates the denominator and
+-- quietly understates the shop's kept-rate. A metric that drifts downward for
+-- an invisible reason is the failure class this repo keeps paying for.
+--
+-- SCOPE. Partial-by-convention: the index covers ALL source kinds, but only
+-- voice rows carry a non-null source_id today. Operator-created promises pass
+-- source_id = NULL, and MySQL/TiDB UNIQUE indexes permit unlimited NULLs, so
+-- hand-entered promises are unaffected and can still be created freely.
+--
+-- PRE-APPLY CHECK — run this FIRST. If it returns any row, existing duplicates
+-- must be resolved before the index can be created:
+--
+--   SELECT source_kind, source_id, promise_type, COUNT(*) AS n
+--   FROM customer_promises
+--   WHERE source_id IS NOT NULL
+--   GROUP BY source_kind, source_id, promise_type
+--   HAVING n > 1;
+--
+-- Hand-apply (same discipline as 0102 — never auto-migrated):
+--   pnpm exec tsx scripts/migrations/apply-customer-promises.ts
+-- or apply this file directly against TiDB.
+
+CREATE UNIQUE INDEX uq_promise_source
+  ON customer_promises (source_kind, source_id, promise_type);
