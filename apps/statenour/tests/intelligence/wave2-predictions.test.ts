@@ -5,6 +5,7 @@ import { evaluatePredictions } from "@/lib/brain/predictive-engine";
 import { generateText } from "ai";
 import { prisma } from "@/lib/prisma";
 import { fetchFREDIndicators } from "@/lib/intelligence/connectors/fred";
+import { fetchMacroIndicators } from "@/lib/intelligence/connectors/macro";
 import { fetchNHTSARecalls } from "@/lib/intelligence/connectors/nhtsa";
 import { fetchGSCAndGBPMetrics } from "@/lib/intelligence/connectors/gsc";
 import { fetchCompetitorAndSECData } from "@/lib/intelligence/connectors/sec";
@@ -186,6 +187,17 @@ describe("Statenour OS V2 Wave 2 - Predictions & Narrative Status", () => {
       return expect(fetchFREDIndicators()).resolves.toEqual([
         { name: "Federal Funds Rate", seriesId: "FEDFUNDS", value: 5.33, unit: "%", date: "2026-08-01" },
       ]);
+    });
+
+    it("the MACRO connector runIngestion actually calls since #1872 is the stub - not only the FRED one it no longer calls (review on #2486)", async () => {
+      // The FRED guard above pins a module ingestion stopped importing on 2026-08-25;
+      // this pins the one it imports now. Asserting the FIXTURE VALUE: a live
+      // multi-provider fetch would be slow, shaped by real data, or fail offline.
+      expect(vi.isMockFunction(fetchMacroIndicators)).toBe(true);
+      await expect(fetchMacroIndicators({} as never)).resolves.toMatchObject({
+        result: { indicators: [{ provider: "FRED", id: "FEDFUNDS", value: 5.33 }] },
+        unresolved: [],
+      });
     });
 
     it("every outbound connector runIngestion can reach is stubbed", async () => {
