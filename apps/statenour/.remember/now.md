@@ -201,13 +201,23 @@ tool-name mismatches, not fabrications) and the 9 known-truth banners. ⚠ the r
 `reclassifyByReply` keys FALSE_COMPLETION on the banner — its 9 FALSE_COMPLETION candidates inherit this
 precision and need re-reading.
 
-**NEXT HIGHEST-LEVERAGE TASK** · classify the 17 surviving action banners (are "Task created — …" turns
-real fabrications or tool-name mismatches in `mapsToTool`?) and the 9 known-truth banners → then a
-reply-side signal for FALSE_COMPLETION auto-repair needs a DIFFERENT shape than a prefix hold (the claim
-is mid-reply): candidates are a sentence-level streaming hold at the FIRST detected claim (stream until
-the detector fires, then buffer the remainder), measured as a shadow first → run the tool-capable runner
-ONCE (operator spend) to baseline the 8 `requires-tools` scenarios. Chat volume (13 turns/24h) is the
-binding constraint — nothing promotes on n<30; banner turns arrive ~6/week, and after this fix fewer.
+**#2512 MERGED `d171b1b9a` + DEPLOY-VERIFIED** (live 19:41:14Z, uptime dropped to 16s). **Follow-up (this branch `statenour/action-claim-precision-2`):**
+task-complete / memory-write / data-sync get `claimNeedsFirstPerson` + the new `claimAcceptsSentenceOpening`
+(terse confirmation opening the sentence; NOT for link/move), plus a negated-participle hedge. 8 production-shape
+canaries unfixed 8f/78p → fixed 9 files 173 passed; real-binary on the same 52 banner originals **17 → 10 still
+flagged** (task-added 5 · pinned 4 · priority-set 1 — the 3 real pinned + the residual + "Bumped the priority" +
+5 unknowable "Task created" confirmations), task-complete 4 → 0, memory-write 2 → 0, data-sync 1 → 0, all-turn
+flags 21 → 14. ⚠ a canary can pass for the WRONG reason: the negation case was quiet because its "want me to?"
+tail tripped the offer hedge — rewritten without the tail. ⚠ pre-2026-09-22 rows carry NO tool evidence, so the
+5 "Task created" banners cannot be audited against a receipt; the join is what makes future audits possible.
+
+**NEXT HIGHEST-LEVERAGE TASK** · FALSE_COMPLETION auto-repair needs a gate signal that is neither the ask-side
+classifier (66% of turns buffer) nor a prefix hold (the claim is mid-reply, median 432 chars): candidate = stream
+until the detector FIRST fires, then buffer the remainder and run the gate — measure as a shadow first (share of
+turns that would switch, chars streamed before the switch, banner recall) → run the tool-capable runner ONCE
+(operator spend) to baseline the 8 `requires-tools` scenarios → re-read the harvester's 9 FALSE_COMPLETION
+candidates against the new detector before any promotion. Chat volume (13 turns/24h) is the binding constraint;
+banner turns arrive ~6/week and, after #2512 + this PR, fewer.
 
 ## Session E (tool routing) — 5 MERGED + DEPLOYED, 1 in CI
 

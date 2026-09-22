@@ -7,7 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-22 · W16 · 9 PRs MERGED #2478-#2487 · #2483 `b43fccd4a` DEPLOY-VERIFIED · 9 flagged in RECONCILIATION.
+**Last refreshed:** 2026-09-22 · W16+W16b · 15 PRs MERGED #2478-#2512 · `d171b1b9a` DEPLOY-VERIFIED · flagged items in RECONCILIATION.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--

@@ -1,5 +1,45 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-22 · W16b · audit the instruments, then the detector · 7 ships
+>
+> Second batch of Session F (first batch: the W16 entry below). One thread: every enforcement plan sat on
+> instruments nobody had audited, and auditing the bottom layer moved every number above it.
+>
+> **#2495 `warm-routes.test.mjs` bounded readiness poll (curl exit 7 flake) `2a503aa26` MERGED** ·
+> **#2498 `seed-policies` dry-run test + server-only tripwire control `67904d50a` MERGED** ·
+> **#2506 `chat.deferred_turn` heartbeat — the deferred path's own denominator `914dd0e95` MERGED +
+> DEPLOY-VERIFIED 18:43:40Z** (0 assistant turns since at 19:26Z: DEPLOYED, not EXERCISED) ·
+> **#2508 eval runner `--tools`: the 8 `requires-tools` scenarios replay through `generateText` + the real
+> catalog with executions STUBBED, calls recorded, judge sees the trace `10673c575` MERGED + DEPLOY-VERIFIED
+> 19:08:43Z** (operator-only spend; not yet run) ·
+> **#2509 pre-flush buffer-shadow READER — cost (buffer rate) vs benefit (banner recall) per classifier reason,
+> two independent floors, in the gate panel `073697106` MERGED + DEPLOY-VERIFIED 19:19:27Z** (MEASURED through
+> the reader on prod: 128 shadowed · 84 would buffer 65.6% · 7 banner turns → 6 buffered / 1 streamed / 0
+> unshadowed · top reason 77/84 buffered AND 6/6 banner — the classifier's own reasons do NOT separate; recall
+> withheld below 40 banner turns) ·
+> **#2512 fabrication-banner precision — `pinned` and bare `sent` fire on Nick's claims only `d171b1b9a` MERGED +
+> DEPLOY-VERIFIED** (live 19:41:14Z, uptime dropped to 16s; audit: 52 banners/60d = 9 known-truth + 43 action; pinned 15 → 3 real, sent 10 → 0 real;
+> 25 production-shape canaries unfixed 25f/43p → fixed 155 passed; real-binary 43 → 17 still flagged, sent 10 → 0,
+> all-turn flags 46 → 21) ·
+> **follow-up PR (this branch) task-complete / memory-write / data-sync get a subject rule
+> (`claimAcceptsSentenceOpening`) + a negated-participle hedge** (8 canaries unfixed 8f/78p → 173 passed;
+> real-binary 17 → 10 still flagged = 3 real pinned + 1 residual + "Bumped the priority" + 5 unknowable
+> "Task created" confirmations; all-turn flags 21 → 14).
+>
+> **Findings.** The reply-side "hold the first sentence" candidate is REFUTED: over 1,246 turns / 52 banners
+> the fabricated claim sits a median 432 chars into the reply (p90 1,770) while the first sentence is p50 24
+> chars — 6/52 caught; 800 chars held catches 28/52. The verifier banner was mostly false on its two biggest
+> drivers, and a false banner is not cosmetic: L3 replaces the turn in history, erasing a legitimate reply.
+> Rows before 2026-09-22 carry no tool evidence (no toolCalls / toolReceipts / turnRisk), so no earlier banner
+> can be audited against a receipt — the join (#2483/#2484) is what makes future audits possible.
+>
+> **Flagged · NOT fixed:** 5 "Task created — …" banners unknowable (pre-join rows) · the repair harvester's 9
+> FALSE_COMPLETION candidates inherit the old banner's precision (4 rode on pinned/sent) — re-read before
+> promoting · "Story highlights pinned to the shop" residual (verb use by a non-Nick subject) · heartbeat
+> unexercised (0 turns since deploy) · FALSE_COMPLETION auto-repair still needs a gate signal that is neither
+> the ask-side classifier (66% of turns) nor a prefix hold (claim is mid-reply) — candidate: stream until the
+> detector first fires, then buffer the remainder; measure as a shadow first.
+
 > ## 2026-09-22 · W16 · measure before enforce · 9 PRs / 10 slices
 >
 > **#2478 `statenour · the seed script the coverage gate prescribes could not run` `22382c300`
