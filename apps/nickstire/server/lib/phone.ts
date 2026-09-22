@@ -64,6 +64,22 @@ export function phoneRawDigits(input: string | null | undefined): string {
 }
 
 /**
+ * Last 10 digits — the JOIN KEY this app uses wherever phones are compared
+ * across tables (expected_arrivals.customerPhone, the recovery kernel's
+ * episode key, invoice matching). Deliberately NOT E.164 and deliberately
+ * lenient: it never returns null, so a 7-digit or empty input yields "" or
+ * the short digits rather than blowing up a join. Use normalizePhone() when
+ * you are about to SEND to a number; use this when you are about to MATCH one.
+ *
+ * Moved here from services/recoveryQueue.ts (2026-09-22): it had become an
+ * export whose only importer outside its own file was a router helper that
+ * was deleted, while services/expectedArrivals.ts carried an inline copy of
+ * the same expression. One home, two real consumers.
+ */
+export const phoneLast10 = (p: string | null | undefined): string =>
+  (p ?? "").replace(/\D/g, "").slice(-10);
+
+/**
  * True if two phone inputs represent the same number (after normalization).
  */
 export function phonesEqual(a: string | null | undefined, b: string | null | undefined): boolean {

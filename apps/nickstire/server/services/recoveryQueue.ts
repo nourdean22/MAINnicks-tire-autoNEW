@@ -38,6 +38,7 @@ import {
 } from "@shared/callTaxonomy";
 import type { ExtractedDemand } from "@shared/callDemandExtraction";
 import { isTransferFailure } from "../lib/warmTransferConnect";
+import { phoneLast10 } from "../lib/phone";
 import { toShopDateStr } from "./expectedArrivals";
 
 /**
@@ -157,10 +158,6 @@ const asRecord = (v: unknown): Record<string, unknown> => {
   }
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 };
-
-/** Last 10 digits — the join key used everywhere else in this app. */
-export const phoneLast10 = (p: string | null): string =>
-  (p ?? "").replace(/\D/g, "").slice(-10);
 
 /**
  * Facts the kernel needs that live in the row's metadata.

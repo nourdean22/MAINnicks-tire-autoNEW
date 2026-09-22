@@ -11,6 +11,7 @@
 import { createLogger } from "../lib/logger";
 import { affectedRowCount } from "../lib/db-affected";
 import { isDuplicateKeyError } from "../lib/dbErrors";
+import { phoneLast10 } from "../lib/phone";
 import { planArrivalReconciliation } from "../lib/arrivalReconciliationPlan";
 
 const log = createLogger("expected-arrivals");
@@ -300,7 +301,7 @@ export async function arrivalSignalsForQueue(cutoff: Date): Promise<{
     const { sql } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return empty;
-    const last10 = (v: unknown) => String(v ?? "").replace(/\D/g, "").slice(-10);
+    const last10 = (v: unknown) => phoneLast10(v == null ? null : String(v));
 
     const [openRows] = await db.execute(sql`
       SELECT DISTINCT customerPhone FROM expected_arrivals

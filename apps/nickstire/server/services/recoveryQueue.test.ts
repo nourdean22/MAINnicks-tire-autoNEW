@@ -9,7 +9,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { buildRecoveryQueue, breachedSla, phoneLast10, type QueueSourceRow } from "./recoveryQueue";
+import { buildRecoveryQueue, breachedSla, type QueueSourceRow } from "./recoveryQueue";
+import { phoneLast10 } from "../lib/phone";
 
 const NOW = new Date("2026-09-18T15:00:00Z");
 const minutesAgo = (m: number) => new Date(NOW.getTime() - m * 60_000);
