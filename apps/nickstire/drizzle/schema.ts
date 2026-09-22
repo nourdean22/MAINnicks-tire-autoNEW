@@ -4592,6 +4592,22 @@ export const vehicleVisits = mysqlTable("vehicle_visits", {
   evidenceRef: varchar("evidenceRef", { length: 255 }),
   sourceGeneration: varchar("sourceGeneration", { length: 64 }),
   cameraPose: varchar("cameraPose", { length: 64 }),
+
+  /**
+   * Episode identity (migration 0127). A tracker id is NOT a vehicle -- when a track
+   * dies and the same car is re-acquired, the edge used to open a second visit whose
+   * clock restarted at `now`. `camera-bridge/vision/stitch.py` folds those fragments
+   * into one episode and carries the ORIGINAL `arrivedAt` forward.
+   *
+   * All three NULLABLE on purpose: a producer predating the stitcher sends none of
+   * them, and NULL must read as "not reported" rather than as an empty trail.
+   */
+  episodeId: varchar("episodeId", { length: 64 }),
+  /** The visit this one was judged to continue. Mirrors visitd's `continues_visit_id`. */
+  continuesVisitId: varchar("continuesVisitId", { length: 64 }),
+  /** Every track id folded into this visit, oldest first -- the audit trail for a
+   *  stitched `arrivedAt`. Without it a corrected arrival is unexplainable. */
+  memberTrackIds: json("memberTrackIds"),
   detectorName: varchar("detectorName", { length: 128 }),
   calibrationVersion: varchar("calibrationVersion", { length: 32 }),
 
@@ -4672,6 +4688,20 @@ export const cameraRuntime = mysqlTable("camera_runtime", {
    * never promoted. NULL = not reported; 0 = looked and found none.
    */
   preexistingCrossed: int("preexistingCrossed"),
+
+  /**
+   * Stitch counters (migration 0127). `arrivalsAfterStitch` is the de-duplicated
+   * SHADOW of `arrivals`: it is reported ALONGSIDE the headline count and never
+   * instead of it, per the operator's 2026-09-18 instruction to keep the counter
+   * running and unhidden and let the data prove itself.
+   *
+   * `stitchRefusedAmbiguous` is the COST line. A stitcher that never stitches and one
+   * that merges everything both look identical if you only record successes -- and
+   * they need opposite fixes.
+   */
+  arrivalsAfterStitch: int("arrivalsAfterStitch"),
+  stitchedTotal: int("stitchedTotal"),
+  stitchRefusedAmbiguous: int("stitchRefusedAmbiguous"),
   state: varchar("state", { length: 32 }).notNull(),
   stateSince: timestamp("stateSince"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

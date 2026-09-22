@@ -26,7 +26,7 @@ from __future__ import annotations
 import os
 import sys
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Optional, Sequence
 
 from .baylatch import BayLatch, VisitTiming
@@ -190,12 +190,32 @@ class VisionPipeline:
         payload = {"type": kind, "before": {}, "after": after}
         event = self._parse_event(payload) if self._parse_event else payload
         emissions = list(self.tracker.handle_event(event))
+        tm = self.timings.get(track.track_id)
+        stamped: list = []
         for em in emissions:
             self.stats.visitd_states[getattr(em, "state", "?")] += 1
             vid = getattr(em, "visit_id", None)
             if vid:
                 self._track_visit[track.track_id] = vid
-        return emissions
+            # STAMP THE EPISODE TRAIL ON THE EMISSION, not on a sink.
+            # `ShopMirror.row_for()` is the DURABLE path -- `edge_main` never touches
+            # `VisitSink`, which is the lab lane only. Attaching this to the sink left
+            # every production visit without a trail while the tests passed, because the
+            # tests drive the lab lane. `row_for` already lifts per-emission attributes
+            # (source_generation, camera_pose, ...) off the emission, so this rides the
+            # same seam instead of inventing a second one.
+            if tm is not None and (tm.episode_id or tm.member_track_ids):
+                # `dataclasses.replace`, NOT setattr: `Emission` is frozen. The replaced
+                # copy goes back into the list so downstream readers see the trail.
+                stamped.append(replace(
+                    em,
+                    episode_id=tm.episode_id,
+                    member_track_ids=(list(tm.member_track_ids)
+                                      if tm.member_track_ids else None),
+                ))
+                continue
+            stamped.append(em)
+        return stamped
 
     # -------------------------------------------------------------------- main step
     def step(self, frame: Frame, detections: Optional[Sequence[Detection]] = None,

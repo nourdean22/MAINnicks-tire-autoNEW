@@ -333,3 +333,76 @@ describe("camera heartbeat — the commissioning run has THREE states, not two",
     expect(activeRunField(null)).not.toEqual(activeRunField(undefined));
   });
 });
+
+describe("camera visit ingest — episode trail (migration 0127)", () => {
+  // THE TRAP THIS GUARDS. A field can pass the zod schema and still be dropped at the
+  // write, silently, because COLUMNS / HEARTBEAT_COLUMNS name the columns and nothing
+  // else does. Schema-only additions are a writer with no reader, and the symptom is a
+  // column that stays NULL forever while the producer insists it is sending the value.
+  it("the visit write names the episode columns, not just the schema", () => {
+    for (const col of ["episodeId", "continuesVisitId", "memberTrackIds"]) {
+      expect(COLUMNS, `${col} missing from the visit write`).toContain(col);
+    }
+  });
+
+  it("the heartbeat write names the stitch counters", () => {
+    for (const col of ["arrivalsAfterStitch", "stitchedTotal", "stitchRefusedAmbiguous"]) {
+      expect(HEARTBEAT_COLUMNS, `${col} missing from the heartbeat write`).toContain(col);
+    }
+  });
+
+  it("a producer that predates the stitcher still parses — counters are nullish", () => {
+    // The whole reason every column is NULLABLE: an older producer sends none of them.
+    const old = parseHeartbeat({
+      camera: "sign", producerInstanceId: "abc", heartbeatSeq: 1,
+      observedAtEdge: "2026-09-22T20:00:00Z", mode: "PRODUCTION",
+    });
+    expect(old.success, JSON.stringify(old.success ? {} : old.error?.issues?.slice(0, 2))).toBe(true);
+    if (old.success) {
+      expect(old.data.arrivalsAfterStitch ?? null).toBeNull();
+      expect(old.data.stitchRefusedAmbiguous ?? null).toBeNull();
+    }
+  });
+
+  it("accepts the counters when a stitcher-aware producer sends them, INCLUDING zero", () => {
+    // 0 is a real measurement here ("it ran and refused nothing"), not absence. A schema
+    // that coerced 0 to null would erase the difference the counters exist to show.
+    const hb = parseHeartbeat({
+      camera: "sign", producerInstanceId: "abc", heartbeatSeq: 2,
+      observedAtEdge: "2026-09-22T20:00:00Z", mode: "PRODUCTION",
+      arrivalsAfterStitch: 41, stitchedTotal: 0, stitchRefusedAmbiguous: 7,
+    });
+    expect(hb.success).toBe(true);
+    if (hb.success) {
+      expect(hb.data.arrivalsAfterStitch).toBe(41);
+      expect(hb.data.stitchedTotal).toBe(0);
+      expect(hb.data.stitchRefusedAmbiguous).toBe(7);
+    }
+  });
+});
+
+describe("camera visit ingest — the episode trail cannot be erased", () => {
+  // A later payload that OMITS these must not blank them. Two ordinary paths omit them:
+  // a rollback to a pre-stitcher producer, and a terminal emission whose timing lookup
+  // happens after the track mapping is gone. Losing the trail while KEEPING the corrected
+  // `arrivedAt` is the worst outcome — the adjusted time survives, its explanation does not.
+  // Asserted against the GENERATED SQL, not against the private set. A membership check
+  // would need `LEARNED_ONCE` exported purely for the test — an unconsumed export the knip
+  // orphan gate rightly rejects — and it would prove less: what protects the row is the
+  // COALESCE actually reaching the statement, not a name sitting in a Set.
+  it("preserves the episode trail when a later payload omits it", () => {
+    const sql = String(GUARDED_SET);
+    for (const col of ["episodeId", "continuesVisitId", "memberTrackIds"]) {
+      expect(sql, `${col} can be NULLed by a later payload`)
+        .toContain(`COALESCE(VALUES(\`${col}\`), \`${col}\`)`);
+    }
+  });
+
+  it("the preservation is not vacuous — a volatile column still takes the new value", () => {
+    // Positive control: if every column were COALESCEd, the test above would pass while
+    // proving nothing. `state` must still be overwritten by a newer payload.
+    const sql = String(GUARDED_SET);
+    expect(sql).toContain("VALUES(`state`)");
+    expect(sql).not.toContain("COALESCE(VALUES(`state`)");
+  });
+});
