@@ -71,6 +71,34 @@ describe("a customer who genuinely came twice", () => {
   });
 });
 
+describe("an arrival claims at most ONE invoice", () => {
+  // Found by mutation: removing the planner's claimed-arrival filter left every
+  // earlier test green, because no fixture had a LATER invoice whose best
+  // candidate was an arrival already spent on an earlier one. This is that
+  // fixture. Arrival 10 (expected Wed) is the closest candidate for BOTH the
+  // Wed and Thu invoices; without the filter it takes both and strands 11.
+  const pairs = [
+    pair(10, "2026-09-23", 600, "2026-09-23"),
+    pair(10, "2026-09-23", 601, "2026-09-24"),
+    pair(11, "2026-09-22", 601, "2026-09-24"),
+  ];
+
+  it("the second invoice goes to the next-best arrival, not to the one already spent", () => {
+    const plan = planArrivalReconciliation(pairs);
+    expect(plan.matches).toEqual([
+      { arrivalId: 10, invoiceId: 600 },
+      { arrivalId: 11, invoiceId: 601 },
+    ]);
+    expect(plan.superseded).toEqual([]);
+  });
+
+  it("no arrival appears twice across the matches", () => {
+    const plan = planArrivalReconciliation(pairs);
+    const arrivals = plan.matches.map((m) => m.arrivalId);
+    expect(new Set(arrivals).size).toBe(arrivals.length);
+  });
+});
+
 describe("what is left alone", () => {
   it("an arrival with no matched invoice is NOT superseded — that is the no-show sweep's call", () => {
     // Two arrivals, one invoice matching only the second: the first has no
@@ -140,5 +168,9 @@ describe("POSITIVE CONTROL", () => {
     for (const s of plan.superseded) expect(matched.has(s.arrivalId)).toBe(false);
     const invoices = plan.matches.map((m) => m.invoiceId);
     expect(new Set(invoices).size).toBe(invoices.length);
+    // Both directions of one-to-one. The first version asserted only distinct
+    // invoices, and a planner that let one arrival claim two invoices passed.
+    const arrivals = plan.matches.map((m) => m.arrivalId);
+    expect(new Set(arrivals).size).toBe(arrivals.length);
   });
 });
