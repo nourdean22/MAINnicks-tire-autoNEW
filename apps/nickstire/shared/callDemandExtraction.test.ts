@@ -47,12 +47,24 @@ describe("tire size · SPOKEN forms (what transcripts actually contain)", () => 
     ["two thirty five sixty five eighteen", "235/65R18"],
     ["one ninety five sixty five fifteen", "195/65R15"],
     ["two sixty five seventy seventeen", "265/70R17"],
+    // Production transcript 2026-09-22 (verbatim, carries no PII): the caller read
+    // the width DIGIT BY DIGIT and the call recorded tireSize null. Recall on the
+    // post-deploy slice was 3 sizes captured of 4 spoken; this was the fourth.
+    ["tire size is two two five fifty r 18", "225/50R18"],
+    ["two one five sixty seventeen", "215/60R17"],
   ];
   for (const [input, expected] of CASES) {
     it(`"${input}" -> ${expected}`, () => {
       expect(extractTireSize(input)).toBe(expected);
     });
   }
+
+  it("NEGATIVE CONTROL: three spoken singles with no aspect after them are NOT a width", () => {
+    // Also a real first turn from the same slice: "I need two two tires." A joiner
+    // that fused any three singles would read a quantity as a size.
+    expect(extractTireSize("I need two two tires")).toBeNull();
+    expect(extractTireSize("two two five")).toBeNull();
+  });
 
   it("the word-to-digit step is itself correct", () => {
     expect(spokenNumbersToDigits("two fifteen sixty seventeen")).toContain("15");

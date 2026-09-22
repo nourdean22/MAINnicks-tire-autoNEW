@@ -9,7 +9,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { buildRecoveryQueue, breachedSla, phoneLast10, type QueueSourceRow } from "./recoveryQueue";
+import { buildRecoveryQueue, breachedSla, type QueueSourceRow } from "./recoveryQueue";
+import { phoneLast10 } from "../lib/phone";
 
 const NOW = new Date("2026-09-18T15:00:00Z");
 const minutesAgo = (m: number) => new Date(NOW.getTime() - m * 60_000);
@@ -299,12 +300,112 @@ describe("wired facts · a reader with no writer is not a feature", () => {
     if (r.episodes[0]) expect(r.episodes[0].transferFailed).toBe(false);
   });
 
-  it("a matched invoice closes the episode", () => {
+  // `invoicedPhones` was accepted here for weeks and no caller ever supplied
+  // it, so "already invoiced" had never fired once. Its replacement carries the
+  // invoice INSTANT: a visit last week cannot suppress a new need today, and —
+  // the case review caught on the day-granular first version — neither can a
+  // visit paid for this morning suppress a new need called in this afternoon.
+  // NOW is 2026-09-18 11:00 ET; the default row is ten minutes earlier.
+  it("an invoice minutes AFTER the call closes the episode", () => {
     const r = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
-      invoicedPhones: new Set(["2165558888"]),
+      invoicedAfter: new Map([["2165558888", minutesAgo(5).getTime()]]),
     });
     expect(r.episodes).toHaveLength(0);
     expect(r.exclusionCounts.already_invoiced).toBe(1);
+  });
+
+  it("an invoice two days AFTER the call also closes it — they came back and paid", () => {
+    const r = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
+      invoicedAfter: new Map([["2165558888", NOW.getTime() + 2 * 86_400_000]]),
+    });
+    expect(r.episodes).toHaveLength(0);
+    expect(r.exclusionCounts.already_invoiced).toBe(1);
+  });
+
+  it("an invoice two hours BEFORE the call, SAME DAY, does NOT close it — paid this morning, calling about something new", () => {
+    // The day version suppressed exactly this. "Has paid us today" is not
+    // "money in the till for this call"; suppressing it drops a real new need.
+    const r = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
+      invoicedAfter: new Map([["2165558888", minutesAgo(120).getTime()]]),
+    });
+    expect(r.episodes).toHaveLength(1);
+    expect(r.exclusionCounts.already_invoiced ?? 0).toBe(0);
+  });
+
+  it("an invoice last week does NOT close it either", () => {
+    const r = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
+      invoicedAfter: new Map([["2165558888", NOW.getTime() - 7 * 86_400_000]]),
+    });
+    expect(r.episodes).toHaveLength(1);
+  });
+
+  it("POSITIVE CONTROL: the signal is keyed by last-10 digits, like every other phone fact", () => {
+    // A map keyed by the raw dashed number would never match, and the kernel
+    // would starve again with no error anywhere.
+    const raw = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
+      invoicedAfter: new Map([["216-555-8888", minutesAgo(5).getTime()]]),
+    });
+    const last10 = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
+      invoicedAfter: new Map([["2165558888", minutesAgo(5).getTime()]]),
+    });
+    expect(raw.episodes).toHaveLength(1);
+    expect(last10.episodes).toHaveLength(0);
+  });
+
+  // Open expectations are scoped to the EPISODE, not the phone. Review on
+  // PR #2488: the phone-wide set let "coming tomorrow" said today reclassify a
+  // month-old no-show episode as expected_to_arrive and hide it from recovery.
+  it("an expectation whose source call IS one of the episode's calls moves it to the arrival lane", () => {
+    const walkIn = row({
+      phoneNumber: "216-555-7777",
+      vapiCallId: "call_xyz",
+      evalOutcome: "walk_in_directed",
+      meta: { intents: [], customerSpeech: { unparsed: false, first: "I will come by today" } },
+    });
+    const r = buildRecoveryQueue([walkIn], NOW, {
+      openExpectations: new Map([["2165557777", [{ sourceRef: "call_xyz", createdAtMs: NOW.getTime() - 30 * 86_400_000 }]]]),
+    });
+    expect(r.laneCounts.arrival).toBe(1);
+    expect(r.exclusionCounts.expected_to_arrive).toBe(1);
+  });
+
+  it("an expectation recorded the day after the call (SMS: 'coming tomorrow') still belongs to it", () => {
+    const walkIn = row({
+      phoneNumber: "216-555-7777",
+      evalOutcome: "walk_in_directed",
+      meta: { intents: [], customerSpeech: { unparsed: false, first: "I will come by" } },
+    });
+    const r = buildRecoveryQueue([walkIn], NOW, {
+      openExpectations: new Map([["2165557777", [{ sourceRef: "conv_1", createdAtMs: NOW.getTime() + 20 * 60 * 60_000 }]]]),
+    });
+    expect(r.laneCounts.arrival).toBe(1);
+  });
+
+  it("a month-old walk-in episode is NOT hidden by an expectation recorded today", () => {
+    const old = row({
+      phoneNumber: "216-555-7777",
+      vapiCallId: "call_old",
+      createdAt: new Date(NOW.getTime() - 30 * 86_400_000),
+      evalOutcome: "walk_in_directed",
+      meta: { intents: [], customerSpeech: { unparsed: false, first: "I will come by" } },
+    });
+    const r = buildRecoveryQueue([old], NOW, {
+      openExpectations: new Map([["2165557777", [{ sourceRef: "call_new", createdAtMs: NOW.getTime() - 60_000 }]]]),
+    });
+    expect(r.laneCounts.arrival ?? 0).toBe(0);
+    expect(r.episodes).toHaveLength(1);
+  });
+
+  it("POSITIVE CONTROL: the legacy phone-wide set still works when no scoped map is given", () => {
+    const walkIn = row({
+      phoneNumber: "216-555-7777",
+      evalOutcome: "walk_in_directed",
+      meta: { intents: [], customerSpeech: { unparsed: false, first: "I will come by today" } },
+    });
+    const legacy = buildRecoveryQueue([walkIn], NOW, { expectedArrivalPhones: new Set(["2165557777"]) });
+    const none = buildRecoveryQueue([walkIn], NOW, {});
+    expect(legacy.laneCounts.arrival).toBe(1);
+    expect(none.laneCounts.arrival ?? 0).toBe(0);
   });
 });
 

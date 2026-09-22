@@ -38,6 +38,69 @@ import {
 } from "@shared/callTaxonomy";
 import type { ExtractedDemand } from "@shared/callDemandExtraction";
 import { isTransferFailure } from "../lib/warmTransferConnect";
+import { phoneLast10 } from "../lib/phone";
+
+/** An open expected-arrival row, as arrivalSignalsForQueue supplies it. */
+export interface OpenExpectation {
+  /** vapiCallId for voice rows, conversation id for SMS rows, null for manual. */
+  sourceRef: string | null;
+  /** UNIX milliseconds the row was created, formatted in SQL. */
+  createdAtMs: number;
+}
+
+/**
+ * Did an invoice land AFTER this call? Compared as instants, not days. Review
+ * on PR #2488 caught the day version: a customer who paid for one visit in the
+ * morning and called that afternoon about a NEW need was "already invoiced"
+ * and dropped from recovery. The invoice instant is UNIX_TIMESTAMP'd in SQL;
+ * the call's createdAt is driver-parsed, which on an Eastern dev box can read
+ * a few hours LATE. A late-reading call can only make this stricter — it can
+ * delay a true "already invoiced", never fabricate one.
+ */
+function invoicedAfterCall(
+  byPhone: ReadonlyMap<string, number> | undefined,
+  phone: string,
+  callAt: Date,
+): boolean {
+  const invoicedAtMs = byPhone?.get(phone);
+  if (invoicedAtMs == null) return false;
+  return invoicedAtMs >= callAt.getTime();
+}
+
+/**
+ * How long after an episode's latest call an open expectation still belongs to
+ * it. Voice rows are matched EXACTLY by sourceRef (the bookSlot handler stamps
+ * the vapiCallId), so this window only decides SMS/manual rows and voice rows
+ * whose call the queue did not select. Two days covers "I'll come tomorrow"
+ * texted the day after the call; it does not reach a month-old episode.
+ */
+const EXPECTATION_AFTER_CALL_MS = 48 * 60 * 60_000;
+/** Recording lag: bookSlot writes the row during the call, never before it. */
+const EXPECTATION_BEFORE_CALL_MS = 60 * 60_000;
+
+/**
+ * Does an open expectation belong to THIS episode? Review on PR #2488 caught
+ * the phone-only version: a customer with a month-old no-show episode who says
+ * "coming tomorrow" today would have reclassified the OLD episode as
+ * expected_to_arrive and hidden it from recovery. An expectation counts only
+ * if its source call is one of the episode's calls, or it was recorded in the
+ * window around the episode's latest call.
+ */
+function expectationBelongsToEpisode(
+  byPhone: ReadonlyMap<string, readonly OpenExpectation[]> | undefined,
+  phone: string,
+  episodeCallIds: ReadonlySet<string>,
+  latestCallAt: Date,
+): boolean {
+  const open = byPhone?.get(phone);
+  if (!open || open.length === 0) return false;
+  const t = latestCallAt.getTime();
+  return open.some(
+    (e) =>
+      (e.sourceRef != null && episodeCallIds.has(e.sourceRef)) ||
+      (e.createdAtMs >= t - EXPECTATION_BEFORE_CALL_MS && e.createdAtMs <= t + EXPECTATION_AFTER_CALL_MS),
+  );
+}
 
 /** The row shape the router selects. Deliberately narrow. */
 export interface QueueSourceRow {
@@ -140,10 +203,6 @@ const asRecord = (v: unknown): Record<string, unknown> => {
   return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
 };
 
-/** Last 10 digits — the join key used everywhere else in this app. */
-export const phoneLast10 = (p: string | null): string =>
-  (p ?? "").replace(/\D/g, "").slice(-10);
-
 /**
  * Facts the kernel needs that live in the row's metadata.
  *
@@ -188,8 +247,34 @@ export function buildRecoveryQueue(
      * queue was being repaired for. A reader with no writer is not a feature.
      */
     expectedArrivalPhones?: ReadonlySet<string>;
-    /** Last-10 phones with a paid invoice matched after the call. */
-    invoicedPhones?: ReadonlySet<string>;
+    /**
+     * Last-10 phone -> the OPEN expected-arrival rows for it (still `expected`,
+     * not past the reconcile window). An expectation only counts for an
+     * episode when its source call is one of the episode's calls, or it was
+     * recorded within the window around the episode's latest call — a
+     * phone-wide set (the first version) let "coming tomorrow" said today
+     * reclassify a month-old no-show episode as expected_to_arrive.
+     * Supersedes `expectedArrivalPhones`, which is kept only for callers and
+     * tests that still pass a bare set; when both are given, this one wins.
+     */
+    openExpectations?: ReadonlyMap<string, readonly OpenExpectation[]>;
+    /**
+     * Last-10 phone -> UNIX ms of the most recent invoice an expected arrival
+     * reconciled to. `invoiceMatched` becomes true only when that instant is
+     * AT OR AFTER the episode's latest call: a visit last week must not
+     * suppress a new need today, and — the case review caught — neither may
+     * a visit paid for this MORNING suppress a new need called in this
+     * AFTERNOON. This fact means "money in the till for THIS call", never
+     * "has ever paid us".
+     *
+     * Replaces `invoicedPhones`, a set this function accepted and no caller
+     * ever supplied — so kernel rule 5 ("already invoiced") had never fired,
+     * and a walk-in who came and paid fell through to "no arrival matched"
+     * the moment their arrival row reconciled. A reader with no writer is not
+     * a feature, and this one was quietly manufacturing recovery work for
+     * customers who had already paid.
+     */
+    invoicedAfter?: ReadonlyMap<string, number>;
   } = {},
 ): RecoveryQueueResult {
   const grouped = new Map<string, QueueSourceRow[]>();
@@ -271,9 +356,17 @@ export function buildRecoveryQueue(
       transferFailed,
       safetyFlag: meta.safetyFlag === true,
       existingVehicleAtShop: meta.existingVehicleAtShop === true,
-      invoiceMatched: opts.invoicedPhones?.has(phone) === true || meta.invoiceMatched === true,
+      invoiceMatched:
+        invoicedAfterCall(opts.invoicedAfter, phone, latest.createdAt) || meta.invoiceMatched === true,
       expectedArrivalOpen:
-        opts.expectedArrivalPhones?.has(phone) === true || meta.expectedArrivalOpen === true,
+        (opts.openExpectations
+          ? expectationBelongsToEpisode(
+              opts.openExpectations,
+              phone,
+              new Set(calls.map((c) => c.vapiCallId).filter((id): id is string => typeof id === "string" && id.length > 0)),
+              latest.createdAt,
+            )
+          : opts.expectedArrivalPhones?.has(phone) === true) || meta.expectedArrivalOpen === true,
       hasCapturedSpecifics: intents.includes("tire_size_request") || meta.hasCapturedSpecifics === true,
     });
 

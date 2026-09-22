@@ -243,12 +243,23 @@ export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promis
 
   // The receipt: voice/SMS "I'll come by" promises that reconciled to a real
   // invoice this week (services/expectedArrivals.reconcileExpectedArrivals).
+  //
+  // COUNTED PER INVOICE, NOT PER ARRIVAL ROW. This used to join arrivals to
+  // invoices and SUM per joined row, so an invoice claimed by three arrival
+  // rows (three "coming today" texts, one visit) was added three times — in
+  // the one line of this digest labelled revenue. The reconcile is now
+  // one-to-one and 0126 makes the database refuse a second claim, but the
+  // receipt must not depend on that: it counts each invoice once regardless
+  // of how many rows point at it.
   const arrivalsRaw = await d.execute(sql`
     SELECT COUNT(*) AS cnt, COALESCE(SUM(i.totalAmount), 0) AS cents
-    FROM expected_arrivals ea
-    JOIN invoices i ON i.id = ea.reconciledInvoiceId
-    WHERE ea.status = 'arrived'
-      AND ea.arrivedAt >= ${windowStart} AND ea.arrivedAt < ${windowEnd}`);
+    FROM invoices i
+    WHERE i.id IN (
+      SELECT ea.reconciledInvoiceId
+      FROM expected_arrivals ea
+      WHERE ea.status = 'arrived' AND ea.reconciledInvoiceId IS NOT NULL
+        AND ea.arrivedAt >= ${windowStart} AND ea.arrivedAt < ${windowEnd}
+    )`);
   const arr = tupleRows(arrivalsRaw)[0] as Record<string, unknown> | undefined;
 
   // Demand side. Leads are fetched as rows (not COUNT(*)) on purpose: the

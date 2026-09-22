@@ -53,6 +53,25 @@ describe("contradiction 1 · walk_in_directed is a provisional success, not miss
     expect(d.reasons.map((r) => r.code)).toContain("no_show");
   });
 
+  it("and the reason says only what the kernel can establish — not what the caller said", () => {
+    // `walk_in_directed` is the ASSISTANT's outcome. Measured 2026-09-22: of 89
+    // rows this reason produced in 30 days, 63 were price/inquiry calls and 66
+    // carried no day the customer named. The text used to read "Said they were
+    // coming, no arrival matched" — the assistant's suggestion recorded as the
+    // customer's commitment, the same class as the classifier once scoring its
+    // own greeting. The lane is legitimate follow-up; the claim was not.
+    const d = disposeCall(facts({ outcome: "walk_in_directed", expectedArrivalOpen: false }));
+    const noShow = d.reasons.find((r) => r.code === "no_show");
+    expect(noShow).toBeDefined();
+    const text = JSON.stringify(noShow);
+    expect(text).not.toMatch(/said they/i);
+    expect(text).toMatch(/directed to walk in/i);
+    // POSITIVE CONTROL: the disposition itself is unchanged — still recovery,
+    // still queue-eligible — so the wording fix did not quietly retire a lane.
+    expect(d.lane).toBe("recovery");
+    expect(d.queueEligible).toBe(true);
+  });
+
   it("and an arrival that produced an invoice is closed, not queued", () => {
     const d = disposeCall(
       facts({ outcome: "walk_in_directed", expectedArrivalOpen: false, invoiceMatched: true }),
