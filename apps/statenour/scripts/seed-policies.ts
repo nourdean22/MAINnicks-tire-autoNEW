@@ -18,13 +18,38 @@
  *   pnpm tsx scripts/seed-policies.ts --dry-run   # preview only
  */
 
+import Module from "node:module";
 import { CRONS, type CronDef } from "@/config/crons";
-import { derivedRulePolicies, mergeById } from "@/lib/automation/derive-rule-policies";
-import {
-  upsertPolicy,
-  type PolicyUpsertInput,
-  type ApprovalClass,
-} from "@/lib/automation/policy";
+import type { PolicyUpsertInput, ApprovalClass } from "@/lib/automation/policy";
+
+/**
+ * ⚠⚠ THIS SCRIPT IS THE REMEDY `check:policy-coverage` PRINTS, AND IT COULD NOT RUN.
+ *
+ * Same defect as the gate itself (repaired in #2476, one file over):
+ * `@/lib/automation/derive-rule-policies` imports `listRuleNames` from
+ * `lib/brain/autonomous-engine`, which transitively reaches `lib/ai/budget.ts:9`
+ * → `server-only` — a Next.js tripwire whose entry throws by design and which
+ * only the Next bundler rewrites to a no-op. Under plain `tsx` it threw at
+ * module load, so the seed died before `main()`. Measured 2026-09-22: the gate
+ * correctly reported 2 absent cron policies and told the operator to run this
+ * script, which crashed on import. The gap it names stayed open.
+ *
+ * ⚠ THE STUB ALONE IS NOT ENOUGH. ESM HOISTS STATIC `import` ABOVE EVERY
+ * STATEMENT, so a stub block here still runs AFTER the offending module has
+ * been evaluated. The two imports that reach `server-only` are therefore loaded
+ * DYNAMICALLY inside `main()`, after the stub is installed. `CRONS` is plain
+ * config and stays static; the policy-type imports are types and are erased.
+ */
+{
+  const cjs = Module as unknown as {
+    _load: (request: string, parent: unknown, isMain: boolean) => unknown;
+  };
+  const original = cjs._load;
+  cjs._load = (request, parent, isMain) => {
+    if (request === "server-only") return {};
+    return original(request, parent, isMain);
+  };
+}
 
 const DRY_RUN = process.argv.includes("--dry-run");
 
@@ -314,6 +339,13 @@ const CURATED_NON_CRON: PolicyUpsertInput[] = [
 async function main() {
   console.log(`\n📋 seed-policies · ${DRY_RUN ? "DRY RUN" : "LIVE"}`);
   console.log("=".repeat(60));
+
+  // Loaded here, not at module scope: see the header. Static imports hoist
+  // above the server-only stub and re-introduce the crash this seed died of.
+  const { derivedRulePolicies, mergeById } = await import(
+    "@/lib/automation/derive-rule-policies"
+  );
+  const { upsertPolicy } = await import("@/lib/automation/policy");
 
   const allInputs: PolicyUpsertInput[] = mergeById([
     ...CRONS.filter((c) => c.mode !== "retired").map(cronToPolicy),
