@@ -24,13 +24,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // vi.mock factories are hoisted above every import, so the spies they close
 // over must be hoisted too (a plain `const` would be in its temporal dead
 // zone when run-suite.ts's static `./judge` import evaluates the factory).
-const { aiChat, judgeResponse } = vi.hoisted(() => ({
+const { aiChat, judgeResponse, buildSystemPromptUncached, detectTopicTier } = vi.hoisted(() => ({
   aiChat: vi.fn(),
   judgeResponse: vi.fn(),
+  buildSystemPromptUncached: vi.fn(),
+  detectTopicTier: vi.fn(),
 }));
 
 vi.mock("@/lib/ai/provider", () => ({ aiChat }));
-vi.mock("@/lib/ai/system-prompt", () => ({ buildSystemPromptUncached: async () => "system" }));
+vi.mock("@/lib/ai/system-prompt", () => ({ buildSystemPromptUncached, detectTopicTier }));
 vi.mock("@/lib/ai/chat/calibration-enforcer", () => ({
   enforceCalibration: async (_ask: string, text: string) => ({ text }),
 }));
@@ -70,6 +72,8 @@ async function writeDir(scenarios: Array<{ id: string } & Record<string, unknown
 
 beforeEach(() => {
   aiChat.mockReset().mockResolvedValue({ provider: "venice", content: "a reply" });
+  buildSystemPromptUncached.mockReset().mockResolvedValue("SYSTEM PROMPT FROM BUILDER");
+  detectTopicTier.mockReset().mockReturnValue("business");
   judgeResponse.mockReset().mockImplementation(async (scenario: { id: string }) => ({
     scenarioId: scenario.id,
     responsePreview: "a reply",
@@ -136,5 +140,37 @@ describe("runLive · requires-tools skip", () => {
     expect(report.summary).toMatchObject({ totalScenarios: 1, ranScenarios: 0, skipped: 1, flagged: 0, errored: 0 });
     expect(report.summary.meanComposite).toBe(0);
     expect(aiChat).not.toHaveBeenCalled();
+  });
+});
+
+describe("runLive · the replay prompt is built the way production builds it (2026-09-22)", () => {
+  // The runner passed the literal "lite" as the tier from 2026-05-23 until
+  // today. It is not a TopicTier, tests/ is excluded from tsc, and the
+  // builder's try/catch would also have hidden a thrown error behind the
+  // minimal fallback prompt — so this asserts BOTH halves: the tier comes
+  // from production's classifier, and the built prompt (not the fallback)
+  // is what reaches Nick.
+  it("classifies the last user message with detectTopicTier and sends the built prompt to Nick", async () => {
+    dir = await writeDir([PLAIN]);
+
+    await runLive({ args: ARGS, scenariosDir: dir });
+
+    expect(detectTopicTier).toHaveBeenCalledWith("hi");
+    expect(buildSystemPromptUncached).toHaveBeenCalledWith("business", "hi");
+    const [messages] = aiChat.mock.calls[0] as [Array<{ role: string; content: string }>, string];
+    expect(messages[0]).toMatchObject({ role: "system" });
+    expect(messages[0]?.content.startsWith("SYSTEM PROMPT FROM BUILDER")).toBe(true);
+  });
+
+  it("canary: a builder that throws still yields a reply, on the fallback voice marker — and the test can tell", async () => {
+    buildSystemPromptUncached.mockRejectedValue(new Error("brain DB unreachable"));
+    dir = await writeDir([PLAIN]);
+
+    const report = await runLive({ args: ARGS, scenariosDir: dir });
+
+    expect(report.summary.errored).toBe(0);
+    const [messages] = aiChat.mock.calls[0] as [Array<{ role: string; content: string }>, string];
+    expect(messages[0]?.content).toContain("You are Nick");
+    expect(messages[0]?.content).not.toContain("SYSTEM PROMPT FROM BUILDER");
   });
 });

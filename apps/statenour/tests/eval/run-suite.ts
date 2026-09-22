@@ -168,7 +168,7 @@ export async function loadScenarios(dir: string = SCENARIOS_DIR): Promise<LoadRe
  */
 async function callNick(scenario: Scenario): Promise<{ response: string; error: string | null }> {
   const { aiChat } = await import("@/lib/ai/provider");
-  const { buildSystemPromptUncached } = await import("@/lib/ai/system-prompt");
+  const { buildSystemPromptUncached, detectTopicTier } = await import("@/lib/ai/system-prompt");
 
   // 2026-08-18 · replay the SYSTEM, not just the model. Production chat
   // runs deterministic interceptors before any model call; the one that
@@ -190,15 +190,24 @@ async function callNick(scenario: Scenario): Promise<{ response: string; error: 
     }
   }
 
-  // Build the system prompt the same way the chat route does, but
-  // with no live memory recall (we're replaying scenarios, not
-  // mutating brain state). The "lite" tier is the cheap path used
-  // for short / utility turns.
+  // Build the system prompt the same way the chat route does, but with
+  // no live memory recall (we're replaying scenarios, not mutating brain
+  // state). 2026-09-22 · the tier comes from the SAME classifier the route
+  // uses (app/api/ai/chat/route.ts → detectTopicTier(userContent)). From
+  // 2026-05-23 until today this passed the literal "lite" — not a TopicTier
+  // at all ("core" | "business" | "personal" | "strategy" | "full"); tests/
+  // is excluded from tsc, so nothing said so. Downstream an unknown tier
+  // fails the wantsKnowledge check in appendBusinessKnowledgeLayer, so every
+  // live replay ran WITHOUT the business-knowledge layer production attaches
+  // to business asks: live reports before this date graded a thinner prompt
+  // than production's.
+  const lastUserContent =
+    scenario.input.messages[scenario.input.messages.length - 1]?.content ?? "";
   let systemPrompt: string;
   try {
     systemPrompt = await buildSystemPromptUncached(
-      "lite",
-      scenario.input.messages[scenario.input.messages.length - 1]?.content ?? "",
+      detectTopicTier(lastUserContent),
+      lastUserContent,
     );
   } catch {
     // Fall back to a minimal voice marker · keeps the eval running
