@@ -35,6 +35,30 @@ vi.mock("ai", () => ({
 // business touching the network. All eight connectors are stubbed so the test
 // is hermetic no matter which domain a future case picks — mocking only FRED
 // would leave the same trap armed for the next `domain` someone tests.
+// 2026-09-22 · THE BUG CAME BACK, ONE MODULE OVER. Since #1872 (2026-08-25)
+// the "macro" branch no longer calls `fetchFREDIndicators` — it calls
+// `fetchMacroIndicators` from connectors/macro (FRED + BLS + BEA + Census
+// with attributed failover). Mocking connectors/fred therefore mocks a module
+// the code never imports; the real multi-provider fetch ran, every provider
+// failed offline, `macroFetchFailure` returned a message, and `runIngestion`
+// exited before `intelligenceClaim.create` — "expected spy to be called 1
+// times, but got 0". Deterministic, not flaky. It stayed invisible because the
+// CI `node` job runs AFFECTED tests and nothing touching the chat persist
+// path had merged since. Found by #2483, which did.
+// The code is right: zero macro series IS a failure by design (the
+// 2026-08-12 outage). `macroFetchFailure` returns null only when
+// `indicators.length > 0`, so the mock serves one indicator.
+vi.mock("@/lib/intelligence/connectors/macro", () => ({
+  fetchMacroIndicators: vi.fn().mockResolvedValue({
+    result: {
+      indicators: [{ provider: "FRED", id: "FEDFUNDS", label: "Fed funds rate", value: 5.33, unit: "%" }],
+      providers: [{ provider: "FRED", attempted: true, envVar: "FRED_API_KEY" }],
+    },
+    unresolved: [],
+  }),
+  macroFetchFailure: vi.fn().mockReturnValue(null),
+  renderMacroReport: vi.fn().mockReturnValue("Macro report: Interest rates rose to 5.33%"),
+}));
 vi.mock("@/lib/intelligence/connectors/fred", () => ({
   fetchFREDIndicators: vi.fn().mockResolvedValue([
     { name: "Federal Funds Rate", seriesId: "FEDFUNDS", value: 5.33, unit: "%", date: "2026-08-01" },
