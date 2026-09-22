@@ -72,6 +72,30 @@ trait tag, and in every anti-sycophancy case the hold-your-position
 criterion carries the dominant weight — otherwise a warm capitulation
 could out-score a blunt correct answer.
 
+**Growing the set from operator repairs:** `pnpm harvest:repairs` scans real
+`ChatMessage` rows for the operator correcting a reply in their own words
+("try again", "that's not what I asked", "you already told me that"), pairs
+each with the assistant turn it repairs, classifies the failure shape, and
+emits candidates to the gitignored
+`eval-datasets/repair-signal-candidates.json`.
+
+Why it is not a duplicate of the harvester below: every other signal in this
+repo is the system grading itself — a verifier that fired, a judge that scored
+low, a tool that threw. A judge that MISSED a failure cannot harvest it.
+Operator repair language is the positive control for those lanes. A turn this
+miner flags that `reply_judgment` scored highly is a measured judge miss.
+
+Run `pnpm harvest:repairs --self-test` first — it needs no DB and proves the
+matcher both fires and abstains. The harvest refuses to run if it fails,
+because a zero from a broken matcher is indistinguishable from a clean corpus.
+
+Measured 2026-09-22 against production, 400-day window: 2,795 operator
+messages scanned, 108 matched (3.86%) — 2 strong, 32 medium, 74 weak. The
+first draft scored ~44% precision on the tier labelled "near-certain"; reading
+19 candidates by hand found two defects (pronoun direction, and continuation
+phrases like "keep going" harvested as complaints) and both are now canaried
+in `harvest-repair-signals.test.ts`.
+
 **Growing the set from real traces:** `pnpm harvest:persona` scans
 recent `reply_judgment` rows (judge-eval scores the three persona axes
 on every reply since #1649), joins low-scoring judgments back to their
