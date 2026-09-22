@@ -4779,6 +4779,74 @@ export const cameraHealthEvents = mysqlTable("camera_health_events", {
   index("idx_camera_health_events_camera_at").on(table.camera, table.at),
 ]);
 
+/**
+ * One counter interaction, with the evidence behind every claim made about it.
+ *
+ * The office Eufy camera (192.168.0.167) was MEASURED 2026-09-22 to carry a real audio
+ * track — aac, 16 kHz, mono — alongside 1080p15 video, so capturing conversations is
+ * technically possible. Whether that mic is intelligible at counter distance is a separate
+ * question that only a real recording answers; `source` exists so the answer can be "use a
+ * dedicated counter microphone instead" without reshaping anything here.
+ *
+ * THREE RULES THIS TABLE ENFORCES BY SHAPE:
+ *
+ * 1. Every extracted fact carries the transcript span it came from. A summary nobody can
+ *    trace back to what was actually said is a rumour with a timestamp — and these facts
+ *    will sometimes contradict a repair order, which is exactly when provenance matters.
+ * 2. Links are CANDIDATES. `vehicleVisitId` / `workOrderId` always travel with
+ *    `linkConfidence`. Binding the wrong conversation to the wrong customer is the
+ *    expensive failure, and the camera side reads ZERO plates today (measured: 552 visits
+ *    over 14 days, none with plateText), so there is no identity to join on yet.
+ * 3. Raw audio is a POINTER, never a column. It is the most sensitive artefact here and
+ *    gets the shortest life; the transcript outlives it, the structured facts outlive that.
+ */
+export const conversationEpisodes = mysqlTable("conversation_episodes", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  episodeId: varchar("episodeId", { length: 64 }).notNull(),
+  /** `eufy-office` today; `counter-mic` if the camera mic fails the intelligibility test. */
+  source: varchar("source", { length: 32 }).notNull(),
+
+  // TIMESTAMP, not DATETIME — same reason vehicleVisits gives: the driver hands JS a
+  // shifted Date for DATETIME on ET, corrupting every duration and day bucket downstream.
+  startedAt: timestamp("startedAt"),
+  endedAt: timestamp("endedAt"),
+  durationSeconds: int("durationSeconds"),
+
+  /** Pointer to the clip, never the clip. NULL once aged out — distinct from never-captured. */
+  audioRef: varchar("audioRef", { length: 255 }),
+  /** Measured at capture. THE intelligibility signal: a quiet mean explains a bad
+   *  transcript without anyone having to guess at the cause. */
+  meanVolumeDb: decimal("meanVolumeDb", { precision: 6, scale: 2 }),
+
+  /** PENDING | DONE | FAILED | SKIPPED. VARCHAR not ENUM: TiDB's STRICT_TRANS_TABLES
+   *  REJECTS an out-of-enum write and LOSES the row — worst inside a failure handler. */
+  transcriptStatus: varchar("transcriptStatus", { length: 32 }).default("PENDING").notNull(),
+  transcriptError: varchar("transcriptError", { length: 500 }),
+
+  /** Timed segments from `transcribeAudio()`. NULL = not transcribed; [] = transcribed and
+   *  genuinely silent. Those are different facts and must stay distinguishable. */
+  transcript: json("transcript"),
+  sttEngine: varchar("sttEngine", { length: 32 }),
+  sttLatencyMs: int("sttLatencyMs"),
+
+  /** NULL = diarization not attempted (today's state). Never 0 — "no speakers detected" is
+   *  a finding, "we did not look" is not. */
+  speakerCount: int("speakerCount"),
+
+  facts: json("facts"),
+  summary: text("summary"),
+
+  vehicleVisitId: varchar("vehicleVisitId", { length: 64 }),
+  workOrderId: varchar("workOrderId", { length: 64 }),
+  linkConfidence: decimal("linkConfidence", { precision: 4, scale: 3 }),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ConversationEpisode = typeof conversationEpisodes.$inferSelect;
+export type InsertConversationEpisode = typeof conversationEpisodes.$inferInsert;
+
 export type VehicleVisit = typeof vehicleVisits.$inferSelect;
 export type InsertVehicleVisit = typeof vehicleVisits.$inferInsert;
 
