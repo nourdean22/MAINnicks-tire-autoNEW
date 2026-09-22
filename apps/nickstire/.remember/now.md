@@ -134,6 +134,20 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
    OPEN PRs to land in order: #2529 → rebuild #2514 (rebuild-cron-details.sh) → rebuild #2515
    (rebuild-2515.sh) → orchestration-status-reconcile (ship-reconcile.sh); each rewrites a shared
    evidence key, so they serialize. Hold each merge while a sibling's node/e2e is in flight.
+10. OPERATOR ACTIONS TONIGHT. (a) photo_assess_enabled flipped ON 22:05Z on 'photo assess enabled yes'
+   (scripts/maintenance/set-feature-flag.mjs, dry run then --execute). NOT LIVE: no provider fallback,
+   REPLICATE_API_KEY unset -> no_provider; needs PHOTO_ASSESS_PROVIDER=hf or a Replicate key (Railway
+   env, operator's call - asked, not taken). (b) The SMS gateway phone was dead ('my bad it was dead');
+   powered on ~22:05Z: the 22 queued texts sent 22:09Z, sms-gateway-health read `online - last seen 4m
+   ago` at 22:29Z; review-requests + winback unhold on the next hourly pass. (c) OpenWeather: the code
+   calls data/2.5/weather = the free plan; WARNING weather_triggered_sms is ON, so the key arms customer
+   texts - flip that flag off first if intel-only is wanted. MERGED this evening with the trailer:
+   #2529 f10029b52 (memory identity + censuses) · #2532 2ca58d9f7 (#2514 rebuilt) · #2531 5825e17e7
+   (harvest replay with tools) · #2534 213bce3c0 (#2515 rebuilt) · #2535 orchestration-status-reconcile
+   (see PR). Five earlier squash merges carry no Co-Authored-By trailer (single-commit PRs squash to the
+   PR body); every merge since passes --subject/--body-file with it. Not done: abandoned-forms details
+   (the one silent zero #2532 did not cover); the #2490/#2496 Codex threads handed over by the statenour
+   session; the counterfactual memory diagnostic (mandate item 9).
 4. Duplicate-key helper consolidation onto `server/lib/dbErrors.ts` (proposals.ts,
    shopDriverMirror.ts x2, promiseLedger.ts).
 5. Tighten the transfer-artifact write in `routes/webhooks/vapi.ts` (~:621) to
