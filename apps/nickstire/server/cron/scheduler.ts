@@ -2775,6 +2775,14 @@ function buildTiers(): void {
       },
       {
         name: "weather-intel",
+        // 2026-09-22 · the service already refuses to run without this key, but
+        // it did so by RETURNING { details: "No API key" } — a completed run
+        // with zero records, eight times in a row, invisible to the skip
+        // watchdog, which only reads status "skipped" with a "requiresEnv:"
+        // detail. Declared here, the miss becomes the alarm that was built
+        // for it. Setting the key ARMS weather_triggered_sms (flag is ON in
+        // prod): decide that flag before the key.
+        requiresEnv: "OPENWEATHER_API_KEY",
         handler: async () => {
           const { checkWeatherTriggers } = await import("../services/weatherIntelligence");
           const result = await checkWeatherTriggers();
@@ -2949,6 +2957,8 @@ export function getJobCadences(): Map<
     oncePerShopDay: boolean;
     tier: string;
     scheduledAutomatically: boolean;
+    /** Env keys the tier loop requires (any one set) before it runs the job; empty = no env gate. */
+    requiresEnv: string[];
   }
 > {
   const out = new Map<
@@ -2959,6 +2969,7 @@ export function getJobCadences(): Map<
       oncePerShopDay: boolean;
       tier: string;
       scheduledAutomatically: boolean;
+      requiresEnv: string[];
     }
   >();
   ensureTiersBuilt();
@@ -2986,6 +2997,7 @@ export function getJobCadences(): Map<
          * disagree is how the next reader gets it wrong.
          */
         scheduledAutomatically: j.enabled !== false,
+        requiresEnv: j.requiresEnv ? (Array.isArray(j.requiresEnv) ? j.requiresEnv : [j.requiresEnv]) : [],
       });
     }
   }

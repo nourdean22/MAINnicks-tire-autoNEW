@@ -2171,6 +2171,32 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "weather-triggered-marketing",
+      "name": "Cleveland weather events (freeze, rain, heat, pothole season, salt end) stage GBP drafts and text lapsed customers",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "server/services/weatherIntelligence.ts reads OpenWeatherMap for Euclid, evaluates named triggers, stages GBP post drafts for owner review and - behind the feature flag weather_triggered_sms - texts lapsed customers through sendSms with opt-out handling. Scheduled by the weather-intel tier job in server/cron/scheduler.ts. 2026-09-22: the tier entry now declares requiresEnv OPENWEATHER_API_KEY and getJobCadences() reports each job's env gate, so an absent key is a scheduler SKIP that cron-skip-watchdog alerts on after seven days, instead of a completed zero-record run nothing looks at.",
+        "tests": "server/cron/weatherIntelEnvGate.test.ts, 3 tests: the job declares OPENWEATHER_API_KEY through getJobCadences(); the declared key is the only env the service reads (comment-stripped call sites); a job without an env gate reports an empty list (positive control). cronSkipWatchdogPrefix.test.ts already pins that the watchdog reads the requiresEnv: prefix.",
+        "liveRuns": "NONE, ever. OPENWEATHER_API_KEY is unset in production; all 8 cron_log rows for weather-intel (its whole history) read completed with details \"No API key\" and 0 records. cron-skip-watchdog reported \"no env-skip jobs in 7d window\" throughout. feature_flags.weather_triggered_sms = 1 (ON, \"Auto-SMS lapsed customers on weather events\", last updated 2026-05-20), so the SMS lane is armed and waiting on the key alone.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Setting OPENWEATHER_API_KEY arms customer texts: weather_triggered_sms is ON in production and there is no further gate between a weather trigger and sendSms to lapsed customers. Decide the flag BEFORE the key. Either is an operator action: a Railway variable, or a feature_flags row - neither is taken on agent initiative."
+        },
+        {
+          "severity": "P3",
+          "description": "The lane has never produced a GBP draft or a text, so the trigger thresholds and the copy have never been seen against real Cleveland weather; treat the first week after enablement as the acceptance run."
+        }
+      ],
+      "deferredScope": [],
+      "lastVerifiedAt": "2026-09-22",
+      "codeState": "merged",
+      "operationalState": "unverified",
+      "exposure": "disabled"
     }
   ],
   "axes": {
