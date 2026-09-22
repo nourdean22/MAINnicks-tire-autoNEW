@@ -147,6 +147,11 @@ describe("converter source contract", () => {
     expect(src).toMatch(/\?\? "eval-datasets\/repair-scenario-drafts"/);
     expect(src, "no write may target the committed corpus").not.toMatch(/(writeFileSync|mkdirSync)\([^)]*tests\/eval\/scenarios/);
     expect(src, "the out dir must come from --out or the gitignored default, never a scenarios literal").not.toMatch(/outDir\s*=[^;]*tests\/eval\/scenarios/);
+    // Review on #2480: `--out` used to be accepted verbatim, so a caller could
+    // point the drafts (operator ask + repair, verbatim) at a tracked path. The
+    // same boundary the harvester enforces now wraps the drafter's out dir; its
+    // behaviour (refusals, defaults) is tested in harvest-repair-signals.test.ts.
+    expect(src).toMatch(/const outDir = resolveOutPath\(arg\("--out"\) \?\? "eval-datasets\/repair-scenario-drafts"\)/);
   });
 
   it("POSITIVE CONTROL: the comment stripper left the code", () => {
