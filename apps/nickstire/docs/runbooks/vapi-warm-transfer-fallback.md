@@ -1,7 +1,15 @@
 # Runbook — warm-transfer fallback (answer-proof + no-answer recovery)
 
-**Status: PREPARED, NOT APPLIED.** Applying changes live-call behavior on the shop's
-inbound line and is an operator action. Prepared 2026-08-05.
+**Status: APPLIED IN VAPI — observed 2026-09-22, fallback not yet seen firing.** Prepared
+2026-08-05. A dry run of `scripts/vapi-warm-transfer-fallback.ts` on 2026-09-22 read the live
+receptionist (`150fe622-0b9f-4b03-b8c7-3063812717ae`, last updated 2026-09-21T13:57:43Z) and
+its CURRENT transfer plan already equals the TARGET below: `warm-transfer-experimental`,
+`dialTimeout: 25`, `fallbackPlan` present with `endCallEnabled: false`. This line said
+"PREPARED, NOT APPLIED" for a day after the provider state changed — the script's dry run,
+not this file, is the source of truth for what Vapi holds. What has NOT been observed is
+the fallback actually returning to a caller: until a real call rings out at the counter and
+the assistant captures a callback, this is DEPLOYED_NOT_OBSERVED, and the canary steps
+below remain the way to prove it.
 
 ## The problem, measured
 
