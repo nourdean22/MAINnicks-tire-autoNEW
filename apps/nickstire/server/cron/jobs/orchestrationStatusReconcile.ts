@@ -28,21 +28,21 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "../../db";
 
-export const RECONCILE_LOOKBACK_DAYS = 7;
+const RECONCILE_LOOKBACK_DAYS = 7; // module-private: an export whose only importer is a test is what the orphan gate exists to catch
 /** How long after queueing the delayed queue may legitimately still send: next 08:00 plus slack. */
-export const QUEUE_WINDOW_HOURS = 36;
+const QUEUE_WINDOW_HOURS = 36;
 
-export interface Candidate {
+interface Candidate {
   id: number;
   anySent: number | string | boolean;
   anyFailed: number | string | boolean;
   sentAt: string | Date | null;
 }
 
-export type Stamp = { status: "sent"; statusReason: "sent_from_delayed_queue" } | { status: "failed"; statusReason: "delayed_queue_failed" } | null;
+type Stamp = { status: "sent"; statusReason: "sent_from_delayed_queue" } | { status: "failed"; statusReason: "delayed_queue_failed" } | null;
 
 /** A sent message wins over a failed attempt for the same text; nothing seen → leave it queued. */
-export function decideStamp(c: Candidate): Stamp {
+function decideStamp(c: Candidate): Stamp {
   if (Number(c.anySent) === 1) return { status: "sent", statusReason: "sent_from_delayed_queue" };
   if (Number(c.anyFailed) === 1) return { status: "failed", statusReason: "delayed_queue_failed" };
   return null;
@@ -56,7 +56,7 @@ const rowsOf = (result: unknown): Candidate[] => {
 };
 
 /** The queued rows in the lookback that have at least one outbound message row in their window. */
-export async function selectCandidates(d: Executor, lookbackDays: number, windowHours: number): Promise<Candidate[]> {
+async function selectCandidates(d: Executor, lookbackDays: number, windowHours: number): Promise<Candidate[]> {
   const result = await d.execute(sql`
     SELECT o.id AS id,
            MAX(CASE WHEN m.status IN ('sent', 'delivered') THEN 1 ELSE 0 END) AS anySent,
@@ -76,7 +76,7 @@ export async function selectCandidates(d: Executor, lookbackDays: number, window
 }
 
 /** Stamp one orchestration; the WHERE re-checks the queued state so a concurrent writer cannot be overwritten. */
-export async function stampOrchestration(d: Executor, id: number, stamp: NonNullable<Stamp>, sentAt: Candidate["sentAt"]): Promise<void> {
+async function stampOrchestration(d: Executor, id: number, stamp: NonNullable<Stamp>, sentAt: Candidate["sentAt"]): Promise<void> {
   if (stamp.status === "sent") {
     await d.execute(sql`
       UPDATE sms_orchestrations

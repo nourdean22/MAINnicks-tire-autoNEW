@@ -6,7 +6,7 @@
  * text: 308 rows read `queued` forever, 243 of them with a sent outbound to
  * the same phone within 36 h (docs/operations/QUEUE-CENSUS-2026-09-22.md).
  *
- * WHAT THIS PINS. The stamp decision; the job through a fake executor that
+ * WHAT THIS PINS. The job through a fake executor that
  * renders the real drizzle queries (the join's window and lookback are bound,
  * each stamp is a guarded UPDATE by id); the details line says why; no DB →
  * 0 with a reason; a failing query THROWS (cron-rethrow contract); and the
@@ -15,7 +15,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { decideStamp, reconcileQueuedOrchestrations, QUEUE_WINDOW_HOURS } from "./orchestrationStatusReconcile";
+import { reconcileQueuedOrchestrations } from "./orchestrationStatusReconcile";
+
+// the queueing window the job binds (module-private in the job; pinned here by the bound params)
+const QUEUE_WINDOW_HOURS = 36;
 
 const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
@@ -51,14 +54,8 @@ function fakeDb(candidates: unknown[], opts: { throwOnSelect?: boolean } = {}) {
   return { db, issued };
 }
 
-describe("decideStamp", () => {
-  it("sent wins, then failed, else nothing", () => {
-    expect(decideStamp({ id: 1, anySent: 1, anyFailed: 1, sentAt: null })).toEqual({ status: "sent", statusReason: "sent_from_delayed_queue" });
-    expect(decideStamp({ id: 2, anySent: "0", anyFailed: "1", sentAt: null })).toEqual({ status: "failed", statusReason: "delayed_queue_failed" });
-    expect(decideStamp({ id: 3, anySent: 0, anyFailed: 0, sentAt: null })).toBeNull();
-  });
-});
-
+// the stamp decision (sent wins, then failed, else nothing) is pinned through the job below:
+// its three candidates cover exactly those three outcomes.
 describe("reconcileQueuedOrchestrations", () => {
   it("stamps each candidate by what its messages say, guarded by id AND the queued state, and says why", async () => {
     const { db, issued } = fakeDb([
