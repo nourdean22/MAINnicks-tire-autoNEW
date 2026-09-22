@@ -27,9 +27,13 @@
  *              CANDIDATES for a human to read, not verdicts. A rim-only "size
  *              eighteen" is a correct null and will appear here.
  *
- * PII. Transcripts carry names and numbers. This prints only customer lines that
- * match the size-like net, truncated, with 10-digit runs masked. It never prints
- * an assistant line or a whole transcript.
+ * PII — THE RULE THAT COST A LEAK. Transcripts carry names and phone numbers,
+ * and the first version of this script printed both: its mask caught only
+ * unformatted digit runs, so "(216) 555-0123" survived, and its size net then
+ * fired on the 216 INSIDE that number and printed the line. Now every customer
+ * line is masked FIRST, in every phone shape, and only a short word-window
+ * around the size-like match is printed — never the line, never an assistant
+ * turn, never a transcript. Mask before you match; match before you print.
  */
 import mysql from "mysql2/promise";
 import { extractTireSize } from "../../shared/callDemandExtraction.ts";
@@ -51,8 +55,22 @@ const TIRE_INTENT =
   "(JSON_SEARCH(v.metadata, 'one', 'used_tire', NULL, '$.intents') IS NOT NULL" +
   " OR JSON_SEARCH(v.metadata, 'one', 'new_tire', NULL, '$.intents') IS NOT NULL" +
   " OR JSON_SEARCH(v.metadata, 'one', 'tire_size_request', NULL, '$.intents') IS NOT NULL)";
+
+/** Every phone shape this net could otherwise mistake for a size. Runs FIRST. */
+export function maskPhones(s) {
+  return s
+    .replace(/\(?\b\d{3}\)?[\s.-]*\d{3}[\s.-]*\d{4}\b/g, "###-###-####")
+    .replace(/\b\d{10,}\b/g, "##########")
+    .replace(/\b\d{7}\b/g, "#######");
+}
 const SIZE_LIKE = /\b\d{3}\b|\b(fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy)\b/i;
-const mask = (s) => s.replace(/\d{10,}/g, "##########").replace(/\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/g, "###-###-####");
+/** A few words either side of the first size-like token — never the whole line. */
+export function sizeWindow(maskedLine, words = 5) {
+  const tokens = maskedLine.split(/\s+/);
+  const at = tokens.findIndex((t) => SIZE_LIKE.test(t));
+  if (at < 0) return null;
+  return tokens.slice(Math.max(0, at - words), at + words + 1).join(" ").slice(0, 80);
+}
 
 const conn = await mysql.createConnection(url);
 try {
@@ -88,12 +106,14 @@ try {
   let wouldCaptureNow = 0;
   const misses = [];
   for (const r of rows) {
+    // Mask BEFORE matching: a phone number contains three-digit runs that the
+    // size net would otherwise select and print.
     const customerLines = String(r.transcript ?? "")
       .split("\n")
       .filter((l) => /^\s*(user|customer|caller)\s*:/i.test(l))
-      .map((l) => l.replace(/^\s*\w+\s*:\s*/, ""));
-    const sizeLike = customerLines.filter((l) => SIZE_LIKE.test(l));
-    if (sizeLike.length === 0) continue;
+      .map((l) => maskPhones(l.replace(/^\s*\w+\s*:\s*/, "")));
+    const windows = customerLines.map((l) => sizeWindow(l)).filter(Boolean);
+    if (windows.length === 0) continue;
     candidates++;
     const stored = typeof r.size === "string" ? r.size.replace(/^"|"$/g, "") : null;
     if (stored && stored !== "null") {
@@ -104,17 +124,17 @@ try {
     // so a fix can be measured against production speech before it deploys.
     const now = customerLines.map((l) => extractTireSize(l)).find(Boolean) ?? null;
     if (now) wouldCaptureNow++;
-    misses.push({ id: r.id, now, lines: sizeLike.slice(0, 2).map((l) => mask(l).slice(0, 100)) });
+    misses.push({ id: r.id, now, windows: windows.slice(0, 2) });
   }
 
   console.log(`RECALL    calls with a size-like customer line ${candidates} · stored size ${captured} · missed ${candidates - captured}`);
   if (candidates > 0) console.log(`          stored recall ${Math.round((captured / candidates) * 100)}% · this checkout would add ${wouldCaptureNow} of the ${candidates - captured} missed`);
   if (rows.length >= LIMIT) console.log(`          (limit ${LIMIT} reached — raise --limit to read the rest)`);
   if (misses.length) {
-    console.log(`\nMISSED — candidates for a human to read (size-like lines only, masked):`);
+    console.log(`\nMISSED — candidates for a human to read (a few words around the size-like token, phones masked):`);
     for (const m of misses) {
       console.log(`  call ${m.id}${m.now ? ` · this checkout would extract ${m.now}` : ""}`);
-      for (const l of m.lines) console.log(`      "${l}"`);
+      for (const w of m.windows) console.log(`      …${w}…`);
     }
   }
 } finally {
