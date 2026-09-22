@@ -150,6 +150,21 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
    follows links, the #2496 thread) · #2541 684cdab53 (flag script + photo-assess ledger truth) all MERGED
    with the trailer. abandoned-forms details shipped (this PR). Still not done: the counterfactual memory
    diagnostic (mandate item 9); live observation of the reconciler's first cron_log row.
+
+11. OPERATOR ROUND TWO (23:05Z, 'figure it out the best way for photo assess provider something free too or
+   my ollama ... u sure i havent given open weather key? 3 and 4 are ok too'). (a) Photo assess: vision-analyzer
+   gains gemini (free tier, GEMINI_API_KEY) and ollama (OLLAMA_API_KEY, gemma4:31b) providers, both LIVE-PROBED
+   on the shop's tread photo (gemini 2.5s with thinking off; gemma4 1.1s); PHOTO_ASSESS_PROVIDER=gemini set on
+   Railway once the PR lands. (b) OpenWeather: NOT given - OPENWEATHER_API_KEY is absent from the Railway
+   variable list (checked 23:06Z); only .env.example mentions it. (c) Item 3 EXECUTED with count-verified backup
+   tables: prune-health-memories 173 rows (store 721 -> 548, _bak_shop_settings_health_prune_20260922);
+   backstamp-queued-orchestrations sent 225 / failed 27 of 252 (_bak_sms_orchestrations_backstamp_20260922; 21
+   rows with no message row stay queued); release-voice-recovery-claims 15 of 15 within 60d
+   (_bak_alg_estimates_voice_release_20260922; 95 older left by design - the lane dials them 5/day 10-17 ET).
+   (d) Item 4 (45 human_pending in sms_response_jobs: 5 <= 7d, 15 8-30d, 25 > 30d; 6 are carrier 'blocked from
+   originating' bounces, ~5 are vendor spam) READ ONLY - no customer reply is sent on an 'ok'; a precise
+   instruction is needed to expire the stale rows or draft replies. LIVE 23:07Z: orchestration-status-reconcile
+   first pass stamped 35; identity memory rows 4; review-requests no longer gateway-held.
 4. Duplicate-key helper consolidation onto `server/lib/dbErrors.ts` (proposals.ts,
    shopDriverMirror.ts x2, promiseLedger.ts).
 5. Tighten the transfer-artifact write in `routes/webhooks/vapi.ts` (~:621) to
