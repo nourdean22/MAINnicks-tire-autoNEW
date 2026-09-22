@@ -1,6 +1,76 @@
 # Session ledger — statenour
 
-**Updated: 2026-09-18** (Session E · tool-call failure classes + two-stage tool ranking)
+**Updated: 2026-09-22** (Session F · instrument health + operator-repair flywheel · Session E below)
+
+## Session F (2026-09-22) — measure before enforce · execution ledger
+
+**CURRENT OBJECTIVE** · make Nick measurably more truthful/reliable by fixing the instruments a
+promotion decision would rest on, before optimizing what they measure (mandate: "fix instrumentation
+before optimizing metrics whose measurements cannot be trusted").
+
+**CURRENT REPO SHA** · `origin/main` = `77266ec81` (chore) on `cb323d151` (#2476). Production
+`/api/version` = `cb323d151`, `environment: production`. All of #2467-#2476 LIVE.
+
+**WHAT WAS VERIFIED (production evidence, read-only)**
+- `AutomationPolicy` 166 → 168 rows; `cron.device-heartbeat-sentinel` FIRED at 13:45:01Z with
+  `fireRows=1` — the seed is PRODUCTION-PROVEN. `cron.agent-followups` is DORMANT by design
+  (`config/crons.ts:568`), its `lastFired=NEVER` is correct.
+- `action_receipts` table = **3 rows**, all 2026-06-27, all `SMS_BROADCAST`/nhtsa. The in-memory
+  `ActionReceipt` contract (`lib/ai/receipts/action-receipt.ts`) is wired at 2 chat sites and
+  persists NOTHING; the durable table has one non-chat writer. Receipts are BIFURCATED, not missing.
+- Strict-Done shadow (`action.done.shadow`) = **1 row in its life** (2026-09-19), against 253 assistant
+  turns / 14d, **0 instrument failures logged**. Sibling metrics on the same path: `tool.surfaced` 294,
+  `tool.chosen` 113, `operation.integrity_shadow` 1. Verdict: LIVE + UNDERMEASURED. The path runs at
+  turn cadence; consequential mutations happen on ~1/253 chat turns. Strict-Done can be neither
+  enforced nor rejected from this — n=1.
+- Operator repair signals: 2,795 operator messages / 400d → 108 candidates (2 strong · 32 medium ·
+  74 weak). First draft precision ~44% strong / ~20% medium by hand-reading 19; after fixes ~100% /
+  ~93%. "try again" is the operator's characteristic repair phrase; 1 genuine repetition complaint.
+- External claims (two pasted packets): GPT-6 Astra 2026-09-03 (OpenAI's own domain — a later packet
+  RETRACTED it; the retraction was wrong), Gemini 3.8 Flash (price DOUBLES 2027-01-01), DeepSeek V4.1
+  Flash, OpenAI Agents API, MCP spec 2026-07-28 = Current. MCP SDK v2 refuted a THIRD time (no 2.x on
+  npm). Hindsight 0.10.1 (2026-09-21) — verdict already on file, packet had read the superseded row.
+
+**WHAT CHANGED**
+- #2478 `633f11969` · seed-policies.ts could not run (same `server-only` defect the gate had) → fixed.
+- #2480 `827dfef4f` · `pnpm harvest:repairs` — mines operator corrections; 6th eval lane, the only
+  one not the-system-grading-itself. READ-ONLY, gitignored output, self-test gates every harvest.
+- #2481 `4a7ef2e6e` · UPSTREAMS.md: Hindsight bump, MCP spec-vs-SDK split, Sept-2026 releases row as
+  INVALIDATION TRIGGER for the minimax-m3 pin (verdict: re-run bakeoff, not pin X).
+- branch `statenour/instrument-liveness` `9239c8d08` · `lib/observability/
+  instrument-liveness.ts` — HEALTHY/UNDERPOWERED/STALE/NEVER_RAN/FAILING per KNOWN_INSTRUMENT with
+  the assistant-turn denominator; `trpc.system.instrumentHealth`; census panel renders `attention`.
+
+**TESTS RUN** · harvester 15/15 + self-test 41/41 (21 fire, 20 abstain) + mutation canary fails exactly
+one test · liveness 12/12 (+1 unit-label test pending re-run) · siblings 49/49 · `tsc --noEmit` exit 0 ·
+eslint exit 0 · `check:scripts` 44 vs baseline 44.
+
+**PRODUCTION VERIFICATION** · live `buildInstrumentHealth(336h)` reproduced every hand-measured number
+(shadow 1/253 UNDERPOWERED[conditional], surfaced 294 HEALTHY, chosen 113 HEALTHY, integrity 1
+UNDERPOWERED[conditional], tool_invocation 8 tools touched UNDERPOWERED, selection_turn 294 HEALTHY).
+
+**OPEN HYPOTHESES** · (H1) strict-Done gap rate is low — UNTESTABLE at n=1; needs either more
+consequential chat turns or replay of historical mutation turns. (H2) `skipped_no_claim` vs dead-arm
+is now inferable from sibling cadence but not persisted; an attempt counter would make it direct.
+(H3) `detectActionClaims` may be narrow — 1 claim in 253 turns is plausible for a conversational
+operator but unverified against the text.
+
+**FAILED APPROACHES** · flat regex over repair phrases (sign-flipped: "keep going" = satisfied) ·
+`i told you` without an adverb (narration) · bare `same X again` (self-narration) · errorLog `source`
+column (does not exist — instrument name is inside `message` as `[instrument.<name>]`) ·
+heterogeneous `Promise.all` spread (widens the tuple; split into two awaits) · piping a prod probe
+through `grep` (masks the crash — run unmasked or capture `$?` separately).
+
+**KNOWN BLOCKERS** · pre-push `build:affected` red in every junctioned worktree (Turbopack cannot
+follow the NTFS junction) → push from the hook-free bare clone in the session scratchpad, never
+`--no-verify`. #2479 is a SIBLING session's nickstire PR (completion-authority FAILURE) — do not touch.
+Merges of #2478/#2481 held while #2480's `node` run is in flight (AGENTS.md hold rule).
+
+**NEXT HIGHEST-LEVERAGE TASK** · commit + PR the liveness reader (then the health view is the reader
+every later promotion decision cites) → persist the shadow's `skipped_no_claim` as an attempt so
+skip-vs-dead is direct (H2) → historical replay of the mutation turns to get strict-Done to n≥30
+without waiting for production (H1). Then the tool-search A/B against the existing
+`searchTools`/`invokeTool` path, on the eval harness that now has a repair-mined intake.
 
 ## Session E (tool routing) — 5 MERGED + DEPLOYED, 1 in CI
 
