@@ -32,12 +32,22 @@ const TSX = resolve(
 /** The exact signature of the crash #2478 removed. */
 const SERVER_ONLY_CRASH = "cannot be imported from a Client Component";
 
+/**
+ * 2026-09-22 (review on #2498) · an INERT url, not a deleted key. The spawned
+ * seed transitively imports lib/prisma.ts, whose loadEnvConfig(process.cwd())
+ * fills MISSING variables from any .env / .env.local in the checkout - so in a
+ * checkout that carries the production DATABASE_URL, deleting the key handed
+ * the child the real registry. dotenv never overrides a variable that is
+ * already set; an unroutable url is the only thing it can inherit.
+ */
+export const INERT_DATABASE_URL = "postgresql://inert:inert@127.0.0.1:1/inert?connect_timeout=1";
+
 function run(file: string, args: string[] = []) {
   const env = { ...process.env };
   // No database: the dry run must not need one, and this test must never
-  // touch a real registry.
-  delete env.DATABASE_URL;
-  delete env.POSTGRES_URL;
+  // touch a real registry - see INERT_DATABASE_URL.
+  env.DATABASE_URL = INERT_DATABASE_URL;
+  env.POSTGRES_URL = INERT_DATABASE_URL;
   return spawnSync(process.execPath, [TSX, file, ...args], {
     cwd: process.cwd(),
     encoding: "utf8",
@@ -49,6 +59,14 @@ function run(file: string, args: string[] = []) {
 describe("seed-policies --dry-run · the gate's prescribed remedy can actually run", () => {
   const r = run(SCRIPT, ["--dry-run"]);
   const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+
+  it("the child sees the inert url even after lib/prisma's env-file load (review on #2498)", () => {
+    // Exercise the same import chain the seed uses and print what it ends up with.
+    const probe = resolve(process.cwd(), "tests/scripts/fixtures/print-database-url.ts");
+    const p = run(probe);
+    expect(p.error, `spawn failed: ${p.error?.message}`).toBeUndefined();
+    expect(`${p.stdout ?? ""}`.trim().split(/\r?\n/).pop()).toBe(INERT_DATABASE_URL);
+  });
 
   it("POSITIVE CONTROL: the probe really executed the script", () => {
     expect(r.error, `spawn failed: ${r.error?.message}`).toBeUndefined();
