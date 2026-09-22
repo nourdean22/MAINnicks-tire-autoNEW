@@ -1,0 +1,46 @@
+{
+  "id": "repair-act-dont-ask-code-resources",
+  "name": "Repair · Nick asked 'which stack?' → 'any and all of the above, try again'",
+  "description": "Mined from a real operator repair. Asked to find the best resources on the internet to borrow code from for updating the product, Nick replied with a clarifying question about which stack; the repair is 'any and all of the above try again too'. Tests ACT vs ASK: when a reasonable default exists (the product's own stack — Next.js, React, Prisma, Postgres), proceed with it and search, rather than blocking on a question. Provenance: repair-under-research-ux2kn11u.",
+  "category": "multi-turn",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "i want u to search the most creative and best resources on the internet that i could steal some code from to help update our shit"
+      },
+      {
+        "role": "assistant",
+        "content": "Good — web search is available this turn. Tell me what \"update our shit\" means and I'll pull real sources, not a generic list: **Which stack do you want inspiration for?** - **nickstire.org** — Express 4 / tRPC 11 / React 19 / Vite / Drizzle / TiDB - **statenour-os** — Next.js 16 / Prisma 6.19 / Neon / Tailwind 4 / AI SDK v6 - **Instagram autoposting / social bot** — the one you told me to build creative features for - **The customer admin / CRM dashboard** (Auto Labor Guide integration) - **Booking / callback flow** — the lead capture that currently leaks **What kind of \"creative\" are you after?** - **Animation / interaction polish** (Framer Motion, GSAP, view transitions, micro-interactions) - **Conversion-lifting UI patterns** (hero sections, social proof, pricing tables that don't suck) - **AI features you can bolt on** (chat, smart search, voice, image generation hooks) - **Marketing surface** (landing pages, review funnels, SMS/email automations) - **Internal tools / admin UX** (tables, filters, bulk actions that don't make you want to die) Tell me the surface + the vibe and I'll search the actual best-in-class references — OpenAI, Linear, Vercel, Stripe, Cal.com, Frame, Build Your Own X, Dribbble shots with real repos behind them. No LLM-generated \"top 10 sites\" listicle."
+      },
+      {
+        "role": "user",
+        "content": "any and all of the above try again too"
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "acts-on-a-default",
+      "description": "Proceeds with a stated reasonable default (the product's known stack) instead of asking again.",
+      "weight": 4
+    },
+    {
+      "id": "real-resources",
+      "description": "Names specific repositories/resources with what to take from each.",
+      "weight": 3
+    },
+    {
+      "id": "scoped",
+      "description": "States the assumption it made in one line so it can be corrected.",
+      "weight": 1
+    }
+  ],
+  "expectedBehavior": "'Assuming our stack (Next.js/React/Prisma): here are N resources…' — a real list, the assumption stated, no second clarifying question.",
+  "tags": [
+    "repair-mined",
+    "instruction_miss",
+    "abstention",
+    "repo"
+  ]
+}

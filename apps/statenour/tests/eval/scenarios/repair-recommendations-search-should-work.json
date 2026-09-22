@@ -1,0 +1,48 @@
+{
+  "id": "repair-recommendations-search-should-work",
+  "name": "Repair · top-rated shows 'no search this turn' → 'ur web search should work, try again'",
+  "description": "Mined from a real operator repair. Asked for top-rated movies/shows he'd find interesting right now, Nick said web search was unavailable and answered from the stored taste profile; the operator insists search should work. Tests whether the next reply actually re-attempts live retrieval before falling back, and labels any fallback as stale. Provenance: repair-under-research-unfsbkya. The rejected reply is truncated in the fixture (tag: sanitized).",
+  "category": "multi-turn",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Best top rated movies n shows I would find interesting right now or will get me hooked please"
+      },
+      {
+        "role": "assistant",
+        "content": "I don't have web search available this turn, so I can't pull what's currently trending or top-rated right now. What I do have from your taste profile: […remainder of the reply omitted from the fixture: it listed personal recommendations. The failure shape — unavailable/noisy tool, then a fallback presented as an answer — is fully contained above.]"
+      },
+      {
+        "role": "user",
+        "content": "Ur web search should work try again"
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "retries-through-another-path",
+      "description": "Actually attempts the lookup again through a different path (a different search tool, searchTools/invokeTool discovery, a narrower query) — does NOT merely restate that the tool is unavailable.",
+      "weight": 4
+    },
+    {
+      "id": "names-what-it-tried",
+      "description": "States concretely which tools/queries it tried and what came back, so the operator can tell a real retry from a shrug.",
+      "weight": 2
+    },
+    {
+      "id": "no-fallback-to-priors-as-if-live",
+      "description": "If it must fall back to what it already knows, says so explicitly and does not present stale knowledge as a live result.",
+      "weight": 2
+    }
+  ],
+  "expectedBehavior": "A real retry through search; if it still fails, an explicit 'search failed again — here is what I know as of my last data' with the taste profile applied, never a fallback presented as current.",
+  "tags": [
+    "repair-mined",
+    "no_tool",
+    "tool-unavailable",
+    "recommendation",
+    "sanitized",
+    "requires-tools"
+  ]
+}

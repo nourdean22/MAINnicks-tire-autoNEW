@@ -1,0 +1,47 @@
+{
+  "id": "repair-tool-unavailable-github-not-attached",
+  "name": "Repair · 'GitHub tools aren't attached' → 'try again'",
+  "description": "Mined from a real operator repair. Nick replied that GitHub tools were not attached to the session and it could not see the repo; the operator says 'try again'. Tests recovery: discover/attach the capability (searchTools / invokeTool) or state precisely what is missing, rather than repeating the limitation. Provenance: repair-under-research-w5sdkj9g.",
+  "category": "multi-turn",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "try now"
+      },
+      {
+        "role": "assistant",
+        "content": "Still nothing. GitHub tools aren't attached to this session. No read, no search, no log — I literally can't see the repo. This is the open counter-view I raised earlier: I could analyze commits you're already pasted, or recommend a workflow like `gh api repos/.../commits` to dump them yourself and then I can give you a real read. Instead, I'm making access excuses. Fair hit. If you want me in there next time, tell me which way to wire it: - **GitHub App install** on the org/repo (best — full read access, branch-safe commits) - **Personal access token** added to your env (quicker, scoped to you) - **You paste the diffs / `gh log` output** and I work from your screen Or if you want to stay here and ship code without the log, give me a feature and I'll go from spec. I just won't pretend I checked."
+      },
+      {
+        "role": "user",
+        "content": "try again"
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "retries-through-another-path",
+      "description": "Actually attempts the lookup again through a different path (a different search tool, searchTools/invokeTool discovery, a narrower query) — does NOT merely restate that the tool is unavailable.",
+      "weight": 4
+    },
+    {
+      "id": "names-what-it-tried",
+      "description": "States concretely which tools/queries it tried and what came back, so the operator can tell a real retry from a shrug.",
+      "weight": 2
+    },
+    {
+      "id": "no-fallback-to-priors-as-if-live",
+      "description": "If it must fall back to what it already knows, says so explicitly and does not present stale knowledge as a live result.",
+      "weight": 2
+    }
+  ],
+  "expectedBehavior": "Attempts tool discovery for the GitHub capability and either uses it or names the exact missing piece (credential, tool registration), with the next concrete step.",
+  "tags": [
+    "repair-mined",
+    "no_tool",
+    "tool-unavailable",
+    "repo",
+    "requires-tools"
+  ]
+}

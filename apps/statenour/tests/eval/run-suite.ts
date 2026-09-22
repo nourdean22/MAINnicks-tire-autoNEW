@@ -23,6 +23,13 @@
  *   · 1 · a scenario JSON failed schema validation
  *   · 2 · live-run had ≥1 flagged scenario (composite < 6.0 OR errored)
  *
+ * Skips (live mode · 2026-09-22):
+ *   · a scenario tagged `requires-tools` (types.ts REQUIRES_TOOLS_TAG) is
+ *     SKIPPED with an explicit reason and counted in summary.skipped, never
+ *     scored: its dominant criterion needs a real tool action and aiChat has
+ *     no tool support, so a score would grade the runner's limit as a
+ *     product regression. Skips never affect the exit code.
+ *
  * Cost notes (live mode):
  *   · Each scenario · 1 Nick call + 1 judge call · ~$0.0002 with cheap
  *     provider chain · 8 scenarios · roughly $0.002 per suite run.
@@ -38,11 +45,21 @@ import {
   type JudgeResult,
   type Scenario,
   type ScenarioCategory,
+  type SkippedScenario,
   type SuiteReport,
   type SuiteSummary,
+  REQUIRES_TOOLS_TAG,
+  requiresToolRunner,
   scenarioCategoryValues,
   scenarioSchema,
 } from "./types";
+
+/**
+ * Why a `requires-tools` scenario is not scored here. Stated once so the
+ * report, the stdout line and the test agree on the wording.
+ */
+export const REQUIRES_TOOLS_SKIP_REASON =
+  `tagged ${REQUIRES_TOOLS_TAG}: needs a tool-capable runner — --live replays through aiChat, which has no tool support`;
 
 // ── CLI args (zero-dep parsing · 2 flags, 1 keyword pair) ────────────
 
@@ -145,11 +162,13 @@ export async function loadScenarios(dir: string = SCENARIOS_DIR): Promise<LoadRe
  * comparator uses (lib/ai/judge-eval/replay.ts). Good enough for
  * detecting prompt/model regressions. NOTE: pipeline-level smoke used to
  * be covered by lib/eval/regression-runner.ts, deleted 2026-08-09 as dead
- * code — nothing covers that layer today.
+ * code — nothing covers that layer today. A scenario whose criteria NEED a
+ * tool action carries REQUIRES_TOOLS_TAG and never reaches this function:
+ * runLive skips it with REQUIRES_TOOLS_SKIP_REASON.
  */
 async function callNick(scenario: Scenario): Promise<{ response: string; error: string | null }> {
   const { aiChat } = await import("@/lib/ai/provider");
-  const { buildSystemPromptUncached } = await import("@/lib/ai/system-prompt");
+  const { buildSystemPromptUncached, detectTopicTier } = await import("@/lib/ai/system-prompt");
 
   // 2026-08-18 · replay the SYSTEM, not just the model. Production chat
   // runs deterministic interceptors before any model call; the one that
@@ -171,15 +190,24 @@ async function callNick(scenario: Scenario): Promise<{ response: string; error: 
     }
   }
 
-  // Build the system prompt the same way the chat route does, but
-  // with no live memory recall (we're replaying scenarios, not
-  // mutating brain state). The "lite" tier is the cheap path used
-  // for short / utility turns.
+  // Build the system prompt the same way the chat route does, but with
+  // no live memory recall (we're replaying scenarios, not mutating brain
+  // state). 2026-09-22 · the tier comes from the SAME classifier the route
+  // uses (app/api/ai/chat/route.ts → detectTopicTier(userContent)). From
+  // 2026-05-23 until today this passed the literal "lite" — not a TopicTier
+  // at all ("core" | "business" | "personal" | "strategy" | "full"); tests/
+  // is excluded from tsc, so nothing said so. Downstream an unknown tier
+  // fails the wantsKnowledge check in appendBusinessKnowledgeLayer, so every
+  // live replay ran WITHOUT the business-knowledge layer production attaches
+  // to business asks: live reports before this date graded a thinner prompt
+  // than production's.
+  const lastUserContent =
+    scenario.input.messages[scenario.input.messages.length - 1]?.content ?? "";
   let systemPrompt: string;
   try {
     systemPrompt = await buildSystemPromptUncached(
-      "lite",
-      scenario.input.messages[scenario.input.messages.length - 1]?.content ?? "",
+      detectTopicTier(lastUserContent),
+      lastUserContent,
     );
   } catch {
     // Fall back to a minimal voice marker · keeps the eval running
@@ -253,6 +281,7 @@ async function callNick(scenario: Scenario): Promise<{ response: string; error: 
 function summarize(
   totalScenarios: number,
   results: JudgeResult[],
+  skipped: SkippedScenario[] = [],
 ): SuiteSummary {
   const errored = results.filter((r) => r.error !== null).length;
   const flagged = results.filter((r) => r.error === null && r.flagForReview).length;
@@ -270,6 +299,7 @@ function summarize(
     passing,
     flagged,
     errored,
+    skipped: skipped.length,
     meanComposite: Math.round(compositeMean * 10) / 10,
   };
 }
@@ -299,6 +329,7 @@ export async function runDryRun(input: RunInput): Promise<SuiteReport> {
     mode: "dry-run",
     filter: input.args.filter,
     results: [],
+    skipped: [],
     summary: summarize(filtered.length, []),
     durationMs: Date.now() - startedAt,
   };
@@ -318,10 +349,20 @@ export async function runLive(input: RunInput): Promise<SuiteReport> {
     : scenarios;
 
   const results: JudgeResult[] = [];
+  const skipped: SkippedScenario[] = [];
 
   for (const scenario of filtered) {
     const scenarioStart = Date.now();
     process.stdout.write(`  · ${scenario.id.padEnd(36)} `);
+
+    // 2026-09-22 · a tool-dependent scenario cannot be satisfied by this
+    // runner (REQUIRES_TOOLS_SKIP_REASON). Decide BEFORE calling Nick: no
+    // provider spend, no impossible score, no fake "flagged".
+    if (requiresToolRunner(scenario)) {
+      skipped.push({ scenarioId: scenario.id, reason: REQUIRES_TOOLS_SKIP_REASON });
+      process.stdout.write(`SKIP (${REQUIRES_TOOLS_TAG})\n`);
+      continue;
+    }
 
     const nick = await callNick(scenario);
     if (nick.error) {
@@ -355,7 +396,8 @@ export async function runLive(input: RunInput): Promise<SuiteReport> {
     mode: "live",
     filter: input.args.filter,
     results,
-    summary: summarize(filtered.length, results),
+    skipped,
+    summary: summarize(filtered.length, results, skipped),
     durationMs: Date.now() - startedAt,
   };
 }
@@ -369,7 +411,7 @@ export function formatSummaryLine(report: SuiteReport): string {
       report.filter ? ` (filter: ${report.filter})` : ""
     } · ${report.durationMs}ms`;
   }
-  return `live · ${summary.ranScenarios}/${summary.totalScenarios} ran · ${summary.passing} passing · ${summary.flagged} flagged · ${summary.errored} errored · mean ${summary.meanComposite}/10 · ${report.durationMs}ms`;
+  return `live · ${summary.ranScenarios}/${summary.totalScenarios} ran · ${summary.passing} passing · ${summary.flagged} flagged · ${summary.errored} errored · ${summary.skipped} skipped (${REQUIRES_TOOLS_TAG}) · mean ${summary.meanComposite}/10 · ${report.durationMs}ms`;
 }
 
 function formatCategoryBreakdown(scenarios: Scenario[], filter: ScenarioCategory | null): string {
@@ -406,8 +448,16 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
     try {
       const report = await runDryRun({ args });
       const { scenarios } = await loadScenarios();
+      // Surface the tool-gated subset here too, so an operator reading the
+      // free dry-run knows how many scenarios the paid --live run will skip.
+      const gated = scenarios.filter(
+        (s) => (!args.filter || s.category === args.filter) && requiresToolRunner(s),
+      ).length;
       process.stdout.write(`\nNick eval suite · dry-run\n`);
-      process.stdout.write(`${formatCategoryBreakdown(scenarios, args.filter)}\n\n`);
+      process.stdout.write(`${formatCategoryBreakdown(scenarios, args.filter)}\n`);
+      process.stdout.write(
+        `  · ${gated} tagged ${REQUIRES_TOOLS_TAG} · skipped in --live (aiChat has no tools)\n\n`,
+      );
       process.stdout.write(`${formatSummaryLine(report)}\n`);
       return 0;
     } catch (err) {

@@ -1,0 +1,48 @@
+{
+  "id": "repair-repetition-youtube-not-book-summaries",
+  "name": "Repair · 'not animated book summaries AGAIN' — the real repetition complaint",
+  "description": "Mined from a real operator repair — the ONE explicit repetition complaint in 2,795 operator messages, PARAPHRASED to remove profanity (tag: paraphrased). The operator wants 50 YouTube videos and explicitly not 'animated book summaries again'; Nick's reply said search returned garbage and started to give up. Tests both halves: no re-served category, and no giving up on tools. Provenance: repair-under-research-g8ebq4ds. The rejected reply is truncated in the fixture (tag: sanitized).",
+  "category": "multi-turn",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "No — you need to search YouTube for me, and I don't just want animated book summaries again. Do it again: check YouTube and give me 50 different videos, with more variety."
+      },
+      {
+        "role": "assistant",
+        "content": "<details> <summary>final picks</summary> The web search is returning garbage for this. Searxng is pulling Best Buy and dictionary definitions. I have to be honest about what's actually happening here: I am not going to fabricate URLs and pretend I searched YouTube. […remainder of the reply omitted from the fixture: it listed personal recommendations. The failure shape — unavailable/noisy tool, then a fallback presented as an answer — is fully contained above.]"
+      },
+      {
+        "role": "user",
+        "content": "No. Try again and do better — use whatever tools you need to load up. The tools should be working."
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "no-book-summaries",
+      "description": "None of the picks are animated book summaries / summary-channel content; the excluded category is explicitly avoided.",
+      "weight": 4
+    },
+    {
+      "id": "retries-through-another-path",
+      "description": "Actually retries retrieval through another path rather than concluding the tools are broken.",
+      "weight": 3
+    },
+    {
+      "id": "variety",
+      "description": "Picks span several different formats/topics, not one channel type.",
+      "weight": 2
+    }
+  ],
+  "expectedBehavior": "A genuinely varied YouTube list with the excluded category absent, produced by a real retry — and if retrieval truly fails, an honest statement of what was tried.",
+  "tags": [
+    "repair-mined",
+    "repetition",
+    "recommendation",
+    "paraphrased",
+    "sanitized",
+    "requires-tools"
+  ]
+}

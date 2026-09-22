@@ -32,7 +32,10 @@ pnpm eval:live --out=reports/nightly-2026-05-23.json
 
 Live-mode reports land at `tests/eval/reports/<ISO-timestamp>.json` by
 default. Exit codes: `0` clean, `1` schema violation, `2` any scenario
-flagged (composite < 6.0 / errored).
+flagged (composite < 6.0 / errored). Scenarios tagged `requires-tools`
+are **skipped** in live mode with a stated reason (`report.skipped`,
+`summary.skipped`) and never affect the exit code — see
+[Tool-dependent scenarios](#tool-dependent-scenarios-requires-tools).
 
 ## Scenario categories
 
@@ -89,12 +92,34 @@ Run `pnpm harvest:repairs --self-test` first — it needs no DB and proves the
 matcher both fires and abstains. The harvest refuses to run if it fails,
 because a zero from a broken matcher is indistinguishable from a clean corpus.
 
-Measured 2026-09-22 against production, 400-day window: 2,795 operator
-messages scanned, 108 matched (3.86%) — 2 strong, 32 medium, 74 weak. The
-first draft scored ~44% precision on the tier labelled "near-certain"; reading
-19 candidates by hand found two defects (pronoun direction, and continuation
-phrases like "keep going" harvested as complaints) and both are now canaried
-in `harvest-repair-signals.test.ts`.
+Measured 2026-09-22 against production, 400-day window: 2,797 operator
+messages scanned, 108 matched (3.86%). The first draft scored ~44% precision
+on the tier labelled "near-certain"; reading 19 candidates by hand found two
+defects (pronoun direction, and continuation phrases like "keep going"
+harvested as complaints) and both are now canaried in
+`harvest-repair-signals.test.ts`.
+
+**The reply names what "try again" cannot.** Drafting the first 32 scenarios
+showed the operator's characteristic repair is a bare "try again", which the
+operator-side classifier can only file as generic. Read beside the REPLY it
+repairs, two patterns dominated: Nick declaring a tool unavailable and
+stopping, and the production verifier banner on a fabricated action claim.
+`reclassifyByReply` re-reads a generic repair against the reply's opening —
+and only a generic one; an operator who named the failure is believed over the
+reply. Same corpus, re-run: NO_TOOL 0 → 13, FALSE_COMPLETION 0 → 9, strong
+tier 2 → 24. Twenty-two real failures the operator's words never carried.
+
+**From repair candidates to scenarios:** `pnpm eval:draft-repairs` reads the
+harvested candidates, fetches the user ask that each rejected reply was
+answering, and writes a MULTI-TURN scenario draft per candidate —
+`[user: ask, assistant: the rejected reply, user: the repair]` — so the judge
+scores whether the NEXT reply recovers. Drafts land in the gitignored
+`eval-datasets/repair-scenario-drafts/`, each validated against
+`scenarioSchema` before it is written, with per-class judge criteria
+(`CRITERIA_BY_CLASS`) as a starting point. Promotion is a hand copy into
+`tests/eval/scenarios/` after curation: the description must say what THIS
+case really tests, and verbatim operator content is reviewed before it is
+committed.
 
 **Growing the set from real traces:** `pnpm harvest:persona` scans
 recent `reply_judgment` rows (judge-eval scores the three persona axes
@@ -109,9 +134,40 @@ armor.
 1. Drop a new `.json` file under `tests/eval/scenarios/` matching the
    Zod schema in `types.ts`. Use lowercase-slug filename ≈ scenario id.
 2. Keep `judgeCriteria` between 1 and 6 entries — more dilutes signal.
-3. Run `pnpm eval` to verify the schema passes.
-4. Run `pnpm test tests/eval/run-suite.test.ts` to confirm uniqueness
+3. If any criterion can only be satisfied by a REAL tool action (a retry
+   through `searchTools`/`invokeTool`, a `createTask` receipt, an image
+   regeneration), add `"requires-tools"` to `tags`. The corpus invariant in
+   `run-suite.test.ts` fails when a tool-demanding criterion ships untagged.
+4. Run `pnpm eval` to verify the schema passes.
+5. Run `pnpm test tests/eval/run-suite.test.ts` to confirm uniqueness
    + breadth invariants still hold.
+
+## Tool-dependent scenarios (`requires-tools`)
+
+`--live` replays each scenario through `aiChat`, which has **no tool
+support** (the deep-reasoning gather uses `generateText` for exactly that
+reason — `apps/statenour/AGENTS.md` §5). A criterion such as "actually
+attempts the lookup again through `searchTools`/`invokeTool`" is therefore
+impossible to satisfy in this runner, and scoring it would report the
+runner's limit as a product regression.
+
+So a scenario whose dominant criterion needs a real tool action carries the
+`requires-tools` tag (`REQUIRES_TOOLS_TAG` in `types.ts`), and the live
+runner skips it before calling Nick:
+
+  · no provider spend, no impossible score, no fake `[FLAGGED]`
+  · the skip is recorded in `report.skipped[]` with its reason and counted
+    in `summary.skipped`; `summary.totalScenarios` still includes it, so the
+    summary line reads e.g. `42/50 ran · … · 8 skipped (requires-tools)`
+  · `pnpm eval` (dry-run) prints how many scenarios the paid run will skip
+
+Measured 2026-09-22: 8 of 50 scenarios carry the tag — the repair-mined
+`no_tool`, `false_completion` and image-retry cases. They stay in the corpus
+on purpose: they are the acceptance set for a **tool-capable runner** (the
+production chat pipeline with the tool catalog attached), which does not
+exist yet. Drafts from `pnpm eval:draft-repairs` are born tagged for the
+tool-dependent failure classes (`TOOL_DEPENDENT_CLASSES` in
+`scripts/draft-repair-scenarios.ts`), so curation cannot forget it.
 
 ## What the judge measures
 
