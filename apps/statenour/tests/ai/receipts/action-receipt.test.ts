@@ -1,12 +1,5 @@
-import { describe, it, expect } from "vitest";
-import {
-  toReceipt,
-  canClaimDone,
-  canClaimDoneStrict,
-  compareClaimDoneShadow,
-  isSideEffecting,
-  classifyToolEffect,
-} from "@/lib/ai/receipts/action-receipt";
+import { describe, it, expect, vi } from "vitest";
+import { toReceipt, canClaimDone, canClaimDoneStrict, compareClaimDoneShadow, isSideEffecting, classifyToolEffect, receiptsWithReadBack } from "@/lib/ai/receipts/action-receipt";
 
 const NOW = "2026-06-09T00:00:00.000Z";
 
@@ -251,5 +244,44 @@ describe("classifyToolEffect + unverifiable receipts", () => {
     };
     expect(canClaimDone([legacy]).ok).toBe(true);
     expect(canClaimDoneStrict([legacy]).ok).toBe(true);
+  });
+});
+
+describe("receiptsWithReadBack · per-invocation pairing", () => {
+  const NOW = "2026-09-22T12:00:00.000Z";
+  const calls = [
+    { name: "createTask", ok: true },
+    { name: "createTask", ok: true },
+    { name: "createTask", ok: true },
+  ];
+
+  it("MIXED OUTCOMES for the same tool name stay with their own invocation", () => {
+    // The defect this replaces: a Set of verified NAMES marked all three VERIFIED.
+    const r = receiptsWithReadBack(calls, [{ verified: true }, { verified: false }, { verified: null }], { now: NOW });
+    expect(r.map((x) => x.verificationState)).toEqual(["VERIFIED", "PROVIDER_ACCEPTED", "PROVIDER_ACCEPTED"]);
+  });
+
+  it("promotes ONLY on a positional true — false and null leave the provider's word", () => {
+    const r = receiptsWithReadBack(calls.slice(0, 2), [{ verified: null }, { verified: false }], { now: NOW });
+    expect(r.every((x) => x.verificationState === "PROVIDER_ACCEPTED")).toBe(true);
+  });
+
+  it("FAILS CLOSED on a length mismatch: nothing is promoted and the caller is told", () => {
+    const onMismatch = vi.fn();
+    const r = receiptsWithReadBack(calls, [{ verified: true }], { now: NOW, onMismatch });
+    expect(r.map((x) => x.verificationState)).toEqual(["PROVIDER_ACCEPTED", "PROVIDER_ACCEPTED", "PROVIDER_ACCEPTED"]);
+    expect(onMismatch).toHaveBeenCalledWith(3, 1);
+  });
+
+  it("no calls → no receipts, and no mismatch noise", () => {
+    const onMismatch = vi.fn();
+    expect(receiptsWithReadBack([], [], { onMismatch })).toEqual([]);
+    expect(onMismatch).not.toHaveBeenCalled();
+  });
+
+  it("a failed call is never promoted even if a stray true is paired with it", () => {
+    const r = receiptsWithReadBack([{ name: "createTask", ok: false }], [{ verified: true }], { now: NOW });
+    expect(r[0].status).toBe("failed");
+    expect(r[0].verificationState).toBe("FAILED_KNOWN");
   });
 });
