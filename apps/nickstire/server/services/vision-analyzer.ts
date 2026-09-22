@@ -37,6 +37,33 @@ const QWEN2_VL_VERSION = "a76d456af4b3cc18a5b5f48bd1c2da6f37e09c2cad0c12378f01d8
 // ^ pinned Qwen2-VL-72B-Instruct on Replicate. Check Replicate page for newer hash if quality regresses.
 const QWEN2_VL_MODEL = "lucataco/qwen2-vl-72b-instruct";
 const HF_LLAVA_MODEL = "llava-hf/llava-1.5-7b-hf";
+// 2026-09-22 · the two providers whose keys the service already holds. Both
+// speak the OpenAI chat-completions shape with an inlined image; both are
+// called DIRECTLY, not through _core/llm.ts, because AI_FORCE_OLLAMA /
+// AI_FORCE_GEMINI reroute every request onto a text default that cannot see.
+const GEMINI_VISION_MODEL = "gemini-2.5-flash"; // the free-tier model chat already uses in prod
+const GEMINI_OPENAI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/openai/v1/chat/completions";
+const OLLAMA_VISION_MODEL = "gemma4:31b"; // vision-capable, and the smallest such model on the operator's Ollama cloud list (2026-09-22)
+
+export type VisionProvider = "replicate" | "hf" | "gemini" | "ollama";
+const VISION_PROVIDERS: readonly VisionProvider[] = ["replicate", "hf", "gemini", "ollama"];
+
+/** The configured provider, or the default. An unknown PHOTO_ASSESS_PROVIDER value is reported, never silently mapped. */
+function configuredProvider(): { provider: VisionProvider; unknown?: string } {
+  const raw = process.env.PHOTO_ASSESS_PROVIDER;
+  if (!raw) return { provider: "replicate" };
+  return (VISION_PROVIDERS as readonly string[]).includes(raw)
+    ? { provider: raw as VisionProvider }
+    : { provider: "replicate", unknown: raw };
+}
+
+/** Which env var carries the key for a provider. */
+const PROVIDER_KEY_VAR: Record<VisionProvider, string> = {
+  replicate: "REPLICATE_API_KEY",
+  hf: "HF_API_KEY",
+  gemini: "GEMINI_API_KEY",
+  ollama: "OLLAMA_API_KEY",
+};
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -52,8 +79,8 @@ export interface AnalyzePhotoOptions {
   photoUrl: string;
   /** Optional custom prompt. Default is automotive-tuned. */
   prompt?: string;
-  /** Provider override · "replicate" | "hf" */
-  provider?: "replicate" | "hf";
+  /** Provider override · "replicate" | "hf" | "gemini" | "ollama" */
+  provider?: VisionProvider;
   /** Optional model override */
   model?: string;
   /** Optional timeout */
@@ -69,7 +96,7 @@ export interface AnalyzePhotoResult {
   /** Parsed URGENCY line if present */
   urgency?: "immediate" | "soon" | "routine" | "unclear";
   /** Provider used · for cost attribution */
-  source: "replicate" | "hf";
+  source: VisionProvider;
   /** Model name used */
   modelName: string;
   /** Latency observed */
@@ -137,12 +164,18 @@ export async function analyzePhoto(opts: AnalyzePhotoOptions): Promise<AnalyzePh
   }
 
   const prompt = opts.prompt ?? DEFAULT_AUTOMOTIVE_PROMPT;
-  const provider =
-    opts.provider ?? (process.env.PHOTO_ASSESS_PROVIDER as "replicate" | "hf" | undefined) ?? "replicate";
+  const configured = configuredProvider();
+  if (!opts.provider && configured.unknown) {
+    return { ok: false, error: `PHOTO_ASSESS_PROVIDER=${configured.unknown} is not one of ${VISION_PROVIDERS.join("|")}`, reason: "no_provider" };
+  }
+  const provider = opts.provider ?? configured.provider;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   if (provider === "hf") {
     return analyzeViaHf({ photoUrl: opts.photoUrl, prompt, model: opts.model, timeoutMs });
+  }
+  if (provider === "gemini" || provider === "ollama") {
+    return analyzeViaOpenAiCompatible({ provider, photoUrl: opts.photoUrl, prompt, model: opts.model, timeoutMs });
   }
   return analyzeViaReplicate({ photoUrl: opts.photoUrl, prompt, model: opts.model, timeoutMs });
 }
@@ -356,6 +389,103 @@ async function analyzeViaHf(args: {
   }
 }
 
+// ─── OpenAI-compatible backends: Gemini (free tier) and Ollama cloud ──
+
+/** Text of an OpenAI-style message content: a string, or the text parts of an array. */
+function contentText(content: unknown): string {
+  if (typeof content === "string") return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => (part && typeof part === "object" && "text" in part ? String((part as { text: unknown }).text ?? "") : ""))
+      .join("")
+      .trim();
+  }
+  return "";
+}
+
+async function analyzeViaOpenAiCompatible(args: {
+  provider: "gemini" | "ollama";
+  photoUrl: string;
+  prompt: string;
+  model?: string;
+  timeoutMs: number;
+}): Promise<AnalyzePhotoResponse> {
+  const keyVar = PROVIDER_KEY_VAR[args.provider];
+  const apiKey = process.env[keyVar];
+  if (!apiKey) {
+    return { ok: false, error: `${keyVar} not set`, reason: "no_provider" };
+  }
+  const endpoint =
+    args.provider === "gemini"
+      ? GEMINI_OPENAI_ENDPOINT
+      : `${(process.env.OLLAMA_BASE_URL || "https://ollama.com").replace(/[/]$/, "")}/v1/chat/completions`;
+  const model =
+    args.model ??
+    (args.provider === "gemini"
+      ? process.env.PHOTO_ASSESS_GEMINI_MODEL ?? GEMINI_VISION_MODEL
+      : process.env.PHOTO_ASSESS_OLLAMA_MODEL ?? OLLAMA_VISION_MODEL);
+  const t0 = Date.now();
+
+  try {
+    // The gateway's MMS URL may not be reachable from the provider (auth, or a
+    // host they will not fetch), so the photo is fetched here and inlined.
+    const imgResp = await withTimeout(fetch(args.photoUrl), 5000, `${args.provider}-vision-fetch`);
+    if (!imgResp.ok) {
+      return { ok: false, error: `Photo URL fetch failed: ${imgResp.status}`, reason: "invalid_url" };
+    }
+    const buf = await imgResp.arrayBuffer();
+    const mimeType = (imgResp.headers.get("content-type") ?? "image/jpeg").split(";")[0].trim();
+    const dataUrl = `data:${mimeType};base64,${Buffer.from(buf).toString("base64")}`;
+
+    const resp = await withTimeout(
+      fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: args.prompt },
+                { type: "image_url", image_url: { url: dataUrl } },
+              ],
+            },
+          ],
+          max_tokens: 400,
+          temperature: 0.2,
+        }),
+      }),
+      args.timeoutMs,
+      `${args.provider}-vision`,
+    );
+
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      return { ok: false, error: `${args.provider} ${resp.status}: ${body.slice(0, 200)}`, reason: "http_error" };
+    }
+    const data = (await resp.json()) as { choices?: Array<{ message?: { content?: unknown } }>; model?: string };
+    const description = contentText(data.choices?.[0]?.message?.content);
+    if (!description) {
+      return { ok: false, error: `${args.provider} returned no message content`, reason: "parse_error" };
+    }
+
+    const { serviceSuggest, urgency } = parseStructuredFields(description);
+    return {
+      ok: true,
+      description,
+      serviceSuggest,
+      urgency,
+      source: args.provider,
+      modelName: data.model || model,
+      latencyMs: Date.now() - t0,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg, reason: msg.toLowerCase().includes("timeout") ? "timeout" : "http_error" };
+  }
+}
+
 // ─── Health probe ─────────────────────────────────────────────
 
 export async function checkVisionHealth(): Promise<{
@@ -365,17 +495,17 @@ export async function checkVisionHealth(): Promise<{
   error?: string;
 }> {
   const enabled = await isPhotoAssessEnabled();
-  const provider = (process.env.PHOTO_ASSESS_PROVIDER as "replicate" | "hf" | undefined) ?? "replicate";
-  const providerReachable =
-    provider === "replicate" ? Boolean(process.env.REPLICATE_API_KEY) : Boolean(process.env.HF_API_KEY);
+  const configured = configuredProvider();
+  if (configured.unknown) {
+    return { enabled, provider: configured.unknown, providerReachable: false, error: `PHOTO_ASSESS_PROVIDER=${configured.unknown} is not one of ${VISION_PROVIDERS.join("|")}` };
+  }
+  const provider = configured.provider;
+  const keyVar = PROVIDER_KEY_VAR[provider];
+  const providerReachable = Boolean(process.env[keyVar]);
   return {
     enabled,
     provider,
     providerReachable,
-    error: providerReachable
-      ? undefined
-      : provider === "replicate"
-        ? "REPLICATE_API_KEY not set"
-        : "HF_API_KEY not set",
+    error: providerReachable ? undefined : `${keyVar} not set`,
   };
 }
