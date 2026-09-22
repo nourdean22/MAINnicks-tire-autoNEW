@@ -92,6 +92,23 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
    is +0.05 uncapped below 1.0, so anything seen six times is immortal (310 rows at 1.0, 199 rows
    untouched 90d+ at avg 0.98). (a) is a bug; (b)+(c) are the store's design - the operator decides
    what Nick should forget. Reader: `recall()` / `smartRecall()` in services/nickMemory.ts.
+   LIVE 19:30Z after #2504 deployed: the passes still logged `Memory stored` (not reinforced) ten
+   per pass - the store is over-full (721 > 500), eviction is confidence ASC, and the ten 0.85
+   health rows were the lowest, so they evicted each other every five minutes. Stable content
+   cannot help a store that cannot keep the row. BRIDGE CUT (branch nickstire/health-state-out-
+   of-memory): selfHealing.ts no longer writes to Nick's memory at all - health issues are
+   operational state (mandate item 7) and reach cron_log, Telegram and the watchdog. The 173
+   health rows leave via scripts/maintenance/prune-health-memories.mjs (dry run default; the
+   --execute DELETE is the operator's). The admission-at-the-cap rule (scratchpad ship-admission.sh,
+   validated in tests) is PARKED: mandate item 10 says simulate eviction policies against the
+   real rows before changing production - that simulation is the next memory item.
+7. THE HOURLY TIER WAS DEAD ALL AFTERNOON (PR #2516): every tier is a setInterval from process boot
+   and only heartbeat/pulse/daily fired at boot, so with 13 deploys under 2h apart the 2h tier
+   (voice-recovery, enrich-customer-data, feedback-cycle, safety-check, the statenour syncs) last ran
+   12:29Z. Fix: the boot pass is CLAIMED by one conditional UPDATE on cron_tier_skip_state when the
+   last run is an interval old (age in SQL; no claim = no fire). Review P2 (stamp at start) measured
+   and declined: an hourly pass is 3-4 s. MERGING IS DEPLOYING - hold merges until a fix that must
+   run live has deployed and fired; the sibling statenour session is holding #2517 for this.
 4. Duplicate-key helper consolidation onto `server/lib/dbErrors.ts` (proposals.ts,
    shopDriverMirror.ts x2, promiseLedger.ts).
 5. Tighten the transfer-artifact write in `routes/webhooks/vapi.ts` (~:621) to
