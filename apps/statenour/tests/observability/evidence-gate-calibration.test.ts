@@ -14,8 +14,11 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  assembleBufferShadow,
   assembleGateCalibration,
+  BUFFER_SHADOW_SINCE,
   classifyDriver,
+  type GateTurn,
   isBlockingVerdict,
   MIN_SAMPLE,
 } from "@/lib/observability/evidence-gate-calibration";
@@ -121,5 +124,119 @@ describe("assembleGateCalibration", () => {
     const out = assembleGateCalibration(turns, { cohortSince: FIX });
     expect(out.afterFix.sample[0].unreceipted).toContain("TEE and Manny");
     expect(out.afterFix.sample[0].driver).toBe("named_claim");
+  });
+});
+
+describe("assembleBufferShadow - the E3 pre-flush lane's shadow (2026-09-22)", () => {
+  // `tokenUsage.evidenceGate.turnRisk` has been persisted since 8e3a4a14a
+  // (2026-09-15T17:29Z) as "would the pre-flush lane have buffered this turn".
+  // The promotion question is COST (share of turns that stop streaming) against
+  // BENEFIT (share of verifier-banner turns that would have been repairable
+  // before flush). Both are ratios; both get the module's thin-sample rule.
+  const SHADOW = "2026-09-15T17:29:16.000Z";
+  const shadowAt = (n: number) => new Date(Date.parse(SHADOW) + (n + 1) * 60_000);
+  const preShadow = (n: number) => new Date(Date.parse(SHADOW) - (n + 1) * 60_000);
+  const LOOKUP = "factual lookup with no tool expected to fire";
+  const FIGURE = "invites a specific figure with no tool behind it";
+  const risky = (at: Date, reasons: string[], over: Partial<GateTurn> = {}): GateTurn => ({
+    createdAt: at,
+    gate: { verdict: "pass", turnRisk: { buffer: true, risk: "high", register: "coaching", reasons, toolsFired: 0 } },
+    excerpt: "reply",
+    ...over,
+  });
+  const calm = (at: Date, over: Partial<GateTurn> = {}): GateTurn => ({
+    createdAt: at,
+    gate: { verdict: "pass", turnRisk: { buffer: false, risk: "low", register: "coaching", reasons: [], toolsFired: 0 } },
+    excerpt: "reply",
+    ...over,
+  });
+  const unshadowed = (at: Date, over: Partial<GateTurn> = {}): GateTurn => ({
+    createdAt: at,
+    gate: { verdict: "pass" },
+    excerpt: "reply",
+    ...over,
+  });
+
+  it("POSITIVE CONTROL: counts buffer vs stream and states the rate once the shadow sample clears the floor", () => {
+    const turns = [
+      ...Array.from({ length: 30 }, (_, i) => risky(shadowAt(i), [LOOKUP])),
+      ...Array.from({ length: 10 }, (_, i) => calm(shadowAt(100 + i))),
+    ];
+    const out = assembleBufferShadow(turns, { since: SHADOW });
+    expect(out.withShadow).toBe(MIN_SAMPLE);
+    expect(out).toMatchObject({ turns: 40, wouldBuffer: 30, wouldStream: 10, wouldBufferPct: 75, sufficient: true });
+  });
+
+  it("withholds the buffer rate below the floor - counts only, never a percentage", () => {
+    const out = assembleBufferShadow([risky(shadowAt(0), [LOOKUP]), calm(shadowAt(1))], { since: SHADOW });
+    expect(out).toMatchObject({ withShadow: 2, wouldBuffer: 1, wouldStream: 1, wouldBufferPct: null, sufficient: false });
+    expect(out.caveat).toContain(`${MIN_SAMPLE} needed`);
+  });
+
+  it("the banner recall has its OWN floor: 6 of 7 is stated as 6 of 7, never as 85.7%", () => {
+    // 40 shadowed turns make the buffer rate statable; 7 banner turns do not
+    // make the recall statable. The two denominators are independent.
+    const turns = [
+      ...Array.from({ length: 34 }, (_, i) => risky(shadowAt(i), [LOOKUP])),
+      ...Array.from({ length: 6 }, (_, i) => risky(shadowAt(50 + i), [LOOKUP], { verifierBanner: true })),
+      calm(shadowAt(70), { verifierBanner: true }),
+    ];
+    const out = assembleBufferShadow(turns, { since: SHADOW });
+    expect(out.sufficient).toBe(true);
+    expect(out.banner).toEqual({ turns: 7, wouldHaveBuffered: 6, wouldHaveStreamed: 1, noShadow: 0, recallPct: null });
+    expect(out.caveat).toContain("6 of 7");
+    expect(out.caveat).not.toContain("85.7");
+  });
+
+  it("states the recall once the banner sample itself clears the floor", () => {
+    const turns = Array.from({ length: 40 }, (_, i) =>
+      i < 30 ? risky(shadowAt(i), [LOOKUP], { verifierBanner: true }) : calm(shadowAt(i), { verifierBanner: true }),
+    );
+    const out = assembleBufferShadow(turns, { since: SHADOW });
+    expect(out.banner).toMatchObject({ turns: 40, wouldHaveBuffered: 30, recallPct: 75 });
+  });
+
+  it("a banner turn the shadow never classified is counted as noShadow, not as a miss", () => {
+    const out = assembleBufferShadow([unshadowed(shadowAt(0), { verifierBanner: true })], { since: SHADOW });
+    expect(out.banner).toMatchObject({ turns: 1, wouldHaveBuffered: 0, wouldHaveStreamed: 0, noShadow: 1 });
+  });
+
+  it("cohorts at the shadow's first write - a pre-shadow banner turn is not evidence of a silent instrument", () => {
+    const out = assembleBufferShadow(
+      [unshadowed(preShadow(0), { verifierBanner: true }), risky(shadowAt(0), [LOOKUP])],
+      { since: SHADOW },
+    );
+    expect(out.turns).toBe(1);
+    expect(out.banner.noShadow).toBe(0);
+  });
+
+  it("splits buffered turns by reason, once per turn, with the banner sub-count alongside", () => {
+    const turns = [
+      risky(shadowAt(0), [LOOKUP, LOOKUP], { verifierBanner: true }),
+      risky(shadowAt(1), [LOOKUP, FIGURE]),
+      risky(shadowAt(2), [FIGURE]),
+      calm(shadowAt(3), { verifierBanner: true }),
+    ];
+    const out = assembleBufferShadow(turns, { since: SHADOW });
+    expect(out.byReason).toEqual([
+      { reason: LOOKUP, buffered: 2, bannered: 1 },
+      { reason: FIGURE, buffered: 2, bannered: 0 },
+    ]);
+    // The top row is named in the caveat with BOTH fractions, so a reader can
+    // see whether the reason that buffers most turns is also the one carrying
+    // the banners. Measured 2026-09-22 on prod: 77/84 and 6/6 - it does not
+    // separate, so "narrow the predicate to its reasons" is not available.
+    expect(out.caveat).toContain(`"${LOOKUP}"`);
+    expect(out.caveat).toContain("2/3 buffered turns");
+    expect(out.caveat).toContain("1/1 buffered banner turns");
+  });
+
+  it("rides along on assembleGateCalibration; the gate cohorts and the shadow cohort are independent", () => {
+    const turns = [pass(after(0)), risky(shadowAt(0), [LOOKUP])];
+    const out = assembleGateCalibration(turns, { cohortSince: FIX });
+    expect(out.beforeFix.turns).toBe(1);
+    expect(out.afterFix.turns).toBe(1);
+    expect(out.bufferShadow.since).toBe(BUFFER_SHADOW_SINCE);
+    expect(out.bufferShadow).toMatchObject({ turns: 2, withShadow: 1, wouldBuffer: 1 });
   });
 });

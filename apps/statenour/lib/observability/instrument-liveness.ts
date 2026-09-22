@@ -35,7 +35,10 @@
  *   STALE         has written before; zero writes in a window where turns
  *                 happened (the denominator moved and it did not)
  *   UNDERPOWERED  wrote in the window, but fewer than MIN_POWERED_N rows —
- *                 a reading exists and cannot support a rate
+ *                 a reading exists and cannot support a rate; ALSO a
+ *                 conditional instrument with zero writes on turns the
+ *                 deferred-turn heartbeat proves the path ran for (2026-09-22:
+ *                 that zero is a reading of "condition absent", not a lapse)
  *   HEALTHY       powered and not failing
  *
  * EVERY ROW CARRIES ITS DENOMINATOR. `coverage` is writes ÷ assistant turns in
@@ -49,6 +52,7 @@
 import { prisma } from "@/lib/prisma";
 import {
   buildInstrumentFailures,
+  DEFERRED_TURN_INSTRUMENT,
   KNOWN_INSTRUMENTS,
   type InstrumentFailureView,
 } from "./instrument-failures";
@@ -144,6 +148,17 @@ export function assembleInstrumentHealth(
 ): InstrumentHealthView {
   const failuresByName = new Map(failures.failing.map((f) => [f.instrument, f.failures]));
 
+  // 2026-09-22 · the deferred-turn heartbeat is the denominator the conditional
+  // shadows never had. When it is among the inputs AND has ever written, its
+  // count in the window is how many turns the deferred path actually RAN for,
+  // and "0 writes" on a conditional instrument splits into two honest verdicts:
+  // the path ran and the condition did not occur (UNDERPOWERED — a reading of
+  // zero events, not a dead writer) versus the path itself did not run (STALE).
+  // Null when the heartbeat is absent or has never written (the first window
+  // after it deploys), so every earlier verdict is unchanged in that case.
+  const heartbeat = inputs.find((i) => i.instrument === DEFERRED_TURN_INSTRUMENT);
+  const pathRuns = heartbeat && heartbeat.lastWriteAt !== null ? heartbeat.writesInWindow : null;
+
   const rows: InstrumentHealthRow[] = inputs.map((input) => {
     const failuresInWindow = failuresByName.get(input.instrument) ?? 0;
     const conditional = CONDITIONAL_INSTRUMENTS[input.instrument] ?? null;
@@ -159,11 +174,30 @@ export function assembleInstrumentHealth(
       reason = `${failuresInWindow} write failure${failuresInWindow === 1 ? "" : "s"} logged in ${windowHours}h — every count from this instrument is a floor`;
     } else if (input.lastWriteAt === null) {
       status = "NEVER_RAN";
-      reason = "no row has ever been written — a wiring test, not a log reader, is what can find why";
+      reason = `no row has ever been written — a wiring test, not a log reader, is what can find why${
+        conditional && pathRuns !== null && pathRuns > 0
+          ? `; the deferred path ran on ${pathRuns} of ${assistantTurns} turns in this window, so the condition (${conditional}) may simply not have occurred yet`
+          : ""
+      }`;
+    } else if (
+      input.writesInWindow === 0 &&
+      assistantTurns > 0 &&
+      conditional &&
+      pathRuns !== null &&
+      pathRuns > 0
+    ) {
+      // The heartbeat proves the path ran; a conditional instrument writing
+      // nothing on those turns is a reading of zero events, not a lapse.
+      status = "UNDERPOWERED";
+      reason = `0 writes while the deferred path ran on ${pathRuns} of ${assistantTurns} turns — ${conditional}; the condition did not occur, the writer is not dead (last wrote ${input.lastWriteAt.toISOString()})`;
     } else if (input.writesInWindow === 0 && assistantTurns > 0) {
       status = "STALE";
       reason = `0 writes across ${assistantTurns} assistant turns; last wrote ${input.lastWriteAt.toISOString()}${
-        conditional ? ` — ${conditional}, so confirm the condition did not occur before reading this as dead` : ""
+        conditional
+          ? pathRuns === 0
+            ? " — and the deferred path wrote no heartbeat in this window either, so the whole path did not run"
+            : ` — ${conditional}, so confirm the condition did not occur before reading this as dead`
+          : ""
       }`;
     } else if (input.writesInWindow < MIN_POWERED_N) {
       status = "UNDERPOWERED";
@@ -263,6 +297,7 @@ const SYSTEM_METRIC_INSTRUMENTS = new Set([
   "action.done.shadow",
   "tool.chosen",
   "recommendation.novelty",
+  DEFERRED_TURN_INSTRUMENT,
 ]);
 
 /** Live read. Every KNOWN_INSTRUMENT gets a row, or the view names the one it cannot source. */

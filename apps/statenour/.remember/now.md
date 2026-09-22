@@ -140,12 +140,74 @@ impossible on old data; `toolReceipts` is the replay foundation going forward.
   "fixed in <merge sha>" — corrections posted; gate every step on the commit, not the push.
 - W16 RECONCILIATION entry + AGENTS.md stamp: this docs PR.
 
-**NEXT HIGHEST-LEVERAGE TASK** · merge #2495 / #2496 / #2498 / this docs PR under the hold rule →
-persist the shadow's `skipped_no_claim` as an attempt so skip-vs-dead is direct (H2) → give the
-Done-shadow the same outbox-replay dedupe #2485 gave novelty → automatic FALSE_COMPLETION repair
-needs the BUFFERED-path measurement first (streaming cannot block; `onFinish` runs after the last
-token) → a tool-capable eval runner so the 8 `requires-tools` scenarios become scorable (the
-production chat pipeline with the catalog attached; none exists) → the tool-search A/B on it.
+**UPDATE (2026-09-22 · part 4 · the follow-ups landed)** · #2495 `2a503aa26` · #2496 `d9d46392e` ·
+#2498 `67904d50a` · #2499 `8c2889b5c` · #2501 `84260a1c2` (Done-shadow traceId dedupe through the shared
+`metricRecordedForTrace`) MERGED 17:48-17:50Z; main = `84260a1c2`. Live readout 17:16Z through the
+app's own readers: 13 assistant turns/24h · `recommendation.novelty` NEVER_RAN (deployed 17:04Z, 3 turns
+since) · `action.done.shadow` STALE since 09-19 · 0 duplicate traceIds lifetime. **This branch (H2):**
+`chat.deferred_turn` — one heartbeat row per deferred-path turn, deduped by traceId, strict writer,
+literal scope; the health reader uses it as the conditional shadows' denominator, so a conditional zero
+reads UNDERPOWERED ("ran on N turns, condition did not occur") when the path ran and STALE ("the whole
+path did not run") when it did not — the skip-vs-dead gap is now direct, not inferred.
+
+**Tool-capable eval runner (#2508 `statenour/eval-tool-replay`, open):** `pnpm eval:live -- --tools` routes
+the 8 `requires-tools` scenarios through `generateText` + the real `nourTools` catalog with executions
+STUBBED (every call recorded, nothing fires, `stopWhen: stepCountIs(4)`), and the judge sees the recorded
+trace ahead of the reply. Skips stay the default; the run is operator-only spend. Never route an eval
+through `prepareTools` — it writes `tool.surfaced` telemetry.
+
+**E3 pre-flush shadow · MEASURED on prod 2026-09-22 (read-only probe, then the app's own reader):** 139
+assistant turns since 09-15 · 128 carry `evidenceGate.turnRisk` · 84 would buffer (65.6%) · 44 would
+stream · 7 verifier-banner turns → 6 would have buffered, 1 streamed, 0 unshadowed. Reasons over the 84:
+"factual lookup with no tool expected to fire" 77 · "invites a specific figure" 13 · health 9+9 ·
+commitment 2. **The 6 buffered banner turns all sit under the 77.** The classifier's own reasons do NOT
+separate banner turns from the rest (unimodal — the camera lot-count shape again), and the ask-side
+features do not either at n=7 (ask 34–562 chars, no action verb 7/7, register coaching 7/7). So "narrow
+the predicate to the banner turns' reasons" is not available from this signal. **This branch:**
+`assembleBufferShadow` in `lib/observability/evidence-gate-calibration.ts` + a block in the gate panel —
+COST (buffer rate over shadowed turns) vs BENEFIT (banner recall) per reason, two independent floors
+(the recall denominator is banner turns at ~7/week, so 6/7 is stated as "6 of 7", never 85.7%), banner
+detection reused from L2 (`isVerifierRewritten`), cohort at the shadow's first write `8e3a4a14a`
+(2026-09-15T17:29Z). Flipping `NICK_EVIDENCE_PREFLUSH` today = ~66% of turns stop streaming to catch
+~6 of 7 banner turns a week.
+
+**#2509 MERGED `073697106` (buffer-shadow reader) · #2508 MERGED `10673c575` (tool-replay runner), both
+deploy-verified via `/api/version` (`10673c5` 19:08:43Z · `0736971` pending at write time).**
+
+**Reply-side hold — REFUTED (read-only, 60 days, 1,246 turns, 52 banner turns):** the fabricated claim
+sits a median 432 chars into the reply (p90 1,770, max 2,219) while Nick's first sentence is p50 24 chars;
+hold-first-sentence catches 6/52 banners, 120 chars 13/52, 480 chars 22/52, 800 chars 28/52 — half the
+banners need most of the reply held, which is the pre-flush lane again. ★★★ **A FABRICATED ACTION CLAIM
+IS BURIED MID-REPLY, NOT AN OPENER.**
+
+**L2 BANNER PRECISION — the finding under every enforcement plan (read-only, L2's own diagnostic line per
+banner turn):** 52 banners in 60 days = 9 known-truth (separate guard) + 43 action-claim. `pinned` raised
+15 (3 real: "Pinned.", "All entries pinned.", "the pattern is pinned so it surfaces"; 12 adjectives,
+labels, metaphors — "pinned tab", "pinned posts", "[Pinned by Nour]", "pinned between"). Bare `sent`
+raised 10 (0 real — "Mo sent a text", "the coach texted me", "3 DMs sent", "Sent $1,000 to Hamda" = the
+USER's action). `set reminder` 3 (all offers/promises: "Want me to set a 6pm reminder?", "I'll log it and
+set the reminder"). ★★★ **THE VERIFIER BANNER WAS MOSTLY FALSE, AND A FALSE BANNER IS NOT COSMETIC: L3
+REPLACES THAT TURN IN HISTORY, ERASING A LEGITIMATE REPLY; L5 TELLS THE OPERATOR NICK FABRICATED WHEN IT
+DESCRIBED.** **This branch (`statenour/action-claim-precision`):** `pinned` and `sent (bare)` edge
+patterns require the VERB shape (terminator / pronoun / verb continuation after `pinned`; first person
+with ≤2 adverbs, or a sentence-opening confirmation into a message-like object, for `sent`); `send-comm`
+gets `claimNeedsFirstPerson`; "pinned" leaves `memory-write`'s past list; hedges gain bare "want me to"
+and up to three words after "I'll". 25 production-shape canaries (names swapped) + 11 positive controls:
+**unfixed 25f/43p → fixed all green.** Real-binary receipt over the same 52 banner originals: **43 → 17
+still flagged** (task-added 5 · pinned 4 = the 3 real + "Story highlights pinned to the shop" · task-
+complete 4 · memory-write 2 · data-sync 1 · priority-set 1); bare `sent` **10 → 0**; all 1,246 turns
+**46 → 21** flagged, nothing new fires. Not classified: the 17 survivors (task-added/-complete may be
+tool-name mismatches, not fabrications) and the 9 known-truth banners. ⚠ the repair harvester's
+`reclassifyByReply` keys FALSE_COMPLETION on the banner — its 9 FALSE_COMPLETION candidates inherit this
+precision and need re-reading.
+
+**NEXT HIGHEST-LEVERAGE TASK** · classify the 17 surviving action banners (are "Task created — …" turns
+real fabrications or tool-name mismatches in `mapsToTool`?) and the 9 known-truth banners → then a
+reply-side signal for FALSE_COMPLETION auto-repair needs a DIFFERENT shape than a prefix hold (the claim
+is mid-reply): candidates are a sentence-level streaming hold at the FIRST detected claim (stream until
+the detector fires, then buffer the remainder), measured as a shadow first → run the tool-capable runner
+ONCE (operator spend) to baseline the 8 `requires-tools` scenarios. Chat volume (13 turns/24h) is the
+binding constraint — nothing promotes on n<30; banner turns arrive ~6/week, and after this fix fewer.
 
 ## Session E (tool routing) — 5 MERGED + DEPLOYED, 1 in CI
 

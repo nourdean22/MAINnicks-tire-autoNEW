@@ -47,6 +47,30 @@ function cohort(
   };
 }
 
+/**
+ * The E3 pre-flush shadow as the server reported it on 2026-09-22: the buffer
+ * rate is statable (128 shadowed turns), the recall is NOT (7 banner turns).
+ * A panel that divided 6/7 itself would print 85.7% - the forbidden number.
+ */
+function bufferShadow(over: Record<string, unknown> = {}) {
+  return {
+    since: "2026-09-15T17:29:16.000Z",
+    turns: 139,
+    withShadow: 128,
+    wouldBuffer: 84,
+    wouldStream: 44,
+    wouldBufferPct: 65.6 as number | null,
+    byReason: [
+      { reason: "factual lookup with no tool expected to fire", buffered: 77, bannered: 6 },
+      { reason: "invites a specific figure with no tool behind it", buffered: 13, bannered: 0 },
+    ],
+    banner: { turns: 7, wouldHaveBuffered: 6, wouldHaveStreamed: 1, noShadow: 0, recallPct: null as number | null },
+    sufficient: true,
+    caveat: "6 of 7 verifier-banner turns would have buffered - too few banner turns (40 needed) to state a recall rate.",
+    ...over,
+  };
+}
+
 function ok(over: Record<string, unknown> = {}) {
   return {
     isLoading: false,
@@ -59,6 +83,7 @@ function ok(over: Record<string, unknown> = {}) {
       beforeFix: cohort({ turns: 91, wouldBlock: 34, wouldBlockPct: 37.4 }),
       afterFix: cohort(),
       caveat: "Rate withheld below the minimum sample.",
+      bufferShadow: bufferShadow(),
       ...over,
     },
   };
@@ -138,5 +163,54 @@ describe("EvidenceGatePanel", () => {
     const text = textOf().toLowerCase();
     expect(text).toContain("unknown, not ready");
     expect(text).not.toContain("sufficient");
+  });
+});
+
+describe("EvidenceGatePanel - pre-flush buffer shadow (2026-09-22)", () => {
+  it("POSITIVE CONTROL: renders the shadow block with the server's counts", () => {
+    state.query = ok();
+    const html = renderToStaticMarkup(<EvidenceGatePanel />);
+    expect(html).toContain('data-testid="buffer-shadow"');
+    const text = textOf();
+    expect(text).toContain("84/128 shadowed turns");
+    expect(text).toContain("6 of 7 banner turns");
+    expect(text).toContain("65.6%"); // the server DID state this rate; hiding it would be wrong
+  });
+
+  it("NEVER computes the recall the server withheld: 6 of 7 is not rendered as 85.7%", () => {
+    state.query = ok();
+    const text = textOf();
+    expect(text).not.toMatch(/85(\.\d+)?\s*%/);
+    expect(text).toContain("recall withheld");
+  });
+
+  it("NEVER computes the buffer rate either: 84/128 withheld stays withheld, not 65.6%", () => {
+    state.query = ok({ bufferShadow: bufferShadow({ wouldBufferPct: null, sufficient: false }) });
+    const text = textOf();
+    expect(text).not.toMatch(/65(\.\d+)?\s*%/);
+    expect(text).toContain("84/128 shadowed turns");
+  });
+
+  it("states the recall once the server does", () => {
+    state.query = ok({
+      bufferShadow: bufferShadow({ banner: { turns: 42, wouldHaveBuffered: 36, wouldHaveStreamed: 6, noShadow: 0, recallPct: 85.7 } }),
+    });
+    expect(textOf()).toContain("recall 85.7%");
+  });
+
+  it("lists each reason with BOTH counts, so concentration is visible without arithmetic", () => {
+    // 77 of 84 buffered turns and 6 of 6 buffered banner turns share one reason:
+    // the reader must be able to see that the reason does not separate them.
+    const text = textOf();
+    expect(text).toContain("factual lookup with no tool expected to fire");
+    expect(text).toMatch(/77 buffered\s*\S\s*6 banner/);
+    expect(text).toMatch(/13 buffered\s*\S\s*0 banner/);
+  });
+
+  it("flags a banner turn the shadow never classified", () => {
+    state.query = ok({
+      bufferShadow: bufferShadow({ banner: { turns: 8, wouldHaveBuffered: 6, wouldHaveStreamed: 1, noShadow: 1, recallPct: null } }),
+    });
+    expect(textOf()).toContain("1 without a shadow");
   });
 });

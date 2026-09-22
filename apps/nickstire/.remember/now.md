@@ -1,6 +1,6 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-22 (evening)** (voice-recovery dialed 110 times and connected 0 — a partial model override Vapi rejected, and a claim burned on every failure; fix branch `nickstire/voice-recovery-dial-shape`. Earlier today: #2479 `0da19803f`, #2488 `f921513f2`, #2490, #2491, #2492 `f184a011c`, #2494 `2477935b3` all MERGED. Prior header preserved below.)
+**Updated: 2026-09-22 (late)** (four fixes from one cron census: voice-recovery never connected (#2497), self-healing hollowing out Nick's memory (#2500), weather-intel invisible to the skip watchdog (#2502), transfer verdicts on calls that never transferred (#2503). Earlier today: #2479, #2488, #2490, #2491, #2492, #2494 MERGED. Prior header preserved below.)
 missed-revenue queue was measuring Nick's own greeting. Full audit, graded evidence and the
 pre-"Reset to Shop" checklist: `docs/VOICE-RECOVERY-AUDIT-2026-09-18.md`.)
 
@@ -40,9 +40,41 @@ Tests: `services/vapi.outboundOverride.test.ts` (6) pins the fetch body, `cron/j
 (6) pins the decision per kind; 4 mutations run, each caught (3/1/3/1 red), positive controls green.
 Ledger row `voice-recovery-outbound-dial` (unit_verified @ internal - the validator refuses deployed with a P1 or without a deploymentId; promotion condition in the row).
 
-**ACTIVE.** Push the branch, open the PR with `--base main`, land it when no sibling node/e2e is in
-flight. Then observe: the next `voice-recovery` run is ~14:50Z daily (10-17 ET window) and with 0
-eligible leads it will say "No estimates eligible" until the operator releases the burned rows.
+**THE CENSUS THAT FOUND ALL FOUR.** `cron_log` grouped by job over 30d: jobs that COMPLETED every
+run with 0 records, then the top `details` string per job. 46 such jobs; every one says WHY in
+details, so none is a silent instrument - but the details themselves carried the defects:
+`voice-recovery: placed=0 failed=3` (a completed run reporting failures), `weather-intel: No API key`
+(a completed run that could not run), and the Railway log's "Memory stored: pattern - System
+health: CRON STALE" every five minutes. Run status is not an outcome: read the outcome column's
+distribution for any lane that dials, sends or posts.
+
+**#2500 - self-healing → Nick memory.** Every 5-minute pass remembered each open issue with the
+day's date and the auto-fix list appended (CRON STALE with its live minutes), so each pass INSERTED;
+the 500-cap evicts the lowest-confidence, least-recently-reinforced row on every insert - Nick's
+oldest real insight. Measured: 721 rows over the cap (the cap evicts one per insert; the count never
+shrinks), 168 "System health", survivors' minimum confidence 0.85. Fix: `HealthIssue.stable`, the
+bridge remembers `System health: <stable ?? message>`; one row per standing issue, reinforced.
+STILL OPEN (design, not this bridge): confidence distribution is 0.85×5 / 0.9×197 / 0.95×209 /
+1.0×310 - a new 0.7 memory is the unique lowest row and is evicted on the next insert, so callers
+at 0.6-0.8 (statenour patterns/predictions/loops) can NEVER be retained at cap; and
+`decayMemories` reads `LIMIT 200` of 721 with no ORDER BY, so most rows never decay (199 rows
+untouched 90d+ at avg 0.98). See the memory-store note in NEXT.
+
+**#2502 - weather-intel.** 8 runs ever, all completed "No API key"; the watchdog reads only
+status skipped + `requiresEnv:`. Declared `requiresEnv: "OPENWEATHER_API_KEY"`; `getJobCadences()`
+now reports each job's env gate. `feature_flags.weather_triggered_sms = 1` - the key alone arms
+texts to lapsed customers; the ledger row says so.
+
+**#2503 - transfer artifact.** 20 of 31 calls carried verdict unknown for transfers that never
+happened: the webhook wrote whenever `artifactPresent` (true when Vapi sends a transfers ARRAY,
+empty on non-transfer calls). `isTransferAttempt` (lib/warmTransferConnect) is the one population
+predicate for writer and reader; `transferArtifactWorthPersisting` decides the write.
+
+**ACTIVE.** Land #2500 / #2502 / #2503 when no sibling node/e2e is in flight (hold rule). Observe
+after deploy: `voice-recovery` at ~14:50Z says "No estimates eligible" until the operator releases
+the burned rows; `weather-intel` flips to `skipped · requiresEnv:OPENWEATHER_API_KEY`; new calls stop
+carrying transferArtifact unless a transfer was attempted; self-healing memories reinforce instead
+of insert (Railway log: "Memory reinforced", not "Memory stored").
 
 **NEXT, dependency-ordered.**
 1. Observe the one-to-one arrival planner's first production run: `cron_log.job_name='dashboard-sync'`
@@ -52,8 +84,14 @@ eligible leads it will say "No estimates eligible" until the operator releases t
    and `cron-skip-watchdog` cannot see it: the watchdog only matches `requiresEnv:`/`requiresFlag:` on
    status `skipped`, and this job completes with 0. Declare `requiresEnv: "OPENWEATHER_API_KEY"` on the
    tier entry so it skips through the gate the watchdog reads — or the operator sets the key.
-3. `nick-memory` stores "System health: CRON STALE: voice-recovery hasn't c…" every 5 minutes (Railway
-   log, one line per tick since at least 09-18 22:50Z). A dedupe gap in the memory writer.
+3. Nick memory store - two mechanical defects and one design question (measured 2026-09-22):
+   (a) `decayMemories` reads `.limit(200)` with no ORDER BY over 721 rows, so 500+ rows are never
+   visited; (b) at the cap, eviction is confidence ASC then lastReinforced ASC, and every survivor is
+   >= 0.85, so any memory entering below 0.85 is evicted by the very next insert (callers at 0.6-0.8
+   exist: statenour_predictions 0.7, statenour_loops 0.6, statenour_patterns 0.75); (c) reinforcement
+   is +0.05 uncapped below 1.0, so anything seen six times is immortal (310 rows at 1.0, 199 rows
+   untouched 90d+ at avg 0.98). (a) is a bug; (b)+(c) are the store's design - the operator decides
+   what Nick should forget. Reader: `recall()` / `smartRecall()` in services/nickMemory.ts.
 4. Duplicate-key helper consolidation onto `server/lib/dbErrors.ts` (proposals.ts,
    shopDriverMirror.ts x2, promiseLedger.ts).
 5. Tighten the transfer-artifact write in `routes/webhooks/vapi.ts` (~:621) to

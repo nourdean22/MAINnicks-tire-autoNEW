@@ -28,6 +28,9 @@ pnpm eval:live --filter=multi-turn
 
 # Custom report path (live only)
 pnpm eval:live --out=reports/nightly-2026-05-23.json
+
+# Score the requires-tools scenarios too · stubbed execution, calls recorded, nothing runs
+pnpm eval:live -- --tools
 ```
 
 Live-mode reports land at `tests/eval/reports/<ISO-timestamp>.json` by
@@ -162,12 +165,29 @@ runner skips it before calling Nick:
   · `pnpm eval` (dry-run) prints how many scenarios the paid run will skip
 
 Measured 2026-09-22: 8 of 50 scenarios carry the tag — the repair-mined
-`no_tool`, `false_completion` and image-retry cases. They stay in the corpus
-on purpose: they are the acceptance set for a **tool-capable runner** (the
-production chat pipeline with the tool catalog attached), which does not
-exist yet. Drafts from `pnpm eval:draft-repairs` are born tagged for the
-tool-dependent failure classes (`TOOL_DEPENDENT_CLASSES` in
-`scripts/draft-repair-scenarios.ts`), so curation cannot forget it.
+`no_tool`, `false_completion` and image-retry cases. Drafts from
+`pnpm eval:draft-repairs` are born tagged for the tool-dependent failure
+classes (`TOOL_DEPENDENT_CLASSES` in `scripts/draft-repair-scenarios.ts`),
+so curation cannot forget it.
+
+### Scoring them: `pnpm eval:live -- --tools` (stubbed tool replay)
+
+`tests/eval/tool-replay.ts` attaches the production tool map (`nourTools`)
+with every description and input schema intact — so the model chooses
+exactly as it would in production — and replaces every `execute` with a
+recorder that returns a neutral "replay environment, result not available"
+payload. **Nothing is executed**: no task is created, no search is made, no
+prod row moves, and this path never touches `prepareTools`, whose
+`tool.surfaced` telemetry would otherwise count eval turns as production.
+The judge receives the reply **preceded by a rendered trace** of the calls
+Nick made, which is the dimension those criteria test: did he reach for a
+tool, which one, did he retry through another path.
+
+What it cannot measure, said plainly: whether the real tool would have
+succeeded, and how Nick handles a real result — stubbed results are empty
+by construction. Reports from this path say `toolReplay: true`, count
+`summary.toolRuns`, and each such result carries `toolCalls`. Without
+`--tools`, requires-tools scenarios are skipped as before.
 
 ## What the judge measures
 

@@ -24,11 +24,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // vi.mock factories are hoisted above every import, so the spies they close
 // over must be hoisted too (a plain `const` would be in its temporal dead
 // zone when run-suite.ts's static `./judge` import evaluates the factory).
-const { aiChat, judgeResponse, buildSystemPromptUncached, detectTopicTier } = vi.hoisted(() => ({
+const { aiChat, judgeResponse, buildSystemPromptUncached, detectTopicTier, callNickWithTools } = vi.hoisted(() => ({
   aiChat: vi.fn(),
   judgeResponse: vi.fn(),
   buildSystemPromptUncached: vi.fn(),
   detectTopicTier: vi.fn(),
+  callNickWithTools: vi.fn(),
 }));
 
 vi.mock("@/lib/ai/provider", () => ({ aiChat }));
@@ -37,8 +38,15 @@ vi.mock("@/lib/ai/chat/calibration-enforcer", () => ({
   enforceCalibration: async (_ask: string, text: string) => ({ text }),
 }));
 vi.mock("./judge", () => ({ judgeResponse }));
+// The stubbed tool replay is mocked at its module boundary; its own contract
+// (stubbing, recording, trace rendering) is tested in tool-replay.test.ts.
+vi.mock("./tool-replay", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./tool-replay")>()),
+  callNickWithTools,
+}));
 
 import { REQUIRES_TOOLS_SKIP_REASON, formatSummaryLine, runLive } from "./run-suite";
+import { renderToolTrace } from "./tool-replay";
 import { REQUIRES_TOOLS_TAG } from "./types";
 
 const PLAIN = {
@@ -57,7 +65,8 @@ const TAGGED = {
   tags: ["repair-mined", REQUIRES_TOOLS_TAG],
 };
 
-const ARGS = { live: true, filter: null, outPath: null } as const;
+const ARGS = { live: true, filter: null, outPath: null, tools: false } as const;
+const ARGS_TOOLS = { ...ARGS, tools: true } as const;
 
 let dir: string | null = null;
 let stdout: { mockRestore(): void } | null = null;
@@ -74,6 +83,11 @@ beforeEach(() => {
   aiChat.mockReset().mockResolvedValue({ provider: "venice", content: "a reply" });
   buildSystemPromptUncached.mockReset().mockResolvedValue("SYSTEM PROMPT FROM BUILDER");
   detectTopicTier.mockReset().mockReturnValue("business");
+  callNickWithTools.mockReset().mockResolvedValue({
+    response: "I searched again through invokeTool.",
+    toolCalls: [{ name: "searchTools", args: { query: "podcasts" } }, { name: "invokeTool", args: { name: "arsenalWebSearch" } }],
+    error: null,
+  });
   judgeResponse.mockReset().mockImplementation(async (scenario: { id: string }) => ({
     scenarioId: scenario.id,
     responsePreview: "a reply",
@@ -140,6 +154,52 @@ describe("runLive · requires-tools skip", () => {
     expect(report.summary).toMatchObject({ totalScenarios: 1, ranScenarios: 0, skipped: 1, flagged: 0, errored: 0 });
     expect(report.summary.meanComposite).toBe(0);
     expect(aiChat).not.toHaveBeenCalled();
+  });
+});
+
+describe("runLive · --tools routes requires-tools scenarios through the stubbed tool replay (2026-09-22)", () => {
+  it("scores the tagged scenario via the replay: trace prepended for the judge, toolRuns counted, nothing skipped", async () => {
+    dir = await writeDir([PLAIN, TAGGED]);
+
+    const report = await runLive({ args: ARGS_TOOLS, scenariosDir: dir });
+
+    expect(report.toolReplay).toBe(true);
+    expect(report.skipped).toEqual([]);
+    expect(report.summary).toMatchObject({ totalScenarios: 2, ranScenarios: 2, skipped: 0, toolRuns: 1, passing: 2 });
+    // The tagged scenario went through the replay, the plain one through aiChat.
+    expect(callNickWithTools).toHaveBeenCalledTimes(1);
+    expect(callNickWithTools.mock.calls[0]?.[0]).toMatchObject({ id: "tagged-skips" });
+    expect(callNickWithTools.mock.calls[0]?.[1]).toContain("SYSTEM PROMPT FROM BUILDER");
+    expect(aiChat).toHaveBeenCalledTimes(1);
+    // The judge saw the rendered trace ahead of the reply, and the report keeps the calls.
+    const judgedTagged = judgeResponse.mock.calls.find((c) => (c[0] as { id: string }).id === "tagged-skips");
+    expect(judgedTagged?.[1]).toContain(renderToolTrace([{ name: "searchTools", args: { query: "podcasts" } }]).split("\n")[0]);
+    expect(judgedTagged?.[1]).toContain("- invokeTool(");
+    expect(judgedTagged?.[1]).toContain("I searched again through invokeTool.");
+    const tagged = report.results.find((r) => r.scenarioId === "tagged-skips");
+    expect(tagged?.toolCalls?.map((c) => c.name)).toEqual(["searchTools", "invokeTool"]);
+    expect(formatSummaryLine(report)).toContain("1 via stubbed tool replay");
+  });
+
+  it("a replay error is an ERRORED result naming the tool path, never a score", async () => {
+    callNickWithTools.mockResolvedValue({ response: "", toolCalls: [], error: "no provider configured" });
+    dir = await writeDir([TAGGED]);
+
+    const report = await runLive({ args: ARGS_TOOLS, scenariosDir: dir });
+
+    expect(report.results[0]).toMatchObject({ scenarioId: "tagged-skips", error: "nick(tools): no provider configured", flagForReview: true });
+    expect(report.summary).toMatchObject({ errored: 1, toolRuns: 0 });
+    expect(judgeResponse).not.toHaveBeenCalled();
+  });
+
+  it("without --tools the tagged scenario is still skipped, and the reason points at --tools", async () => {
+    dir = await writeDir([TAGGED]);
+
+    const report = await runLive({ args: ARGS, scenariosDir: dir });
+
+    expect(report.toolReplay).toBe(false);
+    expect(report.skipped[0]?.reason).toContain("--live --tools");
+    expect(callNickWithTools).not.toHaveBeenCalled();
   });
 });
 

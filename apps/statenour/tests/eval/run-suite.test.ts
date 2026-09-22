@@ -119,7 +119,7 @@ describe("Scenario schema · representative cases", () => {
 
 describe("runDryRun", () => {
   it("returns a SuiteReport with mode='dry-run' and no results", async () => {
-    const report = await runDryRun({ args: { live: false, filter: null, outPath: null } });
+    const report = await runDryRun({ args: { live: false, filter: null, outPath: null, tools: false } });
     expect(report.mode).toBe("dry-run");
     expect(report.results).toEqual([]);
     expect(report.summary.ranScenarios).toBe(0);
@@ -128,7 +128,7 @@ describe("runDryRun", () => {
   });
 
   it("respects category filter", async () => {
-    const report = await runDryRun({ args: { live: false, filter: "decision", outPath: null } });
+    const report = await runDryRun({ args: { live: false, filter: "decision", outPath: null, tools: false } });
     expect(report.filter).toBe("decision");
     // ≥1 decision scenario should exist
     expect(report.summary.totalScenarios).toBeGreaterThanOrEqual(1);
@@ -143,7 +143,8 @@ describe("formatSummaryLine", () => {
       filter: null,
       results: [],
       skipped: [],
-      summary: { totalScenarios: 7, ranScenarios: 0, passing: 0, flagged: 0, errored: 0, skipped: 0, meanComposite: 0 },
+      toolReplay: false,
+      summary: { totalScenarios: 7, ranScenarios: 0, passing: 0, flagged: 0, errored: 0, skipped: 0, toolRuns: 0, meanComposite: 0 },
       durationMs: 12,
     });
     expect(line).toContain("dry-run");
@@ -158,6 +159,7 @@ describe("formatSummaryLine", () => {
       filter: null,
       results: [],
       skipped: [{ scenarioId: "needs-tools", reason: "tagged requires-tools" }],
+      toolReplay: false,
       summary: {
         totalScenarios: 8,
         ranScenarios: 7,
@@ -165,6 +167,7 @@ describe("formatSummaryLine", () => {
         flagged: 1,
         errored: 1,
         skipped: 1,
+        toolRuns: 0,
         meanComposite: 7.4,
       },
       durationMs: 18_400,
@@ -175,6 +178,21 @@ describe("formatSummaryLine", () => {
     expect(line).toContain("1 flagged");
     expect(line).toContain(`1 skipped (${REQUIRES_TOOLS_TAG})`);
     expect(line).toContain("mean 7.4/10");
+    expect(line).not.toContain("tool replay");
+  });
+
+  it("names the stubbed tool replay in the line only when --tools was on", () => {
+    const line = formatSummaryLine({
+      ranAt: "2026-09-22T12:00:00.000Z",
+      mode: "live",
+      filter: null,
+      results: [],
+      skipped: [],
+      toolReplay: true,
+      summary: { totalScenarios: 8, ranScenarios: 8, passing: 8, flagged: 0, errored: 0, skipped: 0, toolRuns: 3, meanComposite: 8.1 },
+      durationMs: 1_000,
+    });
+    expect(line).toContain("3 via stubbed tool replay");
   });
 });
 

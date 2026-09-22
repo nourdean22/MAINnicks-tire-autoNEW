@@ -69,7 +69,13 @@ describe("action-vocab · round-trip parity", () => {
     const concept = ACTION_VOCAB.find((c) => c.intent === "send-comm");
     expect(concept).toBeDefined();
     expect(intentRegex(concept!).test("send an email to that customer")).toBe(true);
-    expect(claimRegex(concept!).test("Sent the email to the customer")).toBe(true);
+    // 2026-09-22 · the concept's claim form is FIRST PERSON only
+    // (claimNeedsFirstPerson): every production banner it raised in 60 days
+    // was a recap of someone else's send. The terse sentence-opening "Sent
+    // the email …" is the detector's `sent (bare)` edge pattern's job and is
+    // asserted in action-claim-detector.test.ts ("flags 'sent the email'").
+    expect(claimRegex(concept!).test("I sent the email to the customer")).toBe(true);
+    expect(claimRegex(concept!).test("Mo sent the email to the customer")).toBe(false);
   });
 
   it("'schedule a follow-up' triggers intent for schedule", () => {
