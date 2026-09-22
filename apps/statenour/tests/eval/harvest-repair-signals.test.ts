@@ -21,8 +21,10 @@ import {
   classifyRepair,
   isShortReply,
   isPlausibleRepairLength,
+  reclassifyByReply,
   REPAIR_CLASSES,
   REPAIR_PATTERNS,
+  type RepairMatch,
 } from "@/scripts/harvest-repair-signals";
 
 describe("repair-signal matcher", () => {
@@ -154,5 +156,55 @@ describe("harvester source contract", () => {
     // The repo's recurring defect class: a filtered ratio with no base rate.
     expect(src).toContain("operatorMessagesScanned");
     expect(src).toMatch(/NO DATA \(denominator is zero\)/);
+  });
+});
+
+describe("reclassifyByReply · the reply names what 'try again' cannot", () => {
+  const generic: RepairMatch = { tier: "medium", failureClass: "UNDER_RESEARCH", label: "go-deeper" };
+
+  it("POSITIVE CONTROL: a plain reply leaves a generic hit untouched", () => {
+    expect(reclassifyByReply(generic, "Here are three options, ranked by effort.")).toEqual(generic);
+  });
+
+  // Both of these scored ZERO in the first production run, because the operator
+  // does not phrase them — the reply does.
+  it("a verifier banner on the rejected reply makes 'try again' a FALSE_COMPLETION", () => {
+    const reply =
+      "[VERIFIER · v10.0.162] ⚠ The response below claimed actions (task-create, I've added) but no matching tool call fired. Treat the claim as **unverified**.";
+    expect(reclassifyByReply(generic, reply)).toEqual({
+      tier: "strong",
+      failureClass: "FALSE_COMPLETION",
+      label: "verifier-banner-then-retry",
+    });
+  });
+
+  it("a tool-unavailable reply makes 'try again' a NO_TOOL — the dominant real pattern", () => {
+    for (const reply of [
+      "Web search is unavailable. The API key was reported as leaked.",
+      "No web search this session, so going from knowledge:",
+      "Still nothing. GitHub tools aren't attached to this session.",
+      "Can't search the web right now — no tool attached this turn.",
+    ]) {
+      expect(reclassifyByReply(generic, reply), reply).toEqual({
+        tier: "strong",
+        failureClass: "NO_TOOL",
+        label: "tool-unavailable-then-retry",
+      });
+    }
+  });
+
+  it("an operator who NAMED the failure is believed over the reply", () => {
+    const named: RepairMatch = { tier: "strong", failureClass: "MEMORY_MISS", label: "i-already-told-you" };
+    expect(reclassifyByReply(named, "[VERIFIER · v10.0.162] ⚠ claimed actions but no tool call fired")).toEqual(named);
+  });
+
+  it("no paired reply → unchanged", () => {
+    expect(reclassifyByReply(generic, null)).toEqual(generic);
+  });
+
+  it("reads only the reply's OPENING, so a late aside about search does not flip a real answer", () => {
+    const reply = `${"Here are five videos worth your drive. ".repeat(20)} (note: web search is unavailable for the sixth)`;
+    expect(reply.length).toBeGreaterThan(600);
+    expect(reclassifyByReply(generic, reply)).toEqual(generic);
   });
 });

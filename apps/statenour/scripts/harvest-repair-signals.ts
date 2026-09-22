@@ -279,6 +279,45 @@ export interface RepairMatch {
  * matches everything is exactly as broken as one that matches nothing, and
  * only the abstain half of that pair catches the first failure.
  */
+/**
+ * Reply-side reclassification — the half the operator's words cannot carry.
+ *
+ * Drafting the first 32 repair scenarios (2026-09-22) showed that the
+ * operator's characteristic repair is a bare "try again", which the
+ * operator-side classifier can only file as generic UNDER_RESEARCH. Read
+ * beside the REPLY it repairs, two of those were the dominant real patterns:
+ *
+ *   · the reply DECLARED A TOOL UNAVAILABLE and stopped ("Web search is
+ *     unavailable", "no tool attached this turn", "GitHub tools aren't
+ *     attached") — a NO_TOOL failure the operator answers with "try again",
+ *     never with "why didn't you search";
+ *   · the reply carried the production VERIFIER BANNER for a fabricated action
+ *     claim ("[VERIFIER · … claimed actions … but no matching tool call
+ *     fired") — a FALSE_COMPLETION the operator answers with "try again",
+ *     never with "you didn't do it".
+ *
+ * FALSE_COMPLETION and NO_TOOL both scored ZERO in the first production run
+ * because the operator does not phrase them. The reply does. So a generic
+ * repair is re-read against the reply's opening, and only a generic one — an
+ * operator who DID name the failure is believed over the reply.
+ */
+export const VERIFIER_BANNER = /^\s*\[VERIFIER\b/i;
+export const TOOL_UNAVAILABLE_REPLY =
+  /\b((web )?search (is|isn'?t|is not|unavailable|not available)|no (web )?search (this session|available|this turn)|tools? (aren'?t|are not|isn'?t|not) (attached|available)|(can'?t|cannot|unable to) (search|reach|access) the (web|repo|internet)|no tool attached|api key was reported as leaked)\b/i;
+
+export function reclassifyByReply(hit: RepairMatch, replyText: string | null): RepairMatch {
+  if (!replyText) return hit;
+  const generic = hit.failureClass === "GENERIC" || hit.failureClass === "UNDER_RESEARCH";
+  if (!generic) return hit;
+  if (VERIFIER_BANNER.test(replyText)) {
+    return { tier: "strong", failureClass: "FALSE_COMPLETION", label: "verifier-banner-then-retry" };
+  }
+  if (TOOL_UNAVAILABLE_REPLY.test(replyText.slice(0, 600))) {
+    return { tier: "strong", failureClass: "NO_TOOL", label: "tool-unavailable-then-retry" };
+  }
+  return hit;
+}
+
 export function classifyRepair(text: string): RepairMatch | null {
   const trimmed = (text ?? "").trim();
   if (!trimmed) return null;
@@ -539,11 +578,8 @@ async function main() {
     if (row.role !== "user") continue;
     operatorMessagesScanned += 1;
 
-    const hit = classifyRepair(row.content);
-    if (!hit) continue;
-
-    matchedByTier[hit.tier] += 1;
-    matchedByClass[hit.failureClass] = (matchedByClass[hit.failureClass] ?? 0) + 1;
+    const operatorHit = classifyRepair(row.content);
+    if (!operatorHit) continue;
 
     const prev = i > 0 ? rows[i - 1] : null;
     const paired =
@@ -551,6 +587,11 @@ async function main() {
         ? prev
         : null;
     if (!paired) unpairable += 1;
+
+    // The reply can name a failure the operator's "try again" does not.
+    const hit = reclassifyByReply(operatorHit, paired?.content ?? null);
+    matchedByTier[hit.tier] += 1;
+    matchedByClass[hit.failureClass] = (matchedByClass[hit.failureClass] ?? 0) + 1;
 
     candidates.push({
       id: `repair-${hit.failureClass.toLowerCase()}-${row.id.slice(-8)}`,

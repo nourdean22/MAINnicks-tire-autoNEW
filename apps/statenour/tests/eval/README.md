@@ -89,12 +89,34 @@ Run `pnpm harvest:repairs --self-test` first — it needs no DB and proves the
 matcher both fires and abstains. The harvest refuses to run if it fails,
 because a zero from a broken matcher is indistinguishable from a clean corpus.
 
-Measured 2026-09-22 against production, 400-day window: 2,795 operator
-messages scanned, 108 matched (3.86%) — 2 strong, 32 medium, 74 weak. The
-first draft scored ~44% precision on the tier labelled "near-certain"; reading
-19 candidates by hand found two defects (pronoun direction, and continuation
-phrases like "keep going" harvested as complaints) and both are now canaried
-in `harvest-repair-signals.test.ts`.
+Measured 2026-09-22 against production, 400-day window: 2,797 operator
+messages scanned, 108 matched (3.86%). The first draft scored ~44% precision
+on the tier labelled "near-certain"; reading 19 candidates by hand found two
+defects (pronoun direction, and continuation phrases like "keep going"
+harvested as complaints) and both are now canaried in
+`harvest-repair-signals.test.ts`.
+
+**The reply names what "try again" cannot.** Drafting the first 32 scenarios
+showed the operator's characteristic repair is a bare "try again", which the
+operator-side classifier can only file as generic. Read beside the REPLY it
+repairs, two patterns dominated: Nick declaring a tool unavailable and
+stopping, and the production verifier banner on a fabricated action claim.
+`reclassifyByReply` re-reads a generic repair against the reply's opening —
+and only a generic one; an operator who named the failure is believed over the
+reply. Same corpus, re-run: NO_TOOL 0 → 13, FALSE_COMPLETION 0 → 9, strong
+tier 2 → 24. Twenty-two real failures the operator's words never carried.
+
+**From repair candidates to scenarios:** `pnpm eval:draft-repairs` reads the
+harvested candidates, fetches the user ask that each rejected reply was
+answering, and writes a MULTI-TURN scenario draft per candidate —
+`[user: ask, assistant: the rejected reply, user: the repair]` — so the judge
+scores whether the NEXT reply recovers. Drafts land in the gitignored
+`eval-datasets/repair-scenario-drafts/`, each validated against
+`scenarioSchema` before it is written, with per-class judge criteria
+(`CRITERIA_BY_CLASS`) as a starting point. Promotion is a hand copy into
+`tests/eval/scenarios/` after curation: the description must say what THIS
+case really tests, and verbatim operator content is reviewed before it is
+committed.
 
 **Growing the set from real traces:** `pnpm harvest:persona` scans
 recent `reply_judgment` rows (judge-eval scores the three persona axes
