@@ -32,6 +32,8 @@
  * same question is the point; if they disagree, that disagreement is a finding.
  */
 
+import { isTransferAttempt } from "./warmTransferConnect";
+
 /** VAPI's documented transfer statuses, plus the honest catch-all. */
 export const TRANSFER_STATUSES = [
   "connected",
@@ -107,6 +109,30 @@ const asString = (v: unknown): string | null =>
  * Total: any input yields a result, never a throw. This runs inside a webhook
  * whose 200 must not depend on the shape of an optional field.
  */
+/**
+ * Whether a call's transfer artifact is worth persisting at all.
+ *
+ * Yes when there is a per-attempt record, or when the ended reason proves a
+ * transfer was ATTEMPTED — a forwarded call with no transfers array is the
+ * coverage signal (verdict unknown; artifactPresent settles whether the
+ * provider sent anything). No for a call that never tried to hand off: it has
+ * no transfer outcome, and a stored "unknown" reads to the next person like a
+ * transfer whose result was lost.
+ *
+ * 2026-09-22: the webhook's test used to be `artifactPresent || transfers.length`,
+ * and artifactPresent is true whenever Vapi sends a transfers ARRAY — which it
+ * does, empty, on calls that never transferred — so 20 of 31 calls after the
+ * 2026-09-21 plan change carried verdict "unknown" for a transfer that never
+ * happened. No reader treated unknown as failed, so it
+ * was cosmetic; it was also a lie in the row.
+ */
+export function transferArtifactWorthPersisting(
+  read: TransferArtifactRead,
+  endedReason: string | null | undefined,
+): boolean {
+  return read.transfers.length > 0 || isTransferAttempt(endedReason);
+}
+
 export function readTransferArtifact(artifact: unknown): TransferArtifactRead {
   const empty: TransferArtifactRead = {
     transfers: [],

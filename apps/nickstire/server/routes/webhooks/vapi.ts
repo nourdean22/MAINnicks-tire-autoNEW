@@ -613,12 +613,16 @@ async function processCallEndReport(
         // write failing must not take the other down, and neither may affect
         // the webhook's 200.
         try {
-          const { readTransferArtifact } = await import("../../lib/transferArtifact");
+          const { readTransferArtifact, transferArtifactWorthPersisting } = await import("../../lib/transferArtifact");
           const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
-          // Write only when there is something to say. A call that never
-          // attempted a transfer should not carry an "unknown" verdict that a
-          // later reader could mistake for a failed handoff.
-          if (read.artifactPresent || read.transfers.length) {
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason)) {
             const { sql } = await import("drizzle-orm");
             await d.execute(sql`
               UPDATE vapi_call_logs

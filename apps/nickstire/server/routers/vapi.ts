@@ -22,6 +22,7 @@ import { TRPCError } from "@trpc/server";
 import { createLogger } from "../lib/logger";
 import { RECOVERY_FETCH_OUTCOMES } from "@shared/callTaxonomy";
 import { computeConnectRate } from "../lib/transferArtifact";
+import { isTransferAttempt } from "../lib/warmTransferConnect";
 import { compareTransferInstruments } from "../lib/transferInstrumentAgreement";
 import { computeTransferOutcomeEvidence } from "../lib/transferOutcomeEvidence";
 import {
@@ -715,7 +716,7 @@ export const vapiRouter = router({
           // the coverage signal and hand back a confident rate over whatever
           // happened to be classifiable — the precise failure being replaced.
           verdicts: (rows as QueueSourceRow[])
-            .filter((r) => /forward|transfer/i.test(r.endedReason ?? ""))
+            .filter((r) => isTransferAttempt(r.endedReason))
             .map((r) => {
               const parsed =
                 typeof r.metadata === "string" ? safeJsonObject(r.metadata) : r.metadata;
@@ -747,7 +748,7 @@ export const vapiRouter = router({
         transferAgreement: compareTransferInstruments(
           computeConnectRate({
             verdicts: (rows as QueueSourceRow[])
-              .filter((r) => /forward|transfer/i.test(r.endedReason ?? ""))
+              .filter((r) => isTransferAttempt(r.endedReason))
               .map((r) => {
                 const parsed =
                   typeof r.metadata === "string" ? safeJsonObject(r.metadata) : r.metadata;

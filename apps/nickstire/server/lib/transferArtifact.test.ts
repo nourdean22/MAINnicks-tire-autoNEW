@@ -13,8 +13,11 @@ import {
   MIN_CONNECT_SAMPLE,
   computeConnectRate,
   readTransferArtifact,
+  transferArtifactWorthPersisting,
   type TransferVerdict,
 } from "./transferArtifact";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const artifact = (transfers: unknown) => ({ transcript: "AI: hi", transfers });
 
@@ -157,5 +160,39 @@ describe("the defect this replaces", () => {
     const rate = computeConnectRate({ verdicts: [rangOutToVoicemail.verdict] });
     expect(rate.connected).toBe(0);
     expect(rate.connectRate).toBeNull();
+  });
+});
+
+describe("transferArtifactWorthPersisting · a verdict only for a call that ATTEMPTED a transfer", () => {
+  it("the 20-of-31 case: a transcript-only artifact on a call that never tried to hand off → NOT persisted", () => {
+    // Vapi sends a transfers array - EMPTY - on a call that never transferred,
+    // and an empty array still counts as artifactPresent. That is exactly what
+    // the 20 rows carried, and exactly what the old test keyed on.
+    const read = readTransferArtifact(artifact([]));
+    expect(read.artifactPresent).toBe(true);
+    expect(read.verdict).toBe("unknown");
+    expect(transferArtifactWorthPersisting(read, "customer-ended-call")).toBe(false);
+  });
+
+  it("the coverage signal survives: a forwarded call with NO transfers array is persisted as unknown", () => {
+    expect(transferArtifactWorthPersisting(readTransferArtifact({ transcript: "AI: transferring" }), "assistant-forwarded-call")).toBe(true);
+    expect(transferArtifactWorthPersisting(readTransferArtifact(undefined), "assistant-forwarded-call")).toBe(true);
+    expect(transferArtifactWorthPersisting(readTransferArtifact(artifact([])), "call.in-progress.error-transfer-failed")).toBe(true);
+  });
+
+  it("a per-attempt record is persisted whatever the ended reason says", () => {
+    const read = readTransferArtifact(artifact([{ status: "connected", destination: "+12165550100" }]));
+    expect(read.verdict).toBe("connected");
+    expect(transferArtifactWorthPersisting(read, "customer-ended-call")).toBe(true);
+    expect(transferArtifactWorthPersisting(read, null)).toBe(true);
+  });
+
+  it("the webhook CALLS it with the call's ended reason, and no longer keys on artifactPresent", () => {
+    // Consumer pin on comment-stripped source: a decision nobody calls is no decision.
+    const src = readFileSync(resolve(__dirname, "../routes/webhooks/vapi.ts"), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    expect(src).toContain("transferArtifactWorthPersisting(read, cleanEndedReason)");
+    expect(src).not.toContain("read.artifactPresent ||");
   });
 });
