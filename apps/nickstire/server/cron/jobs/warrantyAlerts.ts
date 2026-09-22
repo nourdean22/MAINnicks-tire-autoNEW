@@ -12,12 +12,12 @@ const log = createLogger("cron:warranty");
 export async function processWarrantyAlerts(): Promise<{ recordsProcessed: number; details?: string }> {
   try {
     const { isEnabled } = await import("../../services/featureFlags");
-    if (!(await isEnabled("predictive_maintenance_alerts"))) return { recordsProcessed: 0 };
+    if (!(await isEnabled("predictive_maintenance_alerts"))) return { recordsProcessed: 0, details: "flag predictive_maintenance_alerts off" };
 
     const { getDb } = await import("../../db");
     const { warranties, customers } = await import("../../../drizzle/schema");
     const db = await getDb();
-    if (!db) return { recordsProcessed: 0 };
+    if (!db) return { recordsProcessed: 0, details: "No DB" };
 
     // Find warranties expiring in 12-16 days that haven't been alerted yet
     // Use ET timezone since shop is in Cleveland
@@ -44,7 +44,7 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
 
     if (expiring.length === 0) {
       log.info("[cron:warranty] no warranties due in next 12-16d");
-      return { recordsProcessed: 0 };
+      return { recordsProcessed: 0, details: "no warranties expiring in the 12-16 day window" };
     }
 
     // wave-165: batch the customer lookup. Previously did 1 DB query per

@@ -110,6 +110,7 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
   `_bak_alg_estimates_voice_release_<date>` and set attempted_at/outcome NULL for leads whose D30 text
   is within 60 days (`--max-age-days` widens it; the call script says "5-6 weeks ago"). After that the
   lane dials 5 per day. WHY it is yours: it re-arms real customer calls.
+  Dry run 2026-09-22 19:20Z: 15 releasable within 60 days, 95 older (D30 sent 05-19..07-23) left as-is.
 - `photo_assess_enabled` is OFF in prod: the MMS→vision→auto-reply path is wired and dark. READY:
   `/api/admin/photo-assess` with `skipSmsSend=true` on sample photos gives model-quality evidence
   without a customer send. ACTION: flip the flag after that evidence. REPLICATE_API_KEY is absent in

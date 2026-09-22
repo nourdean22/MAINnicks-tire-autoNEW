@@ -5,15 +5,17 @@
 import { createLogger } from "../../lib/logger";
 const log = createLogger("cron:reminders");
 
-export async function processAppointmentReminders24h(): Promise<{ recordsProcessed: number }> {
+export async function processAppointmentReminders24h(): Promise<{ recordsProcessed: number; details?: string }> {
   try {
     const { isEnabled } = await import("../../services/featureFlags");
     if (!(await isEnabled("sms_appointment_reminders"))) {
-      return { recordsProcessed: 0 }; // Flag disabled — skip silently
+      // Say why. A bare zero here read the same as "nothing was due" in
+      // cron_log — 439 rows in 30 days with details <null> (2026-09-22).
+      return { recordsProcessed: 0, details: "flag sms_appointment_reminders off" };
     }
     const { processScheduledSms } = await import("../../services/sms-scheduler");
     const result = await processScheduledSms();
-    return { recordsProcessed: result.sent + result.failed };
+    return { recordsProcessed: result.sent + result.failed, details: `${result.sent} sent · ${result.failed} failed` };
   } catch (err) {
     // forensic-audit MEDIUM · re-throw so runTier logs status='failed' and the
     // cron-failure observer alerts. Swallowing + returning recordsProcessed:0
@@ -24,7 +26,7 @@ export async function processAppointmentReminders24h(): Promise<{ recordsProcess
   }
 }
 
-export async function processAppointmentReminders2h(): Promise<{ recordsProcessed: number }> {
+export async function processAppointmentReminders2h(): Promise<{ recordsProcessed: number; details?: string }> {
   // Same processor handles both — the sms-scheduler checks scheduledFor dates
   return processAppointmentReminders24h();
 }

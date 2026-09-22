@@ -2153,7 +2153,7 @@
       "blockers": [
         {
           "severity": "P1",
-          "description": "110 burned leads. READY: scripts/maintenance/release-voice-recovery-claims.mjs - dry run by default; --execute copies the rows into _bak_alg_estimates_voice_release_<date> (two-statement TiDB form, count-verified) and then sets voice_recovery_attempted_at and voice_recovery_outcome to NULL for leads whose D30 text is within --max-age-days (default 60, because the call script says the quote was 5-6 weeks ago; older leads are listed and left as they are). ACTION for the operator: run the dry run, then --execute if the shop wants those customers called; the lane then dials them at 5 per day."
+          "description": "110 burned leads. READY: scripts/maintenance/release-voice-recovery-claims.mjs - dry run by default; --execute copies the rows into _bak_alg_estimates_voice_release_<date> (two-statement TiDB form, count-verified) and then sets voice_recovery_attempted_at and voice_recovery_outcome to NULL for leads whose D30 text is within --max-age-days (default 60, because the call script says the quote was 5-6 weeks ago; older leads are listed and left as they are). ACTION for the operator: run the dry run, then --execute if the shop wants those customers called; the lane then dials them at 5 per day. Dry run 2026-09-22 19:20Z: 110 never-rang rows; 15 releasable within 60 days; 95 older (D30 text sent 2026-05-19..07-23) left as-is by default."
         },
         {
           "severity": "P2",
@@ -2225,6 +2225,60 @@
       "codeState": "merged",
       "operationalState": "unverified",
       "exposure": "disabled"
+    },
+    {
+      "capabilityId": "mms-photo-assess",
+      "name": "A customer texts a photo of a tire or brake and gets a factual reply about what is visible",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Wave AZ. server/services/photo-assess-pipeline.ts orchestrates vision-analyzer.ts (Replicate Qwen2-VL with an HF fallback), reply drafting, sendSms with the shop's compliance discipline, and persistence. WIRED to production ingress: routes/webhooks/twilio.ts routes any NumMedia >= 1 message to runPhotoAssess fire-and-forget, the Capevace gateway webhook does the same, and /api/admin/photo-assess is the manual route with skipSmsSend for model-quality testing. Reply templates separate what a photo can show from what it cannot (repairability, tread, stock, timing) and never assert those. Output is damage PROSE - description, serviceSuggest, urgency - with NO structured tire-size field.",
+        "tests": "Not re-verified in this session; existing suites for the pipeline and the reply guard (photoReplyViolations) are on main. Recorded here so the row exists; the states below are the honest ones for what was OBSERVED, not what was tested.",
+        "liveRuns": "NONE observed. Read-only census 2026-09-22: feature flag photo_assess_enabled is OFF in production (feature_flags table; isEnabled fails closed), so every inbound MMS has reached the pipeline and been refused at the gate. Keys, checked as booleans only: REPLICATE_API_KEY NOT set, HF_API_KEY set - so an enablement would run the HF fallback (PHOTO_ASSESS_PROVIDER / PHOTO_ASSESS_HF_MODEL), not the primary Replicate path. 43 inbound texts in the prior 30 days; how many carried media was not measured.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "DARK BY FLAG. photo_assess_enabled is OFF. Turning it on is a customer-facing send (auto-reply to a texted photo) and is operator-gated. READY: the flag's own description names the evidence path - /api/admin/photo-assess with skipSmsSend=true on sample photos - which produces model-quality evidence with no customer contact. ACTION for the operator: run that on a few real tire photos, read the replies, then flip the flag."
+        },
+        {
+          "severity": "P2",
+          "description": "The primary provider key is absent in production (REPLICATE_API_KEY not set) while the fallback key is present (HF_API_KEY). An enablement would therefore exercise the fallback model, whose reply quality has not been observed. Either set the primary key first or test the fallback explicitly before flipping."
+        },
+        {
+          "severity": "P3",
+          "description": "No tire-size slot. The pipeline describes damage; it does not extract a structured size candidate, validate its syntax, or ask the customer to confirm it. Tire-size-from-photo is an IDEA, not built - and a photo model must not be asked to rule on repairability or safety, which the reply templates already refuse to do."
+        }
+      ],
+      "deferredScope": [
+        "Structured tire-size capture from a sidewall photo (quality gate -> sidewall detection -> OCR -> syntax-validated candidate -> customer confirmation). Only worth building once the prose pipeline is observed working on real photos, and only as a candidate the customer confirms, never as a fact."
+      ],
+      "lastVerifiedAt": "2026-09-22",
+      "codeState": "merged",
+      "operationalState": "unverified",
+      "exposure": "disabled"
+    },
+    {
+      "capabilityId": "abandoned-form-recovery",
+      "name": "A customer who typed a name or phone into a form and left gets one recovery text 30-120 minutes later",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "server/services/abandonedForms.ts: savePartialForm (write-through Map plus an upsert into abandoned_forms) is fed by POST /api/track-abandoned (routes/analyticsRoutes.ts); processAbandonedForms runs in the abandoned-forms tier job every 30 minutes, selects partials with a phone aged 30-120 minutes (MIN_AGE_MS / MAX_AGE_MS) that were not attempted, and sends through orchestrateSms type abandoned_form_recovery; rows expire after 24 hours. The ONLY client that sends the beacon is the tire-order modal (client/src/components/order/TireOrderModal.tsx, on blur with a name or phone). The booking form's beacon was deleted with the form in 52fc2699b (2026-05-19, \"kill booking lie\"); the server handler still formats a /book (step N) pageUrl for a sender that no longer exists.",
+        "tests": "Not re-verified in this session; the existing suites for isEligibleForRecovery and the beacon handler are on main. Recorded so the row exists; the states are the honest ones for what was OBSERVED.",
+        "liveRuns": "NONE observed. Read-only census 2026-09-22: abandoned_forms holds 0 rows (rows expire after 24h, so this says nothing before 09-21); the Railway deploy log for 2026-09-18..09-21 contains no \"Partial form captured\" line, i.e. no beacon landed in three days; cron_log shows 439 abandoned-forms runs in 30 days, every one completed with 0 records and no details. The lane has run idle since its feeder went; whether it ever sent a text before 2026-05-19 was not measured.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Starved by design, not broken: the booking form that fed this lane was deleted on purpose (the shop is first-come-first-served; there is no booking to abandon). The tire-order modal is the sole remaining feeder and produced no beacon in the three days of logs read. Decide whether the lane earns its 48 runs a day: retire the tier job (a deletion, non-customer-facing) or accept an idle lane that would text a tire-order abandoner if one ever appeared. Operator's call; recorded, not changed."
+        }
+      ],
+      "deferredScope": [],
+      "lastVerifiedAt": "2026-09-22",
+      "codeState": "merged",
+      "operationalState": "unverified",
+      "exposure": "internal"
     }
   ],
   "axes": {
