@@ -422,3 +422,44 @@ describe("detectActionClaims - 'pinned to <surface>' is a UI noun, not a memory 
     }
   });
 });
+
+/**
+ * 2026-09-22 · Codex follow-ups on #2513 and #2522 (review threads on merged PRs).
+ * Each block: the production-shaped false negative or false positive the review
+ * named, plus the positive control that must keep firing.
+ */
+describe("negation hedges are scoped to their clause, not the sentence (Codex on #2513)", () => {
+  it("a negated clause does not hide a positive completion claim after a contrast conjunction", () => {
+    const r = detectActionClaims("I haven't synced the calendar, but I completed both tasks.");
+    expect(r.claims.some((c) => c.expectedTool.includes("completeTask"))).toBe(true);
+    expect(r.hedged).toBe(true); // the sentence still reports its hedge for telemetry
+  });
+  it("the same clause order reversed also keeps the claim", () => {
+    const r = detectActionClaims("I completed both tasks, but I haven't synced the calendar yet.");
+    expect(r.claims.some((c) => c.expectedTool.includes("completeTask"))).toBe(true);
+    expect(r.claims.some((c) => c.expectedTool.includes("syncCalendar"))).toBe(false);
+  });
+  it("POSITIVE CONTROL: a purely negated sentence is still quiet", () => {
+    expect(detectActionClaims("I haven't synced the calendar.").claims).toHaveLength(0);
+    expect(detectActionClaims("Nothing was pulled from Gmail, and no tasks were closed.").claims).toHaveLength(0);
+  });
+  it("POSITIVE CONTROL: a hedge in one sentence still does not leak into the next", () => {
+    const r = detectActionClaims("I'll send the recap later. Completed the task.");
+    expect(r.claims.some((c) => c.expectedTool.includes("completeTask"))).toBe(true);
+  });
+});
+
+describe("`pinned to the top of the brain` is a memory-write claim, not a UI surface (Codex on #2522)", () => {
+  const pinned = EDGE_CLAIM_PATTERNS.find((p) => p.verb === "pinned")!.regex;
+  it("fires on a brain or memory qualifier after `top`", () => {
+    expect(pinned.test("Pinned to the top of the brain.")).toBe(true);
+    expect(pinned.test("Pinned to the top of long-term memory.")).toBe(true);
+    expect(pinned.test("Pinned to the top of your memory so it surfaces first.")).toBe(true);
+  });
+  it("POSITIVE CONTROL: a UI top stays quiet", () => {
+    expect(pinned.test("Pinned to the top of your profile.")).toBe(false);
+    expect(pinned.test("Pinned to the top of the feed.")).toBe(false);
+    expect(pinned.test("Pinned to the top.")).toBe(false);
+    expect(pinned.test("The pinned tab stays open.")).toBe(false);
+  });
+});

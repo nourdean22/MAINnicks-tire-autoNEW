@@ -82,7 +82,10 @@ export const EDGE_CLAIM_PATTERNS: ClaimEntry[] = [
   // the one residual the audit left. A pin INTO the brain still fires.
   {
     regex:
-      /(?<!\bnot\s)\bpinned\b(?!\s+to\s+(?:the\s+|your\s+|my\s+|a\s+)?(?:shop|profile|page|top|board|channel|feed|story|stories|highlights?|tab|posts?|comments?|tweet)\b)(?=\s*(?:[.!?,;:)\]—–-]|$)|\s+(?:it|that|this|them|those|these|to|so|in|into|for|and|now|as|under)\b)/i,
+      // 2026-09-22 (review on #2522) · `top` is a UI surface EXCEPT "the top of
+      // the brain / of long-term memory / of your memory" - that is the brain
+      // pin itself, phrased through the top.
+      /(?<!\bnot\s)\bpinned\b(?!\s+to\s+(?:the\s+|your\s+|my\s+|a\s+)?(?:shop|profile|page|top(?!\s+of\s+(?:the\s+|your\s+|my\s+)?(?:brain|memor|long-term))|board|channel|feed|story|stories|highlights?|tab|posts?|comments?|tweet)\b)(?=\s*(?:[.!?,;:)\]—–-]|$)|\s+(?:it|that|this|them|those|these|to|so|in|into|for|and|now|as|under)\b)/i,
     verb: "pinned",
     mapsToTool: "pinMemory",
   },
@@ -161,12 +164,33 @@ function splitSentences(text: string): string[] {
     .filter(Boolean);
 }
 
-/** True if a single sentence contains a hedge phrase. */
+/** True if a single sentence (or clause) contains a hedge phrase. */
 function sentenceIsHedged(sentence: string): boolean {
   return HEDGE_PATTERNS.some((re) => {
     re.lastIndex = 0;
     return re.test(sentence);
   });
+}
+
+/**
+ * 2026-09-22 (review on #2513) · a hedge is scoped to its CLAUSE. "I haven't
+ * synced the calendar, but I completed both tasks" hedges the first clause
+ * only; dropping the whole sentence let the completion claim walk past the
+ * verifier. Clauses split at a contrast conjunction after a comma or
+ * semicolon; the live text is the non-hedged clauses joined back together,
+ * so the claim regexes (whose `^` arm sees the sentence start) run on what
+ * the model actually asserted.
+ */
+const CLAUSE_SPLIT = /(?:,|;)\s+(?:but|yet|however|though|although|whereas)\s+/i;
+
+function liveClauses(sentence: string): { live: string; hedged: boolean } {
+  const clauses = sentence.split(CLAUSE_SPLIT).map((c) => c.trim()).filter(Boolean);
+  if (clauses.length <= 1) {
+    const h = sentenceIsHedged(sentence);
+    return { live: h ? "" : sentence, hedged: h };
+  }
+  const flags = clauses.map(sentenceIsHedged);
+  return { live: clauses.filter((_, i) => !flags[i]).join(" "), hedged: flags.some(Boolean) };
 }
 
 /**
@@ -193,8 +217,9 @@ export function detectActionClaims(text: string): ActionClaimReport {
   // residual editorial prose. Single strip point covers every caller.
   const cleaned = stripCitations(text);
   const sentences = splitSentences(cleaned);
-  const hedgedFlags = sentences.map(sentenceIsHedged);
-  const liveSentences = sentences.filter((_, i) => !hedgedFlags[i]);
+  const scoped = sentences.map(liveClauses);
+  const hedgedFlags = scoped.map((s) => s.hedged);
+  const liveSentences = scoped.map((s) => s.live).filter(Boolean);
 
   const claims: ActionClaim[] = [];
   for (const { regex, verb, mapsToTool } of ACTION_VERB_PATTERNS) {
