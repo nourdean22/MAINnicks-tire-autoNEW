@@ -325,8 +325,23 @@ export type CronJobStats = {
  * this rule, and the copies drifted — the healer and the health page could
  * disagree about whether the same run had failed.
  */
+/**
+ * 2026-09-22 · POSITIVE LIST. The negative form (`!== success && !== partial`)
+ * admitted every status invented after it was written: from 2026-09-17 the
+ * lifecycle's `started` ("invoked, outcome unknown") counted as a hard failure
+ * in system-health, system-pages and the brain-insights trend - an in-flight
+ * run reported as a dead one, and 49 duplicate `started` rows of runs that
+ * SUCCEEDED (mega-fanout's parallel steps each fire onRunStart) read as 49
+ * failures. Prod census the same day, all time: success 10,522 · started 49 ·
+ * partial 15 · failed 8 - nothing else exists, so naming the failures misses
+ * no real one. Mirror image of TERMINAL_OK_STATUSES in
+ * lib/inngest/cron-lifecycle.ts: a new token is neither ok nor failed until a
+ * human says which. `interrupted` (an age-settled dead run) IS a failure.
+ */
+export const HARD_FAILURE_STATUSES: readonly string[] = ["failed", "interrupted"];
+
 export function isHardFailure(status: string): boolean {
-  return status !== "success" && status !== "partial";
+  return HARD_FAILURE_STATUSES.includes(status);
 }
 
 /** Map a raw CronJobLog.status onto that tri-state. Never collapse. */
