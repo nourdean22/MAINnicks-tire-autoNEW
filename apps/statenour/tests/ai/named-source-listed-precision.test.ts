@@ -150,9 +150,10 @@ describe("isResourceTitle - rejects the model's OWN label shapes (2026-09-22 sha
     ["alternatives with a plus", "Rent + police pressure"],
     ["a comparison", "Espresso > drip"],
     ["a versus pair", "Edge vs Brooklyn Bridge sunrise"],
-    ["an imperative step", "Drive to Bay Ridge, BK"],
+    ["an imperative step", "Drive to the ferry, then walk the bridge"],
     ["a negated imperative step", "NOT park on Victory Blvd itself"],
     ["an -ing step", "Driving from the hotel to the ferry"],
+    ["a label with an empty value, whatever its length", "Driving from the hotel to the ferry:"],
     ["a re- imperative", "Re-queue the deep research task"],
     ["a lowercase parenthetical gloss", "Great-aunt (retired)"],
     ["a price assertion", "Helicopter tour runs about $150 to $500+"],
@@ -179,6 +180,13 @@ describe("isResourceTitle - rejects the model's OWN label shapes (2026-09-22 sha
     ["a three-word name ending in a common noun", "Governors Island ferry"],
     ["a domain", "Ahrefs.com"],
     ["a three-word title opening with a verb", "Back to Black"],
+    // Review on #2517: recall the first draft of rules 6, 7 and 9 would have lost.
+    ["a title with an unspaced slash", "Face/Off"],
+    ["a title-case run after a preposition", "Back to the Future"],
+    ["a five-word title-case run", "Murder on the Orient Express"],
+    ["a show named like a duration", "60 Minutes"],
+    // The price of keeping the two above: an itinerary leg in title case stays.
+    ["a title-case place phrase", "Drive to Bay Ridge, BK"],
   ];
   for (const [shape, text] of keeps) {
     it(`keeps ${shape}`, () => {

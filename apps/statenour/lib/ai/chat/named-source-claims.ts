@@ -273,23 +273,34 @@ export function isResourceTitle(raw: string): boolean {
   // ── 2026-09-22 · the model's own label shapes (see the second read above) ──
   // 6 · alternatives and comparisons are options, not one findable thing
   //     ("Low-effort / solo recharge", "Rent + police pressure", "Espresso > drip").
-  if (/\/|\s\+\s|\s>\s|\svs\.?\s/i.test(t)) return false;
+  //     SPACED delimiters only: "Face/Off" is a title (review on #2517).
+  if (/\s\/\s|\s\+\s|\s>\s|\svs\.?\s/i.test(t)) return false;
+  // 6b · a label with an EMPTY value is a field header whatever its length
+  //      ("Driving from the hotel to the ferry:"); rule 4 only sees short left sides.
+  if (/:\s*$/.test(t)) return false;
   const words = t.split(/\s+/).filter(Boolean);
-  // 7 · an imperative step: verb + preposition/object opener, four or more words
-  //     ("Drive to Bay Ridge, BK", "NOT park on Victory Blvd itself", "Re-queue the
-  //     deep research task"). Question openers are titles ("How to read body
-  //     language …"); three-word titles that open with a verb ("Back to Black") stay.
+  const CONNECTOR = /^(?:the|a|an|of|to|on|in|at|for|with|from|and|or|by|it)$/;
+  // 7 · an imperative step: verb + preposition/object opener, four or more words,
+  //     AND a lowercase content word somewhere after it ("NOT park on Victory Blvd
+  //     itself", "Re-queue the deep research task", "Sit on the north side"). A
+  //     title-case run after the preposition is a title — "Back to the Future",
+  //     "Murder on the Orient Express" (review on #2517) — and so is a question
+  //     opener ("How to read body language …"). The price: "Drive to Bay Ridge,
+  //     BK", an itinerary leg in title case, stays a candidate.
   if (
     words.length >= 4 &&
     !/^(?:How|What|Why|When|Where|Who|Which)\b/.test(t) &&
-    /^(?:NOT\s+)?[A-Za-z][\w'-]*\s+(?:to|on|from|at|in|into|for|with|up|down|off|out|it|yourself|the)\b/.test(t)
+    /^(?:NOT\s+)?[A-Za-z][\w'-]*\s+(?:to|on|from|at|in|into|for|with|up|down|off|out|it|yourself|the)\b/.test(t) &&
+    words.slice(1).some((w) => /^[a-z]/.test(w) && !CONNECTOR.test(w.replace(/[,.;:!?]+$/, "")))
   ) {
     return false;
   }
   // 8 · a lowercase parenthetical is a gloss ("Great-aunt (deceased)"), not a title.
   if (/\([a-z]/.test(t)) return false;
-  // 9 · a price or a duration is an assertion ("runs about $150 to $500+", "20-35 min south").
-  if (/\$\s?\d/.test(t) || /\d+\s*(?:-\s*\d+\s*)?(?:min|mins|minutes|hrs?|hours)\b/i.test(t)) return false;
+  // 9 · a price, or a duration RANGE, is an assertion ("runs about $150 to $500+",
+  //     "20-35 min south"). A bare number + unit can be a name ("60 Minutes" —
+  //     review on #2517), so only a range is rejected.
+  if (/\$\s?\d/.test(t) || /\d+\s*[-–]\s*\d+\s*(?:min|mins|minutes|hrs?|hours)\b/i.test(t)) return false;
   // 10 · modal and prose verbs ("Mom will want something just for you", "… itself").
   if (/\b(?:will|would|should|want|wants|likely|need|needs|itself|yourself)\b/.test(t)) return false;
   const caps = words.filter((w) => /^[A-Z]/.test(w)).length;
