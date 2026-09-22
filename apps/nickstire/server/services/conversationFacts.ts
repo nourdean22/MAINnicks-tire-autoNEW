@@ -20,7 +20,7 @@
  * will happily extract from it — which is why `transcriptQuality` travels with the result and
  * why a low-level capture downgrades every confidence rather than being ignored.
  */
-import { invokeLLM } from "../_core/llm";
+import { invokeLLM, type JsonSchema } from "../_core/llm";
 
 /** One timed segment as `transcribeAudio()` returns them. */
 export type TranscriptSegment = {
@@ -109,6 +109,13 @@ const LOW_LEVEL_DB = -55;
  */
 const MIN_TRANSCRIPT_COVERAGE = 0.65;
 
+/** Models wrap JSON in ```json fences often enough that not handling it is a self-inflicted
+ *  extraction failure. Returns the body unchanged when there is no fence. */
+function stripFence(text: string): string {
+  const m = text.trim().match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  return m ? m[1] : text;
+}
+
 const SYSTEM = `You extract structured facts from a transcript of a conversation at an auto
 repair shop's service counter.
 
@@ -131,7 +138,15 @@ price discussed), PROMISE (a commitment about time or outcome), APPROVAL (custom
 DECLINE (customer said no), FOLLOW_UP (something to do later), VEHICLE_DETAIL (make, model,
 year, mileage, tire size).`;
 
-const OUTPUT_SCHEMA = {
+/**
+ * The gateway takes `{ name, schema }`, NOT a bare JSON Schema. Typed as JsonSchema on purpose:
+ * the first version passed the inner object with an `as never` cast, the compiler said nothing,
+ * and every live call threw at the provider while the mocked tests stayed green.
+ */
+const OUTPUT_SCHEMA: JsonSchema = {
+  name: "conversation_facts",
+  strict: false,
+  schema: {
   type: "object",
   properties: {
     facts: {
@@ -150,7 +165,8 @@ const OUTPUT_SCHEMA = {
     summary: { type: "string" },
   },
   required: ["facts"],
-} as const;
+  },
+};
 
 /**
  * Extract facts from a transcript.
@@ -197,13 +213,18 @@ export async function extractConversationFacts(
         { role: "system", content: SYSTEM },
         { role: "user", content: `Transcript segments:\n\n${numbered}` },
       ],
-      outputSchema: OUTPUT_SCHEMA as never,
+      outputSchema: OUTPUT_SCHEMA,
       temperature: 0,
       timeoutMs: opts.timeoutMs ?? 60_000,
     });
-    engine = (res as { model?: string }).model ?? null;
-    const text = (res as { text?: string }).text ?? "";
-    raw = typeof text === "string" && text.trim() ? JSON.parse(text) : null;
+    engine = res.model ?? null;
+    // `choices[0].message.content` is where InvokeResult carries the text. There is NO `res.text`
+    // -- reading one returned undefined on every real call, and the hand-written mock in the
+    // test file invented that field, so the suite certified the misunderstanding.
+    const content = res.choices?.[0]?.message?.content;
+    const text = typeof content === "string" ? content : "";
+    if (!text.trim()) throw new Error("LLM returned no content for fact extraction");
+    raw = JSON.parse(stripFence(text));
   } catch (err) {
     // A failed extraction must NOT read as "no facts found". That is the empty-vs-error
     // confusion this whole file is arranged against.
