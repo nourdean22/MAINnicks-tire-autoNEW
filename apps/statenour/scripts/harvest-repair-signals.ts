@@ -329,16 +329,33 @@ function originalOfBannered(replyText: string): string {
  * fabrication from a false alarm and does not promote. The retracted pair
  * keeps its generic class and gains a label so the summary counts it.
  */
+/**
+ * The tool names a persisted turn actually fired, from either projection the
+ * chat writes into tokenUsage: `receipt.toolsFired[].toolName` (the verdict
+ * blob) and `toolReceipts[].toolName` (the replay projection). A replay that
+ * assumes zero tools would re-flag a claim whose tool DID fire (review on
+ * #2523), so the replay is handed exactly what the detector saw at the time.
+ */
+export function toolsFiredOf(tokenUsage: unknown): string[] {
+  const tu = (tokenUsage ?? {}) as { receipt?: { toolsFired?: Array<{ toolName?: unknown }> }; toolReceipts?: Array<{ toolName?: unknown }> };
+  const names = [
+    ...(tu.receipt?.toolsFired ?? []).map((t) => t?.toolName),
+    ...(tu.toolReceipts ?? []).map((t) => t?.toolName),
+  ].filter((n): n is string => typeof n === "string" && n.length > 0);
+  return [...new Set(names)];
+}
+
 export function reclassifyByReply(
   hit: RepairMatch,
   replyText: string | null,
-  stillFlagged?: (original: string) => boolean,
+  stillFlagged?: (original: string, toolsFired: string[]) => boolean,
+  toolsFired: string[] = [],
 ): RepairMatch {
   if (!replyText) return hit;
   const generic = hit.failureClass === "GENERIC" || hit.failureClass === "UNDER_RESEARCH";
   if (!generic) return hit;
   if (VERIFIER_BANNER.test(replyText)) {
-    if (!stillFlagged || !stillFlagged(originalOfBannered(replyText))) {
+    if (!stillFlagged || !stillFlagged(originalOfBannered(replyText), toolsFired)) {
       return { ...hit, label: `${hit.label}·verifier-banner-retracted` };
     }
     return { tier: "strong", failureClass: "FALSE_COMPLETION", label: "verifier-banner-then-retry" };
@@ -593,10 +610,11 @@ async function main() {
   // Loaded here, not at module scope: static imports hoist above the
   // server-only stub installed at the top of this file.
   const { prisma } = await import("@/lib/prisma");
-  // Today's detector, replayed on the original text with no tool calls (the
-  // banner turns that matter never fired one). A banner alone does not promote.
+  // Today's detector, replayed on the original text WITH the tools that turn
+  // fired (from its persisted tokenUsage). A banner alone does not promote.
   const { detectActionClaimsWithoutTools } = await import("@/lib/ai/chat/action-claim-detector");
-  const stillFlagged = (original: string) => detectActionClaimsWithoutTools(original, []).length > 0;
+  const stillFlagged = (original: string, toolsFired: string[]) =>
+    detectActionClaimsWithoutTools(original, toolsFired.map((name) => ({ name }))).length > 0;
   let bannersRetracted = 0;
 
   const since = new Date(Date.now() - windowDays * 86_400_000);
@@ -608,6 +626,7 @@ async function main() {
     content: string;
     model: string | null;
     createdAt: Date;
+    tokenUsage: unknown;
   }> = [];
 
   try {
@@ -620,6 +639,7 @@ async function main() {
         content: true,
         model: true,
         createdAt: true,
+        tokenUsage: true,
       },
       orderBy: [{ conversationId: "asc" }, { createdAt: "asc" }],
     });
@@ -661,7 +681,7 @@ async function main() {
     if (!paired) unpairable += 1;
 
     // The reply can name a failure the operator's "try again" does not.
-    const hit = reclassifyByReply(operatorHit, paired?.content ?? null, stillFlagged);
+    const hit = reclassifyByReply(operatorHit, paired?.content ?? null, stillFlagged, toolsFiredOf(paired?.tokenUsage));
     if (hit.label.endsWith("verifier-banner-retracted")) bannersRetracted += 1;
     matchedByTier[hit.tier] += 1;
     matchedByClass[hit.failureClass] = (matchedByClass[hit.failureClass] ?? 0) + 1;

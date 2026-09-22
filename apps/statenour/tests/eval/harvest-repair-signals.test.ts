@@ -24,6 +24,7 @@ import {
   isShortReply,
   isPlausibleRepairLength,
   reclassifyByReply,
+  toolsFiredOf,
   resolveOutPath,
   REPAIR_CLASSES,
   REPAIR_PATTERNS,
@@ -245,6 +246,28 @@ describe("reclassifyByReply · the reply names what 'try again' cannot", () => {
     });
     // the replay sees the ORIGINAL response, never the banner text
     expect(seen).toEqual(["\n\nDone. Both tasks created. Your Monday plate is set."]);
+  });
+
+  it("the replay is handed the tools the turn actually fired, so a claim whose tool ran is not re-flagged", () => {
+    const calls: Array<[string, string[]]> = [];
+    const stillFlagged = (original: string, toolsFired: string[]) => {
+      calls.push([original, toolsFired]);
+      return toolsFired.length === 0; // a detector that clears claims whose tool fired
+    };
+    expect(reclassifyByReply(generic, bannered, stillFlagged, ["createTask"])).toEqual({
+      ...generic,
+      label: "go-deeper·verifier-banner-retracted",
+    });
+    expect(calls).toEqual([["\n\nDone. Both tasks created. Your Monday plate is set.", ["createTask"]]]);
+    // and with no tools the same detector promotes
+    expect(reclassifyByReply(generic, bannered, stillFlagged, []).failureClass).toBe("FALSE_COMPLETION");
+  });
+
+  it("toolsFiredOf reads both persisted projections and dedupes; nothing persisted → no tools", () => {
+    expect(toolsFiredOf({ receipt: { toolsFired: [{ toolName: "createTask" }, { toolName: "pinMemory" }] }, toolReceipts: [{ toolName: "createTask" }] })).toEqual(["createTask", "pinMemory"]);
+    expect(toolsFiredOf({ toolReceipts: [{ toolName: "searchMemories" }] })).toEqual(["searchMemories"]);
+    expect(toolsFiredOf({ gate: "x", traceId: "t" })).toEqual([]);
+    expect(toolsFiredOf(null)).toEqual([]);
   });
 
   it("a banner the current detector RETRACTS keeps the repair generic and labels it", () => {
