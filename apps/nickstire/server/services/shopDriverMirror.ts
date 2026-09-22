@@ -10,6 +10,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { isDuplicateKeyError } from "../lib/dbErrors";
 import { eq, and, inArray, sql } from "drizzle-orm";
 
 const log = createLogger("shopdriver-mirror");
@@ -829,8 +830,7 @@ async function upsertCustomers(rawCustomers: RawCustomer[]): Promise<{ created: 
           await d.insert(customers).values(row);
           created++;
         } catch (insertErr) {
-          const msg = insertErr instanceof Error ? insertErr.message : String(insertErr);
-          if (/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+          if (isDuplicateKeyError(insertErr)) {
             await d.update(customers).set({
               firstName: row.firstName,
               lastName: row.lastName,
@@ -1037,8 +1037,7 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         });
         created++;
       } catch (insertErr) {
-        const msg = insertErr instanceof Error ? insertErr.message : String(insertErr);
-        if (/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+        if (isDuplicateKeyError(insertErr)) {
           // Race lost — apply the same updates the existing-row branch
           // would have applied. Match by invoiceNumber (the unique key).
           await d.update(invoices).set({
