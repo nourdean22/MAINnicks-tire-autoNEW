@@ -39,8 +39,11 @@ function noveltyCall(src: string): string {
 const CREATED_ID_IN_ARGS = /recordRecommendationNoveltyShadow\(\s*\{[^}]*\bcreatedAssistantId\b[^}]*\}/;
 const REAL_LOADER = /loadPriors:\s*loadPriorRecommendations\b/;
 const STRICT_WRITER = /recordMetric:\s*recordMetricStrict\b/;
+// 2026-09-22 · the inline findFirst moved into lib/services/metrics.ts
+// metricRecordedForTrace (shared with the Done shadow); the reader's where
+// clause is unit-tested there, this pins that THIS site calls it with THIS metric.
 const DEDUPE_READ =
-  /alreadyRecorded:\s*async\s*\(\s*(\w+)\s*\)\s*=>\s*\{[\s\S]*?prisma\.systemMetric\.findFirst\(\{[\s\S]*?metric:\s*RECOMMENDATION_NOVELTY_METRIC\b[\s\S]*?path:\s*\["traceId"\],\s*equals:\s*\1\b/;
+  /alreadyRecorded:\s*\(\s*(\w+)\s*\)\s*=>\s*metricRecordedForTrace\(\s*RECOMMENDATION_NOVELTY_METRIC\s*,\s*\1\s*\)/;
 
 describe("novelty shadow · live wiring in deferred-background-work.ts", () => {
   const call = noveltyCall(wiring);
@@ -58,8 +61,12 @@ describe("novelty shadow · live wiring in deferred-background-work.ts", () => {
 
   it("P2 · the dedupe reader queries system_metrics by the novelty metric and the trace id", () => {
     expect(call).toMatch(DEDUPE_READ);
-    // canary: a reader that forgets the metric filter would match any trace's row
-    const broken = call.replace(/metric:\s*RECOMMENDATION_NOVELTY_METRIC,?/, "");
+    // canary: a reader keyed on the other shadow's metric would never find this
+    // shadow's earlier row, and the replay would write again
+    const broken = call.replace(
+      /metricRecordedForTrace\(\s*RECOMMENDATION_NOVELTY_METRIC/,
+      "metricRecordedForTrace(ACTION_DONE_SHADOW_METRIC",
+    );
     expect(broken).not.toMatch(DEDUPE_READ);
   });
 
