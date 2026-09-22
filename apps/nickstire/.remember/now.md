@@ -38,7 +38,7 @@ claim and THROWS (runner records status failed with the reason; no further lead 
 `details` carries the last error. The customer-kind message masks digits (it lands in cron_log).
 Tests: `services/vapi.outboundOverride.test.ts` (6) pins the fetch body, `cron/jobs/voiceRecovery.dialFailure.test.ts`
 (6) pins the decision per kind; 4 mutations run, each caught (3/1/3/1 red), positive controls green.
-Ledger row `voice-recovery-outbound-dial` (deployed @ internal; promotion condition in the row).
+Ledger row `voice-recovery-outbound-dial` (unit_verified @ internal - the validator refuses deployed with a P1 or without a deploymentId; promotion condition in the row).
 
 **ACTIVE.** Push the branch, open the PR with `--base main`, land it when no sibling node/e2e is in
 flight. Then observe: the next `voice-recovery` run is ~14:50Z daily (10-17 ET window) and with 0

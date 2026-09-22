@@ -2147,7 +2147,7 @@
       "evidence": {
         "codeCommit": "server/cron/jobs/voiceRecovery.ts (tier cron, daily, 10-17 ET; FEATURE_VOICE_RECOVERY=1 in prod) selects declined ALG estimates with followUp30dSent and no matched invoice, claims each at-most-once, and dials through placeVapiOutboundCall with a recovery prompt override. Fixed 2026-09-22: the override is a COMPLETE model block (followUpModelBlock, the same helper that defines the follow-up assistant); placeVapiOutboundCall reports errorKind config / customer / provider / network; a dial that never reached the customer releases the claim and aborts the run so cron_log records status failed with the reason; a missing or retired assistant pin skips before any claim is taken.",
         "tests": "server/services/vapi.outboundOverride.test.ts 6 tests - the request body that reaches fetch carries provider + model + the override as system message and is otherwise identical to the assistant's own block; no model block is sent without an override; errorKind per failure exit. server/cron/jobs/voiceRecovery.dialFailure.test.ts 6 tests - provider / config / network / unknown failures release the claim and reject with no second dial; the customer kind marks the lead failed and continues; the reason lands in details; a missing pin skips before a claim; positive control first. voiceRecovery.suppression.test.ts 6 still green. 18 passed exit 0, tsc exit 0.",
-        "liveRuns": "NONE successful, ever. 110 of 110 dials from 2026-06-18 to 2026-09-20 returned 400 assistantOverrides.model.provider must be one of the following values (Railway deploy log f9ab5753, 2026-09-19 14:50Z, estimates 1620001 and 1620002); every run logged completed with placed=0 failed=N (cron_log 09-17 failed=3, 09-19 failed=2, 09-20 failed=1); all 110 leads carry outcome failed with no call id. 0 leads eligible on 2026-09-22 because every candidate had already been burned. Prod env checked as booleans: VAPI_API_KEY set, VAPI_FOLLOWUP_ASSISTANT_ID set, VAPI_PHONE_NUMBER_ID unset (auto-lookup), FEATURE_VOICE_RECOVERY=1.",
+        "liveRuns": "NONE successful, ever. 110 of 110 dials from 2026-06-18 to 2026-09-20 returned 400 assistantOverrides.model.provider must be one of the following values (Railway deploy log f9ab5753, 2026-09-19 14:50Z, estimates 1620001 and 1620002); every run logged completed with placed=0 failed=N (cron_log 09-17 failed=3, 09-19 failed=2, 09-20 failed=1); all 110 leads carry outcome failed with no call id. 0 leads eligible on 2026-09-22 because every candidate had already been burned. Prod env checked as booleans: VAPI_API_KEY set, VAPI_FOLLOWUP_ASSISTANT_ID set, VAPI_PHONE_NUMBER_ID unset (auto-lookup), FEATURE_VOICE_RECOVERY=1. STATE: unit_verified, not deployed - the validator holds deployed for rows with a deploymentId, an expiry and no P1; this row carries a P1 (the burned leads) and no observed run since the fix.",
         "deploymentId": null
       },
       "blockers": [
@@ -2169,7 +2169,7 @@
       ],
       "lastVerifiedAt": "2026-09-22",
       "codeState": "merged",
-      "operationalState": "deployed",
+      "operationalState": "unit_verified",
       "exposure": "internal"
     }
   ],
