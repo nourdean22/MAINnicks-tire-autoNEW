@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // model is good or bad, and that is the property worth pinning.
 vi.mock("../_core/llm", () => ({ invokeLLM: vi.fn() }));
 
-import { invokeLLM } from "../_core/llm";
+import { invokeLLM, type InvokeResult } from "../_core/llm";
 import { extractConversationFacts, type TranscriptSegment } from "./conversationFacts";
 
 // The thresholds are NOT imported. They are module-private, and a test that reads the constant
@@ -19,10 +19,23 @@ const SEGMENTS: TranscriptSegment[] = [
   { index: 2, start: 9, end: 14, text: "It's a 205/55R16, should take about thirty minutes." },
 ];
 
+/**
+ * Replies in the REAL InvokeResult shape: the content lives at
+ * `choices[0].message.content`. The first version of this helper invented a `text` field,
+ * which does not exist on InvokeResult -- so the extractor read `res.text`, got undefined on
+ * every live call, and the suite stayed green while production threw. A hand-written mock
+ * encodes the author's misunderstanding and then certifies it; this one is typed against the
+ * real result so a drift in that shape is a compile error here.
+ */
+const reply = (content: string): InvokeResult => ({
+  id: "test", created: 0, model: "test-model",
+  choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+});
+
 const replyWith = (payload: unknown) =>
-  (invokeLLM as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-    text: JSON.stringify(payload), model: "test-model",
-  });
+  (invokeLLM as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+    reply(JSON.stringify(payload)),
+  );
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -52,6 +65,53 @@ describe("conversation facts — provenance is mandatory", () => {
     replyWith({ facts: [{ kind: "QUOTE", value: "$35", evidenceSegment: 1.7 as unknown as number, confidence: 0.9 }] });
     const r = await extractConversationFacts(SEGMENTS);
     expect(r.facts).toHaveLength(0);
+  });
+});
+
+describe("conversation facts — the gateway CONTRACT, pinned after production threw", () => {
+  it("sends the schema in the { name, schema } envelope the gateway requires", async () => {
+    // The first version passed the bare JSON Schema with an `as never` cast. The compiler was
+    // silenced, the mock did not care, and every LIVE call threw at the provider -- found only
+    // by posting a real episode to production.
+    replyWith({ facts: [] });
+    await extractConversationFacts(SEGMENTS);
+    const arg = (invokeLLM as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(arg.outputSchema).toMatchObject({ name: expect.any(String) });
+    expect(arg.outputSchema.schema).toMatchObject({ type: "object" });
+    // The inner schema must NOT be flattened onto the envelope -- that is the original bug.
+    expect(arg.outputSchema).not.toHaveProperty("properties");
+  });
+
+  it("reads the content from choices[0].message.content", async () => {
+    // Pins WHERE the text is read from. A reader pointed at a nonexistent field yields zero
+    // facts forever while every mocked test passes.
+    replyWith({ facts: [{ kind: "QUOTE", value: "$35", evidenceSegment: 1, confidence: 0.95 }] });
+    const r = await extractConversationFacts(SEGMENTS);
+    expect(r.ok).toBe(true);
+    expect(r.facts).toHaveLength(1);
+  });
+
+  it("parses a FENCED json reply instead of failing on it", async () => {
+    // Models wrap JSON in ```json fences even when handed a schema. Not handling that is a
+    // self-inflicted extraction failure that looks exactly like a provider outage.
+    const fenced = [
+      "```json",
+      JSON.stringify({ facts: [{ kind: "QUOTE", value: "$35", evidenceSegment: 1, confidence: 0.95 }] }),
+      "```",
+    ].join(String.fromCharCode(10));
+    (invokeLLM as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(reply(fenced));
+    const r = await extractConversationFacts(SEGMENTS);
+    expect(r.facts).toHaveLength(1);
+  });
+
+  it("EMPTY content is ok:false, not a clean run with no facts", async () => {
+    // A provider that returns nothing has failed. Rendering that as "nobody said anything
+    // actionable" is the empty-vs-error confusion, arriving through the provider instead of
+    // through an exception.
+    (invokeLLM as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(reply("   "));
+    const r = await extractConversationFacts(SEGMENTS);
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain("no content");
   });
 });
 

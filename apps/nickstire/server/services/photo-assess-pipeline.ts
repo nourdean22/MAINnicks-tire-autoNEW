@@ -18,7 +18,7 @@
  */
 
 import { createLogger } from "../lib/logger";
-import { analyzePhoto } from "./vision-analyzer";
+import { analyzePhoto, type VisionProvider } from "./vision-analyzer";
 import { sendSms } from "../sms";
 
 const log = createLogger("photo-assess-pipeline");
@@ -45,7 +45,7 @@ export interface PhotoAssessOutcome {
   smsError?: string;
   visionLatencyMs?: number;
   /** Always populated if vision ran · for audit trail */
-  visionSource?: "replicate" | "hf";
+  visionSource?: VisionProvider;
   error?: string;
 }
 
