@@ -1893,7 +1893,7 @@
         },
         {
           "severity": "P3",
-          "description": "Since the experimental plan went live, 20 of 31 calls carry verdict unknown with transfers: [] because the webhook writes the artifact whenever artifactPresent is true, even when no transfer was attempted - contradicting its own comment that a call which never attempted a transfer should not carry an unknown verdict. No reader treats unknown as failed (only not_connected counts, then the ended-reason predicate), so this is cosmetic today; it becomes a defect the day a reader counts artifacts as attempts. Tighten the write condition to transfers.length > 0, or record artifactPresent separately from a verdict."
+          "description": "RESOLVED 2026-09-22, kept at P3 rather than deleted. Since the experimental plan went live, 20 of 31 calls carried verdict unknown with transfers: [] because the webhook wrote the artifact whenever artifactPresent was true - i.e. for every call with a transcript - contradicting its own comment. The webhook now persists only when transferArtifactWorthPersisting(read, endedReason) says so: a per-attempt record, or an ended reason that proves a transfer was ATTEMPTED (isTransferAttempt, the same predicate the connect-rate reader filters on, so writer and reader score one population). Calls that never tried to hand off carry no verdict. The 20 historical rows keep their unknown verdict - no backfill; no reader ever treated unknown as failed."
         },
         {
           "severity": "P2",
