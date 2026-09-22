@@ -19,7 +19,7 @@
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
 import { acquireCronLock, releaseCronLock, jobTimeoutMs } from "./index";
-import { shouldFireOnStartup } from "./tierStartup";
+import { claimStartupPass, describeStartup, readLastRunAgeMs, startupAllowanceMs, type StartupClaim } from "./tierStartup";
 
 const log = createLogger("scheduler");
 
@@ -2861,28 +2861,35 @@ export function startTieredScheduler(): void {
     // feedback-cycle, safety-check, the statenour syncs). The rule in
     // tierStartup.ts is the daily guard generalised: fire when the last run
     // is at least one interval old (daily keeps its 20 h allowance), or when
-    // the tier has never run. The age is computed in SQL: a driver-parsed
-    // TIMESTAMP on this stack arrives shifted by the server's zone, which is
-    // how the old guard could read a 22-hour-old run as 18 hours old.
+    // the tier has never run. The pass is CLAIMED by one conditional UPDATE
+    // on cron_tier_skip_state — a row can be changed once, so of two replicas
+    // booting together exactly one fires (review P1) — the age is computed in
+    // SQL because a driver-parsed TIMESTAMP arrives zone-shifted, and no
+    // claim means no fire. tierStartup.ts carries the full rationale and the
+    // P2 residual: a pass killed mid-way keeps its start stamp (measured
+    // 3–4 s per hourly pass, so about 0.06 % of a thirteen-deploy day).
     const stagger = idx * 30_000;
 
     setTimeout(async () => {
+      const allowanceMs = startupAllowanceMs(tier.name, tier.intervalMs);
       let lastRunAgeMs: number | null = null;
+      let claim: StartupClaim | null = null;
+      let claimError: string | null = null;
       try {
         const { getDb } = await import("../db");
-        const { sql } = await import("drizzle-orm");
         const d = await getDb();
         if (d) {
-          const [rows] = await d.execute(sql`SELECT TIMESTAMPDIFF(SECOND, last_run_at, NOW()) AS ageSec FROM cron_tier_skip_state WHERE tier_name = ${tier.name}`);
-          const ageSec = (rows as Array<{ ageSec: number | string | null }>)[0]?.ageSec;
-          lastRunAgeMs = ageSec == null ? null : Number(ageSec) * 1000;
+          try {
+            lastRunAgeMs = await readLastRunAgeMs(d, tier.name);
+          } catch {
+            // informational only — the claim below is the decision
+          }
+          claim = await claimStartupPass(d, tier.name, allowanceMs);
         }
       } catch (e) {
-        log.warn(`${tier.name} tier boot guard query failed — treating as never run`, {
-          error: e instanceof Error ? e.message : String(e),
-        });
+        claimError = e instanceof Error ? e.message : String(e);
       }
-      const decision = shouldFireOnStartup({ tierName: tier.name, intervalMs: tier.intervalMs, lastRunAgeMs });
+      const decision = describeStartup({ tierName: tier.name, allowanceMs, claim, lastRunAgeMs, claimError });
       log.info(`${tier.name} tier startup: ${decision.fire ? "FIRING" : "skipping"} — ${decision.reason}`);
       if (!decision.fire) return;
       runTier(tier).catch(err => log.error(`Tier ${tier.name} startup failed:`, { error: err instanceof Error ? err.message : String(err) }));
