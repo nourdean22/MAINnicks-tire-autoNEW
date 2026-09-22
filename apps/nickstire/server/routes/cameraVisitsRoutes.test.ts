@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore } from "./cameraVisitsRoutes";
+import { COLUMNS, GUARDED_SET, LEARNED_ONCE, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore } from "./cameraVisitsRoutes";
 
 describe("camera visit ingest — plate durability", () => {
   it("stores plate text ONLY when the read is CONFIRMED", () => {
@@ -378,5 +378,24 @@ describe("camera visit ingest — episode trail (migration 0127)", () => {
       expect(hb.data.stitchedTotal).toBe(0);
       expect(hb.data.stitchRefusedAmbiguous).toBe(7);
     }
+  });
+});
+
+describe("camera visit ingest — the episode trail cannot be erased", () => {
+  // A later payload that OMITS these must not blank them. Two ordinary paths omit them:
+  // a rollback to a pre-stitcher producer, and a terminal emission whose timing lookup
+  // happens after the track mapping is gone. Losing the trail while KEEPING the corrected
+  // `arrivedAt` is the worst outcome — the adjusted time survives, its explanation does not.
+  it("preserves the episode trail when a later payload omits it", () => {
+    for (const col of ["episodeId", "continuesVisitId", "memberTrackIds"]) {
+      expect(LEARNED_ONCE, `${col} can be NULLed by a later payload`).toContain(col);
+    }
+  });
+
+  it("the preservation set is not vacuous — a volatile column is NOT in it", () => {
+    // Positive control: if LEARNED_ONCE accidentally contained everything, the test above
+    // would pass while proving nothing. `state` and `seq` MUST stay overwritable.
+    expect(LEARNED_ONCE).not.toContain("state");
+    expect(LEARNED_ONCE).not.toContain("seq");
   });
 });

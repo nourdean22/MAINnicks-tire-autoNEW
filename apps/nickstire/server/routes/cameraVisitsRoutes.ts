@@ -163,9 +163,16 @@ export const COLUMNS = [
  * timestamp leaves the known one alone. These values are only ever LEARNED -- a car does
  * not un-arrive -- so there is no legitimate write that needs to clear them.
  */
-const LEARNED_ONCE = new Set<string>([
+export const LEARNED_ONCE = new Set<string>([
   "arrivedAt", "waitStartedAt", "bayEnteredAt", "bayExitedAt", "departedAt",
   "bay", "entryEvidence", "evidenceRef",
+  // 0127 episode trail. Without COALESCE preservation, ANY later higher-seq payload that
+  // omits these writes SQL NULL over a recorded trail -- and two ordinary paths omit them:
+  // a rollback to a producer that predates the stitcher, and the standalone sink's terminal
+  // emission, which looks up timing AFTER `_track_visit` has been popped. Erasing the audit
+  // trail for a corrected `arrivedAt` is worse than never having written it, because the
+  // corrected time survives while the explanation for it disappears.
+  "episodeId", "continuesVisitId", "memberTrackIds",
 ]);
 
 /**
