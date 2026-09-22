@@ -1422,18 +1422,6 @@ export async function getVapiStatus(): Promise<{
  */
 function buildFollowUpAssistantConfig(serverUrl?: string): VapiAssistantConfig {
   // Subset of tools the follow-up assistant needs
-  const followUpTools = VAPI_TOOLS.filter((t) => {
-    const tool = t as unknown as Record<string, unknown>;
-    // wave-140 · NO transferCall on the OUTBOUND follow-up — it's a trust
-    // call WE placed; forwarding it to the shop mid-call makes no sense and
-    // the prompt never used it. Complaints / "have Nick call me" go to the
-    // callback queue via escalate (re-added to VAPI_TOOLS this wave, so the
-    // follow-up prompt's escalate() calls — dead since 181.35 — work again).
-    const fn = tool.function as Record<string, unknown> | undefined;
-    const name = fn?.name as string | undefined;
-    return name === "escalate" || name === "sendConfirmationSms";
-  });
-
   return {
     name: "Nick's Tire Follow-Up Caller",
     firstMessage: FOLLOW_UP_FIRST_MESSAGE,
@@ -1459,15 +1447,7 @@ function buildFollowUpAssistantConfig(serverUrl?: string): VapiAssistantConfig {
       optimizeStreamingLatency: 1, // Quality over latency (was 3)
       enableSsmlParsing: true,
     },
-    model: {
-      provider: "openai",
-      model: "gpt-4o",
-      messages: [{ role: "system", content: FOLLOW_UP_SYSTEM_PROMPT }],
-      tools: followUpTools,
-      temperature: 0.5, // Slightly higher = more natural phrasing variance
-      maxTokens: 200,
-      emotionRecognitionEnabled: true,
-    },
+    model: followUpModelBlock(),
     serverUrl,
     // wave-181.60-followup (audit · 2026-05-18 PM) · the inbound
     // assistant was fixed in wave-181.50 to set BOTH `serverUrl` (legacy)
@@ -1763,29 +1743,80 @@ export interface VapiPlaceCallParams {
   voicemailMessage?: string;
 }
 
+/**
+ * The follow-up caller's tool set — escalate + sendConfirmationSms, and
+ * deliberately NO transferCall: it is a trust call WE placed, so forwarding
+ * it to the shop mid-call makes no sense and the prompt never used it
+ * (wave-140). Complaints / "have Nick call me" go to the callback queue via
+ * escalate.
+ */
+function followUpToolSet(): VapiToolDef[] {
+  return VAPI_TOOLS.filter((t) => {
+    const tool = t as unknown as Record<string, unknown>;
+    const fn = tool.function as Record<string, unknown> | undefined;
+    const name = fn?.name as string | undefined;
+    return name === "escalate" || name === "sendConfirmationSms";
+  });
+}
+
+/**
+ * The follow-up caller's LLM block, in ONE place: the assistant definition
+ * and every call-time prompt override are built from it, so an override can
+ * never be a PARTIAL model again.
+ *
+ * WHY THAT MATTERS. `assistantOverrides.model` is a oneOf over Vapi's model
+ * DTOs (OpenAIModel, AnthropicModel, …), each of which REQUIRES `provider`
+ * and `model`. `{ messages }` alone is rejected before the call exists:
+ *   400 "assistantOverrides.model.provider must be one of the following
+ *        values: openai, azure-openai, together-ai, anyscale, openrouter, …"
+ * That is what every voice-recovery dial received from 2026-06-18 to
+ * 2026-09-22 — 110 of 110, read from the Railway deploy log — while the cron
+ * recorded each run as completed. Mirroring the assistant's own block also
+ * makes the outcome independent of how Vapi merges overrides: the tools,
+ * temperature and token cap are exactly what the follow-up caller runs with.
+ */
+export function followUpModelBlock(systemPrompt: string = FOLLOW_UP_SYSTEM_PROMPT): VapiAssistantConfig["model"] {
+  return {
+    provider: "openai",
+    model: "gpt-4o",
+    messages: [{ role: "system", content: systemPrompt }],
+    tools: followUpToolSet(),
+    temperature: 0.5, // Slightly higher = more natural phrasing variance
+    maxTokens: 200,
+    emotionRecognitionEnabled: true,
+  };
+}
+
 export interface VapiPlaceCallResult {
   success: boolean;
   callId?: string;
   error?: string;
+  /**
+   * Why it failed, for a caller that must decide between "this lead" and
+   * "this run": `customer` is our own precondition on the number (skip the
+   * lead); `config` / `provider` / `network` never reached a customer-
+   * specific decision, so the same fault will hit the next lead too.
+   */
+  errorKind?: "config" | "customer" | "provider" | "network";
 }
 
 export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promise<VapiPlaceCallResult> {
   if (!process.env.VAPI_API_KEY) {
-    return { success: false, error: "VAPI_API_KEY not configured" };
+    return { success: false, error: "VAPI_API_KEY not configured", errorKind: "config" };
   }
   const phoneNumberId = await resolveVapiPhoneNumberId();
   if (!phoneNumberId) {
-    return { success: false, error: "No VAPI outbound number — set VAPI_PHONE_NUMBER_ID or register +12164249249 in VAPI" };
+    return { success: false, error: "No VAPI outbound number — set VAPI_PHONE_NUMBER_ID or register +12164249249 in VAPI", errorKind: "config" };
   }
   // Env-direct lookup · the pickFollowUpAssistantId() helper requires
   // the full assistants array which we don't fetch at call time · just
   // read the pinned env var (operator sets VAPI_FOLLOWUP_ASSISTANT_ID).
   const assistantId = process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
   if (!assistantId) {
-    return { success: false, error: "VAPI_FOLLOWUP_ASSISTANT_ID env not set" };
+    return { success: false, error: "VAPI_FOLLOWUP_ASSISTANT_ID env not set", errorKind: "config" };
   }
   if (!/^\+\d{10,15}$/.test(params.customerNumber)) {
-    return { success: false, error: `Invalid customerNumber: ${params.customerNumber}` };
+    return { success: false, error: `Invalid customerNumber: ${params.customerNumber}`, errorKind: "customer" };
   }
 
   try {
@@ -1798,7 +1829,8 @@ export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promis
     };
     if (params.firstMessageOverride !== undefined) assistantOverrides.firstMessage = params.firstMessageOverride;
     if (params.systemPromptOverride !== undefined) {
-      assistantOverrides.model = { messages: [{ role: "system", content: params.systemPromptOverride }] };
+      // A COMPLETE model block, never a partial one — see followUpModelBlock.
+      assistantOverrides.model = followUpModelBlock(params.systemPromptOverride);
     }
     if (params.variableValues) assistantOverrides.variableValues = params.variableValues;
 
@@ -1828,13 +1860,13 @@ export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promis
     });
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      return { success: false, error: `VAPI /call returned ${res.status}: ${errText.slice(0, 150)}` };
+      return { success: false, error: `VAPI /call returned ${res.status}: ${errText.slice(0, 150)}`, errorKind: "provider" };
     }
     const data = (await res.json()) as { id?: string };
-    if (!data.id) return { success: false, error: "VAPI response missing call id" };
+    if (!data.id) return { success: false, error: "VAPI response missing call id", errorKind: "provider" };
     return { success: true, callId: data.id };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return { success: false, error: err instanceof Error ? err.message : String(err), errorKind: "network" };
   }
 }
 

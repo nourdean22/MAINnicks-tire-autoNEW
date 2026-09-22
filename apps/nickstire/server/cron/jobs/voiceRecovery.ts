@@ -19,9 +19,22 @@
  *   - VAPI_PHONE_NUMBER_ID
  *   - VAPI_FOLLOW_UP_ASSISTANT_ID (already set if wave-181.50 done)
  *   - FEATURE_VOICE_RECOVERY=1
+ *   - VAPI_FOLLOWUP_ASSISTANT_ID names a live (not retired) assistant
  *
  * Per-run cap default 5 (stale cold leads · conserve cost). Override via
  * VAPI_RECOVERY_BATCH_SIZE env (max 20).
+ *
+ * FAILURE POLICY (2026-09-22). A dial that fails for a reason that is not
+ * about THIS customer — config, the provider rejecting the request, the
+ * network — never reached the customer, so the claim is RELEASED (the lead
+ * stays eligible) and the run ABORTS by throwing, which the runner records
+ * as status "failed" with the reason. Before this, 110 of 110 dials since
+ * 2026-06-18 had failed on a request Vapi rejected, every one burned its
+ * lead for good, and every run logged "completed · placed=0 failed=N".
+ * The trade: a number Vapi itself refuses would abort the run at that lead
+ * every day, LOUDLY, until someone looks — chosen over silently burning it.
+ * Only our own E.164 precondition ("customer" kind) marks a lead failed and
+ * moves on.
  */
 import { createLogger } from "../../lib/logger";
 import { and, eq, lte, isNull, isNotNull } from "drizzle-orm";
@@ -39,6 +52,14 @@ export async function runVoiceRecovery(): Promise<RunResult> {
   }
   if (process.env.FEATURE_VOICE_RECOVERY !== "1") {
     return { recordsProcessed: 0, details: "Skipped · FEATURE_VOICE_RECOVERY != '1'" };
+  }
+  // Same chokepoint as followupCadence: a pin naming a RETIRED assistant
+  // returns null, so this rail skips instead of claiming leads for dials the
+  // provider will refuse. placeVapiOutboundCall reads the same env, but only
+  // AFTER the claim — the gate has to sit before the loop.
+  const { followUpAssistantIdOrNull } = await import("../../services/vapi");
+  if (!followUpAssistantIdOrNull()) {
+    return { recordsProcessed: 0, details: "Skipped · VAPI_FOLLOWUP_ASSISTANT_ID missing or retired" };
   }
   // wave-145 · resolve the outbound number (env override → else auto-lookup
   // the shop's VAPI line). Was a bare VAPI_PHONE_NUMBER_ID check that skipped
@@ -187,6 +208,7 @@ export async function runVoiceRecovery(): Promise<RunResult> {
   let placed = 0;
   let failed = 0;
   let skipped = 0;
+  let lastError = "";
 
   for (const est of candidates) {
     if (placed >= maxCalls) break;
@@ -243,12 +265,37 @@ export async function runVoiceRecovery(): Promise<RunResult> {
       placed++;
       log.info(`[voice-recovery] placed VAPI call ${call.callId} for est ${est.id} (${dollars})`);
     } else {
-      await d
-        .update(algEstimates)
-        .set({ voiceRecoveryOutcome: "failed" })
-        .where(eq(algEstimates.id, est.id));
-      failed++;
-      log.warn(`[voice-recovery] place failed for est ${est.id}`, { error: call.error });
+      const reason = (call.error ?? "unknown").slice(0, 300);
+      if (call.errorKind === "customer") {
+        // Our own precondition rejected THIS number (not E.164-shapeable).
+        // The lead is unreachable by this lane: record it, move to the next.
+        await d
+          .update(algEstimates)
+          .set({ voiceRecoveryOutcome: "failed" })
+          .where(eq(algEstimates.id, est.id));
+        failed++;
+        lastError = reason;
+        log.warn(`[voice-recovery] place failed for est ${est.id}`, { errorKind: call.errorKind, error: reason });
+      } else {
+        // config / provider / network — see FAILURE POLICY in the header.
+        // The customer was not contacted, so releasing the claim keeps
+        // at-most-once intact; the same fault would hit the next lead, so
+        // stop here and let the runner record the run as FAILED.
+        await d
+          .update(algEstimates)
+          .set({ voiceRecoveryAttemptedAt: null, voiceRecoveryOutcome: null })
+          .where(eq(algEstimates.id, est.id));
+        log.error("[voice-recovery] dial failed before reaching the customer — claim released, run aborted", {
+          estimateId: est.id,
+          errorKind: call.errorKind ?? "unknown",
+          error: reason,
+          placedBeforeAbort: placed,
+          errorId: "VOICE_RECOVERY_DIAL_FAILED",
+        });
+        throw new Error(
+          `voice recovery aborted after ${placed} placed — dial failed (${call.errorKind ?? "unknown"}) for estimate ${est.id}: ${reason}`,
+        );
+      }
     }
 
     await new Promise((r) => setTimeout(r, 1500));
@@ -256,6 +303,6 @@ export async function runVoiceRecovery(): Promise<RunResult> {
 
   return {
     recordsProcessed: placed,
-    details: `placed=${placed} skipped=${skipped} failed=${failed}`,
+    details: `placed=${placed} skipped=${skipped} failed=${failed}${lastError ? ` · last error: ${lastError}` : ""}`,
   };
 }
