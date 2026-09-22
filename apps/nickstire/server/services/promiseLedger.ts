@@ -272,6 +272,44 @@ export async function voicePromiseBacklog(windowDays = 30): Promise<{
   }
 }
 
+/**
+ * The voice-promise line of the promises block. Pure, so the three states it
+ * has to keep apart can be asserted directly instead of through a cron run.
+ *
+ * WHY IT IS A FUNCTION AT ALL. The first version of this rendered a failed
+ * read, an un-applied table and a genuine zero as the same silence. That is the
+ * highest-frequency defect shape in this repo, and it is worse than usual here
+ * for two reasons. First, the whole point of capturing voice promises is that
+ * obligations cannot be forgotten — so a section that vanishes when capture
+ * breaks looks exactly like "no commitments were made". Second, promisesBlock
+ * is not only read by Nick: it is interpolated into the LLM prompt that WRITES
+ * the brief, so the model would read the silence and state the zero in prose.
+ *
+ * A measured zero still renders nothing, matching the operator-promise line
+ * above it — the brief deliberately does not spend attention on empty sections.
+ * What must never be silent is a NON-measurement.
+ */
+export function renderVoicePromiseLine(
+  state:
+    | { kind: "unreadable" }
+    | { kind: "error" }
+    | { kind: "measured"; created: number; open: number; overdue: number },
+): string {
+  if (state.kind === "unreadable") {
+    return "\nFROM CALLS (30d): couldn't read — state unknown, NOT zero."
+      + " Voice-captured commitments may exist and are not shown here.";
+  }
+  if (state.kind === "error") {
+    return "\nFROM CALLS (30d): read FAILED — state unknown, NOT zero.";
+  }
+  if (state.created === 0) return "";
+  return `\nFROM CALLS (30d): ${state.created} callback commitments captured`
+    + `${state.overdue > 0 ? ` · ${state.overdue} OVERDUE, nobody has closed these out` : ""}`
+    + `${state.open > 0 ? ` · ${state.open} open` : ""}`
+    + `\n  (kept isn't auto-detected for these — a counter callback is invisible to the system,`
+    + ` so these are a to-do list, not a scorecard.)`;
+}
+
 export async function createVoicePromise(params: {
   promiseType: PromiseType;
   promisedAction: string;
