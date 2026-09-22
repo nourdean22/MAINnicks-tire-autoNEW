@@ -1,6 +1,6 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-22** (Promise Ledger got its first writer, #2479 MERGED `0da19803f`; arrivals one-invoice-one-claim + the kernel's dead input, **#2488 open**; runbook truth #2490; transfer capability live-verified #2491. Prior header preserved below.)
+**Updated: 2026-09-22 (evening)** (voice-recovery dialed 110 times and connected 0 — a partial model override Vapi rejected, and a claim burned on every failure; fix branch `nickstire/voice-recovery-dial-shape`. Earlier today: #2479 `0da19803f`, #2488 `f921513f2`, #2490, #2491, #2492 `f184a011c`, #2494 `2477935b3` all MERGED. Prior header preserved below.)
 missed-revenue queue was measuring Nick's own greeting. Full audit, graded evidence and the
 pre-"Reset to Shop" checklist: `docs/VOICE-RECOVERY-AUDIT-2026-09-18.md`.)
 
@@ -11,43 +11,77 @@ silent truth failures, consolidate. Operator directive: no roadmaps; DONE-with-e
 BLOCKED-on-a-named-human-action. Autonomous merging allowed; hold a merge while another PR's
 node/e2e is in flight.
 
-**Remote truth at write time.** origin/main `0da19803f` (= #2479 squash). Production deployment
-`5ac7ee28` on that commit (/api/health). Branches: `nickstire/arrivals-one-invoice-one-claim`
-(#2488, 4 commits, head `a23a53ee7`), `docs/warm-transfer-runbook-status` (#2490, 1 commit),
-`nickstire/transfer-connect-truth-live-observed` (#2491, 1 commit). #2489 CLOSED — it had been
-cut from the arrivals branch by mistake (stacked on an open PR); #2490 is the same change rebuilt
-from main. Push from a hook-free clone (`C:/Users/nourd/AppData/Local/Temp/nick-push-clone3`):
+**Remote truth at write time.** origin/main `2477935b3` (= #2494 squash; #2488 `f921513f2`, #2492
+`f184a011c` beneath it). Production deployment `cce34e2f` was on `083082474` when checked; the
+three merges each redeploy. Open branch: `nickstire/voice-recovery-dial-shape` (cut from main, then
+merged main back in). Push from the hook-free clone (`C:/Users/nourd/AppData/Local/Temp/nick-push-clone3`):
 pre-push `build:affected` fails on the worktree's statenour junction, unrelated. Never skip hooks.
 
-**ACTIVE.** Land #2488 / #2490 / #2491 once `node` clears on siblings (#2483 had e2e+node in flight).
-#2491 edits capability-ledger.json mid-array, #2488 appends to it — distinct hunks, expect a clean
-merge; if not, re-render REALITY-LEDGER.md after resolving.
+**THE EVENING'S DEFECT — voice-recovery never connected once.** `alg_estimates`: 110 rows with
+`voice_recovery_outcome='failed'`, 0 with any other outcome, 0 with a call id, 2026-06-18..09-20.
+Railway deploy log `f9ab5753` (2026-09-19 14:50Z): `VAPI /call returned 400: assistantOverrides.model.provider
+must be one of the following values…` — `placeVapiOutboundCall` sent `model: { messages }`, a partial
+block, since wave-143 (2026-05-29); Vapi's `assistantOverrides.model` is a oneOf over full model DTOs
+that require `provider` + `model` (OpenAPI at api.vapi.ai/api-json, `OpenAIModel.required`). The
+cron claimed each lead BEFORE dialing and wrote `failed` after, so all 110 are permanently
+ineligible without a ring, and every run logged `completed · placed=0 failed=N`. Prod env checked
+as booleans: VAPI_API_KEY set, VAPI_FOLLOWUP_ASSISTANT_ID set, VAPI_PHONE_NUMBER_ID unset (auto-lookup
+works), FEATURE_VOICE_RECOVERY=1 (armed), FEATURE_FOLLOWUP_CADENCE=1, FEATURE_CONFIRMATION_CALLS=1.
+The other two lanes share `placeVapiOutboundCall` but never reached a dial ("No completed bookings",
+"No bookings") — `confirmation_calls` has 0 rows ever.
+
+**THE FIX (branch above).** `followUpModelBlock()` builds the follow-up assistant's model block AND
+every prompt override, so an override is always complete and identical to the assistant's own
+block. `placeVapiOutboundCall` returns `errorKind` config/customer/provider/network. The cron
+gates on `followUpAssistantIdOrNull()` before any claim; on a non-customer failure it RELEASES the
+claim and THROWS (runner records status failed with the reason; no further lead claimed that run);
+`details` carries the last error. The customer-kind message masks digits (it lands in cron_log).
+Tests: `services/vapi.outboundOverride.test.ts` (6) pins the fetch body, `cron/jobs/voiceRecovery.dialFailure.test.ts`
+(6) pins the decision per kind; 4 mutations run, each caught (3/1/3/1 red), positive controls green.
+Ledger row `voice-recovery-outbound-dial` (deployed @ internal; promotion condition in the row).
+
+**ACTIVE.** Push the branch, open the PR with `--base main`, land it when no sibling node/e2e is in
+flight. Then observe: the next `voice-recovery` run is ~14:50Z daily (10-17 ET window) and with 0
+eligible leads it will say "No estimates eligible" until the operator releases the burned rows.
 
 **NEXT, dependency-ordered.**
-1. Tire-size recall on REAL speech: the extractor (`shared/callDemandExtraction.ts`) is unit-tested
-   on spoken forms; nobody has measured how often a tire-intent call with a size in the transcript
-   yields `tireSize` null. Persistence key is set by `cron/jobs/vapiCallEval.ts` (extractDemand at
-   :259). Probe, then decide.
-2. SMS arrival capture: 1 row ever vs 45 inbound texts/30d. `smsOrchestrator.ts:814` — check the
-   gate, not the regex.
-3. Observe the one-to-one arrival planner's first production run: `cron_log.job_name='dashboard-sync'`
+1. Observe the one-to-one arrival planner's first production run: `cron_log.job_name='dashboard-sync'`
    (business hours only; columns are snake_case). Details line grows "N same-visit closed" only when
    non-zero. Ledger row `arrival-invoice-reconciliation` stays unit_verified until then.
+2. `weather-intel` runs weekly and returns "No API key" every time (OPENWEATHER_API_KEY unset in prod),
+   and `cron-skip-watchdog` cannot see it: the watchdog only matches `requiresEnv:`/`requiresFlag:` on
+   status `skipped`, and this job completes with 0. Declare `requiresEnv: "OPENWEATHER_API_KEY"` on the
+   tier entry so it skips through the gate the watchdog reads — or the operator sets the key.
+3. `nick-memory` stores "System health: CRON STALE: voice-recovery hasn't c…" every 5 minutes (Railway
+   log, one line per tick since at least 09-18 22:50Z). A dedupe gap in the memory writer.
 4. Duplicate-key helper consolidation onto `server/lib/dbErrors.ts` (proposals.ts,
    shopDriverMirror.ts x2, promiseLedger.ts).
-5. Tighten the transfer-artifact write to `transfers.length > 0` (20 of 31 calls carry verdict
-   `unknown` with an empty array; cosmetic today, filed P3 on `voice-transfer-connect-truth`).
+5. Tighten the transfer-artifact write in `routes/webhooks/vapi.ts` (~:621) to
+   `transfers.length > 0 || /forward|transfer/i.test(endedReason)` so a call that never attempted a
+   transfer stops carrying verdict `unknown` (20 of 31; cosmetic; P3 on `voice-transfer-connect-truth`).
+   The write site has NO test; `vapi.call-end-ack.test.ts` is the harness precedent.
+6. Cron census 2026-09-22 (30d): 46 jobs completed every run with 0 records — every one says WHY in
+   `details` (gated by hour/day, "no candidates", flag off); none is a silent instrument. Five report
+   `<null>` details (sms-scheduler, abandoned-forms, customer-segment-refresh, customer-segmentation,
+   warranty-alerts) — they return nothing, so "did nothing" and "did work, said nothing" read the same.
 
 **BLOCKED_ON_OPERATOR (smallest external action each).**
+- **110 burned recovery leads.** READY: `scripts/maintenance/release-voice-recovery-claims.mjs` —
+  `railway run -s MAINnicks-tire-auto -- node scripts/maintenance/release-voice-recovery-claims.mjs`
+  is a dry run (lists what it would release, writes nothing); add `--execute` to back the rows up into
+  `_bak_alg_estimates_voice_release_<date>` and set attempted_at/outcome NULL for leads whose D30 text
+  is within 60 days (`--max-age-days` widens it; the call script says "5-6 weeks ago"). After that the
+  lane dials 5 per day. WHY it is yours: it re-arms real customer calls.
 - `photo_assess_enabled` is OFF in prod: the MMS→vision→auto-reply path is wired and dark. READY:
   `/api/admin/photo-assess` with `skipSmsSend=true` on sample photos gives model-quality evidence
-  without a customer send. ACTION: flip the flag after that evidence. It emits damage prose, no
-  tire-size slot.
+  without a customer send. ACTION: flip the flag after that evidence. REPLICATE_API_KEY is absent in
+  prod (HF fallback would run). It emits damage prose, no tire-size slot.
 - Warm-transfer fallback firing: the experimental plan is LIVE and connected transfers are observed;
   the no-answer fallback has never executed. ACTION: the runbook canary (call, let it ring out).
 - bookSlot provenance: the prompt fires bookSlot for inquiries, transfers and tows alike, so
   expected_arrivals cannot tell customer-committed from assistant-directed. ACTION: either a
   prompt change (customer-contact policy) or approve a provenance column migration.
+- `OPENWEATHER_API_KEY` unset in prod (weather-intel has never run). Set it, or accept item 2 above.
 
 **Measured this session (read-only, production).**
 - customer_promises had 0 rows before #2479 — DEPLOYED, never used. 0125 UNIQUE applied.

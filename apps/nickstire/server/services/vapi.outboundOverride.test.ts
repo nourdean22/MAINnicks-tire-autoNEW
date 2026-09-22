@@ -10,17 +10,19 @@
  *   400 "assistantOverrides.model.provider must be one of the following
  *        values: openai, azure-openai, together-ai, anyscale, openrouter, …"
  *
- * Read from the Railway deploy log, 2026-09-19 14:50Z. Every voice-recovery
- * dial since 2026-06-18 — 110 of 110 — ended this way, and each one burned
- * its lead; the other half of that defect is pinned in
+ * Read from the Railway deploy log, 2026-09-19 14:50Z. The shape dated from
+ * wave-143 (2026-05-29); every voice-recovery dial since 2026-06-18 — 110 of
+ * 110 — ended this way, and each one burned its lead. That half is pinned in
  * `cron/jobs/voiceRecovery.dialFailure.test.ts`.
  *
- * WHAT THIS PINS — the request BODY that reaches `fetch`, not a re-typed copy
- * of it. With an override, the model block carries provider + model + the
- * override as its system message and is otherwise IDENTICAL to the block the
- * follow-up assistant is defined with (one helper builds both, so the outcome
- * does not depend on how Vapi merges overrides). And the `errorKind` each
- * failure exit reports, which the cron branches on.
+ * WHAT THIS PINS — two request BODIES that reach `fetch`, compared to each
+ * other, never to a re-typed copy: the model block the follow-up assistant is
+ * DEFINED with (the PATCH body of updateFollowUpAssistant) and the model block
+ * a prompt override SENDS (the POST /call body). Prompt aside they must be
+ * identical, which is what makes the dial independent of how Vapi merges
+ * overrides. Plus the `errorKind` each failure exit reports — the cron
+ * branches on it — and that the customer-kind message masks the digits,
+ * because it travels into cron_log.details.
  *
  * POSITIVE CONTROL. Without an override NO model block is sent at all — the
  * cadence lane relies on the assistant's base prompt plus variableValues, and
@@ -30,13 +32,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-type Captured = { url: string; body: Record<string, unknown> } | null;
+type Captured = { url: string; method: string; body: Record<string, unknown> } | null;
 type Overrides = { model?: Record<string, unknown>; variableValues?: Record<string, string> };
 
 describe("placeVapiOutboundCall · assistantOverrides.model", () => {
   let captured: Captured = null;
-  let respond: () => Response = () =>
-    new Response(JSON.stringify({ id: "call_ok" }), { status: 201, headers: { "content-type": "application/json" } });
+  let respond: () => Response = () => new Response(JSON.stringify({ id: "call_ok" }), { status: 201 });
 
   beforeEach(() => {
     vi.resetModules();
@@ -47,7 +48,11 @@ describe("placeVapiOutboundCall · assistantOverrides.model", () => {
     // Short-circuits resolveVapiPhoneNumberId's /phone-number lookup.
     vi.stubEnv("VAPI_PHONE_NUMBER_ID", "pn_canary");
     vi.stubGlobal("fetch", async (url: string | URL, init?: RequestInit) => {
-      captured = { url: String(url), body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown> };
+      captured = {
+        url: String(url),
+        method: String(init?.method ?? "GET"),
+        body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>,
+      };
       return respond();
     });
   });
@@ -58,9 +63,23 @@ describe("placeVapiOutboundCall · assistantOverrides.model", () => {
   });
 
   const overridesOf = (c: Captured): Overrides => (c?.body.assistantOverrides ?? {}) as Overrides;
+  const withoutMessages = (block: Record<string, unknown>) => {
+    const { messages: _m, ...rest } = block;
+    return rest;
+  };
 
-  it("with a prompt override: provider + model are present and the override is the system message", async () => {
-    const { placeVapiOutboundCall, followUpModelBlock } = await import("./vapi");
+  it("with a prompt override: provider + model are present, the override is the system message, and the block is the assistant's own", async () => {
+    const { placeVapiOutboundCall, updateFollowUpAssistant } = await import("./vapi");
+
+    // The block the assistant is DEFINED with — read off the real PATCH body.
+    const patched = await updateFollowUpAssistant("asst_canary");
+    expect(patched).toEqual({ success: true });
+    expect(captured?.url).toBe("https://api.vapi.ai/assistant/asst_canary");
+    expect(captured?.method).toBe("PATCH");
+    const definedModel = captured!.body.model as Record<string, unknown>;
+    expect(definedModel.provider).toBe("openai");
+
+    captured = null;
     const r = await placeVapiOutboundCall({
       customerNumber: "+12165550142",
       systemPromptOverride: "RECOVERY PROMPT",
@@ -69,19 +88,17 @@ describe("placeVapiOutboundCall · assistantOverrides.model", () => {
     });
     expect(r).toEqual({ success: true, callId: "call_ok" });
     expect(captured?.url).toBe("https://api.vapi.ai/call");
+    expect(captured?.method).toBe("POST");
 
-    const model = overridesOf(captured).model as Record<string, unknown>;
+    const sentModel = overridesOf(captured).model as Record<string, unknown>;
     // The two fields Vapi's OpenAIModel schema marks REQUIRED. The pre-fix
     // shape had neither — that absence was the whole 400.
-    expect(model.provider).toBe("openai");
-    expect(model.model).toBe("gpt-4o");
-    expect(model.messages).toEqual([{ role: "system", content: "RECOVERY PROMPT" }]);
-
-    // Prompt aside, byte-for-byte the block the assistant is defined with.
-    const { messages: _sent, ...sentRest } = model;
-    const { messages: _own, ...ownRest } = JSON.parse(JSON.stringify(followUpModelBlock())) as Record<string, unknown>;
-    expect(sentRest).toEqual(ownRest);
-    const toolNames = (model.tools as Array<{ function?: { name?: string } }>).map((t) => t.function?.name).sort();
+    expect(sentModel.provider).toBe("openai");
+    expect(sentModel.model).toBe("gpt-4o");
+    expect(sentModel.messages).toEqual([{ role: "system", content: "RECOVERY PROMPT" }]);
+    // Prompt aside, byte-for-byte what the assistant itself is defined with.
+    expect(withoutMessages(sentModel)).toEqual(withoutMessages(definedModel));
+    const toolNames = (sentModel.tools as Array<{ function?: { name?: string } }>).map((t) => t.function?.name).sort();
     expect(toolNames).toEqual(["escalate", "sendConfirmationSms"]);
   });
 
@@ -116,12 +133,14 @@ describe("placeVapiOutboundCall · assistantOverrides.model", () => {
     expect(r).toEqual({ success: false, error: "ECONNRESET (canary)", errorKind: "network" });
   });
 
-  it("errorKind · customer — a number that is not E.164 never reaches fetch", async () => {
+  it("errorKind · customer — a number that is not E.164 never reaches fetch, and the message carries no digits", async () => {
     const { placeVapiOutboundCall } = await import("./vapi");
     const r = await placeVapiOutboundCall({ customerNumber: "216-555-0142", systemPromptOverride: "x" });
     expect(r.success).toBe(false);
     expect(r.errorKind).toBe("customer");
     expect(captured).toBeNull();
+    // The message travels into cron_log.details: the shape is enough, the digits never leave.
+    expect(r.error).toBe("Invalid customerNumber: not E.164 (shape ###-###-####)");
   });
 
   it("errorKind · config — no follow-up assistant pinned never reaches fetch", async () => {

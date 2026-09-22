@@ -1775,7 +1775,7 @@ function followUpToolSet(): VapiToolDef[] {
  * makes the outcome independent of how Vapi merges overrides: the tools,
  * temperature and token cap are exactly what the follow-up caller runs with.
  */
-export function followUpModelBlock(systemPrompt: string = FOLLOW_UP_SYSTEM_PROMPT): VapiAssistantConfig["model"] {
+function followUpModelBlock(systemPrompt: string = FOLLOW_UP_SYSTEM_PROMPT): VapiAssistantConfig["model"] {
   return {
     provider: "openai",
     model: "gpt-4o",
@@ -1816,7 +1816,9 @@ export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promis
     return { success: false, error: "VAPI_FOLLOWUP_ASSISTANT_ID env not set", errorKind: "config" };
   }
   if (!/^\+\d{10,15}$/.test(params.customerNumber)) {
-    return { success: false, error: `Invalid customerNumber: ${params.customerNumber}`, errorKind: "customer" };
+    // The digits are masked on purpose: this string reaches cron_log.details
+    // through the recovery lane, and a log is not a place for a phone number.
+    return { success: false, error: `Invalid customerNumber: not E.164 (shape ${params.customerNumber.replace(/\d/g, "#")})`, errorKind: "customer" };
   }
 
   try {

@@ -172,12 +172,12 @@ describe("voice recovery · dial failures", () => {
 
   it("our own 'customer' precondition marks the lead failed and CONTINUES — the next lead is still dialed", async () => {
     const rig = arm([LEAD_BAD_NUMBER, LEAD_B]);
-    script = [{ success: false, errorKind: "customer", error: "Invalid customerNumber: +112" }];
+    script = [{ success: false, errorKind: "customer", error: "Invalid customerNumber: not E.164 (shape +##)" }];
     const { runVoiceRecovery } = await import("./voiceRecovery");
     const result = await runVoiceRecovery();
     expect(dialed).toHaveLength(2);
     expect(result.recordsProcessed).toBe(1);
-    expect(result.details).toBe("placed=1 skipped=0 failed=1 · last error: Invalid customerNumber: +112");
+    expect(result.details).toBe("placed=1 skipped=0 failed=1 · last error: Invalid customerNumber: not E.164 (shape +##)");
     expect(rig.updates.filter(isFailed)).toHaveLength(1);
     expect(rig.updates.some(isRelease)).toBe(false);
   }, 10_000);
