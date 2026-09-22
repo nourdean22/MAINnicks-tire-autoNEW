@@ -1,0 +1,133 @@
+/**
+ * Tier startup claim · a tier whose last run is a full interval old fires at boot (2026-09-22)
+ *
+ * WHY THIS EXISTS. Every tier's recurring tick is a `setInterval` that starts
+ * counting at process boot. A tier whose interval is longer than the gap
+ * between deploys therefore never reaches its first tick: on 2026-09-22 the
+ * hourly tier (2 h — voice-recovery, enrich-customer-data, feedback-cycle,
+ * safety-check, the statenour syncs, ten jobs) last ran at 12:29Z and was
+ * still silent at 20:00Z across thirteen deploys, the longest uptime between
+ * them under two hours. The same shape shows on every busy deploy day
+ * (09-18: gaps of 4.2 h and 11.6 h; 09-21: 3.6 h). The 5-minute and 15-minute
+ * tiers were fine, which is why nobody noticed.
+ *
+ * Until now only heartbeat, pulse and daily fired at boot — daily behind a
+ * "last run < 20 h ago" guard, because re-firing it on every restart had
+ * re-sent retention SMS. The rule here is that guard, generalised: a tier
+ * fires at boot when its last run is at least one interval old (daily keeps
+ * its 20 h allowance so restart drift cannot slide it a day), or when it has
+ * never run. The interval timer still owns the cadence after that.
+ *
+ * THE CLAIM IS THE DECISION (review of #2516, P1). The first cut read the age
+ * with a SELECT and then ran the tier. Two replicas booting on a stale row
+ * could both read "due" before either wrote, and the per-job lock only stops
+ * simultaneous execution — the lagging replica re-runs each job as the faster
+ * one releases it. So the boot pass is now claimed by ONE conditional UPDATE
+ * that stamps `last_run_at` only while the row is still older than the
+ * allowance; a row can be changed once, so exactly one process fires. A tier
+ * that has never run has no row, and creating the row (INSERT IGNORE) is that
+ * tier's claim for the same reason. No claim, no fire: when the database
+ * cannot be reached the tier waits for its interval — the daily tier firing
+ * unclaimed is the retention-SMS re-send the original guard exists to prevent.
+ *
+ * WHAT IS NOT DONE, AND WHY (review P2). `resetSkipCount` stamps the tier at
+ * the START of a pass, so a deploy that kills a pass mid-way leaves a fresh
+ * stamp and the next boot skips the jobs that never ran. Measured before
+ * deciding: an hourly pass is 3–4 s end to end (six passes on 2026-09-22), so
+ * at thirteen deploys a day the mid-pass window is about 0.06 % of the day.
+ * Reclaiming a killed pass would re-run the jobs that DID complete, and the
+ * briefings tier's send jobs are deliberately not once-per-shop-day (see
+ * nick-morning-brief) — a reclaim there is a duplicate brief. The stamp stays
+ * at pass start; the residual is stated here rather than hidden.
+ *
+ * Ages are computed in SQL (TIMESTAMPDIFF against NOW()), because a
+ * driver-parsed TIMESTAMP on this stack arrives shifted by the server's zone,
+ * and a 22-hour-old run read as 18 hours old is exactly how the old daily
+ * guard could skip a due run.
+ */
+import { sql, type SQL } from "drizzle-orm";
+
+/** The one database method this module needs — injected so tests drive it without a connection. */
+export interface StartupExecutor {
+  execute(query: SQL): Promise<unknown>;
+}
+
+/** Daily's boot allowance: a 24 h tier that restarted 20 h after its run is due. */
+const DAILY_STARTUP_ALLOWANCE_MS = 20 * 3600_000;
+
+export function startupAllowanceMs(tierName: string, intervalMs: number): number {
+  return tierName === "daily" ? DAILY_STARTUP_ALLOWANCE_MS : intervalMs;
+}
+
+/** mysql2 answers a write with [ResultSetHeader, fields]; drizzle hands that through, some wrappers unwrap it. */
+function affectedRows(result: unknown): number {
+  const head = Array.isArray(result) ? result[0] : result;
+  const n = (head as { affectedRows?: unknown } | null | undefined)?.affectedRows;
+  return typeof n === "number" ? n : Number(n ?? 0) || 0;
+}
+
+export type StartupClaim =
+  | { claimed: true; via: "created" | "stamped" }
+  | { claimed: false; via: "not-due" };
+
+/**
+ * Claim this tier's boot pass. Exactly one process can succeed per allowance
+ * window: the state row is created once, and the stamp UPDATE changes the
+ * row only while `last_run_at` is still at least `allowanceMs` old.
+ */
+export async function claimStartupPass(d: StartupExecutor, tierName: string, allowanceMs: number): Promise<StartupClaim> {
+  const allowanceSec = Math.max(0, Math.floor(allowanceMs / 1000));
+  const created = await d.execute(
+    sql`INSERT IGNORE INTO cron_tier_skip_state (tier_name, consecutive_skips, last_run_at, updated_at) VALUES (${tierName}, 0, NOW(), NOW())`,
+  );
+  if (affectedRows(created) === 1) return { claimed: true, via: "created" };
+  const stamped = await d.execute(sql`
+    UPDATE cron_tier_skip_state
+    SET last_run_at = NOW(), updated_at = NOW()
+    WHERE tier_name = ${tierName}
+      AND (last_run_at IS NULL OR TIMESTAMPDIFF(SECOND, last_run_at, NOW()) >= ${allowanceSec})
+  `);
+  return affectedRows(stamped) === 1 ? { claimed: true, via: "stamped" } : { claimed: false, via: "not-due" };
+}
+
+/** Informational, for the boot log line: age of the tier's last stamped run. `null` = no row. */
+export async function readLastRunAgeMs(d: StartupExecutor, tierName: string): Promise<number | null> {
+  const result = await d.execute(
+    sql`SELECT TIMESTAMPDIFF(SECOND, last_run_at, NOW()) AS ageSec FROM cron_tier_skip_state WHERE tier_name = ${tierName}`,
+  );
+  const rows = Array.isArray(result) && !Array.isArray(result[0]) ? result : (result as unknown[])[0];
+  const first = Array.isArray(rows) ? (rows[0] as { ageSec?: unknown } | undefined) : undefined;
+  const ageSec = first?.ageSec;
+  return ageSec == null ? null : Number(ageSec) * 1000;
+}
+
+export interface StartupContext {
+  tierName: string;
+  allowanceMs: number;
+  /** The claim result, or `null` when the claim could not be attempted at all. */
+  claim: StartupClaim | null;
+  /** Read before the claim, for the message only — the claim decides. */
+  lastRunAgeMs: number | null;
+  claimError?: string | null;
+}
+
+/** Turn a claim into the fire/skip decision and the one log line the operator reads. */
+export function describeStartup(ctx: StartupContext): { fire: boolean; reason: string } {
+  const allowanceMin = Math.round(ctx.allowanceMs / 60000);
+  const age = ctx.lastRunAgeMs == null ? "no recorded run" : `last run ${Math.round(ctx.lastRunAgeMs / 60000)} min ago`;
+  if (ctx.claim?.claimed) {
+    return {
+      fire: true,
+      reason: ctx.claim.via === "created"
+        ? "never ran — created its state row, which is the claim"
+        : `claimed the boot pass — ${age} ≥ allowance ${allowanceMin} min`,
+    };
+  }
+  if (!ctx.claim) {
+    return { fire: false, reason: `could not claim (${ctx.claimError ?? "no database"}) — no claim, no fire; the interval timer owns it` };
+  }
+  if (ctx.lastRunAgeMs == null || ctx.lastRunAgeMs >= ctx.allowanceMs) {
+    return { fire: false, reason: `${age} ≥ allowance ${allowanceMin} min but another process claimed the pass first` };
+  }
+  return { fire: false, reason: `${age} < allowance ${allowanceMin} min — the interval timer owns it` };
+}
