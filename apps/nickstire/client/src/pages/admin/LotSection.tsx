@@ -176,7 +176,7 @@ type CameraHealth = {
   commissioningRunId: string | null;
   producer: { instanceId: string; version: string | null; gitSha: string | null; heartbeatSeq: number } | null;
   source: { type: string | null; generation: string | null; fps: number | null; restores: number | null } | null;
-  vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; inferenceAgeSeconds: number | null; poseDelta: number | null; calibrationVersion: string | null; relocateFailures: number | null; preexistingCrossed: number | null } | null;
+  vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; inferenceAgeSeconds: number | null; poseDelta: number | null; calibrationVersion: string | null; relocateFailures: number | null; preexistingCrossed: number | null; arrivalsAfterStitch: number | null; stitchedTotal: number | null; stitchRefusedAmbiguous: number | null } | null;
   cloud: { outboxDepth: number | null; oldestOutboxAgeSeconds: number | null; deadLetterDepth: number | null; cloudAckAgeSeconds: number | null; diskFreeBytes: number | null } | null;
   /** Null when no health event was recorded for this camera today -- which is NOT the same
    *  as a steady day, and must not render as one. */
@@ -346,6 +346,24 @@ function CameraCard({ c }: { c: CameraHealth }) {
               <span className="text-amber-400" title="Revalidation passes that produced no binding. The producer is still warping frames through geometry it can no longer confirm.">
                 geometry unconfirmed {c.vision.relocateFailures}×
               </span>
+            )}
+            {/*
+              Stitch counters. BOTH numbers or neither: a stitcher that never fires and one
+              that merges everything are indistinguishable from successes alone, and they
+              need opposite fixes. `typeof === "number"` rather than a truthiness check --
+              0 is a real reading here ("it ran and folded nothing"), not absence, and NULL
+              means a producer that predates the stitcher never reported.
+            */}
+            {typeof c.vision?.stitchedTotal === "number" && (
+              <div className="text-xs text-slate-400">
+                stitched {c.vision.stitchedTotal}
+                {typeof c.vision.stitchRefusedAmbiguous === "number" && (
+                  <> · too close to call {c.vision.stitchRefusedAmbiguous}</>
+                )}
+                {typeof c.vision.arrivalsAfterStitch === "number" && (
+                  <> · arrivals de-duplicated {c.vision.arrivalsAfterStitch}</>
+                )}
+              </div>
             )}
             {typeof c.vision?.preexistingCrossed === "number" && c.vision.preexistingCrossed > 0 && (
               <span className="text-amber-400" title="Cars the census called already-there that the entry portal then watched drive in. Their arrivals were never counted.">
