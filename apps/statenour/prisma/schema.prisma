@@ -2773,6 +2773,8 @@ model CronJobLog {
   /// Terminal and NOT ok; the positive list above stays correct as written. Since
   /// the same day, middleware-settled success rows carry resultCount read off the
   /// job's own return value - null still means "reported no count", never "zero".
+  /// A sixth, "duplicate": a "started" row whose run id already has a terminal row
+  /// (Inngest fires onRunStart once per parallel-step request) - same day, same file.
   status    String
   duration  Int?
   error     String?  @db.Text

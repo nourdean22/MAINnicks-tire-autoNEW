@@ -76,17 +76,36 @@ function makeStore() {
         history.push(`update:${String(data.status)}`);
         return row;
       },
-      // 2026-09-22 · the interrupted-run reconciliation: `status` equality plus
-      // a `createdAt: { lt }` bound, the only shape the lifecycle uses.
+      // 2026-09-22 · the reconciliation reads stale started rows (`scan`), looks up
+      // their run ids' terminal siblings, then updates by id list. Operators
+      // modelled: equality, { in }, { not }, { lt } on a Date.
+      findMany: async ({ where, take }: { where: Record<string, unknown>; select?: unknown; take?: number; distinct?: unknown }) => {
+        const match = (r: Record<string, unknown>) => {
+          for (const [k, v] of Object.entries(where)) {
+            const rv = r[k];
+            if (v !== null && typeof v === "object") {
+              const op = v as { in?: unknown[]; not?: unknown; lt?: Date };
+              if (op.in !== undefined && !op.in.includes(rv)) return false;
+              if ("not" in op && rv === op.not) return false;
+              if (op.lt !== undefined && !((rv as Date).getTime() < op.lt.getTime())) return false;
+            } else if (rv !== v) return false;
+          }
+          return true;
+        };
+        if (where.status === "started" && (where.createdAt as { lt?: Date } | undefined)?.lt) sweeps.push("scan");
+        const hits = rows.filter(match);
+        return typeof take === "number" ? hits.slice(0, take) : hits;
+      },
       updateMany: async ({
         where,
         data,
       }: {
-        where: { status?: string; createdAt?: { lt?: Date } };
+        where: { id?: { in: string[] }; status?: string; createdAt?: { lt?: Date } };
         data: Record<string, unknown>;
       }) => {
         const hits = rows.filter(
           (r) =>
+            (where.id?.in === undefined || where.id.in.includes(r.id as string)) &&
             (where.status === undefined || r.status === where.status) &&
             (where.createdAt?.lt === undefined || (r.createdAt as Date).getTime() < where.createdAt.lt.getTime()),
         );
@@ -521,11 +540,13 @@ describe("RATCHET · no inngest cron writes its own terminal row", () => {
  * `resultCount = null`. The column exists and nothing wrote it, so "success"
  * said nothing about work done, while the jobs themselves already return
  * summaries like `{ swept: 0 }` or `{ ok: true, skipped: "no_meta_token" }`
- * that Inngest hands the middleware as `output`. Ten runs (five each of the
- * morning and evening fan-outs) sat at `started` forever: a process killed
- * mid-run emits no terminal event, so a dead run was indistinguishable from
- * a running one. No migration: the count goes into the existing column, and
- * a stale `started` row becomes `interrupted` in the existing status column.
+ * that Inngest hands the middleware as `output`. 49 rows sat at `started`
+ * forever — and the first reading of them ("dead runs") was WRONG: grouped by
+ * run id they were 4-5 duplicate `started` rows per SUCCESSFUL mega-fanout run
+ * (see the parallel-step describe below). A genuinely dead run — process
+ * killed, no terminal event — is still a real third outcome that reads like a
+ * live one. No migration: the count goes into the existing column; a stale
+ * orphan `started` row becomes `interrupted`, a stale duplicate `duplicate`.
  */
 describe("cron lifecycle · outcome receipts (2026-09-22)", () => {
   const settled = async (output: unknown) => {
@@ -598,7 +619,7 @@ describe("cron lifecycle · outcome receipts (2026-09-22)", () => {
     expect(by("fresh").status).toBe("started");
     expect(by("done").status).toBe("success");
     expect(rows.find((r) => r.jobName === "approval-sweeper")!.status).toBe("started"); // the run that triggered the sweep
-    expect(sweeps).toEqual(["interrupted:2"]);
+    expect(sweeps).toEqual(["scan", "interrupted:2"]);
   });
 
   it("the sweep is throttled: many starts inside one window sweep once", async () => {
@@ -657,5 +678,63 @@ describe("RATCHET · the out-of-band failure backstop honours the same override 
     const scan = src.slice(scanStart, scanStart + 400);
     expect(scan).toMatch(/status: CRON_STATUS\.started,/);
     expect(scan).not.toMatch(/interrupted/);
+  });
+});
+
+/**
+ * 2026-09-22 · MEASURED on prod, read-only: every mega-fanout run since the middleware
+ * shipped had 5-6 rows under ONE run id — 4-5 `started` + 1 `success`. mega-fanout runs
+ * `Promise.allSettled` of `step.run`s under `concurrency: { limit: 5 }`; Inngest executes
+ * parallel steps as separate requests, each with 0 memoized steps and attempt 0, and
+ * fires `onRunStart` on each. The settle updated only the newest row, so 49 rows sat at
+ * `started` looking like 49 deaths. They were duplicate births.
+ */
+describe("cron lifecycle · one run, one row — parallel-step requests (2026-09-22)", () => {
+  it("a second onRunStart for the SAME run id does not open a second row, and the run still settles", async () => {
+    const { prisma, rows } = makeStore();
+    const { CronLifecycleMiddleware } = await loadMiddleware(prisma);
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    const fn = cronFn("mega-fanout-morning");
+    for (let i = 0; i < 5; i++) await mw.onRunStart({ ctx: { runId: "run-parallel" }, fn });
+    expect(rows.filter((r) => r.jobName === "mega-fanout-morning")).toHaveLength(1);
+    await mw.onRunComplete({ ctx: { runId: "run-parallel" }, fn, output: { jobsRun: 7 } });
+    expect(rows.filter((r) => r.status === "started")).toHaveLength(0);
+    expect(rows[0].status).toBe("success");
+    expect(rows[0].resultCount).toBeNull(); // jobsRun is not a count key — honest null, not 7
+  });
+
+  it("without a run id there is nothing to dedupe on: two starts stay two rows (the pre-runId fallback)", async () => {
+    const { prisma, rows } = makeStore();
+    const { CronLifecycleMiddleware } = await loadMiddleware(prisma);
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    const fn = cronFn("goal-pruner");
+    await mw.onRunStart({ ctx: {}, fn });
+    await mw.onRunStart({ ctx: {}, fn });
+    expect(rows).toHaveLength(2);
+  });
+
+  it("the sweep marks a stale started row with a terminal sibling `duplicate`, and only a sibling-less one `interrupted`", async () => {
+    const { prisma, rows, sweeps } = makeStore();
+    const m = 60_000;
+    rows.push({ id: "a-dup", jobName: "mega-fanout-evening", runId: "run-a", status: "started", createdAt: new Date(Date.now() - 300 * m) });
+    rows.push({ id: "a-ok", jobName: "mega-fanout-evening", runId: "run-a", status: "success", createdAt: new Date(Date.now() - 299 * m) });
+    rows.push({ id: "b-dead", jobName: "outbox-drain", runId: "run-b", status: "started", createdAt: new Date(Date.now() - 300 * m) });
+    rows.push({ id: "c-legacy", jobName: "industry-pull", status: "started", createdAt: new Date(Date.now() - 300 * m) }); // no run id at all
+    const { CronLifecycleMiddleware, CRON_STATUS } = await loadMiddleware(prisma);
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    await mw.onRunStart({ ctx: { runId: "now" }, fn: cronFn("approval-sweeper") });
+    const by = (id: string) => rows.find((r) => r.id === id)!;
+    expect(by("a-dup").status).toBe(CRON_STATUS.duplicate);
+    expect(String(by("a-dup").error)).toMatch(/duplicate/i);
+    expect(by("a-ok").status).toBe("success");
+    expect(by("b-dead").status).toBe(CRON_STATUS.interrupted);
+    expect(by("c-legacy").status).toBe(CRON_STATUS.interrupted);
+    expect(sweeps).toEqual(["scan", "duplicate:1", "interrupted:2"]);
+  });
+
+  it("`duplicate` is in the vocabulary and in neither positive list", async () => {
+    const { CRON_STATUS, TERMINAL_OK_STATUSES } = await loadMiddleware(makeStore().prisma);
+    expect(CRON_STATUS.duplicate).toBe("duplicate");
+    expect(TERMINAL_OK_STATUSES).not.toContain("duplicate");
   });
 });

@@ -28,9 +28,15 @@
  *
  * ★★★ WHY THE SDK MIDDLEWARE RATHER THAN 17 EDITED CALL SITES:
  *   · `onRunStart` is documented as firing "1 time per run on the very first
- *     request (0 memoized steps, attempt 0)" — it is immune to Inngest's
- *     step-replay model, which a naive handler wrapper is NOT. A wrapper
- *     prologue re-executes on every checkpoint resume.
+ *     request (0 memoized steps, attempt 0)". ⚠ MEASURED 2026-09-22: that is
+ *     per REQUEST that looks first, not per run. mega-fanout runs parallel
+ *     `step.run`s under `concurrency: { limit: 5 }`; Inngest executes them as
+ *     separate requests, each with 0 memoized steps, and fired the hook on
+ *     each one — 5-6 `started` rows per run, of which the settle updated one.
+ *     So `beginCronRun` is idempotent per (job, run id), and the sweep reads a
+ *     stale `started` row with a terminal sibling as a DUPLICATE, not a death.
+ *     Still far better than a handler wrapper, whose prologue re-executes on
+ *     EVERY checkpoint resume.
  *   · `onRunError` carries `isFinalAttempt`, so a retryable blip is NOT
  *     recorded as a failure. A handler wrapper cannot see that flag and would
  *     mark `failed` on attempt 0 for runs that go on to succeed.
@@ -73,14 +79,22 @@ export const CRON_STATUS = {
   failed: "failed",
   /**
    * 2026-09-22 · a `started` row that outlived STALE_RUN_MINUTES with no
-   * terminal event. In-process hooks cannot report their own hard kill (a
-   * deploy restart mid-run is the common case here: every merge to main
-   * redeploys the container), so this is a PRESUMPTION settled by age, and a
-   * real terminal event for the same run id later overrides it. Measured
-   * before this landed: 10 rows sat at `started` indefinitely, indistinguishable
-   * from runs still in flight.
+   * terminal event AND no terminal sibling under its run id. In-process hooks
+   * cannot report their own hard kill (a deploy restart mid-run is the common
+   * case here: every merge to main redeploys the container), so this is a
+   * PRESUMPTION settled by age, and a real terminal event for the same run id
+   * later overrides it.
    */
   interrupted: "interrupted",
+  /**
+   * 2026-09-22 · a `started` row whose run id ALREADY HAS a terminal row: the
+   * same run knocking twice (Inngest fires onRunStart once per parallel-step
+   * request). Measured before the dedupe landed: 49 such rows, 4-5 per
+   * mega-fanout run, every one of those runs a `success` — the first reading
+   * of them as "dead runs" was wrong. Neither ok nor failed; carries nothing
+   * the terminal row does not.
+   */
+  duplicate: "duplicate",
 } as const;
 
 /**
@@ -221,12 +235,19 @@ export function deriveResultCount(output: unknown): number | null {
  * fleet's own cadence (called from every cron start, throttled) rather than
  * adding a schedule to watch the schedules.
  *
+ * ★ GROUP BY THE RUN ID BEFORE NAMING THE SHAPE. A stale `started` row whose
+ * run id already has a terminal row is a DUPLICATE (the same run's parallel
+ * step requests each fired onRunStart), not a death — 49 of 49 measured rows
+ * were exactly that. Only a stale row with NO terminal sibling is presumed
+ * `interrupted`.
+ *
  * `interrupted` is a presumption: `settleCronRun` still accepts an exact-run-id
  * terminal event for such a row and overrides it, so a retry that lands after
  * the ceiling keeps its real outcome. Never throws - a failed sweep must not
  * cost the current run its own `started` row.
  */
 const RECONCILE_EVERY_MS = 10 * 60_000;
+const RECONCILE_BATCH = 500;
 let lastReconcileAt = 0;
 
 async function reconcileInterruptedRuns(prisma: PrismaLike): Promise<void> {
@@ -234,18 +255,50 @@ async function reconcileInterruptedRuns(prisma: PrismaLike): Promise<void> {
   if (now - lastReconcileAt < RECONCILE_EVERY_MS) return;
   lastReconcileAt = now;
   try {
-    await prisma.cronJobLog.updateMany({
+    const stale = await prisma.cronJobLog.findMany({
       where: {
         status: CRON_STATUS.started,
         createdAt: { lt: new Date(now - STALE_RUN_MINUTES * 60_000) },
       },
-      data: {
-        status: CRON_STATUS.interrupted,
-        error:
-          `no terminal event within ${STALE_RUN_MINUTES} min; the process was presumably ` +
-          "killed before any hook could settle this run (deploy restart, OOM, timeout)",
-      },
+      select: { id: true, runId: true },
+      take: RECONCILE_BATCH,
     });
+    if (stale.length === 0) return;
+    const runIds = [...new Set(stale.map((r) => r.runId).filter((x): x is string => Boolean(x)))];
+    const settled =
+      runIds.length > 0
+        ? await prisma.cronJobLog.findMany({
+            where: { runId: { in: runIds }, status: { not: CRON_STATUS.started } },
+            select: { runId: true },
+            distinct: ["runId"],
+          })
+        : [];
+    const settledRuns = new Set(settled.map((r) => r.runId));
+    const isDuplicate = (r: { runId: string | null }) => Boolean(r.runId && settledRuns.has(r.runId));
+    const duplicates = stale.filter(isDuplicate).map((r) => r.id);
+    const orphans = stale.filter((r) => !isDuplicate(r)).map((r) => r.id);
+    if (duplicates.length > 0) {
+      await prisma.cronJobLog.updateMany({
+        where: { id: { in: duplicates } },
+        data: {
+          status: CRON_STATUS.duplicate,
+          error:
+            "duplicate started row: this run id already has a terminal row " +
+            "(Inngest fires onRunStart once per parallel-step request)",
+        },
+      });
+    }
+    if (orphans.length > 0) {
+      await prisma.cronJobLog.updateMany({
+        where: { id: { in: orphans } },
+        data: {
+          status: CRON_STATUS.interrupted,
+          error:
+            `no terminal event within ${STALE_RUN_MINUTES} min; the process was presumably ` +
+            "killed before any hook could settle this run (deploy restart, OOM, timeout)",
+        },
+      });
+    }
   } catch (e) {
     await warn("reconcile", {}, e);
   }
@@ -263,6 +316,16 @@ export async function beginCronRun(fn: unknown, ctx: unknown): Promise<void> {
   let prisma: PrismaLike | null = null;
   try {
     ({ prisma } = await import("@/lib/prisma"));
+    // One run, one row. Inngest fires onRunStart once per parallel-step request
+    // (measured: 5-6 per mega-fanout run), so a run id that already has an open
+    // row is this same run knocking again, not a new run.
+    if (runId) {
+      const open = await prisma.cronJobLog.findFirst({
+        where: { jobName, runId, status: CRON_STATUS.started },
+        select: { id: true },
+      });
+      if (open) return;
+    }
     await prisma.cronJobLog.create({
       data: { jobName, status: CRON_STATUS.started, ...(runId ? { runId } : {}) },
     });
