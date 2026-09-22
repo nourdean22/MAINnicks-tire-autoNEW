@@ -500,7 +500,7 @@ export async function handleRunMigrations() {
       // ingest for every camera.
       `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS relocateFailures INT NULL`,
       `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS preexistingCrossed INT NULL`,
-      // 2026-09-22 · visit episode identity + stitch counters (matches drizzle/0125 +
+      // 2026-09-22 · visit episode identity + stitch counters (matches drizzle/0127 +
       // schema.ts). A tracker id is not a vehicle: `camera-bridge/vision/stitch.py`
       // (#2493) decides when a new track CONTINUES an earlier one and carries the
       // original arrival forward, but the shop table had nowhere to record WHICH tracks
