@@ -24,12 +24,20 @@
  * RULES.
  *   1. An invoice is claimed by at most one arrival; an arrival claims at most
  *      one invoice.
- *   2. For each invoice, the winning arrival is the one whose expectedDate is
- *      LATEST (closest to the visit that actually happened). Ties: the earliest
- *      created, then the lowest id. Every tie-break is total, so the plan is
- *      identical on every run.
- *   3. Invoices are processed oldest-first, so a customer who genuinely came
- *      twice inside one window gets two arrivals reconciled to two invoices.
+ *   2. AS MANY VISITS AS THE EVIDENCE SUPPORTS. The assignment is a MAXIMUM
+ *      matching, not a greedy pass. Review on PR #2488 found the greedy
+ *      version losing a visit: arrivals expected Sep 21 and Sep 22, invoices on
+ *      Sep 22 and Sep 24. The Sep 22 invoice is eligible for both arrivals, the
+ *      Sep 24 invoice only for the Sep 22 one; taking the closest arrival for
+ *      the older invoice consumed Sep 22, left Sep 24 unmatched, and then
+ *      recorded the Sep 21 row as superseded — one visit written, two paid for.
+ *      Augmenting paths fix that: an invoice that finds its candidates taken
+ *      may displace a sibling onto that sibling's next option.
+ *   3. Among maximum matchings, preference is closeness: for each invoice the
+ *      arrival whose expectedDate is LATEST (nearest the visit) is tried first,
+ *      then earliest created, then lowest id. Invoices are processed
+ *      oldest-first. Every tie-break is total, so the plan is identical on
+ *      every run.
  *   4. An arrival left unmatched whose window contained an invoice that WAS
  *      matched to a sibling is the same visit, recorded on an earlier day. It
  *      is reported as SUPERSEDED so the caller can close it, rather than leaving
@@ -69,24 +77,63 @@ export function planArrivalReconciliation(pairs: readonly ArrivalCandidate[]): R
     (a, b) => a[1].invoiceDate.localeCompare(b[1].invoiceDate) || a[0] - b[0],
   );
 
-  const claimedArrivals = new Set<number>();
-  const invoiceWinner = new Map<number, number>(); // invoiceId -> arrivalId
-  const matches: ReconciliationPlan["matches"] = [];
-
+  // Each invoice's candidates in PREFERENCE order (rule 3), de-duplicated —
+  // the same arrival can appear once per pair row, but it is one candidate.
+  const preferred = new Map<number, number[]>();
   for (const [invoiceId, g] of invoices) {
-    const winner = g.arrivals
-      .filter((a) => !claimedArrivals.has(a.arrivalId))
+    const seen = new Set<number>();
+    const ordered = [...g.arrivals]
       .sort(
         (a, b) =>
-          b.expectedDate.localeCompare(a.expectedDate) || // latest expected day wins
+          b.expectedDate.localeCompare(a.expectedDate) || // latest expected day first
           a.createdTs - b.createdTs ||                    // then the earliest record
           a.arrivalId - b.arrivalId,                      // then a total order
-      )[0];
-    if (!winner) continue;
-    claimedArrivals.add(winner.arrivalId);
-    invoiceWinner.set(invoiceId, winner.arrivalId);
-    matches.push({ arrivalId: winner.arrivalId, invoiceId });
+      )
+      .map((a) => a.arrivalId)
+      .filter((id) => (seen.has(id) ? false : (seen.add(id), true)));
+    preferred.set(invoiceId, ordered);
   }
+
+  // Maximum bipartite matching by augmenting paths (Kuhn). Each invoice takes
+  // its most-preferred free arrival; if every candidate is taken, it tries to
+  // move a sibling invoice onto THAT sibling's next option, recursively. Sizes
+  // here are a handful of rows per phone, so the classic O(V·E) is instant.
+  const arrivalOwner = new Map<number, number>(); // arrivalId -> invoiceId
+  //
+  // Two passes per invoice, sharing one visited set so the search stays a
+  // complete augmenting-path search: FREE candidates first in preference
+  // order, and only when none is free, displacement. Plain Kuhn augments
+  // through the first candidate it meets, which would push a sibling off its
+  // closest arrival even when this invoice had a free second choice — a
+  // maximum matching, but not the closeness rule 3 promises when it is free.
+  const tryAssign = (invoiceId: number, visited: Set<number>): boolean => {
+    const candidates = preferred.get(invoiceId) ?? [];
+    for (const arrivalId of candidates) {
+      if (visited.has(arrivalId) || arrivalOwner.has(arrivalId)) continue;
+      visited.add(arrivalId);
+      arrivalOwner.set(arrivalId, invoiceId);
+      return true;
+    }
+    for (const arrivalId of candidates) {
+      if (visited.has(arrivalId)) continue;
+      visited.add(arrivalId);
+      const owner = arrivalOwner.get(arrivalId);
+      if (owner != null && tryAssign(owner, visited)) {
+        arrivalOwner.set(arrivalId, invoiceId);
+        return true;
+      }
+    }
+    return false;
+  };
+  for (const [invoiceId] of invoices) tryAssign(invoiceId, new Set());
+
+  const invoiceWinner = new Map<number, number>(); // invoiceId -> arrivalId
+  for (const [arrivalId, invoiceId] of arrivalOwner) invoiceWinner.set(invoiceId, arrivalId);
+  const claimedArrivals = new Set(arrivalOwner.keys());
+
+  const matches: ReconciliationPlan["matches"] = [...invoiceWinner.entries()]
+    .map(([invoiceId, arrivalId]) => ({ arrivalId, invoiceId }))
+    .sort((a, b) => a.arrivalId - b.arrivalId);
 
   // Same visit, earlier day: unmatched arrivals whose candidate invoice went to
   // a sibling. One entry per arrival, against the earliest such invoice.
@@ -104,6 +151,5 @@ export function planArrivalReconciliation(pairs: readonly ArrivalCandidate[]): R
     .map(([arrivalId, s]) => ({ arrivalId, byArrivalId: s.byArrivalId, invoiceId: s.invoiceId }))
     .sort((a, b) => a.arrivalId - b.arrivalId);
 
-  matches.sort((a, b) => a.arrivalId - b.arrivalId);
   return { matches, superseded };
 }

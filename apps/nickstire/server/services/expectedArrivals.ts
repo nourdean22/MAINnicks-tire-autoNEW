@@ -229,7 +229,7 @@ export async function reconcileExpectedArrivals(): Promise<ReconcileArrivalsResu
         ON RIGHT(REGEXP_REPLACE(i.customerPhone, '[^0-9]', ''), 10) = ea.customerPhone
        AND i.invoiceDate >= ea.expectedDate
        AND i.invoiceDate < DATE_ADD(ea.expectedDate, INTERVAL 3 DAY)
-      WHERE ea.status = 'expected' AND ea.expectedDate <= CURDATE()
+      WHERE ea.status = 'expected' AND ea.expectedDate <= ${toShopDateStr(new Date())}
         AND NOT EXISTS (
           SELECT 1 FROM expected_arrivals claimed WHERE claimed.reconciledInvoiceId = i.id
         )`);
@@ -306,10 +306,13 @@ export async function reconcileExpectedArrivals(): Promise<ReconcileArrivalsResu
  * never drops a real obligation. The reverse default would hide customers.
  */
 export async function arrivalSignalsForQueue(cutoff: Date): Promise<{
-  expectedArrivalPhones: ReadonlySet<string>;
-  invoicedOnOrAfter: ReadonlyMap<string, string>;
+  openExpectations: ReadonlyMap<string, readonly { sourceRef: string | null; createdAtMs: number }[]>;
+  invoicedAfter: ReadonlyMap<string, number>;
 }> {
-  const empty = { expectedArrivalPhones: new Set<string>(), invoicedOnOrAfter: new Map<string, string>() };
+  const empty = {
+    openExpectations: new Map<string, { sourceRef: string | null; createdAtMs: number }[]>(),
+    invoicedAfter: new Map<string, number>(),
+  };
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
@@ -317,27 +320,38 @@ export async function arrivalSignalsForQueue(cutoff: Date): Promise<{
     if (!db) return empty;
     const last10 = (v: unknown) => phoneLast10(v == null ? null : String(v));
 
+    // "Not past the reconcile window" is a SHOP-LOCAL day, not the TiDB session
+    // date. CURDATE() here would have moved the boundary at 7 or 8 pm Eastern.
+    const openSince = toShopDateStr(new Date(Date.now() - 3 * 86_400_000));
     const [openRows] = await db.execute(sql`
-      SELECT DISTINCT customerPhone FROM expected_arrivals
-      WHERE status = 'expected'
-        AND expectedDate >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)`);
-    const expectedArrivalPhones = new Set(
-      (openRows as Array<{ customerPhone: unknown }>).map((r) => last10(r.customerPhone)).filter((p) => p.length === 10),
-    );
+      SELECT customerPhone, sourceRef, UNIX_TIMESTAMP(createdAt) AS createdTs
+      FROM expected_arrivals
+      WHERE status = 'expected' AND expectedDate >= ${openSince}`);
+    const openExpectations = new Map<string, { sourceRef: string | null; createdAtMs: number }[]>();
+    for (const r of openRows as Array<{ customerPhone: unknown; sourceRef: unknown; createdTs: unknown }>) {
+      const p = last10(r.customerPhone);
+      const ts = Number(r.createdTs);
+      if (p.length !== 10 || !Number.isFinite(ts)) continue;
+      const list = openExpectations.get(p) ?? [];
+      list.push({ sourceRef: r.sourceRef == null ? null : String(r.sourceRef), createdAtMs: ts * 1000 });
+      openExpectations.set(p, list);
+    }
 
+    // The INSTANT of the latest reconciled invoice, not its day: a visit paid
+    // for this morning must not close a new need called in this afternoon.
     const [paidRows] = await db.execute(sql`
-      SELECT ea.customerPhone AS phone, DATE_FORMAT(MAX(i.invoiceDate), '%Y-%m-%d') AS invoicedDay
+      SELECT ea.customerPhone AS phone, UNIX_TIMESTAMP(MAX(i.invoiceDate)) AS invoicedTs
       FROM expected_arrivals ea
       JOIN invoices i ON i.id = ea.reconciledInvoiceId
       WHERE ea.status = 'arrived' AND ea.arrivedAt >= ${cutoff}
       GROUP BY ea.customerPhone`);
-    const invoicedOnOrAfter = new Map<string, string>();
-    for (const r of paidRows as Array<{ phone: unknown; invoicedDay: unknown }>) {
+    const invoicedAfter = new Map<string, number>();
+    for (const r of paidRows as Array<{ phone: unknown; invoicedTs: unknown }>) {
       const p = last10(r.phone);
-      const day = String(r.invoicedDay ?? "");
-      if (p.length === 10 && /^\d{4}-\d{2}-\d{2}$/.test(day)) invoicedOnOrAfter.set(p, day);
+      const ts = Number(r.invoicedTs);
+      if (p.length === 10 && Number.isFinite(ts) && ts > 0) invoicedAfter.set(p, ts * 1000);
     }
-    return { expectedArrivalPhones, invoicedOnOrAfter };
+    return { openExpectations, invoicedAfter };
   } catch (err) {
     log.warn("arrivalSignalsForQueue failed (queue falls back to recovery)", { error: err instanceof Error ? err.message : String(err) });
     return empty;

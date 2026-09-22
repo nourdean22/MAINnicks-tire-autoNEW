@@ -153,49 +153,64 @@ describe("arrivalSignalsForQueue — the two arrival facts the kernel cannot see
   }
   const CUTOFF = new Date("2026-06-24T00:00:00Z");
 
-  it("OPEN means still expected and not past the reconcile window — not merely today", async () => {
+  it("OPEN means still expected and not past the reconcile window — a SHOP-LOCAL day, not CURDATE()", async () => {
+    // Review on PR #2488: CURDATE() is the TiDB session date, so the boundary
+    // would have moved at 7 or 8 pm Eastern. The day is now computed in
+    // America/New_York and bound as a parameter.
     const arrivalSignalsForQueue = await signals();
     execute
-      .mockResolvedValueOnce(asRows([{ customerPhone: "2165557777" }, { customerPhone: "(216) 555-1234" }]))
+      .mockResolvedValueOnce(
+        asRows([
+          { customerPhone: "2165557777", sourceRef: "call_a", createdTs: 1_700_000_000 },
+          { customerPhone: "(216) 555-1234", sourceRef: null, createdTs: 1_700_000_100 },
+        ]),
+      )
       .mockResolvedValueOnce(asRows([]));
     const r = await arrivalSignalsForQueue(CUTOFF);
     const sql = sqlTextOf(execute.mock.calls[0]);
     expect(sql).toMatch(/status = 'expected'/);
-    expect(sql).toMatch(/expectedDate >= DATE_SUB\(CURDATE\(\), INTERVAL 3 DAY\)/);
+    expect(sql).toMatch(/expectedDate >= /);
+    expect(sql).not.toMatch(/CURDATE/);
     expect(sql).not.toMatch(/expectedDate = /);
-    expect([...r.expectedArrivalPhones]).toEqual(["2165557777", "2165551234"]);
+    expect(sql).toMatch(/UNIX_TIMESTAMP\(createdAt\)/);
+    expect([...r.openExpectations.keys()]).toEqual(["2165557777", "2165551234"]);
+    expect(r.openExpectations.get("2165557777")).toEqual([{ sourceRef: "call_a", createdAtMs: 1_700_000_000_000 }]);
+    expect(r.openExpectations.get("2165551234")).toEqual([{ sourceRef: null, createdAtMs: 1_700_000_100_000 }]);
   });
 
-  it("the invoiced day comes from the RECONCILED invoice, latest per phone, formatted in SQL", async () => {
+  it("the invoiced INSTANT comes from the RECONCILED invoice, latest per phone, as UNIX time from SQL", async () => {
+    // Review on PR #2488: a day was too coarse — a visit paid for in the morning
+    // must not close a new need called in that afternoon.
     const arrivalSignalsForQueue = await signals();
     execute
       .mockResolvedValueOnce(asRows([]))
-      .mockResolvedValueOnce(asRows([{ phone: "2165558888", invoicedDay: "2026-09-22" }]));
+      .mockResolvedValueOnce(asRows([{ phone: "2165558888", invoicedTs: 1_758_500_000 }]));
     const r = await arrivalSignalsForQueue(CUTOFF);
     const sql = sqlTextOf(execute.mock.calls[1]);
     expect(sql).toMatch(/JOIN invoices i ON i\.id = ea\.reconciledInvoiceId/);
     expect(sql).toMatch(/status = 'arrived'/);
-    expect(sql).toMatch(/DATE_FORMAT\(MAX\(i\.invoiceDate\), '%Y-%m-%d'\)/);
+    expect(sql).toMatch(/UNIX_TIMESTAMP\(MAX\(i\.invoiceDate\)\)/);
+    expect(sql).not.toMatch(/DATE_FORMAT\(MAX/);
     expect(sql).toMatch(/GROUP BY ea\.customerPhone/);
-    expect(r.invoicedOnOrAfter.get("2165558888")).toBe("2026-09-22");
+    expect(r.invoicedAfter.get("2165558888")).toBe(1_758_500_000_000);
   });
 
   it("drops junk rather than handing it to the kernel", async () => {
     const arrivalSignalsForQueue = await signals();
     execute
-      .mockResolvedValueOnce(asRows([{ customerPhone: "555" }]))
-      .mockResolvedValueOnce(asRows([{ phone: "2165558888", invoicedDay: "not-a-day" }, { phone: "12", invoicedDay: "2026-09-22" }]));
+      .mockResolvedValueOnce(asRows([{ customerPhone: "555", sourceRef: null, createdTs: 1 }, { customerPhone: "2165557777", sourceRef: null, createdTs: "nope" }]))
+      .mockResolvedValueOnce(asRows([{ phone: "2165558888", invoicedTs: "not-a-time" }, { phone: "12", invoicedTs: 1_758_500_000 }, { phone: "2165559999", invoicedTs: 0 }]));
     const r = await arrivalSignalsForQueue(CUTOFF);
-    expect(r.expectedArrivalPhones.size).toBe(0);
-    expect(r.invoicedOnOrAfter.size).toBe(0);
+    expect(r.openExpectations.size).toBe(0);
+    expect(r.invoicedAfter.size).toBe(0);
   });
 
   it("FAILS OPEN to empty signals when the read breaks — a noisier queue, never a hidden customer", async () => {
     const arrivalSignalsForQueue = await signals();
     execute.mockRejectedValueOnce(new Error("connect ETIMEDOUT"));
     const r = await arrivalSignalsForQueue(CUTOFF);
-    expect(r.expectedArrivalPhones.size).toBe(0);
-    expect(r.invoicedOnOrAfter.size).toBe(0);
+    expect(r.openExpectations.size).toBe(0);
+    expect(r.invoicedAfter.size).toBe(0);
   });
 
   it("POSITIVE CONTROL: the two facts are keyed and shaped for buildRecoveryQueue's options verbatim", async () => {
@@ -205,7 +220,16 @@ describe("arrivalSignalsForQueue — the two arrival facts the kernel cannot see
     const arrivalSignalsForQueue = await signals();
     execute.mockResolvedValueOnce(asRows([])).mockResolvedValueOnce(asRows([]));
     const r = await arrivalSignalsForQueue(CUTOFF);
-    expect(Object.keys(r).sort()).toEqual(["expectedArrivalPhones", "invoicedOnOrAfter"]);
+    expect(Object.keys(r).sort()).toEqual(["invoicedAfter", "openExpectations"]);
+  });
+
+  it("the reconcile's own day boundary is shop-local too, not CURDATE()", async () => {
+    const reconcile = await subject();
+    execute.mockResolvedValueOnce(asRows([]));
+    await reconcile();
+    const sql = sqlTextOf(execute.mock.calls[0]);
+    expect(sql).toMatch(/ea\.expectedDate <= /);
+    expect(sql).not.toMatch(/CURDATE/);
   });
 });
 

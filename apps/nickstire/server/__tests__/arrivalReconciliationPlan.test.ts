@@ -99,6 +99,60 @@ describe("an arrival claims at most ONE invoice", () => {
   });
 });
 
+describe("as many visits as the evidence supports — a MAXIMUM matching, not a greedy pass", () => {
+  // Review on PR #2488. Arrivals expected Sep 21 and Sep 22; invoices Sep 22
+  // and Sep 24. The Sep 22 invoice is eligible for both arrivals (both windows
+  // contain it); the Sep 24 invoice only for the Sep 22 arrival (Sep 21 + 3d
+  // ends before it). Greedy closeness gave Sep 22 -> the Sep 22 arrival, left
+  // Sep 24 unmatched, and recorded the Sep 21 row as superseded: two visits
+  // paid for, one written down.
+  const pairs = [
+    pair(21, "2026-09-21", 622, "2026-09-22"),
+    pair(22, "2026-09-22", 622, "2026-09-22"),
+    pair(22, "2026-09-22", 624, "2026-09-24"),
+  ];
+
+  it("reconciles BOTH invoices by moving the older one onto its next candidate", () => {
+    const plan = planArrivalReconciliation(pairs);
+    expect(plan.matches).toEqual([
+      { arrivalId: 21, invoiceId: 622 },
+      { arrivalId: 22, invoiceId: 624 },
+    ]);
+    expect(plan.superseded).toEqual([]);
+  });
+
+  it("still prefers closeness when it costs nothing", () => {
+    // Same shape, but the Sep 24 invoice can ALSO take the Sep 21 arrival (say
+    // a wider window): now the closest assignment is also maximal, and the
+    // planner must not shuffle it for no gain.
+    const plan = planArrivalReconciliation([
+      pair(21, "2026-09-21", 622, "2026-09-22"),
+      pair(22, "2026-09-22", 622, "2026-09-22"),
+      pair(21, "2026-09-21", 624, "2026-09-24"),
+      pair(22, "2026-09-22", 624, "2026-09-24"),
+    ]);
+    expect(plan.matches).toHaveLength(2);
+    expect(new Set(plan.matches.map((m) => m.invoiceId)).size).toBe(2);
+    expect(new Set(plan.matches.map((m) => m.arrivalId)).size).toBe(2);
+    // The older invoice keeps the closest arrival available to it.
+    expect(plan.matches.find((m) => m.invoiceId === 622)?.arrivalId).toBe(22);
+  });
+
+  it("POSITIVE CONTROL: the matching size equals the true maximum on a chain", () => {
+    // A -> {i1}, B -> {i1, i2}, C -> {i2, i3}: greedy-by-preference can get 2;
+    // the maximum is 3. If augmenting paths were removed, this drops.
+    const plan = planArrivalReconciliation([
+      pair(1, "2026-09-10", 1, "2026-09-10"),
+      pair(2, "2026-09-10", 1, "2026-09-10"),
+      pair(2, "2026-09-10", 2, "2026-09-11"),
+      pair(3, "2026-09-11", 2, "2026-09-11"),
+      pair(3, "2026-09-11", 3, "2026-09-12"),
+    ]);
+    expect(plan.matches).toHaveLength(3);
+    expect(plan.superseded).toEqual([]);
+  });
+});
+
 describe("what is left alone", () => {
   it("an arrival with no matched invoice is NOT superseded — that is the no-show sweep's call", () => {
     // Two arrivals, one invoice matching only the second: the first has no
