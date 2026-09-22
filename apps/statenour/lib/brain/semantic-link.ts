@@ -22,6 +22,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { isPgvectorAvailable } from "@/lib/db/pgvector";
+import { RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 
 const EDGE_CATEGORY = "semantic_edge";
 const TOP_K = 3;
@@ -68,6 +69,12 @@ export async function runSemanticLinker(
   // semantic_edge is a JOIN — we look for rows whose id has no
   // edge marker newer than 7d.
   const since7d = new Date(Date.now() - 7 * 86_400_000);
+  // 2026-09-22 · quarantined categories are never memories to link. Measured on
+  // prod: 9,949 of 19,899 edges linked an edge to an edge, because this SELECT
+  // took any live row at confidence >= 0.5 — including the edge ROWS this very
+  // writer persists (their confidence is the cosine score, ~0.8). Same list the
+  // recall lanes and the embedding backfill use, so the three cannot drift.
+  const quarantined: string[] = [...RECALL_EXCLUDE_CATEGORIES];
   const candidates = await prisma.$queryRawUnsafe<
     Array<{ id: string; category: string }>
   >(
@@ -80,6 +87,7 @@ export async function runSemanticLinker(
      AND edges.created_at >= $2
     WHERE bm.deleted_at IS NULL
       AND bm.confidence >= 0.5
+      AND bm.category <> ALL($4::text[])
       AND edges.id IS NULL
     ORDER BY bm.last_seen DESC
     LIMIT $3
@@ -87,6 +95,7 @@ export async function runSemanticLinker(
     EDGE_CATEGORY,
     since7d.toISOString(),
     batch,
+    quarantined,
   );
 
   let edgesCreated = 0;
@@ -136,6 +145,10 @@ export async function runSemanticLinker(
         ve."sourceType"::text AS source_type,
         (ve.embedding_vec <=> '${vecLit}'::vector) AS distance
       FROM vector_embeddings ve
+      JOIN brain_memories bm
+        ON bm.id = ve."sourceId"
+       AND bm.deleted_at IS NULL
+       AND bm.category <> ALL($2::text[])
       WHERE ve.embedding_vec IS NOT NULL
         AND ve."sourceUnavailableAt" IS NULL
         AND ve."sourceType" = 'brain_memory'
@@ -145,6 +158,7 @@ export async function runSemanticLinker(
       LIMIT ${TOP_K}
       `,
       c.id,
+      quarantined,
     ).catch(() => []);
 
     for (const n of neighbors) {

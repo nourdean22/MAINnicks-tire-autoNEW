@@ -700,13 +700,33 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
 // queryEmbedding, so this costs one indexed KNN query and zero embedding
 // calls. Best-effort like the lexical lane: any failure returns [].
 
+// 2026-09-22 · THE POOL WAS STARVING. Measured read-only on prod (pgvector
+// 0.8.0, hnsw.ef_search default 40): for six real memory-shaped queries the raw
+// nearest-40 candidates were 45% dead — 34 pointed at hard-deleted memories,
+// 64 at soft-deleted ones — so after the join below the "50-slot" pool came
+// back with 9-28 rows. HNSW hands over its candidate budget FIRST and the WHERE
+// filters AFTER; and `LIMIT 50` can never be met with ef_search 40 even on a
+// clean index. The dead vectors are kept on purpose (lib/db/embedding-cleanup.ts:
+// their text column is the last copy of a hard-deleted memory), so the fix is
+// at query time: pgvector 0.8's iterative scan keeps walking the graph until
+// LIMIT rows pass the filter. Verified on prod: 50/50 on all six queries in
+// 280-600 ms, faster than a raised ef_search because it stops early. SET LOCAL
+// is transaction-scoped, and the pool runs on pooled connections, so the SET
+// and the SELECT travel in one transaction, bounded so a cold Neon compute
+// cannot hang a turn (the lane is best-effort: any failure returns []).
+const KNN_POOL_TIMEOUT_MS = 10_000;
+
 async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Promise<LexicalRow[]> {
   try {
     const padded = padToVectorDim(queryVec, VECTOR_DIM_1536);
     const lit = vectorLiteral(padded);
     assertSafeVectorLiteral(lit);
-    return await prisma.$queryRawUnsafe<LexicalRow[]>(
-      `SELECT bm.id::text          AS id,
+    // $1 vector · $2 quarantined categories · $3 asOf (when given). The
+    // quarantine list is the SAME one the lexical lane applies, so the two
+    // lanes cannot drift; the unavailable-source skip mirrors the writer's own
+    // KNN in semantic-link.ts.
+    const excluded: string[] = [...RECALL_EXCLUDE_CATEGORIES];
+    const sql = `SELECT bm.id::text          AS id,
               bm.content           AS content,
               bm.category::text    AS category,
               bm.key::text         AS key,
@@ -722,13 +742,30 @@ async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Prom
         AND bm.deleted_at IS NULL
        WHERE ve."sourceType" = 'brain_memory'
          AND ve.embedding_vec_1536 IS NOT NULL
+         AND ve."sourceUnavailableAt" IS NULL
          AND bm.confidence >= 0.3
-         AND ${validitySql("bm", asOf ? "$2" : null)}
+         AND bm.category <> ALL($2::text[])
+         AND ${validitySql("bm", asOf ? "$3" : null)}
        ORDER BY ve.embedding_vec_1536 <=> $1::vector(${VECTOR_DIM_1536})
-       LIMIT ${limit}`,
-      lit,
-      ...(asOf ? [asOf] : []),
-    );
+       LIMIT ${limit}`;
+    const params: unknown[] = [lit, excluded, ...(asOf ? [asOf] : [])];
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          await tx.$executeRawUnsafe("SET LOCAL hnsw.iterative_scan = relaxed_order");
+          return tx.$queryRawUnsafe<LexicalRow[]>(sql, ...params);
+        },
+        { timeout: KNN_POOL_TIMEOUT_MS },
+      );
+    } catch (err) {
+      // A database without pgvector 0.8 rejects the setting as an unknown
+      // parameter. Fall back to the plain (budget-limited) scan rather than
+      // losing the lane — production is 0.8.0, so this is a safety net.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/iterative_scan|unrecognized configuration parameter/i.test(msg)) throw err;
+      console.warn("[brain-recall] hnsw.iterative_scan unavailable — pool runs budget-limited:", msg.slice(0, 120));
+      return await prisma.$queryRawUnsafe<LexicalRow[]>(sql, ...params);
+    }
   } catch (err) {
     console.warn(
       "[brain-recall] knn pool query failed — pool stays confidence-sliced:",
