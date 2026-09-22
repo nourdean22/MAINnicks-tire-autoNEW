@@ -271,11 +271,24 @@ export function disposeCall(facts: CallFacts): CallDisposition {
   //    counter, never into a sales obligation.
   if (facts.existingVehicleAtShop) return done("operations", "operational_not_sales");
 
-  // 7. They said they are coming. Provisional success — recovery ONLY once the
-  //    arrival window has lapsed without an invoice.
+  // 7. The ASSISTANT directed them to walk in. `walk_in_directed` is the
+  //    assistant's outcome, not the caller's words — most of these calls are
+  //    "how much for an alignment?" answered with "come on by", and the
+  //    expected-arrival row behind `expectedArrivalOpen` is written by the
+  //    bookSlot tool, which the prompt fires for any non-tire walk-in lead and
+  //    in parallel with every transfer. Provisional success — recovery ONLY
+  //    once the arrival window has lapsed without an invoice.
+  //
+  //    The reason text used to read "Said they were coming, no arrival
+  //    matched". Measured 2026-09-22: of 89 rows it produced in 30 days, 63
+  //    were price/inquiry calls and 66 carried no day the customer named. That
+  //    was the assistant's suggestion recorded as the customer's commitment —
+  //    the same class as the classifier once scoring its own greeting. The lane
+  //    is legitimate lost-lead follow-up; the claim about who said what was
+  //    not, so the text now says only what this kernel can establish.
   if (facts.outcome === "walk_in_directed") {
     if (facts.expectedArrivalOpen) return done("arrival", "expected_to_arrive");
-    add("no_show", "Said they were coming, no arrival matched", 6);
+    add("no_show", "Directed to walk in; no invoice inside the arrival window", 6);
   }
 
   // 8. Our outage, not their disinterest. Only a customer who actually asked
