@@ -19,6 +19,7 @@
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
 import { acquireCronLock, releaseCronLock, jobTimeoutMs } from "./index";
+import { shouldFireOnStartup } from "./tierStartup";
 
 const log = createLogger("scheduler");
 
@@ -2846,51 +2847,46 @@ export function startTieredScheduler(): void {
   // Start all tiers (staggered to avoid memory spike on boot)
   for (const tier of tiers) {
     const idx = tiers.indexOf(tier);
-    // Run heartbeat, pulse, and daily on startup. Daily must run on boot because
-    // Railway restarts can prevent the 24h interval from ever firing (Bug: 999h no backup).
-    // Hourly (idx=2) and briefings (idx=4) can wait for their interval.
+    // Every tier decides its boot-time fire from the age of its last run,
+    // read from the state resetSkipCount() writes on every run (the
+    // forensic-audit CRITICAL fix: cron_log never carried a 'tier:daily'
+    // row, so an earlier guard always saw NULL and re-fired daily on every
+    // restart, re-sending retention / cross-sell / declined-work SMS).
     //
-    // v1.7 audit fix · daily-tier-on-every-boot was sending duplicate
-    // outbound SMS (retention, cross-sell, warranty, declined-work,
-    // churn) on every Railway restart. Now we persist a process-local
-    // marker so the daily tier only fires on startup if the last run
-    // is older than 20h. The setInterval still owns the canonical
-    // 24h cadence; this guard only governs the boot-time fire.
-    const runOnStartup = idx <= 1 || tier.name === "daily";
+    // 2026-09-22 · until now only heartbeat, pulse and daily fired at boot;
+    // hourly and briefings waited for a setInterval that starts counting at
+    // process boot. With deploys under two hours apart — thirteen that day —
+    // the hourly tier never reached its first tick: last run 12:29Z, still
+    // silent at 20:00Z, ten jobs (voice-recovery, enrich-customer-data,
+    // feedback-cycle, safety-check, the statenour syncs). The rule in
+    // tierStartup.ts is the daily guard generalised: fire when the last run
+    // is at least one interval old (daily keeps its 20 h allowance), or when
+    // the tier has never run. The age is computed in SQL: a driver-parsed
+    // TIMESTAMP on this stack arrives shifted by the server's zone, which is
+    // how the old guard could read a 22-hour-old run as 18 hours old.
     const stagger = idx * 30_000;
 
-    if (runOnStartup) {
-      setTimeout(async () => {
-        if (tier.name === "daily") {
-          try {
-            const { getDb } = await import("../db");
-            const { sql } = await import("drizzle-orm");
-            const d = await getDb();
-            if (d) {
-              // forensic-audit CRITICAL · the guard queried cron_log for
-              // job_name='tier:daily', but logTierJob only ever writes
-              // per-JOB names (e.g. 'retention-all') — no 'tier:daily' row
-              // is ever written, so this always saw NULL and the daily tier
-              // re-fired on EVERY Railway restart, re-sending retention /
-              // cross-sell / declined-work SMS to real customers (up to 3x
-              // on a multi-restart deploy day). Read the persisted tier
-              // state that resetSkipCount() actually writes on every run.
-              const [rows] = await d.execute(sql`SELECT last_run_at AS lastRun FROM cron_tier_skip_state WHERE tier_name = 'daily'`);
-              const last = (rows as Array<{ lastRun: Date | null }>)[0]?.lastRun;
-              if (last && Date.now() - new Date(last).getTime() < 20 * 3600_000) {
-                log.info("daily tier: last run < 20h ago, skipping startup fire");
-                return;
-              }
-            }
-          } catch (e) {
-            log.warn("daily tier boot guard query failed, proceeding", {
-              error: e instanceof Error ? e.message : String(e),
-            });
-          }
+    setTimeout(async () => {
+      let lastRunAgeMs: number | null = null;
+      try {
+        const { getDb } = await import("../db");
+        const { sql } = await import("drizzle-orm");
+        const d = await getDb();
+        if (d) {
+          const [rows] = await d.execute(sql`SELECT TIMESTAMPDIFF(SECOND, last_run_at, NOW()) AS ageSec FROM cron_tier_skip_state WHERE tier_name = ${tier.name}`);
+          const ageSec = (rows as Array<{ ageSec: number | string | null }>)[0]?.ageSec;
+          lastRunAgeMs = ageSec == null ? null : Number(ageSec) * 1000;
         }
-        runTier(tier).catch(err => log.error(`Tier ${tier.name} startup failed:`, { error: err instanceof Error ? err.message : String(err) }));
-      }, stagger);
-    }
+      } catch (e) {
+        log.warn(`${tier.name} tier boot guard query failed — treating as never run`, {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+      const decision = shouldFireOnStartup({ tierName: tier.name, intervalMs: tier.intervalMs, lastRunAgeMs });
+      log.info(`${tier.name} tier startup: ${decision.fire ? "FIRING" : "skipping"} — ${decision.reason}`);
+      if (!decision.fire) return;
+      runTier(tier).catch(err => log.error(`Tier ${tier.name} startup failed:`, { error: err instanceof Error ? err.message : String(err) }));
+    }, stagger);
 
     // Schedule recurring
     tier.handle = setInterval(() => {
