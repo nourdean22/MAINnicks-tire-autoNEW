@@ -699,7 +699,7 @@ function buildTiers(): void {
               const accuracyLog = createLogger("cron:data-accuracy");
               accuracyLog.warn("Data accuracy issues found", { issues });
               const { remember } = await import("../services/nickMemory");
-              await remember({ type: "lesson", content: `Data accuracy: ${issues.join(". ")}`, source: "accuracy_check", confidence: 0.8 });
+              await remember({ type: "lesson", content: `Data accuracy: ${issues.join(". ")}`, identity: "data_accuracy", source: "accuracy_check", confidence: 0.8 });
             }
 
             return { recordsProcessed: issues.length, details: issues.length === 0 ? "All data clean" : issues.join("; ") };
@@ -2674,7 +2674,7 @@ function buildTiers(): void {
             }
 
             await sendTelegram(parts.join("\n\n"));
-            await remember({ type: "insight", content: parts.join(". ").slice(0, 1500), source: "daily_digest", confidence: 0.9 });
+            await remember({ type: "insight", content: parts.join(". ").slice(0, 1500), identity: "daily_digest", source: "daily_digest", confidence: 0.9 });
             return { recordsProcessed: 1, details: "Full digest sent" };
           } catch (e: unknown) { log.warn("[cron/scheduler] digest failed:", e); throw e; /* audit F-9 */ }
         },
@@ -2721,6 +2721,7 @@ function buildTiers(): void {
               type: "insight",
               content: `Revenue for ${day}: $${truth.totalRevenue}. Jobs: ${truth.completedJobs}. Avg ticket: $${truth.avgTicket}.`,
               source: "revenue_reconciliation",
+              identity: "revenue_reconciliation_latest",
               confidence: 0.95,
             });
             return { recordsProcessed: 1, details: `${day}: $${truth.totalRevenue}, ${truth.completedJobs} jobs` };

@@ -102,6 +102,14 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
    --execute DELETE is the operator's). The admission-at-the-cap rule (scratchpad ship-admission.sh,
    validated in tests) is PARKED: mandate item 10 says simulate eviction policies against the
    real rows before changing production - that simulation is the next memory item.
+   SIMULATION DONE (docs/operations/NICK-MEMORY-EVICTION-SIMULATION-2026-09-22.md, pnpm diag:memory-
+   eviction): eviction order is NOT the lever - P0/LRU/cap-0.95/per-source are within noise; the
+   admission floor is REJECTED (refuses exactly the 24 conversational 0.7 entries); shrink-to-500
+   REJECTED (evicts 33-day-old rows). Inflow is 6.9/day of analytics summaries at 0.9-0.95 that
+   outrank operator knowledge at 0.7 forever; top-20 recall today has ZERO health rows (the decay
+   run demoted them). Next code item: one rolling row per report kind at the analytics writers.
+   Operator decisions: run the health prune (capacity, not prompt quality); entry confidence for
+   machine summaries; a type-aware recall (shadow first).
 7. THE HOURLY TIER WAS DEAD ALL AFTERNOON (PR #2516): every tier is a setInterval from process boot
    and only heartbeat/pulse/daily fired at boot, so with 13 deploys under 2h apart the 2h tier
    (voice-recovery, enrich-customer-data, feedback-cycle, safety-check, the statenour syncs) last ran
