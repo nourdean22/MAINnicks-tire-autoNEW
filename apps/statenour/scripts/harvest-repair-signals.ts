@@ -34,7 +34,7 @@
  *
  * Usage (from apps/statenour):
  *   pnpm harvest:repairs                 # -> eval-datasets/repair-signal-candidates.json
- *   pnpm harvest:repairs --days 90 --out other.json
+ *   pnpm harvest:repairs --days 90 --out eval-datasets/other.json   # --out must stay inside eval-datasets/
  *   pnpm harvest:repairs --self-test     # no DB · proves the matcher fires AND abstains
  */
 
@@ -68,7 +68,7 @@ function installScriptEnvironment(): void {
 }
 
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 // ── Failure taxonomy ─────────────────────────────────────────────────────
 
@@ -131,7 +131,7 @@ export const REPAIR_PATTERNS: readonly RepairPattern[] = [
     // repetition and made the corpus look like it measured the operator's
     // loudest complaint while actually hiding a different failure inside it.
     // A bare `same X again` was dropped after the first production run matched
-    // "having to tell myself the same thing again" — the operator narrating his
+    // "telling myself the same thing again" — the operator narrating his
     // own habit. Every surviving alternative requires SECOND-PERSON attribution
     // (what Nick gave) or an explicit don't-want-again complaint, which is how
     // the one real repetition failure in the corpus was actually phrased:
@@ -166,9 +166,10 @@ export const REPAIR_PATTERNS: readonly RepairPattern[] = [
     label: "i-already-told-you",
     // ⚠ `i told you` WITHOUT an adverb is NARRATION, not repair — measured, not
     // guessed. In the first production run (2,795 operator messages) the bare
-    // form matched "like I told you after the aircraft carrier", "I told you
-    // I'm getting impatient" and a health-status update: 5 of 6 MEMORY_MISS
-    // hits were the operator telling a STORY. This operator talks to Nick
+    // form matched a travel anecdote ("like I told you after the trip, we went
+    // back"), a delivery complaint ("I told you I'm getting impatient") and a
+    // health-status update: 5 of 6 MEMORY_MISS hits were the operator telling
+    // a STORY. This operator talks to Nick
     // conversationally, so second-person past-tense is ordinary speech here.
     // `already` / `just` are what turn it into a complaint. `remember?` was
     // dropped for the same reason — it is as often rhetorical as accusatory.
@@ -197,8 +198,8 @@ export const REPAIR_PATTERNS: readonly RepairPattern[] = [
     label: "go-deeper",
     // ⚠⚠ THE BIGGEST MEASURED DEFECT IN THE FIRST DRAFT, AND IT POINTED THE
     // WRONG WAY. `go deeper` / `dig deeper` / `keep going` are CONTINUATION —
-    // this operator says them when engaged and satisfied ("I'm loving the
-    // advice let's keep going", "Keep going keep interesting me"). Harvesting
+    // this operator says them when engaged and satisfied ("loving this, let's
+    // keep going", "keep going, more like this"). Harvesting
     // them as failures would have built a regression corpus out of turns where
     // Nick did WELL, and every test derived from it would encode the inverse
     // of the intended lesson. A high-recall matcher is not merely noisy here;
@@ -210,9 +211,8 @@ export const REPAIR_PATTERNS: readonly RepairPattern[] = [
     tier: "medium",
     failureClass: "GENERIC",
     label: "too-generic",
-    // `do better` must be SECOND person. "like i know i can do better and all
-    // i can think about is a new women" is the operator about himself, and it
-    // was a matched candidate in the first run.
+    // `do better` must be SECOND person. "like I know I can do better…" is the
+    // operator about himself, and it was a matched candidate in the first run.
     pattern:
       /\b(that'?s (too )?(generic|vague|useless|obvious|boilerplate)|be (more )?specific|say something real|that says nothing|(you|u) (can|could|need to|gotta) do better|do better than that)\b/i,
   },
@@ -368,13 +368,16 @@ const MUST_MATCH: ReadonlyArray<[string, RepairClass]> = [
   ["wrong tool", "WRONG_TOOL"],
   ["no", "GENERIC"],
   ["nope", "GENERIC"],
-  // ── Harvested from the 2026-09-22 production run · real true positives ──
+  // ── True positives from the 2026-09-22 production run ──
   // The one genuine repetition complaint in 2,795 messages. The first draft
   // matched it under MEMORY_MISS, which is why class assertions exist here.
+  // The four generic repair phrasings are kept as spoken (they name no person,
+  // place or private fact); the one that referred to a person is replaced by
+  // a same-shape stand-in (review on #2480).
   ["I don't just want animated book summaries again", "REPETITION"],
   ["U aren't telling me anything I don't know already, try again", "UNDER_RESEARCH"],
   ["check again and give me a new list", "STALE_DATA"],
-  ["hes gone i just told you that", "MEMORY_MISS"],
+  ["the supplier changed, i just told you that", "MEMORY_MISS"],
   ["That's not what I asked for", "INSTRUCTION_MISS"],
 ];
 
@@ -391,11 +394,17 @@ const MUST_ABSTAIN: readonly string[] = [
   // Past-tense narration that merely resembles a complaint.
   "I told the supplier we needed them by Tuesday",
 
-  // ── Harvested from the 2026-09-22 production run · MEASURED false positives.
-  // Every line below was a candidate the first draft emitted from real
-  // conversation, read by hand, and judged wrong. Precision was ~44% on the
-  // tier labelled "near-certain" and ~20% on medium. They live here so the
+  // ── Measured false positives from the 2026-09-22 production run.
+  // Every line below stands in for a candidate the first draft emitted from
+  // real conversation, read by hand, and judged wrong. Precision was ~44% on
+  // the tier labelled "near-certain" and ~20% on medium. They live here so the
   // same mistakes cannot return silently — the miner's own regression armor.
+  //
+  // SYNTHETIC BY RULE (review on #2480, 2026-09-22): the originals were the
+  // operator's verbatim words and several carried personal content. Each line
+  // keeps the SHAPE that fooled the matcher — the trigger phrase, the person,
+  // the tense — with the private specifics replaced. A fixture that dropped
+  // the trigger would pass trivially and guard nothing; these keep it.
 
   // CONTINUATION, not complaint. The sign-flip class: said while satisfied.
   // "dig deeper" and a bare "do better" were MUST_MATCH in the first draft —
@@ -403,19 +412,19 @@ const MUST_ABSTAIN: readonly string[] = [
   // the fixtures follow the measurement rather than the other way round.
   "dig deeper",
   "do better",
-  "I'm loving the advice let's keep going zoom in more less about pain too.",
-  "Keep going keep interesting me",
-  "Go deeper on Recorded",
-  "I keep going but also let's make it darker and switch the theme",
+  "Loving this so far, let's keep going and zoom in on the second point.",
+  "Keep going, this is exactly the kind of thing I wanted.",
+  "Go deeper on the second option.",
+  "I keep going back to this, but also let's make the header darker and switch the theme.",
   // First-person narration — this operator converses, so past-tense
   // second-person address is ordinary speech, not correction.
-  "OK well good morning so yesterday like I told you after the aircraft carrier we went back",
-  "If it hasn't worked by September N I told you I'm getting impatient",
-  "Yeah, I totally feel less bloated than I did this morning",
-  "Actually, let's keep exploring that places I'd never find in Cleveland",
+  "OK so yesterday, like I told you after the trip, we went back to the shop.",
+  "If the part hasn't shipped by Friday, I told you I'm getting impatient.",
+  "Yeah, I feel a lot better about the numbers than I did this morning.",
+  "Actually, let's keep exploring options I'd never find on my own.",
   // Self-directed "do better" / "same thing again" — about himself, not Nick.
-  "like i know i can do better and all i can think about is a new women",
-  "Yeah then two seconds later having to tell myself the same thing again eventually I forget",
+  "like I know I can do better and all I can think about is the next quarter.",
+  "Then two minutes later I'm telling myself the same thing again and eventually I forget.",
   // A pasted document, not a repair. Medium-tier patterns match content words,
   // so length is the discriminator — this was the last surviving medium-tier
   // false positive in the 2026-09-22 production run.
@@ -502,6 +511,33 @@ function arg(flag: string): string | null {
   return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : null;
 }
 
+/**
+ * The only directory this script may write to. `.gitignore:87` ignores it, and
+ * every candidate carries a conversation id plus verbatim operator and
+ * assistant text — the most sensitive slice of the corpus by construction.
+ */
+export const HARVEST_OUT_DIR = "eval-datasets";
+export const DEFAULT_OUT_PATH = `${HARVEST_OUT_DIR}/repair-signal-candidates.json`;
+
+/**
+ * Resolve `--out` and REFUSE anything outside eval-datasets/ (review on #2480):
+ * the header's own example used to be `--out other.json`, accepted verbatim,
+ * which put real conversation text in a TRACKED location one `git add` away
+ * from a commit. Traversal (`eval-datasets/../x.json`), the directory itself
+ * and absolute paths elsewhere are all refused; the default is always inside.
+ */
+export function resolveOutPath(raw: string | null, cwd: string = process.cwd()): string {
+  const target = resolve(cwd, raw ?? DEFAULT_OUT_PATH);
+  const rel = relative(resolve(cwd, HARVEST_OUT_DIR), target);
+  const first = rel.split(/[\\/]/)[0];
+  if (rel === "" || first === ".." || isAbsolute(rel)) {
+    throw new Error(
+      `--out must resolve inside ${HARVEST_OUT_DIR}/ (gitignored; the output carries verbatim conversation text): got "${raw}"`,
+    );
+  }
+  return target;
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -515,7 +551,7 @@ async function main() {
   installScriptEnvironment();
 
   const windowDays = Number(arg("--days") ?? 120);
-  const outPath = arg("--out") ?? "eval-datasets/repair-signal-candidates.json";
+  const outPath = resolveOutPath(arg("--out"));
 
   console.log(`\nharvest:repairs · window ${windowDays}d`);
   console.log("=".repeat(60));

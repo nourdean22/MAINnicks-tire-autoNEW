@@ -19,9 +19,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   classifyRepair,
+  DEFAULT_OUT_PATH,
+  HARVEST_OUT_DIR,
   isShortReply,
   isPlausibleRepairLength,
   reclassifyByReply,
+  resolveOutPath,
   REPAIR_CLASSES,
   REPAIR_PATTERNS,
   type RepairMatch,
@@ -68,13 +71,15 @@ describe("repair-signal matcher", () => {
 
   // ── Canary 2 · the sign-flip ────────────────────────────────────────
   it("does NOT treat continuation as a complaint", () => {
-    // Every string here was a real matched candidate in the first production
-    // run. Each is the operator ENGAGED, not dissatisfied. Harvesting them
-    // would train regression tests on Nick's successes.
+    // Each string stands in for a real matched candidate from the first
+    // production run — same trigger phrase, same tense, private specifics
+    // replaced (review on #2480). Each is the operator ENGAGED, not
+    // dissatisfied. Harvesting them would train regression tests on Nick's
+    // successes.
     for (const text of [
-      "Keep going keep interesting me",
-      "I'm loving the advice let's keep going zoom in more less about pain too.",
-      "Go deeper on Recorded",
+      "Keep going, this is exactly the kind of thing I wanted.",
+      "Loving this so far, let's keep going and zoom in on the second point.",
+      "Go deeper on the second option.",
       "dig deeper",
     ]) {
       expect(classifyRepair(text), `continuation must not match: ${text}`).toBeNull();
@@ -83,14 +88,33 @@ describe("repair-signal matcher", () => {
 
   it("does NOT treat first-person narration as a repair", () => {
     // This operator converses; second-person past tense is ordinary speech.
+    // Synthetic stand-ins, same shape as the measured false positives.
     for (const text of [
-      "OK well good morning so yesterday like I told you after the aircraft carrier we went back",
+      "OK so yesterday, like I told you after the trip, we went back to the shop.",
       "I told the supplier we needed them by Tuesday",
-      "like i know i can do better and all i can think about is a new women",
-      "Yeah then two seconds later having to tell myself the same thing again eventually I forget",
+      "like I know I can do better and all I can think about is the next quarter.",
+      "Then two minutes later I'm telling myself the same thing again and eventually I forget.",
     ]) {
       expect(classifyRepair(text), `narration must not match: ${text}`).toBeNull();
     }
+  });
+
+  // Fixtures that dropped their trigger would abstain trivially and guard
+  // nothing. Each synthetic stand-in must still carry the phrase that fooled
+  // the first draft — checked here so a future "tidy-up" cannot hollow them out.
+  it("the synthetic abstain fixtures still carry the trigger phrases they guard against", () => {
+    expect("Keep going, this is exactly the kind of thing I wanted.").toMatch(/keep going/i);
+    expect("Loving this so far, let's keep going and zoom in on the second point.").toMatch(/keep going/i);
+    expect("Go deeper on the second option.").toMatch(/go deeper/i);
+    expect("OK so yesterday, like I told you after the trip, we went back to the shop.").toMatch(/i told you/i);
+    expect("like I know I can do better and all I can think about is the next quarter.").toMatch(/do better/i);
+    expect("Then two minutes later I'm telling myself the same thing again and eventually I forget.").toMatch(
+      /the same thing again/i,
+    );
+    // And the second-person forms of the same phrases DO fire — the guard is
+    // direction and judgement, not the words.
+    expect(classifyRepair("you can do better than that")?.failureClass).toBe("GENERIC");
+    expect(classifyRepair("you gave me the same thing again")?.failureClass).toBe("REPETITION");
   });
 
   it("keeps the weak tier out of prose", () => {
@@ -135,8 +159,40 @@ describe("harvester source contract", () => {
     expect(src).not.toMatch(pattern);
   });
 
-  it("writes only to the gitignored eval-datasets dir by default", () => {
-    expect(src).toMatch(/eval-datasets\//);
+  // ── Output boundary (review on #2480) ─────────────────────────────────
+  // The old assertion here was `src` contains "eval-datasets/" — satisfied by
+  // any comment. The boundary is now a function, tested on its behaviour, and
+  // main() is pinned to route --out through it on comment-stripped source.
+  describe("output path boundary", () => {
+    const cwd = resolve("/repo/apps/statenour");
+    const inside = (p: string) => resolve(cwd, HARVEST_OUT_DIR, p);
+
+    it("defaults to a file inside eval-datasets/", () => {
+      expect(resolveOutPath(null, cwd)).toBe(inside("repair-signal-candidates.json"));
+      expect(DEFAULT_OUT_PATH.startsWith(`${HARVEST_OUT_DIR}/`)).toBe(true);
+    });
+
+    it("accepts a relative or absolute path that resolves to a file inside eval-datasets/", () => {
+      expect(resolveOutPath("eval-datasets/other.json", cwd)).toBe(inside("other.json"));
+      expect(resolveOutPath("eval-datasets/sub/dir/x.json", cwd)).toBe(inside("sub/dir/x.json"));
+      expect(resolveOutPath(inside("abs.json"), cwd)).toBe(inside("abs.json"));
+    });
+
+    it.each([
+      ["the header's old example — a tracked path", "other.json"],
+      ["a sibling directory", "../eval-datasets-2/x.json"],
+      ["traversal back out of the directory", "eval-datasets/../secrets.json"],
+      ["the directory itself", "eval-datasets"],
+      ["an absolute path elsewhere", resolve("/tmp/candidates.json")],
+    ])("refuses %s", (_label, raw) => {
+      expect(() => resolveOutPath(raw, cwd)).toThrow(/must resolve inside eval-datasets\//);
+    });
+
+    it("main() routes --out through the boundary, and the bare fallback is gone", () => {
+      const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+      expect(code).toMatch(/const outPath = resolveOutPath\(arg\("--out"\)\)/);
+      expect(code).not.toMatch(/arg\("--out"\)\s*\?\?/);
+    });
   });
 
   it("exits non-zero when a source failed, so a stopped flywheel cannot read as healthy", () => {

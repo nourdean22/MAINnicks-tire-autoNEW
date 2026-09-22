@@ -46,7 +46,7 @@ import {
   type Scenario,
   type ScenarioCategory,
 } from "@/tests/eval/types";
-import type { RepairCandidate, RepairClass } from "./harvest-repair-signals";
+import { resolveOutPath, type RepairCandidate, type RepairClass } from "./harvest-repair-signals";
 
 /** Same reasons as scripts/harvest-repair-signals.ts — see its header. */
 function installScriptEnvironment(): void {
@@ -202,7 +202,9 @@ function arg(flag: string): string | null {
 async function main() {
   installScriptEnvironment();
   const inPath = arg("--in") ?? "eval-datasets/repair-signal-candidates.json";
-  const outDir = arg("--out") ?? "eval-datasets/repair-scenario-drafts";
+  // Same boundary as the harvester (review on #2480): a draft carries the
+  // operator's ask and repair verbatim, so --out may not leave eval-datasets/.
+  const outDir = resolveOutPath(arg("--out") ?? "eval-datasets/repair-scenario-drafts");
 
   const report = JSON.parse(readFileSync(inPath, "utf8")) as { candidates: RepairCandidate[] };
   const eligible = report.candidates.filter((c) => c.tier !== "weak" && c.assistantMessageId);
