@@ -14,6 +14,7 @@ import { buildWiringCensus } from "@/lib/observability/wiring-census";
 import { buildToolUsageCensus } from "@/lib/observability/tool-usage-census";
 import { buildEvidenceGateCalibration } from "@/lib/observability/evidence-gate-calibration";
 import { buildInstrumentFailures } from "@/lib/observability/instrument-failures";
+import { buildInstrumentHealth } from "@/lib/observability/instrument-liveness";
 import { buildHomeDecisionMetrics } from "@/lib/observability/home-decision-metrics";
 import { buildWisdomGateSpc, buildCalibrationReport } from "@/lib/brain/judgment-quality";
 
@@ -60,6 +61,18 @@ export const digestProcedures = {
   instrumentFailures: operatorProcedure
     .input(z.object({ windowHours: z.number().int().min(1).max(720).default(24) }).optional())
     .query(async ({ input }) => buildInstrumentFailures(input?.windowHours ?? 24)),
+  /**
+   * Liveness beside failures: HEALTHY / UNDERPOWERED / STALE / NEVER_RAN /
+   * FAILING per known instrument, each with its write count over the shared
+   * assistant-turn denominator. The row above can only say what FAILED; this
+   * one says what never wrote, what stopped, and what wrote too little to
+   * support a rate. Measured 2026-09-22: `action.done.shadow` had 1 write in
+   * 253 turns and zero failures — "no failures" and "unusable" at once. This
+   * is the row that tells them apart. Read-only.
+   */
+  instrumentHealth: operatorProcedure
+    .input(z.object({ windowHours: z.number().int().min(1).max(720).default(24) }).optional())
+    .query(async ({ input }) => buildInstrumentHealth(input?.windowHours ?? 24)),
   /**
    * The readout AGENTS.md §4 L6 defers enforcement on: "Enforcement goes live
    * on the buffered path once the shadow false-positive rate is known."
