@@ -24,9 +24,32 @@
 --   GROUP BY source_kind, source_id, promise_type
 --   HAVING n > 1;
 --
--- Hand-apply (same discipline as 0102 — never auto-migrated):
---   pnpm exec tsx scripts/migrations/apply-customer-promises.ts
--- or apply this file directly against TiDB.
+-- STATUS: APPLIED TO PRODUCTION 2026-09-22 and recorded in __drizzle_migrations.
+-- Verified on the live database: uq_promise_source exists, Non_unique = 0, over
+-- (source_kind, source_id, promise_type). `reconcile-migrations.mjs --strict`
+-- exits 0 with no blocking drift.
+--
+-- DO NOT RUN scripts/migrations/apply-customer-promises.ts TO APPLY THIS FILE.
+-- That script hard-codes MIGRATION_TAG = "0102_customer_promises", so it
+-- re-verifies the TABLE and reports success while this INDEX stays absent — a
+-- false confirmation, which is worse than no command at all. An earlier version
+-- of this header pointed at it; caught in review on PR #2479.
+--
+-- Fresh environment: this file is journalled, so `pnpm db:migrate` picks it up
+-- with every other unrecorded migration. Applying it alone means a scoped
+-- runner (see prod-db-guard) or executing the statement below directly.
+--
+-- Verify, never assume:
+--   SHOW INDEX FROM customer_promises WHERE Key_name = 'uq_promise_source';
+--
+-- TRAP, learned by walking into it while writing the header above: the
+-- migration hash is sha256 of the WHOLE FILE, comments included
+-- (db-migrate.ts migrationHash). So editing a comment on an ALREADY-APPLIED
+-- migration changes its hash, the recorded row stops matching, and
+-- `reconcile-migrations.mjs --strict` reports it UNRECORDED_BUT_EXACT_MATCH and
+-- goes red — improving the documentation silently de-records the migration.
+-- Finish the edits, THEN record the final hash once. Re-running is harmless
+-- either way: ER_DUP_KEYNAME (1061) is in TOLERATED_CODES.
 
 CREATE UNIQUE INDEX uq_promise_source
   ON customer_promises (source_kind, source_id, promise_type);

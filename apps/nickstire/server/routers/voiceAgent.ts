@@ -337,13 +337,13 @@ export const voiceAgentRouter = router({
         if (input.callId) {
           try {
             const { createVoicePromise } = await import("../services/promiseLedger");
-            const { nextOpenAt } = await import("@shared/shopState");
+            const { nextCloseAt } = await import("@shared/shopState");
             const { BUSINESS } = await import("@shared/business");
             const res = await createVoicePromise({
               promiseType: "callback",
               promisedAction: `Call ${input.name} back about: ${input.reason}`.slice(0, 500),
               vapiCallId: input.callId,
-              dueAt: nextOpenAt(new Date(), BUSINESS.timezone, BUSINESS.hours.structured),
+              dueAt: nextCloseAt(new Date(), BUSINESS.timezone, BUSINESS.hours.structured),
               customerName: input.name,
               customerPhone: input.phone.replace(/\D/g, ""),
               owner: "Front Counter",
@@ -1052,13 +1052,13 @@ export const voiceAgentRouter = router({
         if (input.callId) {
           try {
             const { createVoicePromise } = await import("../services/promiseLedger");
-            const { nextOpenAt } = await import("@shared/shopState");
+            const { nextCloseAt } = await import("@shared/shopState");
             const { BUSINESS } = await import("@shared/business");
             const res = await createVoicePromise({
               promiseType: "callback",
               promisedAction: `Call ${input.name} back${input.reason ? ` about: ${input.reason}` : ""}${input.preferredTime ? ` (caller prefers ${input.preferredTime})` : ""}`.slice(0, 500),
               vapiCallId: input.callId,
-              dueAt: nextOpenAt(new Date(), BUSINESS.timezone, BUSINESS.hours.structured),
+              dueAt: nextCloseAt(new Date(), BUSINESS.timezone, BUSINESS.hours.structured),
               customerName: input.name,
               customerPhone: input.phone.replace(/\D/g, ""),
               owner: "Front Counter",
