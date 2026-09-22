@@ -257,7 +257,10 @@ export async function getCronStats(): Promise<
     // 2026-08-20 defect: dropped from BOTH counters, mega-evening looked
     // like it had never run at all, and its success rate read 100%.
     if (r.status === "partial") stats[r.jobName].partial14d = r._count.id;
-    if (r.status === "failed") stats[r.jobName].fail14d = r._count.id;
+    // 2026-09-22 · every hard-failure status is its own groupBy row, so SUM them.
+    // A literal "failed" here left `interrupted` (an age-settled dead run, defined
+    // as terminal and NOT ok) out of the tally and the displayed rate at 100%.
+    if (isHardFailure(r.status)) stats[r.jobName].fail14d += r._count.id;
   }
 
   // Pull lastSuccessAt / lastFailAt per job in a second cheap query
@@ -272,7 +275,7 @@ export async function getCronStats(): Promise<
     for (const r of latest) {
       const s = stats[r.jobName];
       if (r.status === "success" && !s.lastSuccessAt) s.lastSuccessAt = r.createdAt.toISOString();
-      if (r.status === "failed" && !s.lastFailAt) s.lastFailAt = r.createdAt.toISOString();
+      if (isHardFailure(r.status) && !s.lastFailAt) s.lastFailAt = r.createdAt.toISOString();
     }
   }
 
