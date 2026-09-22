@@ -16,8 +16,11 @@ import {
   detectFailedActionClaims,
   detectPhantomActionClaims,
 } from "@/lib/ai/chat/action-result-verifier";
-import { recordMetricStrict } from "@/lib/services/metrics";
-import { recordActionDoneShadow } from "@/lib/ai/receipts/action-done-shadow-recorder";
+import { metricRecordedForTrace, recordMetricStrict } from "@/lib/services/metrics";
+import {
+  ACTION_DONE_SHADOW_METRIC,
+  recordActionDoneShadow,
+} from "@/lib/ai/receipts/action-done-shadow-recorder";
 import {
   RECOMMENDATION_NOVELTY_METRIC,
   recordRecommendationNoveltyShadow,
@@ -364,20 +367,9 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
               loadPriors: loadPriorRecommendations,
               // Idempotent by traceId: the post-turn outbox REPLAYS this whole
               // function after a crash or an unmarked completion (same exposure
-              // the "receipts · trace" marker below guards). One indexed read on
-              // (metric, createdAt); the window only has to cover how late a
-              // replay can arrive, and 7 days is generous for an outbox.
-              alreadyRecorded: async (t) => {
-                const row = await prisma.systemMetric.findFirst({
-                  where: {
-                    metric: RECOMMENDATION_NOVELTY_METRIC,
-                    createdAt: { gte: new Date(Date.now() - 7 * 86_400_000) },
-                    tags: { path: ["traceId"], equals: t },
-                  },
-                  select: { id: true },
-                });
-                return row !== null;
-              },
+              // the "receipts · trace" marker below guards). Shared reader, so
+              // both shadows dedupe the same way.
+              alreadyRecorded: (t) => metricRecordedForTrace(RECOMMENDATION_NOVELTY_METRIC, t),
               // STRICT: this write IS the measurement. The deps type demands a
               // MetricWriteReceipt, so the fail-soft recordMetric cannot be
               // wired here without failing tsc.
@@ -414,6 +406,9 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
           compareActionDoneShadow([], cleanedText),
           { traceId, conversationId: convId ?? null },
           {
+            // Idempotent by traceId — the outbox replays this deferred call
+            // (same exposure #2485 closed for the novelty shadow).
+            alreadyRecorded: (t) => metricRecordedForTrace(ACTION_DONE_SHADOW_METRIC, t),
             recordMetric: recordMetricStrict,
             logInfo: (event, data) => log.info(event, data),
             logError: (scope, err, meta) => logError(scope, err, meta, "warn"),
@@ -666,6 +661,9 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                 compareActionDoneShadow(results, cleanedText),
                 { traceId, conversationId: convId ?? null },
                 {
+                  // Idempotent by traceId — the outbox replays this deferred
+                  // call (same exposure #2485 closed for the novelty shadow).
+                  alreadyRecorded: (t) => metricRecordedForTrace(ACTION_DONE_SHADOW_METRIC, t),
                   // STRICT, not the fail-soft `recordMetric`: this write IS the
                   // measurement, so a dead writer must read as broken rather
                   // than as "no gaps". The recorder's own catch turns a

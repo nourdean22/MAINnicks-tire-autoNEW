@@ -61,6 +61,41 @@ export async function recordMetric(
   await recordMetricStrict(metric, value, options).catch(() => {}); // Never fail the main operation
 }
 
+/**
+ * How far back a per-turn shadow looks for an earlier row with the same
+ * traceId. The window only has to cover how late an outbox replay can arrive;
+ * seven days is generous for a post-turn outbox.
+ */
+export const TRACE_DEDUPE_WINDOW_MS = 7 * 86_400_000;
+
+/**
+ * Has a row for `metric` already been written for this `traceId`?
+ *
+ * 2026-09-22 · the post-turn outbox REPLAYS `runDeferredBackgroundWork` after
+ * a crash or an unmarked completion, so any per-turn shadow metric written
+ * there can land twice for one turn — inflating `writesInWindow`, crossing
+ * `MIN_POWERED_N` early and biasing every rate read off the rows. Review on
+ * #2485 caught it for `recommendation.novelty`; `action.done.shadow` had the
+ * identical exposure. Both consult this before writing. One indexed read on
+ * (metric, createdAt); the JSON-key filter shape is the one measured against
+ * production for the calibration reader (#2484).
+ */
+export async function metricRecordedForTrace(
+  metric: string,
+  traceId: string,
+  windowMs: number = TRACE_DEDUPE_WINDOW_MS,
+): Promise<boolean> {
+  const row = await prisma.systemMetric.findFirst({
+    where: {
+      metric,
+      createdAt: { gte: new Date(Date.now() - windowMs) },
+      tags: { path: ["traceId"], equals: traceId },
+    },
+    select: { id: true },
+  });
+  return row !== null;
+}
+
 /** Query metrics with aggregation */
 export async function queryMetrics(
   metric: string,

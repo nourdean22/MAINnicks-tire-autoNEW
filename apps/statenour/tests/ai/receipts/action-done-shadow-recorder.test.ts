@@ -50,9 +50,12 @@ function deps() {
   // that behaved unlike the real thing. The receipt type now makes the
   // fail-soft writer unassignable, so the two cannot drift apart again.
   const recordMetric = vi.fn(async () => ({ id: "metric-row-1" }));
+  // Required dep (2026-09-22): the outbox replays deferred work, so the
+  // recorder asks before writing. Default: nothing recorded yet.
+  const alreadyRecorded = vi.fn(async () => false);
   const logInfo = vi.fn();
   const logError = vi.fn();
-  return { recordMetric, logInfo, logError };
+  return { recordMetric, alreadyRecorded, logInfo, logError };
 }
 
 describe("action-done shadow recorder", () => {
@@ -175,6 +178,48 @@ describe("action-done shadow recorder", () => {
  * future refactor cannot quietly reintroduce the has-actions-only shape and
  * still look correct from inside this file.
  */
+describe("idempotent by traceId · the outbox replays deferred work (2026-09-22)", () => {
+  // Review on #2485 caught this for the novelty shadow; this recorder had the
+  // identical exposure at both call sites. A replayed turn must not become a
+  // second observation — it would inflate writesInWindow and every rate.
+  it("consults the dedupe reader once per recorded turn, with the trace id", async () => {
+    const d = deps();
+    expect(await recordActionDoneShadow(verdict(), CTX, d)).toBe("recorded");
+    expect(d.alreadyRecorded).toHaveBeenCalledTimes(1);
+    expect(d.alreadyRecorded).toHaveBeenCalledWith("trace-1");
+    expect(d.recordMetric).toHaveBeenCalledTimes(1);
+  });
+
+  it("a replay of an already-recorded trace writes nothing and says why", async () => {
+    const d = deps();
+    d.alreadyRecorded.mockResolvedValue(true);
+    expect(await recordActionDoneShadow(verdict({ legacyStrictGap: true }), CTX, d)).toBe(
+      "skipped_already_recorded",
+    );
+    expect(d.recordMetric).not.toHaveBeenCalled();
+    expect(d.logInfo).toHaveBeenCalledWith(
+      "action_done_shadow_skipped",
+      expect.objectContaining({ traceId: "trace-1", reason: "already_recorded" }),
+    );
+  });
+
+  it("a BROKEN dedupe reader is a failed instrument, never a second write", async () => {
+    const d = deps();
+    d.alreadyRecorded.mockRejectedValue(new Error("db down"));
+    expect(await recordActionDoneShadow(verdict(), CTX, d)).toBe("failed");
+    expect(d.recordMetric).not.toHaveBeenCalled();
+    expect(String(d.logError.mock.calls[0]?.[0])).toBe(`instrument.${ACTION_DONE_SHADOW_METRIC}`);
+  });
+
+  it("no completion claim still short-circuits BEFORE the dedupe read (nothing to dedupe)", async () => {
+    const d = deps();
+    expect(await recordActionDoneShadow(verdict({ completionClaimDetected: false }), CTX, d)).toBe(
+      "skipped_no_claim",
+    );
+    expect(d.alreadyRecorded).not.toHaveBeenCalled();
+  });
+});
+
 describe("zero-action turns are in the denominator", () => {
   it("records a completion claim that fired NO actions at all", async () => {
     const d = deps();
@@ -238,6 +283,14 @@ describe("zero-action turns are in the denominator", () => {
     // And it must pass an EMPTY result list, not the executed results — which
     // do not exist yet on that arm, since withErrorCapture is not awaited.
     expect(code).toMatch(/compareActionDoneShadow\(\s*\[\]\s*,/);
+
+    // 2026-09-22 · BOTH arms must dedupe by traceId through the shared reader,
+    // keyed on THIS metric — a reader keyed on the wrong metric would never find
+    // the earlier row and the replay would write again.
+    const dedupes = code.match(
+      /alreadyRecorded:\s*\(\s*(\w+)\s*\)\s*=>\s*metricRecordedForTrace\(\s*ACTION_DONE_SHADOW_METRIC\s*,\s*\1\s*\)/g,
+    ) ?? [];
+    expect(dedupes.length, "expected a traceId dedupe on each arm").toBe(2);
   });
 
   it("still records a zero-action turn whose claim turned out CLEAN", async () => {

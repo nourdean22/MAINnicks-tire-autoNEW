@@ -34,6 +34,12 @@ export type ActionDoneShadowOutcome =
   | "recorded"
   /** The prose made no completion claim, so there is nothing to judge. */
   | "skipped_no_claim"
+  /**
+   * A row for this traceId already exists — the post-turn outbox replayed the
+   * deferred work. A second observation of one turn would inflate the
+   * denominator; see lib/services/metrics.ts metricRecordedForTrace.
+   */
+  | "skipped_already_recorded"
   /** The instrument itself failed. Never silently — see below. */
   | "failed";
 
@@ -43,6 +49,14 @@ export interface ActionDoneShadowContext {
 }
 
 export interface ActionDoneShadowDeps {
+  /**
+   * Has this traceId already been recorded under ACTION_DONE_SHADOW_METRIC?
+   * Required, not optional: forgetting it at a call site must be a type error,
+   * because the failure it prevents (a replayed turn counted twice) is
+   * invisible in the data. Checked inside the try, so a broken reader is a
+   * FAILING instrument and never a second write.
+   */
+  alreadyRecorded: (traceId: string) => Promise<boolean>;
   /**
    * Must PROPAGATE a write failure — pass `recordMetricStrict`, never the
    * fail-soft `recordMetric`.
@@ -100,6 +114,15 @@ export async function recordActionDoneShadow(
   if (!verdict.completionClaimDetected) return "skipped_no_claim";
 
   try {
+    // Idempotent by traceId — the outbox replays this whole deferred call.
+    if (await deps.alreadyRecorded(ctx.traceId)) {
+      deps.logInfo?.("action_done_shadow_skipped", {
+        traceId: ctx.traceId,
+        reason: "already_recorded",
+      });
+      return "skipped_already_recorded";
+    }
+
     deps.logInfo?.("action_done_shadow", {
       site: "action-blocks-prose",
       traceId: ctx.traceId,
