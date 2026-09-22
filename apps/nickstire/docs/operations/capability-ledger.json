@@ -2058,6 +2058,38 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "voice-promise-capture",
+      "name": "A shop commitment made on a call becomes a tracked promise; a customer request does not",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-22. The Promise Ledger was BUILT, WIRED to a router, an admin panel and the morning brief, and had NO voice writer: createPromise had exactly one caller chain (routers/promises.ts <- PromisesPanel.tsx). Promises existed only if the operator typed them, while the highest-volume source of shop commitments - Nick offering a callback on a live call - recorded nothing. createVoicePromise() closes it from the two scripted offer paths (escalate, scheduleCallback). Deliberately NOT wired to the callback_needed classifier outcome, which proves only that the CALLER wanted a callback, not that the shop promised one; those remain callbackRequests rows. nextOpenAt() derives due_at from BUSINESS.hours.structured - the same single source businessState reads - and returns null rather than guessing.",
+        "tests": "13 tests in shared/nextOpenAt.test.ts and 7 in server/__tests__/createVoicePromise.test.ts. THREE MUTATIONS VERIFIED: removing the DST correction turns 2 red (the shop opens at 8:00 local whether or not the clocks moved; raw millisecond addition lands at 07:00); disabling the dedupe guard turns 2 red; disabling the no-due-time refusal turns 1 red. Positive controls assert nextOpenAt returns DIFFERENT instants for different inputs (a function hardcoded to `now` or to null would otherwise pass) and that duplicate vs first-delivery take genuinely different paths. 197 test files, 2,680 passed, exit 0.",
+        "liveRuns": "NONE. No production call has created a voice-sourced promise. Unit tests exercise the function, not the production seam - the webhook path has not been observed firing it.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Dedupe is a read-then-write until migration 0103 (UNIQUE index on source_kind, source_id, promise_type) is applied by an operator. Sequential webhook retries are closed; two truly concurrent deliveries can still both insert. A duplicate inflates the kept-vs-missed denominator and silently understates the shop's kept-rate."
+        },
+        {
+          "severity": "P2",
+          "description": "Only the two SCRIPTED offer paths create promises. A commitment Nick improvises outside escalate/scheduleCallback is still unrecorded. Detecting that from speech was deliberately not attempted: voiceClaimGuard is a PROHIBITION detector (unbacked_callback_promise), not a commitment detector, and its regex does not even match the prompt's own scripted callback line - verified by executing the regex against that exact sentence."
+        },
+        {
+          "severity": "P1",
+          "description": "NOTHING MARKS A VOICE PROMISE KEPT. keepPromise requires evidence text and has no automatic outbound-call or reply-evidence feeder, so voice promises will accumulate as open and then sweep to missed after 48h regardless of whether the shop actually called back. Until that half exists the voice kept-rate reads 0 and must not be presented as a performance measure."
+        }
+      ],
+      "deferredScope": [
+        "Automatic keeping from outcome evidence (a verified outbound call or customer reply to the promised number). Not attempted here because an ATTEMPT is not an OUTCOME - marking a promise kept because a job dialled would be the action-attempt-as-success defect this repo already records - and the outbound-call evidence path needs its own verification pass."
+      ],
+      "lastVerifiedAt": "2026-09-22",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
