@@ -196,6 +196,21 @@ describe("assembleBufferShadow - the E3 pre-flush lane's shadow (2026-09-22)", (
     expect(out.banner).toMatchObject({ turns: 40, wouldHaveBuffered: 30, recallPct: 75 });
   });
 
+  it("recall divides by the CLASSIFIED banner turns, never by the ones that carried no shadow (review on #2509)", () => {
+    // 50 banner turns: 10 unshadowed, 30 buffered, 10 streamed. The lane caught 30 of the
+    // 40 it classified = 75%, not 30 of 50 = 60% - a deploy gap is not a routing miss.
+    const turns = [
+      ...Array.from({ length: 10 }, (_, i) => unshadowed(shadowAt(i), { verifierBanner: true })),
+      ...Array.from({ length: 30 }, (_, i) => risky(shadowAt(20 + i), [LOOKUP], { verifierBanner: true })),
+      ...Array.from({ length: 10 }, (_, i) => calm(shadowAt(60 + i), { verifierBanner: true })),
+    ];
+    const out = assembleBufferShadow(turns, { since: SHADOW });
+    expect(out.banner).toEqual({ turns: 50, wouldHaveBuffered: 30, wouldHaveStreamed: 10, noShadow: 10, recallPct: 75 });
+    expect(out.caveat).toContain("30 of 40 classified");
+    expect(out.caveat).toContain("10 banner turn(s) carried no shadow");
+    expect(out.caveat).toContain("not only L6-preventable");
+  });
+
   it("a banner turn the shadow never classified is counted as noShadow, not as a miss", () => {
     const out = assembleBufferShadow([unshadowed(shadowAt(0), { verifierBanner: true })], { since: SHADOW });
     expect(out.banner).toMatchObject({ turns: 1, wouldHaveBuffered: 0, wouldHaveStreamed: 0, noShadow: 1 });

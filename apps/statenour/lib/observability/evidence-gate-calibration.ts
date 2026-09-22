@@ -262,7 +262,12 @@ export function assembleBufferShadow(
     (a, b) => b.buffered - a.buffered || b.bannered - a.bannered || a.reason.localeCompare(b.reason),
   );
   const wouldBufferPct = pct(wouldBuffer, withShadow);
-  const recallPct = pct(banner.wouldHaveBuffered, banner.turns);
+  // 2026-09-22 (review on #2509) · recall is over CLASSIFIED banner turns. A
+  // banner turn with no shadow (deploy gap, measurement failure) is reported as
+  // noShadow, not counted as a miss - dividing by every banner turn understated
+  // the lane the moment the shadow had a gap.
+  const classified = banner.wouldHaveBuffered + banner.wouldHaveStreamed;
+  const recallPct = pct(banner.wouldHaveBuffered, classified);
   const sufficient = withShadow >= MIN_SAMPLE;
 
   const parts: string[] = [
@@ -270,14 +275,27 @@ export function assembleBufferShadow(
       ? `Buffer rate is measured over ${withShadow} shadowed turns: this is the share of turns that would stop streaming with NICK_EVIDENCE_PREFLUSH on.`
       : `Only ${withShadow} turns carry the pre-flush shadow (${MIN_SAMPLE} needed). No buffer rate is stated.`,
   ];
+  const unclassified = banner.noShadow > 0 ? ` (${banner.noShadow} banner turn(s) carried no shadow and are excluded)` : "";
   if (banner.turns === 0) {
     parts.push("No verifier-banner turn in the cohort yet, so the lane's recall cannot be read.");
   } else if (recallPct === null) {
     parts.push(
-      `${banner.wouldHaveBuffered} of ${banner.turns} verifier-banner turns would have buffered - too few banner turns (${MIN_SAMPLE} needed) to state a recall rate.`,
+      `${banner.wouldHaveBuffered} of ${classified} classified verifier-banner turns would have buffered${unclassified} - too few classified banner turns (${MIN_SAMPLE} needed) to state a recall rate.`,
     );
   } else {
-    parts.push(`${banner.wouldHaveBuffered} of ${banner.turns} verifier-banner turns (${recallPct}%) would have buffered.`);
+    parts.push(`${banner.wouldHaveBuffered} of ${classified} classified verifier-banner turns (${recallPct}%) would have buffered${unclassified}.`);
+  }
+  // 2026-09-22 (review on #2509) · two limits of this reading, stated where the
+  // number is: the banner marker is shared by the L2 action-receipt and
+  // known-truth guards as well as the L6 gate, so not every banner is one the
+  // pre-flush lane could have prevented (the cause is not persisted yet); and
+  // the stored shadow recomputes toolsExpected from the tool calls that ran,
+  // where live routing knows it before generation, so a turn whose expected
+  // tool never fired can be classified differently here than it would be live.
+  if (banner.turns > 0) {
+    parts.push(
+      "Banner = any verifier banner (L2 action-receipt, known-truth or L6), not only L6-preventable ones; the shadow's toolsExpected is recomputed after generation.",
+    );
   }
   const top = rows[0];
   if (top) {
