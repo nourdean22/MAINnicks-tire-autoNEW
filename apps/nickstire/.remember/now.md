@@ -236,6 +236,16 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
    originating' bounces, ~5 are vendor spam) READ ONLY - no customer reply is sent on an 'ok'; a precise
    instruction is needed to expire the stale rows or draft replies. LIVE 23:07Z: orchestration-status-reconcile
    first pass stamped 35; identity memory rows 4; review-requests no longer gateway-held.
+
+12. THE PROMPT IS NOISE (mandate item 9, counterfactual). pnpm diag:memory-counterfactual replays the two paths
+   into Nick's prompt: 9 of the 10 rows injected every turn were writer noise re-emitted into thousands of
+   uses ('Nick AI has 30 learned memories' 4,904; 'Outcome unknown.' 2,517; textless commitments; '0/0 bays
+   FULL' x4); 498 of 548 rows can never reach an answer. Shipped: memoryWriterGuards.ts on the four writers
+   (7 tests), the diagnostic, and prune-junk-memories.mjs (dry run first; the DELETE is the operator's).
+   Doc: docs/operations/NICK-MEMORY-COUNTERFACTUAL-2026-09-22.md. NOT changed: the confidence x uses
+   ranking - the diagnostic prints the two alternative sets; decide from those after the prune. Also this
+   evening: kpi-snapshot moved daily -> hourly tier (oncePerShopDay on a 24h tier parks outside business
+   hours; skipped with no cron_log row, STALE 48h); the daily tier now declares no oncePerShopDay job.
 4. Duplicate-key helper consolidation onto `server/lib/dbErrors.ts` (proposals.ts,
    shopDriverMirror.ts x2, promiseLedger.ts).
 5. Tighten the transfer-artifact write in `routes/webhooks/vapi.ts` (~:621) to
