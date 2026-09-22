@@ -145,9 +145,11 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
    #2529 f10029b52 (memory identity + censuses) · #2532 2ca58d9f7 (#2514 rebuilt) · #2531 5825e17e7
    (harvest replay with tools) · #2534 213bce3c0 (#2515 rebuilt) · #2535 orchestration-status-reconcile
    (see PR). Five earlier squash merges carry no Co-Authored-By trailer (single-commit PRs squash to the
-   PR body); every merge since passes --subject/--body-file with it. Not done: abandoned-forms details
-   (the one silent zero #2532 did not cover); the #2490/#2496 Codex threads handed over by the statenour
-   session; the counterfactual memory diagnostic (mandate item 9).
+   PR body); every merge since passes --subject/--body-file with it. Later the same evening: #2537 2bdf14ead
+   (warm-transfer --snapshot-only/--rollback-legacy, the #2490 thread) · #2538 9262310f5 (harvest --out
+   follows links, the #2496 thread) · #2541 684cdab53 (flag script + photo-assess ledger truth) all MERGED
+   with the trailer. abandoned-forms details shipped (this PR). Still not done: the counterfactual memory
+   diagnostic (mandate item 9); live observation of the reconciler's first cron_log row.
 
 11. OPERATOR ROUND TWO (23:05Z, 'figure it out the best way for photo assess provider something free too or
    my ollama ... u sure i havent given open weather key? 3 and 4 are ok too'). (a) Photo assess: vision-analyzer

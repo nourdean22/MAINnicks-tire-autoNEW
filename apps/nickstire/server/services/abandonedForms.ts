@@ -13,6 +13,12 @@
  * the DB is down or the table is missing, every DB op silently no-ops and
  * the Map alone carries the behavior — identical to the pre-persistence
  * version. See drizzle/0081_abandoned_forms.sql (OPERATOR-APPLIED).
+ *
+ * 2026-09-22: every run reports its counts in `details`. 439 runs in 30 days
+ * had completed with 0 records and a NULL details column, so "nothing was
+ * eligible", "the orchestrator refused every send" and "the DB scan failed"
+ * all read the same in cron_log (docs/operations/CRON-OUTCOME-CENSUS-
+ * 2026-09-22.md). The only beacon feeding this lane is the tire-order modal.
  */
 import { createLogger } from "../lib/logger";
 import { db } from "../lib/db-helper";
@@ -161,10 +167,14 @@ export function markFormCompleted(sessionId: string): void {
  * to a restart; a seen-set dedups so an entry present in both is texted
  * at most once.
  */
-export async function processAbandonedForms(): Promise<{ recordsProcessed: number }> {
+export async function processAbandonedForms(): Promise<{ recordsProcessed: number; details: string }> {
   const now = Date.now();
   const seen = new Set<string>();
   let processed = 0;
+  const partialsInMemory = partials.size;
+  // What the DB scan saw: a row count, or why there is none. "db unavailable"
+  // is the Map-only path; "db scan failed" is a thrown query, which is not zero.
+  let dbScan = "db unavailable";
 
   const send = async (p: { sessionId: string; phone?: string | null; name?: string | null; formType: string }): Promise<boolean> => {
     try {
@@ -207,6 +217,7 @@ export async function processAbandonedForms(): Promise<{ recordsProcessed: numbe
         gte(abandonedForms.createdAt, windowStart),
         lte(abandonedForms.createdAt, windowEnd),
       ));
+      dbScan = `${rows.length} db row(s) in the 30-120 min window`;
       for (const row of rows) {
         if (seen.has(row.sessionId)) continue; // already handled via the Map
         seen.add(row.sessionId);
@@ -218,6 +229,7 @@ export async function processAbandonedForms(): Promise<{ recordsProcessed: numbe
       await d.delete(abandonedForms).where(lte(abandonedForms.createdAt, new Date(now - EXPIRY_MS)));
     }
   } catch (err) {
+    dbScan = "db scan failed";
     log.warn("[abandonedForms] DB scan skipped (Map path already ran)", { error: err instanceof Error ? err.message : String(err) });
   }
 
@@ -227,7 +239,11 @@ export async function processAbandonedForms(): Promise<{ recordsProcessed: numbe
     if (partial.createdAtMs < cutoff) partials.delete(sessionId);
   }
 
-  return { recordsProcessed: processed };
+  const attempted = seen.size;
+  const details = attempted === 0
+    ? `nothing eligible · ${partialsInMemory} partial(s) in memory · ${dbScan}`
+    : `sent or queued ${processed} · failed ${attempted - processed} · ${partialsInMemory} partial(s) in memory · ${dbScan}`;
+  return { recordsProcessed: processed, details };
 }
 
 /** Get stats for admin */
