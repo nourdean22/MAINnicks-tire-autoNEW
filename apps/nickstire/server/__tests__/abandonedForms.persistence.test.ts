@@ -10,6 +10,9 @@
  *      down): savePartialForm → processAbandonedForms must reproduce the
  *      pre-persistence behavior exactly — one send per eligible partial,
  *      no re-send after markFormCompleted, no double-send on a re-run.
+ *   3. (2026-09-22) `details` says why a run processed what it did: 439
+ *      zero-record runs in 30 days carried a NULL details column, so
+ *      "nothing eligible" and "every send refused" were the same row.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
@@ -74,6 +77,7 @@ describe("processAbandonedForms — Map fallback path (db unavailable)", () => {
     vi.setSystemTime(T0 + 45 * MIN); // inside the window
     const first = await processAbandonedForms();
     expect(first.recordsProcessed).toBe(1);
+    expect(first.details).toBe("sent or queued 1 · failed 0 · 1 partial(s) in memory · db unavailable");
     expect(h.orchestrate).toHaveBeenCalledTimes(1);
     expect(h.orchestrate).toHaveBeenCalledWith(expect.objectContaining({
       type: "abandoned_form_recovery",
@@ -85,6 +89,17 @@ describe("processAbandonedForms — Map fallback path (db unavailable)", () => {
     vi.setSystemTime(T0 + 50 * MIN);
     const second = await processAbandonedForms();
     expect(second.recordsProcessed).toBe(0);
+    expect(second.details).toBe("nothing eligible · 1 partial(s) in memory · db unavailable");
+    expect(h.orchestrate).toHaveBeenCalledTimes(1);
+  });
+
+  it("a refused send is 'failed', not 'nothing eligible' (the two zeros cron_log could not tell apart)", async () => {
+    h.orchestrate.mockResolvedValue({ status: "blocked", reason: "consent" });
+    savePartialForm({ sessionId: "s-refused", formType: "tire_order", phone: "2165554444" });
+    vi.setSystemTime(T0 + 45 * MIN);
+    const r = await processAbandonedForms();
+    expect(r.recordsProcessed).toBe(0);
+    expect(r.details).toBe("sent or queued 0 · failed 1 · 1 partial(s) in memory · db unavailable");
     expect(h.orchestrate).toHaveBeenCalledTimes(1);
   });
 
@@ -101,6 +116,7 @@ describe("processAbandonedForms — Map fallback path (db unavailable)", () => {
     vi.setSystemTime(T0 + 10 * MIN); // < 30 min
     const r = await processAbandonedForms();
     expect(r.recordsProcessed).toBe(0);
+    expect(r.details).toBe("nothing eligible · 1 partial(s) in memory · db unavailable");
     expect(h.orchestrate).not.toHaveBeenCalled();
   });
 
