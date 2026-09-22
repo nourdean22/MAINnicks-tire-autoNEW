@@ -714,15 +714,20 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
       actions++;
     }
 
-    // Learn utilization patterns
-    const { remember: rem } = await import("./nickMemory");
-    await rem({
-      type: "pattern",
-      content: `Bay utilization at ${etHour}:00: ${utilizationPct}% (${totalBays - freeBays}/${totalBays} bays, ${clockedIn} techs). ${freeBays === 0 ? "FULL — consider expanding hours." : freeBays === totalBays ? "EMPTY — need more traffic." : "Normal utilization."}`,
-      source: "capacity_analysis",
-      identity: "bay_utilization",
-      confidence: 0.7,
-    });
+    // Learn utilization patterns — nothing when no bays are configured:
+    // "0% (0/0 bays, 0 techs). FULL" sat in Nick's prompt for months (2026-09-22).
+    const { capacityMemoryContent } = await import("./memoryWriterGuards");
+    const capacityContent = capacityMemoryContent({ etHour, totalBays, freeBays, clockedIn });
+    if (capacityContent) {
+      const { remember: rem } = await import("./nickMemory");
+      await rem({
+        type: "pattern",
+        content: capacityContent,
+        source: "capacity_analysis",
+        identity: "bay_utilization",
+        confidence: 0.7,
+      });
+    }
   } catch (e) { log.warn("[intelligence:autoAction11] capacity utilization check failed:", e); }
 
   // AUTO-ACTION 12: Repeat customer detection + VIP treatment
