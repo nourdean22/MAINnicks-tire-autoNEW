@@ -99,12 +99,24 @@ const inRange = (n: number, r: { min: number; max: number }) => n >= r.min && n 
 export function extractTireSize(customerText: string): string | null {
   const digits = spokenNumbersToDigits(customerText);
 
-  // Joined spoken form: "2 15 60 17" -> width 215. The leading 1-digit token
-  // followed by a 2-digit token is how "two fifteen" arrives.
-  const joined = digits.replace(
-    /\b([1-3])\s+(\d{2})\b/g,
-    (_m, a: string, b: string) => `${a}${b}`,
-  );
+  // Joined spoken forms for the WIDTH.
+  //
+  //   "2 15 60 17"  -> 215  ("two fifteen"): a 1-digit token then a 2-digit one.
+  //   "2 2 5 50 18" -> 225  ("two two five"): three single digits, read one at a
+  //                          time. Production transcript 2026-09-22 — the caller
+  //                          said "tire size is two two five fifty r 18" and the
+  //                          call recorded tireSize null, because only the pair
+  //                          form was fused. Anchored on a following 2-digit token
+  //                          (the aspect) so "two two tires" stays unjoined.
+  const joined = digits
+    .replace(
+      /\b([1-3])\s+(\d)\s+(\d)\b(?=\s+\d{2}\b)/g,
+      (_m, a: string, b: string, c: string) => `${a}${b}${c}`,
+    )
+    .replace(
+      /\b([1-3])\s+(\d{2})\b/g,
+      (_m, a: string, b: string) => `${a}${b}`,
+    );
 
   const patterns = [
     // 215/60R17 · 215/60/17 · 215-60-17 · P215/60R17 · LT215/60R17
