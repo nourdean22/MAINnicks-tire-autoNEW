@@ -42,6 +42,7 @@
     "repetition",
     "recommendation",
     "paraphrased",
-    "sanitized"
+    "sanitized",
+    "requires-tools"
   ]
 }

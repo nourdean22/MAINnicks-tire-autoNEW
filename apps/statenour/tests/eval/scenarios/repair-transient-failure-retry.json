@@ -36,6 +36,7 @@
     "repair-mined",
     "no_tool",
     "transient-failure",
-    "content"
+    "content",
+    "requires-tools"
   ]
 }

@@ -44,6 +44,7 @@
     "repair-mined",
     "false_completion",
     "verifier-banner",
-    "task"
+    "task",
+    "requires-tools"
   ]
 }

@@ -32,7 +32,10 @@ pnpm eval:live --out=reports/nightly-2026-05-23.json
 
 Live-mode reports land at `tests/eval/reports/<ISO-timestamp>.json` by
 default. Exit codes: `0` clean, `1` schema violation, `2` any scenario
-flagged (composite < 6.0 / errored).
+flagged (composite < 6.0 / errored). Scenarios tagged `requires-tools`
+are **skipped** in live mode with a stated reason (`report.skipped`,
+`summary.skipped`) and never affect the exit code — see
+[Tool-dependent scenarios](#tool-dependent-scenarios-requires-tools).
 
 ## Scenario categories
 
@@ -131,9 +134,40 @@ armor.
 1. Drop a new `.json` file under `tests/eval/scenarios/` matching the
    Zod schema in `types.ts`. Use lowercase-slug filename ≈ scenario id.
 2. Keep `judgeCriteria` between 1 and 6 entries — more dilutes signal.
-3. Run `pnpm eval` to verify the schema passes.
-4. Run `pnpm test tests/eval/run-suite.test.ts` to confirm uniqueness
+3. If any criterion can only be satisfied by a REAL tool action (a retry
+   through `searchTools`/`invokeTool`, a `createTask` receipt, an image
+   regeneration), add `"requires-tools"` to `tags`. The corpus invariant in
+   `run-suite.test.ts` fails when a tool-demanding criterion ships untagged.
+4. Run `pnpm eval` to verify the schema passes.
+5. Run `pnpm test tests/eval/run-suite.test.ts` to confirm uniqueness
    + breadth invariants still hold.
+
+## Tool-dependent scenarios (`requires-tools`)
+
+`--live` replays each scenario through `aiChat`, which has **no tool
+support** (the deep-reasoning gather uses `generateText` for exactly that
+reason — `apps/statenour/AGENTS.md` §5). A criterion such as "actually
+attempts the lookup again through `searchTools`/`invokeTool`" is therefore
+impossible to satisfy in this runner, and scoring it would report the
+runner's limit as a product regression.
+
+So a scenario whose dominant criterion needs a real tool action carries the
+`requires-tools` tag (`REQUIRES_TOOLS_TAG` in `types.ts`), and the live
+runner skips it before calling Nick:
+
+  · no provider spend, no impossible score, no fake `[FLAGGED]`
+  · the skip is recorded in `report.skipped[]` with its reason and counted
+    in `summary.skipped`; `summary.totalScenarios` still includes it, so the
+    summary line reads e.g. `42/50 ran · … · 8 skipped (requires-tools)`
+  · `pnpm eval` (dry-run) prints how many scenarios the paid run will skip
+
+Measured 2026-09-22: 8 of 50 scenarios carry the tag — the repair-mined
+`no_tool`, `false_completion` and image-retry cases. They stay in the corpus
+on purpose: they are the acceptance set for a **tool-capable runner** (the
+production chat pipeline with the tool catalog attached), which does not
+exist yet. Drafts from `pnpm eval:draft-repairs` are born tagged for the
+tool-dependent failure classes (`TOOL_DEPENDENT_CLASSES` in
+`scripts/draft-repair-scenarios.ts`), so curation cannot forget it.
 
 ## What the judge measures
 

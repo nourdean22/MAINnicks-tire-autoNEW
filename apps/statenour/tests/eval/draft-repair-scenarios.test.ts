@@ -14,10 +14,16 @@ import {
   ASSISTANT_CONTEXT_CAP,
   CATEGORY_BY_CLASS,
   CRITERIA_BY_CLASS,
+  TOOL_DEPENDENT_CLASSES,
   draftScenario,
 } from "@/scripts/draft-repair-scenarios";
 import { REPAIR_CLASSES, type RepairCandidate } from "@/scripts/harvest-repair-signals";
-import { scenarioSchema, scenarioCategoryValues } from "@/tests/eval/types";
+import {
+  REQUIRES_TOOLS_TAG,
+  requiresToolRunner,
+  scenarioSchema,
+  scenarioCategoryValues,
+} from "@/tests/eval/types";
 
 const NOW = new Date("2026-09-22T12:00:00Z");
 
@@ -91,6 +97,29 @@ describe("draftScenario", () => {
 
   it("every class maps to a real suite category", () => {
     for (const cls of REPAIR_CLASSES) expect(scenarioCategoryValues).toContain(CATEGORY_BY_CLASS[cls]);
+  });
+
+  it("a tool-dependent class is born tagged requires-tools; every other class is not (2026-09-22)", () => {
+    // The live runner replays through aiChat (no tools). A draft whose
+    // recovery criterion IS a tool action must carry the tag from birth, or
+    // curation promotes an impossible criterion into a false regression —
+    // the exact defect the PR #2487 review found in eight hand-made files.
+    for (const cls of TOOL_DEPENDENT_CLASSES) expect(REPAIR_CLASSES).toContain(cls);
+    for (const cls of REPAIR_CLASSES) {
+      const d = draftScenario(candidate({ failureClass: cls }), "ask", NOW);
+      expect(requiresToolRunner(d), `${cls}: tag presence disagrees with TOOL_DEPENDENT_CLASSES`).toBe(
+        TOOL_DEPENDENT_CLASSES.has(cls),
+      );
+    }
+    // Canary on the criteria themselves: every tool-dependent class's dominant
+    // criterion names the action ("performs", "re-checks", "verified", "capability").
+    for (const cls of TOOL_DEPENDENT_CLASSES) {
+      const dominant = [...CRITERIA_BY_CLASS[cls]].sort((a, b) => (b.weight ?? 1) - (a.weight ?? 1))[0];
+      expect(dominant.description).toMatch(/performs|re-checks|fetches|verified|capability/i);
+    }
+    // And the untouched shape for a plain class stays exactly as before.
+    expect(draftScenario(candidate(), "ask", NOW).tags).toEqual(["repair-mined", "under_research", "medium"]);
+    expect(REQUIRES_TOOLS_TAG).toBe("requires-tools");
   });
 });
 

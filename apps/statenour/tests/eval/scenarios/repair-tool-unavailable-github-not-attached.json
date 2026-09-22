@@ -41,6 +41,7 @@
     "repair-mined",
     "no_tool",
     "tool-unavailable",
-    "repo"
+    "repo",
+    "requires-tools"
   ]
 }

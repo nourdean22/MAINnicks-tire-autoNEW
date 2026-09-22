@@ -40,7 +40,12 @@ import { loadEnvConfig } from "@next/env";
 import Module from "node:module";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { scenarioSchema, type Scenario, type ScenarioCategory } from "@/tests/eval/types";
+import {
+  REQUIRES_TOOLS_TAG,
+  scenarioSchema,
+  type Scenario,
+  type ScenarioCategory,
+} from "@/tests/eval/types";
 import type { RepairCandidate, RepairClass } from "./harvest-repair-signals";
 
 /** Same reasons as scripts/harvest-repair-signals.ts — see its header. */
@@ -126,6 +131,22 @@ export const CATEGORY_BY_CLASS: Record<RepairClass, ScenarioCategory> = {
   OVERCOACHING: "persona",
 };
 
+/**
+ * Classes whose "recovered" criterion is a REAL tool action — a lookup, a
+ * re-fetch, a verified write. `pnpm eval:live` replays through aiChat, which
+ * has no tool support, so a draft of one of these classes is born tagged
+ * REQUIRES_TOOLS_TAG and the live runner skips it with a stated reason instead
+ * of scoring an impossible criterion (review on PR #2487, 2026-09-22: eight
+ * hand-curated repairs had shipped untagged). The tag travels with the draft
+ * so curation cannot forget it.
+ */
+export const TOOL_DEPENDENT_CLASSES: ReadonlySet<RepairClass> = new Set<RepairClass>([
+  "FALSE_COMPLETION",
+  "NO_TOOL",
+  "WRONG_TOOL",
+  "STALE_DATA",
+]);
+
 /** The rejected reply is context for the judge, not the subject; cap it so the rubric stays readable. */
 export const ASSISTANT_CONTEXT_CAP = 1500;
 
@@ -160,7 +181,12 @@ export function draftScenario(
     },
     judgeCriteria: CRITERIA_BY_CLASS[cls],
     expectedBehavior: `A reply the operator would NOT have to correct again: it addresses the failure the repair names (${cls.toLowerCase().replace(/_/g, " ")}) rather than re-serving the rejected reply politely.`,
-    tags: ["repair-mined", cls.toLowerCase(), candidate.tier],
+    tags: [
+      "repair-mined",
+      cls.toLowerCase(),
+      candidate.tier,
+      ...(TOOL_DEPENDENT_CLASSES.has(cls) ? [REQUIRES_TOOLS_TAG] : []),
+    ],
   };
   // Positive control: the suite's own schema is the acceptance test.
   return scenarioSchema.parse(draft);

@@ -41,6 +41,7 @@
     "repair-mined",
     "no_tool",
     "tool-unavailable",
-    "shop"
+    "shop",
+    "requires-tools"
   ]
 }
