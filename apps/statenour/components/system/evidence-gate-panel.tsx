@@ -27,6 +27,7 @@
 import { trpc } from "@/lib/trpc/client";
 import { AlertCircle, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import type { BufferShadow } from "@/lib/observability/evidence-gate-calibration";
 
 const DRIVER_LABELS: Record<string, { label: string; tone: string; note?: string }> = {
   named_claim: { label: "named claim", tone: "text-amber-300" },
@@ -81,6 +82,69 @@ function Cohort({
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+/**
+ * The E3 pre-flush shadow (2026-09-22): what turning NICK_EVIDENCE_PREFLUSH on
+ * would COST (turns that stop streaming) and CATCH (verifier-banner turns that
+ * would have been repairable before flush), per classifier reason. Same
+ * discipline as the cohorts above: both rates are the server's or "withheld" -
+ * 6 of 7 banner turns is rendered as 6 of 7, never as 85.7%. Each reason shows
+ * both counts so a reader can see concentration without arithmetic; on the
+ * first reading one reason carried 77 of 84 buffered turns AND all 6 buffered
+ * banner turns, which is why "narrow the predicate" is not on offer.
+ */
+function BufferShadowBlock({ shadow }: { shadow: BufferShadow }) {
+  const reasons = shadow.byReason.slice(0, 3);
+  return (
+    <div
+      data-testid="buffer-shadow"
+      className="rounded border border-white/6 bg-white/[0.01] p-2.5 space-y-1.5"
+    >
+      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+        <p className="text-[9px] uppercase tracking-[0.16em] text-zinc-400 font-semibold">
+          pre-flush buffer shadow
+        </p>
+        <p className="text-[9px] font-mono text-zinc-600">
+          {`>= ${shadow.since.slice(0, 16).replace("T", " ")}`}
+        </p>
+      </div>
+      <p className="font-mono text-zinc-200">
+        {shadow.wouldBufferPct === null ? (
+          <span className="text-[11px] text-amber-300">rate withheld</span>
+        ) : (
+          <span className="text-[15px]">{shadow.wouldBufferPct.toFixed(1)}%</span>
+        )}
+        <span className="ml-1.5 text-[9px] text-zinc-500">
+          {shadow.wouldBuffer}/{shadow.withShadow} shadowed turns would buffer
+        </span>
+      </p>
+      <p className="text-[9px] font-mono text-zinc-400">
+        {shadow.banner.wouldHaveBuffered} of {shadow.banner.turns} banner turns would have buffered
+        <span className="ml-1.5 text-zinc-500">
+          {shadow.banner.recallPct === null
+            ? "· recall withheld"
+            : `· recall ${shadow.banner.recallPct.toFixed(1)}%`}
+        </span>
+        {shadow.banner.noShadow > 0 && (
+          <span className="ml-1.5 text-rose-300">· {shadow.banner.noShadow} without a shadow</span>
+        )}
+      </p>
+      {reasons.length > 0 && (
+        <ul className="space-y-0.5">
+          {reasons.map((r) => (
+            <li key={r.reason} className="flex items-baseline gap-1.5 text-[9px] font-mono min-w-0">
+              <span className="text-zinc-300 truncate min-w-0">{r.reason}</span>
+              <span className="text-zinc-500 shrink-0">
+                {r.buffered} buffered · {r.bannered} banner
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-[9px] text-zinc-600 leading-snug">{shadow.caveat}</p>
     </div>
   );
 }
@@ -167,6 +231,8 @@ export function EvidenceGatePanel() {
           cohort={after}
         />
       </div>
+
+      <BufferShadowBlock shadow={d.bufferShadow} />
 
       <p className="border-t border-white/6 pt-2 text-[9px] text-zinc-600 leading-snug">{d.caveat}</p>
     </section>
