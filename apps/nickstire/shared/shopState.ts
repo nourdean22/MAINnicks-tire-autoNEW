@@ -96,6 +96,120 @@ function fmt(minutes: number): string {
   return `${h12}:${String(m).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}`;
 }
 
+/**
+ * The next opening moment as a real Date — or null when it cannot be derived.
+ *
+ * `businessState().nextChange` is a human-readable STRING ("8:00 AM tomorrow").
+ * That is correct for speech and SMS copy and useless for a deadline. A promise
+ * needs a machine-comparable instant, and the only honest source for one is the
+ * shop's own configured hours — the same `BUSINESS.hours.structured` this file
+ * already reads, so no second definition of "when we open" is created.
+ *
+ * RETURNS NULL RATHER THAN GUESSING. If hours are unconfigured, or no day in
+ * the next week has hours, the caller gets null and must NOT fabricate a
+ * deadline. A promise with an invented due time is worse than no promise: it
+ * manufactures a breach the shop never agreed to, and the Promise Ledger scores
+ * kept-vs-missed against exactly that field.
+ *
+ * Minute-accurate rather than second-accurate on purpose: the shop's hours are
+ * configured to the minute, so seconds would be false precision.
+ */
+function nextOpenAt(
+  now: Date,
+  timezone: string,
+  hours: Record<string, string>,
+): Date | null {
+  const { weekday, minutes } = localClock(now, timezone);
+  const idx = WEEKDAYS.indexOf(weekday as (typeof WEEKDAYS)[number]);
+  if (idx < 0) return null;
+
+  const today = parseRange(hours[weekday]);
+  // Already open → the next "open" moment is now.
+  if (today && minutes >= today.open && minutes < today.close) return now;
+  // Closed but opening later today.
+  if (today && minutes < today.open) return shiftLocalMinutes(now, timezone, today.open - minutes);
+
+  // After close, or no hours today: walk forward to the next day WITH hours.
+  for (let i = 1; i <= 7; i++) {
+    const r = parseRange(hours[WEEKDAYS[(idx + i) % 7]]);
+    if (r) {
+      // Minutes remaining today, plus whole days, plus the open offset.
+      return shiftLocalMinutes(now, timezone, (1440 - minutes) + (i - 1) * 1440 + r.open);
+    }
+  }
+  return null;
+}
+
+/**
+ * WHEN A "WE'LL CALL YOU BACK" PROMISE IS DUE: the CLOSE of the business day on
+ * which the shop can next act.
+ *
+ * `nextOpenAt` is the wrong deadline and shipping it as one was a real defect,
+ * caught in review on PR #2479. It returns `now` when the shop is already open,
+ * so a callback promised at 10am on a Tuesday was due at 10am on that Tuesday —
+ * overdue one second later. The overdue sweep would then escalate it into the
+ * Decision Inbox and, after 48h, stamp it `missed`, reporting a broken promise
+ * that the shop had every intention of keeping and plenty of day left to keep.
+ *
+ * Refusing during open hours was the other option and it is worse: most calls
+ * arrive while the shop is open, so voice promises would have existed only for
+ * after-hours calls — a silent hole in the exact hours the business runs.
+ *
+ * THIS IS DERIVED, NOT INVENTED, which is the constraint that matters here:
+ *   - The outbound follow-up assistant's own script says "we'll have someone
+ *     call you back TODAY" (FOLLOW_UP_SYSTEM_PROMPT), so close-of-business is
+ *     the bound the shop itself stated.
+ *   - The inbound script states no time, but the shop can only act while it is
+ *     open, so the last moment it can honour "we'll call you back" on that day
+ *     is closing time. That is a property of the hours, not a guess about
+ *     intent.
+ *
+ * Returns null when no deadline is derivable, and callers must skip rather than
+ * substitute one.
+ */
+export function nextCloseAt(
+  now: Date,
+  timezone: string,
+  hours: Record<string, string>,
+): Date | null {
+  // Reuse nextOpenAt so both answers come from one walk of the schedule; a
+  // second copy of that loop would be free to disagree about which day is next.
+  const openAt = nextOpenAt(now, timezone, hours);
+  if (!openAt) return null;
+
+  // Which business day did that land on, and when does it close?
+  const at = localClock(openAt, timezone);
+  const range = parseRange(hours[at.weekday]);
+  if (!range) return null;
+
+  // Already past close on that day should be impossible (nextOpenAt never
+  // returns a moment after close), but refuse rather than emit a past deadline.
+  if (at.minutes >= range.close) return null;
+  return shiftLocalMinutes(openAt, timezone, range.close - at.minutes);
+}
+
+/**
+ * Advance `now` by N wall-clock minutes in the shop's timezone.
+ *
+ * Adding milliseconds directly is wrong across a DST boundary — the shop opens
+ * at 8:00 local whether or not the clocks moved overnight. This walks the
+ * offset and then corrects for any UTC-offset shift the jump crossed, so the
+ * result lands on the intended local wall-clock minute.
+ */
+function shiftLocalMinutes(now: Date, timezone: string, deltaMinutes: number): Date {
+  const naive = new Date(now.getTime() + deltaMinutes * 60_000);
+  const before = localClock(now, timezone).minutes;
+  const after = localClock(naive, timezone).minutes;
+  // Expected local minutes-of-day after the shift, modulo the day.
+  const expected = (before + deltaMinutes) % 1440;
+  const drift = after - expected;
+  // A DST jump shows up as a whole-hour drift; correct it back.
+  if (drift !== 0 && Math.abs(drift) <= 120) {
+    return new Date(naive.getTime() - drift * 60_000);
+  }
+  return naive;
+}
+
 export function businessState(
   now: Date,
   timezone: string,

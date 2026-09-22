@@ -17,6 +17,8 @@ import { BUSINESS } from "@shared/business";
 import { countActionableLeads } from "@shared/leadSource";
 const log = createLogger("cron:morning-brief");
 
+
+
 /**
  * ROS-083 · RESOLVED BY REMOVAL, 2026-09-07. Read this before adding any block
  * that ranks work for the operator.
@@ -282,7 +284,8 @@ ${(pendingCallbacks[0]?.count ?? 0) > 0 ? `- 📞 ${pendingCallbacks[0]?.count} 
     // (no invented rates, no nagging about an unused feature).
     let promisesBlock = "";
     try {
-      const { promiseLedgerStats } = await import("../../services/promiseLedger");
+      const { promiseLedgerStats, voicePromiseBacklog, renderVoicePromiseLine } =
+        await import("../../services/promiseLedger");
       const ps = await promiseLedgerStats(30);
       if (ps && ps.created > 0) {
         const kept = ps.keptOnTime + ps.keptLate;
@@ -292,6 +295,41 @@ PROMISES (30d, from the ledger): ${ps.created} made · ${kept} kept` +
           `${ps.keptLate > 0 ? ` (${ps.keptLate} late${ps.avgKeptLateHours != null ? `, avg ${ps.avgKeptLateHours}h over` : ""})` : ""}` +
           `${ps.missed > 0 ? ` · ${ps.missed} MISSED` : ""}` +
           `${ps.open > 0 ? ` · ${ps.open} open` : ""}`;
+      }
+      // VOICE PROMISES ARE REPORTED SEPARATELY, AND NEVER AS A KEPT-RATE.
+      //
+      // Nothing can mark a voice promise kept automatically — the callback
+      // happens on the counter phone, which this system cannot observe. Folding
+      // them into the line above would let auto-created promises sweep to
+      // `missed` and report "35 MISSED" as though Nick had broken 35 promises,
+      // when the truth is that keeping was never measurable. Unmeasured is not
+      // failed.
+      //
+      // What IS actionable is the overdue backlog: those are real obligations
+      // nobody has closed out, and that is what gets surfaced.
+      //
+      // THREE STATES, NOT TWO. A failed read, an un-applied table and a genuine
+      // zero are different facts, and the first version of this block rendered
+      // all three as an identical silence. That silence is the dangerous one
+      // here: this feature exists so obligations cannot be forgotten, and a
+      // brief that omits the section looks exactly like "no commitments were
+      // made" while capture is quietly broken. Unmeasured is not zero.
+      //
+      // A measured zero still renders nothing, matching the line above it — the
+      // brief deliberately does not spend Nick's attention on empty sections.
+      // What changed is that a NON-measurement now says so out loud.
+      //
+      // Its own try/catch on purpose: before this, a throw in the voice read
+      // aborted the whole block and took the operator-promise line down with
+      // it, so one broken query silently deleted a working report.
+      try {
+        const vb = await voicePromiseBacklog(30);
+        promisesBlock += renderVoicePromiseLine(
+          vb === null ? { kind: "unreadable" } : { kind: "measured", ...vb },
+        );
+      } catch (e) {
+        log.warn("[morningBrief] voice promise backlog failed:", e);
+        promisesBlock += renderVoicePromiseLine({ kind: "error" });
       }
     } catch (e) { log.warn("[morningBrief] promise ledger stats failed:", e); }
 

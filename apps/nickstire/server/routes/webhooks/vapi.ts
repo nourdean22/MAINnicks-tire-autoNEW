@@ -291,9 +291,17 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string): Promi
       case "scheduleCallback":
         output = await caller.scheduleCallback(args as { name: string; phone: string; reason?: string; preferredTime?: string; callId?: string });
         break;
-      // wave-181: physical rack-check capture. Caller refused to drive
-      // over without stock confirmation → AI promises a 15-min callback,
-      // tool flags lead with urgency=5 + fires Telegram to front desk.
+      // Physical rack-check capture. Caller wants stock confirmed before
+      // driving over.
+      //
+      // THIS COMMENT USED TO SAY "AI promises a 15-min callback" — the exact
+      // opposite of what the handler now does. `checkTireStock` returns an
+      // aiHint reading "do NOT state whether the tire is in stock, and do NOT
+      // promise a callback or any timeframe", and hands off to a human
+      // instead. The wave-181 behaviour it described was deliberately
+      // reversed; the comment was not. Corrected 2026-09-22 while wiring the
+      // Promise Ledger, because a comment claiming a promise is made is
+      // exactly what sends the next reader looking for a promise record.
       case "checkTireStock":
         output = await caller.checkTireStock(args as { name: string; phone: string; tireSize: string; vehicle?: string; callId?: string });
         break;
