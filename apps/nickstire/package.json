@@ -51,6 +51,8 @@
     "triage:reels": "tsx scripts/build-reel-triage.mjs",
     "lint:orphans": "node scripts/knip-orphan-gate.mjs",
     "diag:llm-calls": "node scripts/diagnostics/llm-calls-readback.cjs",
+    "diag:cron-census": "node scripts/diagnostics/cron-outcome-census.mjs",
+    "diag:memory-eviction": "node scripts/diagnostics/memory-eviction-simulation.mjs",
     "diag:tire-size-recall": "tsx scripts/diagnostics/tire-size-recall.mjs"
   },
   "dependencies": {
