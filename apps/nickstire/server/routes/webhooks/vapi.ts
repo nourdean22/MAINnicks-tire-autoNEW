@@ -619,8 +619,9 @@ async function processCallEndReport(
           // an ended reason proving a transfer was ATTEMPTED. A call that never
           // tried to hand off gets no verdict at all — the old test here was
           // `artifactPresent || transfers.length`, and artifactPresent is true
-          // for every call with a transcript, which is how 20 of 31 calls came
-          // to carry "unknown" for a transfer that never happened.
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
           if (transferArtifactWorthPersisting(read, cleanEndedReason)) {
             const { sql } = await import("drizzle-orm");
             await d.execute(sql`

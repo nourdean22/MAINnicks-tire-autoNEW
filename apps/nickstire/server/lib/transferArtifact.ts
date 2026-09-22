@@ -120,9 +120,10 @@ const asString = (v: unknown): string | null =>
  * transfer whose result was lost.
  *
  * 2026-09-22: the webhook's test used to be `artifactPresent || transfers.length`,
- * and artifactPresent is true for every call with a transcript — so 20 of 31
- * calls after the 2026-09-21 plan change carried verdict "unknown" for a
- * transfer that never happened. No reader treated unknown as failed, so it
+ * and artifactPresent is true whenever Vapi sends a transfers ARRAY — which it
+ * does, empty, on calls that never transferred — so 20 of 31 calls after the
+ * 2026-09-21 plan change carried verdict "unknown" for a transfer that never
+ * happened. No reader treated unknown as failed, so it
  * was cosmetic; it was also a lie in the row.
  */
 export function transferArtifactWorthPersisting(
