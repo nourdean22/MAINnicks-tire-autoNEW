@@ -6,10 +6,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("../_core/llm", () => ({ invokeLLM: vi.fn() }));
 
 import { invokeLLM } from "../_core/llm";
-import {
-  extractConversationFacts, MIN_FACT_CONFIDENCE, LOW_LEVEL_DB,
-  MIN_TRANSCRIPT_COVERAGE, type TranscriptSegment,
-} from "./conversationFacts";
+import { extractConversationFacts, type TranscriptSegment } from "./conversationFacts";
+
+// The thresholds are NOT imported. They are module-private, and a test that reads the constant
+// and compares it to itself passes even when the extractor ignores it -- presence, not
+// behaviour. Every threshold below is asserted through extractConversationFacts() instead, at
+// the measured values that motivated it.
 
 const SEGMENTS: TranscriptSegment[] = [
   { index: 0, start: 0, end: 4, text: "Hi, the front right tire keeps losing air." },
@@ -102,7 +104,9 @@ describe("conversation facts — coverage gates confidence, level barely does", 
     replyWith({ facts: [{ kind: "QUOTE", value: "$35 patch", evidenceSegment: 1, confidence: 0.99 }] });
     const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 85, totalSeconds: 90 });
     expect(r.facts).toHaveLength(1);
-    expect(r.facts[0].confidence).toBeGreaterThanOrEqual(MIN_FACT_CONFIDENCE);
+    // The confidence survives UNCAPPED. Both gates clamp to 0.6, so an intact 0.99 is proof
+    // neither one fired -- a stronger claim than "it cleared the bar".
+    expect(r.facts[0].confidence).toBe(0.99);
   });
 
   it("LOUD audio does NOT earn confidence — level is not intelligibility", async () => {
@@ -125,15 +129,24 @@ describe("conversation facts — coverage gates confidence, level barely does", 
 
   it("a genuinely INAUDIBLE capture still caps, at the lowered threshold", async () => {
     replyWith({ facts: [{ kind: "QUOTE", value: "$35 patch", evidenceSegment: 1, confidence: 0.99 }] });
-    const r = await extractConversationFacts(SEGMENTS, { meanVolumeDb: LOW_LEVEL_DB - 5 });
+    // -60 dBFS, five below the cap. Written as a literal because the test's job is to fix
+    // WHERE the cap sits; deriving it from the constant would move the test with the code.
+    const r = await extractConversationFacts(SEGMENTS, { meanVolumeDb: -60 });
     expect(r.facts).toHaveLength(0);
     expect(r.dropped).toContainEqual({ reason: "below threshold (inaudible capture)", count: 1 });
   });
 
-  it("the coverage threshold sits where the measured failure was", () => {
-    // 37.4/90 = 0.416 must fail; a healthy transcript must not. Pins the constant to the
-    // evidence rather than to taste.
-    expect(37.4 / 90).toBeLessThan(MIN_TRANSCRIPT_COVERAGE);
-    expect(0.9).toBeGreaterThan(MIN_TRANSCRIPT_COVERAGE);
+  it("the threshold sits BETWEEN the measured failure and a healthy transcript", async () => {
+    // The boundary walked through the real function. 37.4/90 = 0.416 is the sample that
+    // produced incoherent text and must yield nothing; 81/90 = 0.90 is a healthy transcript
+    // and must yield the fact. Asserting the flip happens somewhere in between pins the
+    // threshold to the EVIDENCE without pinning it to a number -- retuning it on better data
+    // is then a one-line change here, not a rewrite.
+    const at = async (covered: number) => {
+      replyWith({ facts: [{ kind: "QUOTE", value: "$35 patch", evidenceSegment: 1, confidence: 0.99 }] });
+      return (await extractConversationFacts(SEGMENTS, { coveredSeconds: covered, totalSeconds: 90 })).facts.length;
+    };
+    expect(await at(37.4)).toBe(0);
+    expect(await at(81)).toBe(1);
   });
 });

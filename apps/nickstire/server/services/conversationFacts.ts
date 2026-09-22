@@ -30,7 +30,8 @@ export type TranscriptSegment = {
   text: string;
 };
 
-export const FACT_KINDS = [
+/** Not exported: nothing outside this module names a kind; `FactKind` below is the API. */
+const FACT_KINDS = [
   "CUSTOMER_CONCERN",
   "REQUESTED_WORK",
   "QUOTE",
@@ -74,7 +75,7 @@ export type ExtractionResult = {
  * 0.7 is deliberately high. The cost of a wrong quote or a wrong promise reaching the
  * operator is a conversation with a customer about something that was never said.
  */
-export const MIN_FACT_CONFIDENCE = 0.7;
+const MIN_FACT_CONFIDENCE = 0.7;
 
 /**
  * LEVEL DOES NOT PREDICT INTELLIGIBILITY. Kept only to cap the genuinely inaudible.
@@ -91,7 +92,7 @@ export const MIN_FACT_CONFIDENCE = 0.7;
  * The ranges overlap completely, so mean level has no discriminative power for this source.
  * A cap keyed on it would have waved that recording straight through.
  */
-export const LOW_LEVEL_DB = -55;
+const LOW_LEVEL_DB = -55;
 
 /**
  * THE SIGNAL THAT ACTUALLY PREDICTS A BAD TRANSCRIPT: how much audio produced no text.
@@ -106,7 +107,7 @@ export const LOW_LEVEL_DB = -55;
  *
  * So coverage gates confidence, regardless of how fluent the text reads.
  */
-export const MIN_TRANSCRIPT_COVERAGE = 0.65;
+const MIN_TRANSCRIPT_COVERAGE = 0.65;
 
 const SYSTEM = `You extract structured facts from a transcript of a conversation at an auto
 repair shop's service counter.
