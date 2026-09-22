@@ -22,6 +22,10 @@ import {
   isBlockingVerdict,
   MIN_SAMPLE,
 } from "@/lib/observability/evidence-gate-calibration";
+import { classifyBannerCause } from "@/lib/observability/evidence-gate-calibration";
+import { buildVerifierBanner, buildKnownTruthBanner } from "@/lib/ai/chat/fabrication-rewriter";
+import { readFileSync as readSrc } from "node:fs";
+import { join as joinPath } from "node:path";
 
 const FIX = "2026-09-16T08:56:00.000Z";
 const before = (n: number) => new Date(Date.parse(FIX) - (n + 1) * 60_000);
@@ -183,7 +187,7 @@ describe("assembleBufferShadow - the E3 pre-flush lane's shadow (2026-09-22)", (
     ];
     const out = assembleBufferShadow(turns, { since: SHADOW });
     expect(out.sufficient).toBe(true);
-    expect(out.banner).toEqual({ turns: 7, wouldHaveBuffered: 6, wouldHaveStreamed: 1, noShadow: 0, recallPct: null });
+    expect(out.banner).toMatchObject({ turns: 7, wouldHaveBuffered: 6, wouldHaveStreamed: 1, noShadow: 0, recallPct: null });
     expect(out.caveat).toContain("6 of 7");
     expect(out.caveat).not.toContain("85.7");
   });
@@ -205,7 +209,7 @@ describe("assembleBufferShadow - the E3 pre-flush lane's shadow (2026-09-22)", (
       ...Array.from({ length: 10 }, (_, i) => calm(shadowAt(60 + i), { verifierBanner: true })),
     ];
     const out = assembleBufferShadow(turns, { since: SHADOW });
-    expect(out.banner).toEqual({ turns: 50, wouldHaveBuffered: 30, wouldHaveStreamed: 10, noShadow: 10, recallPct: 75 });
+    expect(out.banner).toMatchObject({ turns: 50, wouldHaveBuffered: 30, wouldHaveStreamed: 10, noShadow: 10, recallPct: 75 });
     expect(out.caveat).toContain("30 of 40 classified");
     expect(out.caveat).toContain("10 banner turn(s) carried no shadow");
     expect(out.caveat).toContain("not only L6-preventable");
@@ -253,5 +257,59 @@ describe("assembleBufferShadow - the E3 pre-flush lane's shadow (2026-09-22)", (
     expect(out.afterFix.turns).toBe(1);
     expect(out.bufferShadow.since).toBe(BUFFER_SHADOW_SINCE);
     expect(out.bufferShadow).toMatchObject({ turns: 2, withShadow: 1, wouldBuffer: 1 });
+  });
+});
+
+/**
+ * 2026-09-23 · review on #2509 (P1): every verifier banner counted as a lane outcome, but the
+ * marker is shared by four producers and only the action-claim ones are outcomes the pre-flush
+ * lane could have held. The cause is read off the banner's first line; a source contract pins
+ * each producer's diagnostic to the classifier so a reworded banner cannot silently become `other`.
+ */
+describe("banner causes (review on #2509)", () => {
+  const ROOT = joinPath(__dirname, "..", "..");
+  it("classifies the four producers by the text they actually emit", () => {
+    expect(classifyBannerCause(buildVerifierBanner("The response below claimed an action (added task) but no matching tool call fired."))).toBe("l2_action_claim");
+    expect(classifyBannerCause(buildVerifierBanner("The response below claimed action(s) (createTask) but tool call(s) failed."))).toBe("action_receipt");
+    expect(classifyBannerCause(buildVerifierBanner("The response below claimed action(s) (createTask) but the tool(s) could not be verified."))).toBe("action_receipt");
+    expect(classifyBannerCause(buildKnownTruthBanner(["status_claim"]))).toBe("known_truth");
+    expect(classifyBannerCause(buildKnownTruthBanner(["stale_active_claim"]))).toBe("known_truth");
+    expect(classifyBannerCause(buildVerifierBanner("Something new the classifier has never seen."))).toBe("other");
+  });
+
+  it("SOURCE CONTRACT: each producer still emits the phrase the classifier keys on", () => {
+    const read = (f: string) => readSrc(joinPath(ROOT, f), "utf8");
+    expect(read("lib/ai/chat/fabrication-rewriter.ts")).toContain("but no matching tool call fired");
+    expect(read("lib/services/chat/persist-assistant-message.ts")).toContain("claimed action(s)");
+    expect(read("lib/services/chat/deferred-background-work.ts")).toContain("claimed action(s)");
+    expect(read("lib/ai/chat/fabrication-rewriter.ts")).toContain("asserts a status");
+    expect(read("lib/ai/chat/fabrication-rewriter.ts")).toContain("references retired or inactive infrastructure");
+  });
+
+  it("the shadow reports the banner split by cause and names it in the caveat", () => {
+    const SHADOW = "2026-09-15T17:29:16.000Z";
+    const at = (n: number) => new Date(Date.parse(SHADOW) + (n + 1) * 60_000);
+    const LOOKUP = "factual lookup with no tool expected to fire";
+    const risky = (n: number, over: Partial<GateTurn>): GateTurn => ({
+      createdAt: at(n), gate: { verdict: "pass", turnRisk: { buffer: true, risk: "high", register: "coaching", reasons: [LOOKUP], toolsFired: 0 } }, excerpt: "reply", ...over,
+    });
+    const calm = (n: number, over: Partial<GateTurn>): GateTurn => ({
+      createdAt: at(n), gate: { verdict: "pass", turnRisk: { buffer: false, risk: "low", register: "coaching", reasons: [], toolsFired: 0 } }, excerpt: "reply", ...over,
+    });
+    const turns = [
+      ...Array.from({ length: 30 }, (_, i) => risky(i, { verifierBanner: true, bannerCause: "l2_action_claim" })),
+      ...Array.from({ length: 8 }, (_, i) => risky(40 + i, { verifierBanner: true, bannerCause: "action_receipt" })),
+      ...Array.from({ length: 5 }, (_, i) => calm(60 + i, { verifierBanner: true, bannerCause: "known_truth" })),
+      calm(80, { verifierBanner: true }), // no cause recorded (a pre-classifier row) reads as other
+    ];
+    const out = assembleBufferShadow(turns, { since: SHADOW });
+    expect(out.banner.byCause).toEqual([
+      { cause: "l2_action_claim", turns: 30, wouldHaveBuffered: 30, wouldHaveStreamed: 0, noShadow: 0 },
+      { cause: "action_receipt", turns: 8, wouldHaveBuffered: 8, wouldHaveStreamed: 0, noShadow: 0 },
+      { cause: "known_truth", turns: 5, wouldHaveBuffered: 0, wouldHaveStreamed: 5, noShadow: 0 },
+      { cause: "other", turns: 1, wouldHaveBuffered: 0, wouldHaveStreamed: 1, noShadow: 0 },
+    ]);
+    expect(out.caveat).toContain("l2_action_claim 30 · action_receipt 8 · known_truth 5 · other 1");
+    expect(out.caveat).toContain("not only L6-preventable");
   });
 });
