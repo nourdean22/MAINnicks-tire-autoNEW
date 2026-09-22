@@ -302,8 +302,14 @@ export interface RepairMatch {
  * operator who DID name the failure is believed over the reply.
  */
 export const VERIFIER_BANNER = /^\s*\[VERIFIER\b/i;
+// ⚠ The first cut had a bare `search (is|isn't|…)` alternative and matched
+// "web search IS AVAILABLE this turn" and "web search is alive" — the opposite
+// of unavailability — plus "search isn't PULLING the right results", which is
+// noise, not absence. Measured on the second production run: 3 of 13 NO_TOOL
+// hits were availability statements and 1 was noise. A negation must be part
+// of the phrase, never inferred from the verb.
 export const TOOL_UNAVAILABLE_REPLY =
-  /\b((web )?search (is|isn'?t|is not|unavailable|not available)|no (web )?search (this session|available|this turn)|tools? (aren'?t|are not|isn'?t|not) (attached|available)|(can'?t|cannot|unable to) (search|reach|access) the (web|repo|internet)|no tool attached|api key was reported as leaked)\b/i;
+  /\b((web )?search (is )?(unavailable|not available|down|disabled|isn'?t available|is not available)|no (web )?search (this session|available|this turn)|tools? (aren'?t|are not|isn'?t|not) (attached|available)|(can'?t|cannot|unable to) (search|reach|access) the (web|repo|internet)|no tool attached|api key was reported as leaked)\b/i;
 
 export function reclassifyByReply(hit: RepairMatch, replyText: string | null): RepairMatch {
   if (!replyText) return hit;

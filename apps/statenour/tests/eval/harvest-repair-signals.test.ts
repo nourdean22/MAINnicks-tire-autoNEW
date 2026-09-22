@@ -193,6 +193,22 @@ describe("reclassifyByReply · the reply names what 'try again' cannot", () => {
     }
   });
 
+  it("AVAILABILITY is not unavailability — 'search is available / alive' must NOT flip to NO_TOOL", () => {
+    for (const reply of [
+      "Good — web search is available this turn. Tell me what you want and I'll pull real sources.",
+      "Web search is alive. The first pass was generic — let me hit harder.",
+      "Web search is available this turn. Hitting the actual stacks you run.",
+    ]) {
+      expect(reclassifyByReply(generic, reply), reply).toEqual(generic);
+    }
+  });
+
+  it("NOISE is not unavailability — 'search isn't pulling the right results' stays under-research", () => {
+    expect(
+      reclassifyByReply(generic, "Search isn't pulling the right results from my end — came back with noise, not videos."),
+    ).toEqual(generic);
+  });
+
   it("an operator who NAMED the failure is believed over the reply", () => {
     const named: RepairMatch = { tier: "strong", failureClass: "MEMORY_MISS", label: "i-already-told-you" };
     expect(reclassifyByReply(named, "[VERIFIER · v10.0.162] ⚠ claimed actions but no tool call fired")).toEqual(named);
