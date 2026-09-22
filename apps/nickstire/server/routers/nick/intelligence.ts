@@ -500,6 +500,25 @@ export async function handleRunMigrations() {
       // ingest for every camera.
       `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS relocateFailures INT NULL`,
       `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS preexistingCrossed INT NULL`,
+      // 2026-09-22 · visit episode identity + stitch counters (matches drizzle/0127 +
+      // schema.ts). A tracker id is not a vehicle: `camera-bridge/vision/stitch.py`
+      // (#2493) decides when a new track CONTINUES an earlier one and carries the
+      // original arrival forward, but the shop table had nowhere to record WHICH tracks
+      // were folded together -- so a corrected `arrivedAt` landed unauditable. Measured
+      // 2026-09-22: shop-left 152 track deaths against 1-6 invoiced jobs, 13.8%
+      // re-acquired; shop-right 81 / 18.5%. NULLABLE for the same reason as the pair
+      // above -- a producer predating them sends none, and NULL is "not reported", not
+      // an empty trail. SAME ORDERING RULE: apply before deploying the writer.
+      `ALTER TABLE vehicle_visits ADD COLUMN IF NOT EXISTS episodeId VARCHAR(64) NULL`,
+      `ALTER TABLE vehicle_visits ADD COLUMN IF NOT EXISTS continuesVisitId VARCHAR(64) NULL`,
+      `ALTER TABLE vehicle_visits ADD COLUMN IF NOT EXISTS memberTrackIds JSON NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_vehicle_visits_episode ON vehicle_visits (episodeId)`,
+      // `arrivalsAfterStitch` is the de-duplicated SHADOW of `arrivals`, reported
+      // alongside it and never instead of it -- the operator's 2026-09-18 instruction was
+      // to keep the counter running and unhidden and let the data prove itself.
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS arrivalsAfterStitch INT NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS stitchedTotal INT NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS stitchRefusedAmbiguous INT NULL`,
       // 2026-07-21 · nickgpt_training_examples.edit_categories_json — training-loop edit taxonomy (matches drizzle/0095 + schema.ts)
       `ALTER TABLE nickgpt_training_examples ADD COLUMN IF NOT EXISTS edit_categories_json TEXT NULL`,
       `CREATE TABLE IF NOT EXISTS chat_analytics (id int AUTO_INCREMENT PRIMARY KEY, sessionId int, hourOfDay int NOT NULL, dayOfWeek int NOT NULL, month int NOT NULL, messageCount int NOT NULL DEFAULT 0, converted int NOT NULL DEFAULT 0, leadScore int, duration int, createdAt timestamp NOT NULL DEFAULT (now()))`,
