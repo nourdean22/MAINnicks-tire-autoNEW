@@ -77,6 +77,15 @@ export function AttributionReviewCard() {
     evidence?: unknown;
     createdAt?: string | Date | null;
     latest?: string | null;
+    /** Server-classified evidence band. Optional because this is a CAST, not a
+     *  check — if the server stops sending it, TS cannot tell us, so the
+     *  render guards on `row.band &&` rather than trusting the type. */
+    band?: {
+      label: string;
+      basis: string;
+      whatWouldRaiseIt: string | null;
+      observed: boolean;
+    } | null;
   }>;
 
   const decide = async (row: (typeof rows)[number], decision: Decision) => {
@@ -179,6 +188,20 @@ export function AttributionReviewCard() {
                     {row.leadId ? ` · lead #${row.leadId}` : ""}
                     {row.workOrderId ? ` · WO ${row.workOrderId}` : ""}
                   </div>
+                  {/* The band in words. `observed` is the distinction that
+                      matters: only a recorded lead link is observed, and
+                      everything else is a guess with a number on it. The
+                      title carries what would RAISE this row — the only part
+                      an operator can act on without opening the call. */}
+                  {row.band && (
+                    <div
+                      className={row.band.observed ? "text-emerald-400/80" : "text-amber-400/70"}
+                      title={row.band.whatWouldRaiseIt ?? row.band.basis}
+                    >
+                      {row.band.label}
+                      {!row.band.observed && " · inferred"}
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <button

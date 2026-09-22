@@ -1,6 +1,6 @@
 import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { collapseByInvoice, attributionCounts } from "../lib/attributionDedupe";
-import { BAND_CALIBRATION_CAVEAT, bandMix } from "../lib/attributionConfidenceBands";
+import { BAND_CALIBRATION_CAVEAT, bandMix, bandOf, describeBand } from "../lib/attributionConfidenceBands";
 import { z } from "zod";
 import { invoices, leads, vapiCallLogs } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
@@ -217,7 +217,22 @@ export const revenueAttributionRouter = router({
 
     return {
       /** The decisions a human should actually make — one per invoice. */
-      rows: collapsed.primary,
+      /**
+       * Each row carries its OWN band, classified server-side.
+       *
+       * The band descriptions (label, basis, whatWouldRaiseIt) existed and were
+       * rendered nowhere — a producer with no consumer, in the same diff that
+       * was auditing other people's unwired producers. The knip orphan gate
+       * caught it, correctly.
+       *
+       * Classification stays on the server rather than the client importing
+       * `server/lib`: that would cross a layer boundary, and the band is a
+       * judgement about evidence, not a formatting concern.
+       */
+      rows: collapsed.primary.map((r) => ({
+        ...r,
+        band: describeBand(bandOf(r.confidence)),
+      })),
       /** Same-invoice contacts, kept for context. NOT independent decisions. */
       duplicates: collapsed.duplicates,
       /** Invoices claimed by more than one call. Non-empty is normal; billing twice is not. */
