@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const groupBy = vi.fn();
-const findMany = vi.fn();
+// vi.mock is hoisted above every import and const, so the doubles must be hoisted too.
+const { groupBy, findMany } = vi.hoisted(() => ({ groupBy: vi.fn(), findMany: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: { cronJobLog: { groupBy, findMany } } }));
 
 import { getCronStats } from "@/lib/services/cron-control";
