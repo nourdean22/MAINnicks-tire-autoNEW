@@ -18,6 +18,11 @@ import {
 } from "@/lib/ai/chat/action-result-verifier";
 import { recordMetricStrict } from "@/lib/services/metrics";
 import { recordActionDoneShadow } from "@/lib/ai/receipts/action-done-shadow-recorder";
+import {
+  RECOMMENDATION_NOVELTY_METRIC,
+  recordRecommendationNoveltyShadow,
+} from "@/lib/ai/chat/recommendation-novelty-shadow";
+import { instrumentScope } from "@/lib/observability/instrument-scope";
 import { logError } from "@/lib/utils/error-log";
 import { canClaimDone, summarizeClaimDoneShadow, toReceipt } from "@/lib/ai/receipts/action-receipt";
 import { processConversation } from "@/lib/brain/pipeline-controller";
@@ -327,6 +332,40 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
         },
         { timeoutMs: 20_000, silentTimeout: true }
       );
+
+      // ── Recommendation novelty · SHADOW ONLY ───────────────────────────
+      // The prompt-side half (priors injected into the system prompt) has
+      // been live since 2026-09-10 at app/api/ai/chat/route.ts. The
+      // reply-side half — `checkNovelty(draft, priors)`, the function that can
+      // see whether the injection WORKED — had zero callers until 2026-09-22.
+      // This records what the reply re-served; it changes nothing about the
+      // reply. Contract, skip cases and the empty-vs-error rule live in the
+      // recorder module so they are testable; this seam has no harness.
+      if (traceId) {
+        try {
+          const [{ loadPriorRecommendations }, { assessTurnRisk }] = await Promise.all([
+            import("@/lib/services/chat/prior-recommendations"),
+            import("@/lib/ai/chat/turn-risk"),
+          ]);
+          await recordRecommendationNoveltyShadow(
+            { userContent, cleanedText, traceId, conversationId: convId ?? null },
+            {
+              expectsNamedResources: (u) =>
+                assessTurnRisk(u, { toolsExpected: false }).signals.expectsNamedResources,
+              loadPriors: loadPriorRecommendations,
+              // STRICT: this write IS the measurement.
+              recordMetric: recordMetricStrict,
+              logInfo: (event, data) => log.info(event, data),
+              logError: (scope, err, meta) => logError(scope, err, meta, "warn"),
+            },
+          );
+        } catch (err) {
+          // Only the dynamic imports can reach here; the recorder never
+          // throws. Named under the instrument scope so a broken import reads
+          // as a FAILING instrument, not as "no repeats".
+          logError(instrumentScope("recommendation.novelty"), err, { stage: "load", traceId }, "warn");
+        }
+      }
 
       // Agent Layer — parse and execute any actions Nick embedded.
       const actions = parseActions(text);

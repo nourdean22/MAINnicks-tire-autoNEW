@@ -74,6 +74,7 @@ export const MIN_POWERED_N = 30;
 export const CONDITIONAL_INSTRUMENTS: Readonly<Record<string, string>> = {
   "operation.integrity_shadow": "writes only on turns with a consequential operation",
   "action.done.shadow": "writes only on turns whose prose claims completion",
+  "recommendation.novelty": "writes only on turns that ask for named resources and name at least one",
 };
 
 export interface InstrumentLivenessInput {
@@ -261,6 +262,7 @@ const SYSTEM_METRIC_INSTRUMENTS = new Set([
   "operation.integrity_shadow",
   "action.done.shadow",
   "tool.chosen",
+  "recommendation.novelty",
 ]);
 
 /** Live read. Every KNOWN_INSTRUMENT gets a row, or the view names the one it cannot source. */

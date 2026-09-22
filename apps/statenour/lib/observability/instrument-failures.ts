@@ -61,6 +61,12 @@ export const KNOWN_INSTRUMENTS: readonly string[] = [
   // one's whole purpose is to make "offered and declined" distinguishable from
   // "never offered".
   "tool.chosen",
+  // 2026-09-22 · reply-side recommendation novelty. `checkNovelty` had zero
+  // callers for twelve days; the recorder that now calls it writes here.
+  // Registered the same day it shipped, for the same reason as tool.chosen: an
+  // unregistered instrument cannot be reported as failing, and this one's
+  // purpose is to make "Nick repeated himself" a number rather than a memory.
+  "recommendation.novelty",
 ];
 
 export interface InstrumentFailureRow {
