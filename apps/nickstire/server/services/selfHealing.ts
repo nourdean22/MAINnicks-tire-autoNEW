@@ -63,6 +63,13 @@ export type HealthIssueCategory = (typeof HEALTH_ISSUE_CATEGORIES)[number];
 export interface HealthIssue {
   category: HealthIssueCategory;
   message: string;
+  /**
+   * The issue as Nick should REMEMBER it: the same string on every pass while
+   * the condition stands, free of anything that changes between passes
+   * (minutes stale, heap MB, an error's text). Omit it when `message` is
+   * already stable. See healthMemoryContent for why this matters.
+   */
+  stable?: string;
 }
 
 /**
@@ -253,6 +260,7 @@ export function cronStalenessIssues(
       issues.push({
         category: "CRON_STALE",
         message: `CRON STALE: ${name} hasn't completed in ${Math.round(staleness / 60000)}min (tier ${cadence.tier}, ${cadenceLabel}${cadence.businessHoursOnly ? ", business hours only" : ""})`,
+        stable: `CRON STALE: ${name} keeps missing its cadence (tier ${cadence.tier}, ${cadenceLabel}${cadence.businessHoursOnly ? ", business hours only" : ""})`,
       });
       // 2026-08-23 · the "AUTO-FIX: Reset <job> running flag" branch that
       // stood here was deleted with resetJobRunningFlag(). It mutated
@@ -265,6 +273,11 @@ export function cronStalenessIssues(
     }
   }
   return issues;
+}
+
+/** The memory text for an issue: its stable identity, never its live numbers. */
+function healthMemoryContent(issue: HealthIssue): string {
+  return `System health: ${issue.stable ?? issue.message}`;
 }
 
 export async function runSelfHealingChecks(): Promise<{
@@ -342,7 +355,11 @@ export async function runSelfHealingChecks(): Promise<{
         await db.execute(sql`SELECT 1`);
         delete failureHistory["db"];
       } catch (err) {
-        issues.push({ category: "DATABASE_QUERY_FAILED", message: `DATABASE QUERY FAILED: ${err instanceof Error ? err.message : "Unknown"}` });
+        issues.push({
+          category: "DATABASE_QUERY_FAILED",
+          message: `DATABASE QUERY FAILED: ${err instanceof Error ? err.message : "Unknown"}`,
+          stable: "DATABASE QUERY FAILED: the health probe query (SELECT 1) failed",
+        });
         failureHistory["db"] = (failureHistory["db"] || 0) + 1;
         // AUTO-FIX: Reset the cached connection on 2+ consecutive failures
         if (failureHistory["db"] >= 2) {
@@ -355,14 +372,22 @@ export async function runSelfHealingChecks(): Promise<{
       }
     }
   } catch (err) {
-    issues.push({ category: "DATABASE_DOWN", message: `DATABASE DOWN: ${err instanceof Error ? err.message : "Unknown error"}` });
+    issues.push({
+      category: "DATABASE_DOWN",
+      message: `DATABASE DOWN: ${err instanceof Error ? err.message : "Unknown error"}`,
+      stable: "DATABASE DOWN: getDb() threw",
+    });
   }
 
   // 3. Check memory usage — and take action if high
   const mem = process.memoryUsage();
   const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
   if (heapUsedMB > 450) {
-    issues.push({ category: "MEMORY_HIGH", message: `MEMORY HIGH: ${heapUsedMB}MB heap used` });
+    issues.push({
+      category: "MEMORY_HIGH",
+      message: `MEMORY HIGH: ${heapUsedMB}MB heap used`,
+      stable: "MEMORY HIGH: heap above the 450MB threshold",
+    });
     // AUTO-FIX: Trigger garbage collection if available
     if (global.gc) {
       global.gc();
@@ -402,13 +427,23 @@ export async function runSelfHealingChecks(): Promise<{
   if (issues.length > 0 || actions.length > 0) {
     log.warn("Self-healing check", { issues: issues.length, actions: actions.length, details: [...messages, ...actions] });
 
-    // Teach Nick AI about system health patterns
+    // Teach Nick AI about system health patterns — ONE memory per standing
+    // issue. remember() dedupes on a hash of the content, so the content must
+    // be identical on every pass while the condition stands; then the second
+    // pass REINFORCES the row instead of inserting a new one. The old content
+    // carried the day's date and the run's auto-fix list, and the CRON STALE
+    // message its minutes, so every 5-minute pass inserted a NEW row — and
+    // the 500-row cap evicts the lowest-confidence, least-recently-reinforced
+    // memory on every insert, which is Nick's OLDEST REAL INSIGHT, not the
+    // health chatter (measured 2026-09-22: 721 rows, 168 of them "System
+    // health", the store pinned one-in-one-out). The date and the actions are
+    // already in the row (createdAt / lastReinforced) and in cron_log.
     try {
       const { remember } = await import("./nickMemory");
-      for (const issue of messages) {
+      for (const issue of issues) {
         await remember({
           type: "pattern",
-          content: `System health: ${issue}. Detected at ${new Date().toISOString().split("T")[0]}. ${actions.length > 0 ? "Auto-fixes applied: " + actions.join("; ") : "No auto-fix available."}`,
+          content: healthMemoryContent(issue),
           source: "self_healing",
           confidence: 0.85,
         });
