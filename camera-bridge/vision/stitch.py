@@ -53,11 +53,39 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-#: How long a retired fragment stays adoptable. A car occluded behind another vehicle
-#: can be lost for a while, so too short a window never stitches anything; too long and
-#: a DEPARTING customer's fragment is still sitting there when an unrelated car parks
-#: nearby, which is the false-merge direction. Operator-tunable; see the module notes.
-DEFAULT_MAX_GAP_S = 90.0
+#: How long a retired fragment stays adoptable. 60.0, and this number has now been WRONG
+#: TWICE, so the evidence is recorded rather than the conclusion alone.
+#:
+#: It shipped at 90.0 as a guess. A first sweep said 30; review found that sweep replayed
+#: EVERY track_points row (the pipeline only calls `adopt()` inside `if verdict["crossed"]`
+#: and retires only `evidence == "arrival"` tracks, so parked and candidate tracks never
+#: reach the stitcher -- 354 replayed against a real population of 57) and re-translated
+#: the ground point (`observe()` already stores `track.ground_point` in `x`,`y`). Both
+#: defects inflated fragments and refusals, and the 30 was retracted.
+#:
+#: Corrected tool, 14 days, 278 crossing tracks (`scripts/stitch_sweep.py --days 14`):
+#:
+#:                 30s        60s        90s       150s      300s
+#:   shop-left    14 / 1    21 /  9    15 / 16    22 / 22   25 / 26      (stitched/ambiguous)
+#:   shop-right   11 / 3    11 /  3    11 /  4    13 /  4   13 /  9
+#:
+#: 60 STRICTLY DOMINATES the old 90: more stitches on shop-left, equal on shop-right, fewer
+#: refusals on both. Never worse on any measure.
+#:
+#: Two things worth keeping, because both misled an earlier pass:
+#:
+#: 1. THE CURVE IS NOT MONOTONIC. 90 is a LOCAL MINIMUM on shop-left -- worse than both
+#:    neighbours. A refusal consumes an opportunity: a fragment uniquely matched at 60s can
+#:    acquire a competitor at 90s and be declined. So neighbouring values must be measured,
+#:    never interpolated.
+#: 2. AN AMBIGUITY REFUSAL IS NOT DAMAGE. It leaves the visit exactly as it was before the
+#:    stitcher existed -- non-improvement, not regression. An earlier pass minimised
+#:    "ambiguity per stitch" and inverted the answer. Maximise STITCHES, subject to never
+#:    false-merging; refusals are the tiebreak, not the objective.
+#:
+#: Longer still buys more stitches (300s -> 38 combined) but refusals climb faster than
+#: stitches past 150s. Re-run the sweep before moving it again.
+DEFAULT_MAX_GAP_S = 60.0
 
 #: Plausible ground-point travel while unobserved, in pixels per second. The spatial
 #: gate is `dist <= speed * gap + slack` rather than a flat radius, because a flat
