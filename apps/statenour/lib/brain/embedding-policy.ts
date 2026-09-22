@@ -36,6 +36,20 @@ export const TELEMETRY_CATEGORIES = [
   "reply_quality",
   "brain_dump_event",
   "task_completion",
+  // 2026-09-22 brain audit (read-only, 42,129 live memories): five machine
+  // categories were still recall-visible and embedded. `semantic_edge` is the
+  // one that matters — 18,358 live rows (44% of the live brain), text
+  // "[cat] ↔ [cat] · score=0.82", written by lib/brain/semantic-link.ts, each
+  // carrying ~3 vectors: 58,945 of the 92,181 brain_memory vectors, i.e. the
+  // HNSW index is two-thirds graph edges. The graph API reads edge ROWS by
+  // category and keeps working; only embedding and recall stop seeing them.
+  // `tool_embedding` is deliberately NOT here: tool search reads those rows
+  // (lib/ai/tool-embeddings.ts).
+  "semantic_edge",
+  "reply_judgment",
+  "chat_importance",
+  "crons",
+  "mission_surface_telemetry",
 ] as const;
 
 /** Mutable copy — Prisma's `= ANY($1)` binding rejects a readonly tuple. */

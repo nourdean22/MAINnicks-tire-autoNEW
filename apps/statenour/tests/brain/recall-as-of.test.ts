@@ -86,7 +86,11 @@ describe("every recall lane reads the same window", () => {
   it("the lexical and KNN SQL lanes take asOf, use validitySql, and bind the parameter only in as-of mode", () => {
     expect(src).toMatch(/getLexicalMatches\(topics: string\[\], limit = 50, asOf\?: Date\)/);
     expect(src).toMatch(/getKnnPoolRows\(queryVec: number\[\], limit = 50, asOf\?: Date\)/);
-    expect(src.match(/validitySql\("bm", asOf \? "\$2" : null\)/g)?.length).toBe(2);
+    // The lexical lane binds asOf as $2. The KNN lane binds it as $3 since
+    // 2026-09-22: its $2 is the recall-quarantine category array
+    // (`bm.category <> ALL($2::text[])`, see recall-knn-pool-iterative.test.ts).
+    expect(src.match(/validitySql\("bm", asOf \? "\$2" : null\)/g)?.length).toBe(1);
+    expect(src.match(/validitySql\("bm", asOf \? "\$3" : null\)/g)?.length).toBe(1);
     expect(src.match(/\.\.\.\(asOf \? \[asOf\] : \[\]\)/g)?.length).toBe(2);
     // the only inline copy of the predicate left is the helper's own template
     expect(src.match(/superseded_by_id IS NULL/g)?.length).toBe(1);
