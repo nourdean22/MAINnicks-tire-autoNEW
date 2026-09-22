@@ -112,6 +112,16 @@ export interface SkippedScenario {
   reason: string;
 }
 
+/**
+ * 2026-09-22 · one tool call Nick made during a stubbed tool replay
+ * (tests/eval/tool-replay.ts). `args` is whatever the model passed; nothing
+ * was executed.
+ */
+export interface RecordedToolCall {
+  name: string;
+  args: unknown;
+}
+
 // ── Judge result (per-scenario × per-criterion) ──────────────────────
 
 export interface JudgeCriterionScore {
@@ -138,6 +148,11 @@ export interface JudgeResult {
   durationMs: number;
   /** Set when Nick or the judge errored · null on success. */
   error: string | null;
+  /**
+   * Present only for scenarios run through the stubbed tool replay
+   * (`--live --tools`): the calls Nick made, in order. Absent on the aiChat path.
+   */
+  toolCalls?: RecordedToolCall[];
 }
 
 // ── Suite-level report ──────────────────────────────────────────────
@@ -157,6 +172,12 @@ export interface SuiteSummary {
    * input: a skip is the runner declaring a limit, not a verdict on Nick.
    */
   skipped: number;
+  /**
+   * Scenarios scored through the stubbed tool replay rather than aiChat. Their
+   * scores measure "did Nick reach for a tool, and which", never "did the tool
+   * work" — nothing is executed on that path.
+   */
+  toolRuns: number;
   /** Mean composite across non-errored runs. */
   meanComposite: number;
 }
@@ -172,6 +193,8 @@ export interface SuiteReport {
   results: JudgeResult[];
   /** Scenarios the live runner skipped, each with its reason · empty in dry-run mode. */
   skipped: SkippedScenario[];
+  /** True when `--tools` was on: requires-tools scenarios were replayed with stubbed execution. */
+  toolReplay: boolean;
   summary: SuiteSummary;
   /** Total suite wall-clock duration. */
   durationMs: number;
