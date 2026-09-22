@@ -67,7 +67,16 @@ export const KNOWN_INSTRUMENTS: readonly string[] = [
   // unregistered instrument cannot be reported as failing, and this one's
   // purpose is to make "Nick repeated himself" a number rather than a memory.
   "recommendation.novelty",
+  // 2026-09-22 · one row per turn runDeferredBackgroundWork ran for. Not a
+  // shadow — the DENOMINATOR the three conditional shadows on that path never
+  // had. With it, the health reader can split "0 writes" into "the path ran and
+  // the condition did not occur" and "the path did not run", instead of
+  // inferring liveness from sibling cadence (the H2 gap in the Session F ledger).
+  "chat.deferred_turn",
 ];
+
+/** The per-turn heartbeat of the deferred post-turn path. See KNOWN_INSTRUMENTS. */
+export const DEFERRED_TURN_INSTRUMENT = "chat.deferred_turn";
 
 export interface InstrumentFailureRow {
   instrument: string;

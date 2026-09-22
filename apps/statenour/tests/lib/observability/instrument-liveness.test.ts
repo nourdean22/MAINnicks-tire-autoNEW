@@ -18,7 +18,11 @@ import {
   CONDITIONAL_INSTRUMENTS,
   MIN_POWERED_N,
 } from "@/lib/observability/instrument-liveness";
-import { KNOWN_INSTRUMENTS, type InstrumentFailureView } from "@/lib/observability/instrument-failures";
+import {
+  DEFERRED_TURN_INSTRUMENT,
+  KNOWN_INSTRUMENTS,
+  type InstrumentFailureView,
+} from "@/lib/observability/instrument-failures";
 
 const SINCE = new Date("2026-09-08T00:00:00Z");
 const WINDOW_H = 24 * 14;
@@ -218,5 +222,74 @@ describe("assembleInstrumentHealth", () => {
     for (const name of Object.keys(CONDITIONAL_INSTRUMENTS)) {
       expect(KNOWN_INSTRUMENTS).toContain(name);
     }
+  });
+});
+
+describe("deferred-turn heartbeat · the denominator the conditional shadows never had (2026-09-22)", () => {
+  // Before the heartbeat, "0 writes" on a conditional shadow had two readings
+  // the reader could not tell apart: the path ran and the condition did not
+  // occur, or the path never ran. The heartbeat writes once per turn the
+  // deferred path ran for, so the reader can split them.
+  const heartbeat = (writes: number, everWrote = true) => ({
+    instrument: DEFERRED_TURN_INSTRUMENT,
+    lastWriteAt: everWrote ? SINCE : null,
+    writesInWindow: writes,
+  });
+  const conditionalZero = {
+    instrument: "action.done.shadow",
+    lastWriteAt: new Date("2026-09-01T00:00:00Z"),
+    writesInWindow: 0,
+  };
+  const rowOf = (view: ReturnType<typeof assembleInstrumentHealth>, name: string) =>
+    view.rows.find((r) => r.instrument === name)!;
+
+  it("POSITIVE CONTROL: without the heartbeat among the inputs, a conditional zero is STALE — the old verdict, unchanged", () => {
+    const view = assembleInstrumentHealth([conditionalZero], noFailures(), 13, WINDOW_H, SINCE);
+    expect(rowOf(view, "action.done.shadow").status).toBe("STALE");
+    expect(rowOf(view, "action.done.shadow").reason).toMatch(/confirm the condition did not occur/);
+  });
+
+  it("with the path PROVEN to have run, a conditional zero is UNDERPOWERED — the condition did not occur", () => {
+    const view = assembleInstrumentHealth([heartbeat(13), conditionalZero], noFailures(), 13, WINDOW_H, SINCE);
+    const row = rowOf(view, "action.done.shadow");
+    expect(row.status).toBe("UNDERPOWERED");
+    expect(row.reason).toMatch(/ran on 13 of 13 turns/);
+    expect(row.reason).toMatch(/condition did not occur, the writer is not dead/);
+  });
+
+  it("with a heartbeat that wrote NOTHING while turns happened, the conditional zero stays STALE and names the whole path", () => {
+    const view = assembleInstrumentHealth([heartbeat(0), conditionalZero], noFailures(), 13, WINDOW_H, SINCE);
+    expect(rowOf(view, DEFERRED_TURN_INSTRUMENT).status).toBe("STALE");
+    const row = rowOf(view, "action.done.shadow");
+    expect(row.status).toBe("STALE");
+    expect(row.reason).toMatch(/the whole path did not run/);
+  });
+
+  it("a heartbeat that has NEVER written yet (its first window after deploy) changes no verdict", () => {
+    const view = assembleInstrumentHealth([heartbeat(0, false), conditionalZero], noFailures(), 13, WINDOW_H, SINCE);
+    expect(rowOf(view, DEFERRED_TURN_INSTRUMENT).status).toBe("NEVER_RAN");
+    expect(rowOf(view, "action.done.shadow").status).toBe("STALE");
+    expect(rowOf(view, "action.done.shadow").reason).not.toMatch(/whole path did not run/);
+  });
+
+  it("an UNCONDITIONAL zero stays STALE even when the path ran — it should have written on every turn", () => {
+    const unconditionalZero = { instrument: "tool.surfaced", lastWriteAt: SINCE, writesInWindow: 0 };
+    const view = assembleInstrumentHealth([heartbeat(13), unconditionalZero], noFailures(), 13, WINDOW_H, SINCE);
+    expect(rowOf(view, "tool.surfaced").status).toBe("STALE");
+  });
+
+  it("NEVER_RAN on a conditional instrument cites the path's runs, so 'never' reads as 'not yet' when it is", () => {
+    const neverRan = { instrument: "recommendation.novelty", lastWriteAt: null, writesInWindow: 0 };
+    const view = assembleInstrumentHealth([heartbeat(13), neverRan], noFailures(), 13, WINDOW_H, SINCE);
+    const row = rowOf(view, "recommendation.novelty");
+    expect(row.status).toBe("NEVER_RAN");
+    expect(row.reason).toMatch(/deferred path ran on 13 of 13 turns/);
+  });
+
+  it("the heartbeat itself is a KNOWN, UNCONDITIONAL, per-turn instrument", () => {
+    expect(KNOWN_INSTRUMENTS).toContain(DEFERRED_TURN_INSTRUMENT);
+    expect(CONDITIONAL_INSTRUMENTS[DEFERRED_TURN_INSTRUMENT]).toBeUndefined();
+    const view = assembleInstrumentHealth([heartbeat(MIN_POWERED_N)], noFailures(), MIN_POWERED_N, WINDOW_H, SINCE);
+    expect(rowOf(view, DEFERRED_TURN_INSTRUMENT).status).toBe("HEALTHY");
   });
 });

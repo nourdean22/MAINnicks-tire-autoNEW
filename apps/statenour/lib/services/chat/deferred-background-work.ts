@@ -26,6 +26,7 @@ import {
   recordRecommendationNoveltyShadow,
 } from "@/lib/ai/chat/recommendation-novelty-shadow";
 import { instrumentScope } from "@/lib/observability/instrument-scope";
+import { DEFERRED_TURN_INSTRUMENT } from "@/lib/observability/instrument-failures";
 import { logError } from "@/lib/utils/error-log";
 import { canClaimDone, summarizeClaimDoneShadow, toReceipt } from "@/lib/ai/receipts/action-receipt";
 import { processConversation } from "@/lib/brain/pipeline-controller";
@@ -388,6 +389,35 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
 
       // Agent Layer — parse and execute any actions Nick embedded.
       const actions = parseActions(text);
+
+      // ── Deferred-turn HEARTBEAT ──────────────────────────────────────────
+      // One row per turn this function ran for (2026-09-22). It is the
+      // DENOMINATOR the three conditional shadows on this path (integrity,
+      // Done, novelty) never had: with it the health reader can split
+      // "0 writes" into "the path ran and the condition did not occur" and
+      // "the path did not run", instead of inferring liveness from sibling
+      // cadence. Idempotent by traceId (the outbox replays this call), STRICT
+      // writer (a dead heartbeat must read as FAILING, never as "quiet"), and
+      // a LITERAL scope so the producer canary can see it.
+      if (traceId) {
+        try {
+          if (!(await metricRecordedForTrace(DEFERRED_TURN_INSTRUMENT, traceId))) {
+            await recordMetricStrict(DEFERRED_TURN_INSTRUMENT, 1, {
+              unit: "count",
+              source: "deferred-background-work",
+              tags: {
+                traceId,
+                conversationId: convId ?? null,
+                actionCount: actions.length,
+                mode,
+                provider,
+              },
+            });
+          }
+        } catch (err) {
+          logError(instrumentScope("chat.deferred_turn"), err, { stage: "heartbeat", traceId }, "warn");
+        }
+      }
 
       // ── Strict-Done shadow · ZERO-ACTION arm · SHADOW ONLY ───────────────
       // A turn can claim completion while emitting NO action block at all —
