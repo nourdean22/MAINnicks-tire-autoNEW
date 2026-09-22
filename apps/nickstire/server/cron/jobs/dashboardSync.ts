@@ -123,7 +123,10 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
       const { reconcileExpectedArrivals, expireStaleExpectedArrivals } = await import("../../services/expectedArrivals");
       const rec = await reconcileExpectedArrivals();
       const exp = await expireStaleExpectedArrivals(2);
-      arrivals = `arrivals: ${rec.reconciled} arrived, ${exp.expired} no_show`;
+      arrivals =
+        `arrivals: ${rec.reconciled} arrived, ${exp.expired} no_show` +
+        (rec.superseded > 0 ? `, ${rec.superseded} same-visit closed` : "") +
+        (rec.skippedAlreadyClaimed > 0 ? `, ${rec.skippedAlreadyClaimed} already claimed` : "");
     } catch (error) {
       log.warn("Expected-arrivals reconcile skipped", { error: error instanceof Error ? error.message : String(error) });
     }

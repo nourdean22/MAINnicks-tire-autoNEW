@@ -38,6 +38,24 @@ import {
 } from "@shared/callTaxonomy";
 import type { ExtractedDemand } from "@shared/callDemandExtraction";
 import { isTransferFailure } from "../lib/warmTransferConnect";
+import { toShopDateStr } from "./expectedArrivals";
+
+/**
+ * Did an invoice land on or after the day of this call? Day granularity in the
+ * shop's timezone, on purpose: the invoice day is formatted in SQL, while the
+ * call's createdAt is driver-parsed and can read a few hours LATE on this
+ * stack. A late-reading call day can only make this check stricter — it can
+ * delay a true "already invoiced" by one evening, never fabricate one.
+ */
+function invoicedOnOrAfterCall(
+  byPhone: ReadonlyMap<string, string> | undefined,
+  phone: string,
+  callAt: Date,
+): boolean {
+  const invoicedDay = byPhone?.get(phone);
+  if (!invoicedDay) return false;
+  return invoicedDay >= toShopDateStr(callAt);
+}
 
 /** The row shape the router selects. Deliberately narrow. */
 export interface QueueSourceRow {
@@ -188,8 +206,21 @@ export function buildRecoveryQueue(
      * queue was being repaired for. A reader with no writer is not a feature.
      */
     expectedArrivalPhones?: ReadonlySet<string>;
-    /** Last-10 phones with a paid invoice matched after the call. */
-    invoicedPhones?: ReadonlySet<string>;
+    /**
+     * Last-10 phone -> shop-local day (YYYY-MM-DD) of the most recent invoice an
+     * expected arrival reconciled to. `invoiceMatched` becomes true only when
+     * that day is ON OR AFTER the day of the episode's latest call: a visit last
+     * week must not suppress a new need today. This fact means "money in the
+     * till for THIS call", never "has ever paid us".
+     *
+     * Replaces `invoicedPhones`, a set this function accepted and no caller
+     * ever supplied — so kernel rule 5 ("already invoiced") had never fired,
+     * and a walk-in who came and paid fell through to "no arrival matched"
+     * the moment their arrival row reconciled. A reader with no writer is not
+     * a feature, and this one was quietly manufacturing recovery work for
+     * customers who had already paid.
+     */
+    invoicedOnOrAfter?: ReadonlyMap<string, string>;
   } = {},
 ): RecoveryQueueResult {
   const grouped = new Map<string, QueueSourceRow[]>();
@@ -271,7 +302,8 @@ export function buildRecoveryQueue(
       transferFailed,
       safetyFlag: meta.safetyFlag === true,
       existingVehicleAtShop: meta.existingVehicleAtShop === true,
-      invoiceMatched: opts.invoicedPhones?.has(phone) === true || meta.invoiceMatched === true,
+      invoiceMatched:
+        invoicedOnOrAfterCall(opts.invoicedOnOrAfter, phone, latest.createdAt) || meta.invoiceMatched === true,
       expectedArrivalOpen:
         opts.expectedArrivalPhones?.has(phone) === true || meta.expectedArrivalOpen === true,
       hasCapturedSpecifics: intents.includes("tire_size_request") || meta.hasCapturedSpecifics === true,

@@ -4019,6 +4019,13 @@ export const expectedArrivals = mysqlTable("expected_arrivals", {
 }, (table) => [
   index("idx_ea_status_date").on(table.status, table.expectedDate),
   index("idx_ea_phone").on(table.customerPhone),
+  /**
+   * One invoice reconciles at most one arrival (0126). NULLs are unlimited under
+   * a MySQL/TiDB UNIQUE index, so the many rows with no invoice are unaffected.
+   * The reconcile used to stamp every eligible row with the same invoice, and
+   * the weekly digest summed it once per row.
+   */
+  uniqueIndex("uq_ea_reconciled_invoice").on(table.reconciledInvoiceId),
 ]);
 
 export type ExpectedArrival = typeof expectedArrivals.$inferSelect;

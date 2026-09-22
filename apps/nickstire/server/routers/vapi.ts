@@ -27,38 +27,26 @@ import { computeTransferOutcomeEvidence } from "../lib/transferOutcomeEvidence";
 import {
   buildRecoveryQueue,
   breachedSla,
-  phoneLast10,
   type QueueSourceRow,
 } from "../services/recoveryQueue";
 import { getDb } from "../db";
 import { shopSettings, vapiCallLogs, type VapiCallLog } from "../../drizzle/schema";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { pickReceptionistAssistantId, pickFollowUpAssistantId, SHOP_LANDLINE_E164 } from "../services/vapi";
+import { arrivalSignalsForQueue } from "../services/expectedArrivals";
 import { BUSINESS } from "@shared/business";
 
-/**
- * Last-10 phones with an OPEN expected arrival today.
- *
- * The `arrival` lane exists so a caller who said "I will come by" is treated as
- * a provisional SUCCESS rather than missed revenue. That lane can only fire if
- * something actually supplies the arrivals — they live in `expected_arrivals`,
- * not on the call row. Fails OPEN to an empty set: if the read breaks, walk-ins
- * fall back into the recovery queue, which is noisier but never drops a real
- * obligation. The reverse default would silently hide customers.
+/*
+ * The arrival facts for the recovery kernel — an OPEN expectation and a
+ * reconciled invoice — come from services/expectedArrivals.arrivalSignalsForQueue,
+ * spread into buildRecoveryQueue's options at both call sites below. The
+ * `arrival` lane exists so a caller who said "I will come by" is a provisional
+ * SUCCESS rather than missed revenue; kernel rule 5 exists so a caller who then
+ * came and PAID is closed as already-invoiced. The second fact had no producer
+ * until 2026-09-22 — the kernel accepted `invoicedPhones` and nothing supplied
+ * it — so paying walk-ins were being routed into recovery the moment their
+ * arrival row reconciled.
  */
-async function openExpectedArrivalPhones(): Promise<ReadonlySet<string>> {
-  try {
-    const { listExpectedArrivals } = await import("../services/expectedArrivals");
-    const rows = await listExpectedArrivals({ limit: 200 });
-    return new Set(
-      rows
-        .map((r) => phoneLast10(String(r.customerPhone ?? "")))
-        .filter((p) => p.length === 10),
-    );
-  } catch {
-    return new Set();
-  }
-}
 
 /** Parse a metadata JSON column without letting a malformed row throw a read. */
 function safeJsonObject(v: string): Record<string, unknown> | null {
@@ -607,7 +595,7 @@ export const vapiRouter = router({
        * raises PRIORITY inside one episode instead of adding rows.
        */
       const built = buildRecoveryQueue(rows as QueueSourceRow[], new Date(), {
-        expectedArrivalPhones: await openExpectedArrivalPhones(),
+        ...(await arrivalSignalsForQueue(cutoff)),
       });
 
       /**
@@ -692,7 +680,7 @@ export const vapiRouter = router({
         .where(gte(vapiCallLogs.createdAt, cutoff));
 
       const built = buildRecoveryQueue(rows as QueueSourceRow[], new Date(), {
-        expectedArrivalPhones: await openExpectedArrivalPhones(),
+        ...(await arrivalSignalsForQueue(cutoff)),
       });
       return {
         windowDays: input.days,

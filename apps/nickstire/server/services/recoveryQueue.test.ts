@@ -299,12 +299,48 @@ describe("wired facts · a reader with no writer is not a feature", () => {
     if (r.episodes[0]) expect(r.episodes[0].transferFailed).toBe(false);
   });
 
-  it("a matched invoice closes the episode", () => {
+  // `invoicedPhones` was accepted here for weeks and no caller ever supplied
+  // it, so "already invoiced" had never fired once. Its replacement carries the
+  // invoice DAY so a visit last week cannot suppress a new need today.
+  // NOW is 2026-09-18 11:00 ET; the default row is ten minutes earlier.
+  it("an invoice on the day of the call closes the episode", () => {
     const r = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
-      invoicedPhones: new Set(["2165558888"]),
+      invoicedOnOrAfter: new Map([["2165558888", "2026-09-18"]]),
     });
     expect(r.episodes).toHaveLength(0);
     expect(r.exclusionCounts.already_invoiced).toBe(1);
+  });
+
+  it("an invoice AFTER the call day also closes it — they came back and paid", () => {
+    const r = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
+      invoicedOnOrAfter: new Map([["2165558888", "2026-09-20"]]),
+    });
+    expect(r.episodes).toHaveLength(0);
+    expect(r.exclusionCounts.already_invoiced).toBe(1);
+  });
+
+  it("an invoice BEFORE the call day does NOT close it — that was a different visit", () => {
+    // The whole reason the option carries a day: "has ever paid us" is not
+    // "money in the till for this call". Suppressing this episode would drop a
+    // real new need from the queue.
+    const r = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
+      invoicedOnOrAfter: new Map([["2165558888", "2026-09-17"]]),
+    });
+    expect(r.episodes).toHaveLength(1);
+    expect(r.exclusionCounts.already_invoiced ?? 0).toBe(0);
+  });
+
+  it("POSITIVE CONTROL: the signal is keyed by last-10 digits, like every other phone fact", () => {
+    // A map keyed by the raw dashed number would never match, and the kernel
+    // would starve again with no error anywhere.
+    const raw = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
+      invoicedOnOrAfter: new Map([["216-555-8888", "2026-09-18"]]),
+    });
+    const last10 = buildRecoveryQueue([row({ phoneNumber: "216-555-8888" })], NOW, {
+      invoicedOnOrAfter: new Map([["2165558888", "2026-09-18"]]),
+    });
+    expect(raw.episodes).toHaveLength(1);
+    expect(last10.episodes).toHaveLength(0);
   });
 });
 
