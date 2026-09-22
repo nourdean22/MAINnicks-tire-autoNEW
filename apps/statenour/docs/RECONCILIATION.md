@@ -1,5 +1,176 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-22 · W16 · measure before enforce · 9 PRs / 10 slices
+>
+> **#2478 `statenour · the seed script the coverage gate prescribes could not run` `22382c300`
+> MERGED + PRODUCTION-PROVEN** (ran against prod under the operator's "Go ahead do it": 105/105
+> policies upserted, registry 166→168, 0 `approvalClass` changes; `cron.device-heartbeat-sentinel`
+> FIRED 13:45:01Z with `fireRows=1`) · **#2480 `statenour · mine operator repairs — the signal
+> every other lane is blind to` `8ebf35a0b` MERGED** · **#2481 `upstreams · close the loop on
+> three verified deltas from the 2026-09-22 gate` `3a0092880` MERGED** · **#2482 `statenour ·
+> instrument health — a silent instrument gets a status, not an alibi` `a0c4b610b` MERGED +
+> DEPLOY-VERIFIED** (`/api/version` a0c4b61, uptime DROP 1184s→102s) · **#2483 `statenour · the
+> read-back reaches the receipt; the verifier stops assuming` `b43fccd4a` MERGED + DEPLOY-VERIFIED**
+> (`build.commit b43fccd`, `startedAt 16:22:47Z`, uptime DROP 2044s→164s — deployed is NOT proven:
+> 1 assistant turn and 0 tool-bearing turns since, measured read-only) · **#2486 `statenour · the
+> wave2 test mocked a connector the code stopped calling` `3f3e58e2c` MERGED** · **#2484
+> `statenour · persist per-turn receipts, and read them: strict-Done gets a calibration` `d680320a0`
+> MERGED** · **#2485 `statenour · the reply-side novelty check gets its first caller, as a shadow
+> metric` `686e0b888` MERGED** · **#2487 `statenour · the repair-to-scenario converter and 12 curated
+> repair scenarios (corpus 38→50)` `e1b699945` MERGED.**
+>
+> (W15 · #2473-#2476 · 2026-09-18: **gap — backfill pending.** The session that wrote this entry
+> has no first-hand detail on those four PRs and will not invent it.)
+>
+> W13 found instruments that were working as written and could not answer their question; W14
+> found tool-routing designs pointed at the unmeasured half of a problem. W16 is the layer where
+> the instruments EXISTED and lied in a direction: a failures reader blind to anything that never
+> ran, a strict-Done shadow at n=1 read as "no gap", receipts bifurcated between an in-memory
+> contract and a table with one non-chat writer, a verifier that read tasks back and a receipt
+> that never heard about it, a novelty check whose reply-side half had zero callers for twelve
+> days, and an eval runner that had graded a prompt production never sends. The wave's one new
+> signal source is the operator's own corrections — the only lane that is not the system grading
+> itself.
+>
+> **Slice 1 · the gate's prescribed remedy could not run.** `check:policy-coverage` told the
+> operator to run `scripts/seed-policies.ts`; that script crashed on Next's `server-only`
+> tripwire under plain `tsx` — the same defect the gate itself had carried. Cure: a `Module._load`
+> stub inside `installScriptEnvironment()` plus dynamic imports inside `main()` (ESM hoists static
+> imports above the stub). The plan step that "expected the two cron policies to be born
+> `pending`" was wrong on its face — `approvalClassFor` returns `auto` for crons — and harmless
+> in fact, because the engine gate resolves only `autonomous-action.*` ids (`:1103`). Verified
+> before, not after. **A gate whose remedy cannot run is a gate that can only fail.**
+>
+> **Slice 2 · the operator says "try again"; the reply says what went wrong.** `pnpm
+> harvest:repairs` (#2480) mines `ChatMessage` for the operator correcting a reply in his own
+> words: 2,795 operator messages / 400 days → 108 candidates (2 strong · 32 medium · 74 weak).
+> Hand-reading 19 put the "near-certain" tier at ~44% precision: pronoun direction, continuation
+> phrases ("keep going" is satisfaction), self-narration ("i told you"), pasted documents. Every
+> false positive became a MUST_ABSTAIN fixture and the self-test gates every harvest, because a
+> zero from a broken matcher is indistinguishable from a clean corpus. #2487 then re-read each
+> GENERIC hit against the REPLY it repairs: a verifier banner → FALSE_COMPLETION, a
+> tool-unavailable opening → NO_TOOL. Same corpus: **NO_TOOL 0→13, FALSE_COMPLETION 0→9, strong
+> 2→24.** A second regex round was needed when "search IS available" matched the unavailability
+> pattern (3 of the 13). Measured decision, not a build: every tool-unavailable repair predates
+> the 2026-09-02 prompt rule, so no code fix was written for a class that had already been
+> addressed. **Nick declaring a tool unavailable and stopping was the dominant repair trigger —
+> and the operator's words never carried it.**
+>
+> **Slice 3 · a silent instrument gets a status, not an alibi.** `buildInstrumentFailures()`
+> could rank only instruments that had LOGGED a failure; one that never ran read as healthy
+> forever. #2482 adds `lib/observability/instrument-liveness.ts` — HEALTHY / UNDERPOWERED /
+> STALE / NEVER_RAN / FAILING per known instrument, with the ASSISTANT-TURN denominator
+> (`MIN_POWERED_N = 30`) and conditional instruments that fire only on qualifying turns. The live
+> reader reproduced every hand-measured number (shadow 1/253 UNDERPOWERED[conditional], surfaced
+> 294, chosen 113, integrity 1, `tool_telemetry` "8 tools touched" — that last one had read as
+> "8 writes" until a unit label was added; aggregate-by-tool is not a write count). **A failures
+> reader cannot see an instrument that never ran; a health reader must count turns, not writes.**
+>
+> **Slice 4 · two verification systems, never joined.** `environment-verifier.ts` read tasks
+> back from the DB after every tool turn; `persist-assistant-message.ts` built receipts from
+> `{ toolName, ok }` BEFORE the verifier ran. The one real `createTask` of the fortnight (09-19)
+> was read back AND recorded PROVIDER_ACCEPTED. The verifier was also FAIL-OPEN — `verified:
+> true` for any tool it had no check for. #2483: tri-state `verified: boolean | null` (query
+> failure = null + warn, because `false` would stamp a fabrication banner over a DB hiccup),
+> and `receiptsWithReadBack()` joining read-backs into receipts before the row is written. The
+> review's P1 was correct: the first join promoted receipts through a `Set` of tool NAMES, so
+> `createTask × 3` with one confirmed read-back marked all three VERIFIED → positional pairing,
+> fail-closed on a length mismatch, and one verifier result per call in input order (a `null`
+> entry when a call carried nothing to look up; before, those calls produced NO entry and shifted
+> every later result). **A name-keyed join marks every same-name call verified.**
+>
+> **Slice 5 · the shadow's verdicts get a durable projection and a reader.** #2484 persists
+> `tokenUsage.toolReceipts` per tool turn — what ran, whether it mutates, how far it was verified;
+> no args, no results — and `buildClaimDoneCalibration` reads it: cohort at the join, `sufficient:
+> false` below `MIN_SAMPLE = 40` CONSEQUENTIAL turns, split by offender so a verifier gap is
+> distinguishable from a Nick gap. Live probe reproduced the hand count exactly (beforeJoin
+> turns=2 consequential=1 gap=1 offenders={createTask:PROVIDER_ACCEPTED:1}). Closed a door:
+> `parts` NEVER carried tool evidence, by design (`message-parts.ts:35`) — 2,692 assistant
+> messages since April, zero tool parts — so historical replay of strict-Done is impossible;
+> `toolReceipts` is the replay foundation going forward. Review: the reader capped 2,000 rows over
+> ALL assistant turns and only then dropped the ~131/132 without a shadow — ~15 samples, the
+> threshold unreachable however much history accumulated → filter on the JSON key. The filter's
+> semantics were then MEASURED on production rather than assumed from the precedent: over 14 days
+> the key filter selected 2 rows and a JS check over all 256 turns found 2. **A cap before a
+> filter is won by whatever is most common.**
+>
+> **Slice 6 · the novelty check gets its first caller — and three corrections.** `checkNovelty`
+> and `buildNoveltyBlock` had ZERO callers outside their module since the 2026-09-10 audit; the
+> half that could see whether the prompt-side injection worked was never wired. #2485 records
+> `recommendation.novelty` from deferred work, EMPTY-IS-NOT-ERROR (an `ERROR` prior set is never
+> scored as "all fresh"). Review found three real defects in the first cut: the shadow runs AFTER
+> persist and the prior scan did not exclude the reply's own row, so every name the draft used
+> was its own repeat (`loadPriorRecommendations({ excludeMessageId })`, the recorder passes
+> `createdAssistantId`); the post-turn outbox replays deferred work, so one turn could write
+> several observations (`alreadyRecorded(traceId)`, a REQUIRED dep, one indexed read); and
+> `Promise<unknown>` let the fail-soft writer type-check (`Promise<MetricWriteReceipt>` — the
+> compiler is the enforcement). The live call site is pinned on comment-stripped source with a
+> mutation canary per pattern. **A shadow that runs after persist counts the reply as its own
+> prior.**
+>
+> **Slice 7 · a runner with no tools cannot judge a tool criterion.** Eight of the twelve
+> repair-mined scenarios have a dominant criterion that IS a tool action ("actually attempts the
+> lookup again through searchTools/invokeTool", "performs the action through a real tool call",
+> "retries the generation"); `pnpm eval:live` replays through `aiChat`, which has no tool support.
+> A live pass would have reported the runner's limit as eight product regressions. #2487 tags
+> them `requires-tools`; `runLive` skips a tagged scenario BEFORE calling Nick, records
+> `{ scenarioId, reason }`, counts it in `summary.skipped` and never in the exit code; drafts of
+> the tool-dependent classes are born tagged; a corpus invariant (identifier sweep) matched
+> exactly the review's eight of fifty. They stay in the corpus as the acceptance set for a
+> tool-capable runner — which does not exist. **A runner with no tools scores a tool criterion
+> as a product regression.**
+>
+> **Slice 8 · a tier string that is not a tier ran for four months.** `tests/` is excluded from
+> `tsc`; a targeted type-check over `tests/eval` (scratch tsconfig extending the app's) found
+> `buildSystemPromptUncached("lite", …)` in the runner — `"lite"` is not a `TopicTier`. Downstream
+> an unknown tier fails `wantsKnowledge` in `appendBusinessKnowledgeLayer`, so every live eval
+> replay since 2026-05-23 ran WITHOUT the business-knowledge layer production attaches to
+> business asks. Now `detectTopicTier(userContent)`, the route's own classifier; the test asserts
+> the BUILT prompt reaches `aiChat`, because the builder's try/catch would have hidden a thrown
+> `TypeError` behind the fallback voice marker. **Live eval reports written before `9a5424682`
+> graded a thinner prompt than production's and are not comparable with reports after it.**
+>
+> **Slice 9 · affected-test selection hid a broken main.** `tests/intelligence/wave2-
+> predictions.test.ts` had been red on `main` since #1872 — it mocked `connectors/fred` while the
+> code had moved to `connectors/macro` — and no PR's affected-test run had touched it. #2486
+> mocks the connector the code actually calls. **A green PR run says nothing about a file it did
+> not select.**
+>
+> **Slice 10 · two pasted research packets, gated.** #2481 records what re-verification found:
+> Hindsight 0.10.1 (verdict already on file — the packet had read a superseded row), the MCP
+> SPEC (2026-07-28, Current) split from the MCP SDK (v2 refuted a third time; no 2.x on npm), and
+> a "September 2026 model + harness releases" row kept as an INVALIDATION TRIGGER for the
+> minimax-m3 pin (re-run the bakeoff; do not pin X). The second packet retracted its own GPT-6
+> Astra claim; the retraction was wrong — Astra is on OpenAI's own deployment-safety domain.
+> **A packet's self-correction is not evidence either.**
+>
+> **Flagged · NOT fixed**
+> - **#2483's join is DEPLOYED, not PRODUCTION-PROVEN** — 1 assistant turn and 0 tool-bearing
+>   turns since 16:22:47Z. Route: after the first tool-bearing turn, read
+>   `trpc.system.claimDoneCalibration` `afterJoin`; a `VERIFIED` receipt on a real write is the proof.
+> - **Strict-Done shadow at n=1 lifetime** (H1 untestable). The H2 attempt counter
+>   (`skipped_no_claim` persisted so skip-vs-dead is direct) is designed, not built.
+> - **FALSE_COMPLETION persists after the verifier banner** (9 repairs). Automatic repair needs the
+>   BUFFERED-path measurement first — streaming cannot block; `onFinish` runs after the last token.
+> - **No tool-capable eval runner.** The eight `requires-tools` scenarios are unscorable until the
+>   production chat pipeline can be replayed with the catalog attached.
+> - **Done-shadow has the same outbox-replay duplicate exposure** #2485 fixed for novelty.
+> - **HF inference credits depleted (402)** — bge-rerank falls to Cohere at ~5000× cost; embedding
+>   fallback #4 now ends in two dead providers. Operator decision: top up or retire BGE.
+> - **Operator-only env**: `OLLAMA_FALLBACK_MODELS` unset · the bad OpenAI `sk-proj-` key · Google AI
+>   Studio spend cap · OpenRouter credits.
+> - **`pnpm eval:live` on the 12 new scenarios** — operator-driven, not run; whether Nick recovers
+>   on them is the number the corpus now makes possible.
+> - **Post-merge reviews opened three follow-ups, all OPEN at the time of this entry:** #2496
+>   (the harvester's fixtures quoted the operator's private messages verbatim → synthetic
+>   stand-ins that keep the trigger phrase; `--out` on both writers is now bounded to the
+>   gitignored `eval-datasets/`), #2498 (a behavioural canary for `seed-policies.ts --dry-run`
+>   with a broken-case control that must still trip on `server-only`), #2495 (the
+>   `warm-routes` port-holder canary polls instead of sleeping 2s — it flaked on two PRs in one
+>   day). The review on #2480 was right that committed fixtures defeated the very boundary the
+>   harvester's gitignored output exists for.
+> - **W15 (#2473-#2476)** — gap in this log; backfill pending.
+
 > ## 2026-09-18 · W14 · the failure class nobody had counted · 6 PRs / 9 slices
 >
 > **#2467 `statenour · repair the tool failure that is actually still happening`
@@ -3838,7 +4009,7 @@
 
 > **2026-07-22 · Perplexica repair + closed-loop Experiment factory + fallback-model refresh.** ① **Perplexica** (#1017/#1018/#1019): canonical native-API path (removed the MCP-URL aliasing — `perplexica-mcp` is a separate Railway service), `PERPLEXICA_TIMEOUT_MS` 35s (was the generic 8s → always timed out in the quorum), `hasPerplexica()` single gate, `checkPerplexicaHealth()` provider+model verification, search-source telemetry, and the `GET /api/system/perplexica-diag` receipt (CRON_SECRET-gated). **Root cause proven from live SearXNG logs: every general engine (DuckDuckGo/Brave/Startpage/Google-CSE) is CAPTCHA/rate-limited on Railway's datacenter IP → 0 sources → silent Tavily fallback** — an infra reality, not a code bug (see RUNBOOK observability + poka-yoke ledger 2026-07-22). ② **Closed-loop Experiment factory** (#1020): `RegisteredSource.authScore` now LEARNS — accepting an opportunity spawns an `Experiment` (14-day horizon), a daily `experiment-measure` cron resolves it (held_up/failed/inconclusive) and nudges the attributed source's authScore via a bounded, reversible EWMA; `scoring.ts` folds that learned trust back into opportunity priority (`applyAuthTrust`, ±10% — the read-path teeth). Adversarial-review fixes: **column-first migration** (hot-table ADD COLUMNs applied to prod before the schema deploy) + **atomic claim** (running→measuring, prevents concurrent double-nudge). Migration verified live: `experiments` table + 3 cols + 2 FKs, pgvector untouched. ③ **Fallback-model refresh**: the anthropic fallback lane's `defaultModel` `claude-3-5-sonnet-latest` → `claude-sonnet-5` (4th/5th-hop only; prod primary is Ollama). Also flipped `NICK_VERIFIED_REGEN` on (activates the #1016 authority-regen; no DB override, env-driven, verified effective). Gates: typecheck 0 · eslint 0 · vitest (closed-loop math 7/7, perplexica 30/30) · check:crons clean · prisma validate.
 
-**Last verified:** 2026-09-18 (W13 #2425 `d61763004` SHIPPED — instruments that could not answer their own question; prior: W12 #2381 #2381 `691c90d11` SHIPPED — instruments that never ran, and a capability nobody could reach; ⚠ the tier-4 relevance-ordering fix is NOT yet prod-proven (re-read the first-letter skew after ~100 turns); prior: Execution truth follow-ups #2345 `6f5059b7c` SHIPPED + DEPLOYED-VERIFIED (reclaim pins holdUntil, behavioural race canary) + #2343 skill proposals applied + hidden holdout 6/6; prior: UI workbench #2337 SHIPPED + DEPLOYED-VERIFIED `7164b69` — object grammar, one inspector for any object, why-this-priority, alert/cron inspectors, UI Lab; wave 3 on branch: tool inspector, ChangeSet, Playwright instrument; also 2026-09-15: Execution truth + Dream-to-Proof waves 2-3 SHIPPED — #2335/#2336/#2338/#2339/#2340/#2342 (truthful Telegram, durable ActionAttempt, ledger ceilings, exact-id recall, check:scripts ratchet; see that entry below); prior: 2026-09-08 Design pass #2202 + chat leftovers #2204 + Brain plan/Wave 0-1 #2213 SHIPPED; prior: Backlog wave SHIPPED + DEPLOYED-VERIFIED - #2193/#2195/#2196/#2198: cost truth (aiChat is the ledger choke point, one price table, lane stops, Langfuse scores + model prices), approvals visible (windows + the deferred-automation list), /market moved to nickstire /admin/market, image-flag prerequisites, HSTS preload-ready, as-of recall, untrusted-content sink policy, intent playbooks, phone type floor; Neon production branch protected; prior: Quality+power Phases 1-2 SHIPPED + DEPLOYED-VERIFIED - #2180/#2181/#2183/#2185/#2186/#2188/#2189: deploy observer proven both ways (plain PASS, stale canary FAIL), approvals expire (authorization not obligations), devices classified + retire marks RETIRED, signed image URLs flag-off, resume record on park, D10 instrument red-then-fixed, proxy.ts, violet AI accent retired; prior: Quality+power wave #2175 DEPLOYED-VERIFIED `71e7cf14` + #2177 follow-up - every web+worker deploy since 09-04 had failed on a dead Dockerfile COPY, fixed + gated; prior: Backlog drain + tool-selection telemetry migration APPLIED - #2096/#2102/#2103/#2160, `Database schema is up to date!` 54 migrations; prior: Observability arc #2080/#2082/#2083 - Sentry.init was claiming the global OpenTelemetry provider and silently killing Langfuse; both vendors now share one provider, roots are sampled, only AI SDK spans are exported, and tracing is PROVEN live by a planted trace read back. Earlier that day: audit wave #2057/#2058/#2059 + N-1 follow-up - P0 dotted-path bypass closed both halves + verified 307 live, memory quarantine wired to gmail, recall fenced, UI mount-graph gate, kill switch fails closed; prior: Journal+Settings truth wave - 5 dead AI controls purged, 12 env-only flags honest, cron cache-key fix, journal take budget + raw-payload trim + 4 dead procedures deleted; prior: Execution Deck wave - /missions rebuilt: one deck read, scorer v2 w/ boundary+ramp, triage airlock, rhythms off-board, park/resume, due-time push sleeper, RPG chrome out; prior: Command Surface wave #2047/#2048 - Home rebuilt as compiled operator view, brief server-side, dead nav links + money section dropped; prior: learning-loops wave #1968 + collect lane #1967 - verdicts reach Nick's live surfaces, corpus label-bearing 0->6; prior: hour-frame reader ratchet + policy seed 102/102 + shared-tree cleanup; prior: wire-or-delete wave - census 341 -> 0, knip gate BLOCKING, 126 dead files deleted, verify:hard 599/599; prior: retrieval lever wave #1949 - durable-lane fusion 50->86% hit@5, tail caps; prior: adoption-gates wave #1929/#1935 - CI gates live: ast-grep dialog rule both PWAs + depcruise layer rules (first scan caught the ultron-ticker dead route-import, deleted), knip census 341 unused files, MCP route rejection canary mutation-probed; prior: retrieval-quality wave #1947 + Now-card scorer #1946 - first recall baseline, chat lane 0->50% hit@5, fastTopics + KNN pool; prior: dead-key sweep + free STT chain - embeddings measured healthy; prior: run-to-empty batch - cron-wiring local chain, camera denominators, attention-helpers deleted, hour-frame census; prior: chat read-aloud wave #1930 - streaming TTS shipped + deployed-verified, prod OpenAI key found DEAD (whisper 401 live probe), TTS_ENGINE=edge mitigation; prior: surface-honesty wave #1837-#1926 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
+**Last verified:** 2026-09-22 (W13 #2425 `d61763004` SHIPPED — instruments that could not answer their own question; prior: W12 #2381 #2381 `691c90d11` SHIPPED — instruments that never ran, and a capability nobody could reach; ⚠ the tier-4 relevance-ordering fix is NOT yet prod-proven (re-read the first-letter skew after ~100 turns); prior: Execution truth follow-ups #2345 `6f5059b7c` SHIPPED + DEPLOYED-VERIFIED (reclaim pins holdUntil, behavioural race canary) + #2343 skill proposals applied + hidden holdout 6/6; prior: UI workbench #2337 SHIPPED + DEPLOYED-VERIFIED `7164b69` — object grammar, one inspector for any object, why-this-priority, alert/cron inspectors, UI Lab; wave 3 on branch: tool inspector, ChangeSet, Playwright instrument; also 2026-09-15: Execution truth + Dream-to-Proof waves 2-3 SHIPPED — #2335/#2336/#2338/#2339/#2340/#2342 (truthful Telegram, durable ActionAttempt, ledger ceilings, exact-id recall, check:scripts ratchet; see that entry below); prior: 2026-09-08 Design pass #2202 + chat leftovers #2204 + Brain plan/Wave 0-1 #2213 SHIPPED; prior: Backlog wave SHIPPED + DEPLOYED-VERIFIED - #2193/#2195/#2196/#2198: cost truth (aiChat is the ledger choke point, one price table, lane stops, Langfuse scores + model prices), approvals visible (windows + the deferred-automation list), /market moved to nickstire /admin/market, image-flag prerequisites, HSTS preload-ready, as-of recall, untrusted-content sink policy, intent playbooks, phone type floor; Neon production branch protected; prior: Quality+power Phases 1-2 SHIPPED + DEPLOYED-VERIFIED - #2180/#2181/#2183/#2185/#2186/#2188/#2189: deploy observer proven both ways (plain PASS, stale canary FAIL), approvals expire (authorization not obligations), devices classified + retire marks RETIRED, signed image URLs flag-off, resume record on park, D10 instrument red-then-fixed, proxy.ts, violet AI accent retired; prior: Quality+power wave #2175 DEPLOYED-VERIFIED `71e7cf14` + #2177 follow-up - every web+worker deploy since 09-04 had failed on a dead Dockerfile COPY, fixed + gated; prior: Backlog drain + tool-selection telemetry migration APPLIED - #2096/#2102/#2103/#2160, `Database schema is up to date!` 54 migrations; prior: Observability arc #2080/#2082/#2083 - Sentry.init was claiming the global OpenTelemetry provider and silently killing Langfuse; both vendors now share one provider, roots are sampled, only AI SDK spans are exported, and tracing is PROVEN live by a planted trace read back. Earlier that day: audit wave #2057/#2058/#2059 + N-1 follow-up - P0 dotted-path bypass closed both halves + verified 307 live, memory quarantine wired to gmail, recall fenced, UI mount-graph gate, kill switch fails closed; prior: Journal+Settings truth wave - 5 dead AI controls purged, 12 env-only flags honest, cron cache-key fix, journal take budget + raw-payload trim + 4 dead procedures deleted; prior: Execution Deck wave - /missions rebuilt: one deck read, scorer v2 w/ boundary+ramp, triage airlock, rhythms off-board, park/resume, due-time push sleeper, RPG chrome out; prior: Command Surface wave #2047/#2048 - Home rebuilt as compiled operator view, brief server-side, dead nav links + money section dropped; prior: learning-loops wave #1968 + collect lane #1967 - verdicts reach Nick's live surfaces, corpus label-bearing 0->6; prior: hour-frame reader ratchet + policy seed 102/102 + shared-tree cleanup; prior: wire-or-delete wave - census 341 -> 0, knip gate BLOCKING, 126 dead files deleted, verify:hard 599/599; prior: retrieval lever wave #1949 - durable-lane fusion 50->86% hit@5, tail caps; prior: adoption-gates wave #1929/#1935 - CI gates live: ast-grep dialog rule both PWAs + depcruise layer rules (first scan caught the ultron-ticker dead route-import, deleted), knip census 341 unused files, MCP route rejection canary mutation-probed; prior: retrieval-quality wave #1947 + Now-card scorer #1946 - first recall baseline, chat lane 0->50% hit@5, fastTopics + KNN pool; prior: dead-key sweep + free STT chain - embeddings measured healthy; prior: run-to-empty batch - cron-wiring local chain, camera denominators, attention-helpers deleted, hour-frame census; prior: chat read-aloud wave #1930 - streaming TTS shipped + deployed-verified, prod OpenAI key found DEAD (whisper 401 live probe), TTS_ENGINE=edge mitigation; prior: surface-honesty wave #1837-#1926 - envelope/provenance/clock-frame honesty, stop-hook loud fail-open, automation engine rewritten + armed at 4 rules; prior: interaction-audit wave #1881-#1898 + home redesign #1897 — gate reachability, /api/version, anti-slop bite, prompt-size skip, hour-frame, time-travel ET; prior: chat-stack wave #1836/#1843/#1846/#1848/#1849 — tool-surfacing telemetry, Langfuse dormant-wired, VideoDB removed, observability visibility, prompt-cost measurement; prior: manual-fire lane #1747 + combined brief push #1755 wave; cron-healer recursion wave #1735 + memory-loop wave: compiler resurrected from the merge grinder + memory receipts + backfill studio + temporal evals; prior: memory-truth wave #1716, outcome-loop wave #1711/#1714/#1715/#1718, architecture-reimagine wave, Brain waves 1-2, OS-Health truth pass); top entries.
 
 - **Execution Mode (`1255c273`)**: Added focused task execution panel on `/missions` utilizing a memoized selector to prioritize tasks in "DOING" status, then queued tasks, then tasks from the Top Mission Today, real user projects, and general tasks. Includes callbacks for resume, pause, complete, snooze, block, edit, and exit.
 - **Hidden High-Risk Warning & Filters (`e9afbec8` & `9816a0b6`)**: Implemented a warning banner when high-risk tasks are hidden by active search, loop-kind filters, domain filters, or focus mode.
