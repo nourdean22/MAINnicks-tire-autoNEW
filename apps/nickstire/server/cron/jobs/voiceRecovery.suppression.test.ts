@@ -90,6 +90,7 @@ function fakeDb(candidates: EstRow[]) {
 function armGates() {
   vi.stubEnv("VAPI_API_KEY", "canary-key");
   vi.stubEnv("FEATURE_VOICE_RECOVERY", "1");
+  vi.stubEnv("VAPI_FOLLOWUP_ASSISTANT_ID", "asst_canary");
   vi.doMock("../../lib/timezoneAssert", () => ({
     getBusinessHour: () => 13,
     getBusinessDateKey: () => "2026-09-16",

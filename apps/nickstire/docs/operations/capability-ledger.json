@@ -2139,6 +2139,38 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "voice-recovery-outbound-dial",
+      "name": "A declined estimate that ignored the D7 and D30 texts gets one no-pressure recovery call",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "server/cron/jobs/voiceRecovery.ts (tier cron, daily, 10-17 ET; FEATURE_VOICE_RECOVERY=1 in prod) selects declined ALG estimates with followUp30dSent and no matched invoice, claims each at-most-once, and dials through placeVapiOutboundCall with a recovery prompt override. Fixed 2026-09-22: the override is a COMPLETE model block (followUpModelBlock, the same helper that defines the follow-up assistant); placeVapiOutboundCall reports errorKind config / customer / provider / network; a dial that never reached the customer releases the claim and aborts the run so cron_log records status failed with the reason; a missing or retired assistant pin skips before any claim is taken.",
+        "tests": "server/services/vapi.outboundOverride.test.ts 6 tests - the request body that reaches fetch carries provider + model + the override as system message and is otherwise identical to the assistant's own block; no model block is sent without an override; errorKind per failure exit. server/cron/jobs/voiceRecovery.dialFailure.test.ts 6 tests - provider / config / network / unknown failures release the claim and reject with no second dial; the customer kind marks the lead failed and continues; the reason lands in details; a missing pin skips before a claim; positive control first. voiceRecovery.suppression.test.ts 6 still green. 18 passed exit 0, tsc exit 0.",
+        "liveRuns": "NONE successful, ever. 110 of 110 dials from 2026-06-18 to 2026-09-20 returned 400 assistantOverrides.model.provider must be one of the following values (Railway deploy log f9ab5753, 2026-09-19 14:50Z, estimates 1620001 and 1620002); every run logged completed with placed=0 failed=N (cron_log 09-17 failed=3, 09-19 failed=2, 09-20 failed=1); all 110 leads carry outcome failed with no call id. 0 leads eligible on 2026-09-22 because every candidate had already been burned. Prod env checked as booleans: VAPI_API_KEY set, VAPI_FOLLOWUP_ASSISTANT_ID set, VAPI_PHONE_NUMBER_ID unset (auto-lookup), FEATURE_VOICE_RECOVERY=1. STATE: unit_verified, not deployed - the validator holds deployed for rows with a deploymentId, an expiry and no P1; this row carries a P1 (the burned leads) and no observed run since the fix.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "110 burned leads. READY: scripts/maintenance/release-voice-recovery-claims.mjs - dry run by default; --execute copies the rows into _bak_alg_estimates_voice_release_<date> (two-statement TiDB form, count-verified) and then sets voice_recovery_attempted_at and voice_recovery_outcome to NULL for leads whose D30 text is within --max-age-days (default 60, because the call script says the quote was 5-6 weeks ago; older leads are listed and left as they are). ACTION for the operator: run the dry run, then --execute if the shop wants those customers called; the lane then dials them at 5 per day."
+        },
+        {
+          "severity": "P2",
+          "description": "No successful dial has been observed since the fix. Promote to live_verified when cron_log (job_name voice-recovery) shows placed >= 1 and the matching alg_estimates row carries a voice_recovery_call_id; a recorded end-of-call webhook for that call id is the outcome receipt."
+        },
+        {
+          "severity": "P3",
+          "description": "nick-memory stores the pattern \"System health: CRON STALE: voice-recovery hasn't c...\" every five minutes (Railway log from 2026-09-18 22:50Z, one line per tick). A dedupe gap in the memory writer, not in this lane; noted here because it is the only place the failure was being \"recorded\" and it recorded nothing useful."
+        }
+      ],
+      "deferredScope": [
+        "Classifying a provider 4xx as per-customer versus systemic from its message text. Today any non-customer failure aborts the run, which would wedge LOUDLY on a number Vapi itself refuses; chosen over a heuristic that could silently burn leads again."
+      ],
+      "lastVerifiedAt": "2026-09-22",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
