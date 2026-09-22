@@ -202,6 +202,23 @@ describe("tier placement · no businessHoursOnly job may sit in the 24h daily ti
     expect(DAILY_BLOCK()).not.toMatch(/businessHoursOnly:\s*true/);
   });
 
+  it("the daily tier declares NO oncePerShopDay job either — the claim is gated to business hours", () => {
+    // kpi-snapshot sat here until 2026-09-22: claimOncePerShopDay() returns
+    // false outside 07:00-20:59 ET, so a 24h tier whose phase parks outside
+    // those hours skips the job every day with no cron_log row. The
+    // businessHoursOnly assertion above cannot see this — the flag is
+    // implied by the claim, not written on the job.
+    expect(DAILY_BLOCK()).not.toMatch(/oncePerShopDay:\s*true/);
+  });
+
+  it("kpi-snapshot lives in the 2h hourly tier and claims once per shop day", () => {
+    expect(DAILY_BLOCK()).not.toContain('name: "kpi-snapshot"');
+    const block = HOURLY_BLOCK();
+    const at = block.indexOf('name: "kpi-snapshot"');
+    expect(at).toBeGreaterThan(-1);
+    expect(block.slice(at, block.indexOf("handler:", at))).toMatch(/oncePerShopDay:\s*true/);
+  });
+
   it.each(STARVED_JOBS)("%s now lives in the 2h hourly tier", (job) => {
     expect(HOURLY_BLOCK()).toContain(`name: "${job}"`);
     expect(DAILY_BLOCK()).not.toContain(`name: "${job}"`);
