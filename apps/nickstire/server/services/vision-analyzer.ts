@@ -452,8 +452,15 @@ async function analyzeViaOpenAiCompatible(args: {
               ],
             },
           ],
-          max_tokens: 400,
           temperature: 0.2,
+          // Live probe 2026-09-22: gemini-2.5-flash spent a 400-token budget on
+          // its hidden thinking and returned 66 visible characters, no
+          // SERVICE_SUGGEST line. Thinking is off for this call (a photo needs a
+          // description, not a chain of thought) and the visible budget is
+          // sized for the 2-3 sentences + 2 structured lines the prompt asks for.
+          ...(args.provider === "gemini"
+            ? { max_tokens: 800, extra_body: { google: { thinking_config: { thinking_budget: 0 } } } }
+            : { max_tokens: 600 }),
         }),
       }),
       args.timeoutMs,

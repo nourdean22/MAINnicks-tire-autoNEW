@@ -68,6 +68,9 @@ describe("analyzePhoto · gemini", () => {
     expect(headers.Authorization).toBe("Bearer gk-test");
     const body = JSON.parse(String(calls[1].init?.body));
     expect(body.model).toBe("gemini-2.5-flash");
+    // thinking off + a visible budget: the live probe with a 400-token budget returned 66 characters
+    expect(body.max_tokens).toBe(800);
+    expect(body.extra_body).toEqual({ google: { thinking_config: { thinking_budget: 0 } } });
     const parts = body.messages[0].content;
     expect(parts[0]).toEqual({ type: "text", text: expect.stringContaining("SERVICE_SUGGEST") });
     expect(parts[1].type).toBe("image_url");
@@ -116,7 +119,10 @@ describe("analyzePhoto · ollama cloud", () => {
     expect(r.ok && r.source).toBe("ollama");
     expect(calls[1].url).toBe("https://ollama.com/v1/chat/completions");
     expect((calls[1].init?.headers as Record<string, string>).Authorization).toBe("Bearer ok-test");
-    expect(JSON.parse(String(calls[1].init?.body)).model).toBe("qwen3.5:397b");
+    const ollamaBody = JSON.parse(String(calls[1].init?.body));
+    expect(ollamaBody.model).toBe("qwen3.5:397b");
+    expect(ollamaBody.max_tokens).toBe(600);
+    expect(ollamaBody.extra_body).toBeUndefined(); // Google's thinking knob is not sent to Ollama
   });
 
   it("defaults the model to gemma4:31b and fails closed without the key", async () => {
