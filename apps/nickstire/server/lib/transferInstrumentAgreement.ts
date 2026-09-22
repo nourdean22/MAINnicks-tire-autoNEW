@@ -82,12 +82,12 @@ export interface InstrumentAgreement {
  * hand-off worked" survives. Deliberately coarse: the module's job is to
  * detect a contradiction loud enough to act on, not to score one.
  */
-export const REDIAL_TROUBLE_PCT = 33;
+const REDIAL_TROUBLE_PCT = 33;
 
 /**
  * Above this provider connect rate, the provider is claiming the hand-offs land.
  */
-export const PROVIDER_HEALTHY_PCT = 67;
+const PROVIDER_HEALTHY_PCT = 67;
 
 export function compareTransferInstruments(
   provider: ConnectRate,

@@ -11,13 +11,17 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  PROVIDER_HEALTHY_PCT,
-  REDIAL_TROUBLE_PCT,
-  compareTransferInstruments,
-} from "../lib/transferInstrumentAgreement";
+import { compareTransferInstruments } from "../lib/transferInstrumentAgreement";
 import type { ConnectRate } from "../lib/transferArtifact";
 import type { TransferOutcomeEvidence } from "../lib/transferOutcomeEvidence";
+
+// PROVIDER_HEALTHY_PCT and REDIAL_TROUBLE_PCT are module-private on purpose:
+// no production module imports them, and the knip orphan gate correctly
+// flagged exporting them as inventing a consumer. The literals below are the
+// stronger pin anyway — the test now breaks if the threshold silently moves
+// without this file (and the module's own header comment) being updated too.
+const PROVIDER_HEALTHY_PCT = 67;
+const REDIAL_TROUBLE_PCT = 33;
 
 const provider = (connectRate: number | null, coveragePct: number | null = 80): ConnectRate => ({
   attempted: 100,
