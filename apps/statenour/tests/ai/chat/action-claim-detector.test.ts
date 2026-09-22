@@ -280,3 +280,72 @@ describe("action-claim detector · expected tools all exist in the catalog", () 
     }
   });
 });
+
+describe("detectActionClaims - production false positives (2026-09-22 banner audit)", () => {
+  // Every L2 verifier banner in 60 days of production replies (52) was read
+  // against L2's own diagnostic line. `pinned` drove 15 banners with 3 real
+  // claims; bare `sent` drove 10 with none. The patterns matched adjectives,
+  // quoted labels, metaphors and recaps of OTHER people's actions - and a false
+  // banner is not cosmetic: L3 replaces that turn in the model's history, so a
+  // legitimate reply is erased. Each case below is a production shape with the
+  // names swapped. The detector must stay quiet here AND (next block) keep
+  // firing on the real claims from the same audit.
+  const quiet = (text: string) =>
+    expect(detectActionClaims(text).claims.map((c) => c.verb), text).toEqual([]);
+
+  it.each([
+    "Pain is the mirror. [Pinned by the operator] 2. Boredom = phase-1 drift signal.",
+    "Constrain the surface. A lofi pinned tab. Strip the homepage by clearing watch history.",
+    "and read your own pinned rule right now: when something hurts, that's my own insecurity.",
+    "First impression - bio, pic, grid, highlights, pinned posts.",
+    "Why this fits you: your pinned pattern is avoidance and anxiety.",
+    "The origin story from pinned memory: he never got the attention he needed.",
+    "What I have is scattered across pinned memories, journal dumps, and brain logs (founding year not pinned).",
+    'Pinned notes tagged "oldest_brother" and "st_mark" (early 20s).',
+    "What I do well: I remember pinned context. I track commitments.",
+    "That's being pinned between hurting someone you care about and facing a fear.",
+    "Want me to pull what I can from this week - wisdom memories, pinned items, and other artifacts?",
+  ])("pinned as an adjective, label or metaphor is not a claim: %s", quiet);
+
+  it.each([
+    "Heavy bag day, sent the landlord money, did the walk, talked to a stranger - that's a full day.",
+    "**Sent 400 dollars to the supplier** - committed and cleared. That's a solid one.",
+    "Alright. Then it's already done - text sent, commitment made.",
+    "Has she ever texted you first since February, even small stuff?",
+    "- Sam sent a text that wasn't the issue. You're right that he sent the text.",
+    "Week 3: 3 collab DMs sent, 5 local accounts engaged daily.",
+    "The user is reflecting on a replay loop - a customer he sent to jail.",
+    "The second joint is biting the hand that sent you to the gym.",
+    '"I\'ve missed two weeks and the coach texted me. If I don\'t show my face I\'m gonna hear about it."',
+    '- Past chat: "just texted her i just got done working out" - 27d ago, waiting on response',
+  ])("someone else's send is not Nick's claim: %s", quiet);
+
+  it.each([
+    "Smoke, eat early, sleep by 11. Want me to set a 6pm food reminder?",
+    "want me to set a 90-minute reminder so you actually pull yourself out of there?",
+    "Pick the spot - I'll log it and set the reminder.",
+    "Want me to build this as a saved queue in your brain so you can cycle through them?",
+  ])("an offer or a promise is not a claim: %s", quiet);
+});
+
+describe("detectActionClaims - the real claims from the same audit still fire (positive controls)", () => {
+  // Silencing and fixing produce the same green suite unless the true case is
+  // pinned alongside the false one. These are the audit's real fabrications
+  // plus the terse confirmation shapes Nick actually uses.
+  it.each([
+    ["Pinned. I'll surface it every time something lands hard.", "pinMemory"],
+    ["All entries pinned. Every insight, every raw line - now in the brain.", "pinMemory"],
+    ["Synced. Wisdom memories stored, and the pattern is pinned so it surfaces.", "pinMemory"],
+    ["Pinned that to the brain so I'll remember next time.", "pinMemory"],
+    ["I've pinned that.", "pinMemory"],
+    ["Sent it.", "composeEmail"],
+    ["Done - sent the email to the customer.", "composeEmail"],
+    ["I sent it over a minute ago.", "composeEmail"],
+    ["I've already texted him the address.", "composeEmail"],
+    ["Texted her. She'll confirm by 6.", "composeEmail"],
+    ["- Sent. Both invoices went out at 9.", "composeEmail"],
+  ])("%s -> %s", (text, tool) => {
+    const r = detectActionClaims(text);
+    expect(r.claims.some((c) => c.expectedTool.includes(tool)), text).toBe(true);
+  });
+});

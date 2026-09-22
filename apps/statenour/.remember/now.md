@@ -171,13 +171,43 @@ detection reused from L2 (`isVerifierRewritten`), cohort at the shadow's first w
 (2026-09-15T17:29Z). Flipping `NICK_EVIDENCE_PREFLUSH` today = ~66% of turns stop streaming to catch
 ~6 of 7 banner turns a week.
 
-**NEXT HIGHEST-LEVERAGE TASK** · FALSE_COMPLETION auto-repair needs a gate signal OTHER than `turnRisk`
-(the buffered-path measurement above says the flag is a 66%-of-turns latency cost that cannot be narrowed
-on its own reasons) — candidates are reply-side, e.g. buffer only once the L2 action-claim detector fires
-on the reply's first sentence; measure it the same way (shadow → reader → floor) before any flip → run the
-tool-capable runner ONCE (operator spend) to baseline the 8 `requires-tools` scenarios → the tool-search
-A/B on it. Chat volume (13 turns/24h) is the binding constraint — nothing promotes on n<30; banner turns
-arrive ~7/week, so the recall floor (40) is ~6 weeks out.
+**#2509 MERGED `073697106` (buffer-shadow reader) · #2508 MERGED `10673c575` (tool-replay runner), both
+deploy-verified via `/api/version` (`10673c5` 19:08:43Z · `0736971` pending at write time).**
+
+**Reply-side hold — REFUTED (read-only, 60 days, 1,246 turns, 52 banner turns):** the fabricated claim
+sits a median 432 chars into the reply (p90 1,770, max 2,219) while Nick's first sentence is p50 24 chars;
+hold-first-sentence catches 6/52 banners, 120 chars 13/52, 480 chars 22/52, 800 chars 28/52 — half the
+banners need most of the reply held, which is the pre-flush lane again. ★★★ **A FABRICATED ACTION CLAIM
+IS BURIED MID-REPLY, NOT AN OPENER.**
+
+**L2 BANNER PRECISION — the finding under every enforcement plan (read-only, L2's own diagnostic line per
+banner turn):** 52 banners in 60 days = 9 known-truth (separate guard) + 43 action-claim. `pinned` raised
+15 (3 real: "Pinned.", "All entries pinned.", "the pattern is pinned so it surfaces"; 12 adjectives,
+labels, metaphors — "pinned tab", "pinned posts", "[Pinned by Nour]", "pinned between"). Bare `sent`
+raised 10 (0 real — "Mo sent a text", "the coach texted me", "3 DMs sent", "Sent $1,000 to Hamda" = the
+USER's action). `set reminder` 3 (all offers/promises: "Want me to set a 6pm reminder?", "I'll log it and
+set the reminder"). ★★★ **THE VERIFIER BANNER WAS MOSTLY FALSE, AND A FALSE BANNER IS NOT COSMETIC: L3
+REPLACES THAT TURN IN HISTORY, ERASING A LEGITIMATE REPLY; L5 TELLS THE OPERATOR NICK FABRICATED WHEN IT
+DESCRIBED.** **This branch (`statenour/action-claim-precision`):** `pinned` and `sent (bare)` edge
+patterns require the VERB shape (terminator / pronoun / verb continuation after `pinned`; first person
+with ≤2 adverbs, or a sentence-opening confirmation into a message-like object, for `sent`); `send-comm`
+gets `claimNeedsFirstPerson`; "pinned" leaves `memory-write`'s past list; hedges gain bare "want me to"
+and up to three words after "I'll". 25 production-shape canaries (names swapped) + 11 positive controls:
+**unfixed 25f/43p → fixed all green.** Real-binary receipt over the same 52 banner originals: **43 → 17
+still flagged** (task-added 5 · pinned 4 = the 3 real + "Story highlights pinned to the shop" · task-
+complete 4 · memory-write 2 · data-sync 1 · priority-set 1); bare `sent` **10 → 0**; all 1,246 turns
+**46 → 21** flagged, nothing new fires. Not classified: the 17 survivors (task-added/-complete may be
+tool-name mismatches, not fabrications) and the 9 known-truth banners. ⚠ the repair harvester's
+`reclassifyByReply` keys FALSE_COMPLETION on the banner — its 9 FALSE_COMPLETION candidates inherit this
+precision and need re-reading.
+
+**NEXT HIGHEST-LEVERAGE TASK** · classify the 17 surviving action banners (are "Task created — …" turns
+real fabrications or tool-name mismatches in `mapsToTool`?) and the 9 known-truth banners → then a
+reply-side signal for FALSE_COMPLETION auto-repair needs a DIFFERENT shape than a prefix hold (the claim
+is mid-reply): candidates are a sentence-level streaming hold at the FIRST detected claim (stream until
+the detector fires, then buffer the remainder), measured as a shadow first → run the tool-capable runner
+ONCE (operator spend) to baseline the 8 `requires-tools` scenarios. Chat volume (13 turns/24h) is the
+binding constraint — nothing promotes on n<30; banner turns arrive ~6/week, and after this fix fewer.
 
 ## Session E (tool routing) — 5 MERGED + DEPLOYED, 1 in CI
 
