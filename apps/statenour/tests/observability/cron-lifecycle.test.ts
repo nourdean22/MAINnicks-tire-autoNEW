@@ -585,6 +585,17 @@ describe("cron lifecycle · outcome receipts (2026-09-22)", () => {
     expect(deriveResultCount({ status: "pinned", numberCount: 3 })).toBe(3); // *Count suffix
     expect(deriveResultCount({ tasksCreated: 2, contactNames: ["a", "b"] })).toBe(2); // *Created suffix
     expect(deriveResultCount({ sourcesAttempted: 5, sourcesIngested: 4, totalClaims: 40, failures: 1 })).toBe(4);
+    // review on #2525: industry-pull returns { sourcesOk, itemsAdded, errors } - Added is work, Ok is not a count key
+    expect(deriveResultCount({ sourcesOk: 3, itemsAdded: 12, errors: 0 })).toBe(12);
+    expect(deriveResultCount({ failedCount: 2, sentCount: 5 })).toBe(5); // a failure stem is not work done
+    expect(deriveResultCount({ errorCount: 9 })).toBeNull();
+    expect(deriveResultCount({ dryRun: 4 })).toBeNull(); // *Run suffix, but a dry-run marker is not work
+    expect(deriveResultCount({ jobsRun: 7 })).toBe(7);
+    // review on #2525: Prisma Int is signed 32-bit; a larger value is rejected by the database and would
+    // strand a finished run at started (the same bound countFrom in cron-manager.ts enforces)
+    expect(deriveResultCount({ processed: 2_147_483_647 })).toBe(2_147_483_647);
+    expect(deriveResultCount({ processed: 2_147_483_648 })).toBeNull();
+    expect(deriveResultCount([1, 2, 3])).toBe(3);
     expect(deriveResultCount({ notes: "x" })).toBeNull();
     expect(deriveResultCount(null)).toBeNull();
   });
@@ -700,7 +711,7 @@ describe("cron lifecycle · one run, one row — parallel-step requests (2026-09
     await mw.onRunComplete({ ctx: { runId: "run-parallel" }, fn, output: { jobsRun: 7 } });
     expect(rows.filter((r) => r.status === "started")).toHaveLength(0);
     expect(rows[0].status).toBe("success");
-    expect(rows[0].resultCount).toBeNull(); // jobsRun is not a count key — honest null, not 7
+    expect(rows[0].resultCount).toBe(7); // jobsRun: the *Run suffix is work done
   });
 
   it("without a run id there is nothing to dedupe on: two starts stay two rows (the pre-runId fallback)", async () => {

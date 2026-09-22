@@ -179,12 +179,17 @@ type PrismaLike = Awaited<typeof import("@/lib/prisma")>["prisma"];
  *   1. an explicit `resultCount` key;
  *   2. a known work-count key (COUNT_KEYS, derived from the fleet's real
  *      return shapes - see the test file for the census);
- *   3. any key ending in Count / Created / Ingested / Processed / Swept;
+ *   3. any key ending in Count / Created / Ingested / Processed / Swept /
+ *      Added / Scanned / Sent / Run - unless its stem is a failure word
+ *      (`failedCount`, `errorCount`, `skippedCount` are not work done);
  *   4. a bare array -> its length.
- * Only a non-negative safe integer counts: a boolean `sent: true`, a negative
- * or fractional value, or a `skipped: "reason"` string is NOT a count, and the
- * honest answer for a run that reported none is `null`, never an invented 0
- * (the schema comment on `resultCount` draws exactly this line).
+ * Only a non-negative integer within Postgres INTEGER range counts: a boolean
+ * `sent: true`, a negative or fractional value, a value past 2,147,483,647
+ * (the same bound `countFrom` in cron-manager.ts enforces - a rejected update
+ * would strand a finished run at `started`), or a `skipped: "reason"` string
+ * is NOT a count, and the honest answer for a run that reported none is
+ * `null`, never an invented 0 (the schema comment on `resultCount` draws
+ * exactly this line).
  */
 const COUNT_KEYS = [
   "resultCount",
@@ -204,10 +209,13 @@ const COUNT_KEYS = [
   "records",
   "total",
 ] as const;
-const COUNT_KEY_SUFFIX = /(?:Count|Created|Ingested|Processed|Swept)$/;
+const COUNT_KEY_SUFFIX = /(?:Count|Created|Ingested|Processed|Swept|Added|Scanned|Sent|Run)$/;
+const NOT_WORK_STEM = /^(?:failed|failure|failures|error|errors|skipped|unsupported|missing|rejected|dry)/i;
+/** Prisma `Int` is a signed 32-bit column; a larger value is rejected by the database, not stored. */
+const INT32_MAX = 2_147_483_647;
 
 const asCount = (v: unknown): number | null =>
-  typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : null;
+  typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= INT32_MAX ? v : null;
 
 export function deriveResultCount(output: unknown): number | null {
   if (Array.isArray(output)) return output.length;
@@ -218,7 +226,7 @@ export function deriveResultCount(output: unknown): number | null {
     if (n !== null) return n;
   }
   for (const k of Object.keys(o)) {
-    if (!COUNT_KEY_SUFFIX.test(k)) continue;
+    if (!COUNT_KEY_SUFFIX.test(k) || NOT_WORK_STEM.test(k)) continue;
     const n = asCount(o[k]);
     if (n !== null) return n;
   }
