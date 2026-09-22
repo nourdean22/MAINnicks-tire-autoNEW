@@ -109,6 +109,10 @@ const HEDGE_PATTERNS: RegExp[] = [
   // 2026-09-22 · the bare offer too ("Want me to set a 6pm reminder?") — three
   // of three `set reminder` banners in 60 days were offers or promises.
   /\bwant\s+me\s+to\b/i,
+  // 2026-09-22 · a NEGATED past participle is not a claim ("isn't marked
+  // done", "haven't been ingested", "nothing was pulled", "I haven't synced
+  // it yet"). Verb list = the claim verbs the vocab and edge patterns use.
+  /\b(?:haven'?t|hasn'?t|hadn'?t|isn'?t|wasn'?t|weren'?t|aren'?t|didn'?t|never|not|nothing)\s+(?:\w+\s+){0,2}(?:been\s+)?(?:added|created|sent|texted|emailed|messaged|linked|finished|completed|closed|marked|scheduled|posted|published|saved|noted|pinned|moved|bumped|synced|pulled|ingested|refreshed|logged)\b/i,
   // Second-person reflection — Nick describing what the USER did
   // ("you texted Dania", "you finished the task", "you've added X").
   // That is not a self-claim, so it must not count as fabrication.

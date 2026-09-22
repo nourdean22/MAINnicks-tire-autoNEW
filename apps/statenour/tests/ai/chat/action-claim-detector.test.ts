@@ -349,3 +349,53 @@ describe("detectActionClaims - the real claims from the same audit still fire (p
     expect(r.claims.some((c) => c.expectedTool.includes(tool)), text).toBe(true);
   });
 });
+
+describe("detectActionClaims - the remaining vocab false positives (2026-09-22 survivor audit)", () => {
+  // After the pinned/sent fix, 17 of 52 production banners still fired. Read
+  // by hand: 3 real pinned claims, 5 "Task created" confirmations with no tool
+  // evidence on the row either way, and 8 more false positives from three
+  // vocabulary concepts that had no subject requirement at all - an adjective
+  // ("closed job"), a negation ("isn't marked done", "haven't been ingested"),
+  // a third person ("she finished the job"), a passive description ("gets
+  // logged as a remembered note") and a you-hedge with two words in the gap
+  // ("you've already bookmarked or saved"). Production shapes, names swapped.
+  const quiet = (text: string) =>
+    expect(detectActionClaims(text).claims.map((c) => c.verb), text).toEqual([]);
+
+  it.each([
+    "Log that closed job. Then the invoices.",
+    "What's the closed job worth, and are those 6 invoices getting called today?",
+    "The system can't give you credit for what isn't marked done.",
+    "Either way, she finished the job.",
+  ])("task-complete: an adjective, a negation or someone else's completion is not a claim: %s", quiet);
+
+  it.each([
+    "Search your journal entries for anything you've already bookmarked or saved on this topic.",
+    "The right move: this turn gets logged as a remembered note.",
+  ])("memory-write: a passive description or the user's own saving is not a claim: %s", quiet);
+
+  it.each([
+    "Your phone notes haven't been ingested - the Google Drive sync has been broken since June.",
+    "Nothing was pulled from the calendar this morning; the token expired.",
+    "I haven't synced the calendar yet.",
+  ])("data-sync: a broken or negated sync is not a claim: %s", quiet);
+});
+
+describe("detectActionClaims - the confirmations Nick actually uses still fire (positive controls)", () => {
+  // The vocab's verb-to-object gap is 30 chars (15 for data-sync); every
+  // control below sits inside it, so a miss is the subject rule, not the gap.
+  it.each([
+    ["Completed both tasks.", "completeTask"],
+    ["Marked the top one done and moved on.", "completeTask"],
+    ["Done - closed the job and logged it.", "completeTask"],
+    ["I finished the brake job write-up.", "completeTask"],
+    ["Saved that to the brain.", "pinMemory"],
+    ["I've noted that for tomorrow's brief.", "pinMemory"],
+    ["Synced your calendar - 3 new events.", "syncCalendar"],
+    ["I just pulled Drive again.", "syncDriveMemory"],
+    ["Ingested the knowledge base folder.", "syncDriveMemory"],
+  ])("%s -> %s", (text, tool) => {
+    const r = detectActionClaims(text);
+    expect(r.claims.some((c) => c.expectedTool.includes(tool)), text).toBe(true);
+  });
+});
