@@ -661,12 +661,25 @@ export async function decayMemories(): Promise<number> {
   const { shopSettings } = await import("../../drizzle/schema");
 
   try {
-    const rows = await d.select().from(shopSettings)
-      .where(sql`${shopSettings.key} LIKE 'nick_memory_%'`)
-      .limit(200);
-
     let decayed = 0;
     const now = Date.now();
+
+    // EVERY row, in id-keyset pages. The old single `.limit(200)` with no
+    // ORDER BY visited an arbitrary 200 of the store per cycle — measured
+    // 2026-09-22: 721 rows, 94 of the first 200 ever decayed, 199 rows
+    // untouched 90d+ still at avg confidence 0.98 — so most memories never
+    // decayed and the 500-cap eviction was the only garbage collection. A
+    // page is bounded so one cycle cannot hold the connection for the whole
+    // store; the keyset is what makes the pages disjoint and complete.
+    const PAGE = 200;
+    let lastId = 0;
+    for (;;) {
+      const rows = await d.select().from(shopSettings)
+        .where(sql`${shopSettings.key} LIKE 'nick_memory_%' AND ${shopSettings.id} > ${lastId}`)
+        .orderBy(sql`${shopSettings.id} ASC`)
+        .limit(PAGE);
+      if (rows.length === 0) break;
+      lastId = Number(rows[rows.length - 1].id);
 
     for (const row of rows) {
       try {
@@ -691,6 +704,8 @@ export async function decayMemories(): Promise<number> {
           decayed++;
         }
       } catch (e) { log.warn("[services/nickMemory] operation failed:", e); }
+    }
+      if (rows.length < PAGE) break;
     }
     return decayed;
   } catch (e) { log.warn("[services/nickMemory] operation failed:", e); return 0; }
