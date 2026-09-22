@@ -1,4 +1,4 @@
--- 0103 · Make voice-sourced promises idempotent at the DATABASE, not just in code.
+-- 0125 · Make voice-sourced promises idempotent at the DATABASE, not just in code.
 --
 -- WHY. `createVoicePromise()` dedupes with a read-then-write on
 -- (source_kind, source_id, promise_type). That closes the common case — VAPI
