@@ -42,12 +42,14 @@ import { MIN_SAMPLE } from "./evidence-gate-calibration";
 export { MIN_SAMPLE };
 
 /**
- * The deploy of the verifier→receipt join (#2483). Verdicts recorded before it
- * describe receipts that could not be promoted by a read-back. Tighten to the
- * exact deploy timestamp once known; erring late keeps a pre-join turn from
- * leaking into the only cohort a promotion may use.
+ * The deploy of the verifier→receipt join (#2483, main b43fccd4a): the
+ * production container's `startedAt` read from /api/version after the uptime
+ * drop (2044s → 164s), 2026-09-22 16:22:47Z. Verdicts recorded before it
+ * describe receipts that could not be promoted by a read-back and are context,
+ * never the promotion cohort. Was provisionally "2026-09-23T00:00Z" (erring
+ * late) until the deploy was observed.
  */
-export const JOIN_COHORT_SINCE = "2026-09-23T00:00:00.000Z";
+export const JOIN_COHORT_SINCE = "2026-09-22T16:22:47.464Z";
 
 /** The persisted shape of `tokenUsage.claimDoneShadow` (summarizeClaimDoneShadow). */
 export interface PersistedClaimDoneShadow {
@@ -181,8 +183,18 @@ export function assembleClaimDoneCalibration(
 export async function buildClaimDoneCalibration(): Promise<ClaimDoneCalibration> {
   const { prisma } = await import("@/lib/prisma");
   const { Prisma } = await import("@prisma/client");
+  // Filter on the JSON KEY, not merely on tokenUsage being present (review on
+  // #2484): every assistant turn carries tokenUsage, but only tool-bearing
+  // turns carry claimDoneShadow — measured 1 consequential turn per 132
+  // assistant turns. A 2,000-row cap over ALL turns held ~15 consequential
+  // samples and could never reach MIN_SAMPLE = 40 however much history
+  // accumulated. Same `path` + `not: DbNull` shape lib/brain/blind-spot-identity.ts
+  // uses for its metadata key; the JS guard below stays as the belt.
   const rows = await prisma.chatMessage.findMany({
-    where: { role: "assistant", tokenUsage: { not: Prisma.DbNull } },
+    where: {
+      role: "assistant",
+      tokenUsage: { path: ["claimDoneShadow"], not: Prisma.DbNull },
+    },
     select: { createdAt: true, tokenUsage: true },
     orderBy: { createdAt: "desc" },
     take: 2000,

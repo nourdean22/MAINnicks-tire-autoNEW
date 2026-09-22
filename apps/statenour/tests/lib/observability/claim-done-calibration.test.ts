@@ -11,11 +11,21 @@
  * consequential, 1 gap on createTask:PROVIDER_ACCEPTED — and the reader must
  * say `sufficient: false` with a null rate, never "100% gap".
  */
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { Prisma } from "@prisma/client";
+
+// The live reader's only I/O. Lazy arrow so the hoisted factory never touches
+// the spy before it is initialised (same shape tests/agent/follow-up.test.ts uses).
+const findMany = vi.fn();
+vi.mock("@/lib/prisma", () => ({
+  prisma: { chatMessage: { findMany: (a: unknown) => findMany(a) } },
+}));
+
 import {
   assembleClaimDoneCalibration,
+  buildClaimDoneCalibration,
   JOIN_COHORT_SINCE,
   MIN_SAMPLE,
   type ClaimDoneTurn,
@@ -131,5 +141,62 @@ describe("toolReceipts · writer and reader ship together", () => {
     expect(reader).toContain("toolReceipts");
     expect(router).toContain("buildClaimDoneCalibration");
     expect(router).toMatch(/claimDoneCalibration:\s*operatorProcedure/);
+  });
+
+  // ── Review on #2484 (2026-09-22) ──────────────────────────────────────
+  it("P1 · the persisted projection is derived from the JOINED receipts, not the pre-verifier ones", () => {
+    // Before #2483 landed in this tree, receipts were built from
+    // { toolName, ok } and the read-back ran only afterwards, so a verified
+    // createTask persisted as PROVIDER_ACCEPTED forever. Now
+    // receiptsWithReadBack() produces `receipts` BEFORE the row is written and
+    // the projection maps that same binding. Comment-stripped, so a doc
+    // comment naming the join cannot satisfy this.
+    const code = persist.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    const join = code.indexOf("const receipts = receiptsWithReadBack(");
+    const projection = code.indexOf("toolReceipts:");
+    expect(join, "receiptsWithReadBack join not found").toBeGreaterThan(-1);
+    expect(projection, "toolReceipts projection not found").toBeGreaterThan(join);
+    expect(code.slice(projection, projection + 200)).toMatch(/toolReceipts:\s*receipts\.length > 0\s*\?\s*\(receipts\.map\(/);
+  });
+
+  it("P2 · the reader filters on the claimDoneShadow KEY, not merely on tokenUsage being present", () => {
+    // 1 consequential turn per 132 assistant turns: a 2,000-row cap over ALL
+    // turns held ~15 samples and could never reach MIN_SAMPLE.
+    const code = reader.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+    expect(code).toMatch(/tokenUsage:\s*\{\s*path:\s*\["claimDoneShadow"\],\s*not:\s*Prisma\.DbNull\s*\}/);
+    expect(code).not.toMatch(/tokenUsage:\s*\{\s*not:\s*Prisma\.DbNull\s*\}/);
+  });
+});
+
+describe("buildClaimDoneCalibration · the live query, through a mocked prisma", () => {
+  beforeEach(() => findMany.mockReset());
+
+  it("P2 · sends the claimDoneShadow key filter, and rows that carry the shadow assemble into turns", async () => {
+    const clean = cleanConsequential(AFTER);
+    findMany.mockResolvedValue([
+      { createdAt: AFTER, tokenUsage: { claimDoneShadow: gapTurn(AFTER).shadow } },
+      { createdAt: AFTER, tokenUsage: { claimDoneShadow: clean.shadow, toolReceipts: clean.receipts } },
+    ]);
+
+    const v = await buildClaimDoneCalibration();
+
+    const arg = findMany.mock.calls[0]?.[0] as { where: Record<string, unknown>; take: number };
+    expect(arg.where.role).toBe("assistant");
+    expect(arg.where.tokenUsage).toEqual({ path: ["claimDoneShadow"], not: Prisma.DbNull });
+    expect(arg.take).toBe(2000);
+    expect(v.afterJoin.turns).toBe(2);
+    expect(v.afterJoin.consequentialTurns).toBe(2);
+    expect(v.afterJoin.gapTurns).toBe(1);
+    expect(v.afterJoin.verifiedMutationTurns).toBe(1);
+  });
+
+  it("belt and braces: a row the key filter let through without a usable shadow is still dropped", async () => {
+    findMany.mockResolvedValue([
+      { createdAt: AFTER, tokenUsage: { claimDoneShadow: "not-an-object" } },
+      { createdAt: AFTER, tokenUsage: { somethingElse: 1 } },
+    ]);
+    const v = await buildClaimDoneCalibration();
+    expect(v.afterJoin.turns).toBe(0);
+    expect(v.sufficient).toBe(false);
   });
 });

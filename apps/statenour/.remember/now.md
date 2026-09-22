@@ -8,8 +8,9 @@
 promotion decision would rest on, before optimizing what they measure (mandate: "fix instrumentation
 before optimizing metrics whose measurements cannot be trusted").
 
-**CURRENT REPO SHA** · `origin/main` = `77266ec81` (chore) on `cb323d151` (#2476). Production
-`/api/version` = `cb323d151`, `environment: production`. All of #2467-#2476 LIVE.
+**CURRENT REPO SHA** · `origin/main` = `b43fccd4a` (#2483, the verifier→receipt join). Production
+`/api/version` = `b43fccd`, `startedAt 2026-09-22T16:22:47.464Z`, uptime DROP 2044s→164s —
+DEPLOY-VERIFIED. All of #2467-#2483 LIVE. (Was `77266ec81`/`cb323d151` at the start of the session.)
 
 **WHAT WAS VERIFIED (production evidence, read-only)**
 - `AutomationPolicy` 166 → 168 rows; `cron.device-heartbeat-sentinel` FIRED at 13:45:01Z with
@@ -83,11 +84,47 @@ sufficient=false (MIN_SAMPLE 40 over CONSEQUENTIAL turns). `JOIN_COHORT_SINCE` i
 impossible on old data; `toolReceipts` is the replay foundation going forward.
 **DEPLOY VERIFIED:** a0c4b610b (instrument health) LIVE — `/api/version` a0c4b61, startedAt 15:14:07Z, uptime DROP 1184s→102s, deployment d25426da. The earlier 8ebf35a read at ~15:14 raced the container swap (Railway build SUCCESS 15:09, cutover 15:14) — not a cache. Read again after a swap, never once.
 
-**NEXT HIGHEST-LEVERAGE TASK** · land `statenour/persist-turn-receipts`; tighten JOIN_COHORT_SINCE
-once #2483 deploys → persist the shadow's `skipped_no_claim` as an attempt so skip-vs-dead is
-direct (H2) → instrument recommendation novelty (`recommendation-novelty.ts` is LIVE at
-route.ts:798 with NO metric; the operator's #1 stated pain) → the tool-search A/B against the
-existing `searchTools`/`invokeTool` path on the eval harness that now has a repair-mined intake.
+**UPDATE (2026-09-22 · part 2 · review closures)**
+- **#2483 MERGED `b43fccd4a` 16:17:50Z → DEPLOYED 16:22:47Z** (SHA equality + uptime drop). Its P1
+  review was right: the join promoted receipts by a Set of tool NAMES, so `createTask × 3` with one
+  confirmed read-back marked all three VERIFIED → `receiptsWithReadBack()` pairs BY INDEX, fails
+  closed on a length mismatch, and the verifier returns ONE result per call in input order (a `null`
+  entry when a call carried nothing to look up — before, those calls produced NO entry and shifted
+  every later result).
+- **#2487 (repair scenarios)** · reply-side regex fixed (`954b9e77c`: "search IS available" matched
+  the unavailability pattern; 3 of 13 NO_TOOL hits were availability statements). **`requires-tools`**
+  (`11efe9c9b`): 8 of the 12 repair scenarios have a dominant criterion that IS a tool action and
+  `eval:live` replays through `aiChat`, which has NO tools → tagged, skipped BEFORE calling Nick with
+  a stated reason (`report.skipped[]`, `summary.skipped`, never an exit-code input); drafts of
+  FALSE_COMPLETION/NO_TOOL/WRONG_TOOL/STALE_DATA are born tagged; corpus invariant 8/50. **Runner tier
+  fault** (`9a5424682`): the runner passed `buildSystemPromptUncached("lite", …)` since 2026-05-23 —
+  not a TopicTier; an unknown tier fails `wantsKnowledge`, so EVERY live replay ran WITHOUT the
+  business-knowledge layer. Now `detectTopicTier(userContent)` (the route's own classifier). ★ tests/
+  is excluded from tsc — a targeted `tsc -p <temp tsconfig>` over tests/eval found it in one run.
+  ★★ Live eval reports before 9a5424682 graded a THINNER prompt than production's — not comparable.
+- **#2485 (novelty shadow)** `8ca2be807` · three review findings, all real: (P1) the shadow runs
+  AFTER persist and the prior scan did not exclude the reply's own row → every name the draft used
+  was its own "repeat" — `loadPriorRecommendations({ excludeMessageId })`, recorder passes
+  `createdAssistantId`; (P2) the outbox REPLAYS deferred work → `alreadyRecorded(traceId)` required
+  dep, one indexed read on system_metrics, `skipped_already_recorded`; (P2) `Promise<unknown>` let the
+  fail-soft writer type-check → `Promise<MetricWriteReceipt>` (the compiler is the enforcement).
+  Live wiring pinned by a comment-stripped source test with a mutation canary per pattern.
+- **This branch** · `buildClaimDoneCalibration` capped 2,000 rows over ALL assistant turns, then
+  dropped the ~131/132 without `claimDoneShadow` → ~15 samples, MIN_SAMPLE 40 unreachable forever
+  → filters on the JSON key (`path: ["claimDoneShadow"], not: DbNull`). `JOIN_COHORT_SINCE` =
+  the observed deploy `2026-09-22T16:22:47.464Z`. Merged origin/main (`2d3fd14e9`) so the persisted
+  `toolReceipts` projection maps the JOINED receipts (VERIFIED can now persist).
+- **CI truths this session** · a `completion-authority` FAILURE re-evaluates only on rerun — resolve
+  the thread, then `gh run rerun <id> --failed` · `warm-routes.test.mjs` "holder must be listening"
+  (curl exit 7) is a runner flake, rerun once · a `gh pr view --json mergeable` can read `UNKNOWN`
+  for a few seconds after a push — re-read, do not hold on it.
+
+**NEXT HIGHEST-LEVERAGE TASK** · land this branch (#2484) + #2485 + #2487 (hold rule: never merge
+while a sibling's node/e2e is in flight) → persist the shadow's `skipped_no_claim` as an attempt so
+skip-vs-dead is direct (H2) → automatic FALSE_COMPLETION repair needs the BUFFERED-path measurement
+first (streaming cannot block; `onFinish` runs after the last token) → a tool-capable eval runner
+so the 8 `requires-tools` scenarios become scorable (the production chat pipeline with the catalog
+attached; none exists) → the tool-search A/B against `searchTools`/`invokeTool` on that runner.
 
 ## Session E (tool routing) — 5 MERGED + DEPLOYED, 1 in CI
 
