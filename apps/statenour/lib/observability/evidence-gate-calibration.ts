@@ -34,6 +34,21 @@
  *     Promoting on an aggregate would promote whichever component happens to be
  *     loudest. Length in particular is not an evidence signal at all.
  *
+ * 4 · THE PRE-FLUSH SHADOW GETS THE SAME RULES (2026-09-22). Enforcement can
+ *     only happen on the BUFFERED lane, and `NICK_EVIDENCE_PREFLUSH` decides
+ *     which turns buffer. Since 8e3a4a14a every assistant turn carries
+ *     `evidenceGate.turnRisk` - "would the lane have buffered this turn" - and
+ *     nothing read it either. `assembleBufferShadow` reads the COST (share of
+ *     turns that would stop streaming) against the BENEFIT (share of turns that
+ *     ended up wearing the L2 verifier banner and would have been repairable
+ *     before flush), per classifier reason. First reading, 2026-09-22: 84/128
+ *     turns would buffer (65.6%); 6 of 7 banner turns were in that share; and
+ *     the reason behind 77 of the 84 was also the reason behind all 6 - the
+ *     classifier's own reasons do NOT separate banner turns from the rest, so
+ *     a narrower predicate cannot be read off them. The recall denominator is
+ *     banner turns, which arrive at ~7 a week: it has its own floor, and 6/7
+ *     is reported as 6 of 7, never as 85.7%.
+ *
  * Read-only. No LLM. Pure assembly is exported for tests.
  */
 
@@ -51,12 +66,31 @@ export const MIN_SAMPLE = 40;
  */
 export const PRECISION_COHORT_SINCE = "2026-09-16T08:56:00.000Z";
 
+/**
+ * First write of `evidenceGate.turnRisk` - commit 8e3a4a14a (#2335), which
+ * added the pre-flush lane and its shadow in the same change. Turns before it
+ * have no shadow for a trivial reason and must not count as "the shadow
+ * skipped this turn". The deploy landed minutes after the commit, so a handful
+ * of turns right after this instant can still legitimately lack the field.
+ */
+export const BUFFER_SHADOW_SINCE = "2026-09-15T17:29:16.000Z";
+
+/** What persist-assistant-turn writes at `evidenceGate.turnRisk` (E3 shadow). */
+export interface TurnRiskShadow {
+  buffer?: boolean;
+  risk?: string;
+  register?: string;
+  reasons?: string[];
+  toolsFired?: number;
+}
+
 export interface GateVerdict {
   verdict?: string;
   severity?: number | string;
   blockingReasons?: unknown[];
   namedClaims?: number;
   unreceipted?: string[];
+  turnRisk?: TurnRiskShadow | null;
 }
 
 export interface GateTurn {
@@ -64,6 +98,8 @@ export interface GateTurn {
   gate: GateVerdict;
   /** Short reply excerpt, for the judgement sample only. */
   excerpt?: string;
+  /** The reply opens with the L2 verifier banner (`isVerifierRewritten`). */
+  verifierBanner?: boolean;
 }
 
 export type BlockDriver = "named_claim" | "fact_check" | "length" | "other";
@@ -75,6 +111,41 @@ export interface GateCohort {
   wouldBlockPct: number | null;
   byDriver: Record<BlockDriver, number>;
   sample: Array<{ at: string; driver: BlockDriver; unreceipted: string[]; excerpt: string }>;
+}
+
+/** One classifier reason: how many buffered turns cited it, and how many of those wore the banner. */
+export interface BufferReasonRow {
+  reason: string;
+  buffered: number;
+  bannered: number;
+}
+
+export interface BufferShadow {
+  /** Cohort start - the shadow's first write. */
+  since: string;
+  /** Assistant turns in the cohort. */
+  turns: number;
+  /** Turns carrying `evidenceGate.turnRisk`; the denominator of the buffer rate. */
+  withShadow: number;
+  wouldBuffer: number;
+  wouldStream: number;
+  /** null below MIN_SAMPLE shadowed turns - deliberately not 0. */
+  wouldBufferPct: number | null;
+  /** Buffered turns by reason, each reason counted once per turn, most-cited first. */
+  byReason: BufferReasonRow[];
+  /** Turns that ended up wearing the L2 verifier banner, split by what the lane would have done. */
+  banner: {
+    turns: number;
+    wouldHaveBuffered: number;
+    wouldHaveStreamed: number;
+    /** Banner turns with no shadow at all - a silent-instrument signal inside the cohort. */
+    noShadow: number;
+    /** null below MIN_SAMPLE banner turns; the recall's own floor. */
+    recallPct: number | null;
+  };
+  /** True when the shadowed sample supports a buffer rate. Says nothing about the recall. */
+  sufficient: boolean;
+  caveat: string;
 }
 
 export interface EvidenceGateCalibration {
@@ -89,6 +160,8 @@ export interface EvidenceGateCalibration {
   afterFix: GateCohort;
   /** Plain-language statement of what this does and does not establish. */
   caveat: string;
+  /** The pre-flush lane's shadow: what turning NICK_EVIDENCE_PREFLUSH on would cost and catch. */
+  bufferShadow: BufferShadow;
 }
 
 const PASSING = new Set(["pass", "ok", "allow", ""]);
@@ -134,10 +207,104 @@ function cohort(turns: GateTurn[], sampleSize: number): GateCohort {
   };
 }
 
+const pct = (num: number, den: number): number | null =>
+  den >= MIN_SAMPLE ? Number(((num / den) * 100).toFixed(1)) : null;
+
+/**
+ * Pure - exported for tests. Reads the E3 pre-flush shadow: for every turn in
+ * the cohort, would the lane have buffered it, for which reasons, and did the
+ * turn end up wearing the L2 verifier banner. Two independent floors: the
+ * buffer rate needs MIN_SAMPLE shadowed turns, the recall needs MIN_SAMPLE
+ * banner turns. Counts are always reported; rates only above their floor.
+ */
+export function assembleBufferShadow(
+  turns: ReadonlyArray<GateTurn>,
+  opts: { since?: string } = {},
+): BufferShadow {
+  const since = new Date(opts.since ?? BUFFER_SHADOW_SINCE);
+  const cohortTurns = turns.filter((t) => t.createdAt >= since);
+
+  let withShadow = 0;
+  let wouldBuffer = 0;
+  let wouldStream = 0;
+  const banner = { turns: 0, wouldHaveBuffered: 0, wouldHaveStreamed: 0, noShadow: 0 };
+  const byReason = new Map<string, BufferReasonRow>();
+
+  for (const t of cohortTurns) {
+    const shadow = t.gate.turnRisk;
+    const bannered = t.verifierBanner === true;
+    if (bannered) banner.turns++;
+    if (!shadow) {
+      if (bannered) banner.noShadow++;
+      continue;
+    }
+    withShadow++;
+    if (shadow.buffer) {
+      wouldBuffer++;
+      if (bannered) banner.wouldHaveBuffered++;
+      // A turn cites a reason once, however many times the classifier listed it.
+      // JSON off the row is untyped: a non-array here must not be iterated
+      // (a string would spread into characters).
+      const reasons = Array.isArray(shadow.reasons) ? shadow.reasons.filter((r) => typeof r === "string") : [];
+      for (const reason of new Set(reasons)) {
+        const row = byReason.get(reason) ?? { reason, buffered: 0, bannered: 0 };
+        row.buffered++;
+        if (bannered) row.bannered++;
+        byReason.set(reason, row);
+      }
+    } else {
+      wouldStream++;
+      if (bannered) banner.wouldHaveStreamed++;
+    }
+  }
+
+  const rows = [...byReason.values()].sort(
+    (a, b) => b.buffered - a.buffered || b.bannered - a.bannered || a.reason.localeCompare(b.reason),
+  );
+  const wouldBufferPct = pct(wouldBuffer, withShadow);
+  const recallPct = pct(banner.wouldHaveBuffered, banner.turns);
+  const sufficient = withShadow >= MIN_SAMPLE;
+
+  const parts: string[] = [
+    sufficient
+      ? `Buffer rate is measured over ${withShadow} shadowed turns: this is the share of turns that would stop streaming with NICK_EVIDENCE_PREFLUSH on.`
+      : `Only ${withShadow} turns carry the pre-flush shadow (${MIN_SAMPLE} needed). No buffer rate is stated.`,
+  ];
+  if (banner.turns === 0) {
+    parts.push("No verifier-banner turn in the cohort yet, so the lane's recall cannot be read.");
+  } else if (recallPct === null) {
+    parts.push(
+      `${banner.wouldHaveBuffered} of ${banner.turns} verifier-banner turns would have buffered - too few banner turns (${MIN_SAMPLE} needed) to state a recall rate.`,
+    );
+  } else {
+    parts.push(`${banner.wouldHaveBuffered} of ${banner.turns} verifier-banner turns (${recallPct}%) would have buffered.`);
+  }
+  const top = rows[0];
+  if (top) {
+    parts.push(
+      `Top reason "${top.reason}": ${top.buffered}/${wouldBuffer} buffered turns` +
+        (banner.turns > 0 ? `, ${top.bannered}/${banner.wouldHaveBuffered} buffered banner turns.` : "."),
+    );
+  }
+
+  return {
+    since: since.toISOString(),
+    turns: cohortTurns.length,
+    withShadow,
+    wouldBuffer,
+    wouldStream,
+    wouldBufferPct,
+    byReason: rows,
+    banner: { ...banner, recallPct },
+    sufficient,
+    caveat: parts.join(" "),
+  };
+}
+
 /** Pure — exported for tests. */
 export function assembleGateCalibration(
   turns: ReadonlyArray<GateTurn>,
-  opts: { cohortSince?: string; now?: Date; sampleSize?: number } = {},
+  opts: { cohortSince?: string; bufferShadowSince?: string; now?: Date; sampleSize?: number } = {},
 ): EvidenceGateCalibration {
   const since = new Date(opts.cohortSince ?? PRECISION_COHORT_SINCE);
   const sampleSize = opts.sampleSize ?? 6;
@@ -156,6 +323,7 @@ export function assembleGateCalibration(
     caveat: sufficient
       ? "Block rate is measured. It is NOT a false-positive rate — deciding whether a block was correct needs human judgement on the sample below."
       : `Only ${afterCohort.turns} turns since the last precision change (${MIN_SAMPLE} needed). No rate is stated. Pre-fix figures describe a gate that no longer exists and must not be used for promotion.`,
+    bufferShadow: assembleBufferShadow(turns, { since: opts.bufferShadowSince }),
   };
 }
 
@@ -163,6 +331,9 @@ export function assembleGateCalibration(
 export async function buildEvidenceGateCalibration(): Promise<EvidenceGateCalibration> {
   const { prisma } = await import("@/lib/prisma");
   const { Prisma } = await import("@prisma/client");
+  // The SAME predicate L3 uses to spot a verifier-rewritten turn in history -
+  // one definition of "wears the banner", not a second regex that can drift.
+  const { isVerifierRewritten } = await import("@/lib/ai/chat/fabrication-rewriter");
   const rows = await prisma.chatMessage.findMany({
     where: { role: "assistant", tokenUsage: { not: Prisma.DbNull } },
     select: { createdAt: true, content: true, tokenUsage: true },
@@ -174,7 +345,8 @@ export async function buildEvidenceGateCalibration(): Promise<EvidenceGateCalibr
   for (const r of rows) {
     const gate = (r.tokenUsage as { evidenceGate?: GateVerdict } | null)?.evidenceGate;
     if (!gate) continue;
-    turns.push({ createdAt: r.createdAt, gate, excerpt: r.content ?? "" });
+    const content = r.content ?? "";
+    turns.push({ createdAt: r.createdAt, gate, excerpt: content, verifierBanner: isVerifierRewritten(content) });
   }
   return assembleGateCalibration(turns);
 }

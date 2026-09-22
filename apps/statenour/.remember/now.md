@@ -150,11 +150,34 @@ literal scope; the health reader uses it as the conditional shadows' denominator
 reads UNDERPOWERED ("ran on N turns, condition did not occur") when the path ran and STALE ("the whole
 path did not run") when it did not — the skip-vs-dead gap is now direct, not inferred.
 
-**NEXT HIGHEST-LEVERAGE TASK** · land the heartbeat → automatic FALSE_COMPLETION repair needs the
-BUFFERED-path measurement first (streaming cannot block; `onFinish` runs after the last token) → a
-tool-capable eval runner so the 8 `requires-tools` scenarios become scorable (the production chat
-pipeline with the catalog attached; none exists) → the tool-search A/B on it. Chat volume (13
-turns/24h) is the binding constraint on every instrument shipped today — nothing promotes on n<30.
+**Tool-capable eval runner (#2508 `statenour/eval-tool-replay`, open):** `pnpm eval:live -- --tools` routes
+the 8 `requires-tools` scenarios through `generateText` + the real `nourTools` catalog with executions
+STUBBED (every call recorded, nothing fires, `stopWhen: stepCountIs(4)`), and the judge sees the recorded
+trace ahead of the reply. Skips stay the default; the run is operator-only spend. Never route an eval
+through `prepareTools` — it writes `tool.surfaced` telemetry.
+
+**E3 pre-flush shadow · MEASURED on prod 2026-09-22 (read-only probe, then the app's own reader):** 139
+assistant turns since 09-15 · 128 carry `evidenceGate.turnRisk` · 84 would buffer (65.6%) · 44 would
+stream · 7 verifier-banner turns → 6 would have buffered, 1 streamed, 0 unshadowed. Reasons over the 84:
+"factual lookup with no tool expected to fire" 77 · "invites a specific figure" 13 · health 9+9 ·
+commitment 2. **The 6 buffered banner turns all sit under the 77.** The classifier's own reasons do NOT
+separate banner turns from the rest (unimodal — the camera lot-count shape again), and the ask-side
+features do not either at n=7 (ask 34–562 chars, no action verb 7/7, register coaching 7/7). So "narrow
+the predicate to the banner turns' reasons" is not available from this signal. **This branch:**
+`assembleBufferShadow` in `lib/observability/evidence-gate-calibration.ts` + a block in the gate panel —
+COST (buffer rate over shadowed turns) vs BENEFIT (banner recall) per reason, two independent floors
+(the recall denominator is banner turns at ~7/week, so 6/7 is stated as "6 of 7", never 85.7%), banner
+detection reused from L2 (`isVerifierRewritten`), cohort at the shadow's first write `8e3a4a14a`
+(2026-09-15T17:29Z). Flipping `NICK_EVIDENCE_PREFLUSH` today = ~66% of turns stop streaming to catch
+~6 of 7 banner turns a week.
+
+**NEXT HIGHEST-LEVERAGE TASK** · FALSE_COMPLETION auto-repair needs a gate signal OTHER than `turnRisk`
+(the buffered-path measurement above says the flag is a 66%-of-turns latency cost that cannot be narrowed
+on its own reasons) — candidates are reply-side, e.g. buffer only once the L2 action-claim detector fires
+on the reply's first sentence; measure it the same way (shadow → reader → floor) before any flip → run the
+tool-capable runner ONCE (operator spend) to baseline the 8 `requires-tools` scenarios → the tool-search
+A/B on it. Chat volume (13 turns/24h) is the binding constraint — nothing promotes on n<30; banner turns
+arrive ~7/week, so the recall floor (40) is ~6 weeks out.
 
 ## Session E (tool routing) — 5 MERGED + DEPLOYED, 1 in CI
 
