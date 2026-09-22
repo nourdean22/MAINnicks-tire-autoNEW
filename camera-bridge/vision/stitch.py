@@ -53,40 +53,39 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-#: How long a retired fragment stays adoptable.
+#: How long a retired fragment stays adoptable. 60.0, and this number has now been WRONG
+#: TWICE, so the evidence is recorded rather than the conclusion alone.
 #:
-#: 90.0 STANDS, and the attempt to retune it is recorded here because the attempt was
-#: wrong in a way worth not repeating. A sweep (`scripts/stitch_sweep.py`) appeared to
-#: show 90s as the worst setting tried, and this constant was briefly changed to 30.
-#: Review caught two defects in that sweep, both of which invalidated it:
+#: It shipped at 90.0 as a guess. A first sweep said 30; review found that sweep replayed
+#: EVERY track_points row (the pipeline only calls `adopt()` inside `if verdict["crossed"]`
+#: and retires only `evidence == "arrival"` tracks, so parked and candidate tracks never
+#: reach the stitcher -- 354 replayed against a real population of 57) and re-translated
+#: the ground point (`observe()` already stores `track.ground_point` in `x`,`y`). Both
+#: defects inflated fragments and refusals, and the 30 was retracted.
 #:
-#:   1. It replayed EVERY row in `track_points`. `VisionPipeline` calls `adopt()` only
-#:      inside `if verdict["crossed"]` and retires only `evidence == "arrival"` tracks,
-#:      so parked and candidate tracks never reach the stitcher. The sweep manufactured
-#:      most of the fragments and refusals it then reported -- 354 tracks where the real
-#:      population is 57.
-#:   2. It re-translated the ground point. `TrajectoryStore.observe()` already stores
-#:      `track.ground_point` in `x`,`y`; adding `w/2` and `h` invented displacement
-#:      wherever box sizes differed, which is precisely what the spatial gate reads.
+#: Corrected tool, 14 days, 278 crossing tracks (`scripts/stitch_sweep.py --days 14`):
 #:
-#: Corrected, on the population the stitcher actually sees:
+#:                 30s        60s        90s       150s      300s
+#:   shop-left    14 / 1    21 /  9    15 / 16    22 / 22   25 / 26      (stitched/ambiguous)
+#:   shop-right   11 / 3    11 /  3    11 /  4    13 /  4   13 /  9
 #:
-#:   shop-left    30s -> 11 stitched /  0 ambiguous
-#:                60s -> 14 stitched /  5 ambiguous
-#:                90s -> 13 stitched /  8 ambiguous
-#:               150s -> 16 stitched / 11 ambiguous
-#:   shop-right   30s ->  4 stitched /  2 ambiguous
-#:                90s ->  4 stitched /  2 ambiguous   (identical)
+#: 60 STRICTLY DOMINATES the old 90: more stitches on shop-left, equal on shop-right, fewer
+#: refusals on both. Never worse on any measure.
 #:
-#: A longer window stitches MORE, not fewer -- the opposite of the retune's claim. And the
-#: framing was wrong too: an ambiguity refusal is not damage. It leaves the visit exactly
-#: as it was before the stitcher existed, so it is non-improvement, not regression. The
-#: figure to maximise is STITCHES, subject to never false-merging.
+#: Two things worth keeping, because both misled an earlier pass:
 #:
-#: That argues for a LONGER window, but 16-vs-13 stitches on one day of one shop is not
-#: enough to move a shipped default in either direction. Re-run the sweep across more days
-#: before changing it.
-DEFAULT_MAX_GAP_S = 90.0
+#: 1. THE CURVE IS NOT MONOTONIC. 90 is a LOCAL MINIMUM on shop-left -- worse than both
+#:    neighbours. A refusal consumes an opportunity: a fragment uniquely matched at 60s can
+#:    acquire a competitor at 90s and be declined. So neighbouring values must be measured,
+#:    never interpolated.
+#: 2. AN AMBIGUITY REFUSAL IS NOT DAMAGE. It leaves the visit exactly as it was before the
+#:    stitcher existed -- non-improvement, not regression. An earlier pass minimised
+#:    "ambiguity per stitch" and inverted the answer. Maximise STITCHES, subject to never
+#:    false-merging; refusals are the tiebreak, not the objective.
+#:
+#: Longer still buys more stitches (300s -> 38 combined) but refusals climb faster than
+#: stitches past 150s. Re-run the sweep before moving it again.
+DEFAULT_MAX_GAP_S = 60.0
 
 #: Plausible ground-point travel while unobserved, in pixels per second. The spatial
 #: gate is `dist <= speed * gap + slack` rather than a flat radius, because a flat
