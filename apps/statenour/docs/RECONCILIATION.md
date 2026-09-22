@@ -1,6 +1,6 @@
 # Reconciliation · statenour-os
 
-> ## 2026-09-22 · W16b · audit the instruments, then the detector · 7 ships
+> ## 2026-09-22 · W16b · audit the instruments, then the detector · 8 ships
 >
 > Second batch of Session F (first batch: the W16 entry below). One thread: every enforcement plan sat on
 > instruments nobody had audited, and auditing the bottom layer moved every number above it.
@@ -24,7 +24,13 @@
 > **follow-up PR (this branch) task-complete / memory-write / data-sync get a subject rule
 > (`claimAcceptsSentenceOpening`) + a negated-participle hedge** (8 canaries unfixed 8f/78p → 173 passed;
 > real-binary 17 → 10 still flagged = 3 real pinned + 1 residual + "Bumped the priority" + 5 unknowable
-> "Task created" confirmations; all-turn flags 21 → 14).
+> "Task created" confirmations; all-turn flags 21 → 14) — MERGED `55e08e18a` ·
+> **named-claim title shapes (this PR)** — the L6 shadow's 52 post-fix blocks READ BY HAND: named-claim ~27 = ~8
+> real venue/platform fabrications + ~19 of Nick's OWN bold labels, steps, comparisons and recalled people;
+> `isResourceTitle` rules 6–12 + a stopword trim; 16 canaries unfixed 16f/28p → 118 passed; real extractor over
+> the 24 blocking turns: names 87 → 47, turns 24 → 15 (6 real · 4 people · 3 geography · 2 residual), precision
+> ≈25% → ≈40%. Prior-operator-text evidence measured and REJECTED (2 of 49). Sentence-granular pre-flush gate
+> measured and NOT built (detector fires on 14/1,246 turns after the precision fixes). STILL SHADOW.
 >
 > **Findings.** The reply-side "hold the first sentence" candidate is REFUTED: over 1,246 turns / 52 banners
 > the fabricated claim sits a median 432 chars into the reply (p90 1,770) while the first sentence is p50 24
@@ -33,7 +39,8 @@
 > Rows before 2026-09-22 carry no tool evidence (no toolCalls / toolReceipts / turnRisk), so no earlier banner
 > can be audited against a receipt — the join (#2483/#2484) is what makes future audits possible.
 >
-> **Flagged · NOT fixed:** 5 "Task created — …" banners unknowable (pre-join rows) · the repair harvester's 9
+> **Flagged · NOT fixed:** L6 people-name class (real people recalled from the brain read as unreceipted resources —
+> needs a people-table receipt) · L6 fact-check driver (~24 blocks, mostly coaching/plans) unaudited code · 5 "Task created — …" banners unknowable (pre-join rows) · the repair harvester's 9
 > FALSE_COMPLETION candidates inherit the old banner's precision (4 rode on pinned/sent) — re-read before
 > promoting · "Story highlights pinned to the shop" residual (verb use by a non-Nick subject) · heartbeat
 > unexercised (0 turns since deploy) · FALSE_COMPLETION auto-repair still needs a gate signal that is neither
