@@ -15,6 +15,7 @@
  */
 import { randomUUID } from "crypto";
 import { createLogger } from "../lib/logger";
+import { isDuplicateKeyError } from "../lib/dbErrors";
 
 const log = createLogger("promise-ledger");
 
@@ -60,13 +61,9 @@ function isMissingTableError(err: unknown): boolean {
  * into control flow. Before 0125 a race produced two rows and no error; after
  * it, one row and a thrown ER_DUP_ENTRY. The caller has to be taught that this
  * particular throw is not a failed write, it is someone else's successful one.
+ * The recogniser is lib/dbErrors.isDuplicateKeyError — one definition for the
+ * four call sites that used to carry their own.
  */
-function isDuplicateKeyError(err: unknown): boolean {
-  const code = (err as { code?: unknown } | null)?.code;
-  if (code === "ER_DUP_ENTRY") return true;
-  const msg = err instanceof Error ? err.message : String(err);
-  return /ER_DUP_ENTRY|Duplicate entry|\b1062\b/i.test(msg);
-}
 function warnMissingOnce(where: string): void {
   if (!tableMissingWarned) {
     tableMissingWarned = true;
