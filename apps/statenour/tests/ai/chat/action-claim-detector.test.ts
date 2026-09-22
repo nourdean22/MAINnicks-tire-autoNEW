@@ -463,3 +463,51 @@ describe("`pinned to the top of the brain` is a memory-write claim, not a UI sur
     expect(pinned.test("The pinned tab stays open.")).toBe(false);
   });
 });
+
+/**
+ * 2026-09-22 · Codex P1s on #2512 (merged): three shapes the 2026-09-22 tightening lost or
+ * never covered. Each block pairs the missed claim with the false positive that must stay quiet.
+ */
+describe("first-person article-led pin claims (Codex on #2512)", () => {
+  const pinned = EDGE_CLAIM_PATTERNS.find((p) => p.verb === "pinned")!.regex;
+  it("`I pinned a/the …` is a memory-write claim", () => {
+    expect(pinned.test("I pinned a memory about the supplier.")).toBe(true);
+    expect(pinned.test("I pinned the note for later.")).toBe(true);
+    expect(pinned.test("I've just pinned the pattern.")).toBe(true);
+  });
+  it("POSITIVE CONTROL: adjectives, third parties and surfaces stay quiet", () => {
+    expect(pinned.test("The pinned tab stays open.")).toBe(false);
+    expect(pinned.test("Nour pinned the post to the board.")).toBe(false);
+    expect(pinned.test("She pinned a photo on the fridge.")).toBe(false);
+  });
+});
+
+describe("terse and collective send confirmations (Codex on #2512)", () => {
+  const sends = (t: string) => detectActionClaims(t).claims.filter((c) => /composeEmail|sendTelegram/.test(c.expectedTool));
+  it("the whole-sentence confirmation, the successfully-opener and the shop `we` are claims", () => {
+    expect(sends("Message sent.").length).toBeGreaterThan(0);
+    expect(sends("Email has been sent.").length).toBeGreaterThan(0);
+    expect(sends("Successfully sent the email.").length).toBeGreaterThan(0);
+    expect(sends("We sent the email this morning.").length).toBeGreaterThan(0);
+  });
+  it("POSITIVE CONTROL: recaps of other people's sends, money, and a mid-sentence passive stay quiet", () => {
+    expect(sends("The message was sent by Mo yesterday.")).toHaveLength(0);
+    expect(sends("Mo DID send a text.")).toHaveLength(0);
+    expect(sends("Sent $400 to Hamda.")).toHaveLength(0);
+    expect(sends("3 DMs sent.")).toHaveLength(0);
+    expect(sends("Reminder text sent, confirm?")).toHaveLength(0); // the 60-day audit: a passive mid-sentence was a false banner
+  });
+});
+
+describe("a bare offer hedge is scoped to its clause (Codex on #2512)", () => {
+  it("the offer after a semicolon or a dash does not hide the completed action before it", () => {
+    const r1 = detectActionClaims("Added the task; want me to set a reminder?");
+    expect(r1.claims.some((c) => c.expectedTool.includes("createTask"))).toBe(true);
+    expect(r1.hedged).toBe(true);
+    const r2 = detectActionClaims("Added the task — want me to set a reminder?");
+    expect(r2.claims.some((c) => c.expectedTool.includes("createTask"))).toBe(true);
+  });
+  it("POSITIVE CONTROL: two hedged clauses stay quiet", () => {
+    expect(detectActionClaims("Want me to add the task; or should I schedule the call?").claims).toHaveLength(0);
+  });
+});
