@@ -32,6 +32,7 @@ const ARGS = {
   cleanedText: "",
   traceId: "t_1",
   conversationId: "c_1",
+  createdAssistantId: "m_reply",
 };
 
 function prior(name: string, daysAgo = 3, timesSurfaced = 2): PriorRecommendation {
@@ -44,18 +45,20 @@ function prior(name: string, daysAgo = 3, timesSurfaced = 2): PriorRecommendatio
 
 function deps(over: Partial<NoveltyShadowDeps> = {}) {
   const recordMetric = vi.fn().mockResolvedValue({ id: "m1" });
+  const alreadyRecorded = vi.fn().mockResolvedValue(false);
   const logInfo = vi.fn();
   const logError = vi.fn();
   const d: NoveltyShadowDeps = {
     expectsNamedResources: () => true,
     loadPriors: async () => ({ priors: [prior(DETECTED_NAME)], provenance: "OK" }),
+    alreadyRecorded,
     recordMetric,
     logInfo,
     logError,
     now: () => NOW,
     ...over,
   };
-  return { d, recordMetric, logInfo, logError };
+  return { d, recordMetric, alreadyRecorded, logInfo, logError };
 }
 
 describe("recordRecommendationNoveltyShadow", () => {
@@ -137,6 +140,59 @@ describe("recordRecommendationNoveltyShadow", () => {
     await expect(
       recordRecommendationNoveltyShadow({ ...ARGS, cleanedText: DRAFT }, d),
     ).resolves.toBe("failed");
+  });
+
+  // ── Review on PR #2485 (2026-09-22) ──────────────────────────────────────
+  // The shadow runs AFTER the reply is persisted. A prior scan that includes
+  // the reply's own row finds every name the draft used and calls all of
+  // them repeats — the normal path was systematically false.
+  it("P1 · the persisted reply is excluded from the prior scan", async () => {
+    const loadPriors = vi.fn().mockResolvedValue({ priors: [], provenance: "ZERO" });
+    const { d } = deps({ loadPriors });
+    await recordRecommendationNoveltyShadow({ ...ARGS, cleanedText: DRAFT }, d);
+    expect(loadPriors).toHaveBeenCalledTimes(1);
+    expect(loadPriors).toHaveBeenCalledWith({ excludeMessageId: "m_reply" });
+  });
+
+  it("P1 · when persist skipped the reply there is nothing to exclude, and the loader is told so", async () => {
+    const loadPriors = vi.fn().mockResolvedValue({ priors: [], provenance: "ZERO" });
+    const { d } = deps({ loadPriors });
+    await recordRecommendationNoveltyShadow({ ...ARGS, cleanedText: DRAFT, createdAssistantId: null }, d);
+    expect(loadPriors).toHaveBeenCalledWith({ excludeMessageId: null });
+  });
+
+  // The post-turn outbox replays the whole deferred-work call after a crash
+  // or an unmarked completion; a second row for the same turn inflates
+  // writesInWindow and biases every rate read off these rows.
+  it("P2 · the dedupe check runs on every resource turn that gets recorded", async () => {
+    const { d, alreadyRecorded, recordMetric } = deps();
+    expect(await recordRecommendationNoveltyShadow({ ...ARGS, cleanedText: DRAFT }, d)).toBe("recorded");
+    expect(alreadyRecorded).toHaveBeenCalledTimes(1);
+    expect(alreadyRecorded).toHaveBeenCalledWith("t_1");
+    expect(recordMetric).toHaveBeenCalledTimes(1);
+  });
+
+  it("P2 · an outbox replay of an already-recorded trace writes nothing and never loads priors", async () => {
+    const alreadyRecorded = vi.fn().mockResolvedValue(true);
+    const loadPriors = vi.fn();
+    const { d, recordMetric, logInfo } = deps({ loadPriors, alreadyRecorded });
+    const out = await recordRecommendationNoveltyShadow({ ...ARGS, cleanedText: DRAFT }, d);
+    expect(out).toBe("skipped_already_recorded");
+    expect(loadPriors).not.toHaveBeenCalled();
+    expect(recordMetric).not.toHaveBeenCalled();
+    expect(logInfo).toHaveBeenCalledWith(
+      "recommendation_novelty_shadow_skipped",
+      expect.objectContaining({ reason: "already_recorded", traceId: "t_1" }),
+    );
+  });
+
+  it("P2 · a broken dedupe reader reads as FAILING under the instrument scope — never as a second write", async () => {
+    const { d, recordMetric, logError } = deps({
+      alreadyRecorded: vi.fn().mockRejectedValue(new Error("db down")),
+    });
+    expect(await recordRecommendationNoveltyShadow({ ...ARGS, cleanedText: DRAFT }, d)).toBe("failed");
+    expect(recordMetric).not.toHaveBeenCalled();
+    expect(String(logError.mock.calls[0]?.[0])).toBe(`instrument.${RECOMMENDATION_NOVELTY_METRIC}`);
   });
 
   it("caps list tags so one enormous reply cannot bloat a metric row", () => {

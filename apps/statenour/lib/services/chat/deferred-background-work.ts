@@ -348,12 +348,39 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
             import("@/lib/ai/chat/turn-risk"),
           ]);
           await recordRecommendationNoveltyShadow(
-            { userContent, cleanedText, traceId, conversationId: convId ?? null },
+            {
+              userContent,
+              cleanedText,
+              traceId,
+              conversationId: convId ?? null,
+              // The reply being judged is already persisted by now; the
+              // recorder passes this id to the loader so the draft's own row
+              // cannot be counted as a prior (review on #2485).
+              createdAssistantId,
+            },
             {
               expectsNamedResources: (u) =>
                 assessTurnRisk(u, { toolsExpected: false }).signals.expectsNamedResources,
               loadPriors: loadPriorRecommendations,
-              // STRICT: this write IS the measurement.
+              // Idempotent by traceId: the post-turn outbox REPLAYS this whole
+              // function after a crash or an unmarked completion (same exposure
+              // the "receipts · trace" marker below guards). One indexed read on
+              // (metric, createdAt); the window only has to cover how late a
+              // replay can arrive, and 7 days is generous for an outbox.
+              alreadyRecorded: async (t) => {
+                const row = await prisma.systemMetric.findFirst({
+                  where: {
+                    metric: RECOMMENDATION_NOVELTY_METRIC,
+                    createdAt: { gte: new Date(Date.now() - 7 * 86_400_000) },
+                    tags: { path: ["traceId"], equals: t },
+                  },
+                  select: { id: true },
+                });
+                return row !== null;
+              },
+              // STRICT: this write IS the measurement. The deps type demands a
+              // MetricWriteReceipt, so the fail-soft recordMetric cannot be
+              // wired here without failing tsc.
               recordMetric: recordMetricStrict,
               logInfo: (event, data) => log.info(event, data),
               logError: (scope, err, meta) => logError(scope, err, meta, "warn"),

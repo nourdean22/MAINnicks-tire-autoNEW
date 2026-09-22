@@ -21,8 +21,10 @@
  * action-done-shadow-recorder.ts: its caller is runDeferredBackgroundWork, a
  * ~700-line function with no harness. Extracted and dependency-injected, the
  * contract below is directly assertable, and the module stays prisma-free —
- * the live deps (loadPriorRecommendations, assessTurnRisk, recordMetricStrict)
- * are supplied at the call site.
+ * the live deps (loadPriorRecommendations, assessTurnRisk, recordMetricStrict,
+ * and the system_metrics dedupe read behind `alreadyRecorded`) are supplied at
+ * the call site; tests/services/chat/novelty-shadow-wiring.test.ts pins that
+ * binding on comment-stripped source.
  *
  * EMPTY IS NOT ERROR. `loadPriorRecommendations` returns `provenance: "ERROR"`
  * with an empty list when the lookup failed. Scoring a draft against an empty
@@ -33,6 +35,9 @@
 import { checkNovelty, type NoveltyReport, type PriorRecommendation } from "./recommendation-novelty";
 // Prisma-free helper module on purpose — see lib/observability/instrument-scope.ts.
 import { instrumentScope } from "@/lib/observability/instrument-scope";
+// Type-only: erased at runtime, so this module stays prisma-free. The type is
+// the guard — see NoveltyShadowDeps.recordMetric.
+import type { MetricWriteReceipt } from "@/lib/services/metrics";
 
 export const RECOMMENDATION_NOVELTY_METRIC = "recommendation.novelty";
 
@@ -41,6 +46,13 @@ export type NoveltyShadowOutcome =
   | "recorded"
   /** The turn did not ask for named resources; nothing to judge. */
   | "skipped_not_resource_turn"
+  /**
+   * A row for this traceId already exists. The post-turn outbox REPLAYS
+   * runDeferredBackgroundWork after a crash or an unmarked completion; a
+   * second observation of the same turn would inflate writesInWindow, cross
+   * MIN_POWERED_N early and bias every rate read off these rows.
+   */
+  | "skipped_already_recorded"
   /** A resource turn whose reply named nothing (e.g. it asked a question back). */
   | "skipped_no_names"
   /** Priors could not be loaded — scoring against nothing would read as "all fresh". */
@@ -53,23 +65,47 @@ export interface NoveltyShadowArgs {
   cleanedText: string;
   traceId: string;
   conversationId: string | null;
+  /**
+   * The persisted row of the reply being judged, or null when persist skipped
+   * it. The shadow runs AFTER persist, so a prior scan that does not exclude
+   * this row finds every name the draft used in the draft itself and calls
+   * all of them repeats — the normal path would have been systematically
+   * false (review on PR #2485).
+   */
+  createdAssistantId: string | null;
 }
 
 export interface NoveltyShadowDeps {
   /** `assessTurnRisk(userContent, …).signals.expectsNamedResources` at the live site. */
   expectsNamedResources: (userContent: string) => boolean;
-  /** `loadPriorRecommendations` at the live site. */
-  loadPriors: () => Promise<{ priors: readonly PriorRecommendation[]; provenance: "OK" | "ZERO" | "ERROR" }>;
+  /**
+   * `loadPriorRecommendations` at the live site. Receives the id to exclude
+   * so the exclusion is this module's contract (unit-tested), not a detail
+   * of how the caller happened to bind the loader.
+   */
+  loadPriors: (options: {
+    excludeMessageId: string | null;
+  }) => Promise<{ priors: readonly PriorRecommendation[]; provenance: "OK" | "ZERO" | "ERROR" }>;
+  /**
+   * Has this traceId already been recorded under RECOMMENDATION_NOVELTY_METRIC?
+   * Checked BEFORE priors are loaded, so a replay costs one indexed read and
+   * no scan. Required, not optional: forgetting it at a call site must be a
+   * type error, because the failure it prevents is invisible in the data.
+   */
+  alreadyRecorded: (traceId: string) => Promise<boolean>;
   /**
    * Must PROPAGATE a write failure — pass `recordMetricStrict`, never the
    * fail-soft `recordMetric`. Same rule as the Done shadow: a dead writer must
-   * read as broken, not as "no repeats".
+   * read as broken, not as "no repeats". The receipt type is the enforcement:
+   * `recordMetric` returns Promise<void>, which is not assignable here, so a
+   * wiring change that swaps in the fail-soft writer fails `tsc` instead of
+   * silently disabling the failure branch below.
    */
   recordMetric: (
     metric: string,
     value: number,
     options: { unit?: string; tags?: Record<string, unknown>; source?: string },
-  ) => Promise<unknown>;
+  ) => Promise<MetricWriteReceipt>;
   logInfo?: (event: string, data: Record<string, unknown>) => void;
   logError?: (scope: string, err: unknown, meta: Record<string, unknown>) => void;
   now?: () => Date;
@@ -96,7 +132,20 @@ export async function recordRecommendationNoveltyShadow(
   if (!deps.expectsNamedResources(args.userContent)) return "skipped_not_resource_turn";
 
   try {
-    const { priors, provenance } = await deps.loadPriors();
+    // Idempotent by traceId — see NoveltyShadowOutcome "skipped_already_recorded".
+    // Inside the try on purpose: a broken dedupe reader must surface as a
+    // FAILING instrument, not fall through to a second write.
+    if (await deps.alreadyRecorded(args.traceId)) {
+      deps.logInfo?.("recommendation_novelty_shadow_skipped", {
+        traceId: args.traceId,
+        reason: "already_recorded",
+      });
+      return "skipped_already_recorded";
+    }
+
+    const { priors, provenance } = await deps.loadPriors({
+      excludeMessageId: args.createdAssistantId,
+    });
     if (provenance === "ERROR") {
       deps.logInfo?.("recommendation_novelty_shadow_skipped", {
         traceId: args.traceId,
