@@ -519,6 +519,14 @@ export async function handleRunMigrations() {
       `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS arrivalsAfterStitch INT NULL`,
       `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS stitchedTotal INT NULL`,
       `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS stitchRefusedAmbiguous INT NULL`,
+      // 2026-09-22 · conversation_episodes — one counter interaction with its evidence
+      // (matches drizzle/0128 + schema.ts). The office Eufy camera was MEASURED that day to
+      // carry a real audio track (aac 16kHz mono), so capture is possible. Source-agnostic:
+      // `source` names where audio came from, because the camera mic may lose the
+      // intelligibility test and be replaced by a counter mic without touching this shape.
+      // Every extracted fact carries the transcript span it came from — a summary nobody can
+      // trace back to what was said is a rumour with a timestamp.
+      `CREATE TABLE IF NOT EXISTS conversation_episodes (id BIGINT AUTO_INCREMENT PRIMARY KEY, episodeId VARCHAR(64) NOT NULL, source VARCHAR(32) NOT NULL, startedAt TIMESTAMP NULL DEFAULT NULL, endedAt TIMESTAMP NULL DEFAULT NULL, durationSeconds INT NULL DEFAULT NULL, audioRef VARCHAR(255) NULL DEFAULT NULL, meanVolumeDb DECIMAL(6,2) NULL DEFAULT NULL, transcriptStatus VARCHAR(32) NOT NULL DEFAULT 'PENDING', transcriptError VARCHAR(500) NULL DEFAULT NULL, transcript JSON NULL DEFAULT NULL, sttEngine VARCHAR(32) NULL DEFAULT NULL, sttLatencyMs INT NULL DEFAULT NULL, speakerCount INT NULL DEFAULT NULL, facts JSON NULL DEFAULT NULL, summary TEXT NULL DEFAULT NULL, vehicleVisitId VARCHAR(64) NULL DEFAULT NULL, workOrderId VARCHAR(64) NULL DEFAULT NULL, linkConfidence DECIMAL(4,3) NULL DEFAULT NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_conversation_episode (episodeId), INDEX idx_conversation_started (startedAt), INDEX idx_conversation_status (transcriptStatus, startedAt), INDEX idx_conversation_visit (vehicleVisitId))`,
       // 2026-07-21 · nickgpt_training_examples.edit_categories_json — training-loop edit taxonomy (matches drizzle/0095 + schema.ts)
       `ALTER TABLE nickgpt_training_examples ADD COLUMN IF NOT EXISTS edit_categories_json TEXT NULL`,
       `CREATE TABLE IF NOT EXISTS chat_analytics (id int AUTO_INCREMENT PRIMARY KEY, sessionId int, hourOfDay int NOT NULL, dayOfWeek int NOT NULL, month int NOT NULL, messageCount int NOT NULL DEFAULT 0, converted int NOT NULL DEFAULT 0, leadScore int, duration int, createdAt timestamp NOT NULL DEFAULT (now()))`,

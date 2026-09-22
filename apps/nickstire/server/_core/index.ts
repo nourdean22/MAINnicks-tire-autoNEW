@@ -81,6 +81,7 @@ import { registerSimulatorRoute } from "../routes/simulator";
 import { registerNourChiefStrategistRoute } from "../routes/nour-chief-strategist";
 import { registerNourOsQueryRoute } from "../routes/nour-os-query";
 import { registerCameraVisitsRoute, registerCameraHeartbeatRoute } from "../routes/cameraVisitsRoutes";
+import { registerConversationEpisodeRoute } from "../routes/conversationRoutes";
 import { registerSecurityTxt } from "./securityTxt";
 import { registerAnalyticsRoutes } from "../routes/analyticsRoutes";
 import { requireAdminApiKey, registerAdminRoutes } from "../routes/adminRoutes";
@@ -507,6 +508,7 @@ async function startServer() {
   registerNourChiefStrategistRoute(app);
   registerNourOsQueryRoute(app);
   registerCameraVisitsRoute(app);
+  registerConversationEpisodeRoute(app);
   registerCameraHeartbeatRoute(app);
   registerMetaRoutes(app);
 
