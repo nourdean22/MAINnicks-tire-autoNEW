@@ -252,9 +252,17 @@ test("the workflow's own RESTART_CMD frees a held port — not just any restart"
   assert.ok(teardown, "RESTART_CMD must open with a ( ... ) teardown subshell that frees the port before relaunching");
 
   const port = freePort();
+  // 2026-09-22 · was `& sleep 2`. On the CI runner the holder twice in one day
+  // (#2483 run 35750817314, #2484 run 35755601715) had not bound within the
+  // fixed 2s — curl exit 7, connection refused — while the same spawn binds in
+  // ~90ms on a workstation, so the canary reported a runner's scheduling as a
+  // teardown regression. Poll for readiness with a bound instead: a holder that
+  // never binds still fails here, loudly, with its exit code.
   const holder = spawnSync("bash", ["-c",
-    `nohup node -e 'require("http").createServer((_q,r)=>r.end("x")).listen(${port})' >/dev/null 2>&1 & sleep 2`]);
-  assert.equal(holder.status, 0);
+    `nohup node -e 'require("http").createServer((_q,r)=>r.end("x")).listen(${port})' >/dev/null 2>&1 &
+     for i in $(seq 1 60); do curl -s -o /dev/null -m 1 http://localhost:${port}/ && exit 0; sleep 0.25; done; exit 7`],
+    { timeout: 30_000 });
+  assert.equal(holder.status, 0, `the holder must be listening within 15s, or this proves nothing (exit ${holder.status})`);
   assert.equal(
     spawnSync("curl", ["-s", "-o", "/dev/null", "-m", "2", `http://localhost:${port}/`]).status,
     0,
