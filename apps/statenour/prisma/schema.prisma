@@ -2766,6 +2766,13 @@ model CronJobLog {
   ///     status: { in: ["success", "partial"] }
   /// which keeps mega-fanout's "finished, some children failed" out of the
   /// failure bucket while refusing to count a run that never reported an end.
+  ///
+  /// 2026-09-22 - A fifth value, "interrupted", also from cron-lifecycle.ts: a
+  /// "started" row older than STALE_RUN_MINUTES with no terminal event, settled
+  /// by AGE (the process died mid-run - a deploy restart is the common cause).
+  /// Terminal and NOT ok; the positive list above stays correct as written. Since
+  /// the same day, middleware-settled success rows carry resultCount read off the
+  /// job's own return value - null still means "reported no count", never "zero".
   status    String
   duration  Int?
   error     String?  @db.Text

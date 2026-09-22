@@ -166,7 +166,11 @@ async function markCronRunFailed(args: FailurePayload): Promise<void> {
     const failedRunId = args.event?.data?.run_id;
     if (failedRunId) {
       const exact = await prisma.cronJobLog.findFirst({
-        where: { runId: String(failedRunId), status: CRON_STATUS.started },
+        // 2026-09-22 · an exact run id may also override `interrupted` - the age-based
+        // presumption cron-lifecycle.ts writes for a run whose hooks never fired. This
+        // out-of-band event IS the terminal fact that row was waiting for. The suffix
+        // scan below stays `started`-only: a guess must not upgrade a presumed-dead row.
+        where: { runId: String(failedRunId), status: { in: [CRON_STATUS.started, CRON_STATUS.interrupted] } },
         orderBy: { createdAt: "desc" },
         select: { id: true },
       });

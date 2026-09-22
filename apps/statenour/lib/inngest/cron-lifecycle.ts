@@ -1,5 +1,8 @@
 /**
- * Cron run lifecycle · one row per run, `started` -> `success` | `failed`.
+ * Cron run lifecycle · one row per run, `started` -> `success` | `failed`,
+ * or `interrupted` when no terminal event ever arrives (settled by AGE, see
+ * `reconcileInterruptedRuns`). A success also carries `resultCount`, read off
+ * the job's own return value (`deriveResultCount`).
  *
  * ★★★ WHY A MIDDLEWARE AND NOT A PER-HANDLER WRAPPER. The previous mechanism
  * (`recordSelfRow`) wrote ONE row before the work and called it done. Both a
@@ -68,6 +71,16 @@ export const CRON_STATUS = {
   started: "started",
   success: "success",
   failed: "failed",
+  /**
+   * 2026-09-22 · a `started` row that outlived STALE_RUN_MINUTES with no
+   * terminal event. In-process hooks cannot report their own hard kill (a
+   * deploy restart mid-run is the common case here: every merge to main
+   * redeploys the container), so this is a PRESUMPTION settled by age, and a
+   * real terminal event for the same run id later overrides it. Measured
+   * before this landed: 10 rows sat at `started` indefinitely, indistinguishable
+   * from runs still in flight.
+   */
+  interrupted: "interrupted",
 } as const;
 
 /**
@@ -136,6 +149,108 @@ function runIdOf(ctx: unknown): string | null {
   return typeof v === "string" && v ? v : null;
 }
 
+type PrismaLike = Awaited<typeof import("@/lib/prisma")>["prisma"];
+
+/**
+ * The countable result of a run, read off the job's own return value.
+ *
+ * ★ 2026-09-22 · MEASURED: 692 of 694 `success` rows in a day carried
+ * `resultCount = null`. The column existed since 2026-08-22 and NOTHING wrote
+ * it, so "success" said only that the handler returned. Every job here already
+ * returns a summary (`{ swept: 0 }`, `{ ok: true, measured: 12 }`,
+ * `{ sent: 1, failed: 0 }`), and Inngest hands that summary to
+ * `onRunComplete` as `output` - the receipt was being thrown away at the door.
+ *
+ * Rules, in order, first hit wins:
+ *   1. an explicit `resultCount` key;
+ *   2. a known work-count key (COUNT_KEYS, derived from the fleet's real
+ *      return shapes - see the test file for the census);
+ *   3. any key ending in Count / Created / Ingested / Processed / Swept;
+ *   4. a bare array -> its length.
+ * Only a non-negative safe integer counts: a boolean `sent: true`, a negative
+ * or fractional value, or a `skipped: "reason"` string is NOT a count, and the
+ * honest answer for a run that reported none is `null`, never an invented 0
+ * (the schema comment on `resultCount` draws exactly this line).
+ */
+const COUNT_KEYS = [
+  "resultCount",
+  "count",
+  "processed",
+  "swept",
+  "drained",
+  "measured",
+  "sent",
+  "scanned",
+  "checked",
+  "fired",
+  "flagged",
+  "ingested",
+  "created",
+  "updated",
+  "records",
+  "total",
+] as const;
+const COUNT_KEY_SUFFIX = /(?:Count|Created|Ingested|Processed|Swept)$/;
+
+const asCount = (v: unknown): number | null =>
+  typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : null;
+
+export function deriveResultCount(output: unknown): number | null {
+  if (Array.isArray(output)) return output.length;
+  if (!output || typeof output !== "object") return null;
+  const o = output as Record<string, unknown>;
+  for (const k of COUNT_KEYS) {
+    const n = asCount(o[k]);
+    if (n !== null) return n;
+  }
+  for (const k of Object.keys(o)) {
+    if (!COUNT_KEY_SUFFIX.test(k)) continue;
+    const n = asCount(o[k]);
+    if (n !== null) return n;
+  }
+  return null;
+}
+
+/**
+ * Settle by AGE the rows no hook will ever settle.
+ *
+ * A process killed mid-run (deploy restart, OOM, edge timeout) emits no
+ * terminal event, so its row stays `started` forever and reads exactly like a
+ * run still in flight. Nothing consumed `isStaleRun` in production before this
+ * - the constant existed, the verdict was never written down. This rides the
+ * fleet's own cadence (called from every cron start, throttled) rather than
+ * adding a schedule to watch the schedules.
+ *
+ * `interrupted` is a presumption: `settleCronRun` still accepts an exact-run-id
+ * terminal event for such a row and overrides it, so a retry that lands after
+ * the ceiling keeps its real outcome. Never throws - a failed sweep must not
+ * cost the current run its own `started` row.
+ */
+const RECONCILE_EVERY_MS = 10 * 60_000;
+let lastReconcileAt = 0;
+
+async function reconcileInterruptedRuns(prisma: PrismaLike): Promise<void> {
+  const now = Date.now();
+  if (now - lastReconcileAt < RECONCILE_EVERY_MS) return;
+  lastReconcileAt = now;
+  try {
+    await prisma.cronJobLog.updateMany({
+      where: {
+        status: CRON_STATUS.started,
+        createdAt: { lt: new Date(now - STALE_RUN_MINUTES * 60_000) },
+      },
+      data: {
+        status: CRON_STATUS.interrupted,
+        error:
+          `no terminal event within ${STALE_RUN_MINUTES} min; the process was presumably ` +
+          "killed before any hook could settle this run (deploy restart, OOM, timeout)",
+      },
+    });
+  } catch (e) {
+    await warn("reconcile", {}, e);
+  }
+}
+
 /**
  * Record `started` for a cron run. Exported for tests; the middleware is the
  * only production caller.
@@ -145,14 +260,17 @@ export async function beginCronRun(fn: unknown, ctx: unknown): Promise<void> {
   const jobName = jobNameOf(fn);
   const runId = runIdOf(ctx);
   if (!jobName) return;
+  let prisma: PrismaLike | null = null;
   try {
-    const { prisma } = await import("@/lib/prisma");
+    ({ prisma } = await import("@/lib/prisma"));
     await prisma.cronJobLog.create({
       data: { jobName, status: CRON_STATUS.started, ...(runId ? { runId } : {}) },
     });
   } catch (e) {
     await warn("begin", { jobName, runId }, e);
   }
+  // After the row, never before it: this run's own receipt outranks the sweep.
+  if (prisma) await reconcileInterruptedRuns(prisma);
 }
 
 /**
@@ -182,6 +300,7 @@ export async function settleCronRun(
   ctx: unknown,
   status: string,
   err?: unknown,
+  output?: unknown,
 ): Promise<void> {
   if (!isCronTriggered(fn)) return;
   const jobName = jobNameOf(fn);
@@ -189,8 +308,14 @@ export async function settleCronRun(
   if (!jobName) return;
   try {
     const { prisma } = await import("@/lib/prisma");
+    // With an exact run id the terminal event may also override an
+    // `interrupted` presumption (a retry that landed after the age ceiling).
+    // The recency FALLBACK never may: a guess must not upgrade a presumed-dead
+    // row that might belong to a different run.
     const row = await prisma.cronJobLog.findFirst({
-      where: { jobName, status: CRON_STATUS.started, ...(runId ? { runId } : {}) },
+      where: runId
+        ? { jobName, runId, status: { in: [CRON_STATUS.started, CRON_STATUS.interrupted] } }
+        : { jobName, status: CRON_STATUS.started },
       orderBy: { createdAt: "desc" },
       select: { id: true, createdAt: true },
     });
@@ -203,7 +328,10 @@ export async function settleCronRun(
       data: {
         status,
         duration: Math.max(0, Date.now() - row.createdAt.getTime()),
-        ...(err === undefined ? {} : { error: describeError(err) }),
+        // Always written: a success overriding `interrupted` must also clear
+        // the presumed-dead text that sweep left behind.
+        error: err === undefined ? null : describeError(err),
+        ...(status === CRON_STATUS.success ? { resultCount: deriveResultCount(output) } : {}),
       },
     });
   } catch (e) {
@@ -242,8 +370,10 @@ export class CronLifecycleMiddleware extends Middleware.BaseMiddleware {
     await beginCronRun(arg.fn, arg.ctx);
   }
 
-  override async onRunComplete(arg: { ctx: unknown; fn: unknown }): Promise<void> {
-    await settleCronRun(arg.fn, arg.ctx, CRON_STATUS.success);
+  // `output` is the function's return value (Middleware.OnRunCompleteArgs) -
+  // the summary every job here already builds, now kept as `resultCount`.
+  override async onRunComplete(arg: { ctx: unknown; fn: unknown; output?: unknown }): Promise<void> {
+    await settleCronRun(arg.fn, arg.ctx, CRON_STATUS.success, undefined, arg.output);
   }
 
   override async onRunError(arg: {
