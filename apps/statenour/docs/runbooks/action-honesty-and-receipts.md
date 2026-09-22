@@ -65,6 +65,12 @@ pnpm test -- tests/ai/chat tests/lib/ai/receipts
 ## Verification
 
 - action-claim-detector + receipts unit suites green.
+- `pnpm classify:banners --days 60` (read-only) lists every `chat_claim_warn` row joined to its
+  turn, receipt shadow, ask and reply, and replays today's detector on the original text. The
+  2026-09-22 read of 41 rows — 8 genuine fabrications (all on turns that called zero tools), 32
+  English false positives, today's detector at 8 real + 1 residual of 9 flags — is in
+  [`docs/audits/claim-banner-classification-2026-09-22.md`](../audits/claim-banner-classification-2026-09-22.md).
+  Re-run it before trusting a banner count or seeding an eval corpus from banners.
 
 ## Rollback
 

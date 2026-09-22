@@ -45,6 +45,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "export:traces": "tsx scripts/export-otel-traces.ts",
+    "classify:banners": "tsx scripts/classify-claim-banners.ts",
     "harvest:evals": "tsx scripts/harvest-eval-corpus.ts",
     "harvest:persona": "tsx scripts/harvest-persona-traces.ts",
     "harvest:repairs": "tsx scripts/harvest-repair-signals.ts",

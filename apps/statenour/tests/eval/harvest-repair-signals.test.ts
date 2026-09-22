@@ -224,14 +224,51 @@ describe("reclassifyByReply · the reply names what 'try again' cannot", () => {
 
   // Both of these scored ZERO in the first production run, because the operator
   // does not phrase them — the reply does.
-  it("a verifier banner on the rejected reply makes 'try again' a FALSE_COMPLETION", () => {
-    const reply =
-      "[VERIFIER · v10.0.162] ⚠ The response below claimed actions (task-create, I've added) but no matching tool call fired. Treat the claim as **unverified**.";
-    expect(reclassifyByReply(generic, reply)).toEqual({
+  // ⚠ A banner alone is contaminated evidence: 32 of 41 banners in 60 days were
+  // English false positives, and every banner-then-retry pair in that corpus
+  // was one of them (docs/audits/claim-banner-classification-2026-09-22.md).
+  // The promotion therefore needs today's detector to agree on the ORIGINAL
+  // text — the part after the banner — and without a replay it does not happen.
+  const bannered =
+    "[VERIFIER · v10.0.162] ⚠ The response below claimed actions (task-create, I've added) but no matching tool call fired. Treat the claim as **unverified**.\n\n_Original response (unverified):_\n\nDone. Both tasks created. Your Monday plate is set.";
+
+  it("a verifier banner the current detector still agrees with makes 'try again' a FALSE_COMPLETION", () => {
+    const seen: string[] = [];
+    const stillFlagged = (original: string) => {
+      seen.push(original);
+      return true;
+    };
+    expect(reclassifyByReply(generic, bannered, stillFlagged)).toEqual({
       tier: "strong",
       failureClass: "FALSE_COMPLETION",
       label: "verifier-banner-then-retry",
     });
+    // the replay sees the ORIGINAL response, never the banner text
+    expect(seen).toEqual(["\n\nDone. Both tasks created. Your Monday plate is set."]);
+  });
+
+  it("a banner the current detector RETRACTS keeps the repair generic and labels it", () => {
+    expect(reclassifyByReply(generic, bannered, () => false)).toEqual({
+      ...generic,
+      label: "go-deeper·verifier-banner-retracted",
+    });
+  });
+
+  it("no replay available → no promotion (a banner alone is not evidence)", () => {
+    expect(reclassifyByReply(generic, bannered)).toEqual({
+      ...generic,
+      label: "go-deeper·verifier-banner-retracted",
+    });
+  });
+
+  it("an unbannered reply reaches the replay unchanged (nothing to strip)", () => {
+    const seen: string[] = [];
+    const plainBanner = "[VERIFIER · v10.0.162] ⚠ claimed actions but no tool call fired. Pinned.";
+    reclassifyByReply(generic, plainBanner, (o) => {
+      seen.push(o);
+      return true;
+    });
+    expect(seen).toEqual([plainBanner]);
   });
 
   it("a tool-unavailable reply makes 'try again' a NO_TOOL — the dominant real pattern", () => {
