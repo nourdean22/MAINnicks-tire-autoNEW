@@ -853,6 +853,39 @@ export default function VoiceReceptionistSection() {
                       </span>
                     </div>
                   )}
+
+                  {/* DO THE TWO INSTRUMENTS AGREE?
+                      The provider verdict above and the caller's redial
+                      behaviour measure the transfer independently. When they
+                      CONTRADICT, that is the finding — and the implication
+                      decides where the money goes: a connected transfer whose
+                      caller redials is a counter problem, and every telephony
+                      fix would be spent on the wrong half of the call. */}
+                  {queueSummary.transferAgreement && (
+                    <div
+                      className={
+                        queueSummary.transferAgreement.verdict === "contradicted"
+                          ? "mt-2 border border-amber-400/30 bg-amber-500/5 p-2.5"
+                          : "mt-2 border border-border/20 bg-background/30 p-2.5"
+                      }
+                    >
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/50 mb-1">
+                        {queueSummary.transferAgreement.verdict === "contradicted"
+                          ? "The two transfer instruments disagree"
+                          : queueSummary.transferAgreement.verdict === "corroborated"
+                            ? "Both transfer instruments agree"
+                            : "Not enough data to compare the instruments"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {queueSummary.transferAgreement.detail}
+                      </p>
+                      {queueSummary.transferAgreement.implication && (
+                        <p className="text-[11px] text-amber-200/90 mt-1.5">
+                          {queueSummary.transferAgreement.implication}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

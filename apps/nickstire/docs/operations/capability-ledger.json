@@ -1877,8 +1877,8 @@
       "name": "Transfer outcome is read from the provider artifact, not inferred from assistant-forwarded-call",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "2026-09-18. Every transfer metric in this app was built on endedReason === assistant-forwarded-call, which VAPI documents as confirming the transfer was INITIATED, not completed; its troubleshooting page sends you to the provider call log for the outcome. A call that rang an empty counter and dropped to voicemail therefore scored identically to one answered on the second ring. server/lib/transferArtifact.ts reads call.artifact.transfers[].status into a three-state verdict (connected / not_connected / unknown); the webhook persists it per call; recoveryQueue prefers it over the endedReason heuristic; getRecoveryQueueSummary exposes a connect rate that travels with its coverage.",
-        "tests": "22 tests in server/lib/transferArtifact.test.ts plus 3 in recoveryQueue.test.ts. The load-bearing ones: a forwarded call with NO transfers array resolves to unknown and explicitly not connected; unknowns lower coverage rather than inflating the rate (8 connected + 2 not + 90 unknown = 80% at 10% coverage); all-unknown yields a null rate and 0% coverage, not 0% and not 100%; and a POSITIVE CONTROL proving the rate moves with the data, without which a function hardcoded to return null would pass every other assertion.",
+        "codeCommit": "2026-09-18. Every transfer metric in this app was built on endedReason === assistant-forwarded-call, which VAPI documents as confirming the transfer was INITIATED, not completed; its troubleshooting page sends you to the provider call log for the outcome. A call that rang an empty counter and dropped to voicemail therefore scored identically to one answered on the second ring. server/lib/transferArtifact.ts reads call.artifact.transfers[].status into a three-state verdict (connected / not_connected / unknown); the webhook persists it per call; recoveryQueue prefers it over the endedReason heuristic; getRecoveryQueueSummary exposes a connect rate that travels with its coverage. 2026-09-18 SECOND PASS: the two instruments are now COMPARED. Keeping them separate was recorded as deliberate - 'if they disagree, that disagreement is the finding' - and that was right and incomplete, because they were computed in two DIFFERENT tRPC procedures and nothing could ever compute the disagreement. lib/transferInstrumentAgreement.ts reports corroborated / contradicted / insufficient, and on a contradiction states WHAT IT IMPLIES: a provider-connected transfer whose caller redials is a COUNTER problem, so warm transfer, dialTimeout and sipVerb would all be spent on the wrong half of the call. Both instruments are computed from the rows getRecoveryQueueSummary already selects - no second query.",
+        "tests": "22 tests in server/lib/transferArtifact.test.ts plus 3 in recoveryQueue.test.ts. The load-bearing ones: a forwarded call with NO transfers array resolves to unknown and explicitly not connected; unknowns lower coverage rather than inflating the rate (8 connected + 2 not + 90 unknown = 80% at 10% coverage); all-unknown yields a null rate and 0% coverage, not 0% and not 100%; and a POSITIVE CONTROL proving the rate moves with the data, without which a function hardcoded to return null would pass every other assertion. PLUS 16 tests in server/__tests__/transferInstrumentAgreement.test.ts, most of them on the CONTRADICTION cases, which are the point. Both directions are covered: provider-healthy with callers redialling (counter problem) and provider-failing with callers quiet (they gave up, invisible to a redial-only instrument, and explicitly must not read as success). An UNRELIABLE redial rate is treated as absent even when a number exists. Threshold boundaries are pinned exactly at PROVIDER_HEALTHY_PCT and REDIAL_TROUBLE_PCT. Positive control asserts all three verdicts are reachable. MUTATION VERIFIED: disabling the contradiction branch turned 4 of 16 red. 84 server test files, 756 passed, exit 0.",
         "liveRuns": "NONE. No production call has been observed carrying artifact.transfers.",
         "deploymentId": null
       },
@@ -1893,8 +1893,7 @@
         }
       ],
       "deferredScope": [
-        "switching sipVerb from refer to dial to gain a bounded dialTimeout",
-        "warm-transfer-experimental canary, only if measurement shows blind transfer actually failing"
+        "sipVerb refer->dial and the warm-transfer-experimental canary are now DECIDABLE BY MEASUREMENT rather than taste, which is what the audit said they needed. Both are live VAPI config changes and remain operator-gated, but the agreement instrument now says whether they would help: if the verdict is contradicted with a counter-problem implication, they would not, and doing them anyway would be spending on the wrong half of the call."
       ],
       "lastVerifiedAt": "2026-09-18",
       "codeState": "merged",
@@ -2031,6 +2030,34 @@
       "operationalState": "live_verified",
       "exposure": "internal",
       "verificationExpiresAt": "2026-12-18"
+    },
+    {
+      "capabilityId": "attribution-confidence-bands",
+      "name": "The attribution queue says what its confidence numbers mean, and that they are not probabilities",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. The review queue showed 0.9 and 0.75 beside real invoices, and an operator confirming money reads those as percentages. Reading the producer, they are ordinal labels for two evidence recipes that differ by EXACTLY ONE FACT - whether the service text overlapped - and neither has ever been calibrated against outcomes. lib/attributionConfidenceBands.ts names each band, states the evidence that produced it, and states what would RAISE it, which is the only actionable part. bandMix reports inferredPct, the share of rows resting on inference rather than a recorded link. The card renders the mix and, above 80% inferred, says plainly that confirming in bulk is guessing in bulk - which is how the eight-calls-one-invoice over-count happened.",
+        "tests": "20 tests in server/__tests__/attributionConfidenceBands.test.ts. The producer's real ladder is mapped case by case; only VERIFIED is observed and every other band is marked inference. An empty queue reports inferredPct null, not 0 - unmeasured is not measured-zero. The calibration caveat is PINNED BY ASSERTION, including the sentence admitting nobody has measured the hit rate, so if that ever becomes false the caveat has to change with it. Positive control asserts the mix discriminates rather than returning a constant. 169 test files, 2,135 passed, exit 0.",
+        "liveRuns": "NONE. The bands have not been observed against a production queue.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "THE BANDS ARE UNCALIBRATED AND SAY SO. Nobody has measured how often a phone-and-time match turns out to be the right invoice, so the ordering is evidence-strength, not probability. Calibrating it needs a labelled sample of confirmed and rejected decisions, which does not exist because the decision log is young. Inventing a percentage would have been the defect this module exists to prevent."
+        },
+        {
+          "severity": "P3",
+          "description": "The 80% inferred threshold that triggers the bulk-confirm warning is a judgement, not a measurement. It is coarse on purpose - the module's job is to make an inference-heavy queue obvious, not to score it."
+        }
+      ],
+      "deferredScope": [
+        "Calibrating the bands against confirmed/rejected outcomes. Blocked on data rather than effort: it needs a labelled sample from the decision log, which is young. Recorded so the uncalibrated state is a known gap rather than an unexamined one."
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
