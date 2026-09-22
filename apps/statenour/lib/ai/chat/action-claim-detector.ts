@@ -50,6 +50,15 @@ export const EDGE_CLAIM_PATTERNS: ClaimEntry[] = [
   // Email-specific terse claim. The chat tool is `composeEmail` (there
   // is no `sendEmail` chat tool — that's a service), so map there.
   { regex: /\bemail\s+sent\b/i, verb: "email sent", mapsToTool: "composeEmail" },
+  // 2026-09-22 (review on #2512) · the terse WHOLE-SENTENCE confirmation
+  // ("Message sent.", "Email has been sent.") is how a send gets faked. Only
+  // when the sentence is nothing but that: a mid-sentence passive ("Reminder
+  // text sent, confirm?") was a false banner in the 60-day audit and stays quiet.
+  {
+    regex: /^\W*(?:message|email|text|reply)\s+(?:has\s+been\s+|was\s+)?sent\s*(?:[.!]|$)/i,
+    verb: "message sent (terse)",
+    mapsToTool: "composeEmail|sendTelegram",
+  },
   // Bare-verb send claim ("Sent it.") — accept either real send tool.
   // `sendEmail` dropped (never a chat tool); the model routes a send
   // via composeEmail or sendTelegram.
@@ -65,7 +74,10 @@ export const EDGE_CLAIM_PATTERNS: ClaimEntry[] = [
   // stay quiet. `^` is the sentence start: detectActionClaims runs per sentence.
   {
     regex:
-      /(?:\bI(?:'ve)?\s+(?:(?:just|already|also|now|then|finally|actually)\s+){0,2}|^\W*(?:(?:done|ok|okay|alright|yes|yep|just|and|so|also)\W+)?)(?:sent|emailed|messaged|texted)\b(?!\s+(?:via|on|by|to\s+(?:say|let)))(?=\s*(?:[.!?,;:)\]—–-]|$)|\s+(?:it|that|them|him|her|you|the|a|an|your|my|this|those|these|over|off|out|both|everything|already|now|to)\b)/i,
+      // 2026-09-22 (review on #2512) · "we" is Nick speaking for the shop ("We
+      // sent the email this morning") and "Successfully" is a confirmation
+      // opener; both were detected before the 2026-09-22 tightening and lost.
+      /(?:\b(?:I|we)(?:'ve)?\s+(?:(?:just|already|also|now|then|finally|actually)\s+){0,2}|^\W*(?:(?:done|ok|okay|alright|yes|yep|just|and|so|also|successfully)\W+)?)(?:sent|emailed|messaged|texted)\b(?!\s+(?:via|on|by|to\s+(?:say|let)))(?=\s*(?:[.!?,;:)\]—–-]|$)|\s+(?:it|that|them|him|her|you|the|a|an|your|my|this|those|these|over|off|out|both|everything|already|now|to)\b)/i,
     verb: "sent (bare)",
     mapsToTool: "composeEmail|sendTelegram",
   },
@@ -82,7 +94,15 @@ export const EDGE_CLAIM_PATTERNS: ClaimEntry[] = [
   // the one residual the audit left. A pin INTO the brain still fires.
   {
     regex:
-      /(?<!\bnot\s)\bpinned\b(?!\s+to\s+(?:the\s+|your\s+|my\s+|a\s+)?(?:shop|profile|page|top|board|channel|feed|story|stories|highlights?|tab|posts?|comments?|tweet)\b)(?=\s*(?:[.!?,;:)\]—–-]|$)|\s+(?:it|that|this|them|those|these|to|so|in|into|for|and|now|as|under)\b)/i,
+      // 2026-09-22 (review on #2522) · `top` is a UI surface EXCEPT "the top of
+      // the brain / of long-term memory / of your memory" - that is the brain
+      // pin itself, phrased through the top.
+      // 2026-09-22 (review on #2512) · a FIRST-PERSON pin with an article ("I
+      // pinned a memory about the supplier", "I pinned the note for later") is
+      // a claim even though the bare arm below refuses a noun after the verb -
+      // the bare arm refuses nouns because of adjectives ("pinned tab"), and
+      // "I pinned the …" has no adjective reading.
+      /(?:\bI(?:'ve)?\s+(?:(?:just|also|already|now)\s+)?pinned\s+(?:a|an|the|my|your|our)\b|(?<!\bnot\s)\bpinned\b(?!\s+to\s+(?:the\s+|your\s+|my\s+|a\s+)?(?:shop|profile|page|top(?!\s+of\s+(?:the\s+|your\s+|my\s+)?(?:brain|memor|long-term))|board|channel|feed|story|stories|highlights?|tab|posts?|comments?|tweet)\b)(?=\s*(?:[.!?,;:)\]—–-]|$)|\s+(?:it|that|this|them|those|these|to|so|in|into|for|and|now|as|under)\b))/i,
     verb: "pinned",
     mapsToTool: "pinMemory",
   },
@@ -161,12 +181,35 @@ function splitSentences(text: string): string[] {
     .filter(Boolean);
 }
 
-/** True if a single sentence contains a hedge phrase. */
+/** True if a single sentence (or clause) contains a hedge phrase. */
 function sentenceIsHedged(sentence: string): boolean {
   return HEDGE_PATTERNS.some((re) => {
     re.lastIndex = 0;
     return re.test(sentence);
   });
+}
+
+/**
+ * 2026-09-22 (review on #2513) · a hedge is scoped to its CLAUSE. "I haven't
+ * synced the calendar, but I completed both tasks" hedges the first clause
+ * only; dropping the whole sentence let the completion claim walk past the
+ * verifier. Clauses split at a contrast conjunction after a comma or
+ * semicolon; the live text is the non-hedged clauses joined back together,
+ * so the claim regexes (whose `^` arm sees the sentence start) run on what
+ * the model actually asserted.
+ */
+// 2026-09-22 (review on #2512) · a bare semicolon or a spaced dash also ends a
+// clause: "Added the task; want me to set a reminder?" hedges only the offer.
+const CLAUSE_SPLIT = /(?:,|;)\s+(?:but|yet|however|though|although|whereas)\s+|;\s+|\s+[—–]\s+/i;
+
+function liveClauses(sentence: string): { live: string; hedged: boolean } {
+  const clauses = sentence.split(CLAUSE_SPLIT).map((c) => c.trim()).filter(Boolean);
+  if (clauses.length <= 1) {
+    const h = sentenceIsHedged(sentence);
+    return { live: h ? "" : sentence, hedged: h };
+  }
+  const flags = clauses.map(sentenceIsHedged);
+  return { live: clauses.filter((_, i) => !flags[i]).join(" "), hedged: flags.some(Boolean) };
 }
 
 /**
@@ -193,8 +236,9 @@ export function detectActionClaims(text: string): ActionClaimReport {
   // residual editorial prose. Single strip point covers every caller.
   const cleaned = stripCitations(text);
   const sentences = splitSentences(cleaned);
-  const hedgedFlags = sentences.map(sentenceIsHedged);
-  const liveSentences = sentences.filter((_, i) => !hedgedFlags[i]);
+  const scoped = sentences.map(liveClauses);
+  const hedgedFlags = scoped.map((s) => s.hedged);
+  const liveSentences = scoped.map((s) => s.live).filter(Boolean);
 
   const claims: ActionClaim[] = [];
   for (const { regex, verb, mapsToTool } of ACTION_VERB_PATTERNS) {

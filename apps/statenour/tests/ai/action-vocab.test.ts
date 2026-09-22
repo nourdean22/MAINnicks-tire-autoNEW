@@ -109,3 +109,38 @@ describe("action-vocab · kaizen contract", () => {
     }
   });
 });
+
+/**
+ * 2026-09-22 · Codex follow-ups on #2513: the sentence-opening arm needs a real
+ * object opener (determiner or pronoun) after the verb, and a mid-sentence `just`
+ * is not a subject.
+ */
+describe("claimRegex · sentence-opening arm needs an object opener (Codex on #2513)", () => {
+  const taskComplete = ACTION_VOCAB.find((c) => c.intent === "task-complete")!;
+  const dataSync = ACTION_VOCAB.find((c) => c.intent === "data-sync")!;
+  it("an opening adjective phrase is not a claim", () => {
+    expect(claimRegex(taskComplete).test("Closed job details follow")).toBe(false);
+    expect(claimRegex(dataSync).test("Synced calendar events appear below.")).toBe(false);
+    expect(claimRegex(taskComplete).test("Completed tasks are listed at the bottom.")).toBe(false);
+  });
+  it("POSITIVE CONTROL: the terse confirmation with a determiner or pronoun still fires", () => {
+    expect(claimRegex(taskComplete).test("Closed the job.")).toBe(true);
+    expect(claimRegex(taskComplete).test("Done — completed both tasks.")).toBe(true);
+    expect(claimRegex(taskComplete).test("Marked those done.")).toBe(true);
+    expect(claimRegex(dataSync).test("Synced your calendar.")).toBe(true);
+    expect(claimRegex(dataSync).test("Ok, pulled the inbox.")).toBe(true);
+  });
+});
+
+describe("claimRegex · a mid-sentence `just` is not a subject (Codex on #2513)", () => {
+  const taskComplete = ACTION_VOCAB.find((c) => c.intent === "task-complete")!;
+  it("a third-person recap with `just` stays quiet", () => {
+    expect(claimRegex(taskComplete).test("She just finished the job.")).toBe(false);
+    expect(claimRegex(taskComplete).test("Mo just closed the task an hour ago.")).toBe(false);
+  });
+  it("POSITIVE CONTROL: first person with `just`, and a sentence-opening `Just`, still fire", () => {
+    expect(claimRegex(taskComplete).test("I just finished the job.")).toBe(true);
+    expect(claimRegex(taskComplete).test("I've just closed the task.")).toBe(true);
+    expect(claimRegex(taskComplete).test("Just finished the job.")).toBe(true);
+  });
+});

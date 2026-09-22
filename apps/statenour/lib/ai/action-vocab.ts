@@ -333,25 +333,35 @@ export function claimRegex(concept: ActionConcept): RegExp {
   // sentence (splitSentences), so a sentence-opening arm never sees the
   // middle of a paragraph. The optional confirmation word ("Done —", "Ok,")
   // matches the `sent (bare)` edge pattern's shape in action-claim-detector.
-  const firstPerson = `\\b(?:I|I'?ve|just)\\b\\s+(?:\\w+\\s+){0,2}`;
+  // 2026-09-22 (review on #2513) · `just` is NOT a subject mid-sentence: "She
+  // just finished the job" is a recap of someone else. "I just finished" still
+  // matches (`just` is the intervening word); the sentence-opening "Just
+  // finished the job." is the opening arm's confirmation word.
+  const firstPerson = `\\b(?:I|I'?ve)\\b\\s+(?:\\w+\\s+){0,2}`;
   const opening = `^\\W*(?:(?:done|ok|okay|alright|yes|yep|just|and|so|also)\\W+)?`;
-  const fp = concept.claimNeedsFirstPerson
+  // 2026-09-22 (review on #2513) · the opening arm needs a real OBJECT OPENER
+  // right after the verb - a determiner or pronoun - or "Closed job details
+  // follow" and "Synced calendar events appear below" read as claims. The
+  // accepted loss is the article-less confirmation ("Refreshed calendar.").
+  const openingGate = `\\s+(?:the|a|an|it|that|this|them|those|these|your|my|our|his|her|their|both|all|every|each|him|us)\\b`;
+  const verb = `\\b(?:${past})\\b`;
+  const verbArm = concept.claimNeedsFirstPerson
     ? concept.claimAcceptsSentenceOpening
-      ? `(?:${firstPerson}|${opening})`
-      : firstPerson
-    : "";
+      ? `(?:${firstPerson}${verb}|${opening}${verb}${openingGate})`
+      : `${firstPerson}${verb}`
+    : verb;
   if (!concept.objects || concept.objects.length === 0) {
-    return new RegExp(`${fp}\\b(?:${past})\\b`, "i");
+    return new RegExp(verbArm, "i");
   }
   const obj = alternation(concept.objects);
   if (concept.connector && concept.connector.length > 0) {
     const conn = alternation(concept.connector);
     return new RegExp(
-      `${fp}\\b(?:${past})\\b.{0,${gap}}\\b(?:${conn})\\b.{0,${gap}}\\b(?:${obj})\\b`,
+      `${verbArm}.{0,${gap}}\\b(?:${conn})\\b.{0,${gap}}\\b(?:${obj})\\b`,
       "i",
     );
   }
-  return new RegExp(`${fp}\\b(?:${past})\\b.{0,${gap}}\\b(?:${obj})\\b`, "i");
+  return new RegExp(`${verbArm}.{0,${gap}}\\b(?:${obj})\\b`, "i");
 }
 
 export interface IntentEntry {
