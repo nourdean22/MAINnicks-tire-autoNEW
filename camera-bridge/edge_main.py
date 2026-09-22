@@ -321,6 +321,9 @@ def edge_heartbeat_body(
     commissioning_run_id: Optional[str] = None,
     relocate_failures: Optional[int] = None,
     preexisting_crossed: Optional[int] = None,
+    arrivals_after_stitch: Optional[int] = None,
+    stitched_total: Optional[int] = None,
+    stitch_refused_ambiguous: Optional[int] = None,
 ) -> Dict[str, object]:
     """The producer's account of itself, merging BOTH halves of what it knows.
 
@@ -432,6 +435,15 @@ def edge_heartbeat_body(
         "relocateFailures": None if relocate_failures is None else int(relocate_failures),
         "preexistingCrossed": (None if preexisting_crossed is None
                                else int(preexisting_crossed)),
+        # Stitch counters. `arrivalsAfterStitch` is the de-duplicated SHADOW of
+        # `arrivals` -- reported ALONGSIDE it, never instead of it. The refusal count
+        # ships too, because a stitcher that never fires and one that merges everything
+        # look identical if only successes are recorded, and they need opposite fixes.
+        "arrivalsAfterStitch": (None if arrivals_after_stitch is None
+                                else int(arrivals_after_stitch)),
+        "stitchedTotal": None if stitched_total is None else int(stitched_total),
+        "stitchRefusedAmbiguous": (None if stitch_refused_ambiguous is None
+                                   else int(stitch_refused_ambiguous)),
     }
 
 
@@ -813,6 +825,10 @@ class EdgeLoop:
         if not self.pipeline.shop.enabled:
             return False
         self.heartbeat_seq += 1
+        # Empty dict, not None: a vision layer without a stitcher then reports NOTHING for
+        # each counter (`.get` -> None) rather than a fabricated 0, which is the same
+        # discipline the `relocate_failures` / `preexisting_crossed` getattrs below use.
+        stitch_counts = getattr(getattr(self.vision, "stitch", None), "counters", {}) or {}
         body = edge_heartbeat_body(
             camera=self.camera,
             seq=self.heartbeat_seq,
@@ -841,6 +857,10 @@ class EdgeLoop:
             relocate_failures=getattr(self, "relocate_failures", None),
             preexisting_crossed=getattr(
                 getattr(self.vision, "stats", None), "preexisting_crossed", None),
+            arrivals_after_stitch=getattr(
+                getattr(self.vision, "stats", None), "arrivals_after_stitch", None),
+            stitched_total=stitch_counts.get("stitched"),
+            stitch_refused_ambiguous=stitch_counts.get("refused_ambiguous"),
         )
         ok = self.pipeline.shop.heartbeat(body)
         # The reply may have switched the mode either way; keep the loop's view in step so

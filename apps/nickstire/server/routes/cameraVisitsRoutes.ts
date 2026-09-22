@@ -99,6 +99,15 @@ const visitSchema = z.object({
   evidenceRef: z.string().max(255).nullish(),
   sourceGeneration: z.string().max(64).nullish(),
   cameraPose: z.string().max(64).nullish(),
+  /**
+   * Episode identity (migration 0127). `nullish` throughout: a producer predating the
+   * stitcher sends none of these and must keep ingesting unchanged.
+   * Widths match the columns exactly -- TiDB runs STRICT_TRANS_TABLES, so an over-width
+   * write is REJECTED and the row is LOST rather than truncated.
+   */
+  episodeId: z.string().max(64).nullish(),
+  continuesVisitId: z.string().max(64).nullish(),
+  memberTrackIds: z.array(z.number().int()).nullish(),
   detectorName: z.string().max(128).nullish(),
   calibrationVersion: z.string().max(32).nullish(),
   /**
@@ -132,6 +141,12 @@ export const COLUMNS = [
   "preexisting", "entryEvidence", "estimatedFields", "evidenceRef",
   "sourceGeneration", "cameraPose", "detectorName", "calibrationVersion",
   "dataClass", "commissioningRunId",
+  // 0127 episode trail. THIS LIST IS THE CONSUMER: a field can pass the zod schema and
+  // still never reach the row, because the write names these columns and nothing else.
+  // `continuesVisitId` is listed but the producer deliberately never sends it -- see the
+  // note in `vision/run_live.py`: the stitcher owns TRACK ids, and putting one in a
+  // column named `...VisitId` reads as one thing and means another.
+  "episodeId", "continuesVisitId", "memberTrackIds",
 ] as const;
 
 /**
@@ -237,6 +252,9 @@ export function registerCameraVisitsRoute(app: Express): void {
         customerId: v.customerMatch === "EXACT" ? (v.customerId ?? null) : null,
         preexisting: v.preexisting ? 1 : 0,
         entryEvidence: v.entryEvidence ?? null,
+        episodeId: v.episodeId ?? null,
+        continuesVisitId: v.continuesVisitId ?? null,
+        memberTrackIds: v.memberTrackIds ? JSON.stringify(v.memberTrackIds) : null,
         estimatedFields: v.estimatedFields ? JSON.stringify(v.estimatedFields) : null,
         evidenceRef: v.evidenceRef ?? null,
         sourceGeneration: v.sourceGeneration ?? null,
@@ -350,6 +368,10 @@ const heartbeatSchema = z.object({
   relocateFailures: z.number().int().nullish(),
   /** Cars the census called already-there that the portal then watched drive in. */
   preexistingCrossed: z.number().int().nullish(),
+  /** Stitch counters (0127). `arrivalsAfterStitch` shadows `arrivals`, never replaces it. */
+  arrivalsAfterStitch: z.number().int().nullish(),
+  stitchedTotal: z.number().int().nullish(),
+  stitchRefusedAmbiguous: z.number().int().nullish(),
 });
 export function parseHeartbeat(body: unknown) {
   return heartbeatSchema.safeParse(body);
@@ -363,6 +385,10 @@ export const HEARTBEAT_COLUMNS = [
   "calibrationVersion", "detectorName", "modelSha256", "lastInferenceAt", "inferenceP95Ms",
   "openVisits", "outboxDepth", "oldestOutboxAgeSeconds", "deadLetterDepth", "lastCloudAckAt",
   "diskFreeBytes", "restores", "relocateFailures", "preexistingCrossed", "state",
+  // 0127 stitch counters. THIS LIST IS THE CONSUMER: a field can pass the zod schema and
+  // still be dropped here, silently, because the write names these columns and nothing
+  // else. Adding to the schema without adding here is a writer with no reader.
+  "arrivalsAfterStitch", "stitchedTotal", "stitchRefusedAmbiguous",
 ] as const;
 
 /** A newer sequence from the same producer, or any sequence from a new producer instance. */
@@ -524,6 +550,9 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       restores: b.restores ?? null,
       relocateFailures: b.relocateFailures ?? null,
       preexistingCrossed: b.preexistingCrossed ?? null,
+      arrivalsAfterStitch: b.arrivalsAfterStitch ?? null,
+      stitchedTotal: b.stitchedTotal ?? null,
+      stitchRefusedAmbiguous: b.stitchRefusedAmbiguous ?? null,
       state: verdict.state,
     };
 

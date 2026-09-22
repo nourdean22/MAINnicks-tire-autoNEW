@@ -135,6 +135,21 @@ class VisitSink:
             "bayEnteredAt": iso(getattr(timing, "bay_entered_at", None)),
             "bayExitedAt": iso(getattr(timing, "bay_exited_at", None)),
             "departedAt": iso(getattr(timing, "departed_at", None)),
+            # Episode trail (migration 0127). A tracker id is not a vehicle: when a track
+            # dies and the car is re-acquired, `arrivedAt` above is the ORIGINAL arrival
+            # carried forward by the stitcher, not the re-acquisition. These three make
+            # that correction AUDITABLE -- without them the shop sees a corrected time
+            # with no way to ask which fragments produced it.
+            "episodeId": getattr(timing, "episode_id", None),
+            "memberTrackIds": list(getattr(timing, "member_track_ids", None) or []) or None,
+            # `continuesVisitId` is deliberately NOT sent, and stays NULL in the column.
+            # The stitcher works in TRACK ids -- `continues_track_id` is the retired
+            # TRACK this visit continued -- while the column asks for a VISIT id. The
+            # pipeline cannot resolve one here: `_track_visit` is popped when the track
+            # dies, which is the same moment the fragment becomes adoptable. Writing a
+            # track id into a column named `...VisitId` would be a value that reads as
+            # one thing and means another, which is worse than an honest NULL.
+            # `memberTrackIds` already carries the track-level trail.
             "preexisting": False,   # preexisting objects never reach visitd at all
             "dataClass": self.data_class,
             "commissioningRunId": self.commissioning_run_id,
