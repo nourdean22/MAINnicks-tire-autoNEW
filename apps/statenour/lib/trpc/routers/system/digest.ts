@@ -13,6 +13,7 @@ import { buildTrustLadder } from "@/lib/ai/trust-ladder";
 import { buildWiringCensus } from "@/lib/observability/wiring-census";
 import { buildToolUsageCensus } from "@/lib/observability/tool-usage-census";
 import { buildEvidenceGateCalibration } from "@/lib/observability/evidence-gate-calibration";
+import { buildClaimDoneCalibration } from "@/lib/observability/claim-done-calibration";
 import { buildInstrumentFailures } from "@/lib/observability/instrument-failures";
 import { buildInstrumentHealth } from "@/lib/observability/instrument-liveness";
 import { buildHomeDecisionMetrics } from "@/lib/observability/home-decision-metrics";
@@ -83,6 +84,16 @@ export const digestProcedures = {
    * measurement got them wrong. Read-only.
    */
   evidenceGateCalibration: operatorProcedure.query(async () => buildEvidenceGateCalibration()),
+  /**
+   * The strict-Done twin of the row above. `tokenUsage.claimDoneShadow` has
+   * been persisted per tool turn since 2026-09-15 and nothing read it — the
+   * number was obtained today by a throwaway script (132 turns, 1
+   * consequential, 1 gap). Cohorted at the verifier→receipt join, rate stated
+   * only over consequential turns at n ≥ MIN_SAMPLE, split by offender so a
+   * verifier gap is distinguishable from a Nick gap. Also reads the new
+   * `tokenUsage.toolReceipts`, so writer and reader ship together. Read-only.
+   */
+  claimDoneCalibration: operatorProcedure.query(async () => buildClaimDoneCalibration()),
   /** BDN-104 · did the compact-Home composition actually get used? */
   homeDecisionMetrics: operatorProcedure
     .input(z.object({ windowDays: z.number().int().min(1).max(90) }).optional())

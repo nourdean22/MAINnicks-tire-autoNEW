@@ -66,11 +66,28 @@ follow the NTFS junction) → push from the hook-free bare clone in the session 
 `--no-verify`. #2479 is a SIBLING session's nickstire PR (completion-authority FAILURE) — do not touch.
 Merges of #2478/#2481 held while #2480's `node` run is in flight (AGENTS.md hold rule).
 
-**NEXT HIGHEST-LEVERAGE TASK** · commit + PR the liveness reader (then the health view is the reader
-every later promotion decision cites) → persist the shadow's `skipped_no_claim` as an attempt so
-skip-vs-dead is direct (H2) → historical replay of the mutation turns to get strict-Done to n≥30
-without waiting for production (H1). Then the tool-search A/B against the existing
-`searchTools`/`invokeTool` path, on the eval harness that now has a repair-mined intake.
+**UPDATE (later 2026-09-22)** · #2482 MERGED `a0c4b610b` (instrument health). **#2483 OPEN** `4477189f4`
+— verifier→receipt join: `environment-verifier.ts` read tasks back but `persist-assistant-message`
+built receipts from `{toolName, ok}` BEFORE the verifier ran, so the one real createTask (09-19) was
+read back AND recorded PROVIDER_ACCEPTED. Verifier was FAIL-OPEN (`verified: true` when no verifier)
+→ tri-state; query failure = null + warn (false would stamp a fabrication banner over a DB hiccup).
+Canary by mutation: each guard fails exactly one named test. 94/94 · tsc 0 · eslint 0.
+**Branch `statenour/persist-turn-receipts`** (this ledger's commit): `tokenUsage.toolReceipts` persisted
+per tool turn (minimal projection, no args/results) + `lib/observability/claim-done-calibration.ts`
+reader + `trpc.system.claimDoneCalibration`. Live probe reproduced the hand count exactly:
+beforeJoin turns=2 consequential=1 gap=1 offenders={createTask:PROVIDER_ACCEPTED:1}; afterJoin 0;
+sufficient=false (MIN_SAMPLE 40 over CONSEQUENTIAL turns). `JOIN_COHORT_SINCE` is a conservative
+2026-09-23T00:00Z — tighten to #2483's actual deploy time.
+**MEASURED, CLOSES A DOOR:** `parts` NEVER carried tool evidence, BY DESIGN (message-parts.ts:35) —
+2,692 assistant messages since April, zero tool parts. Historical replay of strict-Done is
+impossible on old data; `toolReceipts` is the replay foundation going forward.
+**DEPLOY VERIFIED:** a0c4b610b (instrument health) LIVE — `/api/version` a0c4b61, startedAt 15:14:07Z, uptime DROP 1184s→102s, deployment d25426da. The earlier 8ebf35a read at ~15:14 raced the container swap (Railway build SUCCESS 15:09, cutover 15:14) — not a cache. Read again after a swap, never once.
+
+**NEXT HIGHEST-LEVERAGE TASK** · land `statenour/persist-turn-receipts`; tighten JOIN_COHORT_SINCE
+once #2483 deploys → persist the shadow's `skipped_no_claim` as an attempt so skip-vs-dead is
+direct (H2) → instrument recommendation novelty (`recommendation-novelty.ts` is LIVE at
+route.ts:798 with NO metric; the operator's #1 stated pain) → the tool-search A/B against the
+existing `searchTools`/`invokeTool` path on the eval harness that now has a repair-mined intake.
 
 ## Session E (tool routing) — 5 MERGED + DEPLOYED, 1 in CI
 
