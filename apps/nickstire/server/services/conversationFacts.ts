@@ -77,13 +77,36 @@ export type ExtractionResult = {
 export const MIN_FACT_CONFIDENCE = 0.7;
 
 /**
- * A capture this quiet is not trustworthy enough to extract promises from.
+ * LEVEL DOES NOT PREDICT INTELLIGIBILITY. Kept only to cap the genuinely inaudible.
  *
- * -45 dBFS mean is well below the -30 dB mark a usable counter recording hit in testing. It
- * does NOT block extraction — the transcript may still be fine — but it caps confidence, so a
- * distant-mic transcript cannot produce a high-confidence quote.
+ * This started at -45 dBFS on the theory that a quiet capture yields a poor transcript. The
+ * FIRST real measurement refuted it. A 90-second office sample, transcribed locally on
+ * 2026-09-22, produced text for 37.4s and NOTHING for 50.0s — and the unrecovered stretches
+ * were not quiet:
+ *
+ *   transcribed windows   -21 to -36 dB
+ *   unrecovered windows   -16.7 to -31.2 dB   <- overlapping, and the LOUDEST 4.4s in the
+ *                                                entire clip produced zero words
+ *
+ * The ranges overlap completely, so mean level has no discriminative power for this source.
+ * A cap keyed on it would have waved that recording straight through.
  */
-export const LOW_LEVEL_DB = -45;
+export const LOW_LEVEL_DB = -55;
+
+/**
+ * THE SIGNAL THAT ACTUALLY PREDICTS A BAD TRANSCRIPT: how much audio produced no text.
+ *
+ * On the sample above, 56% of the clip was unrecovered while carrying normal conversational
+ * energy, and the 44% that did return was semantically incoherent — "they talk about a way",
+ * "sitting next to the car go". That is a model GUESSING, not transcribing.
+ *
+ * Which is the dangerous shape: a summariser fed that does not produce thin summaries, it
+ * produces fluent, confident, WRONG ones. At a tire shop, where the job is getting
+ * "205/55 R16" exactly right, a confident wrong number is worse than no number at all.
+ *
+ * So coverage gates confidence, regardless of how fluent the text reads.
+ */
+export const MIN_TRANSCRIPT_COVERAGE = 0.65;
 
 const SYSTEM = `You extract structured facts from a transcript of a conversation at an auto
 repair shop's service counter.
@@ -137,7 +160,15 @@ const OUTPUT_SCHEMA = {
  */
 export async function extractConversationFacts(
   segments: TranscriptSegment[],
-  opts: { meanVolumeDb?: number | null; timeoutMs?: number } = {},
+  opts: {
+    meanVolumeDb?: number | null;
+    timeoutMs?: number;
+    /** Seconds the transcript actually covers, and the clip's full length. BOTH are needed
+     *  for the coverage gate; omitting either leaves it OFF rather than assuming a value —
+     *  an unmeasured clip must not be punished as though it had been measured and failed. */
+    coveredSeconds?: number | null;
+    totalSeconds?: number | null;
+  } = {},
 ): Promise<ExtractionResult> {
   const dropped: { reason: string; count: number }[] = [];
   const bump = (reason: string) => {
@@ -186,6 +217,16 @@ export async function extractConversationFacts(
   const byIndex = new Map(segments.map((s) => [s.index, s]));
   const quiet = typeof opts.meanVolumeDb === "number" && opts.meanVolumeDb < LOW_LEVEL_DB;
 
+  // Computed only when BOTH numbers are present. A missing measurement is not evidence of
+  // bad audio, and treating it as such would gut a good transcript from a source that simply
+  // did not report its timings.
+  const coverage =
+    typeof opts.coveredSeconds === "number" && typeof opts.totalSeconds === "number" &&
+    opts.totalSeconds > 0
+      ? opts.coveredSeconds / opts.totalSeconds
+      : null;
+  const gappy = coverage !== null && coverage < MIN_TRANSCRIPT_COVERAGE;
+
   const facts: ConversationFact[] = [];
   for (const item of Array.isArray(parsed.facts) ? parsed.facts : []) {
     const f = item as Partial<ConversationFact>;
@@ -205,8 +246,15 @@ export async function extractConversationFacts(
     // A quiet capture caps confidence. The transcript may read fluently while AGC has eaten
     // the words after a loud noise, so fluency is not evidence of fidelity.
     const base = typeof f.confidence === "number" ? Math.max(0, Math.min(1, f.confidence)) : 0;
-    const conf = quiet ? Math.min(base, 0.6) : base;
-    if (conf < MIN_FACT_CONFIDENCE) { bump(quiet ? "below threshold (quiet capture)" : "below threshold"); continue; }
+    // Either gate caps at 0.6, which sits below MIN_FACT_CONFIDENCE — so a gappy or
+    // inaudible capture yields NO facts rather than plausible-looking ones.
+    const conf = (quiet || gappy) ? Math.min(base, 0.6) : base;
+    if (conf < MIN_FACT_CONFIDENCE) {
+      bump(gappy ? "below threshold (transcript coverage too low)"
+         : quiet ? "below threshold (inaudible capture)"
+         : "below threshold");
+      continue;
+    }
 
     facts.push({
       kind: f.kind as FactKind,

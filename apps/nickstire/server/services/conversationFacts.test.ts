@@ -7,7 +7,8 @@ vi.mock("../_core/llm", () => ({ invokeLLM: vi.fn() }));
 
 import { invokeLLM } from "../_core/llm";
 import {
-  extractConversationFacts, MIN_FACT_CONFIDENCE, LOW_LEVEL_DB, type TranscriptSegment,
+  extractConversationFacts, MIN_FACT_CONFIDENCE, LOW_LEVEL_DB,
+  MIN_TRANSCRIPT_COVERAGE, type TranscriptSegment,
 } from "./conversationFacts";
 
 const SEGMENTS: TranscriptSegment[] = [
@@ -82,32 +83,57 @@ describe("conversation facts — a failure must not read as 'nothing was said'",
   });
 });
 
-describe("conversation facts — a quiet capture caps confidence", () => {
-  it("a low-level recording cannot produce a high-confidence quote", async () => {
-    // The office camera runs AGC: it ducks for a second or two after a loud transient, so in
-    // a tire shop an impact wrench eats the following words. The transcript still reads
-    // fluently, which is exactly why fluency cannot be trusted as fidelity.
+describe("conversation facts — coverage gates confidence, level barely does", () => {
+  it("a GAPPY transcript cannot produce a high-confidence quote", async () => {
+    // MEASURED 2026-09-22: a 90s office sample returned text for 37.4s and nothing for
+    // 50.0s. The unrecovered stretches carried NORMAL conversational energy (-16.7 to
+    // -31.2 dB) — the loudest 4.4s in the clip produced zero words. What came back was
+    // incoherent ("they talk about a way"), which is a model guessing. Coverage is the
+    // signal that catches this; level is not.
     replyWith({ facts: [{ kind: "QUOTE", value: "$35 patch", evidenceSegment: 1, confidence: 0.99 }] });
-    const r = await extractConversationFacts(SEGMENTS, { meanVolumeDb: LOW_LEVEL_DB - 5 });
+    const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 37.4, totalSeconds: 90 });
     expect(r.facts).toHaveLength(0);
-    expect(r.dropped).toContainEqual({ reason: "below threshold (quiet capture)", count: 1 });
+    expect(r.dropped).toContainEqual({ reason: "below threshold (transcript coverage too low)", count: 1 });
   });
 
-  it("the SAME fact survives at a normal level — the cap is not blanket suppression", async () => {
-    // Positive control. Without this the test above would pass even if the extractor simply
-    // dropped everything, and a permanently-empty extractor would score green.
+  it("the SAME fact survives at good coverage — the gate is not blanket suppression", async () => {
+    // Positive control. Without it the test above passes even if the extractor simply drops
+    // everything, and a permanently-empty extractor would score green.
     replyWith({ facts: [{ kind: "QUOTE", value: "$35 patch", evidenceSegment: 1, confidence: 0.99 }] });
-    const r = await extractConversationFacts(SEGMENTS, { meanVolumeDb: -25 });
+    const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 85, totalSeconds: 90 });
     expect(r.facts).toHaveLength(1);
     expect(r.facts[0].confidence).toBeGreaterThanOrEqual(MIN_FACT_CONFIDENCE);
   });
 
-  it("an UNKNOWN level is not treated as a quiet one", async () => {
-    // A capture whose level was never measured must not be punished as though it were
-    // measured and found wanting — that is the same None-is-not-zero rule the capture side
-    // enforces, applied one layer up.
+  it("LOUD audio does NOT earn confidence — level is not intelligibility", async () => {
+    // The refuted heuristic, pinned so it cannot come back. This recording is loud AND
+    // gappy, exactly like the real sample; a level-only gate would wave it straight through.
+    replyWith({ facts: [{ kind: "PROMISE", value: "out in 30 minutes", evidenceSegment: 2, confidence: 0.99 }] });
+    const r = await extractConversationFacts(SEGMENTS, {
+      meanVolumeDb: -20, coveredSeconds: 37.4, totalSeconds: 90,
+    });
+    expect(r.facts).toHaveLength(0);
+  });
+
+  it("UNMEASURED coverage leaves the gate OFF rather than assuming the worst", async () => {
+    // A clip whose timings were never reported must not be punished as though it had been
+    // measured and failed — the same None-is-not-zero rule the capture side enforces.
     replyWith({ facts: [{ kind: "QUOTE", value: "$35 patch", evidenceSegment: 1, confidence: 0.99 }] });
-    const r = await extractConversationFacts(SEGMENTS, { meanVolumeDb: null });
+    const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: null, totalSeconds: null });
     expect(r.facts).toHaveLength(1);
+  });
+
+  it("a genuinely INAUDIBLE capture still caps, at the lowered threshold", async () => {
+    replyWith({ facts: [{ kind: "QUOTE", value: "$35 patch", evidenceSegment: 1, confidence: 0.99 }] });
+    const r = await extractConversationFacts(SEGMENTS, { meanVolumeDb: LOW_LEVEL_DB - 5 });
+    expect(r.facts).toHaveLength(0);
+    expect(r.dropped).toContainEqual({ reason: "below threshold (inaudible capture)", count: 1 });
+  });
+
+  it("the coverage threshold sits where the measured failure was", () => {
+    // 37.4/90 = 0.416 must fail; a healthy transcript must not. Pins the constant to the
+    // evidence rather than to taste.
+    expect(37.4 / 90).toBeLessThan(MIN_TRANSCRIPT_COVERAGE);
+    expect(0.9).toBeGreaterThan(MIN_TRANSCRIPT_COVERAGE);
   });
 });
