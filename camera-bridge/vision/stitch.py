@@ -55,26 +55,38 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 #: How long a retired fragment stays adoptable.
 #:
-#: 90.0 was a GUESS when this shipped, and MEASUREMENT REFUTED IT. Swept against one day
-#: of this shop's own recorded tracks (539 tracks, both lenses, `scripts/stitch_sweep.py`):
+#: 90.0 STANDS, and the attempt to retune it is recorded here because the attempt was
+#: wrong in a way worth not repeating. A sweep (`scripts/stitch_sweep.py`) appeared to
+#: show 90s as the worst setting tried, and this constant was briefly changed to 30.
+#: Review caught two defects in that sweep, both of which invalidated it:
 #:
-#:   shop-left    15s -> 50 stitched /  46 ambiguous (0.92 per stitch)
-#:                60s -> 60 stitched / 133 ambiguous (2.22)
-#:                90s -> 52 stitched / 166 ambiguous (3.19)   <- the old default
-#:   shop-right   30s -> 17 stitched /  22 ambiguous (1.29)
-#:                90s -> 12 stitched /  37 ambiguous (3.08)   <- the old default
+#:   1. It replayed EVERY row in `track_points`. `VisionPipeline` calls `adopt()` only
+#:      inside `if verdict["crossed"]` and retires only `evidence == "arrival"` tracks,
+#:      so parked and candidate tracks never reach the stitcher. The sweep manufactured
+#:      most of the fragments and refusals it then reported -- 354 tracks where the real
+#:      population is 57.
+#:   2. It re-translated the ground point. `TrajectoryStore.observe()` already stores
+#:      `track.ground_point` in `x`,`y`; adding `w/2` and `h` invented displacement
+#:      wherever box sizes differed, which is precisely what the spatial gate reads.
 #:
-#: On shop-right, 30s beats 90s on BOTH axes at once: more visits recovered AND fewer
-#: refusals. The mechanism is counter-intuitive and is the reason a longer window is not
-#: simply "more forgiving": extra seconds do not surface more re-acquisitions, they drag
-#: more IRRELEVANT fragments into range, and every extra candidate converts a stitch that
-#: would have been unambiguous into an ambiguity refusal. The window's cost is not false
-#: merges -- `adopt()` already refuses those -- it is SELF-INFLICTED ambiguity.
+#: Corrected, on the population the stitcher actually sees:
 #:
-#: 30.0 is the compromise: near-peak stitches on both lenses, ambiguity ratio under 1.7 on
-#: both, and a 2-3x reduction in refusals against the old default. Re-run the sweep before
-#: changing it; one day of one shop is the evidence, and it is not a law of nature.
-DEFAULT_MAX_GAP_S = 30.0
+#:   shop-left    30s -> 11 stitched /  0 ambiguous
+#:                60s -> 14 stitched /  5 ambiguous
+#:                90s -> 13 stitched /  8 ambiguous
+#:               150s -> 16 stitched / 11 ambiguous
+#:   shop-right   30s ->  4 stitched /  2 ambiguous
+#:                90s ->  4 stitched /  2 ambiguous   (identical)
+#:
+#: A longer window stitches MORE, not fewer -- the opposite of the retune's claim. And the
+#: framing was wrong too: an ambiguity refusal is not damage. It leaves the visit exactly
+#: as it was before the stitcher existed, so it is non-improvement, not regression. The
+#: figure to maximise is STITCHES, subject to never false-merging.
+#:
+#: That argues for a LONGER window, but 16-vs-13 stitches on one day of one shop is not
+#: enough to move a shipped default in either direction. Re-run the sweep across more days
+#: before changing it.
+DEFAULT_MAX_GAP_S = 90.0
 
 #: Plausible ground-point travel while unobserved, in pixels per second. The spatial
 #: gate is `dist <= speed * gap + slack` rather than a flat radius, because a flat

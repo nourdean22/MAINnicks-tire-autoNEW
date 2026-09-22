@@ -28,11 +28,15 @@ Usage:  python scripts/stitch_sweep.py [--days N]
 from __future__ import annotations
 
 import argparse
+import io
+import json
 import os
 import sqlite3
 import sys
 from collections import defaultdict
-from typing import List, Tuple
+from typing import List, Optional, Tuple
+
+import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -40,8 +44,8 @@ from vision.stitch import EpisodeStitcher  # noqa: E402
 
 #: Each producer writes its OWN trajectory store -- `--trajectories` differs per producer.
 #: A sweep that opened only one of them would report half the shop and look complete.
-STORES = (("data/trajectories.sqlite", "shop-left"),
-          ("data/trajectories-right.sqlite", "shop-right"))
+STORES = (("data/trajectories.sqlite", "shop-left", "data/calib-shop-left.json"),
+          ("data/trajectories-right.sqlite", "shop-right", "data/calib-shop-right.json"))
 
 GAPS = (15.0, 30.0, 60.0, 90.0, 150.0, 300.0)
 SPEEDS = (45.0, 90.0)
@@ -58,23 +62,54 @@ class _Track:
         return self._point
 
 
-def spans_for(db_path: str, scene: str, days: int) -> List[tuple]:
-    """(born, died, id, birth point, death point) per track, in BIRTH order.
+def _lot_polygon(calib_path: str):
+    lot = json.load(io.open(calib_path, encoding="utf-8"))["lot"]
+    return np.array([[float(p[0]), float(p[1])] for p in lot], dtype=np.float32)
 
-    Birth order is the order the live pipeline sees tracks, so the replay exercises the
-    same sequence of adopt/retire calls rather than a tidied-up one.
+
+def spans_for(db_path: str, scene: str, days: int, poly) -> List[tuple]:
+    """Tracks the stitcher would ACTUALLY see, at the moment it would see them.
+
+    TWO CORRECTIONS, both from review of the first version of this tool, and both of which
+    invalidated its numbers:
+
+    1. ONLY PORTAL CROSSERS. `VisionPipeline` calls `adopt()` inside `if verdict["crossed"]`
+       and `retire()` only for `evidence == "arrival"`. Ordinary candidate and preexisting
+       parked tracks NEVER enter the stitcher. Replaying every row in `track_points`
+       manufactured most of the fragments and refusals it then reported.
+    2. `x`,`y` ARE ALREADY THE GROUND POINT. `TrajectoryStore.observe()` writes
+       `track.ground_point` into those columns; `w`,`h` are box dimensions only. Adding
+       `w/2` and `h` translated it a SECOND time, inventing displacement whenever box sizes
+       differed between fragments -- which is exactly what the spatial gate reads.
+
+    Residual gap, stated rather than hidden: `confirmable` (whether the detector had
+    arrival authority) is not recorded in the trajectory store, so a track that crossed but
+    could not confirm is still included here. This over-counts relative to production.
     """
+    import cv2
+
     db = sqlite3.connect(db_path)
-    since = f"strftime('%s','now','-{int(days)} day')" if days else \
-            "strftime('%s','now','start of day','localtime')"
+    since = (f"strftime('%s','now','-{int(days)} day')" if days
+             else "strftime('%s','now','start of day','localtime')")
     rows = db.execute(
-        f"SELECT generation, track_id, ts, x, y, w, h FROM track_points "
+        f"SELECT generation, track_id, ts, x, y FROM track_points "
         f"WHERE scene=? AND ts >= {since} ORDER BY ts", (scene,)).fetchall()
     tracks = defaultdict(list)
-    for gen, tid, ts, x, y, w, h in rows:
-        tracks[(gen, tid)].append((ts, x + w / 2.0, y + h))   # ground point
-    spans = [(p[0][0], p[-1][0], tid, (p[0][1], p[0][2]), (p[-1][1], p[-1][2]))
-             for (gen, tid), p in tracks.items()]
+    for gen, tid, ts, x, y in rows:
+        tracks[(gen, tid)].append((ts, float(x), float(y)))   # already the ground point
+
+    inside = lambda px, py: cv2.pointPolygonTest(poly, (px, py), False) >= 0
+    spans = []
+    for (gen, tid), pts in tracks.items():
+        if len(pts) < 2:
+            continue
+        flags = [inside(x, y) for _, x, y in pts]
+        cross = next((i for i in range(1, len(flags)) if flags[i] and not flags[i - 1]), None)
+        if cross is None:
+            continue          # never promoted to an arrival -> never reaches the stitcher
+        # adopt() fires AT the crossing, not at birth.
+        spans.append((pts[cross][0], pts[-1][0], tid,
+                      (pts[cross][1], pts[cross][2]), (pts[-1][1], pts[-1][2])))
     spans.sort()
     return spans
 
@@ -101,14 +136,18 @@ def main(argv: List[str]) -> int:
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     any_data = False
-    for rel, scene in STORES:
+    for rel, scene, calib in STORES:
         path = os.path.join(root, rel)
+        calib_path = os.path.join(root, calib)
+        if not os.path.exists(calib_path):
+            print(f"\n=== {scene} ===\n  UNAVAILABLE: {calib} not found")
+            continue
         if not os.path.exists(path):
             # Reported, never rendered as a zero: a missing store and an idle lens look
             # identical in the output otherwise.
             print(f"\n=== {scene} ===\n  UNAVAILABLE: {rel} not found")
             continue
-        spans = spans_for(path, scene, args.days)
+        spans = spans_for(path, scene, args.days, _lot_polygon(calib_path))
         if not spans:
             print(f"\n=== {scene} ===\n  no tracks in window")
             continue
