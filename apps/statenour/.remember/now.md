@@ -211,13 +211,27 @@ flags 21 → 14. ⚠ a canary can pass for the WRONG reason: the negation case w
 tail tripped the offer hedge — rewritten without the tail. ⚠ pre-2026-09-22 rows carry NO tool evidence, so the
 5 "Task created" banners cannot be audited against a receipt; the join is what makes future audits possible.
 
-**NEXT HIGHEST-LEVERAGE TASK** · FALSE_COMPLETION auto-repair needs a gate signal that is neither the ask-side
-classifier (66% of turns buffer) nor a prefix hold (the claim is mid-reply, median 432 chars): candidate = stream
-until the detector FIRST fires, then buffer the remainder and run the gate — measure as a shadow first (share of
-turns that would switch, chars streamed before the switch, banner recall) → run the tool-capable runner ONCE
-(operator spend) to baseline the 8 `requires-tools` scenarios → re-read the harvester's 9 FALSE_COMPLETION
-candidates against the new detector before any promotion. Chat volume (13 turns/24h) is the binding constraint;
-banner turns arrive ~6/week and, after #2512 + this PR, fewer.
+**#2513 MERGED `55e08e18a`.** **Sentence-granular pre-flush gate — MEASURED, NOT BUILT:** sentences p50 41 chars /
+p90 104 (the held unit is cheap) but after the precision fixes the detector fires on 14/1,246 turns (1.1%): a
+per-sentence hold on every turn to intercept ~1 turn/week is not the lever; the post-persist banner + L3 cover it.
+
+**EVIDENCE GATE (L6) SHADOW READ BY HAND — 52 post-fix blocks (43.7% of 119 turns):** named-claim ~27 = ~8 real
+(venue/platform lists asserted "verified" with no tool) + ~19 of Nick's OWN bold labels, imperative steps,
+comparisons, prices and recalled PEOPLE; fact-check ~24 = mostly coaching/plans/promises flagged as unverified,
+4 on verifier-bannered text; length 1. ★★★ **THE GATE'S 43.7% WAS ~25-30% PRECISION — ENFORCING IT WOULD HAVE
+REWRITTEN ROUGHLY A THIRD OF ALL TURNS WRONGLY.** This answers AGENTS.md §4 L6's open question. **This branch
+(`statenour/named-claim-title-shapes`):** `isResourceTitle` rules 6–12 + punctuation-insensitive stopword trim;
+16 canaries unfixed 16f/28p → 7 files 118 passed; real extractor over the 24 blocking turns: names 87 → 47, turns
+24 → 15 (6 real · 4 people · 3 geography · 2 residual), named-claim precision ≈25% → ≈40%. Prior-operator-text
+evidence measured and REJECTED (receipted 2 of 49). STILL SHADOW — nothing promoted.
+
+**NEXT HIGHEST-LEVERAGE TASK** · the people class: real people from the operator's life recalled without a
+receipt are the largest remaining named-claim false positive — measure how many unreceipted names match the
+people/relationship table (read-only), then add that table as receipt evidence at the two call sites
+(persist-assistant-turn.ts, alternate-paths.ts) → audit the fact-check driver the same way (its ~24 blocks
+look worse than named-claim) → only then revisit L6 promotion, with the calibration panel's rate as the
+receipt. Chat volume (13 turns/24h) is the binding constraint on every instrument; the heartbeat is still
+unexercised (0 turns since 18:43Z).
 
 ## Session E (tool routing) — 5 MERGED + DEPLOYED, 1 in CI
 
