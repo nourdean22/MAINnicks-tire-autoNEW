@@ -163,7 +163,7 @@ export const COLUMNS = [
  * timestamp leaves the known one alone. These values are only ever LEARNED -- a car does
  * not un-arrive -- so there is no legitimate write that needs to clear them.
  */
-export const LEARNED_ONCE = new Set<string>([
+const LEARNED_ONCE = new Set<string>([
   "arrivedAt", "waitStartedAt", "bayEnteredAt", "bayExitedAt", "departedAt",
   "bay", "entryEvidence", "evidenceRef",
   // 0127 episode trail. Without COALESCE preservation, ANY later higher-seq payload that

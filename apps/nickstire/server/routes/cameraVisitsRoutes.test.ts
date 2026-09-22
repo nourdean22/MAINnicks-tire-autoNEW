@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { COLUMNS, GUARDED_SET, LEARNED_ONCE, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore } from "./cameraVisitsRoutes";
+import { COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore } from "./cameraVisitsRoutes";
 
 describe("camera visit ingest — plate durability", () => {
   it("stores plate text ONLY when the read is CONFIRMED", () => {
@@ -386,16 +386,23 @@ describe("camera visit ingest — the episode trail cannot be erased", () => {
   // a rollback to a pre-stitcher producer, and a terminal emission whose timing lookup
   // happens after the track mapping is gone. Losing the trail while KEEPING the corrected
   // `arrivedAt` is the worst outcome — the adjusted time survives, its explanation does not.
+  // Asserted against the GENERATED SQL, not against the private set. A membership check
+  // would need `LEARNED_ONCE` exported purely for the test — an unconsumed export the knip
+  // orphan gate rightly rejects — and it would prove less: what protects the row is the
+  // COALESCE actually reaching the statement, not a name sitting in a Set.
   it("preserves the episode trail when a later payload omits it", () => {
+    const sql = String(GUARDED_SET);
     for (const col of ["episodeId", "continuesVisitId", "memberTrackIds"]) {
-      expect(LEARNED_ONCE, `${col} can be NULLed by a later payload`).toContain(col);
+      expect(sql, `${col} can be NULLed by a later payload`)
+        .toContain(`COALESCE(VALUES(\`${col}\`), \`${col}\`)`);
     }
   });
 
-  it("the preservation set is not vacuous — a volatile column is NOT in it", () => {
-    // Positive control: if LEARNED_ONCE accidentally contained everything, the test above
-    // would pass while proving nothing. `state` and `seq` MUST stay overwritable.
-    expect(LEARNED_ONCE).not.toContain("state");
-    expect(LEARNED_ONCE).not.toContain("seq");
+  it("the preservation is not vacuous — a volatile column still takes the new value", () => {
+    // Positive control: if every column were COALESCEd, the test above would pass while
+    // proving nothing. `state` must still be overwritten by a newer payload.
+    const sql = String(GUARDED_SET);
+    expect(sql).toContain("VALUES(`state`)");
+    expect(sql).not.toContain("COALESCE(VALUES(`state`)");
   });
 });
