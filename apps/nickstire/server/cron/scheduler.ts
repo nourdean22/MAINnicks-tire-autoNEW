@@ -976,6 +976,19 @@ function buildTiers(): void {
         },
       },
       {
+        // 2026-09-22 · an orchestration persisted `queued · outside_hours_queued`
+        // never learned that the delayed queue sent its text (308 rows read
+        // queued forever, 243 of them sent — docs/operations/QUEUE-CENSUS-
+        // 2026-09-22.md). Bookkeeping only: reads sms_messages, stamps the
+        // orchestration, never sends. Rows older than 7 days are the operator's
+        // back-stamp script.
+        name: "orchestration-status-reconcile",
+        handler: async () => {
+          const { reconcileQueuedOrchestrations } = await import("./jobs/orchestrationStatusReconcile");
+          return reconcileQueuedOrchestrations();
+        },
+      },
+      {
         name: "wo-overdue-check", // Detect work orders past promised time
         businessHoursOnly: true,
         handler: async () => {

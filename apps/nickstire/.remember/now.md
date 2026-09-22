@@ -117,6 +117,23 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
    last run is an interval old (age in SQL; no claim = no fire). Review P2 (stamp at start) measured
    and declined: an hourly pass is 3-4 s. MERGING IS DEPLOYING - hold merges until a fix that must
    run live has deployed and fired; the sibling statenour session is holding #2517 for this.
+8. LIVE INCIDENT, operator's device: the SMS gateway phone has been OFFLINE since 2026-09-22 ~04:38Z
+   (`sms-gateway-health`: `OFFLINE — 1234m since last check-in` at 21:12Z; Capevace cloud intermittently
+   unreachable since 09-21 02:05Z). review-requests + winback-auto-process `held pending`; Twilio is
+   deliberately not configured, so every other outbound text queues. Nothing to deploy. VERIFY: the
+   health job's details read `online — last seen Nm ago`. docs/operations/CRON-OUTCOME-CENSUS-2026-09-22.md.
+9. CENSUSES (all read-only, PR #2529): cron outcomes for 119 jobs (68 outcome / 48 attempted-only / 2
+   disabled / 1 env-skipped; pnpm diag:cron-census); queues (docs/operations/QUEUE-CENSUS-2026-09-22.md):
+   308 sms_orchestrations read `queued` forever but 243 were SENT — the orchestration row is never
+   stamped (fix: orchestration-status-reconcile cron, pulse tier, + backstamp script dry run 243/27/17);
+   45 customer replies human_pending (27 > 30d); 3 emergency_requests `new` at 158-178d;
+   revenue_reconciliation_candidates 227,988 rows / 18,491 manual_review nobody reads. A first exact-body
+   join said 296 texts never went out; a phone+window join said they did — the proxy lied, both recorded.
+   Memory: eviction simulation rejected the admission floor; remember() identity = one rolling row per
+   report kind (ten writers); phone numbers out of event memories; provenance model doc (item 8).
+   OPEN PRs to land in order: #2529 → rebuild #2514 (rebuild-cron-details.sh) → rebuild #2515
+   (rebuild-2515.sh) → orchestration-status-reconcile (ship-reconcile.sh); each rewrites a shared
+   evidence key, so they serialize. Hold each merge while a sibling's node/e2e is in flight.
 4. Duplicate-key helper consolidation onto `server/lib/dbErrors.ts` (proposals.ts,
    shopDriverMirror.ts x2, promiseLedger.ts).
 5. Tighten the transfer-artifact write in `routes/webhooks/vapi.ts` (~:621) to

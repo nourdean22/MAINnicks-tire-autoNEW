@@ -61,7 +61,7 @@ sent outbound to that phone within 36 h. The texts went out. The row never learn
 | what the 308 are | `vapi_forwarded_call_followup` 255 · `vapi_confirmation` 36 · `inbound_sms` 7 · `after_hours_capture` 6 · `stale_lead_followup` 4; `should_auto_send = 1`, `requires_human_approval = 0` on every row |
 | what actually happened | joined by phone + window: sent/delivered for the great majority; 31 failed; 21 have no conversation row (the phone-format split fixed 2026-06 predates them); 17 are today's, held by the offline gateway |
 
-**Fix (proposal, bookkeeping only, no customer surface):** when `processDelayedQueue()` stamps an
+**Fix (shipped with this census as `orchestration-status-reconcile`, pulse tier, bookkeeping only, no customer surface — for rows younger than 7 days; the historical rows are `scripts/maintenance/backstamp-queued-orchestrations.mjs`, dry run by default):** when `processDelayedQueue()` stamps an
 `sms_messages` row `sent`, stamp the matching `sms_orchestrations` row (same phone, created within
 the queueing window, `status = queued · outside_hours_queued`) `sent · sent_from_delayed_queue`
 with `sent_at`; and for the delayed row's `failed`, `failed · delayed_queue_failed`. Then the
@@ -82,6 +82,21 @@ back-stamp of the 243 historical rows is a production write and the operator's c
    state; today they are neither.
 5. **Back-stamp the 243 sent-but-queued orchestrations** once the stamping fix ships (a UPDATE on
    prod rows; dry run first, as every maintenance script here does).
+
+## Obligation kernel verdict (mandate item 13)
+
+The Promise Ledger (`customer_promises`, still 0 rows — its first writer, the voice promise
+capture, has not produced one yet) is the only queue here with an explicit lifecycle: source,
+subject, due, kept/broken/expired. Five other tables carry the same lifecycle implicitly and
+three of them have no drain at all: `sms_response_jobs` (45 human_pending, worked in the admin
+SMS section), `emergency_requests` (3 new · 178 d, no drain), `referrals` (6 pending · 167 d, no
+drain), `review_pipeline` (10 pending · 49 d, no drain), `customer_notifications` (22 pending ·
+171 d, no writer, no drain). That is more than three workflows sharing one lifecycle, so the
+mandate's bar for a generic kernel is met on paper — but a kernel gives a queue a shape, not an
+owner, and four of the five have no owner today. Verdict: **not before each queue has a drain or a
+terminal state.** First move, when the operator wants one: give `sms_response_jobs` the Promise
+Ledger's fields (due, outcome, expiry), because it is the one a human already acts on; the three
+dead queues need a decision (drain, or archive as terminal), not a kernel.
 
 ## Not done here
 
