@@ -34,6 +34,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { hasRunThisShopDay, shopDayStartMs } from "../cron/scheduler";
+import { sliceBlock } from "../testUtils/sourceBlock";
 
 const SOURCE = readFileSync(join(process.cwd(), "server/cron/scheduler.ts"), "utf-8");
 
@@ -213,10 +214,12 @@ describe("tier placement · no businessHoursOnly job may sit in the 24h daily ti
 
   it("kpi-snapshot lives in the 2h hourly tier and claims once per shop day", () => {
     expect(DAILY_BLOCK()).not.toContain('name: "kpi-snapshot"');
-    const block = HOURLY_BLOCK();
-    const at = block.indexOf('name: "kpi-snapshot"');
-    expect(at).toBeGreaterThan(-1);
-    expect(block.slice(at, block.indexOf("handler:", at))).toMatch(/oncePerShopDay:\s*true/);
+    // sliceBlock, not indexOf + slice: a missing anchor would widen the region to
+    // EOF and let this pass on another job's declaration (server/failOpenSliceGate.test.ts).
+    const declaration = sliceBlock(HOURLY_BLOCK(), 'name: "kpi-snapshot"', "handler:", {
+      label: "the kpi-snapshot job in the hourly tier",
+    });
+    expect(declaration).toMatch(/oncePerShopDay:\s*true/);
   });
 
   it.each(STARVED_JOBS)("%s now lives in the 2h hourly tier", (job) => {
