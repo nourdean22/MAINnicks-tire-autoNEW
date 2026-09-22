@@ -1474,7 +1474,7 @@ export async function buildCronCommandDeck(): Promise<CronCommandDeck> {
     ).length,
     failures24h: recent.filter(
       (r) =>
-        r.status === "failed" &&
+        isHardFailure(r.status) &&
         r.createdAt.getTime() > now.getTime() - 24 * 3600_000,
     ).length,
     drifted: rows.filter((r) => r.drift !== null && r.drift > 0).length,
@@ -1626,8 +1626,10 @@ export async function buildDeploymentTruth(): Promise<DeploymentTruthView> {
 
       const cronSuccess =
         cronStats.find((s) => s.status === "success")?._count._all ?? 0;
-      const cronFailed =
-        cronStats.find((s) => s.status === "failed")?._count._all ?? 0;
+      // 2026-09-22 · one groupBy row per hard-failure status; sum them (isHardFailure).
+      const cronFailed = cronStats
+        .filter((s) => isHardFailure(s.status))
+        .reduce((n, s) => n + s._count._all, 0);
       // Excluding `partial` hid the mega fan-out from the health rate
       // entirely: 2,536 partial runs counted toward neither side.
       const cronPartial =

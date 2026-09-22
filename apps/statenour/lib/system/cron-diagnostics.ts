@@ -19,7 +19,7 @@
 import { prisma } from "@/lib/prisma";
 import { CRONS } from "@/config/crons";
 import { getPowerSettings } from "@/lib/services/power-panel";
-import { listCronControls } from "@/lib/services/cron-control";
+import { listCronControls, isHardFailure, HARD_FAILURE_STATUSES } from "@/lib/services/cron-control";
 import { isGoogleOauthConfigured } from "@/lib/services/google-oauth";
 
 /**
@@ -302,7 +302,7 @@ export async function scanCronHealth(): Promise<CronHealthReport> {
     // Pull up to 30 most-recent failures overall so we have error
     // messages for ~10-15 distinct jobs. Bounded.
     prisma.cronJobLog.findMany({
-      where: { createdAt: { gte: since48h }, status: "failed" },
+      where: { createdAt: { gte: since48h }, status: { in: [...HARD_FAILURE_STATUSES] } },
       orderBy: { createdAt: "desc" },
       take: 30,
       select: { jobName: true, error: true, createdAt: true },
@@ -354,9 +354,11 @@ export async function scanCronHealth(): Promise<CronHealthReport> {
     if (r.status === "success") {
       job.success48h = r._count.id;
       job.lastSuccessAt = r._max.createdAt?.toISOString() ?? null;
-    } else if (r.status === "failed") {
-      job.fail48h = r._count.id;
-      job.lastFailAt = r._max.createdAt?.toISOString() ?? null;
+    } else if (isHardFailure(r.status)) {
+      // one groupBy row per hard-failure status - sum, and keep the newest failure time
+      job.fail48h += r._count.id;
+      const at = r._max.createdAt?.toISOString() ?? null;
+      if (at && (!job.lastFailAt || at > job.lastFailAt)) job.lastFailAt = at;
     }
   }
   for (const r of latestFailError) {
