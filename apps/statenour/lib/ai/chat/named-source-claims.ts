@@ -184,7 +184,10 @@ const STOPWORDS_LOWER = new Set([...STOPWORD_NAMES].map((w) => w.toLowerCase()))
 function trimLeadingStopwords(raw: string): string {
   const words = raw.trim().split(/\s+/);
   let i = 0;
-  while (i < words.length - 1 && STOPWORDS_LOWER.has(words[i].toLowerCase())) i++;
+  // 2026-09-22 · "Yes," is still "Yes": compare without trailing punctuation,
+  // or a bolded "Yes, your tool set rotates per turn" keeps its capital and
+  // passes isPlausibleName on the strength of a stopword.
+  while (i < words.length - 1 && STOPWORDS_LOWER.has(words[i].toLowerCase().replace(/[,:;!?]+$/, ""))) i++;
   return words.slice(i).join(" ");
 }
 
@@ -231,6 +234,21 @@ function isPlausibleName(raw: string): boolean {
  * lowercase. Capitalization density was REJECTED as a rule for exactly that
  * reason — sentence-case video titles are indistinguishable from prose by
  * capitalization, and it would have dropped three real titles.
+ *
+ * SECOND READ, 2026-09-22 · the 52 shadow blocks recorded AFTER those five
+ * rules shipped (119 post-fix turns) were read by hand. Named-claim blocks:
+ * ~8 were the real thing (venue and platform lists asserted as "verified" or
+ * "current" with no tool), ~19 were the model's OWN structure again, in
+ * shapes the five rules do not see: option labels joined by "/" or "+",
+ * imperative steps ("Drive to …", "NOT park on …"), a comparison ("X > Y"),
+ * a price or duration ("runs about $150 to $500+", "20-35 min south"), a
+ * prose line ("… will want something just for you"), and short sentence-case
+ * labels ("Manhattan walk", "Vetted companion platforms"). Rules 6-12 target
+ * those shapes. Measured on the 24 blocking turns with unreceipted names:
+ * 87 names → 49, 24 blocking turns → 16, and every title in the protected
+ * sample above still passes. What remains is mostly PEOPLE from the
+ * operator's life recalled without a receipt — a real gap, but a lookup
+ * problem (a people-DB receipt), not a shape problem.
  */
 export function isResourceTitle(raw: string): boolean {
   const t = raw.trim();
@@ -251,6 +269,45 @@ export function isResourceTitle(raw: string): boolean {
   }
   // 5 · a title does not begin mid-sentence ("of <name>").
   if (/^[a-z]/.test(t)) return false;
+
+  // ── 2026-09-22 · the model's own label shapes (see the second read above) ──
+  // 6 · alternatives and comparisons are options, not one findable thing
+  //     ("Low-effort / solo recharge", "Rent + police pressure", "Espresso > drip").
+  if (/\/|\s\+\s|\s>\s|\svs\.?\s/i.test(t)) return false;
+  const words = t.split(/\s+/).filter(Boolean);
+  // 7 · an imperative step: verb + preposition/object opener, four or more words
+  //     ("Drive to Bay Ridge, BK", "NOT park on Victory Blvd itself", "Re-queue the
+  //     deep research task"). Question openers are titles ("How to read body
+  //     language …"); three-word titles that open with a verb ("Back to Black") stay.
+  if (
+    words.length >= 4 &&
+    !/^(?:How|What|Why|When|Where|Who|Which)\b/.test(t) &&
+    /^(?:NOT\s+)?[A-Za-z][\w'-]*\s+(?:to|on|from|at|in|into|for|with|up|down|off|out|it|yourself|the)\b/.test(t)
+  ) {
+    return false;
+  }
+  // 8 · a lowercase parenthetical is a gloss ("Great-aunt (deceased)"), not a title.
+  if (/\([a-z]/.test(t)) return false;
+  // 9 · a price or a duration is an assertion ("runs about $150 to $500+", "20-35 min south").
+  if (/\$\s?\d/.test(t) || /\d+\s*(?:-\s*\d+\s*)?(?:min|mins|minutes|hrs?|hours)\b/i.test(t)) return false;
+  // 10 · modal and prose verbs ("Mom will want something just for you", "… itself").
+  if (/\b(?:will|would|should|want|wants|likely|need|needs|itself|yourself)\b/.test(t)) return false;
+  const caps = words.filter((w) => /^[A-Z]/.test(w)).length;
+  // 11 · a short sentence-case label: two or three words with only the first
+  //      capitalized, no digit, not a domain ("Manhattan walk", "Vetted companion
+  //      platforms"). Titles capitalize their nouns ("Huberman Lab", "Governors
+  //      Island ferry"); a genuinely sentence-case 2-3 word title is the accepted loss.
+  if (words.length >= 2 && words.length <= 3 && caps === 1 && !/\d/.test(t) && !/\.[a-z]{2,}$/i.test(t)) {
+    return false;
+  }
+  // 12 · a long prose line: five or more words, only the first capitalized, two or
+  //      more lowercase function words ("Negotiate direct with vendors outside the
+  //      shop"). Sentence-case titles keep a capitalized proper noun somewhere
+  //      ("… — FBI agent explains"), or carry at most one function word.
+  if (words.length >= 5 && caps === 1) {
+    const functionWords = words.filter((w) => /^(?:the|with|for|to|of|in|on|at|and|a|an|from)$/.test(w)).length;
+    if (functionWords >= 2) return false;
+  }
   return true;
 }
 
