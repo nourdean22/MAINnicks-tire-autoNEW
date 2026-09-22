@@ -311,11 +311,36 @@ export const VERIFIER_BANNER = /^\s*\[VERIFIER\b/i;
 export const TOOL_UNAVAILABLE_REPLY =
   /\b((web )?search (is )?(unavailable|not available|down|disabled|isn'?t available|is not available)|no (web )?search (this session|available|this turn)|tools? (aren'?t|are not|isn'?t|not) (attached|available)|(can'?t|cannot|unable to) (search|reach|access) the (web|repo|internet)|no tool attached|api key was reported as leaked)\b/i;
 
-export function reclassifyByReply(hit: RepairMatch, replyText: string | null): RepairMatch {
+/** The response as it was before the verifier prepended its banner. Module-private: an export whose only importer is a test is what the orphan gate exists to catch; the replay test proves it through reclassifyByReply. */
+function originalOfBannered(replyText: string): string {
+  const marker = "_Original response (unverified):_";
+  const i = replyText.indexOf(marker);
+  return i >= 0 ? replyText.slice(i + marker.length) : replyText;
+}
+
+/**
+ * ⚠ A BANNER IS NOT EVIDENCE ON ITS OWN. Classified 2026-09-22
+ * (docs/audits/claim-banner-classification-2026-09-22.md): of 41 banners in
+ * 60 days, 32 were English false positives — the verb belonged to the
+ * operator, a third party, a quote, a UI noun or an offer — and EVERY
+ * banner-then-retry pair in that corpus was one of the 32. So the banner
+ * promotes a repair only when `stillFlagged` (today's detector, replayed on
+ * the original text) agrees; without a replay the harvest cannot tell a
+ * fabrication from a false alarm and does not promote. The retracted pair
+ * keeps its generic class and gains a label so the summary counts it.
+ */
+export function reclassifyByReply(
+  hit: RepairMatch,
+  replyText: string | null,
+  stillFlagged?: (original: string) => boolean,
+): RepairMatch {
   if (!replyText) return hit;
   const generic = hit.failureClass === "GENERIC" || hit.failureClass === "UNDER_RESEARCH";
   if (!generic) return hit;
   if (VERIFIER_BANNER.test(replyText)) {
+    if (!stillFlagged || !stillFlagged(originalOfBannered(replyText))) {
+      return { ...hit, label: `${hit.label}·verifier-banner-retracted` };
+    }
     return { tier: "strong", failureClass: "FALSE_COMPLETION", label: "verifier-banner-then-retry" };
   }
   if (TOOL_UNAVAILABLE_REPLY.test(replyText.slice(0, 600))) {
@@ -568,6 +593,11 @@ async function main() {
   // Loaded here, not at module scope: static imports hoist above the
   // server-only stub installed at the top of this file.
   const { prisma } = await import("@/lib/prisma");
+  // Today's detector, replayed on the original text with no tool calls (the
+  // banner turns that matter never fired one). A banner alone does not promote.
+  const { detectActionClaimsWithoutTools } = await import("@/lib/ai/chat/action-claim-detector");
+  const stillFlagged = (original: string) => detectActionClaimsWithoutTools(original, []).length > 0;
+  let bannersRetracted = 0;
 
   const since = new Date(Date.now() - windowDays * 86_400_000);
   const sources: SourceReport[] = [];
@@ -631,7 +661,8 @@ async function main() {
     if (!paired) unpairable += 1;
 
     // The reply can name a failure the operator's "try again" does not.
-    const hit = reclassifyByReply(operatorHit, paired?.content ?? null);
+    const hit = reclassifyByReply(operatorHit, paired?.content ?? null, stillFlagged);
+    if (hit.label.endsWith("verifier-banner-retracted")) bannersRetracted += 1;
     matchedByTier[hit.tier] += 1;
     matchedByClass[hit.failureClass] = (matchedByClass[hit.failureClass] ?? 0) + 1;
 
@@ -678,6 +709,7 @@ async function main() {
     const pct = (n: number) => `${((n / operatorMessagesScanned) * 100).toFixed(2)}%`;
     console.log(`matched (all tiers):        ${totalMatched}  ${pct(totalMatched)}`);
     console.log(`  strong:                   ${matchedByTier.strong}  ${pct(matchedByTier.strong)}`);
+    console.log(`  banners retracted by replay: ${bannersRetracted}  (kept generic — a banner alone is not evidence)`);
     console.log(`  medium:                   ${matchedByTier.medium}  ${pct(matchedByTier.medium)}`);
     console.log(`  weak (short-reply only):  ${matchedByTier.weak}  ${pct(matchedByTier.weak)}`);
   }
