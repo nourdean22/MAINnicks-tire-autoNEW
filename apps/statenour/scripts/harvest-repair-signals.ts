@@ -67,8 +67,8 @@ function installScriptEnvironment(): void {
   };
 }
 
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 // ── Failure taxonomy ─────────────────────────────────────────────────────
 
@@ -423,6 +423,12 @@ const MUST_MATCH: ReadonlyArray<[string, RepairClass]> = [
   ["That's not what I asked for", "INSTRUCTION_MISS"],
 ];
 
+/** The self-test's fixtures, exported so the canary in tests/ asserts THESE and not copies (review on #2496). */
+export const SELF_TEST_FIXTURES: { readonly mustMatch: ReadonlyArray<[string, RepairClass]>; readonly mustAbstain: readonly string[] } = {
+  get mustMatch() { return MUST_MATCH; },
+  get mustAbstain() { return MUST_ABSTAIN; },
+};
+
 const MUST_ABSTAIN: readonly string[] = [
   // Contains "no" — the weak tier must not reach inside prose.
   "no rush on this, whenever you get to it is fine",
@@ -568,9 +574,27 @@ export const DEFAULT_OUT_PATH = `${HARVEST_OUT_DIR}/repair-signal-candidates.jso
  * from a commit. Traversal (`eval-datasets/../x.json`), the directory itself
  * and absolute paths elsewhere are all refused; the default is always inside.
  */
+/**
+ * The path with every EXISTING ancestor resolved through symlinks and Windows
+ * junctions (review on #2496): `resolve()`/`relative()` are lexical, so a link
+ * at eval-datasets/export -> tests/eval/scenarios passed the containment
+ * check while writeFileSync followed the link into a tracked directory.
+ */
+export function realPathOfNearestAncestor(p: string): string {
+  let cur = p;
+  const rest: string[] = [];
+  while (!existsSync(cur)) {
+    rest.unshift(basename(cur));
+    const parent = dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  return join(realpathSync.native(cur), ...rest);
+}
+
 export function resolveOutPath(raw: string | null, cwd: string = process.cwd()): string {
-  const target = resolve(cwd, raw ?? DEFAULT_OUT_PATH);
-  const rel = relative(resolve(cwd, HARVEST_OUT_DIR), target);
+  const target = realPathOfNearestAncestor(resolve(cwd, raw ?? DEFAULT_OUT_PATH));
+  const rel = relative(realPathOfNearestAncestor(resolve(cwd, HARVEST_OUT_DIR)), target);
   const first = rel.split(/[\\/]/)[0];
   if (rel === "" || first === ".." || isAbsolute(rel)) {
     throw new Error(

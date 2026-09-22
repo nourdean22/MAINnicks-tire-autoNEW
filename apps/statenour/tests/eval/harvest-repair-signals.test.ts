@@ -25,7 +25,9 @@ import {
   isPlausibleRepairLength,
   reclassifyByReply,
   toolsFiredOf,
+  realPathOfNearestAncestor,
   resolveOutPath,
+  SELF_TEST_FIXTURES,
   REPAIR_CLASSES,
   REPAIR_PATTERNS,
   type RepairMatch,
@@ -103,15 +105,17 @@ describe("repair-signal matcher", () => {
   // Fixtures that dropped their trigger would abstain trivially and guard
   // nothing. Each synthetic stand-in must still carry the phrase that fooled
   // the first draft — checked here so a future "tidy-up" cannot hollow them out.
-  it("the synthetic abstain fixtures still carry the trigger phrases they guard against", () => {
-    expect("Keep going, this is exactly the kind of thing I wanted.").toMatch(/keep going/i);
-    expect("Loving this so far, let's keep going and zoom in on the second point.").toMatch(/keep going/i);
-    expect("Go deeper on the second option.").toMatch(/go deeper/i);
-    expect("OK so yesterday, like I told you after the trip, we went back to the shop.").toMatch(/i told you/i);
-    expect("like I know I can do better and all I can think about is the next quarter.").toMatch(/do better/i);
-    expect("Then two minutes later I'm telling myself the same thing again and eventually I forget.").toMatch(
-      /the same thing again/i,
-    );
+  it("the REAL abstain fixtures still carry the trigger phrases they guard against, and still abstain", () => {
+    // Each trigger the first draft fell for must be present in at least one
+    // real MUST_ABSTAIN fixture (a hollowed fixture fails here), and every real
+    // fixture must abstain (the classifier, not a copy of the string).
+    const fixtures = SELF_TEST_FIXTURES.mustAbstain;
+    expect(fixtures.length).toBeGreaterThan(10);
+    for (const trigger of [/keep going/i, /go deeper/i, /i told you/i, /do better/i, /the same thing again/i]) {
+      expect(fixtures.some((f) => trigger.test(f)), `no real fixture carries ${trigger}`).toBe(true);
+    }
+    for (const f of fixtures) expect(classifyRepair(f), `must abstain: ${f}`).toBeNull();
+    for (const [text, cls] of SELF_TEST_FIXTURES.mustMatch) expect(classifyRepair(text)?.failureClass, `must match: ${text}`).toBe(cls);
     // And the second-person forms of the same phrases DO fire — the guard is
     // direction and judgement, not the words.
     expect(classifyRepair("you can do better than that")?.failureClass).toBe("GENERIC");
@@ -338,5 +342,26 @@ describe("reclassifyByReply · the reply names what 'try again' cannot", () => {
     const reply = `${"Here are five videos worth your drive. ".repeat(20)} (note: web search is unavailable for the sixth)`;
     expect(reply.length).toBeGreaterThan(600);
     expect(reclassifyByReply(generic, reply)).toEqual(generic);
+  });
+});
+
+describe("resolveOutPath · follows links before judging containment (review on #2496)", () => {
+  it("a junction under eval-datasets that points at a tracked directory is refused; a real subdirectory is accepted", () => {
+    const { mkdtempSync, mkdirSync: mk, symlinkSync, rmSync } = require("node:fs") as typeof import("node:fs");
+    const { tmpdir } = require("node:os") as typeof import("node:os");
+    const { join: j } = require("node:path") as typeof import("node:path");
+    const root = mkdtempSync(j(tmpdir(), "harvest-out-"));
+    try {
+      mk(j(root, "eval-datasets", "real"), { recursive: true });
+      mk(j(root, "tests", "eval", "scenarios"), { recursive: true });
+      symlinkSync(j(root, "tests", "eval", "scenarios"), j(root, "eval-datasets", "export"), "junction");
+      expect(() => resolveOutPath("eval-datasets/export/candidates.json", root)).toThrow(/must resolve inside eval-datasets/);
+      expect(resolveOutPath("eval-datasets/real/candidates.json", root)).toMatch(/[\\/]eval-datasets[\\/]real[\\/]candidates\.json$/);
+      // and a not-yet-existing subdirectory is still accepted (the nearest existing ancestor is resolved)
+      expect(resolveOutPath("eval-datasets/new-dir/c.json", root)).toMatch(/[\\/]eval-datasets[\\/]new-dir[\\/]c\.json$/);
+      expect(realPathOfNearestAncestor(j(root, "eval-datasets", "export", "x.json"))).toMatch(/[\\/]tests[\\/]eval[\\/]scenarios[\\/]x\.json$/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
