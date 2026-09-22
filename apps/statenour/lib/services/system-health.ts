@@ -13,7 +13,7 @@
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { isHardFailure } from "@/lib/services/cron-control";
+import { isHardFailure, tallyCronWindow } from "@/lib/services/cron-control";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export type HealthRange = "24h" | "7d" | "30d";
@@ -417,18 +417,11 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   // `status !== "success"` did on both windows — meant a fan-out child
   // that merely ran slow was reported identically to a route that threw.
   const priorCronFailureCount = priorCronLogs.filter((l) => isHardFailure(l.status)).length;
-  const cronByJob = new Map<
-    string,
-    { success: number; partial: number; failed: number; totalMs: number }
-  >();
-  for (const l of cronLogs) {
-    const e = cronByJob.get(l.jobName) ?? { success: 0, partial: 0, failed: 0, totalMs: 0 };
-    if (l.status === "success") e.success++;
-    else if (l.status === "partial") e.partial++;
-    else e.failed++;
-    e.totalMs += l.duration ?? 0;
-    cronByJob.set(l.jobName, e);
-  }
+  // 2026-09-22 · same predicate on BOTH windows (review on #2528): the current
+  // window's inline loop bucketed every other status as failed, so an in-flight
+  // `started` row was a current failure compared against a prior window that
+  // had already stopped counting it.
+  const cronByJob = tallyCronWindow(cronLogs);
   const cronSummary = [...cronByJob.entries()].map(([jobName, s]) => ({
     jobName,
     success: s.success,

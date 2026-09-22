@@ -6,7 +6,31 @@ import { join } from "node:path";
 const { groupBy, findMany } = vi.hoisted(() => ({ groupBy: vi.fn(), findMany: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: { cronJobLog: { groupBy, findMany } } }));
 
-import { getCronStats } from "@/lib/services/cron-control";
+import { getCronStats, tallyCronWindow } from "@/lib/services/cron-control";
+
+/**
+ * 2026-09-22 · review on #2528 (P1): system-health's CURRENT window bucketed every
+ * status other than success/partial as failed, while its PRIOR window already used
+ * isHardFailure() - so an in-flight `started` row was a current failure compared
+ * against a baseline that no longer counted it. One helper, both windows.
+ */
+describe("tallyCronWindow · one predicate for the current health window (2026-09-22)", () => {
+  it("started and duplicate rows land in no bucket; failed and interrupted are failures; durations still sum", () => {
+    const rows = [
+      { jobName: "goal-pruner", status: "success", duration: 100 },
+      { jobName: "goal-pruner", status: "partial", duration: 50 },
+      { jobName: "goal-pruner", status: "failed", duration: 10 },
+      { jobName: "goal-pruner", status: "interrupted", duration: null },
+      { jobName: "goal-pruner", status: "started", duration: null },
+      { jobName: "goal-pruner", status: "duplicate", duration: null },
+      { jobName: "outbox-drain", status: "started", duration: null },
+    ];
+    const t = tallyCronWindow(rows);
+    expect(t.get("goal-pruner")).toEqual({ success: 1, partial: 1, failed: 2, totalMs: 160 });
+    // a job whose only row is in flight is present (it ran) but has no outcome yet
+    expect(t.get("outbox-drain")).toEqual({ success: 0, partial: 0, failed: 0, totalMs: 0 });
+  });
+});
 
 /**
  * 2026-09-22 · review on #2525 (P1): the cron views compared `status === "failed"`
@@ -69,4 +93,10 @@ describe('RATCHET · no cron view compares status to the literal "failed" (comme
       expect(cronWheres).toEqual([]);
     });
   }
+
+  it("lib/services/system-health.ts tallies the current window through tallyCronWindow, with no else-bucket", () => {
+    const code = strip(readFileSync(join(ROOT, "lib/services/system-health.ts"), "utf8"));
+    expect(code).toContain("tallyCronWindow(cronLogs)");
+    expect(code).not.toMatch(/else e\.failed\+\+/);
+  });
 });

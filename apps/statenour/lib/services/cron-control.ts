@@ -347,6 +347,33 @@ export function isHardFailure(status: string): boolean {
   return HARD_FAILURE_STATUSES.includes(status);
 }
 
+export type CronWindowTally = { success: number; partial: number; failed: number; totalMs: number };
+
+/**
+ * Per-job tallies over a window of cron rows - the one place that decides which
+ * bucket a status lands in, for every health surface that shows a window.
+ *
+ * 2026-09-22 · system-health's own loop was `if success / else if partial / else
+ * failed`, so an in-flight `started` row (and a `duplicate`) counted as a CURRENT
+ * failure while the prior window already used isHardFailure() - the two windows
+ * classified the same status differently and the trend compared them anyway.
+ * Neither-ok-nor-failed rows count in NO bucket; their duration is null anyway.
+ */
+export function tallyCronWindow(
+  logs: ReadonlyArray<{ jobName: string; status: string; duration: number | null }>,
+): Map<string, CronWindowTally> {
+  const byJob = new Map<string, CronWindowTally>();
+  for (const l of logs) {
+    const e = byJob.get(l.jobName) ?? { success: 0, partial: 0, failed: 0, totalMs: 0 };
+    if (l.status === "success") e.success++;
+    else if (l.status === "partial") e.partial++;
+    else if (isHardFailure(l.status)) e.failed++;
+    e.totalMs += l.duration ?? 0;
+    byJob.set(l.jobName, e);
+  }
+  return byJob;
+}
+
 /** Map a raw CronJobLog.status onto that tri-state. Never collapse. */
 export function normalizeCronStatus(status: string): CronLastStatus {
   if (status === "success") return "success";
