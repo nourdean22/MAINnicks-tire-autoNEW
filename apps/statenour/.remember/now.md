@@ -140,12 +140,21 @@ impossible on old data; `toolReceipts` is the replay foundation going forward.
   "fixed in <merge sha>" — corrections posted; gate every step on the commit, not the push.
 - W16 RECONCILIATION entry + AGENTS.md stamp: this docs PR.
 
-**NEXT HIGHEST-LEVERAGE TASK** · merge #2495 / #2496 / #2498 / this docs PR under the hold rule →
-persist the shadow's `skipped_no_claim` as an attempt so skip-vs-dead is direct (H2) → give the
-Done-shadow the same outbox-replay dedupe #2485 gave novelty → automatic FALSE_COMPLETION repair
-needs the BUFFERED-path measurement first (streaming cannot block; `onFinish` runs after the last
-token) → a tool-capable eval runner so the 8 `requires-tools` scenarios become scorable (the
-production chat pipeline with the catalog attached; none exists) → the tool-search A/B on it.
+**UPDATE (2026-09-22 · part 4 · the follow-ups landed)** · #2495 `2a503aa26` · #2496 `d9d46392e` ·
+#2498 `67904d50a` · #2499 `8c2889b5c` · #2501 `84260a1c2` (Done-shadow traceId dedupe through the shared
+`metricRecordedForTrace`) MERGED 17:48-17:50Z; main = `84260a1c2`. Live readout 17:16Z through the
+app's own readers: 13 assistant turns/24h · `recommendation.novelty` NEVER_RAN (deployed 17:04Z, 3 turns
+since) · `action.done.shadow` STALE since 09-19 · 0 duplicate traceIds lifetime. **This branch (H2):**
+`chat.deferred_turn` — one heartbeat row per deferred-path turn, deduped by traceId, strict writer,
+literal scope; the health reader uses it as the conditional shadows' denominator, so a conditional zero
+reads UNDERPOWERED ("ran on N turns, condition did not occur") when the path ran and STALE ("the whole
+path did not run") when it did not — the skip-vs-dead gap is now direct, not inferred.
+
+**NEXT HIGHEST-LEVERAGE TASK** · land the heartbeat → automatic FALSE_COMPLETION repair needs the
+BUFFERED-path measurement first (streaming cannot block; `onFinish` runs after the last token) → a
+tool-capable eval runner so the 8 `requires-tools` scenarios become scorable (the production chat
+pipeline with the catalog attached; none exists) → the tool-search A/B on it. Chat volume (13
+turns/24h) is the binding constraint on every instrument shipped today — nothing promotes on n<30.
 
 ## Session E (tool routing) — 5 MERGED + DEPLOYED, 1 in CI
 
