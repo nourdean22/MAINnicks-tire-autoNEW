@@ -293,6 +293,27 @@ PROMISES (30d, from the ledger): ${ps.created} made · ${kept} kept` +
           `${ps.missed > 0 ? ` · ${ps.missed} MISSED` : ""}` +
           `${ps.open > 0 ? ` · ${ps.open} open` : ""}`;
       }
+      // VOICE PROMISES ARE REPORTED SEPARATELY, AND NEVER AS A KEPT-RATE.
+      //
+      // Nothing can mark a voice promise kept automatically — the callback
+      // happens on the counter phone, which this system cannot observe. Folding
+      // them into the line above would let auto-created promises sweep to
+      // `missed` and report "35 MISSED" as though Nick had broken 35 promises,
+      // when the truth is that keeping was never measurable. Unmeasured is not
+      // failed.
+      //
+      // What IS actionable is the overdue backlog: those are real obligations
+      // nobody has closed out, and that is what gets surfaced.
+      const { voicePromiseBacklog } = await import("../../services/promiseLedger");
+      const vb = await voicePromiseBacklog(30);
+      if (vb && vb.created > 0) {
+        promisesBlock +=
+          `\nFROM CALLS (30d): ${vb.created} callback commitments captured` +
+          `${vb.overdue > 0 ? ` · ${vb.overdue} OVERDUE, nobody has closed these out` : ""}` +
+          `${vb.open > 0 ? ` · ${vb.open} open` : ""}` +
+          `\n  (kept isn't auto-detected for these — a counter callback is invisible to the system,` +
+          ` so these are a to-do list, not a scorecard.)`;
+      }
     } catch (e) { log.warn("[morningBrief] promise ledger stats failed:", e); }
 
     // ─── Brief self-review: did yesterday's brief drive action? ────

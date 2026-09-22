@@ -202,6 +202,59 @@ async function closePromiseOpportunity(promiseId: string, resolution: string, by
  * adds the UNIQUE index that makes it race-proof; until an operator applies it
  * this remains best-effort, and that limit is stated rather than hidden.
  */
+/**
+ * Voice-sourced promises, counted as a BACKLOG rather than scored as a rate.
+ *
+ * These are obligations the shop took on during a call. They are real, and the
+ * open ones genuinely need working. What they are NOT is a performance measure,
+ * because nothing can mark them kept automatically: `keepPromise` is only ever
+ * reached by an operator pressing Keep, and the actual callback happens on the
+ * counter phone or a cell this system cannot see.
+ *
+ * So this returns counts and deliberately NO kept-rate. A ratio whose numerator
+ * can only be produced by hand and whose denominator fills automatically is not
+ * a measurement of the shop — it is a measurement of how often somebody
+ * remembered to click a button.
+ */
+export async function voicePromiseBacklog(windowDays = 30): Promise<{
+  created: number;
+  open: number;
+  /** Open AND past due — the ones an operator should actually chase. */
+  overdue: number;
+  /** Swept to `missed` by the cron. NOT evidence the shop failed to call. */
+  sweptMissed: number;
+  keptByHand: number;
+} | null> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const rows = rowsFromExecute(await db.execute(sql`
+      SELECT
+        COUNT(*) AS created,
+        SUM(status = 'open') AS open,
+        SUM(status = 'open' AND due_at < NOW()) AS overdue,
+        SUM(status = 'missed') AS sweptMissed,
+        SUM(status = 'kept') AS keptByHand
+      FROM customer_promises
+      WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${windowDays} DAY)
+        AND source_kind = 'voice'
+    `));
+    const r = rows[0] ?? {};
+    return {
+      created: Number(r.created ?? 0),
+      open: Number(r.open ?? 0),
+      overdue: Number(r.overdue ?? 0),
+      sweptMissed: Number(r.sweptMissed ?? 0),
+      keptByHand: Number(r.keptByHand ?? 0),
+    };
+  } catch (err) {
+    if (isMissingTableError(err)) return null;
+    throw err;
+  }
+}
+
 export async function createVoicePromise(params: {
   promiseType: PromiseType;
   promisedAction: string;
@@ -423,6 +476,26 @@ export async function sweepOverduePromises(): Promise<{ recordsProcessed: number
  * time / kept late / missed / cancelled over a window, plus average
  * overdue hours for late keeps. Pure aggregation — no invented rates.
  */
+/**
+ * The kept-rate — OPERATOR-SOURCED promises only. Voice promises are excluded
+ * by the `source_kind <> 'voice'` clause below, and that exclusion is the most
+ * important line in this function.
+ *
+ * A promise is only ever marked kept by an operator pressing Keep in the admin
+ * panel: `keepPromise` has exactly one caller. The actual callback happens on
+ * the counter phone or a personal cell, which this system cannot observe, so
+ * there is NO automatic keeping signal for a voice-sourced promise.
+ *
+ * Including them would let auto-created promises accumulate and sweep to
+ * `missed` after 48h regardless of whether the shop really called back — the
+ * brief would tell Nick he had broken dozens of promises when the truth is that
+ * keeping was never measurable. A ratio whose denominator fills automatically
+ * and whose numerator can only be produced by hand measures how often somebody
+ * clicked a button, not how the shop behaved.
+ *
+ * Unmeasured is not failed. Voice promises are counted by voicePromiseBacklog()
+ * and reported as a to-do list with that caveat attached.
+ */
 export async function promiseLedgerStats(windowDays = 30): Promise<{
   created: number;
   keptOnTime: number;
@@ -449,6 +522,7 @@ export async function promiseLedgerStats(windowDays = 30): Promise<{
                  THEN TIMESTAMPDIFF(HOUR, due_at, kept_at) END) AS avgKeptLateHours
       FROM customer_promises
       WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${windowDays} DAY)
+        AND source_kind <> 'voice'
     `));
     const r = rows[0] ?? {};
     return {
