@@ -139,15 +139,21 @@ def test_a_car_too_far_away_to_have_driven_there_refuses():
 
 
 def test_the_spatial_gate_scales_with_the_gap_rather_than_being_a_flat_radius():
-    """Same distance, different gap: unreachable in 1s, comfortable in 30s."""
+    """Same distance, different gap: unreachable in 1s, comfortable in 30s.
+
+    `max_gap_s` is PINNED here rather than inherited. This test is about the SPATIAL gate,
+    and its 30s hop sits exactly on the default window -- it survived only because the
+    temporal check is `gap > max_gap_s`, so 30 > 30 is false. A later retune of the default
+    would fail this test for a reason it does not test. Pin what you are not measuring.
+    """
     far_point = (500.0 + 300.0, 400.0)
 
-    quick = _stitcher()
+    quick = _stitcher(max_gap_s=120.0)
     a = FakeTrack(track_id=1, born_ts=100.0, point=(500.0, 400.0))
     quick.retire(a, now=160.0, episode_id="ep-1", arrived_at=100.0)
     assert quick.adopt(FakeTrack(2, 161.0, far_point), now=161.0).stitched is False
 
-    slow = _stitcher()
+    slow = _stitcher(max_gap_s=120.0)
     b = FakeTrack(track_id=1, born_ts=100.0, point=(500.0, 400.0))
     slow.retire(b, now=160.0, episode_id="ep-1", arrived_at=100.0)
     assert slow.adopt(FakeTrack(2, 190.0, far_point), now=190.0).stitched is True

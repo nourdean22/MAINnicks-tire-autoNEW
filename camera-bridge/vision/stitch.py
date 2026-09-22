@@ -53,11 +53,28 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-#: How long a retired fragment stays adoptable. A car occluded behind another vehicle
-#: can be lost for a while, so too short a window never stitches anything; too long and
-#: a DEPARTING customer's fragment is still sitting there when an unrelated car parks
-#: nearby, which is the false-merge direction. Operator-tunable; see the module notes.
-DEFAULT_MAX_GAP_S = 90.0
+#: How long a retired fragment stays adoptable.
+#:
+#: 90.0 was a GUESS when this shipped, and MEASUREMENT REFUTED IT. Swept against one day
+#: of this shop's own recorded tracks (539 tracks, both lenses, `scripts/stitch_sweep.py`):
+#:
+#:   shop-left    15s -> 50 stitched /  46 ambiguous (0.92 per stitch)
+#:                60s -> 60 stitched / 133 ambiguous (2.22)
+#:                90s -> 52 stitched / 166 ambiguous (3.19)   <- the old default
+#:   shop-right   30s -> 17 stitched /  22 ambiguous (1.29)
+#:                90s -> 12 stitched /  37 ambiguous (3.08)   <- the old default
+#:
+#: On shop-right, 30s beats 90s on BOTH axes at once: more visits recovered AND fewer
+#: refusals. The mechanism is counter-intuitive and is the reason a longer window is not
+#: simply "more forgiving": extra seconds do not surface more re-acquisitions, they drag
+#: more IRRELEVANT fragments into range, and every extra candidate converts a stitch that
+#: would have been unambiguous into an ambiguity refusal. The window's cost is not false
+#: merges -- `adopt()` already refuses those -- it is SELF-INFLICTED ambiguity.
+#:
+#: 30.0 is the compromise: near-peak stitches on both lenses, ambiguity ratio under 1.7 on
+#: both, and a 2-3x reduction in refusals against the old default. Re-run the sweep before
+#: changing it; one day of one shop is the evidence, and it is not a law of nature.
+DEFAULT_MAX_GAP_S = 30.0
 
 #: Plausible ground-point travel while unobserved, in pixels per second. The spatial
 #: gate is `dist <= speed * gap + slack` rather than a flat radius, because a flat
