@@ -50,10 +50,24 @@ export interface PriorRecommendationsResult {
   provenance: "OK" | "ZERO" | "ERROR";
 }
 
+export interface LoadPriorRecommendationsOptions {
+  /**
+   * 2026-09-22 · the reply-side novelty shadow runs AFTER the current
+   * assistant reply is persisted, so a bare scan finds every name the draft
+   * used in the draft's own row and calls all of them repeats. Pass the
+   * persisted reply's id to keep the scan to what came BEFORE it. The
+   * prompt-side caller (app/api/ai/chat/route.ts) runs before persist and
+   * needs nothing here.
+   */
+  excludeMessageId?: string | null;
+}
+
 /**
  * Scan recent assistant messages and extract the resources already named.
  */
-export async function loadPriorRecommendations(): Promise<PriorRecommendationsResult> {
+export async function loadPriorRecommendations(
+  options: LoadPriorRecommendationsOptions = {},
+): Promise<PriorRecommendationsResult> {
   const since = new Date(Date.now() - LOOKBACK_DAYS * 86_400_000);
 
   try {
@@ -65,6 +79,7 @@ export async function loadPriorRecommendations(): Promise<PriorRecommendationsRe
       where: {
         role: "assistant",
         createdAt: { gte: since },
+        ...(options.excludeMessageId ? { id: { not: options.excludeMessageId } } : {}),
       },
       orderBy: { createdAt: "desc" },
       take: SCAN_LIMIT,
