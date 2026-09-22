@@ -15,7 +15,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { DAILY_STARTUP_ALLOWANCE_MS, shouldFireOnStartup } from "./tierStartup";
+import { shouldFireOnStartup } from "./tierStartup";
 
 const H = 3600_000;
 const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
@@ -40,7 +40,6 @@ describe("shouldFireOnStartup", () => {
   });
 
   it("daily keeps its 20 h allowance: 18 h → skip, 21 h → fire (restart drift cannot slide it a day)", () => {
-    expect(DAILY_STARTUP_ALLOWANCE_MS).toBe(20 * H);
     expect(shouldFireOnStartup({ tierName: "daily", intervalMs: 24 * H, lastRunAgeMs: 18 * H }).fire).toBe(false);
     expect(shouldFireOnStartup({ tierName: "daily", intervalMs: 24 * H, lastRunAgeMs: 21 * H }).fire).toBe(true);
   });

@@ -38,7 +38,7 @@ export interface TierStartupInput {
 }
 
 /** Daily's boot allowance: a 24 h tier that restarted 20 h after its run is due. */
-export const DAILY_STARTUP_ALLOWANCE_MS = 20 * 3600_000;
+const DAILY_STARTUP_ALLOWANCE_MS = 20 * 3600_000; // module-private: an export imported only by its test is what the orphan gate exists to catch
 
 export function shouldFireOnStartup(input: TierStartupInput): { fire: boolean; reason: string } {
   const allowance = input.tierName === "daily" ? DAILY_STARTUP_ALLOWANCE_MS : input.intervalMs;
