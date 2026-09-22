@@ -18,21 +18,22 @@ describe("reindex-vector-index · dry run by default", () => {
   it("POSITIVE CONTROL: parses --apply and --index, and contains exactly one REINDEX, CONCURRENTLY", () => {
     expect(CODE).toMatch(/const APPLY = process\.argv\.includes\("--apply"\)/);
     expect(CODE).toMatch(/--index=/);
-    expect(CODE.match(/REINDEX/g)?.length).toBe(1);
-    expect(CODE).toContain("REINDEX INDEX CONCURRENTLY ${INDEX}");
+    // the STATEMENT, not the mode banner that names it: exactly one executeRaw carries a REINDEX
+    expect(CODE.match(/executeRawUnsafe\(`REINDEX/g)?.length).toBe(1);
+    expect(CODE).toContain("$executeRawUnsafe(`REINDEX INDEX CONCURRENTLY ${INDEX}`)");
   });
 
   it("the REINDEX is unreachable without --apply: the dry-run return comes first, after the listing", () => {
     const listing = CODE.indexOf("database host:");
     const dryReturn = CODE.indexOf("if (!APPLY) return;");
-    const reindex = CODE.indexOf("REINDEX INDEX CONCURRENTLY");
+    const reindex = CODE.indexOf("$executeRawUnsafe(`REINDEX INDEX CONCURRENTLY");
     expect(listing).toBeGreaterThan(0);
     expect(dryReturn).toBeGreaterThan(listing);
     expect(reindex).toBeGreaterThan(dryReturn);
   });
 
   it("refuses a name that is not an existing hnsw index on vector_embeddings, and validates the name shape", () => {
-    const reindex = CODE.indexOf("REINDEX INDEX CONCURRENTLY");
+    const reindex = CODE.indexOf("$executeRawUnsafe(`REINDEX INDEX CONCURRENTLY");
     const notOnTable = CODE.indexOf("is not an index on vector_embeddings");
     const notHnsw = CODE.indexOf("is not an hnsw index");
     expect(notOnTable).toBeGreaterThan(0);
