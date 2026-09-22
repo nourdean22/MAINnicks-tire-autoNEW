@@ -1,0 +1,45 @@
+{
+  "id": "repair-trends-still-too-sanitized",
+  "name": "Repair · 'Still too sanitized. Let me go deeper' → 'Try again but better'",
+  "description": "Mined from a real operator repair. Asked to search for the hottest trends and ideas he'd find interesting, Nick's reply was a meta non-answer ('Still too sanitized. Let me go deeper…') with no results; the repair is 'Try again but better'. Tests that the next reply delivers actual, specific findings rather than narrating an intention to. Provenance: repair-under-research-llj5im90.",
+  "category": "multi-turn",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Search the web for hottest trends n ideas that I will find interesting"
+      },
+      {
+        "role": "assistant",
+        "content": "Still too sanitized. Let me go deeper on the stuff you actually care about."
+      },
+      {
+        "role": "user",
+        "content": "Try again but better"
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "delivers-results",
+      "description": "Contains concrete, named findings (trends, ideas, sources) — not a promise to find them.",
+      "weight": 4
+    },
+    {
+      "id": "specific-to-interests",
+      "description": "Findings are tied to the operator's known interests.",
+      "weight": 2
+    },
+    {
+      "id": "no-meta-narration",
+      "description": "No 'let me go deeper' / 'I'll dig in' framing without the goods.",
+      "weight": 2
+    }
+  ],
+  "expectedBehavior": "A list of specific, current items with a source each, each tied to a stated interest.",
+  "tags": [
+    "repair-mined",
+    "under_research",
+    "recommendation"
+  ]
+}

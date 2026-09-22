@@ -1,0 +1,46 @@
+{
+  "id": "repair-image-uses-shop-context",
+  "name": "Repair · image gen · 'make it more informational, mention what you know about Nick's Tire'",
+  "description": "Mined from a real operator repair (medium tier). The operator asked for an image; Nick produced a generic scene, and the repair asks for an INFORMATIONAL image that uses what Nick already knows about Nick's Tire & Auto (Euclid Ave, Cleveland). Tests whether the next attempt draws on stored business context instead of a stock composition. Provenance: repair-under-research-7sqjsmys.",
+  "category": "multi-turn",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "now generate the picture"
+      },
+      {
+        "role": "assistant",
+        "content": "![Generated Image](/api/images/cmoj0v6wm000r05l8hwwvazga) **Prompt:** A flat tire lies on a cracked asphalt road in downtown Cleveland, surrounded by deep potholes under a gray sky. **Model:** seedream-v4 · 512x512 _Synthesized from prior turn: A flat tire lies on a cracked asphalt road in downtown Cleveland, surrounded by deep potholes under a gray sky._"
+      },
+      {
+        "role": "user",
+        "content": "try again and switch it up make it more informational and mention the info u know about nicks tire and auto"
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "uses-business-context",
+      "description": "The new prompt/plan references specific known facts about Nick's Tire & Auto (services, location, brand voice) rather than a generic tire image.",
+      "weight": 4
+    },
+    {
+      "id": "informational-not-decorative",
+      "description": "The image is framed to inform (service, offer, location cue) as the repair asked — not just prettier.",
+      "weight": 3
+    },
+    {
+      "id": "not-a-repeat",
+      "description": "Does not re-serve the rejected composition with cosmetic changes.",
+      "weight": 2
+    }
+  ],
+  "expectedBehavior": "A prompt built from Nick's Tire specifics — e.g. the Euclid Ave shop, a named service and the brand voice — clearly informational, and visibly different from the rejected scene.",
+  "tags": [
+    "repair-mined",
+    "instruction_miss",
+    "shop",
+    "content"
+  ]
+}

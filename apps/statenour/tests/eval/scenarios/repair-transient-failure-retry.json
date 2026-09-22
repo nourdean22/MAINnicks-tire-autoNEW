@@ -1,0 +1,41 @@
+{
+  "id": "repair-transient-failure-retry",
+  "name": "Repair · image generation rate-limited → 'Try again'",
+  "description": "Mined from a real operator repair. Image generation failed with a provider rate-limit and Nick suggested waiting; the operator says 'Try again'. Tests transient-failure handling: retry (or an alternative provider) with bounded effort, and an honest status if it fails again — not the same error message. Provenance: repair-under-research-um9v2uvr.",
+  "category": "multi-turn",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "now generate the picture"
+      },
+      {
+        "role": "assistant",
+        "content": "_Generating image…_ ⚠️ Image generation failed — Venice may be rate-limited. Try again in 30 seconds. (`Venice image generation failed (400): {\"details\":{\"_errors\":[],\"prompt\":{\"_error`)"
+      },
+      {
+        "role": "user",
+        "content": "Try again"
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "actually-retries",
+      "description": "Retries the generation (or an alternative provider) this turn rather than repeating the earlier failure text.",
+      "weight": 4
+    },
+    {
+      "id": "bounded-honest-status",
+      "description": "If it fails again, says so with the specific reason and a bounded next step — no infinite 'try in 30 seconds'.",
+      "weight": 2
+    }
+  ],
+  "expectedBehavior": "A second attempt, and either an image or a specific, bounded failure status.",
+  "tags": [
+    "repair-mined",
+    "no_tool",
+    "transient-failure",
+    "content"
+  ]
+}

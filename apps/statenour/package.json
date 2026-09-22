@@ -48,6 +48,7 @@
     "harvest:evals": "tsx scripts/harvest-eval-corpus.ts",
     "harvest:persona": "tsx scripts/harvest-persona-traces.ts",
     "harvest:repairs": "tsx scripts/harvest-repair-signals.ts",
+    "eval:draft-repairs": "tsx scripts/draft-repair-scenarios.ts",
     "backfill:persona": "tsx scripts/backfill-persona-judgments.ts",
     "snapshot:mcp-surface": "cross-env UPDATE_MCP_SURFACE=1 vitest run tests/security/mcp-surface.test.ts",
     "snapshot:tool-schemas": "cross-env UPDATE_TOOL_SCHEMAS=1 vitest run tests/ai/tool-schemas.snapshot.test.ts",
