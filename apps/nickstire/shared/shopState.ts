@@ -114,7 +114,7 @@ function fmt(minutes: number): string {
  * Minute-accurate rather than second-accurate on purpose: the shop's hours are
  * configured to the minute, so seconds would be false precision.
  */
-export function nextOpenAt(
+function nextOpenAt(
   now: Date,
   timezone: string,
   hours: Record<string, string>,

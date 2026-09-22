@@ -21,10 +21,18 @@
  * close-of-business is the shop's own bound; the inbound script states no time,
  * but the shop can only act while open, so closing time is the last moment it
  * can honour the promise that day. That is a property of the hours.
+ *
+ * EVERY ASSERTION GOES THROUGH `nextCloseAt`, the only exported entry point.
+ * `nextOpenAt` is now an internal helper: it has no production caller since the
+ * voiceAgent sites moved here, so exporting it would leave its sole importer
+ * its own test — the knip orphan shape that hid `ingestFinishedMp4` for weeks.
+ * Its coverage was folded into this file rather than baselined past the gate:
+ * the day-walking and DST cases below exercise exactly the same code, through
+ * the function that actually ships.
  */
 import { describe, expect, it } from "vitest";
 
-import { nextCloseAt, nextOpenAt } from "./shopState";
+import { nextCloseAt } from "./shopState";
 
 const TZ = "America/New_York";
 /** Mon-Fri 08:00-18:00, Sat 09:00-16:00, Sunday closed (no key). */
@@ -62,11 +70,12 @@ describe("the regression itself: a promise made while OPEN is not instantly over
     const now = new Date("2026-09-22T14:00:00Z"); // Tue 10:00 ET
     expect(local(now)).toBe("Tue 10:00");
 
-    // The defect, pinned so it cannot come back: nextOpenAt returns NOW here.
-    expect(nextOpenAt(now, TZ, HOURS)?.getTime()).toBe(now.getTime());
-
     const due = nextCloseAt(now, TZ, HOURS);
     expect(local(due)).toBe("Tue 18:00");
+    // THE REGRESSION IN ONE LINE. The old implementation used nextOpenAt, which
+    // returns `now` during open hours — so this equality held, and the promise
+    // was overdue a second after it was made.
+    expect(due!.getTime()).not.toBe(now.getTime());
     expect(due!.getTime()).toBeGreaterThan(now.getTime());
   });
 
@@ -93,8 +102,11 @@ describe("closed hours roll to the close of the next day the shop can act", () =
 
   it("an after-close Tuesday call rolls to WEDNESDAY close, not Wednesday open", () => {
     const now = new Date("2026-09-23T01:00:00Z"); // Tue 21:00 ET
-    expect(local(nextOpenAt(now, TZ, HOURS))).toBe("Wed 08:00");
-    expect(local(nextCloseAt(now, TZ, HOURS))).toBe("Wed 18:00");
+    const due = nextCloseAt(now, TZ, HOURS)!;
+    expect(local(due)).toBe("Wed 18:00");
+    // Explicitly not 08:00: the deadline is the close of the day the shop can
+    // next act, not the moment it becomes able to.
+    expect(local(due)).not.toBe("Wed 08:00");
   });
 
   it("Sunday is closed, so a Sunday call is due at MONDAY close", () => {
@@ -102,9 +114,14 @@ describe("closed hours roll to the close of the next day the shop can act", () =
     expect(local(nextCloseAt(now, TZ, HOURS))).toBe("Mon 18:00");
   });
 
+  it("SKIPS a day with no hours — Sunday evening lands on Monday, not Sunday", () => {
+    const now = new Date("2026-09-20T22:00:00Z"); // Sun 18:00 ET
+    expect(local(nextCloseAt(now, TZ, HOURS))).toBe("Mon 18:00");
+  });
+
   it("Saturday keeps its OWN shorter hours — 16:00, not the weekday 18:00", () => {
     // The bug this catches is reading a single hardcoded close time instead of
-    // the close of the day that nextOpenAt actually landed on.
+    // the close of the day the schedule walk actually landed on.
     const now = new Date("2026-09-19T15:00:00Z"); // Sat 11:00 ET
     expect(local(now)).toBe("Sat 11:00");
     expect(local(nextCloseAt(now, TZ, HOURS))).toBe("Sat 16:00");
@@ -116,12 +133,34 @@ describe("closed hours roll to the close of the next day the shop can act", () =
   });
 });
 
+describe("DST — the deadline is a LOCAL closing time on both sides of the change", () => {
+  // These cover the shiftLocalMinutes correction. Adding raw milliseconds across
+  // a clock change lands an hour off, which would move every deadline in the
+  // week after a DST boundary.
+  it("lands on 18:00 local across the US fall-back boundary", () => {
+    // US DST ends Sun 2026-11-01. Sat 2026-10-31 18:00 ET is after Saturday's
+    // 16:00 close, so the walk crosses the change to Monday 2026-11-02 EST.
+    const now = new Date("2026-10-31T22:00:00Z"); // 18:00 EDT Sat
+    const due = nextCloseAt(now, TZ, HOURS)!;
+    expect(local(due)).toContain("Mon");
+    expect(local(due)).toContain("18:00");
+  });
+
+  it("lands on 18:00 local across the US spring-forward boundary", () => {
+    // US DST begins Sun 2026-03-08. Sat 2026-03-07 18:00 EST → Monday EDT.
+    const now = new Date("2026-03-07T23:00:00Z"); // 18:00 EST Sat
+    const due = nextCloseAt(now, TZ, HOURS)!;
+    expect(local(due)).toContain("Mon");
+    expect(local(due)).toContain("18:00");
+  });
+});
+
 describe("it refuses rather than inventing", () => {
   it("no hours at all yields null, not a fabricated deadline", () => {
     expect(nextCloseAt(new Date("2026-09-22T14:00:00Z"), TZ, {})).toBeNull();
   });
 
-  it("an unparseable range yields null", () => {
+  it("only unparseable hours yields null, not a silent default", () => {
     expect(nextCloseAt(new Date("2026-09-22T14:00:00Z"), TZ, { tuesday: "whenever" })).toBeNull();
   });
 });
@@ -153,10 +192,13 @@ describe("POSITIVE CONTROL", () => {
     expect(a.getTime()).not.toBe(b.getTime());
   });
 
-  it("is genuinely DIFFERENT from nextOpenAt while the shop is open", () => {
-    // The regression in one line: if these two ever agree during open hours,
-    // the deadline is the instant of the promise again.
-    const now = new Date("2026-09-22T14:00:00Z");
-    expect(nextCloseAt(now, TZ, HOURS)!.getTime()).not.toBe(nextOpenAt(now, TZ, HOURS)!.getTime());
+  it("while OPEN, the deadline is never the promise instant", () => {
+    // The regression as a property rather than by naming the old function: if
+    // the deadline ever equals `now` again, every promise made during business
+    // hours is overdue immediately.
+    for (const iso of ["2026-09-22T14:00:00Z", "2026-09-19T15:00:00Z"]) {
+      const now = new Date(iso);
+      expect(nextCloseAt(now, TZ, HOURS)!.getTime(), iso).not.toBe(now.getTime());
+    }
   });
 });
