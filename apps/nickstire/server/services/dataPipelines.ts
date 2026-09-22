@@ -399,6 +399,7 @@ export async function crossReconcileInvoices(): Promise<{ recordsProcessed: numb
           type: "insight",
           content: `Invoice reconciliation: ${today[1].count} invoices today, $${today[1].total.toFixed(0)} total ($${today[1].paid.toFixed(0)} paid, $${today[1].pending.toFixed(0)} pending). ${anomalies.length} anomalies.`,
           source: "invoice_reconciliation",
+          identity: "invoice_reconciliation_today",
           confidence: 0.9,
         });
       }
@@ -738,6 +739,7 @@ export async function processRevenueAnalytics(): Promise<{ recordsProcessed: num
       type: "insight",
       content: `Revenue analytics: This week $${weekRevenue.toFixed(0)} (${tw.jobs} jobs) vs last week $${lastWeekRevenue.toFixed(0)} (${weekDelta}% change). Month: $${monthRevenue.toFixed(0)} (${tm.jobs} jobs). Avg ticket: $${avgTicketVal.toFixed(0)}. Top services: ${top.slice(0, 3).map((s: RawRow3) => `${(String(s.serviceDescription || "Other")).slice(0, 30)} (${s.cnt})`).join(", ")}.`,
       source: "revenue_analytics",
+      identity: "revenue_analytics_weekly",
       confidence: 0.95,
     });
 

@@ -7,7 +7,7 @@ import { createLogger } from "../../lib/logger";
 
 const log = createLogger("cron:segmentation");
 
-export async function processCustomerSegmentation(): Promise<{ recordsProcessed: number }> {
+export async function processCustomerSegmentation(): Promise<{ recordsProcessed: number; details?: string }> {
   // wave-182 (architecture decision #2 — single segment owner):
   // `customers.segment` is now written EXCLUSIVELY by enrichCustomerData()
   // (dataPipelines.ts, step 6), which runs inside the canonical enrichment
@@ -19,5 +19,5 @@ export async function processCustomerSegmentation(): Promise<{ recordsProcessed:
   // so the scheduler/job-registry wiring is undisturbed. Fully reversible —
   // restore the four UPDATE statements from git history to re-enable.
   log.info("Customer segmentation skipped — owned by enrichCustomerData() pipeline (step 6)");
-  return { recordsProcessed: 0 };
+  return { recordsProcessed: 0, details: "no-op since wave-182: segments are written by enrichCustomerData() (dataPipelines step 6)" };
 }

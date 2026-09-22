@@ -123,17 +123,25 @@ async function main(): Promise<void> {
       select: { id: true, role: true, content: true, tokenUsage: true, createdAt: true },
     });
     const assistants = msgs.filter((m) => m.role === "assistant");
+    // trace id first; then the warning's own text preview (the original text
+    // after the banner, when the preview reaches it); then the closest bannered
+    // turn AT OR BEFORE the warning — never a later exchange, which would hand
+    // the human classification the wrong incident (review on #2523).
+    const norm = (t: string) => originalOf(t).replace(/\s+/g, " ").trim();
     const byTraceMatch = assistants.find((m) => (m.tokenUsage as { traceId?: string } | null)?.traceId === traceId);
-    const bannered = assistants.filter((m) => m.content.includes("[VERIFIER")).at(-1);
-    const turn = byTraceMatch ?? bannered ?? assistants.at(-1);
+    const preview = norm(String(md.textPreview ?? "")).slice(0, 80);
+    const byPreview = preview.length >= 20 ? assistants.find((m) => norm(m.content).startsWith(preview)) : undefined;
+    const beforeWarn = assistants.filter((m) => m.content.includes("[VERIFIER") && m.createdAt <= first.createdAt).at(-1);
+    const turn = byTraceMatch ?? byPreview ?? beforeWarn;
+    const matchedBy = byTraceMatch ? "traceId" : byPreview ? "textPreview" : beforeWarn ? "nearest banner before the warning" : "none";
     if (!turn) {
-      console.log("  (no assistant turn found within the window)\n");
+      console.log("  (no assistant turn matched: no trace id, no preview match, no bannered turn before the warning)\n");
       continue;
     }
     const ask = msgs.filter((m) => m.role === "user" && m.createdAt < turn.createdAt).at(-1);
     const tu = (turn.tokenUsage ?? {}) as Record<string, unknown>;
     const shadow = tu.claimDoneShadow as Record<string, unknown> | undefined;
-    console.log(`  turn ${turn.id.slice(0, 8)} @ ${turn.createdAt.toISOString()} · matched by ${byTraceMatch ? "traceId" : bannered ? "banner" : "time"} · bannered: ${turn.content.includes("[VERIFIER")}`);
+    console.log(`  turn ${turn.id.slice(0, 8)} @ ${turn.createdAt.toISOString()} · matched by ${matchedBy} · bannered: ${turn.content.includes("[VERIFIER")}`);
     console.log(`  tokenUsage keys: ${Object.keys(tu).join(",") || "(none)"}`);
     console.log(`  receipt shadow: ${shadow ? JSON.stringify(shadow).slice(0, 220) : "(none persisted)"}`);
     console.log(`  ask: ${ask ? `"${one(ask.content, 170)}"` : "(none in window)"}`);
