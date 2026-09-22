@@ -4,6 +4,77 @@
 missed-revenue queue was measuring Nick's own greeting. Full audit, graded evidence and the
 pre-"Reset to Shop" checklist: `docs/VOICE-RECOVERY-AUDIT-2026-09-18.md`.)
 
+## 2026-09-22 (night) · Counter-conversation capture — shipped, scheduled, NOT yet installed
+
+**What exists now.** Four layers, all merged or in flight: `conversation_episodes` (migration
+0128, **APPLIED IN PROD** — 90 applied / 42 skipped / 132 total; the one error is the
+pre-existing `vehicles` FK, a table retired by 0117) · `camera-bridge/vision/officeaudio.py`
+(capture + room calibration) · `server/services/conversationFacts.ts` (extraction, every fact
+carries its transcript segment) · `POST /api/conversation-episodes` (ingest, fail-closed auth on
+`CAMERA_INGEST_KEY`, which ALREADY EXISTED on Railway). #2530 merged `0092eddc7`; #2547 carries
+the rest.
+
+**⚠⚠⚠ THE EXTRACTOR SHIPPED DEAD AND 12 GREEN TESTS SAID NOTHING.** Found only by applying the
+migration and POSTing one marked selftest episode to the LIVE route: it returned
+`transcriptStatus: FAILED, engine: null` — row written, auth fine, coverage 0.929, extraction
+never ran. Two defects: `outputSchema` was passed as a BARE JSON Schema where the gateway type is
+`{ name, schema, strict? }` (an `as never` cast silenced the exact compile error), and the result
+was read from `res.text`, a field `InvokeResult` has never had (content is at
+`choices[0].message.content`). **Both survived because the hand-written `vi.mock` returned
+`{ text, model }` — a shape that does not exist.** A mock encodes the author's misunderstanding
+and then certifies it. The mock is now built by a helper TYPED as `InvokeResult`. Receipt:
+reverting the content path now reddens 6 tests; before the mock was fixed it reddened NONE.
+
+**⚠⚠ WINDOWS SHIPS NO SYSTEM TZ DATABASE.** stdlib `zoneinfo` raises `ZoneInfoNotFoundError` for
+`America/New_York` without the `tzdata` package — measured here on Python 3.14.4. The shop PC is
+Windows too, so this would have been its first crash. `tzdata` is now pinned in
+`vision/requirements.txt` as load-bearing, and `officeloop._zone()` raises a named
+`TimezoneDataMissing` carrying the pip command. **There is deliberately NO fallback to a fixed UTC
+offset** — it works most of the year and then shifts the shop's hours by an hour on each DST day.
+
+**Hours: 08:00–18:00 America/New_York, EVERY day incl. weekends** (operator, 2026-09-22). They
+live in ONE place, `vision/officeloop.py`, not in a Task Scheduler trigger — the task runs at boot
+and the loop decides its own hours. The 18:00 edge is TRIMMED, not overrun (a 300 s capture
+starting 17:58 is shortened to land on 18:00; the office is private after hours).
+
+**★ The gate that makes the bad mic survivable.** MEASURED: a 90 s office sample transcribed for
+**37.4 s of 90 s**, and the unrecovered 50 s carried NORMAL conversational energy (−16.7..−31.2 dB
+vs −21..−36 dB for the windows that DID transcribe) — so **level does not predict
+intelligibility** and the first `LOW_LEVEL_DB = -45` heuristic was REFUTED by its own first
+measurement (now −55, cap only). The real signal is transcript COVERAGE: below 65% the extractor
+emits NO facts. A summariser fed a gappy transcript produces fluent, confident, WRONG summaries.
+Expect mostly refusals at first — that is the gate working. Coverage is the UNION of transcript
+spans, never their sum (whisper overlaps; summing three test spans gives 67% and turns the gate
+OFF where the union gives 44% and turns it ON).
+
+**Empty-vs-error, three layers deep.** `transcriptError` (producer) outranks everything in the
+route's status ladder, because a dead transcriber yields an empty segment list that would
+otherwise store as SKIPPED — a durable claim the counter was silent all day. `ok:false`
+(extractor) is FAILED, not "no facts". Empty-with-no-error is a real finding.
+
+**⚠⚠ A CONFLICTING PR DISPATCHES NO CI AT ALL.** #2530 sat 18 min with ZERO check runs while
+sibling branches dispatched normally. Cause: `mergeable=CONFLICTING` / `mergeStateStatus=DIRTY`,
+so GitHub cannot build `refs/pull/N/merge` and no `pull_request` workflow fires. It reads exactly
+like an Actions outage. Close/reopen does NOT help; merging main does. **Check `gh pr view N
+--json mergeable,mergeStateStatus` before diagnosing a missing-CI symptom.**
+
+**⚠ `.completion/evidence.json` conflicts on every concurrent session.** Resolve by taking MAIN's
+copy as the base (it carries sibling demotions) and laying your two derived entries over it —
+demoting main's current ones to `-superseded-<tag>` keys. Never overwrite: an entry is another
+session's receipt.
+
+**BLOCKED ON ONE HUMAN ACTION — the shop PC.** Nothing is installed there yet; no session on that
+machine was reachable. One command, as Administrator:
+`camera-bridge/scripts/install-office-capture.ps1 -SourceUrl "rtsp://…@192.168.0.167/live0"
+-IngestKey "<from: railway run -s MAINnicks-tire-auto -- printenv CAMERA_INGEST_KEY>"`. It
+preflights admin / python / tzdata / ffmpeg / the whisper binary / a live ffprobe for real audio
+BEFORE changing anything, and puts the key and RTSP URL in the MACHINE environment rather than the
+task's arguments (`schtasks /query /v` exposes arguments to any user; the RTSP credentials are in
+that URL). Full runbook: `camera-bridge/docs/SHOP-PC-RUNBOOK.md` §8.
+
+**Left deliberately in prod:** one row, `episodeId = selftest-2026-09-22-conversation-ingest`,
+`source = selftest` — the end-to-end evidence. Remove it when a delete path exists.
+
 ## 2026-09-22 · Execution state (persisted for the next instance)
 
 **Mission.** Continuous completion on apps/nickstire: finish active work, wire BUILT-UNWIRED, fix
