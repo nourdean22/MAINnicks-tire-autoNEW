@@ -169,6 +169,53 @@ describe("conversation ingest — a failed extraction is not an empty one", () =
   });
 });
 
+describe("conversation ingest — a DEAD TRANSCRIBER is not a quiet room", () => {
+  it("stores FAILED when the producer reports transcriptError, even with zero segments", async () => {
+    // The shape that would otherwise record hours of "nobody spoke": the shop PC's whisper
+    // binary goes missing, every post carries an empty segment list, and every row reads
+    // SKIPPED -- a durable, confident claim that the counter was silent all day.
+    const h = mount();
+    const { res, out } = fakeRes();
+    await h({ headers: { "x-sync-key": KEY },
+              body: body({ segments: [], transcriptError: "transcriber exited 2" }) }, res);
+    const b = out.body as { transcriptStatus: string; transcriptError: string };
+    expect(b.transcriptStatus).toBe("FAILED");
+    expect(b.transcriptError).toContain("exited 2");
+  });
+
+  it("an empty transcript with NO error stays SKIPPED — the genuinely quiet case", async () => {
+    // The positive control that keeps the rule above from becoming "empty is always failure".
+    // A quiet morning is a real finding and must not be reported as a broken producer.
+    const h = mount();
+    const { res, out } = fakeRes();
+    await h({ headers: { "x-sync-key": KEY }, body: body({ segments: [] }) }, res);
+    expect((out.body as { transcriptStatus: string }).transcriptStatus).toBe("SKIPPED");
+  });
+
+  it("transcriptError OUTRANKS a successful extraction over partial text", async () => {
+    // A transcriber can fail partway and still return some text. The run is still broken, and
+    // facts drawn from a truncated transcript are the fluent-and-wrong shape.
+    const h = mount();
+    const { res, out } = fakeRes();
+    await h({ headers: { "x-sync-key": KEY },
+              body: body({ transcriptError: "timed out after 600s" }) }, res);
+    expect((out.body as { transcriptStatus: string }).transcriptStatus).toBe("FAILED");
+  });
+
+  it("keeps BOTH reasons when transcription AND extraction failed", async () => {
+    // Debugging a FAILED row means knowing whether audio never became text, or text never
+    // became facts. Keeping one reason throws away half the answer.
+    extract.mockResolvedValue({ ...okExtract, ok: false, error: "upstream 503" });
+    const h = mount();
+    const { res, out } = fakeRes();
+    await h({ headers: { "x-sync-key": KEY },
+              body: body({ transcriptError: "transcriber exited 2" }) }, res);
+    const b = out.body as { transcriptError: string };
+    expect(b.transcriptError).toContain("exited 2");
+    expect(b.transcriptError).toContain("503");
+  });
+});
+
 describe("conversation ingest — the reply reports what was DROPPED", () => {
   it("returns dropped reasons alongside the stored count", async () => {
     // A caller seeing only factsStored: 0 cannot tell a quiet conversation from a

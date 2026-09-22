@@ -59,6 +59,14 @@ const episodeSchema = z.object({
   sttEngine: z.string().max(32).nullish(),
   sttLatencyMs: z.number().int().nullish(),
   /**
+   * Set by the producer when TRANSCRIPTION ITSELF failed: the model crashed, the audio was
+   * unreadable, the binary was missing. Without it a producer whose transcriber died posts
+   * `segments: []`, which is indistinguishable from a genuinely silent room and would store as
+   * SKIPPED, a confident claim that nobody said anything. That is the empty-vs-error confusion
+   * this whole feature is arranged against, one layer further out than the extractor can see.
+   */
+  transcriptError: z.string().max(500).nullish(),
+  /**
    * REQUIRED, both of them. Coverage is the only signal that caught the real failure, and a
    * post that omits it would silently get the ungated path — which is exactly how a gappy
    * transcript would produce confident facts.
@@ -93,9 +101,17 @@ export function registerConversationEpisodeRoute(app: Express): void {
       totalSeconds: e.totalSeconds,
     });
 
-    // `ok:false` means extraction could not run. That is FAILED, not "no facts found" — the
-    // distinction the whole service is arranged around, preserved at the boundary.
-    const status = !extracted.ok ? "FAILED" : segments.length ? "DONE" : "SKIPPED";
+    // FAILED covers BOTH failures that can reach here, and it outranks everything: the
+    // producer could not transcribe, or extraction could not run. Neither is "no facts found".
+    // transcriptError is checked FIRST because a dead transcriber yields an empty segment list,
+    // which would otherwise score as SKIPPED.
+    const status = e.transcriptError ? "FAILED"
+      : !extracted.ok ? "FAILED"
+      : segments.length ? "DONE"
+      : "SKIPPED";
+    // Keep BOTH reasons when both exist: a reader debugging a FAILED row needs to know whether
+    // the audio never became text, or the text never became facts.
+    const storedError = [e.transcriptError, extracted.error].filter(Boolean).join(" | ") || null;
 
     try {
       const { getDb } = await import("../db");
@@ -111,7 +127,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
           ${e.episodeId}, ${e.source},
           ${e.startedAt ? new Date(typeof e.startedAt === "number" ? e.startedAt * 1000 : e.startedAt) : null},
           ${e.durationSeconds ?? null}, ${e.audioRef ?? null}, ${e.meanVolumeDb ?? null},
-          ${status}, ${extracted.error}, ${JSON.stringify(segments)},
+          ${status}, ${storedError}, ${JSON.stringify(segments)},
           ${e.sttEngine ?? null}, ${e.sttLatencyMs ?? null},
           ${JSON.stringify(extracted.facts)}, ${extracted.summary}
         )
@@ -139,6 +155,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
     return res.json({
       episodeId: e.episodeId,
       transcriptStatus: status,
+      transcriptError: storedError,
       factsStored: extracted.facts.length,
       dropped: extracted.dropped,
       coverage: e.totalSeconds > 0 ? Number((e.coveredSeconds / e.totalSeconds).toFixed(3)) : null,

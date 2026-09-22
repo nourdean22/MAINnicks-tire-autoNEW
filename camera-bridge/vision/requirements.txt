@@ -14,6 +14,13 @@ openvino>=2026.3                  # 2026.3.1 verified; exposes CPU, GPU and NPU 
 windows-capture>=2.0 ; sys_platform == "win32"   # 2.0.1 verified · MIT · requires_python >=3.9
 mss>=9.0 ; sys_platform == "win32"
 
+# Timezone database. Windows ships NO system tz database, so stdlib `zoneinfo` raises
+# ZoneInfoNotFoundError for "America/New_York" without this -- measured on this box,
+# Python 3.14.4, 2026-09-22. officeloop.py schedules the office capture on the shop's
+# LOCAL hours and must survive both DST transitions, so a fixed UTC offset is not an
+# option and this package is load-bearing, not a convenience.
+tzdata>=2026.1 ; sys_platform == "win32"
+
 # Tests
 pytest>=8.0
 
