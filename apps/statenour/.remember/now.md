@@ -119,12 +119,33 @@ impossible on old data; `toolReceipts` is the replay foundation going forward.
   (curl exit 7) is a runner flake, rerun once · a `gh pr view --json mergeable` can read `UNKNOWN`
   for a few seconds after a push — re-read, do not hold on it.
 
-**NEXT HIGHEST-LEVERAGE TASK** · land this branch (#2484) + #2485 + #2487 (hold rule: never merge
-while a sibling's node/e2e is in flight) → persist the shadow's `skipped_no_claim` as an attempt so
-skip-vs-dead is direct (H2) → automatic FALSE_COMPLETION repair needs the BUFFERED-path measurement
-first (streaming cannot block; `onFinish` runs after the last token) → a tool-capable eval runner
-so the 8 `requires-tools` scenarios become scorable (the production chat pipeline with the catalog
-attached; none exists) → the tool-search A/B against `searchTools`/`invokeTool` on that runner.
+**UPDATE (2026-09-22 · part 3 · landed + proven)**
+- **#2487 `e1b699945` · #2485 `686e0b888` · #2484 `d680320a0` MERGED 16:57Z** (in that order, each
+  only after every sibling's node/e2e had finished; branches deleted). **Production = `d680320`,
+  startedAt 17:04:24Z** — DEPLOY-VERIFIED (SHA equality + fresh uptime; Railway REMOVED the two
+  intermediate builds; the sibling camera commit `6eabe456d` was SKIPPED by its path filter).
+- **Read-only prod probe (~16:50Z):** the calibration reader's JSON-key filter selected 2 rows over
+  14d and a JS check over all 256 assistant turns found 2 — `path`+`not: DbNull` semantics CONFIRMED
+  on production, not assumed from the precedent. Since the #2483 join deployed: 1 assistant turn,
+  0 tool-bearing turns → the join is DEPLOYED, not PRODUCTION-PROVEN; the first tool turn is the
+  proof (`trpc.system.claimDoneCalibration` → `afterJoin`).
+- **Post-merge Codex reviews on #2478/#2480 (posted after those PRs merged) → three follow-ups:**
+  #2496 harvester fixtures quoted the operator's PRIVATE messages verbatim (relationship, health,
+  family narration) — every such line is now a synthetic stand-in that keeps the trigger phrase /
+  person / tense, and `--out` on the harvester AND the drafter is bounded to `eval-datasets/`
+  (`resolveOutPath`, refusals tested); #2498 a behavioural canary for `seed-policies.ts --dry-run`
+  (measured first: exit 0, 101 inputs, no DB) with a control that must still trip on `server-only`;
+  #2495 the `warm-routes` port-holder canary polls (≤15s) instead of `sleep 2` — it flaked on two of
+  my PRs in one day (curl exit 7). ⚠ a `;`-chained `git commit` that never ran let the chain post
+  "fixed in <merge sha>" — corrections posted; gate every step on the commit, not the push.
+- W16 RECONCILIATION entry + AGENTS.md stamp: this docs PR.
+
+**NEXT HIGHEST-LEVERAGE TASK** · merge #2495 / #2496 / #2498 / this docs PR under the hold rule →
+persist the shadow's `skipped_no_claim` as an attempt so skip-vs-dead is direct (H2) → give the
+Done-shadow the same outbox-replay dedupe #2485 gave novelty → automatic FALSE_COMPLETION repair
+needs the BUFFERED-path measurement first (streaming cannot block; `onFinish` runs after the last
+token) → a tool-capable eval runner so the 8 `requires-tools` scenarios become scorable (the
+production chat pipeline with the catalog attached; none exists) → the tool-search A/B on it.
 
 ## Session E (tool routing) — 5 MERGED + DEPLOYED, 1 in CI
 
