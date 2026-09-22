@@ -464,6 +464,26 @@ export async function persistAssistantMessage(a: {
               claimDoneShadow: claimDoneShadow
                 ? (JSON.parse(JSON.stringify(claimDoneShadow)) as Prisma.InputJsonValue)
                 : undefined,
+              // 2026-09-22 · PER-TURN RECEIPTS, PERSISTED. `parts` was designed
+              // never to carry tool evidence (message-parts.ts), so no
+              // historical turn could be replayed for its verification state —
+              // measured: 2,692 assistant messages with parts since April, zero
+              // tool parts. This is the minimal projection replay needs: what
+              // ran, whether it mutates, how far it was verified. No args, no
+              // results — both can carry secrets or PII. Read by
+              // lib/observability/claim-done-calibration.ts the same day.
+              toolReceipts: receipts.length > 0
+                ? (receipts.map((r) => ({
+                    toolName: r.toolName,
+                    category: r.category,
+                    sideEffecting: r.sideEffecting,
+                    verifiable: r.verifiable,
+                    status: r.status,
+                    verificationState: r.verificationState,
+                    entityType: r.entityType ?? null,
+                    entityId: r.entityId ?? null,
+                  })) as Prisma.InputJsonValue)
+                : undefined,
               factCheck: factClaims.length > 0
                 ? {
                     total: factClaims.length,
