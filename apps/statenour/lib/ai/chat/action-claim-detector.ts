@@ -53,14 +53,35 @@ export const EDGE_CLAIM_PATTERNS: ClaimEntry[] = [
   // Bare-verb send claim ("Sent it.") — accept either real send tool.
   // `sendEmail` dropped (never a chat tool); the model routes a send
   // via composeEmail or sendTelegram.
+  // 2026-09-22 banner audit · the bare form fired on recaps of OTHER people's
+  // sends ("Mo sent a text", "the coach texted me", "3 DMs sent") and of the
+  // user's own ("Sent $1,000 to Hamda"): 10 of 10 production banners from this
+  // pattern in 60 days were false, and a false banner is not cosmetic — L3
+  // replaces the turn in history. A send is NICK'S claim in two shapes only:
+  // first person with at most two adverbs between ("I sent it", "I've already
+  // texted him"), or the terse confirmation that OPENS the sentence ("Sent
+  // it.", "Done — sent the email", "Texted her.") and runs into a message-like
+  // object or a terminator — so "Sent $400" (money) and "text sent," (passive)
+  // stay quiet. `^` is the sentence start: detectActionClaims runs per sentence.
   {
-    regex: /\b(?:sent|emailed|messaged|texted)\b(?!\s+(?:via|on|by|to\s+(?:say|let)))/i,
+    regex:
+      /(?:\bI(?:'ve)?\s+(?:(?:just|already|also|now|then|finally|actually)\s+){0,2}|^\W*(?:(?:done|ok|okay|alright|yes|yep|just|and|so|also)\W+)?)(?:sent|emailed|messaged|texted)\b(?!\s+(?:via|on|by|to\s+(?:say|let)))(?=\s*(?:[.!?,;:)\]—–-]|$)|\s+(?:it|that|them|him|her|you|the|a|an|your|my|this|those|these|over|off|out|both|everything|already|now|to)\b)/i,
     verb: "sent (bare)",
     mapsToTool: "composeEmail|sendTelegram",
   },
-  // Pinned — bare past-participle, no object required. Real tool is
-  // `pinMemory` (there is no `updatePinnedMemory`).
-  { regex: /\bpinned\b/i, verb: "pinned", mapsToTool: "pinMemory" },
+  // Pinned — past participle used as a VERB, no object required. Real tool is
+  // `pinMemory` (there is no `updatePinnedMemory`). 2026-09-22 banner audit:
+  // the bare word fired 15 times in 60 days, 12 of them on adjectives, labels
+  // and metaphors ("pinned tab", "pinned posts", "[Pinned by Nour]", "pinned
+  // between"). The claim shapes — "Pinned.", "All entries pinned.", "the
+  // pattern is pinned so it surfaces", "Pinned that to the brain" — are
+  // followed by a terminator, a pronoun or a verb continuation, never a noun.
+  {
+    regex:
+      /(?<!\bnot\s)\bpinned\b(?=\s*(?:[.!?,;:)\]—–-]|$)|\s+(?:it|that|this|them|those|these|to|so|in|into|for|and|now|as|under)\b)/i,
+    verb: "pinned",
+    mapsToTool: "pinMemory",
+  },
 ];
 
 /**
@@ -81,9 +102,13 @@ const HEDGE_PATTERNS: RegExp[] = [
   /\bI\s+(?:can'?t|cannot|don'?t\s+have)\b/i,
   /\bplease\s+(?:add|create|send|schedule)\b/i,
   // "I'll" (contraction, no space) OR "I will" (with space)
-  /\bi(?:'ll|\s+will)\s+(?:add|create|send|schedule|set)/i,
+  // 2026-09-22 · up to three words between the auxiliary and the verb, so
+  // "I'll log it and set the reminder" reads as the promise it is.
+  /\bi(?:'ll|\s+will)\s+(?:\w+\s+){0,3}(?:add|create|send|schedule|set)\b/i,
   /\bi\s+(?:recommend|suggest)\b/i,
-  /\bdo\s+you\s+want\s+me\s+to\b/i,
+  // 2026-09-22 · the bare offer too ("Want me to set a 6pm reminder?") — three
+  // of three `set reminder` banners in 60 days were offers or promises.
+  /\bwant\s+me\s+to\b/i,
   // Second-person reflection — Nick describing what the USER did
   // ("you texted Dania", "you finished the task", "you've added X").
   // That is not a self-claim, so it must not count as fabrication.

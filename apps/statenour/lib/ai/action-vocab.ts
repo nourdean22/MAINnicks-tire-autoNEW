@@ -124,6 +124,13 @@ export const ACTION_VOCAB: readonly ActionConcept[] = [
   // tool is the CANONICAL tool to force on the input side. Output-
   // side acceptance of alternative send tools (sendEmail, sendTelegram)
   // is handled by an edge claim pattern in action-claim-detector.ts.
+  // claimNeedsFirstPerson (2026-09-22 banner audit): "sent a text" is how the
+  // model recaps OTHER people's sends ("Mo sent a text", "he sent the text",
+  // "3 collab DMs sent") — every production banner this concept raised in 60
+  // days was one of those. Only "I sent / I've texted …" is Nick's own claim;
+  // the terse sentence-opening confirmation ("Sent the email.", "Done — sent
+  // the reply") is covered by the `sent (bare)` edge pattern in
+  // action-claim-detector.ts, so nothing real is lost.
   {
     intent: "send-comm",
     tool: "composeEmail",
@@ -131,6 +138,7 @@ export const ACTION_VOCAB: readonly ActionConcept[] = [
     past: ["sent", "emailed", "messaged", "texted"],
     objects: ["email", "message", "note", "reply", "follow up", "follow-up", "text"],
     gap: 30,
+    claimNeedsFirstPerson: true,
   },
   // ── Schedule ──
   {
@@ -150,7 +158,12 @@ export const ACTION_VOCAB: readonly ActionConcept[] = [
     intent: "memory-write",
     tool: "pinMemory",
     imperative: ["save", "remember", "note", "capture"],
-    past: ["saved", "remembered", "noted", "captured", "pinned"],
+    // "pinned" left this list 2026-09-22: "pinned memory" / "pinned notes" is
+    // the ADJECTIVE ("the origin story from pinned memory"), and with `memory`
+    // and `note` as objects it read as a claim on every such phrase. The verb
+    // use ("Pinned that to the brain", "All entries pinned.") is owned by the
+    // `pinned` edge pattern in action-claim-detector.ts, same tool.
+    past: ["saved", "remembered", "noted", "captured"],
     objects: ["memory", "note", "brain", "that", "this"],
     gap: 30,
   },
