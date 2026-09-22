@@ -165,8 +165,11 @@ describe("the defect this replaces", () => {
 
 describe("transferArtifactWorthPersisting · a verdict only for a call that ATTEMPTED a transfer", () => {
   it("the 20-of-31 case: a transcript-only artifact on a call that never tried to hand off → NOT persisted", () => {
-    const read = readTransferArtifact({ transcript: "AI: hi, how can I help" });
-    expect(read.artifactPresent).toBe(true); // this is what the old test keyed on
+    // Vapi sends a transfers array - EMPTY - on a call that never transferred,
+    // and an empty array still counts as artifactPresent. That is exactly what
+    // the 20 rows carried, and exactly what the old test keyed on.
+    const read = readTransferArtifact(artifact([]));
+    expect(read.artifactPresent).toBe(true);
     expect(read.verdict).toBe("unknown");
     expect(transferArtifactWorthPersisting(read, "customer-ended-call")).toBe(false);
   });
