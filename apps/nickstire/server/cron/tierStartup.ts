@@ -32,13 +32,16 @@
  *
  * WHAT IS NOT DONE, AND WHY (review P2). `resetSkipCount` stamps the tier at
  * the START of a pass, so a deploy that kills a pass mid-way leaves a fresh
- * stamp and the next boot skips the jobs that never ran. Measured before
- * deciding: an hourly pass is 3–4 s end to end (six passes on 2026-09-22), so
- * at thirteen deploys a day the mid-pass window is about 0.06 % of the day.
- * Reclaiming a killed pass would re-run the jobs that DID complete, and the
- * briefings tier's send jobs are deliberately not once-per-shop-day (see
- * nick-morning-brief) — a reclaim there is a duplicate brief. The stamp stays
- * at pass start; the residual is stated here rather than hidden.
+ * stamp and the next boot skips the jobs that never ran. Measured: the first
+ * live boot pass after this shipped ran the full 35-job hourly tier in 89 s
+ * ("Tier hourly: 29 completed, 6 skipped (88936ms)", 2026-09-22 21:00Z) — an
+ * earlier figure of 3–4 s in the review thread summed four named jobs, not the
+ * tier, and is wrong. At thirteen deploys a day the mid-pass window is about
+ * 1.3 % of the day. Reclaiming a killed pass would re-run the jobs that DID
+ * complete, and the briefings tier's send jobs are deliberately not
+ * once-per-shop-day (see nick-morning-brief) — a reclaim there is a duplicate
+ * brief. The stamp stays at pass start; the residual is stated here rather
+ * than hidden, and the 89 s is the number to revisit it against.
  *
  * Ages are computed in SQL (TIMESTAMPDIFF against NOW()), because a
  * driver-parsed TIMESTAMP on this stack arrives shifted by the server's zone,

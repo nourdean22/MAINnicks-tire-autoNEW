@@ -2866,8 +2866,8 @@ export function startTieredScheduler(): void {
     // booting together exactly one fires (review P1) — the age is computed in
     // SQL because a driver-parsed TIMESTAMP arrives zone-shifted, and no
     // claim means no fire. tierStartup.ts carries the full rationale and the
-    // P2 residual: a pass killed mid-way keeps its start stamp (measured
-    // 3–4 s per hourly pass, so about 0.06 % of a thirteen-deploy day).
+    // P2 residual: a pass killed mid-way keeps its start stamp (the full
+    // hourly pass measured 89 s live, so about 1.3 % of a thirteen-deploy day).
     const stagger = idx * 30_000;
 
     setTimeout(async () => {
