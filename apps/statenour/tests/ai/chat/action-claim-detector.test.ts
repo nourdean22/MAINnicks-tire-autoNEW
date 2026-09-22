@@ -399,3 +399,26 @@ describe("detectActionClaims - the confirmations Nick actually uses still fire (
     expect(r.claims.some((c) => c.expectedTool.includes(tool)), text).toBe(true);
   });
 });
+
+describe("detectActionClaims - 'pinned to <surface>' is a UI noun, not a memory write (2026-09-22, sibling audit)", () => {
+  // The sibling session classified all 41 chat_claim_warn rows of 60 days: 8
+  // genuine, 32 false positives, 1 ambiguous. Today's detector flags the 8 real
+  // ones plus ONE residual - "Story highlights pinned to the shop" (trace
+  // t_msuu1c9w, 2026-08-15): "pinned" followed by an external surface is
+  // describing a profile or a feed, not claiming a pinMemory call.
+  const quiet = (text: string) =>
+    expect(detectActionClaims(text).claims.map((c) => c.verb), text).toEqual([]);
+
+  it.each([
+    "Story highlights pinned to the shop - service walkthroughs, customer wins, Cleveland moments.",
+    "Keep the address pinned to the profile page so first-time visitors see it.",
+    "That note is pinned to the top of the channel.",
+    "Pinned to the board for the whole crew to see.",
+  ])("quiet: %s", quiet);
+
+  it("positive controls: a pin INTO the brain still fires", () => {
+    for (const text of ["Pinned that to the brain so I'll remember next time.", "Pinned. I'll surface it every time something lands hard."]) {
+      expect(detectActionClaims(text).claims.some((c) => c.expectedTool.includes("pinMemory")), text).toBe(true);
+    }
+  });
+});

@@ -76,9 +76,13 @@ export const EDGE_CLAIM_PATTERNS: ClaimEntry[] = [
   // between"). The claim shapes — "Pinned.", "All entries pinned.", "the
   // pattern is pinned so it surfaces", "Pinned that to the brain" — are
   // followed by a terminator, a pronoun or a verb continuation, never a noun.
+  // 2026-09-22 (sibling audit of all 41 banners, trace t_msuu1c9w): "pinned
+  // to the shop / profile / page / top / board / channel / feed / story /
+  // highlights / tab / post" describes a UI surface, not a pinMemory call —
+  // the one residual the audit left. A pin INTO the brain still fires.
   {
     regex:
-      /(?<!\bnot\s)\bpinned\b(?=\s*(?:[.!?,;:)\]—–-]|$)|\s+(?:it|that|this|them|those|these|to|so|in|into|for|and|now|as|under)\b)/i,
+      /(?<!\bnot\s)\bpinned\b(?!\s+to\s+(?:the\s+|your\s+|my\s+|a\s+)?(?:shop|profile|page|top|board|channel|feed|story|stories|highlights?|tab|posts?|comments?|tweet)\b)(?=\s*(?:[.!?,;:)\]—–-]|$)|\s+(?:it|that|this|them|those|these|to|so|in|into|for|and|now|as|under)\b)/i,
     verb: "pinned",
     mapsToTool: "pinMemory",
   },
