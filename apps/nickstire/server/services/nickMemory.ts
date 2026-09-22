@@ -58,11 +58,48 @@ export function applyReinforcement(
 /**
  * Store a new memory or reinforce an existing one
  */
+/**
+ * A rolling row's refresh: the latest text, the writer's confidence as
+ * asserted (no reinforcement bump — a report re-issued is not truer),
+ * lastReinforced now so decay measures from this reading, uses counting
+ * the re-issues. Exported for the test; consumed by remember().
+ */
+export function refreshRollingRow(
+  data: Record<string, unknown> & { uses?: number; confidence?: number; originalConfidence?: number; content?: string; identity?: string; lastReinforced?: string },
+  params: { content: string; confidence?: number; identity?: string },
+  nowIso: string = new Date().toISOString(),
+): typeof data {
+  data.content = params.content;
+  data.identity = params.identity;
+  data.uses = (data.uses || 1) + 1;
+  data.confidence = params.confidence ?? data.confidence ?? 0.7;
+  data.originalConfidence = data.confidence;
+  data.lastReinforced = nowIso;
+  return data;
+}
+
 export async function remember(params: {
   type: "insight" | "lesson" | "preference" | "pattern" | "customer";
   content: string;
   source: string;
   confidence?: number;
+  /**
+   * ONE ROLLING ROW PER REPORT KIND (2026-09-22). A memory is keyed on a
+   * hash of its CONTENT, so a report whose numbers change every run
+   * ("Revenue analytics: This week $4,210…", "Day score: B (74/100)…",
+   * "Bay utilization at 14:00: 60%…") inserted a new row per run and never
+   * matched its predecessor. The eviction simulation
+   * (docs/operations/NICK-MEMORY-EVICTION-SIMULATION-2026-09-22.md) measured
+   * the result: 6.9 rows a day, 90% of them these summaries entering at
+   * 0.9–0.95, and at the 500-row cap every insert evicted a four-month-old
+   * copy of the same report — while the operator's own statements at 0.7
+   * were the first to go. With `identity` the key is a hash of the identity
+   * instead, so a re-issued report REFRESHES its one row: the latest text
+   * replaces the last, lastReinforced moves, uses counts the re-issues, and
+   * the confidence stays what the writer asserted — a report being issued
+   * again is not evidence that it is truer (no +0.05 on refresh).
+   */
+  identity?: string;
 }): Promise<void> {
   const d = await db();
   if (!d) return;
@@ -73,16 +110,23 @@ export async function remember(params: {
 
     // Use shopSettings as a simple KV store for Nick's memories
     // Key format: nick_memory_{type}_{hash}
-    const hash = simpleHash(params.content);
+    const hash = simpleHash(params.identity ?? params.content);
     const key = `nick_memory_${params.type}_${hash}`;
 
     const existing = await d.select().from(shopSettings).where(eq(shopSettings.key, key)).limit(1);
 
     if (existing.length > 0) {
-      // Reinforce — increment uses and update confidence
-      const data = applyReinforcement(JSON.parse(existing[0].value));
-      await d.update(shopSettings).set({ value: JSON.stringify(data) }).where(eq(shopSettings.key, key));
-      log.info(`Memory reinforced: ${params.type} — ${params.content.slice(0, 50)}...`);
+      if (params.identity) {
+        // Refresh the rolling row: newest reading, same confidence, no bump.
+        const data = refreshRollingRow(JSON.parse(existing[0].value), params);
+        await d.update(shopSettings).set({ value: JSON.stringify(data) }).where(eq(shopSettings.key, key));
+        log.info(`Memory refreshed: ${params.type} — ${params.identity}`);
+      } else {
+        // Reinforce — increment uses and update confidence
+        const data = applyReinforcement(JSON.parse(existing[0].value));
+        await d.update(shopSettings).set({ value: JSON.stringify(data) }).where(eq(shopSettings.key, key));
+        log.info(`Memory reinforced: ${params.type} — ${params.content.slice(0, 50)}...`);
+      }
     } else {
       // Cap total memories at 500 — prune lowest confidence if at limit
       const [countResult] = await d.select({ count: sql<number>`count(*)` }).from(shopSettings)
@@ -110,6 +154,7 @@ export async function remember(params: {
           type: params.type,
           content: params.content,
           source: params.source,
+          ...(params.identity ? { identity: params.identity } : {}),
           confidence: params.confidence || 0.7,
           uses: 1,
           createdAt: new Date().toISOString(),
@@ -343,7 +388,7 @@ export async function learnFromEvent(eventType: string, data: Record<string, any
       case "lead_captured": {
         await remember({
           type: "pattern",
-          content: `LEAD: New lead from "${data.source || "website"}" on ${day} ${dateStr} ${period}. Urgency: ${data.urgencyScore || "?"}/5. Name: ${data.name || "unknown"}. Phone: ${data.phone || "N/A"}. Context: Lead source and timing patterns help optimize marketing spend. High-urgency leads (4-5) need immediate callback. Track which sources produce the most conversions.`,
+          content: `LEAD: New lead from "${data.source || "website"}" on ${day} ${dateStr} ${period}. Urgency: ${data.urgencyScore || "?"}/5. Name: ${data.name || "unknown"}. Context: Lead source and timing patterns help optimize marketing spend. High-urgency leads (4-5) need immediate callback. Track which sources produce the most conversions.`,
           source: "event_bus",
           confidence: 0.7,
         });
@@ -397,7 +442,7 @@ export async function learnFromEvent(eventType: string, data: Record<string, any
       case "callback_requested": {
         await remember({
           type: "pattern",
-          content: `CALLBACK: ${data.name || "Customer"} requested callback on ${day} ${dateStr} ${period}. Phone: ${data.phone || "N/A"}. Reason: ${data.reason || "general inquiry"}. Context: Callback timing reveals when customers need us most. ${period} callbacks on ${day}s inform staffing. Fast callback response = higher conversion. Track time-to-callback.`,
+          content: `CALLBACK: ${data.name || "Customer"} requested callback on ${day} ${dateStr} ${period}. Reason: ${data.reason || "general inquiry"}. Context: Callback timing reveals when customers need us most. ${period} callbacks on ${day}s inform staffing. Fast callback response = higher conversion. Track time-to-callback.`,
           source: "event_bus",
           confidence: 0.8,
         });
