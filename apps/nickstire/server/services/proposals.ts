@@ -25,6 +25,7 @@ import { z } from "zod";
 
 import { adminProposals, type AdminProposal } from "../../drizzle/schema";
 import { affectedRowCount } from "../lib/db-affected";
+import { isDuplicateKeyError } from "../lib/dbErrors";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
 import { recordActivity, type LedgerActor } from "./activityLedger";
@@ -231,13 +232,12 @@ export async function createProposal(input: CreateProposalInput): Promise<Create
     });
   } catch (err) {
     // Unique-index race on the idempotency key: the row exists — that IS the
-    // at-most-once guarantee working. Re-select and report the dedup. Check
-    // the driver code AND the message text (repo idiom — message wording is
-    // driver-version-dependent).
+    // at-most-once guarantee working. Re-select and report the dedup. One
+    // definition of "duplicate key" (lib/dbErrors): the copy that lived here
+    // tested /duplicate/i, which also matched "Duplicate column name" and any
+    // other error that happened to contain the word.
     const message = err instanceof Error ? err.message : String(err);
-    const isDup =
-      (err as { code?: string })?.code === "ER_DUP_ENTRY" || /duplicate/i.test(message);
-    if (input.idempotencyKey && isDup) {
+    if (input.idempotencyKey && isDuplicateKeyError(err)) {
       const [existing] = await d
         .select({ id: adminProposals.id })
         .from(adminProposals)
