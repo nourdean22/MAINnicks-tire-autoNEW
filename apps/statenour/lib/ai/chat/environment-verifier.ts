@@ -2,7 +2,25 @@ import { prisma } from "@/lib/prisma";
 
 export interface EnvironmentVerificationResult {
   toolName: string;
-  verified: boolean;
+  /**
+   * Tri-state, and the middle value is the point.
+   *   true  · an independent read-back CONFIRMED the intended world state
+   *   false · a read-back ran and CONTRADICTED it (the row is not there)
+   *   null  · nothing checked — no verifier exists for this tool, or the
+   *           verification query itself failed
+   *
+   * 2026-09-22 · this used to be a boolean, and the else-branch returned
+   * `verified: true, reason: "No specific environment verifier exists"`. A
+   * verifier that answers "true" when it did not look is fail-OPEN: it is the
+   * "provider success is not truth" defect, inside the component whose whole
+   * job is to be stricter than the provider. It was harmless only because
+   * nothing downstream consumed the true branch — the moment `verified` is
+   * fed into the action receipt (persist-assistant-message.ts) every
+   * unverified tool would have been promoted to VERIFIED. Hence the third
+   * value: a receipt may promote on `true` only, and the consumer that
+   * hedges the reply may act on `false` only.
+   */
+  verified: boolean | null;
   reason?: string;
 }
 
@@ -76,11 +94,21 @@ export async function verifyEnvironmentState(
             }
          }
       } else {
-        // Unverified tools are assumed true if they returned ok=true
-        results.push({ toolName: call.name, verified: true, reason: "No specific environment verifier exists" });
+        // Not checked. NOT "assumed true": a tool with no verifier stays at
+        // whatever the provider said, which the receipt records as
+        // PROVIDER_ACCEPTED. Absence of a check is not a passed check.
+        results.push({ toolName: call.name, verified: null, reason: "No specific environment verifier exists" });
       }
     } catch (e) {
-      results.push({ toolName: call.name, verified: false, reason: "Verification query failed" });
+      // A verification QUERY failing is not a contradiction of world state —
+      // it is the instrument failing. Reporting it as `false` would push a
+      // fabrication banner into the persisted reply on a DB hiccup, accusing
+      // Nick of a claim the evidence never contradicted. So: null, and say so
+      // loudly, because a silent null is how a broken verifier reads as "no
+      // verifier" forever (the instrument-failures doctrine).
+      const message = e instanceof Error ? e.message : String(e);
+      console.warn(`[instrument.environment_verifier] query failed for ${call.name}: ${message}`);
+      results.push({ toolName: call.name, verified: null, reason: `Verification query failed: ${message}` });
     }
   }
 

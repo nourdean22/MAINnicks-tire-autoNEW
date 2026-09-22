@@ -18,6 +18,7 @@ import type { Prisma } from "@prisma/client";
 import { withErrorCapture } from "@/lib/errors/record-error";
 import { buildVerifierBanner, isVerifierRewritten, buildKnownTruthBanner } from "@/lib/ai/chat/fabrication-rewriter";
 import { canClaimDone, summarizeClaimDoneShadow, toReceipt } from "@/lib/ai/receipts/action-receipt";
+import { verifyEnvironmentState, type EnvironmentVerificationResult } from "@/lib/ai/chat/environment-verifier";
 import { buildMessageParts } from "./message-parts";
 import type { CapturedToolCall } from "./tool-telemetry-walk";
 import type { ProviderName } from "@/lib/ai/provider";
@@ -55,7 +56,18 @@ interface ChatLogger {
 export type PersistOutcome =
   | { kind: "duplicate-skip" }
   | { kind: "empty-skip" }
-  | { kind: "done"; createdAssistantId: string | null; cleanedText: string };
+  | {
+      kind: "done";
+      createdAssistantId: string | null;
+      cleanedText: string;
+      /**
+       * Read-back results computed before the receipts were built, handed on
+       * so post-persist verification does not repeat the lookups. Optional:
+       * absent means "run the verifier yourself", which is what every caller
+       * did before 2026-09-22.
+       */
+      envVerification?: EnvironmentVerificationResult[];
+    };
 
 export async function persistAssistantMessage(a: {
   hasContent: boolean;
@@ -117,6 +129,9 @@ export async function persistAssistantMessage(a: {
   // block far below can patch the persisted assistant row. Stays
   // null when the response had no content (block never assigns it).
   let createdAssistantId: string | null = null;
+  // Hoisted: assigned inside the block below, returned at the tail, so the
+  // post-persist stage can reuse the read-backs instead of re-running them.
+  let envVerification: EnvironmentVerificationResult[] = [];
   if (hasContent || hasToolCalls) {
     // v7.6 · Apr 29 · ChatMessage Batch A · C2 — assistant message persistence.
     const finishedAt = Date.now();
@@ -183,7 +198,30 @@ export async function persistAssistantMessage(a: {
     }
 
     // Honesty Enforcement: SDK Tool Call Check
-    const receipts = capturedToolCalls.map((t) => toReceipt({ toolName: t.name, ok: t.ok }));
+    //
+    // 2026-09-22 · THE READ-BACK NOW REACHES THE RECEIPT. Measured on the one
+    // consequential chat turn since 2026-09-15: `createTask` succeeded, the
+    // environment verifier (post-persist) read the task back from the
+    // database — and the receipt built HERE still said PROVIDER_ACCEPTED,
+    // because it was built from `{ toolName, ok }` alone, before the verifier
+    // ran, with no channel between them. Two verification systems, neither
+    // informing the other; strict-Done would have blocked a claim that had in
+    // fact been independently confirmed. The verifier is ≤3 indexed task
+    // lookups and only acts on tools it knows, so it runs here first and its
+    // `true` — and ONLY its `true`; `null` means not checked — becomes the
+    // receipt's independent verification signal. The result is handed on to
+    // post-persist so the lookups are not repeated.
+    envVerification = capturedToolCalls.length > 0 ? await verifyEnvironmentState(capturedToolCalls) : [];
+    const verifiedByReadBack = new Set(
+      envVerification.filter((v) => v.verified === true).map((v) => v.toolName),
+    );
+    const receipts = capturedToolCalls.map((t) =>
+      toReceipt({
+        toolName: t.name,
+        ok: t.ok,
+        ...(verifiedByReadBack.has(t.name) ? { verified: true } : {}),
+      }),
+    );
     const verdict = canClaimDone(receipts);
     // 2026-09-15 · strict-completion SHADOW (measure before promotion). The
     // legacy verdict above still decides the banner; this records, per turn,
@@ -614,5 +652,5 @@ export async function persistAssistantMessage(a: {
 
   // Nothing downstream should run when the response was empty.
   if (!hasContent && !hasToolCalls) return { kind: "empty-skip" };
-  return { kind: "done", createdAssistantId, cleanedText };
+  return { kind: "done", createdAssistantId, cleanedText, envVerification };
 }
