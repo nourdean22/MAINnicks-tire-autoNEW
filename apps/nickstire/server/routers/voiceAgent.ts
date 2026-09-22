@@ -319,6 +319,46 @@ export const voiceAgentRouter = router({
             });
           }
         }
+        // THE SHOP NOW OWES THIS CALL — record it as a promise, not just a
+        // request. The prompt only permits `escalate` when the shop is CLOSED
+        // and the caller wanted a human, and the scripted close offers a
+        // callback. The caller accepted and gave their number, so this is a
+        // commitment, which is the fact `callbackRequests` does not carry: that
+        // table is an intake queue with no due time and no kept/missed outcome.
+        //
+        // Due time is DERIVED from the shop's own configured hours (next open),
+        // never invented. If hours cannot yield an instant, no promise is
+        // created and the callbackRequests row above remains the untimed
+        // obligation — see createVoicePromise for why a fabricated deadline is
+        // worse than none.
+        //
+        // Best-effort: a ledger failure must never break the capture that
+        // already succeeded.
+        if (input.callId) {
+          try {
+            const { createVoicePromise } = await import("../services/promiseLedger");
+            const { nextCloseAt } = await import("@shared/shopState");
+            const { BUSINESS } = await import("@shared/business");
+            const res = await createVoicePromise({
+              promiseType: "callback",
+              promisedAction: `Call ${input.name} back about: ${input.reason}`.slice(0, 500),
+              vapiCallId: input.callId,
+              dueAt: nextCloseAt(new Date(), BUSINESS.timezone, BUSINESS.hours.structured),
+              customerName: input.name,
+              customerPhone: input.phone.replace(/\D/g, ""),
+              owner: "Front Counter",
+            });
+            if ("skipped" in res) {
+              log.info("escalate → no promise recorded", { reason: res.reason, callId: input.callId });
+            }
+          } catch (err) {
+            log.warn("escalate → promise ledger write failed", {
+              callId: input.callId,
+              err: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+
         // Ping Nick via Telegram immediately on high-urgency
         if (input.urgency === "high") {
           try {
@@ -1000,6 +1040,40 @@ export const voiceAgentRouter = router({
           status: "new",
         });
         log.info("Voice agent scheduleCallback captured", { name: input.name });
+
+        // Same commitment as `escalate`, different entry point: the assistant
+        // OFFERED the callback and the caller accepted by giving their details.
+        // The shop owes the call, so it belongs in the ledger with a due time —
+        // `callbackRequests` records only that it was asked for.
+        //
+        // `preferredTime` is deliberately NOT used as the deadline: it is the
+        // CUSTOMER's preference, not the shop's commitment, and promising
+        // against it would score the shop on a time it never agreed to.
+        if (input.callId) {
+          try {
+            const { createVoicePromise } = await import("../services/promiseLedger");
+            const { nextCloseAt } = await import("@shared/shopState");
+            const { BUSINESS } = await import("@shared/business");
+            const res = await createVoicePromise({
+              promiseType: "callback",
+              promisedAction: `Call ${input.name} back${input.reason ? ` about: ${input.reason}` : ""}${input.preferredTime ? ` (caller prefers ${input.preferredTime})` : ""}`.slice(0, 500),
+              vapiCallId: input.callId,
+              dueAt: nextCloseAt(new Date(), BUSINESS.timezone, BUSINESS.hours.structured),
+              customerName: input.name,
+              customerPhone: input.phone.replace(/\D/g, ""),
+              owner: "Front Counter",
+            });
+            if ("skipped" in res) {
+              log.info("scheduleCallback → no promise recorded", { reason: res.reason, callId: input.callId });
+            }
+          } catch (err) {
+            log.warn("scheduleCallback → promise ledger write failed", {
+              callId: input.callId,
+              err: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+
         // PII projection — AI constructs the spoken confirmation from its own context.
         return { success: true };
       } catch (err) {

@@ -1879,26 +1879,35 @@
       "evidence": {
         "codeCommit": "2026-09-18. Every transfer metric in this app was built on endedReason === assistant-forwarded-call, which VAPI documents as confirming the transfer was INITIATED, not completed; its troubleshooting page sends you to the provider call log for the outcome. A call that rang an empty counter and dropped to voicemail therefore scored identically to one answered on the second ring. server/lib/transferArtifact.ts reads call.artifact.transfers[].status into a three-state verdict (connected / not_connected / unknown); the webhook persists it per call; recoveryQueue prefers it over the endedReason heuristic; getRecoveryQueueSummary exposes a connect rate that travels with its coverage. 2026-09-18 SECOND PASS: the two instruments are now COMPARED. Keeping them separate was recorded as deliberate - 'if they disagree, that disagreement is the finding' - and that was right and incomplete, because they were computed in two DIFFERENT tRPC procedures and nothing could ever compute the disagreement. lib/transferInstrumentAgreement.ts reports corroborated / contradicted / insufficient, and on a contradiction states WHAT IT IMPLIES: a provider-connected transfer whose caller redials is a COUNTER problem, so warm transfer, dialTimeout and sipVerb would all be spent on the wrong half of the call. Both instruments are computed from the rows getRecoveryQueueSummary already selects - no second query.",
         "tests": "22 tests in server/lib/transferArtifact.test.ts plus 3 in recoveryQueue.test.ts. The load-bearing ones: a forwarded call with NO transfers array resolves to unknown and explicitly not connected; unknowns lower coverage rather than inflating the rate (8 connected + 2 not + 90 unknown = 80% at 10% coverage); all-unknown yields a null rate and 0% coverage, not 0% and not 100%; and a POSITIVE CONTROL proving the rate moves with the data, without which a function hardcoded to return null would pass every other assertion. PLUS 16 tests in server/__tests__/transferInstrumentAgreement.test.ts, most of them on the CONTRADICTION cases, which are the point. Both directions are covered: provider-healthy with callers redialling (counter problem) and provider-failing with callers quiet (they gave up, invisible to a redial-only instrument, and explicitly must not read as success). An UNRELIABLE redial rate is treated as absent even when a number exists. Threshold boundaries are pinned exactly at PROVIDER_HEALTHY_PCT and REDIAL_TROUBLE_PCT. Positive control asserts all three verdicts are reachable. MUTATION VERIFIED: disabling the contradiction branch turned 4 of 16 red. 84 server test files, 756 passed, exit 0.",
-        "liveRuns": "NONE. No production call has been observed carrying artifact.transfers.",
-        "deploymentId": null
+        "liveRuns": "VERIFIED 2026-09-22, read-only against production TiDB. Vapi has run the receptionist (150fe622) on warm-transfer-experimental since 2026-09-21T13:57:43Z (script dry run: CURRENT plan equals TARGET). Since then: 31 calls, 11 assistant-forwarded-call, and every one of those 11 carries metadata.transferArtifact with artifactPresent true, transfers[0] = {mode: warm-transfer-experimental, destination: the counter number, rawStatus: connected, status: connected}, verdict connected. 109 calls all-time carry a transferArtifact. So the account DOES receive per-attempt transfer statuses and the webhook DOES persist them - the empirical question this capability was written around is answered yes. NOT observed: a not_connected verdict from the artifact. The one customer-ended-call-before-warm-transfer since the change (78 s) carries transfers: [] and verdict unknown; it still counts as a failure through isTransferFailure on the ended reason, which is the fallback path the kernel already takes. The fallbackPlan itself has not been seen firing: 0 callback_requests rows since the change. The reading was taken while deployment 5ac7ee28 (commit 0da19803f) was live; the rows were written by the same webhook code under the two prior deployments of main.",
+        "deploymentId": "5ac7ee28-2060-4ac2-b45e-91188fa06aa4"
       },
       "blockers": [
         {
-          "severity": "P1",
-          "description": "VAPI gates blind-transfer outcome detection PER ORGANISATION. Whether this account receives a populated artifact.transfers is empirical and unsettled. If it does not, coverage reads 0%, the connect rate stays null, and the panel says the provider reported nothing - which is correct behaviour, not a bug. artifactPresent is persisted per call specifically so this is answered from production data rather than from documentation."
+          "severity": "P3",
+          "description": "RESOLVED 2026-09-22, downgraded from P1 rather than deleted. The question was whether this Vapi organisation receives a populated artifact.transfers at all. It does: every assistant-forwarded-call since 2026-09-21 (11 of 11) carries a per-attempt status, and 109 calls all-time carry the persisted artifact. What remains unobserved is a NOT-connected status from the provider, because no forward has rung out since the experimental plan went live. Original text: VAPI gates blind-transfer outcome detection PER ORGANISATION. Whether this account receives a populated artifact.transfers is empirical and unsettled. If it does not, coverage reads 0%, the connect rate stays null, and the panel says the provider reported nothing - which is correct behaviour, not a bug. artifactPresent is persisted per call specifically so this is answered from production data rather than from documentation."
         },
         {
           "severity": "P2",
           "description": "The redial-based instrument (transferOutcomeEvidence.ts) is deliberately NOT merged into this one. Two independent instruments on the same question is the design; if they disagree, that disagreement is the finding and should be investigated rather than averaged."
+        },
+        {
+          "severity": "P3",
+          "description": "Since the experimental plan went live, 20 of 31 calls carry verdict unknown with transfers: [] because the webhook writes the artifact whenever artifactPresent is true, even when no transfer was attempted - contradicting its own comment that a call which never attempted a transfer should not carry an unknown verdict. No reader treats unknown as failed (only not_connected counts, then the ended-reason predicate), so this is cosmetic today; it becomes a defect the day a reader counts artifacts as attempts. Tighten the write condition to transfers.length > 0, or record artifactPresent separately from a verdict."
+        },
+        {
+          "severity": "P2",
+          "description": "The fallbackPlan (assistant returns on no-answer and captures a callback) is DEPLOYED_NOT_OBSERVED: no call since 2026-09-21 has rung out at the counter, so the path that justified the experimental mode has never executed in production. The runbook's canary (call the line, let the destination ring out) remains the way to prove it; a not_connected artifact verdict or a callback_requests row created during a forwarded call would be the first evidence."
         }
       ],
       "deferredScope": [
         "sipVerb refer->dial and the warm-transfer-experimental canary are now DECIDABLE BY MEASUREMENT rather than taste, which is what the audit said they needed. Both are live VAPI config changes and remain operator-gated, but the agreement instrument now says whether they would help: if the verdict is contradicted with a counter-problem implication, they would not, and doing them anyway would be spending on the wrong half of the call."
       ],
-      "lastVerifiedAt": "2026-09-18",
+      "lastVerifiedAt": "2026-09-22",
       "codeState": "merged",
-      "operationalState": "unit_verified",
-      "exposure": "internal"
+      "operationalState": "live_verified",
+      "exposure": "internal",
+      "verificationExpiresAt": "2026-11-21"
     },
     {
       "capabilityId": "voice-tire-safety-claim-guard",
@@ -2055,6 +2064,42 @@
         "Calibrating the bands against confirmed/rejected outcomes. Blocked on data rather than effort: it needs a labelled sample from the decision log, which is young. Recorded so the uncalibrated state is a known gap rather than an unexamined one."
       ],
       "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "voice-promise-capture",
+      "name": "A shop commitment made on a call becomes a tracked promise; a customer request does not",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-22. The Promise Ledger was BUILT, WIRED to a router, an admin panel and the morning brief, and had NO voice writer: createPromise had exactly one caller chain (routers/promises.ts <- PromisesPanel.tsx). Promises existed only if the operator typed them, while the highest-volume source of shop commitments - Nick offering a callback on a live call - recorded nothing. createVoicePromise() closes it from the two scripted offer paths (escalate, scheduleCallback). Deliberately NOT wired to the callback_needed classifier outcome, which proves only that the CALLER wanted a callback, not that the shop promised one; those remain callbackRequests rows. nextOpenAt() derives due_at from BUSINESS.hours.structured - the same single source businessState reads - and returns null rather than guessing. SELF-INFLICTED RISK CAUGHT AND CLOSED IN THE SAME PASS: auto-creating promises at volume would have flooded a kept-rate whose numerator only an operator can produce, sweeping to missed after 48h and reporting broken promises that were never measurable. The rate now excludes source_kind = voice; the backlog is reported separately and returns NO rate field, so a caller cannot render one. MIGRATION 0125 APPLIED TO PRODUCTION 2026-09-22 and the duplicate-key rejection it introduces is now interpreted rather than thrown; see blockers[0].",
+        "tests": "13 tests in shared/nextOpenAt.test.ts and 7 in server/__tests__/createVoicePromise.test.ts. THREE MUTATIONS VERIFIED: removing the DST correction turns 2 red (the shop opens at 8:00 local whether or not the clocks moved; raw millisecond addition lands at 07:00); disabling the dedupe guard turns 2 red; disabling the no-due-time refusal turns 1 red. Positive controls assert nextOpenAt returns DIFFERENT instants for different inputs (a function hardcoded to `now` or to null would otherwise pass) and that duplicate vs first-delivery take genuinely different paths. 197 test files, 2,680 passed, exit 0. PLUS 6 tests in promiseSourceSplit.test.ts asserting the SQL split by inspecting the statements actually issued, with a positive control that the two queries are not the same statement. MUTATION VERIFIED: deleting the voice exclusion turns 2 red. PLUS 4 tests for the uq_promise_source race in createVoicePromise.test.ts (11 in the file). MUTATION VERIFIED: removing the duplicate-key interpretation turns exactly 2 red, and the two rethrow tests stay green, proving they are independent instruments rather than one assertion wearing two names. PLUS 13 tests in shared/nextCloseAt.test.ts for the review-caught deadline defect, with a positive control asserting every derived deadline is STRICTLY after now (a function returning now, or a constant, would pass the individual cases) and one asserting nextCloseAt and nextOpenAt genuinely differ during open hours - which is the regression in one line.",
+        "liveRuns": "NONE. No production call has created a voice-sourced promise. Unit tests exercise the function, not the production seam - the webhook path has not been observed firing it.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "CLOSED IN REVIEW 2026-09-22, recorded so it is not re-opened as unexamined. dueAt was nextOpenAt(), which returns NOW when the shop is already OPEN - so a callback promised at 10am Tuesday was due at 10am Tuesday and overdue one second later, and the sweep would escalate it then stamp it missed after 48h. Not a closed-hours-only path: escalate is exposed to the OUTBOUND follow-up assistant, whose script says we will have someone call you back today, and those calls are placed during business hours by design. Now nextCloseAt(): the close of the business day the shop can next act on. DERIVED not invented - the outbound script states today so close-of-business is the shop own stated bound, and the inbound script states no time but the shop can only act while open, so closing time is the last moment it can honour the promise that day. Refusing during open hours was rejected as worse: most calls arrive while open, so voice promises would have existed only for after-hours calls. 13 tests in shared/nextCloseAt.test.ts, including one that pins the defect itself (nextOpenAt returns now during open hours) and a positive control that every result is STRICTLY after now."
+        },
+        {
+          "severity": "P3",
+          "description": "RESOLVED 2026-09-22, downgraded from P2 rather than deleted so the history stays readable. Migration 0125 (uq_promise_source, renamed from a colliding 0103) is APPLIED and VERIFIED in production TiDB: Non_unique 0 on (source_kind, source_id, promise_type). The read-then-write race is now closed by the database rather than by hopeful ordering. APPLYING IT MOVED A FAILURE MODE INSTEAD OF DELETING ONE. createPromise rethrows anything that is not a missing-table error, so the same concurrency the index was added for would now throw ER_DUP_ENTRY into the VAPI webhook path. createVoicePromise interprets that one signal as {created:false, reason:duplicate} - which is what it is - re-reading through the same findExisting() helper the pre-check uses, and RETHROWS when no row is found, because a duplicate-key error with no matching row is a different constraint. SAFE TO APPLY AHEAD OF THE CODE, verified not assumed: the only writer in deployed main is routers/promises.ts, which passes sourceKind operator and sourceId null, and the admin client never sends sourceId at all (git grep on origin/main returns nothing). MySQL and TiDB UNIQUE indexes permit unlimited NULLs, so the index cannot reject any write the currently-deployed code can make. The table also held 0 rows at apply time."
+        },
+        {
+          "severity": "P2",
+          "description": "Only the two SCRIPTED offer paths create promises. A commitment Nick improvises outside escalate/scheduleCallback is still unrecorded. Detecting that from speech was deliberately not attempted: voiceClaimGuard is a PROHIBITION detector (unbacked_callback_promise), not a commitment detector, and its regex does not even match the prompt's own scripted callback line - verified by executing the regex against that exact sentence."
+        },
+        {
+          "severity": "P2",
+          "description": "Voice promises still cannot be KEPT automatically - the callback happens on the counter phone, which this system cannot observe. Mitigated rather than solved: voice promises are now EXCLUDED from the kept-rate (promiseLedgerStats) and reported by voicePromiseBacklog as a to-do list with no rate at all, so an unmeasurable numerator can no longer defame the shop in the morning brief. The obligations are still real and the OVERDUE count surfaces them; what is absent is proof of closure, and it is labelled as absent rather than scored as failure."
+        }
+      ],
+      "deferredScope": [
+        "Automatic keeping from outcome evidence (a verified outbound call or customer reply to the promised number). Not attempted here because an ATTEMPT is not an OUTCOME - marking a promise kept because a job dialled would be the action-attempt-as-success defect this repo already records - and the outbound-call evidence path needs its own verification pass."
+      ],
+      "lastVerifiedAt": "2026-09-22",
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"

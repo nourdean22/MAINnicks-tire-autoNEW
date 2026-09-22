@@ -641,6 +641,9 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         reasoningText,
         createdAssistantId,
         capturedToolCalls,
+        // Read-backs already ran at persist so they could promote receipts;
+        // hand them on rather than querying the same rows again.
+        envVerification: __persisted.envVerification,
         usage,
         convId,
         traceId,
