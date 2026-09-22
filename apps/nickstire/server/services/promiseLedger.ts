@@ -50,6 +50,23 @@ function isMissingTableError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   return /doesn'?t exist|ER_NO_SUCH_TABLE|1146/i.test(msg);
 }
+/**
+ * A UNIQUE-constraint rejection. Migration 0125 put uq_promise_source on
+ * (source_kind, source_id, promise_type), which means the DATABASE now refuses
+ * the duplicate that createVoicePromise's read-then-write could not catch
+ * between two concurrent webhook deliveries.
+ *
+ * That is the point of the index — but it relocates the failure from the data
+ * into control flow. Before 0125 a race produced two rows and no error; after
+ * it, one row and a thrown ER_DUP_ENTRY. The caller has to be taught that this
+ * particular throw is not a failed write, it is someone else's successful one.
+ */
+function isDuplicateKeyError(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  if (code === "ER_DUP_ENTRY") return true;
+  const msg = err instanceof Error ? err.message : String(err);
+  return /ER_DUP_ENTRY|Duplicate entry|\b1062\b/i.test(msg);
+}
 function warnMissingOnce(where: string): void {
   if (!tableMissingWarned) {
     tableMissingWarned = true;
@@ -286,7 +303,13 @@ export async function createVoicePromise(params: {
   const db = await getDb();
   if (!db) return { ok: false, error: "DB unavailable" };
 
-  try {
+  /**
+   * The dedupe read, used TWICE: once to skip the insert, and once to resolve a
+   * unique-key rejection into the row that beat us. One function rather than two
+   * copies of the query — a second copy is free to drift from the index it is
+   * supposed to mirror, and then the two disagree about what "duplicate" means.
+   */
+  const findExisting = async (): Promise<string | null> => {
     const existing = await db.execute(sql`
       SELECT id FROM customer_promises
       WHERE source_kind = 'voice'
@@ -295,9 +318,12 @@ export async function createVoicePromise(params: {
       LIMIT 1
     `);
     const found = rowsFromExecute(existing)[0] as { id?: unknown } | undefined;
-    if (found?.id) {
-      return { ok: true, id: String(found.id), created: false, reason: "duplicate" };
-    }
+    return found?.id ? String(found.id) : null;
+  };
+
+  try {
+    const existingId = await findExisting();
+    if (existingId) return { ok: true, id: existingId, created: false, reason: "duplicate" };
   } catch (err) {
     if (isMissingTableError(err)) {
       warnMissingOnce("create-voice");
@@ -306,19 +332,39 @@ export async function createVoicePromise(params: {
     throw err;
   }
 
-  const created = await createPromise({
-    promiseType: params.promiseType,
-    promisedAction: params.promisedAction,
-    dueAt: params.dueAt,
-    customerName: params.customerName ?? null,
-    customerPhone: params.customerPhone ?? null,
-    owner: params.owner ?? "Front Counter",
-    sourceKind: "voice",
-    sourceId: params.vapiCallId,
-    createdBy: "voice-agent",
-  });
-  if (!created.ok) return created;
-  return { ok: true, id: created.id, created: true };
+  try {
+    const created = await createPromise({
+      promiseType: params.promiseType,
+      promisedAction: params.promisedAction,
+      dueAt: params.dueAt,
+      customerName: params.customerName ?? null,
+      customerPhone: params.customerPhone ?? null,
+      owner: params.owner ?? "Front Counter",
+      sourceKind: "voice",
+      sourceId: params.vapiCallId,
+      createdBy: "voice-agent",
+    });
+    if (!created.ok) return created;
+    return { ok: true, id: created.id, created: true };
+  } catch (err) {
+    // The window the read-then-write cannot close: a concurrent delivery
+    // inserted between our SELECT and our INSERT, and uq_promise_source
+    // rejected ours. That is the index doing its job, so the honest result is
+    // the same one the pre-check would have returned a millisecond earlier.
+    if (!isDuplicateKeyError(err)) throw err;
+    const raced = await findExisting();
+    if (raced) {
+      log.info("voice promise deduped by unique index (concurrent delivery)", {
+        vapiCallId: params.vapiCallId,
+        promiseType: params.promiseType,
+      });
+      return { ok: true, id: raced, created: false, reason: "duplicate" };
+    }
+    // A duplicate-key error with no matching row is NOT our index — the id
+    // primary key, or a constraint added later. Rethrowing is correct: this
+    // catch exists to interpret one specific signal, not to swallow writes.
+    throw err;
+  }
 }
 
 export async function keepPromise(params: {

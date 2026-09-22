@@ -153,3 +153,108 @@ describe("it degrades rather than breaking the call", () => {
     expect((res as { error: string }).error).toContain("0102");
   });
 });
+
+/**
+ * The race the read-then-write CANNOT close, now that 0125 is live in production.
+ *
+ * Applying uq_promise_source did not delete a failure mode, it moved one. Before
+ * the index, two concurrent VAPI deliveries both read "absent" and both inserted:
+ * two rows, no error, silent denominator inflation. After the index, the second
+ * INSERT is rejected — so the same race that used to corrupt data now throws
+ * ER_DUP_ENTRY straight out into the webhook path unless the caller interprets it.
+ *
+ * It is not a failed write. It is someone else's successful one, which is exactly
+ * what the pre-check would have reported a millisecond earlier. These tests pin
+ * that interpretation, and pin its LIMITS: the catch reads one specific signal and
+ * must not become a place where writes quietly disappear.
+ */
+const dupErr = () =>
+  Object.assign(
+    new Error("Duplicate entry 'voice-call_race-callback' for key 'customer_promises.uq_promise_source'"),
+    { code: "ER_DUP_ENTRY" },
+  );
+
+describe("the uq_promise_source race (migration 0125)", () => {
+  it("a unique-key rejection resolves to the row that won, not an error", async () => {
+    const createVoicePromise = await subject();
+    execute
+      .mockResolvedValueOnce(asRows([]))        // dedupe SELECT → nothing yet
+      .mockRejectedValueOnce(dupErr())          // INSERT → the index rejects us
+      .mockResolvedValueOnce(asRows([{ id: "winner-uuid" }])); // re-read → they won
+
+    const res = await createVoicePromise({
+      promiseType: "callback",
+      promisedAction: "Call Jane back",
+      vapiCallId: "call_race",
+      dueAt: DUE,
+    });
+
+    expect(res).toEqual({ ok: true, id: "winner-uuid", created: false, reason: "duplicate" });
+    // Three statements prove the RACE path ran, not the pre-check shortcut:
+    // SELECT (empty) → INSERT (rejected) → SELECT (found).
+    expect(execute).toHaveBeenCalledTimes(3);
+  });
+
+  it("a duplicate-key error with NO matching row still THROWS — the catch is scoped", async () => {
+    // If this swallowed, the catch would become a silent write-loss for any
+    // future constraint on this table. A guard that turns unknown failures into
+    // success is worse than no guard.
+    const createVoicePromise = await subject();
+    execute
+      .mockResolvedValueOnce(asRows([]))   // dedupe SELECT
+      .mockRejectedValueOnce(dupErr())     // INSERT rejected
+      .mockResolvedValueOnce(asRows([]));  // re-read finds nothing → not our index
+
+    await expect(
+      createVoicePromise({
+        promiseType: "callback",
+        promisedAction: "Call Jane back",
+        vapiCallId: "call_other_constraint",
+        dueAt: DUE,
+      }),
+    ).rejects.toThrow(/Duplicate entry/);
+  });
+
+  it("a non-duplicate insert failure is NOT reinterpreted as a duplicate", async () => {
+    const createVoicePromise = await subject();
+    execute
+      .mockResolvedValueOnce(asRows([]))
+      .mockRejectedValueOnce(Object.assign(new Error("ER_LOCK_DEADLOCK: deadlock found"), { code: "ER_LOCK_DEADLOCK" }));
+
+    await expect(
+      createVoicePromise({
+        promiseType: "callback",
+        promisedAction: "Call Jane back",
+        vapiCallId: "call_deadlock",
+        dueAt: DUE,
+      }),
+    ).rejects.toThrow(/deadlock/);
+  });
+
+  it("POSITIVE CONTROL: the race path and the pre-check path are distinguishable", async () => {
+    // Both return created:false, so without counting statements a function that
+    // never reached the INSERT would satisfy the race test by accident.
+    const createVoicePromise = await subject();
+
+    execute.mockResolvedValueOnce(asRows([{ id: "pre" }]));
+    const precheck = await createVoicePromise({
+      promiseType: "callback", promisedAction: "a", vapiCallId: "c1", dueAt: DUE,
+    });
+    const precheckCalls = execute.mock.calls.length;
+
+    execute.mockReset();
+    execute
+      .mockResolvedValueOnce(asRows([]))
+      .mockRejectedValueOnce(dupErr())
+      .mockResolvedValueOnce(asRows([{ id: "raced" }]));
+    const raced = await createVoicePromise({
+      promiseType: "callback", promisedAction: "a", vapiCallId: "c2", dueAt: DUE,
+    });
+
+    expect((precheck as { created: boolean }).created).toBe(false);
+    expect((raced as { created: boolean }).created).toBe(false);
+    expect(precheckCalls).toBe(1);
+    expect(execute.mock.calls.length).toBe(3);
+    expect((precheck as { id: string }).id).not.toBe((raced as { id: string }).id);
+  });
+});
