@@ -257,6 +257,50 @@ export function toReceipt(r: RawActionResult, opts: { now?: string } = {}): Acti
   };
 }
 
+/**
+ * Pair captured tool calls with their read-back results BY POSITION and build
+ * receipts, so a verification applies to the invocation it verified — never to
+ * every invocation of the same tool name.
+ *
+ * 2026-09-22 · review on the verifier→receipt join caught the defect this
+ * replaces: a `Set` of verified tool NAMES. The prompt explicitly supports
+ * `createTask × 3` in one turn; if one read-back confirmed and another came
+ * back `false` or `null`, the name landed in the set and all three receipts
+ * were marked VERIFIED — corrupting the strict-Done shadow and, under a future
+ * strict gate, approving a mutation nothing confirmed.
+ *
+ * FAIL CLOSED on a broken contract. The verifier promises one entry per call
+ * in input order; if the lengths disagree, no receipt is promoted and the
+ * caller is told, because a mis-paired promotion is worse than none.
+ *
+ * Pure — exported so the mixed-outcome behaviour is a unit test, not a source
+ * pattern.
+ */
+export interface ReadBackEntry {
+  verified: boolean | null;
+}
+
+export function receiptsWithReadBack(
+  calls: ReadonlyArray<{ name: string; ok: boolean }>,
+  readBack: ReadonlyArray<ReadBackEntry>,
+  opts: { now?: string; onMismatch?: (calls: number, results: number) => void } = {},
+): ActionReceipt[] {
+  const paired = readBack.length === calls.length;
+  if (!paired && calls.length > 0) opts.onMismatch?.(calls.length, readBack.length);
+  return calls.map((c, i) =>
+    toReceipt(
+      {
+        toolName: c.name,
+        ok: c.ok,
+        // ONLY a positional `true` promotes; `false`, `null`, or an unpaired
+        // result leaves the receipt at whatever the provider response earned.
+        ...(paired && readBack[i]?.verified === true ? { verified: true } : {}),
+      },
+      opts.now ? { now: opts.now } : {},
+    ),
+  );
+}
+
 export interface ClaimDoneVerdict {
   ok: boolean;
   /** Side-effecting receipts that are NOT a verified success under this guard. */

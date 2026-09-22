@@ -29,6 +29,13 @@ export interface EnvironmentVerificationResult {
  * Given a list of tool calls that completed, verify against the actual database
  * that the side effects were durably committed. This prevents silent failures
  * from tricking the agent into claiming success.
+ *
+ * CONTRACT (2026-09-22): ONE result per input call, in input order — including
+ * a `null` entry when a known tool carried nothing to look up. Callers pair
+ * results to calls BY INDEX (receiptsWithReadBack), so a read-back applies to
+ * the invocation it verified and never to every invocation of the same name.
+ * Before this, a call without args produced no entry, silently shifting every
+ * later result one position.
  */
 export async function verifyEnvironmentState(
   toolCalls: Array<{ name: string; ok: boolean; args?: Record<string, unknown> }>
@@ -61,6 +68,8 @@ export async function verifyEnvironmentState(
           } else {
             results.push({ toolName: call.name, verified: false, reason: "Task not found in database" });
           }
+        } else {
+          results.push({ toolName: call.name, verified: null, reason: "createTask call carried no title to look up" });
         }
       } else if (call.name === "addTasksToProject") {
         const args = call.args as { tasks?: Array<{ title: string }> };
@@ -82,6 +91,8 @@ export async function verifyEnvironmentState(
               reason: `Only ${found}/${args.tasks.length} bulk tasks found in database`,
             });
           }
+        } else {
+          results.push({ toolName: call.name, verified: null, reason: "addTasksToProject call carried no tasks to look up" });
         }
       } else if (call.name === "completeTask") {
          const args = call.args as { taskId?: string };
@@ -92,6 +103,8 @@ export async function verifyEnvironmentState(
             } else {
                results.push({ toolName: call.name, verified: false, reason: "Task not marked DONE in database" });
             }
+         } else {
+            results.push({ toolName: call.name, verified: null, reason: "completeTask call carried no taskId to look up" });
          }
       } else {
         // Not checked. NOT "assumed true": a tool with no verifier stays at

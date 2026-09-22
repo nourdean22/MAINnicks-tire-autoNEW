@@ -17,7 +17,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { withErrorCapture } from "@/lib/errors/record-error";
 import { buildVerifierBanner, isVerifierRewritten, buildKnownTruthBanner } from "@/lib/ai/chat/fabrication-rewriter";
-import { canClaimDone, summarizeClaimDoneShadow, toReceipt } from "@/lib/ai/receipts/action-receipt";
+import { canClaimDone, receiptsWithReadBack, summarizeClaimDoneShadow } from "@/lib/ai/receipts/action-receipt";
 import { verifyEnvironmentState, type EnvironmentVerificationResult } from "@/lib/ai/chat/environment-verifier";
 import { buildMessageParts } from "./message-parts";
 import type { CapturedToolCall } from "./tool-telemetry-walk";
@@ -212,16 +212,14 @@ export async function persistAssistantMessage(a: {
     // receipt's independent verification signal. The result is handed on to
     // post-persist so the lookups are not repeated.
     envVerification = capturedToolCalls.length > 0 ? await verifyEnvironmentState(capturedToolCalls) : [];
-    const verifiedByReadBack = new Set(
-      envVerification.filter((v) => v.verified === true).map((v) => v.toolName),
-    );
-    const receipts = capturedToolCalls.map((t) =>
-      toReceipt({
-        toolName: t.name,
-        ok: t.ok,
-        ...(verifiedByReadBack.has(t.name) ? { verified: true } : {}),
-      }),
-    );
+    // Paired BY POSITION, never by tool name: `createTask × 3` with one failed
+    // read-back must leave that one receipt PROVIDER_ACCEPTED. The verifier
+    // returns one entry per call in input order; a length mismatch promotes
+    // nothing and is logged, because a mis-paired VERIFIED is worse than none.
+    const receipts = receiptsWithReadBack(capturedToolCalls, envVerification, {
+      onMismatch: (calls, results) =>
+        log.warn("env_verification_pairing_mismatch", { traceId, calls, results }),
+    });
     const verdict = canClaimDone(receipts);
     // 2026-09-15 · strict-completion SHADOW (measure before promotion). The
     // legacy verdict above still decides the banner; this records, per turn,

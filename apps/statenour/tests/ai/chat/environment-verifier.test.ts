@@ -104,10 +104,26 @@ describe("verifyEnvironmentState · tri-state", () => {
     expect(partial.reason).toContain("1/3");
   });
 
-  it("documents existing behaviour: createTask with no title arg yields no entry (cannot be looked up)", async () => {
+  it("a known tool with nothing to look up yields a NULL entry — one result per call, never a gap", async () => {
+    // Before 2026-09-22 this produced NO entry, silently shifting every later
+    // result one position — a per-invocation pairing cannot survive that.
     const r = await verifyEnvironmentState([{ name: "createTask", ok: true, args: {} }]);
-    expect(r).toEqual([]);
+    expect(r).toEqual([{ toolName: "createTask", verified: null, reason: "createTask call carried no title to look up" }]);
     expect(mockFindFirst).not.toHaveBeenCalled();
+  });
+
+  it("CONTRACT: results come back one per call, in input order, with mixed outcomes intact", async () => {
+    mockFindFirst.mockResolvedValueOnce({ id: "t1", title: "a" }); // first createTask found
+    mockFindFirst.mockResolvedValueOnce(null); // second createTask not found
+    const r = await verifyEnvironmentState([
+      { name: "createTask", ok: true, args: { title: "a" } },
+      { name: "createTask", ok: true, args: { title: "b" } },
+      { name: "sendTelegram", ok: true, args: {} },
+      { name: "completeTask", ok: true, args: {} },
+    ]);
+    expect(r).toHaveLength(4);
+    expect(r.map((x) => x.verified)).toEqual([true, false, null, null]);
+    expect(r.map((x) => x.toolName)).toEqual(["createTask", "createTask", "sendTelegram", "completeTask"]);
   });
 
   it("never lets one bad call poison the batch", async () => {

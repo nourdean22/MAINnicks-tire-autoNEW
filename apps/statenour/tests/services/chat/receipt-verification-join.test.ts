@@ -50,16 +50,26 @@ const postPersistCode = stripComments(postPersist);
 describe("verifier → receipt join (source contract)", () => {
   it("runs the read-back BEFORE the receipts are built", () => {
     const verifyAt = persistCode.indexOf("await verifyEnvironmentState(capturedToolCalls)");
-    const receiptAt = persistCode.indexOf("toReceipt({");
+    // Receipts are built through the positional helper now, not a direct toReceipt.
+    const receiptAt = persistCode.indexOf("receiptsWithReadBack(capturedToolCalls");
     expect(verifyAt).toBeGreaterThan(-1);
     expect(receiptAt).toBeGreaterThan(-1);
     expect(verifyAt, "a read-back that runs after the receipt cannot inform it").toBeLessThan(receiptAt);
   });
 
-  it("promotes a receipt on `verified === true` ONLY — null must never promote", () => {
-    expect(persistCode).toMatch(/filter\(\(v\) => v\.verified === true\)/);
-    // The receipt input is spread conditionally; there must be no path that
-    // passes the verifier's raw value through as `verified`.
+  it("pairs read-backs to receipts BY POSITION through the pure helper, promoting on `=== true` ONLY", () => {
+    // Review on this join caught a Set keyed by tool NAME: createTask × 3 with
+    // one failed read-back marked all three VERIFIED. The pairing now lives in
+    // receiptsWithReadBack (unit-tested with mixed outcomes in
+    // tests/ai/receipts/action-receipt.test.ts); persist must use it and must
+    // not rebuild a name-keyed shortcut beside it.
+    expect(persistCode).toMatch(/receiptsWithReadBack\(capturedToolCalls, envVerification/);
+    expect(persistCode, "no name-keyed promotion may return").not.toMatch(/new Set\([\s\S]{0,120}verified === true/);
+    const receiptCode = stripComments(
+      readFileSync(resolve(process.cwd(), "lib/ai/receipts/action-receipt.ts"), "utf8"),
+    );
+    expect(receiptCode).toMatch(/readBack\[i\]\?\.verified === true/);
+    // There must be no path that passes the verifier's raw value through.
     expect(persistCode).not.toMatch(/verified:\s*v\.verified\b/);
     expect(persistCode).not.toMatch(/verified:\s*envVerification/);
   });
@@ -92,6 +102,6 @@ describe("verifier → receipt join (source contract)", () => {
     // If stripping ever swallowed the call site, every assertion above would
     // fail loudly rather than pass vacuously — but assert it directly too.
     expect(verifierCode).toContain("export async function verifyEnvironmentState");
-    expect(persistCode).toContain("toReceipt({");
+    expect(persistCode).toContain("receiptsWithReadBack(capturedToolCalls");
   });
 });
