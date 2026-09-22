@@ -224,6 +224,111 @@ def _speech_spans(ff: str, path: str, silence_db: float, gap_s: float,
     return [(a, b) for a, b in spans if b > a]
 
 
+@dataclass
+class Calibration:
+    """What the room actually sounds like, and what threshold follows from it."""
+    samples: int
+    levels_db: List[float] = field(default_factory=list)
+    floor_db: Optional[float] = None
+    loud_db: Optional[float] = None
+    suggested_silence_db: Optional[float] = None
+    #: Populated when the measurement CANNOT support a suggestion. A refusal with a stated
+    #: reason beats a plausible number nobody can defend.
+    refused: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "samples": self.samples,
+            "levelsDb": [round(x, 1) for x in self.levels_db],
+            "floorDb": self.floor_db,
+            "loudDb": self.loud_db,
+            "suggestedSilenceDb": self.suggested_silence_db,
+            "refused": self.refused,
+        }
+
+
+def calibrate(
+    source_url: str,
+    out_dir: str,
+    samples: int = 12,
+    seconds_each: float = 10.0,
+    spacing_s: float = 0.0,
+    binary: Optional[str] = None,
+) -> Calibration:
+    """Measure the room over time, then propose a silence threshold from what was heard.
+
+    WHY THIS EXISTS. `DEFAULT_SILENCE_DB` is a GUESS. A threshold tuned for a quiet office
+    discards every conversation in a noisy one; tuned for a noisy shop it splits nothing and
+    every window becomes one giant "interaction". Guessing it is how a capture service
+    silently records either nothing or everything -- and both look like it is working.
+
+    The office camera also runs AGC, which means the floor MOVES: it lifts during quiet
+    stretches and ducks after transients. A single ten-second reading would capture one
+    arbitrary point on that curve, so this takes many spaced samples and reads the
+    DISTRIBUTION instead.
+
+    IT REFUSES RATHER THAN GUESSING when the samples cannot support a suggestion -- too few
+    usable readings, or a spread so narrow that quiet and loud are indistinguishable (which
+    means nothing actually happened while it listened, and the "floor" is just the room).
+    """
+    ff = _ffmpeg(binary)
+    os.makedirs(out_dir, exist_ok=True)
+    levels: List[float] = []
+
+    for i in range(max(1, int(samples))):
+        probe = os.path.join(out_dir, f"calib-{i}.wav")
+        try:
+            subprocess.run(
+                [ff, "-hide_banner", "-rtsp_transport", "tcp", "-i", source_url,
+                 "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
+                 "-t", str(float(seconds_each)), "-y", probe],
+                capture_output=True, text=True, timeout=float(seconds_each) + 90,
+            )
+            mean_db, _ = measure_level(probe, binary)
+            if mean_db is not None:
+                levels.append(mean_db)
+        except (OSError, subprocess.SubprocessError):
+            # One failed sample is not a failed calibration; a run of them will show up as
+            # too few usable readings below, which is reported rather than averaged over.
+            pass
+        finally:
+            try:
+                os.remove(probe)
+            except OSError:
+                pass
+        if spacing_s > 0 and i + 1 < samples:
+            time.sleep(spacing_s)
+
+    cal = Calibration(samples=len(levels), levels_db=sorted(levels))
+
+    if len(levels) < 4:
+        cal.refused = (f"only {len(levels)} usable readings; need at least 4 before a "
+                       f"threshold means anything")
+        return cal
+
+    ordered = sorted(levels)
+    # Percentiles, not mean: the mean of a bimodal room (silence and speech) lands in a gap
+    # where neither state actually sits, and a threshold placed there splits on nothing.
+    floor = ordered[len(ordered) // 10]                    # ~10th percentile: the quiet room
+    loud = ordered[(len(ordered) * 9) // 10]               # ~90th: someone talking
+    cal.floor_db, cal.loud_db = round(floor, 1), round(loud, 1)
+
+    if (loud - floor) < 6.0:
+        # Quiet and loud are within 6 dB of each other, so the recording never heard a
+        # difference. Either nobody spoke, or AGC flattened the range. Either way a
+        # threshold derived from this would be fiction.
+        cal.refused = (f"spread is only {loud - floor:.1f} dB (floor {floor:.1f}, loud "
+                       f"{loud:.1f}) -- nothing distinguishable happened while listening; "
+                       f"re-run during real counter activity")
+        return cal
+
+    # Sit above the floor but well below speech. A third of the way up the measured range
+    # keeps room tone out while leaving quiet talkers in -- and a MISSED conversation is a
+    # worse failure here than an over-long segment, which merely costs transcription time.
+    cal.suggested_silence_db = round(floor + (loud - floor) / 3.0, 1)
+    return cal
+
+
 def main(argv: List[str]) -> int:
     import argparse
     ap = argparse.ArgumentParser(description=__doc__)
@@ -234,7 +339,27 @@ def main(argv: List[str]) -> int:
     ap.add_argument("--ffmpeg", default=None)
     ap.add_argument("--silence-db", type=float, default=DEFAULT_SILENCE_DB)
     ap.add_argument("--silence-gap", type=float, default=DEFAULT_SILENCE_GAP_S)
+    ap.add_argument("--calibrate", action="store_true",
+                    help="measure the room and PROPOSE a silence threshold instead of capturing")
+    ap.add_argument("--calib-samples", type=int, default=12)
+    ap.add_argument("--calib-seconds", type=float, default=10.0)
+    ap.add_argument("--calib-spacing", type=float, default=0.0,
+                    help="seconds between samples; spread them across real activity")
     args = ap.parse_args(argv)
+
+    if args.calibrate:
+        try:
+            cal = calibrate(args.source_url, args.out_dir, samples=args.calib_samples,
+                            seconds_each=args.calib_seconds, spacing_s=args.calib_spacing,
+                            binary=args.ffmpeg)
+        except FfmpegMissing as exc:
+            print(json.dumps({"error": "ffmpeg_missing", "detail": str(exc)}))
+            return 3
+        print(json.dumps(cal.to_dict(), indent=2))
+        # A REFUSED calibration must not exit 0. "I could not tell" and "here is your
+        # threshold" are opposite outcomes, and a caller scripting this would otherwise
+        # write a fiction into its config.
+        return 0 if cal.suggested_silence_db is not None else 5
 
     try:
         segs = capture_window(

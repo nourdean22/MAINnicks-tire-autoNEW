@@ -139,3 +139,67 @@ def test_short_bursts_are_discarded_as_noise(monkeypatch, tmp_path):
     segs = capture_window("rtsp://x/live0", str(tmp_path), 60.0)
     assert len(segs) == 1, "the 2-second burst should have been discarded"
     assert segs[0].duration_s == 30.0
+
+
+# ------------------------------------------------------------------ calibration
+
+class _Cal:
+    """Feeds calibrate() a scripted sequence of measured levels."""
+
+    def __init__(self, levels):
+        self.levels = list(levels)
+
+    def measure(self, *a, **k):
+        return (self.levels.pop(0), -3.0) if self.levels else (None, None)
+
+
+def _stub_capture(monkeypatch, levels, tmp_path):
+    monkeypatch.setattr("vision.officeaudio._ffmpeg", lambda b=None: "ffmpeg")
+    monkeypatch.setattr("vision.officeaudio.subprocess.run", lambda *a, **k: _Ran(rc=0))
+    monkeypatch.setattr("vision.officeaudio.os.remove", lambda p: None)
+    monkeypatch.setattr("vision.officeaudio.measure_level", _Cal(levels).measure)
+
+
+def test_calibration_proposes_a_threshold_between_the_floor_and_speech(monkeypatch, tmp_path):
+    """A real room: quiet stretches near -55, talking near -25."""
+    from vision.officeaudio import calibrate
+    levels = [-55, -54, -53, -52, -30, -28, -27, -26, -25, -24, -52, -51]
+    _stub_capture(monkeypatch, levels, tmp_path)
+    cal = calibrate("rtsp://x/live0", str(tmp_path), samples=len(levels))
+    assert cal.refused is None
+    # Above the room floor, well below speech -- a missed conversation is a worse failure
+    # than an over-long segment, so it sits low in the range rather than in the middle.
+    assert cal.floor_db < cal.suggested_silence_db < cal.loud_db
+
+
+def test_calibration_REFUSES_when_nothing_distinguishable_happened(monkeypatch, tmp_path):
+    """An empty office gives a narrow spread, and a threshold from it would be fiction.
+
+    This is the failure that matters: a calibration run during a quiet hour would otherwise
+    produce a confident-looking number derived entirely from room tone, and every later
+    capture would split on nothing.
+    """
+    from vision.officeaudio import calibrate
+    levels = [-48, -47.5, -48.2, -47.8, -48.1, -47.9, -48.3, -47.6]
+    _stub_capture(monkeypatch, levels, tmp_path)
+    cal = calibrate("rtsp://x/live0", str(tmp_path), samples=len(levels))
+    assert cal.suggested_silence_db is None
+    assert "nothing distinguishable" in (cal.refused or "")
+
+
+def test_calibration_REFUSES_on_too_few_usable_readings(monkeypatch, tmp_path):
+    """Most samples failed to measure. Averaging the survivors would hide that."""
+    from vision.officeaudio import calibrate
+    _stub_capture(monkeypatch, [-50, None, None, None, -30, None], tmp_path)
+    cal = calibrate("rtsp://x/live0", str(tmp_path), samples=6)
+    assert cal.suggested_silence_db is None
+    assert "usable readings" in (cal.refused or "")
+
+
+def test_a_refusal_carries_its_REASON_not_just_a_null(monkeypatch, tmp_path):
+    """`suggested is None` alone cannot tell an empty office from a broken mic."""
+    from vision.officeaudio import calibrate
+    _stub_capture(monkeypatch, [-50, None, None], tmp_path)
+    cal = calibrate("rtsp://x/live0", str(tmp_path), samples=3)
+    assert cal.refused and len(cal.refused) > 20
+    assert cal.to_dict()["refused"] == cal.refused
