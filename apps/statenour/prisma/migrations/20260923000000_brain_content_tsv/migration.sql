@@ -29,6 +29,13 @@
 -- (86 MB) is left in place - retiring it is an operator decision once every reader is on the column.
 --
 -- Idempotent: both statements are IF NOT EXISTS, a re-run is a no-op.
+--
+-- APPLIED TO PRODUCTION 2026-09-23 00:22:35Z-00:23:15Z (operator-authorised, the autocommit runner above):
+-- ok=2 warned=0 failed=0; recorded with `prisma migrate resolve --applied`, `migrate status` = 64 migrations,
+-- up to date. Verified read-only right after: generation_expression = to_tsvector('english'::regconfig,
+-- content), brain_memories_content_tsv_idx valid at 64 MB, 57,230 rows, 0 NULL vectors, heap 65 -> 44 MB,
+-- 6,087 = 6,087 matches via column and expression, and the lane's query EXPLAIN ANALYZE = 25.6 ms through
+-- brain_memories_content_tsv_idx (was 1,902 ms).
 
 ALTER TABLE "brain_memories"
   ADD COLUMN IF NOT EXISTS "content_tsv" tsvector
