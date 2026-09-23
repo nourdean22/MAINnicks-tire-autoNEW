@@ -158,12 +158,6 @@
       "reason": "bookings.preferredDate is an ET 'YYYY-MM-DD' string compared with UTC CURDATE(): between 8 PM ET (7 PM in winter) and midnight, today's bookings drop out of 'upcoming' and out of scoring, and today's cancelled requests count toward the 6-month no-show rate. Same shape NT-009 fixed in crudAutomation; admin revenue engine only."
     },
     {
-      "file": "server/services/expectedArrivals.ts",
-      "count": 1,
-      "effect": "customer-state",
-      "reason": "expireStaleExpectedArrivals(2) (dashboard-sync) sets status = 'no_show' where expectedDate < CURDATE() - 2. expectedDate is the ET shop date, so after 8 PM ET (7 PM in winter) the sweep marks the arrivals from two days ago 4 hours (5 in winter) before ET midnight would, while the shop is closed; no_show feeds the follow-up and recovery lane. The file's arrival-window code already uses the ET date."
-    },
-    {
       "file": "server/services/intelligenceEngines.ts",
       "count": 4,
       "effect": "staff-today",
