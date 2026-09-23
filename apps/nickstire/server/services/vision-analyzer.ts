@@ -458,6 +458,19 @@ async function analyzeViaOpenAiCompatible(args: {
           // SERVICE_SUGGEST line. Thinking is off for this call (a photo needs a
           // description, not a chain of thought) and the visible budget is
           // sized for the 2-3 sentences + 2 structured lines the prompt asks for.
+          //
+          // DO NOT "FIX" THE extra_body SPELLING. It looks like an OpenAI SDK-only
+          // field, but Google's compatibility layer reads it, and the endpoint
+          // validates strictly. Measured against the live endpoint, twice each:
+          //   no knob at all            ~4.4 s, ~30 tokens, ~134 chars, NO
+          //                             SERVICE_SUGGEST line -- the failure this fixes
+          //   extra_body (this)         ~1.4 s, ~204 tokens, ~905 chars, line present
+          //   reasoning_effort: "none"  ~1.3 s, ~200 tokens, ~906 chars, line present
+          //   BOTH together             HTTP 400 "Expected one of either
+          //                             reasoning_effort or custom thinking_config"
+          //   google at top level       HTTP 400 "Unknown name google"
+          // So the two knobs are MUTUALLY EXCLUSIVE and the SDK's inner object is not
+          // a valid top-level field. vision-analyzer.providers.test.ts pins all three.
           ...(args.provider === "gemini"
             ? { max_tokens: 800, extra_body: { google: { thinking_config: { thinking_budget: 0 } } } }
             : { max_tokens: 600 }),
