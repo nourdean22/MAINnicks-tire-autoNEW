@@ -611,10 +611,17 @@ export type TransferState = "none" | "attempted" | "connected" | "not_connected"
  * `*-transfer-*` failure ended reason (a definite no-connect); else a forward
  * that was attempted with no outcome known.
  */
-export function transferState(verdict: unknown, endedReason: string | null | undefined): TransferState {
+export function transferState(
+  verdict: unknown,
+  endedReason: string | null | undefined,
+  transferUpdateSeen: unknown = false,
+): TransferState {
   if (verdict === "connected" || verdict === "not_connected") return verdict;
   if (isTransferFailure(endedReason)) return "not_connected";
   if (isTransferAttempt(endedReason)) return "attempted";
+  // Vapi's live transfer-update, recorded since 2026-09-23: an attempt the
+  // ended reason hides (the caller hung up during the ring).
+  if (transferUpdateSeen === true) return "attempted";
   return "none";
 }
 

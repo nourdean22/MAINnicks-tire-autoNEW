@@ -82,7 +82,10 @@ quote, size help, flat, TPMS) are about 37%.
    the 291 episodes that opened by asking for a person, 283 attempted a transfer and 16 are verified connected.
    16 incidents had 3–6 customers' transfers fail within one hour (427 failures, 352 of them the redial proxy).
    `wants_human` fired in 329 episodes and `wants_manager_owner` in 79. *Caveat:* "attempted" may over-count
-   (Part I #11 is the instrument work); the connected count is a floor, not a rate.
+   (Part I #11 is the instrument work); the connected count is a floor, not a rate. **Instrument change
+   (next PR after #2580):** Vapi's `transfer-update` event, subscribed but ignored until now, is recorded as state
+   `transfer_attempted`, and the call's `transferArtifact` carries `transferUpdateSeen`, so an attempt the ended
+   reason hides (a caller who hangs up during the ring) now counts. It proves an attempt, not an answer.
 2. **No promise was followed by a person.** 108 episodes carry an assistant promise (text follow-up 89, status
    update 92, callback 10, by phrase); a human followed up in 0 of 108, and 0 Promise Ledger rows exist in those
    episodes. Oil-change episodes carry one in 30 of 42, far above any other need. **Spot-checked 2026-09-23:**

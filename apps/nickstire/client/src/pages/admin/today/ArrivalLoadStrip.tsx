@@ -18,10 +18,11 @@
  * new, and say nothing when both sources are empty and healthy (an empty
  * board is not an alert).
  */
-import { CalendarClock, CarFront } from "lucide-react";
+import { CalendarClock, CarFront, PhoneIncoming } from "lucide-react";
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { getBusinessDateKey } from "@/lib/businessDate";
+import { phoneDemandLine, type PhoneTireDemand } from "./phoneDemand";
 import type { BookingItem } from "./types";
 
 interface ExpectedArrivalRow {
@@ -65,15 +66,21 @@ export function stripHasNothingToSay(args: {
   arrivalsCount: number;
   tomorrowCount: number;
   bookingsTrustworthy: boolean;
+  /** Tire inquiries by phone today. An unreadable count is never silence. */
+  phoneDemandCount?: number;
+  phoneDemandError?: boolean;
 }): boolean {
   return (
     !args.arrivalsError &&
     args.arrivalsLoaded &&
     args.bookingsTrustworthy &&
     args.arrivalsCount === 0 &&
-    args.tomorrowCount === 0
+    args.tomorrowCount === 0 &&
+    !args.phoneDemandError &&
+    (args.phoneDemandCount ?? 0) === 0
   );
 }
+
 
 export default function ArrivalLoadStrip({
   // Bare-mount safe (the admin render matrix mounts every section with no
@@ -94,6 +101,15 @@ export default function ArrivalLoadStrip({
     refetchIntervalInBackground: false,
   });
 
+  // Sizes tire callers asked about today (tireInquiry), so the counter can pull stock.
+  const demandQuery = trpc.dispatch.phoneTireDemandToday.useQuery(undefined, {
+    refetchInterval: 120_000,
+    staleTime: 90_000,
+    refetchIntervalInBackground: false,
+  });
+  const demand = demandQuery.data as PhoneTireDemand | undefined;
+  const demandText = demand ? phoneDemandLine(demand) : null;
+
   const arrivals = (arrivalsQuery.data ?? []) as unknown as ExpectedArrivalRow[];
   const tomorrowKey = useMemo(() => tomorrowBusinessDateKey(), []);
   const tomorrowBookings = useMemo(() => bookingsForDate(bookings, tomorrowKey), [bookings, tomorrowKey]);
@@ -108,6 +124,8 @@ export default function ArrivalLoadStrip({
       arrivalsCount: arrivals.length,
       tomorrowCount: tomorrowBookings.length,
       bookingsTrustworthy,
+      phoneDemandCount: demand?.total ?? 0,
+      phoneDemandError: demandQuery.isError,
     })
   ) {
     return null;
@@ -148,6 +166,22 @@ export default function ArrivalLoadStrip({
           {arrivals.length > 5 && (
             <p className="mt-1 text-[10px] text-muted-foreground">+{arrivals.length - 5} more expected</p>
           )}
+        </div>
+      ) : null}
+
+      {demandQuery.isError ? (
+        <p className="mt-2 text-xs text-amber-400">
+          Phone tire requests unreadable — unknown, not zero.
+        </p>
+      ) : demand && demandText ? (
+        <div className="mt-2 flex items-start gap-2 text-xs">
+          <PhoneIncoming className="w-3.5 h-3.5 mt-0.5 text-muted-foreground shrink-0" />
+          <span>
+            <span className="text-muted-foreground">
+              Asked by phone today · {demand.total} tire caller{demand.total === 1 ? "" : "s"}:{" "}
+            </span>
+            <span className="font-medium">{demandText}</span>
+          </span>
         </div>
       ) : null}
 
