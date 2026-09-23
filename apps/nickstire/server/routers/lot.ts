@@ -52,7 +52,7 @@ import {
   machineEventsFromVisit, QUIESCENCE_HEARTBEAT_MAX_AGE_S, TRUTH_EVENTS,
 } from "../lib/commissioningReport";
 import { EXPECTED_CAMERAS } from "../../shared/cameras";
-import { isDuplicateKeyError } from "../lib/tire-order-guards";
+import { isDuplicateKeyError } from "../lib/dbErrors";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:lot");

@@ -420,7 +420,7 @@ export async function selectReelJobsNeedingAttention(database: DB, limit = 50) {
     .select()
     .from(reelJobs)
     .where(await buildAttentionPredicate())
-    .orderBy(desc(reelJobs.id))
+    .orderBy(desc(reelJobs.createdAt), desc(reelJobs.id))
     .limit(limit);
 }
 

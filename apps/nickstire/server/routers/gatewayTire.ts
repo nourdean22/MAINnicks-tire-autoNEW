@@ -32,6 +32,7 @@ import { PRICED_SIZES, cleanSize, computeSizePriceFloors, type SizePriceFloor } 
 
 import { db } from "../lib/db-helper";
 import { affectedRowCount } from "../lib/db-affected";
+import { describeDbError } from "../lib/dbErrors";
 import { BUSINESS } from "@shared/business";
 
 import { createLogger } from "../lib/logger";
@@ -692,7 +693,7 @@ export const gatewayTireRouter = router({
           stage: "received",
         });
       } catch (bookingErr) {
-        log.error(`[gatewayTire:placeOrder] installation booking insert failed for order ${orderNumber} — order + invoice still created; booking needs manual recovery:`, bookingErr instanceof Error ? bookingErr.message : bookingErr);
+        log.error(`[gatewayTire:placeOrder] installation booking insert failed for order ${orderNumber} — order + invoice still created; booking needs manual recovery: ${describeDbError(bookingErr)}`);
       }
 
       const pricePerTire = input.pricePerTireCents / 100;
@@ -778,7 +779,9 @@ export const gatewayTireRouter = router({
         // payment flow (createCheckout) can resolve it later.
         await d.update(tireOrders).set({ invoiceNumber }).where(eq(tireOrders.orderNumber, orderNumber));
       } catch (err) {
-        log.error("[TireOrder] Invoice creation failed:", err instanceof Error ? (err as Error).message : err);
+        // Class + driver code only: a drizzle error's message carries the bound
+        // params (customer name, phone), which must not reach the logs.
+        log.error(`[TireOrder] Invoice creation failed for order ${orderNumber}: ${describeDbError(err)}`);
       }
 
       // Sync to Google Sheets (async, don't block — a Sheets failure

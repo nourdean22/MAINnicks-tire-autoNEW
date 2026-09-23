@@ -28,7 +28,7 @@ import { BUSINESS } from "@shared/business";
 import { createLogger } from "../lib/logger";
 import { notSentLogFields } from "../lib/smsNotSentLog";
 import { normalizePhone } from "../lib/phone";
-import { eq, and, desc, gte, sql, like, or } from "drizzle-orm";
+import { eq, and, desc, gte, sql, like, or, inArray } from "drizzle-orm";
 import { getTemplateVariant, assignVariantWithExperiment, REPLY_CONFIGS } from "./smsMessageCatalog";
 import { runNickgptPreflightGuard, PreflightResult } from "./nickgptPreflightGuard";
 // 2026-09-01 (audit F-18): the Nexus audit sampler + nexus_audit_jobs enqueue
@@ -418,7 +418,7 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
     })
     .from(vapiCallLogs)
     .where(like(vapiCallLogs.phoneNumber, `%${phone10}`))
-    .orderBy(desc(vapiCallLogs.id))
+    .orderBy(desc(vapiCallLogs.createdAt), desc(vapiCallLogs.id))
     .limit(1);
     if (lastVapi && lastVapi.length > 0) {
       ctx.lastVapiCall = {
@@ -448,9 +448,28 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
 }
 
 /**
+ * Every status a text that went out, or may have, can be in: the orchestration
+ * row form of lib/smsOutcome.ts smsClaimConsumed ("consumed for every outcome
+ * except a DEFINITE failure"). Until 2026-09-23 the cooldown counted only sent
+ * and queued, so it stopped blocking the moment the shop gateway's delivery
+ * receipt flipped the row to delivered (routes/webhooks/smsGateway.ts), and it
+ * never blocked after a gateway timeout, which stores sending ("do not retry").
+ */
+const COOLDOWN_STATUSES = ["sent", "queued", "sending", "delivered", "replied"];
+
+/**
+ * Booking reminders keep the old two statuses: operator decision 2026-09-23.
+ * Their cooldown key is <bookingId>:<reminderType> for 365 days, so counting a
+ * delivered reminder would stop a rescheduled booking from getting its new
+ * reminder. Each reminder row already carries its own at-most-once claim
+ * (sms-scheduler.ts appointmentReminders CAS).
+ */
+const BOOKING_REMINDER_COOLDOWN_STATUSES = ["sent", "queued"];
+
+/**
  * Checks if a cooldown is active for the given cooldownKey.
  */
-async function checkCooldown(cooldownKey: string, ttlMs: number): Promise<boolean> {
+async function checkCooldown(cooldownKey: string, ttlMs: number, statuses: string[] = COOLDOWN_STATUSES): Promise<boolean> {
   const db = await getDbTyped();
   if (!db) return false;
   
@@ -462,7 +481,7 @@ async function checkCooldown(cooldownKey: string, ttlMs: number): Promise<boolea
       and(
         eq(smsOrchestrations.cooldownKey, cooldownKey),
         gte(smsOrchestrations.createdAt, cutoff),
-        sql`${smsOrchestrations.status} IN ('sent', 'queued')`
+        inArray(smsOrchestrations.status, statuses)
       )
     )
     .limit(1);
@@ -1385,7 +1404,11 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       }
 
       if (cooldownKey && cooldownTtlMs > 0) {
-        const hasCooldown = await checkCooldown(cooldownKey, cooldownTtlMs);
+        const hasCooldown = await checkCooldown(
+          cooldownKey,
+          cooldownTtlMs,
+          event.type === "booking_reminder" ? BOOKING_REMINDER_COOLDOWN_STATUSES : COOLDOWN_STATUSES,
+        );
         if (hasCooldown) {
           status = "skipped";
           statusReason = "cooldown_active";

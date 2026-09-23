@@ -15,7 +15,7 @@ import { resolve } from "node:path";
 import { DrizzleQueryError } from "drizzle-orm";
 import { isDuplicateKeyError } from "./dbErrors";
 import { isMissingTableError, isUnknownColumnError } from "../db";
-import { isSchemaBugError } from "./dbErrors";
+import { isSchemaBugError, describeDbError } from "./dbErrors";
 
 // This file needs the REAL db module (serial mode shares one mock registry).
 vi.unmock("../db");
@@ -211,5 +211,42 @@ describe("the duplicate-key and missing-table sites that regexed the wrapper (co
   it("shopdriver's three race-lost branches all use it", () => {
     const src = stripComments(readFileSync(resolve(__dirname, "../routers/shopdriver.ts"), "utf8"));
     expect(src.match(/isDuplicateKeyError\(err\)/g)?.length).toBe(3);
+  });
+});
+
+/**
+ * describeDbError · a log line for a caught DB error that carries no customer
+ * data (post-merge audit 2026-09-23, item H). placeOrder logged `err.message`
+ * when invoice creation failed; on a drizzle error that is the SQL plus bound
+ * params, so the customer's name and phone went to Railway logs.
+ */
+describe("describeDbError", () => {
+  const pii = ["Jane Doe", "+12165551234", "jane@example.com"];
+
+  it("names the wrapper and the driver code, and nothing the customer typed", () => {
+    const line = describeDbError(wrap(dupEntry(), pii));
+    expect(line).toBe("DrizzleQueryError > Error ER_DUP_ENTRY/1062");
+    for (const v of pii) expect(line).not.toContain(v);
+    expect(line).not.toContain("Duplicate entry");
+  });
+
+  it("drops the driver's own message, which echoes the offending value", () => {
+    const driver = driverError("ER_DUP_ENTRY", 1062, "Duplicate entry '+12165551234' for key 'uniq_customer_phone'");
+    expect(describeDbError(driver)).toBe("Error ER_DUP_ENTRY/1062");
+  });
+
+  it("degrades to the class name for errors with no driver code", () => {
+    expect(describeDbError(new TypeError("Cannot read properties of undefined (reading 'Jane Doe')"))).toBe("TypeError");
+    expect(describeDbError(wrap(timeout(), pii))).toBe("DrizzleQueryError > Error ETIMEDOUT");
+    expect(describeDbError("Jane Doe +12165551234")).toBe("string");
+    expect(describeDbError(null)).toBe("unknown error");
+  });
+
+  it("placeOrder logs the summary, not err.message, for the invoice and booking failures (comment-stripped)", () => {
+    const src = stripComments(readFileSync(resolve(__dirname, "../routers/gatewayTire.ts"), "utf8"));
+    expect(src).toMatch(/Invoice creation failed[^\n]*describeDbError\(err\)/);
+    expect(src).toMatch(/booking needs manual recovery[^\n]*describeDbError\(bookingErr\)/);
+    expect(src).not.toMatch(/Invoice creation failed[^\n]*\.message/);
+    expect(src).not.toMatch(/bookingErr\.message/);
   });
 });
