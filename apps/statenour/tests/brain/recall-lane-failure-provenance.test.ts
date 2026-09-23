@@ -245,7 +245,7 @@ describe("the lexical lane ranks on weight + cover density, filters on the index
     // the prose instead of the predicate.
     const sql = stripSqlComments(lexicalSql);
     const where = sql.slice(sql.indexOf("WHERE"), sql.indexOf("ORDER BY"));
-    expect(where).toMatch(/to_tsvector\('english', bm\.content\) @@ websearch_to_tsquery/);
+    expect(where).toMatch(/bm\.content_tsv @@ websearch_to_tsquery/);
     // The regression this guards: weights creeping into the filter.
     expect(where).not.toMatch(/setweight/);
   });

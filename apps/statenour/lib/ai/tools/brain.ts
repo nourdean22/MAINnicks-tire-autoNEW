@@ -304,8 +304,10 @@ export const brainTools = {
     execute: async ({ query, category, minConfidence, limit, asOf }) => {
       // U3 (2026-09-08) · as-of recall. A garbage date falls back to now.
       const asOfDate = asOf && Number.isFinite(Date.parse(asOf)) ? new Date(asOf) : undefined;
-      // Lexical pre-match via Postgres FTS (stemmed + multi-word) on content,
-      // reusing the brain_memories_content_fts_idx GIN index. The prior matcher
+      // Lexical pre-match via Postgres FTS (stemmed + multi-word) on the STORED
+      // content_tsv column and its GIN brain_memories_content_tsv_idx (2026-09-22:
+      // ranking on an inline to_tsvector(content) re-parsed every candidate row
+      // and cost 1.9 s on production; the stored vector costs the read). The prior matcher
       // was `content ILIKE '%query%'` only -- brittle: it missed plurals and
       // multi-word queries ("tire advice" matched 1 row vs 62 via FTS). FTS hits
       // are UNIONed into the OR below (purely additive: the ILIKE + key matches
@@ -324,8 +326,8 @@ export const brainTools = {
                -- ask-Nick-directly lane must not resurface a belief the
                -- operator explicitly superseded.
                AND ${validitySql("", asOfDate ? "$4" : null)}
-               AND to_tsvector('english', content) @@ websearch_to_tsquery('english', $2)
-             ORDER BY ts_rank(to_tsvector('english', content), websearch_to_tsquery('english', $2)) DESC
+               AND content_tsv @@ websearch_to_tsquery('english', $2)
+             ORDER BY ts_rank(content_tsv, websearch_to_tsquery('english', $2)) DESC
              LIMIT $3`,
             minConfidence,
             _ftsSearchQuery,

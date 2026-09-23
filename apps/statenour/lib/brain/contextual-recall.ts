@@ -468,8 +468,15 @@ function keywordScore(
 // on a mid-confidence memory was never loaded, so it could not surface. This
 // runs a true Postgres FTS (ts_rank + websearch_to_tsquery, OR semantics
 // across topics) over ALL non-deleted, confidence>=0.3 memories, backed by
-// the GIN expression index `brain_memories_content_fts_idx` (migration
-// 0007_brain_fts). Results (a) replace the keyword lane with a real ts_rank
+// the STORED generated column `brain_memories.content_tsv` and its GIN
+// `brain_memories_content_tsv_idx` (migration 20260923000000_brain_content_tsv;
+// the 0007_brain_fts expression index it replaces stays until the operator
+// drops it). Filter AND rank read the stored vector: measured on production
+// 2026-09-22, the same OR-of-topics query took 1,902 ms warm when ts_rank
+// re-parsed content for ~3,600 candidate rows and 8 ms with the rank
+// removed - the parse WAS the lane's cost, and the 900 ms statement timeout
+// below was dropping the lane on 84 of 89 hybrid benchmark queries.
+// Results (a) replace the keyword lane with a real ts_rank
 // signal and (b) are UNIONed into the candidate pool so lexical-strong but
 // low-confidence memories can win. Best-effort: any failure (pre-migration,
 // empty tsquery) returns [] and the caller falls back to keywordScore. It is
@@ -648,14 +655,14 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
               bm.source            AS source,
               bm.seen_count        AS seen_count,
               bm.updated_at        AS updated_at,
-              ts_rank(to_tsvector('english', bm.content),
+              ts_rank(bm.content_tsv,
                       websearch_to_tsquery('english', $1)) AS rank
        FROM brain_memories bm
        WHERE bm.deleted_at IS NULL
          AND bm.confidence >= 0.3
          -- BDN-310 supersession honored (2026-08-19) — see memory-recall.ts
          AND ${validitySql("bm", asOf ? "$2" : null)}
-         AND to_tsvector('english', bm.content)
+         AND bm.content_tsv
              @@ websearch_to_tsquery('english', $1)
        ORDER BY rank DESC
        LIMIT ${limit}`,

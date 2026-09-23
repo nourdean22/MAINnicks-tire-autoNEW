@@ -376,6 +376,23 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     matchByDefinition: true,
     reason: "GIN index over searchable_tsv — without it, chat FTS sequential-scans",
   },
+  // 2026-09-22 · brain_memories.content_tsv: GENERATED STORED tsvector + GIN (migration
+  // 20260923000000_brain_content_tsv). The brain FTS readers filter AND rank on it. Same
+  // db-push exposure as chat_messages.searchable_tsv (Prisma cannot model the generator);
+  // without the column every brain FTS query errors and the lexical lane degrades to [].
+  {
+    kind: "column_exists",
+    table: "brain_memories",
+    column: "content_tsv",
+    nullable: true,
+    reason: "stored tsvector for the brain FTS lane - ranking on it costs a read, ranking on to_tsvector(content) cost 1.9 s per query",
+  },
+  {
+    kind: "index_exists",
+    table: "brain_memories",
+    indexName: "brain_memories_content_tsv_idx",
+    reason: "GIN over content_tsv - without it the brain FTS lane sequential-scans 57k rows",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────
