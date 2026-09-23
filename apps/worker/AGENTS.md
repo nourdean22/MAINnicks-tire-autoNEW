@@ -123,8 +123,9 @@ exactly that in a receipt — an unqualified "verified" reads as a test pass tha
 
 ## Cron job registry
 
-The **live** catalog is `GET /api/settings/crons` on statenour-web (`PATCH` toggles a job,
-`POST /api/settings/crons/trigger` fires one), and the manifest of record is
+The **live** catalog is `/system/crons` on statenour-web (tRPC `systemAutomation.cronDeck`, manifest-backed).
+`GET /api/settings/crons` is NOT: it parses the deleted `vercel.json` and returns only hard-coded mega rows
+(`PATCH` there still toggles a job, `POST /api/settings/crons/trigger` fires one). The manifest of record is
 `apps/statenour/config/crons.ts` (guarded by `pnpm check:crons`). This service only knows the four
 job names hard-coded in `scheduler.ts` plus the two mega slots. Operator surface for kill-switch and
 run-now: `/system/crons`.

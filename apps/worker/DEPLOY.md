@@ -67,8 +67,10 @@ ignores them.
 ## Cron jobs
 
 The worker **forwards ticks**; the jobs themselves execute as statenour-web route handlers.
-Live catalog: GET `/api/settings/crons` on statenour-web; manifest of record:
-`apps/statenour/config/crons.ts` (guarded by `pnpm check:crons`).
+Live catalog: `/system/crons` on statenour-web (tRPC `systemAutomation.cronDeck`, built from the manifest by
+`buildCronCommandDeck`); manifest of record: `apps/statenour/config/crons.ts` (guarded by `pnpm check:crons`).
+Do not read `GET /api/settings/crons` as the catalog: it parses the deleted `vercel.json`
+(`lib/services/cron-control.ts` `listScheduledCrons`), so it returns only its hard-coded mega rows.
 
 Registered here in `src/scheduler.ts`:
 - `brain-bus-drain` · every 15m → GET `/api/cron/brain-bus-drain`

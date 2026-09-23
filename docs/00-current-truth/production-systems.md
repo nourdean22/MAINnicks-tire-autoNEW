@@ -18,7 +18,7 @@ The entire ecosystem is deployed on **Railway** and spans two primary database b
 
 ## ⏰ Cron Job & Scheduler Layout
 
-The scheduled jobs are split between high-frequency tasks orchestrated by the background worker and daily/weekly schedules triggered by Railway system crons:
+The scheduled jobs are split between high-frequency tasks orchestrated by the background worker and daily/weekly schedules owned by Inngest or triggered by a Railway cron (see §2):
 
 ```
 [apps/worker node-cron] ➔ Fires HTTP triggers ➔ apps/statenour/app/api/cron/[name]
@@ -37,7 +37,11 @@ The background worker process utilizes `node-cron` to trigger the following jobs
 The earlier list here (`brain-bus-backfill`, `calendar-premeeting`, `bus-exhaustion-watch`, `provider-ping`) forwarded to routes deleted on 2026-05-28 and was removed from the worker on 2026-07-28 (`scheduler.ts:125-130`).
 
 ### 2. Daily & Low-Frequency Scheduler
-Daily/weekly jobs ride the **mega fan-out** in the Next.js runtime (`apps/statenour/app/api/cron/mega/route.ts`, `?slot=morning|evening`):
+Two scheduler classes own daily/weekly work. Which one owns a job is its row in `apps/statenour/config/crons.ts`:
+*   **Inngest-native crons** (`inngest: true`, e.g. `operator-morning-brief`, `quality-bench-weekly`) carry their own Inngest triggers and do not touch the worker or the mega routes.
+*   **Mega fan-out children**, described below.
+
+Mega fan-out children ride in the Next.js runtime (`apps/statenour/app/api/cron/mega/route.ts`, `?slot=morning|evening`):
 *   Entry points: the worker's `POST /cron/mega` and `POST /cron/mega-evening` (`apps/worker/src/index.ts:168,174`), which forward to `/api/cron/mega`. The Railway cron that calls them is set in the dashboard, not in `.railway/railway.ts`, so the repo cannot show whether it is firing. Check statenour `cron_job_logs` (`CronJobLog`). The Inngest `mega-fanout` function is registered too but skips every run unless `INNGEST_MEGA_V2=true` (`apps/statenour/lib/inngest/functions/mega-fanout.ts:341-347`).
 *   Requires the `CRON_SECRET` Bearer header to trigger successfully.
 *   Manual fire: `POST /api/settings/crons/trigger`, or run-now / kill switch on `/system/crons`. There is no `/api/system/crons/run` route.
