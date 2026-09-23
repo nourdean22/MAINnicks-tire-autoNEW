@@ -1774,6 +1774,13 @@ model BrainMemory {
   category   String // pattern, insight, preference, routine, anomaly, device_behavior
   key        String // unique identifier for dedup
   content    String    @db.Text
+  /// 2026-09-22 · GENERATED ALWAYS AS (to_tsvector('english', content)) STORED, plus the GIN
+  /// brain_memories_content_tsv_idx (migration 20260923000000_brain_content_tsv). The FTS
+  /// readers filter and rank on it instead of re-parsing content per candidate row. Same
+  /// guard as chat_messages.searchable_tsv: Prisma cannot model the generator, so
+  /// Unsupported + `@default(dbgenerated())` tells it not to manage the column, which is
+  /// what stops drop-on-push. Raw SQL only; the schema sentinel tracks existence.
+  content_tsv Unsupported("tsvector")? @default(dbgenerated())
   confidence Float     @default(0.5)
   lastSeen   DateTime  @default(now()) @map("last_seen")
   seenCount  Int       @default(1) @map("seen_count")
