@@ -28,6 +28,11 @@ const log = createLogger("nickgpt-client");
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_MAX_TOKENS = 110; // ROS-058: ~320 CHARS. The old value was 320 TOKENS (~1,200 chars) — a token/char confusion that let drafts run 4x past the persona contract before the guard saw them.
+// This file is the app's only Anthropic caller, so the default lives here. Was
+// "claude-3-5-haiku-latest", retired 2026-02-19 — with ANTHROPIC_MODEL unset, every
+// Claude fallback since has failed and fallen through. claude-sonnet-5: retirement
+// not before 2027-06-30. server/retiredClaudeModelGate.test.ts fails if a retired id returns.
+const ANTHROPIC_FALLBACK_MODEL = "claude-sonnet-5";
 
 interface DraftOpts {
   /** Inbound customer message that needs a reply */
@@ -198,7 +203,7 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
 
   if (anthropicKey) {
     try {
-      const modelName = process.env.ANTHROPIC_MODEL || "claude-3-5-haiku-latest";
+      const modelName = process.env.ANTHROPIC_MODEL || ANTHROPIC_FALLBACK_MODEL;
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
@@ -210,7 +215,10 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
           model: modelName,
           max_tokens: opts.maxTokens,
           system: opts.systemPrompt,
-          temperature: opts.temperature,
+          // Current Claude models reject non-default temperature (HTTP 400), and
+          // Sonnet 5 thinks adaptively unless told not to — thinking would eat
+          // this 110-token budget and leave no draft. So: no temperature, no thinking.
+          thinking: { type: "disabled" },
           messages,
         }),
       });
@@ -218,8 +226,8 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
         const text = await resp.text().catch(() => "<no body>");
         throw new Error(`Anthropic HTTP ${resp.status} · ${text.slice(0, 200)}`);
       }
-      const json = (await resp.json()) as { content?: Array<{ text?: string }> };
-      const text = json.content?.[0]?.text?.trim() ?? "";
+      const json = (await resp.json()) as { content?: Array<{ type?: string; text?: string }> };
+      const text = json.content?.find((b) => b.type === "text")?.text?.trim() ?? "";
       if (!text) throw new Error("Anthropic returned empty content");
       return { text, source: "fallback-claude", modelName };
     } catch (err) {

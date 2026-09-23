@@ -39,7 +39,10 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   "gpt-5": { input: 5.0, output: 20.0 },
   "gpt-oss": { input: 0, output: 0 },
   // ── Anthropic ────────────────────────────────────────────────────────
-  "claude-sonnet-5": { input: 3.0, output: 15.0 }, // current Sonnet tier (anthropic fallback lane)
+  // Sonnet 5: $2/$10 is the STANDARD price — "The previously scheduled increase to
+  // $3/$15 ... on September 1, 2026 will not occur." (platform.claude.com/docs/en/
+  // about-claude/pricing, read 2026-09-23). Pinned by tests/lib/ai/claude-pricing.test.ts.
+  "claude-sonnet-5": { input: 2.0, output: 10.0 }, // current Sonnet tier (anthropic fallback lane)
   "claude-sonnet-4-5": { input: 3.0, output: 15.0 },
   "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
   "claude-3-5-sonnet": { input: 3.0, output: 15.0 },

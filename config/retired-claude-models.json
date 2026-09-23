@@ -1,0 +1,13 @@
+{
+  "$comment": "Claude model ids that are RETIRED on the Claude API: requests to them fail. Runtime source in apps/nickstire and apps/statenour must not name one (gates: apps/nickstire/server/retiredClaudeModelGate.test.ts, apps/statenour/tests/repo/retired-claude-models-gate.test.ts). Source: platform.claude.com/docs/en/about-claude/model-deprecations, read 2026-09-23. Add a row when a model retires; never delete one.",
+  "source": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+  "readOn": "2026-09-23",
+  "retired": [
+    { "pattern": "claude-3[-.]", "note": "every Claude 3 / 3.5 / 3.7 id (Sonnet 3.5 retired 2025-10-28, Haiku 3.5 and Sonnet 3.7 2026-02-19, Haiku 3 2026-04-20)" },
+    { "pattern": "claude-2", "note": "Claude 2.0 / 2.1, retired 2025-07-21" },
+    { "pattern": "claude-instant", "note": "Claude Instant 1.x, retired 2024-11-06" },
+    { "pattern": "claude-sonnet-4-20250514", "note": "Claude Sonnet 4, retired 2026-06-15" },
+    { "pattern": "claude-opus-4-20250514", "note": "Claude Opus 4, retired 2026-06-15" },
+    { "pattern": "claude-opus-4-1-20250805", "note": "Claude Opus 4.1, retired 2026-08-05" }
+  ]
+}
