@@ -41,6 +41,7 @@ vi.mock("@/lib/brain/pipeline-controller", () => ({
 }));
 
 import { parseActions, executeActions, ACTION_CATALOG } from "../../lib/ai/nick-agent";
+import { checkApprovalGate } from "@/lib/ai/runtime/approval-gate";
 import * as googleHandlers from "@/lib/ai/agent-actions/google-actions";
 import * as arsenalHandlers from "@/lib/ai/agent-actions/arsenal-actions";
 import * as personHandlers from "@/lib/ai/agent-actions/person-actions";
@@ -142,5 +143,40 @@ describe("person.logInteraction — reachable, not just registered", () => {
     // The prompt is the only way the model learns the action exists.
     expect(ACTION_CATALOG).toContain("| person.logInteraction |");
     expect(ACTION_CATALOG).toMatch(/person\.update[^\n]*never touches lastInteraction/);
+  });
+});
+
+describe("approval gate wiring · an executed approval is replayed, never re-run", () => {
+  it("a gate replay returns the stored receipt and never calls the handler", async () => {
+    vi.mocked(checkApprovalGate).mockResolvedValueOnce({
+      approved: false,
+      approvalId: "req_1",
+      replay: { result: { draftId: "prior" } },
+    });
+
+    const results = await executeActions([
+      { type: "gmail.sendDraft", params: { draftId: "d1" }, approvalId: "req_1" },
+    ]);
+
+    expect(checkApprovalGate).toHaveBeenCalledWith(
+      "gmail.sendDraft", { draftId: "d1" }, undefined, undefined, { approvalId: "req_1" },
+    );
+    expect(results[0]).toEqual({ action: "gmail.sendDraft", success: true, result: { draftId: "prior" } });
+    expect(googleHandlers.handleGmailSendDraft).not.toHaveBeenCalled();
+  });
+
+  it("a gated result tells the model how to follow up with the approvalId", async () => {
+    vi.mocked(checkApprovalGate).mockResolvedValueOnce({ approved: false, approvalId: "req_9" });
+
+    const [res] = await executeActions([{ type: "gmail.sendDraft", params: { draftId: "d1" } }]);
+
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('"approvalId": "req_9"');
+    expect(googleHandlers.handleGmailSendDraft).not.toHaveBeenCalled();
+  });
+
+  it("parseActions carries approvalId through from an action block", () => {
+    const parsed = parseActions('```action\n{ "type": "gmail.sendDraft", "params": { "draftId": "d1" }, "approvalId": "req_1" }\n```');
+    expect(parsed[0].approvalId).toBe("req_1");
   });
 });
