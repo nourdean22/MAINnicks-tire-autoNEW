@@ -4,6 +4,9 @@ import {
   fileIsHistorical,
   STALE_TERMS,
   SAFE_CONTEXT_WORDS,
+  checkDateSynchronization,
+  daysBetween,
+  parseStampDate,
 } from "../../scripts/check-stale-docs";
 
 describe("check-stale-docs guard", () => {
@@ -99,6 +102,187 @@ describe("check-stale-docs guard", () => {
   it("exposes the documented safe-context words", () => {
     for (const w of ["historical", "retired", "archived", "obsolete"]) {
       expect(SAFE_CONTEXT_WORDS).toContain(w);
+    }
+  });
+});
+
+/**
+ * The READ-FIRST doc's stamp now has a consumer.
+ *
+ * Until 2026-09-17 nothing checked `docs/CURRENT-TRUTH.md`'s "Last verified"
+ * date. It sat at 2026-09-02 through two waves and eleven merged PRs —
+ * ACCURATE, but missing a behavioural change to tool selection and the fact
+ * that `/api/version`, not `/api/health`, is the public deploy-truth endpoint.
+ * A stamp nobody reads is the producer-without-consumer shape this repo keeps
+ * rediscovering; these tests are the consumer, and the canary below is what
+ * stops it from being a decorative one.
+ *
+ * DRIFT BUDGET, not equality — and that distinction is load-bearing. AGENTS.md
+ * is a wave stamp and must MATCH the ship log exactly. CURRENT-TRUTH is a
+ * "where am I" snapshot that does not need re-verifying every wave; demanding
+ * equality would keep it permanently red and train people to bump the date
+ * without reading the doc, which is worse than having no gate at all.
+ */
+describe("CURRENT-TRUTH staleness", () => {
+  const { mkdtempSync, writeFileSync, mkdirSync, rmSync } = require("node:fs") as typeof import("node:fs");
+  const os = require("node:os") as typeof import("node:os");
+  const p = require("node:path") as typeof import("node:path");
+
+  /** A minimal app root: AGENTS.md + the two dated docs. */
+  function fixture(truthDate: string, reconDate: string, agentsDate = reconDate): string {
+    const dir = mkdtempSync(p.join(os.tmpdir(), "stale-docs-"));
+    mkdirSync(p.join(dir, "docs"), { recursive: true });
+    writeFileSync(p.join(dir, "AGENTS.md"), `**Last refreshed:** ${agentsDate}\n`);
+    writeFileSync(p.join(dir, "docs/RECONCILIATION.md"), `**Last verified:** ${reconDate}\n`);
+    writeFileSync(p.join(dir, "docs/CURRENT-TRUTH.md"), `> Last verified **${truthDate}**.\n`);
+    return dir;
+  }
+
+  const truthFindings = (dir: string) =>
+    checkDateSynchronization(dir).filter((f) => f.file === "docs/CURRENT-TRUTH.md");
+
+  it("daysBetween counts whole days forward", () => {
+    expect(daysBetween("2026-09-02", "2026-09-17")).toBe(15);
+    expect(daysBetween("2026-09-17", "2026-09-17")).toBe(0);
+  });
+
+  it("POSITIVE CONTROL: a freshly stamped read-first doc reports nothing", () => {
+    // Without this, a rule that fired on everything would satisfy the canary
+    // below while making the gate useless.
+    const dir = fixture("2026-09-17", "2026-09-17");
+    try {
+      expect(truthFindings(dir)).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("tolerates drift INSIDE the budget — a snapshot need not track every wave", () => {
+    const dir = fixture("2026-09-10", "2026-09-17"); // 7 days
+    try {
+      expect(truthFindings(dir)).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("CANARY: it FIRES past the budget — the exact 15-day drift that prompted it", () => {
+    const dir = fixture("2026-09-02", "2026-09-17"); // the real case
+    try {
+      const found = truthFindings(dir);
+      expect(found).toHaveLength(1);
+      expect(found[0].text).toContain("15 days behind");
+      expect(found[0].severity).toBe("warn");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("escalates to CRITICAL at double the budget", () => {
+    const dir = fixture("2026-08-10", "2026-09-17"); // 38 days
+    try {
+      expect(truthFindings(dir)[0].severity).toBe("critical");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a MISSING stamp rather than treating it as fresh", () => {
+    // An absent stamp must not read as zero drift — the same distinction the
+    // rest of this codebase draws between a missing row and a measured zero.
+    const dir = fixture("2026-09-17", "2026-09-17");
+    try {
+      writeFileSync(p.join(dir, "docs/CURRENT-TRUTH.md"), "no stamp here\n");
+      const found = truthFindings(dir);
+      expect(found).toHaveLength(1);
+      expect(found[0].term).toBe("Last verified");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("the LIVE doc is inside the budget right now", () => {
+    // The gate ships green, not as a cleanup project.
+    expect(truthFindings(process.cwd())).toEqual([]);
+  });
+});
+
+/**
+ * Two ways this guard used to treat ABSENCE as SUCCESS — both found by review,
+ * both the exact defect the guard exists to prevent, sitting inside the guard.
+ *
+ *   1 · A DELETED read-first doc skipped the whole check and returned nothing.
+ *       CI stayed green while `AGENTS.md:3` pointed every session at a file that
+ *       was not there — and the live-document test passed too, because it
+ *       filters for findings on a file that no longer exists.
+ *
+ *   2 · A stamp like `2026-13-17` satisfies `\d{4}-\d{2}-\d{2}`, `Date.parse`
+ *       returns NaN, and EVERY comparison against NaN is false. The document
+ *       read as perfectly fresh, forever, and strict mode exited 0.
+ *
+ * The second is the more instructive: NaN does not fail loudly, it fails as
+ * `false`, which is indistinguishable from "within budget".
+ */
+describe("CURRENT-TRUTH guard · absence must not read as success", () => {
+  const { mkdtempSync, writeFileSync: wf, mkdirSync, rmSync } = require("node:fs") as typeof import("node:fs");
+  const os = require("node:os") as typeof import("node:os");
+  const p = require("node:path") as typeof import("node:path");
+
+  function dir(truth: string | null, recon = "2026-09-17"): string {
+    const d = mkdtempSync(p.join(os.tmpdir(), "stale-absence-"));
+    mkdirSync(p.join(d, "docs"), { recursive: true });
+    wf(p.join(d, "AGENTS.md"), `**Last refreshed:** ${recon}\n`);
+    wf(p.join(d, "docs/RECONCILIATION.md"), `**Last verified:** ${recon}\n`);
+    if (truth !== null) wf(p.join(d, "docs/CURRENT-TRUTH.md"), `> Last verified **${truth}**.\n`);
+    return d;
+  }
+  const truthFindings = (d: string) =>
+    checkDateSynchronization(d).filter((f) => f.file === "docs/CURRENT-TRUTH.md");
+
+  it("parseStampDate REJECTS a shape-valid impossible date", () => {
+    expect(parseStampDate("2026-09-17")).toBeInstanceOf(Date);
+    expect(parseStampDate("2026-13-17")).toBeNull(); // month 13
+    expect(parseStampDate("2026-02-31")).toBeNull(); // Feb 31 — Date.UTC would roll over
+    expect(parseStampDate("not-a-date")).toBeNull();
+  });
+
+  it("daysBetween returns null rather than NaN, so nothing compares false by accident", () => {
+    expect(daysBetween("2026-09-02", "2026-09-17")).toBe(15);
+    expect(daysBetween("2026-13-17", "2026-09-17")).toBeNull();
+  });
+
+  it("CANARY: a MISSING read-first doc is reported, not skipped", () => {
+    const d = dir(null);
+    try {
+      const found = truthFindings(d);
+      expect(found).toHaveLength(1);
+      expect(found[0].severity).toBe("critical");
+      expect(found[0].term).toBe("Missing read-first doc");
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("CANARY: an IMPOSSIBLE date is reported, not treated as fresh", () => {
+    const d = dir("2026-13-17");
+    try {
+      const found = truthFindings(d);
+      expect(found).toHaveLength(1);
+      expect(found[0].severity).toBe("critical");
+      expect(found[0].term).toBe("Unparseable verification date");
+    } finally {
+      rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("POSITIVE CONTROL: a real, fresh stamp still reports nothing", () => {
+    // Both canaries above would be satisfied by a rule that fired on
+    // everything. This is what stops that.
+    const d = dir("2026-09-17");
+    try {
+      expect(truthFindings(d)).toEqual([]);
+    } finally {
+      rmSync(d, { recursive: true, force: true });
     }
   });
 });

@@ -19,7 +19,7 @@
 import { langfuseTelemetry } from "@/lib/observability/langfuse";
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { BRAIN_CATEGORIES, RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 import {
   answerCallbackQuery,
   editTelegramMessage,
@@ -218,6 +218,61 @@ async function handleCallback(callback: {
         status: "PENDING",
       }
     });
+
+    // ★★★ OUTCOME RATING · the first affordance that can label a proactive push.
+    // callback_data: oc:u|n:<ledgerId>
+    //
+    // Measured 2026-09-18: `intelligence_outcomes` had 293 rows and SIX labels,
+    // newest 2026-08-31 — 64 new rows and zero new labels in a fortnight. Not
+    // neglect: `recordShown` had 24 callers and `recordOutcome` had TWO, both in
+    // discoveries.ts, so every proactive_push row was STRUCTURALLY unlabelable.
+    // An outcome ledger with a writer and no rater measures delivery, not
+    // usefulness.
+    //
+    // ⚠ THE ID TRAVELS IN callback_data, NOT THE CONTENT. Telegram caps it at 64
+    // bytes; a cuid is ~25, a brief is not. Rating by id lands on the exact row
+    // rather than re-deriving a content hash and hoping it still matches.
+    if (action === "oc") {
+      const parts = (callback.data ?? "").split(":");
+      const useful = parts[1] === "u";
+      const ledgerId = parts.slice(2).join(":");
+      if (!ledgerId) {
+        await answerCallbackQuery(callback.id, "Malformed rating.");
+      } else {
+        try {
+          const { recordOutcome } = await import("@/lib/services/outcome-ledger");
+          // ⚠ USE THE RETURN VALUE. recordOutcome updates `where: { id,
+          // outcomeAt: null }` and returns count === 1, so a second tap is a
+          // deliberate no-op returning false. Answering "Noted" regardless
+          // would confirm a write that did not happen — the same
+          // false-reassurance class this whole wave has been removing.
+          const recorded = await recordOutcome({
+            id: ledgerId,
+            useful,
+            resultRef: "telegram:rating",
+          });
+          await answerCallbackQuery(
+            callback.id,
+            recorded
+              ? useful
+                ? "Noted — useful ✓"
+                : "Noted — not useful"
+              : "Already rated.",
+          );
+        } catch (err) {
+          void import("@/lib/utils/error-log").then(({ logError }) =>
+            logError("api.telegram.webhook", err, { fn: "outcomeRating", ledgerId }, "warn"),
+          );
+          // ⚠ Say so. A silent failure here would recreate the defect being
+          // fixed: the operator believes they labelled it and nothing did.
+          await answerCallbackQuery(callback.id, "Could not record that — try again.");
+        }
+      }
+      await (prisma as any).actionReceipt
+        .update({ where: { id: receipt.id }, data: { status: "DONE" } })
+        .catch(() => {});
+      return;
+    }
 
     // Journal Brain · confirm/reject a proposed goal link from the phone.
     // callback_data: jlink:c|r:<silo>:<id>
@@ -1174,12 +1229,54 @@ async function cmdAsk(args: string, chatId: string): Promise<void> {
           try {
             const { semanticSearch } = await import("@/lib/brain/embedding-utils");
             const hits = await semanticSearch(query, 6);
+            if (hits.length > 0) {
+              return {
+                ok: true,
+                lane: "semantic",
+                count: hits.length,
+                memories: hits.map((h) => ({
+                  content: h.content.slice(0, 300),
+                  category: h.category ?? h.sourceType,
+                })),
+              };
+            }
+
+            // ★★★ AN EMPTY DENSE RESULT IS NOT A MEASURED ZERO.
+            // `semanticSearch` returns [] both when nothing matched AND when
+            // the query embedding is unavailable — the two are
+            // indistinguishable from here. Returning `ok: true, count: 0` for
+            // the second case hands the model an affirmative "I searched your
+            // memory and it is empty on this", which it then states to the
+            // operator in Nick's voice with the confidence of a completed
+            // search it never performed.
+            //
+            // The sibling /memory and /search handlers in this file already
+            // fall through to a lexical lane on an empty dense result; this
+            // tool — the one an LLM actually speaks from — did not.
+            const { prisma } = await import("@/lib/prisma");
+            const lexical = await prisma.brainMemory.findMany({
+              where: {
+                content: { contains: query, mode: "insensitive" },
+                deletedAt: null,
+                category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
+              },
+              orderBy: { confidence: "desc" },
+              take: 6,
+              select: { content: true, category: true },
+            });
             return {
               ok: true,
-              count: hits.length,
-              memories: hits.map((h) => ({
-                content: h.content.slice(0, 300),
-                category: h.category ?? h.sourceType,
+              // ⚠ The model is told WHICH lane answered. "lexical" means the
+              // dense lane returned nothing — which may be an outage — so an
+              // empty lexical result is weaker evidence of absence than a
+              // semantic miss, and the model should hedge rather than assert.
+              lane: "lexical",
+              degraded: true,
+              note: "semantic lane returned nothing (no match, or embeddings unavailable); this is a keyword fallback",
+              count: lexical.length,
+              memories: lexical.map((m) => ({
+                content: m.content.slice(0, 300),
+                category: m.category,
               })),
             };
           } catch (err) {
@@ -1342,10 +1439,27 @@ async function cmdMemory(query: string, chatId: string): Promise<void> {
   const results = await semanticSearch(query, 5);
 
   if (results.length === 0) {
-    // Fall back to keyword search
+    // Fall back to keyword search.
+    //
+    // ⚠⚠ THIS RUNS PRECISELY WHEN THE SYSTEM IS DEGRADED, which makes it the
+    // worst possible place to drop the recall guards — and it did. Without
+    // `deletedAt: null` it resurfaces memories the operator explicitly DELETED.
+    // Without the category exclusion it surfaces `research_claim_candidate`
+    // rows: un-promoted external claims whose only grounding is cosine
+    // similarity to our own memory, which categories.ts says "belongs to
+    // /brain, not to the model" until a human promotes them.
+    //
+    // ★ embedding-utils.ts fixed exactly this on its OWN in-memory fallback
+    //   ("deleted and quarantined content became recallable exactly when the
+    //   system was already degraded"). This lane never got the same treatment,
+    //   and it is the operator-facing one.
     const { prisma } = await import("@/lib/prisma");
     const memories = await prisma.brainMemory.findMany({
-      where: { content: { contains: query, mode: "insensitive" } },
+      where: {
+        content: { contains: query, mode: "insensitive" },
+        deletedAt: null,
+        category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
+      },
       orderBy: { confidence: "desc" },
       take: 5,
       select: { category: true, content: true, confidence: true },
@@ -1497,9 +1611,15 @@ async function cmdSearch(query: string, chatId: string): Promise<void> {
   const hits = await semanticSearch(query, 6);
 
   if (hits.length === 0) {
-    // Fall back to LIKE search across journal + memory
+    // Fall back to LIKE search across journal + memory.
+    // ⚠ `deletedAt: null` for the same reason as /memory above: BrainDump
+    // carries a soft-delete column, and a degraded lane must not become the
+    // one path that hands back journal entries the operator deleted.
     const dumps = await prisma.brainDump.findMany({
-      where: { rawThoughts: { contains: query, mode: "insensitive" } },
+      where: {
+        rawThoughts: { contains: query, mode: "insensitive" },
+        deletedAt: null,
+      },
       orderBy: { createdAt: "desc" },
       take: 5,
       select: { rawThoughts: true, createdAt: true, summary: true },

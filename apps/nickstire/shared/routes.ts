@@ -295,7 +295,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.7,
     changefreq: "monthly",
     title: "Michelin Tires Cleveland | Free $266 Install Package | Nick's",
-    description: "Michelin tires in Cleveland — Defender, Premier A/S, Pilot Sport, X-Ice. Stocked or 24-hr special order. FREE install package on every set. (216) 862-0005",
+    description: "Michelin tires in Cleveland — Defender, Premier A/S, Pilot Sport, X-Ice. Full lineup available to order. FREE install package on every set. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -305,7 +305,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.7,
     changefreq: "monthly",
     title: "Goodyear Tires Cleveland | Free $266 Install Package | Nick's",
-    description: "Goodyear tires in Cleveland — Assurance, Eagle, Wrangler, WeatherReady. Akron-based brand, full lineup stocked. FREE install package. (216) 862-0005",
+    description: "Goodyear tires in Cleveland — Assurance, Eagle, Wrangler, WeatherReady. Akron-based brand, full lineup available. FREE install package. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -1017,7 +1017,7 @@ const SEO_SERVICE_PAGES: RouteEntry[] = [
   // competitor page can replicate. Hybrid price-intent queries ("how
   // much do tires cost in cleveland") trigger AI answer engines at the
   // highest observed rates, and engines cite verifiable numbers.
-  { path: "/tire-prices-cleveland", priority: 0.8, changefreq: "daily", title: "Tire Prices Cleveland — Live In-Stock Pricing | Nick's", description: "Real tire prices in Cleveland from our live distributor feed. Used tires from $25 installed (12-inch rims; most $40-80), new from $89 installed. Walk-ins 7 days.", group: "seo-service", sitemap: true, prerender: true },
+  { path: "/tire-prices-cleveland", priority: 0.8, changefreq: "daily", title: "Tire Prices Cleveland — Live Installed Pricing | Nick's", description: "Real tire prices in Cleveland from our live distributor feed. Used tires from $25 installed (12-inch rims; most $40-80), new from $89 installed. Walk-ins 7 days.", group: "seo-service", sitemap: true, prerender: true },
 ];
 
 // ─── VEHICLE MAKE PAGES ──────────────────────────────────
@@ -1257,7 +1257,7 @@ const UTILITY_PAGES: RouteEntry[] = [
     priority: 0.7,
     changefreq: "weekly",
     title: "Automotive Technician Job — Cleveland OH | Nick’s Tire & Auto",
-    description: "Hiring a mid-to-senior automotive technician in Cleveland, OH. Diagnostics, brakes, suspension, drivetrain. Consistent volume, no flat-rate grind. Apply in 2 minutes.",
+    description: "Automotive technician job in Cleveland, OH: $30.00–$37.50/hr, hourly — not flat rate. Diagnostics, brakes, suspension, drivetrain. No resume needed. Apply in 2 minutes.",
     group: "utility",
     sitemap: true,
     prerender: true,
@@ -1270,7 +1270,7 @@ const UTILITY_PAGES: RouteEntry[] = [
     priority: 0.7,
     changefreq: "weekly",
     title: "Service Advisor Job — Cleveland OH | Nick’s Tire & Auto",
-    description: "Hiring a service advisor in Cleveland, OH. Translate technician findings honestly, no pressure upsells. Fast-paced family-run shop. Apply in 2 minutes.",
+    description: "Service advisor job in Cleveland, OH: $22.00–$28.00/hr, hourly. Explain technician findings honestly, no pressure upsells. Apply in 2 minutes.",
     group: "utility",
     sitemap: true,
     prerender: true,
@@ -1283,8 +1283,24 @@ const UTILITY_PAGES: RouteEntry[] = [
     priority: 0.7,
     changefreq: "weekly",
     title: "Tire Technician Job — Cleveland OH | Nick’s Tire & Auto",
-    description: "Hiring a tire / hybrid technician in Cleveland, OH. Mounting, balancing, TPMS, flat repair. One of Cleveland’s busiest tire operations. Apply in 2 minutes.",
+    description: "Tire / hybrid technician job in Cleveland, OH: $22.00–$25.50/hr, hourly. Mounting, balancing, TPMS, flat repair. No resume needed. Apply in 2 minutes.",
     group: "utility",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    // Technician-facing tool (docs/recruiting/RECRUITING-ENGINE-2026-09.md).
+    // NOT under /careers/ — that prefix is reserved for job leaves, and an
+    // unknown /careers/<slug> is a 404 by design (server/_core/spaFallback.ts).
+    path: "/mechanic-pay-calculator",
+    priority: 0.6,
+    changefreq: "monthly",
+    title: "Mechanic Pay Calculator: Flat Rate vs Hourly | Nick's Tire & Auto",
+    description: "Compare flat-rate and hourly mechanic pay with your own numbers: flag rate, flagged hours, guarantee, overtime. Weekly and yearly pay, plus break-even flag hours.",
+    group: "utility",
+    // In the sitemap since the 2026-09-23 prerender refresh (79983f9) wrote
+    // prerendered/mechanic-pay-calculator/index.html — prerender:check fails a
+    // sitemap route with no artifact.
     sitemap: true,
     prerender: true,
   },
@@ -1293,7 +1309,7 @@ const UTILITY_PAGES: RouteEntry[] = [
     priority: 0.7,
     changefreq: "weekly",
     title: "Careers — Auto Tech Jobs Cleveland | Nick's Tire & Auto",
-    description: "Now hiring mechanics, tire technicians, and apprentices at Nick's Tire & Auto. Competitive pay, growth opportunities, modern shop. Apply in 2 minutes.",
+    description: "Hiring auto techs ($30.00–$37.50/hr), tire/hybrid techs ($22.00–$25.50/hr) and a service advisor ($22.00–$28.00/hr) in Cleveland, OH. Hourly pay.",
     group: "utility",
     sitemap: true,
     prerender: true,

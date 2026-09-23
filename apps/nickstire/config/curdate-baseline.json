@@ -1,0 +1,185 @@
+{
+  "$comment": "Sites of a calendar date computed from the UTC DB clock (CURDATE() and the other spellings listed in scripts/lint-curdate.mjs), accepted when the gate was introduced on 2026-09-23 and widened the same day from 96 bare CURDATE() in 28 files to 109 sites in 33. ANY NEW SITE FAILS. One entry per file: count, effect, reason. effect = what the file's worst site decides, most to least customer impact: customer-send (who receives a text) > customer-state (a customer's recorded state) > customer-view (shown to a customer) > staff-today (a today/period figure or day count that staff or the owner read) > alert-dedupe (a once-per-day alert key) > rolling-window (an N-day window whose edge moves by hours). The reason says who sees it, and how wrong it is and when; every reason was re-read against the code on 2026-09-23. The UTC day runs from 8 PM to 8 PM Eastern (7 PM to 7 PM in winter), which gives two shapes of error. (1) A today / week / month window over a column that holds a UTC instant (createdAt, invoiceDate, lastVisitDate) is shifted 4 hours earlier (5 in winter) ALL DAY: at 10 AM it already holds the rows from 8 PM to midnight the evening before, and from 8 PM ET it restarts near empty on the next day. (2) A day count or a date compared with an ET calendar date (bookings.preferredDate, expected_arrivals.expectedDate), or a DATEDIFF against daytime timestamps, is one day off only while the query runs between 8 PM ET (7 PM in winter) and midnight. No site governs an SMS sending window: sms.ts computes those in JS in America/New_York.",
+  "entries": [
+    {
+      "file": "server/_core/statenour-bridge-routes.ts",
+      "count": 8,
+      "effect": "staff-today",
+      "reason": "Nour OS bridge, read by the owner's StateNour dashboard. /api/bridge/cars-today splits today's paid revenue by payment method with DATE(invoiceDate) = CURDATE(): the UTC day, so all day it also holds invoices from 8 PM ET (7 PM in winter) the evening before, and from 8 PM ET to midnight it restarts near $0. The other 7 are DATE_SUB(CURDATE(), INTERVAL n DAY) windows (estimates, drop-offs, Uber requests) whose start edge sits at 8 PM ET instead of midnight: 4 extra hours (5 in winter) all day, most of the first day lost after 8 PM ET."
+    },
+    {
+      "file": "server/cron/jobs/intelligenceAutopilot.ts",
+      "count": 5,
+      "effect": "staff-today",
+      "reason": "Owner's Telegram autopilot, business hours (7 AM to 9 PM ET). The 'TODAY: N jobs, W walk-ins, B from website' line counts invoices and bookings since 00:00 UTC, i.e. since 8 PM ET (7 PM in winter) the evening before, so all day it includes last evening's late rows; on a run after 8 PM ET it counts only the time since then and is usually dropped (it prints only when the count is above 0). The three 7-day windows (free inspections, estimate conversion) drift by hours."
+    },
+    {
+      "file": "server/cron/jobs/retentionSequences.ts",
+      "count": 1,
+      "effect": "customer-send",
+      "reason": "DATEDIFF(CURDATE(), lastVisitDate) BETWEEN minDays AND maxDays picks who gets each retention-tier TEXT. It is not wrong today: processRetentionTier returns before this query unless 9 <= ET hour < 18 (isWithinRetentionHours), and inside that window the UTC date equals the ET date. It would move every tier boundary one day early as soon as the sending window reached 8 PM ET (7 PM in winter), so it stays baselined rather than exempt."
+    },
+    {
+      "file": "server/cron/jobs/statenourSync.ts",
+      "count": 13,
+      "effect": "staff-today",
+      "reason": "Owner's StateNour dashboard sync, every 15 min at all hours. Today's and yesterday's paid revenue are UTC days (DATE(invoiceDate) = CURDATE()), so 'today' always includes last evening after 8 PM ET (7 PM in winter), and from 8 PM ET to midnight 'today' restarts near $0 while 'yesterday' shows today's takings. Month-to-date starts at 8 PM ET on the previous month's last day and flips to the new month after 8 PM ET on a month's last day. The 7-day and week-over-week lead, revenue and booking windows drift by hours."
+    },
+    {
+      "file": "server/cron/jobs/unpaidInvoiceRecovery.ts",
+      "count": 1,
+      "effect": "alert-dedupe",
+      "reason": "fired_for = CURDATE() is the once-per-day slot for the owner's 'unpaid invoices aged out of collections' Telegram alert. The slot's day runs 8 PM to 8 PM ET (7 PM in winter): a run after 8 PM ET claims tomorrow's slot, so the alert can fire twice in one ET day and is then held until 8 PM the next day. Owner-only; no customer sees it."
+    },
+    {
+      "file": "server/cron/jobs/vapiCallEval.ts",
+      "count": 1,
+      "effect": "alert-dedupe",
+      "reason": "fired_for = CURDATE() is the once-per-day slot for the owner's call-evaluation Telegram alerts. The slot's day runs 8 PM to 8 PM ET (7 PM in winter), so an alert can repeat within one ET day and then be held until 8 PM the next. Owner-only."
+    },
+    {
+      "file": "server/cron/jobs/vapiLatencySync.ts",
+      "count": 1,
+      "effect": "alert-dedupe",
+      "reason": "fired_for = CURDATE() is the once-per-day slot for the owner's voice-latency-breach Telegram alert (critical channel). The slot's day runs 8 PM to 8 PM ET (7 PM in winter), so the alert can repeat within one ET day and then be held until 8 PM the next. Owner-only."
+    },
+    {
+      "file": "server/cron/scheduler.ts",
+      "count": 1,
+      "effect": "staff-today",
+      "reason": "stale-estimate-alert (business hours, 7 AM to 9 PM ET) prints DATEDIFF(NOW(), invoiceDate) as each pending estimate's '(Nd old)' in the owner's Telegram message. Both dates are UTC days, so a run between 8 and 9 PM ET (7 and 9 PM in winter) prints every age one day high, and an estimate written after 8 PM ET reads one day young. The 3-day selection itself is a rolling NOW() window and is correct."
+    },
+    {
+      "file": "server/pipelines/gbp-reviews.ts",
+      "count": 1,
+      "effect": "staff-today",
+      "reason": "getUrgentReviews() computes ageDays = DATEDIFF(NOW(), review time), and nothing reads it today: the scheduler's urgent-review Telegram alert prints rating, author and text, and the closure rule ignores age. If it is ever shown it reads one day high between 8 PM ET (7 PM in winter) and midnight."
+    },
+    {
+      "file": "server/routers/advanced/invoices.ts",
+      "count": 11,
+      "effect": "staff-today",
+      "reason": "Admin revenue analytics (stats, intelligence). Ten DATE_SUB(CURDATE(), INTERVAL n DAY) windows start at 8 PM ET (7 PM in winter) instead of midnight: 4 extra hours (5 in winter) all day, and after 8 PM ET the window loses most of its first day. The month-to-date row (DATE_FORMAT(CURDATE(), '%Y-%m-01')) counts from 8 PM ET on the previous month's last day and flips to the new month, near $0, after 8 PM ET on a month's last day."
+    },
+    {
+      "file": "server/routers/chat.ts",
+      "count": 1,
+      "effect": "customer-view",
+      "reason": "The customer-facing web chat (Nick AI) gets todayBookings in its context: bookings with createdAt >= CURDATE(), i.e. created since 8 PM ET (7 PM in winter) the evening before. All day it counts last evening's online requests as today's load, and after 8 PM ET it restarts at 0 (plus active work orders). It shades the load the bot may describe; the wait estimate comes from active work orders only."
+    },
+    {
+      "file": "server/routers/controlCenter.ts",
+      "count": 2,
+      "effect": "rolling-window",
+      "reason": "Admin todayPulse: declined estimates in the last 30 days and paid revenue in the last 7 days, both DATE_SUB(CURDATE(), ...) windows whose edge sits at 8 PM ET (7 PM in winter) instead of midnight, a drift of hours on a multi-day total."
+    },
+    {
+      "file": "server/routers/customers.ts",
+      "count": 3,
+      "effect": "staff-today",
+      "reason": "Admin customer views. intelligence: 'at-risk whales' daysSince = DATEDIFF(NOW(), lastVisitDate) reads one day high between 8 PM ET (7 PM in winter) and midnight, and new-customers-this-month (createdAt >= DATE_FORMAT(CURDATE(), '%Y-%m-01')) counts from 8 PM ET on the previous month's last day and flips after 8 PM ET on a month's last day. campaignStats: the 6-8-day 'eligible for follow-up' count (DATEDIFF(CURDATE(), lastVisitDate)) shifts one day between 8 PM ET and midnight; the sender itself is not in this file."
+    },
+    {
+      "file": "server/routers/intelligence.ts",
+      "count": 2,
+      "effect": "staff-today",
+      "reason": "Admin intelligence. nextBestActions lists cold VIPs with daysSince = DATEDIFF(NOW(), lastVisitDate), one day high between 8 PM ET (7 PM in winter) and midnight. shopLoad's todayBookings counts bookings created since 8 PM ET the evening before, all day, and restarts at 0 after 8 PM ET."
+    },
+    {
+      "file": "server/routers/trafficFunnel.ts",
+      "count": 4,
+      "effect": "rolling-window",
+      "reason": "Admin traffic funnel: search_performance.date >= DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL n DAY), '%Y-%m-%d'). After 8 PM ET (7 PM in winter) the n-day window starts one day later: a one-day drift on a multi-day Search Console window."
+    },
+    {
+      "file": "server/routes/nour-os-query.ts",
+      "count": 7,
+      "effect": "rolling-window",
+      "reason": "Nour OS query windows (estimates, drop-offs, Uber requests) as DATE_SUB(CURDATE(), INTERVAL n DAY): the edge sits at 8 PM ET (7 PM in winter) instead of midnight, a drift of hours on a multi-day window. The file's 'today' already uses the ET date (v1.7.6)."
+    },
+    {
+      "file": "server/services/competitorMonitor.ts",
+      "count": 1,
+      "effect": "alert-dedupe",
+      "reason": "fired_for = CURDATE() is the once-per-day slot per competitor change for the owner's 'Competitor threshold breach' alert. The slot's day runs 8 PM to 8 PM ET (7 PM in winter), so an alert can repeat within one ET day and then be held until 8 PM the next. Owner-only."
+    },
+    {
+      "file": "server/services/costDetailCoverage.ts",
+      "count": 1,
+      "effect": "alert-dedupe",
+      "reason": "fired_for = CURDATE() is the once-per-day slot for the owner's cost-detail coverage Telegram alert. The slot's day runs 8 PM to 8 PM ET (7 PM in winter), so the alert can repeat within one ET day and then be held until 8 PM the next. Owner-only."
+    },
+    {
+      "file": "server/services/dataPipelines.ts",
+      "count": 11,
+      "effect": "staff-today",
+      "reason": "revenue-analytics-pipeline writes 'this week vs last week, this month, avg ticket, top services' into Nick AI memory. The week (WEEKDAY(CURDATE())) and month (MONTH / YEAR(CURDATE())) are UTC periods: they start at 8 PM ET (7 PM in winter) the evening before, and on the last day of a week or month they flip to the next period after 8 PM ET. The 7-day top-services window drifts by hours."
+    },
+    {
+      "file": "server/services/declinedWorkSignals.ts",
+      "count": 1,
+      "effect": "rolling-window",
+      "reason": "A 540-day lookback (estimate_date >= DATE_SUB(CURDATE(), INTERVAL 540 DAY)) that ranks declined-work CONTENT topics, and the counts never reach copy. An edge that moves by hours (8 PM ET, 7 PM in winter) on a 540-day window changes nothing visible."
+    },
+    {
+      "file": "server/services/engines/customer.ts",
+      "count": 1,
+      "effect": "staff-today",
+      "reason": "predictRepeatVisits(): daysSinceLast = DATEDIFF(NOW(), lastVisitDate) decides who is 'due soon' or overdue in the admin repeat-visit predictor, and reads one day high between 8 PM ET (7 PM in winter) and midnight."
+    },
+    {
+      "file": "server/services/engines/growth.ts",
+      "count": 3,
+      "effect": "staff-today",
+      "reason": "Admin growth engine: new customers this month vs last month from DATE_FORMAT(NOW(), '%Y-%m-01') and DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 1 MONTH), '%Y-%m-01'). UTC months start at 8 PM ET (7 PM in winter) on the previous month's last day, and after 8 PM ET on a month's last day 'this month' restarts near zero, which flips the trend and the year-end projection until midnight."
+    },
+    {
+      "file": "server/services/engines/marketing.ts",
+      "count": 3,
+      "effect": "staff-today",
+      "reason": "Admin marketing engine: reviews this month vs last month (review_date against DATE_FORMAT(NOW(), '%Y-%m-01') and the same one month back). Same UTC-month shape: the month starts at 8 PM ET (7 PM in winter) on the previous month's last day, and after 8 PM ET on a month's last day 'this month' restarts near zero and the trend flips until midnight."
+    },
+    {
+      "file": "server/services/engines/revenue.ts",
+      "count": 4,
+      "effect": "staff-today",
+      "reason": "bookings.preferredDate is an ET 'YYYY-MM-DD' string compared with UTC CURDATE(): between 8 PM ET (7 PM in winter) and midnight, today's bookings drop out of 'upcoming' and out of scoring, and today's cancelled requests count toward the 6-month no-show rate. Same shape NT-009 fixed in crudAutomation; admin revenue engine only."
+    },
+    {
+      "file": "server/services/intelligenceEngines.ts",
+      "count": 4,
+      "effect": "staff-today",
+      "reason": "Admin revenue pacing: today, week-to-date and month-to-date paid revenue use CURDATE(), WEEKDAY(CURDATE()) and DATE_FORMAT(CURDATE(), '%Y-%m-01'), i.e. UTC periods. Each starts at 8 PM ET (7 PM in winter) the evening before, and after 8 PM ET 'today' restarts near $0 (week and month on their last day)."
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "count": 2,
+      "effect": "customer-state",
+      "reason": "collectNoShowBookings(): preferredDate (an ET date string) < CURDATE() - 1 day, so after 8 PM ET (7 PM in winter) yesterday's unclosed booking requests become no_show_booking opportunities about 4 hours (5 in winter) before ET midnight would make them, not a day early. The collector never sends; an operator works the queue. collectInspectionDeferrals(): publishedAgeDays = DATEDIFF(NOW(), createdAt) in the opportunity's staff-facing reason text reads one day high between 8 PM ET and midnight."
+    },
+    {
+      "file": "server/services/safetyMonitor.ts",
+      "count": 8,
+      "effect": "staff-today",
+      "reason": "Owner Telegram safety check, every 2 h at all hours. Today's revenue and today's unusual transactions are UTC-day sums (invoiceDate >= CURDATE()): all day they include last evening after 8 PM ET (7 PM in winter), and a run between 8 PM ET and midnight sees about $0, so with safety_monitor_enabled on it warns 'Daily revenue at 0% of 30-day avg' (the noon guard does not stop it). The daily-average divisor DATEDIFF(NOW(), MIN(invoiceDate)) and the 30- and 90-day windows are UTC days, off by one day at most."
+    },
+    {
+      "file": "server/services/shopDriverMirror.ts",
+      "count": 1,
+      "effect": "staff-today",
+      "reason": "After each ShopDriver import, pushes today's revenue to the admin live dashboard over SSE with DATE(invoiceDate) = CURDATE(): the UTC day, so it includes invoices from 8 PM ET (7 PM in winter) the evening before and restarts near $0 after 8 PM ET."
+    },
+    {
+      "file": "server/services/shopStatus.ts",
+      "count": 2,
+      "effect": "rolling-window",
+      "reason": "getLineOfCarsToday()'s 7-day booking average for the trend arrow: createdAt in [CURDATE() - 7, CURDATE()), the 7 UTC days ending at 8 PM ET (7 PM in winter) last night, a drift of hours on a 7-day average. Served by the public getLineOfCars endpoint, which no client calls today; its 'today' counts already use the ET date."
+    },
+    {
+      "file": "server/services/weatherIntelligence.ts",
+      "count": 1,
+      "effect": "customer-send",
+      "reason": "sendWeatherSms(): DATEDIFF(CURDATE(), lastVisitDate) >= 60 picks the lapsed customers a weather-triggered TEXT goes to (up to 10 per trigger). The weather-intel job is not business-hours gated, so a run between 8 PM ET (7 PM in winter) and midnight pulls the 60-day line one day early; sms.ts may hold the send for quiet hours, but the audience is already chosen. Dormant while OPENWEATHER_API_KEY is unset (scheduler.ts weather-intel)."
+    }
+  ]
+}

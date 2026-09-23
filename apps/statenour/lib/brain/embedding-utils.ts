@@ -12,7 +12,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { getEmbedding } from "@/lib/ai/provider";
+import { getEmbedding, getEmbeddingWithModel } from "@/lib/ai/provider";
 import {
   isPgvectorAvailable,
   vectorLiteral,
@@ -256,18 +256,31 @@ export async function storeGenericEmbedding(
       return;
     }
 
-    const vec = await getEmbedding(content);
+    // ★★★ PROVENANCE TRAVELS WITH THE VECTOR, OR IT DOES NOT EXIST.
+    // This used to call `getEmbedding`, which returns a bare number[], so the
+    // `model` and `embedding_dim` columns were left NULL on every row this
+    // writer produced — and this is the writer most rows come from. Measured
+    // 2026-09-18: the embedding SPACE was knowable on 4.3% of 97,401 rows.
+    // Two vectors from different models are not comparable, and cosine
+    // similarity between them is a meaningless number rather than an error, so
+    // an unrecorded space is a silent correctness hazard, not just missing
+    // metadata.
+    const { vec, model } = await getEmbeddingWithModel(content);
     if (vec.length === 0) {
       if (sourceType === "brain_memory") {
         await markMemoryEmbeddingPending(sourceId);
       }
       return; // Embedding provider unavailable
     }
+    // ⚠ `model` may be null only when every provider failed, and that path
+    // returned early above. Never substitute a placeholder here: "default" is
+    // exactly how 1,431 rows ended up naming nothing while looking named.
+    const identity = { model, embedding_dim: vec.length };
 
     if (existing) {
       await prisma.vectorEmbedding.update({
         where: { id: existing.id },
-        data: { content, embedding: JSON.stringify(vec) },
+        data: { content, embedding: JSON.stringify(vec), ...identity },
       });
       // v8.5 BATCH 31 — dual-write the native vector column when
       // the v8.5 migration has shipped. No-ops gracefully when the
@@ -280,6 +293,7 @@ export async function storeGenericEmbedding(
           sourceId,
           content,
           embedding: JSON.stringify(vec),
+          ...identity,
         },
       });
       void writePgvectorColumn(created.id, vec);

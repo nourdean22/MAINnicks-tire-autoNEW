@@ -163,6 +163,15 @@ export function provenancePrefix(m: RelevantMemory): string {
   const seen = m.seenCount && m.seenCount > 1 ? ` · seen ${m.seenCount}x` : "";
   return `[${m.category} · ${EVIDENCE_LABEL[cls]}${seen}]`;
 }
+
+/**
+ * The slice of a memory's content the recall block renders: 200 chars for a
+ * direct hit, 150 otherwise. The renderer AND the token-budget trim read this
+ * one helper, so the budget charges exactly what the model is shown.
+ */
+export function renderedContent(m: RelevantMemory): string {
+  return m.content.slice(0, m.relevance === "direct" ? 200 : 150);
+}
 // 2026-05-17 follow-up · exclude binary-payload categories from
 // every recall path · keeps the prompt builder from pulling 100KB+
 // base64 audio blobs that have no semantic value (Phase 5 morning
@@ -229,6 +238,29 @@ const FAST_TOPIC_STOPWORDS = new Set([
   "much", "many", "more", "most", "even", "ever", "never", "now", "one", "two",
   "say", "said", "see", "tell", "told", "think", "thing", "things", "really",
   "right", "yeah", "okay", "well", "way", "back", "off", "too", "let", "lets",
+  // 2026-09-18 · PRO-FORMS AND QUANTIFIERS — completing a class this list
+  // already started. `any`, `all`, `one`, `thing`, `things` and `some` were
+  // here from the beginning, so the intent to exclude this class predates
+  // this edit; these 18 are its gaps.
+  //
+  // MEASURED on 20 short anaphoric follow-ups: 14 derived PRO-FORM-ONLY
+  // topics ("is it still the same" -> ["same"], "the other way" -> ["other"],
+  // "is it done" -> ["done"]) and 17 carried at least one. Those turns have
+  // topics.length > 0, so they never reach the zero-topic embedding path added
+  // in #2425 — they run a real lexical tsquery for "same" instead.
+  //
+  // Why this is noise removal and NOT a precision/recall trade: the lexical
+  // lane matches memory CONTENT. For a pro-form, any content match is
+  // COINCIDENTAL — no memory is ever *about* the word "same". So there is no
+  // true positive to lose, which is what makes this safe without a full
+  // recall-eval run.
+  //
+  // "rest" is deliberately NOT here: it has a real domain sense ("rest day").
+  // Same reason "change" is absent — "oil change". A pro-form with a noun
+  // sense in this operator's world is not a pro-form.
+  "same", "other", "another", "both", "else", "anything", "something",
+  "nothing", "everything", "everyone", "anyone", "someone", "nobody", "none",
+  "each", "every", "done", "such",
 ]);
 
 export function deriveFastTopics(messages: string[]): string[] {
@@ -245,6 +277,58 @@ export function deriveFastTopics(messages: string[]): string[] {
     topics.push(w);
   }
   return topics;
+}
+
+/**
+ * 2026-09-18 · Should recall abandon the query and return top-N by confidence?
+ *
+ * The guard this replaces was a bare `topics.length === 0`, written before the
+ * Wave-81 `queryEmbedding` pass-through existed. With an embedding of the
+ * operator's own message in hand, two of the four lanes need no topics at all:
+ * `getSemanticScores` prefers `precomputedEmbedding` over `queryText`, and the
+ * KNN pool is pure vector. `buildLexicalTsQuery([])` yields `""` so the lexical
+ * lane returns `[]`. So zero topics is a reason to lean on the embedding lanes,
+ * not a reason to stop answering.
+ *
+ * ⚠ CORRECTION (review, PR #2425) — an earlier version of this comment said
+ * `keywordScore(m, [])` returns 0 for every row "and therefore cannot reorder
+ * anything". THAT WAS WRONG, and wrong in the direction that mattered. RRF
+ * ignores absolute scores and reads POSITION, and the sort is stable, so an
+ * all-tied lane degrades into input order and gets paid out as
+ * 1/(k+1), 1/(k+2), ... The pool is `orderBy confidence desc` with KNN-only
+ * hits unioned in afterward, so that phantom lane boosted generic
+ * high-confidence memories over the vector hits — reintroducing, through the
+ * back door, the very failure this guard was changed to fix. Uniform is
+ * neutral for a SCORE-based fusion; this one is RANK-based. `fuseRankings` now
+ * drops a fully-tied lane (see lib/brain/rrf.ts).
+ *
+ * Only when BOTH signals are missing is there genuinely no query to run, and
+ * confidence-ranked fallback is the honest answer.
+ *
+ * Exported so the test can call the real predicate — a re-implemented copy in
+ * the test would pass while this rotted (see the measurement-proxies rule).
+ */
+export function shouldFallbackToConfidence(topics: string[], queryEmbedding?: number[]): boolean {
+  return topics.length === 0 && (queryEmbedding?.length ?? 0) === 0;
+}
+
+/**
+ * The text handed to the reranker and the cross-source semantic search.
+ *
+ * `topics.join(", ")` is `""` when topics are empty, and that empty string does
+ * NOT stop at the embedding lane — it reaches `rerank({ query })` and
+ * `semanticSearch()`, both of which would then score against nothing. The
+ * operator's own last message IS the query in that case, so use it. Capped
+ * because it only ever feeds a reranker and a log line.
+ */
+export function buildQueryText(topics: string[], recentMessages: string[]): string {
+  if (topics.length > 0) return topics.join(", ");
+  // String(...) not a bare .slice: the param is typed string[], but this module
+  // is on the chat hot path under a withTimeout whose fallback is "", so a
+  // throw here would surface as a silently EMPTY brain block rather than an
+  // error — the exact failure mode this file keeps getting bitten by. Cheap
+  // insurance against a caller that hands over a non-string.
+  return String(recentMessages[recentMessages.length - 1] ?? "").slice(0, 500);
 }
 
 async function extractTopics(messages: string[]): Promise<string[]> {
@@ -393,8 +477,16 @@ function keywordScore(
 // on a mid-confidence memory was never loaded, so it could not surface. This
 // runs a true Postgres FTS (ts_rank + websearch_to_tsquery, OR semantics
 // across topics) over ALL non-deleted, confidence>=0.3 memories, backed by
-// the GIN expression index `brain_memories_content_fts_idx` (migration
-// 0007_brain_fts). Results (a) replace the keyword lane with a real ts_rank
+// the STORED generated column `brain_memories.content_tsv` and its GIN
+// `brain_memories_content_tsv_idx` (migration 20260923000000_brain_content_tsv;
+// the 0007_brain_fts expression index it replaced was DROPPED 2026-09-23 by
+// 20260923013000_drop_brain_fts_expression_index, operator-approved). Filter
+// AND rank read the stored vector: measured on production
+// 2026-09-22, the same OR-of-topics query took 1,902 ms warm when ts_rank
+// re-parsed content for ~3,600 candidate rows and 8 ms with the rank
+// removed - the parse WAS the lane's cost, and the 900 ms statement timeout
+// below was dropping the lane on 84 of 89 hybrid benchmark queries.
+// Results (a) replace the keyword lane with a real ts_rank
 // signal and (b) are UNIONed into the candidate pool so lexical-strong but
 // low-confidence memories can win. Best-effort: any failure (pre-migration,
 // empty tsquery) returns [] and the caller falls back to keywordScore. It is
@@ -439,8 +531,116 @@ export function buildLexicalTsQuery(topics: string[]): string {
  * catch and the lane degrades to [] exactly like every other lexical failure.
  * Term COUNT was measured NOT to be the driver (caps 8/5/3 had equal
  * latency), so the topics stay uncapped.
+ *
+ * 2026-09-22 · THE DRIVER WAS FOUND: production EXPLAIN ANALYZE put 99% of
+ * the statement in ts_rank re-parsing `content` for every candidate row
+ * (1,902 ms with the rank, 8 ms without) — an expression index serves the
+ * predicate, never the rank, so this was a constant cost cut by the timeout,
+ * not a tail. 20260923000000_brain_content_tsv stores the vector; the lane
+ * now filters and ranks on `content_tsv` (25.6 ms on production). The 900 ms
+ * cap stays as a guard: measured 2026-09-23, 0 of 89 benchmark queries hit
+ * it (median 162 ms, p90 194, max 735).
+ * The counters below should now read ~0 on a post-#2553 process.
  */
 const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * LEXICAL LANE OUTCOME COUNTERS — an accepted trade-off nobody can currently see
+ * ════════════════════════════════════════════════════════════════════════════
+ * getLexicalMatches returns `[]` for FOUR different things, and no caller can
+ * tell them apart:
+ *   1. no usable ts_query could be built from the topics  (nothing was asked)
+ *   2. the query ran and genuinely matched nothing        (asked, no answer)
+ *   3. the 900ms statement_timeout fired, lane dropped    (asked, gave up)
+ *   4. the query failed for some other reason             (broken)
+ *
+ * (3) is the designed trade-off recorded above — and it is a bare console.warn,
+ * so its RATE is invisible in production. That matters because the trade-off was
+ * accepted ON a measurement ("10 of 28 corpus queries, contributing exactly ONE
+ * lexical hit"), and nothing re-checks that measurement as brain_memories grows.
+ * A decision made on data, with no instrument watching the data.
+ *
+ * Measured 2026-09-18 on a sequential unloaded probe: 9 of 25 queries over
+ * budget (36%) — matching the 2026-08-27 figure, which was read as "no
+ * degradation". It was the wrong reading: the counters were watching a
+ * constant cost, not a tail (see the timeout note above), and the
+ * 2026-09-22 benchmark put the hybrid-shaped rate at 94% (84 of 89). After
+ * #2553 the expected rate is ~0 (0 of 89 in the post-fix benchmark); a
+ * post-#2553 process whose `lexicalSkipPctCum` reads above a few percent is a
+ * regression, not the old trade-off. The point stands: nobody would have
+ * known either way without the counter.
+ *
+ * Measured 2026-09-23, after the stored column (see the timeout's comment
+ * above): 0 of 89 hybrid benchmark queries hit the budget (was 84 of 89 on the
+ * same corpus the night before), `lexicalSkipPctCum` reads 0. The counters
+ * stay — they are the instrument that proved the fix, and the one that will
+ * say so if the lane ever regresses.
+ *
+ * ⚠ AGGREGATE COUNTERS ARE SAFE HERE; PER-REQUEST STATE WOULD NOT BE. Several
+ * chat turns share this module concurrently. A "last outcome" variable would be
+ * clobbered by whichever turn finished most recently and would misattribute the
+ * result to another turn. A monotonic COUNT is the one shape concurrent writers
+ * cannot corrupt into a wrong answer — it is exactly what a rate needs, and it
+ * is why this is a counter rather than the obvious out-parameter.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+export interface LexicalLaneStats {
+  /** No ts_query could be built — the lane was never asked. */
+  noQuery: number;
+  /** The query ran. Includes genuine zero-row results. */
+  ok: number;
+  /** 57014 statement_timeout — the lane was DROPPED mid-flight. */
+  skippedTimeout: number;
+  /** Any other failure. */
+  failedOther: number;
+}
+
+const lexicalLaneCounters: LexicalLaneStats = {
+  noQuery: 0,
+  ok: 0,
+  skippedTimeout: 0,
+  failedOther: 0,
+};
+
+/** Snapshot of lexical-lane outcomes since process start. Exported for tests
+ *  and for the structured `[brain-recall]` line. */
+export function lexicalLaneStats(): LexicalLaneStats {
+  return { ...lexicalLaneCounters };
+}
+
+/** Test seam only. */
+export function resetLexicalLaneStats(): void {
+  lexicalLaneCounters.noQuery = 0;
+  lexicalLaneCounters.ok = 0;
+  lexicalLaneCounters.skippedTimeout = 0;
+  lexicalLaneCounters.failedOther = 0;
+}
+
+/**
+ * Fraction of ATTEMPTED queries that were dropped on the statement timeout.
+ *
+ * `noQuery` is excluded from the denominator on purpose: a turn that produced
+ * no search terms did not attempt the lane, and counting it would dilute the
+ * rate toward zero exactly when topic extraction is failing — the rate would
+ * look healthiest when the pipeline is sickest. Returns null when nothing has
+ * been attempted: an UNKNOWN rate must never render as 0%.
+ *
+ * ⚠ PURE, TAKING STATS AS AN ARGUMENT, DELIBERATELY. The first cut read the
+ * module counters directly, which left no way to drive it without a database —
+ * and the test written against it computed the arithmetic on its own local
+ * objects and asserted that equalled itself. It would have passed with this
+ * function deleted. A predicate that cannot be fed cannot be tested, and an
+ * untested rate is how the invisible thing stays invisible.
+ */
+export function computeLexicalSkipRate(s: LexicalLaneStats): number | null {
+  const attempted = s.ok + s.skippedTimeout + s.failedOther;
+  return attempted === 0 ? null : s.skippedTimeout / attempted;
+}
+
+/** The live rate, read off the module counters. */
+export function lexicalSkipRate(): number | null {
+  return computeLexicalSkipRate(lexicalLaneCounters);
+}
 
 /**
  * Rerank call-site budget (2026-08-27 levers): the backends' own
@@ -453,6 +653,21 @@ const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
  * sub-1%-of-turns stray call is complexity the numbers don't buy.
  */
 const RERANK_CALL_BUDGET_MS = 1_500;
+
+/** Outcome of a stage that was started early and is awaited later. */
+type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
+
+/**
+ * Attach the rejection handler when a stage STARTS, not when it is awaited. A
+ * promise that rejects before anything awaits it is an unhandledRejection, and
+ * that crashes a Node process; the caller re-throws `error` at its await.
+ */
+function settle<T>(p: Promise<T>): Promise<Settled<T>> {
+  return p.then(
+    (value): Settled<T> => ({ ok: true, value }),
+    (error: unknown): Settled<T> => ({ ok: false, error }),
+  );
+}
 
 /**
  * Race a rerank promise against the budget: budget expiry and rejection
@@ -468,11 +683,14 @@ export async function withRerankBudget<T>(p: Promise<T | null>, budgetMs: number
 
 export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Date): Promise<LexicalRow[]> {
   const tsQueryText = buildLexicalTsQuery(topics);
-  if (!tsQueryText) return [];
+  if (!tsQueryText) {
+    lexicalLaneCounters.noQuery++;
+    return [];
+  }
   try {
     // $1 = tsQueryText (parameterized — no injection). `limit` is an internal
     // numeric constant interpolated as a literal, mirroring memory-recall.ts.
-    return await prisma.$transaction(async (tx) => {
+    const rows = await prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = ${LEXICAL_STATEMENT_TIMEOUT_MS}`);
       return tx.$queryRawUnsafe<LexicalRow[]>(
       `SELECT bm.id::text          AS id,
@@ -484,14 +702,14 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
               bm.source            AS source,
               bm.seen_count        AS seen_count,
               bm.updated_at        AS updated_at,
-              ts_rank(to_tsvector('english', bm.content),
+              ts_rank(bm.content_tsv,
                       websearch_to_tsquery('english', $1)) AS rank
        FROM brain_memories bm
        WHERE bm.deleted_at IS NULL
          AND bm.confidence >= 0.3
          -- BDN-310 supersession honored (2026-08-19) — see memory-recall.ts
          AND ${validitySql("bm", asOf ? "$2" : null)}
-         AND to_tsvector('english', bm.content)
+         AND bm.content_tsv
              @@ websearch_to_tsquery('english', $1)
        ORDER BY rank DESC
        LIMIT ${limit}`,
@@ -499,12 +717,19 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
       ...(asOf ? [asOf] : []),
       );
     });
+    // Counted AFTER the await resolves, so a query that threw is never scored
+    // as ok. A zero-row result IS ok — that is a genuine empty, and conflating
+    // it with a dropped lane is the whole defect these counters exist to undo.
+    lexicalLaneCounters.ok++;
+    return rows;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     // 57014 = statement_timeout — expected on the slow tail, not a defect.
     if (msg.includes("57014") || msg.includes("statement timeout")) {
+      lexicalLaneCounters.skippedTimeout++;
       console.warn(`[brain-recall] lexical FTS exceeded ${LEXICAL_STATEMENT_TIMEOUT_MS}ms — lane skipped this turn`);
     } else {
+      lexicalLaneCounters.failedOther++;
       console.warn(
         "[brain-recall] lexical FTS query failed (pre-migration?) — falling back:",
         msg.slice(0, 120),
@@ -529,13 +754,33 @@ export async function getLexicalMatches(topics: string[], limit = 50, asOf?: Dat
 // queryEmbedding, so this costs one indexed KNN query and zero embedding
 // calls. Best-effort like the lexical lane: any failure returns [].
 
+// 2026-09-22 · THE POOL WAS STARVING. Measured read-only on prod (pgvector
+// 0.8.0, hnsw.ef_search default 40): for six real memory-shaped queries the raw
+// nearest-40 candidates were 45% dead — 34 pointed at hard-deleted memories,
+// 64 at soft-deleted ones — so after the join below the "50-slot" pool came
+// back with 9-28 rows. HNSW hands over its candidate budget FIRST and the WHERE
+// filters AFTER; and `LIMIT 50` can never be met with ef_search 40 even on a
+// clean index. The dead vectors are kept on purpose (lib/db/embedding-cleanup.ts:
+// their text column is the last copy of a hard-deleted memory), so the fix is
+// at query time: pgvector 0.8's iterative scan keeps walking the graph until
+// LIMIT rows pass the filter. Verified on prod: 50/50 on all six queries in
+// 280-600 ms, faster than a raised ef_search because it stops early. SET LOCAL
+// is transaction-scoped, and the pool runs on pooled connections, so the SET
+// and the SELECT travel in one transaction, bounded so a cold Neon compute
+// cannot hang a turn (the lane is best-effort: any failure returns []).
+const KNN_POOL_TIMEOUT_MS = 10_000;
+
 async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Promise<LexicalRow[]> {
   try {
     const padded = padToVectorDim(queryVec, VECTOR_DIM_1536);
     const lit = vectorLiteral(padded);
     assertSafeVectorLiteral(lit);
-    return await prisma.$queryRawUnsafe<LexicalRow[]>(
-      `SELECT bm.id::text          AS id,
+    // $1 vector · $2 quarantined categories · $3 asOf (when given). The
+    // quarantine list is the SAME one the lexical lane applies, so the two
+    // lanes cannot drift; the unavailable-source skip mirrors the writer's own
+    // KNN in semantic-link.ts.
+    const excluded: string[] = [...RECALL_EXCLUDE_CATEGORIES];
+    const sql = `SELECT bm.id::text          AS id,
               bm.content           AS content,
               bm.category::text    AS category,
               bm.key::text         AS key,
@@ -551,13 +796,30 @@ async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Prom
         AND bm.deleted_at IS NULL
        WHERE ve."sourceType" = 'brain_memory'
          AND ve.embedding_vec_1536 IS NOT NULL
+         AND ve."sourceUnavailableAt" IS NULL
          AND bm.confidence >= 0.3
-         AND ${validitySql("bm", asOf ? "$2" : null)}
+         AND bm.category <> ALL($2::text[])
+         AND ${validitySql("bm", asOf ? "$3" : null)}
        ORDER BY ve.embedding_vec_1536 <=> $1::vector(${VECTOR_DIM_1536})
-       LIMIT ${limit}`,
-      lit,
-      ...(asOf ? [asOf] : []),
-    );
+       LIMIT ${limit}`;
+    const params: unknown[] = [lit, excluded, ...(asOf ? [asOf] : [])];
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          await tx.$executeRawUnsafe("SET LOCAL hnsw.iterative_scan = relaxed_order");
+          return tx.$queryRawUnsafe<LexicalRow[]>(sql, ...params);
+        },
+        { timeout: KNN_POOL_TIMEOUT_MS },
+      );
+    } catch (err) {
+      // A database without pgvector 0.8 rejects the setting as an unknown
+      // parameter. Fall back to the plain (budget-limited) scan rather than
+      // losing the lane — production is 0.8.0, so this is a safety net.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/iterative_scan|unrecognized configuration parameter/i.test(msg)) throw err;
+      console.warn("[brain-recall] hnsw.iterative_scan unavailable — pool runs budget-limited:", msg.slice(0, 120));
+      return await prisma.$queryRawUnsafe<LexicalRow[]>(sql, ...params);
+    }
   } catch (err) {
     console.warn(
       "[brain-recall] knn pool query failed — pool stays confidence-sliced:",
@@ -590,6 +852,42 @@ async function getKnnPoolRows(queryVec: number[], limit = 50, asOf?: Date): Prom
 
 const DEFAULT_TOKEN_BUDGET = 4000;
 const CHARS_PER_TOKEN_APPROX = 4;
+
+/**
+ * Drop lowest-relevance entries from the END of `relevant` (in place) until the
+ * block fits `budgetChars`, never below the first `wisdomSlots` entries — the
+ * wisdom memories, per the construction order in getContextualMemories.
+ * Returns how many were dropped.
+ *
+ * 2026-08-16 · count the rendered PREFIX too. The trimmer summed only
+ * content.length, so the `[category · evidence · seen Nx] ` prefix (and the
+ * `[category] (NN%) ` one before it) was invisible to the 4000-token cap —
+ * the block could run ~10-15% over its declared budget.
+ *
+ * 2026-09-23 · and charge the rendered CONTENT, not the stored one. The block
+ * shows renderedContent (200 / 150 chars) but the trim charged content.length,
+ * so a 15,000-char memory cost 94% of the 16k budget while rendering 200 chars.
+ * Once #2553 made the lexical lane answer, its long OR-matched winners (top-10
+ * average 11.5k-13.4k chars on production) evicted dense hits to pay for text
+ * the model never saw. Test: tests/brain/recall-budget-rendered-chars.test.ts.
+ *
+ * Scope, stated precisely (review on #2558): this budget covers the three
+ * ranked sections only. The no-topics fallback (getFallbackMemories) renders
+ * its own 200-char slice and is not trimmed — it is capped by count (20). The
+ * graph expansion and the cross-source pull append AFTER this trim and were
+ * never inside the budget; both pre-date this change.
+ */
+export function trimToTokenBudget(relevant: RelevantMemory[], budgetChars: number, wisdomSlots: number): number {
+  const cost = (m: RelevantMemory) => renderedContent(m).length + provenancePrefix(m).length + 1;
+  let totalChars = relevant.reduce((s, m) => s + cost(m), 0);
+  let dropped = 0;
+  const minKeep = Math.min(wisdomSlots, relevant.length);
+  while (relevant.length > minKeep && totalChars > budgetChars) {
+    totalChars -= cost(relevant.pop()!);
+    dropped++;
+  }
+  return dropped;
+}
 
 /**
  * U3 (2026-09-08, review on #2198) · the validity window of a belief, at an
@@ -751,42 +1049,90 @@ export async function getContextualMemories(
     opts.fastTopics ? Promise.resolve(deriveFastTopics(recentMessages)) : extractTopics(recentMessages),
   );
 
-  if (topics.length === 0) {
+  // 2026-09-18 · this used to be a bare `topics.length === 0` -> fallback, which
+  // returns top-N by CONFIDENCE with the query discarded entirely. That guard
+  // predates the Wave-81 queryEmbedding pass-through and now throws away a working
+  // query: when the caller supplies an embedding of the user's own message, two of
+  // the four lanes need no topics at all — getSemanticScores prefers
+  // precomputedEmbedding over queryText (:1466), and the KNN pool is pure vector
+  // (:818). The other two degrade safely rather than wrongly:
+  // buildLexicalTsQuery([]) returns "" so the lexical lane yields [], and
+  // keywordScore(m, []) returns 0 for EVERY row, which is uniform and therefore
+  // ranking-neutral. So zero topics is a reason to lean on the embedding lanes,
+  // not a reason to stop answering the question.
+  if (shouldFallbackToConfidence(topics, opts.queryEmbedding)) {
     console.log("[brain-recall]", {
       outcome: "fallback",
-      reason: "no-topics",
+      // Renamed from "no-topics": the fallback now requires BOTH to be missing,
+      // and a log line that still said "no-topics" would misattribute the cause.
+      reason: "no-topics-no-embedding",
       ms: Date.now() - t0,
     });
     return getFallbackMemories(maxMemories);
   }
 
-  // Build a natural language query for embedding
-  const queryText = topics.join(", ");
+  const queryText = buildQueryText(topics, recentMessages);
 
-  // Load all viable memories from DB
-  // v10.0.46 — added `deletedAt: null` filter. Pre-fix soft-deleted
-  // memories (retracted wisdom, superseded snapshots, deleted chat
-  // importance) were ranked + injected into Nick's system prompt on
-  // every chat turn. This was the highest-leverage CRITICAL because
-  // it ran per-turn, not nightly.
-  const tDb = Date.now();
-  const allMemories = await prisma.brainMemory.findMany({
-    where: {
-      confidence: { gte: 0.3 },
-      deletedAt: null,
-      // 2026-05-17 follow-up · exclude binary-payload categories
-      category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
-      // BDN-310 supersession honored (2026-08-19): superseded or
-      // expired-validity beliefs leave the recall pool.
-      ...validityWhere(opts.asOf),
-    },
-    orderBy: { confidence: "desc" },
-    take: 300,
-    // v10.0.354 · pull `source` so we can weight by ingestion pipeline
-    // v10.0.396 · seenCount + updatedAt for wisdom freshness decay
-    select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true },
-  });
-  timings.dbFetch = Date.now() - tDb;
+  // ── Two-phase pipeline (2026-09-23) ─────────────────────────────────
+  // brain-context races this whole function at 3 s (withTimeout(…, 3000,
+  // null)) and every stage used to run one after another. Measured on
+  // production 2026-09-23: five chat recalls took 5,663 / 4,035 / 3,565 /
+  // 2,997 / 4,230 ms and the block reached the prompt on exactly one of them,
+  // the 2,997 ms one (persisted receipts since 09-18: 4 of 89 chat turns).
+  // The stages do not all depend on each other:
+  //   PHASE A  dbFetch · lexical · knnPool read concurrently; each needs only
+  //            topics, the query embedding and asOf.
+  //   PHASE B  crossSource + related start the moment phase A lands (they need
+  //            only queryText / topics) and overlap semantic → rerank → graph;
+  //            their lines are appended afterwards in the original order, so
+  //            the rendered block is unchanged.
+  // Phase B waits for phase A on purpose, because the Neon adapter pool is max
+  // 10 and every other brain-context block draws on the same pool
+  // (lib/prisma.ts): phase A holds 3 reads at once, and phase B peaks at 4
+  // (graph's two neighbour lookups overlapping crossSource and related),
+  // where starting everything together would put 5 in flight at t0. Stage
+  // timings now overlap, so they no longer sum to `ms` in [brain-recall].
+  // Test: tests/brain/recall-stage-concurrency.test.ts.
+  const excludeSet = new Set<string>(RECALL_EXCLUDE_CATEGORIES);
+  const [allMemories, lexicalAll, knnAll] = await Promise.all([
+    // Load all viable memories from DB
+    // v10.0.46 — added `deletedAt: null` filter. Pre-fix soft-deleted
+    // memories (retracted wisdom, superseded snapshots, deleted chat
+    // importance) were ranked + injected into Nick's system prompt on
+    // every chat turn. This was the highest-leverage CRITICAL because
+    // it ran per-turn, not nightly.
+    timed("dbFetch", () =>
+      prisma.brainMemory.findMany({
+        where: {
+          confidence: { gte: 0.3 },
+          deletedAt: null,
+          // 2026-05-17 follow-up · exclude binary-payload categories
+          category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
+          // BDN-310 supersession honored (2026-08-19): superseded or
+          // expired-validity beliefs leave the recall pool.
+          ...validityWhere(opts.asOf),
+        },
+        orderBy: { confidence: "desc" },
+        take: 300,
+        // v10.0.354 · pull `source` so we can weight by ingestion pipeline
+        // v10.0.396 · seenCount + updatedAt for wisdom freshness decay
+        select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true },
+      }),
+    ),
+    // Wave B · lexical lane + candidate-pool union. Run a real Postgres FTS
+    // (getLexicalMatches) across ALL memories, not just the top-300-by-
+    // confidence pool above, so a strong lexical match on a low-confidence
+    // memory can still surface. Filter excluded categories in JS (cheap on
+    // <=50 rows), build the per-id rank map for the lane, and UNION any FTS hit
+    // not already in allMemories into the candidate pool. Best-effort: on any
+    // failure lexicalRows is [] and the keyword lane falls back to keywordScore.
+    timed("lexical", () => getLexicalMatches(topics, 50, opts.asOf)),
+    // F3 · true-KNN candidates. Only when the caller supplied the query
+    // embedding (the chat hot path) — other callers keep today's pool shape.
+    opts.queryEmbedding && opts.queryEmbedding.length > 0
+      ? timed("knnPool", () => getKnnPoolRows(opts.queryEmbedding!, 50, opts.asOf))
+      : Promise.resolve([] as LexicalRow[]),
+  ]);
 
   if (allMemories.length === 0) {
     console.log("[brain-recall]", {
@@ -798,27 +1144,31 @@ export async function getContextualMemories(
     return "";
   }
 
-  // Wave B · lexical lane + candidate-pool union. Run a real Postgres FTS
-  // (getLexicalMatches) across ALL memories, not just the top-300-by-
-  // confidence pool above, so a strong lexical match on a low-confidence
-  // memory can still surface. Filter excluded categories in JS (cheap on
-  // <=50 rows), build the per-id rank map for the lane, and UNION any FTS hit
-  // not already in allMemories into the candidate pool. Best-effort: on any
-  // failure lexicalRows is [] and the keyword lane falls back to keywordScore.
-  const excludeSet = new Set<string>(RECALL_EXCLUDE_CATEGORIES);
-  const lexicalRows = (await timed("lexical", () => getLexicalMatches(topics, 50, opts.asOf)))
-    .filter((r) => !excludeSet.has(r.category));
+  // PHASE B starts here (see the note above). settle() attaches the rejection
+  // handler NOW: a stage that fails while semantic is still pending must not
+  // surface as an unhandledRejection, which crashes a Node process. The error is
+  // re-thrown at the await further down, where the sequential version threw it.
+  const topicLower = topics.map((t) => t.toLowerCase());
+  const crossSourceP = settle(
+    timed("crossSource", async () => {
+      const out: string[] = [];
+      await appendCrossSourceContext(out, queryText, opts.excludeChatConversationIds);
+      return out;
+    }),
+  );
+  const relatedP = settle(
+    timed("related", async () => {
+      const out: string[] = [];
+      await appendRelatedContext(out, topicLower);
+      return out;
+    }),
+  );
+
+  const lexicalRows = lexicalAll.filter((r) => !excludeSet.has(r.category));
   const useLexical = lexicalRows.length > 0;
   const lexicalRankById = new Map<string, number>();
   for (const r of lexicalRows) lexicalRankById.set(r.id, r.rank);
-  // F3 · true-KNN candidates. Only when the caller supplied the query
-  // embedding (the chat hot path) — other callers keep today's pool shape.
-  const knnRows =
-    opts.queryEmbedding && opts.queryEmbedding.length > 0
-      ? (await timed("knnPool", () => getKnnPoolRows(opts.queryEmbedding!, 50, opts.asOf))).filter(
-          (r) => !excludeSet.has(r.category),
-        )
-      : [];
+  const knnRows = knnAll.filter((r) => !excludeSet.has(r.category));
   const existingIds = new Set(allMemories.map((m) => m.id));
   const toPoolRow = (r: LexicalRow) => ({
     id: r.id,
@@ -1161,34 +1511,14 @@ export async function getContextualMemories(
   // until the total content size fits within the budget. Wisdom slots
   // (the first `wisdomSlots` entries) are PRESERVED · operator-grade
   // guarantee that the always-on wisdom layer never gets dropped.
-  const budgetChars = tokenBudget * CHARS_PER_TOKEN_APPROX;
-  // 2026-08-16 · count the rendered PREFIX too. The trimmer summed only
-  // content.length, so the `[category · evidence · seen Nx] ` prefix (and the
-  // `[category] (NN%) ` one before it) was invisible to the 4000-token cap —
-  // the block could run ~10-15% over its declared budget.
-  let totalChars = relevant.reduce(
-    (s, m) => s + m.content.length + provenancePrefix(m).length + 1,
-    0,
-  );
-  let budgetDropped = 0;
-  if (totalChars > budgetChars) {
-    // Strip from the END (lowest-relevance first) but never below the
-    // wisdom guarantee. The first `wisdomSlots` items in `relevant`
-    // are wisdom memories per the construction order above.
-    const minKeep = Math.min(wisdomSlots, relevant.length);
-    while (relevant.length > minKeep && totalChars > budgetChars) {
-      const dropped = relevant.pop();
-      if (dropped) {
-        totalChars -= dropped.content.length + provenancePrefix(dropped).length + 1;
-        budgetDropped++;
-      }
-    }
-  }
+  const budgetDropped = trimToTokenBudget(relevant, tokenBudget * CHARS_PER_TOKEN_APPROX, wisdomSlots);
 
   // Format for system prompt
   const mode = useEmbeddings ? "semantic" : "keyword";
   const lines: string[] = [
-    `## Nick Brain — Context-Matched Memories [${mode}] (${relevant.length} for: ${topics.join(", ")})`,
+    // queryText, not topics.join: on a zero-topic turn the latter renders a bare
+    // "for: )" into the model's own prompt, which reads as a broken retrieval.
+    `## Nick Brain — Context-Matched Memories [${mode}] (${relevant.length} for: ${queryText.slice(0, 120)})`,
   ];
 
   const direct = relevant.filter((m) => m.relevance === "direct");
@@ -1217,21 +1547,21 @@ export async function getContextualMemories(
   if (direct.length > 0) {
     lines.push(`### Directly Relevant`);
     for (const m of direct) {
-      lines.push(`${provenancePrefix(m)} ${m.content.slice(0, 200)}`);
+      lines.push(`${provenancePrefix(m)} ${renderedContent(m)}`);
     }
   }
 
   if (supporting.length > 0) {
     lines.push(`### Supporting Context`);
     for (const m of supporting) {
-      lines.push(`${provenancePrefix(m)} ${m.content.slice(0, 150)}`);
+      lines.push(`${provenancePrefix(m)} ${renderedContent(m)}`);
     }
   }
 
   if (background.length > 0) {
     lines.push(`### Core Knowledge`);
     for (const m of background) {
-      lines.push(`${provenancePrefix(m)} ${m.content.slice(0, 150)}`);
+      lines.push(`${provenancePrefix(m)} ${renderedContent(m)}`);
     }
   }
 
@@ -1254,17 +1584,20 @@ export async function getContextualMemories(
   // model gets access to older insight that lives outside the
   // brain_memory table. Scored by the same hybrid formula but with
   // synthetic confidence/recency (see embedding-utils.semanticSearch).
-  const linesBeforeCross = lines.length;
-  await timed("crossSource", () =>
-    appendCrossSourceContext(lines, queryText, opts.excludeChatConversationIds),
-  );
-  const crossSourceLines = lines.length - linesBeforeCross;
+  // Started in phase B (above); appended here so the block's section order is
+  // exactly what the sequential version rendered.
+  const crossSource = await crossSourceP;
+  if (!crossSource.ok) throw crossSource.error;
+  const crossSourceLines = crossSource.value.length;
+  lines.push(...crossSource.value);
 
-  // Pull related commitments, loops, people (same as v1)
-  const topicLower = topics.map((t) => t.toLowerCase());
-  const linesBeforeRelated = lines.length;
-  await timed("related", () => appendRelatedContext(lines, topicLower));
+  // Pull related commitments, loops, people (same as v1) · started in phase B.
+  const related = await relatedP;
+  if (!related.ok) throw related.error;
+  const relatedLines = related.value.length;
+  lines.push(...related.value);
 
+  const skipRate = lexicalSkipRate();
   console.log("[brain-recall]", {
     outcome: "ok",
     mode,
@@ -1273,8 +1606,22 @@ export async function getContextualMemories(
     relevant: relevant.length,
     rerankFired,
     crossSourceLines,
-    relatedLines: lines.length - linesBeforeRelated,
+    relatedLines,
     budgetDropped,
+    // CUMULATIVE since process start, not this turn — a rate needs a
+    // denominator, and one turn cannot supply one. `null` rather than 0 when
+    // the lane has never been attempted: an unknown rate that renders as 0%
+    // is the silent-instrument shape these counters exist to remove.
+    //
+    // ⚠ CUMULATIVE MEANS INSENSITIVE TO RECENT CHANGE, and the field name says
+    // `Cum` so nobody reads it as "the rate right now". On a long-lived process
+    // early history dominates forever: a lane that degrades from ~0% to 90%
+    // after 10k healthy queries barely moves this number. It answers "has this
+    // lane been dropping queries?", NOT "is it dropping them now". A windowed
+    // rate would answer the second, and is worth building only once this one
+    // shows the first is interesting — a ring buffer per process is real
+    // complexity to buy before there is any evidence it is needed.
+    lexicalSkipPctCum: skipRate === null ? null : Math.round(skipRate * 100),
     timings,
     ms: Date.now() - t0,
   });

@@ -1,0 +1,48 @@
+{
+  "id": "repair-search-noise-dont-fall-back-silently",
+  "name": "Repair · 'search came back with noise' → falls back to priors → 'try again'",
+  "description": "Mined from a real operator repair. Asked for YouTube videos (20–30 min) for a drive, Nick said search returned noise and fell back to what it already knew; the operator points out tools are marked ready and asks for a retry. Tests: reformulate and retry before falling back, and label any fallback. Provenance: repair-under-research-ot2ra798. The rejected reply is truncated in the fixture (tag: sanitized).",
+  "category": "multi-turn",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Ok I will go you know, but I need you to look up on the web. Give me some links to some cool ass YouTube videos I can watch you know around 2030 minutes that will keep me interested in glued to it while I drive there."
+      },
+      {
+        "role": "assistant",
+        "content": "Search isn't pulling the right results from my end — came back with noise, not videos. Don't want to hand you a dead link mid-drive. […remainder of the reply omitted from the fixture: it listed personal recommendations. The failure shape — unavailable/noisy tool, then a fallback presented as an answer — is fully contained above.]"
+      },
+      {
+        "role": "user",
+        "content": "Why I thought I fixed it and up at the top it says tools are ready. Can you try again? Also all of these ones suggestions to search and all that you’ve given me already give me some new shit and like a little bit more in detail of what to search as well."
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "retries-through-another-path",
+      "description": "Actually attempts the lookup again through a different path (a different search tool, searchTools/invokeTool discovery, a narrower query) — does NOT merely restate that the tool is unavailable.",
+      "weight": 4
+    },
+    {
+      "id": "names-what-it-tried",
+      "description": "States concretely which tools/queries it tried and what came back, so the operator can tell a real retry from a shrug.",
+      "weight": 2
+    },
+    {
+      "id": "no-fallback-to-priors-as-if-live",
+      "description": "If it must fall back to what it already knows, says so explicitly and does not present stale knowledge as a live result.",
+      "weight": 2
+    }
+  ],
+  "expectedBehavior": "A reformulated query or a different tool, real results with links if found, and an explicit 'from memory, not live' label on anything that isn't.",
+  "tags": [
+    "repair-mined",
+    "no_tool",
+    "tool-unavailable",
+    "recommendation",
+    "sanitized",
+    "requires-tools"
+  ]
+}

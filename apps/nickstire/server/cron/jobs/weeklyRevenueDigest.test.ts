@@ -104,6 +104,37 @@ describe("isShopMonday — shop timezone, not server clock", () => {
   });
 });
 
+/** Capture the SQL text drizzle would send, across its chunk representation. */
+function sqlTextOf(call: unknown[]): string {
+  const q = call[0] as { queryChunks?: unknown[] } | undefined;
+  return (q?.queryChunks ?? [])
+    .map((c) => {
+      const v = c as { value?: unknown };
+      return Array.isArray(v?.value) ? v.value.join("") : "";
+    })
+    .join(" ");
+}
+
+describe("the arrivals receipt counts INVOICES, not arrival rows", () => {
+  // This used to join expected_arrivals to invoices and SUM per joined row, so
+  // an invoice claimed by three arrival rows (three "coming today" texts, one
+  // visit) was added three times — in the one line labelled revenue. The
+  // reconcile is now one-to-one and 0126 makes a second claim impossible, but
+  // the receipt must not depend on that.
+  it("aggregates FROM invoices, selecting them through the reconciled ids", async () => {
+    queueHappyPath();
+    await computeWeeklyRevenueDigest(MONDAY_NOON_ET);
+    // Query order: agg, repeat, top services, ARRIVALS, leads, funnel.
+    const arrivals = sqlTextOf(execute.mock.calls[3]);
+    expect(arrivals).toMatch(/FROM invoices i/);
+    expect(arrivals).toMatch(/i\.id IN \(/);
+    expect(arrivals).toMatch(/SELECT ea\.reconciledInvoiceId/);
+    expect(arrivals).toMatch(/reconciledInvoiceId IS NOT NULL/);
+    // The regression in one line: no per-row join between the two tables.
+    expect(arrivals).not.toMatch(/JOIN invoices i ON i\.id = ea\.reconciledInvoiceId/);
+  });
+});
+
 describe("computeWeeklyRevenueDigest", () => {
   it("converts cents to dollars exactly once and computes shares from cents", async () => {
     queueHappyPath();

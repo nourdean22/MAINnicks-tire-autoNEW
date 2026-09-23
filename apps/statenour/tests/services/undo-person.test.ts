@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const findFirstMock = vi.fn();
 const deleteMock = vi.fn();
 const updateMock = vi.fn();
+const dropEmbeddingsMock = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -16,6 +17,15 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+// 2026-09-18 · undoing person.create now drops the person's vector_embeddings
+// row too. MOCKED EXPLICITLY, not left to the real module: dropEmbeddingsForSource
+// try/catches and returns 0, so an unmocked prisma.vectorEmbedding would make the
+// cascade throw, be swallowed, and leave this suite green while the cascade did
+// nothing at all.
+vi.mock("@/lib/brain/memory-tombstone", () => ({
+  dropEmbeddingsForSource: (...args: any[]) => dropEmbeddingsMock(...args),
+}));
+
 import { consumeUndoToken } from "@/lib/services/undo-token";
 
 describe("consumeUndoToken for person.create", () => {
@@ -24,6 +34,8 @@ describe("consumeUndoToken for person.create", () => {
     findFirstMock.mockReset();
     deleteMock.mockReset();
     updateMock.mockReset();
+    dropEmbeddingsMock.mockReset();
+    dropEmbeddingsMock.mockResolvedValue(1);
   });
 
   it("successfully deletes the created person when a valid token is consumed", async () => {
@@ -104,5 +116,30 @@ describe("consumeUndoToken for person.create", () => {
 
     await expect(consumeUndoToken(token)).rejects.toThrow("token expired");
     expect(deleteMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("consumeUndoToken · person.create embedding tombstone", () => {
+  it("drops the person's embedding, so the undo is not half-done", async () => {
+    const token = "undo_person999_111111";
+    const personId = "person-999";
+    findFirstMock.mockResolvedValue({
+      id: "memory-row-id",
+      category: "undo_token",
+      key: token,
+      content: JSON.stringify({ toolName: "person.create", personId }),
+      expiresAt: new Date(Date.now() + 10000),
+      deletedAt: null,
+    });
+    deleteMock.mockResolvedValue({ id: personId });
+    updateMock.mockResolvedValue({ id: "memory-row-id" });
+
+    await consumeUndoToken(token);
+
+    expect(dropEmbeddingsMock).toHaveBeenCalledWith(
+      "person_profile",
+      [personId],
+      expect.any(String),
+    );
   });
 });

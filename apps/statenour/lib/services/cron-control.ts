@@ -257,7 +257,10 @@ export async function getCronStats(): Promise<
     // 2026-08-20 defect: dropped from BOTH counters, mega-evening looked
     // like it had never run at all, and its success rate read 100%.
     if (r.status === "partial") stats[r.jobName].partial14d = r._count.id;
-    if (r.status === "failed") stats[r.jobName].fail14d = r._count.id;
+    // 2026-09-22 · every hard-failure status is its own groupBy row, so SUM them.
+    // A literal "failed" here left `interrupted` (an age-settled dead run, defined
+    // as terminal and NOT ok) out of the tally and the displayed rate at 100%.
+    if (isHardFailure(r.status)) stats[r.jobName].fail14d += r._count.id;
   }
 
   // Pull lastSuccessAt / lastFailAt per job in a second cheap query
@@ -272,7 +275,7 @@ export async function getCronStats(): Promise<
     for (const r of latest) {
       const s = stats[r.jobName];
       if (r.status === "success" && !s.lastSuccessAt) s.lastSuccessAt = r.createdAt.toISOString();
-      if (r.status === "failed" && !s.lastFailAt) s.lastFailAt = r.createdAt.toISOString();
+      if (isHardFailure(r.status) && !s.lastFailAt) s.lastFailAt = r.createdAt.toISOString();
     }
   }
 
@@ -325,8 +328,50 @@ export type CronJobStats = {
  * this rule, and the copies drifted — the healer and the health page could
  * disagree about whether the same run had failed.
  */
+/**
+ * 2026-09-22 · POSITIVE LIST. The negative form (`!== success && !== partial`)
+ * admitted every status invented after it was written: from 2026-09-17 the
+ * lifecycle's `started` ("invoked, outcome unknown") counted as a hard failure
+ * in system-health, system-pages and the brain-insights trend - an in-flight
+ * run reported as a dead one, and 49 duplicate `started` rows of runs that
+ * SUCCEEDED (mega-fanout's parallel steps each fire onRunStart) read as 49
+ * failures. Prod census the same day, all time: success 10,522 · started 49 ·
+ * partial 15 · failed 8 - nothing else exists, so naming the failures misses
+ * no real one. Mirror image of TERMINAL_OK_STATUSES in
+ * lib/inngest/cron-lifecycle.ts: a new token is neither ok nor failed until a
+ * human says which. `interrupted` (an age-settled dead run) IS a failure.
+ */
+export const HARD_FAILURE_STATUSES: readonly string[] = ["failed", "interrupted"];
+
 export function isHardFailure(status: string): boolean {
-  return status !== "success" && status !== "partial";
+  return HARD_FAILURE_STATUSES.includes(status);
+}
+
+export type CronWindowTally = { success: number; partial: number; failed: number; totalMs: number };
+
+/**
+ * Per-job tallies over a window of cron rows - the one place that decides which
+ * bucket a status lands in, for every health surface that shows a window.
+ *
+ * 2026-09-22 · system-health's own loop was `if success / else if partial / else
+ * failed`, so an in-flight `started` row (and a `duplicate`) counted as a CURRENT
+ * failure while the prior window already used isHardFailure() - the two windows
+ * classified the same status differently and the trend compared them anyway.
+ * Neither-ok-nor-failed rows count in NO bucket; their duration is null anyway.
+ */
+export function tallyCronWindow(
+  logs: ReadonlyArray<{ jobName: string; status: string; duration: number | null }>,
+): Map<string, CronWindowTally> {
+  const byJob = new Map<string, CronWindowTally>();
+  for (const l of logs) {
+    const e = byJob.get(l.jobName) ?? { success: 0, partial: 0, failed: 0, totalMs: 0 };
+    if (l.status === "success") e.success++;
+    else if (l.status === "partial") e.partial++;
+    else if (isHardFailure(l.status)) e.failed++;
+    e.totalMs += l.duration ?? 0;
+    byJob.set(l.jobName, e);
+  }
+  return byJob;
 }
 
 /** Map a raw CronJobLog.status onto that tri-state. Never collapse. */

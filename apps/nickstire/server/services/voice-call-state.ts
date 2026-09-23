@@ -46,6 +46,9 @@ export type CallState =
   | "intent_captured"
   | "tool_called"
   | "confirmed"
+  // Vapi's `transfer-update` fired: the assistant started a hand-off. Recorded
+  // from the webhook, not a tool, so it never counts toward trailReachedTool.
+  | "transfer_attempted"
   | "ended";
 
 const STATE_STAGE_PREFIX = "state_";

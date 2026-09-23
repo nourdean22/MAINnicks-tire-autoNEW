@@ -49,6 +49,14 @@
     untracked or modified files. Only reaches the worktree -- the junction
     unlink and target verification above still run first and still abort.
 
+.PARAMETER ForceDirtyRelease
+    Release this worktree's Session Authority lease (2026-09-23) even though it
+    has uncommitted changes or unpushed commits. Deliberately a SEPARATE switch
+    from -Force: that one means "the worktree holds untracked/modified files,
+    remove it anyway" at the git-worktree-remove step; this one means "discard
+    the lease's warning that local work here may not be saved anywhere else."
+    Conflating them would silently widen -Force's existing blast radius.
+
 .EXAMPLE
     powershell scripts/worktree-teardown.ps1 -targetDir .claude/worktrees/my-task
 
@@ -65,7 +73,9 @@ param (
 
     [switch]$KeepBranch,
 
-    [switch]$Force
+    [switch]$Force,
+
+    [switch]$ForceDirtyRelease
 )
 
 # Deliberately NOT "Stop". This script drives git and must read $LASTEXITCODE
@@ -201,6 +211,32 @@ $normalizedCurrent = $currentAbsPath.TrimEnd('\', '/')
 if (($normalizedCurrent -eq $normalizedTarget) -or ($normalizedCurrent.StartsWith($normalizedTarget + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase))) {
     Write-Host "[X] Refusing to run: the current directory is inside the worktree being removed." -ForegroundColor Red
     Write-Host "    cd to the primary checkout first." -ForegroundColor Red
+    exit 1
+}
+
+# ------------------------------------ 0. release the Session Authority lease ---
+# Runs FIRST, before anything below has touched a single file. agent-finish.mjs
+# refuses (nonzero exit) if this worktree has uncommitted changes or unpushed
+# commits -- the exact failure mode this whole system exists to catch: a
+# worktree torn down while it silently held work nowhere else. -ForceDirtyRelease
+# overrides that refusal explicitly; the reason is recorded permanently in the
+# release record either way.
+
+Write-Host "`nReleasing Session Authority lease..." -ForegroundColor Yellow
+$leaseArgs = @("--worktree", $targetAbsPath)
+if (-not [string]::IsNullOrWhiteSpace($branchName)) { $leaseArgs += @("--branch", $branchName) }
+if ($ForceDirtyRelease) { $leaseArgs += @("--force-release-dirty", "operator confirmed via -ForceDirtyRelease in worktree-teardown.ps1") }
+try {
+    node (Join-Path $PSScriptRoot "agent-os/agent-finish.mjs") @leaseArgs
+    $leaseExit = $LASTEXITCODE
+} catch {
+    Write-Host "[*] Could not run the lease release ($_) -- proceeding without one." -ForegroundColor Yellow
+    $leaseExit = 0
+}
+if ($leaseExit -ne 0) {
+    Write-Host "[X] ABORTING. This worktree has uncommitted changes or unpushed commits -- see the message above." -ForegroundColor Red
+    Write-Host "    Commit and push first, or re-run with -ForceDirtyRelease to abandon it anyway." -ForegroundColor Red
+    Write-Host "    Nothing has been touched." -ForegroundColor Red
     exit 1
 }
 

@@ -14,7 +14,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
   findFirst: vi.fn(),
+  findMany: vi.fn(),
   deleteMany: vi.fn(),
+  dropEmbeddings: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -22,11 +24,19 @@ vi.mock("@/lib/prisma", () => ({
     chatMessage: {
       findUnique: mocks.findUnique,
       findFirst: mocks.findFirst,
+      findMany: mocks.findMany,
       deleteMany: mocks.deleteMany,
     },
   },
 }));
 vi.mock("@/lib/db/entity-audit", () => ({ logUpdate: vi.fn() }));
+// 2026-09-18 · deleteMessageCascade now drops the truncated messages'
+// vector_embeddings rows too. chat_message is a LIVE index (2,473 rows, newest
+// written the day this was added), so an edit used to strip the messages and
+// leave searchable copies of them behind.
+vi.mock("@/lib/brain/memory-tombstone", () => ({
+  dropEmbeddingsForSource: mocks.dropEmbeddings,
+}));
 
 import { deleteMessageCascade, MessageNotFoundError } from "@/lib/services/chat-edit";
 
@@ -39,7 +49,9 @@ const row = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.findMany.mockResolvedValue([{ id: "m1" }, { id: "m2" }, { id: "m3" }]);
   mocks.deleteMany.mockResolvedValue({ count: 3 });
+  mocks.dropEmbeddings.mockResolvedValue(3);
 });
 
 describe("deleteMessageCascade · id resolution", () => {
@@ -78,5 +90,45 @@ describe("deleteMessageCascade · id resolution", () => {
       MessageNotFoundError,
     );
     expect(mocks.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteMessageCascade · embedding tombstone", () => {
+  it("drops the embeddings for every truncated message", async () => {
+    mocks.findUnique.mockResolvedValueOnce(row);
+
+    await deleteMessageCascade({ messageId: "cuid_db_row" });
+
+    expect(mocks.dropEmbeddings).toHaveBeenCalledWith(
+      "chat_message",
+      ["m1", "m2", "m3"],
+      expect.any(String),
+    );
+  });
+
+  it("reads the ids BEFORE deleting — after the delete there is nothing to join against", async () => {
+    mocks.findUnique.mockResolvedValueOnce(row);
+    const order: string[] = [];
+    mocks.findMany.mockImplementationOnce(async () => {
+      order.push("read");
+      return [{ id: "m1" }];
+    });
+    mocks.deleteMany.mockImplementationOnce(async () => {
+      order.push("delete");
+      return { count: 1 };
+    });
+
+    await deleteMessageCascade({ messageId: "cuid_db_row" });
+
+    expect(order).toEqual(["read", "delete"]);
+  });
+
+  it("CANARY — a cascade that found no messages does not call the tombstone with junk", async () => {
+    mocks.findUnique.mockResolvedValueOnce(row);
+    mocks.findMany.mockResolvedValueOnce([]);
+
+    await deleteMessageCascade({ messageId: "cuid_db_row" });
+
+    expect(mocks.dropEmbeddings).toHaveBeenCalledWith("chat_message", [], expect.any(String));
   });
 });

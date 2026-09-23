@@ -18,7 +18,7 @@ import { BUSINESS } from "@shared/business";
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/tire-prices-cleveland",
   heroImage: "/photos/rugged-tire-tread-closeup.webp",
-  title: "Tire Prices Cleveland — Live In-Stock Pricing | Nick's",
+  title: "Tire Prices Cleveland — Live Installed Pricing | Nick's",
   description:
     "Real tire prices in Cleveland from our live distributor feed. Used tires from $25 installed (12-inch rims; most $40-80), new from $89 installed. Walk-ins 7 days.",
   eyebrow: "TIRE PRICES — CLEVELAND, OHIO",

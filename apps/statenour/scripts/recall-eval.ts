@@ -84,11 +84,47 @@ async function lexicalRetriever(): Promise<Retriever> {
  * onRanked observer — the number that actually decides whether a memory influences
  * an answer. Fast topics, no LLM, the same opts the chat route passes.
  */
+/**
+ * Counts how many hybrid queries actually got a query embedding. Read after the
+ * run — see the banner in main(). A zero here invalidates the hybrid number.
+ */
+const hybridKnn = { withEmbedding: 0, withoutEmbedding: 0 };
+
 async function hybridRetriever(): Promise<Retriever> {
   const { getContextualMemories } = await import("../lib/brain/contextual-recall");
+  const { getEmbedding } = await import("../lib/ai/provider");
   return async (query, k) => {
+    // ⚠⚠ THE HYBRID'S KNN POOL IS GATED ON queryEmbedding — MEASURED 2026-09-18.
+    //
+    // contextual-recall.ts:900-908:
+    //     const knnRows = opts.queryEmbedding && opts.queryEmbedding.length > 0
+    //       ? await getKnnPoolRows(...)
+    //       : [];
+    // with the comment "Only when the caller supplied the query embedding (the
+    // chat hot path) — other callers keep today's pool shape."
+    //
+    // This runner omitted it, so the hybrid lane ran with ZERO true-KNN
+    // candidates while the `vector` lane beside it was fully configured. The
+    // resulting print — vector 0.368 vs hybrid 0.053, with hybrid ~= lexical
+    // 0.066 — reads as "production recall is 7x worse than its own vector
+    // component". That conclusion was an artifact of THIS FILE, not a finding
+    // about production, and it was nearly published.
+    //
+    // Production (lib/services/chat/brain-context.ts:396) passes
+    // `queryEmbedding: userEmbedding`. Matching it is the only way this lane
+    // measures the pipeline the operator actually runs.
+    const queryEmbedding = await getEmbedding(query).catch((): number[] => []);
+    if (queryEmbedding.length > 0) hybridKnn.withEmbedding++;
+    else hybridKnn.withoutEmbedding++;
+
     let ranked: { key: string }[] = [];
-    await getContextualMemories([query], Math.max(k, 10), { fastTopics: true, onRanked: (rows) => { ranked = rows; } });
+    await getContextualMemories([query], Math.max(k, 10), {
+      fastTopics: true,
+      queryEmbedding: queryEmbedding.length > 0 ? queryEmbedding : undefined,
+      onRanked: (rows) => {
+        ranked = rows;
+      },
+    });
     return ranked.slice(0, k).map((r, i) => ({ key: r.key, score: 1 / (i + 1) }));
   };
 }
@@ -142,6 +178,30 @@ async function main() {
   }
   const { cases, syntheticOnly } = loadCorpus();
   checkManifest(cases);
+
+  // ── SEALED EVALUATION BOUNDARY ────────────────────────────────────────────
+  // Until 2026-09-18 every case was scored on every run, so any weight, prompt
+  // or ranking change could be tuned against the same corpus used to report the
+  // result. A number measured on the data it was fitted to is not a measurement.
+  //
+  // The visible corpus is now split development / regression; the SEALED tier
+  // lives outside every checkout (see recall-corpus-tiers.sealedCorpusPath) and
+  // is loaded only if present. Absent, it prints UNMEASURED — never a pass.
+  const { splitByTier, sealedCorpusPath, describeSealed } = await import(
+    "../lib/brain/recall-corpus-tiers"
+  );
+  const tiers = splitByTier(cases);
+  console.log(
+    `tiers · development=${tiers.development.length} regression=${tiers.regression.length}` +
+      ` sealed-in-visible-corpus=${tiers.sealed.length}`,
+  );
+  if (tiers.sealed.length > 0) {
+    console.log(
+      `  ⚠ ${tiers.sealed.length} sealed-tier cases are still IN the visible corpus at` +
+        ` eval-datasets/recall-corpus.json — the boundary is DECLARED, not yet ENFORCED.` +
+        ` Move them to ${sealedCorpusPath()} to seal them.`,
+    );
+  }
   console.log(
     `recall-eval · ${cases.length} cases (${syntheticOnly ? "SYNTHETIC ONLY — run pnpm harvest:evals for real cases; this run proves the harness, not the ranking" : "seed + harvested"}) · k=${K}`,
   );
@@ -154,13 +214,71 @@ async function main() {
   console.log(line("lexical", lexical));
   console.log(line("hybrid", hybrid));
 
-  const verdict =
-    lexical.meanPrecisionAtK > vector.meanPrecisionAtK
-      ? "lexical leads on this corpus"
-      : lexical.meanPrecisionAtK < vector.meanPrecisionAtK
-        ? "vector leads on this corpus"
-        : "tied on this corpus";
+  // ⚠ THE HYBRID LANE'S CONFIGURATION IS PART OF ITS NUMBER, SO IT IS PRINTED
+  // BESIDE IT. Without this, a hybrid running with an empty KNN pool prints a
+  // plausible-looking score next to a fully-configured vector lane and invites
+  // exactly one wrong conclusion. Never let the degraded case be silent — the
+  // same rule nickstire's holdout applies by reporting UNMEASURED rather than
+  // treating an absent evaluator as a pass.
+  const knnTotal = hybridKnn.withEmbedding + hybridKnn.withoutEmbedding;
+  if (knnTotal === 0) {
+    console.log("hybrid    (lane did not run)");
+  } else if (hybridKnn.withEmbedding === 0) {
+    console.log(
+      `hybrid    !! INVALID — 0 of ${knnTotal} queries got a query embedding, so the true-KNN pool\n` +
+        "          was EMPTY on every case (contextual-recall.ts gates it on queryEmbedding).\n" +
+        "          This is NOT production recall. Do not compare it to the vector lane.",
+    );
+  } else if (hybridKnn.withoutEmbedding > 0) {
+    console.log(
+      `hybrid    !! DEGRADED — ${hybridKnn.withoutEmbedding} of ${knnTotal} queries ran with NO KNN pool;\n` +
+        "          the score is a blend of two different pipelines.",
+    );
+  } else {
+    console.log(
+      `hybrid    knn pool ACTIVE on all ${knnTotal} queries (matches the chat hot path).`,
+    );
+  }
+
+  // ★★★ REFUSE A VERDICT THE CORPUS CANNOT SUPPORT.
+  //
+  // Measured 2026-09-18: this line printed "lexical leads on this corpus" off a
+  // run whose positive cases were ECHO cases — the query was a verbatim slice of
+  // the very memory it was meant to find. Lexical matches its own input
+  // trivially, so it "led" by construction. The same run also mixed in synthetic
+  // seeds whose targets do not exist in this brain (0 for every lane) and
+  // abstention cases with no targets at all (precision is 0 BY ARITHMETIC).
+  //
+  // Three incompatible case types averaged into one number, under a confident
+  // one-line verdict. A benchmark that always prints a winner will eventually be
+  // believed, and that is worse than one that prints nothing.
+  //
+  // A case earns its place in the precision denominator only if it has a target
+  // AND its query was rewritten away from the source text (`--paraphrase`).
+  const positives = cases.filter((c) => (c.relevantKeys?.length ?? 0) > 0);
+  const paraphrased = positives.filter((c) => /paraphrased by model/.test(c.provenance ?? ""));
+  const echoOnly = positives.length > 0 && paraphrased.length === 0;
+
+  const verdict = echoOnly
+    ? "NO VERDICT — positive cases are ECHO (query is a slice of its own target). " +
+      "Lexical wins these by construction. Re-harvest with --paraphrase."
+    : positives.length === 0
+      ? "NO VERDICT — corpus has no positive cases; precision is 0 by arithmetic, not by retrieval."
+      : lexical.meanPrecisionAtK > vector.meanPrecisionAtK
+        ? "lexical leads on this corpus"
+        : lexical.meanPrecisionAtK < vector.meanPrecisionAtK
+          ? "vector leads on this corpus"
+          : "tied on this corpus";
+
+  console.log(
+    `corpus: ${positives.length} positive (${paraphrased.length} paraphrased) · ${cases.length - positives.length} abstention`,
+  );
   console.log(`verdict: ${verdict}${syntheticOnly ? " (synthetic corpus — not decision-grade)" : ""}`);
+  if (echoOnly || positives.length === 0) {
+    console.log(
+      "note: abstentionClean + contradictionInjection above ARE interpretable — they need no targets.",
+    );
+  }
 
   const outDir = join(process.cwd(), "eval-datasets");
   mkdirSync(outDir, { recursive: true });

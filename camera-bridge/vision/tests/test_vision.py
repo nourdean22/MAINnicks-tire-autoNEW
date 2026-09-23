@@ -1797,3 +1797,69 @@ def test_a_straddling_portal_actually_yields_a_crossing():
     # already inside when watching began: an occupant, not an arrival
     parked = [(300, 240), (302, 241), (301, 240), (303, 242)]
     assert ep.evaluate(parked)["crossed"] is False
+# ------------------------------------------------------- GATE: episode stitching
+def _arrival_run(x_start: float = 20.0, n_move: int = 7, n_park: int = 20):
+    """Boxes+detections for one car driving in from outside and parking."""
+    boxes, dets = [], []
+    x = x_start
+    for _ in range(n_move):
+        b = car_box(x)
+        boxes.append([b]); dets.append([Detection(b, 0.9, "vehicle", "stub")])
+        x += 30.0
+    parked = car_box(x - 30.0)
+    for _ in range(n_park):
+        boxes.append([parked]); dets.append([Detection(parked, 0.9, "vehicle", "stub")])
+    return boxes, dets
+
+
+def test_a_reacquired_car_keeps_its_original_arrival_instant():
+    """The defect: a track death restarts the visit clock at `now`.
+
+    Drives one car in, lets its track die, then drives it in again. The shop saw ONE
+    car. Before the stitcher the second track opened a `VisitTiming(arrived_at=now)`
+    and the first arrival instant was lost, so `waitToBay` was measured from the
+    re-acquisition rather than from when the customer actually pulled in.
+    """
+    seq_boxes, seq_dets = [[] for _ in range(10)], [[] for _ in range(10)]
+    b1, d1 = _arrival_run()
+    seq_boxes += b1; seq_dets += d1
+    # Gone long enough for a PARKED track to be retired (parked_max_misses=150).
+    seq_boxes += [[] for _ in range(160)]; seq_dets += [[] for _ in range(160)]
+    b2, d2 = _arrival_run()
+    seq_boxes += b2; seq_dets += d2
+
+    pipe = make_pipeline()
+    for f, d in zip(frames(len(seq_boxes), seq_boxes), seq_dets):
+        pipe.step(f, detections=d)
+
+    s = pipe.summary()
+    # The HEADLINE COUNT IS UNCHANGED. The operator asked for the counter to keep
+    # running unhidden, so stitching must not silently rewrite it.
+    assert s["arrivals"] == 2, s
+    # ...and the de-duplicated shadow reports what it WOULD be.
+    assert s["arrivals_after_stitch"] == 1, s
+    assert s["stitch"]["stitched"] == 1, s["stitch"]
+
+    timings = [t for t in pipe.timings.values() if t.episode_id]
+    stitched = [t for t in timings if t.continues_track_id is not None]
+    assert len(stitched) == 1, [t.to_dict() for t in timings]
+    tm = stitched[0]
+    first = min(t.arrived_at for t in timings if t.arrived_at is not None)
+    assert tm.arrived_at == first, "the re-acquired visit restarted its own clock"
+    assert len(tm.member_track_ids) == 2, tm.to_dict()
+
+
+def test_stitch_refusals_reach_the_summary():
+    """A stitcher that never stitches must be distinguishable from one that works."""
+    seq_boxes, seq_dets = [[] for _ in range(10)], [[] for _ in range(10)]
+    b1, d1 = _arrival_run()
+    seq_boxes += b1; seq_dets += d1
+
+    pipe = make_pipeline()
+    for f, d in zip(frames(len(seq_boxes), seq_boxes), seq_dets):
+        pipe.step(f, detections=d)
+
+    st = pipe.summary()["stitch"]
+    assert st["stitched"] == 0
+    assert st["refused_no_candidate"] == 1, st
+    assert "openFragments" in st

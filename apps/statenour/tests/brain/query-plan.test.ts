@@ -31,11 +31,248 @@ describe("planQuery — classes", () => {
     expect(plan("how do I feel today").classes).not.toContain("temporal");
   });
 
+  /**
+   * 2026-09-17 · temporal PRECISION, and why it is not cosmetic.
+   *
+   * `asOf` flows to getContextualMemories -> validityWhere(asOf), which keeps
+   * a row when `validFrom <= asOf`, or when validFrom is null and
+   * `createdAt <= asOf`. BOTH branches exclude anything newer than `asOf`, so
+   * a false asOf silently hides every memory recorded after it, with no error
+   * and no log. (An earlier version of this comment justified that via the
+   * 2026-09-08 probe's "0 of 40,889 rows carry validFrom" — stale since Wave 2
+   * made remember() stamp it. The conclusion never depended on that premise.)
+   *
+   * The original matcher accepted a bare month token anywhere, so "that may be
+   * the right call" resolved to asOf = May 1st — roughly four months of memory
+   * dropped from that turn. Measured: 10 false temporal classifications and 7
+   * false asOf instants across 13 ordinary turns.
+   */
+  const TEMPORAL_ORDINARY = [
+    "that may be the right call",
+    "it may work if we push the cadence",
+    "we may need a second alignment rack",
+    "may I get the invoice",
+    "we may as well book it",
+    "march the inventory list over to the shop",
+    "that might mar the finish",
+    "I'll clean up after the install",
+    "check in after the oil change",
+    "look after the shop while I'm out",
+    "what do you know about my insurance",
+    "how much did the tires cost",
+    "remind me to call Moe",
+    // The looser prepositions (about/for/of/over) are admitted ONLY before
+    // months that are not also English words — these are why.
+    "what do you think of may as a launch window",
+    "i asked for march instead",
+    "we talked about august as an option",
+  ];
+
+  it("temporal · precision: an ordinary turn is never classified temporal", () => {
+    const falsePositives = TEMPORAL_ORDINARY.filter((m) => plan(m).classes.includes("temporal"));
+    expect(falsePositives).toEqual([]);
+  });
+
+  it("temporal · an ordinary turn NEVER produces an asOf (a false one silently shrinks recall)", () => {
+    const withAsOf = TEMPORAL_ORDINARY.filter((m) => plan(m).asOf !== undefined);
+    expect(withAsOf).toEqual([]);
+    // The headline case, named so a regression is unmistakable: the modal verb.
+    expect(plan("that may be the right call").asOf).toBeUndefined();
+  });
+
+  it("temporal · recall: a month still resolves when it sits in a real date phrase", () => {
+    const intended: Array<[string, string]> = [
+      ["what did I believe back in July", "2026-07-01T00:00:00.000Z"],
+      ["what was the cadence in May", "2026-05-01T00:00:00.000Z"],
+      ["my plan from December", "2025-12-01T00:00:00.000Z"],
+    ];
+    for (const [msg, iso] of intended) {
+      expect(plan(msg).classes, msg).toContain("temporal");
+      expect(plan(msg).asOf?.toISOString(), msg).toBe(iso);
+    }
+    expect(plan("since March have I changed the pricing").classes).toContain("temporal");
+    expect(plan("what did I decide on July 5").classes).toContain("temporal");
+
+    // Phrasings the first tightening pass lost. "up to <month>" matters most:
+    // parseAsOf's own before/until branch already handles it, so dropping it
+    // from the context list made that code unreachable.
+    for (const m of [
+      "up to August what was the plan",
+      "what was true about July",
+      "the numbers for June",
+      "through September we held the price",
+      "throughout October I kept it",
+      "last March we raised it",
+      "this December",
+    ]) {
+      expect(plan(m).classes, m).toContain("temporal");
+    }
+  });
+
+  /**
+   * 2026-09-17 · exact_identifier PRECISION, pinned after an audit that
+   * expected a defect and found none.
+   *
+   * The ALL-CAPS matcher DOES match "ASAP"; the guard below it (requires a
+   * digit, an underscore, or a camelCase transition) is what rejects it. That
+   * guard is one easily-deleted line, and the exact lane's entire value is
+   * precision — a spurious term sends recallMemoriesForQuery hunting for
+   * "ASAP". Measured 0 noise across 12 ordinary turns; pinned so it stays 0.
+   */
+  it("exact_identifier · precision: ordinary chat yields no exact terms", () => {
+    const ordinary = [
+      "get back to me ASAP",
+      "that is OKAY with me",
+      "call Moe NOW",
+      "the tires cost 240",
+      "I need this DONE today",
+      "send the invoice PLEASE",
+      "what do you know about my insurance",
+      "the shop opens at 8am",
+      "HVAC is acting up again",
+      "check the DOT date on that tire",
+    ];
+    const noisy = ordinary.filter((m) => plan(m).exactTerms.length > 0);
+    expect(noisy).toEqual([]);
+  });
+
+  it("exact_identifier · recall: real identifiers of every supported shape survive", () => {
+    const cases: Array<[string, string]> = [
+      ["look at BDN-319", "BDN-319"],
+      ["what happened in #2414", "#2414"],
+      ["check lib/brain/query-plan.ts", "lib/brain/query-plan.ts"],
+      ["the commit was a750125", "a750125"],
+      ["is NICK_RECALL_ARBITER on", "NICK_RECALL_ARBITER"],
+      ["look at buildContextReceipt", "buildContextReceipt"],
+      ["the brain_memories table", "brain_memories"],
+    ];
+    for (const [msg, want] of cases) {
+      expect(plan(msg).exactTerms, msg).toContain(want);
+    }
+  });
+
+  /**
+   * 2026-09-18 · anaphoric coverage, pinned both ways.
+   *
+   * Why precision matters as much as recall here: the referent is prepended to
+   * getContextualMemories' message array, and deriveFastTopics caps at 8
+   * topics. On a SELF-CONTAINED question the prior turn's words would crowd
+   * out the real ones, so a false anaphoric match degrades recall rather than
+   * improving it.
+   */
+  it("anaphoric · recall: third-person pronouns resolve, not just object pronouns", () => {
+    const anaphoric = [
+      "how much was it?",
+      "what about that?",
+      "how did that go?",
+      "did they ever get back?",
+      "did he approve it?",
+      "what did she say?",
+      "are they still coming?",
+      "send them the invoice",
+      // Deictic pronouns still resolve even when the turn names someone —
+      // "that" points OUT of the turn regardless of a local name.
+      "Did Moe approve that?",
+    ];
+    const missed = anaphoric.filter((m) => !plan(m, ["We agreed Moe would handle the supplier call."]).classes.includes("anaphoric_followup"));
+    expect(missed).toEqual([]);
+  });
+
+  /**
+   * ★ The first version of this fixture contained no `he`/`she`/`they` at all,
+   * so it could not detect the regression it was written to guard — Codex
+   * caught that on PR #2422. A precision test whose fixtures exclude the risky
+   * input is decoration. The locally-resolved cases below are the ones that
+   * actually discriminate: measured 5/12 false positives before the fix.
+   */
+  it("anaphoric · precision: a self-contained question takes no referent", () => {
+    const selfContained = [
+      // Pronoun resolved by a name in THIS turn — not a follow-up.
+      "Did Moe say he approved the order?",
+      "Did Moe and Nick say they approved?",
+      "Has Nick confirmed he is coming?",
+      "Did Sarah mention she called back?",
+      "Ask Moe if they delivered",
+      // Pronoun-free self-contained turns.
+      "what did the alignment rack cost",
+      "remind me about the Acima rollout",
+      "how much do tires cost in Cleveland",
+      "book an oil change for Tuesday",
+      "what is my current balance",
+      "call Moe about the supplier",
+      "draft the pricing sheet",
+    ];
+    const falsePositives = selfContained.filter((m) => plan(m, ["We agreed Moe would handle the supplier call."]).classes.includes("anaphoric_followup"));
+    expect(falsePositives).toEqual([]);
+  });
+
   it("correction: 'which one is current?' and a changed amount", () => {
     expect(plan("which one is current?").classes[0]).toBe("correction");
     const p = plan("I no longer take 20mg, it's 10mg");
     expect(p.classes).toContain("correction");
     expect(plan("what is the capital of Ohio").classes).not.toContain("correction");
+  });
+
+  /**
+   * 2026-09-17 · the correction class got its first consumer
+   * (NICK_CORRECTION_THRESHOLD_BOOST lowers contradiction surfacing on a
+   * correction turn), so its precision started to matter. The original regex
+   * measured 41% recall at a 53% false-positive rate on these fixtures —
+   * bare `updated?` / `corrected?` / `instead of` swallowed ordinary turns.
+   * Both sets are pinned here: a future widening must beat the measurement,
+   * not merely look reasonable. A false positive here is worse than a miss —
+   * it loosens contradiction surfacing on a turn that asked nothing.
+   */
+  const CORRECTION_INTENDED = [
+    "what changed since last week?",
+    "which one is current?",
+    "is that still true?",
+    "did i change my mind on the reel cadence?",
+    "my rent is no longer 1900",
+    "what's my rate now vs in July",
+    "has that changed?",
+    "is that still accurate",
+    "do i still use Acima for payment plans",
+    "is my insurance info up to date",
+    "what's changed with the shop hours",
+    "which is current, the 1900 or the 2100 figure",
+    "is that out of date now",
+    "am i still paying 1900 for rent",
+    "has the supplier list changed since August",
+    "whats changed with the pricing",
+    "is the 1900 figure superseded",
+  ];
+
+  const CORRECTION_ORDINARY = [
+    "can you update my notes on the alignment rack",
+    "update the shop hours to 8am",
+    "i want an update on the Acima rollout",
+    "use the new supplier instead of the old one",
+    "book the oil change instead of the rotation",
+    "i updated the sitemap yesterday",
+    "send Moe an updated invoice",
+    "the corrected total was 240",
+    "what do you know about my insurance",
+    "how much did the tires cost",
+    "draft an updated pricing sheet",
+    "correct the typo in the listing",
+    "schedule an alignment instead",
+    "give me the current weather",
+    "what is my current balance",
+    "update me on the reel pipeline",
+    "change my appointment to Tuesday",
+    "what changes should i make to the listing",
+    "the current owner is Nick",
+  ];
+
+  it("correction · recall: every genuine premise check is classified", () => {
+    const missed = CORRECTION_INTENDED.filter((m) => !plan(m).classes.includes("correction"));
+    expect(missed).toEqual([]);
+  });
+
+  it("correction · precision: no ordinary turn is classified (an action request is not a premise check)", () => {
+    const falsePositives = CORRECTION_ORDINARY.filter((m) => plan(m).classes.includes("correction"));
+    expect(falsePositives).toEqual([]);
   });
 
   it("anaphoric_followup: a short pronoun question with a prior turn carries the referent", () => {
@@ -85,5 +322,79 @@ describe("planQuery — contract", () => {
     expect(plan("").classes).toEqual(["semantic_lookup"]);
     expect(plan("🚗🔥").classes).toEqual(["semantic_lookup"]);
     expect(planQuery(undefined as unknown as string).original).toBe("");
+  });
+});
+
+/**
+ * 2026-09-18 · MULTI-HOP PRECISION GATE.
+ *
+ * `subQueries` is a dark wire: computed every turn, consumed by nothing but a
+ * log line. Before wiring it, it was measured — and the single-arm HOP_RE that
+ * shipped scored 36% PRECISION / 80% recall over these turns, with 7 of its 11
+ * firings false. "I closed up and then went home" split into two lookups.
+ *
+ * That is the same defect the bare month matcher had: `and then` and
+ * `because of` are ordinary English far more often than they are a request for
+ * two retrievals. None of it reached production precisely BECAUSE the wire was
+ * dark — which is the argument for measuring at the moment of wiring, not
+ * after. The `correction` class was 41% recall / 53% false positives the
+ * moment it got its first consumer.
+ *
+ * This gate is the measurement, kept. The corpus is small and hand-labelled;
+ * its value is that it FAILS if someone widens the matcher back out.
+ */
+describe("multi_hop · precision gate (measured, not asserted by eyeball)", () => {
+  /** [turn, genuinely needs TWO separate lookups] */
+  const CORPUS: Array<[string, boolean]> = [
+    // genuine multi-hop
+    ["compare the euclid shop and the madison shop", true],
+    ["what is the difference between the alignment promo and the tire promo", true],
+    ["how did revenue do last month? what about hiring?", true],
+    ["what did I decide about pricing and then what happened to margins", true],
+
+    // narrative prose that the old matcher split — the whole point of the gate
+    ["I closed up and then went home", false],
+    ["the tire blew because of the pothole", false],
+    ["we lost the sale because of the wait time", false],
+    ["I opened the bay and then a customer walked in", false],
+    ["he quit because of the hours", false],
+    ["she came in and then left without buying", false],
+    ["it cracked because of the cold", false],
+
+    // ordinary single questions
+    ["what is my rent", false],
+    ["how much did we make yesterday", false],
+    ["can you compare that for me", false],
+    ["what changed", false],
+  ];
+
+  const scored = CORPUS.map(([msg, expected]) => ({
+    msg,
+    expected,
+    fired: plan(msg).subQueries.length > 0,
+  }));
+
+  it("positive control: the corpus contains both classes and the matcher fires at all", () => {
+    // Without this, a matcher that never fires would score 100% precision.
+    expect(scored.some((s) => s.expected)).toBe(true);
+    expect(scored.some((s) => !s.expected)).toBe(true);
+    expect(scored.filter((s) => s.fired).length, "matcher never fired — precision below is vacuous").toBeGreaterThan(0);
+  });
+
+  it("ZERO false positives — a bogus split costs a second retrieval on a narrative turn", () => {
+    const fp = scored.filter((s) => s.fired && !s.expected).map((s) => s.msg);
+    expect(fp, "these are ordinary sentences being split into two lookups").toEqual([]);
+  });
+
+  it("recall stays at or above 75% — biased toward missing, never toward splitting", () => {
+    const tp = scored.filter((s) => s.fired && s.expected).length;
+    const total = scored.filter((s) => s.expected).length;
+    expect(tp / total).toBeGreaterThanOrEqual(0.75);
+  });
+
+  it("a connective only counts inside a question — this is the actual fix", () => {
+    // Identical connective, two registers. The narrative one must not split.
+    expect(plan("I closed up and then went home").subQueries).toEqual([]);
+    expect(plan("what did I decide about pricing and then what happened to margins").subQueries).toHaveLength(2);
   });
 });

@@ -164,3 +164,11 @@ export function getBusinessDateKey(now: Date = new Date()): string {
   }
   return new Date(now.getTime() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
+
+/** Whole minutes since midnight in the shop's timezone. A duration, so the DB clock's zone never matters. */
+export function minutesSinceShopMidnight(now: Date, timeZone: string = BUSINESS.timezone): number {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(now);
+  const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+  const min = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
+  return h * 60 + min;
+}

@@ -265,7 +265,13 @@ ${claims.map((c) => `- [CLAIM] ${c.text} (Confidence: ${c.confidence})`).join("\
   try {
     const result = await generateText({
       model: getModel("reason"),
-      experimental_telemetry: langfuseTelemetry({ functionId: "daily-executive-brief" }),
+      // See extraction.ts for why tags + metadata.source are load-bearing:
+      // an empty trace name makes them the ONLY identity a trace carries.
+      experimental_telemetry: langfuseTelemetry({
+        functionId: "daily-executive-brief",
+        tags: ["intelligence"],
+        metadata: { source: "intelligence" },
+      }),
       system: SYSTEM_PROMPT,
       prompt: `${promptText}\n\nCompose the brief now.`,
     });

@@ -68,6 +68,22 @@ export interface FeatureFlag {
   /** Runtime reads a raw env var directly; the settings board must not offer
    * controls that imply a database override can change behavior. */
   readOnly?: boolean;
+  /**
+   * 2026-09-18 · trim the raw env value before resolving, for a `readOnly`
+   * mirror whose runtime ALSO trims.
+   *
+   * The readOnly path deliberately does not trim (see getFlag) so the board
+   * sees exactly the bytes the runtime sees. But a runtime that itself calls
+   * `.trim()` then disagrees with the board on a padded value: measured
+   * 2026-09-18, `NICK_AGENT_FOLLOWUPS=" 1 "` made lib/agent/follow-up.ts:76
+   * return TRUE while the board rendered OFF — a flag board that is
+   * confidently wrong is worse than one that is merely missing an entry.
+   *
+   * Opt-in and default-off, so every existing flag keeps its exact current
+   * behaviour. Set it ONLY when the mirrored expression trims, and pin the
+   * agreement with a test.
+   */
+  trimRawValue?: boolean;
 }
 
 export const FLAG_REGISTRY: FeatureFlag[] = [
@@ -188,6 +204,21 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/brain/contextual-recall.ts",
   },
   {
+    key: "NICK_TOOL_RANK_MERGED",
+    // readOnly because `lib/ai/chat-mode.ts` reads process.env directly rather
+    // than through getFlag(). The board must not offer a toggle it cannot
+    // honour — a writable row here would contradict the runtime.
+    readOnly: true,
+    description:
+      "Two-stage tool selection (2026-09-18). Selection used to be ONE pass in which every tier called addIfSpace and stopped at TOOL_BUDGET, so each tier's share of the 24 slots was decided by ARRIVAL ORDER, not relevance. Measured over 2,616 prod gate decisions: candidates p50 43 vs selected p50 24, budget truncated on 80.4% of turns, and the SEMANTIC tier skipped on 73.2% because tier 4 (keyword families) had already filled the budget — while 65.3% of tier-4 allowed impressions went to tools the model never chose. Now: stage 1 gathers from every tier and drops nothing; stage 2 seats the INTENT tiers (core, action-core, exact mention, playbook) and then ranks tiers 4/5/6 TOGETHER on one cosine scale before truncating. Tier 4 and tier 5 already scored against the same embedding with the same metric, so they were always comparable — just never compared. LIVE by default; set NICK_TOOL_RANK_MERGED=0 to disable.",
+    status: "experimental",
+    onValue: "true",
+    defaultOn: true,
+    defaultBehavior:
+      "LIVE: contested tiers are ranked together before the budget cut. Kill-switch NICK_TOOL_RANK_MERGED=0 restores arrival order (tier 4, then 5, then 6) without a deploy. Note the merged ranking ALSO self-disables whenever any contested candidate is unscored — no embedding and a cold cache both fall back to arrival order structurally, so =0 is a manual override of an already-conditional path. NOT prod-proven: re-run scripts/tool-reachability-census.ts after deploy; it withholds a verdict below 100 post-fix turns.",
+    ownerDoc: "lib/ai/chat-mode.ts",
+  },
+  {
     key: "NICK_RECALL_ARBITER",
     description:
       "Brain plan Wave 2 (2026-09-08): one evidence pack across the two chat recall lanes (memory-recall hybrid + contextual pipeline) — union by id, content-identity dedupe, RRF k=60, one rerank, MMR redundancy penalty — rendered as a single block instead of two overlapping ones. Off until the frozen 28-case corpus shows no regression (plan section 6.4). Set NICK_RECALL_ARBITER=1 to enable.",
@@ -197,6 +228,17 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior:
       "OFF: the two recall lanes render separately as today (memory-recall hybrid block + contextual pipeline block); recall_lane_overlap is logged per turn.",
     ownerDoc: "docs/research/2026-09-08-statenour-brain-intelligence-upgrade-plan.md",
+  },
+  {
+    key: "NICK_CORRECTION_THRESHOLD_BOOST",
+    description:
+      "Premise-check wiring (2026-09-17): lib/brain/query-plan.ts already classifies a turn as `correction` (\"what changed\", \"which is current\", \"still true\", \"no longer\") but nothing consumed that classification — a dark wire, same shape `exactTerms` had until 2026-09-15. When on, a correction-classified turn lowers findRelevantContradictions' surfacing bar from 0.7 to 0.6: the user already signalled they are checking a premise, so a marginal contradiction hit is worth showing instead of requiring the same bar as an unprompted mid-conversation nudge. Off until measured against real correction-shaped turns — the 0.6 choice is a conservative starting guess, not calibrated. Set NICK_CORRECTION_THRESHOLD_BOOST=1 to enable.",
+    status: "experimental",
+    onValue: "true",
+    defaultOn: false,
+    defaultBehavior:
+      "OFF: findRelevantContradictions always uses its 0.7 SIMILARITY_THRESHOLD regardless of query-plan classification, exactly as before this flag existed.",
+    ownerDoc: "lib/brain/contradiction-injector.ts",
   },
   // ── Memory-write gateway kill-switches (registered 2026-08-19) ────
   // Both were LIVE-by-default via raw `process.env.X !== "0"` reads in
@@ -230,6 +272,19 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior:
       "LIVE: update + weaker_evidence-review enforced at remember(). Kill-switch =0 FIRST if writes look wrong, then run scripts/probe-gateway-agrees.ts.",
     ownerDoc: "lib/brain/memory-commit-gateway.ts",
+    readOnly: true,
+  },
+  {
+    key: "NICK_MEMORY_SUPERSESSION",
+    description:
+      "Brain plan Wave 2 §6.3, the SUPERSESSION half. On a gateway `supersede` verdict, freezes the outgoing row as walkable history (snapshotSupersededVersion, memory-manager.ts:133) and stamps validUntil + supersededById on it. OFF = legacy overwrite-in-place: the prior version is lost and the supersession columns keep no writer. ★ Registered 2026-09-18 because it was the LAST memory switch still invisible — a raw `process.env.NICK_MEMORY_SUPERSESSION === \"1\"` read at memory-manager.ts:461, exactly the defect the two gateway switches above were registered to fix on 2026-08-19. A switch nobody can see on the flag board cannot be given the shadow week §6.3 requires before it flips. ★ NOTE the other half of Wave 2 is ALREADY LIVE and unflagged: `validFrom` is stamped on every row written THROUGH remember() (memory-manager.ts:509), so the widely-quoted \"0 of 40,889 rows carry validFrom\" is a 2026-09-08 SNAPSHOT, not current state. It is NOT every new row either — the 107 allowlisted direct writers (tests/repo/brain-memory-direct-writers.allowlist.json) bypass remember() entirely, so they plus pre-Wave-2 rows still take the created_at fallback in validityWhere(). Harmless for them in practice: a row whose validFrom would equal its createdAt gets the identical answer from either branch. The fallback only loses information for a writer that should BACKDATE, which is what admitMemory({ effectiveFrom }) exists for.",
+    status: "experimental",
+    onValue: "1",
+    defaultOn: false,
+    offValue: "0",
+    defaultBehavior:
+      "OFF: a supersede verdict overwrites in place; valid_until and superseded_by_id stay null and the prior version is not recoverable. Turning it on needs the shadow week in the Wave 2 plan — compare shadowMemoryCommit receipts against what the flip WOULD have stamped before trusting it.",
+    ownerDoc: "docs/research/2026-09-08-statenour-brain-intelligence-upgrade-plan.md",
     readOnly: true,
   },
   {
@@ -415,6 +470,94 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/ai/multi-agent-orchestrator.ts",
   },
 
+  // ── Raw-env runtime switches, registered 2026-09-18 ──────────────
+  // Every entry here mirrors a `process.env.X` read that the code performs
+  // DIRECTLY — none of them route through getFlag(). That is why all seven are
+  // `readOnly: true`: the board reports what the runtime actually sees, and a
+  // stale DB override can never make it contradict the code.
+  //
+  // Registered because the visibility ratchet (tests/repo/
+  // flag-board-visibility-ratchet.test.ts) exists to drive this list to zero,
+  // and a baseline that never shrinks is just a permanent excuse. Each
+  // `offValue`/`onValue`/`defaultOn` below was read off the exact expression
+  // at the cited line — a registry entry whose default disagrees with its code
+  // is WORSE than an unregistered switch, because it looks authoritative.
+  {
+    key: "NICK_COST_FIREWALL",
+    readOnly: true,
+    description: "Per-request AI spend ceiling. LIVE by default; set to 0 to disable the firewall entirely. Reads `process.env.NICK_COST_FIREWALL !== \"0\"` at lib/ai/provider.ts:827.",
+    status: "stable",
+    onValue: "1",
+    offValue: "0",
+    defaultOn: true,
+    defaultBehavior: "Cost firewall ENFORCED (unset = on).",
+    ownerDoc: "lib/ai/provider.ts",
+  },
+  {
+    key: "NICK_CALIBRATION_ENFORCER",
+    readOnly: true,
+    description: "Rewrites over-confident model claims to calibrated language before persist. LIVE by default; set to 0 to disable. Reads `process.env.NICK_CALIBRATION_ENFORCER !== \"0\"` at lib/ai/chat/calibration-enforcer.ts:57.",
+    status: "stable",
+    onValue: "1",
+    offValue: "0",
+    defaultOn: true,
+    defaultBehavior: "Calibration enforcement ON (unset = on).",
+    ownerDoc: "lib/ai/chat/calibration-enforcer.ts",
+  },
+  {
+    key: "NICK_JIT_SECTIONS",
+    readOnly: true,
+    description: "Just-in-time prompt-section dropping to fit budget. LIVE by default; set to 0 for a full early return with nothing dropped. Reads `process.env.NICK_JIT_SECTIONS === \"0\"` at lib/ai/vnext/jit-sections.ts:43.",
+    status: "stable",
+    onValue: "1",
+    offValue: "0",
+    defaultOn: true,
+    defaultBehavior: "JIT section dropping ACTIVE (unset = on).",
+    ownerDoc: "lib/ai/vnext/jit-sections.ts",
+  },
+  {
+    key: "NICK_ESCALATION_DISABLED",
+    readOnly: true,
+    description: "★ INVERTED NAME — read the polarity before acting. `isOn` here means ESCALATION IS DISABLED. The route computes `enabled: process.env.NICK_ESCALATION_DISABLED !== \"1\"` (app/api/ai/chat/route.ts:458), so unset leaves escalation RUNNING. Registered with the key's own polarity rather than the feature's, because the board shows keys.",
+    status: "stable",
+    onValue: "1",
+    defaultOn: false,
+    defaultBehavior: "Escalation ENABLED (the kill-switch is off).",
+    ownerDoc: "app/api/ai/chat/route.ts",
+  },
+  {
+    key: "NICK_FAILOVER_RESCUE",
+    readOnly: true,
+    description: "Retries a failed provider call down the fallback chain instead of returning the emergency sentinel. Reads `process.env.NICK_FAILOVER_RESCUE === \"1\"` at lib/ai/provider.ts:1224. ★ docs/CURRENT-TRUTH.md records the operator ENABLING this in production on 2026-08-15 — it was a live prod switch with no board entry until today, which is precisely the failure the visibility ratchet was built to stop.",
+    status: "experimental",
+    onValue: "1",
+    defaultOn: false,
+    defaultBehavior: "No failover rescue · a total provider failure returns the sentinel (check `result.provider`).",
+    ownerDoc: "lib/ai/provider.ts",
+  },
+  {
+    key: "NICK_AGENT_FOLLOWUPS",
+    readOnly: true,
+    // The mirrored runtime trims; without this the board says OFF for " 1 "
+    // while the feature runs. Measured, then pinned in the agreement test.
+    trimRawValue: true,
+    description: "Agent-authored follow-up items after a turn. Reads `(process.env.NICK_AGENT_FOLLOWUPS ?? \"\").trim() === \"1\"` at lib/agent/follow-up.ts:76 — note the trim, so whitespace-padded values still count.",
+    status: "experimental",
+    onValue: "1",
+    defaultOn: false,
+    defaultBehavior: "No agent follow-ups generated.",
+    ownerDoc: "lib/agent/follow-up.ts",
+  },
+  {
+    key: "NICK_CANARY_DEEP_ANTHROPIC",
+    readOnly: true,
+    description: "Routes deep-reasoning effort to the Anthropic canary lane. Reads `process.env.NICK_CANARY_DEEP_ANTHROPIC === \"1\"` at lib/ai/vnext/effort-policy.ts:181 and :196 (the second is an `input.enabled ??` fallback, so a caller can override per-call).",
+    status: "experimental",
+    onValue: "1",
+    defaultOn: false,
+    defaultBehavior: "Deep reasoning uses the standard lane.",
+    ownerDoc: "lib/ai/vnext/effort-policy.ts",
+  },
   // ── Operational / routing flags ────────────────────────────────
   // These are read via raw `process.env.X` across the code; registered
   // here (Phase Q.2 coexistence pattern · call sites untouched) so the
@@ -581,6 +724,25 @@ export interface ResolvedFlag extends FeatureFlag {
  * Resolve a single flag by key. Returns null if the key is not
  * registered (forces caller to add it to FLAG_REGISTRY first).
  */
+/**
+ * 2026-09-18 · ONE resolver for both getFlag() and getAllFlags().
+ *
+ * These two had independent copies of this logic, and the copies drifted the
+ * moment `trimRawValue` was added: getFlag honoured it, getAllFlags did not.
+ * The operator board renders through getAllFlags, so the board kept showing
+ * OFF for a padded value while getFlag — and the test that used it — said ON.
+ * A fix that only reaches the path the test looks at is not a fix. Caught in
+ * review on #2429.
+ *
+ * Duplicated logic is the defect here, not the missing branch, so this is a
+ * shared function rather than the same three lines patched twice.
+ */
+function resolveRawValue(spec: FeatureFlag, dbOverride: string | undefined): string {
+  const rawEnv = process.env[spec.key] ?? "";
+  if (spec.readOnly) return spec.trimRawValue ? rawEnv.trim() : rawEnv;
+  return (dbOverride !== undefined ? dbOverride : rawEnv).trim();
+}
+
 export function getFlag(key: string): ResolvedFlag | null {
   const spec = FLAG_REGISTRY.find((f) => f.key === key);
   if (!spec) return null;
@@ -592,9 +754,7 @@ export function getFlag(key: string): ResolvedFlag | null {
   const dbOverride = overridesCache[key];
   // Read-only entries are observational mirrors of raw runtime env checks.
   // An old database override must not make the board contradict runtime.
-  const rawValue = spec.readOnly
-    ? (process.env[key] ?? "")
-    : (dbOverride !== undefined ? dbOverride : (process.env[key] ?? "")).trim();
+  const rawValue = resolveRawValue(spec, dbOverride);
   const isOn = computeIsOn(spec, rawValue);
 
   return { ...spec, rawValue, isOn, overrideValue: dbOverride ?? null };
@@ -609,9 +769,7 @@ export function getAllFlags(): ResolvedFlag[] {
   triggerBackgroundRefresh();
   return FLAG_REGISTRY.map((spec) => {
     const dbOverride = overridesCache[spec.key];
-    const rawValue = spec.readOnly
-      ? (process.env[spec.key] ?? "")
-      : (dbOverride !== undefined ? dbOverride : (process.env[spec.key] ?? "")).trim();
+    const rawValue = resolveRawValue(spec, dbOverride);
     return { ...spec, rawValue, isOn: computeIsOn(spec, rawValue), overrideValue: dbOverride ?? null };
   });
 }

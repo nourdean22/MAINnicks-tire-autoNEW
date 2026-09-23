@@ -30,6 +30,7 @@ import {
   NON_REGISTRY_PUBLIC_PATHS,
 } from "../../shared/routes";
 import { SITE_URL } from "../../shared/business";
+import { jobOpeningBySlug } from "../../shared/jobOpenings";
 
 /**
  * The pathname a catch-all must decide on.
@@ -74,8 +75,37 @@ function isDynamicRoutePath(pathname: string): boolean {
   });
 }
 
+const CAREERS_PREFIX = "/careers/";
+
+/**
+ * A job leaf is a real page only while its role is OPEN. Measured live
+ * 2026-09-22: `/careers/does-not-exist` answered 200 with the home <title>
+ * and a self-canonical — the soft-404 this file exists to prevent, because
+ * "/careers/" is a blanket dynamic prefix. Worse for Google Jobs: a filled
+ * role's URL kept answering 200, while Google's guidance for removing an
+ * expired posting is a 404/410 (or dropping the markup). Checked BEFORE the
+ * registry, since a closed role's route entry may still be registered.
+ */
+export function careersLeafVerdict(pathname: string): boolean | null {
+  if (!pathname.startsWith(CAREERS_PREFIX)) return null;
+  const raw = pathname.slice(CAREERS_PREFIX.length);
+  // One trailing slash names the same leaf FILE: the prerender middleware's
+  // path.join("/careers/<slug>/", "index.html") resolves to the same artifact,
+  // so a closed role must be refused with or without it, or its stale
+  // JobPosting slips through (post-merge audit, 2026-09-23).
+  const slug = raw.replace(/\/$/, "");
+  if (slug.length === 0 || slug.includes("/")) return null;
+  if (jobOpeningBySlug(slug)?.status !== "open") return false;
+  // An OPEN role is only "the leaf" at its canonical, slash-less path. The
+  // slash variant defers to the pre-existing handling (null) rather than
+  // becoming a second 200 URL with its own canonical.
+  return raw.endsWith("/") ? null : true;
+}
+
 function isKnownPublicPath(pathname: string): boolean {
   if (pathname === "/") return true;
+  const careers = careersLeafVerdict(pathname);
+  if (careers !== null) return careers;
   if (getRouteByPath(pathname)) return true;
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return true;
   if ((NON_REGISTRY_PUBLIC_PATHS as readonly string[]).includes(pathname)) return true;

@@ -32,6 +32,12 @@ export async function runPostPersistVerification(a: {
   reasoningText: string;
   createdAssistantId: string | null;
   capturedToolCalls: CapturedToolCall[];
+  /**
+   * Read-back results already computed at persist time. Optional so existing
+   * callers and tests are untouched; when absent this function runs the
+   * verifier itself, as it always did.
+   */
+  envVerification?: Array<{ toolName: string; verified: boolean | null; reason?: string }>;
   usage: { inputTokens?: number; outputTokens?: number; totalTokens?: number } | undefined;
   convId: string | undefined;
   traceId: string;
@@ -208,10 +214,19 @@ export async function runPostPersistVerification(a: {
   }
 
   // Slice 2: Enforcement · Environment State Verifier
-  const { verifyEnvironmentState } = await import("@/lib/ai/chat/environment-verifier");
-  const envVerification = await verifyEnvironmentState(capturedToolCalls);
+  // 2026-09-22 · persist-assistant-message now runs this BEFORE building the
+  // action receipts, so a read-back can promote a receipt to VERIFIED at the
+  // moment it is created. It hands the result through so the ≤3 task lookups
+  // are not repeated here; the fallback keeps every other caller working.
+  const envVerification =
+    a.envVerification ??
+    (await (await import("@/lib/ai/chat/environment-verifier")).verifyEnvironmentState(capturedToolCalls));
   for (const check of envVerification) {
-    if (!check.verified) {
+    // `=== false`, not `!verified`: the verifier is tri-state and `null` means
+    // "not checked". Treating not-checked as failed would hedge every reply
+    // that used a tool without a verifier — the exact false accusation the
+    // tri-state exists to prevent.
+    if (check.verified === false) {
       log.warn("environment_verification_failed", {
         conversationId: convId,
         toolName: check.toolName,

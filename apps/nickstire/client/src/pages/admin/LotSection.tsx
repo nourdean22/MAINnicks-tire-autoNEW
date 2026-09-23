@@ -119,6 +119,14 @@ function Loading({ what }: { what: string }) {
   return <div className="text-[13px] text-foreground/50">Loading {what}…</div>;
 }
 
+/** Shape of `lot.activity`'s success payload. `baselineArrivals` is null when no earlier
+ *  day reported -- absence of history, which must not be drawn as a flat zero line. */
+type ActivityData = {
+  hours: Array<{ hour: number; arrivals: number; passThroughs: number; baselineArrivals: number | null }>;
+  totals: { arrivals: number; passThroughs: number; crossings: number; passThroughShare: number | null };
+  history: { priorDaysWithData: number; days: Array<{ dayOffset: number; arrivals: number; passThroughs: number }> };
+};
+
 type VisitRow = {
   visitId: string;
   camera: string;
@@ -168,8 +176,11 @@ type CameraHealth = {
   commissioningRunId: string | null;
   producer: { instanceId: string; version: string | null; gitSha: string | null; heartbeatSeq: number } | null;
   source: { type: string | null; generation: string | null; fps: number | null; restores: number | null } | null;
-  vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; inferenceAgeSeconds: number | null; poseDelta: number | null; calibrationVersion: string | null; relocateFailures: number | null; preexistingCrossed: number | null } | null;
+  vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; inferenceAgeSeconds: number | null; poseDelta: number | null; calibrationVersion: string | null; relocateFailures: number | null; preexistingCrossed: number | null; arrivalsAfterStitch: number | null; stitchedTotal: number | null; stitchRefusedAmbiguous: number | null } | null;
   cloud: { outboxDepth: number | null; oldestOutboxAgeSeconds: number | null; deadLetterDepth: number | null; cloudAckAgeSeconds: number | null; diskFreeBytes: number | null } | null;
+  /** Null when no health event was recorded for this camera today -- which is NOT the same
+   *  as a steady day, and must not render as one. */
+  stability: { dropsToday: number; transitionsToday: number } | null;
   openVisits: number;
 };
 
@@ -247,9 +258,26 @@ function CameraCard({ c }: { c: CameraHealth }) {
             )}
           </div>
         </div>
-        <span className={`shrink-0 inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize ${stateTone(c.state, c.commissioned)}`}>
-          {c.state === "NEVER_INGESTED" && !c.commissioned ? "not commissioned yet" : stateLabel}
-        </span>
+        <div className="shrink-0 flex flex-col items-end gap-1">
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize ${stateTone(c.state, c.commissioned)}`}>
+            {c.state === "NEVER_INGESTED" && !c.commissioned ? "not commissioned yet" : stateLabel}
+          </span>
+          {/* TODAY'S RECORD, beside the badge that only knows about NOW.
+              The badge above said "healthy" all morning on 2026-09-18 while this camera
+              dropped 17 times, because whoever looked happened to look during an up phase.
+              A steady source and a flapping one are indistinguishable from a single glance,
+              and the count is the only thing on this card that can tell them apart. */}
+          {c.stability !== null && c.state !== "NEVER_INGESTED" && (
+            <span
+              className={`text-[10px] ${c.stability.dropsToday === 0 ? "text-foreground/40" : "text-amber-400/80"}`}
+              title={`${c.stability.transitionsToday} state change(s) recorded today, of which ${c.stability.dropsToday} left the camera unusable. A drop is any move to offline, degraded, stale or calibration-invalid; returning to healthy is not counted.`}
+            >
+              {c.stability.dropsToday === 0
+                ? "steady today"
+                : `${c.stability.dropsToday} drop${c.stability.dropsToday === 1 ? "" : "s"} today`}
+            </span>
+          )}
+        </div>
       </div>
 
       {c.state !== "NEVER_INGESTED" && (
@@ -319,6 +347,24 @@ function CameraCard({ c }: { c: CameraHealth }) {
                 geometry unconfirmed {c.vision.relocateFailures}×
               </span>
             )}
+            {/*
+              Stitch counters. BOTH numbers or neither: a stitcher that never fires and one
+              that merges everything are indistinguishable from successes alone, and they
+              need opposite fixes. `typeof === "number"` rather than a truthiness check --
+              0 is a real reading here ("it ran and folded nothing"), not absence, and NULL
+              means a producer that predates the stitcher never reported.
+            */}
+            {typeof c.vision?.stitchedTotal === "number" && (
+              <div className="text-xs text-slate-400">
+                stitched {c.vision.stitchedTotal}
+                {typeof c.vision.stitchRefusedAmbiguous === "number" && (
+                  <> · too close to call {c.vision.stitchRefusedAmbiguous}</>
+                )}
+                {typeof c.vision.arrivalsAfterStitch === "number" && (
+                  <> · arrivals de-duplicated {c.vision.arrivalsAfterStitch}</>
+                )}
+              </div>
+            )}
             {typeof c.vision?.preexistingCrossed === "number" && c.vision.preexistingCrossed > 0 && (
               <span className="text-amber-400" title="Cars the census called already-there that the entry portal then watched drive in. Their arrivals were never counted.">
                 missed arrivals {c.vision.preexistingCrossed}
@@ -384,6 +430,128 @@ function stageOf(v: VisitRow): Stage {
  * One vehicle. The number the floor needs is the biggest thing on the card; every
  * other element exists to qualify it.
  */
+/**
+ * WHEN the lot is busy, drawn from `lot.activity`.
+ *
+ * Every other panel on this screen is a scalar for "now" or "today", which cannot answer
+ * the question the shop actually asks: when do cars come in, and is this morning unusual.
+ *
+ * THREE HONESTY RULES, each of which a prettier chart would break:
+ *
+ *  1. A DAY WITH NO ROWS IS NOT A QUIET DAY. The baseline is averaged over days that
+ *     actually reported and is labelled with that count; with none, it is not drawn at
+ *     all rather than drawn flat at zero. The producer has been up for hours, not weeks.
+ *  2. THE SHARE NEVER SHIPS WITHOUT ITS DENOMINATOR. "8% drive-by" off three cars is
+ *     noise wearing a percentage, so the crossing count sits next to it.
+ *  3. THE HOUR RANGE IS DERIVED, NOT ASSUMED. Hard-coding "business hours" would hide
+ *     an arrival at 6am -- exactly the finding worth having. The window spans the hours
+ *     that carry data, widened to a readable minimum.
+ */
+function ActivityPanel({ a }: { a: ActivityData }) {
+  const hours = a.hours;
+  const active = hours.filter((h) => h.arrivals > 0 || h.passThroughs > 0 || (h.baselineArrivals ?? 0) > 0);
+  // Derived window. With no data at all, fall back to a mid-day span so the axis still
+  // reads as a day rather than collapsing to a single ambiguous column.
+  const first = active.length ? Math.min(...active.map((h) => h.hour)) : 8;
+  const last = active.length ? Math.max(...active.map((h) => h.hour)) : 17;
+  const pad = Math.max(0, Math.ceil((6 - (last - first)) / 2));
+  const from = Math.max(0, first - pad);
+  const to = Math.min(23, Math.max(last + pad, from + 5));
+  const window = hours.slice(from, to + 1);
+
+  const peak = Math.max(1, ...window.map((h) => h.arrivals + h.passThroughs), ...window.map((h) => h.baselineArrivals ?? 0));
+  const label = (h: number) => (h === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`);
+  const pct = (v: number) => `${Math.round((v / peak) * 100)}%`;
+
+  const share = a.totals.passThroughShare;
+  const busiest = window.reduce((b, h) => (h.arrivals > b.arrivals ? h : b), window[0]);
+
+  return (
+    <Panel
+      title="When the lot is busy"
+      icon={<Clock className="w-4 h-4" />}
+      subtitle={
+        a.history.priorDaysWithData === 0
+          ? "Today by the hour. No earlier day has reported yet, so there is nothing to compare against."
+          : `Today by the hour, against the average of the ${a.history.priorDaysWithData} earlier day${a.history.priorDaysWithData === 1 ? "" : "s"} that reported.`
+      }
+    >
+      <MetricGrid cols={3}>
+        <StatCard
+          label="Arrivals today"
+          value={a.totals.arrivals}
+          icon={<Car className="w-4 h-4" />}
+          color="text-emerald-400"
+          trendLabel="cars that stayed"
+        />
+        <StatCard
+          label="Drive-bys today"
+          value={a.totals.passThroughs}
+          icon={<LogOut className="w-4 h-4" />}
+          color={a.totals.passThroughs > 0 ? "text-amber-400" : "text-foreground/60"}
+          trendLabel="crossed and left"
+        />
+        <StatCard
+          label="Drive-by share"
+          value={share === null ? "--" : `${Math.round(share * 100)}%`}
+          icon={<AlertTriangle className="w-4 h-4" />}
+          color="text-foreground/70"
+          // The denominator, always. See rule 2 above.
+          trendLabel={a.totals.crossings === 0 ? "no crossings yet" : `of ${a.totals.crossings} crossings`}
+        />
+      </MetricGrid>
+
+      <div className="mt-5">
+        <div className="flex items-end gap-1 h-28" role="img"
+             aria-label={`Arrivals by hour, ${label(from)} to ${label(to)}. Busiest hour ${label(busiest.hour)} with ${busiest.arrivals} arrivals.`}>
+          {window.map((h) => (
+            <div key={h.hour} className="flex-1 flex flex-col justify-end items-center gap-0.5 min-w-0"
+                 title={`${label(h.hour)} — ${h.arrivals} arrival${h.arrivals === 1 ? "" : "s"}` +
+                        (h.passThroughs ? `, ${h.passThroughs} drive-by` : "") +
+                        (h.baselineArrivals === null ? "" : `, usual ${h.baselineArrivals.toFixed(1)}`)}>
+              {/* Drive-bys stack ABOVE arrivals: they are crossings too, but they are not
+                  customers, so they never grow the green bar. */}
+              {h.passThroughs > 0 && (
+                <div className="w-full bg-amber-400/50 rounded-t-sm" style={{ height: pct(h.passThroughs) }} />
+              )}
+              <div className={`w-full rounded-sm ${h.arrivals > 0 ? "bg-emerald-400/80" : "bg-foreground/10"}`}
+                   style={{ height: h.arrivals > 0 ? pct(h.arrivals) : "2px" }} />
+              {/* The baseline is a tick, not a second bar -- it is context, not a rival
+                  measurement, and drawing it as a bar invites reading it as today. */}
+              {h.baselineArrivals !== null && h.baselineArrivals > 0 && (
+                <div className="w-full border-t border-dashed border-sky-400/70 -mt-px"
+                     style={{ marginBottom: pct(h.baselineArrivals) }} />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-1 mt-1">
+          {window.map((h) => (
+            <div key={h.hour} className="flex-1 text-center text-[10px] text-foreground/40 min-w-0 truncate">
+              {label(h.hour)}
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-xs text-foreground/50">
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-400/80" />Arrivals</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400/50" />Drive-bys</span>
+          {a.history.priorDaysWithData > 0 && (
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 border-t border-dashed border-sky-400/70" />
+              Usual for this hour
+            </span>
+          )}
+          {busiest.arrivals > 0 && (
+            <span className="ml-auto text-foreground/60">
+              Busiest so far: <span className="text-foreground/80">{label(busiest.hour)}</span>
+            </span>
+          )}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function FloorCard({ v, fetchedAt, now }: { v: VisitRow; fetchedAt: number; now: number }) {
   const stage = stageOf(v);
 
@@ -479,6 +647,7 @@ export default function LotSection() {
   // list by default; they are never deleted, so the operator can opt in to see them.
   const [showCommissioning, setShowCommissioning] = useState(false);
   const now = trpc.lot.now.useQuery(undefined, { refetchInterval: POLL_MS });
+  const activity = trpc.lot.activity.useQuery(undefined, { refetchInterval: POLL_MS });
   const visits = trpc.lot.visits.useQuery(
     { limit: 50, openOnly: false, includeCommissioning: showCommissioning },
     { refetchInterval: POLL_MS },
@@ -653,6 +822,26 @@ export default function LotSection() {
               trendLabel="not counted in today"
             />
           </MetricGrid>
+
+          {/* The canonical order for this file: isError -> isPending -> no data -> not ok
+              -> data. A chart is the easiest surface on which a failed read renders as a
+              calm, empty day, so it gets the same four states as every counter here. */}
+          {activity.isError ? (
+            <Panel title="When the lot is busy" icon={<Clock className="w-4 h-4" />}>
+              <Unknown what="hourly activity" reason={activity.error.message} />
+            </Panel>
+          ) : activity.isPending ? (
+            <Panel title="When the lot is busy" icon={<Clock className="w-4 h-4" />}>
+              <Loading what="hourly activity" />
+            </Panel>
+          ) : !activity.data || !activity.data.ok ? (
+            <Panel title="When the lot is busy" icon={<Clock className="w-4 h-4" />}>
+              <Unknown what="hourly activity"
+                       reason={activity.data && !activity.data.ok ? activity.data.reason : undefined} />
+            </Panel>
+          ) : (
+            <ActivityPanel a={activity.data} />
+          )}
 
           <Panel title="Already on the lot at startup" icon={<ShieldQuestion className="w-4 h-4" />}
                  subtitle="Occupancy, kept separate from today's arrivals — a car parked before the detector started never arrived">

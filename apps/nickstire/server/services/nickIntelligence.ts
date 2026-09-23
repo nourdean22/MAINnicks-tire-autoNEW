@@ -587,6 +587,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
         type: "pattern",
         content: `Day score: ${grade} (${dayScore}/100). Revenue $${pulse.today.revenue}, ${pulse.today.jobsClosed} jobs, ${pulse.today.customersWalked} walked, ${pulse.today.callbacksWaiting} callbacks pending. Walk rate ${pulse.thisWeek.walkRate}%.`,
         source: "daily_score",
+        identity: "daily_score",
         confidence: 0.95,
       });
 
@@ -619,6 +620,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
         type: "pattern",
         content: `Busiest day: ${bestDay} ($${Math.round(Number(best.rev) / 100 / 4)}/avg). Slowest: ${worstDay} ($${Math.round(Number(worst.rev) / 100 / 4)}/avg).`,
         source: "auto_analysis",
+        identity: "busiest_slowest_day",
         confidence: 0.85,
       });
     }
@@ -712,14 +714,20 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
       actions++;
     }
 
-    // Learn utilization patterns
-    const { remember: rem } = await import("./nickMemory");
-    await rem({
-      type: "pattern",
-      content: `Bay utilization at ${etHour}:00: ${utilizationPct}% (${totalBays - freeBays}/${totalBays} bays, ${clockedIn} techs). ${freeBays === 0 ? "FULL — consider expanding hours." : freeBays === totalBays ? "EMPTY — need more traffic." : "Normal utilization."}`,
-      source: "capacity_analysis",
-      confidence: 0.7,
-    });
+    // Learn utilization patterns — nothing when no bays are configured:
+    // "0% (0/0 bays, 0 techs). FULL" sat in Nick's prompt for months (2026-09-22).
+    const { capacityMemoryContent } = await import("./memoryWriterGuards");
+    const capacityContent = capacityMemoryContent({ etHour, totalBays, freeBays, clockedIn });
+    if (capacityContent) {
+      const { remember: rem } = await import("./nickMemory");
+      await rem({
+        type: "pattern",
+        content: capacityContent,
+        source: "capacity_analysis",
+        identity: "bay_utilization",
+        confidence: 0.7,
+      });
+    }
   } catch (e) { log.warn("[intelligence:autoAction11] capacity utilization check failed:", e); }
 
   // AUTO-ACTION 12: Repeat customer detection + VIP treatment
@@ -749,6 +757,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
         type: "customer",
         content: `VIP customers (3+ visits in 60d): ${vips.slice(0, 5).map(([name, v]) => `${name} (${v.count} visits, $${Math.round(v.total / 100)})`).join(", ")}. These customers deserve priority treatment and proactive outreach.`,
         source: "vip_detection",
+        identity: "vip_customers_60d",
         confidence: 0.9,
       });
       actions++;
@@ -779,6 +788,7 @@ export async function runAutoActions(): Promise<{ recordsProcessed?: number; det
         type: "pattern",
         content: `Service mix (30d): Top sellers: ${sorted.slice(0, 3).map(([svc, d]) => `${svc} (${d.count}x, $${Math.round(d.revenue / 100)})`).join(", ")}. Low performers: ${sorted.slice(-2).map(([svc, d]) => `${svc} (${d.count}x)`).join(", ")}. Consider promoting low performers or dropping them.`,
         source: "service_mix_analysis",
+        identity: "service_mix_30d",
         confidence: 0.8,
       });
       actions++;

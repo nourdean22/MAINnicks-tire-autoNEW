@@ -89,6 +89,39 @@ export type Scenario = z.infer<typeof scenarioSchema>;
 export type ScenarioMessage = z.infer<typeof scenarioMessageSchema>;
 export type JudgeCriterion = z.infer<typeof judgeCriterionSchema>;
 
+/**
+ * 2026-09-22 · a scenario whose dominant criterion needs a REAL tool action
+ * (a retry through searchTools/invokeTool, a createTask receipt, an image
+ * regeneration) carries this tag. `--live` replays through `aiChat`, which
+ * has no tool support (the deep-reasoning gather uses generateText for that
+ * reason — apps/statenour/AGENTS.md §5), so the runner SKIPS tagged
+ * scenarios with a stated reason instead of scoring an impossible criterion
+ * as a product regression. They stay in the corpus for a tool-capable runner
+ * (the production chat pipeline); none exists today. Review on PR #2487
+ * found eight repair-mined scenarios that would have scored as false fails.
+ */
+export const REQUIRES_TOOLS_TAG = "requires-tools";
+
+export function requiresToolRunner(scenario: Pick<Scenario, "tags">): boolean {
+  return scenario.tags?.includes(REQUIRES_TOOLS_TAG) ?? false;
+}
+
+/** A scenario the live runner deliberately did not score, and why. */
+export interface SkippedScenario {
+  scenarioId: string;
+  reason: string;
+}
+
+/**
+ * 2026-09-22 · one tool call Nick made during a stubbed tool replay
+ * (tests/eval/tool-replay.ts). `args` is whatever the model passed; nothing
+ * was executed.
+ */
+export interface RecordedToolCall {
+  name: string;
+  args: unknown;
+}
+
 // ── Judge result (per-scenario × per-criterion) ──────────────────────
 
 export interface JudgeCriterionScore {
@@ -115,6 +148,11 @@ export interface JudgeResult {
   durationMs: number;
   /** Set when Nick or the judge errored · null on success. */
   error: string | null;
+  /**
+   * Present only for scenarios run through the stubbed tool replay
+   * (`--live --tools`): the calls Nick made, in order. Absent on the aiChat path.
+   */
+  toolCalls?: RecordedToolCall[];
 }
 
 // ── Suite-level report ──────────────────────────────────────────────
@@ -128,6 +166,18 @@ export interface SuiteSummary {
   flagged: number;
   /** Errored (Nick or judge threw). */
   errored: number;
+  /**
+   * Deliberately not scored (`requires-tools` — see REQUIRES_TOOLS_TAG).
+   * Counted in totalScenarios, excluded from ranScenarios, never an exit-code
+   * input: a skip is the runner declaring a limit, not a verdict on Nick.
+   */
+  skipped: number;
+  /**
+   * Scenarios scored through the stubbed tool replay rather than aiChat. Their
+   * scores measure "did Nick reach for a tool, and which", never "did the tool
+   * work" — nothing is executed on that path.
+   */
+  toolRuns: number;
   /** Mean composite across non-errored runs. */
   meanComposite: number;
 }
@@ -141,6 +191,10 @@ export interface SuiteReport {
   filter: ScenarioCategory | null;
   /** Per-scenario results · empty in dry-run mode. */
   results: JudgeResult[];
+  /** Scenarios the live runner skipped, each with its reason · empty in dry-run mode. */
+  skipped: SkippedScenario[];
+  /** True when `--tools` was on: requires-tools scenarios were replayed with stubbed execution. */
+  toolReplay: boolean;
   summary: SuiteSummary;
   /** Total suite wall-clock duration. */
   durationMs: number;

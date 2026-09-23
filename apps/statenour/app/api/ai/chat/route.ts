@@ -7,6 +7,7 @@ import {
   detectEscalationTier,
   ESCALATION_DAILY_CAP,
   countEscalationsToday,
+  isEscalationEnabled,
   type EscalationDecision,
 } from "@/lib/ai/vnext/escalation";
 import { buildSystemPrompt, detectTopicTier, computePromptVariant } from "@/lib/ai/system-prompt";
@@ -304,10 +305,11 @@ async function chatPostInner(req: Request) {
   // exactly as before. The three pure intent regexes now evaluate
   // BEFORE the budget gate below (they ran after it inline) — zero
   // side effects, zero I/O, so ordering is unobservable.
-  const { deriveTurnSignals } = await import("./derive-turn-signals");
+  const { deriveTurnSignals, takeClassificationIfLanded } = await import("./derive-turn-signals");
   const {
     aiConfig,
     classification,
+    classificationPromise,
     mode,
     taskTypeForMode,
     queryShape,
@@ -455,7 +457,7 @@ async function chatPostInner(req: Request) {
       apiKeyPresent: Boolean((process.env.ANTHROPIC_API_KEY ?? "").trim()),
       escalationsToday: __wantsDepth ? await countEscalationsToday() : 0,
       dailyCap: ESCALATION_DAILY_CAP,
-      enabled: process.env.NICK_ESCALATION_DISABLED !== "1",
+      enabled: isEscalationEnabled(),
       privateMode,
       untrustedInput: __webSearchIntent || __webSearchRecency,
       conversationEffort: undefined,
@@ -933,6 +935,16 @@ ${priorsBlock}`;
     snippet: String(h.content ?? "").slice(0, 160),
   }));
 
+  // 2026-09-15 · the pre-flush evidence lane buffers only turns whose answer
+  // is likely to carry an unreceipted claim; a turn that will hit a tool
+  // anyway (action or web search) gets its receipt and streams. Computed ONCE
+  // here (review on #2509, P1): the routing lane below and the E3 shadow that
+  // persist-assistant-turn.ts stamps after generation must classify the turn
+  // on the SAME input, or the shadow's "would have buffered" is not the live
+  // lane's answer - a web-search turn whose tool never fired was recomputed
+  // as toolsExpected=false and stamped buffered where live routing streamed it.
+  const __toolsExpected = Boolean(__actionIntent) || __webSearchIntent || __webSearchRecency;
+
   const persistBase = {
     log,
     privateMode,
@@ -947,12 +959,19 @@ ${priorsBlock}`;
     systemPrompt,
     finalTaskType,
     userContent,
+    // The routing-time input the E3 shadow replays (see __toolsExpected above).
+    toolsExpected: __toolsExpected,
     turnSignal,
     responseContract,
     contextBlocksFired,
     deeperContextCount,
     deeperContextTypes,
     recallReceipts,
+    // 2026-09-17 · Wave 3 follow-up (PR #2414): thread the context receipt
+    // (lib/ai/context-budget.ts) through the SAME persist path recallReceipts
+    // already rides, so "why was this block in the prompt" survives past the
+    // console.info window the same way recallReceipts answers "why this memory".
+    contextReceipt: brainCtx.contextReceipt,
     startedAt,
     firstTokenRef: __firstTokenRef,
     partialRef: __partialRef,
@@ -985,10 +1004,9 @@ ${priorsBlock}`;
       finalSystemPrompt,
       turnSignal,
       actionIntent: __actionIntent,
-      // 2026-09-15 · the pre-flush evidence lane buffers only turns whose
-      // answer is likely to carry an unreceipted claim; a turn that will hit a
-      // tool anyway (action or web search) gets its receipt and streams.
-      toolsExpected: Boolean(__actionIntent) || __webSearchIntent || __webSearchRecency,
+      // The one routing-time value (defined beside persistBase above) - the
+      // E3 shadow replays exactly this.
+      toolsExpected: __toolsExpected,
       // Same signal the step-0 toolChoice force keys on downstream
       // (build-stream-config.ts) — the buffered lane mirrors that pin.
       webSearchIntent: __webSearchIntent,
@@ -996,7 +1014,9 @@ ${priorsBlock}`;
       traceId: __traceId,
       modeOverride,
       personality,
-      classification,
+      // Undefined on a fixed-mode turn that did not wait for the classifier:
+      // take it if it has landed, never wait for it (derive-turn-signals.ts).
+      classification: classification ?? (await takeClassificationIfLanded(classificationPromise)),
       recalledHits,
       detectedContradictions,
       deeperContextCount,
@@ -1236,7 +1256,7 @@ ${priorsBlock}`;
     deeperContextCount,
     deeperContextTypes,
     contextBlocksFired,
-    classification,
+    classification: classification ?? (await takeClassificationIfLanded(classificationPromise)),
     recalledMemories: recalledHits,
     recallProvenance,
     recallProvenanceReason,

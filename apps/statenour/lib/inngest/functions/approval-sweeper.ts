@@ -18,6 +18,17 @@ export const approvalSweeper = getInngest().createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    // ⚠⚠ THIS FUNCTION HAS NOW BEEN THE ODD ONE OUT TWICE, FOR THE SAME REASON.
+    // It declares itself `getInngest().createFunction(...)` while every sibling
+    // uses a module-level `inngest.createFunction(...)`, so tooling that keys on
+    // the literal form skips it. In 2026-07-10 that made it the only function
+    // without onFailure (see the comment above). On 2026-09-17 it made it the
+    // only cron my self-row instrumentation missed — AND my ratchet shared the
+    // same pattern, so the guard reported the fleet clean while the
+    // five-minute sweeper stayed invisible. Review caught it.
+    // ★ A detector that shares an assumption with the thing it checks cannot
+    //   catch that assumption being wrong; it just produces a confident green.
+
     const staleTime = new Date(Date.now() - 5 * 60 * 1000); // 5 min
     const now = new Date();
     // 2026-07-09 hardening (post-#617 review) · without these bounds the

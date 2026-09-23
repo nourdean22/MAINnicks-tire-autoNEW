@@ -12,6 +12,11 @@ export interface LeadsAuditResult {
 }
 
 export async function auditTodaysLeadsHandler({ step }: { step: any }) {
+    // ⚠ Hand-placed, not scripted: this is the only cron-triggered function
+    // whose handler is a NAMED export rather than an inline arrow, so the
+    // insertion pass could not see it. It would have stayed invisible while
+    // every sibling gained a row — the silent-minority shape.
+
     // Step 1: Fetch active leads from nickstire.org via cross-app client
     const leads = await step.run("get-active-leads", async () => {
       const { callNickstire } = await import("@/lib/ai/agent-actions/shop-actions");

@@ -55,7 +55,34 @@ JSON Schema:
   try {
     const result = await generateText({
       model,
-      experimental_telemetry: langfuseTelemetry({ functionId: "extract-claims" }),
+      // ⚠ `tags` + `metadata.source` are NOT decoration — without them this
+      // trace is WHOLLY UNATTRIBUTABLE in Langfuse. Measured 2026-09-17: trace
+      // `name` comes back empty for every trace (functionId names the
+      // OBSERVATION, not the trace), so `metadata.source` and `tags` are the
+      // only identity a trace carries. These three intelligence surfaces passed
+      // functionId alone and were 6 of 100 sampled traces with no name, no
+      // source and no tags — invisible in the UI and in every probe.
+      //
+      // ⚠⚠ THE SOURCE IS THE PIPELINE, NOT "cron", AND THAT WAS A REVIEW CATCH.
+      // The first version asserted `cron` because the observed 10:15-10:17
+      // traces match intelligenceDailyBrief (`cron: "15 10 * * *"`). That
+      // confirmed a SUFFICIENT explanation, not an EXCLUSIVE one: runIngestion
+      // is also reached from /api/intelligence/briefs/generate and
+      // /api/intelligence/ingest, and the composer from the `triggerBrief`
+      // tool. Hard-coding `cron` would make a manual or agent-triggered run
+      // indistinguishable from a scheduled one — a FALSE attribution baked into
+      // the very change meant to restore attribution.
+      //
+      // "intelligence" is true of every trigger and groups these as their own
+      // surface rather than diluting real cron traffic. Threading the actual
+      // trigger down from each caller carries strictly more information and is
+      // the natural follow-up; it needs a signature change through
+      // runIngestion, which this fix does not justify on its own.
+      experimental_telemetry: langfuseTelemetry({
+        functionId: "extract-claims",
+        tags: ["intelligence"],
+        metadata: { source: "intelligence" },
+      }),
       system: systemPrompt,
       prompt: `Raw Text Source:\n${rawContent}\n\nExtract all key intelligence claims now.`,
     });

@@ -15,6 +15,7 @@ import { normalizePhone } from "../lib/phone";
 import { getAdminActivity } from "../lib/adminActivity";
 
 import { createLogger } from "../lib/logger";
+import { isDuplicateKeyError } from "../lib/dbErrors";
 
 const log = createLogger("routers:shopdriver");
 /** Classify customer segment based on last visit date */
@@ -526,8 +527,7 @@ export const shopdriverRouter = router({
               });
               newCount++;
             } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err);
-              if (/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+              if (isDuplicateKeyError(err)) {
                 // Race lost — another writer created this customer between
                 // our SELECT and INSERT. Update the existing row with the
                 // fresh fields so we don't lose the operator's data.
@@ -665,8 +665,7 @@ export const shopdriverRouter = router({
             });
             synced++;
           } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            if (/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+            if (isDuplicateKeyError(err)) {
               await d.update(invoices).set({
                 totalAmount: amount,
                 paymentStatus: ticket.status === "paid" || ticket.paid ? "paid" : "pending",
@@ -777,8 +776,7 @@ export const shopdriverRouter = router({
             });
             newCount++;
           } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            if (/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+            if (isDuplicateKeyError(err)) {
               await d.update(customers).set({
                 firstName, lastName,
                 email: cust.email || undefined,

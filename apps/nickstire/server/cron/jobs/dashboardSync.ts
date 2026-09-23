@@ -6,6 +6,7 @@
  * once every two hours and uses its own durable run ledger.
  */
 import { createLogger } from "../../lib/logger";
+import { isMissingTableError } from "../../lib/dbErrors";
 import { gte, sql, count } from "drizzle-orm";
 
 import { BUSINESS } from "@shared/business";
@@ -42,7 +43,10 @@ async function runRevenueReconciliationIfDue(db: DatabaseClient): Promise<string
     return `reconciliation ${result.runId}: ${result.callsScanned} calls, ${result.verified} verified, ${result.inferred} review`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (/revenue_reconciliation_runs|doesn't exist|does not exist/i.test(message)) {
+    // Asked of the driver error: drizzle's wrapper message is the SQL, which
+    // names revenue_reconciliation_runs, so a text match called every failure
+    // of this job "migration not applied".
+    if (isMissingTableError(error)) {
       return "reconciliation migration 0074 not applied";
     }
     log.warn("Revenue reconciliation pulse failed", { error: message });
@@ -123,7 +127,10 @@ export async function processDashboardSync(): Promise<{ recordsProcessed: number
       const { reconcileExpectedArrivals, expireStaleExpectedArrivals } = await import("../../services/expectedArrivals");
       const rec = await reconcileExpectedArrivals();
       const exp = await expireStaleExpectedArrivals(2);
-      arrivals = `arrivals: ${rec.reconciled} arrived, ${exp.expired} no_show`;
+      arrivals =
+        `arrivals: ${rec.reconciled} arrived, ${exp.expired} no_show` +
+        (rec.superseded > 0 ? `, ${rec.superseded} same-visit closed` : "") +
+        (rec.skippedAlreadyClaimed > 0 ? `, ${rec.skippedAlreadyClaimed} already claimed` : "");
     } catch (error) {
       log.warn("Expected-arrivals reconcile skipped", { error: error instanceof Error ? error.message : String(error) });
     }

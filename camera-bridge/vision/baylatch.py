@@ -92,6 +92,15 @@ class VisitTiming:
     bay_exited_at: Optional[float] = None
     departed_at: Optional[float] = None
     estimated_fields: list[str] = field(default_factory=list)
+    #: Stable across the several TRACKS one vehicle may be seen as. A tracker id is not
+    #: a vehicle -- see `vision/stitch.py` for the measurement that forced this.
+    episode_id: Optional[str] = None
+    #: The retired track this one was judged to continue, or None if it opened a new
+    #: episode. Mirrors `visitd.state_machine.Visit.continues_visit_id`.
+    continues_track_id: Optional[int] = None
+    #: Every track id folded into this visit, oldest first. The evidence trail: a
+    #: stitched timing must be auditable back to the fragments it was assembled from.
+    member_track_ids: list[int] = field(default_factory=list)
 
     def _delta(self, a: Optional[float], b: Optional[float]) -> Optional[float]:
         if a is None or b is None:
@@ -131,4 +140,7 @@ class VisitTiming:
             "totalVisit": self.total_visit,
             "abandonedBeforeBay": self.abandoned_before_bay,
             "estimatedFields": list(self.estimated_fields),
+            "episodeId": self.episode_id,
+            "continuesTrackId": self.continues_track_id,
+            "memberTrackIds": list(self.member_track_ids),
         }

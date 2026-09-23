@@ -75,6 +75,49 @@ const COMPETITORS: Array<{ name: string; placeId: string; searchQuery: string }>
     placeId: "",
     searchQuery: "EJ's Tire and Auto Repair Cleveland OH",
   },
+  // 2026-09-23 · the REVIEW-VOLUME set. The recruiting research
+  // (docs/recruiting/RECRUITING-ENGINE-2026-09.md Sec. 1 #5, Sec. 7) wants to
+  // say "most-reviewed tire & auto shop within N miles" and could not: these
+  // are the nearby shops whose public review counts came closest (aggregator
+  // figures, 2026-09-22: Conrad's Mayfield Hts ~931, NTB Mayfield ~554,
+  // Confident Tire Euclid 1,530 on SureCritic with Google unknown). Measuring
+  // them here, in the table that already persists snapshots, is what turns
+  // the claim into a dated fact — or rules it out. No superlative ships
+  // until a snapshot supports it.
+  // (A "Firestone 26086 Euclid Ave" entry was removed the same day: the
+  // "Firestone ... Euclid Ave" entry above most likely resolves to that same
+  // store — findPlaceFromText takes the first candidate with no location
+  // bias — and two rows for one store would double-count it.)
+  {
+    name: "Confident Tire (Lakeland Blvd, Euclid)",
+    placeId: "",
+    searchQuery: "Confident Tire 25680 Lakeland Blvd Euclid OH",
+  },
+  {
+    name: "Conrad's Tire Express (Mayfield Hts)",
+    placeId: "",
+    searchQuery: "Conrad's Tire Express 5739 Mayfield Rd Mayfield Heights OH",
+  },
+  {
+    name: "NTB (Mayfield Rd)",
+    placeId: "",
+    searchQuery: "NTB National Tire and Battery 3997 Mayfield Rd Cleveland Heights OH",
+  },
+  {
+    name: "Mr. Tire (South Euclid)",
+    placeId: "",
+    searchQuery: "Mr. Tire 4522 Mayfield Rd South Euclid OH",
+  },
+  {
+    name: "Tire Choice (South Euclid)",
+    placeId: "",
+    searchQuery: "Tire Choice Auto Service Centers 4311 Mayfield Rd South Euclid OH",
+  },
+  {
+    name: "Euclid Tire",
+    placeId: "",
+    searchQuery: "Euclid Tire 1054 E 222nd St Euclid OH",
+  },
 ];
 
 // In-memory cache of resolved Place IDs (survives across cron runs within same process)
@@ -277,6 +320,15 @@ export async function fetchCompetitorSnapshot(): Promise<CompetitorData[]> {
     }
     if (!placeId) {
       log.warn("Could not resolve Place ID for competitor", { name: c.name, query: c.searchQuery });
+      continue;
+    }
+    // A query can resolve to OUR OWN listing: measured 2026-09-23, "Midas
+    // (Euclid Ave)" had resolved to Nick's place_id for 45 snapshots (why
+    // Google matches that query to us is not known), filing Nick's 1,715
+    // reviews under a competitor's name in competitor_snapshots. Never store
+    // ourselves as a competitor.
+    if (NICKS_PLACE_ID && placeId === NICKS_PLACE_ID) {
+      log.warn("Competitor query resolved to Nick's own listing — skipped", { name: c.name, query: c.searchQuery });
       continue;
     }
 

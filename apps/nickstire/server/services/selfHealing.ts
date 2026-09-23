@@ -342,7 +342,10 @@ export async function runSelfHealingChecks(): Promise<{
         await db.execute(sql`SELECT 1`);
         delete failureHistory["db"];
       } catch (err) {
-        issues.push({ category: "DATABASE_QUERY_FAILED", message: `DATABASE QUERY FAILED: ${err instanceof Error ? err.message : "Unknown"}` });
+        issues.push({
+          category: "DATABASE_QUERY_FAILED",
+          message: `DATABASE QUERY FAILED: ${err instanceof Error ? err.message : "Unknown"}`,
+        });
         failureHistory["db"] = (failureHistory["db"] || 0) + 1;
         // AUTO-FIX: Reset the cached connection on 2+ consecutive failures
         if (failureHistory["db"] >= 2) {
@@ -355,14 +358,20 @@ export async function runSelfHealingChecks(): Promise<{
       }
     }
   } catch (err) {
-    issues.push({ category: "DATABASE_DOWN", message: `DATABASE DOWN: ${err instanceof Error ? err.message : "Unknown error"}` });
+    issues.push({
+      category: "DATABASE_DOWN",
+      message: `DATABASE DOWN: ${err instanceof Error ? err.message : "Unknown error"}`,
+    });
   }
 
   // 3. Check memory usage — and take action if high
   const mem = process.memoryUsage();
   const heapUsedMB = Math.round(mem.heapUsed / 1024 / 1024);
   if (heapUsedMB > 450) {
-    issues.push({ category: "MEMORY_HIGH", message: `MEMORY HIGH: ${heapUsedMB}MB heap used` });
+    issues.push({
+      category: "MEMORY_HIGH",
+      message: `MEMORY HIGH: ${heapUsedMB}MB heap used`,
+    });
     // AUTO-FIX: Trigger garbage collection if available
     if (global.gc) {
       global.gc();
@@ -402,18 +411,16 @@ export async function runSelfHealingChecks(): Promise<{
   if (issues.length > 0 || actions.length > 0) {
     log.warn("Self-healing check", { issues: issues.length, actions: actions.length, details: [...messages, ...actions] });
 
-    // Teach Nick AI about system health patterns
-    try {
-      const { remember } = await import("./nickMemory");
-      for (const issue of messages) {
-        await remember({
-          type: "pattern",
-          content: `System health: ${issue}. Detected at ${new Date().toISOString().split("T")[0]}. ${actions.length > 0 ? "Auto-fixes applied: " + actions.join("; ") : "No auto-fix available."}`,
-          source: "self_healing",
-          confidence: 0.85,
-        });
-      }
-    } catch (e) { log.warn("[services/selfHealing] operation failed:", e); }
+    // No memory write here, on purpose (2026-09-22). This block used to hand
+    // every open issue to nickMemory.remember() as a `pattern`. Health issues
+    // are OPERATIONAL state: they belong in cron_log (below, via the caller),
+    // in the Telegram alert (next) and in the cron-skip watchdog — not in the
+    // durable store the chat prompt recalls from. Two fixes in one day
+    // (#2504: stable content so a standing issue reinforced one row) still
+    // left ten 0.85 health rows evicting each other every five minutes at
+    // the 500-row cap (live log 19:30Z), because the cap is over-full and
+    // eviction is confidence ASC. The bridge is gone; the 173 rows it wrote
+    // leave via scripts/maintenance/prune-health-memories.mjs (operator-run).
 
     // Deliver. Routing comes from ISSUE_DELIVERY, keyed on the category union,
     // so a category added without a route fails to compile rather than failing

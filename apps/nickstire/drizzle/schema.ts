@@ -4019,6 +4019,13 @@ export const expectedArrivals = mysqlTable("expected_arrivals", {
 }, (table) => [
   index("idx_ea_status_date").on(table.status, table.expectedDate),
   index("idx_ea_phone").on(table.customerPhone),
+  /**
+   * One invoice reconciles at most one arrival (0126). NULLs are unlimited under
+   * a MySQL/TiDB UNIQUE index, so the many rows with no invoice are unaffected.
+   * The reconcile used to stamp every eligible row with the same invoice, and
+   * the weekly digest summed it once per row.
+   */
+  uniqueIndex("uq_ea_reconciled_invoice").on(table.reconciledInvoiceId),
 ]);
 
 export type ExpectedArrival = typeof expectedArrivals.$inferSelect;
@@ -4585,6 +4592,22 @@ export const vehicleVisits = mysqlTable("vehicle_visits", {
   evidenceRef: varchar("evidenceRef", { length: 255 }),
   sourceGeneration: varchar("sourceGeneration", { length: 64 }),
   cameraPose: varchar("cameraPose", { length: 64 }),
+
+  /**
+   * Episode identity (migration 0127). A tracker id is NOT a vehicle -- when a track
+   * dies and the same car is re-acquired, the edge used to open a second visit whose
+   * clock restarted at `now`. `camera-bridge/vision/stitch.py` folds those fragments
+   * into one episode and carries the ORIGINAL `arrivedAt` forward.
+   *
+   * All three NULLABLE on purpose: a producer predating the stitcher sends none of
+   * them, and NULL must read as "not reported" rather than as an empty trail.
+   */
+  episodeId: varchar("episodeId", { length: 64 }),
+  /** The visit this one was judged to continue. Mirrors visitd's `continues_visit_id`. */
+  continuesVisitId: varchar("continuesVisitId", { length: 64 }),
+  /** Every track id folded into this visit, oldest first -- the audit trail for a
+   *  stitched `arrivedAt`. Without it a corrected arrival is unexplainable. */
+  memberTrackIds: json("memberTrackIds"),
   detectorName: varchar("detectorName", { length: 128 }),
   calibrationVersion: varchar("calibrationVersion", { length: 32 }),
 
@@ -4665,6 +4688,20 @@ export const cameraRuntime = mysqlTable("camera_runtime", {
    * never promoted. NULL = not reported; 0 = looked and found none.
    */
   preexistingCrossed: int("preexistingCrossed"),
+
+  /**
+   * Stitch counters (migration 0127). `arrivalsAfterStitch` is the de-duplicated
+   * SHADOW of `arrivals`: it is reported ALONGSIDE the headline count and never
+   * instead of it, per the operator's 2026-09-18 instruction to keep the counter
+   * running and unhidden and let the data prove itself.
+   *
+   * `stitchRefusedAmbiguous` is the COST line. A stitcher that never stitches and one
+   * that merges everything both look identical if you only record successes -- and
+   * they need opposite fixes.
+   */
+  arrivalsAfterStitch: int("arrivalsAfterStitch"),
+  stitchedTotal: int("stitchedTotal"),
+  stitchRefusedAmbiguous: int("stitchRefusedAmbiguous"),
   state: varchar("state", { length: 32 }).notNull(),
   stateSince: timestamp("stateSince"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -4741,6 +4778,74 @@ export const cameraHealthEvents = mysqlTable("camera_health_events", {
 }, (table) => [
   index("idx_camera_health_events_camera_at").on(table.camera, table.at),
 ]);
+
+/**
+ * One counter interaction, with the evidence behind every claim made about it.
+ *
+ * The office Eufy camera (192.168.0.167) was MEASURED 2026-09-22 to carry a real audio
+ * track — aac, 16 kHz, mono — alongside 1080p15 video, so capturing conversations is
+ * technically possible. Whether that mic is intelligible at counter distance is a separate
+ * question that only a real recording answers; `source` exists so the answer can be "use a
+ * dedicated counter microphone instead" without reshaping anything here.
+ *
+ * THREE RULES THIS TABLE ENFORCES BY SHAPE:
+ *
+ * 1. Every extracted fact carries the transcript span it came from. A summary nobody can
+ *    trace back to what was actually said is a rumour with a timestamp — and these facts
+ *    will sometimes contradict a repair order, which is exactly when provenance matters.
+ * 2. Links are CANDIDATES. `vehicleVisitId` / `workOrderId` always travel with
+ *    `linkConfidence`. Binding the wrong conversation to the wrong customer is the
+ *    expensive failure, and the camera side reads ZERO plates today (measured: 552 visits
+ *    over 14 days, none with plateText), so there is no identity to join on yet.
+ * 3. Raw audio is a POINTER, never a column. It is the most sensitive artefact here and
+ *    gets the shortest life; the transcript outlives it, the structured facts outlive that.
+ */
+export const conversationEpisodes = mysqlTable("conversation_episodes", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  episodeId: varchar("episodeId", { length: 64 }).notNull(),
+  /** `eufy-office` today; `counter-mic` if the camera mic fails the intelligibility test. */
+  source: varchar("source", { length: 32 }).notNull(),
+
+  // TIMESTAMP, not DATETIME — same reason vehicleVisits gives: the driver hands JS a
+  // shifted Date for DATETIME on ET, corrupting every duration and day bucket downstream.
+  startedAt: timestamp("startedAt"),
+  endedAt: timestamp("endedAt"),
+  durationSeconds: int("durationSeconds"),
+
+  /** Pointer to the clip, never the clip. NULL once aged out — distinct from never-captured. */
+  audioRef: varchar("audioRef", { length: 255 }),
+  /** Measured at capture. THE intelligibility signal: a quiet mean explains a bad
+   *  transcript without anyone having to guess at the cause. */
+  meanVolumeDb: decimal("meanVolumeDb", { precision: 6, scale: 2 }),
+
+  /** PENDING | DONE | FAILED | SKIPPED. VARCHAR not ENUM: TiDB's STRICT_TRANS_TABLES
+   *  REJECTS an out-of-enum write and LOSES the row — worst inside a failure handler. */
+  transcriptStatus: varchar("transcriptStatus", { length: 32 }).default("PENDING").notNull(),
+  transcriptError: varchar("transcriptError", { length: 500 }),
+
+  /** Timed segments from `transcribeAudio()`. NULL = not transcribed; [] = transcribed and
+   *  genuinely silent. Those are different facts and must stay distinguishable. */
+  transcript: json("transcript"),
+  sttEngine: varchar("sttEngine", { length: 32 }),
+  sttLatencyMs: int("sttLatencyMs"),
+
+  /** NULL = diarization not attempted (today's state). Never 0 — "no speakers detected" is
+   *  a finding, "we did not look" is not. */
+  speakerCount: int("speakerCount"),
+
+  facts: json("facts"),
+  summary: text("summary"),
+
+  vehicleVisitId: varchar("vehicleVisitId", { length: 64 }),
+  workOrderId: varchar("workOrderId", { length: 64 }),
+  linkConfidence: decimal("linkConfidence", { precision: 4, scale: 3 }),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ConversationEpisode = typeof conversationEpisodes.$inferSelect;
+export type InsertConversationEpisode = typeof conversationEpisodes.$inferInsert;
 
 export type VehicleVisit = typeof vehicleVisits.$inferSelect;
 export type InsertVehicleVisit = typeof vehicleVisits.$inferInsert;
@@ -4853,10 +4958,31 @@ export const candidates = mysqlTable("candidates", {
   contactedAt: timestamp("contactedAt"),
   contactedBy: varchar("contactedBy", { length: 255 }),
   notes: text("notes"),
+  // ── drizzle/0129_candidates_recruiting_funnel.sql (hand-applied) ──────
+  // All nullable; written only when supplied, with a pre-0129 fallback on
+  // ER_BAD_FIELD_ERROR (server/db.ts createCandidate). Reads name columns
+  // explicitly — never a bare select() on this table.
+  /** apply | confidential | shop_tour | talent_network | apprentice */
+  intent: varchar("intent", { length: 32 }),
+  /** Comma list from the "what would make you move?" self-selector. */
+  moveReasons: varchar("moveReasons", { length: 500 }),
+  /** Normalized phone (server/lib/phone.ts) — the duplicate-applicant key. */
+  phoneE164: varchar("phoneE164", { length: 20 }),
+  /** ?ref=<code> from a personal referral link or QR card. */
+  refCode: varchar("refCode", { length: 64 }),
+  gclid: varchar("gclid", { length: 255 }),
+  utmTerm: varchar("utmTerm", { length: 255 }),
+  utmContent: varchar("utmContent", { length: 255 }),
+  /** When a not-now / talent-network candidate is due another contact. */
+  nextFollowUpAt: timestamp("nextFollowUpAt"),
+  /** Set once the owner alert email was accepted by the mailer. */
+  ownerAlertedAt: timestamp("ownerAlertedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   index("idx_candidate_phone").on(table.phone),
+  index("idx_candidate_phone_e164").on(table.phoneE164),
+  index("idx_candidate_ref_code").on(table.refCode),
   index("idx_candidate_status").on(table.status),
   index("idx_candidate_created").on(table.createdAt),
 ]);

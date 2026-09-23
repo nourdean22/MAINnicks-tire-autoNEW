@@ -2,6 +2,11 @@
   "$comment": "knip + script-invoker findings accepted at baseline. ANY NEW ENTRY IS A CI FAILURE — see scripts/knip-orphan-gate.mjs. Every entry needs a real reason; an accidental orphan has none to write.",
   "entries": [
     {
+      "file": "apps/nickstire/client/src/components/fomoEntries.ts",
+      "symbol": "MAX_ENTRY_AGE_MINUTES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The staleness bound that stops the ticker rendering an old entry as current activity — the defect it closes shipped live as 'New 5-star review ... 1987h ago' (~83 days). fomo-entries.test.ts imports it to assert the boundary exactly (kept and dropped on either side of it); inlining the literal there would pin a number that no longer tracks the bound, which is the failure mode this repo already recorded as 'a pinned literal is not a count'. Its runtime consumer is resolveFomoEntries in the same module, so the rule is live, not vacuous."
+    },
+    {
       "file": "apps/nickstire/shared/episodeContract.ts",
       "symbol": "PRODUCTION_SLOTS",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The runtime accepts only the three named production slots through the typed EpisodeContract declaration; this value is exported so the seam test can assert the canonical set without duplicating it."
@@ -3828,11 +3833,6 @@
     },
     {
       "file": "apps/nickstire/server/lib/cache.ts",
-      "symbol": "initCache",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/lib/cache.ts",
       "symbol": "cacheGet",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
@@ -5300,6 +5300,86 @@
       "file": "apps/nickstire/server/services/webExperimentFlags.ts",
       "symbol": "WEB_EXPERIMENT_FLAGS",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Dream-to-Proof wave, 2026-09-15). The literal experimentId -> FlagKey table; the runtime consumer is armedWebExperimentIds in the same module (router + resolver). Exported so webExperimentFlags.test.ts and shared/goalContract.test.ts can pin every literal to the naming convention and to FLAG_DEFINITIONS in both directions — the literal is what server/featureFlagReaders.test.ts greps for, so it must be a value a test can also hold to the rule."
+    },
+    {
+      "file": "apps/nickstire/shared/callTaxonomy.ts",
+      "symbol": "CALL_OUTCOMES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The canonical twelve outcomes. Its live consumer is RECOVERY_FETCH_OUTCOMES in the same module, which derives the SQL fetch list from the kernel so the query can never drift from the decision again - the exact drift that left this list hand-typed in ten places. callTaxonomy.test.ts imports it to pin the set against the classifier union; duplicating the list in the test would recreate the eleventh copy."
+    },
+    {
+      "file": "apps/nickstire/shared/callTaxonomy.ts",
+      "symbol": "TRANSFER_FAILURE_SLA_MINUTES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The tightest clock in the system. Live consumer is disposeCall in the same module. Exported so the SLA test asserts the real bound instead of pinning a literal that stops tracking it."
+    },
+    {
+      "file": "apps/nickstire/shared/callTaxonomy.ts",
+      "symbol": "QUOTE_SHOPPER_SLA_MINUTES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The batched-not-chased clock for price shoppers. Live consumer is disposeCall in the same module; exported for the same reason as TRANSFER_FAILURE_SLA_MINUTES."
+    },
+    {
+      "file": "apps/nickstire/shared/callTaxonomy.ts",
+      "symbol": "EPISODE_WINDOW_MINUTES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The window in which repeat contact is the SAME episode rather than a new lead. Live consumer is episodeKey in the same module. The test asserts it is a day and not the ninety the old Repeat Caller heuristic used, which is a claim about the value, so the value must be readable."
+    },
+    {
+      "file": "apps/nickstire/shared/callDemandExtraction.ts",
+      "symbol": "spokenNumbersToDigits",
+      "reason": "INTENTIONAL TEST-VISIBLE SEAM. Live consumer is extractTireSize in the same module. Callers say two fifteen sixty seventeen, not 215/60R17, so the word-to-digit step is the highest-risk logic in the module and is tested directly - a failure here is invisible at the extractDemand level, where it just looks like a missing size."
+    },
+    {
+      "file": "apps/nickstire/shared/callDemandExtraction.ts",
+      "symbol": "extractTireSize",
+      "reason": "INTENTIONAL TEST-VISIBLE SEAM. Live consumer is extractDemand in the same module. Tested alone against fifteen written and spoken size forms plus a refusal set, because a WRONG size sends a customer home with tires that do not fit - the one field where failing closed matters most."
+    },
+    {
+      "file": "apps/nickstire/shared/callDemandExtraction.ts",
+      "symbol": "extractQuantity",
+      "reason": "INTENTIONAL TEST-VISIBLE SEAM. Live consumer is extractDemand in the same module. Tested alone for the spoken forms (a pair, all four, full set) that a combined test would not isolate."
+    },
+    {
+      "file": "apps/nickstire/shared/callDemandExtraction.ts",
+      "symbol": "extractCondition",
+      "reason": "INTENTIONAL TEST-VISIBLE SEAM. Live consumer is extractDemand in the same module. Tested alone to pin the refusal case: a caller who says used OR new returns null so a human decides, rather than the parser picking one."
+    },
+    {
+      "file": "apps/nickstire/shared/callDemandExtraction.ts",
+      "symbol": "extractUrgency",
+      "reason": "INTENTIONAL TEST-VISIBLE SEAM. Live consumer is extractDemand in the same module; tested alone so the today / this_week / flexible boundaries are asserted independently of tire parsing."
+    },
+    {
+      "file": "apps/nickstire/shared/callDemandExtraction.ts",
+      "symbol": "extractVehicle",
+      "reason": "INTENTIONAL TEST-VISIBLE SEAM. Live consumer is extractDemand in the same module. Tested alone to pin two refusals that a combined test hides: a bare year is not a vehicle, and the shop own address (Euclid Ave) must not yield one."
+    },
+    {
+      "file": "apps/nickstire/shared/smsFactCompiler.ts",
+      "symbol": "PAYMENT_PROGRAMS_LINE",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The ONLY approved payment-programs sentence. Live consumer is compileRecoverySms in the same module. Exported so the test can assert the line itself survives FORBIDDEN_SMS_PHRASES - it contains the URL .../financing, and the ban is on the self-description, not the path. Inlining it would leave that interaction untested."
+    },
+    {
+      "file": "apps/nickstire/shared/smsFactCompiler.ts",
+      "symbol": "todayHoursPhrase",
+      "reason": "INTENTIONAL TEST-VISIBLE SEAM. Live consumer is compileRecoverySms in the same module. Exported so the Sunday case is asserted directly: the template it replaced said before 6 PM today and the shop closes at 4 on Sundays, so the closing-hour derivation is the specific defect under test."
+    },
+    {
+      "file": "apps/nickstire/shared/smsFactCompiler.ts",
+      "symbol": "FORBIDDEN_SMS_PHRASES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The claim denylist. Live consumer is the test sweep that runs it against every compiled message, plus a positive control proving it catches the four old templates and the three proposed financing drafts verbatim. A denylist that only ran inside the compiler could not be positive-controlled, which is how a permanently-vacuous guard scores green."
+    },
+    {
+      "file": "apps/nickstire/server/lib/transferArtifact.ts",
+      "symbol": "TRANSFER_STATUSES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. VAPI documented transfer-status vocabulary. Live consumer is readTransferArtifact in the same module, which uses it to separate a status we model from one we do not - the unrecognised case is kept and logged rather than silently bucketed. Exported so the test pins the exact set; duplicating it in the test would mean the test could not detect VAPI adding a status."
+    },
+    {
+      "file": "apps/nickstire/server/lib/transferArtifact.ts",
+      "symbol": "MIN_CONNECT_SAMPLE",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The floor below which computeConnectRate returns null instead of a percentage. Live consumer is computeConnectRate in the same module. Exported so the test asserts the real boundary rather than pinning a literal that stops tracking it - the defect being replaced was a metric that always had a confident number and was always wrong, so the threshold is the load-bearing part."
+    },
+    {
+      "file": "apps/nickstire/server/lib/self-healing.ts",
+      "symbol": "__runRequestAnomalyCheckForTest",
+      "reason": "INTENTIONAL TEST SEAM. It runs detectRequestAnomalies, the one pass the 60s health tick calls in production (runHealthCheck), so selfHealing.requestRate.test.ts can drive the real recordRequest to real anomaly log path minute by minute without starting the DB/AI checks. It is not an unwired capability."
     }
   ]
 }

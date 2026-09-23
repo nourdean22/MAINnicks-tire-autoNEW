@@ -570,3 +570,45 @@ class ReplayLaneTest(unittest.TestCase):
         never be able to leave it -- the exact shape of the `base_mode` defect next door."""
         m = self._mirror(data_class="COMMISSIONING")
         self.assertEqual(m.base_data_class, "PRODUCTION")
+
+
+class EpisodeTrailReachesTheDurablePath(unittest.TestCase):
+    """The trail must ride the MIRROR, not the lab sink.
+
+    `vision/run_live.py`'s VisitSink is the standalone lane; `edge_main.py` never imports
+    it. Stamping the episode trail only on the sink left every PRODUCTION visit without a
+    trail while the tests stayed green, because the tests drive the sink. This asserts the
+    path the shop actually receives. (Codex P1 on #2519.)
+    """
+
+    def test_the_mirror_row_carries_the_episode_trail_when_the_emission_has_one(self):
+        rec = Recorder()
+        m = ShopMirror("u", "k", transport=rec)
+        # Real dataclass fields -- `Emission` is FROZEN, so the pipeline stamps them with
+        # `dataclasses.replace`, and a test that used setattr would not compile either.
+        em = emission(state="CONFIRMED_ARRIVAL", seq=2,
+                      episode_id="sign-1758570000-4", member_track_ids=[11, 19, 27])
+        row = m.queue_row(em)[3]
+        self.assertEqual(row["episodeId"], "sign-1758570000-4")
+        self.assertEqual(row["memberTrackIds"], [11, 19, 27])
+
+    def test_an_emission_without_a_trail_reports_NULL_not_an_empty_trail(self):
+        """A producer without the stitcher must send "not reported", never [] -- an empty
+        list would read as "we looked and folded nothing", which is a different claim."""
+        rec = Recorder()
+        m = ShopMirror("u", "k", transport=rec)
+        row = m.queue_row(emission(state="CONFIRMED_ARRIVAL", seq=2))[3]
+        self.assertIsNone(row["episodeId"])
+        self.assertIsNone(row["memberTrackIds"])
+
+    def test_the_trail_SURVIVES_a_later_emission_that_does_not_carry_it(self):
+        """Same accumulation rule the timings get: learned once, never un-learned."""
+        rec = Recorder()
+        m = ShopMirror("u", "k", transport=rec)
+        first = emission(state="CONFIRMED_ARRIVAL", seq=2,
+                         episode_id="sign-1758570000-4", member_track_ids=[11, 19])
+        m.queue_row(first)
+        later = m.queue_row(emission(state="LEFT", seq=7, zone=None))[3]
+        self.assertEqual(later["episodeId"], "sign-1758570000-4",
+                         "a later emission without the trail erased it")
+        self.assertEqual(later["memberTrackIds"], [11, 19])

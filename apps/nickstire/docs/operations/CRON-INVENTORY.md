@@ -4,7 +4,7 @@ Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
 HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
 those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-**Last regenerated: 2026-09-15 by `scripts/gen-cron-inventory.mts`.**
+**Last regenerated: 2026-09-22 by `scripts/gen-cron-inventory.mts`.**
 
 > The code is the source of truth. To add or change a job, edit the scheduler and
 > re-run the generator in the same commit; write the job's purpose in the last column.
@@ -16,12 +16,12 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | Tier | Interval | Jobs (scheduled / staged) |
 |---|---|---|
 | heartbeat | every 5m | 3 / 1 |
-| pulse | every 15m | 22 / 0 |
-| hourly | every 2h | 34 / 1 |
-| daily | every 1d | 52 / 0 |
+| pulse | every 15m | 23 / 0 |
+| hourly | every 2h | 35 / 1 |
+| daily | every 1d | 51 / 0 |
 | briefings | every 12h | 6 / 0 |
 
-**Total: 119 tiered jobs (117 scheduled automatically, 2 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 120 tiered jobs (118 scheduled automatically, 2 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -46,6 +46,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `gateway-order-status-poll` | yes | no | yes | — |
 | `higgsfield-session-keepalive` | no | no | yes | — |
 | `ig-autopost` | no | no | yes | — |
+| `orchestration-status-reconcile` | no | no | yes | — |
 | `overdue-reply-alert` | yes | no | yes | — |
 | `proposal-orphan-sweep` | no | no | yes | — |
 | `reel-comment-responder` | no | no | yes | — |
@@ -75,6 +76,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `followup-cadence` | yes | no | yes | — |
 | `intelligence-autopilot` | yes | no | yes | — |
 | `intelligence-engines-live` | yes | no | yes | — |
+| `kpi-snapshot` | no | yes | yes | Writes one `kpi_snapshots` row per completed shop week (revenue, paid jobs, new customers, avg ticket, lead conversion, review requests/received) so `kpi.history` has data; idempotent per week. Added 2026-09-01 (audit F-4). |
 | `memory-sync-to-statenour` | no | no | yes | — |
 | `missed-call-recovery` | yes | no | yes | — |
 | `nick-auto-actions` | yes | no | yes | — |
@@ -126,7 +128,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `gsc-pipeline` | no | no | yes | — |
 | `inventory-demand-forecast` | no | no | yes | — |
 | `invoice-cross-reconciliation` | no | no | yes | — |
-| `kpi-snapshot` | no | yes | yes | Writes one `kpi_snapshots` row per completed shop week (revenue, paid jobs, new customers, avg ticket, lead conversion, review requests/received) so `kpi.history` has data; idempotent per week. Added 2026-09-01 (audit F-4). |
 | `low-stock-alerts` | no | no | yes | — |
 | `monte-carlo-forecast` | no | no | yes | — |
 | `no-show-detection` | no | no | yes | — |

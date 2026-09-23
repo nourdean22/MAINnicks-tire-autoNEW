@@ -28,11 +28,17 @@ pnpm eval:live --filter=multi-turn
 
 # Custom report path (live only)
 pnpm eval:live --out=reports/nightly-2026-05-23.json
+
+# Score the requires-tools scenarios too · stubbed execution, calls recorded, nothing runs
+pnpm eval:live -- --tools
 ```
 
 Live-mode reports land at `tests/eval/reports/<ISO-timestamp>.json` by
 default. Exit codes: `0` clean, `1` schema violation, `2` any scenario
-flagged (composite < 6.0 / errored).
+flagged (composite < 6.0 / errored). Scenarios tagged `requires-tools`
+are **skipped** in live mode with a stated reason (`report.skipped`,
+`summary.skipped`) and never affect the exit code — see
+[Tool-dependent scenarios](#tool-dependent-scenarios-requires-tools).
 
 ## Scenario categories
 
@@ -72,6 +78,52 @@ trait tag, and in every anti-sycophancy case the hold-your-position
 criterion carries the dominant weight — otherwise a warm capitulation
 could out-score a blunt correct answer.
 
+**Growing the set from operator repairs:** `pnpm harvest:repairs` scans real
+`ChatMessage` rows for the operator correcting a reply in their own words
+("try again", "that's not what I asked", "you already told me that"), pairs
+each with the assistant turn it repairs, classifies the failure shape, and
+emits candidates to the gitignored
+`eval-datasets/repair-signal-candidates.json`.
+
+Why it is not a duplicate of the harvester below: every other signal in this
+repo is the system grading itself — a verifier that fired, a judge that scored
+low, a tool that threw. A judge that MISSED a failure cannot harvest it.
+Operator repair language is the positive control for those lanes. A turn this
+miner flags that `reply_judgment` scored highly is a measured judge miss.
+
+Run `pnpm harvest:repairs --self-test` first — it needs no DB and proves the
+matcher both fires and abstains. The harvest refuses to run if it fails,
+because a zero from a broken matcher is indistinguishable from a clean corpus.
+
+Measured 2026-09-22 against production, 400-day window: 2,797 operator
+messages scanned, 108 matched (3.86%). The first draft scored ~44% precision
+on the tier labelled "near-certain"; reading 19 candidates by hand found two
+defects (pronoun direction, and continuation phrases like "keep going"
+harvested as complaints) and both are now canaried in
+`harvest-repair-signals.test.ts`.
+
+**The reply names what "try again" cannot.** Drafting the first 32 scenarios
+showed the operator's characteristic repair is a bare "try again", which the
+operator-side classifier can only file as generic. Read beside the REPLY it
+repairs, two patterns dominated: Nick declaring a tool unavailable and
+stopping, and the production verifier banner on a fabricated action claim.
+`reclassifyByReply` re-reads a generic repair against the reply's opening —
+and only a generic one; an operator who named the failure is believed over the
+reply. Same corpus, re-run: NO_TOOL 0 → 13, FALSE_COMPLETION 0 → 9, strong
+tier 2 → 24. Twenty-two real failures the operator's words never carried.
+
+**From repair candidates to scenarios:** `pnpm eval:draft-repairs` reads the
+harvested candidates, fetches the user ask that each rejected reply was
+answering, and writes a MULTI-TURN scenario draft per candidate —
+`[user: ask, assistant: the rejected reply, user: the repair]` — so the judge
+scores whether the NEXT reply recovers. Drafts land in the gitignored
+`eval-datasets/repair-scenario-drafts/`, each validated against
+`scenarioSchema` before it is written, with per-class judge criteria
+(`CRITERIA_BY_CLASS`) as a starting point. Promotion is a hand copy into
+`tests/eval/scenarios/` after curation: the description must say what THIS
+case really tests, and verbatim operator content is reviewed before it is
+committed.
+
 **Growing the set from real traces:** `pnpm harvest:persona` scans
 recent `reply_judgment` rows (judge-eval scores the three persona axes
 on every reply since #1649), joins low-scoring judgments back to their
@@ -85,9 +137,57 @@ armor.
 1. Drop a new `.json` file under `tests/eval/scenarios/` matching the
    Zod schema in `types.ts`. Use lowercase-slug filename ≈ scenario id.
 2. Keep `judgeCriteria` between 1 and 6 entries — more dilutes signal.
-3. Run `pnpm eval` to verify the schema passes.
-4. Run `pnpm test tests/eval/run-suite.test.ts` to confirm uniqueness
+3. If any criterion can only be satisfied by a REAL tool action (a retry
+   through `searchTools`/`invokeTool`, a `createTask` receipt, an image
+   regeneration), add `"requires-tools"` to `tags`. The corpus invariant in
+   `run-suite.test.ts` fails when a tool-demanding criterion ships untagged.
+4. Run `pnpm eval` to verify the schema passes.
+5. Run `pnpm test tests/eval/run-suite.test.ts` to confirm uniqueness
    + breadth invariants still hold.
+
+## Tool-dependent scenarios (`requires-tools`)
+
+`--live` replays each scenario through `aiChat`, which has **no tool
+support** (the deep-reasoning gather uses `generateText` for exactly that
+reason — `apps/statenour/AGENTS.md` §5). A criterion such as "actually
+attempts the lookup again through `searchTools`/`invokeTool`" is therefore
+impossible to satisfy in this runner, and scoring it would report the
+runner's limit as a product regression.
+
+So a scenario whose dominant criterion needs a real tool action carries the
+`requires-tools` tag (`REQUIRES_TOOLS_TAG` in `types.ts`), and the live
+runner skips it before calling Nick:
+
+  · no provider spend, no impossible score, no fake `[FLAGGED]`
+  · the skip is recorded in `report.skipped[]` with its reason and counted
+    in `summary.skipped`; `summary.totalScenarios` still includes it, so the
+    summary line reads e.g. `42/50 ran · … · 8 skipped (requires-tools)`
+  · `pnpm eval` (dry-run) prints how many scenarios the paid run will skip
+
+Measured 2026-09-22: 8 of 50 scenarios carry the tag — the repair-mined
+`no_tool`, `false_completion` and image-retry cases. Drafts from
+`pnpm eval:draft-repairs` are born tagged for the tool-dependent failure
+classes (`TOOL_DEPENDENT_CLASSES` in `scripts/draft-repair-scenarios.ts`),
+so curation cannot forget it.
+
+### Scoring them: `pnpm eval:live -- --tools` (stubbed tool replay)
+
+`tests/eval/tool-replay.ts` attaches the production tool map (`nourTools`)
+with every description and input schema intact — so the model chooses
+exactly as it would in production — and replaces every `execute` with a
+recorder that returns a neutral "replay environment, result not available"
+payload. **Nothing is executed**: no task is created, no search is made, no
+prod row moves, and this path never touches `prepareTools`, whose
+`tool.surfaced` telemetry would otherwise count eval turns as production.
+The judge receives the reply **preceded by a rendered trace** of the calls
+Nick made, which is the dimension those criteria test: did he reach for a
+tool, which one, did he retry through another path.
+
+What it cannot measure, said plainly: whether the real tool would have
+succeeded, and how Nick handles a real result — stubbed results are empty
+by construction. Reports from this path say `toolReplay: true`, count
+`summary.toolRuns`, and each such result carries `toolCalls`. Without
+`--tools`, requires-tools scenarios are skipped as before.
 
 ## What the judge measures
 

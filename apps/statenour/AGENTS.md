@@ -7,8 +7,7 @@
 > **Cross-cutting rules** (branching, protected operations, enforcement map, Windows): root
 > [`AGENTS.md`](../../AGENTS.md), already in context. This file adds only what is true of *this app*.
 
-**Last refreshed:** 2026-09-16 · W11 "the controls that could not see their subject" · 5 ships: #2355 #2359 #2362 #2364 #2368
-(SHAs in RECONCILIATION top) · #2355 /chat spine lane + #2359 census, dead 3wk, DEPLOYED · CI `node` at 97% runner memory, unfixed.
+**Last refreshed:** 2026-09-23 · W16-W16c · statenour #2478-#2567 MERGED · `9de481ecc` DEPLOY-VERIFIED · flagged items in RECONCILIATION.
 **Header cap: one line.** Skill: `statenour-wave-reconcile`.
 
 <!--

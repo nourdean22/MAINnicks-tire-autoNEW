@@ -306,6 +306,12 @@ export const dispatchRouter = router({
       return listExpectedArrivals({ date: input?.date, includeAllStatuses: input?.includeAll });
     }),
 
+  /** What callers asked for by phone today (tire sizes), for the counter. */
+  phoneTireDemandToday: dbAdminProcedure.query(async () => {
+    const { getPhoneTireDemandToday } = await import("../services/phoneTireDemand");
+    return getPhoneTireDemandToday();
+  }),
+
   // ─── Declined Work Recovery ──────────────────────
   declinedLedger: adminProcedure
     .input(z.object({ limit: z.number().default(50) }).optional())

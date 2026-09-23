@@ -20,11 +20,44 @@ import { z } from "zod";
 import { router, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { createLogger } from "../lib/logger";
+import { RECOVERY_FETCH_OUTCOMES } from "@shared/callTaxonomy";
+import { computeConnectRate } from "../lib/transferArtifact";
+import { isTransferAttempt } from "../lib/warmTransferConnect";
+import { compareTransferInstruments } from "../lib/transferInstrumentAgreement";
+import { computeTransferOutcomeEvidence } from "../lib/transferOutcomeEvidence";
+import {
+  buildRecoveryQueue,
+  breachedSla,
+  type QueueSourceRow,
+} from "../services/recoveryQueue";
 import { getDb } from "../db";
 import { shopSettings, vapiCallLogs, type VapiCallLog } from "../../drizzle/schema";
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { pickReceptionistAssistantId, pickFollowUpAssistantId, SHOP_LANDLINE_E164 } from "../services/vapi";
+import { arrivalSignalsForQueue } from "../services/expectedArrivals";
 import { BUSINESS } from "@shared/business";
+
+/*
+ * The arrival facts for the recovery kernel — an OPEN expectation and a
+ * reconciled invoice — come from services/expectedArrivals.arrivalSignalsForQueue,
+ * spread into buildRecoveryQueue's options at both call sites below. The
+ * `arrival` lane exists so a caller who said "I will come by" is a provisional
+ * SUCCESS rather than missed revenue; kernel rule 5 exists so a caller who then
+ * came and PAID is closed as already-invoiced. The second fact had no producer
+ * until 2026-09-22 — the kernel accepted `invoicedPhones` and nothing supplied
+ * it — so paying walk-ins were being routed into recovery the moment their
+ * arrival row reconciled.
+ */
+
+/** Parse a metadata JSON column without letting a malformed row throw a read. */
+function safeJsonObject(v: string): Record<string, unknown> | null {
+  try {
+    const p = JSON.parse(v);
+    return p && typeof p === "object" ? (p as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
 
 const log = createLogger("vapi");
 
@@ -174,13 +207,34 @@ export const vapiRouter = router({
       return createProductionAssistant(serverUrl);
     }),
 
+  /**
+   * Does the line callers dial answer with the assistant we push config to?
+   *
+   * Sits immediately above `updateAssistant` because it is the question that
+   * makes that mutation meaningful: a push can be perfectly deterministic and
+   * still land on an assistant nobody reaches. Read-only.
+   */
+  assistantRouting: adminProcedure.query(async () => {
+    const { getAssistantRoutingTruth } = await import("../services/vapi");
+    return getAssistantRoutingTruth();
+  }),
+
   updateAssistant: adminProcedure
     .input(z.object({
       // Optional — defaults to the canonical INBOUND receptionist
       // (VAPI_RECEPTIONIST_ASSISTANT_ID). The panel used to pass the first
-      // assistant in the list, which is actually the OUTBOUND follow-up
-      // (afcad79e) — so "Push Latest Config" silently updated the wrong
-      // assistant and the receptionist never got the new prompt/config.
+      // assistant in the list rather than the pinned one, so "Push Latest
+      // Config" silently updated the wrong assistant and the receptionist
+      // never got the new prompt/config.
+      //
+      // THE ID-TO-ROLE MAPPING THIS COMMENT USED TO ASSERT IS NO LONGER TRUE,
+      // so it has been removed rather than corrected. It named afcad79e as the
+      // outbound follow-up; as the panel lists them on 2026-09-18 that id is
+      // one of TWO assistants called "Nick's Tire & Auto Receptionist", and the
+      // follow-up is a separately-named third (0daaf7dc). Assistant ids and
+      // names are operator-editable state in VAPI, so hardcoding either into a
+      // comment creates a cache with no invalidation. Trust the env pin and the
+      // log line, which report what actually happened on the day.
       assistantId: z.string().min(1).max(100).optional(),
       serverUrl: z.string().url().optional(),
     }))
@@ -210,15 +264,21 @@ export const vapiRouter = router({
   // via scripts/vapi-create-followup-assistant.ts, so prompt/tool changes to
   // the follow-up caller (e.g. wave-140's dropped transferCall + revived
   // escalate) didn't reach live until someone ran the script.
+  // The admin panel calls this with no id, so the server's own pin decides
+  // which assistant is pushed (same rule as updateAssistant above).
   updateFollowUpAssistant: adminProcedure
     .input(z.object({
-      assistantId: z.string().min(1).max(100),
+      assistantId: z.string().min(1).max(100).optional(),
       serverUrl: z.string().url().optional(),
-    }))
+    }).optional())
     .mutation(async ({ input }) => {
       const { updateFollowUpAssistant } = await import("../services/vapi");
-      const serverUrl = input.serverUrl || "https://nickstire.org/api/webhooks/vapi";
-      return updateFollowUpAssistant(input.assistantId, serverUrl);
+      const serverUrl = input?.serverUrl || "https://nickstire.org/api/webhooks/vapi";
+      const assistantId = input?.assistantId || process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+      if (!assistantId) {
+        return { success: false as const, error: "No follow-up assistant id (VAPI_FOLLOWUP_ASSISTANT_ID unset)" };
+      }
+      return updateFollowUpAssistant(assistantId, serverUrl);
     }),
 
   recentCalls: adminProcedure
@@ -497,8 +557,17 @@ export const vapiRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
 
       const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-      const candidates = ["lost_opportunity", "callback_needed", "walk_in_directed", "tech_failure"];
-      
+      /**
+       * DERIVED, never re-typed. This list was one of ten hand-maintained
+       * copies (audit 2026-09-18) and the read side had drifted from the write
+       * side. It is now computed from the taxonomy kernel: an outcome is
+       * fetched if the kernel can EVER route it to recovery. The kernel then
+       * makes the real per-call decision using facts a SQL WHERE cannot see
+       * (did the caller actually speak, is an arrival already open, did an
+       * invoice already land). Widening the kernel widens this automatically.
+       */
+      const candidates = RECOVERY_FETCH_OUTCOMES;
+
       const rows = await db
         .select({
           id: vapiCallLogs.id,
@@ -520,54 +589,189 @@ export const vapiRouter = router({
         ))
         .orderBy(desc(vapiCallLogs.createdAt));
 
-      // Calculate repeat callers
-      const phoneCounts: Record<string, number> = {};
-      for (const r of rows) {
-        if (r.phoneNumber) {
-          phoneCounts[r.phoneNumber] = (phoneCounts[r.phoneNumber] || 0) + 1;
-        }
-      }
-
-      const queueItems = rows.map((r: any) => {
-        const meta = typeof r.metadata === "string" ? JSON.parse(r.metadata) : (r.metadata || {});
-        const qStatus = meta.queueStatus || "pending";
-        const qUrgency = meta.queueUrgency || 4;
-        const intents = meta.intents || [];
-        const isRepeatCaller = r.phoneNumber ? (phoneCounts[r.phoneNumber] > 1) : false;
-        const priorityScore = qUrgency + (isRepeatCaller ? 3 : 0);
-
-        return {
-          id: r.id,
-          vapiCallId: r.vapiCallId,
-          phoneNumber: r.phoneNumber,
-          customerName: r.customerName,
-          durationSeconds: r.durationSeconds,
-          endedReason: r.endedReason,
-          aiSummary: r.aiSummary,
-          evalScore: r.evalScore,
-          evalOutcome: r.evalOutcome,
-          createdAt: r.createdAt,
-          intents,
-          queueStatus: qStatus,
-          queueUrgency: qUrgency,
-          priorityScore,
-          isRepeatCaller,
-          notes: meta.notes || "",
-        };
+      /**
+       * ONE CUSTOMER WITH ONE NEED IS ONE ROW.
+       *
+       * This used to emit one row per CALL and add "+3" to any number seen
+       * twice in the ninety-day window. Both were wrong in the same direction:
+       * a caller whose transfer failed and who redialled twice became three
+       * obligations AND a "Repeat Caller" badge, so repetition inflated the
+       * backlog it was describing — while brakes in June and tires in
+       * September scored as urgency. `buildRecoveryQueue` collapses contacts
+       * into episodes and lets the kernel decide the lane; repetition now
+       * raises PRIORITY inside one episode instead of adding rows.
+       */
+      const built = buildRecoveryQueue(rows as QueueSourceRow[], new Date(), {
+        ...(await arrivalSignalsForQueue(cutoff)),
       });
 
-      const filtered = input.status === "all" 
-        ? queueItems 
-        : queueItems.filter((item: any) => item.queueStatus === input.status);
+      /**
+       * Legacy-compatible projection. The admin UI reads these field names, so
+       * the shape is preserved while the MEANING is repaired underneath. New
+       * consumers should read `disposition` (lane, SLA, explainable reasons)
+       * and `contactCount` rather than the flattened `priorityScore`.
+       */
+      const queueItems = built.episodes.map((e) => ({
+        id: e.latestCallId,
+        vapiCallId: e.vapiCallId,
+        phoneNumber: e.phoneNumber,
+        customerName: e.customerName,
+        durationSeconds: null as number | null,
+        endedReason: null as string | null,
+        aiSummary: e.aiSummary,
+        evalScore: null as number | null,
+        evalOutcome: e.outcome,
+        createdAt: e.latestCallAt,
+        intents: e.intents,
+        queueStatus: e.queueStatus,
+        queueUrgency: e.disposition.priority,
+        priorityScore: e.disposition.priority,
+        /** Retained for the badge, but it now means "same unresolved need". */
+        isRepeatCaller: e.contactCount > 1,
+        notes: "",
+        // ── new, honest fields ──
+        episodeKey: e.episodeKey,
+        contactCount: e.contactCount,
+        callIds: e.callIds,
+        firstCallAt: e.firstCallAt,
+        ageMinutes: e.ageMinutes,
+        intentFamily: e.intentFamily,
+        lane: e.disposition.lane,
+        slaMinutes: e.disposition.slaMinutes,
+        slaBreached:
+          e.disposition.slaMinutes !== null && e.ageMinutes > e.disposition.slaMinutes,
+        /** Why this is here, and why it ranks where it does. */
+        priorityReasons: e.disposition.reasons,
+        /** Buying specifics, for the fact-bound SMS draft. Fields may be null. */
+        demand: e.demand,
+        transferFailed: e.transferFailed,
+      }));
 
-      filtered.sort((a: any, b: any) => {
-        if (b.priorityScore !== a.priorityScore) {
-          return b.priorityScore - a.priorityScore;
-        }
-        return b.createdAt.getTime() - a.createdAt.getTime();
+      return input.status === "all"
+        ? queueItems
+        : queueItems.filter((item) => item.queueStatus === input.status);
+    }),
+
+  /**
+   * The denominators the wall never showed.
+   *
+   * "1,118 pending" was reported as missed revenue while being, in large part,
+   * a census of calls that were ANSWERED. This returns the same population
+   * decomposed by lane and by exclusion reason, so the operator can see where
+   * the other rows went instead of being asked to trust that they were junk.
+   * Counts are EPISODES, except `sourceCallCount`, which is raw calls — the
+   * number the old UI printed as leads.
+   */
+  getRecoveryQueueSummary: adminProcedure
+    .input(z.object({ days: z.number().int().min(1).max(90).default(90) }))
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+      const cutoff = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000);
+      const rows = await db
+        .select({
+          id: vapiCallLogs.id,
+          vapiCallId: vapiCallLogs.vapiCallId,
+          phoneNumber: vapiCallLogs.phoneNumber,
+          customerName: vapiCallLogs.customerName,
+          durationSeconds: vapiCallLogs.durationSeconds,
+          endedReason: vapiCallLogs.endedReason,
+          aiSummary: vapiCallLogs.aiSummary,
+          evalScore: vapiCallLogs.evalScore,
+          evalOutcome: vapiCallLogs.evalOutcome,
+          createdAt: vapiCallLogs.createdAt,
+          metadata: vapiCallLogs.metadata,
+        })
+        .from(vapiCallLogs)
+        .where(gte(vapiCallLogs.createdAt, cutoff));
+
+      const built = buildRecoveryQueue(rows as QueueSourceRow[], new Date(), {
+        ...(await arrivalSignalsForQueue(cutoff)),
       });
-
-      return filtered;
+      return {
+        windowDays: input.days,
+        sourceCallCount: built.sourceCallCount,
+        needsAttention: built.episodes.length,
+        slaBreached: breachedSla(built).length,
+        laneCounts: built.laneCounts,
+        exclusionCounts: built.exclusionCounts,
+        /**
+         * UNKNOWN, not zero. Calls whose speaker attribution failed — mostly
+         * rows written before `customerSpeech` existed (2026-07-26). This must
+         * be shown as "not measured", never folded into "no demand".
+         */
+        unclassified: built.unclassifiedCount,
+        /**
+         * THE QUESTION BOTH AUDITS COULD NOT ANSWER: do transfers connect?
+         *
+         * Derived from `artifact.transfers[].status` — the provider's own
+         * per-attempt outcome — and NEVER from `assistant-forwarded-call`,
+         * which VAPI documents as meaning the transfer was INITIATED. A call
+         * that rang an empty counter carries that reason too.
+         *
+         * `coveragePct` travels with the rate on purpose. VAPI gates
+         * blind-transfer outcome detection per organisation, so if this account
+         * does not receive the artifact, coverage is 0 and `connectRate` stays
+         * null rather than reporting a confident number over a handful of
+         * calls. Read coverage FIRST; the rate is meaningless without it.
+         */
+        transferConnect: computeConnectRate({
+          // EVERY call that ATTEMPTED a transfer, including the ones the
+          // provider never resolved. Filtering unknowns out here would delete
+          // the coverage signal and hand back a confident rate over whatever
+          // happened to be classifiable — the precise failure being replaced.
+          verdicts: (rows as QueueSourceRow[])
+            .filter((r) => isTransferAttempt(r.endedReason))
+            .map((r) => {
+              const parsed =
+                typeof r.metadata === "string" ? safeJsonObject(r.metadata) : r.metadata;
+              const v = (parsed as { transferArtifact?: { verdict?: unknown } } | null)
+                ?.transferArtifact?.verdict;
+              return v === "connected" || v === "not_connected" ? v : ("unknown" as const);
+            }),
+        }),
+        /**
+         * DO THE TWO INSTRUMENTS AGREE?
+         *
+         * The provider verdict (above) and the caller's redial behaviour were
+         * deliberately kept as separate instruments, on the stated grounds that
+         * "if they disagree, that disagreement is the finding". That was right
+         * and incomplete: they were computed in two DIFFERENT procedures, so
+         * nothing could ever compare them, and reconciling them was filed under
+         * a 30-day bucket — which is how a finding becomes a calendar entry.
+         *
+         * Both are derived from the SAME `rows` already in hand: the select
+         * carries phoneNumber, endedReason and createdAt, which is everything
+         * the behaviour instrument needs. No second query.
+         *
+         * The comparison never averages them. It reports what each says and
+         * whether they point the same way — and when they contradict, what that
+         * implies about WHERE the problem is. A provider-connected transfer
+         * whose caller immediately redials is a counter problem, and every
+         * telephony fix on the roadmap would be spent on the wrong half.
+         */
+        transferAgreement: compareTransferInstruments(
+          computeConnectRate({
+            verdicts: (rows as QueueSourceRow[])
+              .filter((r) => isTransferAttempt(r.endedReason))
+              .map((r) => {
+                const parsed =
+                  typeof r.metadata === "string" ? safeJsonObject(r.metadata) : r.metadata;
+                const v = (parsed as { transferArtifact?: { verdict?: unknown } } | null)
+                  ?.transferArtifact?.verdict;
+                return v === "connected" || v === "not_connected" ? v : ("unknown" as const);
+              }),
+          }),
+          computeTransferOutcomeEvidence(
+            (rows as QueueSourceRow[]).map((r) => ({
+              phoneNumber: r.phoneNumber ?? null,
+              createdAt: r.createdAt,
+              endedReason: r.endedReason ?? null,
+            })),
+          ),
+        ),
+      };
     }),
 
   updateQueueStatus: adminProcedure
@@ -1038,12 +1242,15 @@ export const vapiRouter = router({
     }))
     .mutation(async ({ input }) => {
       const apiKey = process.env.VAPI_API_KEY;
-      const assistantId = process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+      // Shared chokepoint, not a direct env read — a pin naming a RETIRED
+      // assistant resolves to null here rather than being handed to VAPI.
+      const { followUpAssistantIdOrNull } = await import("../services/vapi");
+      const assistantId = followUpAssistantIdOrNull();
       if (!apiKey) {
         return { success: false, error: "VAPI_API_KEY not configured" };
       }
       if (!assistantId) {
-        return { success: false, error: "VAPI_FOLLOWUP_ASSISTANT_ID not configured. Run scripts/vapi-create-followup-assistant.ts first." };
+        return { success: false, error: "VAPI_FOLLOWUP_ASSISTANT_ID is not configured, or points at a retired assistant. Repoint it at the dedicated follow-up caller." };
       }
 
       // Normalize phone to E.164

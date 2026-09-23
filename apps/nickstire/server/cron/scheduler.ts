@@ -9,7 +9,9 @@
  * TIER 1 (5 min):  Heartbeat — critical monitoring + SMS
  * TIER 2 (15 min): Pulse — dashboard sync, vendor health, form recovery
  * TIER 3 (2 hr):   Hourly — lead follow-up, intelligence, reviews
- * TIER 4 (24 hr):  Daily — segmentation, retention, reports, cleanup
+ * TIER 4 (daily, 09:30 ET): Daily — segmentation, retention, reports, cleanup
+ * TIER 5 (07:00 + 19:00 ET): Briefings — morning brief, daily report
+ *   (tiers 4-5 run on the ET wall clock, claimed per slot per day — wallClockTiers.ts)
  *
  * Each tier runs its jobs SEQUENTIALLY within the tier to avoid
  * DB connection stampedes. Jobs still have individual timeout + skip
@@ -19,6 +21,8 @@
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
 import { acquireCronLock, releaseCronLock, jobTimeoutMs } from "./index";
+import { claimStartupPass, describeStartup, readLastRunAgeMs, startupAllowanceMs, type StartupClaim } from "./tierStartup";
+import { createWallClockRunner, isWallClockTier, startWallClockLoop } from "./wallClockTiers";
 
 const log = createLogger("scheduler");
 
@@ -698,7 +702,7 @@ function buildTiers(): void {
               const accuracyLog = createLogger("cron:data-accuracy");
               accuracyLog.warn("Data accuracy issues found", { issues });
               const { remember } = await import("../services/nickMemory");
-              await remember({ type: "lesson", content: `Data accuracy: ${issues.join(". ")}`, source: "accuracy_check", confidence: 0.8 });
+              await remember({ type: "lesson", content: `Data accuracy: ${issues.join(". ")}`, identity: "data_accuracy", source: "accuracy_check", confidence: 0.8 });
             }
 
             return { recordsProcessed: issues.length, details: issues.length === 0 ? "All data clean" : issues.join("; ") };
@@ -891,7 +895,9 @@ function buildTiers(): void {
               details: `overnight probe → ${result.outcome} (${result.recordsProcessed} records, ${result.durationMs}ms)`,
             };
           } catch (e: unknown) {
-            return { details: `overnight probe failed: ${(e as Error).message}` };
+            // Thrown, not returned: a returned `details` string was logged as
+            // "completed", so a failed probe never reached cron_log as failed.
+            throw new Error(`overnight probe failed: ${e instanceof Error ? e.message : String(e)}`);
           }
         },
       },
@@ -920,7 +926,8 @@ function buildTiers(): void {
               details: `evening probe → ${result.outcome} (${result.recordsProcessed} records, ${result.durationMs}ms)`,
             };
           } catch (e: unknown) {
-            return { details: `evening probe failed: ${(e as Error).message}` };
+            // Thrown, not returned — same reason as alg-overnight-probe above.
+            throw new Error(`evening probe failed: ${e instanceof Error ? e.message : String(e)}`);
           }
         },
       },
@@ -972,6 +979,19 @@ function buildTiers(): void {
         handler: async () => {
           const { processAppointmentReminders24h } = await import("./jobs/appointmentReminders");
           return processAppointmentReminders24h();
+        },
+      },
+      {
+        // 2026-09-22 · an orchestration persisted `queued · outside_hours_queued`
+        // never learned that the delayed queue sent its text (308 rows read
+        // queued forever, 243 of them sent — docs/operations/QUEUE-CENSUS-
+        // 2026-09-22.md). Bookkeeping only: reads sms_messages, stamps the
+        // orchestration, never sends. Rows older than 7 days are the operator's
+        // back-stamp script.
+        name: "orchestration-status-reconcile",
+        handler: async () => {
+          const { reconcileQueuedOrchestrations } = await import("./jobs/orchestrationStatusReconcile");
+          return reconcileQueuedOrchestrations();
         },
       },
       {
@@ -1382,11 +1402,17 @@ function buildTiers(): void {
             const data = await res.json();
             const brain = data?.data || data;
             const { remember } = await import("../services/nickMemory");
+            // Empty text and statements about Nick's own memory store are not
+            // remembered: "[statenour] Nick AI has 30 learned memories" was
+            // re-pulled every pass into 4,904 uses (2026-09-22).
+            const { pulledMemoryText } = await import("../services/memoryWriterGuards");
             let imported = 0;
 
             // Pull insights (brain analysis, reflections, predictions)
             for (const insight of (brain.recentInsights || []).slice(0, 5)) {
-              await remember({ type: "insight", content: `[statenour] ${insight.title || insight.content || ""}`.slice(0, 500), source: "statenour_pull", confidence: 0.8 });
+              const content = pulledMemoryText("[statenour]", insight.title || insight.content);
+              if (!content) continue;
+              await remember({ type: "insight", content, source: "statenour_pull", confidence: 0.8 });
               imported++;
             }
 
@@ -1416,7 +1442,9 @@ function buildTiers(): void {
 
             // Pull commitments (things Nour committed to)
             for (const commit of (brain.commitments || []).slice(0, 2)) {
-              await remember({ type: "preference", content: `[statenour-commitment] ${commit.text || commit.title || ""} — deadline: ${commit.deadline || "none"}, status: ${commit.status || "active"}`.slice(0, 500), source: "statenour_commitments", confidence: 0.9 });
+              const content = pulledMemoryText("[statenour-commitment]", commit.text || commit.title, ` — deadline: ${commit.deadline || "none"}, status: ${commit.status || "active"}`);
+              if (!content) continue;
+              await remember({ type: "preference", content, source: "statenour_commitments", confidence: 0.9 });
               imported++;
             }
 
@@ -1831,6 +1859,26 @@ function buildTiers(): void {
         },
       },
       {
+        // 2026-09-01 (audit F-4) · kpi_snapshots had NO writer for the life of
+        // the schema; kpi.history returned [] to every caller. One row per
+        // completed shop week, idempotent, once per shop day.
+        //
+        // 2026-09-22 · moved here from the daily tier. `oncePerShopDay` claims
+        // through claimOncePerShopDay(), which is gated to business hours, so
+        // on the 24h tier the job ran only when that tier's phase happened to
+        // land inside 07:00-20:59 ET: the boot-claim pass fired the daily tier
+        // at 04:29 ET on 09-22 and the job was skipped with no cron_log row,
+        // while self-healing reported it 48h stale. Same ROS-081 class as the
+        // digest above; here it gets ~7 chances a day and the claim keeps it
+        // exactly-once.
+        name: "kpi-snapshot",
+        oncePerShopDay: true,
+        handler: async () => {
+          const { processKpiSnapshot } = await import("./jobs/kpiSnapshot");
+          return processKpiSnapshot();
+        },
+      },
+      {
         // 2026-08-23 · WIRED. Same defect as campaign-resume: registered in
         // cron/index.ts, present in no tier, ZERO cron_log rows ever.
         //
@@ -1887,7 +1935,8 @@ function buildTiers(): void {
     lastRun: null,
   });
 
-  // ═══ TIER 4: DAILY (every 24 hr) ═══
+  // ═══ TIER 4: DAILY (once a day, 09:30 ET slot — wallClockTiers.ts) ═══
+  // intervalMs is the nominal cadence consumers read (getJobCadences); no timer uses it.
   // Everything that runs once a day — batched together
   tiers.push({
     name: "daily",
@@ -1954,17 +2003,6 @@ function buildTiers(): void {
         handler: async () => {
           const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
           return processCustomerSegmentation();
-        },
-      },
-      // 2026-09-01 (audit F-4) · kpi_snapshots had NO writer for the life of
-      // the schema; kpi.history returned [] to every caller. One row per
-      // completed shop week, idempotent, once per shop day.
-      {
-        name: "kpi-snapshot",
-        oncePerShopDay: true,
-        handler: async () => {
-          const { processKpiSnapshot } = await import("./jobs/kpiSnapshot");
-          return processKpiSnapshot();
         },
       },
       // wave-181.111 · psychographic profile (10 segments) daily refresh.
@@ -2673,7 +2711,7 @@ function buildTiers(): void {
             }
 
             await sendTelegram(parts.join("\n\n"));
-            await remember({ type: "insight", content: parts.join(". ").slice(0, 1500), source: "daily_digest", confidence: 0.9 });
+            await remember({ type: "insight", content: parts.join(". ").slice(0, 1500), identity: "daily_digest", source: "daily_digest", confidence: 0.9 });
             return { recordsProcessed: 1, details: "Full digest sent" };
           } catch (e: unknown) { log.warn("[cron/scheduler] digest failed:", e); throw e; /* audit F-9 */ }
         },
@@ -2720,6 +2758,7 @@ function buildTiers(): void {
               type: "insight",
               content: `Revenue for ${day}: $${truth.totalRevenue}. Jobs: ${truth.completedJobs}. Avg ticket: $${truth.avgTicket}.`,
               source: "revenue_reconciliation",
+              identity: "revenue_reconciliation_latest",
               confidence: 0.95,
             });
             return { recordsProcessed: 1, details: `${day}: $${truth.totalRevenue}, ${truth.completedJobs} jobs` };
@@ -2731,7 +2770,8 @@ function buildTiers(): void {
     lastRun: null,
   });
 
-  // ═══ TIER 5: BRIEFINGS (every 12 hr) ═══
+  // ═══ TIER 5: BRIEFINGS (07:00 and 19:00 ET slots — wallClockTiers.ts) ═══
+  // intervalMs is the nominal cadence consumers read (getJobCadences); no timer uses it.
   // Morning brief + daily report — timing-critical
   tiers.push({
     name: "briefings",
@@ -2760,6 +2800,12 @@ function buildTiers(): void {
         // self-corrects on the next redeploy, and it fails toward silence rather
         // than toward a 3am push. Moving this job to the 2h tier would remove
         // the residual outright and is the real fix if it ever bites.
+        //
+        // 2026-09-23 · that residual is closed: the tier no longer has a phase.
+        // Its 07:00 ET slot lands inside this job's window every day and its
+        // 19:00 ET slot inside daily-report's and daily-wins-digest's, each
+        // claimed once per ET day (wallClockTiers.ts). The job's own window
+        // gate stays as the second layer.
         name: "nick-morning-brief",
         handler: async () => {
           const { sendMorningBrief } = await import("./jobs/morningBrief");
@@ -2775,6 +2821,14 @@ function buildTiers(): void {
       },
       {
         name: "weather-intel",
+        // 2026-09-22 · the service already refuses to run without this key, but
+        // it did so by RETURNING { details: "No API key" } — a completed run
+        // with zero records, eight times in a row, invisible to the skip
+        // watchdog, which only reads status "skipped" with a "requiresEnv:"
+        // detail. Declared here, the miss becomes the alarm that was built
+        // for it. Setting the key ARMS weather_triggered_sms (flag is ON in
+        // prod): decide that flag before the key.
+        requiresEnv: "OPENWEATHER_API_KEY",
         handler: async () => {
           const { checkWeatherTriggers } = await import("../services/weatherIntelligence");
           const result = await checkWeatherTriggers();
@@ -2821,6 +2875,8 @@ function buildTiers(): void {
   });
 }
 
+let stopWallClockLoop: (() => void) | undefined;
+
 /** Idempotent: builds the tier table once; safe for read-only callers (getJobCadences calls it). */
 function ensureTiersBuilt(): void {
   if (tiers.length === 0) buildTiers();
@@ -2838,57 +2894,84 @@ export function startTieredScheduler(): void {
   // Start all tiers (staggered to avoid memory spike on boot)
   for (const tier of tiers) {
     const idx = tiers.indexOf(tier);
-    // Run heartbeat, pulse, and daily on startup. Daily must run on boot because
-    // Railway restarts can prevent the 24h interval from ever firing (Bug: 999h no backup).
-    // Hourly (idx=2) and briefings (idx=4) can wait for their interval.
+    // 2026-09-23 · daily and briefings run on the ET wall clock, not on a
+    // boot claim + setInterval — 32 deploys overnight meant their 24 h / 12 h
+    // timers never ticked and the boot claim set their time of day (daily ran
+    // at 04:29 ET, outside every customer lane's send window). They are
+    // started by the wall-clock loop below; see wallClockTiers.ts.
+    if (isWallClockTier(tier.name)) continue;
+    // Every tier decides its boot-time fire from the age of its last run,
+    // read from the state resetSkipCount() writes on every run (the
+    // forensic-audit CRITICAL fix: cron_log never carried a 'tier:daily'
+    // row, so an earlier guard always saw NULL and re-fired daily on every
+    // restart, re-sending retention / cross-sell / declined-work SMS).
     //
-    // v1.7 audit fix · daily-tier-on-every-boot was sending duplicate
-    // outbound SMS (retention, cross-sell, warranty, declined-work,
-    // churn) on every Railway restart. Now we persist a process-local
-    // marker so the daily tier only fires on startup if the last run
-    // is older than 20h. The setInterval still owns the canonical
-    // 24h cadence; this guard only governs the boot-time fire.
-    const runOnStartup = idx <= 1 || tier.name === "daily";
+    // 2026-09-22 · until now only heartbeat, pulse and daily fired at boot;
+    // hourly and briefings waited for a setInterval that starts counting at
+    // process boot. With deploys under two hours apart — thirteen that day —
+    // the hourly tier never reached its first tick: last run 12:29Z, still
+    // silent at 20:00Z, ten jobs (voice-recovery, enrich-customer-data,
+    // feedback-cycle, safety-check, the statenour syncs). The rule in
+    // tierStartup.ts is the daily guard generalised: fire when the last run
+    // is at least one interval old (daily keeps its 20 h allowance), or when
+    // the tier has never run. The pass is CLAIMED by one conditional UPDATE
+    // on cron_tier_skip_state — a row can be changed once, so of two replicas
+    // booting together exactly one fires (review P1) — the age is computed in
+    // SQL because a driver-parsed TIMESTAMP arrives zone-shifted, and no
+    // claim means no fire. tierStartup.ts carries the full rationale and the
+    // P2 residual: a pass killed mid-way keeps its start stamp (the full
+    // hourly pass measured 89 s live, so about 1.3 % of a thirteen-deploy day).
     const stagger = idx * 30_000;
 
-    if (runOnStartup) {
-      setTimeout(async () => {
-        if (tier.name === "daily") {
+    setTimeout(async () => {
+      const allowanceMs = startupAllowanceMs(tier.name, tier.intervalMs);
+      let lastRunAgeMs: number | null = null;
+      let claim: StartupClaim | null = null;
+      let claimError: string | null = null;
+      try {
+        const { getDb } = await import("../db");
+        const d = await getDb();
+        if (d) {
           try {
-            const { getDb } = await import("../db");
-            const { sql } = await import("drizzle-orm");
-            const d = await getDb();
-            if (d) {
-              // forensic-audit CRITICAL · the guard queried cron_log for
-              // job_name='tier:daily', but logTierJob only ever writes
-              // per-JOB names (e.g. 'retention-all') — no 'tier:daily' row
-              // is ever written, so this always saw NULL and the daily tier
-              // re-fired on EVERY Railway restart, re-sending retention /
-              // cross-sell / declined-work SMS to real customers (up to 3x
-              // on a multi-restart deploy day). Read the persisted tier
-              // state that resetSkipCount() actually writes on every run.
-              const [rows] = await d.execute(sql`SELECT last_run_at AS lastRun FROM cron_tier_skip_state WHERE tier_name = 'daily'`);
-              const last = (rows as Array<{ lastRun: Date | null }>)[0]?.lastRun;
-              if (last && Date.now() - new Date(last).getTime() < 20 * 3600_000) {
-                log.info("daily tier: last run < 20h ago, skipping startup fire");
-                return;
-              }
-            }
-          } catch (e) {
-            log.warn("daily tier boot guard query failed, proceeding", {
-              error: e instanceof Error ? e.message : String(e),
-            });
+            lastRunAgeMs = await readLastRunAgeMs(d, tier.name);
+          } catch {
+            // informational only — the claim below is the decision
           }
+          claim = await claimStartupPass(d, tier.name, allowanceMs);
         }
-        runTier(tier).catch(err => log.error(`Tier ${tier.name} startup failed:`, { error: err instanceof Error ? err.message : String(err) }));
-      }, stagger);
-    }
+      } catch (e) {
+        claimError = e instanceof Error ? e.message : String(e);
+      }
+      const decision = describeStartup({ tierName: tier.name, allowanceMs, claim, lastRunAgeMs, claimError });
+      log.info(`${tier.name} tier startup: ${decision.fire ? "FIRING" : "skipping"} — ${decision.reason}`);
+      if (!decision.fire) return;
+      runTier(tier).catch(err => log.error(`Tier ${tier.name} startup failed:`, { error: err instanceof Error ? err.message : String(err) }));
+    }, stagger);
 
     // Schedule recurring
     tier.handle = setInterval(() => {
       runTier(tier).catch(err => log.error(`Tier ${tier.name} failed:`, { error: err instanceof Error ? err.message : String(err) }));
     }, tier.intervalMs);
   }
+
+  const wallClockTierNames = tiers.filter((t) => isWallClockTier(t.name)).map((t) => t.name);
+  const wallClockRunner = createWallClockRunner({
+    getDb: async () => {
+      const { getDb } = await import("../db");
+      return getDb();
+    },
+    runTier: async (tierName) => {
+      const tier = tiers.find((t) => t.name === tierName);
+      if (tier) await runTier(tier);
+    },
+    isTierRunning: (tierName) => tiers.find((t) => t.name === tierName)?.running === true,
+    log,
+  });
+  stopWallClockLoop = startWallClockLoop(wallClockRunner, wallClockTierNames, {
+    // after the staggered boot passes of the interval tiers
+    bootDelayMs: tiers.length * 30_000,
+    onError: (tierName, err) => log.error(`Tier ${tierName} wall-clock pass failed:`, { error: err instanceof Error ? err.message : String(err) }),
+  });
 
   log.info(`Tiered scheduler started: ${tiers.length} tiers, ${tiers.reduce((s, t) => s + t.jobs.length, 0)} jobs`);
 
@@ -2910,6 +2993,8 @@ export function startTieredScheduler(): void {
  * Stop the tiered scheduler.
  */
 export function stopTieredScheduler(): void {
+  stopWallClockLoop?.();
+  stopWallClockLoop = undefined;
   for (const tier of tiers) {
     if (tier.handle) clearInterval(tier.handle);
   }
@@ -2949,6 +3034,8 @@ export function getJobCadences(): Map<
     oncePerShopDay: boolean;
     tier: string;
     scheduledAutomatically: boolean;
+    /** Env keys the tier loop requires (any one set) before it runs the job; empty = no env gate. */
+    requiresEnv: string[];
   }
 > {
   const out = new Map<
@@ -2959,6 +3046,7 @@ export function getJobCadences(): Map<
       oncePerShopDay: boolean;
       tier: string;
       scheduledAutomatically: boolean;
+      requiresEnv: string[];
     }
   >();
   ensureTiersBuilt();
@@ -2986,6 +3074,7 @@ export function getJobCadences(): Map<
          * disagree is how the next reader gets it wrong.
          */
         scheduledAutomatically: j.enabled !== false,
+        requiresEnv: j.requiresEnv ? (Array.isArray(j.requiresEnv) ? j.requiresEnv : [j.requiresEnv]) : [],
       });
     }
   }

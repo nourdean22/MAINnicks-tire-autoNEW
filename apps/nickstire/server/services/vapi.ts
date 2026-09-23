@@ -88,22 +88,107 @@ export interface VapiAssistantLite {
   name?: string;
 }
 
+/**
+ * ASSISTANTS THAT MUST NEVER BE DISPATCHED TO, WHATEVER POINTS AT THEM.
+ *
+ * `afcad79e` is a THIRD assistant on this VAPI account carrying the same
+ * display name as the live inbound receptionist ("Nick's Tire & Auto
+ * Receptionist"). Verified 2026-09-18 against production: the inbound line
+ * +12164249249 answers with `150fe622`, and the dedicated outbound caller is
+ * the separately-named `0daaf7dc`. `afcad79e` is an orphaned older copy.
+ *
+ * The duplicate NAME is what makes it dangerous rather than merely untidy:
+ * every name-match fallback in this file could select it, and the operator's
+ * own notes record this confusion biting twice before. This list removes it
+ * from selection entirely — by id, so a later rename in VAPI cannot
+ * reintroduce it, and so the guard does not depend on the naming convention
+ * that failed in the first place.
+ *
+ * DELIBERATELY A CODE-SIDE UNHOOK, NOT A DELETION. The assistant still exists
+ * in VAPI and can be renamed or deleted there when convenient; nothing here
+ * destroys operator state. Removing an id from this list restores it.
+ */
+const RETIRED_ASSISTANT_IDS: readonly string[] = [
+  "afcad79e-ec33-4156-98fe-7eb325c1222a",
+];
+
+/** True when this id must not be dispatched to. Null/blank is not retired. */
+function isRetiredAssistant(id: string | null | undefined): boolean {
+  if (!id) return false;
+  return RETIRED_ASSISTANT_IDS.includes(id.trim());
+}
+
+/**
+ * The outbound follow-up assistant id, or null when it must not be used.
+ *
+ * Three call sites read `VAPI_FOLLOWUP_ASSISTANT_ID` directly and hand it
+ * straight to VAPI without checking that it still resolves. If that pin still
+ * names a retired assistant, those paths would place real outbound calls with
+ * it. This is the one chokepoint they now share, so a retired pin degrades to
+ * "no outbound assistant configured" — the cron skips, which is the safe
+ * direction for an unattended customer-facing rail.
+ */
+export function followUpAssistantIdOrNull(): string | null {
+  const pinned = (process.env.VAPI_FOLLOWUP_ASSISTANT_ID || "").trim();
+  if (!pinned) return null;
+  if (isRetiredAssistant(pinned)) {
+    log.warn(
+      "VAPI_FOLLOWUP_ASSISTANT_ID points at a RETIRED assistant — refusing to dispatch outbound. Repoint it at the dedicated follow-up caller.",
+      { pinned },
+    );
+    return null;
+  }
+  return pinned;
+}
+
 export function pickReceptionistAssistantId(
-  assistants: VapiAssistantLite[],
-): { id: string; reason: "env" | "name-match" | "name-exclude" | "fallback-first" } | null {
+  allAssistants: VapiAssistantLite[],
+): { id: string; reason: "env" | "name-match" | "name-match-ambiguous" | "name-exclude" | "fallback-first" } | null {
+  // Retired ids are removed BEFORE any rung runs, so no fallback can reach
+  // one. Filtering here rather than at each step means a future rung added
+  // below inherits the guard instead of having to remember it.
+  const assistants = allAssistants.filter((a) => !isRetiredAssistant(a.id));
   if (!assistants.length) return null;
 
   // 1. Env-pinned ID
   const pinned = process.env.VAPI_RECEPTIONIST_ASSISTANT_ID;
   if (pinned) {
-    const hit = assistants.find((a) => a.id === pinned);
-    if (hit) return { id: hit.id, reason: "env" };
-    log.warn("VAPI_RECEPTIONIST_ASSISTANT_ID set but no matching assistant found", { pinned });
+    if (isRetiredAssistant(pinned)) {
+      log.warn(
+        "VAPI_RECEPTIONIST_ASSISTANT_ID points at a RETIRED assistant — ignoring the pin and resolving by name.",
+        { pinned },
+      );
+    } else {
+      const hit = assistants.find((a) => a.id === pinned);
+      if (hit) return { id: hit.id, reason: "env" };
+      log.warn("VAPI_RECEPTIONIST_ASSISTANT_ID set but no matching assistant found", { pinned });
+    }
   }
 
-  // 2. Prefer name containing "receptionist"
-  const byName = assistants.find((a) => /receptionist/i.test(a.name || ""));
-  if (byName) return { id: byName.id, reason: "name-match" };
+  // 2. Prefer name containing "receptionist".
+  //
+  // AMBIGUITY IS ANNOUNCED, NOT SWALLOWED. Observed on the live panel
+  // 2026-09-18: the account carries TWO assistants both named "Nick's Tire &
+  // Auto Receptionist" (afcad79e… and 150fe622…), plus a separately-named
+  // "Nick's Tire Follow-Up Caller". With two matches, `find` returns whichever
+  // VAPI happened to list first — an order this code does not control and VAPI
+  // does not promise. That is a coin flip deciding which assistant an operator
+  // edit lands on, and it would resolve silently.
+  //
+  // The env pin (step 1) is the real answer and is currently set, so this path
+  // is a fallback. But a fallback that guesses without saying so is how the
+  // wave-113b defect happened in the first place: edits went to the wrong
+  // assistant while the inbound receptionist kept stale numbers, and nothing
+  // in the logs said which one had been chosen.
+  const named = assistants.filter((a) => /receptionist/i.test(a.name || ""));
+  if (named.length > 1) {
+    log.warn("Multiple assistants match /receptionist/ — picking by VAPI list order, which is not guaranteed. Pin VAPI_RECEPTIONIST_ASSISTANT_ID, or rename the duplicates in VAPI.", {
+      candidates: named.map((a) => ({ id: a.id, name: a.name || "(unnamed)" })),
+      picked: named[0].id,
+    });
+    return { id: named[0].id, reason: "name-match-ambiguous" };
+  }
+  if (named.length === 1) return { id: named[0].id, reason: "name-match" };
 
   // 3. Exclude obvious outbound/follow-up assistants
   const inbound = assistants.find((a) => !/follow.?up|outbound/i.test(a.name || ""));
@@ -120,12 +205,15 @@ export function pickReceptionistAssistantId(
 // Returns null if there is only one assistant configured (no follow-up
 // in the org). The admin treats null as "no follow-up card to render".
 export function pickFollowUpAssistantId(
-  assistants: VapiAssistantLite[],
+  allAssistants: VapiAssistantLite[],
 ): { id: string; reason: "env" | "name-match" } | null {
+  // Same pre-filter as the receptionist picker, for the same reason: a retired
+  // id must be unreachable by every rung, including ones added later.
+  const assistants = allAssistants.filter((a) => !isRetiredAssistant(a.id));
   if (!assistants.length) return null;
 
   // 1. Env-pinned ID
-  const pinned = process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+  const pinned = followUpAssistantIdOrNull();
   if (pinned) {
     const hit = assistants.find((a) => a.id === pinned);
     if (hit) return { id: hit.id, reason: "env" };
@@ -186,8 +274,8 @@ NEVER SAY (kill-list — sounds fake or loses the sale):
    - Used tires start at sixty dollars installed — that includes mounting, computer spin balancing, new valve stems, an alignment check, and a safety check.
    - Conventional or synthetic-blend oil change: forty-nine dollars with coupon code OIL2999 · Full synthetic: eighty dollars
    Anything else (brakes, bearings, batteries, transmission, etc.) → "free check, written quote, you don't pay until you say yes." Pattern for any "how much?" on a non-anchor: acknowledge ("we do that every day") → pivot ("hard to say over the phone, depends what we see") → de-risk ("free check, written quote before any wrench moves, no strings") → urgency (URGENCY LIBRARY if symptom-based) → close (first-come first-served, earlier-better, drop-off option) → capture (name + phone). Examples: "Brakes are different on every car — pads vs rotors, calipers. Free check, written quote, your call." / "Batteries depend on the group size — we test free, you only pay if you need one."
-   REPEATED BALLPARK DEMAND — if they push for a number a SECOND time, do NOT repeat the same rebuttal (saying it twice reads as stonewalling and loses the call). Switch moves, in order: (1) offer the human: "a person on the floor can give you a straighter read — want me to get you over?" → Critical Rule #6 (OPEN → transferCall / CLOSED → escalate). (2) If they won't hold: capture — "give me your name and number, the shop will hear what it's doing and call you back with a real answer." Never let a price-focused caller hang up without an offered transfer or a callback capture; still never invent a number.
-   OIL: give the anchor, then "pull up, we'll do it while you wait, or drop it off and we'll text when it's ready." then "First-come first-served. Mention the code OIL2999 when you get here." Which oil? "Depends what your car takes — most newer cars want synthetic; we'll check the cap when you pull up." Never state how long an oil change takes; say it's done while you wait or as a drop-off.
+   REPEATED BALLPARK DEMAND — if they push for a number a SECOND time, do NOT repeat the same rebuttal (saying it twice reads as stonewalling and loses the call). Switch moves, in order: (1) offer the human: "a person on the floor can give you a straighter read — want me to get you over?" → Critical Rule #6 (OPEN → transferCall / CLOSED → escalate). (2) If they won't hold: capture name + number and call escalate({ name, phone, reason: "price question — <what they asked>", urgency: "medium" }), then say "the shop will hear what it's doing and call you back with a real answer." Never let a price-focused caller hang up without an offered transfer or a callback capture; still never invent a number.
+   OIL: give the anchor, then "pull up, we'll do it while you wait, or drop it off if you can't wait." then "First-come first-served. Mention the code OIL2999 when you get here." Which oil? "Depends what your car takes — most newer cars want synthetic; we'll check the cap when you pull up." Never state how long an oil change takes; say it's done while you wait or as a drop-off.
 2. NEVER promise a specific person/tech ("Nick will look at it" — could be wrong).
 3. Walk-ins are ACCEPTED any open day, first-come first-served — no appointment, no schedule to check. Be confidently inviting: "pull up, we'll get you taken care of," and offer drop-off for anything that may take a while. Sell the visit hard; earlier in the day genuinely helps. But keep four claims separate — you may promise the first, never the other three: (a) we'll TAKE your car today; (b) you'll be seen immediately; (c) the work will be FINISHED today; (d) the shop has room right now. There is no live capacity feed, so (b)(c)(d) are not yours to promise. If asked how busy it is or how long: "it moves with what's already in the shop — are you planning to wait or drop it off?" That answer is true, keeps the visit alive, and never sets up a caller to be disappointed at the counter.
 4. NEVER make up stock — you don't see the rack. But we carry most popular passenger and light-truck sizes in stock at all times, so answer confidently: "we keep most standard sizes in stock — pull up and we'll get you taken care of." Only hedge on truly uncommon sizes (24"+ rims, run-flats, oversized). Never claim you personally checked live inventory.
@@ -195,21 +283,21 @@ NEVER SAY (kill-list — sounds fake or loses the sale):
 6. TRANSFER on the caller's FIRST ask for a human (manager / owner / Nick / "real person" / "representative" / "agent" / "customer service" / "just transfer me" / "connect me" — or ANY person asked for BY NAME: "is Mark there?", "can I talk to Jimmy?", "lemme speak to the guy who did my brakes"). You do NOT know the crew roster, so never decide a first name "isn't staff" — a name ask IS a human ask: treat it exactly like "get me a person" (OPEN → transfer, CLOSED → escalate). Do NOT ask "what's it about?", do NOT pitch, do NOT handle it yourself first — just transfer. (Callers who don't ask for a person stay in the normal flows.) Also transfer when OPEN for: vehicle already at the shop, caller angry from the first sentence, needs manager approval, or topic outside your tools (complaint, billing, in-progress job).
 
    HOURS GATE — a live transfer only works when someone's at the counter: Mon–Sat 8AM–6PM, Sun 9AM–4PM (Cleveland). Current Cleveland time: {{"now" | date: "%A %I:%M %p", "America/New_York"}}.
-   · OPEN → transferCall. Don't take a message, don't promise a callback — just transfer.
-   · CLOSED → do NOT transferCall (nobody picks up). Get name + phone + need, call escalate({ name, phone, reason, urgency }), say "we're closed now, but I've got you down — someone calls you back first thing when we open." (After-hours is the ONLY time you take a message instead of transferring.)
+   · OPEN → transferCall. Don't take a message, don't promise a callback — just transfer. (If the transfer doesn't connect, the caller comes back to you: run CALLBACK CAPTURE.)
+   · CLOSED → do NOT transferCall (nobody picks up). Get name + phone + need, call escalate({ name, phone, reason, urgency }), say "we're closed now, but you're on the shop's callback list — someone will call you back when we're open." (After-hours is the ONLY time you take a message instead of transferring; CALLBACK CAPTURE is for a transfer that didn't connect or a caller who won't hold.)
 
-   PHONE-CAPTURE-BEFORE-TRANSFER (mandatory): before transferCall, ask once "best number in case we get disconnected?" If they refuse / "just transfer me" — transfer anyway, don't fight it twice. If they give it, fire tireInquiry (or bookSlot for non-tire) IN PARALLEL with transferCall so the human gets context + a callback number. Too many transfers die empty — don't add to them.
+   PHONE-CAPTURE-BEFORE-TRANSFER (mandatory): before transferCall, ask once "best number in case we get disconnected?" If they refuse / "just transfer me" — transfer anyway, don't fight it twice. If they give it, fire tireInquiry (or bookSlot for non-tire) IN PARALLEL with transferCall so the need and a callback number are on record if the line drops. The person who picks up hears only a fixed "customer holding" intro — none of what the caller told you.
 
 # YOUR TOOLS (call for real data — don't guess)
 
 · tireSizeFromVehicle({ year, make, model }) — common stock sizes for a vehicle. Use when the caller doesn't know their size or gives year/make/model.
-· tireInquiry({ name, phone, tireSize, vehicle, newOrUsed, installationNeeded, notes }) — MANDATORY once you have a tire size AND phone (even if walking in today). Phone captured = lead saved; without it the shop has no record.
+· tireInquiry({ name, phone, tireSize, vehicle, newOrUsed, installationNeeded, notes }) — MANDATORY once you have a tire size AND phone (even if walking in today). It tags the call with the size; it does NOT alert the counter — never tell the caller the shop was sent their info.
 · checkTireStock({ tireSize }) — ONLY when a caller refuses to drive over without confirmed stock. You CANNOT see the rack: never claim a tire is in stock and never promise a callback. This hands off to a person who physically checks. Ordinary tire calls use tireInquiry.
 · bookSlot({ name, phone, service, vehicle, preferredDay }) — MANDATORY when any non-tire caller commits to coming in, wants a drop-off, or a tow is incoming. FCFS, so you're logging intent, not a time slot. preferredDay defaults to "today".
 · WAIT TIMES / "how busy are you?" — you do NOT know how busy the shop is and must NEVER estimate a wait, a number of minutes, or say "slammed"/"busy"/"quiet". A person on the floor answers this: transferCall (OPEN) or escalate (CLOSED). You may still say Nick's is first-come, first-served.
 · transferCall — live-transfer to a human. Per Critical Rule #6 (first ask, phone-capture first, OPEN only). NOT the default for tire-availability — answer confidently + tireInquiry instead.
-· escalate({ name, phone, reason, urgency }) — callback to the shop queue. ONLY when CLOSED and the caller wanted a human. Never during open hours (transfer instead), never for tire-stock or bookings.
-· sendConfirmationSms({ phone, summary, mapLink }) — recap text before goodbye if you got a phone. Returns { sent, degraded, verbalRecap }; degraded:true → read verbalRecap aloud, skip "I'll text you".
+· escalate({ name, phone, reason, urgency }) — callback to the shop queue AND the promise ledger: the ONLY way a callback you promise is tracked. Use when CLOSED and the caller wanted a human, or in CALLBACK CAPTURE (a transfer didn't connect / the caller won't hold). When OPEN and they'll hold, transfer instead. Not for ordinary tire questions or bookings. Never tell a caller a callback is coming without it.
+· sendConfirmationSms({ phone, summary }) — recap text before goodbye if you got a phone. Returns { sent, degraded, verbalRecap }; degraded:true → read verbalRecap aloud, skip "I'll text you".
 · shopInfo() — hours, address, financing, languages. For "what time do you close" / "where are you".
 
 # CONVERSATION FLOWS
@@ -224,9 +312,9 @@ Branch NEW vs USED (unsure / "whichever's cheaper" → default used, mention bot
   · Beat 1 (STOCK): "We keep most common sizes including {size}, a set at a time; if not, usually same/next-day."
   · Beat 2 (PRICE PIVOT): "New-tire pricing depends on the brand — easiest is swing by, we'll show you what we've got and exact pricing."
   · Beat 3 (CAPTURE): "FCFS — come by today? What's your name and best number?"
-- ODD/uncommon (24"+ rims, run-flats, oversized): "Less common for us — let me have the manager confirm stock. Name and best number?" → tireInquiry → transferCall only if they want to talk now (OPEN).
+- ODD/uncommon (24"+ rims, run-flats, oversized): "Less common for us — let me get you someone who can look at the rack for that one." → RACK-CHECK below (size + phone first, via tireInquiry).
 - SIZE UNKNOWN or VEHICLE GARBLED (vehicle not in the size list, or the caller contradicts themselves — a 2008 Toyota Silverado is not a real truck): NEVER send them off to read a sidewall or door-jamb sticker and call back. That is homework, and the tire is already on their car — we read it in the lot in ten seconds, free. Ask the ONE disambiguating question with the doorway attached in the SAME breath, never alone: "Chevy Silverado or Toyota? Either way, pull up — we'll read the size right off the tire." NEVER let a clarifying question be your whole turn: measured 2026-08-07, three question-only turns in a row is exactly how this call died.
-Close = capture size + new/used + name + phone via tireInquiry, then offer come-in-today ("wait while we work, or drop it off — holds your place") OR a callback to confirm stock ("I'll have the shop check the rack and call you back") → tireInquiry + sendConfirmationSms (address + hours). Don't transfer by default — answer confidently first. NO EMPTY TIRE TRANSFERS: if you must transfer a tire call, grab size + new/used + quantity + phone first (via tireInquiry).
+Close = capture size + new/used + name + phone via tireInquiry, then offer come-in-today ("wait while we work, or drop it off — holds your place") → tireInquiry + sendConfirmationSms (address + hours). If they won't come without confirmed stock, that's RACK-CHECK below: hand them to a person, never a promise to check and call back. Don't transfer by default — answer confidently first. NO EMPTY TIRE TRANSFERS: if you must transfer a tire call, grab size + new/used + quantity + phone first and record them with tireInquiry — if the transfer doesn't connect, they go in escalate's reason (CALLBACK CAPTURE).
 
 ## FLOW 2 — REPAIR / CAR PROBLEM (common)
 Get them IN; don't quote (Rule 1). Acknowledge ("we do that every day") → probe 1-2 interest-building questions (how long? what's it sound like? when?) → urgency → sell the free check. Deliver the close in 3 beats (≤25 spoken words each, pause between):
@@ -259,14 +347,14 @@ Whether we sell or order a bare part is the counter's call, NOT yours — never 
 Get name + vehicle (year/make/model + color) + reason + who they spoke with → "I'll get you to the shop to check status" → transferCall.
 
 ## BROKEN-DOWN / TOWED (highest-value call — they pay for the tow either way; make it come HERE)
-Triggers: won't start, stalled or died while driving, accident, engine seized, transmission slipped, "not sure what to do", and ANYTHING in # DO NOT DRIVE IT. Pitch in 3 beats (≤25 spoken words each, pause between): · Beat 1 (REFRAME THE SUNK COST): "Wherever it ends up you're paying for the tow — might as well send it here." · Beat 2 (DE-RISK): "Free look, free written quote, no strings — you'll know what's wrong and what it costs before any wrench moves." · Beat 3 (TRUST): "We've been on Euclid for years." Capture name + phone + where the car is now + year/make/model + what happened + tow company (or offer a referral → manager has the contacts). Confirm: "car's at {location}, sending it to 17625 Euclid Ave — soon as it lands we'll look and call you with the estimate." → bookSlot({ service: "tow incoming — diagnose", preferredDay: "today" }) → sendConfirmationSms → transferCall (manager wants to know now; if it fails, bookSlot already saved the lead). Waffling → "meter's running on a tow either way, any other shop charges to even look, we don't — send it, get the estimate, then decide." Don't let them off the line without name + phone + vehicle.
+Triggers: won't start, stalled or died while driving, accident, engine seized, transmission slipped, "not sure what to do", and ANYTHING in # DO NOT DRIVE IT. Pitch in 3 beats (≤25 spoken words each, pause between): · Beat 1 (REFRAME THE SUNK COST): "Wherever it ends up you're paying for the tow — might as well send it here." · Beat 2 (DE-RISK): "Free look, free written quote, no strings — you'll know what's wrong and what it costs before any wrench moves." · Beat 3 (TRUST): "We've been on Euclid for years." Capture name + phone + where the car is now + year/make/model + what happened + tow company (or offer a referral → manager has the contacts). Confirm: "car's at {location}, sending it to 17625 Euclid Ave — once it's here, free look and a written quote before any wrench moves." → bookSlot({ service: "tow incoming — diagnose", preferredDay: "today" }) → sendConfirmationSms → transferCall (manager wants to know now; if it fails, bookSlot already saved the lead). Waffling → "meter's running on a tow either way, any other shop charges to even look, we don't — send it, get the estimate, then decide." Don't let them off the line without name + phone + vehicle.
 
 ## RACK-CHECK ("won't come if you don't have the tire") — hand to a person
-You CANNOT see the rack. Never say a tire is or isn't in stock, and NEVER promise a callback or a timeframe — nobody is tracking that promise, so it gets broken.
-"Fair enough — let me get you someone who can walk out and physically look at the rack for you." → transferCall (OPEN) / escalate (CLOSED). Grab the size first if they haven't given it, so the person picking up isn't starting from zero.
+You CANNOT see the rack. Never say a tire is or isn't in stock, and NEVER promise a timeframe or a callback of your own — only escalate records one, so any other callback promise gets broken.
+"Fair enough — let me get you someone who can walk out and physically look at the rack for you." → transferCall (OPEN). CLOSED, won't hold, or the transfer doesn't connect → CALLBACK CAPTURE with reason "rack check — <size>" (escalate). Grab the size first if they haven't given it, so the person picking up isn't starting from zero.
 
-## CALLBACK CAPTURE (transfer fails / caller unsure)
-Capture name + phone + vehicle + issue + urgency → "I'll send this to the shop so someone can follow up" → sendConfirmationSms.
+## CALLBACK CAPTURE (transfer didn't connect / caller won't hold / caller unsure)
+Capture name + phone + vehicle + issue + urgency → escalate({ name, phone, reason, urgency }) → "you're on the shop's callback list, someone will call you back" → sendConfirmationSms. This is the one time escalate is right while OPEN: the transfer rang out and the fallback handed the caller back to you, or they won't hold. A callback you promise without escalate is a promise nobody can see.
 
 ## WALK-IN / FCFS
 No schedule, no time slots — customers just come. Future-day asks → "first-come first-served, pull up any open day, {hours}, no appointment." Two choices once here: WAIT (lobby) or DROP OFF (holds their place, run errands, we text when done — the better call for anything that may take a while). Mention both; never assume drop-off.
@@ -358,7 +446,7 @@ Everything's good → Great. Thank them. Then the referral ask (once, naturally)
 
 Something's wrong → Don't get defensive. "Got it — tell me what's going on, I'll write it down and we'll have someone call you back today to make it right." Get the issue (what, when it started, same job or different). Call escalate({ name: "{{name}}", phone: "<their number>", reason: "Post-repair complaint: <issue>", urgency: "high" }). If they're not upset, ask the referral. If they're mad, skip it — just say "we got it logged, we'll be in touch. Sorry for the trouble. Drive safe."
 
-Needs new work → "Yeah we can take care of that. Pull up any open day, first-come first-served. Earlier the better. Drop it off if you can't wait — we text you when it's ready." Call sendConfirmationSms with their phone + summary. Then the referral ask.
+Needs new work → "Yeah we can take care of that. Pull up any open day, first-come first-served. Earlier the better. Drop it off if you can't wait." Call sendConfirmationSms with their phone + summary. Then the referral ask.
 
 Busy / can't talk / curt → Cut straight to it: "No worries — one quick thing, if you got friends or family who need work, send 'em our way. Appreciate you. Drive safe." End.
 
@@ -372,7 +460,7 @@ Can't hear you / bad connection / driving: "No worries, I'll let you go. Call us
 - sendConfirmationSms({ phone, summary }) — text address + recap
 
 # IF ASKED "ARE YOU AI?" / "IS THIS A RECORDING?"
-"Yeah, I'm Nick's AI — just checking in for him. Want me to have him call you back instead?" If yes → escalate + sign off. If no → keep going. Don't volunteer it. Don't lie if asked.
+"Yeah, I'm Nick's AI — just checking in for the shop. Want me to have someone from the shop call you back instead?" If yes → escalate + sign off. If no → keep going. Don't volunteer it. Don't lie if asked.
 
 # NEVER SAY (kill-list)
 - "I appreciate your business" / "Thank you for choosing Nick's"
@@ -400,7 +488,7 @@ const END_CALL_PHRASES = [
 ];
 
 // Voicemail message — only fires if voicemail detection trips
-const VOICEMAIL_MESSAGE = "Hey, this is Nick's Tire and Auto. We didn't reach you — leave us your name and tire size or what's going on with the car, we'll call you back. (216) 862-0005.";
+const VOICEMAIL_MESSAGE = "Hey, this is Nick's Tire and Auto — sorry we missed you. Call or text us at (216) 862-0005 whenever works.";
 
 // ─── TOOL DEFINITIONS (exposed to Vapi) ──────────────────
 
@@ -526,7 +614,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
     type: "function",
     function: {
       name: "tireInquiry",
-      description: "Capture a tire inquiry. **CALL THIS EVERY TIME a caller gives you a tire size AND a phone number — even if they say they're walking in today.** Phone captured = lead saved. Without this call, the shop has no record of the conversation. If the caller asked for stock confirmation before driving over, note the size here and hand them to a person — do NOT promise a callback.",
+      description: "Capture a tire inquiry. **CALL THIS EVERY TIME a caller gives you a tire size AND a phone number — even if they say they're walking in today.** It tags this call as a tire inquiry with the size; it does NOT alert the counter, so never tell the caller the shop has been sent their info. If the caller asked for stock confirmation before driving over, note the size here and hand them to a person — do NOT promise a callback.",
       parameters: {
         type: "object",
         properties: {
@@ -536,7 +624,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
           vehicle: { type: "string", description: "Year + make + model if known." },
           newOrUsed: { type: "string", enum: ["new", "used", "either"], description: "What they want. Default 'either'." },
           installationNeeded: { type: "boolean", description: "True if they want install (most common). False if they bring just the tire." },
-          notes: { type: "string", description: "Free-form flag. Use 'PHYSICAL RACK CHECK REQUESTED — promised 15 min callback' when caller wants stock confirmation BEFORE driving over." },
+          notes: { type: "string", description: "Free-form context (e.g. 'wants install today'). It stays with this call's record and is NOT shown to the counter. Never promise a callback or a timeframe here — a caller who wants stock confirmed before driving over goes to a person: RACK-CHECK (transferCall while OPEN, otherwise escalate)." },
         },
         required: ["name", "phone"],
       },
@@ -606,7 +694,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
     type: "function",
     function: {
       name: "escalate",
-      description: "Capture a human callback to the shop queue (front desk sees it + calls back). INBOUND: use ONLY when the shop is CLOSED right now (see Rule 6 HOURS GATE) and the caller wants a human — during open hours, transferCall instead; never escalate a caller you could transfer. NEVER use for tire-stock questions (use checkTireStock) or ordinary bookings (use bookSlot).",
+      description: "Put a callback in front of a person: writes the shop's callback queue AND the promise ledger, so it is the ONLY way a callback you promise is actually tracked. INBOUND: use it (a) when the shop is CLOSED right now (Rule 6 HOURS GATE) and the caller wants a human, or (b) in CALLBACK CAPTURE — a transfer didn't connect (the fallback hands the caller back to you) or the caller won't hold. While OPEN, transferCall a caller who will hold; never escalate instead of a transfer the caller accepts. Not the first move on a tire-stock question (checkTireStock says when to escalate) and not for ordinary bookings (use bookSlot).",
       parameters: {
         type: "object",
         properties: {
@@ -628,8 +716,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
         type: "object",
         properties: {
           phone: { type: "string", description: "Phone number to text." },
-          summary: { type: "string", description: "1-2 sentence recap of what was agreed." },
-          mapLink: { type: "string", description: "Optional Google Maps link." },
+          summary: { type: "string", description: "1-2 sentence recap of what was agreed. No links: the text adds the shop's own." },
         },
         required: ["phone", "summary"],
       },
@@ -1090,6 +1177,185 @@ export async function resolveVapiPhoneNumberId(): Promise<string | null> {
   }
 }
 
+/**
+ * DOES THE NUMBER CALLERS DIAL ROUTE TO THE ASSISTANT WE EDIT?
+ *
+ * Every resolver in this file answers "which assistant do we WRITE to".
+ * None answered "which assistant ANSWERS the phone" — so a push could be
+ * perfectly deterministic and still land on something no caller ever reaches.
+ * That gap was recorded as a blocker on 2026-09-18 and this closes it.
+ *
+ * The provider already knew: VAPI's phone-number object carries `assistantId`,
+ * and `resolveVapiPhoneNumberId` has been fetching that exact payload since
+ * wave-145 while parsing only `{id, number}` — the answer was in the response
+ * body the whole time and was being discarded on the way past.
+ *
+ * THREE STATES, NEVER TWO. A failed read is `unknown`, never `match` — an
+ * unverified binding must not render as a verified one. `unknown` also covers
+ * the legitimate cases where the question has no yes/no answer: the number may
+ * route to a squad or a live `assistantRequest` server URL rather than a static
+ * assistant, in which case there is no id to compare and saying "mismatch"
+ * would be a fabricated alarm.
+ *
+ * Read-only. No write, no push, no side effect.
+ */
+export async function getAssistantRoutingTruth(): Promise<{
+  state: "match" | "mismatch" | "unknown";
+  /** Plain sentence for the operator. Never blank. */
+  detail: string;
+  /** The assistant the inbound line actually routes to, when VAPI states one. */
+  answeringAssistantId: string | null;
+  /** The assistant "Push Latest Config" writes to. */
+  editTargetAssistantId: string | null;
+  number: string;
+  /**
+   * Health of the OUTBOUND pin, reported alongside the inbound one because an
+   * operator asking "is my config wired correctly" means both rails.
+   *
+   * Reports the assistant ID, never the env var itself: an assistant id is
+   * already displayed on this page and is not a secret, whereas dumping the
+   * environment to answer one question is not a trade worth making.
+   *
+   *  · healthy  - a pin is set and names a live assistant
+   *  · retired  - the pin names a retired assistant, so outbound SKIPS
+   *  · unset    - no pin, so outbound was never configured
+   */
+  followUp: {
+    state: "healthy" | "retired" | "unset";
+    assistantId: string | null;
+    detail: string;
+  };
+}> {
+  const number = DEFAULT_VAPI_OUTBOUND_NUMBER;
+  const editTargetAssistantId = process.env.VAPI_RECEPTIONIST_ASSISTANT_ID ?? null;
+
+  // Computed ONCE and returned on every path, including the failure paths: the
+  // outbound pin is knowable from this process regardless of whether the VAPI
+  // phone-number read succeeds, so a failed inbound read must not blank it.
+  const rawFollowUpPin = (process.env.VAPI_FOLLOWUP_ASSISTANT_ID || "").trim();
+  const resolvedFollowUp = followUpAssistantIdOrNull();
+  const followUp: { state: "healthy" | "retired" | "unset"; assistantId: string | null; detail: string } =
+    !rawFollowUpPin
+      ? {
+          state: "unset",
+          assistantId: null,
+          detail: "No outbound assistant is pinned, so the follow-up rail is not configured.",
+        }
+      : resolvedFollowUp
+        ? {
+            state: "healthy",
+            assistantId: resolvedFollowUp,
+            detail: `Outbound follow-up is pinned to ${resolvedFollowUp}.`,
+          }
+        : {
+            state: "retired",
+            assistantId: rawFollowUpPin,
+            detail: `Outbound follow-up is pinned to ${rawFollowUpPin}, which is RETIRED — the rail is skipping rather than dialling. Repoint it at the dedicated follow-up caller.`,
+          };
+
+  if (!process.env.VAPI_API_KEY) {
+    return {
+      state: "unknown",
+      detail: "No VAPI API key on this server, so the routing could not be read. This is not a clean bill of health.",
+      answeringAssistantId: null,
+      editTargetAssistantId,
+      number,
+      followUp,
+    };
+  }
+
+  try {
+    const res = await vapiFetch("/phone-number");
+    if (!res.ok) {
+      return {
+        state: "unknown",
+        detail: `VAPI returned ${res.status} for the phone-number list, so routing is unverified — not confirmed wrong, just unread.`,
+        answeringAssistantId: null,
+        editTargetAssistantId,
+        number,
+        followUp,
+      };
+    }
+    const numbers = (await res.json()) as Array<{ id: string; number: string; assistantId?: string | null }>;
+    if (!Array.isArray(numbers)) {
+      return {
+        state: "unknown",
+        detail: "VAPI returned an unexpected shape for the phone-number list; routing is unverified.",
+        answeringAssistantId: null,
+        editTargetAssistantId,
+        number,
+        followUp,
+      };
+    }
+
+    const line = numbers.find((n) => n.number === number);
+    if (!line) {
+      return {
+        state: "unknown",
+        detail: `${number} is not in this VAPI account's phone-number list, so nothing here describes the line callers dial.`,
+        answeringAssistantId: null,
+        editTargetAssistantId,
+        number,
+        followUp,
+      };
+    }
+
+    const answeringAssistantId = line.assistantId ?? null;
+    if (!answeringAssistantId) {
+      // Legitimate and common: squads and assistant-request server URLs both
+      // leave this null. Claiming a mismatch here would invent an alarm.
+      return {
+        state: "unknown",
+        detail: `${number} has no static assistant bound to it — it may route via a squad or a live assistant-request URL, so there is no id to compare.`,
+        answeringAssistantId: null,
+        editTargetAssistantId,
+        number,
+        followUp,
+      };
+    }
+
+    if (!editTargetAssistantId) {
+      return {
+        state: "unknown",
+        detail: `${number} answers with assistant ${answeringAssistantId}, but VAPI_RECEPTIONIST_ASSISTANT_ID is unset, so there is no pinned edit target to compare it against.`,
+        answeringAssistantId,
+        editTargetAssistantId,
+        number,
+        followUp,
+      };
+    }
+
+    if (answeringAssistantId === editTargetAssistantId) {
+      return {
+        state: "match",
+        detail: `${number} answers with the same assistant that Push Latest Config writes to (${answeringAssistantId}).`,
+        answeringAssistantId,
+        editTargetAssistantId,
+        number,
+        followUp,
+      };
+    }
+
+    return {
+      state: "mismatch",
+      detail: `${number} answers with assistant ${answeringAssistantId}, but Push Latest Config writes to ${editTargetAssistantId}. Config pushes are not reaching the line callers dial.`,
+      answeringAssistantId,
+      editTargetAssistantId,
+      number,
+      followUp,
+    };
+  } catch (error) {
+    return {
+      state: "unknown",
+      detail: `Could not reach VAPI to read the routing (${error instanceof Error ? error.message : String(error)}). Unverified, not verified-wrong.`,
+      answeringAssistantId: null,
+      editTargetAssistantId,
+      number,
+      followUp,
+    };
+  }
+}
+
 // ─── PUBLIC API ──────────────────────────────────────────
 
 export async function getVapiStatus(): Promise<{
@@ -1155,18 +1421,6 @@ export async function getVapiStatus(): Promise<{
  */
 function buildFollowUpAssistantConfig(serverUrl?: string): VapiAssistantConfig {
   // Subset of tools the follow-up assistant needs
-  const followUpTools = VAPI_TOOLS.filter((t) => {
-    const tool = t as unknown as Record<string, unknown>;
-    // wave-140 · NO transferCall on the OUTBOUND follow-up — it's a trust
-    // call WE placed; forwarding it to the shop mid-call makes no sense and
-    // the prompt never used it. Complaints / "have Nick call me" go to the
-    // callback queue via escalate (re-added to VAPI_TOOLS this wave, so the
-    // follow-up prompt's escalate() calls — dead since 181.35 — work again).
-    const fn = tool.function as Record<string, unknown> | undefined;
-    const name = fn?.name as string | undefined;
-    return name === "escalate" || name === "sendConfirmationSms";
-  });
-
   return {
     name: "Nick's Tire Follow-Up Caller",
     firstMessage: FOLLOW_UP_FIRST_MESSAGE,
@@ -1192,15 +1446,7 @@ function buildFollowUpAssistantConfig(serverUrl?: string): VapiAssistantConfig {
       optimizeStreamingLatency: 1, // Quality over latency (was 3)
       enableSsmlParsing: true,
     },
-    model: {
-      provider: "openai",
-      model: "gpt-4o",
-      messages: [{ role: "system", content: FOLLOW_UP_SYSTEM_PROMPT }],
-      tools: followUpTools,
-      temperature: 0.5, // Slightly higher = more natural phrasing variance
-      maxTokens: 200,
-      emotionRecognitionEnabled: true,
-    },
+    model: followUpModelBlock(),
     serverUrl,
     // wave-181.60-followup (audit · 2026-05-18 PM) · the inbound
     // assistant was fixed in wave-181.50 to set BOTH `serverUrl` (legacy)
@@ -1317,12 +1563,17 @@ export async function updateFollowUpAssistant(assistantId: string, serverUrl?: s
       method: "PATCH",
       body: JSON.stringify(config),
     });
+    // Logged like updateAssistant's push, so a tap on PUSH FOLLOW-UP ASSISTANT
+    // can be verified from the Railway logs and not only from the toast.
     if (!res.ok) {
       const text = await res.text();
+      log.error("Vapi follow-up assistant update failed", { id: assistantId, status: res.status, body: text.slice(0, 500) });
       return { success: false, error: `${res.status}: ${text.slice(0, 200)}` };
     }
+    log.info("Updated Vapi follow-up assistant", { id: assistantId });
     return { success: true };
   } catch (err) {
+    log.error("Vapi follow-up assistant update threw", { id: assistantId, err: err instanceof Error ? err.message : String(err) });
     return { success: false, error: err instanceof Error ? err.message : "Update failed" };
   }
 }
@@ -1425,19 +1676,29 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
     // wave-141 · pre-fetch the live assistant + carry its dashboard-managed
     // transferCall destination into the config, so this re-push updates the
     // prompt + tool list WITHOUT resetting the operator's transfer number.
-    // Best-effort: if the pre-fetch fails, fall through with the code default
-    // rather than block a legitimate prompt/tool update.
+    //
+    // FAIL CLOSED (2026-09-23). This read used to be best-effort: a failed or
+    // non-OK pre-fetch fell through and PATCHed the code defaults — the
+    // placeholder shop landline and the legacy warm-transfer-say-message plan —
+    // silently re-routing every transfer away from the manager's cell and
+    // dropping the warm-transfer-experimental fallbackPlan (applied 2026-09-21,
+    // docs/runbooks/vapi-warm-transfer-fallback.md) that returns an unanswered
+    // caller to the assistant. A refused push the operator can retry is the
+    // cheaper failure. Pinned by server/vapi.updateAssistant.failClosed.test.ts.
+    let preRes: Response;
     try {
-      const preRes = await vapiFetch(`/assistant/${assistantId}`);
-      if (preRes.ok) {
-        const preLive = (await preRes.json()) as { model?: { tools?: Array<Record<string, unknown>> } };
-        preserveLiveTransferDestinations(config, preLive.model?.tools ?? []);
-      } else {
-        log.warn("Vapi updateAssistant · transfer-preserve pre-fetch non-OK", { status: preRes.status });
-      }
+      preRes = await vapiFetch(`/assistant/${assistantId}`);
     } catch (preErr) {
-      log.warn("Vapi updateAssistant · transfer-preserve skipped", { error: preErr instanceof Error ? preErr.message : String(preErr) });
+      const reason = preErr instanceof Error ? preErr.message : String(preErr);
+      log.warn("Vapi updateAssistant · live read failed — push refused", { error: reason });
+      return { success: false, error: `Could not read the live assistant (${reason.slice(0, 120)}); push refused so the transfer number and plan are not reset to code defaults. Retry.` };
     }
+    if (!preRes.ok) {
+      log.warn("Vapi updateAssistant · live read non-OK — push refused", { status: preRes.status });
+      return { success: false, error: `Could not read the live assistant (HTTP ${preRes.status}); push refused so the transfer number and plan are not reset to code defaults. Retry.` };
+    }
+    const preLive = (await preRes.json()) as { model?: { tools?: Array<Record<string, unknown>> } };
+    preserveLiveTransferDestinations(config, preLive.model?.tools ?? []);
 
     const res = await vapiFetch(`/assistant/${assistantId}`, {
       method: "PATCH",
@@ -1496,29 +1757,82 @@ export interface VapiPlaceCallParams {
   voicemailMessage?: string;
 }
 
+/**
+ * The follow-up caller's tool set — escalate + sendConfirmationSms, and
+ * deliberately NO transferCall: it is a trust call WE placed, so forwarding
+ * it to the shop mid-call makes no sense and the prompt never used it
+ * (wave-140). Complaints / "have Nick call me" go to the callback queue via
+ * escalate.
+ */
+function followUpToolSet(): VapiToolDef[] {
+  return VAPI_TOOLS.filter((t) => {
+    const tool = t as unknown as Record<string, unknown>;
+    const fn = tool.function as Record<string, unknown> | undefined;
+    const name = fn?.name as string | undefined;
+    return name === "escalate" || name === "sendConfirmationSms";
+  });
+}
+
+/**
+ * The follow-up caller's LLM block, in ONE place: the assistant definition
+ * and every call-time prompt override are built from it, so an override can
+ * never be a PARTIAL model again.
+ *
+ * WHY THAT MATTERS. `assistantOverrides.model` is a oneOf over Vapi's model
+ * DTOs (OpenAIModel, AnthropicModel, …), each of which REQUIRES `provider`
+ * and `model`. `{ messages }` alone is rejected before the call exists:
+ *   400 "assistantOverrides.model.provider must be one of the following
+ *        values: openai, azure-openai, together-ai, anyscale, openrouter, …"
+ * That is what every voice-recovery dial received from 2026-06-18 to
+ * 2026-09-22 — 110 of 110, read from the Railway deploy log — while the cron
+ * recorded each run as completed. Mirroring the assistant's own block also
+ * makes the outcome independent of how Vapi merges overrides: the tools,
+ * temperature and token cap are exactly what the follow-up caller runs with.
+ */
+function followUpModelBlock(systemPrompt: string = FOLLOW_UP_SYSTEM_PROMPT): VapiAssistantConfig["model"] {
+  return {
+    provider: "openai",
+    model: "gpt-4o",
+    messages: [{ role: "system", content: systemPrompt }],
+    tools: followUpToolSet(),
+    temperature: 0.5, // Slightly higher = more natural phrasing variance
+    maxTokens: 200,
+    emotionRecognitionEnabled: true,
+  };
+}
+
 export interface VapiPlaceCallResult {
   success: boolean;
   callId?: string;
   error?: string;
+  /**
+   * Why it failed, for a caller that must decide between "this lead" and
+   * "this run": `customer` is our own precondition on the number (skip the
+   * lead); `config` / `provider` / `network` never reached a customer-
+   * specific decision, so the same fault will hit the next lead too.
+   */
+  errorKind?: "config" | "customer" | "provider" | "network";
 }
 
 export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promise<VapiPlaceCallResult> {
   if (!process.env.VAPI_API_KEY) {
-    return { success: false, error: "VAPI_API_KEY not configured" };
+    return { success: false, error: "VAPI_API_KEY not configured", errorKind: "config" };
   }
   const phoneNumberId = await resolveVapiPhoneNumberId();
   if (!phoneNumberId) {
-    return { success: false, error: "No VAPI outbound number — set VAPI_PHONE_NUMBER_ID or register +12164249249 in VAPI" };
+    return { success: false, error: "No VAPI outbound number — set VAPI_PHONE_NUMBER_ID or register +12164249249 in VAPI", errorKind: "config" };
   }
   // Env-direct lookup · the pickFollowUpAssistantId() helper requires
   // the full assistants array which we don't fetch at call time · just
   // read the pinned env var (operator sets VAPI_FOLLOWUP_ASSISTANT_ID).
   const assistantId = process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
   if (!assistantId) {
-    return { success: false, error: "VAPI_FOLLOWUP_ASSISTANT_ID env not set" };
+    return { success: false, error: "VAPI_FOLLOWUP_ASSISTANT_ID env not set", errorKind: "config" };
   }
   if (!/^\+\d{10,15}$/.test(params.customerNumber)) {
-    return { success: false, error: `Invalid customerNumber: ${params.customerNumber}` };
+    // The digits are masked on purpose: this string reaches cron_log.details
+    // through the recovery lane, and a log is not a place for a phone number.
+    return { success: false, error: `Invalid customerNumber: not E.164 (shape ${params.customerNumber.replace(/\d/g, "#")})`, errorKind: "customer" };
   }
 
   try {
@@ -1531,7 +1845,8 @@ export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promis
     };
     if (params.firstMessageOverride !== undefined) assistantOverrides.firstMessage = params.firstMessageOverride;
     if (params.systemPromptOverride !== undefined) {
-      assistantOverrides.model = { messages: [{ role: "system", content: params.systemPromptOverride }] };
+      // A COMPLETE model block, never a partial one — see followUpModelBlock.
+      assistantOverrides.model = followUpModelBlock(params.systemPromptOverride);
     }
     if (params.variableValues) assistantOverrides.variableValues = params.variableValues;
 
@@ -1561,13 +1876,13 @@ export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promis
     });
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      return { success: false, error: `VAPI /call returned ${res.status}: ${errText.slice(0, 150)}` };
+      return { success: false, error: `VAPI /call returned ${res.status}: ${errText.slice(0, 150)}`, errorKind: "provider" };
     }
     const data = (await res.json()) as { id?: string };
-    if (!data.id) return { success: false, error: "VAPI response missing call id" };
+    if (!data.id) return { success: false, error: "VAPI response missing call id", errorKind: "provider" };
     return { success: true, callId: data.id };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return { success: false, error: err instanceof Error ? err.message : String(err), errorKind: "network" };
   }
 }
 
@@ -1605,7 +1920,7 @@ export function buildOutboundConfirmationPrompt(params: {
     `- "I appreciate your business" / "Thank you for choosing"`,
     `- Any repair price`,
     `- "Is there anything else I can help you with?"`,
-    `- "I am an AI" (unless directly asked — then: "Yeah, I'm Nick's AI — just confirming for him.")`,
+    `- "I am an AI" (unless directly asked — then: "Yeah, I'm Nick's AI — just confirming for the shop.")`,
   ].join("\n");
 }
 
@@ -1641,7 +1956,7 @@ export function buildOutboundRecoveryPrompt(params: {
     `# FLOW`,
     `Open: "Hey ${params.customerName}, it's Nick's Tire — you had a quote with us for ${params.service} a few weeks back. That still on your radar?"`,
     ``,
-    `INTERESTED → "That quote's still good. Pull up any open day, first-come first-served. We're at 17625 Euclid Ave." End.`,
+    `INTERESTED → "Pull up any open day — we'll take another look and go over the quote with you. First-come first-served, 17625 Euclid Ave." End.`,
     `NOT INTERESTED → "No pressure — we're here when you need us. Drive safe." End.`,
     `"Went somewhere else" → "All good, glad you got it taken care of." End gracefully.`,
     `"Can't afford it" → "We got Acima payment plans if that helps — no credit needed, breaks it into chunks. Or just come by, no pressure, we can talk through it." End.${safetyLine}`,
@@ -1653,7 +1968,7 @@ export function buildOutboundRecoveryPrompt(params: {
     `- "Is there anything else I can help you with?"`,
     `- "appointment" / "scheduled" (walk-in shop)`,
     `- "Anything we can do to help you decide?" (brochure closer)`,
-    `- "I am an AI" (unless asked — then: "Yeah, I'm Nick's AI — just following up for him.")`,
+    `- "I am an AI" (unless asked — then: "Yeah, I'm Nick's AI — just following up for the shop.")`,
     `- NEVER push back if they decline. End gracefully.`,
   ].join("\n");
 }
@@ -1663,7 +1978,7 @@ export function buildRecoveryVoicemail(params: {
   customerName: string;
   service: string;
 }): string {
-  return `Hey ${params.customerName}, Nick's Tire — that ${params.service} quote from a few weeks back is still good if you want it. 216-862-0005 anytime. No rush.`;
+  return `Hey ${params.customerName}, Nick's Tire — following up on that ${params.service} quote from a few weeks back. 216-862-0005 anytime if you want to get it taken care of. No rush.`;
 }
 
 export async function getRecentCalls(limit = 20): Promise<{

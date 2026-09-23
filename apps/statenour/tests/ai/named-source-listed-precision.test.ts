@@ -135,3 +135,67 @@ describe("detectNamedSources · the guard changes what reaches the gate", () => 
     expect(names, "and must not fire on the label beside it").not.toContain("Lunch: Some Diner");
   });
 });
+
+describe("isResourceTitle - rejects the model's OWN label shapes (2026-09-22 shadow read)", () => {
+  // The 52 post-fix shadow blocks were read by hand: the LISTED pattern fired
+  // on the model's own bolded option labels, imperative steps, comparisons,
+  // price and duration assertions, and prose lines - roughly 19 of 27
+  // named-claim blocks, while the real fabrications (venue and platform lists
+  // asserted as "verified" with no tool) were 8. Production shapes, names
+  // swapped. Measured over the 24 blocking turns with unreceipted names: these
+  // rules drop 87 names to 49 and 24 blocking turns to 16, with every
+  // protected title above still kept.
+  const rejects: Array<[string, string]> = [
+    ["alternatives with a slash", "Low-effort / solo recharge"],
+    ["alternatives with a plus", "Rent + police pressure"],
+    ["a comparison", "Espresso > drip"],
+    ["a versus pair", "Edge vs Brooklyn Bridge sunrise"],
+    ["an imperative step", "Drive to the ferry, then walk the bridge"],
+    ["a negated imperative step", "NOT park on Victory Blvd itself"],
+    ["an -ing step", "Driving from the hotel to the ferry"],
+    ["a label with an empty value, whatever its length", "Driving from the hotel to the ferry:"],
+    ["a re- imperative", "Re-queue the deep research task"],
+    ["a lowercase parenthetical gloss", "Great-aunt (retired)"],
+    ["a price assertion", "Helicopter tour runs about $150 to $500+"],
+    ["a duration label", "NJ corridor - 20-35 min south"],
+    ["a modal-verb prose line", "Mom will want something just for you"],
+    ["a two-word sentence-case label", "Manhattan walk"],
+    ["a three-word sentence-case label", "Vetted companion platforms"],
+    ["a long prose line with function words", "Negotiate direct with vendors outside the shop"],
+  ];
+  for (const [shape, text] of rejects) {
+    it(`rejects ${shape}`, () => {
+      expect(isResourceTitle(text), text).toBe(false);
+    });
+  }
+
+  // The real-resource shapes from the same read must survive: a proper-noun
+  // venue, a name with a number, a lowercase connective, a trailing common
+  // noun, a domain. Three-word titles starting with a verb ("Back to Black")
+  // are kept on purpose - the imperative rule needs four words.
+  const keeps: Array<[string, string]> = [
+    ["a two-word venue", "Blue Note"],
+    ["a venue with a number", "Suite 16"],
+    ["a title with a lowercase connective", "Eye of RA"],
+    ["a three-word name ending in a common noun", "Governors Island ferry"],
+    ["a domain", "Ahrefs.com"],
+    ["a three-word title opening with a verb", "Back to Black"],
+    // Review on #2517: recall the first draft of rules 6, 7 and 9 would have lost.
+    ["a title with an unspaced slash", "Face/Off"],
+    ["a title-case run after a preposition", "Back to the Future"],
+    ["a five-word title-case run", "Murder on the Orient Express"],
+    ["a show named like a duration", "60 Minutes"],
+    // The price of keeping the two above: an itinerary leg in title case stays.
+    ["a title-case place phrase", "Drive to Bay Ridge, BK"],
+  ];
+  for (const [shape, text] of keeps) {
+    it(`keeps ${shape}`, () => {
+      expect(isResourceTitle(text), text).toBe(true);
+    });
+  }
+
+  it("a stopword with trailing punctuation is still a stopword: a bolded 'Yes, ...' sentence is not a claim", () => {
+    const reply = "Two things to flag:\n1. **Yes, your tool set rotates per turn** - what I had earlier I don't always have now.";
+    expect(detectNamedSources(reply)).toEqual([]);
+  });
+});

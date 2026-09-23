@@ -131,6 +131,33 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
+  // ── RATING ACTIONS (2026-09-18) ──
+  // `event.action` was never read, so an action button behaved exactly like a
+  // body tap: navigate, record nothing. That is why ~90 daily_brief rows in
+  // intelligence_outcomes were structurally unlabelable — the brief's primary
+  // surface is web push, and web push had no way to express a verdict.
+  //
+  // Rating is a TERMINAL action: post the verdict and do NOT navigate. Opening
+  // the app on a 👍 would punish the operator for answering, which is the
+  // surest way to stop them answering.
+  const data = event.notification.data || {};
+  if (event.action === 'oc_useful' || event.action === 'oc_not_useful') {
+    if (!data.ledgerId) return; // nothing to rate against — stay silent
+    event.waitUntil(
+      fetch('/api/outcomes/rate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Same-origin from the SW, so the session cookie rides along.
+        credentials: 'include',
+        body: JSON.stringify({ id: data.ledgerId, useful: event.action === 'oc_useful' }),
+      }).catch(() => {
+        // A failed rating must never surface as a broken notification. The row
+        // simply stays unlabelled, which is the honest state.
+      })
+    );
+    return;
+  }
+
   // audit #15: default was the retired /command route. Home now.
   const url = event.notification.data?.url || '/';
 

@@ -23,6 +23,8 @@ import {
   buildSearchableContent,
 } from "@/lib/ai/chat/message-fields";
 import { logUpdate } from "@/lib/db/entity-audit";
+import { dropEmbeddingsForSource } from "@/lib/brain/memory-tombstone";
+import { logError } from "@/lib/utils/error-log";
 
 const MAX_HISTORY_ENTRIES = 10;
 export const MAX_CONTENT_CHARS = 10_000;
@@ -292,11 +294,37 @@ export async function deleteMessageCascade({
     throw new MessageNotFoundError(messageId);
   }
 
+  // Capture the ids BEFORE deleting. chat_message is indexed in vector_embeddings
+  // through a plain text ("sourceType","sourceId") pair with NO foreign key, so once
+  // these rows are gone there is nothing left to join against and each embedding becomes
+  // a searchable copy of a message that no longer exists. Measured 2026-09-18: 2,473
+  // chat_message embeddings with the newest written THAT DAY — a live index, so editing
+  // or regenerating a turn is an active producer of unreachable content, not a
+  // historical one.
+  const doomed = await prisma.chatMessage.findMany({
+    where: {
+      conversationId: target.conversationId,
+      createdAt: { gte: target.createdAt },
+    },
+    select: { id: true },
+  });
+
   const result = await prisma.chatMessage.deleteMany({
     where: {
       conversationId: target.conversationId,
       createdAt: { gte: target.createdAt },
     },
+  });
+
+  // Best-effort, after the delete: the messages are already gone, and turning a cleanup
+  // miss into a throw would fail an edit that already succeeded.
+  await dropEmbeddingsForSource(
+    "chat_message",
+    doomed.map((m) => m.id),
+    "chat-edit.truncate",
+  ).catch((err: unknown) => {
+    logError("services.chat-edit", err, { fn: "dropEmbeddingsForSource", messageId }, "warn");
+    return 0;
   });
 
   void logUpdate(

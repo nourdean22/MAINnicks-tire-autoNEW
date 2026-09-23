@@ -57,6 +57,7 @@ import {
 const HTML_CACHE_CONTROL = "public, max-age=300, s-maxage=300, must-revalidate";
 import { SITE_URL } from "../shared/business";
 import { ALL_ROUTES, DYNAMIC_ROUTE_PREFIXES, NON_REGISTRY_PUBLIC_PATHS } from "../shared/routes";
+import { JOB_OPENINGS, openJobOpenings } from "../shared/jobOpenings";
 
 const TEMPLATE = `<!doctype html><html><head>
 <title>Home Title</title>
@@ -96,11 +97,52 @@ describe("resolvePublicPath — every real page stays a 200", () => {
 
   it("resolves one segment under every dynamic prefix, and refuses two", () => {
     for (const prefix of DYNAMIC_ROUTE_PREFIXES) {
+      // /careers/ is the one prefix whose slug set is KNOWN (shared/jobOpenings);
+      // an arbitrary slug under it is a 404 by design — see the careers block below.
+      if (prefix === "/careers/") continue;
       expect(resolvePublicPath(`${prefix}some-slug`).status, prefix).toBe(200);
       expect(resolvePublicPath(`${prefix}some-slug?utm_source=x`).status, prefix).toBe(200);
       expect(resolvePublicPath(`${prefix}a/b`).status, `${prefix}a/b`).toBe(404);
     }
     expect(DYNAMIC_ROUTE_PREFIXES.length).toBeGreaterThan(0);
+  });
+});
+
+describe("resolvePublicPath — job leaves exist only while the role is open", () => {
+  // Measured live 2026-09-22: /careers/does-not-exist answered 200 with the
+  // home <title> — a soft 404 under a URL Google Jobs crawls.
+  it("an open role's leaf is a page", () => {
+    for (const job of openJobOpenings()) {
+      expect(resolvePublicPath(`/careers/${job.slug}`).status, job.slug).toBe(200);
+    }
+    expect(openJobOpenings().length).toBeGreaterThan(0);
+  });
+
+  it("an unknown slug is a 404, not the home shell", () => {
+    expect(resolvePublicPath("/careers/does-not-exist")).toEqual({ kind: "not_found", status: 404 });
+  });
+
+  it("a FILLED role is a 404 even though its route may still be registered", () => {
+    const job = JOB_OPENINGS[0];
+    const original = job.status;
+    try {
+      job.status = "filled";
+      expect(resolvePublicPath(`/careers/${job.slug}`).status).toBe(404);
+    } finally {
+      job.status = original;
+    }
+  });
+
+  it("a trailing slash never turns a leaf into a second 200 URL, and never rescues a closed one", () => {
+    // Open role: the slash variant keeps its pre-existing answer (not a new
+    // duplicate page with its own canonical).
+    expect(resolvePublicPath("/careers/automotive-technician/").status).toBe(404);
+    // Unknown/closed role: 404 either way.
+    expect(resolvePublicPath("/careers/does-not-exist/").status).toBe(404);
+  });
+
+  it("the /careers list page itself stays a page", () => {
+    expect(resolvePublicPath("/careers").status).toBe(200);
   });
 });
 

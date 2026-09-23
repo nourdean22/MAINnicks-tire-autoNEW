@@ -204,17 +204,11 @@ const MIGRATIONS: Record<string, string[]> = {
     `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "pending_classification" JSONB`,
   ],
 
-  // Brain hybrid-retrieval FTS lane · 2026-06-02 · additive · zero data loss.
-  // Expression GIN index for full-text search on brain_memories.content,
-  // powering the real lexical lane in lib/brain/contextual-recall.ts (it
-  // replaces the naive substring keywordScore lane). On a SEPARATE table from
-  // vector_embeddings, so pgvector is untouched. ~7K rows -> sub-second build.
-  // No new column -> no Prisma drift. The recall query degrades to a seq-scan
-  // pre-apply (still correct, just slower), so the code is safe to deploy
-  // ahead of applying this.
-  "0007_brain_fts": [
-    `CREATE INDEX IF NOT EXISTS "brain_memories_content_fts_idx" ON "brain_memories" USING GIN (to_tsvector('english', "content"))`,
-  ],
+  // 0007_brain_fts (the expression GIN brain_memories_content_fts_idx, 2026-06-02) was REMOVED from this registry on
+  // 2026-09-23: the index was dropped in production by 20260923013000_drop_brain_fts_expression_index once every
+  // brain_memories FTS reader moved to the stored column content_tsv (20260923000000_brain_content_tsv). A registry
+  // entry left here would have re-created it through IF NOT EXISTS on the next apply - the resurrection shape #1233
+  // documented. Never re-add it.
 
   // Custom weekday recurrence · 2026-06-06 · additive · zero data loss.
   // Adds the WEEKLY loop kind + recurring_days int[] (0=Sun..6=Sat) so a task

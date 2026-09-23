@@ -41,6 +41,7 @@
  * An empty week with working queries DOES send ($0 is signal).
  */
 import { createLogger } from "../../lib/logger";
+import { isSchemaBugError } from "../../lib/dbErrors";
 import { BUSINESS } from "@shared/business";
 import { countActionableLeads } from "@shared/leadSource";
 
@@ -129,12 +130,7 @@ const tupleRows = (raw: unknown): unknown[] => {
 const pct = (part: number, whole: number): number | null =>
   whole > 0 ? Math.round((part / whole) * 100) : null;
 
-/** Same schema-error taxonomy as monteCarloForecast/#1125: these are bugs, not conditions. */
-const isSchemaBug = (e: unknown): boolean =>
-  typeof (e as { code?: string })?.code === "string" &&
-  ["ER_BAD_FIELD_ERROR", "ER_BAD_TABLE_ERROR", "ER_PARSE_ERROR"].includes(
-    (e as { code: string }).code,
-  );
+// Schema errors (lib/dbErrors isSchemaBugError) are bugs, not conditions: same taxonomy as monteCarloForecast/#1125.
 
 export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promise<WeeklyRevenueDigestData> {
   const { getDb } = await import("../../db");
@@ -243,12 +239,23 @@ export async function computeWeeklyRevenueDigest(now: Date = new Date()): Promis
 
   // The receipt: voice/SMS "I'll come by" promises that reconciled to a real
   // invoice this week (services/expectedArrivals.reconcileExpectedArrivals).
+  //
+  // COUNTED PER INVOICE, NOT PER ARRIVAL ROW. This used to join arrivals to
+  // invoices and SUM per joined row, so an invoice claimed by three arrival
+  // rows (three "coming today" texts, one visit) was added three times — in
+  // the one line of this digest labelled revenue. The reconcile is now
+  // one-to-one and 0126 makes the database refuse a second claim, but the
+  // receipt must not depend on that: it counts each invoice once regardless
+  // of how many rows point at it.
   const arrivalsRaw = await d.execute(sql`
     SELECT COUNT(*) AS cnt, COALESCE(SUM(i.totalAmount), 0) AS cents
-    FROM expected_arrivals ea
-    JOIN invoices i ON i.id = ea.reconciledInvoiceId
-    WHERE ea.status = 'arrived'
-      AND ea.arrivedAt >= ${windowStart} AND ea.arrivedAt < ${windowEnd}`);
+    FROM invoices i
+    WHERE i.id IN (
+      SELECT ea.reconciledInvoiceId
+      FROM expected_arrivals ea
+      WHERE ea.status = 'arrived' AND ea.reconciledInvoiceId IS NOT NULL
+        AND ea.arrivedAt >= ${windowStart} AND ea.arrivedAt < ${windowEnd}
+    )`);
   const arr = tupleRows(arrivalsRaw)[0] as Record<string, unknown> | undefined;
 
   // Demand side. Leads are fetched as rows (not COUNT(*)) on purpose: the
@@ -408,7 +415,7 @@ export async function runWeeklyRevenueDigest(now: Date = new Date()): Promise<Pr
     data = await computeWeeklyRevenueDigest(now);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (isSchemaBug(e)) {
+    if (isSchemaBugError(e)) {
       log.error("weekly revenue digest hit a SCHEMA BUG — nothing sent", { error: msg });
       return { recordsProcessed: 0, details: `SCHEMA BUG — ${msg}` };
     }

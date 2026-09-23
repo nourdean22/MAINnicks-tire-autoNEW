@@ -85,6 +85,19 @@ export interface ActionConcept {
    * input-side intent regex is unaffected.
    */
   claimNeedsFirstPerson?: boolean;
+  /**
+   * With claimNeedsFirstPerson: ALSO accept the terse confirmation that
+   * OPENS the sentence — "Completed both tasks.", "Synced your calendar.",
+   * "Done — closed the job" — which is how the model actually reports an
+   * action. Not for `link`/`move`: "Linked to: [brain:recall]" opens a
+   * sentence too and is exactly the descriptive prose that flag exists
+   * to exclude. 2026-09-22 banner audit: without any subject rule,
+   * task-complete / memory-write / data-sync fired on "the closed job",
+   * "she finished the job", "isn't marked done", "you've already
+   * bookmarked or saved", "haven't been ingested" — 8 of the 17 banners
+   * that survived the pinned/sent fix.
+   */
+  claimAcceptsSentenceOpening?: boolean;
 }
 
 /**
@@ -119,11 +132,24 @@ export const ACTION_VOCAB: readonly ActionConcept[] = [
     past: ["completed", "finished", "closed", "marked"],
     objects: ["task", "tasks", "job", "todo", "to-do", "item", "items", "those", "these", "done"],
     gap: 30,
+    // 2026-09-22 banner audit: all 4 surviving task-complete banners were an
+    // adjective ("the closed job" ×2), a negation ("isn't marked done") or a
+    // third person ("she finished the job"). Nick's real confirmations open
+    // the sentence ("Completed both tasks.", "Marked the top one done").
+    claimNeedsFirstPerson: true,
+    claimAcceptsSentenceOpening: true,
   },
   // ── Send / communication ──
   // tool is the CANONICAL tool to force on the input side. Output-
   // side acceptance of alternative send tools (sendEmail, sendTelegram)
   // is handled by an edge claim pattern in action-claim-detector.ts.
+  // claimNeedsFirstPerson (2026-09-22 banner audit): "sent a text" is how the
+  // model recaps OTHER people's sends ("Mo sent a text", "he sent the text",
+  // "3 collab DMs sent") — every production banner this concept raised in 60
+  // days was one of those. Only "I sent / I've texted …" is Nick's own claim;
+  // the terse sentence-opening confirmation ("Sent the email.", "Done — sent
+  // the reply") is covered by the `sent (bare)` edge pattern in
+  // action-claim-detector.ts, so nothing real is lost.
   {
     intent: "send-comm",
     tool: "composeEmail",
@@ -131,6 +157,7 @@ export const ACTION_VOCAB: readonly ActionConcept[] = [
     past: ["sent", "emailed", "messaged", "texted"],
     objects: ["email", "message", "note", "reply", "follow up", "follow-up", "text"],
     gap: 30,
+    claimNeedsFirstPerson: true,
   },
   // ── Schedule ──
   {
@@ -150,9 +177,20 @@ export const ACTION_VOCAB: readonly ActionConcept[] = [
     intent: "memory-write",
     tool: "pinMemory",
     imperative: ["save", "remember", "note", "capture"],
-    past: ["saved", "remembered", "noted", "captured", "pinned"],
+    // "pinned" left this list 2026-09-22: "pinned memory" / "pinned notes" is
+    // the ADJECTIVE ("the origin story from pinned memory"), and with `memory`
+    // and `note` as objects it read as a claim on every such phrase. The verb
+    // use ("Pinned that to the brain", "All entries pinned.") is owned by the
+    // `pinned` edge pattern in action-claim-detector.ts, same tool.
+    past: ["saved", "remembered", "noted", "captured"],
     objects: ["memory", "note", "brain", "that", "this"],
     gap: 30,
+    // 2026-09-22 banner audit: the surviving memory-write banners were the
+    // user's own saving ("anything you've already bookmarked or saved") and a
+    // passive description ("gets logged as a remembered note"). "Saved that
+    // to the brain." / "I've noted that" are the claim shapes.
+    claimNeedsFirstPerson: true,
+    claimAcceptsSentenceOpening: true,
   },
   // ── Commitment logging ──
   {
@@ -202,6 +240,11 @@ export const ACTION_VOCAB: readonly ActionConcept[] = [
     // verb→object hop, but a loose gap would false-fire on "sync up with
     // the team about the calendar" (a meeting, not a data ingest).
     gap: 15,
+    // 2026-09-22 banner audit: "your phone notes haven't been ingested — the
+    // Drive sync has been broken" was bannered as a sync claim. "Synced your
+    // calendar." / "I just pulled Drive" are the claim shapes.
+    claimNeedsFirstPerson: true,
+    claimAcceptsSentenceOpening: true,
   },
   // ── Linking / moving (claim-only — input forms are ambiguous) ──
   // Both fold into `updateTask` (the real tool that absorbed
@@ -286,21 +329,39 @@ export function claimRegex(concept: ActionConcept): RegExp {
   // immediately before the verb, so relational verbs only register as
   // a self-claim ("I linked it…"), not as descriptive prose ("Linked
   // to: …", "you moved shops"). Empty for normal concepts.
-  const fp = concept.claimNeedsFirstPerson
-    ? `\\b(?:I|I'?ve|just)\\b\\s+(?:\\w+\\s+){0,2}`
-    : "";
+  // `^` is the SENTENCE start: detectActionClaims runs each claim regex per
+  // sentence (splitSentences), so a sentence-opening arm never sees the
+  // middle of a paragraph. The optional confirmation word ("Done —", "Ok,")
+  // matches the `sent (bare)` edge pattern's shape in action-claim-detector.
+  // 2026-09-22 (review on #2513) · `just` is NOT a subject mid-sentence: "She
+  // just finished the job" is a recap of someone else. "I just finished" still
+  // matches (`just` is the intervening word); the sentence-opening "Just
+  // finished the job." is the opening arm's confirmation word.
+  const firstPerson = `\\b(?:I|I'?ve)\\b\\s+(?:\\w+\\s+){0,2}`;
+  const opening = `^\\W*(?:(?:done|ok|okay|alright|yes|yep|just|and|so|also)\\W+)?`;
+  // 2026-09-22 (review on #2513) · the opening arm needs a real OBJECT OPENER
+  // right after the verb - a determiner or pronoun - or "Closed job details
+  // follow" and "Synced calendar events appear below" read as claims. The
+  // accepted loss is the article-less confirmation ("Refreshed calendar.").
+  const openingGate = `\\s+(?:the|a|an|it|that|this|them|those|these|your|my|our|his|her|their|both|all|every|each|him|us)\\b`;
+  const verb = `\\b(?:${past})\\b`;
+  const verbArm = concept.claimNeedsFirstPerson
+    ? concept.claimAcceptsSentenceOpening
+      ? `(?:${firstPerson}${verb}|${opening}${verb}${openingGate})`
+      : `${firstPerson}${verb}`
+    : verb;
   if (!concept.objects || concept.objects.length === 0) {
-    return new RegExp(`${fp}\\b(?:${past})\\b`, "i");
+    return new RegExp(verbArm, "i");
   }
   const obj = alternation(concept.objects);
   if (concept.connector && concept.connector.length > 0) {
     const conn = alternation(concept.connector);
     return new RegExp(
-      `${fp}\\b(?:${past})\\b.{0,${gap}}\\b(?:${conn})\\b.{0,${gap}}\\b(?:${obj})\\b`,
+      `${verbArm}.{0,${gap}}\\b(?:${conn})\\b.{0,${gap}}\\b(?:${obj})\\b`,
       "i",
     );
   }
-  return new RegExp(`${fp}\\b(?:${past})\\b.{0,${gap}}\\b(?:${obj})\\b`, "i");
+  return new RegExp(`${verbArm}.{0,${gap}}\\b(?:${obj})\\b`, "i");
 }
 
 export interface IntentEntry {

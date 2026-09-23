@@ -100,12 +100,14 @@ describe("the confidence threshold is on the column's scale", () => {
 
 describe("a broken query can no longer masquerade as missing data", () => {
   it("an unknown-column error is logged as an ERROR, not a warning about a table", () => {
-    expect(SRC).toMatch(/ER_BAD_FIELD_ERROR\|Unknown column\|Unknown table/);
+    // Asked of the driver error through drizzle's wrapper (lib/dbErrors, whose
+    // own suite proves the codes); a regex on the wrapper text never saw one.
+    expect(SRC).toMatch(/if \(isSchemaBugError\(err\)\) \{\s*log\.error\(/);
     expect(SRC).toMatch(/log\.error\([^)]*BROKEN/);
   });
 
   it("a genuinely absent table is still the quiet case", () => {
-    expect(SRC).toMatch(/ER_NO_SUCH_TABLE/);
+    expect(SRC).toMatch(/else if \(isMissingTableError\(err\)\) \{\s*log\.warn\(/);
     expect(SRC).toMatch(/log\.warn\("v2 predictions read skipped/);
   });
 

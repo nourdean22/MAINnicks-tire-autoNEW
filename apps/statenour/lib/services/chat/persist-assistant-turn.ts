@@ -51,6 +51,7 @@ import type { ProviderName } from "@/lib/ai/provider";
 import type { TraceStartInput, TraceFinishInput } from "@/lib/ai/agent-trace";
 import type { TurnSignal } from "@/lib/ai/turn-intelligence";
 import type { ContextBlocksFired } from "./brain-context";
+import type { ContextReceipt } from "@/lib/ai/context-budget";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { runDeferredBackgroundWork } from "./deferred-background-work";
 import { reconcileStreamText } from "./reconcile-stream-text";
@@ -104,6 +105,14 @@ export interface BuildOnFinishInput {
   systemPrompt: string;
   finalTaskType: string;
   userContent: string;
+  /**
+   * 2026-09-23 (review on #2509, P1) · the ROUTING-TIME toolsExpected
+   * (route.ts: actionIntent || webSearchIntent || webSearchRecency), so the E3
+   * shadow classifies the turn on the input the live pre-flush lane used, not
+   * on whether a tool happened to fire. Absent only for a caller that never
+   * routed; the shadow then recomputes it and says so.
+   */
+  toolsExpected?: boolean;
   // truth-substrate audit P1 (#16): the per-turn ResponseContract (built in
   // route.ts). When present, the finalize gate runs the contract-aware variant
   // to EMIT richer telemetry (contract-compliance signals). NOTE: on the default
@@ -120,6 +129,10 @@ export interface BuildOnFinishInput {
   // read time (brain-provenance's reconstruction). Optional: alternate
   // paths that skip recall pass nothing and persist nothing.
   recallReceipts?: RecallReceipt[];
+  // 2026-09-17 · Wave 3 follow-up (PR #2414). Same optionality rule as
+  // recallReceipts: alternate paths that skip buildBrainContext pass
+  // nothing and persist nothing.
+  contextReceipt?: ContextReceipt;
   // ─── timing refs ──────────────────────────────────────────────
   startedAt: number;
   firstTokenRef: FirstTokenRef;
@@ -171,6 +184,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
     messages,
     topicTier,
     recallReceipts,
+    contextReceipt,
   } = deps;
   // modeOverride is part of the deps interface for completeness/future
   // header use; the lifted onFinish body doesn't reference it directly.
@@ -431,7 +445,28 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       // capturedToolCalls buffer) moved VERBATIM to
       // ./tool-telemetry-walk.ts.
       const { walkToolTelemetry } = await import("./tool-telemetry-walk");
-      const capturedToolCalls = walkToolTelemetry({ ev, convId });
+      // traceId is threaded through so the `tool.chosen` lane the walk records
+      // can be JOINED to `tool.surfaced` from prepare-tools.ts. Both stamp the
+      // same route-minted id; without it the pair is two unrelated counts.
+      //
+      // `laneToolNames` / `laneReceiptsAvailable` ride on the event because the
+      // alternate paths (NICK_VERIFIED_REGEN, NICK_SELF_CONSISTENCY, pre-flush
+      // evidence) call this callback with `{ text, finishReason }` and NO
+      // `steps`. Without them the walk saw nothing and recorded a confident
+      // `tool.chosen = 0` for turns that had actually invoked tools. The
+      // pre-flush lane DOES buffer its calls, so it is measured; the others
+      // declare themselves blind rather than being counted as zero.
+      const capturedToolCalls = walkToolTelemetry({
+        ev,
+        convId,
+        traceId,
+        laneToolNames: (ev as { laneToolNames?: ReadonlyArray<string> }).laneToolNames,
+        laneReceiptsAvailable: (ev as { laneReceiptsAvailable?: boolean }).laneReceiptsAvailable,
+        // Which lane ran. Absent for the streaming fallthrough, which is the
+        // only path that never enters alternate-paths.ts — so the tag's default
+        // is "streaming" rather than "unknown".
+        lane: (ev as { laneName?: string }).laneName,
+      });
 
 
       // ── EVIDENCE GATE (SHADOW) — 2026-09-10 ─────────────────────────
@@ -497,17 +532,32 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           );
           // 2026-09-15 · E3 shadow: would the pre-flush lane have buffered
           // this turn? Same pure classifier the lane uses (assessTurnRisk),
-          // fed what actually happened (tools fired or not), so a week of
-          // rows answers "what share of turns would stop streaming" before
-          // NICK_EVIDENCE_PREFLUSH is turned on.
+          // so a week of rows answers "what share of turns would stop
+          // streaming" before NICK_EVIDENCE_PREFLUSH is turned on.
+          //
+          // 2026-09-23 (review on #2509, P1) · fed the ROUTING-TIME
+          // toolsExpected when the route supplied it. The shadow used to
+          // recompute it from the tool calls that ran, but live routing
+          // decides before generation: a web-search turn whose tool never
+          // fired read toolsExpected=false here and was stamped "would have
+          // buffered" where the live lane streamed it (and an unexpected tool
+          // call produced the inverse). The stamp names which input it
+          // replayed so the reader can keep the two cohorts apart.
           let turnRisk: unknown = null;
           try {
             const { assessTurnRisk } = await import("@/lib/ai/chat/turn-risk");
-            const risk = assessTurnRisk(userContent, {
-              toolsExpected: capturedToolCalls.length > 0,
-              intent: turnSignal.intent,
-            });
-            turnRisk = { buffer: risk.buffer, risk: risk.risk, register: risk.register, reasons: risk.reasons, toolsFired: capturedToolCalls.length };
+            const routed = typeof deps.toolsExpected === "boolean";
+            const toolsExpected = routed ? deps.toolsExpected === true : capturedToolCalls.length > 0;
+            const risk = assessTurnRisk(userContent, { toolsExpected, intent: turnSignal.intent });
+            turnRisk = {
+              buffer: risk.buffer,
+              risk: risk.risk,
+              register: risk.register,
+              reasons: risk.reasons,
+              toolsFired: capturedToolCalls.length,
+              toolsExpected,
+              toolsExpectedSource: routed ? "routing" : "recomputed",
+            };
           } catch {
             /* measurement only */
           }
@@ -582,6 +632,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         deeperContextCount,
         deeperContextTypes,
         recallReceipts,
+        contextReceipt,
         personality,
         userContent,
         posture: deps.posture,
@@ -613,6 +664,9 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         reasoningText,
         createdAssistantId,
         capturedToolCalls,
+        // Read-backs already ran at persist so they could promote receipts;
+        // hand them on rather than querying the same rows again.
+        envVerification: __persisted.envVerification,
         usage,
         convId,
         traceId,

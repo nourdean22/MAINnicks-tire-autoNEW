@@ -828,6 +828,17 @@ export function isCostFirewallOn(): boolean {
 }
 
 /**
+ * Failover rescue — OFF unless NICK_FAILOVER_RESCUE=1. Enabling it authorizes
+ * real per-token spend, which is the operator's call.
+ *
+ * 2026-09-18 · exported so the flag-board mirror is verified by CALLING it
+ * rather than by pinning source text (review, #2429).
+ */
+export function isFailoverRescueOn(): boolean {
+  return process.env.NICK_FAILOVER_RESCUE === "1";
+}
+
+/**
  * 2026-08-11 · the cost firewall, as a pure filter. Under the firewall a
  * normal lane may only try zero-incremental providers (the Ollama flat
  * subscription); metered lanes require explicit consent (allowMetered).
@@ -1221,7 +1232,7 @@ export async function aiChat(
   // OFF by default: enabling it authorizes real per-token spend, which is
   // the operator's call, not this file's. Set NICK_FAILOVER_RESCUE=1.
   if (
-    process.env.NICK_FAILOVER_RESCUE === "1" &&
+    isFailoverRescueOn() &&
     isCostFirewallOn() &&
     !(opts.allowMetered ?? false)
   ) {
@@ -1539,7 +1550,7 @@ export async function aiChat(
 // context-reranker.ts's EMBED_CACHE). getEmbedding has a fixed text-only
 // signature with a hardcoded input_type, so a text key is safe. Successes only
 // — never cache the [] fail-soft path, so a transient embedder error retries.
-const EMBED_MEMO = new Map<string, { vec: number[]; expiresAt: number }>();
+const EMBED_MEMO = new Map<string, { vec: number[]; model: string | null; expiresAt: number }>();
 const EMBED_MEMO_TTL_MS = 45_000;
 
 // djb2 — tiny, fast, no deps. Cache-key only over the embed window, so a
@@ -1551,19 +1562,94 @@ function embedMemoKey(s: string): string {
   return `${s.length}:${h >>> 0}`;
 }
 
+/**
+ * An embedding plus the identity of the space it belongs to.
+ *
+ * ★★★ WHY THE MODEL COMES BACK WITH THE VECTOR. Measured 2026-09-18: of 97,401
+ * rows in `vector_embeddings`, the embedding SPACE was knowable on 4.3%. Not
+ * because a backfill was skipped — because this function has always returned a
+ * bare `number[]`, so no writer could record what produced it even when it
+ * wanted to. The `model` column was filled by whoever happened to have a guess
+ * in scope, which is how it ended up holding real model names, the literal
+ * string "default", and content fingerprints all at once.
+ *
+ * Two vectors from different models are not comparable, and cosine similarity
+ * between them is a number with no meaning rather than an error. Provenance has
+ * to travel with the vector or it does not exist.
+ */
+export interface EmbeddingResult {
+  vec: number[];
+  /** Provider-qualified model id, or null when every provider failed. */
+  model: string | null;
+}
+
+/**
+ * Embed `text`, discarding provenance.
+ *
+ * ⚠ PREFER `getEmbeddingWithModel` ON ANY PATH THAT PERSISTS THE VECTOR.
+ * This wrapper exists because ~14 read-side callers only ever compare or rank
+ * in-process, where the space is implicitly "whatever the query used" and
+ * recording it would be noise. A WRITE that drops the model is how the 4.3%
+ * happened.
+ */
 export async function getEmbedding(text: string): Promise<number[]> {
+  return (await getEmbeddingWithModel(text)).vec;
+}
+
+/** Embed `text` and report which model produced it. */
+export async function getEmbeddingWithModel(text: string): Promise<EmbeddingResult> {
   const memoKey = embedMemoKey(text.slice(0, 30_000));
   const now = Date.now();
   const hit = EMBED_MEMO.get(memoKey);
-  if (hit && hit.expiresAt > now) return hit.vec;
+  if (hit && hit.expiresAt > now) return { vec: hit.vec, model: hit.model };
 
-  const vec = await getEmbeddingUncached(text);
+  const out = await getEmbeddingUncached(text);
   // Cache successes only; the [] fail-soft path must stay retryable.
-  if (vec.length > 0) EMBED_MEMO.set(memoKey, { vec, expiresAt: now + EMBED_MEMO_TTL_MS });
-  return vec;
+  if (out.vec.length > 0) {
+    EMBED_MEMO.set(memoKey, { vec: out.vec, model: out.model, expiresAt: now + EMBED_MEMO_TTL_MS });
+  }
+  return out;
 }
 
-async function getEmbeddingUncached(text: string): Promise<number[]> {
+/** The one width every embedding provider in this chain is pinned to. */
+export const EMBEDDING_CONTRACT_DIM = 1024;
+
+/**
+ * Enforce the 1024-dim contract at the PROVIDER BOUNDARY, loudly.
+ *
+ * ⚠ THE BELT EXISTED BUT WAS WORN ON ONLY ONE OF THREE PATHS. The Cohere branch
+ * already normalized-and-warned on an off-contract width; the HuggingFace and
+ * OpenAI branches returned whatever arrived, unchecked. All three now share this
+ * ONE implementation — three copies of a normalization rule diverge, and the
+ * divergence here is invisible by construction (see below).
+ *
+ * WHY THIS MATTERS MORE NOW THAN IT DID. `padToVectorDim` silently truncates or
+ * ZERO-PADS, by design: the store has two vector spaces (1024 and 1536) and
+ * padding 1024 -> 1536 is intentional. But that same silence means an
+ * off-contract vector arriving from a PROVIDER is repaired into nonsense with no
+ * signal — a 768-dim vector zero-padded into a 1024-dim space has 256 dead
+ * dimensions and ranks essentially at random against real neighbours. Recall
+ * degrades; nothing errors.
+ *
+ * And the tail of the chain is now two dead providers (HF has no credits,
+ * OpenAI's key is bad, and Ollama Cloud refuses embeddings outright), leaving
+ * Cohere as the ONLY live embedder. The realistic next event is someone adding a
+ * replacement in a hurry — which is exactly when an unchecked width lands.
+ *
+ * Measured 2026-09-18: prod is clean, 97,622 of 97,622 stored vectors at 1024.
+ * This is preventive, and it preserves the existing repair rather than throwing —
+ * a degraded embedding still beats no embedding on a live chat turn.
+ */
+export async function enforceEmbeddingDim(vec: number[], provider: string): Promise<number[]> {
+  if (vec.length === EMBEDDING_CONTRACT_DIM) return vec;
+  console.warn(
+    `[ai:embedding] ${provider} returned ${vec.length}-dim (contract: ${EMBEDDING_CONTRACT_DIM}) — normalizing`,
+  );
+  const { padToVectorDim } = await import("@/lib/db/pgvector");
+  return padToVectorDim(vec, EMBEDDING_CONTRACT_DIM);
+}
+
+async function getEmbeddingUncached(text: string): Promise<EmbeddingResult> {
   const input = text.slice(0, 30_000);
 
   const COHERE_API_KEY = cleanEnv(process.env.COHERE_API_KEY);
@@ -1607,17 +1693,9 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
           // v1 fallback shape · { embeddings: [[...]] }
           (Array.isArray(data?.embeddings) ? data.embeddings[0] : undefined);
         if (Array.isArray(vec) && vec.length > 0) {
-          if (vec.length !== 1024) {
-            // Belt for env-pinned models that ignore output_dimension:
-            // never let an off-contract width escape into the vector
-            // space. padToVectorDim is the single canonical normalizer.
-            console.warn(
-              `[ai:embedding] Cohere returned ${vec.length}-dim (contract: 1024) — normalizing`,
-            );
-            const { padToVectorDim } = await import("@/lib/db/pgvector");
-            return padToVectorDim(vec, 1024);
-          }
-          return vec;
+          // Belt for env-pinned models that ignore output_dimension. Now shared
+          // with the HF and OpenAI branches — see enforceEmbeddingDim.
+          return { vec: await enforceEmbeddingDim(vec, "Cohere"), model: `cohere:${model}` };
         }
         console.warn(
           `[ai:embedding] Cohere returned 200 but no embedding in payload (keys: ${Object.keys(data ?? {}).join(",")})`,
@@ -1638,10 +1716,15 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
   // Spanish + 100 langs · ~$0.0001/call. See lib/ai/hf-embeddings.ts +
   // docs/runbooks/hf-embeddings-cutover.md.
   {
-    const { getHfEmbedding, isHfEmbeddingAvailable } = await import("./hf-embeddings");
+    const { getHfEmbedding, isHfEmbeddingAvailable, hfEmbeddingModel } = await import("./hf-embeddings");
     if (isHfEmbeddingAvailable()) {
       const vec = await getHfEmbedding(input);
-      if (vec && vec.length > 0) return vec;
+      // Was returned UNCHECKED. multilingual-e5-large happens to be 1024-dim, so
+      // this never bit — but "happens to be right" is not a contract, and the
+      // model is env-overridable via the HF model config.
+      if (vec && vec.length > 0) {
+        return { vec: await enforceEmbeddingDim(vec, "HuggingFace"), model: `hf:${hfEmbeddingModel()}` };
+      }
     }
   }
 
@@ -1657,7 +1740,15 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
       if (res.ok) {
         const data = await res.json();
         const vec = data.data?.[0]?.embedding;
-        if (vec?.length > 0) return vec;
+        // Was returned UNCHECKED. The request asks for `dimensions: 1024`, but a
+        // requested dimension is not a verified one — that is the whole reason
+        // the Cohere branch grew a belt.
+        if (vec?.length > 0) {
+          return {
+            vec: await enforceEmbeddingDim(vec, "OpenAI"),
+            model: "openai:text-embedding-3-small",
+          };
+        }
       } else {
         const errBody = await res.text().catch(() => "");
         console.warn(
@@ -1687,7 +1778,7 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
       if (res.ok) {
         const data = await res.json();
         const vec = data.data?.[0]?.embedding;
-        if (vec && vec.length > 0) return vec;
+        if (vec && vec.length > 0) return { vec, model: "openrouter:openai/text-embedding-3-small" };
       } else {
         const errBody = await res.text().catch(() => "");
         console.warn(
@@ -1702,7 +1793,10 @@ async function getEmbeddingUncached(text: string): Promise<number[]> {
   log.warn("embedding.all_failed", {
     tried: ["cohere", "hf", "openai", "openrouter"],
   });
-  return [];
+  // ⚠ model null, NOT a placeholder. "unknown" written into the identity column
+  // is what produced the 1,431 rows reading "default" — a value that names
+  // nothing while looking like it names something.
+  return { vec: [], model: null };
 }
 
 // ---------------------------------------------------------------------------

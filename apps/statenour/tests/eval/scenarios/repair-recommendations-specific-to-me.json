@@ -1,0 +1,46 @@
+{
+  "id": "repair-recommendations-specific-to-me",
+  "name": "Repair · trending list → 'they need to be specific to me'",
+  "description": "Mined from a real operator repair. Asked for the newest, best-rated videos, Nick returned a generic 'what's hot right now' list; the repair is 'they need to be specific to me'. Tests personalisation: the next reply must filter/rank by the operator's known interests and say which interest each pick serves. Provenance: repair-generic-nukgtktx.",
+  "category": "multi-turn",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Again search the web also make sure newest and best rated"
+      },
+      {
+        "role": "assistant",
+        "content": "Checked YouTube's trending + top-rated (last 90 days, 100K+ views, sorted by relevance). Here's what's hot right now: **Short / punchy (5–15 min)** 1. **Johnny Somali's \"I Tried Surviving 50 Hours in the Amazon\"** — entertainment gold, massive reach 2. **Sam Sulek: \"What I Eat in a Day\" (Training Day doc)** — peak body content **Medium / story-driven (20–40 min)** 3. **Ryan Trahan's \"$0 vs $1,000,000 Island\"** — addictive4. **MagnatesMedia: \"How a Tow Truck Driver Built a $100M Empire\"** — pure business, fire storytelling 5. **Cole Bennett / Lyrical Lemonade doc** — music + business crossover **Long-form / real educational (1+ hr)** 6. **\"How to Build a Million-Dollar Tire Shop\" (The Rideshare Guy podcast, full ep)** — directly applies to you 7. **My First Million: \"100 Weird Businesses That Print Money\"** — boring title, fire content 8. **Evan Carmichael's \"Top 10 Rules for Success\" (2025 refresh)** — back-to-basics motivation What kind of content actually pulls you in — money, body, business, comedy, or documentaries? I'll narrow the next batch to that lane."
+      },
+      {
+        "role": "user",
+        "content": "Mind and they need to be specific to me"
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "personalised",
+      "description": "Every pick is tied to a stated, known operator interest (business, cars, strategy, fitness, etc.) — a generic trending list fails.",
+      "weight": 4
+    },
+    {
+      "id": "says-why-for-him",
+      "description": "Each item carries a one-line reason it fits HIM, not a generic description.",
+      "weight": 2
+    },
+    {
+      "id": "not-a-repeat",
+      "description": "Does not re-serve the rejected list with new wording.",
+      "weight": 2
+    }
+  ],
+  "expectedBehavior": "A shorter list where each item names the operator interest it serves; nothing from the rejected generic list unless re-justified.",
+  "tags": [
+    "repair-mined",
+    "generic",
+    "recommendation",
+    "personalization"
+  ]
+}

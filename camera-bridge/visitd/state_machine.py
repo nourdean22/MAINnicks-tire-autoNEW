@@ -210,6 +210,13 @@ class Emission:
     frigate_end_time: Optional[float]
     merged_into: Optional[str] = None
     continues_visit_id: Optional[str] = None
+    #: Episode trail (migration 0127), stamped by `VisionPipeline._emit` when the stitcher
+    #: folded several tracks into one visit. REAL FIELDS, not attributes bolted on at
+    #: emission time: `Emission` is a FROZEN dataclass, so `setattr` raises
+    #: FrozenInstanceError -- an earlier version of this change did exactly that and would
+    #: have thrown on the first stitched visit in production.
+    episode_id: Optional[str] = None
+    member_track_ids: Optional[List[int]] = None
 
 
 # --------------------------------------------------------------------------- helpers

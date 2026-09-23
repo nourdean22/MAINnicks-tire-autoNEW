@@ -47,3 +47,24 @@ describe("telemetry categories are quarantined from recall", () => {
     }
   });
 });
+
+describe("the 2026-09-22 brain audit: machine categories that were still recall-visible", () => {
+  // Measured read-only on prod (42,129 live memories, 190 categories): recall hid
+  // 6,080 rows across 13 telemetry categories, but these five machine categories
+  // were still in the pool. semantic_edge alone is 18,358 live rows (44% of the
+  // live brain) whose text is "[cat] <-> [cat] . score=0.82" - graph edges written
+  // by lib/brain/semantic-link.ts, each carrying ~3 vectors, 64% of all
+  // brain_memory vectors. The graph API reads them by category; recall and the
+  // embedding backfill must not.
+  it("quarantines the five audited categories from recall AND from embedding", () => {
+    for (const cat of ["semantic_edge", "reply_judgment", "chat_importance", "crons", "mission_surface_telemetry"]) {
+      expect(TELEMETRY_CATEGORIES as readonly string[], cat).toContain(cat);
+      expect(RECALL_EXCLUDE_CATEGORIES, cat).toContain(cat);
+    }
+  });
+
+  it("leaves tool_embedding visible on purpose - tool search reads those rows (lib/ai/tool-embeddings.ts)", () => {
+    expect(TELEMETRY_CATEGORIES as readonly string[]).not.toContain("tool_embedding");
+    expect(RECALL_EXCLUDE_CATEGORIES).not.toContain("tool_embedding");
+  });
+});

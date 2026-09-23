@@ -1,9 +1,12 @@
-import { and, desc, eq, gte, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, isNull, sql } from "drizzle-orm";
 import { vapiCallLogs } from "../../../drizzle/schema";
 import { createLogger } from "../../lib/logger";
 import { sendTelegram } from "../../services/telegram";
 import { getCallStateHistory } from "../../services/voice-call-state";
 import { classifyCall, extractCallSignals } from "../../services/vapiCallClassifier";
+import { extractCustomerTurns } from "../../services/customerTurns";
+import { extractDemand } from "@shared/callDemandExtraction";
+import { disposeCall } from "@shared/callTaxonomy";
 import { trailReachedTool } from "../../services/vapiConversionSignals";
 import {
   buildVapiMeasurementRecord,
@@ -14,7 +17,37 @@ import {
 } from "../../services/vapiMeasurement";
 
 const log = createLogger("cron:vapi-eval");
-const LOOKBACK_DAYS = 2;
+/**
+ * How far back to look for calls that have never been evaluated.
+ *
+ * WAS 2, AND 2 COULD LOSE A CALL FOREVER. Three facts compose badly:
+ *
+ *   1. the selection filters on `evalAt IS NULL` — a call is only ever picked
+ *      up while it is inside this window;
+ *   2. this job is TIER 4, so it ticks once per 24 hours;
+ *   3. a call is DEFERRED below until its provider analysis is ready or it is
+ *      24h old, so most calls are skipped on their first eligible tick.
+ *
+ * That leaves roughly one tick of margin. A tier skip (the scheduler has
+ * `cron_tier_skip_state`), a deploy at the wrong moment, or a provider outage
+ * spanning a tick pushes a call past 48h — after which nothing ever selects it
+ * again. It stays `evalAt IS NULL` permanently and reads on the dashboard as
+ * "legacy excluded", which is indistinguishable from a call that genuinely
+ * predates the metric. Silent, permanent, and invisible in every green check.
+ *
+ * Five days gives four tick-widths of margin. The window is not a cost: the
+ * `evalAt IS NULL` filter means a widened window returns only calls that were
+ * never scored, which is precisely the set that should be scored.
+ */
+const LOOKBACK_DAYS = 5;
+
+/**
+ * Upper bound on one run, so widening the window cannot turn a backlog into an
+ * unbounded batch of provider fetches. Paired with OLDEST-FIRST ordering: a cap
+ * with newest-first ordering would starve exactly the calls this widening
+ * exists to rescue.
+ */
+const EVAL_BATCH_LIMIT = 200;
 
 interface ProcessResult {
   recordsProcessed: number;
@@ -144,7 +177,12 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
     })
     .from(vapiCallLogs)
     .where(and(gte(vapiCallLogs.createdAt, cutoff), isNull(vapiCallLogs.evalAt)))
-    .orderBy(desc(vapiCallLogs.createdAt));
+    // OLDEST FIRST, deliberately. These are the calls closest to ageing out of
+    // the window and becoming permanently unscorable, so under a cap they must
+    // be served first. Nothing downstream depends on the order — the worst-call
+    // alert re-sorts, and every other use is an aggregate.
+    .orderBy(asc(vapiCallLogs.createdAt))
+    .limit(EVAL_BATCH_LIMIT);
 
   if (!rows.length) return { recordsProcessed: 0, details: `no calls to evaluate${archiveDetails}` };
 
@@ -202,6 +240,24 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
 
       const stateHistory = await getCallStateHistory(row.vapiCallId).catch(() => []);
       const reachedTool = trailReachedTool(stateHistory);
+
+      /**
+       * Buying specifics, from the CALLER's turns only.
+       *
+       * Until now nothing extracted a tire size, vehicle, quantity or
+       * new-vs-used anywhere in this app — `detectIntents` only set booleans —
+       * so the follow-up text could not name what the caller spent the call
+       * describing. Deterministic and cheap: no per-call model spend, and it
+       * fails closed (`null`, never a guess) because a wrong size sends a
+       * customer home with tires that do not fit.
+       *
+       * `extractCustomerTurns` — not the raw transcript. Parsing Nick's speech
+       * would attribute his read-back confirmation to the caller, which is the
+       * contamination that manufactured the missed-revenue queue.
+       */
+      const speech = extractCustomerTurns(detail.transcript ?? null);
+      const demand = extractDemand(speech.turns);
+
       const result = classifyCall({
         durationSeconds: row.durationSeconds ?? 0,
         endedReason: row.endedReason,
@@ -245,12 +301,28 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       });
 
       const existingMetadata = asRecord(row.metadata);
-      const queueCandidate = ["lost_opportunity", "callback_needed", "walk_in_directed", "tech_failure"].includes(result.outcome);
-      const queueUrgency = result.outcome === "callback_needed" ? 9
-        : result.outcome === "lost_opportunity" ? 7
-          : result.outcome === "walk_in_directed" ? 6
-            : result.outcome === "tech_failure" ? 5
-              : 4;
+
+      /**
+       * Queue membership now comes from the ONE kernel, not a re-typed list.
+       *
+       * This array and the one in `routers/vapi.ts` were maintained by hand and
+       * had drifted apart — the write side stamped `queueStatus` using one copy
+       * while the read side re-derived membership from another. Both also
+       * treated `walk_in_directed` as missed revenue, though the scorecard
+       * counts it as a SUCCESS, and `tech_failure` as an operator obligation,
+       * though the same dashboard excludes it as "not a valid conversation".
+       * `disposeCall` resolves both contradictions in one place.
+       */
+      const disposition = disposeCall({
+        outcome: result.outcome,
+        speakerAttribution: result.speakerAttribution,
+        hasCustomerSpeech: speech.firstSubstantive !== null,
+        durationSeconds: row.durationSeconds ?? 0,
+        ageMinutes: Math.max(0, Math.floor((Date.now() - row.createdAt.getTime()) / 60_000)),
+        hasCapturedSpecifics: demand.hasCapturedSpecifics,
+      });
+      const queueCandidate = disposition.queueEligible;
+      const queueUrgency = disposition.priority;
 
       await db.update(vapiCallLogs).set({
         evalScore: result.score,
@@ -262,6 +334,16 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
           intents: result.intents,
           callSignals,
           revenueOpsV1: measurement,
+          /** Buying specifics from the caller's own turns. Null-safe throughout. */
+          demand,
+          /**
+           * Where the outcome's evidence came from. Persisted so queue and
+           * dashboard can separate "no demand" from "we could not read the
+           * call" — an UNKNOWN must never be averaged in as a zero.
+           */
+          speakerAttribution: result.speakerAttribution,
+          lane: disposition.lane,
+          priorityReasons: disposition.reasons,
           ...(queueCandidate ? { queueStatus: "pending", queueUrgency } : {}),
         },
       }).where(eq(vapiCallLogs.id, row.id));
@@ -387,7 +469,19 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
         // phrasing and an unsourced price are not the same severity, and one
         // blended number would hide which is happening.
         `Bot-tells (banned phrasings, separate severity): ${withBotTells}/${scanned} calls`,
-        "Claims = repair quotes, live stock, capacity/wait promises. Detection only — voice cannot be blocked mid-call.",
+        // THE LEGEND MUST LIST THE CLASSES THAT ACTUALLY EXIST. This line read
+        // "repair quotes, live stock, capacity/wait promises" from 2026-07-27
+        // until 2026-09-18, by which point the guard also carried four tire
+        // safety claims and two repair-intake claims. An operator seeing
+        // `phone_repairability_verdict` in the breakdown above had no way to
+        // tell what class it belonged to, or that safety claims were being
+        // scored at all. A legend that stops describing its own list is worse
+        // than no legend: it actively misinforms.
+        "Classes: money (unapproved price, stock, capacity, wait, callback) · "
+          + "tire safety (repairability, improper repair, tire age, AWD) · "
+          + "repair intake (part named over the phone, safe-to-drive verdict).",
+        "Detection only — voice cannot be blocked mid-call, and the safety "
+          + "patterns under-match on purpose, so a clean report is not proof of a clean call.",
       ].join("\n")).catch(() => undefined);
     }
   } catch (error) {

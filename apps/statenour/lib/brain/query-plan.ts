@@ -26,11 +26,59 @@ export interface QueryPlan {
   classes: QueryClass[];
   /** Always present, never rewritten. */
   original: string;
-  /** temporal: the instant the message refers to (UTC). */
+  /**
+   * temporal: the instant the message refers to (UTC).
+   * CONSUMED (2026-09-08) — brain-context passes it to getContextualMemories,
+   * which applies it to all four lanes. ⚠ It NARROWS recall: see the
+   * MONTH_CONTEXT_RE docstring below before loosening anything that sets it.
+   */
   asOf?: Date;
-  /** anaphoric_followup: the prior turn text a lane may append. */
+  /**
+   * anaphoric_followup: the PRIOR turn's text (never this turn's) that a lane
+   * may append. CONSUMED (2026-09-17) — prepended to getContextualMemories'
+   * message array for topic derivation.
+   */
   referent?: string;
-  /** multi_hop only: at most two clauses, never the original. */
+  /**
+   * multi_hop only: at most two clauses, never the original.
+   *
+   * ⚠ COMPUTED BUT NOT CONSUMED as of 2026-09-17 — a known dark wire, left
+   * deliberately, not overlooked. `brain-context.ts` logs only its LENGTH, so
+   * a non-zero number in the logs does not mean anything acted on it.
+   *
+   * ★ 2026-09-18 · MEASURED BEFORE ANY WIRING, and it is a good thing nobody
+   * skipped that step: the matcher scored 36% PRECISION / 80% recall over a
+   * 17-turn hand-labelled corpus, 7 of its 11 firings false. "I closed up and
+   * then went home" split into two lookups; so did "he quit because of the
+   * hours". `and then` / `because of` are ordinary narrative far more often
+   * than they are a request for two retrievals — the same defect the bare
+   * month matcher had with "may".
+   *
+   * The connective arm is now gated on the turn being INTERROGATIVE, which
+   * takes it to 100% precision / 80% recall, pinned by the precision gate in
+   * tests/brain/query-plan.test.ts. The one remaining miss ("which is cheaper,
+   * X or Y") is left missed on purpose: a miss costs one ordinary single-lookup
+   * turn, a false positive costs a bogus second retrieval.
+   *
+   * This does not change the decision below — it removes the landmine under
+   * it. Wiring a 36%-precision signal would have made its defects load-bearing
+   * the moment it gained a consumer, which is exactly what happened to the
+   * `correction` class (41% recall / 53% false positives on the day it got one).
+   *
+   * Wiring it is not a parameter thread like `asOf` and `referent` were: the
+   * clauses are substrings of `original`, so feeding them to topic derivation
+   * adds nothing. The value requires a genuine SECOND retrieval per clause
+   * plus a merge — and the natural merge already exists as
+   * `lib/brain/retrieval-arbiter.ts` `arbitrate()`, which unions candidates by
+   * id and rank. That arbiter is currently reachable only behind
+   * NICK_RECALL_ARBITER (default off), so a multi-hop lane built on it would
+   * depend on an off-by-default component. Cost is real too: 2x recall on the
+   * hot path's 3s budget, for a class that needs an "and then"/"because of"/
+   * compare pattern AND a clean two-way split to fire at all.
+   *
+   * Reopen when the arbiter is promoted, or if multi-hop turns are measured
+   * frequent enough to justify the latency.
+   */
   subQueries: string[];
   /** exact_identifier: quoted phrases / ticket tokens / identifiers found. */
   exactTerms: string[];
@@ -51,12 +99,149 @@ const CLASS_ORDER: QueryClass[] = [
 ];
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-const MONTH_RE = new RegExp(`\\b(${MONTHS.join("|")}|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\\b`, "i");
+const MONTH_TOKENS = `${MONTHS.join("|")}|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec`;
+
+/**
+ * 2026-09-17 · a month name only counts inside a TEMPORAL CONTEXT.
+ *
+ * The first cut matched a bare month token anywhere, and several month names
+ * are ordinary English: "may" is the modal verb far more often than the month,
+ * "march" is a verb, "mar" is a verb, "august" is an adjective. Measured on 13
+ * ordinary turns, the bare matcher produced 10 false temporal classifications
+ * and 7 false `asOf` instants.
+ *
+ * ★ A false `asOf` is not cosmetic — it SILENTLY SHRINKS MEMORY. `asOf` flows
+ * to getContextualMemories -> validityWhere(asOf), which keeps a row when
+ * `validFrom <= asOf`, or when validFrom is null and `createdAt <= asOf`.
+ * Either branch excludes anything newer than `asOf`, so "that may be the right
+ * call" resolved to asOf = May 1st and hid every memory since. No error, no
+ * log — the turn just answers with a fraction of the brain.
+ *
+ * Do NOT restate this as "0 of 40,889 rows carry validFrom" (the 2026-09-08
+ * probe, quoted for months after it went stale). Wave 2 shipped validity at
+ * write: remember() stamps `validFrom: new Date()` unconditionally
+ * (memory-manager.ts:509), so rows written since then DO carry it. Pre-Wave-2
+ * rows and the 107 allowlisted direct writers
+ * (tests/repo/brain-memory-direct-writers.allowlist.json) still take the
+ * createdAt fallback. The severity above is unchanged either way — which is
+ * exactly why the stale premise survived so long unchallenged.
+ *
+ * Requiring a preposition/determiner or an adjacent number keeps every real
+ * date phrasing (12/12 recall on the fixture set) at 0 false positives.
+ * Pinned in tests/brain/query-plan.test.ts.
+ */
+/**
+ * The ambiguity is concentrated: only some month tokens are also ordinary
+ * English. Those get the STRICT preposition list; the rest also accept the
+ * looser ones, which is what rescues "the numbers for June" and "what was
+ * true about July" without readmitting "what do you think of may" or "i asked
+ * for march instead".
+ *
+ * The bias is deliberate and asymmetric: a MISS here just means no `asOf`,
+ * which falls back to full current recall — the correct default. A FALSE
+ * POSITIVE silently truncates memory. So this errs toward missing.
+ */
+/** Month tokens that are also ordinary English words (modal verb, verbs, adjective). */
+const MONTHS_AMBIGUOUS = new Set(["may", "march", "mar", "august", "aug"]);
+/** Derived, not hand-listed, so the two sets cannot drift apart. */
+const MONTHS_UNAMBIGUOUS = MONTH_TOKENS.split("|")
+  .filter((m) => !MONTHS_AMBIGUOUS.has(m))
+  .join("|");
+/** `up to` is here because parseAsOf's own before/until branch already expects it. */
+const PREP_STRICT =
+  "in|by|on|since|before|after|until|through|throughout|during|from|around|early|late|mid|up to|as of";
+const PREP_LOOSE = "about|for|of|over";
+
+const MONTH_CONTEXT_RE = new RegExp(
+  `\\b(?:${PREP_STRICT})\\s+(?:${MONTH_TOKENS})\\b` +
+    `|\\b(?:${PREP_LOOSE})\\s+(?:${MONTHS_UNAMBIGUOUS})\\b` +
+    `|\\b(?:last|this|next)\\s+(?:${MONTH_TOKENS})\\b` +
+    `|\\b(?:${MONTH_TOKENS})\\s+\\d{1,4}\\b` +
+    `|\\b\\d{1,2}\\s+(?:${MONTH_TOKENS})\\b`,
+  "i",
+);
+/** The month token itself — used to read WHICH month once context qualified it. */
+const MONTH_TOKEN_RE = new RegExp(`\\b(${MONTH_TOKENS})\\b`, "i");
 const ISO_RE = /\b(20\d{2})-(\d{2})-(\d{2})\b/;
 const DURABLE_NOUNS = /\b(name|birthday|address|doctor|medication|meds|wife|husband|daughter|son|kid|car|plate|license|insurance|rent|mortgage|salary|passport|allerg\w*|blood type|routine|preference|prefer|always|never)\b/i;
-const CORRECTION_RE = /\b(what changed|which (one )?is current|did i change|now vs|still true|updated?|corrected?|no longer|instead of)\b/i;
+/**
+ * 2026-09-17 · MEASURED and retuned. The first cut carried bare `updated?`,
+ * `corrected?` and `instead of`, which are ordinary verbs and a preposition,
+ * not premise checks: on a 36-case fixture set it classified 10 of 19 ordinary
+ * turns as corrections ("update the shop hours to 8am", "send Moe an updated
+ * invoice", "book the oil change instead of the rotation") while MISSING 10 of
+ * 17 real ones ("has that changed?", "am i still paying 1900", "is that out of
+ * date now") — 41% recall at a 53% false-positive rate. It cost nothing while
+ * the class had no consumer; it gained one (NICK_CORRECTION_THRESHOLD_BOOST)
+ * in this same PR, and a false correction there loosens contradiction
+ * surfacing on an ordinary turn — the trust-killer contradiction-injector.ts's
+ * own header warns about. Retuned to 17/17 recall at 0/19 false positives on
+ * the same fixtures; both sets are pinned in tests/brain/query-plan.test.ts so
+ * a future widening has to beat them, not just look reasonable.
+ */
+const CORRECTION_RE =
+  /\b(what('?s| has)? changed|(has|have) (that|it|this|they|things) changed|which (one )?is (current|right|correct)|did (i|that|it|we) change|now vs|still (true|current|accurate|right|correct|the case|valid)|(am|are|is|do|does) (i|we|that|it|they) still|no longer|up[- ]to[- ]date|out of date|changed since|superseded)\b/i;
+/**
+ * 2026-09-18 · `they`, `he` and `she` added. `them` was already here and
+ * `they` was not — an oversight in the same list, not a judgement call.
+ *
+ * It matters more than pronoun tidiness because of what sits downstream:
+ * deriveFastTopics builds `queryText` for the contextual lane's EMBEDDING out
+ * of topics, and a short turn made entirely of stopwords yields zero topics,
+ * which drops the turn to getFallbackMemories (generic, untargeted). Measured
+ * on 14 ordinary short turns: 9 produced zero topics. The referent is what
+ * supplies vocabulary for those, so a pronoun this predicate misses is a turn
+ * that silently recalls nothing relevant.
+ *
+ * Measured 9/9 anaphoric matched at 0/7 false positives on self-contained
+ * turns — the false-positive side matters because a referent on a
+ * self-contained question ADDS noise: topics cap at 8, so prior-turn words
+ * would crowd out the real ones. Both sets pinned in the test file.
+ */
+/**
+ * Discourse-deictic pronouns: they point OUT of the turn, so their antecedent
+ * is in a prior turn almost by definition.
+ */
 const PRONOUN_RE = /\b(it|that|this|those|these|the same|again|there|them)\b/i;
-const HOP_RE = /\b(and then|because of|which led to|compare|difference between)\b/i;
+/**
+ * Personal pronouns, which routinely resolve LOCALLY — "Did Moe say he
+ * approved?" answers itself. Only anaphoric when the turn names no one.
+ * Split out after Codex flagged (PR #2422) that folding these into the
+ * deictic set misfired on 5 of 12 self-contained turns.
+ */
+const PERSONAL_PRONOUN_RE = /\b(they|he|she)\b/i;
+/**
+ * Multi-hop detection, split into two arms 2026-09-18 after MEASURING the
+ * single-arm version that shipped: 36% precision / 80% recall over 17 turns,
+ * 7 of 11 firings false. This is the SAME defect the bare month matcher had
+ * ("may" is the modal verb far more often than the month): `and then` and
+ * `because of` are overwhelmingly ORDINARY NARRATIVE, not multi-hop questions.
+ * "I closed up and then went home" split into two lookups; so did "the tire
+ * blew because of the pothole", "he quit because of the hours", and four more.
+ *
+ * `subQueries` is consumed by nothing today except a log line, so none of that
+ * reached production — which is exactly why the measurement had to happen
+ * BEFORE wiring it. The `correction` class was 41% recall / 53% false
+ * positives the moment it got its first consumer, and that is the precedent:
+ * a dark wire's defects are free until they are load-bearing.
+ *
+ * CONNECTIVE arm: only counts inside an INTERROGATIVE turn. A narrative
+ * sentence using "and then" is not a request for two lookups; a question
+ * using it is. COMPARE arm needs no such gate — `splitHops`'s comparison
+ * regex already requires an explicit "X and/vs/versus Y", which narrative
+ * prose does not accidentally satisfy.
+ *
+ * Biased toward MISSING, deliberately, same as every other classifier here: a
+ * miss costs one ordinary single-lookup turn (today's behaviour), a false
+ * positive costs a bogus second retrieval. Measured after: 100% precision,
+ * 80% recall — the one remaining miss ("which is cheaper, X or Y") is a shape
+ * the comparison regex does not cover, and is left missed on purpose.
+ */
+const HOP_CONNECTIVE_RE = /\b(and then|because of|which led to)\b/i;
+const HOP_COMPARE_RE = /\b(compare|difference between)\b/i;
+/** Starts with a wh-word or an auxiliary, i.e. reads as a question. */
+const INTERROGATIVE_RE =
+  /^(what|whats|how|hows|why|when|where|which|who|did|does|do|is|are|was|were|can|could|should|would|will)\b/i;
 const SYNTH_RE = /^(summari[sz]e|overview|everything about|what do you know about)\b/i;
 
 function monthIndex(name: string): number {
@@ -103,7 +288,7 @@ function parseAsOf(msg: string, now: Date): Date | undefined {
     else d.setUTCFullYear(d.getUTCFullYear() - 1);
     return d;
   }
-  const mm = MONTH_RE.exec(msg);
+  const mm = MONTH_CONTEXT_RE.test(msg) ? MONTH_TOKEN_RE.exec(msg) : null;
   if (mm) {
     const mi = monthIndex(mm[1]);
     if (mi >= 0) {
@@ -126,9 +311,12 @@ function isTemporal(msg: string): boolean {
   const lower = msg.toLowerCase();
   return (
     ISO_RE.test(msg) ||
-    MONTH_RE.test(msg) ||
+    MONTH_CONTEXT_RE.test(msg) ||
     /\b(last (week|month|year)|yesterday|\d+\s+(day|week|month|year)s?\s+ago|(a|an|one|two|three)\s+(day|week|month|year)s?\s+ago|as of|back in)\b/.test(lower) ||
-    /\b(before|after|since|until)\s+(\d|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|last|the)/i.test(msg)
+    // `the` dropped 2026-09-17: "clean up after the install", "look after the
+    // shop" are not temporal, and a bare "before the X" never resolves to an
+    // instant anyway — it only mislabelled the turn.
+    /\b(before|after|since|until)\s+(\d|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|last)/i.test(msg)
   );
 }
 
@@ -172,13 +360,28 @@ export function planQuery(message: string, opts?: { recentTurns?: string[]; now?
 
   let referent: string | undefined;
   const recent = (opts?.recentTurns ?? []).filter((t) => typeof t === "string" && t.trim().length > 0);
-  if (trimmed.length < 60 && PRONOUN_RE.test(trimmed) && recent.length > 0) {
+  // A personal pronoun whose antecedent is NAMED IN THIS TURN ("Did Moe say he
+  // approved?") is not a follow-up: attaching a prior turn as its referent
+  // injects that turn's keywords into topic extraction, which is the opposite
+  // of helpful. Deictic pronouns point out of the turn and are unaffected, so
+  // "Did Moe approve that?" still resolves. capitalisedNames() already exists
+  // for entity detection and is reused rather than duplicated.
+  const namesThisTurn = capitalisedNames(trimmed).length > 0;
+  const isFollowUpPronoun =
+    PRONOUN_RE.test(trimmed) || (PERSONAL_PRONOUN_RE.test(trimmed) && !namesThisTurn);
+  if (trimmed.length < 60 && isFollowUpPronoun && recent.length > 0) {
     matched.add("anaphoric_followup");
     referent = recent[recent.length - 1].trim().slice(-200);
     reasons.push("short follow-up with a pronoun; referent from the last turn");
   }
 
-  const subQueries = HOP_RE.test(trimmed) || /\?\s+\S.*\?/.test(trimmed) ? splitHops(trimmed) : [];
+  // See HOP_CONNECTIVE_RE's header for the measurement that produced this shape.
+  const interrogative = INTERROGATIVE_RE.test(trimmed) || trimmed.includes("?");
+  const hopSignal =
+    (HOP_CONNECTIVE_RE.test(trimmed) && interrogative) ||
+    HOP_COMPARE_RE.test(trimmed) ||
+    /\?\s+\S.*\?/.test(trimmed);
+  const subQueries = hopSignal ? splitHops(trimmed) : [];
   if (subQueries.length === 2) { matched.add("multi_hop"); reasons.push("two clauses that need two lookups"); }
 
   const names = capitalisedNames(trimmed);

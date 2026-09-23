@@ -24,13 +24,43 @@
  *   pnpm tsx scripts/check-policy-coverage.ts
  */
 
+import Module from "node:module";
 import { CRONS } from "@/config/crons";
-import {
-  findPolicyGaps,
-  policyGapRemedy,
-  type PolicyCoverageGap,
-} from "@/lib/automation/policy";
-import { listRuleNames } from "@/lib/brain/autonomous-engine";
+import type { PolicyCoverageGap } from "@/lib/automation/policy";
+
+/**
+ * ⚠⚠ THIS GATE WAS WIRED INTO `verify:hard`, IN HARD MODE, AND HAD NEVER RUN.
+ *
+ * `lib/brain/autonomous-engine` transitively imports `lib/ai/budget.ts:9`,
+ * which imports `server-only` — a Next.js tripwire whose entry throws by
+ * design and which only the Next bundler rewrites to a no-op. Under plain
+ * `tsx` it threw at module load, so the script died before `main()` and
+ * `verify:hard` reported a failure that nobody read as "this specific gate is
+ * dead". The gap it exists to catch went uncaught the whole time: measured
+ * 2026-09-19, `cron.device-heartbeat-sentinel` is an ACTIVE cron (every 15
+ * minutes — the schedule is NOT written out here because a cron expression
+ * contains a comment-terminator and silently ends this block) with no
+ * AutomationPolicy row, so every one of its fires is
+ * recorded nowhere — `logPolicyFire` finds 0 rows, warns
+ * `policy_fire_missing_registry`, and returns before writing the fire event.
+ *
+ * ⚠ THE STUB ALONE IS NOT ENOUGH, and this is the part that is easy to get
+ * wrong: ESM HOISTS STATIC `import` ABOVE EVERY STATEMENT, so a stub block at
+ * the top still runs AFTER the offending module has been evaluated. The two
+ * imports that reach `server-only` are therefore loaded DYNAMICALLY inside
+ * `main()`, after the stub is installed. `CRONS` is plain config and stays
+ * static; the `PolicyCoverageGap` import is a type and is erased.
+ */
+{
+  const cjs = Module as unknown as {
+    _load: (request: string, parent: unknown, isMain: boolean) => unknown;
+  };
+  const original = cjs._load;
+  cjs._load = (request, parent, isMain) => {
+    if (request === "server-only") return {};
+    return original(request, parent, isMain);
+  };
+}
 
 const HARD_MODE =
   process.env.POLICY_GATE_HARD === "1" ||
@@ -40,6 +70,11 @@ const HARD_MODE =
     Date.now() >= new Date("2026-05-10").getTime());
 
 async function main() {
+  // Loaded here, not at module scope: see the header. Static imports hoist
+  // above the server-only stub and re-introduce the crash this gate died of.
+  const { findPolicyGaps, policyGapRemedy } = await import("@/lib/automation/policy");
+  const { listRuleNames } = await import("@/lib/brain/autonomous-engine");
+
   // Active + folded crons should have policies. Retired crons get a
   // policy too (with approvalClass=forbidden) so the gate doesn't
   // need to special-case mode here.

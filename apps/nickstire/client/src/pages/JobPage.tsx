@@ -12,16 +12,19 @@
  * applying ever routes somewhere else, that flag has to change with it.
  */
 import { useRoute, Link } from "wouter";
-import { ArrowLeft, CheckCircle2, MapPin } from "lucide-react";
-import { SEOHead, Breadcrumbs } from "@/components/SEO";
+import { ArrowLeft, CheckCircle2, Clock, DollarSign, Gift, MapPin, Phone } from "lucide-react";
+import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import PageLayout from "@/components/PageLayout";
 import { BUSINESS, SITE_URL } from "@shared/business";
+import { getRouteByPath } from "@shared/routes";
 import {
   buildJobPostingSchema,
+  formatHourlyPayRange,
   jobOpeningBySlug,
   jobOpeningPath,
 } from "@shared/jobOpenings";
-import { ApplicationForm } from "./Careers";
+import { ApplicationForm, chooseCareersIntent } from "./Careers";
 import NotFound from "./NotFound";
 
 export default function JobPage() {
@@ -36,7 +39,11 @@ export default function JobPage() {
   const schema = buildJobPostingSchema(job, {
     siteUrl: SITE_URL,
     orgName: BUSINESS.name,
-    logoUrl: `${SITE_URL}/favicon.ico`,
+    // A PNG, not the .ico favicon the first version pointed at. The file is
+    // named 512 but measures 180x180 (as does icon-192x192.png); Google's
+    // logo minimum is 112x112, so it qualifies as it is.
+    logoUrl: `${SITE_URL}/icon-512x512.png`,
+    shopHours: BUSINESS.hours.display,
     address: {
       street: BUSINESS.address.street,
       city: BUSINESS.address.city,
@@ -45,11 +52,20 @@ export default function JobPage() {
     },
   });
 
+  // Rendered visibly above the fold from the SAME fields that feed
+  // baseSalary — Google requires markup to match what the page shows.
+  const pay = formatHourlyPayRange(job);
+
+  // PageLayout (2026-09-23): site nav, footer, a <main> landmark, and the
+  // scroll reset — without it, opening a role from a cached /careers kept the
+  // old scroll offset and landed below the pay box.
   return (
-    <div className="min-h-screen bg-background">
+    <PageLayout activeHref="/careers" showChat={false}>
       <SEOHead
         title={`${job.title} — ${BUSINESS.address.city}, ${BUSINESS.address.state} | ${BUSINESS.name}`}
-        description={job.description.slice(0, 155)}
+        // The prerendered HTML's description comes from shared/routes.ts and
+        // carries the pay; hydrating a different one swapped it back out.
+        description={getRouteByPath(jobOpeningPath(job.slug))?.description ?? job.description.slice(0, 155)}
         canonicalPath={jobOpeningPath(job.slug)}
       />
       {schema && (
@@ -80,7 +96,41 @@ export default function JobPage() {
             <MapPin className="w-4 h-4" />
             {BUSINESS.address.street}, {BUSINESS.address.city}, {BUSINESS.address.state}
           </p>
+          <div className="grid gap-3 sm:grid-cols-2 mb-6">
+            <div className="flex items-start gap-3 rounded-xl border border-border/25 p-4">
+              <DollarSign className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[12px] uppercase tracking-wide text-foreground/45">Pay</p>
+                <p className="text-base font-bold text-foreground">
+                  {pay ? `${pay} · hourly, not flat rate` : "Discussed at interview"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 rounded-xl border border-border/25 p-4">
+              <Clock className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[12px] uppercase tracking-wide text-foreground/45">Shop hours</p>
+                <p className="text-[14px] text-foreground/80">{BUSINESS.hours.display}</p>
+              </div>
+            </div>
+          </div>
           <p className="text-base text-foreground/70 leading-relaxed">{job.description}</p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <a
+              href="#apply"
+              onClick={() => chooseCareersIntent("apply")}
+              className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-xl font-semibold text-sm min-h-[48px]"
+            >
+              Apply in 2 minutes
+            </a>
+            <a
+              href={BUSINESS.phone.href}
+              onClick={() => trackPhoneClick("careers-job-page")}
+              className="inline-flex items-center gap-2 border border-border/40 text-foreground/80 px-5 py-3 rounded-xl font-semibold text-sm min-h-[48px]"
+            >
+              <Phone className="w-4 h-4" /> Call {BUSINESS.phone.display}
+            </a>
+          </div>
         </div>
       </section>
 
@@ -129,14 +179,24 @@ export default function JobPage() {
         </div>
       </section>
 
-      <section className="py-14 border-t border-border/20">
+      <section id="apply" className="py-14 border-t border-border/20">
         <div className="container max-w-2xl">
-          <h2 className="font-heading text-2xl font-extrabold uppercase text-foreground mb-6">
+          <h2 className="font-heading text-2xl font-extrabold uppercase text-foreground mb-2">
             Apply for {job.title}
           </h2>
-          <ApplicationForm />
+          <p className="text-sm text-foreground/55 mb-6">
+            No resume required. We respond within 48 hours.
+          </p>
+          <ApplicationForm defaultPosition={job.title} />
+          <p className="mt-6 flex items-start gap-2 text-[13px] text-foreground/55">
+            <Gift className="w-4 h-4 text-nick-yellow shrink-0 mt-0.5" />
+            <span>
+              Know someone better for this job? Refer a technician who gets hired and stays 90
+              days and you get $300 cash — put your name in their "Referred by" box.
+            </span>
+          </p>
         </div>
       </section>
-    </div>
+    </PageLayout>
   );
 }

@@ -141,6 +141,66 @@ function sortTasks(tasks: ReturnType<typeof buildTaskViewModels>, sort = "priori
   return clone;
 }
 
+/**
+ * Worst elapsed time OBSERVED on a task-write transaction in production, ms.
+ *
+ * Three `/api/sync/nour-os` failures, 2026-09-16/17:
+ *   `Transaction already closed ... timeout for this transaction was 5000 ms,
+ *    however 5115 ms passed` (also 5089, 5073).
+ *
+ * ★ ALL THREE OVERRUN BY UNDER 115 ms — 1.5-2.3% past the limit. That tight
+ * clustering IS the diagnosis: work that is pathologically too large overruns
+ * by seconds, not milliseconds. This is a budget sitting just under the tail,
+ * which is the judge-eval defect inverted (there an 8s budget sat far BELOW a
+ * 12.1s median, failing >50% by construction; here it fails ~0.3%). Same root
+ * cause either way: AN UNMEASURED DEFAULT.
+ */
+export const TASK_TX_MEASURED_OVERRUN_MS = 5_115;
+
+/**
+ * Explicit budget for the four task/mission transactions that run
+ * `syncTaskPriorities`, replacing Prisma's unmeasured 5000 ms default.
+ *
+ * SIZED FROM PRODUCTION: 408 task rows, 212 non-terminal (173 INBOX · 35 READY
+ * · 3 WAITING · 1 DOING) and 104 with a NULL `autoPriority` — each of those a
+ * guaranteed UPDATE on the next sync. At ~24 ms per Neon round trip, ~212
+ * updates is ~5.1 s, which is exactly the observed overrun. 20 s leaves ~4x
+ * headroom, i.e. roughly 800 open tasks.
+ *
+ * ⚠ `maxWait` is deliberately LEFT AT ITS DEFAULT. The failures are timeouts,
+ * not pool-acquisition waits, and bundling an unmeasured change with a measured
+ * one is how a fix stops being attributable. Only change what was measured.
+ *
+ * ✅ 2026-09-17 · THE STRUCTURAL FIX HAS SINCE BEEN TAKEN, so this is now a
+ * CEILING rather than the thing standing between the app and the cliff. All
+ * four sites that used to run `syncTaskPriorities` inside a transaction now
+ * score at most ONE row there (`scoreSingleTask`) and defer the global refresh
+ * past the commit (`scheduleGlobalPrioritySync`). The task-write transactions
+ * are therefore CONSTANT-TIME in the open-task count, and the two mission
+ * transactions went back to Prisma's default budget because they became a
+ * single statement.
+ *
+ * ⚠ It is deliberately KEPT anyway. `createTask`/`updateTask` still do a
+ * create-or-update plus a mission `findMany`, a score update and a hydrating
+ * `findUnique` — four round trips whose cost tracks MISSION count, and a
+ * generous ceiling on a bounded transaction is free. Removing it would buy
+ * nothing and re-expose a path whose failure mode is a lost user write.
+ */
+export const TASK_TX_OPTS = { timeout: 20_000 } as const;
+
+/**
+ * Statuses a task is never scored in.
+ *
+ * ⚠⚠ SHARED ON PURPOSE by the batch path and the single-task path. It used to
+ * be spelled three times (the demo branch, the Prisma `notIn`, and nowhere at
+ * all in the single-task path) — and that last omission is a real defect this
+ * repo's tests caught: `scoreSingleTask` happily scored a DONE task, writing an
+ * `autoPriority` onto completed work that `syncTaskPriorities` had always
+ * excluded. Two scorers that must agree cannot each carry their own copy of the
+ * predicate.
+ */
+const UNSCORED_TASK_STATUSES = ["DONE", "ARCHIVED"] as const;
+
 export async function syncTaskPriorities(db: DbClient = prisma) {
   if (isDemoMode) {
     const state = getDemoState();
@@ -149,7 +209,7 @@ export async function syncTaskPriorities(db: DbClient = prisma) {
     const now = new Date();
 
     state.tasks
-      .filter((task) => !["DONE", "ARCHIVED"].includes(task.status))
+      .filter((task) => !(UNSCORED_TASK_STATUSES as readonly string[]).includes(task.status))
       .forEach((task) => {
         const automation = scoreTaskPriority(task, missionMap);
         task.autoPriority = automation.score;
@@ -172,7 +232,7 @@ export async function syncTaskPriorities(db: DbClient = prisma) {
       },
       where: activeOnly({
         status: {
-          notIn: ["DONE", "ARCHIVED"],
+          notIn: [...UNSCORED_TASK_STATUSES],
         },
       }),
     }),
@@ -208,6 +268,149 @@ export async function syncTaskPriorities(db: DbClient = prisma) {
 }
 
 export const recomputeTaskPriorities = syncTaskPriorities;
+
+/**
+ * Mission ranking map in the shape `scoreTaskPriority` consumes.
+ *
+ * `scoreTaskPriority` resolves a task's mission from THIS MAP via
+ * `task.missionId` — it never reads `task.mission` — so a task scored with the
+ * same map scores identically whether it came from a batch `findMany(include:
+ * { mission: true })` or straight out of `task.create`. That is what makes the
+ * single-task path below equivalent to the batch, rather than an approximation.
+ */
+function buildMissionRankMap(missions: unknown) {
+  return new Map(
+    rankMissions(serializeForJson(missions)).rankedMissions.map((mission) => [mission.id, mission]),
+  );
+}
+
+/**
+ * Score ONE task and persist it — constant time, safe inside a transaction.
+ *
+ * ★★★ THIS IS THE STRUCTURAL FIX. `syncTaskPriorities` re-scores EVERY open
+ * task, so running it inside a write transaction made that transaction's
+ * duration scale with the open-task count: measured at 408 rows / 212
+ * non-terminal, ~212 UPDATEs at ~24ms per Neon round trip = ~5.1s against
+ * Prisma's 5000ms default, which is precisely the production failure
+ * (`Transaction already closed ... 5115ms passed`).
+ *
+ * ⚠⚠ The consequence was worse than slowness: a task WRITE FAILED because a
+ * best-effort DENORMALISATION could not finish. `autoPriority` is derived
+ * ranking data; it has no business vetoing the creation of a task.
+ *
+ * So the transaction now scores only the row it just wrote — which is all the
+ * caller's returned view model actually depends on — and the global refresh is
+ * deferred past the commit by `scheduleGlobalPrioritySync`.
+ */
+async function scoreSingleTask(
+  db: DbClient,
+  task: unknown,
+  missions: unknown,
+): Promise<void> {
+  const serialized = serializeForJson(task) as Parameters<typeof scoreTaskPriority>[0] & {
+    id: string;
+    status: string;
+    autoPriority: number | null;
+    autoPriorityExplanation: string | null;
+  };
+
+  // ⚠⚠ A TERMINAL TASK IS NEVER SCORED — `syncTaskPriorities` filters these out
+  // with `notIn`, so scoring one here would write an `autoPriority` onto
+  // completed work that the batch path would never produce, and the two scorers
+  // would disagree about the same row.
+  if ((UNSCORED_TASK_STATUSES as readonly string[]).includes(serialized.status)) return;
+
+  const automation = scoreTaskPriority(serialized, buildMissionRankMap(missions));
+
+  // ⚠⚠ SKIP AN UNCHANGED SCORE — this mirrors syncTaskPriorities:237 and is
+  // NOT an optimisation. An unconditional write stamps `@updatedAt`, and this
+  // repo has already been burned by that: a previous unconditional rewrite made
+  // updatedAt-based sorting, staleness and patience-XP meaningless. A no-op
+  // re-score must leave the row untouched. Dropping this line turns
+  // `update-task-completion-transition.test.ts` red — deliberately.
+  if (
+    serialized.autoPriority === automation.score &&
+    serialized.autoPriorityExplanation === automation.explanation
+  ) {
+    return;
+  }
+
+  await db.task.update({
+    where: { id: serialized.id },
+    data: {
+      autoPriority: automation.score,
+      autoPriorityExplanation: automation.explanation,
+    },
+  });
+}
+
+/**
+ * Run the GLOBAL re-score AFTER a transaction has committed — never inside one.
+ *
+ * ⚠ Fire-and-forget ON PURPOSE, and it must never reject: the caller's write
+ * has already committed by the time this runs, so throwing here would turn a
+ * SUCCEEDED write into a failed request — reintroducing the exact veto this
+ * change exists to remove, one layer up.
+ *
+ * ⚠ Uses the module-level `prisma`, so it must NOT be called while an outer
+ * interactive transaction still holds row locks on `task` — a second
+ * connection would contend with locks the first has not released. Every call
+ * site is therefore after its own `$transaction` resolves, and `createTask`
+ * skips it entirely when a caller passed its own `tx` (that caller owns the
+ * refresh, as `createMission`/`updateMission` already do).
+ */
+let prioritySyncInFlight: Promise<void> | null = null;
+let prioritySyncQueued = false;
+
+export function scheduleGlobalPrioritySync(source: string): void {
+  // ⚠⚠ COALESCED, NOT MERELY FIRED. Moving the refresh out of the transaction
+  // bought liveness (a derived write can no longer fail a user's write) but
+  // gave up the serialisation the transaction and its row locks used to
+  // provide — a trade this code did not originally name. Two mutations
+  // finishing close together would launch independent FULL-TABLE refreshes,
+  // and `syncTaskPriorities` reads every open task then writes derived scores
+  // with NO version predicate: the refresh that read FIRST can write LAST,
+  // leaving `autoPriority` computed from a stale due date, mission or rank
+  // until some later mutation happens to fix it.
+  //
+  // ★ Coalescing is sound precisely because a full-table refresh is IDEMPOTENT
+  // and order-independent — running it once after N mutations is equivalent to
+  // running it N times, and strictly cheaper. So a request arriving mid-flight
+  // sets a flag rather than starting a second pass, and exactly one more pass
+  // runs afterwards to pick up whatever landed in the meantime.
+  //
+  // ⚠ IN-PROCESS ONLY. Two Railway instances can still overlap; this removes
+  // the common case (one process, several mutations in quick succession), not
+  // the distributed one. A cross-instance fix needs a version predicate or an
+  // advisory lock, which is a bigger change than this defect warrants.
+  if (prioritySyncInFlight) {
+    prioritySyncQueued = true;
+    return;
+  }
+
+  prioritySyncInFlight = (async () => {
+    try {
+      await syncTaskPriorities();
+    } catch (err: unknown) {
+      log.warn("priority_sync_deferred_failed", {
+        source,
+        error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+      });
+    } finally {
+      // Cleared BEFORE the re-entry so the queued pass can actually start.
+      prioritySyncInFlight = null;
+      if (prioritySyncQueued) {
+        prioritySyncQueued = false;
+        scheduleGlobalPrioritySync(source);
+      }
+    }
+  })();
+}
+
+/** Test seam: await whatever refresh is currently in flight. */
+export function __awaitPrioritySyncForTest(): Promise<void> {
+  return prioritySyncInFlight ?? Promise.resolve();
+}
 
 export async function listTasks(filter: TaskFilter = {}) {
   if (isDemoMode) {
@@ -459,7 +662,21 @@ export async function createTask(input: unknown, tx?: Prisma.TransactionClient) 
       }
     });
 
-    await syncTaskPriorities(client);
+    // v9.1.15 · same fix as getTaskById — soft-delete filter.
+    // v10.0.529.106 wave-74 · migrated to activeOnly() helper.
+    //
+    // Hoisted above the scoring: missions are needed TWICE — to rank this task
+    // and to build its view model — so one fetch serves both. The transaction
+    // is now strictly cheaper than before, not merely better bounded.
+    const missions = await client.mission.findMany({
+      where: activeOnly(),
+    });
+
+    // ⚠ Was `await syncTaskPriorities(client)` — a re-score of EVERY open task
+    // inside this transaction, which is what blew the budget in production.
+    // The returned view model only ever depended on THIS task's score, so that
+    // is all the transaction computes; the global refresh happens after commit.
+    await scoreSingleTask(client, task, missions);
 
     const hydrated = await client.task.findUnique({
       where: { id: task.id },
@@ -467,15 +684,16 @@ export async function createTask(input: unknown, tx?: Prisma.TransactionClient) 
         mission: true
       }
     });
-    // v9.1.15 · same fix as getTaskById — soft-delete filter.
-    // v10.0.529.106 wave-74 · migrated to activeOnly() helper.
-    const missions = await client.mission.findMany({
-      where: activeOnly(),
-    });
 
     return { task, vm: buildTaskViewModels(hydrated ? [hydrated] : [], missions)[0] };
   };
-  const result = tx ? await runCore(tx) : await prisma.$transaction(runCore);
+  const result = tx ? await runCore(tx) : await prisma.$transaction(runCore, TASK_TX_OPTS);
+
+  // The global re-score, moved OUT of the write path. When `tx` was supplied we
+  // are a participant in someone else's transaction that has not committed yet,
+  // so firing a second connection here would contend with its locks — that
+  // caller owns the refresh, exactly as createMission/updateMission already do.
+  if (!tx) scheduleGlobalPrioritySync("createTask");
 
   // Apr 26 · TaskEvent emit — fire-and-forget after the transaction
   // commits so analytics never blocks the user-facing write path.
@@ -977,8 +1195,6 @@ export async function updateTask(id: string, input: unknown) {
       }
     });
 
-    await syncTaskPriorities(tx);
-
     // Execution Deck (2026-09-01): a due-date change re-arms the server-side
     // reminder sleeper (fire-and-forget — never blocks the PATCH).
     if (payload.dueDate !== undefined) {
@@ -987,20 +1203,33 @@ export async function updateTask(id: string, input: unknown) {
       );
     }
 
+    // v9.1.15 · same fix as getTaskById — soft-delete filter.
+    // v10.0.529.106 wave-74 · migrated to activeOnly() helper.
+    // Hoisted above the scoring so one fetch serves both it and the view model.
+    const missions = await tx.mission.findMany({
+      where: activeOnly(),
+    });
+
+    // ⚠ Was `await syncTaskPriorities(tx)` — see scoreSingleTask. A PATCH can
+    // change missionId, dueDate or manualPriorityOverride, all of which feed
+    // this task's own score, so it must still be re-scored here; what it must
+    // NOT do is re-score the other 211 open tasks inside this transaction.
+    await scoreSingleTask(tx, task, missions);
+
     const hydrated = await tx.task.findUnique({
       where: { id: task.id },
       include: {
         mission: true
       }
     });
-    // v9.1.15 · same fix as getTaskById — soft-delete filter.
-    // v10.0.529.106 wave-74 · migrated to activeOnly() helper.
-    const missions = await tx.mission.findMany({
-      where: activeOnly(),
-    });
 
     return { task, vm: buildTaskViewModels(hydrated ? [hydrated] : [], missions)[0] };
-  });
+  }, TASK_TX_OPTS);
+
+  // Global refresh, after the commit. A mission change here can alter OTHER
+  // tasks' relative ranking, so the full re-score still has to happen — just
+  // not where it can veto the write.
+  scheduleGlobalPrioritySync("updateTask");
 
   // v8.0 Phase 2A — log the field-level diff to entity_audits so the
   // brain layer + admin UI can ask "what did Nick change about this

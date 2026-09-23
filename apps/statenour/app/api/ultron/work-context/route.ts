@@ -22,7 +22,7 @@ import { daysAgo, toDateString } from "@/lib/utils/datetime";
  *                         today (resets on pause or skip)
  *   - lastCompletedAt:    ISO timestamp of the most recent finish
  *
- * Cached 60s (L1 + Redis). The Work Widget calls this on mount + every
+ * Cached 60s in-process. The Work Widget calls this on mount + every
  * minute, which is fine because the underlying Task table changes slowly.
  */
 

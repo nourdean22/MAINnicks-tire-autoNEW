@@ -152,3 +152,143 @@ Behavioral confirmation lands with the operator's next real turns.
   re-lands the durable layer at all.
 - **ef_search / iterative_scan** (study Finding 3) — pgvector 0.8.0 supports both; measure on
   this corpus before changing.
+
+---
+
+# Re-measurement — 2026-09-18 (PR #2443)
+
+This document's header says "re-measure before trusting any number that has aged." Three weeks
+later, on a corpus built a completely different way, the dense lane lands in the same place.
+
+## The convergence, which is the point
+
+| | 2026-08-27 | 2026-09-18 |
+|---|---|---|
+| dense / vector lane | **hit@5 = 39%** | **precision@5 = 0.368** |
+| corpus | 28 cases, HAND-LABELLED, queries verbatim from real chat turns | 76 scored cases, AUTO-HARVESTED from durable memory, queries model-PARAPHRASED |
+| lexical lane | hit@5 = 21% | precision@5 = 0.066 |
+
+**The two metrics are comparable here, and that is checked rather than assumed.**
+`precisionAtK = hit / Math.min(k, relevant.length)`, so a case carrying exactly ONE relevant key
+scores `hit/1` — identical to hit@5. All 68 harvested scored cases carry exactly one key
+(verified), i.e. 68 of 76 scored cases (89%). The remaining ~8 come from `SEED_CASES` and may
+carry more, so treat 0.368 as "hit@5 for 89% of the corpus", not as a pure hit@5.
+
+Two independently constructed corpora — hand-labelled verbatim vs auto-harvested paraphrased,
+2.7x apart in size, three weeks apart in time — agreeing within ~2 points. That is evidence the
+~37-39% figure is a property of THE SYSTEM rather than an artifact of either corpus. It is much
+stronger evidence than either measurement alone, and neither was built to confirm the other.
+
+## Corpus, frozen
+
+`data/recall-corpus.manifest.json` — **121 cases, sha256 `bbcc62558397…`, frozen 2026-09-18.**
+The corpus itself stays gitignored (real operator content); the FINGERPRINT is committed, so
+`pnpm eval:recall` now prints either `corpus frozen ✓` or `corpus CHANGED vs manifest — numbers
+are not comparable to the baseline`.
+
+⚠ **The paraphrase arm is non-deterministic**, so re-harvesting WILL change the fingerprint. That
+is correct behaviour, not a bug: a re-harvested corpus genuinely is not the corpus that produced
+these numbers. But it also means the 2026-09-18 corpus is not reproducible from the repo — it
+exists only in the local gitignored `eval-datasets/`. Treat the manifest as "which corpus produced
+this row", never as "run this to reproduce it".
+
+## What made the corpus usable at all
+
+Before #2443 the positive arm was **ONE case** against 2,412 eligible rows — precision@k on n=1.
+`orderBy updatedAt desc, take 75` let `customer_preference` (the WORST category in the curated
+set: 3 eligible of 283, machine-written, ~42-char content) consume 100% of the sample, because it
+is churned constantly and therefore wins on recency. A flat per-category quota took positives
+1 -> 68 across 13 categories. **A LIMIT applied before a diversity requirement is won by whatever
+CHURNS most** — re-rank before the LIMIT.
+
+## Lever now UNLOCKED by this document's own criterion
+
+The section above says: *"stay on RRF k=60 until >=50 labelled pairs exist. The corpus is 28
+cases; grow it via `pnpm harvest:evals` + real misses before tuning weights."*
+
+**That gate is cleared: 68 labelled positive pairs.** Weighted fusion is now measurable rather
+than speculative. It has NOT been attempted — this note records only that the precondition is met.
+
+## Lexical lane: re-checked, NOT degraded
+
+Tonight's first reading looked alarming — 34 of 71 recall invocations (48%) skipped the lexical
+lane on a 900ms statement timeout, vs this document's 10 of 28 (36%). **It was confounded**: that
+run was measured while the eval itself drove 121 cases x 3 lanes at the same database. Re-measured
+SEQUENTIALLY with nothing else in flight: **9 of 25 over budget (36%)** — matching the 2026-08-27
+figure exactly. There is no degradation, and reporting one would have been a false alarm.
+
+⚠ That re-measurement had its own flaw, stated so nobody cites it as clean: 8 of the 25 failed on
+`Connection terminated due to connection timeout` at ~10s — Neon connection exhaustion, NOT the
+900ms statement timeout — and the probe's verdict labels miscounted those as "skipped". The 36%
+over-budget figure stands; the skip/empty split within it does not.
+
+## Open, and deliberately not fixed here
+
+- **`getLexicalMatches` returns `[]` for BOTH "no matches" and "the lane timed out"**, so no
+  caller can distinguish them. The skip is a bare `console.warn` — nothing persists it, so the
+  rate is invisible in production. The 2026-08-27 trade-off was made ON a measurement, and nothing
+  re-checks that measurement as the store grows. Not fixed: it is the chat hot path and
+  `getLexicalMatches`'s signature is pinned by a source-scan test.
+- **The hybrid lane has no trustworthy number yet.** `scripts/recall-eval.ts` was omitting
+  `queryEmbedding`, and `contextual-recall.ts:900` gates the true-KNN pool on it, so the lane ran
+  with ZERO KNN candidates and scored 0.053 — retracted, not restated. The runner now passes the
+  embedding and prints the lane's configuration beside its score, but a full re-run has not
+  completed: at 121 cases x 3 lanes the hybrid path (~5s/case) exhausts the Neon connection.
+- **Neon connection exhaustion is the limiting factor** on every measurement attempt tonight: it
+  killed two full eval runs and contaminated the lexical probe. Anything that wants a complete
+  121-case hybrid number needs to solve that first.
+
+## Weighted RRF fusion — ANSWERED 2026-09-18, and the answer is "do not tune"
+
+The gate above ("stay on RRF k=60 until >=50 labelled pairs exist") cleared at 68
+labelled pairs. `scripts/rrf-weight-sweep.ts` retrieves each case ONCE per lane and
+fuses the whole weight grid offline, so N weights cost the same database work as one.
+
+⚠ Weighted fusion was never missing — `lib/brain/rrf.ts` already takes `opts.weights`.
+Only the measurement was missing.
+
+| vecW | lexW | precision@5 | vs incumbent |
+|---|---|---|---|
+| 1 | 0 | 0.4412 | -0.0147 |
+| 3 | 1 | 0.4559 | 0.0000 |
+| 2 | 1 | 0.4559 | 0.0000 |
+| 1.5 | 1 | 0.4559 | 0.0000 |
+| **1** | **1** | **0.4559** | **INCUMBENT** |
+| 1 | 1.5 | 0.3529 | -0.1029 |
+| 1 | 2 | 0.3529 | -0.1029 |
+| 0 | 1 | 0.3676 | -0.0882 |
+
+**VERDICT: 1:1 is already optimal. Do not change it.**
+
+★ **AND IT INDEPENDENTLY REPRODUCES THIS DOCUMENT'S OWN `C` ROW.** The baseline table
+above measured `C · RRF(A+B), k=60` at **hit@5 = 43%** on 28 hand-labelled verbatim
+cases. This sweep measures the same fusion at **0.4559 (45.6%)** on 68 auto-harvested
+PARAPHRASED cases — within 2.6 points, on a corpus built by the opposite method. That
+is the THIRD independent agreement in this document (dense 39% vs 0.368 is the first).
+Three convergences across two corpora is why these numbers should now be treated as
+properties of the system rather than of any single measurement.
+
+⚠ AND IT DOES NOT OVERTURN THE `C` ROW'S CONCLUSION. The AFTER section records the
+FIXED live lane (`D`) at **50%**, above fusion either way — so "no further fusion build
+into memory-recall is justified by these numbers" still stands. Weighted fusion was the
+last open question about the fusion lane, and the answer is that there was nothing there.
+
+Three things the numbers say:
+
+1. **A PLATEAU, not a peak.** Every weighting favouring vector >=1:1 scores
+   IDENTICALLY. With k=60 and <=25 items per lane, RRF contributions span only
+   1/61..1/85, so cross-lane weight cannot reorder the top-5 until it is large
+   enough to flip ties. Tuning inside the plateau is a no-op dressed as progress.
+2. **Favouring lexical is actively harmful** (-0.1029 at 1:1.5). The downside is
+   ~7x the available upside — an asymmetry that argues against tuning at all.
+3. **Lexical earns its seat, but barely.** Fusion 0.4559 vs vector-alone 0.4412 =
+   **+1.5 points**, and only at weight <=1. Consistent with lexical returning
+   nothing on **26 of 68 cases (38%)**, matching the ~36% lane-skip rate.
+
+⚠ LIMITS, STATED. One corpus, one run, NO HOLDOUT. This says which weight fits
+THESE 68 cases, not which generalises — a weight chosen on the data it was
+measured on is fitted, not validated. That the answer is "change nothing" is what
+makes it safe to act on: the null result needs no validation set to be honest.
+
+Also note the 26 lexical-empty cases are "empty OR skipped" — `getLexicalMatches`
+still cannot distinguish them (#2449 added counters for the rate, not per-call).

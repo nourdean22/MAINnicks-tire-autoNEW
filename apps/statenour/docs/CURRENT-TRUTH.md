@@ -2,8 +2,68 @@
 
 > **The one-screen answer to "where am I and what's real?"** If any other doc
 > contradicts this file as a *present-tense instruction*, this file and live
-> code win. Last verified **2026-09-02**. When in doubt, **verify in code, git,
+> code win. Last verified **2026-09-17**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
+
+## Since 2026-09-17 — W12, and the things that cost a session time to learn
+
+Shipped in #2381-#2386, all DEPLOYED-VERIFIED. Full detail in `docs/RECONCILIATION.md`;
+only what changes how you WORK is repeated here.
+
+- **`GET /api/version` is the deploy-truth endpoint, and it is PUBLIC.** It returns
+  `build.commit` (full SHA), `commitShort`, `branch`, `environment`, `deploymentId`.
+  **`/api/health` is operator-gated and answers 401 unauthenticated** — reaching for it
+  first cost a session a cycle. SHA-equality deploy verification is therefore possible
+  and is now the standard, rather than "Railway said SUCCESS".
+- **Tool selection changed behaviour.** `pruneTools` tier 4 now orders keyword-family
+  candidates by semantic similarity instead of alphabetically, because the 24-slot budget
+  truncates on ~73% of turns and the old `.sort()` meant the cut was made by SPELLING.
+  Ordering only — membership is unchanged and asserted so. ⚠ **NOT yet proven in
+  production**: the check is whether the first-letter means of ALLOWED vs BUDGETED_OUT
+  converge (baseline 5.28 vs 11.78), and it needs ~100 post-deploy turns.
+- **`pruneTools` is NOT the surfacing path — `prepareTools` is.** It re-attaches the
+  `searchTools`/`invokeTool` recovery lane unconditionally AFTER pruning, plus operator
+  `alwaysOnTools`, the action-intent tool and the web-search pair. Any question of the
+  form "is this tool reachable?" must be answered there, not in the pruner.
+- **A broken instrument now says so, by name.** Failures report through
+  `instrumentScope(...)` → `errorLog` → `system.instrumentFailures`, surfaced on the tool
+  census panel. ⚠ It detects instruments that FAILED, never ones that NEVER RAN — a
+  deleted call site logs nothing and looks identical to a healthy one.
+- **`recordMetricStrict` vs `recordMetric`.** Use the strict one wherever the WRITE IS THE
+  MEASUREMENT; it propagates and returns a receipt. `recordMetric` is fail-soft and can
+  never reject, which made one instrument's error branch dead code. The receipt type makes
+  the fail-soft writer unassignable to an instrument's deps.
+- **The evidence gate readout exists** (`system.evidenceGateCalibration`, rendered by
+  `EvidenceGatePanel`). The 2026-09-17 verdict was "DO NOT PROMOTE, n=12 against a floor
+  of 40". **Re-read 2026-09-23 02:26Z (Neon, read-only, the reader's own filter replayed):**
+  after-fix cohort n=119, 52 would block (verdict `block` 27 + `repair` 25) = 43.7%;
+  before-fix 34 of 91 = 37.4%. The sample is SUFFICIENT and the rate did not fall, so the
+  answer is still do not promote, now on evidence rather than on a thin sample. The
+  buffer-shadow half of the same panel restarted with #2560 (2026-09-23): only shadows
+  stamped `toolsExpectedSource: "routing"` count, every earlier row (128) is legacy and
+  excluded, so it reads "rate withheld" until 40 routing-sourced turns exist. The panel is
+  the live source; do not compute a rate from counts it withholds.
+- **Contextual recall reaches the model now (fixed 2026-09-23: #2577 plus the region move).**
+  `buildBrainContext` races `getContextualMemories` at 3 s. Before, the lane ran its stages
+  one after another and the "Context Memories" block landed on 4 of 89 chat turns since 09-18.
+  #2577 runs the independent stages concurrently (3 of 5 turns landed on `us-west2`); moving
+  statenour-web next to Neon (next bullet) made it 3 of 3 at 1.4-2.6 s. The lexical lane was
+  skipped on 2 of the first 3 `us-east4` turns (its SQL passed the 900 ms `statement_timeout`
+  under the turn's query burst) - see RECONCILIATION W16c. `pnpm eval:recall` calls the lane
+  directly and cannot see the race.
+- **statenour-web runs in Railway `us-east4-eqdc4a` (Virginia) since 2026-09-23 12:32Z**, next
+  to its Neon database (`aws-us-east-1`); nickstire's `MAINnicks-tire-auto` joined it at 13:20Z,
+  next to TiDB (`us-east-1`). Until then both ran in `us-west2` (California) and every query
+  crossed the country (~60-70 ms per round trip). statenour-worker, Redis, perplexica and searxng
+  are still in `us-west2`; they reach statenour-web over its public domain or the private
+  network, which works across regions. Latency measured before 12:32Z (statenour) or 13:20Z
+  (nickstire) on 09-23 is not comparable with later.
+  The Neon compute (`ep-quiet-wave-am320eo1`) autoscales 0.5-2 CU since 12:48Z 09-23 (was
+  0.25-2, raised on the operator's approval so the chat turn's query burst meets more CPU).
+- **Scratch debris is gated repo-wide** by `scripts/agent-os/scratchDebris.test.mjs`
+  (agent-policy workflow, every PR). Temp probes are welcome; committing them is not.
+- **The overnight operating doctrine is version-controlled** at repo-root
+  `OVERNIGHT-MANDATE.md`.
 
 ## Since 2026-09-02 — observability is deployed
 

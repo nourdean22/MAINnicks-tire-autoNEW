@@ -23,6 +23,7 @@ import { resolve } from "node:path";
 import {
   JOB_OPENINGS,
   buildJobPostingSchema,
+  formatHourlyPayRange,
   jobOpeningBySlug,
   jobOpeningPath,
   openJobOpenings,
@@ -33,7 +34,8 @@ const APP = process.cwd();
 const CTX = {
   siteUrl: "https://nickstire.org",
   orgName: "Nick's Tire & Auto",
-  logoUrl: "https://nickstire.org/favicon.ico",
+  logoUrl: "https://nickstire.org/icon-512x512.png",
+  shopHours: "7 days — Mon–Sat 8AM–6PM, Sun 9AM–4PM",
   address: { street: "17625 Euclid Ave", city: "Cleveland", state: "OH", zip: "44112" },
 };
 
@@ -194,6 +196,89 @@ describe("JobPosting schema correctness", () => {
       const s = buildJobPostingSchema(job, CTX)!;
       expect((s.identifier as { value: string }).value).toBe(job.slug);
       expect(jobOpeningBySlug(job.slug)).toBeTruthy();
+    }
+  });
+});
+
+describe("pay is published, and the page shows the same number the markup claims", () => {
+  // 2026-09-23 · the live JobPosting for every role carried NO baseSalary
+  // while the page body said "Up to $35/hr ... up to $25/hr" inside the form.
+  // Google Jobs filters and ranks on pay, and 87% of techs want pay in the
+  // posting (WrenchWay/ASE 2025). The owner set ranges matched to Enterprise
+  // Euclid (docs/recruiting/RECRUITING-ENGINE-2026-09.md).
+  //
+  // Service advisor was the one exception until the owner set its range
+  // (2026-09-23). Every open role now carries pay, and a new role without it
+  // fails here until someone decides.
+  it("every open role carries a numeric baseSalary", () => {
+    for (const job of openJobOpenings()) {
+      const s = buildJobPostingSchema(job, CTX)!;
+      expect(s.baseSalary, `${job.slug}: open role ships with no baseSalary`).toBeTruthy();
+    }
+  });
+
+  it("the locked ranges are exactly the owner's numbers", () => {
+    expect(formatHourlyPayRange(jobOpeningBySlug("automotive-technician")!)).toBe("$30.00–$37.50/hr");
+    expect(formatHourlyPayRange(jobOpeningBySlug("tire-technician")!)).toBe("$22.00–$25.50/hr");
+    expect(formatHourlyPayRange(jobOpeningBySlug("service-advisor")!)).toBe("$22.00–$28.00/hr");
+  });
+
+  it("the job page renders the pay string, and the form no longer hardcodes a stale ceiling", () => {
+    // Structured data must be visible on the page. The old visible copy
+    // ("Up to $35/hr ...") disagreed with any range the markup could carry.
+    const page = readFileSync(resolve(APP, "client/src/pages/JobPage.tsx"), "utf8");
+    expect(page).toContain("formatHourlyPayRange(job)");
+    const careers = readFileSync(resolve(APP, "client/src/pages/Careers.tsx"), "utf8");
+    expect(careers).not.toMatch(/Up to \$35\/hr/);
+    expect(careers).not.toMatch(/up to \$25\/hr/);
+  });
+
+  it("description is HTML with list markup and includes the requirements", () => {
+    // Google: description is "the full description of the job in HTML format".
+    // The live one was plain text with the bullet lists run together and the
+    // "What we need" list missing entirely.
+    for (const job of openJobOpenings()) {
+      const d = String(buildJobPostingSchema(job, CTX)!.description);
+      expect(d, job.slug).toMatch(/^<p>/);
+      expect(d, job.slug).toContain("<ul><li>");
+      for (const r of job.requirements) expect(d, `${job.slug} missing requirement`).toContain(r);
+    }
+  });
+
+  it("experienceRequirements agrees with the visible requirements list", () => {
+    // 2026-09-23 review: tire tech and service advisor emitted nothing; Google
+    // asks for the literal "no requirements" when a role has none, and both
+    // list prior experience only under "nice".
+    const schemaFor = (slug: string) => buildJobPostingSchema(openJobOpenings().find((j) => j.slug === slug)!, CTX);
+    expect(schemaFor("automotive-technician")?.experienceRequirements).toMatchObject({
+      "@type": "OccupationalExperienceRequirements",
+      monthsOfExperience: 24,
+    });
+    expect(schemaFor("tire-technician")?.experienceRequirements).toBe("no requirements");
+    expect(schemaFor("service-advisor")?.experienceRequirements).toBe("no requirements");
+    for (const job of openJobOpenings()) {
+      if (job.experienceMonths !== 0) continue;
+      // "no requirements" is only true while no required line asks for years.
+      expect(job.requirements.join(" | "), job.slug).not.toMatch(/\d+\+?\s*(years?|yrs?)\b/i);
+    }
+  });
+
+  it("the hiring organization logo is an image, not the favicon", () => {
+    const page = readFileSync(resolve(APP, "client/src/pages/JobPage.tsx"), "utf8");
+    expect(page).not.toContain("/favicon.ico");
+  });
+
+  it("route meta descriptions quote the same pay as the job data (no drift)", () => {
+    // routes.ts is what the prerendered <meta description> and search
+    // snippets carry. It restates the band as text, so pin it here: change the
+    // pay in jobOpenings.ts and this fails until the snippet matches.
+    for (const job of openJobOpenings()) {
+      const pay = formatHourlyPayRange(job);
+      if (!pay) continue;
+      const route = ROUTES.find((r) => r.path === jobOpeningPath(job.slug));
+      const band = pay.replace("/hr", "");
+      expect(route?.description, `${job.slug} meta`).toContain(band);
+      expect(ROUTES.find((r) => r.path === "/careers")?.description, "/careers meta").toContain(band);
     }
   });
 });

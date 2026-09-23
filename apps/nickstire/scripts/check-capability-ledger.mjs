@@ -95,7 +95,14 @@ export function validateLedger(ledger, now = new Date()) {
 
     const op = OP_STATES.indexOf(cap.operationalState);
     const ev = cap.evidence ?? {};
-    const nonEmpty = (v) => (Array.isArray(v) ? v.length > 0 : typeof v === "string" && v.trim().length > 0);
+    // "NONE. No production call has…" is a HONEST statement that the evidence
+    // does not exist — 11 entries write liveRuns that way at unit_verified,
+    // which is right. It must never SATISFY a gate: before 2026-09-23 a
+    // non-empty "NONE…" string passed `live_verified requires liveRuns`.
+    const said = (v) => (Array.isArray(v) ? v.join(" ") : typeof v === "string" ? v : "");
+    const ABSENT = /^\s*(?:none|n\/a|tbd|pending|not yet)\b/i;
+    const nonEmpty = (v) =>
+      (Array.isArray(v) ? v.length > 0 : typeof v === "string" && v.trim().length > 0) && !ABSENT.test(said(v));
 
     if (op >= OP_STATES.indexOf("unit_verified") && !nonEmpty(ev.tests)) err(`operationalState ${cap.operationalState} requires evidence.tests`);
     if (op >= OP_STATES.indexOf("integration_verified") && !nonEmpty(ev.codeCommit)) err(`operationalState ${cap.operationalState} requires evidence.codeCommit`);

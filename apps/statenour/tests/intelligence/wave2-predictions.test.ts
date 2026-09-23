@@ -5,6 +5,7 @@ import { evaluatePredictions } from "@/lib/brain/predictive-engine";
 import { generateText } from "ai";
 import { prisma } from "@/lib/prisma";
 import { fetchFREDIndicators } from "@/lib/intelligence/connectors/fred";
+import { fetchMacroIndicators } from "@/lib/intelligence/connectors/macro";
 import { fetchNHTSARecalls } from "@/lib/intelligence/connectors/nhtsa";
 import { fetchGSCAndGBPMetrics } from "@/lib/intelligence/connectors/gsc";
 import { fetchCompetitorAndSECData } from "@/lib/intelligence/connectors/sec";
@@ -35,6 +36,30 @@ vi.mock("ai", () => ({
 // business touching the network. All eight connectors are stubbed so the test
 // is hermetic no matter which domain a future case picks — mocking only FRED
 // would leave the same trap armed for the next `domain` someone tests.
+// 2026-09-22 · THE BUG CAME BACK, ONE MODULE OVER. Since #1872 (2026-08-25)
+// the "macro" branch no longer calls `fetchFREDIndicators` — it calls
+// `fetchMacroIndicators` from connectors/macro (FRED + BLS + BEA + Census
+// with attributed failover). Mocking connectors/fred therefore mocks a module
+// the code never imports; the real multi-provider fetch ran, every provider
+// failed offline, `macroFetchFailure` returned a message, and `runIngestion`
+// exited before `intelligenceClaim.create` — "expected spy to be called 1
+// times, but got 0". Deterministic, not flaky. It stayed invisible because the
+// CI `node` job runs AFFECTED tests and nothing touching the chat persist
+// path had merged since. Found by #2483, which did.
+// The code is right: zero macro series IS a failure by design (the
+// 2026-08-12 outage). `macroFetchFailure` returns null only when
+// `indicators.length > 0`, so the mock serves one indicator.
+vi.mock("@/lib/intelligence/connectors/macro", () => ({
+  fetchMacroIndicators: vi.fn().mockResolvedValue({
+    result: {
+      indicators: [{ provider: "FRED", id: "FEDFUNDS", label: "Fed funds rate", value: 5.33, unit: "%" }],
+      providers: [{ provider: "FRED", attempted: true, envVar: "FRED_API_KEY" }],
+    },
+    unresolved: [],
+  }),
+  macroFetchFailure: vi.fn().mockReturnValue(null),
+  renderMacroReport: vi.fn().mockReturnValue("Macro report: Interest rates rose to 5.33%"),
+}));
 vi.mock("@/lib/intelligence/connectors/fred", () => ({
   fetchFREDIndicators: vi.fn().mockResolvedValue([
     { name: "Federal Funds Rate", seriesId: "FEDFUNDS", value: 5.33, unit: "%", date: "2026-08-01" },
@@ -162,6 +187,17 @@ describe("Statenour OS V2 Wave 2 - Predictions & Narrative Status", () => {
       return expect(fetchFREDIndicators()).resolves.toEqual([
         { name: "Federal Funds Rate", seriesId: "FEDFUNDS", value: 5.33, unit: "%", date: "2026-08-01" },
       ]);
+    });
+
+    it("the MACRO connector runIngestion actually calls since #1872 is the stub - not only the FRED one it no longer calls (review on #2486)", async () => {
+      // The FRED guard above pins a module ingestion stopped importing on 2026-08-25;
+      // this pins the one it imports now. Asserting the FIXTURE VALUE: a live
+      // multi-provider fetch would be slow, shaped by real data, or fail offline.
+      expect(vi.isMockFunction(fetchMacroIndicators)).toBe(true);
+      await expect(fetchMacroIndicators({} as never)).resolves.toMatchObject({
+        result: { indicators: [{ provider: "FRED", id: "FEDFUNDS", value: 5.33 }] },
+        unresolved: [],
+      });
     });
 
     it("every outbound connector runIngestion can reach is stubbed", async () => {

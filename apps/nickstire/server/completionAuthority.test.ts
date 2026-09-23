@@ -36,6 +36,21 @@ describe("operational evidence gates", () => {
     ).toEqual(expect.arrayContaining([expect.stringContaining("requires evidence.liveRuns or evidence.databaseAssertions")]));
   });
 
+  it("an evidence field that SAYS it is absent does not satisfy a gate", () => {
+    // POSITIVE CONTROL: this entry passed before 2026-09-23 — "NONE…" is non-empty text.
+    const noneSaid = { tests: ["t"], codeCommit: "c", deploymentId: "d", liveRuns: "NONE. No production call has been scored." };
+    expect(validateLedger(cap({ operationalState: "live_verified", evidence: noneSaid }))).toEqual(
+      expect.arrayContaining([expect.stringContaining("requires evidence.liveRuns or evidence.databaseAssertions")]),
+    );
+    expect(validateLedger(cap({ operationalState: "unit_verified", evidence: { tests: ["N/A"] } }))).toEqual(
+      expect.arrayContaining([expect.stringContaining("requires evidence.tests")]),
+    );
+    // …while real evidence, and an honest NONE below the gate, both still pass.
+    expect(validateLedger(cap({ operationalState: "live_verified", evidence: { ...noneSaid, liveRuns: "2026-09-22 call abc: transfer connected" } })))
+      .not.toEqual(expect.arrayContaining([expect.stringContaining("requires evidence.liveRuns")]));
+    expect(validateLedger(cap({ operationalState: "unit_verified", evidence: { tests: ["t"], liveRuns: "NONE yet." } }))).toEqual([]);
+  });
+
   it("deployed+ cannot carry P0/P1 blockers", () => {
     const errs = validateLedger(
       cap({
@@ -158,8 +173,20 @@ describe("the rendered ledger may not know what day it is", () => {
  *                                      assigned an arm and the hero subline
  *                                      differs by arm; the resolver is
  *                                      PROPOSE-ONLY (no flag/copy write).
+ *   careers-candidate-intake         — 2026-09-23: any member of the public
+ *                                      submitting /careers triggers the owner
+ *                                      text (and, once Resend verifies, the
+ *                                      owner and applicant emails). The
+ *                                      operator turned all three lanes ON that
+ *                                      day; the row carries two live runs and
+ *                                      table-counted abuse brakes.
  */
-const MAY_CLAIM_PRODUCTION = new Set(["reel-pipeline-assembly", "shopstate-lot-band", "web-experiment-home-hero-subline"]);
+const MAY_CLAIM_PRODUCTION = new Set([
+  "reel-pipeline-assembly",
+  "shopstate-lot-band",
+  "web-experiment-home-hero-subline",
+  "careers-candidate-intake",
+]);
 
 describe("the repo's own ledger", () => {
   it("passes its own law, and nothing claims business verification or production exposure beyond the registry above", () => {

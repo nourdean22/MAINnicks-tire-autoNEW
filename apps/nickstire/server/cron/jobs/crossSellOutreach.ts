@@ -36,6 +36,7 @@
  * cycle so predictions exist).
  */
 import { createLogger } from "../../lib/logger";
+import { isMissingTableError, isSchemaBugError } from "../../lib/dbErrors";
 import { sql } from "drizzle-orm";
 
 const log = createLogger("cron:cross-sell-outreach");
@@ -202,9 +203,9 @@ async function fetchActionablePredictions(): Promise<V2PredictionRow[]> {
     //
     // Unknown-column / unknown-table-alias is a CODE defect: it cannot be fixed
     // by waiting, it will never self-heal, and it must be loud.
-    if (/ER_BAD_FIELD_ERROR|Unknown column|Unknown table/i.test(msg)) {
+    if (isSchemaBugError(err)) {
       log.error("cross-sell predictions query is BROKEN (bad column/table) — this job cannot select anything", { err: msg });
-    } else if (/ER_NO_SUCH_TABLE|doesn't exist/i.test(msg)) {
+    } else if (isMissingTableError(err)) {
       log.warn("v2 predictions read skipped · table not created yet", { err: msg });
     } else {
       log.error("cross-sell predictions read failed", { err: msg });

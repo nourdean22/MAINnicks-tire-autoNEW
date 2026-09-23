@@ -118,6 +118,18 @@ export interface EscalationInput {
  * depth they asked for did not happen. A silent downgrade here would
  * recreate the five-silent-gates defect this work exists to end.
  */
+/**
+ * Escalation kill-switch. ★ INVERTED NAME: the env var is
+ * NICK_ESCALATION_DISABLED, so escalation is ENABLED unless it is "1".
+ *
+ * 2026-09-18 · lifted out of app/api/ai/chat/route.ts so the flag-board mirror
+ * can verify it by CALLING it, and so the polarity lives next to the logic it
+ * gates instead of inline in a route (review, #2429).
+ */
+export function isEscalationEnabled(): boolean {
+  return process.env.NICK_ESCALATION_DISABLED !== "1";
+}
+
 export function resolveEscalation(input: EscalationInput): EscalationDecision {
   const tier = detectEscalationTier(input.userContent);
   if (tier === "none") {

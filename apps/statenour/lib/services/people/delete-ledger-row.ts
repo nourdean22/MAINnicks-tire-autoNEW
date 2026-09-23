@@ -19,6 +19,8 @@ import { prisma } from "@/lib/prisma";
 import { isContactRow } from "./contact-rows";
 import { deriveCounters } from "./counter-reconcile";
 import { lockPerson } from "./record-interaction";
+import { dropEmbeddingsForSource } from "@/lib/brain/memory-tombstone";
+import { logError } from "@/lib/utils/error-log";
 
 export class LedgerRowNotFoundError extends Error {
   constructor(ledgerId: string) {
@@ -44,7 +46,17 @@ export async function deleteLedgerRow(ledgerId: string): Promise<DeletedLedgerRo
   if (!row) throw new LedgerRowNotFoundError(ledgerId);
   const wasContact = isContactRow(row);
 
-  return prisma.$transaction(async (tx) => {
+  // relationship_ledger is indexed in vector_embeddings by
+  // lib/brain/people-embed-hook.ts through a plain text ("sourceType","sourceId") pair
+  // with NO foreign key — there is no referential action to cascade. Measured
+  // 2026-09-18: 16 such embeddings, newest written the day before, so this is a LIVE
+  // producer, not a historical one.
+  //
+  // Dropped OUTSIDE the transaction on purpose. The embedding is a DERIVED index; a
+  // failure to clean it must not roll back a completed delete and leave the counters
+  // half-updated. Same trade lib/brain/memory-tombstone.ts already made for
+  // brain_memory: a storage leak beats a failed prune.
+  const result = await prisma.$transaction(async (tx) => {
     await lockPerson(tx, row.personId);
     await tx.relationshipLedger.delete({ where: { id: ledgerId } });
     const remaining = await tx.relationshipLedger.findMany({
@@ -59,4 +71,17 @@ export async function deleteLedgerRow(ledgerId: string): Promise<DeletedLedgerRo
     });
     return { ledgerId, personId: row.personId, wasContact, ...after };
   });
+
+  // .catch here as well as inside the helper: the row is ALREADY deleted and the
+  // counters ALREADY recomputed, so a cleanup failure must not turn a completed
+  // delete into a reported error. Pinned by a canary in this file's test.
+  await dropEmbeddingsForSource("relationship_ledger", [ledgerId], "people:delete-ledger-row").catch(
+    (err: unknown) => {
+      // REPORT, do not swallow. The helper logs its own failures, so reaching
+      // here means something around it broke — the case most worth seeing.
+      logError("services.delete-ledger-row", err, { fn: "dropEmbeddingsForSource", ledgerId }, "warn");
+      return 0;
+    },
+  );
+  return result;
 }

@@ -55,6 +55,131 @@ export type { ChatMode };
  * RUNTIME_PROVIDERS and every live provider in the chain is
  * tool-capable. The prune's job is purely context-budget control.)
  */
+/**
+ * Priority order for tier-4 keyword-family candidates.
+ *
+ * WHY THIS EXISTS. Tier 4 used `Array.from(keywordMatches).sort()` — plain
+ * alphabetical. That reads as a harmless determinism device, and it is, right
+ * up until the budget truncates: `addIfSpace` stops adding at TOOL_BUDGET, so
+ * whatever order this list is in IS the selection policy for every tool past
+ * slot 24. Measured on production 2026-09-16, over 192 recorded turns and
+ * 5,227 gate decisions:
+ *
+ *   · 140/192 turns (72.9%) hit the budget cliff
+ *   · ALLOWED tier-4 names averaged first-letter index 5.28 ("f")
+ *   · BUDGETED_OUT names averaged 11.78 ("l")
+ *   · 65.3% of tier-4 ALLOWED impressions went to tools the model NEVER chose
+ *
+ * A 6.5-letter gap is not relevance wearing an alphabetical disguise; the
+ * pruner was choosing `analyzeSleep`/`getBodyData` over `searchWebVerified`
+ * (cut 52x) and `githubRecentCommits` (cut 53x) because of their spelling. The
+ * model then paid a whole extra generation step to claw those two back through
+ * the searchTools/invokeTool recovery lane — 5 of 13 recorded recoveries were
+ * for a web-search tool the keyword family HAD already matched and truncation
+ * had dropped.
+ *
+ * Tier 5 (semantic rank) could not fix this: it was gated on
+ * `selectedNames.size < TOOL_BUDGET`, so it was skipped on exactly the turns
+ * where ranking matters (70.3% of turns skipped it).
+ *
+ * 2026-09-18 · THAT GATE IS GONE. Selection is now two-stage — every tier
+ * gathers candidates, then tiers 4/5/6 are ranked TOGETHER on one cosine scale
+ * before the cut. So this function no longer decides the cliff on its own; it
+ * supplies tier 4's arrival order, which is the fallback whenever scoring does
+ * not cover every contender. See STAGE 1 / STAGE 2 in `pruneTools`.
+ *
+ * WHAT THIS CHANGES — and does not. Ordering ONLY. The candidate set is
+ * identical; when the budget does not truncate, the surfaced set is unchanged
+ * down to the last tool. No tool becomes reachable that was not already
+ * matched by a keyword family, so this cannot widen authority.
+ *
+ * Ranking applies only when `scores` COVERS EVERY CANDIDATE, so all of them are
+ * comparable. Otherwise this falls back to alphabetical, because partial scores
+ * sort the measured against the unmeasured — a different and worse policy than
+ * the one being replaced.
+ *
+ * ⚠ THE COVERAGE CHECK IS DONE HERE, NOT INFERRED FROM CACHE WARMTH. The
+ * caller gates on `isToolEmbeddingCacheWarm()`, and that is NOT the same claim:
+ * `warmToolEmbeddings` catches a per-tool embedding failure, logs it, SKIPS
+ * that tool — "keyword fallback will cover it" — and still sets
+ * `warmComplete = true` afterwards. So a warm cache can be missing individual
+ * tools, and under a score-descending order an unscored tool sorts below every
+ * scored one. That would silently demote a tool for failing to EMBED, which is
+ * the same shape as demoting one for its SPELLING — the defect this function
+ * exists to remove, in a quieter costume. Found by self-review after shipping;
+ * the earlier version of this paragraph claimed the coverage guarantee that the
+ * code did not actually have.
+ *
+ * The unscored-last tiebreak below is kept as defence in depth: it is now
+ * unreachable through the coverage guard, and must stay deterministic if some
+ * future caller bypasses it.
+ */
+/**
+ * Generic verbs that carry no capability signal on their own.
+ *
+ * Without this, `getTasks` would match on "get" + "tasks" and so would half the
+ * catalog on any sentence containing a common verb — turning a precise
+ * exact-mention tier into a flood that crowds out the keyword families beneath
+ * it. A name must contribute at least one word that is actually ABOUT something.
+ */
+const GENERIC_NAME_TOKENS = new Set([
+  "get", "set", "run", "do", "add", "list", "create", "update", "delete",
+  "find", "search", "my", "the", "a", "an", "to", "of", "for", "and", "is",
+]);
+
+/** `sendTelegram` → `["send", "telegram"]`. Splits camelCase and separators. */
+export function toolNameTokens(name: string): string[] {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+/**
+ * Does `text` mention every word of a multi-word tool name?
+ *
+ * Order-insensitive and gap-tolerant, so "send me a telegram" reaches
+ * `sendTelegram` while the old concatenated check could not. Deliberately
+ * conservative in three ways, because this feeds the high-priority exact tier:
+ *
+ *   · single-token names are left to the existing substring check — "do" or
+ *     "summarize" alone is not evidence of intent;
+ *   · EVERY token must appear, so `searchDriveFiles` does not fire on a bare
+ *     "search";
+ *   · at least one token must be non-generic, so a sentence containing "get"
+ *     and "the" cannot drag in a tool named `getThe…`.
+ *
+ * Word-boundary matched, so "telegram" does not match inside "telegrams" — it
+ * does, via the \w* tail — but "gram" alone never matches "telegram".
+ */
+export function mentionsAllTokens(text: string, name: string): boolean {
+  const tokens = toolNameTokens(name);
+  if (tokens.length < 2) return false;
+  if (!tokens.some((t) => !GENERIC_NAME_TOKENS.has(t) && t.length >= 4)) return false;
+  return tokens.every((t) => new RegExp(`\\b${t}\\w*\\b`).test(text));
+}
+
+export function orderKeywordCandidates(
+  names: Iterable<string>,
+  scores: ReadonlyMap<string, number> | null,
+): string[] {
+  const alphabetical = Array.from(names).sort();
+  if (!scores || scores.size === 0) return alphabetical;
+  // Every candidate, or none. A single unscored tool disables ranking for this
+  // turn rather than quietly sinking that one tool to the bottom.
+  if (alphabetical.some((n) => !scores.has(n))) return alphabetical;
+  return alphabetical.sort((a, b) => {
+    const sa = scores.get(a);
+    const sb = scores.get(b);
+    if (sa === undefined && sb === undefined) return a < b ? -1 : a > b ? 1 : 0;
+    if (sa === undefined) return 1;
+    if (sb === undefined) return -1;
+    if (sb !== sa) return sb - sa;
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
+}
+
 export async function pruneTools(
   mode: ChatMode,
   allTools: Record<string, unknown>,
@@ -102,13 +227,42 @@ export async function pruneTools(
   const CORE_TOOLS = [
     // ingestThought removed Apr 15 — brain-dump NL interceptor in
     // /api/ai/chat handles capture before the model is invoked.
-    "classifyThought",
     "searchMemories",
     "getRecentReflections",
     "searchReflections",
-    "rankNextActions",
-    "getBlindSpots",
-    "dailyPulse",
+    // 2026-09-19 · DEMOTED: classifyThought, rankNextActions, getBlindSpots,
+    // dailyPulse. FOUR of the five the audit flagged — createTask was flagged
+    // too and is deliberately KEPT; see ACTION_CORE below for why the number
+    // was not the whole answer there.
+    //
+    // Second application of the 2026-08-25 prescription, on the same evidence
+    // shape and with the same discipline.
+    //
+    // MEASURED by `scripts/always-on-audit.ts` over 30 days / 259 turns: each
+    // was surfaced on 259 of 259 turns and chosen ZERO times INSIDE that
+    // window. Last calls were 66d, 66d, 43d and 37d — all predating the
+    // window, so this is not "quiet lately", it is "earned nothing in the
+    // period measured". Together with createTask below that is 1,295 always-on
+    // impressions per 30 days returning nothing.
+    //
+    // ⚠ `lifetime_calls` is NOT the discriminator and must never be divided
+    // into `surfaced` — createTask has 76 lifetime calls and is still cold.
+    // See docs/agent-audit/DEFECT-SHAPE-STALE-DENOMINATOR.md.
+    //
+    // EACH KEEPS A DETERMINISTIC PATH — verified per tool, not assumed:
+    //   · dailyPulse      → keyword families /daily/ and /dailyPulse/
+    //   · getBlindSpots   → the `reflect` playbook, whose regex literally
+    //                       contains "blind spot"
+    //   · rankNextActions → the `execute` playbook ("what should i do next").
+    //                       NOTE its only `addMatching` hit is the SEO family
+    //                       via the substring "rank" — a FALSE match that
+    //                       fires on marketing text, so it was never real
+    //                       coverage and is not being relied on here.
+    //   · classifyThought → had NONE. Family #14 was added above as a
+    //                       precondition of this demotion.
+    // Plus, for all four: exact-name mention (tier 3), semantic rank (tier 5,
+    // which now competes rather than being skipped — #2468), and the
+    // searchTools/invokeTool recovery lane.
     // 2026-08-25 · DEMOTED from always-on, on corrected numbers — the
     // first prune the surfacing instrumentation's discipline allows.
     // These three were offered on effectively EVERY standard/deep turn
@@ -128,20 +282,103 @@ export async function pruneTools(
   ];
 
   // 2026-07-06 · the most-used WRITE tools are always attached too.
+  //
+  // 2026-09-19 · createTask was MEASURED COLD (259 impressions, 0 calls
+  // inside a 30-day window, last call 37d) and is KEPT ANYWAY. Recording why,
+  // because the number alone argues the other way.
+  //
+  // It looked like the safest demotion of the five — three apparent paths
+  // back: the /task|…/ keyword family, the `execute` playbook, and the
+  // action-intent force in `prepare-tools.ts:207-218`. Checking the third
+  // against the actual patterns killed the idea. The regression this tier
+  // exists for is a KEYWORD-LESS action turn — the pinned fixture is
+  // literally "ok do it" — and `action-intent-detector.ts` requires either
+  // "add/put/throw … to my todo/task list" or "add:"/"create:" with a colon
+  // or quote. **"ok do it" matches none of them.** No family fires on it
+  // either, and a cold cache silences the semantic tier. Demoting createTask
+  // therefore re-opens the exact 2026-07-06 hole where the operator could not
+  // create a task at all on that turn shape.
+  //
+  // ★ USAGE IS NOT THE ONLY CRITERION. A tool can be cold for 37 days and
+  // still be load-bearing for a failure MODE rather than a volume. The audit
+  // measures impressions-per-outcome; it cannot see "this is the last path on
+  // a turn where every other path is silent". completeTask stays for the same
+  // reason and is also warm (11d, inside the window).
   const ACTION_CORE = ["createTask", "completeTask"];
 
   // ── Exact tool name mention ──
-  // If the user explicitly mentions a tool name (case-insensitive check), always include it
+  // If the user explicitly mentions a tool name, always include it.
+  //
+  // 2026-09-17 · this was `text.includes(name.toLowerCase())` ONLY — a single
+  // concatenated token. `sendTelegram` therefore required the literal string
+  // "sendtelegram", so "send me a telegram" — naming the tool's own transport —
+  // did not reach it. MEASURED: sendTelegram was offered on 1 of 5 natural
+  // phrasings and NEVER ONCE surfaced across 467 production turns, despite
+  // carrying the entire durable-delegation contract (claim-before-send,
+  // fail-closed idempotency, UNKNOWN fencing). The machinery was built, proven
+  // and shipped for a capability nobody could ask for.
+  //
+  // The concatenated check stays (it is exact and cheap); a TOKEN check is
+  // added beside it, so a camelCase name is reachable when its words appear in
+  // any order with anything between them.
   const exactMentioned = new Set<string>();
   for (const name of Object.keys(allTools)) {
     const lowerName = name.toLowerCase();
-    if (text.includes(lowerName)) {
+    if (text.includes(lowerName) || mentionsAllTokens(text, name)) {
       exactMentioned.add(name);
     }
   }
 
   const keywordMatches = new Set<string>();
   // Keyword-based tool families
+  //
+  // The patterns below are tested against the TOOL NAME, not against the
+  // user's text, and the test is UNANCHORED. A family's vocabulary therefore
+  // leaks wherever one of its keywords appears inside an unrelated longer
+  // word. Two measured specimens (2026-09-17):
+  //
+  //   /customer|people|relation|person|profile/  matches getHabitRevenueCorrelation,
+  //                                              because cor-RELATION contains "relation"
+  //   /mit|okr|target|goal|.../                  matches checkCom-MIT-ments
+  //                                              and githubRecentCom-MIT-s
+  //
+  // A TOKEN-BOUNDARY RULE IS A TRADE-OFF, NOT A FREE WIN — and not a no-op.
+  //
+  // ⚠ An earlier version of this comment said the rule was "SAFE and
+  // WORTHLESS". That was WRONG, and wrong for an instructive reason: the probe
+  // behind it treated "some other family still matches" as proof a tool stays
+  // reachable. Every family here is guarded by its OWN `if (user-text)` trigger
+  // — 53 families, 53 distinct triggers, none shared — so a surviving family
+  // only helps on the text that fires ITS trigger. Re-measured trigger-aware:
+  //
+  //   · 0 tools go fully dark
+  //   · 12 go CONDITIONALLY dark — reachable only under a different trigger —
+  //     and 4 of those are tools the model has actually chosen
+  //     (checkCommitments, githubRecentCommits, arsenalResearch,
+  //      arsenalDeepResearch)
+  //   · up to 276 of 1,877 tier-4 impressions (14.7%) would be reclaimed from
+  //     never-chosen tools
+  //
+  // So it buys real budget and costs real coverage. Whether that trade is good
+  // depends on whether those 4 tools are being chosen BECAUSE of the accidental
+  // match or in spite of it — which needs the per-turn `tool.chosen` join, and
+  // that lane has no data yet. Decide it then, not from this comment.
+  //
+  // What spends the budget: 136 of 181 catalog tools (75.1%) have never been
+  // chosen in chat, and tier 4 surfaces them correctly, from their own
+  // families. On the median turn tier 4 takes all 15 non-core slots, and 65.3%
+  // of tier-4 impressions go to never-chosen tools — while searchTools (the
+  // model's own "you missed one" signal) fires on just 6.8% of turns. The
+  // error is over-inclusion, not starvation, and the remedy is a catalog
+  // decision, not a matcher change.
+  //
+  // Sample: 192 turns / 5,227 gate decisions, to 2026-09-17. SINGLE-SOURCED on
+  // tool_telemetry: chat_messages.parts was meant to corroborate and records no
+  // tool calls at all, so none of this is confirmed by a second instrument.
+  //
+  // Re-measure with scripts/probe-family-collisions.mjs before acting on any of
+  // the above. It reads the live catalog and live telemetry, and aborts rather
+  // than reporting a number it could not compute.
   const addMatching = (pattern: RegExp) => {
     for (const name of Object.keys(allTools)) {
       if (pattern.test(name)) keywordMatches.add(name);
@@ -250,15 +487,73 @@ export async function pruneTools(
     addMatching(/github|repo|deploy|file|code|architecture|coding/i);
   }
 
+  // 2026-09-17 · GOOGLE DRIVE reads, distinct from the code/repo family above.
+  // `searchDriveFiles` reached 0 of 2 phrasings: "search my google drive" names
+  // the product exactly and still missed, because the code family matches on
+  // `files?` and never reaches a tool whose name is about DRIVE. Naming the
+  // product must be enough.
+  //
+  // ⚠ SCOPED TWICE, both narrowings found by review the same day:
+  //
+  // 1 · THE TRIGGER NAMES ONLY PROVIDERS THAT EXIST. It used to include
+  //     `dropbox` and a generic `cloud storage`. There is no Dropbox connector
+  //     anywhere in this app — measured: the string "dropbox" appears in
+  //     lib/ and app/ exactly once, in this file, in the trigger itself. So
+  //     asking about Dropbox offered Google Drive tools: the wrong datastore,
+  //     confidently. A capability you cannot actually perform must not be
+  //     surfaced as if you can.
+  //
+  // 2 · THE READ TOOLS ARE NAMED, NOT PATTERN-MATCHED. `/drive|document/i` also
+  //     matched `syncDriveMemory`, which the catalog marks
+  //     `sideEffecting: true, cost: "spendy"` — a bulk ingest offered on every
+  //     "search my drive". It also pulled in `ingestDocumentFromUrl`. A READ
+  //     intent must not put a write-and-spend tool in front of the model;
+  //     `syncDriveMemory` stays reachable by exact name and by the semantic
+  //     tier, which is where an explicit "sync my drive" belongs.
+  //
+  // Anchored on purpose: `^(...)$` cannot acquire a new member by someone
+  // adding a tool whose name happens to contain "drive".
+  if (/\b(google ?drive|my drive|gdrive|shared (drive|folder))\b/.test(text)) {
+    // `listRecentDriveFiles` belongs here too — free, read-only, and the only
+    // tool that answers "what's new in my Google Drive?". The first cut of this
+    // allowlist dropped it, so that phrasing reached NO Drive tool at all on a
+    // cold semantic cache. Narrowing a family must not remove the capability it
+    // exists to reach.
+    addMatching(/^(searchDriveFiles|readDriveFile|listRecentDriveFiles)$/);
+  }
+
   // Email / inbox / Gmail / Telegram
-  if (/\b(email|inbox|gmail|message me|send (a |the )?(message|note|email|telegram)|reply to|draft|compose|forward)\b/.test(text)) {
+  //
+  // 2026-09-17 · the trigger required VERB-OBJECT ADJACENCY —
+  // `send (a|the)? (message|note|email|telegram)` — so "send ME a telegram"
+  // missed on the pronoun, and "ping me on telegram" / "notify me" missed
+  // entirely. MEASURED: 1 of 5 natural phrasings reached `sendTelegram`, which
+  // had never once surfaced in 467 turns. Bare "telegram" is now a trigger in
+  // its own right (nobody says it accidentally), and the common self-notify
+  // verbs are covered.
+  if (
+    /\b(email|inbox|gmail|telegram|message me|send (me )?(a |the )?(message|note|email|telegram)|reply to|draft|compose|forward)\b/.test(text) ||
+    /\b(ping|text|notify|dm) me\b/.test(text) ||
+    /\blet me know\b/.test(text)
+  ) {
     addMatching(/email|gmail|telegram|compose/i);
   }
 
   // Image / generation / analysis / multimedia
   // CAREFUL · "image" is a common word · narrowing with intent triggers
+  // 2026-09-17 · the READ side required "analyze this image" almost verbatim,
+  // so "what's in this photo" and "look at this screenshot" were both dark and
+  // `analyzeImage` reached 0 of 2 natural phrasings. Generation stays narrow —
+  // "image" is a common word and the generate lane is expensive — but asking
+  // ABOUT a supplied picture is a distinct, cheap, read-only intent.
   if (/\b(generate (an?|the)? (image|picture|photo|graphic)|create (an?|the)? (image|picture|photo)|draw (me )?(an?|the)? |make (an?|the)? (image|picture|photo)|analyze (this|the|that) (image|photo|picture)|extract from|run (this|the) code|solve (this|the)? (math|equation)|summarize this)\b/.test(text)) {
     addMatching(/image|analyze|extract|generateImage|runCode|solveMath|summarize|writeCreative/i);
+  }
+  // Asking about a picture that already exists — read-only, narrow on purpose:
+  // it needs a demonstrative or possessive, so "a photo of the shop" (a topic)
+  // does not drag the vision tools in.
+  if (/\b(what('?s| is) (in|on)|look at|read|describe|what does)\b[^.?!]{0,30}\b(this|that|the|my|his|her|their) (photo|image|picture|screenshot|screen ?shot|scan)\b/.test(text)) {
+    addMatching(/^analyzeImage$|^extractData$/i);
   }
 
   // Research / web search / external lookup
@@ -282,8 +577,57 @@ export async function pruneTools(
   }
 
   // Browser automation / scrape / page extraction
-  if (/\b(scrape|extract from (the )?page|automate (the )?browser|navigate (to|the)|click (on|the)? button|fill (out|in) (the )?form|browser (do|act|navigate|observe|extract))\b/.test(text)) {
-    addMatching(/browser_/i);
+  // 2026-09-16 · MEASURED: in 467 production turns the browser was used ZERO
+  // times. Both BROWSERBASE credentials are present, six tools are built, and
+  // the census put browser_navigate / browser_act / browser_observe /
+  // browser_extract in `neverSurfaced` — offered to the model not once.
+  //
+  // Two defects, both here:
+  //
+  // 1. THE TRIGGER DID NOT MATCH HOW AN OPERATOR SPEAKS. It required "scrape",
+  //    "automate the browser", "navigate to", or a literal "browser act". An
+  //    episode against this very function (six unambiguous prompts, both modes)
+  //    surfaced NO browser tool for any of them — including
+  //    "go to monro.com and tell me what they charge" and a prompt containing a
+  //    literal URL. A capability you cannot ask for in plain language is
+  //    unreachable, whatever its tools can do.
+  //
+  // 2. `/browser_/` CANNOT MATCH `browseAndDo` — the tool meta.ts:298 names as
+  //    the PREFERRED entry point ("For complete tasks … PREFER browseAndDo").
+  //    So even on the rare trigger, the family surfaced the surgical low-level
+  //    tools and skipped the recommended one. The comment at family #5 already
+  //    recorded half of this ("the browser family pattern is /browser_/ only")
+  //    and routed around it by adding a separate scrapeWebPage family instead.
+  //
+  // The split below follows the documented design rather than flattening it:
+  // natural browse intent offers the ONE-CALL entry point (cheap on a 24-slot
+  // budget); the surgical tools are offered only when named explicitly.
+  //
+  // Deliberately NOT stolen from family #5: "read the page", "fetch the url",
+  // "convert to markdown" stay with scrapeWebPage. A static fetch is
+  // deterministic and cheaper than a live browser session — prefer it when the
+  // task is only to read a public page.
+  if (
+    /\b(scrape|extract from (the )?page|automate (the )?browser|navigate (to|the)|click (on|the)? button|fill (out|in) (the )?form|browse (to|the)|log ?in ?(to|into)|sign ?in ?(to|into)|go to (https?:\/\/|www\.)|look at (this|the|that) (site|website|page|url|link)|check (a|the|their|our|his|her) (site|website|listing|page))\b/.test(
+      text,
+    ) ||
+    // "go to monro.com" — a bare domain, which no English-word pattern catches.
+    /\bgo to [a-z0-9][a-z0-9-]*\.(com|org|net|io|co|us|gov|edu|info|biz)\b/.test(text) ||
+    // The optional middle word carries "open our COMPETITOR'S website" and
+    // "open the MONRO listing" — the possessive is rarely adjacent to the noun
+    // in real phrasing, which is what the first cut of this pattern missed.
+    /\bopen (the |their |our |its |his |her )?([\w'’-]+ )?(site|website|web ?page|portal|dashboard|listing|profile page)\b/.test(
+      text,
+    )
+  ) {
+    addMatching(/^browseAndDo$|^browser_do$/i);
+  }
+
+  // Surgical low-level control, only when the operator names the tool shape.
+  // These are four extra budget slots; they should cost them on request, not
+  // on every mention of a website.
+  if (/\bbrowser (navigate|act|observe|extract)\b/.test(text)) {
+    addMatching(/^browser_/i);
   }
 
   // v10.0.517 · Python / runtime execution / calculation
@@ -308,7 +652,17 @@ export async function pruneTools(
   // Triggers when operator references "that PDF", "the spreadsheet",
   // "this document", or asks Nick to read a URL.
   if (/\b(document|pdf|word doc|spreadsheet|excel|csv file|read (this|that) (file|doc|pdf)|ingest|that (doc|pdf|file)|the (doc|pdf|spreadsheet)|search (my |the )?(docs|documents|files))\b/.test(text)) {
-    addMatching(/Document|searchDocuments|ingestDocument/);
+    // READ tools on a read-shaped trigger. `ingestDocumentFromUrl` is NOT in
+    // this set: it fetches an arbitrary URL, parses and embeds it, and carries
+    // a paid daily quota (tools/system.ts:292-299). "read the PDF in my Google
+    // Drive" was surfacing it through THIS family, which made the read-only
+    // boundary the Drive family claims untrue by a different route — narrowing
+    // one matcher establishes nothing if a sibling matcher reopens it.
+    addMatching(/^(searchDocuments|getDocument|readDocument)/);
+    // Ingest is offered only when the operator actually ASKS to ingest.
+    if (/\b(ingest|import|upload|add (this|that) (doc|pdf|file)|save (this|that) (doc|pdf|file))\b/.test(text)) {
+      addMatching(/^ingestDocument/);
+    }
   }
 
   // v10.0.524 · #1 Cross-conversation recall. Operator references
@@ -498,6 +852,26 @@ export async function pruneTools(
     addMatching(/logSituation/i);
   }
 
+  // #14 · 2026-09-19 · Thought classification. `classifyThought` answers
+  // "am I overthinking this" / "what am I doing right now" — it labels a
+  // thought (raw / thinking / reasoning / insight / decision / reflection /
+  // planning / venting) and stores NOTHING.
+  //
+  // ADDED AS A PRECONDITION OF DEMOTING IT, not as a nice-to-have. It was in
+  // CORE_TOOLS, so it reached every turn for free and needed no family. A
+  // coverage sweep of all 54 `addMatching` name-patterns found **zero** that
+  // match it — and the reflect playbook does not carry it either. Demoting it
+  // without this family would have removed its only deterministic path and
+  // left exact-name mention plus a warm embedding cache, which is precisely
+  // the "made it unreachable" outcome a demotion must not produce.
+  //
+  // Deliberately NOT keyed on bare "thought"/"thinking": those appear in
+  // ordinary conversation constantly and would re-create the flood this tier
+  // exists to avoid. Keyed on the ASKING shapes the description names.
+  if (/\b(overthink(ing)?|am i (overthinking|spiralling|spiraling|ruminating)|what am i doing (right now|here)|classify (this|my) (thought|thinking)|what kind of thought|is this (a )?(decision|venting|reasoning|reflection)|just venting)\b/.test(text)) {
+    addMatching(/classifyThought/i);
+  }
+
   // ── v10.0.532 · TOOL-ATTACHMENT FOLLOWUPS ──
   // Camera Intelligence
   if (/\b(camera (intel|feed|security|shop|image|picture)|footage|what'?s on (the )?camera)\b/.test(text)) {
@@ -563,43 +937,108 @@ export async function pruneTools(
   let semanticTierAttempted = false;
   let embeddingCacheWarm = false;
 
-  const addIfSpace = (name: string, tier?: number) => {
-    if (selectedNames.size >= TOOL_BUDGET) {
-      // Candidate considered but no room. Record it once, with the
-      // tier that WOULD have supplied it.
-      if (allTools[name] && !selectedNames.has(name) && !budgetedOut.has(name)) {
-        budgetedOut.set(name, tier ?? 0);
-      }
-      return;
-    }
-    if (allTools[name]) {
-      if (!selectedNames.has(name) && tier !== undefined) {
-        tierOf.set(name, tier);
-      }
-      selectedNames.add(name);
-    }
+  // ── STAGE 1 · GATHER ──────────────────────────────────────────────────
+  //
+  // 2026-09-18 · two-stage selection. This used to be ONE pass: every tier
+  // called `addIfSpace`, which stopped adding at TOOL_BUDGET, so each tier's
+  // share of the 24 slots was decided by ARRIVAL ORDER rather than relevance.
+  // Measured over 2,616 prod gate decisions: candidates p50 43 against
+  // selected p50 24, the budget truncating on 80.4% of turns, and tier 4
+  // (keyword families) taking the median turn's entire non-core allowance —
+  // which left the SEMANTIC tier skipped on 73.2% of turns while 65.3% of
+  // tier-4 ALLOWED impressions went to tools the model never chose.
+  //
+  // A pre-emptive RESERVE for the semantic tier was tried first and reverted:
+  // it allocates before it knows, so it changed membership even on turns where
+  // the budget never truncated. Two-stage ranks AFTER it knows — stage 1 drops
+  // nothing, and stage 2 owns the entire cliff.
+  //
+  // Tiers 1/2/3/7 are INTENT, not similarity: core, action-core, an explicit
+  // tool name in the prompt, a matched playbook. They are never contested, so
+  // no similarity score can displace something the operator literally asked
+  // for. Only tiers 4/5/6 compete.
+  //
+  // ⚠ ONE DELIBERATE REORDER, CALLED OUT BECAUSE IT IS A BEHAVIOUR CHANGE:
+  // the single pass ran 1,2,3,4,7,5,6, so tier 7 (playbook) filled AFTER the
+  // keyword families and could be truncated away by them. Splitting on
+  // intent-vs-similarity necessarily moves it to 1,2,3,7 then 4/5/6. A
+  // playbook is a small curated bundle matched on explicit intent; the ~40
+  // tier-4 regex families are generic. Under truncation the bundle should win,
+  // and 65.3% of tier-4 impressions going to never-chosen tools is the
+  // evidence that it was losing to the wrong thing. Putting tier 7 into the
+  // contested pool instead is NOT an option: it carries no similarity score,
+  // and one unscored candidate disables ranking for the whole pool.
+  const guaranteed: { name: string; tier: number }[] = [];
+  const contested: { name: string; tier: number; arrival: number; score?: number }[] = [];
+  const offeredOnce = new Set<string>();
+
+  /**
+   * FIRST TIER WINS on a duplicate. A tool offered by both the keyword families
+   * and the semantic ranker is attributed to keywords — which is what the
+   * single-pass version did, and what the tier telemetry has always meant.
+   * Attribution is not a union.
+   */
+  const keep = (name: string, tier: number) => {
+    if (!allTools[name] || offeredOnce.has(name)) return;
+    offeredOnce.add(name);
+    guaranteed.push({ name, tier });
+  };
+  const contend = (name: string, tier: number, score?: number) => {
+    if (!allTools[name] || offeredOnce.has(name)) return;
+    offeredOnce.add(name);
+    contested.push({ name, tier, arrival: contested.length, score });
   };
 
   // Tier 1: CORE_TOOLS
   for (const name of CORE_TOOLS) {
-    addIfSpace(name, 1);
+    keep(name, 1);
   }
 
   // Tier 2: ACTION_CORE
   for (const name of ACTION_CORE) {
-    addIfSpace(name, 2);
+    keep(name, 2);
   }
 
   // Tier 3: Exact tool-name mentions (explicit user intent)
   const sortedExact = Array.from(exactMentioned).sort();
   for (const name of sortedExact) {
-    addIfSpace(name, 3);
+    keep(name, 3);
   }
 
-  // Tier 4: Deterministic natural-language keyword-family matches
-  const sortedKeyword = Array.from(keywordMatches).sort();
+  // Tier 4: Deterministic natural-language keyword-family matches.
+  //
+  // ORDER IS POLICY here, not presentation — see orderKeywordCandidates for
+  // the production measurement. Rank by semantic similarity so that when the
+  // budget truncates it drops the least relevant candidates instead of the
+  // alphabetically-last ones.
+  let keywordScores: Map<string, number> | null = null;
+  if (userEmbedding && userEmbedding.length > 0 && keywordMatches.size > 0) {
+    try {
+      const { scoreToolsBySimilarity, isToolEmbeddingCacheWarm } = await import("./tool-embeddings");
+      // Rank only against a WARM cache, so every candidate is comparable.
+      // A partial score map would sort the measured against the unmeasured —
+      // a different policy from the alphabetical one, and not obviously better.
+      if (isToolEmbeddingCacheWarm()) {
+        keywordScores = scoreToolsBySimilarity(userEmbedding, keywordMatches);
+      }
+    } catch (err) {
+      // Ranking is an optimisation. A failure here must never change WHICH
+      // tools are candidates — fall through to the alphabetical order this
+      // replaced, and say so rather than swallowing it.
+      void import("@/lib/utils/error-log")
+        .then(({ logError }) => logError("ai.chat-mode", err, { fn: "pruneTools/keywordRank" }))
+        .catch((e) => console.error("ai.chat-mode import error", e));
+    }
+  }
+  const sortedKeyword = orderKeywordCandidates(keywordMatches, keywordScores);
+  // Position within the tier-4 priority list, so the telemetry can later show
+  // WHERE the cliff fell and whether ranking moved the right tools above it.
+  // `rank`/`score` have existed on GateDecision since the table shipped and
+  // nothing ever wrote them — a column with no producer reports nothing.
+  const keywordRank = new Map<string, number>();
+  sortedKeyword.forEach((name, i) => keywordRank.set(name, i));
   for (const name of sortedKeyword) {
-    addIfSpace(name, 4);
+    contend(name, 4, keywordScores?.get(name));
   }
 
   // Tier 7 (U7 · 2026-09-08): intent playbooks — one bundle per recurring job
@@ -607,11 +1046,17 @@ export async function pruneTools(
   // telemetry can answer whether the bundle was used.
   const playbook = matchPlaybook(userContent);
   if (playbook) {
-    for (const name of playbook.tools) addIfSpace(name, 7);
+    for (const name of playbook.tools) keep(name, 7);
   }
 
-  // Tier 5: Semantic-ranked tools
-  if (userEmbedding && userEmbedding.length > 0 && selectedNames.size < TOOL_BUDGET) {
+  // Tier 5: Semantic-ranked tools.
+  //
+  // The `selectedNames.size < TOOL_BUDGET` guard that used to sit here is GONE,
+  // and removing it is the point of the rewrite: that guard is precisely what
+  // made the semantic tier a leftovers tier, skipped on 73.2% of prod turns
+  // because tier 4 had already filled the budget. Gathering costs one cosine
+  // pass over a warm in-memory cache; the cliff moved to stage 2.
+  if (userEmbedding && userEmbedding.length > 0) {
     semanticTierAttempted = true;
     try {
       const { rankToolsBySimilarity, isToolEmbeddingCacheWarm } = await import("./tool-embeddings");
@@ -619,8 +1064,8 @@ export async function pruneTools(
       if (embeddingCacheWarm) {
         const topN = isDeep ? 40 : 15;
         const ranked = rankToolsBySimilarity(userEmbedding, topN, 0.25);
-        for (const [name] of ranked) {
-          addIfSpace(name, 5);
+        for (const [name, score] of ranked) {
+          contend(name, 5, score);
         }
       }
     } catch (err) {
@@ -628,17 +1073,79 @@ export async function pruneTools(
     }
   }
 
-  // Tier 6: Default extras (if only core tools were matched)
+  // Tier 6: Default extras (if only core tools were matched).
+  //
+  // The old condition was `selectedNames.size === coreAndActionInRegistry.length`
+  // — "nothing but core got in". Stage 1 has not selected anything yet, so the
+  // equivalent test is the one below: no exact mention, no keyword family, no
+  // playbook and no semantic candidate offered anything. Same turns, stated
+  // against what is actually known at this point.
   const coreAndActionInRegistry = [...CORE_TOOLS, ...ACTION_CORE].filter(n => allTools[n]);
-  if (selectedNames.size === coreAndActionInRegistry.length) {
+  if (guaranteed.length === coreAndActionInRegistry.length && contested.length === 0) {
     // 2026-08-12 · getAgendaItems added: the default tier fires exactly
     // on casual turns — the same turns the JIT prompt gate drops the
     // inline agenda section on, so the retrieval path must be present.
     const defaults = ["getCommitments", "getAgendaItems", "getTasks", "dailyPulse", "findCustomer"];
     for (const name of defaults) {
-      addIfSpace(name, 6);
+      contend(name, 6);
     }
   }
+
+  // ── STAGE 2 · RANK, THEN TRUNCATE ─────────────────────────────────────
+  //
+  // Guaranteed tools take their slots first, in tier order, exactly as before.
+  // Whatever remains is fought over by tiers 4/5/6 on ONE comparable scale.
+  //
+  // WHY THE SCALES ARE COMPARABLE AT ALL, which is the fact this rests on:
+  // tier 4 scores its candidates with `scoreToolsBySimilarity(userEmbedding, …)`
+  // and tier 5 ranks with `rankToolsBySimilarity(userEmbedding, …)` — the same
+  // cosine metric against the same embedding. They were never incomparable;
+  // they were just never compared.
+  //
+  // PARTIAL COVERAGE DISABLES RANKING, matching `orderKeywordCandidates`. If any
+  // contested candidate is unscored, sorting would rank the measured against the
+  // unmeasured, which is a different policy and not obviously a better one. The
+  // fallback is arrival order — byte-identical to the single-pass behaviour.
+  // That is also what makes "no embedding" and "cold cache" structurally safe:
+  // both leave every candidate unscored, so both keep today's exact output.
+  // `Number.isFinite`, NOT `typeof === "number"`. Cosine similarity divides by
+  // the product of two magnitudes, so a zero-magnitude embedding yields NaN —
+  // and `typeof NaN === "number"` is TRUE. A NaN would pass this guard, then
+  // `b.score - a.score` is NaN, and `NaN !== 0` is true, so the comparator
+  // RETURNS NaN. A comparator that returns NaN makes the sort order
+  // implementation-defined: the budget would then cut by nothing in particular
+  // while every log said ranking was applied. Non-finite scores fall the whole
+  // pool back to arrival order instead, which is the documented safe path.
+  const everyContenderScored =
+    contested.length > 0 && contested.every((c) => Number.isFinite(c.score));
+  const ranked = [...contested];
+  if (everyContenderScored && process.env.NICK_TOOL_RANK_MERGED !== "0") {
+    ranked.sort((a, b) => {
+      const d = (b.score ?? 0) - (a.score ?? 0);
+      // Ties break by arrival, which is tier order then within-tier rank, so
+      // the output is deterministic for a fixed input.
+      return d !== 0 ? d : a.arrival - b.arrival;
+    });
+  }
+
+  // THE BUDGET BINDS ON GUARANTEED TOOLS TOO. The single-pass version ran
+  // every tier through the same `addIfSpace`, so even CORE_TOOLS stopped at
+  // TOOL_BUDGET. Exempting `guaranteed` here would let an operator who sets
+  // NICK_TOOL_BUDGET=10 still receive core + exact mentions + a playbook well
+  // past their own ceiling — a budget that is not a budget.
+  const take = (name: string, tier: number) => {
+    if (selectedNames.size >= TOOL_BUDGET) {
+      // Considered and lost. Recorded under the tier that offered it, so the
+      // telemetry still answers "which tier paid for the cliff".
+      if (!budgetedOut.has(name)) budgetedOut.set(name, tier);
+      return;
+    }
+    tierOf.set(name, tier);
+    selectedNames.add(name);
+  };
+
+  for (const { name, tier } of guaranteed) take(name, tier);
+  for (const { name, tier } of ranked) take(name, tier);
 
   const kept: Record<string, unknown> = {};
   for (const name of selectedNames) {
@@ -659,6 +1166,21 @@ export async function pruneTools(
           turnId,
           conversationId,
           mode,
+          // ⚠⚠ 2026-09-18 · TWO-STAGE MOVED THIS METRIC'S DENOMINATOR. Do not
+          // compare a post-two-stage `candidateCount` or `budgetTruncated`
+          // against a pre-two-stage baseline.
+          //
+          // The single pass SKIPPED tier 5 whenever the budget was already
+          // full, so on those turns its candidates were never considered and
+          // never landed in `budgetedOut` — they were invisible to this count.
+          // Stage 1 now gathers from every tier unconditionally, so the same
+          // traffic reports MORE candidates and MORE truncation. Both numbers
+          // going up is the instrument seeing what it previously missed, not
+          // the cliff getting worse.
+          //
+          // `scripts/tool-reachability-census.ts` compares `budgetTruncated`
+          // to a 72.9% baseline and will read the rise as a regression unless
+          // the reader knows this. Its header carries the same warning.
           candidateCount: selectedNames.size + budgetedOut.size,
           selectedCount: selectedNames.size,
           budget: TOOL_BUDGET,
@@ -670,11 +1192,18 @@ export async function pruneTools(
               toolName: name,
               verdict: "ALLOWED" as const,
               tier: tierOf.get(name),
+              rank: keywordRank.get(name),
+              score: keywordScores?.get(name),
             })),
             ...Array.from(budgetedOut.entries()).map(([name, tier]) => ({
               toolName: name,
               verdict: "BUDGETED_OUT" as const,
               tier: tier || undefined,
+              // A cut candidate's rank is the whole point: it says how far
+              // past the cliff the tool sat, which distinguishes "just
+              // missed" from "never close".
+              rank: keywordRank.get(name),
+              score: keywordScores?.get(name),
             })),
           ],
         })

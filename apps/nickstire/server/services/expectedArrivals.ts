@@ -1,15 +1,32 @@
 /**
  * Expected-arrivals service (NCSOS business-action-tools).
  *
- * Captures "the customer said they're coming / dropping off" as a durable record.
- * The shop is FCFS and drop-off-preferred, so this is NOT a booking (operator
- * directive: voice/SMS don't mint bookings) and NOT a lead (sms-no-lead-noise) —
- * it is a planning signal the shop can see on the Today screen and later
- * reconcile to a real arrival / paid invoice. It makes the bookSlot/scheduleDropoff
- * "phantom" real: agenticAuditor flagged "dropoff promised but not persisted".
+ * Captures an EXPECTED ARRIVAL as a durable record. The shop is FCFS and
+ * drop-off-preferred, so this is NOT a booking (operator directive: voice/SMS
+ * don't mint bookings) and NOT a lead (sms-no-lead-noise) — it is a planning
+ * signal the shop can see on the Today screen and later reconcile to a real
+ * arrival / invoice. It makes the bookSlot/scheduleDropoff "phantom" real:
+ * agenticAuditor flagged "dropoff promised but not persisted".
+ *
+ * WHAT A ROW IS, measured 2026-09-22 rather than assumed. This header used to
+ * say "the customer said they're coming". In production every row for 30 days
+ * came from voice (116; SMS has written ONE row in its life), and the voice
+ * writer is the bookSlot tool handler — which the prompt makes MANDATORY as
+ * "the lead record for any non-tire walk-in", fires in parallel with every
+ * transfer, and hardcodes preferredDay "today" in two scripts. So a row means
+ * "the assistant recorded an expected walk-in"; whether the CUSTOMER stated an
+ * intent is only signalled by `whenText`, the day phrase they actually used
+ * (present on 23 of the 89 rows that expired unmet). Readers that turn an
+ * expired row into a claim about the customer — a "no-show rate", a "said they
+ * were coming" queue reason — are overstating their evidence. 15 of 116 rows
+ * reconciled to an invoice inside the window; the other 89 had no invoice under
+ * that phone in ±7 or +14 days, and 77 of them none ever.
  */
 import { createLogger } from "../lib/logger";
 import { affectedRowCount } from "../lib/db-affected";
+import { isDuplicateKeyError } from "../lib/dbErrors";
+import { phoneLast10 } from "../lib/phone";
+import { planArrivalReconciliation } from "../lib/arrivalReconciliationPlan";
 
 const log = createLogger("expected-arrivals");
 
@@ -158,32 +175,186 @@ export async function listExpectedArrivals(opts: { date?: string; includeAllStat
   }
 }
 
+export interface ReconcileArrivalsResult {
+  /** Rows moved expected -> arrived, each holding a DISTINCT invoice. */
+  reconciled: number;
+  /** Same-visit rows (earlier days, same customer, same invoice) closed as cancelled. */
+  superseded: number;
+  /** The unique index rejected our claim: a concurrent run got there first. */
+  skippedAlreadyClaimed: number;
+}
+
 /**
- * Reconcile arrivals: an expected row is "arrived" if a paid invoice exists for
- * that phone dated on/after the expected day, within a 3-day window (a drop-off
- * can finish a day or two later). Match by last-10 digits. Idempotent — only
- * touches rows still 'expected'.
+ * Reconcile arrivals: an expected row becomes `arrived` when an invoice exists
+ * for that phone dated on/after the expected day, inside a 3-day window (a
+ * drop-off can finish a day or two later). Match by last-10 digits.
+ *
+ * NOT "a PAID invoice", which is what this comment used to claim. The join has
+ * never filtered paymentStatus and should not start: that column is unreliable
+ * as a signal (2026-08-28), and every reconciled invoice on 2026-09-22 happened
+ * to be `paid` by coincidence, not by constraint. An invoice existing is the
+ * evidence of an arrival; whether it was paid is a separate fact.
+ *
+ * ONE INVOICE, ONE ARRIVAL. This used to be a single UPDATE ... JOIN, and it
+ * stamped every eligible row with the invoice — three "coming today" rows for
+ * one Wednesday visit became three `arrived` rows sharing one
+ * reconciledInvoiceId, which the weekly digest then summed three times. The SQL
+ * below still decides which pairs are ELIGIBLE (same phone, in-window, invoice
+ * not already claimed) so the day-boundary semantics are unchanged and stay in
+ * the database's timezone; the planner decides which eligible pairs are APPLIED,
+ * deterministically. Migration 0126 makes the database refuse a second claim,
+ * and a rejection there is read as "already claimed", not as a failed write.
+ *
+ * Idempotent — only touches rows still 'expected'.
  */
-export async function reconcileExpectedArrivals(): Promise<{ reconciled: number }> {
+export async function reconcileExpectedArrivals(): Promise<ReconcileArrivalsResult> {
+  const nothing: ReconcileArrivalsResult = { reconciled: 0, superseded: 0, skippedAlreadyClaimed: 0 };
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
     const db = await getDb();
-    if (!db) return { reconciled: 0 };
-    const res = await db.execute(sql`
-      UPDATE expected_arrivals ea
+    if (!db) return nothing;
+
+    // Dates and timestamps are formatted IN SQL: driver-parsed TiDB dates arrive
+    // skewed on this stack, and the planner must compare the same day strings
+    // the database used to decide the window.
+    const [rows] = await db.execute(sql`
+      SELECT ea.id AS arrivalId,
+             DATE_FORMAT(ea.expectedDate, '%Y-%m-%d') AS expectedDate,
+             UNIX_TIMESTAMP(ea.createdAt) AS createdTs,
+             i.id AS invoiceId,
+             DATE_FORMAT(i.invoiceDate, '%Y-%m-%d') AS invoiceDate
+      FROM expected_arrivals ea
       JOIN invoices i
         ON RIGHT(REGEXP_REPLACE(i.customerPhone, '[^0-9]', ''), 10) = ea.customerPhone
        AND i.invoiceDate >= ea.expectedDate
        AND i.invoiceDate < DATE_ADD(ea.expectedDate, INTERVAL 3 DAY)
-      SET ea.status = 'arrived', ea.arrivedAt = NOW(), ea.reconciledInvoiceId = i.id
-      WHERE ea.status = 'expected' AND ea.expectedDate <= CURDATE()`);
-    const reconciled = affectedRowCount(res);
-    if (reconciled > 0) log.info(`reconciled ${reconciled} expected arrivals to paid invoices`);
-    return { reconciled };
+      WHERE ea.status = 'expected' AND ea.expectedDate <= ${toShopDateStr(new Date())}
+        AND NOT EXISTS (
+          SELECT 1 FROM expected_arrivals claimed WHERE claimed.reconciledInvoiceId = i.id
+        )`);
+    const pairs = (rows as Array<Record<string, unknown>>).map((r) => ({
+      arrivalId: Number(r.arrivalId),
+      expectedDate: String(r.expectedDate),
+      createdTs: Number(r.createdTs),
+      invoiceId: Number(r.invoiceId),
+      invoiceDate: String(r.invoiceDate),
+    }));
+    if (pairs.length === 0) return nothing;
+
+    const plan = planArrivalReconciliation(pairs);
+    let reconciled = 0;
+    let skippedAlreadyClaimed = 0;
+    let superseded = 0;
+
+    for (const m of plan.matches) {
+      try {
+        const res = await db.execute(sql`
+          UPDATE expected_arrivals
+          SET status = 'arrived', arrivedAt = NOW(), reconciledInvoiceId = ${m.invoiceId}
+          WHERE id = ${m.arrivalId} AND status = 'expected' AND reconciledInvoiceId IS NULL`);
+        reconciled += affectedRowCount(res);
+      } catch (err) {
+        // uq_ea_reconciled_invoice (0126) rejected the claim: another run took
+        // this invoice between our SELECT and our UPDATE. That is the index
+        // doing its job — count it as already claimed, never as a failure.
+        if (!isDuplicateKeyError(err)) throw err;
+        skippedAlreadyClaimed += 1;
+      }
+    }
+
+    // Same customer, same invoice, earlier expected day: the visit that
+    // happened is the matched row. Leaving these `expected` would let the
+    // no-show sweep tell the recovery queue this customer never came — about a
+    // customer who came and paid. `cancelled` is the only inert terminal state
+    // the enum offers without DDL; the note carries the truth. LEFT(..., 500)
+    // because TiDB rejects an over-width write outright and loses the row.
+    for (const s of plan.superseded) {
+      const res = await db.execute(sql`
+        UPDATE expected_arrivals
+        SET status = 'cancelled',
+            note = LEFT(CONCAT_WS(' | ', note, ${`superseded: same visit as arrival #${s.byArrivalId} (invoice ${s.invoiceId})`}), 500)
+        WHERE id = ${s.arrivalId} AND status = 'expected'`);
+      superseded += affectedRowCount(res);
+    }
+
+    if (reconciled + superseded + skippedAlreadyClaimed > 0) {
+      log.info("reconciled expected arrivals", { candidates: pairs.length, reconciled, superseded, skippedAlreadyClaimed });
+    }
+    return { reconciled, superseded, skippedAlreadyClaimed };
   } catch (err) {
     log.warn("reconcileExpectedArrivals failed", { error: err instanceof Error ? err.message : String(err) });
-    return { reconciled: 0 };
+    return nothing;
+  }
+}
+
+/**
+ * The two arrival facts the recovery kernel cannot see on a call row, shaped
+ * exactly as buildRecoveryQueue's options so a caller can spread them in.
+ *
+ *   expectedArrivalPhones — phones with an OPEN expectation: still `expected`
+ *     and not yet past the reconcile window. This used to mean "expected
+ *     TODAY", which made "I'll come by tomorrow" invisible to the kernel and
+ *     routed it into recovery a day early.
+ *   invoicedOnOrAfter — phone -> day of the most recent invoice an arrival
+ *     reconciled to, inside the queue's own window. This is the producer that
+ *     `invoicedPhones` never had: an `arrived` row IS an invoice match, so the
+ *     reconcile is the natural source for "money in the till".
+ *
+ * Fails OPEN to empty signals, matching the helper it replaces: if the read
+ * breaks, walk-ins fall back into the recovery queue, which is noisier but
+ * never drops a real obligation. The reverse default would hide customers.
+ */
+export async function arrivalSignalsForQueue(cutoff: Date): Promise<{
+  openExpectations: ReadonlyMap<string, readonly { sourceRef: string | null; createdAtMs: number }[]>;
+  invoicedAfter: ReadonlyMap<string, number>;
+}> {
+  const empty = {
+    openExpectations: new Map<string, { sourceRef: string | null; createdAtMs: number }[]>(),
+    invoicedAfter: new Map<string, number>(),
+  };
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return empty;
+    const last10 = (v: unknown) => phoneLast10(v == null ? null : String(v));
+
+    // "Not past the reconcile window" is a SHOP-LOCAL day, not the TiDB session
+    // date. CURDATE() here would have moved the boundary at 7 or 8 pm Eastern.
+    const openSince = toShopDateStr(new Date(Date.now() - 3 * 86_400_000));
+    const [openRows] = await db.execute(sql`
+      SELECT customerPhone, sourceRef, UNIX_TIMESTAMP(createdAt) AS createdTs
+      FROM expected_arrivals
+      WHERE status = 'expected' AND expectedDate >= ${openSince}`);
+    const openExpectations = new Map<string, { sourceRef: string | null; createdAtMs: number }[]>();
+    for (const r of openRows as Array<{ customerPhone: unknown; sourceRef: unknown; createdTs: unknown }>) {
+      const p = last10(r.customerPhone);
+      const ts = Number(r.createdTs);
+      if (p.length !== 10 || !Number.isFinite(ts)) continue;
+      const list = openExpectations.get(p) ?? [];
+      list.push({ sourceRef: r.sourceRef == null ? null : String(r.sourceRef), createdAtMs: ts * 1000 });
+      openExpectations.set(p, list);
+    }
+
+    // The INSTANT of the latest reconciled invoice, not its day: a visit paid
+    // for this morning must not close a new need called in this afternoon.
+    const [paidRows] = await db.execute(sql`
+      SELECT ea.customerPhone AS phone, UNIX_TIMESTAMP(MAX(i.invoiceDate)) AS invoicedTs
+      FROM expected_arrivals ea
+      JOIN invoices i ON i.id = ea.reconciledInvoiceId
+      WHERE ea.status = 'arrived' AND ea.arrivedAt >= ${cutoff}
+      GROUP BY ea.customerPhone`);
+    const invoicedAfter = new Map<string, number>();
+    for (const r of paidRows as Array<{ phone: unknown; invoicedTs: unknown }>) {
+      const p = last10(r.phone);
+      const ts = Number(r.invoicedTs);
+      if (p.length === 10 && Number.isFinite(ts) && ts > 0) invoicedAfter.set(p, ts * 1000);
+    }
+    return { openExpectations, invoicedAfter };
+  } catch (err) {
+    log.warn("arrivalSignalsForQueue failed (queue falls back to recovery)", { error: err instanceof Error ? err.message : String(err) });
+    return empty;
   }
 }
 
@@ -192,16 +363,26 @@ export async function reconcileExpectedArrivals(): Promise<{ reconciled: number 
  * still 'expected') as no_show, so a follow-up path can reach them and the Today
  * screen isn't cluttered with stale expectations.
  */
-export async function expireStaleExpectedArrivals(daysStale = 2): Promise<{ expired: number }> {
+export async function expireStaleExpectedArrivals(daysStale = 2, now: Date = new Date()): Promise<{ expired: number }> {
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return { expired: 0 };
+    // expectedDate is a shop (Eastern) calendar date, so the cutoff is computed
+    // from the Eastern date in JS. It used to be DATE_SUB(CURDATE(), …), and the
+    // DB session date is UTC: from 8 PM ET (7 PM in winter) to midnight it is
+    // already tomorrow, so the sweep marked arrivals no_show a day early, and
+    // no_show feeds the recovery lane. Calendar-day arithmetic at UTC noon, so a
+    // DST change inside the window cannot move the day.
+    const days = Math.max(0, Math.floor(daysStale));
+    const cutoffNoon = new Date(`${toShopDateStr(now)}T12:00:00Z`);
+    cutoffNoon.setUTCDate(cutoffNoon.getUTCDate() - days);
+    const cutoff = cutoffNoon.toISOString().slice(0, 10);
     const res = await db.execute(sql`
       UPDATE expected_arrivals
       SET status = 'no_show'
-      WHERE status = 'expected' AND expectedDate < DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(Math.max(0, Math.floor(daysStale))))} DAY)`);
+      WHERE status = 'expected' AND expectedDate < ${cutoff}`);
     const expired = affectedRowCount(res);
     if (expired > 0) log.info(`expired ${expired} stale expected arrivals to no_show`);
     return { expired };

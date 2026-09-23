@@ -496,6 +496,118 @@ export const lotRouter = router({
     }
   }),
 
+  /**
+   * WHEN the lot is busy, and how much of that is real.
+   *
+   * Every other counter here is a scalar for "now" or "today", which cannot answer the
+   * question the shop actually asks -- when do cars come in, and is this morning unusual.
+   * This buckets arrivals by ET hour across an 8-day window so today can be read against
+   * its own history.
+   *
+   * ⚠ BUCKET IN SQL, NEVER IN JS. `arrivedAt` is stored UTC and the node driver hands
+   * JS a Date shifted +4h (verified 2026-09-18: stored 12:50 while the driver rendered
+   * 16:50Z), so an hour computed in TypeScript is wrong by a third of a workday and
+   * looks plausible. `CONVERT_TZ(col,'+00:00','America/New_York')` is the only correct
+   * basis and is what `ET_DAY_START` already uses.
+   *
+   * ⚠ PASS_THROUGH ROWS CARRY AN `arrivedAt`. They are cars that crossed the portal and
+   * left without staying -- someone turning around, not a customer. `counts.arrivalsToday`
+   * includes them, so it overstates arrivals (17 of 111 rows measured 2026-09-18). Here
+   * they are counted SEPARATELY and never folded into `arrivals`, and both numbers ship
+   * so a share can never be read without its denominator.
+   */
+  activity: adminProcedure.query(async () => {
+    const d = await dbTyped();
+    if (!d) return { ok: false as const, reason: "database unavailable" };
+
+    try {
+      const etDate = (col: string) =>
+        sql.raw(`DATE(CONVERT_TZ(${col}, '+00:00', 'America/New_York'))`);
+      const rows = rowsOf(await d.execute(sql`
+        SELECT
+          DATEDIFF(${etDate("NOW()")}, ${etDate("arrivedAt")}) AS dayOffset,
+          ${sql.raw("HOUR(CONVERT_TZ(arrivedAt, '+00:00', 'America/New_York'))")} AS etHour,
+          SUM(CASE WHEN state <> 'PASS_THROUGH' THEN 1 ELSE 0 END) AS arrivals,
+          SUM(CASE WHEN state =  'PASS_THROUGH' THEN 1 ELSE 0 END) AS passThroughs
+        FROM vehicle_visits
+        WHERE dataClass = 'PRODUCTION'
+          AND preexisting = 0
+          AND arrivedAt IS NOT NULL
+          AND ${etDate("arrivedAt")} > DATE_SUB(${etDate("NOW()")}, INTERVAL 8 DAY)
+        GROUP BY dayOffset, etHour
+      `));
+
+      const byDay = new Map<number, { arrivals: number; passThroughs: number }>();
+      const today = Array.from({ length: 24 }, () => ({ arrivals: 0, passThroughs: 0 }));
+      const priorTotals = Array.from({ length: 24 }, () => 0);
+
+      for (const row of rows) {
+        const off = num(row.dayOffset);
+        const hour = num(row.etHour);
+        const arrivals = num(row.arrivals);
+        const passThroughs = num(row.passThroughs);
+        if (hour < 0 || hour > 23) continue;
+
+        const day = byDay.get(off) ?? { arrivals: 0, passThroughs: 0 };
+        day.arrivals += arrivals;
+        day.passThroughs += passThroughs;
+        byDay.set(off, day);
+
+        if (off === 0) {
+          today[hour] = { arrivals, passThroughs };
+        } else if (off >= 1 && off <= 7) {
+          priorTotals[hour] += arrivals;
+        }
+      }
+
+      // A DAY WITH NO ROWS IS NOT A QUIET DAY. The producer has been up for hours, not
+      // weeks, and it dies unpredictably -- so dividing by a fixed 7 would spread real
+      // traffic across days that were never observed and render a flat, reassuring
+      // baseline out of missing data. Average over days that ACTUALLY reported, and ship
+      // the count so the UI can say how thin the history is (or refuse to draw it).
+      const priorDaysWithData = [...byDay.keys()].filter((o) => o >= 1 && o <= 7).length;
+      const baseline = priorDaysWithData === 0
+        ? null
+        : priorTotals.map((t) => t / priorDaysWithData);
+
+      const todayArrivals = byDay.get(0)?.arrivals ?? 0;
+      const todayPassThroughs = byDay.get(0)?.passThroughs ?? 0;
+      const crossings = todayArrivals + todayPassThroughs;
+
+      return {
+        ok: true as const,
+        asOf: new Date().toISOString(),
+        hours: today.map((h, hour) => ({
+          hour,
+          arrivals: h.arrivals,
+          passThroughs: h.passThroughs,
+          baselineArrivals: baseline === null ? null : baseline[hour],
+        })),
+        totals: {
+          arrivals: todayArrivals,
+          passThroughs: todayPassThroughs,
+          // The denominator ships with the share, always. A share on its own invites
+          // "15% drive-by" off a sample of two.
+          crossings,
+          passThroughShare: crossings === 0 ? null : todayPassThroughs / crossings,
+        },
+        history: {
+          priorDaysWithData,
+          days: [...byDay.entries()]
+            .filter(([off]) => off >= 0 && off <= 7)
+            .sort((a, b) => a[0] - b[0])
+            .map(([dayOffset, v]) => ({ dayOffset, ...v })),
+        },
+      };
+    } catch (err) {
+      // Same rule as `now`: a failed read is reported, never rendered as an empty chart.
+      return {
+        ok: false as const,
+        reason: err instanceof Error ? err.message : "vehicle_visits activity read failed",
+      };
+    }
+  }),
+
   /** Recent visit rows for the operator table. */
   visits: adminProcedure
     .input(z.object({
@@ -625,6 +737,7 @@ export const lotRouter = router({
                r.deadLetterDepth,
                UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastCloudAckAt) AS cloudAckAgeSeconds,
                r.diskFreeBytes, r.restores, r.relocateFailures, r.preexistingCrossed,
+               r.arrivalsAfterStitch, r.stitchedTotal, r.stitchRefusedAmbiguous,
                UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.stateSince) AS stateForSeconds,
                (SELECT COUNT(*) FROM vehicle_visits o
                  WHERE o.camera = r.camera AND o.departedAt IS NULL
@@ -638,6 +751,30 @@ export const lotRouter = router({
         ORDER BY at DESC
         LIMIT 20
       `));
+
+      // HOW STEADY HAS IT BEEN, not just what is it now.
+      //
+      // A card showing `HEALTHY` says nothing about whether the source has been dropping all
+      // morning, and the 20-row transition list above is shared across every camera, so a
+      // busy one crowds the others out of it entirely. Measured 2026-09-18: `sign` went to
+      // CAMERA_OFFLINE 17 times and DEGRADED_VISION 12 times between 08:05 and 10:50 while
+      // the badge read HEALTHY whenever anyone happened to look -- which is exactly how a
+      // flapping source gets reported as a stable one.
+      //
+      // `drops` counts only the states where the lot is NOT being watched. A return to
+      // HEALTHY is not an incident, so counting every transition would double every outage
+      // and make a recovering camera look worse than one that stayed down.
+      const stability = rowsOf(await d.execute(sql`
+        SELECT camera,
+               SUM(CASE WHEN toState IN ('CAMERA_OFFLINE','DEGRADED_VISION','PRODUCER_OFFLINE',
+                                         'CALIBRATION_INVALID','STALE') THEN 1 ELSE 0 END) AS drops,
+               COUNT(*) AS transitions
+        FROM camera_health_events
+        WHERE ${sql.raw("DATE(CONVERT_TZ(at, '+00:00', 'America/New_York'))")}
+            = ${sql.raw("DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))")}
+        GROUP BY camera
+      `));
+      const byStability = new Map(stability.map((s) => [String(s.camera), s]));
 
       const byCamera = new Map(runtime.map((r) => [String(r.camera), r]));
       const bool = (v: unknown): boolean | null =>
@@ -673,6 +810,15 @@ export const lotRouter = router({
           reason: verdict.reason,
           ageSeconds: r ? numOrNull(r.ageSeconds) : null,
           stateForSeconds: r ? numOrNull(r.stateForSeconds) : null,
+          // NULL, not 0, when this camera has no row today. "It has not dropped" and "no
+          // event was ever recorded for it" are different claims, and a camera that has
+          // never reported must not render as the steadiest one on the screen.
+          stability: byStability.has(camera)
+            ? {
+                dropsToday: num(byStability.get(camera)!.drops),
+                transitionsToday: num(byStability.get(camera)!.transitions),
+              }
+            : null,
           mode: r ? String(r.mode ?? "PRODUCTION") : null,
           commissioningRunId: r ? str(r.commissioningRunId) : null,
           producer: r
@@ -682,7 +828,7 @@ export const lotRouter = router({
             ? { type: str(r.sourceType), generation: str(r.sourceGeneration), fps: numOrNull(r.captureFps), restores: numOrNull(r.restores) }
             : null,
           vision: r
-            ? { detector: str(r.detectorName), modelSha256: str(r.modelSha256), inferenceP95Ms: numOrNull(r.inferenceP95Ms), inferenceAgeSeconds: numOrNull(r.inferenceAgeSeconds), poseDelta: numOrNull(r.poseDelta), calibrationVersion: str(r.calibrationVersion), relocateFailures: numOrNull(r.relocateFailures), preexistingCrossed: numOrNull(r.preexistingCrossed) }
+            ? { detector: str(r.detectorName), modelSha256: str(r.modelSha256), inferenceP95Ms: numOrNull(r.inferenceP95Ms), inferenceAgeSeconds: numOrNull(r.inferenceAgeSeconds), poseDelta: numOrNull(r.poseDelta), calibrationVersion: str(r.calibrationVersion), relocateFailures: numOrNull(r.relocateFailures), preexistingCrossed: numOrNull(r.preexistingCrossed), arrivalsAfterStitch: numOrNull(r.arrivalsAfterStitch), stitchedTotal: numOrNull(r.stitchedTotal), stitchRefusedAmbiguous: numOrNull(r.stitchRefusedAmbiguous) }
             : null,
           cloud: r
             ? { outboxDepth: numOrNull(r.outboxDepth), oldestOutboxAgeSeconds: numOrNull(r.oldestOutboxAgeSeconds), deadLetterDepth: numOrNull(r.deadLetterDepth), cloudAckAgeSeconds: numOrNull(r.cloudAckAgeSeconds), diskFreeBytes: numOrNull(r.diskFreeBytes) }

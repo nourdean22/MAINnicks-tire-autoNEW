@@ -38,6 +38,17 @@ const DEFAULT_TIMEOUT_MS = 8_000;
 /**
  * True if HF embeddings are reachable · HF_API_KEY must be set.
  */
+/**
+ * The model id this backend will actually use.
+ *
+ * Exported so `getEmbeddingWithModel` can record WHICH space a stored vector
+ * belongs to. Reading `HF_EMBED_MODEL` in two places would let the recorded
+ * identity drift from the model that ran, which is worse than recording nothing.
+ */
+export function hfEmbeddingModel(): string {
+  return process.env.HF_EMBED_MODEL?.trim() || DEFAULT_MODEL;
+}
+
 export function isHfEmbeddingAvailable(): boolean {
   return Boolean(process.env.HF_API_KEY);
 }
@@ -63,7 +74,7 @@ export async function getHfEmbedding(text: string): Promise<number[] | null> {
   const apiKey = process.env.HF_API_KEY;
   if (!apiKey) return null;
 
-  const model = process.env.HF_EMBED_MODEL?.trim() || DEFAULT_MODEL;
+  const model = hfEmbeddingModel();
   const input = text.slice(0, 30_000);
 
   try {

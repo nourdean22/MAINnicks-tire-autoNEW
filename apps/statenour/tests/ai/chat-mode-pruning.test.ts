@@ -7,16 +7,29 @@ vi.mock("@/lib/ai/tool-telemetry", () => ({
   isToolBlocked: vi.fn().mockReturnValue(false),
 }));
 
-vi.mock("@/lib/ai/tool-embeddings", () => ({
-  rankToolsBySimilarity: vi.fn().mockImplementation(() => {
-    const results = [];
-    for (let i = 1; i <= 60; i++) {
-      results.push([`extraTool-${i}`, 0.9]);
-    }
-    return results;
-  }),
-  isToolEmbeddingCacheWarm: vi.fn().mockReturnValue(true),
-}));
+// Spread the REAL module and override only what this file steers. The
+// hand-written version omitted `scoreToolsBySimilarity` once pruneTools began
+// calling it for tier-4 ordering, so every call landed as `undefined`, threw,
+// and was swallowed by the caller's fallback — the file kept passing while
+// exercising an error path it never meant to test.
+vi.mock("@/lib/ai/tool-embeddings", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/tool-embeddings")>();
+  return {
+    ...actual,
+    rankToolsBySimilarity: vi.fn().mockImplementation(() => {
+      const results = [];
+      for (let i = 1; i <= 60; i++) {
+        results.push([`extraTool-${i}`, 0.9]);
+      }
+      return results;
+    }),
+    isToolEmbeddingCacheWarm: vi.fn().mockReturnValue(true),
+    // No cached embeddings in this suite, so tier-4 ranking has nothing to say
+    // and falls back to alphabetical — which is what these budget-capping
+    // assertions were written against.
+    scoreToolsBySimilarity: vi.fn(() => new Map<string, number>()),
+  };
+});
 
 vi.mock("@/lib/ai/tool-selection-telemetry", () => ({ recordToolSelection }));
 
@@ -38,7 +51,7 @@ describe("pruneTools semantic-tier telemetry", () => {
   it("records a skipped semantic tier distinctly from a cold embedding cache", async () => {
     await pruneTools(
       "standard",
-      { classifyThought: { name: "classifyThought" } },
+      { searchMemories: { name: "searchMemories" } },
       "hello",
       [],
       { turnId: "trace-skipped" },
@@ -59,7 +72,7 @@ describe("pruneTools semantic-tier telemetry", () => {
 
     await pruneTools(
       "standard",
-      { classifyThought: { name: "classifyThought" } },
+      { searchMemories: { name: "searchMemories" } },
       "hello",
       [0.1, 0.2],
       { turnId: "trace-cold" },
@@ -83,7 +96,7 @@ describe("pruneTools priority-preserving cap", () => {
       allTools[`extraTool-${i}`] = { name: `extraTool-${i}` };
     }
     // Add CORE and ACTION tools
-    allTools["classifyThought"] = { name: "classifyThought" };
+    allTools["searchMemories"] = { name: "searchMemories" };
     allTools["createTask"] = { name: "createTask" };
 
     // Pass userEmbedding to trigger the similarity ranking mock
@@ -91,7 +104,7 @@ describe("pruneTools priority-preserving cap", () => {
     const keys = Object.keys(pruned);
 
     expect(keys.length).toBe(DEFAULT_BUDGET);
-    expect(keys).toContain("classifyThought");
+    expect(keys).toContain("searchMemories");
     expect(keys).toContain("createTask");
   });
 
@@ -100,7 +113,7 @@ describe("pruneTools priority-preserving cap", () => {
     for (let i = 1; i <= 60; i++) {
       allTools[`extraTool-${i}`] = { name: `extraTool-${i}` };
     }
-    allTools["classifyThought"] = { name: "classifyThought" };
+    allTools["searchMemories"] = { name: "searchMemories" };
     allTools["createTask"] = { name: "createTask" };
     // This is an extra tool, NOT a core tool, but will be mentioned by exact name
     allTools["extraTool-45"] = { name: "extraTool-45" };
@@ -110,7 +123,7 @@ describe("pruneTools priority-preserving cap", () => {
     const keys = Object.keys(pruned);
 
     expect(keys.length).toBe(DEFAULT_BUDGET);
-    expect(keys).toContain("classifyThought");
+    expect(keys).toContain("searchMemories");
     expect(keys).toContain("createTask");
     expect(keys).toContain("extraTool-45");
   });
@@ -120,13 +133,13 @@ describe("pruneTools priority-preserving cap", () => {
     for (let i = 1; i <= 60; i++) {
       allTools[`extraTool-${i}`] = { name: `extraTool-${i}` };
     }
-    allTools["classifyThought"] = { name: "classifyThought" };
+    allTools["searchMemories"] = { name: "searchMemories" };
     allTools["createTask"] = { name: "createTask" };
 
     process.env.NICK_TOOL_BUDGET = "12";
     let keys = Object.keys(await pruneTools("deep", allTools, "test query", [0.1, 0.2]));
     expect(keys.length).toBe(12);
-    expect(keys).toContain("classifyThought");
+    expect(keys).toContain("searchMemories");
     expect(keys).toContain("createTask");
 
     // Below the floor, the floor wins (CORE + ACTION_CORE must stay coherent).
@@ -169,7 +182,7 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
       allTools[`extraTool-${i}`] = { name: `extraTool-${i}` };
     }
     // Add Core and Action tools
-    allTools["classifyThought"] = { name: "classifyThought" };
+    allTools["searchMemories"] = { name: "searchMemories" };
     allTools["createTask"] = { name: "createTask" };
 
     // Add the 7 followup tools
@@ -195,7 +208,7 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     // keyword tier outranks the semantic filler, so every followup tool
     // stays present at 24 exactly as it did at 50.
     expect(keys.length).toBe(DEFAULT_BUDGET);
-    expect(keys).toContain("classifyThought");
+    expect(keys).toContain("searchMemories");
     expect(keys).toContain("createTask");
     for (const f of followups) {
       expect(keys).toContain(f);
@@ -210,7 +223,7 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     }
 
     // Add Core and Action tools
-    allTools["classifyThought"] = { name: "classifyThought" };
+    allTools["searchMemories"] = { name: "searchMemories" };
     allTools["createTask"] = { name: "createTask" };
 
     // We will query with "instagram" to trigger keyword-based match
@@ -219,7 +232,7 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
 
     // Assert cappings and deterministic ordering
     expect(keys.length).toBe(DEFAULT_BUDGET);
-    expect(keys[0]).toBe("classifyThought");
+    expect(keys[0]).toBe("searchMemories");
     expect(keys[1]).toBe("createTask");
 
     // The remaining slots must be filled from the 60 tools deterministically.
@@ -229,7 +242,7 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
 
   it("proves that default extras are returned when only core tools match for an unmatched normal-language request", async () => {
     const allTools: Record<string, unknown> = {
-      classifyThought: { name: "classifyThought" },
+      searchMemories: { name: "searchMemories" },
       createTask: { name: "createTask" },
       getCommitments: { name: "getCommitments" },
       getTasks: { name: "getTasks" },
@@ -242,7 +255,7 @@ describe("pruneTools keyword attachment families (v10.0.532 followups)", () => {
     const pruned = await pruneTools("standard", allTools, "hello how are you");
     const keys = Object.keys(pruned);
 
-    expect(keys).toContain("classifyThought");
+    expect(keys).toContain("searchMemories");
     expect(keys).toContain("createTask");
     // Verify default extras are included
     expect(keys).toContain("getCommitments");
@@ -275,8 +288,11 @@ describe("2026-08-25 CORE demotion — corrected-number prune, behavior pinned",
     expect(keys).not.toContain("syncKnowledge");
     expect(keys).not.toContain("runDeviceCommand");
     // Positive control: the demotion must not have gutted CORE itself.
+    // 2026-09-19 · classifyThought was the other half of this control and has
+    // since been demoted in its own right (see the block below), so the
+    // control now rests on searchMemories, which is still CORE and is now
+    // first in the list.
     expect(keys).toContain("searchMemories");
-    expect(keys).toContain("classifyThought");
     expect(keys).toContain("createTask");
   });
 
@@ -293,5 +309,80 @@ describe("2026-08-25 CORE demotion — corrected-number prune, behavior pinned",
   it("priority phrasing re-surfaces setTaskPriority via the task family", async () => {
     const keys = Object.keys(await pruneTools("standard", toolset(), "bump that task to top priority", [0.1, 0.2]));
     expect(keys).toContain("setTaskPriority");
+  });
+});
+
+/**
+ * 2026-09-19 · SECOND CORE demotion — four tools, each with its path proven.
+ *
+ * MEASURED by `scripts/always-on-audit.ts` over 30 days / 259 turns: each was
+ * surfaced on 259 of 259 turns and chosen ZERO times INSIDE that window. Last
+ * calls were 66d, 66d, 43d and 37d — all predating the window, so this is
+ * "earned nothing in the period measured", not "quiet lately".
+ *
+ * THE DEMOTION IS ONLY SAFE IF EACH STAYS REACHABLE, so there is one test per
+ * tool asserting it comes back on its natural phrasing. Coverage was verified
+ * per tool before the change, not assumed — a sweep of all 54 `addMatching`
+ * name-patterns found that `classifyThought` had NO family at all, and
+ * `rankNextActions`' only apparent hit was the SEO family matching the
+ * substring "rank", which fires on marketing text and was never real coverage.
+ * Family #14 was added for classifyThought as a PRECONDITION of demoting it.
+ *
+ * ⚠ createTask was flagged by the same audit (259 impressions, 0 calls in
+ * window, last call 37d) and is deliberately NOT demoted. Its regression
+ * fixture is a keyword-less action turn — literally "ok do it" — which matches
+ * no family, no playbook, and none of the action-intent patterns in
+ * `action-intent-detector.ts`. Demoting it would re-open the 2026-07-06 hole
+ * where the operator could not create a task at all on that turn shape.
+ * **A tool can be cold and still be the last path on a turn where every other
+ * path is silent.** Usage is not the only criterion.
+ */
+describe("2026-09-19 CORE demotion — four tools, each path proven", () => {
+  function toolset(): Record<string, unknown> {
+    const allTools: Record<string, unknown> = {};
+    for (let i = 1; i <= 60; i++) allTools[`extraTool-${i}`] = { name: `extraTool-${i}` };
+    for (const name of [
+      "searchMemories", "createTask", "completeTask",
+      "classifyThought", "rankNextActions", "getBlindSpots", "dailyPulse",
+    ]) allTools[name] = { name };
+    return allTools;
+  }
+
+  it("a neutral turn no longer carries the four demoted tools — CORE survives (positive control)", async () => {
+    const keys = Object.keys(await pruneTools("standard", toolset(), "how are things looking", [0.1, 0.2]));
+    expect(keys).not.toContain("classifyThought");
+    expect(keys).not.toContain("rankNextActions");
+    expect(keys).not.toContain("getBlindSpots");
+    expect(keys).not.toContain("dailyPulse");
+    // Positive control — without this, gutting CORE entirely would also pass.
+    expect(keys).toContain("searchMemories");
+    expect(keys).toContain("createTask");
+  });
+
+  it("createTask is NOT demoted — the keyword-less action turn still reaches it", async () => {
+    // The 2026-07-06 regression fixture, re-asserted here because the audit
+    // flagged createTask and the number alone argued for demoting it.
+    const keys = Object.keys(await pruneTools("standard", toolset(), "ok do it"));
+    expect(keys).toContain("createTask");
+  });
+
+  it("overthinking phrasing re-surfaces classifyThought via family #14", async () => {
+    const keys = Object.keys(await pruneTools("standard", toolset(), "am I overthinking this", [0.1, 0.2]));
+    expect(keys).toContain("classifyThought");
+  });
+
+  it("next-action phrasing re-surfaces rankNextActions via the execute playbook", async () => {
+    const keys = Object.keys(await pruneTools("standard", toolset(), "what should i do next", [0.1, 0.2]));
+    expect(keys).toContain("rankNextActions");
+  });
+
+  it("blind-spot phrasing re-surfaces getBlindSpots via the reflect playbook", async () => {
+    const keys = Object.keys(await pruneTools("standard", toolset(), "what are my blind spots", [0.1, 0.2]));
+    expect(keys).toContain("getBlindSpots");
+  });
+
+  it("routine phrasing re-surfaces dailyPulse via the routines family", async () => {
+    const keys = Object.keys(await pruneTools("standard", toolset(), "give me my daily pulse", [0.1, 0.2]));
+    expect(keys).toContain("dailyPulse");
   });
 });

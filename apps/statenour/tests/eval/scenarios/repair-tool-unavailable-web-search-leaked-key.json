@@ -1,0 +1,47 @@
+{
+  "id": "repair-tool-unavailable-web-search-leaked-key",
+  "name": "Repair · web search 'unavailable, key leaked' → 'doesn't matter, try again'",
+  "description": "Mined from a real operator repair. Nick answered 'Web search is unavailable. The API key was reported as leaked.' and stopped. The operator's repair is 'doesnt matter try again'. THE DOMINANT REAL REPAIR PATTERN in the corpus: Nick declares a tool unavailable and gives up. Tests whether the next reply retries through another search path or degrades honestly, instead of restating the outage. Provenance: repair-under-research-exp6snz9.",
+  "category": "multi-turn",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "use the web search to search nicks tire on google"
+      },
+      {
+        "role": "assistant",
+        "content": "Web search is unavailable. The API key was reported as leaked."
+      },
+      {
+        "role": "user",
+        "content": "doesnt matter try again"
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "retries-through-another-path",
+      "description": "Actually attempts the lookup again through a different path (a different search tool, searchTools/invokeTool discovery, a narrower query) — does NOT merely restate that the tool is unavailable.",
+      "weight": 4
+    },
+    {
+      "id": "names-what-it-tried",
+      "description": "States concretely which tools/queries it tried and what came back, so the operator can tell a real retry from a shrug.",
+      "weight": 2
+    },
+    {
+      "id": "no-fallback-to-priors-as-if-live",
+      "description": "If it must fall back to what it already knows, says so explicitly and does not present stale knowledge as a live result.",
+      "weight": 2
+    }
+  ],
+  "expectedBehavior": "Tries an alternative (another search provider, tool discovery, a site-specific query), reports what it found or exactly what it tried, and never just repeats 'unavailable'.",
+  "tags": [
+    "repair-mined",
+    "no_tool",
+    "tool-unavailable",
+    "shop",
+    "requires-tools"
+  ]
+}

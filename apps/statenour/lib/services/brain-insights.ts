@@ -16,6 +16,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { HARD_FAILURE_STATUSES } from "@/lib/services/cron-control";
 
 export interface BrainInsight {
   kind:
@@ -334,7 +335,10 @@ export async function buildBrainInsights(): Promise<BrainInsightsReport> {
   // the same rule as isHardFailure() in cron-control. With 2,536 partial rows
   // in prod this trend line reported a failure spike that was nothing of the
   // sort, and during the 08-20 storm it was inflated beyond reading.
-  const HARD_FAILURE_ONLY = { notIn: ["success", "partial"] };
+  // 2026-09-22 · the same POSITIVE list isHardFailure() uses (cron-control), spread
+  // into a prisma filter. A notIn here counted every in-flight `started` row as a
+  // failure from the day that token existed.
+  const HARD_FAILURE_ONLY = { in: [...HARD_FAILURE_STATUSES] };
   const recentCronFails = await prisma.cronJobLog.count({
     where: { status: HARD_FAILURE_ONLY, createdAt: { gte: recentSince } },
   });

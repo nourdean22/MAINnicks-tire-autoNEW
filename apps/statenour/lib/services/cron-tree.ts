@@ -23,6 +23,7 @@ import { CRONS, type CronDef } from "@/config/crons";
 import {
   listCronControls,
   getCronStats,
+  isHardFailure,
   normalizeCronStatus,
   type CronLastStatus,
 } from "@/lib/services/cron-control";
@@ -191,7 +192,7 @@ export async function buildCronTree() {
     ).length,
     failures24h: recent.filter(
       (r) =>
-        r.status === "failed" &&
+        isHardFailure(r.status) &&
         r.createdAt.getTime() > now.getTime() - 24 * 3600_000,
     ).length,
     drifted: rows.filter((r) => r.drift !== null && r.drift > 0).length,

@@ -33,6 +33,7 @@ import { planQuery, type QueryPlan } from "@/lib/brain/query-plan";
 import { buildEvidencePack } from "@/lib/brain/evidence-pack";
 import { computeLaneOverlap, type LaneOverlap } from "@/lib/brain/lane-overlap";
 import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
+import { buildContextReceipt, DEFAULT_CONTEXT_TOKEN_BUDGET, type ContextReceipt } from "@/lib/ai/context-budget";
 import { fenceContent, truncateFenced } from "@/lib/ai/tool-result-fencing";
 import { formatPrefetchContext } from "@/lib/ai/predictive-prefetch";
 import type { PrefetchResult } from "@/lib/ai/predictive-prefetch";
@@ -100,6 +101,12 @@ export interface BuildBrainContextOutput {
   queryPlan?: QueryPlan;
   /** Wave 2 · when NICK_RECALL_ARBITER is on: how many candidates the two lanes offered and how many survived. */
   evidencePack?: { candidates: number; items: number };
+  /**
+   * Wave 3 (2026-09-17) · what the block-assembly stage kept/dropped and why
+   * (lib/ai/context-budget.ts). OBSERVABILITY ONLY — does not change
+   * `systemPromptAddendum`; see that module's file header.
+   */
+  contextReceipt?: ContextReceipt;
   detectedContradictions?: any[];
 }
 
@@ -108,6 +115,40 @@ const EMPTY_FIRED: ContextBlocksFired = {
   qualitative: false, beliefs: false, nudges: false, contradictions: false,
   concerns: false, anticipated: false, physical: false,
 };
+
+/**
+ * Which messages the contextual lane derives its TOPICS from.
+ *
+ * ONLY the anaphoric referent is ever prepended. A turn with no referent
+ * recalls on its own text, full stop.
+ *
+ * 2026-09-18 · this used to ALSO prepend the last turn whenever the current
+ * one derived zero topics. That heuristic was correct when it was written
+ * (#2422) and is not any more, so it is deleted rather than special-cased.
+ *
+ * Its whole justification was that zero topics meant `getFallbackMemories()` —
+ * top-N by CONFIDENCE with the query discarded — so borrowing the prior turn's
+ * topics beat recalling nothing relevant. #2425 removed that: zero topics plus
+ * a query embedding now routes to the semantic and KNN lanes on the user's own
+ * message, which is strictly better than borrowing a neighbouring subject.
+ *
+ * With the justification gone the heuristic was actively harmful, and review
+ * (#2433) caught it: "is everything done" is NOT classified anaphoric, yet it
+ * derives zero topics, so it was handed the previous turn's topics and those
+ * drove the lexical lane, cross-source search and the reranker toward an
+ * unrelated subject. Measured: prior turn "what is my rent on the euclid
+ * apartment" made that turn search `apartment, euclid, rent`.
+ *
+ * The bias is the same one every classifier in this path uses: a MISS costs
+ * one turn that recalls on its own embedding; a FALSE prepend steers three
+ * lanes at the wrong subject. Prefer the miss.
+ */
+export function buildRecallMessages(
+  referent: string | undefined,
+  userContent: string,
+): string[] {
+  return referent ? [referent, userContent] : [userContent];
+}
 
 export async function buildBrainContext(
   input: BuildBrainContextInput,
@@ -161,9 +202,31 @@ export async function buildBrainContext(
   let contextualRankedRows: import("@/lib/brain/contextual-recall").RankedRecallRow[] = [];
   let laneOverlap: LaneOverlap | undefined;
   let evidencePack: { candidates: number; items: number } | undefined;
+  let contextReceipt: ContextReceipt | undefined;
   const arbiterOn = getFlag("NICK_RECALL_ARBITER")?.isOn ?? false;
+  const correctionBoostOn = getFlag("NICK_CORRECTION_THRESHOLD_BOOST")?.isOn ?? false;
   // Wave 3 · deterministic query plan: no LLM, the original query is always a lane; asOf below.
-  const queryPlan = planQuery(userContent, { recentTurns: (messages as Array<{ content?: unknown }>).slice(-4).map((m) => (typeof m?.content === "string" ? m.content : "")).filter(Boolean) });
+  //
+  // 2026-09-17 · `recentTurns` must be the turns BEFORE this one. query-plan.ts
+  // sets `referent = recentTurns[last]` and its own test feeds the PRIOR turn
+  // ("We discussed moving the shop's Instagram cadence...") while the message
+  // under test is the follow-up. But `messages` is the AI-SDK history, which
+  // ENDS with the current user turn — so the last element was `userContent`
+  // itself and every anaphoric referent resolved to the question instead of
+  // what the pronoun points at. Harmless while referent had no consumer; it
+  // gained one in this commit, so the feed is corrected first. Defensive by
+  // design: the pop only fires when the tail really is the current turn, so a
+  // caller that already passes prior-only history is unaffected.
+  // slice FIRST, deliberately: the original bounded how far back a referent
+  // could come from, and that bound is correct -- a pronoun refers to the
+  // turn just spoken, not to turn 50. Taking 5 leaves up to 4 once the
+  // current turn is dropped, preserving the original window.
+  const __priorTurns = (messages as Array<{ content?: unknown }>)
+    .slice(-5)
+    .map((m) => (typeof m?.content === "string" ? m.content : ""))
+    .filter(Boolean);
+  if (__priorTurns[__priorTurns.length - 1] === userContent) __priorTurns.pop();
+  const queryPlan = planQuery(userContent, { recentTurns: __priorTurns.slice(-4) });
   let detectedContradictions: any[] = [];
 
   try {
@@ -310,17 +373,35 @@ export async function buildBrainContext(
       // agent_traces, which lost the whole block to the timeout on the median
       // turn. fastTopics keeps the chat hot path deterministic and in-budget;
       // non-chat callers keep the LLM path.
+      // 2026-09-17 · queryPlan.referent (anaphoric_followup: "what about
+      // that?", "is it still true?") was computed and never consumed --
+      // third dark wire in this file, same shape exactTerms had until
+      // 2026-09-15 and the correction class had until this PR. A short
+      // pronoun-only follow-up carries near-zero semantic signal alone;
+      // deriveFastTopics(recentMessages) walks the array BACKWARDS and lets
+      // the LAST element's terms win the 8-topic cap, so the referent goes
+      // FIRST -- it adds vocabulary from the turn the pronoun points at
+      // without displacing userContent's own priority. The embedding lane is
+      // unchanged (queryEmbedding stays userEmbedding): recomputing it would
+      // add a round-trip to the 3s hot-path budget for a rare query class.
+      // NOTE: this comment sits ABOVE withTimeout( on purpose --
+      // tests/ai/brain-context-timeouts.test.ts pins the fetcher within 120
+      // chars of its wrapper, and a comment block between them fails it.
       (userContent.length > 10 || forceRecall) && contextualRecallMod
         ? withTimeout(
-            contextualRecallMod.getContextualMemories([userContent], mode === "deep" ? 10 : 5, {
-              queryEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
-              fastTopics: true,
-              asOf: queryPlan.asOf,
-              onRanked: (rows: import("@/lib/brain/contextual-recall").RankedRecallRow[]) => {
-                contextualRankedIds = rows.map((r) => r.id);
-                contextualRankedRows = rows;
+            contextualRecallMod.getContextualMemories(
+              buildRecallMessages(queryPlan.referent, userContent),
+              mode === "deep" ? 10 : 5,
+              {
+                queryEmbedding: userEmbedding.length > 0 ? userEmbedding : undefined,
+                fastTopics: true,
+                asOf: queryPlan.asOf,
+                onRanked: (rows: import("@/lib/brain/contextual-recall").RankedRecallRow[]) => {
+                  contextualRankedIds = rows.map((r) => r.id);
+                  contextualRankedRows = rows;
+                },
               },
-            }),
+            ),
             3000,
             null,
           )
@@ -386,8 +467,26 @@ export async function buildBrainContext(
             TRUTH_GROUNDING_UNAVAILABLE,
           )
         : Promise.resolve(null),
+      // 2026-09-17 · queryPlan.classes' "correction" class was computed and
+      // classified every turn but consumed by nothing (same dark-wire shape
+      // exactTerms had until 2026-09-15). NICK_CORRECTION_THRESHOLD_BOOST
+      // wires it into the ALREADY-LIVE contradiction injector rather than
+      // building a new premise-check mechanism: a turn asking "what
+      // changed" / "which is current" lowers the surfacing bar for THIS
+      // call only (contradiction-injector.ts stays free of query-plan
+      // knowledge — it just accepts an optional threshold override).
       contradictionInjectorMod
-        ? withTimeout(contradictionInjectorMod.findRelevantContradictions({ userMessage: userContent, conversationId: convId }), 3000, null)
+        ? withTimeout(
+            contradictionInjectorMod.findRelevantContradictions({
+              userMessage: userContent,
+              conversationId: convId,
+              ...(correctionBoostOn && queryPlan.classes.includes("correction")
+                ? { similarityThreshold: 0.6 }
+                : {}),
+            }),
+            3000,
+            null,
+          )
         : Promise.resolve(null),
       strategicFrameworksMod
         ? Promise.resolve(strategicFrameworksMod.composeStrategicLensBlock(userContent))
@@ -602,6 +701,26 @@ export async function buildBrainContext(
       addendum += `\n\n${block.content}`;
     }
 
+    // Wave 3 (2026-09-17) · context receipt. Reuses the SAME `reranked` array
+    // the append loop just walked, so it can never disagree with what
+    // actually went into `addendum` — this call does not itself change
+    // addendum (see lib/ai/context-budget.ts file header: observability
+    // only, no similarityFn wired yet, so the MMR pass is a no-op today).
+    // asOf rides along so the receipt records WHICH INSTANT recall answered
+    // as of. A false asOf silently truncates memory (see ContextReceipt's
+    // recallAsOf docstring); the classifier fix removed today's trigger, this
+    // removes the silence that let it survive unnoticed.
+    contextReceipt = buildContextReceipt(reranked, DEFAULT_CONTEXT_TOKEN_BUDGET, {
+      asOf: queryPlan.asOf,
+    });
+    // 2026-09-17 (Codex review, PR #2414) · the aggregate counts alone can't
+    // answer "why was THIS block dropped" -- the entries array (name, tokens,
+    // similarity, reason) is the whole point of a receipt. Log the full
+    // object; it's ~13 blocks max, not a size concern. Threading this into
+    // the on-finish persistence path (recallReceipts in route.ts) so it
+    // survives past the log window stays the documented follow-up.
+    console.info("[brain-context] context_receipt", JSON.stringify(contextReceipt));
+
     // Populate contextBlocksFired for onFinish + headers
     contextBlocksFired = {
       recall: !!recallBlock,
@@ -785,6 +904,7 @@ export async function buildBrainContext(
     laneOverlap,
     queryPlan,
     evidencePack,
+    contextReceipt,
     detectedContradictions,
   };
 }

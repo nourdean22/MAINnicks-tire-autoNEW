@@ -27,6 +27,9 @@ import {
   caseFromClaimWarning,
   caseFromFailedToolCall,
   describeCorpus,
+  paraphraseVerdict,
+  selectBalancedDurableFactRows,
+  DURABLE_FACT_PER_CATEGORY,
 } from "@/lib/brain/recall-corpus-builder";
 import { SEED_CASES } from "@/lib/brain/recall-eval";
 
@@ -258,5 +261,194 @@ describe("describeCorpus", () => {
     expect(d.total).toBe(SEED_CASES.length + 1);
     expect(d.hasRealEvidence).toBe(true);
     expect(d.note).toContain("1 real case");
+  });
+});
+
+/**
+ * paraphraseVerdict — 2026-09-18.
+ *
+ * The harvest's --paraphrase arm was unrunnable (a transitive `server-only`
+ * guard threw under plain tsx), and a blocked arm printed a warning and then
+ * EXITED 0 — so every non-human reader saw success while the corpus it wrote
+ * measured echo (query == document) instead of recall.
+ *
+ * These pin the rule that decides both the banner and the exit code.
+ */
+describe("paraphraseVerdict decides whether a precision figure is readable", () => {
+  it("a plain harvest is unscorable but is NOT a failed request", () => {
+    const v = paraphraseVerdict(null);
+    expect(v.status).toBe("not-requested");
+    expect(v.scorable).toBe(false);
+    expect(v.failedRequest).toBe(false);
+  });
+
+  it("a blocked arm IS a failed request — the exit code must move", () => {
+    const v = paraphraseVerdict({ rewritten: 0, failed: 4, blocked: "server-only threw" });
+    expect(v.status).toBe("blocked");
+    expect(v.failedRequest).toBe(true);
+    expect(v.reason).toContain("server-only threw");
+  });
+
+  it("requested, eligible cases existed, zero rewritten -> failed request", () => {
+    const v = paraphraseVerdict({ rewritten: 0, failed: 6 });
+    expect(v.status).toBe("produced-nothing");
+    expect(v.scorable).toBe(false);
+    expect(v.failedRequest).toBe(true);
+  });
+
+  it("nothing eligible to rewrite is vacuous, not a failure", () => {
+    // An abstention-only corpus has no positive arm to make tautological, so
+    // exiting 1 here would punish a harvest that did exactly what it could.
+    const v = paraphraseVerdict({ rewritten: 0, failed: 0 });
+    expect(v.status).toBe("vacuous");
+    expect(v.scorable).toBe(false);
+    expect(v.failedRequest).toBe(false);
+  });
+
+  it("a PARTIAL rewrite is scorable — provenance separates the arms", () => {
+    const v = paraphraseVerdict({ rewritten: 3, failed: 2 });
+    expect(v.status).toBe("partial");
+    expect(v.scorable).toBe(true);
+    expect(v.failedRequest).toBe(false);
+    expect(v.reason).toContain("kept verbatim");
+  });
+
+  it("every eligible case rewritten is complete and scorable", () => {
+    const v = paraphraseVerdict({ rewritten: 5, failed: 0 });
+    expect(v.status).toBe("complete");
+    expect(v.scorable).toBe(true);
+    expect(v.failedRequest).toBe(false);
+  });
+
+  /**
+   * ★ THE CANARY. `scorable` and `failedRequest` are two different questions,
+   * and the cheap "simplification" is to collapse them into one flag. Doing so
+   * silently reintroduces one of the two original defects, depending on which
+   * flag survives:
+   *   - keep `scorable`      -> a plain `pnpm harvest:evals` starts exiting 1
+   *   - keep `failedRequest` -> a blocked arm goes back to exiting 0
+   * This asserts the BEHAVIOUR that makes them non-identical: at least one
+   * input is unscorable WITHOUT being a failed request. Delete the distinction
+   * and this test goes red.
+   */
+  it("CANARY: unscorable does not imply failed-request", () => {
+    const inputs: Array<Parameters<typeof paraphraseVerdict>[0]> = [
+      null,
+      { rewritten: 0, failed: 0 },
+      { rewritten: 0, failed: 6 },
+      { rewritten: 0, failed: 4, blocked: "x" },
+      { rewritten: 3, failed: 2 },
+      { rewritten: 5, failed: 0 },
+    ];
+    const verdicts = inputs.map((i) => paraphraseVerdict(i));
+    const divergent = verdicts.filter((v) => !v.scorable && !v.failedRequest);
+    expect(divergent.length).toBeGreaterThan(0);
+    // And the converse holds too: nothing scorable is ever a failed request.
+    expect(verdicts.filter((v) => v.scorable && v.failedRequest)).toHaveLength(0);
+  });
+
+  it("CANARY: every status is reachable, so none is dead code", () => {
+    const seen = new Set(
+      [
+        null,
+        { rewritten: 0, failed: 4, blocked: "x" },
+        { rewritten: 0, failed: 6 },
+        { rewritten: 0, failed: 0 },
+        { rewritten: 3, failed: 2 },
+        { rewritten: 5, failed: 0 },
+      ].map((i) => paraphraseVerdict(i).status),
+    );
+    expect(seen).toEqual(
+      new Set(["not-requested", "blocked", "produced-nothing", "vacuous", "partial", "complete"]),
+    );
+  });
+});
+
+/**
+ * selectBalancedDurableFactRows — 2026-09-18.
+ *
+ * MEASURED ON PROD: the previous sampler (`orderBy updatedAt desc, take 75`
+ * across 14 curated categories) returned 75 of 75 rows from
+ * `customer_preference` — the worst category in the set, 3 eligible of 283 —
+ * because it is machine-churned and therefore wins on recency. 74 of those 75
+ * died on the >=60-char filter and the corpus's POSITIVE ARM WAS ONE CASE,
+ * against 2,412 eligible rows sitting in the other categories.
+ *
+ * A LIMIT applied before a diversity requirement is won by whatever churns
+ * most. These pin that it cannot happen again.
+ */
+describe("selectBalancedDurableFactRows stops one category eating the corpus", () => {
+  /** A row shaped to survive every caseFromDurableFact filter. */
+  const viable = (id: string, category: string) => ({
+    id,
+    key: `pricing_rule_${id}`,
+    category,
+    content:
+      "The shop keeps a hard floor on mounted tire jobs so the bays never run at a loss during the slow winter weeks.",
+  });
+
+  /** Same category, but too short to clear the >=60 character filter. */
+  const tooShort = (id: string, category: string) => ({
+    id,
+    key: `cust_${id}`,
+    category,
+    content: "prefers morning drop-off",
+  });
+
+  it("caps each category at the quota", () => {
+    const rows = Array.from({ length: 50 }, (_, i) => viable(`a${i}`, "insight"));
+    const out = selectBalancedDurableFactRows(rows);
+    expect(out).toHaveLength(DURABLE_FACT_PER_CATEGORY);
+  });
+
+  it("★ CANARY: a 100-row dominant category cannot starve a 6-row rare one", () => {
+    // This is the production bug as a test. Under the old global top-N the
+    // churny rows came first and the rare category contributed NOTHING.
+    const rows = [
+      ...Array.from({ length: 100 }, (_, i) => viable(`churn${i}`, "customer_preference")),
+      ...Array.from({ length: 6 }, (_, i) => viable(`rare${i}`, "decision_log")),
+    ];
+    const out = selectBalancedDurableFactRows(rows);
+    const byCat = new Map<string, number>();
+    for (const r of out) byCat.set(r.category, (byCat.get(r.category) ?? 0) + 1);
+
+    expect(byCat.get("customer_preference")).toBe(DURABLE_FACT_PER_CATEGORY);
+    expect(byCat.get("decision_log")).toBe(6);
+    // And the headline property, stated directly: no category owns the result.
+    expect(out.length).toBe(DURABLE_FACT_PER_CATEGORY + 6);
+  });
+
+  it("★ CANARY: unusable rows do NOT consume the quota", () => {
+    // The subtle way to reintroduce the bug: fill the quota with rows that
+    // caseFromDurableFact later rejects. The category then LOOKS represented
+    // and contributes zero cases — the arm starves exactly as before, but
+    // silently. Six junk rows precede six good ones in the SAME category.
+    const rows = [
+      ...Array.from({ length: 6 }, (_, i) => tooShort(`junk${i}`, "insight")),
+      ...Array.from({ length: 6 }, (_, i) => viable(`good${i}`, "insight")),
+    ];
+    const out = selectBalancedDurableFactRows(rows);
+    expect(out).toHaveLength(6);
+    expect(out.every((r) => r.id.startsWith("good"))).toBe(true);
+  });
+
+  it("preserves per-category recency order within the quota", () => {
+    // Callers pass rows already ordered updatedAt desc; the balancer must not
+    // reshuffle, or "a spread of CURRENT facts" stops being true.
+    const rows = Array.from({ length: 20 }, (_, i) => viable(`n${i}`, "wisdom"));
+    const out = selectBalancedDurableFactRows(rows);
+    expect(out.map((r) => r.id)).toEqual(["n0", "n1", "n2", "n3", "n4", "n5"]);
+  });
+
+  it("an empty input yields an empty result rather than throwing", () => {
+    expect(selectBalancedDurableFactRows([])).toEqual([]);
+  });
+
+  it("CONTROL: the quota is honoured for an explicitly passed value", () => {
+    // Without this, a balancer that ignored its argument and always returned
+    // everything would still pass the caps test above at the default.
+    const rows = Array.from({ length: 10 }, (_, i) => viable(`x${i}`, "concern"));
+    expect(selectBalancedDurableFactRows(rows, 2)).toHaveLength(2);
+    expect(selectBalancedDurableFactRows(rows, 9)).toHaveLength(9);
   });
 });

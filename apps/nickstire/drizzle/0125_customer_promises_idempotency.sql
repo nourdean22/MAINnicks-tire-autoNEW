@@ -1,0 +1,55 @@
+-- 0125 · Make voice-sourced promises idempotent at the DATABASE, not just in code.
+--
+-- WHY. `createVoicePromise()` dedupes with a read-then-write on
+-- (source_kind, source_id, promise_type). That closes the common case — VAPI
+-- redelivering the same end-of-call webhook sequentially — but NOT two truly
+-- concurrent deliveries, which can both read "absent" and both insert.
+--
+-- The consequence of a duplicate is not cosmetic: the Promise Ledger scores
+-- kept-vs-missed, so one promise counted twice inflates the denominator and
+-- quietly understates the shop's kept-rate. A metric that drifts downward for
+-- an invisible reason is the failure class this repo keeps paying for.
+--
+-- SCOPE. Partial-by-convention: the index covers ALL source kinds, but only
+-- voice rows carry a non-null source_id today. Operator-created promises pass
+-- source_id = NULL, and MySQL/TiDB UNIQUE indexes permit unlimited NULLs, so
+-- hand-entered promises are unaffected and can still be created freely.
+--
+-- PRE-APPLY CHECK — run this FIRST. If it returns any row, existing duplicates
+-- must be resolved before the index can be created:
+--
+--   SELECT source_kind, source_id, promise_type, COUNT(*) AS n
+--   FROM customer_promises
+--   WHERE source_id IS NOT NULL
+--   GROUP BY source_kind, source_id, promise_type
+--   HAVING n > 1;
+--
+-- STATUS: APPLIED TO PRODUCTION 2026-09-22 and recorded in __drizzle_migrations.
+-- Verified on the live database: uq_promise_source exists, Non_unique = 0, over
+-- (source_kind, source_id, promise_type). `reconcile-migrations.mjs --strict`
+-- exits 0 with no blocking drift.
+--
+-- DO NOT RUN scripts/migrations/apply-customer-promises.ts TO APPLY THIS FILE.
+-- That script hard-codes MIGRATION_TAG = "0102_customer_promises", so it
+-- re-verifies the TABLE and reports success while this INDEX stays absent — a
+-- false confirmation, which is worse than no command at all. An earlier version
+-- of this header pointed at it; caught in review on PR #2479.
+--
+-- Fresh environment: this file is journalled, so `pnpm db:migrate` picks it up
+-- with every other unrecorded migration. Applying it alone means a scoped
+-- runner (see prod-db-guard) or executing the statement below directly.
+--
+-- Verify, never assume:
+--   SHOW INDEX FROM customer_promises WHERE Key_name = 'uq_promise_source';
+--
+-- TRAP, learned by walking into it while writing the header above: the
+-- migration hash is sha256 of the WHOLE FILE, comments included
+-- (db-migrate.ts migrationHash). So editing a comment on an ALREADY-APPLIED
+-- migration changes its hash, the recorded row stops matching, and
+-- `reconcile-migrations.mjs --strict` reports it UNRECORDED_BUT_EXACT_MATCH and
+-- goes red — improving the documentation silently de-records the migration.
+-- Finish the edits, THEN record the final hash once. Re-running is harmless
+-- either way: ER_DUP_KEYNAME (1061) is in TOLERATED_CODES.
+
+CREATE UNIQUE INDEX uq_promise_source
+  ON customer_promises (source_kind, source_id, promise_type);

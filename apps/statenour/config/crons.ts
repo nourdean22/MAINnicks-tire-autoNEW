@@ -25,12 +25,44 @@
  *     deleted. Warning surfaced.
  *   · `mode: "dormant"` — route + code exist and work, but it is
  *     intentionally NOT wired to fire (operator parked it). Distinct
- *     from "retired" (no deletion implied). Revive by adding it to
- *     lib/inngest/jobs.ts; the `schedule` field documents the intended
- *     cadence if revived. Added 2026-05-30 to stop the manifest claiming
+ *     from "retired" (no deletion implied). Revive a ROUTE cron by adding
+ *     its "/api/cron/<name>" path to a job list in lib/inngest/jobs.ts;
+ *     the `schedule` field documents the intended cadence if revived.
+ *     ⚠ jobs.ts holds MORNING_JOBS / EVENING_JOBS / WEEKLY_JOBS — the
+ *     mega fan-out's child ROUTE PATHS. It is NOT the Inngest registry:
+ *     an Inngest function is registered automatically by being exported
+ *     from lib/inngest/functions (app/api/inngest/route.ts does
+ *     `functions: Object.values(functions)`), so an inngest-native cron
+ *     cannot be parked or revived there at all.
+ *     ⚠ "dormant" means NOT SCHEDULED, not unreachable — the operator
+ *     surface can still fire any cron by hand
+ *     (POST /api/settings/crons/trigger), which is why a dormant cron can
+ *     legitimately show a single run on a single day.
+ *     Added 2026-05-30 to stop the manifest claiming
  *     Wave-AE orphans were "active" when they never actually fired.
  *     `pnpm check:crons` [6/6] enforces: a cron can only be "active" if
  *     it is genuinely reachable from the fan-out.
+ *
+ * ⚠⚠ WHAT THIS MANIFEST CANNOT TELL YOU (measured 2026-09-17). It is the
+ * DECLARED truth, and production holds two others that can disagree with it:
+ *   · `cron_job_log`  — what was OBSERVED to run
+ *   · BrainMemory `category="cron_control"` — kill switches; absence = enabled
+ * `check:crons` reads NEITHER, so a cron can be declared "active" here and be
+ * switched OFF in production indefinitely. `data-cleanup` was exactly that:
+ * mode "active", killed 2026-09-08 with an empty note and no expiry, and it is
+ * the sweeper that HARD-DELETES expired brain memories.
+ *
+ * ★★★ AND "NOT IN THE LOG" DOES NOT MEAN "NOT RUNNING." `/api/cron/*` routes
+ * are wrapped by cronHandler -> logCronRun (lib/utils/http.ts), so route crons
+ * log automatically. Inngest functions BYPASS that wrapper: only 4 of 27 write
+ * a row, so ~17 genuinely-running inngest crons are INVISIBLE to the log,
+ * /system/crons, and any audit built on them. They could stop firing entirely
+ * and nothing here would change. Proof they do run: intelligence-daily-brief
+ * has no log rows at all, yet its Langfuse traces land at 10:15-10:17 daily,
+ * matching its `15 10 * * *` schedule exactly.
+ *
+ * Reconcile all three with `scripts/probe-cron-truth.mjs` before trusting any
+ * statement about cron health — including one made by this file.
  *
  * Schedule syntax is standard cron in UTC. Comments on each line
  * document the intent.

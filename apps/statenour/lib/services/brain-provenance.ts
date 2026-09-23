@@ -24,6 +24,7 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { recallMemoriesForQuery } from "@/lib/brain/memory-recall";
 import { bdiTypeOf, bdiChainSummary, type BdiType } from "@/lib/brain/bdi";
 import { coalaKindOf, type CoalaKind } from "@/lib/brain/coala";
+import type { ContextReceipt } from "@/lib/ai/context-budget";
 
 export interface ProvenanceHit {
   memoryId: string;
@@ -89,6 +90,24 @@ export interface ProvenanceResult {
      */
     origin: "receipt" | "reconstruction";
   };
+  /**
+   * 2026-09-17 · Wave 3 follow-up (PR #2414) · lib/ai/context-budget.ts.
+   * Unlike `recall`, this has no reconstruction fallback: the blocks
+   * themselves are gone by read time, so there is nothing to re-derive
+   * from the reply text. `null` means either the turn predates this
+   * field or its persist path skipped buildBrainContext (e.g. an
+   * alternate path) -- never treat `null` here as "nothing was kept".
+   */
+  /**
+   * 2026-09-18 · `Partial` on purpose. This is a JSON blob read back out of
+   * `tokenUsage`, so it is whatever the receipt schema looked like on the day
+   * that turn was persisted — a row from before `enforced` / `tokensAppended`
+   * existed has neither, and typing it as a full ContextReceipt would promise
+   * a reader fields that are `undefined` at runtime. Same reasoning as the
+   * null case documented above, one level down: the receipt outlives its
+   * schema exactly as it outlives its rows.
+   */
+  contextReceipt: Partial<ContextReceipt> | null;
   feedback: ProvenanceFeedback;
 }
 
@@ -129,6 +148,9 @@ export async function readMessageProvenance(args: {
     snippet?: string;
   }>;
   const hasReceipts = Array.isArray(receipts) && receipts.length > 0;
+  const contextReceipt = (
+    (msg.tokenUsage as { contextReceipt?: Partial<ContextReceipt> } | null)?.contextReceipt ?? null
+  );
 
   let trimmed: Array<{
     memoryId: string;
@@ -278,6 +300,7 @@ export async function readMessageProvenance(args: {
       bdiChain: bdiChainSummary(trimmed),
       origin,
     },
+    contextReceipt,
     feedback: {
       judgment: judgment
         ? {

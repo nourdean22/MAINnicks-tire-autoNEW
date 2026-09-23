@@ -11,7 +11,22 @@ import { recordInteraction } from "@/lib/ai/memory";
 import { messageContentToText } from "@/lib/ai/chat/message-text";
 import { buildVerifierBanner, isVerifierRewritten } from "@/lib/ai/chat/fabrication-rewriter";
 import { parseActions, executeActions } from "@/lib/ai/nick-agent";
-import { detectFailedActionClaims, detectPhantomActionClaims } from "@/lib/ai/chat/action-result-verifier";
+import {
+  compareActionDoneShadow,
+  detectFailedActionClaims,
+  detectPhantomActionClaims,
+} from "@/lib/ai/chat/action-result-verifier";
+import { metricRecordedForTrace, recordMetricStrict } from "@/lib/services/metrics";
+import {
+  ACTION_DONE_SHADOW_METRIC,
+  recordActionDoneShadow,
+} from "@/lib/ai/receipts/action-done-shadow-recorder";
+import {
+  RECOMMENDATION_NOVELTY_METRIC,
+  recordRecommendationNoveltyShadow,
+} from "@/lib/ai/chat/recommendation-novelty-shadow";
+import { instrumentScope } from "@/lib/observability/instrument-scope";
+import { DEFERRED_TURN_INSTRUMENT } from "@/lib/observability/instrument-failures";
 import { logError } from "@/lib/utils/error-log";
 import { canClaimDone, summarizeClaimDoneShadow, toReceipt } from "@/lib/ai/receipts/action-receipt";
 import { processConversation } from "@/lib/brain/pipeline-controller";
@@ -322,8 +337,115 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
         { timeoutMs: 20_000, silentTimeout: true }
       );
 
+      // ── Recommendation novelty · SHADOW ONLY ───────────────────────────
+      // The prompt-side half (priors injected into the system prompt) has
+      // been live since 2026-09-10 at app/api/ai/chat/route.ts. The
+      // reply-side half — `checkNovelty(draft, priors)`, the function that can
+      // see whether the injection WORKED — had zero callers until 2026-09-22.
+      // This records what the reply re-served; it changes nothing about the
+      // reply. Contract, skip cases and the empty-vs-error rule live in the
+      // recorder module so they are testable; this seam has no harness.
+      if (traceId) {
+        try {
+          const [{ loadPriorRecommendations }, { assessTurnRisk }] = await Promise.all([
+            import("@/lib/services/chat/prior-recommendations"),
+            import("@/lib/ai/chat/turn-risk"),
+          ]);
+          await recordRecommendationNoveltyShadow(
+            {
+              userContent,
+              cleanedText,
+              traceId,
+              conversationId: convId ?? null,
+              // The reply being judged is already persisted by now; the
+              // recorder passes this id to the loader so the draft's own row
+              // cannot be counted as a prior (review on #2485).
+              createdAssistantId,
+            },
+            {
+              expectsNamedResources: (u) =>
+                assessTurnRisk(u, { toolsExpected: false }).signals.expectsNamedResources,
+              loadPriors: loadPriorRecommendations,
+              // Idempotent by traceId: the post-turn outbox REPLAYS this whole
+              // function after a crash or an unmarked completion (same exposure
+              // the "receipts · trace" marker below guards). Shared reader, so
+              // both shadows dedupe the same way.
+              alreadyRecorded: (t) => metricRecordedForTrace(RECOMMENDATION_NOVELTY_METRIC, t),
+              // STRICT: this write IS the measurement. The deps type demands a
+              // MetricWriteReceipt, so the fail-soft recordMetric cannot be
+              // wired here without failing tsc.
+              recordMetric: recordMetricStrict,
+              logInfo: (event, data) => log.info(event, data),
+              logError: (scope, err, meta) => logError(scope, err, meta, "warn"),
+            },
+          );
+        } catch (err) {
+          // Only the dynamic imports can reach here; the recorder never
+          // throws. Named under the instrument scope so a broken import reads
+          // as a FAILING instrument, not as "no repeats".
+          logError(instrumentScope("recommendation.novelty"), err, { stage: "load", traceId }, "warn");
+        }
+      }
+
       // Agent Layer — parse and execute any actions Nick embedded.
       const actions = parseActions(text);
+
+      // ── Deferred-turn HEARTBEAT ──────────────────────────────────────────
+      // One row per turn this function ran for (2026-09-22). It is the
+      // DENOMINATOR the three conditional shadows on this path (integrity,
+      // Done, novelty) never had: with it the health reader can split
+      // "0 writes" into "the path ran and the condition did not occur" and
+      // "the path did not run", instead of inferring liveness from sibling
+      // cadence. Idempotent by traceId (the outbox replays this call), STRICT
+      // writer (a dead heartbeat must read as FAILING, never as "quiet"), and
+      // a LITERAL scope so the producer canary can see it.
+      if (traceId) {
+        try {
+          if (!(await metricRecordedForTrace(DEFERRED_TURN_INSTRUMENT, traceId))) {
+            await recordMetricStrict(DEFERRED_TURN_INSTRUMENT, 1, {
+              unit: "count",
+              source: "deferred-background-work",
+              tags: {
+                traceId,
+                conversationId: convId ?? null,
+                actionCount: actions.length,
+                mode,
+                provider,
+              },
+            });
+          }
+        } catch (err) {
+          logError(instrumentScope("chat.deferred_turn"), err, { stage: "heartbeat", traceId }, "warn");
+        }
+      }
+
+      // ── Strict-Done shadow · ZERO-ACTION arm · SHADOW ONLY ───────────────
+      // A turn can claim completion while emitting NO action block at all —
+      // "Done — both profiles created" with nothing attempted. That is the
+      // PHANTOM case, the one `phantomClaims` exists to classify, and the
+      // in-branch call below cannot see it because `if (actions.length > 0)`
+      // excludes it. Recording only the has-actions turns would leave the
+      // shadow's denominator silently narrower than its own documented
+      // contract — a rate measured over the wrong population.
+      //
+      // Separate call rather than a hoist: `withErrorCapture` below is
+      // deliberately NOT awaited, so `results` does not exist yet at this
+      // point in the turn. A single hoisted call would race it.
+      if (actions.length === 0 && traceId) {
+        await recordActionDoneShadow(
+          compareActionDoneShadow([], cleanedText),
+          { traceId, conversationId: convId ?? null },
+          {
+            // Idempotent by traceId — the outbox replays this deferred call
+            // (same exposure #2485 closed for the novelty shadow).
+            alreadyRecorded: (t) => metricRecordedForTrace(ACTION_DONE_SHADOW_METRIC, t),
+            recordMetric: recordMetricStrict,
+            logInfo: (event, data) => log.info(event, data),
+            logError: (scope, err, meta) => logError(scope, err, meta, "warn"),
+          },
+        );
+      }
+
       if (actions.length > 0) {
         withErrorCapture(
           "chat:actions",
@@ -558,6 +680,32 @@ export async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
                 })
                 .catch(() => undefined);
             }
+            // ── Strict-Done shadow · PROSE-AWARE arm · SHADOW ONLY ──────────
+            // Records a verdict; changes no behaviour. The contract, the
+            // denominator rule and the reason this is not a duplicate of the
+            // claim_done_shadow above all live in the recorder module, which is
+            // extracted precisely so they can be TESTED — this function has no
+            // harness of its own.
+            if (traceId) {
+              await recordActionDoneShadow(
+                compareActionDoneShadow(results, cleanedText),
+                { traceId, conversationId: convId ?? null },
+                {
+                  // Idempotent by traceId — the outbox replays this deferred
+                  // call (same exposure #2485 closed for the novelty shadow).
+                  alreadyRecorded: (t) => metricRecordedForTrace(ACTION_DONE_SHADOW_METRIC, t),
+                  // STRICT, not the fail-soft `recordMetric`: this write IS the
+                  // measurement, so a dead writer must read as broken rather
+                  // than as "no gaps". The recorder's own catch turns a
+                  // rejection into outcome "failed" plus a logged error, so
+                  // propagating here still cannot break the turn.
+                  recordMetric: recordMetricStrict,
+                  logInfo: (event, data) => log.info(event, data),
+                  logError: (scope, err, meta) => logError(scope, err, meta, "warn"),
+                },
+              );
+            }
+
             // S3 · receipt-backed completion event (the audit's split:
             // attempt acknowledgment now, receipt-confirmed completion
             // later). This follow-up message is the ONLY voice that says

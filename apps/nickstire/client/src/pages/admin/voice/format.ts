@@ -136,6 +136,31 @@ export function maskPhone(num: string | null): string {
   return num.slice(0, -4) + "****";
 }
 
+/**
+ * Why an episode is NOT an obligation, in the operator's words.
+ *
+ * Rendered verbatim under the queue, because "it disappeared" is how a queue
+ * loses trust. Each key is an ExclusionReason from `shared/callTaxonomy.ts`;
+ * the phrasing deliberately states the EVIDENCE rather than the verdict —
+ * "the caller never spoke" is checkable, "not a lead" is an opinion.
+ *
+ * `unattributable` is kept distinct from `no_customer_speech` on purpose: one
+ * means we could not read the call, the other means we read it and nobody
+ * spoke. Collapsing them is the empty-vs-error defect this repo has paid for
+ * repeatedly.
+ */
+export const EXCLUSION_LABELS: Record<string, string> = {
+  no_customer_speech: "the caller never spoke",
+  unattributable: "could not tell who was speaking",
+  spam_or_wrong_number: "spam or wrong number",
+  informational_only: "answered in full (hours, directions)",
+  expected_to_arrive: "said they are coming in",
+  operational_not_sales: "car already at the shop",
+  already_invoiced: "already paid an invoice",
+  already_resolved: "resolved on the call",
+  safety_lane: "safety — handled by a human",
+};
+
 export const OUTCOME_PRETTY: Record<string, { label: string; color: string; bg: string }> = {
   hard_conversion:            { label: "Hard Conversion",            color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
   walk_in_directed:           { label: "Walk-In Directed",           color: "text-teal-400",    bg: "bg-teal-500/10 border-teal-500/20" },
@@ -154,4 +179,42 @@ export const OUTCOME_PRETTY: Record<string, { label: string; color: string; bg: 
 export function prettyOutcome(outcome: string | null | undefined): { label: string; color: string; bg: string } {
   if (!outcome) return OUTCOME_PRETTY.unknown;
   return OUTCOME_PRETTY[outcome] ?? { label: outcome.replace(/_/g, " "), color: "text-foreground/50", bg: "bg-foreground/5 border-foreground/10" };
+}
+
+/**
+ * Is the measurement pipeline PENDING, or is it BEHIND?
+ *
+ * Both render as `0 v1` and they mean opposite things. On 2026-09-18 the voice
+ * scorecard showed `0 v1 · 25 legacy excluded` under a permanent amber
+ * "Awaiting v1 evaluations" — and nothing was broken. Two cadences make a
+ * same-day zero inevitable: `vapi-call-eval` is a TIER 4 job that ticks once
+ * every 24 hours, and inside it a call is deferred until its provider analysis
+ * is ready or the call is 24h old. A warning guaranteed to be lit is a warning
+ * nobody reads.
+ *
+ * The threshold is TWO cadences, derived from the cadence the server reports
+ * rather than hardcoded: one cycle for the call to become eligible, one for the
+ * tick that scores it. Past that, the pipeline is genuinely stalled.
+ *
+ * FAILS CLOSED. A missing timestamp or a missing cadence returns "behind", not
+ * "pending" — a state we cannot read must never render as the reassuring one.
+ *
+ * Exported so the component and its tests share ONE implementation. A test that
+ * re-implements the thing it tests is a proxy, and proxies pass while the real
+ * code is wrong.
+ */
+export function classifyEvaluationLag(args: {
+  oldestUnversionedAt: string | null | undefined;
+  evalCadenceHours: number | null | undefined;
+  now?: number;
+}): "pending" | "behind" {
+  const now = args.now ?? Date.now();
+  const hours = args.oldestUnversionedAt
+    ? Math.floor((now - new Date(args.oldestUnversionedAt).getTime()) / 3_600_000)
+    : null;
+  return hours != null
+    && args.evalCadenceHours != null
+    && hours < args.evalCadenceHours * 2
+    ? "pending"
+    : "behind";
 }

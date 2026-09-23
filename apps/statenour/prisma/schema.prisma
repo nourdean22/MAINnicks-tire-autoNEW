@@ -1135,15 +1135,55 @@ model ChatMessage {
   clientMessageId String? @map("client_message_id")
 
   // ── Rich content tree ──
-  /// Full UIMessage parts as the AI SDK v6 understands it. Captures:
+  /// UIMessage parts in the AI SDK v6 shape. On reload we hydrate from this
+  /// instead of the flat `content` string; `content` stays as the searchable
+  /// plaintext digest.
+  ///
+  /// WHAT HAS A WRITER (the producer can emit these):
   ///   - text:        { type:"text", text:"..." }
   ///   - file:        { type:"file", mediaType, url, filename? }
-  ///   - reasoning:   { type:"reasoning", text:"..." } — Claude thinking
-  ///   - tool-call:   { type:"tool-call", toolName, args, toolCallId }
-  ///   - tool-result: { type:"tool-result", toolCallId, result }
-  ///   - source:      { type:"source", url, title } — citations
-  /// On reload we hydrate from this instead of the flat `content`
-  /// string. `content` stays as the searchable plaintext digest.
+  ///   - reasoning:   { type:"reasoning", text:"..." } — SUPPORTED but not
+  ///                  observed in the sample below; `buildMessageParts` appends
+  ///                  it whenever a provider supplies non-whitespace
+  ///                  reasoningText, and build-model-messages.ts had to strip
+  ///                  replayed reasoning parts after a 2026-07-04 incident,
+  ///                  which is independent proof they do get persisted.
+  ///
+  /// WHAT HAS NO WRITER AT ALL:
+  ///   - tool-call, tool-result, source
+  ///
+  /// ⚠ THIS COMMENT USED TO CLAIM ALL SIX WERE CAPTURED, and a first correction
+  /// over-swung and claimed reasoning was never written either. Both were wrong.
+  /// MEASURED IN PRODUCTION 2026-09-17: of 5,278 chat_messages, 5,175 have an
+  /// array-valued `parts`, and across every one the only types present are
+  /// `text` (5,171) and `file` (31). That establishes reasoning was not
+  /// OBSERVED in this sample — not that no writer exists. An absent observation
+  /// and an absent writer are different claims, and this file has now made the
+  /// mistake in both directions.
+  ///
+  /// The real gap is a MISSING WRITER for three variants. `extractParts`
+  /// (lib/ai/chat/message-fields.ts) handles all six correctly; the producer,
+  /// `buildMessageParts` (lib/services/chat/message-parts.ts), has no parameter
+  /// for tool or source parts, so no caller can supply one.
+  /// Three places already consume what is never written:
+  ///   · app/api/ai/chat/build-model-messages.ts whitelists tool-call /
+  ///     tool-result in replayed history and pairs them — hardened by a real
+  ///     2026-07-04 poison-pill incident, so the intent to persist them is on
+  ///     the record;
+  ///   · features/chat-v2/components/chat-message-list.tsx renders ToolResultCard
+  ///     from LIVE streaming parts, so tool cards show during a turn and vanish
+  ///     on reload;
+  ///   · extractParts itself.
+  ///
+  /// Consequence: a reloaded conversation replays the assistant's CLAIMS
+  /// without the tool receipts behind them.
+  ///
+  /// Persisting the rest is a real change, not a comment fix: it needs the
+  /// result payload bounded (a raw search result on every row would bloat both
+  /// the table and every replayed context) and the two part SHAPES reconciled
+  /// (persisted `{toolCallId, result}` vs the UI's `{state, output}`). Pinned
+  /// by tests/lib/chat/message-parts-contract.test.ts — if you add a writer,
+  /// that file fails and tells you to update this comment.
   parts Json?
 
   // ── Streaming lifecycle ──
@@ -1710,7 +1750,14 @@ model ToolGateDecision {
   /// Which of the 6 pruner tiers selected it (1..6), null when the
   /// tool was never selected.
   tier      Int?
-  /// Semantic rank + cosine score when tier 5 supplied the candidate.
+  /// Priority position + cosine score within the tier that supplied the
+  /// candidate. 2026-09-16: written for tier 4 (keyword families), where
+  /// order decides who survives the budget cliff — on 72.9% of measured
+  /// turns tier 4 alone exhausts the budget, so `rank` relative to
+  /// `SelectionTurn.budget` says whether a cut tool just missed or was
+  /// never close. Null for tiers with no intra-tier ordering, and for every
+  /// row written before that date (the columns existed from the start but
+  /// nothing populated them).
   rank      Int?
   score     Float?
   reason    String?  @db.VarChar(200)
@@ -1727,6 +1774,13 @@ model BrainMemory {
   category   String // pattern, insight, preference, routine, anomaly, device_behavior
   key        String // unique identifier for dedup
   content    String    @db.Text
+  /// 2026-09-22 · GENERATED ALWAYS AS (to_tsvector('english', content)) STORED, plus the GIN
+  /// brain_memories_content_tsv_idx (migration 20260923000000_brain_content_tsv). The FTS
+  /// readers filter and rank on it instead of re-parsing content per candidate row. Same
+  /// guard as chat_messages.searchable_tsv: Prisma cannot model the generator, so
+  /// Unsupported + `@default(dbgenerated())` tells it not to manage the column, which is
+  /// what stops drop-on-push. Raw SQL only; the schema sentinel tracks existence.
+  content_tsv Unsupported("tsvector")? @default(dbgenerated())
   confidence Float     @default(0.5)
   lastSeen   DateTime  @default(now()) @map("last_seen")
   seenCount  Int       @default(1) @map("seen_count")
@@ -2705,6 +2759,29 @@ model CronJobLog {
   /// schema comment is a cache with no invalidation. Anything filtering this
   /// column must use `not: "failed"` rather than `equals: "success"`, or it
   /// silently reclassifies every partial run as broken.
+  ///
+  /// 2026-09-17 UPDATE - that advice is now UNSAFE ON ITS OWN, and this is the
+  /// second time this comment has been a stale cache of the real vocabulary.
+  /// A fourth value, "started", is written by lib/inngest/cron-lifecycle.ts
+  /// BEFORE the work runs, so it witnesses INVOCATION ONLY. It is neither
+  /// healthy nor failed: a row still at "started" past STALE_RUN_MINUTES means
+  /// the process died before any hook could settle it.
+  ///
+  /// So `not: "failed"` now counts a fired-and-crashed run as HEALTHY - exactly
+  /// the false green the started/terminal split exists to remove. To ask "did
+  /// this job actually work", name the terminal states you accept:
+  ///     status: { in: ["success", "partial"] }
+  /// which keeps mega-fanout's "finished, some children failed" out of the
+  /// failure bucket while refusing to count a run that never reported an end.
+  ///
+  /// 2026-09-22 - A fifth value, "interrupted", also from cron-lifecycle.ts: a
+  /// "started" row older than STALE_RUN_MINUTES with no terminal event, settled
+  /// by AGE (the process died mid-run - a deploy restart is the common cause).
+  /// Terminal and NOT ok; the positive list above stays correct as written. Since
+  /// the same day, middleware-settled success rows carry resultCount read off the
+  /// job's own return value - null still means "reported no count", never "zero".
+  /// A sixth, "duplicate": a "started" row whose run id already has a terminal row
+  /// (Inngest fires onRunStart once per parallel-step request) - same day, same file.
   status    String
   duration  Int?
   error     String?  @db.Text
@@ -2715,6 +2792,25 @@ model CronJobLog {
   /// @@map on the table itself, so the DB column is the double-quoted
   /// "resultCount". A snake_case spelling creates a second, unreachable column.
   resultCount Int?
+  /// Inngest run id, for rows opened by lib/inngest/cron-lifecycle.ts.
+  ///
+  /// The JOIN KEY that lets a run's terminal update find the exact row its own
+  /// invocation created. Without it the settle had to guess "newest started row
+  /// for this job" - the same class of guess that made markCronRunFailed
+  /// fragile, and wrong the moment two runs of one cron overlap.
+  ///
+  /// NULL is honest and must stay default-less: route crons (cron-manager.ts)
+  /// write terminal rows directly and never open a started row, and every row
+  /// before 2026-09-17 predates the column. A manufactured id would assert a
+  /// run identity that never existed.
+  ///
+  /// ⚠ ITS INDEX IS DELIBERATELY NOT DECLARED HERE. The real index is PARTIAL -
+  /// `("runId") WHERE "status" = 'started'` - which Prisma cannot express. An
+  /// `@@index([runId])` would declare a DIFFERENT, full index over ~68k mostly
+  /// NULL rows and invite `db push` to replace the partial one with it. Same
+  /// convention as the pgvector HNSW index: raw SQL owns it. See
+  /// prisma/migrations/20260917234500_cron_job_log_run_id/migration.sql.
+  runId     String?
   createdAt DateTime @default(now())
 
   @@index([jobName])
@@ -2766,7 +2862,61 @@ model VectorEmbedding {
   embedding_vec      Unsupported("vector")?
   embedding_vec_1536 Unsupported("vector(1536)")?
   embedding_dim      Int?
+  /// WHICH EMBEDDING SPACE THIS VECTOR BELONGS TO, and nothing else.
+  ///
+  /// Provider-qualified, written by lib/ai/provider.ts `getEmbeddingWithModel`
+  /// (e.g. `cohere:embed-v4.0`, `openai:text-embedding-3-small`). Two vectors
+  /// from different models are NOT comparable, and cosine similarity between
+  /// them returns a plausible number rather than an error — so an unrecorded
+  /// space is a silent correctness hazard, not merely missing metadata.
+  ///
+  /// ⚠⚠ THIS COLUMN WAS OVERLOADED THREE WAYS UNTIL 2026-09-18: real model
+  /// identities, the literal string "default" (1,431 rows, naming nothing), and
+  /// 16-hex-char CONTENT FINGERPRINTS that tool-embeddings.ts used for cache
+  /// staleness. The space was knowable on 4.3% of 97,401 rows. The fingerprint
+  /// moved to `contentFingerprint`; do not put anything but a model id here.
+  ///
+  /// NULL means "we do not know" and is the honest value for the ~91.5k rows
+  /// written before the provider reported its own identity. It is NOT
+  /// backfillable — nothing recorded which provider produced them, and a guess
+  /// would manufacture provenance.
   model              String?                      @db.VarChar(64)
+  /// Cache-staleness key for `sourceType = "tool_catalog"`, NOT an identity.
+  ///
+  /// lib/ai/tool-embeddings.ts hashes the tool's description and compares; a
+  /// mismatch means re-embed. It lived in `model` until 2026-09-18 ("model
+  /// column doubles as the fingerprint", per its own comment), which is what
+  /// made `model` untrustworthy.
+  ///
+  /// NULL on every pre-migration row BY DESIGN — the comparison then fails, the
+  /// tool is re-embedded once, and the row is rewritten with both columns
+  /// correct. The lane self-heals rather than needing a data migration.
+  contentFingerprint String?
+  /// WHEN A SWEEP OBSERVED THAT THIS ROW'S SOURCE WAS NO LONGER LIVE.
+  ///
+  /// Written ONLY by lib/db/embedding-shadow.ts, in raw SQL, and read by the
+  /// recall boundary (lib/db/pgvector.ts) as `"sourceUnavailableAt" IS NULL`.
+  /// Declared here for the same reason as embedding_vec/embedding_dim above —
+  /// so `prisma db push` leaves the column alone instead of dropping it — NOT
+  /// because application code reads it through the client.
+  ///
+  /// NULL = the source is live, or has never been swept. Non-NULL = the row is
+  /// held out of recall. NOTHING IS DELETED: `content` here is frequently the
+  /// LAST SURVIVING COPY of a hard-deleted source (measured 2026-08-16: 100% of
+  /// 4,867 brain_memory orphans had no surviving row with the same key), so the
+  /// repair marks the DERIVED INDEX and leaves the evidence in place.
+  ///
+  /// Reversible in one statement — see the migration header for the restore.
+  sourceUnavailableAt     DateTime?
+  /// WHICH FLAVOUR of unavailable: 'row_absent' | 'soft_deleted'.
+  ///
+  /// Separate from the timestamp on purpose. 'row_absent' means the source was
+  /// hard-deleted or never existed, so this embedding may be the only copy of
+  /// the text. 'soft_deleted' means the source row is still there and can be
+  /// restored. Those call for opposite operator actions, and folding them into
+  /// one token would repeat the defect fixed in cron_job_log.status and in
+  /// `model` directly above.
+  sourceUnavailableReason String?
   updatedAt          DateTime                     @updatedAt
 
   @@index([sourceType, sourceId]) // composite — fixes slow lookup queries

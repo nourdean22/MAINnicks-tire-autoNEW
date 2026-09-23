@@ -1,5 +1,589 @@
 # Session ledger - nickstire
 
+**Updated: 2026-09-23 13:20Z** (customer-corpus wave: #2569 #2571 #2575 #2579 #2580 #2581 #2582 #2584 #2587 merged and deployed on `958b89ef7`; config pushed 13:12Z. Prior header preserved below.)
+
+## 2026-09-23 · Customer-corpus wave — merged, deployed, config pushed
+
+**State.** Every PR merged; production `958b89ef7` (deployment `df4dcfe7`). Push Latest Config and
+Push Follow-Up Assistant tapped 13:12Z, both logged `Updated`. Contracts: `docs/CURRENT-TRUTH.md`
+"Customer-corpus wave". Research and ranked findings: `docs/operations/CUSTOMER-CORPUS-RESEARCH-2026-09-23.md`
+Part M (census), Part C (defects), Part I (work order), Part L (CURDATE ranks).
+
+**Owed to the operator (not code):** one transferred test call (proves `transfer_attempted` +
+`transferUpdateSeen`); compare Today's Texts filter with the SMS inbox; check "Asked by phone today"
+after a tire call; add `RAILWAY_TOKEN` to the cloud environment (the cloud container has no Railway
+auth and runs Node 22, not 24; `scripts/cloud-setup.sh` reports both).
+
+**Next, in order:**
+1. Re-run the census over 07-23 -> 09-22 (`railway run -s MAINnicks-tire-auto -- pnpm diag:customer-corpus`):
+   June has no transcripts, and the promise counter changed (#2580).
+2. Copy `toolDemand` to `vapi_call_logs` at end of call so the census can read tire demand (#2584 stores it
+   on the state trail only).
+3. Research doc Part C #40 (legacy Twilio "we'll call you first thing") and #41 (special-order templates).
+4. The index SQL opt-out lists (`sms.ts:207`, `lib/sms-eligibility.ts:57`) still exact-match: "Stop." is
+   caught live by the parser, not by the index.
+
+**Traps met this wave:** the knip orphan gate fails an export only a test imports (move the pure rule to a
+lib the service imports); `proc-census.json` must be regenerated (`PROC_CENSUS_WRITE=1`) when a tRPC
+procedure is added; one pushable branch means one open PR at a time, so hold local commits until the
+open PR merges.
+
+**Updated: 2026-09-22 (late)** (four fixes from one cron census: voice-recovery never connected (#2497), self-healing hollowing out Nick's memory (#2500), weather-intel invisible to the skip watchdog (#2502), transfer verdicts on calls that never transferred (#2503). Earlier today: #2479, #2488, #2490, #2491, #2492, #2494 MERGED. Prior header preserved below.)
+missed-revenue queue was measuring Nick's own greeting. Full audit, graded evidence and the
+pre-"Reset to Shop" checklist: `docs/VOICE-RECOVERY-AUDIT-2026-09-18.md`.)
+
+
+## 2026-09-23 (midday) · Driver-error recognisers: the last text-matchers, and a suite-wide import guard
+
+**Defect class, now closed across the server.** drizzle-orm 0.45 wraps every driver error in a
+`DrizzleQueryError` whose message is ONLY `Failed query: <sql>\nparams: <params>`; the code,
+errno and driver text sit on `.cause`. #2574 fixed the missing-table and duplicate-key helpers.
+This follow-up moved `isUnknownColumnError` into `server/lib/dbErrors.ts` (db.ts re-exports it),
+added `isSchemaBugError` (1054/1051/1109/1064), and rewired 20 call sites that regexed
+`err.message` or read only the top-level `.code`: sms.ts x3, opportunityQueue x4, smsOps,
+crossSellOutreach, emailCampaigns, monteCarloForecast, weeklyRevenueDigest, recoveryLift x2,
+mediaRegistry, followupCadence, dashboardSync, shopdriver x3, webhooks/vapi.
+- A real wrapped 1054 never matched, so every "pre-migration, retry without the column" fallback
+  was dead in production. A wrapped TIMEOUT whose params held `1054` did match: on
+  `sms_messages.id` 1054, `recordSendFailure` would have switched retry bounding off for the
+  process. `smsRetryDeadLetter.test.ts` now drives both shapes; both tests fail on the old sms.ts.
+- emailCampaigns and dashboardSync matched a column/table name that their OWN SQL contains, so any
+  failure (a timeout) was reported as "apply migration 0114" / "0074 not applied".
+- **Rule:** never text-match a DB error. Use `lib/dbErrors` (`isMissingTableError`,
+  `isDuplicateKeyError`, `isUnknownColumnError`, `isSchemaBugError`). A source scan in
+  `server/lib/dbErrors.test.ts` fails if a regex comes back at any of the 20 sites.
+
+**Test isolation guard.** `client/src/__tests__/setup.ts` (setupFiles for every file) now awaits
+`vi.dynamicImportSettled()` in `afterAll`. Positive control, ordered replay of the pre-#2565
+`callbackAuditReceipt.test.ts` then `coupon-redemptions`: 3 of 8 runs red without the guard,
+0 of 12 with it.
+
+**Shuffled-order sweep found one more (fixed in the same PR).** `tableWriterCoverage.test.ts`
+timed out at 34-36s under seed 29 (31.3s even with the guard removed, so not the guard): two
+regexes per table x file. One pass per file now: 13.3s -> 0.14s; old vs new agree on all 154
+tables x 938 files (0 diffs); dropping `payments` from the allowlist still turns it red.
+
+**Shipped as #2589** (draft opened 13:01Z; merged tree 714 files, 8,952 tests, 0 failed, default
+order and seed 29). Merged key-wise with sibling #2581/#2582/#2583/#2584.
+
+**Cloud container (`bash scripts/cloud-setup.sh`, 2026-09-23):** Railway CLI 5.60.0 installed,
+workspace already installed. MISSING: `RAILWAY_TOKEN` (CLI unauthenticated; the Railway MCP
+connector still works), Node 24 (container has 22), `gh` (the GitHub MCP connector covers PRs).
+
+**PreToolUse guard was OFF in cloud sessions; FIXED in #2589 (`904cc7ea5`).** The node hooks in
+`.claude/settings.json` named their scripts with backslashes: MODULE_NOT_FOUND on Linux, fail-open,
+all 13 rules off. Now `/` separators; `scripts/agent-os/hookCommand.test.mjs` runs each configured
+command verbatim (red 4/5 before, 5/5 after) and `cloud-doctor` has a REQUIRED "policy hook fires"
+check. The live harness here began enforcing the moment the file changed. **One open check:** start
+a session on the Windows box and confirm a denied command is still blocked there.
+
+**Owner items still open:** delete Railway function `oneoff-careers-postdeploy` (inert, API
+delete timed out twice) · Resend DNS for nickstire.org (emails do not deliver) · mark test
+candidates #1/#2 withdrawn · never text STOP from the CEO mobile to the shop line.
+
+## 2026-09-22 (night) · Counter-conversation capture — shipped, scheduled, NOT yet installed
+
+**PRODUCTION-PROVEN 2026-09-23 00:12Z.** After `f1c1db6f6` deployed, the same selftest episode
+re-posted: `transcriptStatus: DONE · factsStored: 4 · dropped: [] · coverage: 0.929 · engine:
+deepseek-v4-pro`. Before the fix the identical post returned `FAILED / engine: null`. The chain
+is proven live: migration -> table -> shared-key auth -> route -> extraction -> facts with
+provenance. #2547 merged `f1c1db6f6`.
+
+**What exists now.** Four layers, all merged or in flight: `conversation_episodes` (migration
+0128, **APPLIED IN PROD** — 90 applied / 42 skipped / 132 total; the one error is the
+pre-existing `vehicles` FK, a table retired by 0117) · `camera-bridge/vision/officeaudio.py`
+(capture + room calibration) · `server/services/conversationFacts.ts` (extraction, every fact
+carries its transcript segment) · `POST /api/conversation-episodes` (ingest, fail-closed auth on
+`CAMERA_INGEST_KEY`, which ALREADY EXISTED on Railway). #2530 merged `0092eddc7`; #2547 carries
+the rest.
+
+**⚠⚠⚠ THE EXTRACTOR SHIPPED DEAD AND 12 GREEN TESTS SAID NOTHING.** Found only by applying the
+migration and POSTing one marked selftest episode to the LIVE route: it returned
+`transcriptStatus: FAILED, engine: null` — row written, auth fine, coverage 0.929, extraction
+never ran. Two defects: `outputSchema` was passed as a BARE JSON Schema where the gateway type is
+`{ name, schema, strict? }` (an `as never` cast silenced the exact compile error), and the result
+was read from `res.text`, a field `InvokeResult` has never had (content is at
+`choices[0].message.content`). **Both survived because the hand-written `vi.mock` returned
+`{ text, model }` — a shape that does not exist.** A mock encodes the author's misunderstanding
+and then certifies it. The mock is now built by a helper TYPED as `InvokeResult`. Receipt:
+reverting the content path now reddens 6 tests; before the mock was fixed it reddened NONE.
+
+**⚠⚠ WINDOWS SHIPS NO SYSTEM TZ DATABASE.** stdlib `zoneinfo` raises `ZoneInfoNotFoundError` for
+`America/New_York` without the `tzdata` package — measured here on Python 3.14.4. The shop PC is
+Windows too, so this would have been its first crash. `tzdata` is now pinned in
+`vision/requirements.txt` as load-bearing, and `officeloop._zone()` raises a named
+`TimezoneDataMissing` carrying the pip command. **There is deliberately NO fallback to a fixed UTC
+offset** — it works most of the year and then shifts the shop's hours by an hour on each DST day.
+
+**Hours: 08:00–18:00 America/New_York, EVERY day incl. weekends** (operator, 2026-09-22). They
+live in ONE place, `vision/officeloop.py`, not in a Task Scheduler trigger — the task runs at boot
+and the loop decides its own hours. The 18:00 edge is TRIMMED, not overrun (a 300 s capture
+starting 17:58 is shortened to land on 18:00; the office is private after hours).
+
+**★ The gate that makes the bad mic survivable.** MEASURED: a 90 s office sample transcribed for
+**37.4 s of 90 s**, and the unrecovered 50 s carried NORMAL conversational energy (−16.7..−31.2 dB
+vs −21..−36 dB for the windows that DID transcribe) — so **level does not predict
+intelligibility** and the first `LOW_LEVEL_DB = -45` heuristic was REFUTED by its own first
+measurement (now −55, cap only). The real signal is transcript COVERAGE: below 65% the extractor
+emits NO facts. A summariser fed a gappy transcript produces fluent, confident, WRONG summaries.
+Expect mostly refusals at first — that is the gate working. Coverage is the UNION of transcript
+spans, never their sum (whisper overlaps; summing three test spans gives 67% and turns the gate
+OFF where the union gives 44% and turns it ON).
+
+**Empty-vs-error, three layers deep.** `transcriptError` (producer) outranks everything in the
+route's status ladder, because a dead transcriber yields an empty segment list that would
+otherwise store as SKIPPED — a durable claim the counter was silent all day. `ok:false`
+(extractor) is FAILED, not "no facts". Empty-with-no-error is a real finding.
+
+**⚠⚠ A CONFLICTING PR DISPATCHES NO CI AT ALL.** #2530 sat 18 min with ZERO check runs while
+sibling branches dispatched normally. Cause: `mergeable=CONFLICTING` / `mergeStateStatus=DIRTY`,
+so GitHub cannot build `refs/pull/N/merge` and no `pull_request` workflow fires. It reads exactly
+like an Actions outage. Close/reopen does NOT help; merging main does. **Check `gh pr view N
+--json mergeable,mergeStateStatus` before diagnosing a missing-CI symptom.**
+
+**⚠ `.completion/evidence.json` conflicts on every concurrent session.** Resolve by taking MAIN's
+copy as the base (it carries sibling demotions) and laying your two derived entries over it —
+demoting main's current ones to `-superseded-<tag>` keys. Never overwrite: an entry is another
+session's receipt.
+
+**BLOCKED ON ONE HUMAN ACTION — the shop PC.** Nothing is installed there yet; no session on that
+machine was reachable. One command, as Administrator:
+`camera-bridge/scripts/install-office-capture.ps1 -SourceUrl "rtsp://…@192.168.0.167/live0"
+-IngestKey "<from: railway run -s MAINnicks-tire-auto -- printenv CAMERA_INGEST_KEY>"`. It
+preflights admin / python / tzdata / ffmpeg / the whisper binary / a live ffprobe for real audio
+BEFORE changing anything, and puts the key and RTSP URL in the MACHINE environment rather than the
+task's arguments (`schtasks /query /v` exposes arguments to any user; the RTSP credentials are in
+that URL). Full runbook: `camera-bridge/docs/SHOP-PC-RUNBOOK.md` §8.
+
+**Left deliberately in prod:** one row, `episodeId = selftest-2026-09-22-conversation-ingest`,
+`source = selftest` — the end-to-end evidence. Remove it when a delete path exists.
+
+## 2026-09-22 · Execution state (persisted for the next instance)
+
+**Mission.** Continuous completion on apps/nickstire: finish active work, wire BUILT-UNWIRED, fix
+silent truth failures, consolidate. Operator directive: no roadmaps; DONE-with-evidence or
+BLOCKED-on-a-named-human-action. Autonomous merging allowed; hold a merge while another PR's
+node/e2e is in flight.
+
+**Remote truth at write time.** origin/main `2477935b3` (= #2494 squash; #2488 `f921513f2`, #2492
+`f184a011c` beneath it). Production deployment `cce34e2f` was on `083082474` when checked; the
+three merges each redeploy. Open branch: `nickstire/voice-recovery-dial-shape` (cut from main, then
+merged main back in). Push from the hook-free clone (`C:/Users/nourd/AppData/Local/Temp/nick-push-clone3`):
+pre-push `build:affected` fails on the worktree's statenour junction, unrelated. Never skip hooks.
+
+**THE EVENING'S DEFECT — voice-recovery never connected once.** `alg_estimates`: 110 rows with
+`voice_recovery_outcome='failed'`, 0 with any other outcome, 0 with a call id, 2026-06-18..09-20.
+Railway deploy log `f9ab5753` (2026-09-19 14:50Z): `VAPI /call returned 400: assistantOverrides.model.provider
+must be one of the following values…` — `placeVapiOutboundCall` sent `model: { messages }`, a partial
+block, since wave-143 (2026-05-29); Vapi's `assistantOverrides.model` is a oneOf over full model DTOs
+that require `provider` + `model` (OpenAPI at api.vapi.ai/api-json, `OpenAIModel.required`). The
+cron claimed each lead BEFORE dialing and wrote `failed` after, so all 110 are permanently
+ineligible without a ring, and every run logged `completed · placed=0 failed=N`. Prod env checked
+as booleans: VAPI_API_KEY set, VAPI_FOLLOWUP_ASSISTANT_ID set, VAPI_PHONE_NUMBER_ID unset (auto-lookup
+works), FEATURE_VOICE_RECOVERY=1 (armed), FEATURE_FOLLOWUP_CADENCE=1, FEATURE_CONFIRMATION_CALLS=1.
+The other two lanes share `placeVapiOutboundCall` but never reached a dial ("No completed bookings",
+"No bookings") — `confirmation_calls` has 0 rows ever.
+
+**THE FIX (branch above).** `followUpModelBlock()` builds the follow-up assistant's model block AND
+every prompt override, so an override is always complete and identical to the assistant's own
+block. `placeVapiOutboundCall` returns `errorKind` config/customer/provider/network. The cron
+gates on `followUpAssistantIdOrNull()` before any claim; on a non-customer failure it RELEASES the
+claim and THROWS (runner records status failed with the reason; no further lead claimed that run);
+`details` carries the last error. The customer-kind message masks digits (it lands in cron_log).
+Tests: `services/vapi.outboundOverride.test.ts` (6) pins the fetch body, `cron/jobs/voiceRecovery.dialFailure.test.ts`
+(6) pins the decision per kind; 4 mutations run, each caught (3/1/3/1 red), positive controls green.
+Ledger row `voice-recovery-outbound-dial` (unit_verified @ internal - the validator refuses deployed with a P1 or without a deploymentId; promotion condition in the row).
+
+**THE CENSUS THAT FOUND ALL FOUR.** `cron_log` grouped by job over 30d: jobs that COMPLETED every
+run with 0 records, then the top `details` string per job. 46 such jobs; every one says WHY in
+details, so none is a silent instrument - but the details themselves carried the defects:
+`voice-recovery: placed=0 failed=3` (a completed run reporting failures), `weather-intel: No API key`
+(a completed run that could not run), and the Railway log's "Memory stored: pattern - System
+health: CRON STALE" every five minutes. Run status is not an outcome: read the outcome column's
+distribution for any lane that dials, sends or posts.
+
+**#2500 - self-healing → Nick memory.** Every 5-minute pass remembered each open issue with the
+day's date and the auto-fix list appended (CRON STALE with its live minutes), so each pass INSERTED;
+the 500-cap evicts the lowest-confidence, least-recently-reinforced row on every insert - Nick's
+oldest real insight. Measured: 721 rows over the cap (the cap evicts one per insert; the count never
+shrinks), 168 "System health", survivors' minimum confidence 0.85. Fix: `HealthIssue.stable`, the
+bridge remembers `System health: <stable ?? message>`; one row per standing issue, reinforced.
+STILL OPEN (design, not this bridge): confidence distribution is 0.85×5 / 0.9×197 / 0.95×209 /
+1.0×310 - a new 0.7 memory is the unique lowest row and is evicted on the next insert, so callers
+at 0.6-0.8 (statenour patterns/predictions/loops) can NEVER be retained at cap; and
+`decayMemories` reads `LIMIT 200` of 721 with no ORDER BY, so most rows never decay (199 rows
+untouched 90d+ at avg 0.98). See the memory-store note in NEXT.
+
+**#2502 - weather-intel.** 8 runs ever, all completed "No API key"; the watchdog reads only
+status skipped + `requiresEnv:`. Declared `requiresEnv: "OPENWEATHER_API_KEY"`; `getJobCadences()`
+now reports each job's env gate. `feature_flags.weather_triggered_sms = 1` - the key alone arms
+texts to lapsed customers; the ledger row says so.
+
+**#2503 - transfer artifact.** 20 of 31 calls carried verdict unknown for transfers that never
+happened: the webhook wrote whenever `artifactPresent` (true when Vapi sends a transfers ARRAY,
+empty on non-transfer calls). `isTransferAttempt` (lib/warmTransferConnect) is the one population
+predicate for writer and reader; `transferArtifactWorthPersisting` decides the write.
+
+**ACTIVE.** Land #2500 / #2502 / #2503 when no sibling node/e2e is in flight (hold rule). Observe
+after deploy: `voice-recovery` at ~14:50Z says "No estimates eligible" until the operator releases
+the burned rows; `weather-intel` flips to `skipped · requiresEnv:OPENWEATHER_API_KEY`; new calls stop
+carrying transferArtifact unless a transfer was attempted; self-healing memories reinforce instead
+of insert (Railway log: "Memory reinforced", not "Memory stored").
+
+**NEXT, dependency-ordered.**
+1. Observe the one-to-one arrival planner's first production run: `cron_log.job_name='dashboard-sync'`
+   (business hours only; columns are snake_case). Details line grows "N same-visit closed" only when
+   non-zero. Ledger row `arrival-invoice-reconciliation` stays unit_verified until then.
+2. `weather-intel` runs weekly and returns "No API key" every time (OPENWEATHER_API_KEY unset in prod),
+   and `cron-skip-watchdog` cannot see it: the watchdog only matches `requiresEnv:`/`requiresFlag:` on
+   status `skipped`, and this job completes with 0. Declare `requiresEnv: "OPENWEATHER_API_KEY"` on the
+   tier entry so it skips through the gate the watchdog reads — or the operator sets the key.
+3. Nick memory store - two mechanical defects and one design question (measured 2026-09-22):
+   (a) `decayMemories` reads `.limit(200)` with no ORDER BY over 721 rows, so 500+ rows are never
+   visited; (b) at the cap, eviction is confidence ASC then lastReinforced ASC, and every survivor is
+   >= 0.85, so any memory entering below 0.85 is evicted by the very next insert (callers at 0.6-0.8
+   exist: statenour_predictions 0.7, statenour_loops 0.6, statenour_patterns 0.75); (c) reinforcement
+   is +0.05 uncapped below 1.0, so anything seen six times is immortal (310 rows at 1.0, 199 rows
+   untouched 90d+ at avg 0.98). (a) is a bug; (b)+(c) are the store's design - the operator decides
+   what Nick should forget. Reader: `recall()` / `smartRecall()` in services/nickMemory.ts.
+   LIVE 19:30Z after #2504 deployed: the passes still logged `Memory stored` (not reinforced) ten
+   per pass - the store is over-full (721 > 500), eviction is confidence ASC, and the ten 0.85
+   health rows were the lowest, so they evicted each other every five minutes. Stable content
+   cannot help a store that cannot keep the row. BRIDGE CUT (branch nickstire/health-state-out-
+   of-memory): selfHealing.ts no longer writes to Nick's memory at all - health issues are
+   operational state (mandate item 7) and reach cron_log, Telegram and the watchdog. The 173
+   health rows leave via scripts/maintenance/prune-health-memories.mjs (dry run default; the
+   --execute DELETE is the operator's). The admission-at-the-cap rule (scratchpad ship-admission.sh,
+   validated in tests) is PARKED: mandate item 10 says simulate eviction policies against the
+   real rows before changing production - that simulation is the next memory item.
+   SIMULATION DONE (docs/operations/NICK-MEMORY-EVICTION-SIMULATION-2026-09-22.md, pnpm diag:memory-
+   eviction): eviction order is NOT the lever - P0/LRU/cap-0.95/per-source are within noise; the
+   admission floor is REJECTED (refuses exactly the 24 conversational 0.7 entries); shrink-to-500
+   REJECTED (evicts 33-day-old rows). Inflow is 6.9/day of analytics summaries at 0.9-0.95 that
+   outrank operator knowledge at 0.7 forever; top-20 recall today has ZERO health rows (the decay
+   run demoted them). Next code item: one rolling row per report kind at the analytics writers.
+   Operator decisions: run the health prune (capacity, not prompt quality); entry confidence for
+   machine summaries; a type-aware recall (shadow first).
+7. THE HOURLY TIER WAS DEAD ALL AFTERNOON (PR #2516): every tier is a setInterval from process boot
+   and only heartbeat/pulse/daily fired at boot, so with 13 deploys under 2h apart the 2h tier
+   (voice-recovery, enrich-customer-data, feedback-cycle, safety-check, the statenour syncs) last ran
+   12:29Z. Fix: the boot pass is CLAIMED by one conditional UPDATE on cron_tier_skip_state when the
+   last run is an interval old (age in SQL; no claim = no fire). Review P2 (stamp at start) measured
+   and declined: an hourly pass is 3-4 s. MERGING IS DEPLOYING - hold merges until a fix that must
+   run live has deployed and fired; the sibling statenour session is holding #2517 for this.
+8. LIVE INCIDENT, operator's device: the SMS gateway phone has been OFFLINE since 2026-09-22 ~04:38Z
+   (`sms-gateway-health`: `OFFLINE — 1234m since last check-in` at 21:12Z; Capevace cloud intermittently
+   unreachable since 09-21 02:05Z). review-requests + winback-auto-process `held pending`; Twilio is
+   deliberately not configured, so every other outbound text queues. Nothing to deploy. VERIFY: the
+   health job's details read `online — last seen Nm ago`. docs/operations/CRON-OUTCOME-CENSUS-2026-09-22.md.
+9. CENSUSES (all read-only, PR #2529): cron outcomes for 119 jobs (68 outcome / 48 attempted-only / 2
+   disabled / 1 env-skipped; pnpm diag:cron-census); queues (docs/operations/QUEUE-CENSUS-2026-09-22.md):
+   308 sms_orchestrations read `queued` forever but 243 were SENT — the orchestration row is never
+   stamped (fix: orchestration-status-reconcile cron, pulse tier, + backstamp script dry run 243/27/17);
+   45 customer replies human_pending (27 > 30d); 3 emergency_requests `new` at 158-178d;
+   revenue_reconciliation_candidates 227,988 rows / 18,491 manual_review nobody reads. A first exact-body
+   join said 296 texts never went out; a phone+window join said they did — the proxy lied, both recorded.
+   Memory: eviction simulation rejected the admission floor; remember() identity = one rolling row per
+   report kind (ten writers); phone numbers out of event memories; provenance model doc (item 8).
+   OPEN PRs to land in order: #2529 → rebuild #2514 (rebuild-cron-details.sh) → rebuild #2515
+   (rebuild-2515.sh) → orchestration-status-reconcile (ship-reconcile.sh); each rewrites a shared
+   evidence key, so they serialize. Hold each merge while a sibling's node/e2e is in flight.
+10. OPERATOR ACTIONS TONIGHT. (a) photo_assess_enabled flipped ON 22:05Z on 'photo assess enabled yes'
+   (scripts/maintenance/set-feature-flag.mjs, dry run then --execute). NOT LIVE: no provider fallback,
+   REPLICATE_API_KEY unset -> no_provider; needs PHOTO_ASSESS_PROVIDER=hf or a Replicate key (Railway
+   env, operator's call - asked, not taken). (b) The SMS gateway phone was dead ('my bad it was dead');
+   powered on ~22:05Z: the 22 queued texts sent 22:09Z, sms-gateway-health read `online - last seen 4m
+   ago` at 22:29Z; review-requests + winback unhold on the next hourly pass. (c) OpenWeather: the code
+   calls data/2.5/weather = the free plan; WARNING weather_triggered_sms is ON, so the key arms customer
+   texts - flip that flag off first if intel-only is wanted. MERGED this evening with the trailer:
+   #2529 f10029b52 (memory identity + censuses) · #2532 2ca58d9f7 (#2514 rebuilt) · #2531 5825e17e7
+   (harvest replay with tools) · #2534 213bce3c0 (#2515 rebuilt) · #2535 orchestration-status-reconcile
+   (see PR). Five earlier squash merges carry no Co-Authored-By trailer (single-commit PRs squash to the
+   PR body); every merge since passes --subject/--body-file with it. Later the same evening: #2537 2bdf14ead
+   (warm-transfer --snapshot-only/--rollback-legacy, the #2490 thread) · #2538 9262310f5 (harvest --out
+   follows links, the #2496 thread) · #2541 684cdab53 (flag script + photo-assess ledger truth) all MERGED
+   with the trailer. abandoned-forms details shipped (this PR). Still not done: the counterfactual memory
+   diagnostic (mandate item 9); live observation of the reconciler's first cron_log row.
+
+11. OPERATOR ROUND TWO (23:05Z, 'figure it out the best way for photo assess provider something free too or
+   my ollama ... u sure i havent given open weather key? 3 and 4 are ok too'). (a) Photo assess: vision-analyzer
+   gains gemini (free tier, GEMINI_API_KEY) and ollama (OLLAMA_API_KEY, gemma4:31b) providers, both LIVE-PROBED
+   on the shop's tread photo (gemini 2.5s with thinking off; gemma4 1.1s); PHOTO_ASSESS_PROVIDER=gemini set on
+   Railway once the PR lands. (b) OpenWeather: NOT given - OPENWEATHER_API_KEY is absent from the Railway
+   variable list (checked 23:06Z); only .env.example mentions it. (c) Item 3 EXECUTED with count-verified backup
+   tables: prune-health-memories 173 rows (store 721 -> 548, _bak_shop_settings_health_prune_20260922);
+   backstamp-queued-orchestrations sent 225 / failed 27 of 252 (_bak_sms_orchestrations_backstamp_20260922; 21
+   rows with no message row stay queued); release-voice-recovery-claims 15 of 15 within 60d
+   (_bak_alg_estimates_voice_release_20260922; 95 older left by design - the lane dials them 5/day 10-17 ET).
+   (d) Item 4 (45 human_pending in sms_response_jobs: 5 <= 7d, 15 8-30d, 25 > 30d; 6 are carrier 'blocked from
+   originating' bounces, ~5 are vendor spam) READ ONLY - no customer reply is sent on an 'ok'; a precise
+   instruction is needed to expire the stale rows or draft replies. LIVE 23:07Z: orchestration-status-reconcile
+   first pass stamped 35; identity memory rows 4; review-requests no longer gateway-held.
+
+12. THE PROMPT IS NOISE (mandate item 9, counterfactual). pnpm diag:memory-counterfactual replays the two paths
+   into Nick's prompt: 9 of the 10 rows injected every turn were writer noise re-emitted into thousands of
+   uses ('Nick AI has 30 learned memories' 4,904; 'Outcome unknown.' 2,517; textless commitments; '0/0 bays
+   FULL' x4); 498 of 548 rows can never reach an answer. Shipped: memoryWriterGuards.ts on the four writers
+   (7 tests), the diagnostic, and prune-junk-memories.mjs (dry run first; the DELETE is the operator's).
+   Doc: docs/operations/NICK-MEMORY-COUNTERFACTUAL-2026-09-22.md. NOT changed: the confidence x uses
+   ranking - the diagnostic prints the two alternative sets; decide from those after the prune. Also this
+   evening: kpi-snapshot moved daily -> hourly tier (oncePerShopDay on a 24h tier parks outside business
+   hours; skipped with no cron_log row, STALE 48h); the daily tier now declares no oncePerShopDay job.
+
+13. THE SELF-AUDIT WAS WRONG, AND PROBING IT BEFORE PUSHING IS WHAT SAVED THE LANE. I doubted #2550's claim
+   that Gemini thinking was off (its probe had ALSO doubled max_tokens, and extra_body looks like an
+   OpenAI-SDK-only field). I wrote the correction - reasoning_effort plus a top-level google.thinking_config -
+   then probed it. Measured twice each against the live endpoint: no knob = ~30 tokens, ~134 chars, NO
+   SERVICE_SUGGEST line even at max_tokens 800; extra_body = ~204 tokens, ~905 chars, line present;
+   reasoning_effort 'none' = equivalent; BOTH together = HTTP 400 'Expected one of either reasoning_effort or
+   custom thinking_config'; google at top level = HTTP 400 'Unknown name google'. So Google's compat layer DOES
+   read extra_body, the shipped code was right, and my correction would have 400'd every customer photo two
+   different ways. The withdrawal was discarded; what shipped is the measurement in a source comment plus three
+   assertions that neither 400 shape is sent. LESSON: a self-audit is a HYPOTHESIS, not a finding - probe it
+   with the same suspicion you applied to the original claim.
+
+   LIVE-OBSERVED at 00:40Z: abandoned-forms details text in cron_log ('nothing eligible · 0 partial(s) in
+   memory · 0 db row(s) in the 30-120 min window'); orchestration-status-reconcile 4 runs / 35 stamped, last run
+   'left queued 0 of 0' - the backlog is drained, 260 stamped sent, the 21 with no message row stay queued by
+   design; nick memory 528 rows after the junk prune (20 rows, _bak_shop_settings_junk_prune_20260923), and the
+   prompt now holds FCFS, a measured alert outcome, two VIP rows, a day score and busiest/slowest-day patterns
+   instead of 'Nick AI has 30 learned memories'. kpi-snapshot is still 49h stale and WILL stay so until the
+   first hourly pass after 07:00 ET - that is the fix working, not failing. NEXT: auto_analysis and vip_detection
+   WERE ALREADY KEYED in #2529 (busiest_slowest_day,
+   vip_customers_60d) - this line originally claimed they were not, and reading the source refuted it before any
+   code changed. The duplicates in the prompt are LEGACY snapshots the keying cannot merge retroactively. See 15.
+
+14. WEATHER SMS STAYS ON - operator decision 2026-09-23 ('leave the weather sms on'). No flag change was made;
+   weather_triggered_sms has been 1 since 2026-05-20. DO NOT RE-ASK THIS. What ON means, measured read-only
+   the same day: 1,901 eligible customers (60+ days lapsed, not opted out, phone present) of 2,312 with a
+   phone; only 12 opted out; ZERO weather_ texts have ever been sent; weather-intel now logs status 'skipped'
+   (requiresEnv OPENWEATHER_API_KEY) instead of completing with zero records. The lane is ARMED BUT
+   UNREACHABLE - OPENWEATHER_API_KEY is absent from Railway, and adding it is the single action that starts
+   customer texts, with no further gate. Bounded: 10 texts per trigger event, 30-day per-customer cooldown
+   per trigger, opt-out appended.
+
+   FINDING, NOT FIXED (P3, needs an operator instruction because the fix INCREASES customer contact):
+   sendWeatherSms applies LIMIT 10 BEFORE the cooldown filter and the select has no ORDER BY, so it takes an
+   arbitrary 10 of the 1,901, and after the first trigger event those 10 sit in a 30-day cooldown while later
+   runs send zero - a completed run with full reach of about one tenth of one percent. Fix when wanted: order
+   by oldest lapse and move the cooldown into the query.
+4. Duplicate-key helper consolidation onto `server/lib/dbErrors.ts` (proposals.ts,
+   shopDriverMirror.ts x2, promiseLedger.ts).
+5. Tighten the transfer-artifact write in `routes/webhooks/vapi.ts` (~:621) to
+   `transfers.length > 0 || /forward|transfer/i.test(endedReason)` so a call that never attempted a
+   transfer stops carrying verdict `unknown` (20 of 31; cosmetic; P3 on `voice-transfer-connect-truth`).
+   The write site has NO test; `vapi.call-end-ack.test.ts` is the harness precedent.
+6. Cron census 2026-09-22 (30d): 46 jobs completed every run with 0 records — every one says WHY in
+   `details` (gated by hour/day, "no candidates", flag off); none is a silent instrument. Five report
+   `<null>` details (sms-scheduler, abandoned-forms, customer-segment-refresh, customer-segmentation,
+   warranty-alerts) — they return nothing, so "did nothing" and "did work, said nothing" read the same.
+
+**BLOCKED_ON_OPERATOR (smallest external action each).**
+- **110 burned recovery leads.** READY: `scripts/maintenance/release-voice-recovery-claims.mjs` —
+  `railway run -s MAINnicks-tire-auto -- node scripts/maintenance/release-voice-recovery-claims.mjs`
+  is a dry run (lists what it would release, writes nothing); add `--execute` to back the rows up into
+  `_bak_alg_estimates_voice_release_<date>` and set attempted_at/outcome NULL for leads whose D30 text
+  is within 60 days (`--max-age-days` widens it; the call script says "5-6 weeks ago"). After that the
+  lane dials 5 per day. WHY it is yours: it re-arms real customer calls.
+  Dry run 2026-09-22 19:20Z: 15 releasable within 60 days, 95 older (D30 sent 05-19..07-23) left as-is.
+- `photo_assess_enabled` is OFF in prod: the MMS→vision→auto-reply path is wired and dark. READY:
+  `/api/admin/photo-assess` with `skipSmsSend=true` on sample photos gives model-quality evidence
+  without a customer send. ACTION: flip the flag after that evidence. REPLICATE_API_KEY is absent in
+  prod (HF fallback would run). It emits damage prose, no tire-size slot.
+- Warm-transfer fallback firing: the experimental plan is LIVE and connected transfers are observed;
+  the no-answer fallback has never executed. ACTION: the runbook canary (call, let it ring out).
+- bookSlot provenance: the prompt fires bookSlot for inquiries, transfers and tows alike, so
+  expected_arrivals cannot tell customer-committed from assistant-directed. ACTION: either a
+  prompt change (customer-contact policy) or approve a provenance column migration.
+- `OPENWEATHER_API_KEY` unset in prod (weather-intel has never run). Set it, or accept item 2 above.
+
+**Measured this session (read-only, production).**
+- customer_promises had 0 rows before #2479 — DEPLOYED, never used. 0125 UNIQUE applied.
+- expected_arrivals 30d: 116 written (all voice), 15 arrived, 89 no_show; 0 of the 89 have an
+  invoice within ±7/+14d; 77 have none ever; 63 were walk_in_directed price/inquiry calls, 17
+  transfers; 66 had no customer-named day. 25/25 distinct invoice claims, $0.00 overstated. 0126
+  UNIQUE applied.
+- Vapi: warm-transfer-experimental live since 2026-09-21T13:57Z; 11/11 forwards since carry
+  artifact.transfers connected; 109 calls all-time carry the artifact; 0 callback rows since.
+- feature_flags: 44 of 49 ON; off = photo_assess_enabled, outbound_voicemail_enabled,
+  vapi_forward_followup_paused, sms_global_pause, competitor_threshold_alerts.
+- bookings 8 all-time; portal_sessions 0 ever; invoices 73/30d; dashboard-sync runs in prod.
+
+**Tests and gates.** #2488: 135 across 7 touched suites at c8466c0e5; 75 after the phoneLast10
+move; 76 after the wording fix; typecheck exit 0 each time; dod-compiler all requirements
+satisfied; four mutations run, the planner filter SURVIVED until a fixture was added (then 2 red).
+
+**Decisions and why.** cancelled + note for same-visit siblings (enum has no superseded; an ENUM
+ALTER on TiDB is a row-loss risk class). Day-granularity invoiced-after-call comparison (driver
+dates read late on this stack; a late call day can only make the check stricter). phoneLast10
+moved to lib/phone.ts rather than baselined (third orphan of the day; one home, two consumers).
+Kernel reason text changed, lane unchanged (the claim was false, the follow-up is legitimate).
+
+
+## 2026-09-18 · The queue was a census of ANSWERED calls
+
+**THE DEFECT.** `classifyCall` scored `transcript + aiSummary` — text containing the ASSISTANT's own
+turns. Nick's greeting necessarily names the shop or the address, and both were load-bearing tokens:
+`"17625 Euclid Ave"` matched `euclid` in `inferredWalkIn` -> `walk_in_directed`; `"Nick's Tire & Auto"`
+matched `auto` in the `lost_opportunity` fallback. Both are queue candidates. **Measured by executing
+the real function:** a call where the caller never spoke produced a queue row, and so did a caller who
+only asked what time the shop closes. The queue could not emit "no demand" for the exact case it
+existed to detect. The reported 1,118 was substantially a count of calls that were ANSWERED.
+
+**THE CURE ALREADY EXISTED.** `customerTurns.ts` diagnosed this same contamination on 2026-07-26 — its
+header says *"aiSummary is written BY a tire-first assistant, so keyword-counting it measures the
+assistant's vocabulary"* — shipped `extractCustomerTurns`, documented `firstSubstantive` as "the field
+demand classification should read", and was wired into the webhook RECORDER, never the DECIDER.
+`metadata.customerSpeech` had been written since then and read by nothing. **Fifth BUILT-UNWIRED
+instance.** The fix was wiring, not building — which is why the proposed Shop Knowledge Console was
+NOT built: this repo's recurring failure is unwired systems, not missing ones.
+
+**THE COLLAPSE NEEDS NO DB WRITE.** It happens at READ time in `buildRecoveryQueue`: `speechFacts()`
+reads `metadata.customerSpeech`, and `disposeCall` excludes on `hasCustomerSpeech === false`
+regardless of the `evalOutcome` already stamped. Pre-2026-07-26 rows have no speech record and land in
+`unclassified` — shown as an amber "not measured" count, never as "no demand". **The backfill script is
+kernel-derived and safe but NOT required; it touches prod, so it needs an explicit operator instruction.**
+
+**WHAT SHIPPED (#2444).** `shared/callTaxonomy.ts` — one kernel replacing TEN hand-typed outcome lists
+and resolving two live contradictions (`walk_in_directed` was SUCCESS in `promptEvolution.ts:125` and
+MISSED REVENUE in `vapi.ts:500`; `tech_failure` was "not a valid conversation" in `vapi.ts:287` and an
+operator obligation simultaneously). `recoveryQueue.ts` — one customer with one need is one EPISODE;
+the old "+3 Repeat Caller" fired on any number seen twice in 90 days, so repetition inflated the
+backlog it described. `callDemandExtraction.ts` — deterministic tire size / qty / condition / vehicle,
+handling the SPOKEN forms ("two fifteen sixty seventeen"); nothing extracted these before.
+`smsFactCompiler.ts` — replaces eight hardcoded templates that asserted stock, capacity and pricing
+from a React component, carried no opt-out, and said "before 6 PM today" (false every Sunday; the shop
+closes at 4). Plus an ELEVENTH copy of the outcome list found in
+`scripts/maintenance/backfill-vapi-classification.ts`, which `tsconfig.json` excludes so no gate saw it.
+
+**#2448 (OPEN) — transfer truth.** Every transfer metric was built on `assistant-forwarded-call`, which
+VAPI documents as meaning the transfer was INITIATED. A call that rang an empty counter and hit
+voicemail scored identically to one Nick answered. `server/lib/transferArtifact.ts` reads
+`artifact.transfers[].status` into connected / not_connected / **unknown**, and a forwarded call with no
+transfers array is UNKNOWN, never connected.
+
+### READ THIS BEFORE TRUSTING ANY OF IT
+
+- **P1 · `speakerAttribution` coverage on real rows is UNMEASURED.** If prod transcripts are neither
+  speaker-prefixed nor role-tagged, unattributable calls yield `unknown` and the queue thins for the
+  WRONG reason. The amber "could not be read well enough to classify" count on the queue panel is the
+  falsifiable test. **Read it on first load.**
+- **P1 · transfer connect coverage may be 0%.** VAPI gates blind-transfer outcome detection PER
+  ORGANISATION. 0% is a real answer meaning "the provider is not telling us" — not a transfer problem
+  and not a clean bill of health. `artifactPresent` settles it from production data.
+- **Counter answer rate before AI pickup is still unmeasured and invisible to this codebase.** Both
+  prior audits missed it. Everything in this wave is DOWNSTREAM of the AI answering; if the counter is
+  missing calls first, this is the second-best lever. Needs the carrier/Vapi ring config.
+- **`safetyFlag` and `existingVehicleAtShop` have no writer**, so those two lanes cannot fire from the
+  queue path yet. A documented lane that cannot fire is worse than no lane.
+
+### Verified against primary sources, deliberately NOT encoded
+
+Ohio **OAC 109:4-3-13** — the 2026-03-21 amendment is **purely editorial** ("his" -> "the consumer's",
+four places); the 10% duty dates to at least 2015 and the rule to 1978. The **$50 floor is paragraph
+(A), FACE-TO-FACE only** — a phone call is paragraph (B), which has **no dollar floor**, so a guard keyed
+on `cost > 50` under-triggers on exactly the channel the assistant works in. The test is "ten per cent
+OR MORE", excluding tax, against the original estimate, and only where an estimate was REQUESTED.
+There is **no record-retention requirement** anywhere in Chapter 109:4-3 (the "two years" in circulation
+is ORC 1345.10(C)'s limitations period), and **(J) expressly disapplies 109:4-3-05**, so its $25 /
+"$5 or 10%" numbers must never be imported.
+
+**Not built on purpose:** estimates live in ALG, which is READ-ONLY by operator directive, and the only
+approval surfaces in this app are reel-content approval. An authorization guard would have no consumer
+— the BUILT-UNWIRED pattern this wave exists to close. The spec is in the audit doc, ready to encode
+when an authorization workflow exists.
+
+Also corrected and worth not re-deriving: "NHTSA says replace tires at 6-10 years" is a
+**misattribution** (NHTSA says "some manufacturers recommend"); the AWD drivetrain-damage warning
+traces to ONE Subaru bulletin scoped to the 2015 WRX STI; Google's anti-review-gating rule was live by
+June 2024, not April 2026; and the "5-minute speed-to-lead" canon measures CONTACT and QUALIFY odds and
+says in terms "This study did not address close ratios."
+
+## 2026-09-17 · Claims the site could not back
+
+## 2026-09-17 · Claims the site could not back
+
+Three defects, same family: the site asserted things no data in this repo supports.
+
+**#2404 — tire-size pages.** All 30 `/tires/:size` routes emitted a byte-identical `AggregateOffer`:
+`lowPrice "40"`, `highPrice "200"`, `offerCount "2"`, `availability InStock`, derived from no feed and no
+per-size inventory. Two defects: `InStock` asserted stock that does not exist anywhere in this codebase
+(the `/tires` finder only ever sees the SUPPLIER's warehouse count, and `gatewayTire.ts` already refuses
+to invent one — `const inStock = false` under "Do not fabricate in-stock status"); and `lowPrice 40`
+contradicted the visible FAQ on the same page saying used tires "start around $25-60".
+
+**Review (Codex, P1) caught the real gap and was right:** removing it from the component does NOT remove
+it from what Googlebot reads. Railway does not regenerate `prerendered/`, and the middleware serves the
+COMMITTED snapshot. The render test was green while 30/30 snapshots still carried the claim. Fixed by
+adding an artifact scan of the committed HTML (red on purpose until regen) then dispatching
+`prerender-refresh.yml` on the branch — the precedent set by the 2026-09-08 wave. **Verified on main
+after merge: 0 snapshots carry `InStock`, 0 carry `lowPrice`, `/reviews` still 132,116 bytes so the
+GOOGLE_MAPS_API_KEY card-strip hazard did not fire.**
+
+**#2405 — the ticker called an 83-day-old review "New".** Live: `★★★★★ New 5-star review ... 1987h ago`.
+Root cause was server-side and narrow: in `activity.recent`, bookings and completed-jobs both bound to
+`todayStart`, but the review branch filtered on RATING ONLY — no date predicate — then stamped every row
+"New N-star review". A second bug: the client formatter stopped at hours, so anything past ~2 days
+rendered as an absurd hour count. A third, found while in there: rows with a null `reviewDate` fell back
+to `minutesAgo: 60` and rendered as "1h ago" — a fabricated timestamp on a public surface.
+
+**Review (Codex, P1) caught something sharper than the rule:** the age was JS-derived from a
+driver-parsed TiDB DATETIME, which is shifted on ET. That was COSMETIC while the age was only printed —
+my cutoff is what promoted it to behaviour, discarding genuinely recent reviews near the boundary hours
+early. Now `TIMESTAMPDIFF(MINUTE, reviewDate, NOW())` drives both the WHERE bound and the displayed age,
+so filter and label cannot disagree. NULL dates now fail the BETWEEN and are excluded.
+
+**#2406 — one breadcrumb, one business entity, no invented stock.** Every city page shipped TWO
+`BreadcrumbList` graphs (CityPage's own 3-level one plus the one `<Breadcrumbs>` emits). `/contact`
+hand-rolled a SECOND `AutoRepair` node with no `@id` and a live stringified `aggregateRating`
+(`"1711"`), disagreeing with the homepage's `1700` and the `1,712+` in visible copy — on a page that
+renders no reviews at all. And the tire-size FAQ still said "we typically have multiple options in
+stock" in prose, byte-identical on all 30 pages, after #2404 removed the same claim from the JSON-LD.
+
+### Traps worth carrying
+
+- **The knip orphan gate stops at the FIRST finding.** CI reported only `REVIEW_MAX_AGE_DAYS`; the second
+  orphan (`MAX_ENTRY_AGE_MINUTES`) surfaced only on a local run after fixing the first. Run the gate
+  locally before pushing an orphan fix, or you will burn a second CI cycle. Remedies differ per orphan:
+  the accidental one went module-private (#2187's lesson again), the genuine test-visible contract was
+  baselined WITH A REASON.
+- **`workflow_dispatch` of the prerender refresh commits with a skip-ci tag**, so the PR's checks do NOT
+  re-run on the regen commit and the PR's status stays stale at the pre-regen result. Verify the
+  artifacts by reading them, not by reading the check.
+- **A local `pnpm run regen` is not a substitute here** — `GOOGLE_MAPS_API_KEY` is absent from worktree
+  checkouts, and a regen without it strips the live review cards from `/reviews`. The workflow carries
+  the secret.
+- **The pre-push gate is blocked in junctioned worktrees** by `@statenour/web#build`: Turbopack refuses
+  the NTFS junction (`Symlink [project]/apps/statenour/node_modules is invalid, it points out of the
+  filesystem root`). Environmental, any branch. Pushed hook-free per the AGENTS.md other-app-blocked
+  branch; CI carried the real gate.
+
+### Measured, and it kills a recommendation
+
+**`trackPageView` must NOT be wired.** Measured live in real Chrome: `navigationEntries: 1` across two
+soft SPA navigations, with `/g/collect` beacons going **3 → 4** on the `/tires` → `/brakes` transition and
+no custom event pushed. GA4 Enhanced Measurement's history-change page_view is already firing. Adding an
+emitter would double-count. `docs/website-audit-status.md:70` said to confirm in DebugView first; it was
+right. An earlier draft of the blueprint doc recommended wiring it — that recommendation is dead.
+
+Also measured: route transitions blank the page for ~310ms on a warm desktop cache (spinner at 70ms,
+content at 380ms), during which the header, phone number and directions link are all gone. Not fixed —
+`PageLayout.tsx` and `App.tsx` are owned by the tire-silo sibling branch right now.
+
+### Refuted
+
+- **`www.nickstire.org` genuinely does not resolve** — `curl` exit 6, no A record, zone SOA is
+  `ns1.globaldomaingroup.com`. The fix belongs in that DNS panel, NOT Railway. Operator-gated.
+- **The sitemap is 412 `<loc>` entries in a flat `<urlset>`** (not a `<sitemapindex>`), plus 182 more
+  duplicated across three child sitemaps. Earlier reports said 108 and ~190; both were wrong.
+- **Used-tire two-tier pricing is NOT a defect.** `AGENTS.md` §5 states it is deliberate. An earlier
+  draft of the blueprint filed it as a P0 conflict; that was wrong.
+- **The homepage's `aggregateRating: 1700` is correct and deliberate** — pinned to the static
+  `BUSINESS.reviews` floor so it matches ReviewsPage's block for the same `@id`. `/contact` was the
+  outlier, not the floor.
+
+## 2026-09-16 · Outbound consent, and the gates that reported success over unread files
+
 **Updated: 2026-09-16** (Outbound-consent sweep, all three channels + the gates that were scanning
 nothing + the gate that was never wired. #2361 `34d53af5c` + #2363 `e94ab8998` + #2371 `46e3194f4` MERGED
 and DEPLOYED; **#2374 open** — `lint:pii` becomes a pre-commit gate and the consent contract finally lands
@@ -783,3 +1367,17 @@ Before acting on a doc's factual claim about prod, read prod. And before reporti
 result as a fact about the repo, check what your search EXCLUDED.
 
 External audit's "/brakes broken" (stale cache; renders fine live) and "duplicate brake-cost blogs" (exist in neither routes.ts nor the real GSC export).
+
+15. WEATHER IS LIVE, AND 343 MEMORY ROWS ARE SUPERSEDED. (a) OPENWEATHER_API_KEY set on Railway 2026-09-23 on
+   operator instruction. It 401'd for ~15 min and went 200 the moment the operator verified their account
+   email - OpenWeather returns the SAME 401 for an unactivated key and a wrong one, so only time or the
+   account page can tell them apart; the email check is the first thing to ask next time. Verified through
+   evaluateWeatherTriggers (the no-SMS entry point): 'moderate rain', heavy_rain SATISFIED. Zero weather_
+   texts sent so far; briefings tier is 12 h and last ran 37 min before the check, so the first possible send
+   is ~11.5 h out and only if the rain holds. KILL PATH is the FLAG, not the key: set weather_triggered_sms
+   to 0 with scripts/maintenance/set-feature-flag.mjs.
+   (b) The identity mechanism WORKS - 7 rolling rows, one per writer that has fired. The prompt duplicates are
+   LEGACY snapshots from before #2529, 343 of them behind a rolling row, which is the entire reason the store
+   sits at 528 over its 500 cap. scripts/maintenance/prune-superseded-memories.mjs (dry run first) takes it to
+   185 and SKIPS sources with no rolling row yet (daily_score 75, shopdriver_mirror 43, intelligence_autopilot
+   20, statenour_pull 10) because for those the snapshots are all Nick has. The DELETE is the operator's.

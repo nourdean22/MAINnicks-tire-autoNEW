@@ -29,7 +29,7 @@
  * and ~200ms of DB read.
  */
 
-import { getEmbedding } from "@/lib/ai/provider";
+import { getEmbedding, getEmbeddingWithModel } from "@/lib/ai/provider";
 import { nourTools } from "@/lib/ai/tools";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
@@ -115,15 +115,21 @@ async function hydrateFromBrainMemory(
   try {
     const veRows = await prisma.vectorEmbedding.findMany({
       where: { sourceType: "tool_catalog" },
-      select: { sourceId: true, embedding: true, model: true },
+      select: { sourceId: true, embedding: true, contentFingerprint: true },
     });
     for (const row of veRows) {
       const name = row.sourceId;
       const expected = fingerprintByName.get(name);
       if (!expected) continue;
-      // v10.0.203 · model column doubles as the fingerprint for
-      // tool_catalog entries (see persistEmbedding below).
-      if (row.model !== expected) continue; // stale
+      // 2026-09-18 · the fingerprint has its own column now. It lived in
+      // `model` ("model column doubles as the fingerprint"), which is what made
+      // `model` untrustworthy as an embedding-space identity — it held real
+      // model names, the string "default", and these hashes at once.
+      //
+      // ⚠ A pre-migration row has contentFingerprint NULL, so this comparison
+      // fails and the tool is re-embedded once, rewriting BOTH columns
+      // correctly. The lane self-heals; no data migration was needed.
+      if (row.contentFingerprint !== expected) continue; // stale
       try {
         const vec = JSON.parse(row.embedding) as number[];
         if (!Array.isArray(vec) || vec.length === 0) continue;
@@ -171,6 +177,10 @@ async function persistEmbedding(
   name: string,
   fingerprint: string,
   embedding: number[],
+  // 2026-09-18 · the SPACE this vector belongs to, reported by the provider
+  // chain rather than guessed. Null only if every provider failed, in which
+  // case there is no vector to persist either.
+  embeddingModel: string | null,
 ): Promise<void> {
   const meta: PersistedToolEmbedding = {
     fingerprint,
@@ -194,7 +204,8 @@ async function persistEmbedding(
           content: `embedding(${embedding.length}d) for ${name}`,
           embedding: JSON.stringify(embedding),
           embedding_dim: embedding.length,
-          model: fingerprint,
+          contentFingerprint: fingerprint,
+          model: embeddingModel,
         },
       });
     } else {
@@ -205,7 +216,8 @@ async function persistEmbedding(
           content: `embedding(${embedding.length}d) for ${name}`,
           embedding: JSON.stringify(embedding),
           embedding_dim: embedding.length,
-          model: fingerprint,
+          contentFingerprint: fingerprint,
+          model: embeddingModel,
         },
       });
     }
@@ -292,7 +304,7 @@ export function warmToolEmbeddings(): Promise<void> {
           // similar vectors. Description alone is too generic.
           const text = `${name}: ${description}`;
           try {
-            const emb = await getEmbedding(text);
+            const { vec: emb, model: embModel } = await getEmbeddingWithModel(text);
             if (emb.length === 0) return;
             toolEmbeddings.set(name, emb);
             freshlyEmbedded++;
@@ -300,7 +312,7 @@ export function warmToolEmbeddings(): Promise<void> {
             // race; we don't want to block warmup completion on DB
             // writes.
             const fp = fingerprintByName.get(name)!;
-            void persistEmbedding(name, fp, emb);
+            void persistEmbedding(name, fp, emb, embModel);
           } catch (err) {
             // Skip this tool — keyword fallback will cover it.
             logError("ai.tool-embeddings", err, { fn: "warmToolEmbeddings", tool: name }, "warn");
@@ -361,6 +373,38 @@ export function rankToolsBySimilarity(
 
   scores.sort((a, b) => b[1] - a[1]);
   return scores.slice(0, topN);
+}
+
+/**
+ * Cosine scores for a SPECIFIC candidate set, rather than the global top-N.
+ *
+ * `rankToolsBySimilarity` answers "what are the best tools in the catalog?".
+ * The pruner's tier 4 needs a different question: "given these N tools the
+ * keyword families already matched, which matter most?" — no minScore floor
+ * (a weak match still outranks an arbitrary one) and no top-N cut (the caller
+ * owns the budget).
+ *
+ * Scores only the names asked for, so cost tracks the candidate set (typically
+ * 20-90 tools), not the 181-tool catalog.
+ *
+ * A name absent from the cache is OMITTED rather than scored 0 — those are
+ * different claims, and a 0 would sort an unmeasured tool below a genuinely
+ * dissimilar one. Callers must decide what to do with the omissions; see
+ * `orderKeywordCandidates` in chat-mode.ts, which ranks only when the cache is
+ * warm precisely so every candidate is comparable.
+ */
+export function scoreToolsBySimilarity(
+  userEmbedding: number[],
+  names: Iterable<string>,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  if (userEmbedding.length === 0 || toolEmbeddings.size === 0) return out;
+  for (const name of names) {
+    const emb = toolEmbeddings.get(name);
+    if (!emb) continue;
+    out.set(name, cosineSim(userEmbedding, emb));
+  }
+  return out;
 }
 
 /** Aggregate deadline for the on-demand embed — see embedUserMessage. */

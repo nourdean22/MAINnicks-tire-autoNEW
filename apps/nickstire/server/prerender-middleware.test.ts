@@ -110,3 +110,61 @@ describe("prerender-middleware · PRERENDER_MODE bypass (wave-181.12 critical fi
     expect((res as unknown as { sendFile: ReturnType<typeof vi.fn> }).sendFile).not.toHaveBeenCalled();
   });
 });
+
+describe("prerender-middleware · a closed job leaf is never served its stale artifact", () => {
+  // Codex review on #2557: the middleware runs BEFORE the SPA fallback, so a
+  // filled role's committed prerendered/careers/<slug>/index.html (which
+  // still carries a live JobPosting) kept answering 200 to Googlebot and the
+  // fallback's 404 never ran.
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "prerender-careers-"));
+    fs.writeFileSync(path.join(tmpDir, "index.html"), "<html>seed</html>");
+    for (const slug of ["automotive-technician", "no-such-role"]) {
+      fs.mkdirSync(path.join(tmpDir, "careers", slug), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, "careers", slug, "index.html"), `<html>${slug}</html>`);
+    }
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const run = (p: string) => {
+    const mw = createPrerenderMiddleware(tmpDir);
+    const res = mockRes();
+    const next = vi.fn() as NextFunction;
+    mw(mockReq({ ua: "Googlebot/2.1", path: p }), res, next);
+    return { served: (res as unknown as { sendFile: ReturnType<typeof vi.fn> }).sendFile.mock.calls.length, next };
+  };
+
+  it("an OPEN role's artifact is still served (control)", () => {
+    expect(run("/careers/automotive-technician").served).toBe(1);
+  });
+
+  it("an artifact for a role that is not open falls through to the SPA fallback (404)", async () => {
+    const r = run("/careers/no-such-role");
+    expect(r.served).toBe(0);
+    expect(r.next).toHaveBeenCalled();
+  });
+
+  it("a trailing slash does not smuggle a stale artifact past the check", () => {
+    // path.join('/careers/no-such-role/', 'index.html') resolves to the same
+    // file, so '/careers/<slug>/' must get the same verdict as '/careers/<slug>'.
+    expect(run("/careers/no-such-role/").served).toBe(0);
+    expect(run("/careers/automotive-technician/").served).toBe(1);
+  });
+
+  it("a role flipped to filled stops being served, even with its file on disk", async () => {
+    const { JOB_OPENINGS } = await import("../shared/jobOpenings");
+    const job = JOB_OPENINGS.find((j) => j.slug === "automotive-technician")!;
+    const original = job.status;
+    try {
+      job.status = "filled";
+      expect(run("/careers/automotive-technician").served).toBe(0);
+    } finally {
+      job.status = original;
+    }
+  });
+});

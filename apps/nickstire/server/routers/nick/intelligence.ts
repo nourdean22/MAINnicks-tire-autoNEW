@@ -428,10 +428,14 @@ export async function handlePullFromStatenour() {
     let imported = 0;
 
     if (brain.recentInsights?.length) {
+      const { pulledMemoryText } = await import("../../services/memoryWriterGuards");
       for (const insight of brain.recentInsights.slice(0, 5)) {
+        // same guard as the cron pull: no empty text, nothing about Nick's own memory store
+        const content = pulledMemoryText("[From statenour brain]", insight.title || insight.detail);
+        if (!content) continue;
         await remember({
           type: "insight",
-          content: `[From statenour brain] ${insight.title || insight.detail || ""}`.slice(0, 500),
+          content,
           source: "statenour_pull",
           confidence: 0.8,
         });
@@ -488,6 +492,10 @@ export async function handleRunMigrations() {
       `CREATE TABLE IF NOT EXISTS business_facts (id INT AUTO_INCREMENT PRIMARY KEY, factKey VARCHAR(64) NOT NULL, category VARCHAR(32) NOT NULL, value TEXT NOT NULL, source VARCHAR(255) NOT NULL, approvedBy VARCHAR(100) NOT NULL, effectiveDate DATE NOT NULL, verifiedDate DATE NOT NULL, channels VARCHAR(255) NOT NULL DEFAULT 'sms,voice,web', active TINYINT(1) NOT NULL DEFAULT 1, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_fact_key (factKey), INDEX idx_fact_active (active))`,
       // 2026-07-21 · expected_arrivals — durable "customer said they're coming" record (NCSOS business-action-tools, matches drizzle/0094 + schema.ts)
       `CREATE TABLE IF NOT EXISTS expected_arrivals (id INT AUTO_INCREMENT PRIMARY KEY, customerName VARCHAR(255) NULL, customerPhone VARCHAR(30) NOT NULL, vehicle VARCHAR(255) NULL, service VARCHAR(255) NULL, expectedDate DATE NOT NULL, whenText VARCHAR(100) NULL, source ENUM('voice','sms','web','manual') NOT NULL DEFAULT 'manual', sourceRef VARCHAR(128) NULL, status ENUM('expected','arrived','no_show','cancelled') NOT NULL DEFAULT 'expected', arrivedAt TIMESTAMP NULL DEFAULT NULL, reconciledInvoiceId INT NULL DEFAULT NULL, note VARCHAR(500) NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_ea_status_date (status, expectedDate), INDEX idx_ea_phone (customerPhone))`,
+      // 2026-09-22 · expected_arrivals: one invoice reconciles at most ONE arrival (matches
+      // drizzle/0126 + schema.ts). A re-run trips "index already exist" / ER_DUP_KEYNAME,
+      // which the loop below already treats as already-applied.
+      `CREATE UNIQUE INDEX uq_ea_reconciled_invoice ON expected_arrivals (reconciledInvoiceId)`,
       // 2026-09-10 · camera_runtime health counters — two numbers the edge producer already
       // keeps and nobody could read (matches drizzle/0124 + schema.ts). Both NULLABLE on
       // purpose: a producer predating them sends neither, and NULL must read as "not
@@ -496,6 +504,48 @@ export async function handleRunMigrations() {
       // ingest for every camera.
       `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS relocateFailures INT NULL`,
       `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS preexistingCrossed INT NULL`,
+      // 2026-09-22 · visit episode identity + stitch counters (matches drizzle/0127 +
+      // schema.ts). A tracker id is not a vehicle: `camera-bridge/vision/stitch.py`
+      // (#2493) decides when a new track CONTINUES an earlier one and carries the
+      // original arrival forward, but the shop table had nowhere to record WHICH tracks
+      // were folded together -- so a corrected `arrivedAt` landed unauditable. Measured
+      // 2026-09-22: shop-left 152 track deaths against 1-6 invoiced jobs, 13.8%
+      // re-acquired; shop-right 81 / 18.5%. NULLABLE for the same reason as the pair
+      // above -- a producer predating them sends none, and NULL is "not reported", not
+      // an empty trail. SAME ORDERING RULE: apply before deploying the writer.
+      `ALTER TABLE vehicle_visits ADD COLUMN IF NOT EXISTS episodeId VARCHAR(64) NULL`,
+      `ALTER TABLE vehicle_visits ADD COLUMN IF NOT EXISTS continuesVisitId VARCHAR(64) NULL`,
+      `ALTER TABLE vehicle_visits ADD COLUMN IF NOT EXISTS memberTrackIds JSON NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_vehicle_visits_episode ON vehicle_visits (episodeId)`,
+      // `arrivalsAfterStitch` is the de-duplicated SHADOW of `arrivals`, reported
+      // alongside it and never instead of it -- the operator's 2026-09-18 instruction was
+      // to keep the counter running and unhidden and let the data prove itself.
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS arrivalsAfterStitch INT NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS stitchedTotal INT NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS stitchRefusedAmbiguous INT NULL`,
+      // 2026-09-22 · conversation_episodes — one counter interaction with its evidence
+      // (matches drizzle/0128 + schema.ts). The office Eufy camera was MEASURED that day to
+      // carry a real audio track (aac 16kHz mono), so capture is possible. Source-agnostic:
+      // `source` names where audio came from, because the camera mic may lose the
+      // intelligibility test and be replaced by a counter mic without touching this shape.
+      // Every extracted fact carries the transcript span it came from — a summary nobody can
+      // trace back to what was said is a rumour with a timestamp.
+      `CREATE TABLE IF NOT EXISTS conversation_episodes (id BIGINT AUTO_INCREMENT PRIMARY KEY, episodeId VARCHAR(64) NOT NULL, source VARCHAR(32) NOT NULL, startedAt TIMESTAMP NULL DEFAULT NULL, endedAt TIMESTAMP NULL DEFAULT NULL, durationSeconds INT NULL DEFAULT NULL, audioRef VARCHAR(255) NULL DEFAULT NULL, meanVolumeDb DECIMAL(6,2) NULL DEFAULT NULL, transcriptStatus VARCHAR(32) NOT NULL DEFAULT 'PENDING', transcriptError VARCHAR(500) NULL DEFAULT NULL, transcript JSON NULL DEFAULT NULL, sttEngine VARCHAR(32) NULL DEFAULT NULL, sttLatencyMs INT NULL DEFAULT NULL, speakerCount INT NULL DEFAULT NULL, facts JSON NULL DEFAULT NULL, summary TEXT NULL DEFAULT NULL, vehicleVisitId VARCHAR(64) NULL DEFAULT NULL, workOrderId VARCHAR(64) NULL DEFAULT NULL, linkConfidence DECIMAL(4,3) NULL DEFAULT NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_conversation_episode (episodeId), INDEX idx_conversation_started (startedAt), INDEX idx_conversation_status (transcriptStatus, startedAt), INDEX idx_conversation_visit (vehicleVisitId))`,
+      // 2026-09-23 · candidates recruiting funnel (matches drizzle/0129 + schema.ts). All
+      // nullable, all IF NOT EXISTS. createCandidate falls back to the pre-0129 columns on
+      // ER_BAD_FIELD_ERROR, so deploy order does not matter; until this runs, intent and
+      // move reasons survive only inside `message`.
+      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS intent VARCHAR(32) NULL`,
+      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS moveReasons VARCHAR(500) NULL`,
+      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS phoneE164 VARCHAR(20) NULL`,
+      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS refCode VARCHAR(64) NULL`,
+      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS gclid VARCHAR(255) NULL`,
+      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS utmTerm VARCHAR(255) NULL`,
+      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS utmContent VARCHAR(255) NULL`,
+      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS nextFollowUpAt TIMESTAMP NULL DEFAULT NULL`,
+      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS ownerAlertedAt TIMESTAMP NULL DEFAULT NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_candidate_phone_e164 ON candidates (phoneE164)`,
+      `CREATE INDEX IF NOT EXISTS idx_candidate_ref_code ON candidates (refCode)`,
       // 2026-07-21 · nickgpt_training_examples.edit_categories_json — training-loop edit taxonomy (matches drizzle/0095 + schema.ts)
       `ALTER TABLE nickgpt_training_examples ADD COLUMN IF NOT EXISTS edit_categories_json TEXT NULL`,
       `CREATE TABLE IF NOT EXISTS chat_analytics (id int AUTO_INCREMENT PRIMARY KEY, sessionId int, hourOfDay int NOT NULL, dayOfWeek int NOT NULL, month int NOT NULL, messageCount int NOT NULL DEFAULT 0, converted int NOT NULL DEFAULT 0, leadScore int, duration int, createdAt timestamp NOT NULL DEFAULT (now()))`,
@@ -523,9 +573,15 @@ export async function handleRunMigrations() {
       `CREATE TABLE IF NOT EXISTS lifecycle_tracker_events (phone10 VARCHAR(10) PRIMARY KEY, customerName VARCHAR(255) DEFAULT NULL, events JSON NOT NULL, convertedAt TIMESTAMP NULL DEFAULT NULL, firstSeenAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, lastSeenAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_lifecycle_last_seen (lastSeenAt DESC), INDEX idx_lifecycle_unconverted (convertedAt, lastSeenAt DESC))`,
       // 2026-05-23 · drizzle/0054_tire_markup_100.sql — force tire markup to 100% (cost × 2)
       // Bug: admin UI defaulted to "50" — operator save = silent 50% markup. Backend default is 100.
-      // Idempotent: INSERT IGNORE then UPDATE force-syncs the value regardless of current state.
+      // INSERT IGNORE seeds 100 only when the row is missing.
+      // 2026-09-23 · its companion `UPDATE shop_settings SET value = '100'` is GONE. This
+      // list re-runs EVERY statement on every tap of Admin → System Health → "Apply
+      // pending migrations", so that UPDATE would reset a markup the operator edited
+      // (gatewayTire.updateMarkup) back to 100 each time. Verified before removal: the
+      // prod row has read value 100 / updatedBy system-migration-0054 / updatedAt
+      // 2026-06-18 throughout, so no run ever changed it. migrationListGuards.test.ts
+      // keeps any UPDATE/DELETE on shop_settings out of this list.
       `INSERT IGNORE INTO shop_settings (\`key\`, value, category, label, updatedBy) VALUES ('tireMarkup', '100', 'pricing', 'Tire Markup %', 'system-migration-0054')`,
-      `UPDATE shop_settings SET value = '100', updatedBy = 'system-migration-0054' WHERE \`key\` = 'tireMarkup'`,
       // 2026-05-23 · drizzle/0055_declined_recovery_sequence.sql — 5×3 SMS sequence
       // Adds new touch column triplets (3d/14d/45d) + recoveryProfile cache.
       // ALTER ... ADD COLUMN IF NOT EXISTS is MySQL 8+ — TiDB supports.
@@ -743,7 +799,9 @@ export async function handleRunMigrations() {
       // Duplicate-constraint re-run error. Drizzle defs: drizzle/schema.ts .references().
       `ALTER TABLE inspection_items ADD CONSTRAINT fk_inspection_items_inspection FOREIGN KEY (inspectionId) REFERENCES vehicle_inspections(id) ON DELETE CASCADE`,
       `ALTER TABLE customer_metrics ADD CONSTRAINT fk_customer_metrics_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE`,
-      `ALTER TABLE vehicles ADD CONSTRAINT fk_vehicles_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE`,
+      // fk_vehicles_customer removed 2026-09-23: drizzle/0117 retired the vehicles
+      // table, so the statement failed with ER_NO_SUCH_TABLE on every run and every
+      // run reported one error (measured on the 2026-09-23 01:54Z run).
       `ALTER TABLE work_order_items ADD CONSTRAINT fk_wo_items_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE`,
       `ALTER TABLE work_order_transitions ADD CONSTRAINT fk_wo_transitions_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE`,
       `ALTER TABLE qc_checklists ADD CONSTRAINT fk_qc_checklists_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE`,

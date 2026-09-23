@@ -28,6 +28,7 @@
 
 import { randomUUID } from "crypto";
 import { createLogger } from "../lib/logger";
+import { isMissingTableError, isUnknownColumnError } from "../lib/dbErrors";
 
 const log = createLogger("opportunity-queue");
 
@@ -175,11 +176,6 @@ export interface OpportunityRow {
 // ─── DB plumbing with graceful degrade ──────────────────────────────
 
 let tableMissingWarned = false;
-
-function isMissingTableError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /doesn'?t exist|ER_NO_SUCH_TABLE|1146/i.test(msg);
-}
 
 function warnMissingOnce(where: string): void {
   if (!tableMissingWarned) {
@@ -949,7 +945,7 @@ export async function collectUnapprovedEstimates(): Promise<CollectorStats> {
     rows = rowsFromExecute(await db.execute(query(true)));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/unknown column|1054/i.test(msg)) {
+    if (isUnknownColumnError(err)) {
       try {
         rows = rowsFromExecute(await db.execute(query(false)));
       } catch (retryErr) {
@@ -1651,7 +1647,7 @@ export async function collectInspectionDeferrals(): Promise<CollectorStats> {
     rows = rowsFromExecute(await db.execute(baseQuery(true))) as unknown as Row[];
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/unknown column|1054/i.test(msg)) {
+    if (isUnknownColumnError(err)) {
       try {
         rows = rowsFromExecute(await db.execute(baseQuery(false))) as unknown as Row[];
       } catch {
@@ -1795,7 +1791,7 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (!isMissingTableError(err) && !/unknown column|1054/i.test(msg)) {
+    if (!isMissingTableError(err) && !isUnknownColumnError(err)) {
       log.warn("[opportunity-queue] estimate-concern reconciler failed", { error: msg });
     }
   }
@@ -1888,7 +1884,7 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (!isMissingTableError(err) && !/unknown column|1054/i.test(msg)) {
+    if (!isMissingTableError(err) && !isUnknownColumnError(err)) {
       log.warn("[opportunity-queue] deferral reconciler failed", { error: msg });
     }
   }

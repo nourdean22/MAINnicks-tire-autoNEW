@@ -26,6 +26,7 @@
 import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logError } from "@/lib/utils/error-log";
+import { dropEmbeddingsForSource } from "@/lib/brain/memory-tombstone";
 
 /** Result of consuming an undo token. */
 export interface UndoResult {
@@ -129,6 +130,18 @@ export async function consumeUndoToken(token: string): Promise<UndoResult> {
       await prisma.personProfile.delete({
         where: { id: payload.personId },
       });
+      // person_profile is indexed in vector_embeddings by lib/brain/people-embed-hook.ts
+      // through a plain text ("sourceType","sourceId") pair with NO foreign key, so this
+      // HARD delete leaves a searchable embedding pointing at a person who no longer
+      // exists. Undoing a create must undo the index entry too, or the undo is partial in
+      // exactly the way nobody looks at. Best-effort: the person is already gone, and
+      // turning a cleanup miss into a throw would fail an undo that already succeeded.
+      await dropEmbeddingsForSource("person_profile", [payload.personId], "undo:person.create").catch(
+        (err: unknown) => {
+          logError("services.undo-token", err, { fn: "dropEmbeddingsForSource", personId: payload.personId }, "warn");
+          return 0;
+        },
+      );
       break;
     }
     default: {

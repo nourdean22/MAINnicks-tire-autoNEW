@@ -183,6 +183,22 @@ function anonymizeName(fullName: string): string {
   return parts[0] || "Someone";
 }
 
+/**
+ * How recent a review must be for the ticker to call it "New".
+ * Bookings and completed jobs are bounded to the current day; reviews arrive
+ * far less often, so a same-day bound would suppress them almost entirely.
+ * This is a display-honesty bound, not a business fact — widen or narrow it
+ * freely, but never remove it: without a bound the ticker calls the newest
+ * review "New" forever, which is what it did until 2026-09-17.
+ *
+ * Module-private deliberately. Exporting it for documentation value made it an
+ * unconsumed export, which the knip orphan gate fails as a NEW ORPHAN — the
+ * same lesson #2187 recorded ("keep policy lists private"). The client-side
+ * bound that pairs with it, MAX_ENTRY_AGE_MINUTES, IS exported because its
+ * test imports it.
+ */
+const REVIEW_MAX_AGE_DAYS = 7;
+
 export interface ActivityItem {
   type: "booking" | "completed" | "review";
   message: string;
@@ -262,22 +278,53 @@ export const activityRouter = router({
       }
 
       // 3. Recent positive reviews
+      //
+      // RECENCY IS PART OF THE CLAIM. The two branches above bound themselves
+      // to `todayStart`; this one filtered on RATING ONLY and then stamped
+      // every row "New N-star review". With no date bound it returned the five
+      // newest >=4-star reviews no matter how old, so on a quiet stretch the
+      // ticker announced a review from months back as new — observed live
+      // 2026-09-17 rendering "New 5-star review ... 1987h ago" (~83 days).
+      //
+      // Reviews are rarer than bookings, so `todayStart` would hide them almost
+      // always; REVIEW_MAX_AGE_DAYS is the smallest window that keeps "New"
+      // truthful while still letting real reviews surface. When nothing is
+      // recent the ticker shows nothing, which is the documented behaviour
+      // (see ./fomoEntries — hide rather than fake).
+      //
+      // THE AGE IS COMPUTED IN SQL, NOT JS. Driver-parsed TiDB DATETIME values
+      // come back shifted on ET (AGENTS.md "Time — Cleveland/Eastern"), so a
+      // JS-derived age is off by the offset. That was cosmetic while the age
+      // was only printed; the moment a cutoff CONSUMES it, the skew becomes
+      // behaviour — a genuinely recent review sitting near the boundary gets
+      // discarded hours early. Raised by review on #2405. TIMESTAMPDIFF runs
+      // in the database against the same clock that wrote the row, so the
+      // filter and the displayed age agree and neither depends on how the
+      // driver parsed the value.
+      const reviewAgeMinutes = sql<number>`TIMESTAMPDIFF(MINUTE, ${reviewReplies.reviewDate}, NOW())`;
       const recentReviews = await d
         .select({
           reviewerName: reviewReplies.reviewerName,
           reviewText: reviewReplies.reviewText,
           reviewRating: reviewReplies.reviewRating,
           reviewDate: reviewReplies.reviewDate,
+          ageMinutes: reviewAgeMinutes,
         })
         .from(reviewReplies)
-        .where(gte(reviewReplies.reviewRating, 4))
+        .where(
+          and(
+            gte(reviewReplies.reviewRating, 4),
+            // NULL reviewDate yields NULL here, which fails the comparison —
+            // so undated rows are excluded rather than defaulting to "1h ago",
+            // which is what the old `: 60` fallback rendered.
+            sql`${reviewAgeMinutes} BETWEEN 0 AND ${REVIEW_MAX_AGE_DAYS * 24 * 60}`
+          )
+        )
         .orderBy(desc(reviewReplies.reviewDate))
         .limit(5);
 
       for (const r of recentReviews) {
-        const ago = r.reviewDate
-          ? Math.max(1, Math.round((Date.now() - new Date(r.reviewDate).getTime()) / 60000))
-          : 60;
+        const ago = Math.max(1, Math.round(Number(r.ageMinutes)));
         const stars = "\u2605".repeat(r.reviewRating || 5);
         const excerpt = r.reviewText
           ? `"${r.reviewText.slice(0, 80)}${r.reviewText.length > 80 ? "..." : ""}"`

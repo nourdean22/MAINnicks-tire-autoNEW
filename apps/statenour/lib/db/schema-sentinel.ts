@@ -54,6 +54,13 @@ export type SchemaExpectation =
       table: string;
       column: string;
       nullable?: boolean;
+      /** When set, information_schema.columns.data_type must equal it (e.g. "tsvector"). */
+      dataType?: string;
+      /** When set, the column must be GENERATED ALWAYS with exactly this generation_expression (Postgres's
+       *  canonical spelling, e.g. "to_tsvector('english'::regconfig, content)"). A generated column is the
+       *  ONLY guarantee that nothing has to maintain the value; an ordinary column with the same name reads
+       *  as healthy to a name check while its readers trust a value nothing updates (review on #2553). */
+      generationExpression?: string;
       reason: string;
     }
   | {
@@ -289,6 +296,43 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     matchByDefinition: true,
     reason: "HNSW vector index (vector_embeddings_hnsw_1536) — without it, KNN queries sequential-scan",
   },
+  // ── 2026-09-18 · embedding source-shadow (#2430) ────────────────
+  // Added because the sentinel was BLIND to the columns that landed with it:
+  // `/api/system/schema-drift` would have reported green with
+  // `sourceUnavailableAt` missing, while knnSearch errored on every call. An
+  // instrument consulted about schema drift that cannot see the newest schema
+  // is worse than no instrument, because it answers.
+  //
+  // The failure is invisible rather than loud, which is why it needs a guard:
+  // knnSearch catches, returns null, and semanticSearch falls through to the
+  // legacy in-memory cosine scan — correct results, but that scan under
+  // getContextualMemories' 3s withTimeout (fallback `""`) means the brain
+  // block silently drops out of the prompt instead of surfacing an error.
+  {
+    kind: "column_exists",
+    table: "vector_embeddings",
+    column: "sourceUnavailableAt",
+    nullable: true,
+    reason: "knnSearch filters `AND \"sourceUnavailableAt\" IS NULL` unconditionally (pgvector.ts) — dropping it errors every KNN query, which degrades SILENTLY to the in-memory scan",
+  },
+  {
+    kind: "column_exists",
+    table: "vector_embeddings",
+    column: "sourceUnavailableReason",
+    nullable: true,
+    reason: "written by the shadow sweeper (lib/db/embedding-shadow.ts) — dropping it breaks the sweep write, so the marks stop being maintained and the filter above silently goes stale",
+  },
+  {
+    kind: "index_exists",
+    table: "vector_embeddings",
+    // Matched by DEFINITION, not name, for the same reason as the HNSW entry
+    // above: this is a PARTIAL index (`WHERE "sourceUnavailableAt" IS NOT
+    // NULL`), and a plain btree on the same columns would satisfy a
+    // name-or-column check while losing the property that makes it useful.
+    indexName: "WHERE (\"sourceUnavailableAt\" IS NOT NULL)",
+    matchByDefinition: true,
+    reason: "partial index vector_embeddings_source_unavailable_idx — the sweeper's lookups sequential-scan a ~97k-row table without it, and nothing in lib/ references it by name so its loss is otherwise undetectable",
+  },
   {
     kind: "column_exists",
     table: "prompt_versions",
@@ -339,6 +383,32 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     matchByDefinition: true,
     reason: "GIN index over searchable_tsv — without it, chat FTS sequential-scans",
   },
+  // 2026-09-22 · brain_memories.content_tsv: GENERATED STORED tsvector + GIN (migration
+  // 20260923000000_brain_content_tsv). The brain FTS readers filter AND rank on it. Same
+  // db-push exposure as chat_messages.searchable_tsv (Prisma cannot model the generator);
+  // without the column every brain FTS query errors and the lexical lane degrades to [].
+  {
+    kind: "column_exists",
+    table: "brain_memories",
+    column: "content_tsv",
+    nullable: true,
+    dataType: "tsvector",
+    // Postgres's canonical spelling of the migration's expression, read back from production 2026-09-23 00:24Z.
+    generationExpression: "to_tsvector('english'::regconfig, content)",
+    reason: "stored GENERATED tsvector for the brain FTS lane - the readers trust it instead of parsing content (1.9 s per query); an ordinary or differently generated column would serve them a value nothing maintains",
+  },
+  {
+    // Matched by DEFINITION, not by name (review on #2553): an index that merely carries the
+    // name - the old expression index renamed under it, or a btree - would pass a name check
+    // while the readers scan. The ILIKE runs server-side, so a wrong definition returns no row
+    // and reads as missing. Production indexdef, verified 2026-09-23 00:24Z:
+    // CREATE INDEX brain_memories_content_tsv_idx ON public.brain_memories USING gin (content_tsv)
+    kind: "index_exists",
+    table: "brain_memories",
+    indexName: "USING gin (content_tsv)",
+    matchByDefinition: true,
+    reason: "GIN over the STORED content_tsv - a name-only match would accept the wrong index and the brain FTS lane would scan 57k rows",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────
@@ -368,6 +438,9 @@ interface ColumnRow {
   column_name: string;
   is_nullable: "YES" | "NO";
   data_type: string;
+  /** information_schema.columns.is_generated: "ALWAYS" | "NEVER" (Postgres 12+). */
+  is_generated?: string | null;
+  generation_expression?: string | null;
 }
 
 async function checkColumnExists(
@@ -382,7 +455,9 @@ async function checkColumnExists(
   const rows = await prisma.$queryRaw<ColumnRow[]>`
     SELECT column_name::text AS column_name,
            is_nullable::text AS is_nullable,
-           data_type::text AS data_type
+           data_type::text AS data_type,
+           is_generated::text AS is_generated,
+           generation_expression::text AS generation_expression
     FROM information_schema.columns
     WHERE table_schema = 'public'
       AND table_name = ${e.table}
@@ -403,6 +478,31 @@ async function checkColumnExists(
         severity: "medium",
         expectation: e,
         problem: `column "${e.table}"."${e.column}" nullability mismatch — expected ${e.nullable ? "nullable" : "NOT NULL"}, got ${rows[0].is_nullable}`,
+      };
+    }
+  }
+  // Type and generation are HIGH: the readers do not derive this value, they trust it. A wrong type
+  // breaks their SQL; an ordinary or differently generated column serves a value nothing maintains.
+  if (e.dataType && rows[0].data_type !== e.dataType) {
+    return {
+      severity: "high",
+      expectation: e,
+      problem: `column "${e.table}"."${e.column}" type mismatch — expected ${e.dataType}, got ${rows[0].data_type}`,
+    };
+  }
+  if (e.generationExpression) {
+    if (rows[0].is_generated !== "ALWAYS") {
+      return {
+        severity: "high",
+        expectation: e,
+        problem: `column "${e.table}"."${e.column}" is not a generated column (is_generated=${rows[0].is_generated ?? "unknown"}) — nothing maintains its value, readers trust it`,
+      };
+    }
+    if ((rows[0].generation_expression ?? "") !== e.generationExpression) {
+      return {
+        severity: "high",
+        expectation: e,
+        problem: `column "${e.table}"."${e.column}" generation expression drift — expected ${e.generationExpression}, got ${rows[0].generation_expression ?? "null"}`,
       };
     }
   }

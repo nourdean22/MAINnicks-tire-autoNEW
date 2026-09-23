@@ -22,7 +22,12 @@ import {
   loadScenarios,
   runDryRun,
 } from "./run-suite";
-import { scenarioCategoryValues, scenarioSchema } from "./types";
+import {
+  REQUIRES_TOOLS_TAG,
+  requiresToolRunner,
+  scenarioCategoryValues,
+  scenarioSchema,
+} from "./types";
 
 describe("eval suite · scenario JSON contract", () => {
   it("every scenario file conforms to the Scenario schema", async () => {
@@ -114,7 +119,7 @@ describe("Scenario schema · representative cases", () => {
 
 describe("runDryRun", () => {
   it("returns a SuiteReport with mode='dry-run' and no results", async () => {
-    const report = await runDryRun({ args: { live: false, filter: null, outPath: null } });
+    const report = await runDryRun({ args: { live: false, filter: null, outPath: null, tools: false } });
     expect(report.mode).toBe("dry-run");
     expect(report.results).toEqual([]);
     expect(report.summary.ranScenarios).toBe(0);
@@ -123,7 +128,7 @@ describe("runDryRun", () => {
   });
 
   it("respects category filter", async () => {
-    const report = await runDryRun({ args: { live: false, filter: "decision", outPath: null } });
+    const report = await runDryRun({ args: { live: false, filter: "decision", outPath: null, tools: false } });
     expect(report.filter).toBe("decision");
     // ≥1 decision scenario should exist
     expect(report.summary.totalScenarios).toBeGreaterThanOrEqual(1);
@@ -137,7 +142,9 @@ describe("formatSummaryLine", () => {
       mode: "dry-run",
       filter: null,
       results: [],
-      summary: { totalScenarios: 7, ranScenarios: 0, passing: 0, flagged: 0, errored: 0, meanComposite: 0 },
+      skipped: [],
+      toolReplay: false,
+      summary: { totalScenarios: 7, ranScenarios: 0, passing: 0, flagged: 0, errored: 0, skipped: 0, toolRuns: 0, meanComposite: 0 },
       durationMs: 12,
     });
     expect(line).toContain("dry-run");
@@ -151,21 +158,80 @@ describe("formatSummaryLine", () => {
       mode: "live",
       filter: null,
       results: [],
+      skipped: [{ scenarioId: "needs-tools", reason: "tagged requires-tools" }],
+      toolReplay: false,
       summary: {
-        totalScenarios: 7,
+        totalScenarios: 8,
         ranScenarios: 7,
         passing: 5,
         flagged: 1,
         errored: 1,
+        skipped: 1,
+        toolRuns: 0,
         meanComposite: 7.4,
       },
       durationMs: 18_400,
     });
     expect(line).toContain("live");
-    expect(line).toContain("7/7");
+    expect(line).toContain("7/8");
     expect(line).toContain("5 passing");
     expect(line).toContain("1 flagged");
+    expect(line).toContain(`1 skipped (${REQUIRES_TOOLS_TAG})`);
     expect(line).toContain("mean 7.4/10");
+    expect(line).not.toContain("tool replay");
+  });
+
+  it("names the stubbed tool replay in the line only when --tools was on", () => {
+    const line = formatSummaryLine({
+      ranAt: "2026-09-22T12:00:00.000Z",
+      mode: "live",
+      filter: null,
+      results: [],
+      skipped: [],
+      toolReplay: true,
+      summary: { totalScenarios: 8, ranScenarios: 8, passing: 8, flagged: 0, errored: 0, skipped: 0, toolRuns: 3, meanComposite: 8.1 },
+      durationMs: 1_000,
+    });
+    expect(line).toContain("3 via stubbed tool replay");
+  });
+});
+
+describe("requires-tools · corpus invariant (2026-09-22)", () => {
+  // A criterion that demands a REAL tool action cannot be satisfied by the
+  // live runner (aiChat has no tools; see REQUIRES_TOOLS_TAG in types.ts).
+  // The sweep keys on the tool names and action phrases the repair-mined
+  // criteria actually use, not on prose that merely mentions a tool (the
+  // persona set's "no search tool is attached" lives in contextSetup and is
+  // deliberately outside it). Measured 2026-09-22: 8 of 50 match — exactly
+  // the eight the PR #2487 review counted.
+  const TOOL_ACTION =
+    /\b(searchTools|invokeTool|createTask|searchMemories|real tool call|retries (the generation|retrieval)|attempts the lookup)\b/i;
+
+  function demandsToolAction(s: { judgeCriteria: Array<{ description: string }>; expectedBehavior?: string }): boolean {
+    return [...s.judgeCriteria.map((c) => c.description), s.expectedBehavior ?? ""].some((t) => TOOL_ACTION.test(t));
+  }
+
+  it("every scenario whose criteria demand a tool action carries the tag", async () => {
+    const { scenarios } = await loadScenarios();
+    const demanding = scenarios.filter(demandsToolAction);
+    // Positive control first: a sweep that finds nothing is a broken sweep,
+    // not a clean corpus.
+    expect(demanding.length, "tool-action sweep matched no scenario").toBeGreaterThanOrEqual(1);
+    for (const s of demanding) {
+      expect(requiresToolRunner(s), `${s.id} demands a tool action but is not tagged ${REQUIRES_TOOLS_TAG}`).toBe(true);
+    }
+  });
+
+  it("canary: the sweep fires on a real repair criterion, and the tag check reads only the tag", () => {
+    expect(
+      demandsToolAction({
+        judgeCriteria: [{ description: "Actually attempts the lookup again through a different path" }],
+      }),
+    ).toBe(true);
+    expect(demandsToolAction({ judgeCriteria: [{ description: "Leads with the answer." }] })).toBe(false);
+    expect(requiresToolRunner({ tags: ["repair-mined"] })).toBe(false);
+    expect(requiresToolRunner({ tags: ["repair-mined", REQUIRES_TOOLS_TAG] })).toBe(true);
+    expect(requiresToolRunner({})).toBe(false);
   });
 });
 

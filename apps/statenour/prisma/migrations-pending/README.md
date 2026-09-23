@@ -4,6 +4,35 @@ Migrations parked here are NOT in the live `prisma/migrations/`
 directory · `prisma migrate deploy` will not apply them. Move
 them back when ready.
 
+## ✅ 2026-09-18 — THIS DIRECTORY IS EMPTY, AND THAT IS THE CORRECT STATE
+
+It held five migrations for weeks. Measured read-only against Neon prod on
+2026-09-17, **all five were already applied** — the directory's whole premise,
+"not yet applied", was false for every entry in it.
+
+★ A "pending" directory that is 100% applied is worse than an empty one: it
+tells every reader there is outstanding schema work, and it would hide a
+genuinely pending entry behind five that are not. The same stale-cache defect
+this repo keeps finding in comments and doc headers, wearing a directory for a
+costume.
+
+**They were applied through the guarded endpoint, which deliberately does NOT
+write `_prisma_migrations`** (#1231). So the ledger had no row, `prisma/migrations/`
+had no dir, and `prisma migrate status` read "Database schema is up to date!"
+*precisely because neither side knew they existed.* ⚠ **A green `migrate status`
+is not evidence a migration was recorded** — it compares the ledger against the
+directory, and a migration missing from both is invisible to it.
+
+**Resolved 2026-09-18 (operator-directed): promoted + recorded.** Each was moved
+to `prisma/migrations/<name>/` and then `prisma migrate resolve --applied <name>`.
+`cron_job_log_result_count` already had both and only its stale copy here was
+removed. Ledger went 57 -> 61 rows; `migrate status` reads 61 found, up to date.
+
+⚠ BOTH HALVES OR NEITHER, if you ever do this again: a dir with no ledger row
+turns `migrate status` RED, and a ledger row with no dir is the 2026-07-30
+orphan incident (9 rows deleted). Promotion preserves the SQL as history;
+deleting them would have lost it, which is why it was the operator's call.
+
 > **Preferred path — no prod creds needed (use this).** Apply via the guarded
 > endpoint `POST /api/system/apply-pending-migration { name }`. It runs an
 > idempotent (IF NOT EXISTS) copy of the migration's statements from inside the

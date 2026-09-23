@@ -14,6 +14,7 @@
  * Server-side memo'd 60s; client polls every 60s.
  */
 import { useState } from "react";
+import { compileRecoverySms, type CompiledSms, type ObservedCallFacts } from "@shared/smsFactCompiler";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import {
@@ -70,6 +71,7 @@ import {
   prettyReason,
   maskPhone,
   prettyOutcome,
+  EXCLUSION_LABELS,
 } from "./voice/format";
 import { DateRangeSelector } from "./voice/DateRangeSelector";
 import { FilterChip } from "./voice/FilterChip";
@@ -97,7 +99,29 @@ export default function VoiceReceptionistSection() {
   // defaulted to 7 days back · clicking "Custom" fresh silently
   // double-counted with the "Last 7 days" preset. Default to TODAY
   // so "Custom" is opt-in narrowing, not duplicate widening.
-  const [rangePreset, setRangePreset] = useState<RangePreset>("today");
+  /**
+   * DEFAULTS TO 7 DAYS, NOT TODAY, BECAUSE TODAY CANNOT CONTAIN SCORED CALLS.
+   *
+   * Measured 2026-09-18: the page opened on "today" and read `0 v1 · 25 legacy
+   * excluded`, with every ratio saying "not enough denominator". Nothing was
+   * broken. Two cadences make it structural:
+   *
+   *   1. `vapi-call-eval` is a TIER 4 job — it runs once every 24 hours
+   *      (`server/cron/scheduler.ts`, "TIER 4 (24 hr)").
+   *   2. Inside that job a call is deferred unless VAPI's analysis is ready OR
+   *      the call is already 24h old (`jobs/vapiCallEval.ts`, `analysisReady`).
+   *
+   * So a call taken this afternoon is scored on a later tick, never this one.
+   * The default window was the ONE window guaranteed to be empty — and it
+   * auto-polled every 60 seconds to show the same zeros, which is how an
+   * honest "Awaiting v1 evaluations" badge becomes wallpaper the operator
+   * learns to ignore.
+   *
+   * 7 days is the shortest preset that can contain evaluated calls. "Today" is
+   * still one click away and still auto-polls, because live call volume IS
+   * same-day truth — it is the SCORED metrics that are not.
+   */
+  const [rangePreset, setRangePreset] = useState<RangePreset>("7d");
   const [customSince, setCustomSince] = useState<string>(() => defaultDateString(0));
   const [customUntil, setCustomUntil] = useState<string>(() => defaultDateString(0));
 
@@ -140,6 +164,20 @@ export default function VoiceReceptionistSection() {
   }, {
     staleTime: 60_000,
   });
+
+  /**
+   * The denominators the wall never showed.
+   *
+   * "1,118 pending" was rendered as missed revenue while being, in large part,
+   * a census of calls that were ANSWERED. This returns the same population
+   * decomposed by lane and by stated exclusion reason, so "where did the other
+   * rows go" has an answer on screen instead of becoming a support question.
+   */
+  const {
+    data: queueSummary,
+    isError: queueSummaryError,
+    isLoading: queueSummaryLoading,
+  } = trpc.vapi.getRecoveryQueueSummary.useQuery({ days: 90 }, { staleTime: 60_000 });
 
   const updateQueueMutation = trpc.vapi.updateQueueStatus.useMutation({
     onSuccess: () => {
@@ -213,32 +251,44 @@ export default function VoiceReceptionistSection() {
     );
   };
 
-  const getSmsDraft = (intents: string[], outcome: string): string => {
-    if (intents.includes("used_tire") || intents.includes("tire_size_request")) {
-      return "Thanks for calling Nick’s Tire & Auto. Used tire availability changes quickly. Stop by 17625 Euclid Ave and we’ll check available options for your vehicle.";
-    }
-    if (intents.includes("new_tire")) {
-      return "Thanks for calling Nick’s Tire & Auto. We stock all major brands of new tires. Stop by 17625 Euclid Ave and we'll show you options and give you a written quote.";
-    }
-    if (intents.includes("flat_tire") || intents.includes("tire_leak")) {
-      return "Thanks for calling Nick’s Tire & Auto. Bring your vehicle by 17625 Euclid Ave and we'll inspect the tire leak. Flat repairs are done while you wait.";
-    }
-    if (intents.includes("brakes") || intents.includes("suspension") || intents.includes("exhaust")) {
-      return "Thanks for calling Nick’s Tire & Auto. You can bring the vehicle in or drop it off at 17625 Euclid Ave and we’ll inspect it before any work is approved.";
-    }
-    if (intents.includes("diagnostics") || intents.includes("check_engine")) {
-      return "Thanks for calling Nick’s Tire & Auto. Bring the vehicle in for a free diagnostic light check and quote before 6 PM today.";
-    }
-    if (intents.includes("battery") || intents.includes("alternator") || intents.includes("starter")) {
-      return "Thanks for calling Nick’s Tire & Auto. Stop by 17625 Euclid Ave for a free battery and alternator test. We can replace batteries on the spot.";
-    }
-    if (intents.includes("oil_change") || intents.includes("alignment")) {
-      return "Thanks for calling Nick’s Tire & Auto. Oil changes and alignments are handled on a first-come, first-served basis. Swing by the shop at your convenience.";
-    }
-    // 2026-07-20 · never apologize for missing a call we may well have taken —
-    // this is the no-intent-matched fallback and fires regardless of whether the
-    // caller reached a human. Keep it neutral and forward-looking.
-    return "Thanks for calling Nick’s Tire & Auto. Let us know what you need, or stop by 17625 Euclid Ave.";
+  /**
+   * 2026-09-18 · replaced eight hardcoded paragraphs with the fact compiler.
+   *
+   * The previous implementation selected among eight literal strings by intent
+   * flag and interpolated NOTHING — not the caller's name, vehicle, tire size,
+   * quantity or urgency, all of which the assistant had already heard. Worse,
+   * the strings made claims the shop cannot verify from a React component:
+   * "we stock all major brands", "flat repairs are done while you wait",
+   * "free battery and alternator test", and a hardcoded "before 6 PM today"
+   * that was false every Sunday, when the shop closes at 4.
+   *
+   * `compileRecoverySms` lives in `shared/`, so this preview is the EXACT
+   * string the server would send — a preview that differs from the send is not
+   * a preview. It states only observed facts, canonical shop facts (address,
+   * phone, TODAY'S real hours) and asks, and it reports what it refused to
+   * claim so the operator can see the restraint.
+   */
+  const buildSmsDraft = (item: {
+    demand?: Partial<ObservedCallFacts> | null;
+    customerName?: string | null;
+    transferFailed?: boolean;
+    evalOutcome?: string;
+    intents?: string[];
+  }): CompiledSms => {
+    const d = item.demand ?? {};
+    return compileRecoverySms(
+      {
+        customerName: item.customerName ?? null,
+        tireSize: d.tireSize ?? null,
+        vehicle: d.vehicle ?? null,
+        quantity: d.quantity ?? null,
+        condition: d.condition ?? null,
+        urgency: d.urgency ?? null,
+        transferFailed: item.transferFailed === true,
+        callbackRequested: item.evalOutcome === "callback_needed",
+      },
+      { now: new Date(), isFirstInThread: true },
+    );
   };
 
   const reasonsChart = m
@@ -295,7 +345,18 @@ export default function VoiceReceptionistSection() {
        * door anywhere. This is the door. */}
       <AttributionReviewCard />
 
-      <VoiceAchievements />
+      {/* ─── wave-181.67: Live in-flight calls (Phase 4 state machine) ──
+          Real-time roster of calls the agent is currently handling +
+          their position in the 5-state flow (greeted → intent → tool →
+          confirmed → ended). 5s refetch interval. Hides itself when
+          zero calls are in flight so quiet hours stay clean.
+
+          2026-09-18 · PROMOTED above routing config and gamification. A
+          customer talking to Nick RIGHT NOW outranks a configuration card and
+          an XP gauge; it previously rendered below both. The card already
+          hides itself when nothing is in flight, so promoting it costs a quiet
+          day nothing. */}
+      <LiveCallsCard onSelectCall={setSelectedCallId} />
 
       {/* ─── Transfer destination quick-control ─────── */}
       <TransferDestinationCard />
@@ -304,13 +365,6 @@ export default function VoiceReceptionistSection() {
           Compact sub-card. Lives below the receptionist card so the
           operator sees both phone-routing surfaces at a glance. */}
       <FollowUpTransferCard />
-
-      {/* ─── wave-181.67: Live in-flight calls (Phase 4 state machine) ──
-          Real-time roster of calls the agent is currently handling +
-          their position in the 5-state flow (greeted → intent → tool →
-          confirmed → ended). 5s refetch interval. Hides itself when
-          zero calls are in flight so quiet hours stay clean. */}
-      <LiveCallsCard onSelectCall={setSelectedCallId} />
 
       {/* wave-181.x Voice Phase 5 ELON cut · OutboundCallCard deleted
        * (~102 LOC inline + ~5 KB of UI). Per audit agent HIGH-confidence
@@ -355,7 +409,7 @@ export default function VoiceReceptionistSection() {
               : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
-          Missed Revenue Queue
+          Needs Attention
           {/* The old pill rendered on `activeTab !== "queue"` alone — a
               permanent red badge with zero connection to queue contents. A
               badge that is always on trains the operator to ignore red
@@ -675,8 +729,184 @@ export default function VoiceReceptionistSection() {
           </Panel>
         </div>
       ) : (
-        /* ─── Missed Revenue Queue Tab ──────────────────────── */
+        /* ─── Needs Attention Tab ────────────────────────────────
+             Renamed 2026-09-18. "Missed Revenue" asserted that every row was
+             money the shop lost — a claim the data never supported, and which
+             this wave measured as substantially false: a large share were calls
+             that had been ANSWERED. The label now states what the operator is
+             being asked to do, which is the only thing the row can prove. */
         <div className="space-y-4">
+          {/*
+            WHERE THE ROWS WENT. The operator used to face a 1,118-row wall
+            labelled "Missed Revenue" — a number that was never a count of
+            recoverable demand. Rows are now episodes (one customer, one need),
+            and everything NOT in the recovery lane is accounted for here under
+            a stated reason rather than silently filtered away. A queue that
+            shrinks without explaining itself is a queue nobody trusts.
+          */}
+          {queueSummaryLoading ? (
+            <div className="bg-card border border-border/20 rounded-lg p-4 text-xs text-muted-foreground">
+              Loading the call population…
+            </div>
+          ) : queueSummaryError ? (
+            /* Unknown, never zero — the same contract as the queue read above. */
+            <div className="bg-card border border-amber-500/30 rounded-lg p-4 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                Call population unreadable — the breakdown below is{" "}
+                <span className="text-amber-400 font-medium">unknown, not empty</span>. The roster
+                itself may still be accurate; this panel is not.
+              </p>
+            </div>
+          ) : queueSummary ? (
+            <div className="bg-card border border-border/20 rounded-lg p-4 space-y-3">
+              <div className="flex items-baseline gap-3 flex-wrap">
+                <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Needs attention
+                </span>
+                <span className="text-2xl font-semibold text-foreground tabular-nums">
+                  {queueSummary.needsAttention}
+                </span>
+                {queueSummary.slaBreached > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400">
+                    {queueSummary.slaBreached} past its response target
+                  </span>
+                )}
+                <span className="text-xs text-muted-foreground ml-auto">
+                  from {queueSummary.sourceCallCount.toLocaleString()} call records ·{" "}
+                  {queueSummary.windowDays}d
+                </span>
+              </div>
+
+              {Object.keys(queueSummary.exclusionCounts).length > 0 && (
+                <div className="pt-2 border-t border-border/10">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                    Not an obligation, and why
+                  </p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {Object.entries(queueSummary.exclusionCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([reason, count]) => (
+                        <span key={reason} className="text-xs text-muted-foreground">
+                          <span className="text-foreground font-medium tabular-nums">{count}</span>{" "}
+                          {EXCLUSION_LABELS[reason] ?? reason.replace(/_/g, " ")}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {queueSummary.transferConnect.attempted > 0 && (
+                /*
+                  DID THE TRANSFER REACH A HUMAN — the question no metric here
+                  could answer until now. Derived from the provider's own
+                  per-attempt status, never from `assistant-forwarded-call`,
+                  which means the transfer was INITIATED: a call that rang an
+                  empty counter carries that reason too.
+
+                  Coverage is printed FIRST and the rate renders "—" without it.
+                  VAPI gates blind-transfer outcome detection per organisation,
+                  so 0% coverage is a real and likely answer — and it must read
+                  as "we are not being told", not as a transfer problem or a
+                  clean bill of health.
+                */
+                <div className="pt-2 border-t border-border/10">
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1.5">
+                    Transfers — did they reach a human
+                  </p>
+                  {queueSummary.transferConnect.coveragePct === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="text-amber-400 font-medium">Not reported.</span> The phone
+                      provider returned no outcome for any of the{" "}
+                      <span className="text-foreground tabular-nums">
+                        {queueSummary.transferConnect.attempted}
+                      </span>{" "}
+                      transfer attempts, so connect rate is{" "}
+                      <span className="text-amber-400">unknown</span> — not good, not bad.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                      <span className="text-muted-foreground">
+                        <span className="text-emerald-400 font-medium tabular-nums">
+                          {queueSummary.transferConnect.connected}
+                        </span>{" "}
+                        reached a human
+                      </span>
+                      <span className="text-muted-foreground">
+                        <span className="text-red-400 font-medium tabular-nums">
+                          {queueSummary.transferConnect.notConnected}
+                        </span>{" "}
+                        reached nobody
+                      </span>
+                      {queueSummary.transferConnect.unknown > 0 && (
+                        <span className="text-muted-foreground">
+                          <span className="text-amber-400 font-medium tabular-nums">
+                            {queueSummary.transferConnect.unknown}
+                          </span>{" "}
+                          not reported
+                        </span>
+                      )}
+                      <span className="text-muted-foreground ml-auto">
+                        {queueSummary.transferConnect.connectRate === null
+                          ? "rate withheld — too few resolved to be meaningful"
+                          : `${queueSummary.transferConnect.connectRate}% connected, over ${queueSummary.transferConnect.coveragePct}% coverage`}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* DO THE TWO INSTRUMENTS AGREE?
+                      The provider verdict above and the caller's redial
+                      behaviour measure the transfer independently. When they
+                      CONTRADICT, that is the finding — and the implication
+                      decides where the money goes: a connected transfer whose
+                      caller redials is a counter problem, and every telephony
+                      fix would be spent on the wrong half of the call. */}
+                  {queueSummary.transferAgreement && (
+                    <div
+                      className={
+                        queueSummary.transferAgreement.verdict === "contradicted"
+                          ? "mt-2 border border-amber-400/30 bg-amber-500/5 p-2.5"
+                          : "mt-2 border border-border/20 bg-background/30 p-2.5"
+                      }
+                    >
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-foreground/50 mb-1">
+                        {queueSummary.transferAgreement.verdict === "contradicted"
+                          ? "The two transfer instruments disagree"
+                          : queueSummary.transferAgreement.verdict === "corroborated"
+                            ? "Both transfer instruments agree"
+                            : "Not enough data to compare the instruments"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {queueSummary.transferAgreement.detail}
+                      </p>
+                      {queueSummary.transferAgreement.implication && (
+                        <p className="text-[11px] text-amber-200/90 mt-1.5">
+                          {queueSummary.transferAgreement.implication}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {queueSummary.unclassified > 0 && (
+                /*
+                  UNKNOWN is its own state. These are calls whose speaker could
+                  not be attributed — mostly rows written before the customer
+                  speech record existed. Folding them into "no demand" would be
+                  asserting a measurement that was never taken.
+                */
+                <p className="text-[11px] text-muted-foreground pt-2 border-t border-border/10">
+                  <span className="text-amber-400 font-medium tabular-nums">
+                    {queueSummary.unclassified}
+                  </span>{" "}
+                  could not be read well enough to classify — not measured, not &ldquo;no
+                  demand&rdquo;.
+                </p>
+              )}
+            </div>
+          ) : null}
+
           <div className="flex items-center gap-2 flex-wrap mb-2">
             <span className="text-xs text-muted-foreground mr-1">Roster Status:</span>
             {(["pending", "reviewed", "converted", "came_in", "ignored"] as const).map((status) => (
@@ -714,7 +944,8 @@ export default function VoiceReceptionistSection() {
             <div className="space-y-4">
               {queueItems.map((item: any) => {
                 const outcome = prettyOutcome(item.evalOutcome);
-                const smsText = getSmsDraft(item.intents, item.evalOutcome);
+                const smsDraft = buildSmsDraft(item);
+                const smsText = smsDraft.body;
                 const recAction = 
                   item.evalOutcome === "callback_needed" ? "Call customer back immediately to schedule service." :
                   item.evalOutcome === "lost_opportunity" ? "Reach out to recover the repair/tire opportunity." :
@@ -731,9 +962,21 @@ export default function VoiceReceptionistSection() {
                           {item.customerName || maskPhone(item.phoneNumber)}
                         </span>
                         
-                        {item.isRepeatCaller && (
+                        {/* The old badge read "Repeat Caller (+3)" and fired on
+                            any number seen twice in NINETY DAYS - brakes in June
+                            and tires in September scored as urgency - and each
+                            call was its own row, so the badge inflated the very
+                            backlog it described. A row is now one EPISODE (same
+                            caller, same unresolved need, inside a day), so this
+                            states the contact count as a fact and claims no score. */}
+                        {item.contactCount > 1 && (
                           <span className="bg-rose-500/15 text-rose-400 text-[10px] px-2 py-0.5 rounded font-bold border border-rose-500/20">
-                            Repeat Caller (+3)
+                            Called {item.contactCount}x about this
+                          </span>
+                        )}
+                        {item.slaBreached && (
+                          <span className="bg-red-500/15 text-red-400 text-[10px] px-2 py-0.5 rounded font-bold border border-red-500/20">
+                            Past response target
                           </span>
                         )}
 
@@ -767,6 +1010,19 @@ export default function VoiceReceptionistSection() {
                       <div className="text-xs">
                         <span className="text-amber-400 font-semibold">Recommended Action:</span>{" "}
                         <span className="text-foreground/70">{recAction}</span>
+                        {/* 2026-09-18 - the priority score is now the SUM of
+                            these stated reasons, so the operator can audit the
+                            ranking instead of trusting it. An opaque number is a
+                            number nobody trusts and nobody can debug. */}
+                        {Array.isArray(item.priorityReasons) && item.priorityReasons.length > 0 && (
+                          <span className="block mt-1 text-[11px] text-muted-foreground">
+                            Why it ranks here:{" "}
+                            {item.priorityReasons
+                              .map((r: { label: string; delta: number }) =>
+                                r.label + " (" + (r.delta > 0 ? "+" : "") + r.delta + ")")
+                              .join(" · ")}
+                          </span>
+                        )}
                       </div>
 
                       {/* SMS Draft Sub-Panel */}
@@ -873,6 +1129,22 @@ export default function VoiceReceptionistSection() {
           </div>
         )}
       </div>
+
+      {/* 2026-09-18 · DEMOTED, and this time actually to the bottom.
+          XP, levels and badges reward call VOLUME, not outcomes, and return no
+          time, money or decision quality to the operator — while occupying the
+          vertical space above a customer who is on the phone right now. Kept
+          rather than deleted (harmless here, and the operator may enjoy it),
+          but it no longer outranks live demand.
+
+          THE FIRST ATTEMPT MOVED IT AND THEN OVERSTATED THE MOVE. It went below
+          Live Calls but stayed ABOVE the date range, the tabs, the Performance
+          Dashboard and the whole call list — while the comment and the shipped
+          completion evidence both said "to the bottom of the page". Caught by
+          loading the deployed page and reading the render order, not by any
+          gate. A wave about the UI making claims it cannot support should not
+          leave one in its own source. */}
+      <VoiceAchievements />
 
       {/* ─── Drawer: full transcript + tool calls ────── */}
       {selectedCallId && (

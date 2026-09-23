@@ -12,6 +12,9 @@ import * as path from "path";
 // a product that no longer exists — a checker that cries wolf gets ignored,
 // and then it stops catching the keys that DO matter.
 //
+// REDIS_URL was dropped 2026-09-23 with the Redis retirement: nothing in
+// apps/** reads it any more (lib/utils/cache.ts is in-process only).
+//
 // CARTESIA_API_KEY is deliberately NOT added: it is genuinely required (the
 // morning-brief TTS reads it), but this list is the pre-existing critical set
 // and widening it is a separate call.
@@ -21,7 +24,6 @@ const REQUIRED_KEYS = [
   "TWILIO_AUTH_TOKEN",
   "TWILIO_PHONE_NUMBER",
   "RESEND_API_KEY",
-  "REDIS_URL",
   "INNGEST_EVENT_KEY",
   "INNGEST_SIGNING_KEY",
 ];

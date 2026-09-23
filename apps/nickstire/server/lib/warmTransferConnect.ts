@@ -43,3 +43,15 @@ export function isTransferFailure(endedReason: string | null | undefined): boole
   return /transfer/i.test(r) && !isForwardCompleted(r);
 }
 
+/**
+ * An ATTEMPTED transfer of either outcome — a completed forward OR a failed
+ * hand-off. This is the population every transfer instrument is measured on:
+ * a call that never tried to hand off has no transfer outcome, and giving it
+ * one (even "unknown") dilutes the coverage question the artifact exists to
+ * answer. One definition, shared by the webhook that WRITES the artifact and
+ * the admin reader that scores it — they used to spell the same regex twice.
+ */
+export function isTransferAttempt(endedReason: string | null | undefined): boolean {
+  return isForwardCompleted(endedReason) || isTransferFailure(endedReason);
+}
+

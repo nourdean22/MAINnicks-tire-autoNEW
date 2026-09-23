@@ -78,7 +78,18 @@ export async function verifyAndRevise(
         { role: "system", content: PLAN_SYSTEM },
         { role: "user", content: `DRAFT ANSWER:\n${draft.slice(0, 4000)}` },
       ],
-      "fast",
+      // 2026-09-17 · was "fast". This surface is one of the six Langfuse shows
+      // failing (56 ERROR observations / 7d). `fast` is OLLAMA_FAST_MODEL under
+      // the 1500-token / 45s "terse responses" cap, and this call must emit a
+      // JSON array of verification questions — when it comes back empty or
+      // truncated the chain falls through to the METERED rescue tail, which
+      // then fails on billing. "reason" stays on the same flat un-metered
+      // Ollama subscription.
+      //
+      // ⚠ The ANSWER call below keeps "fast" deliberately: it returns prose
+      // (`res.content.trim()`), so it cannot fail to parse and does not cause
+      // the fall-through.
+      "reason",
       { signal: opts.signal },
     );
     if (!planRes.content || planRes.provider === "none") return noop;

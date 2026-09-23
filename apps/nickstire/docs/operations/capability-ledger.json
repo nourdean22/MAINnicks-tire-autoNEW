@@ -1272,9 +1272,10 @@
       "name": "Inbound SMS customer identity resolution + consent",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "#1149 — loadCustomerContext refuses an ambiguous phone match · 2026-08-09 — the opt-out vocabulary collapsed to ONE shared list (shared/smsOptOutKeywords.ts). It had drifted into three copies: the index query that decides suppression matched 10 words, while the inbound handler that reacts live and the instrumentation that attributes opt-outs each matched 5. Nobody went un-suppressed (the index re-derives from raw inbound bodies and is the real net), but STOPALL / REVOKE / OPT OUT produced no confirmation reply, no sms.opt_out compliance row, and stayed sendable until the 5-minute cache turned over",
+        "codeCommit": "#1149 — loadCustomerContext refuses an ambiguous phone match · 2026-08-09 — the opt-out vocabulary collapsed to ONE shared list (shared/smsOptOutKeywords.ts). It had drifted into three copies: the index query that decides suppression matched 10 words, while the inbound handler that reacts live and the instrumentation that attributes opt-outs each matched 5. Nobody went un-suppressed (the index re-derives from raw inbound bodies and is the real net), but STOPALL / REVOKE / OPT OUT produced no confirmation reply, no sms.opt_out compliance row, and stayed sendable until the 5-minute cache turned over 2026-09-23 OPT-OUT OVER-MATCH: the live unsubscribe rule in server/services/smsResponseParser.ts matched any reply that STARTS with a keyword, so a visit ('Stop by around 3?', 'stop over after work', 'End of the day works') silently unsubscribed the customer from every text. Only stop by/in/over/at/off and end of/up are now carved out and go to a person (they cannot be a revocation); every other reply opening with a keyword, punctuated or phrased ('Stop.', 'stop texting me'), still unsubscribes, since missing a real opt-out is the worse error.",
         "tests": [
-          "server/__tests__/smsOrchestrator.golden.test.ts (49): loadCustomerContext matched customers on LIKE '%'+last-10-digits with .limit(1) and no ORDER BY, so a shared household line, business number or recycled number resolved to a NON-DETERMINISTIC row. #988 feeds that row's name and vehicle into the drafter, and CONFIRM / CANCEL / estimate-approval replies MUTATE the booking, lead, callback and estimate selected by that same shared phone. AMBIGUITY NOW REFUSES every phone-linked facet, not just the name. The refusal is asymmetric on purpose: identity and history are withheld while `optOutOnAnyMatch` carries the MOST RESTRICTIVE opt-out across all matches and survives, so a disclosure fix cannot become a consent regression. Tests pin one-match (unchanged, facets still attached), two-match (every facet undefined), two-match-with-one-opted-out, no-match, and single-opted-out."
+          "server/__tests__/smsOrchestrator.golden.test.ts (49): loadCustomerContext matched customers on LIKE '%'+last-10-digits with .limit(1) and no ORDER BY, so a shared household line, business number or recycled number resolved to a NON-DETERMINISTIC row. #988 feeds that row's name and vehicle into the drafter, and CONFIRM / CANCEL / estimate-approval replies MUTATE the booking, lead, callback and estimate selected by that same shared phone. AMBIGUITY NOW REFUSES every phone-linked facet, not just the name. The refusal is asymmetric on purpose: identity and history are withheld while `optOutOnAnyMatch` carries the MOST RESTRICTIVE opt-out across all matches and survives, so a disclosure fix cannot become a consent regression. Tests pin one-match (unchanged, facets still attached), two-match (every facet undefined), two-match-with-one-opted-out, no-match, and single-opted-out.",
+          "24 in server/smsResponseParser.safety.test.ts: 17 opt-outs that must unsubscribe (STOP, Stop., stop!, STOP ALL, Opt-out, End., remove me, Stop texting me, ...) and 7 visits that must not; red 5 of 7 on the old rule. SMS suites after the change: 23 files, 357 passed."
         ]
       },
       "blockers": [
@@ -1837,6 +1838,612 @@
         "deploymentId": "railway statenour-web 4cb7dbf4d SUCCESS (23:58Z) then 6f5059b7c SUCCESS (00:46Z 2026-09-16); the nickstire half runs in GitHub Actions (nickstire-proof.yml run 35036353033 green, all 7 main workflows green for 4cb7dbf4d)"
       },
       "verificationExpiresAt": "2026-10-07"
+    },
+    {
+      "capabilityId": "voice-demand-speaker-attribution",
+      "name": "Voice demand is classified from CUSTOMER speech only; one taxonomy kernel decides queue membership",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18 (PR #2444). classifyCall scored transcript + aiSummary, which contains the assistant own turns. Nick greeting necessarily names the shop or the address, and both were load-bearing: \"17625 Euclid Ave\" matched euclid in inferredWalkIn -> walk_in_directed, and \"Nick Tire & Auto\" matched auto in the lost_opportunity fallback. Both are Missed Revenue Queue candidates, so a call where the caller never spoke produced a queue row, as did a caller who only asked closing time. MEASURED by executing the real function, not inferred. Fix: prefer VAPI role-tagged artifact.messages, fall back to prefix parsing via the already-built extractCustomerTurns (shipped 2026-07-26, wired to the webhook recorder and never to this decider), and expose speakerAttribution so coverage is measurable. shared/callTaxonomy.ts replaces ten hand-typed outcome lists and resolves two live contradictions (walk_in_directed was SUCCESS and MISSED REVENUE at once; tech_failure was not-a-valid-conversation and an operator obligation at once). server/services/recoveryQueue.ts collapses calls into episodes. 2026-09-22: TWO KERNEL INPUTS WIRED. buildRecoveryQueue had accepted invoicedPhones since it was written and no caller ever supplied it, and nothing wrote meta.invoiceMatched, so rule 5 (already invoiced) had never fired once - the moment an arrival reconciled to arrived, its phone left expectedArrivalPhones (today's expected only) and a walk_in_directed call from a customer who came and paid fell through to no arrival matched, manufacturing recovery work for a customer who had already paid. The arrived row IS the invoice match, so services/expectedArrivals.arrivalSignalsForQueue is now the producer, spread into the options at both router call sites: invoicedOnOrAfter carries the invoice DAY (invoiceMatched is true only when it is on or after the day of the episode's latest call, so a visit last week cannot suppress a new need today), and OPEN means still expected and not past the reconcile window rather than expected today, which had routed I'll come by tomorrow into recovery a day early. The retired set option was replaced, not kept beside its successor.",
+        "tests": "142 passed across 5 suites: vapiCallClassifierSpeakerAttribution.test.ts (mutation canary - varies the greeting and asserts the outcome does NOT move; before the fix that set was {walk_in_directed, lost_opportunity}), callTaxonomy.test.ts (parity against the classifier union, plus two canaries proving the parity check fails on a mismatch and matched real content), recoveryQueue.test.ts (94-call corpus collapsing to 1 actionable episode with all 93 others attributable to a stated exclusion reason, plus a positive control that 12 real demand episodes are NOT filtered), callDemandExtraction.test.ts, smsFactCompiler.test.ts. Full suite 8,190 passed / 663 files, typecheck exit 0. PLUS 4 in recoveryQueue.test.ts for the day comparison (on the call day closes; after closes; BEFORE does not; keyed by last-10 like every other phone fact) and 5 in reconcileExpectedArrivals.test.ts for the producer (open means in-window not today; invoice day from the RECONCILED invoice, latest per phone, formatted in SQL; junk dropped; FAILS OPEN to empty signals; keys shaped verbatim for the options spread). MUTATION VERIFIED: ignoring the invoice day turns exactly 1 red.",
+        "liveRuns": "NONE. No production call has been evaluated under the new classifier; the eval cron runs on deploy. No live Vapi config or production DB was touched. 2026-09-22: no production queue build has yet been observed with the two arrival signals supplied; the producer's SQL has not run against production. Unit tests exercise the seam, not the deployed page. 2026-09-22 (read-only): attribution measured at 100% on the 118 calls evaluated since deploy; tire-intent recall on that slice 3 sizes captured of 4 spoken, the miss being a width read digit by digit (fixed separately with the transcript as fixture).",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "MEASURED 2026-09-22, downgraded from P1 rather than deleted. Every call the eval cron has scored since this shipped (118 calls, 2026-09-18 onward) carries speakerAttribution = transcript; 105 have parsed customer speech and 13 have none at all (unparsed null - calls where the caller never spoke), so the queue does not thin: attribution coverage on evaluated rows is 100%. The remaining caveat is the window, not the instrument: the eval cron scores each call ONCE, so rows created before 2026-09-18 carry customerSpeech from the recorder but no attribution and no demand, and any 30-day metric over them reads as sparse. Read the count on getRecoveryQueueSummary with the window in mind. Original text: speakerAttribution coverage on real production rows is UNMEASURED. If prod transcripts are not speaker-prefixed and lack role-tagged messages, unattributable calls yield unknown (not a queue candidate) and the queue would thin sharply. The field exists precisely so this is observable rather than silent - read the unclassified count on getRecoveryQueueSummary after first deploy."
+        },
+        {
+          "severity": "P2",
+          "description": "Transfer connection rate is still not measurable. transferFailed derives from VAPI *-transfer-* error reasons only; assistant-forwarded-call means INITIATED, not answered. artifact.transfers[].status is the real signal and is not yet read."
+        },
+        {
+          "severity": "P2",
+          "description": "safetyFlag and existingVehicleAtShop have no writer, so the safety and operations lanes cannot fire from the queue path yet. expectedArrivalOpen and invoiceMatched are now injected by the router; these two are not."
+        }
+      ],
+      "deferredScope": [
+        "Ohio OAC 109:4-3-13 estimate/authorization guard (spec verified against primary rule text and recorded in docs/VOICE-RECOVERY-AUDIT-2026-09-18.md; deliberately NOT encoded this pass)",
+        "retiring the vapi.ts queue into revenue_opportunities, which already dedupes and has a guarded send path",
+        "reading artifact.transfers[].status from end-of-call-report"
+      ],
+      "lastVerifiedAt": "2026-09-22",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "voice-transfer-connect-truth",
+      "name": "Transfer outcome is read from the provider artifact, not inferred from assistant-forwarded-call",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. Every transfer metric in this app was built on endedReason === assistant-forwarded-call, which VAPI documents as confirming the transfer was INITIATED, not completed; its troubleshooting page sends you to the provider call log for the outcome. A call that rang an empty counter and dropped to voicemail therefore scored identically to one answered on the second ring. server/lib/transferArtifact.ts reads call.artifact.transfers[].status into a three-state verdict (connected / not_connected / unknown); the webhook persists it per call; recoveryQueue prefers it over the endedReason heuristic; getRecoveryQueueSummary exposes a connect rate that travels with its coverage. 2026-09-18 SECOND PASS: the two instruments are now COMPARED. Keeping them separate was recorded as deliberate - 'if they disagree, that disagreement is the finding' - and that was right and incomplete, because they were computed in two DIFFERENT tRPC procedures and nothing could ever compute the disagreement. lib/transferInstrumentAgreement.ts reports corroborated / contradicted / insufficient, and on a contradiction states WHAT IT IMPLIES: a provider-connected transfer whose caller redials is a COUNTER problem, so warm transfer, dialTimeout and sipVerb would all be spent on the wrong half of the call. Both instruments are computed from the rows getRecoveryQueueSummary already selects - no second query. 2026-09-23 THIRD WITNESS: the first production census counted 946 transfer attempts and a provider verdict on only 103. Vapi's transfer-update event was subscribed (services/vapi.ts serverMessages) but fell to the webhook's default branch, so an attempt whose call then ended another way (the caller hung up during the ring) left no record. The webhook now acks transfer-update and records state transfer_attempted on the voice_latency_events trail with the destination KIND only (never the number); at end of call, sawTransferUpdate reads the trail (assistant-to-assistant handoffs excluded) and transferArtifactWorthPersisting persists the artifact with transferUpdateSeen. The census reader counts it as attempted.",
+        "tests": "22 tests in server/lib/transferArtifact.test.ts plus 3 in recoveryQueue.test.ts. The load-bearing ones: a forwarded call with NO transfers array resolves to unknown and explicitly not connected; unknowns lower coverage rather than inflating the rate (8 connected + 2 not + 90 unknown = 80% at 10% coverage); all-unknown yields a null rate and 0% coverage, not 0% and not 100%; and a POSITIVE CONTROL proving the rate moves with the data, without which a function hardcoded to return null would pass every other assertion. PLUS 16 tests in server/__tests__/transferInstrumentAgreement.test.ts, most of them on the CONTRADICTION cases, which are the point. Both directions are covered: provider-healthy with callers redialling (counter problem) and provider-failing with callers quiet (they gave up, invisible to a redial-only instrument, and explicitly must not read as success). An UNRELIABLE redial rate is treated as absent even when a number exists. Threshold boundaries are pinned exactly at PROVIDER_HEALTHY_PCT and REDIAL_TROUBLE_PCT. Positive control asserts all three verdicts are reachable. MUTATION VERIFIED: disabling the contradiction branch turned 4 of 16 red. 84 server test files, 756 passed, exit 0. PLUS 7 in server/__tests__/transferUpdateWitness.test.ts and 1 route test in vapi.call-end-ack.test.ts (transfer-update acks and records transfer_attempted without the number); red on the old code (4 and 1 failed), green on the new.",
+        "liveRuns": "VERIFIED 2026-09-22, read-only against production TiDB. Vapi has run the receptionist (150fe622) on warm-transfer-experimental since 2026-09-21T13:57:43Z (script dry run: CURRENT plan equals TARGET). Since then: 31 calls, 11 assistant-forwarded-call, and every one of those 11 carries metadata.transferArtifact with artifactPresent true, transfers[0] = {mode: warm-transfer-experimental, destination: the counter number, rawStatus: connected, status: connected}, verdict connected. 109 calls all-time carry a transferArtifact. So the account DOES receive per-attempt transfer statuses and the webhook DOES persist them - the empirical question this capability was written around is answered yes. NOT observed: a not_connected verdict from the artifact. The one customer-ended-call-before-warm-transfer since the change (78 s) carries transfers: [] and verdict unknown; it still counts as a failure through isTransferFailure on the ended reason, which is the fallback path the kernel already takes. The fallbackPlan itself has not been seen firing: 0 callback_requests rows since the change. The reading was taken while deployment 5ac7ee28 (commit 0da19803f) was live; the rows were written by the same webhook code under the two prior deployments of main.",
+        "deploymentId": "5ac7ee28-2060-4ac2-b45e-91188fa06aa4"
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "RESOLVED 2026-09-22, downgraded from P1 rather than deleted. The question was whether this Vapi organisation receives a populated artifact.transfers at all. It does: every assistant-forwarded-call since 2026-09-21 (11 of 11) carries a per-attempt status, and 109 calls all-time carry the persisted artifact. What remains unobserved is a NOT-connected status from the provider, because no forward has rung out since the experimental plan went live. Original text: VAPI gates blind-transfer outcome detection PER ORGANISATION. Whether this account receives a populated artifact.transfers is empirical and unsettled. If it does not, coverage reads 0%, the connect rate stays null, and the panel says the provider reported nothing - which is correct behaviour, not a bug. artifactPresent is persisted per call specifically so this is answered from production data rather than from documentation."
+        },
+        {
+          "severity": "P2",
+          "description": "The redial-based instrument (transferOutcomeEvidence.ts) is deliberately NOT merged into this one. Two independent instruments on the same question is the design; if they disagree, that disagreement is the finding and should be investigated rather than averaged."
+        },
+        {
+          "severity": "P3",
+          "description": "RESOLVED 2026-09-22, kept at P3 rather than deleted. Since the experimental plan went live, 20 of 31 calls carried verdict unknown with transfers: [] because the webhook wrote the artifact whenever artifactPresent was true - i.e. for every call with a transcript - contradicting its own comment. The webhook now persists only when transferArtifactWorthPersisting(read, endedReason) says so: a per-attempt record, or an ended reason that proves a transfer was ATTEMPTED (isTransferAttempt, the same predicate the connect-rate reader filters on, so writer and reader score one population). Calls that never tried to hand off carry no verdict. The 20 historical rows keep their unknown verdict - no backfill; no reader ever treated unknown as failed."
+        },
+        {
+          "severity": "P2",
+          "description": "The fallbackPlan (assistant returns on no-answer and captures a callback) is DEPLOYED_NOT_OBSERVED: no call since 2026-09-21 has rung out at the counter, so the path that justified the experimental mode has never executed in production. The runbook's canary (call the line, let the destination ring out) remains the way to prove it; a not_connected artifact verdict or a callback_requests row created during a forwarded call would be the first evidence. CORRECTION 2026-09-23 (#2559): until #2559 a fired fallback could NOT create a callback_requests row — the prompt's CALLBACK CAPTURE ended in sendConfirmationSms only and escalate was forbidden while OPEN — so '0 callback rows since the change' was never evidence either way; only the absence of a not_connected verdict was. From #2559, once the operator pushes the config, CALLBACK CAPTURE calls escalate and a callback row during a forwarded call becomes real evidence."
+        },
+        {
+          "severity": "P2",
+          "description": "OPEN 2026-09-23: the transfer-update witness is built and tested but not yet observed in production. Proof needed: after deploy, one test call that is transferred shows a state_transfer_attempted row for its call id and a transferArtifact with transferUpdateSeen true. It proves an attempt, never an answer; verdict stays unknown without a provider status."
+        }
+      ],
+      "deferredScope": [
+        "sipVerb refer->dial and the warm-transfer-experimental canary are now DECIDABLE BY MEASUREMENT rather than taste, which is what the audit said they needed. Both are live VAPI config changes and remain operator-gated, but the agreement instrument now says whether they would help: if the verdict is contradicted with a counter-problem implication, they would not, and doing them anyway would be spending on the wrong half of the call."
+      ],
+      "lastVerifiedAt": "2026-09-22",
+      "codeState": "merged",
+      "operationalState": "live_verified",
+      "exposure": "internal",
+      "verificationExpiresAt": "2026-11-21"
+    },
+    {
+      "capabilityId": "voice-tire-safety-claim-guard",
+      "name": "Tire and AWD safety claims are detected, and every boundary is sourced to a primary document",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. PROHIBITED_VOICE_CLAIMS gains four tire-safety entries. These differ in kind from the rest of the guard: a fabricated wait time costs goodwill, a repairability verdict given over the phone can put an unsafe tire back on a car.",
+        "tests": "31 tests in voiceClaimGuardTireSafety.test.ts, EVERY ONE RUN IN BOTH DIRECTIONS - each violating phrase is paired with the correct phrasing of the same thought, which must stay clean. Plus a canary asserting the guard is not simply flagging all text, and a full compliant tire-safety script that must produce zero violations. 72 passed with the existing guard suite; 1,434 client tests green.",
+        "liveRuns": "NONE. No production call has been scored under the new patterns.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "DELIBERATELY UNDER-MATCHING. Only unhedged verdicts fire, so real violations phrased tentatively will be missed. This is the safe direction for a detector that cannot block speech - the module header records that a guessing detector buries the claims that cost money - but it means a clean report is not proof of a clean call."
+        },
+        {
+          "severity": "P2",
+          "description": "DETECTION ONLY. VAPI streams to TTS with no pre-speech hook, so this cannot prevent an utterance. It makes drift visible after the fact; the prompt remains the only preventive control."
+        }
+      ],
+      "deferredScope": [
+        "Ohio OAC 109:4-3-13 estimate/authorization guard - spec verified, no consumer exists because ALG is read-only",
+        "repair-intake guardrails (symptom capture vs diagnosis) SHIPPED 2026-09-18 as voice-repair-intake-claim-guard - see that entry; this line is kept so the history shows it was deferred and then closed, not quietly dropped"
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "voice-repair-intake-claim-guard",
+      "name": "The assistant is scored for naming a failed part, or ruling on whether the car is safe to drive",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. PROHIBITED_VOICE_CLAIMS gains two repair-intake entries, covering the half of phone traffic the tire claims do not: a caller describing a symptom on a car nobody has seen. No primary document is cited because the boundary is epistemic rather than regulatory - a noise the assistant has not heard cannot be attributed to a part. The same commit corrects the alert legend in vapiCallEval.ts, which had said 'repair quotes, live stock, capacity/wait promises' since 2026-07-27 and by then omitted six of the twelve classes it was legending.",
+        "tests": "36 tests in voiceClaimGuardRepairIntake.test.ts, every one run in both directions. The CLEAN cases are the point, and five of them exist because of a SELF-REVIEW CATCH: the first version applied the conditional lookbehind to two of the three drivability branches and left the ability branch bare, so ordinary scheduling speech - let me know IF YOU CAN MAKE IT HERE before six - scored as a safety verdict. Every CLEAN test written at the time exercised the two guarded branches. The lookbehind is now one NOT_CONDITIONAL constant each branch must use. MUTATION VERIFIED TWICE: renaming the phone_diagnosis_verdict label turned 10 of the tests red, and emptying NOT_CONDITIONAL turned 9 red. 108 passed across all three claim-guard suites; 78 server test files, 711 passed; typecheck exit 0.",
+        "liveRuns": "NONE. No production call has been scored under the new patterns.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "DELIBERATELY UNDER-MATCHING, same as the tire block. Only unhedged verdicts fire, and the hedge allowance is implemented by omission - the pattern has no adverb slot, so 'it's probably the alternator' never matches. A tentatively phrased real violation is missed on purpose. A clean report is not proof of a clean call."
+        },
+        {
+          "severity": "P2",
+          "description": "The part list is the common intake vocabulary, not a catalogue. An unnamed part is a missed violation. Padding the list with ambiguous words (belt, line, pump) would fire on ordinary speech, and noise buries the claims that cost money."
+        },
+        {
+          "severity": "P1",
+          "description": "DETECTION ONLY, and this cannot be fixed in code. VAPI streams model output straight to TTS with no pre-speech hook, so nothing here prevents an utterance. The operator signal is the daily Telegram aggregate in vapiCallEval.ts, which fires only when a violation is found or when coverage collapses."
+        }
+      ],
+      "deferredScope": [
+        "Ohio OAC 109:4-3-13 authorization language. The rule was read in full and its estimate and authorization duties attach to work performed, not to a telephone enquiry; the fifty dollar floor does not reach a phone call, and the 2026-03-21 amendment is editorial. There is no unsupported claim for a guard to catch here, so no pattern was written. Recorded so the question is not re-opened as though it were unexamined.",
+        "Free-diagnosis promises. Deliberately NOT guarded: the free tire check is a verified-true shop claim, and a pattern wide enough to catch an invented free engine diagnosis would flag the true one. Needs a narrower subject than a regex can honestly decide."
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "voice-eval-cadence-honesty",
+      "name": "A zero on the voice scorecard says whether it is too soon or the pipeline is stalled",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. The scorecard read 0 v1 / 25 legacy excluded with every ratio saying 'not enough denominator', and NOTHING WAS BROKEN. vapi-call-eval is a TIER 4 job (24h) and additionally defers each call until its provider analysis is ready or the call is 24h old, so a same-day call cannot be scored the same day - while the page defaulted to the 'today' range and auto-polled it every 60 seconds. The default view was the one window guaranteed to be empty. Four changes: the default range is now 7d (the shortest preset that can contain scored calls); voiceScorecard returns an evaluation block carrying evalCadenceHours and oldestUnversionedAt; VoiceBrief renders three states instead of one permanent amber badge; and 'legacy excluded' became 'awaiting scoring' when the calls are merely pending, because the count was identical while the meaning was opposite.",
+        "tests": "17 tests in client/src/__tests__/voice-eval-cadence.test.ts, importing the REAL classifyEvaluationLag rather than re-implementing it - a test that reproduces its subject is a proxy and passes while the code is wrong. MUTATION VERIFIED: hardcoding the classifier to 'pending' turned 10 of the 17 red. Positive controls pin that it returns BOTH values across the range (a constant would satisfy every one-sided case) and that the cadence is load-bearing (60h is behind at a 24h cadence and pending at 48h). 1,379 client tests, 87 files; 695 server tests, 80 files; typecheck exit 0.",
+        "liveRuns": "NONE. The change has not been observed on a deployed page.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "VoiceBrief is still hardcoded to startOfTodayIso() and ignores the range selector entirely. Its SCORED tiles therefore remain structurally empty on a normal day; only its honesty improved, not its content. Making it follow the selector is a larger change that would mix two windows in one panel, and was not attempted."
+        },
+        {
+          "severity": "P2",
+          "description": "The 2x-cadence threshold is a judgement, not a measurement. It is derived from the server-reported cadence rather than hardcoded, but nobody has yet observed how long a healthy pipeline actually takes in production. If real scoring routinely lands past 48h the amber badge becomes wallpaper again - which is the exact failure this change removed."
+        }
+      ],
+      "deferredScope": [
+        "Running vapi-call-eval more often than daily. Not attempted: the provider-analysis defer would still hold a call for up to 24h, so a faster tier buys far less than it appears to and costs provider fetches on every tick."
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "vapi-assistant-resolution-determinism",
+      "name": "An operator edit lands on a named assistant, and the panel says whether that assistant answers the phone",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. Surfaced by the operator pushing Vapi config. THAT PUSH WAS CORRECT - production logged Updated Vapi assistant id=150fe622-0b9f-4b03-b8c7-3063812717ae, POST 200, the env-pinned inbound receptionist, exactly as the wave-113b fix intended. But the same panel lists TWO assistants both named \"Nick s Tire & Auto Receptionist\" (afcad79e and 150fe622) plus a separately-named follow-up. pickReceptionistAssistantId step 2 did find(/receptionist/i), so with two matches it returned whichever VAPI listed first - an order this code does not control and VAPI does not promise - and logged nothing. A coin flip deciding which assistant an operator edit lands on. New reason name-match-ambiguous logs both candidates with the pick and tells the operator to pin the id or rename the duplicate. Also deleted a source comment that had become false: it named afcad79e as the outbound follow-up, which the current panel contradicts. SECOND HALF OF THE SAME DIFF: getAssistantRoutingTruth() answers the question none of these resolvers could - which assistant ANSWERS the line, versus which one we EDIT. VAPI already knew: the phone-number object carries assistantId, and resolveVapiPhoneNumberId has been fetching that exact payload since wave-145 while parsing only {id, number}, discarding the answer on the way past. Surfaced in VapiPanel directly beneath Push Latest Config, because it is the only thing that makes that button meaningful. UNHOOKED 2026-09-18 (operator away, explicit approval): RETIRED_ASSISTANT_IDS now names afcad79e-ec33-4156-98fe-7eb325c1222a, and it is filtered out BEFORE any rung of either picker runs, so no env pin, name match or fallback can select it. The three call sites that read VAPI_FOLLOWUP_ASSISTANT_ID directly and handed it to VAPI unchecked (followupCadence.ts, routers/vapi.ts, vapi-harness.ts) now share one chokepoint, followUpAssistantIdOrNull(), which returns null for a retired pin - so the outbound rail SKIPS rather than placing real calls with a retired assistant. Guarded by ID, not by name, so a later rename in VAPI cannot reintroduce it. OUTBOUND PIN NOW READABLE WITHOUT READING THE ENVIRONMENT: getAssistantRoutingTruth() reports followUp as healthy / retired / unset with the assistant id, rendered beneath the inbound verdict in VapiPanel. The operator asked for VAPI_FOLLOWUP_ASSISTANT_ID to be checked in Railway; that tool takes no filter and returns every variable including the VAPI API key, the webhook secret and the database URL. An assistant id is not a secret - three are already displayed on this panel - so the answer is surfaced where the question is asked instead.",
+        "tests": "11 tests in server/__tests__/pickReceptionistAssistant.test.ts, using the real assistant ids as the fixture. The resolver had NO tests despite deciding where Push Latest Config, the transfer-destination card and the transfer editor all write. Load-bearing cases: the pin wins REGARDLESS OF LIST ORDER (the entire point of pinning); a pin naming a deleted assistant falls through rather than stranding; one match stays name-match while two become ambiguous - without that pair, marking everything ambiguous would satisfy the first assertion and make the warning meaningless. POSITIVE CONTROL asserts all five outcomes are reachable, so a function hardcoded to any single reason fails. MUTATION VERIFIED: collapsing name-match-ambiguous back to name-match turned 2 of 11 red. Typecheck exit 0. PLUS 13 tests in server/__tests__/assistantRoutingTruth.test.ts. Most of them are about the UNKNOWN state, which is the whole design: a squad, an assistant-request server URL, a 503, a thrown fetch, a missing number, an absent key and an unset pin each yield unknown rather than a fabricated match or a fabricated alarm. Positive control asserts all three states are reachable; a hardcoded unknown would satisfy every fail-closed case and look careful. MUTATION VERIFIED: forcing the comparison true turned 2 of 13 red. 24 tests across both new suites; typecheck exit 0. PLUS 15 tests in server/__tests__/retiredAssistant.test.ts, fixtured on the exact live account (the retired duplicate is listed FIRST by VAPI, which is the real failing case). Two positive controls guard the over-blocking risk a denylist creates: the two LIVE assistants must NOT be retired, and the real account must still resolve BOTH. MUTATION VERIFIED: making isRetiredAssistant always return false turned 10 of 15 red. 85 server test files, 790 passed, exit 0. PLUS 5 more in assistantRoutingTruth.test.ts covering the outbound pin: healthy reports its id, retired reports the id AND says the rail is skipping, unset is distinct from retired, a positive control asserts all three states are reachable, and - the load-bearing one - the outbound reading SURVIVES a failed inbound read, because the pin is knowable from this process whether or not VAPI answers. A leak introduced while writing them was caught and fixed: the cases set VAPI_FOLLOWUP_ASSISTANT_ID and serial mode shares one process.env, so it is now cleared per-test and restored after, proven order-independent across shuffle seeds 7 and 42. 167 test files, 2,099 passed, exit 0.",
+        "liveRuns": "VERIFIED. READING TAKEN 2026-09-18 against production, after deploy 897892b8: followUp.state = healthy, assistantId = 0daaf7dc-1394-4731-908f-5c91788c2d3d. VAPI_FOLLOWUP_ASSISTANT_ID names the dedicated Follow-Up Caller, NOT the retired duplicate. Both lines confirmed rendering on the live panel. Three consequences, all now measured rather than assumed: (1) the outbound rail is NOT skipping - the code-side retirement has zero effect on it, so the blast radius is verified zero rather than likely zero; (2) afcad79e is referenced by NOTHING live - the phone binds 150fe622, the outbound pin binds 0daaf7dc - so deleting it in VAPI is safe whenever convenient; (3) of the two contradictory records in the archived truth_os, the one saying the pin had moved to 0daaf7dc is correct, and the one saying DO NOT DELETE afcad79e is the stale entry. The earlier push (Updated Vapi assistant id=150fe622, POST 200) remains the other live run. HORIZON 2026-12-18, ninety days, and the number is reasoned rather than copied. What this claim rests on is an ENV VAR and a VAPI phone binding - both operator-editable at any moment, with no code change and no alert, so it cannot self-refresh. Against that, re-proving it is nearly free: the panel re-reads both on every load, so the check is one page visit. Ninety days is long enough that re-verification is not busywork, short enough that a silent env edit surfaces within a quarter. It is deliberately NOT aligned to the 2026-10-15 cluster - a horizon shared by unrelated capabilities is a calendar artefact, not a judgement about how long THIS claim survives.",
+        "deploymentId": "897892b8-28d1-4e50-8ce6-12fff707ae35"
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "The VAPI-side cleanup is still outstanding: afcad79e remains present in the account with a duplicate display name. It is now unreachable from this codebase, so the risk is cosmetic rather than functional - but anyone reading the VAPI dashboard still sees two identically named receptionists. Renaming or deleting it is an operator action, deferred while the operator is away because deletion is irreversible and the code-side unhook was sufficient."
+        },
+        {
+          "severity": "P2",
+          "description": "The ambiguous branch returns a usable id rather than failing closed, so a wrong pick is still possible when the pin is absent - it is merely announced. Failing closed was rejected because a null would break the admin transfer card entirely; here guessing loudly beats failing, since the operator can act on the warning. That trade is a judgement, not a measurement."
+        },
+        {
+          "severity": "P3",
+          "description": "CLOSED IN THIS DIFF, recorded so it is not re-opened as unexamined: the panel now reports whether the pinned assistant is the one the live number answers with. It has NOT yet been observed against production - the reading exists, the reading has not been taken."
+        },
+        {
+          "severity": "P2",
+          "description": "If VAPI_FOLLOWUP_ASSISTANT_ID still points at the retired id, the outbound follow-up rail now SKIPS. That is the deliberate safe direction, but it IS a behaviour change: a rail that was dispatching would stop. It is additionally gated behind FEATURE_FOLLOWUP_CADENCE=1, so the likely blast radius is zero - unverified, because reading the live env was not done."
+        },
+        {
+          "severity": "P3",
+          "description": "CLOSED, recorded so it is not re-opened as unexamined: the outbound pin was read from production and is healthy. What remains is purely cosmetic - afcad79e still exists in VAPI with a duplicate display name, unreachable from this codebase. Renaming or deleting it is an operator action with no functional urgency."
+        }
+      ],
+      "deferredScope": [
+        "Alerting on a mismatch rather than only rendering it. Deliberately not added: nobody has yet seen this instrument return mismatch even once, and an alert built before its first true positive is a guess about a failure that may not exist."
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "live_verified",
+      "exposure": "internal",
+      "verificationExpiresAt": "2026-12-18"
+    },
+    {
+      "capabilityId": "attribution-confidence-bands",
+      "name": "The attribution queue says what its confidence numbers mean, and that they are not probabilities",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-18. The review queue showed 0.9 and 0.75 beside real invoices, and an operator confirming money reads those as percentages. Reading the producer, they are ordinal labels for two evidence recipes that differ by EXACTLY ONE FACT - whether the service text overlapped - and neither has ever been calibrated against outcomes. lib/attributionConfidenceBands.ts names each band, states the evidence that produced it, and states what would RAISE it, which is the only actionable part. bandMix reports inferredPct, the share of rows resting on inference rather than a recorded link. The card renders the mix and, above 80% inferred, says plainly that confirming in bulk is guessing in bulk - which is how the eight-calls-one-invoice over-count happened.",
+        "tests": "20 tests in server/__tests__/attributionConfidenceBands.test.ts. The producer's real ladder is mapped case by case; only VERIFIED is observed and every other band is marked inference. An empty queue reports inferredPct null, not 0 - unmeasured is not measured-zero. The calibration caveat is PINNED BY ASSERTION, including the sentence admitting nobody has measured the hit rate, so if that ever becomes false the caveat has to change with it. Positive control asserts the mix discriminates rather than returning a constant. 169 test files, 2,135 passed, exit 0.",
+        "liveRuns": "NONE. The bands have not been observed against a production queue.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "THE BANDS ARE UNCALIBRATED AND SAY SO. Nobody has measured how often a phone-and-time match turns out to be the right invoice, so the ordering is evidence-strength, not probability. Calibrating it needs a labelled sample of confirmed and rejected decisions, which does not exist because the decision log is young. Inventing a percentage would have been the defect this module exists to prevent."
+        },
+        {
+          "severity": "P3",
+          "description": "The 80% inferred threshold that triggers the bulk-confirm warning is a judgement, not a measurement. It is coarse on purpose - the module's job is to make an inference-heavy queue obvious, not to score it."
+        }
+      ],
+      "deferredScope": [
+        "Calibrating the bands against confirmed/rejected outcomes. Blocked on data rather than effort: it needs a labelled sample from the decision log, which is young. Recorded so the uncalibrated state is a known gap rather than an unexamined one."
+      ],
+      "lastVerifiedAt": "2026-09-18",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "voice-promise-capture",
+      "name": "A shop commitment made on a call becomes a tracked promise; a customer request does not",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-22. The Promise Ledger was BUILT, WIRED to a router, an admin panel and the morning brief, and had NO voice writer: createPromise had exactly one caller chain (routers/promises.ts <- PromisesPanel.tsx). Promises existed only if the operator typed them, while the highest-volume source of shop commitments - Nick offering a callback on a live call - recorded nothing. createVoicePromise() closes it from the two scripted offer paths (escalate, scheduleCallback). Deliberately NOT wired to the callback_needed classifier outcome, which proves only that the CALLER wanted a callback, not that the shop promised one; those remain callbackRequests rows. nextOpenAt() derives due_at from BUSINESS.hours.structured - the same single source businessState reads - and returns null rather than guessing. SELF-INFLICTED RISK CAUGHT AND CLOSED IN THE SAME PASS: auto-creating promises at volume would have flooded a kept-rate whose numerator only an operator can produce, sweeping to missed after 48h and reporting broken promises that were never measurable. The rate now excludes source_kind = voice; the backlog is reported separately and returns NO rate field, so a caller cannot render one. MIGRATION 0125 APPLIED TO PRODUCTION 2026-09-22 and the duplicate-key rejection it introduces is now interpreted rather than thrown; see blockers[0]. 2026-09-22: the duplicate-key recogniser the promise writer relies on (a thrown ER_DUP_ENTRY on uq_promise_source is someone else's successful write, not a failure) is lib/dbErrors.isDuplicateKeyError, now the single definition for all four call sites - promiseLedger.ts, proposals.ts and shopDriverMirror.ts (twice); the proposals copy had matched /duplicate/i, loose enough to read \"Duplicate column name\" as a dedup. 2026-09-23 (#2574): the duplicate-key recogniser it relies on, lib/dbErrors.isDuplicateKeyError, read only the top-level error, and drizzle 0.45 wraps every driver error in a DrizzleQueryError (code/errno on .cause), so the unique-index race dedupe threw instead of returning the existing row. Both recognisers now walk .cause and never text-match the wrapper (whose params could hold 1062/1146).",
+        "tests": "13 tests in shared/nextOpenAt.test.ts and 7 in server/__tests__/createVoicePromise.test.ts. THREE MUTATIONS VERIFIED: removing the DST correction turns 2 red (the shop opens at 8:00 local whether or not the clocks moved; raw millisecond addition lands at 07:00); disabling the dedupe guard turns 2 red; disabling the no-due-time refusal turns 1 red. Positive controls assert nextOpenAt returns DIFFERENT instants for different inputs (a function hardcoded to `now` or to null would otherwise pass) and that duplicate vs first-delivery take genuinely different paths. 197 test files, 2,680 passed, exit 0. PLUS 6 tests in promiseSourceSplit.test.ts asserting the SQL split by inspecting the statements actually issued, with a positive control that the two queries are not the same statement. MUTATION VERIFIED: deleting the voice exclusion turns 2 red. PLUS 4 tests for the uq_promise_source race in createVoicePromise.test.ts (11 in the file). MUTATION VERIFIED: removing the duplicate-key interpretation turns exactly 2 red, and the two rethrow tests stay green, proving they are independent instruments rather than one assertion wearing two names. PLUS 13 tests in shared/nextCloseAt.test.ts for the review-caught deadline defect, with a positive control asserting every derived deadline is STRICTLY after now (a function returning now, or a constant, would pass the individual cases) and one asserting nextCloseAt and nextOpenAt genuinely differ during open hours - which is the regression in one line. server/lib/dbErrors.test.ts, 3 tests: the driver code, errno 1062 and the message text are recognised; \"Duplicate column name\", ER_NO_SUCH_TABLE, connection errors, null and plain strings are not; comment-stripped, all three service files call the helper and carry no private regex (shopDriverMirror twice). 2026-09-23: server/lib/dbErrors.test.ts pins the wrapped shapes with drizzle's own DrizzleQueryError (5 of 9 red against the old helpers); createVoicePromise + reconcileExpectedArrivals green.",
+        "liveRuns": "NONE. No production call has created a voice-sourced promise. Unit tests exercise the function, not the production seam - the webhook path has not been observed firing it.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "CLOSED IN REVIEW 2026-09-22, recorded so it is not re-opened as unexamined. dueAt was nextOpenAt(), which returns NOW when the shop is already OPEN - so a callback promised at 10am Tuesday was due at 10am Tuesday and overdue one second later, and the sweep would escalate it then stamp it missed after 48h. Not a closed-hours-only path: escalate is exposed to the OUTBOUND follow-up assistant, whose script says we will have someone call you back today, and those calls are placed during business hours by design. Now nextCloseAt(): the close of the business day the shop can next act on. DERIVED not invented - the outbound script states today so close-of-business is the shop own stated bound, and the inbound script states no time but the shop can only act while open, so closing time is the last moment it can honour the promise that day. Refusing during open hours was rejected as worse: most calls arrive while open, so voice promises would have existed only for after-hours calls. 13 tests in shared/nextCloseAt.test.ts, including one that pins the defect itself (nextOpenAt returns now during open hours) and a positive control that every result is STRICTLY after now."
+        },
+        {
+          "severity": "P3",
+          "description": "RESOLVED 2026-09-22, downgraded from P2 rather than deleted so the history stays readable. Migration 0125 (uq_promise_source, renamed from a colliding 0103) is APPLIED and VERIFIED in production TiDB: Non_unique 0 on (source_kind, source_id, promise_type). The read-then-write race is now closed by the database rather than by hopeful ordering. APPLYING IT MOVED A FAILURE MODE INSTEAD OF DELETING ONE. createPromise rethrows anything that is not a missing-table error, so the same concurrency the index was added for would now throw ER_DUP_ENTRY into the VAPI webhook path. createVoicePromise interprets that one signal as {created:false, reason:duplicate} - which is what it is - re-reading through the same findExisting() helper the pre-check uses, and RETHROWS when no row is found, because a duplicate-key error with no matching row is a different constraint. SAFE TO APPLY AHEAD OF THE CODE, verified not assumed: the only writer in deployed main is routers/promises.ts, which passes sourceKind operator and sourceId null, and the admin client never sends sourceId at all (git grep on origin/main returns nothing). MySQL and TiDB UNIQUE indexes permit unlimited NULLs, so the index cannot reject any write the currently-deployed code can make. The table also held 0 rows at apply time."
+        },
+        {
+          "severity": "P2",
+          "description": "Only the two SCRIPTED offer paths create promises. A commitment Nick improvises outside escalate/scheduleCallback is still unrecorded. Detecting that from speech was deliberately not attempted: voiceClaimGuard is a PROHIBITION detector (unbacked_callback_promise), not a commitment detector, and its regex does not even match the prompt's own scripted callback line - verified by executing the regex against that exact sentence."
+        },
+        {
+          "severity": "P2",
+          "description": "Voice promises still cannot be KEPT automatically - the callback happens on the counter phone, which this system cannot observe. Mitigated rather than solved: voice promises are now EXCLUDED from the kept-rate (promiseLedgerStats) and reported by voicePromiseBacklog as a to-do list with no rate at all, so an unmeasurable numerator can no longer defame the shop in the morning brief. The obligations are still real and the OVERDUE count surfaces them; what is absent is proof of closure, and it is labelled as absent rather than scored as failure."
+        }
+      ],
+      "deferredScope": [
+        "Automatic keeping from outcome evidence (a verified outbound call or customer reply to the promised number). Not attempted here because an ATTEMPT is not an OUTCOME - marking a promise kept because a job dialled would be the action-attempt-as-success defect this repo already records - and the outbound-call evidence path needs its own verification pass."
+      ],
+      "lastVerifiedAt": "2026-09-22",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "arrival-invoice-reconciliation",
+      "name": "A customer who said they were coming is matched to the invoice they paid - once",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "2026-09-22. reconcileExpectedArrivals was a single UPDATE ... JOIN invoices with no uniqueness anywhere: every expected row whose phone matched an invoice inside its 3-day window was stamped with that invoice, so three coming-today rows (Mon, Tue, Wed) for one Wednesday visit became three arrived rows sharing one reconciledInvoiceId - and weeklyRevenueDigest summed i.totalAmount per arrival row, adding the invoice three times in the line labelled arrivals -> paid invoices. The same shape (eight calls claiming one invoice) had been fixed on the call->invoice path on 2026-09-18; this was the same defect one table over. Now the SQL decides which pairs are ELIGIBLE (same phone, in-window, invoice not already claimed - the day-boundary semantics are unchanged and stay in the database's timezone) and lib/arrivalReconciliationPlan.ts decides which are APPLIED: one invoice per arrival, one arrival per invoice, the arrival closest to the visit wins, every tie-break total so the plan is identical on every run. Same-visit siblings are closed as cancelled with a width-guarded note rather than left to age into no_show, which would have told the recovery queue this customer never came. Migration 0126 makes the database refuse a second claim, and a duplicate-key rejection is counted as already claimed by a concurrent run, never as a failed write. The digest counts each invoice once via an IN-subquery so the receipt does not depend on the index. The docstring that promised a PAID invoice now says what the join does: every reconciled invoice was paid by coincidence, not by constraint, and paymentStatus is not filtered because that column is unreliable as a signal. 2026-09-23 (#2574): the duplicate-key recogniser it relies on, lib/dbErrors.isDuplicateKeyError, read only the top-level error, and drizzle 0.45 wraps every driver error in a DrizzleQueryError (code/errno on .cause), so the unique-index race dedupe threw instead of returning the existing row. Both recognisers now walk .cause and never text-match the wrapper (whose params could hold 1062/1146).",
+        "tests": "12 tests in server/__tests__/arrivalReconciliationPlan.test.ts (three-rows-one-invoice, came-twice, an arrival claims at most one invoice, left-alone, determinism under any input order, both-directions positive control) and 13 in server/__tests__/reconcileExpectedArrivals.test.ts against the statements the service actually issues (candidate SELECT excludes claimed invoices and formats dates in SQL; one arrived-update per DISTINCT invoice; guarded writes; LEFT(...,500) on the note; ER_DUP_ENTRY counted not thrown; non-duplicate failure keeps the best-effort contract). PLUS 1 in weeklyRevenueDigest.test.ts pinning the per-invoice shape. FOUR MUTATIONS: duplicate-key interpretation removed -> 1 red; digest per-row join restored -> 1 red; kernel day comparison removed -> 1 red; planner claimed-arrival filter removed SURVIVED the first pass (no fixture exercised it), so the fixture was added - a later invoice whose best candidate is an already-spent arrival - and the re-run turned 2 red. 133 passed across the 7 touched suites; typecheck exit 0. 2026-09-23: server/lib/dbErrors.test.ts pins the wrapped shapes with drizzle's own DrizzleQueryError (5 of 9 red against the old helpers); createVoicePromise + reconcileExpectedArrivals green.",
+        "liveRuns": "PARTIAL, and about the OLD path. Production holds 25 arrived rows reconciled by the previous one-to-many UPDATE, 25 distinct invoices, $16,436.79 all-time as the digest computes it, $0.00 overstated - measured read-only on 2026-09-22 before the fix. The one-to-one planner has NOT yet run against production; it runs inside dashboardSync on deploy. Migration 0126 IS live: uq_ea_reconciled_invoice verified Non_unique 0 on production TiDB, pre-check 0 duplicate claims. MEASURED 2026-09-22, 30 days, read-only: 116 rows written, ALL source voice (SMS has written one row in its life, 2026-08-09); 15 arrived, 89 no_show, 12 still expected. The 89 are NOT a reconcile defect: 0 of them have an invoice under that phone within +14 or +/-7 days of the expected date, 0 of 73 invoices in the window have an unmatchable phone, 88 of 89 are distinct phones, and 77 of 89 have no invoice under that phone ever. They are what the writer produces: the bookSlot tool handler, which the prompt makes mandatory for any non-tire walk-in lead and fires in parallel with every transfer - 63 of the 89 calls were walk_in_directed price/inquiry calls (first customer turn: how much for a wheel alignment, free inspection), 17 were human_handoff transfers, and 66 carried no whenText, i.e. the customer never named a day. The kernel reason text that turned these into Said they were coming was rewritten in this PR to what the kernel can establish. Denominator: 262 walk_in_directed and 469 human_handoff calls in the same 30 days.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "The inline schema-guard DDL in routers/nick/intelligence.ts and drizzle/0126 must stay identical by hand; nothing checks that they agree. Same standing rule 0094 states for the table itself."
+        },
+        {
+          "severity": "P3",
+          "description": "cancelled is the only inert terminal status the expected_arrivals enum offers without DDL, so a same-visit sibling wears that word with a superseded-by note rather than a superseded status. Honest in the note, slightly wrong in the column; an ENUM ALTER on TiDB was judged not worth the row-loss risk class for a state nothing acts on."
+        },
+        {
+          "severity": "P2",
+          "description": "The no-show sweep still fires on any expected row older than two days regardless of whether a sibling row for the same customer reconciled OUTSIDE the 3-day window. The planner closes siblings only when their window contained the matched invoice; a customer who said Monday, then said Friday and came Friday leaves the Monday row to age into no_show. That is arguably a true no-show for Monday and is left as the sweep's call."
+        },
+        {
+          "severity": "P2",
+          "description": "A row cannot say whether the CUSTOMER committed or the ASSISTANT recorded a lead: bookSlot is the only voice writer and it fires for inquiries, transfers and tows alike, with preferredDay hardcoded to today in two prompt scripts. whenText is the only customer-stated signal and it is absent on 66 of 89 expired rows. Any rate built on status = no_show is a lead-conversion rate wearing a no-show costume. A provenance column (customer_stated vs assistant_directed), or a prompt change that reserves bookSlot for an explicit commitment, would make the number mean what it says; neither is attempted here."
+        }
+      ],
+      "deferredScope": [
+        "Consolidating the four ad-hoc duplicate-key checks (services/proposals.ts, services/shopDriverMirror.ts x2, services/promiseLedger.ts) onto lib/dbErrors.ts. New call sites import it; the older copies are untouched here because each sits inside a different failure handler and deserves its own read."
+      ],
+      "lastVerifiedAt": "2026-09-22",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "voice-recovery-outbound-dial",
+      "name": "A declined estimate that ignored the D7 and D30 texts gets one no-pressure recovery call",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "server/cron/jobs/voiceRecovery.ts (tier cron, daily, 10-17 ET; FEATURE_VOICE_RECOVERY=1 in prod) selects declined ALG estimates with followUp30dSent and no matched invoice, claims each at-most-once, and dials through placeVapiOutboundCall with a recovery prompt override. Fixed 2026-09-22: the override is a COMPLETE model block (followUpModelBlock, the same helper that defines the follow-up assistant); placeVapiOutboundCall reports errorKind config / customer / provider / network; a dial that never reached the customer releases the claim and aborts the run so cron_log records status failed with the reason; a missing or retired assistant pin skips before any claim is taken.",
+        "tests": "server/services/vapi.outboundOverride.test.ts 6 tests - the request body that reaches fetch carries provider + model + the override as system message and is otherwise identical to the assistant's own block; no model block is sent without an override; errorKind per failure exit. server/cron/jobs/voiceRecovery.dialFailure.test.ts 6 tests - provider / config / network / unknown failures release the claim and reject with no second dial; the customer kind marks the lead failed and continues; the reason lands in details; a missing pin skips before a claim; positive control first. voiceRecovery.suppression.test.ts 6 still green. 18 passed exit 0, tsc exit 0.",
+        "liveRuns": "NONE successful, ever. 110 of 110 dials from 2026-06-18 to 2026-09-20 returned 400 assistantOverrides.model.provider must be one of the following values (Railway deploy log f9ab5753, 2026-09-19 14:50Z, estimates 1620001 and 1620002); every run logged completed with placed=0 failed=N (cron_log 09-17 failed=3, 09-19 failed=2, 09-20 failed=1); all 110 leads carry outcome failed with no call id. 0 leads eligible on 2026-09-22 because every candidate had already been burned. Prod env checked as booleans: VAPI_API_KEY set, VAPI_FOLLOWUP_ASSISTANT_ID set, VAPI_PHONE_NUMBER_ID unset (auto-lookup), FEATURE_VOICE_RECOVERY=1. STATE: unit_verified, not deployed - the validator holds deployed for rows with a deploymentId, an expiry and no P1; this row carries a P1 (the burned leads) and no observed run since the fix.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "110 burned leads. READY: scripts/maintenance/release-voice-recovery-claims.mjs - dry run by default; --execute copies the rows into _bak_alg_estimates_voice_release_<date> (two-statement TiDB form, count-verified) and then sets voice_recovery_attempted_at and voice_recovery_outcome to NULL for leads whose D30 text is within --max-age-days (default 60, because the call script says the quote was 5-6 weeks ago; older leads are listed and left as they are). ACTION for the operator: run the dry run, then --execute if the shop wants those customers called; the lane then dials them at 5 per day. Dry run 2026-09-22 19:20Z: 110 never-rang rows; 15 releasable within 60 days; 95 older (D30 text sent 2026-05-19..07-23) left as-is by default."
+        },
+        {
+          "severity": "P2",
+          "description": "No successful dial has been observed since the fix. Promote to live_verified when cron_log (job_name voice-recovery) shows placed >= 1 and the matching alg_estimates row carries a voice_recovery_call_id; a recorded end-of-call webhook for that call id is the outcome receipt."
+        },
+        {
+          "severity": "P3",
+          "description": "nick-memory stores the pattern \"System health: CRON STALE: voice-recovery hasn't c...\" every five minutes (Railway log from 2026-09-18 22:50Z, one line per tick). A dedupe gap in the memory writer, not in this lane; noted here because it is the only place the failure was being \"recorded\" and it recorded nothing useful."
+        }
+      ],
+      "deferredScope": [
+        "Classifying a provider 4xx as per-customer versus systemic from its message text. Today any non-customer failure aborts the run, which would wedge LOUDLY on a number Vapi itself refuses; chosen over a heuristic that could silently burn leads again."
+      ],
+      "lastVerifiedAt": "2026-09-22",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "nick-memory-store",
+      "name": "Nick keeps what it learns: one row per fact, reinforced when seen again; system health never enters the store",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "server/services/nickMemory.ts: remember() keys a memory on a hash of its content (shop_settings rows nick_memory_<type>_<hash>), reinforces an existing row (uses+1, confidence+0.05) or inserts, evicting the lowest-confidence, least-recently-reinforced non-preference row whenever the store holds 500 or more; decayMemories lowers confidence by age since last reinforcement and prunes below 0.15 after 90 days untouched. Fixed 2026-09-22 in server/services/selfHealing.ts: the bridge remembered each open issue with the day's date and the run's auto-fix list appended, and CRON STALE with its live minutes, so every 5-minute pass INSERTED a new row and each insert evicted Nick's oldest real insight. It now remembers a stable identity per issue (HealthIssue.stable for CRON STALE, MEMORY HIGH, DATABASE QUERY FAILED, DATABASE DOWN; the other messages were already stable), so a standing condition reinforces one row. Second fix, same day: decayMemories read .limit(200) with no ORDER BY, so an arbitrary 200 of the store's rows were visited per cycle and the rest never decayed; it now walks every row in id-keyset pages of 200 (id > lastId ORDER BY id), ending on the first short or empty page. Third change, same day, after the live refutation: the self-healing -> memory bridge is removed outright (server/services/selfHealing.ts no longer imports nickMemory; HealthIssue.stable and healthMemoryContent went with it). Health issues are operational state and reach cron_log, the Telegram alert and the cron-skip watchdog; they never enter the durable store the chat prompt recalls from. Operator mandate 2026-09-22 item 7.",
+        "tests": "server/__tests__/memoryWriterGuards.test.ts (7, 2026-09-22): each writer guard asserted on the exact live offender - '0% (0/0 bays) FULL', 'Outcome unknown.', '[statenour] Nick AI has 30 learned memories', an empty commitment - and on a positive control that must still be remembered. server/services/selfHealing.memory.test.ts, 2 tests: through the real runSelfHealingChecks with a rig that produces three standing issues (a stale hourly job, no database, the wiring probe), remember() is never called on two passes on two days - positive control: the same passes count the issues in their return value and the alert carries the stale cron; and selfHealing.ts does not import nickMemory, comment-stripped. Mutation: the bridge restored (a remember() call in the report block) goes red on both. nickMemory.decay.test.ts, nickMemory.promptLessons.test.ts and server/__tests__/nickMemory.decayPages.test.ts unchanged (3 tests on the keyset page-walk).",
+        "liveRuns": "Read-only census 2026-09-22: 721 nick_memory rows (over the 500 cap: the cap evicts one per insert, so the count never shrinks), 168 of them \"System health\" - 136 \"CRON WIRED TO NO TIER\" created 2026-08-03..08-23 before the alias table landed, 15 \"CRON STALE\" 08-27..09-10 - and 553 non-health rows whose minimum confidence is 0.85, i.e. everything below has already been evicted. The Railway log on 2026-09-18 showed a new health memory stored every five minutes. Not observed since the fix. Decay coverage measured 2026-09-22 before the fix: of the first 200 rows a LIMIT 200 scan returns, 94 had ever decayed; 199 rows untouched 90d+ sat at avg confidence 0.98 with 1 ever decayed. feedback-cycle (the caller) ran 71 times in 30 days, all completed - the cron was fine, the query was not. LIVE REFUTATION of the first fix, 19:30Z after #2504 deployed: the passes still logged 'Memory stored' (not reinforced), ten per pass, every five minutes - the store is 721 rows over the 500 cap, eviction at the cap is confidence ASC then lastReinforced ASC, and the ten health rows at 0.85 were the lowest, so each insert evicted the health row written seconds earlier and the next pass wrote it again; the sibling session's census at 20:23Z: 173 'System health' rows, all uses=1, createdAt at the latest tick. The stable content was correct and could not help: a store that cannot keep a row cannot reinforce it. Not observed since the bridge cut deployed: pending. Eviction simulation 2026-09-22 ~21:30Z (scripts/diagnostics/memory-eviction-simulation.mjs, read-only, docs/operations/NICK-MEMORY-EVICTION-SIMULATION-2026-09-22.md): store 721 after the first full decay run (0.7 x12, 0.75 x87, 0.8 x94, 0.85 x71, 0.9 x181, 0.95 x229, 1.0 x47 - the page-walk aged 428 rows and moved 263 off 1.0); inflow 6.9 rows/day, 90% machine analytics summaries entering at 0.9-0.95, conversational sources 0.24/day at 0.7-0.8; recall top-20 today holds ZERO health rows. Thirty simulated days: P0 current / P3 LRU / P4 cap-0.95 / P5 per-source-cap are within noise (about 190 evictions, all four-month-old analytics summaries); P1 admission floor REFUSES 24 entries, all the 0.7 conversational ones - REJECTED; P2 shrink-to-500 evicts 221 at once with median age 33 days - REJECTED; P6 prune the 173 health rows gives 548 rows and does not change the top-20. PRUNE EXECUTED 2026-09-22 ~23:10Z on the operator's instruction ('3 and 4 are ok too'): prune-health-memories --execute deleted 173 rows after a count-verified backup (_bak_shop_settings_health_prune_20260922); store 721 -> 548. COUNTERFACTUAL 2026-09-22 ~22:40Z (scripts/diagnostics/memory-counterfactual.mjs, read-only, docs/operations/NICK-MEMORY-COUNTERFACTUAL-2026-09-22.md): getWarmupContext() injects 10 rows per turn and 9 of them were writer noise re-emitted into thousands of uses ('[statenour] Nick AI has 30 learned memories' 4,904; 'Alert \"proactive\" was unknown. Outcome unknown.' 2,517; two textless statenour commitments 392 each; four '0% (0/0 bays) FULL' readings 68-77); 498 of 548 rows cannot reach any answer. The four writers are guarded (server/services/memoryWriterGuards.ts); the legacy rows need scripts/maintenance/prune-junk-memories.mjs (dry run, then --execute, operator-run). CORRECTION 2026-09-23: an earlier handoff note claimed auto_analysis and vip_detection were still unkeyed writers needing 'one line each'. THAT WAS WRONG - both already carry identity keys (busiest_slowest_day, vip_customers_60d) from #2529, and reading the source settled it before any code was changed. Measured instead: every keyed writer holds EXACTLY ONE rolling row (7 identity rows at the time of the check, one per writer that has fired since the deploy), and the near-duplicates visible in Nick's prompt are LEGACY snapshots written before the keying, which the mechanism cannot merge retroactively. 343 such superseded rows sit behind a rolling row (revenue_analytics 132, daily_digest 53, invoice_reconciliation 48, revenue_reconciliation 42, auto_analysis 37, vip_detection 17, service_mix_analysis 14) out of 528 total - they are the whole reason the store sits over its 500 cap. scripts/maintenance/prune-superseded-memories.mjs takes it to 185; it deliberately SKIPS sources with no rolling row yet (daily_score 75, shopdriver_mirror 43, intelligence_autopilot 20, statenour_pull 10), because for those the snapshots are all Nick has.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "THE PROMPT IS NOISE. Measured 2026-09-22: 9 of the 10 memories injected into every Nick turn say nothing (a reading with no bays configured, an alert whose outcome was never known, the bridge's own memory-count line, commitments with no text), promoted by confidence x uses where uses counts re-emission. Guards now stop new rows of those shapes; the rows already at 1.0 hold their seats until pruned. READY: scripts/maintenance/prune-junk-memories.mjs (dry run first). AFTER: re-run pnpm diag:memory-counterfactual and read the printed alternative orderings before touching the ranking (item 11: confidence stays confidence)."
+        },
+        {
+          "severity": "P2",
+          "description": "ANSWERED BY SIMULATION 2026-09-22, decision still the operator's: the eviction ORDER is not the lever (four policies within noise); the admission-at-the-cap rule is REJECTED (it refuses exactly the conversational 0.7 entries) and shrink-to-cap is REJECTED (median age of what it evicts: 33 days). What would change the outcome, none shipped: (1) analytics writers (revenue_analytics, daily_score, daily_digest, invoice/revenue reconciliation, shopdriver_mirror, service_mix_analysis) keep ONE rolling row per report kind instead of a dated copy per day - internal change, cuts inflow ~7/day to ~1/day; (2) whether machine summaries should enter at 0.8 rather than 0.95 is a policy the operator sets, since it changes what Nick forgets; (3) recall() is source-blind - 27 of today's top-50 are auto_analysis/capacity_analysis rows - a type-aware recall is a retrieval change: auto-propose + shadow, counterfactual replay before enforcement."
+        }
+      ],
+      "deferredScope": [
+        "Re-routing health issues into a dedicated operational table (an incident/obligation kernel) instead of only cron_log + Telegram: mandate items 12-15 decide that shape; not done here."
+      ],
+      "lastVerifiedAt": "2026-09-23",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "weather-triggered-marketing",
+      "name": "Cleveland weather events (freeze, rain, heat, pothole season, salt end) stage GBP drafts and text lapsed customers",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "server/services/weatherIntelligence.ts reads OpenWeatherMap for Euclid, evaluates named triggers, stages GBP post drafts for owner review and - behind the feature flag weather_triggered_sms - texts lapsed customers through sendSms with opt-out handling. Scheduled by the weather-intel tier job in server/cron/scheduler.ts. 2026-09-22: the tier entry now declares requiresEnv OPENWEATHER_API_KEY and getJobCadences() reports each job's env gate, so an absent key is a scheduler SKIP that cron-skip-watchdog alerts on after seven days, instead of a completed zero-record run nothing looks at. Read end to end 2026-09-23: sendWeatherSms (server/services/weatherIntelligence.ts) is gated on isEnabled('weather_triggered_sms'), selects customers with lastVisitDate 60+ days old, smsOptOut = 0 and a phone, LIMIT 10 per trigger event, skips anyone already texted for THAT trigger within 30 days (variantKey weather_<trigger>), appends withOptOut() and sends via sendSms({ via: 'shop' }) over the F25e gateway. Four triggers exist: heavy_rain, pothole_season, extreme_heat, salt_season_end, each a fixed template carrying the shop number. The cron job weather-intel declares requiresEnv OPENWEATHER_API_KEY, so with no key it logs status 'skipped' and the watchdog can see it.",
+        "tests": "server/cron/weatherIntelEnvGate.test.ts, 3 tests: the job declares OPENWEATHER_API_KEY through getJobCadences(); the declared key is the only env the service reads (comment-stripped call sites); a job without an env gate reports an empty list (positive control). cronSkipWatchdogPrefix.test.ts already pins that the watchdog reads the requiresEnv: prefix.",
+        "liveRuns": "NONE, ever. OPENWEATHER_API_KEY is unset in production; all 8 cron_log rows for weather-intel (its whole history) read completed with details \"No API key\" and 0 records. cron-skip-watchdog reported \"no env-skip jobs in 7d window\" throughout. feature_flags.weather_triggered_sms = 1 (ON, \"Auto-SMS lapsed customers on weather events\", last updated 2026-05-20), so the SMS lane is armed and waiting on the key alone. OPERATOR DECISION 2026-09-23: 'leave the weather sms on' - weather_triggered_sms STAYS ON (value 1 since 2026-05-20, read from feature_flags; no change made by this session). MEASURED THE SAME DAY, read-only: the eligible audience is 1,901 customers (60+ days lapsed, not opted out, phone present) out of 2,312 with a phone, of whom only 12 have opted out; sms_messages holds ZERO rows with a weather_ variantKey, so this lane has NEVER sent a text; cron_log shows weather-intel skipped=2 (last 2026-09-23T14:54) after previously completing 7 times with zero records. The lane is ARMED BUT UNREACHABLE: OPENWEATHER_API_KEY is absent from the Railway variable list, so adding that key is the single action that starts customer texts. KEY SET AND ACTIVE 2026-09-23 on operator instruction ('openweather api key ... go set it on railway'): OPENWEATHER_API_KEY written to the MAINnicks-tire-auto service and confirmed present in the runtime (length 32). It returned HTTP 401 on every free-tier endpoint for the first ~15 minutes - OpenWeather answers 401 identically for an unactivated key and a wrong one, so the two are indistinguishable from outside - and began returning 200 immediately after the operator verified their account email, which is the documented non-time cause. VERIFIED THROUGH THE APP'S OWN NO-SMS PATH (evaluateWeatherTriggers, the #824 observational entry point): 'Temp: 55.13-58.21F, moderate rain' and heavy_rain SATISFIED at the time of the check. sms_messages still holds ZERO weather_ rows. The briefings tier (12 h) last ran 37 minutes before the check, so the first possible send is roughly 11.5 hours out, and only if the rain persists to that pass; a deploy will not pull it forward because the boot claim's allowance for that tier is 720 minutes.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "ARMED AND UNVERIFIED — the highest open item on this row. As of 2026-09-23 the flag is ON, OPENWEATHER_API_KEY authenticates, and heavy_rain was SATISFIED at the time of the check, so the next briefings pass that finds a trigger met will text up to 10 lapsed customers with no further gate and no human in the loop. NO SEND HAS EVER BEEN OBSERVED (sms_messages holds zero weather_ rows), which is why operationalState stays 'unverified' and exposure is 'internal' rather than 'limited_autonomy' - the validator requires live_verified for autonomous exposure, and claiming it here would be the DEPLOYED-is-not-LIVE_OBSERVED conflation. Exposure was 'disabled' until this change; that was accurate only while the key was absent. Bounded: 10 per trigger event, 30-day per-customer cooldown per trigger, opt-out appended. KILL PATH IS THE FLAG, NOT THE KEY: scripts/maintenance/set-feature-flag.mjs --key weather_triggered_sms --value 0 --execute. PROMOTES ON: the first observed send - then operationalState goes live_verified (liveRuns) and exposure limited_autonomy, and this blocker resolves."
+        },
+        {
+          "severity": "P3",
+          "description": "LIMIT 10 IS APPLIED BEFORE THE COOLDOWN FILTER, AND THE SELECT HAS NO ORDER BY. sendWeatherSms takes an arbitrary 10 of the 1,901 eligible customers, THEN skips those inside the 30-day cooldown. An unordered LIMIT tends to return the same rows run after run, so after the first event those 10 are all in cooldown and later runs send zero while 1,891 other lapsed customers are never reached - the lane would look like it is working (no errors, a completed run) while its reach is one arbitrary tenth of a percent. NOT FIXED BY THIS SESSION: the fix increases customer contact, which is an operator-instruction-only change. The honest order is to add the key, watch one trigger event, then decide whether to order the select (oldest lapse first) and filter the cooldown inside the query."
+        }
+      ],
+      "deferredScope": [],
+      "lastVerifiedAt": "2026-09-23",
+      "codeState": "merged",
+      "operationalState": "unverified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "mms-photo-assess",
+      "name": "A customer texts a photo of a tire or brake and gets a factual reply about what is visible",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "Wave AZ. server/services/photo-assess-pipeline.ts orchestrates vision-analyzer.ts (Replicate Qwen2-VL with an HF fallback), reply drafting, sendSms with the shop's compliance discipline, and persistence. WIRED to production ingress: routes/webhooks/twilio.ts routes any NumMedia >= 1 message to runPhotoAssess fire-and-forget, the Capevace gateway webhook does the same, and /api/admin/photo-assess is the manual route with skipSmsSend for model-quality testing. Reply templates separate what a photo can show from what it cannot (repairability, tread, stock, timing) and never assert those. Output is damage PROSE - description, serviceSuggest, urgency - with NO structured tire-size field. 2026-09-22 (later): server/services/vision-analyzer.ts gains two providers on keys the service already holds - gemini (GEMINI_API_KEY, gemini-2.5-flash, Google's OpenAI-compatible endpoint, thinking off, 800-token budget) and ollama (OLLAMA_API_KEY, OLLAMA_BASE_URL default ollama.com, PHOTO_ASSESS_OLLAMA_MODEL default gemma4:31b). Both fetch the photo server-side and inline it as a data URL; both are called directly, not through _core/llm.ts, because AI_FORCE_OLLAMA / AI_FORCE_GEMINI reroute every request onto a text default. An unknown PHOTO_ASSESS_PROVIDER value is reported, not silently mapped to replicate; checkVisionHealth reports reachability by the configured provider's own key variable.",
+        "tests": "server/__tests__/vision-analyzer.providers.test.ts (9, run 2026-09-22 from a worktree: 9 passed): the exact request per provider (endpoint, bearer, model, text + data-URL image parts, charset dropped from the mime, Gemini thinking off + budget, Ollama budget without Google's knob), array-shaped content, no_provider naming the variable with zero fetches, http_error carrying status + body head, parse_error on an empty completion, env routing + the typo case, checkVisionHealth per provider. Not re-verified in this session; existing suites for the pipeline and the reply guard (photoReplyViolations) are on main. Recorded here so the row exists; the states below are the honest ones for what was OBSERVED, not what was tested.",
+        "liveRuns": "NONE observed. Read-only census 2026-09-22: feature flag photo_assess_enabled is OFF in production (feature_flags table; isEnabled fails closed), so every inbound MMS has reached the pipeline and been refused at the gate. Keys, checked as booleans only: REPLICATE_API_KEY NOT set, HF_API_KEY set - so an enablement would run the HF fallback (PHOTO_ASSESS_PROVIDER / PHOTO_ASSESS_HF_MODEL), not the primary Replicate path. 43 inbound texts in the prior 30 days; how many carried media was not measured. Flag flipped ON 2026-09-22 22:05Z on the operator's instruction ('photo assess enabled yes') via scripts/maintenance/set-feature-flag.mjs (dry run showed value 0 since 2026-05-26; --execute; read back value 1). No inbound MMS observed since. The pipeline cannot run yet: analyzePhoto() picks its provider from PHOTO_ASSESS_PROVIDER (default replicate) with NO fallback, REPLICATE_API_KEY is unset, so a photo returns no_provider and drafts nothing. LIVE PROBE 2026-09-22 ~23:20Z (analyzePhoto only - no SMS, no DB write; the shop's own tread photo https://nickstire.org/photos/rugged-tire-tread-closeup-medium.webp; run through railway run so the prod keys were used): gemini-2.5-flash OK 2,463 ms, full description + SERVICE_SUGGEST: unclear / URGENCY: unclear (a healthy new tire on the machine); with the first 400-token budget the same call returned 66 visible characters and no structured line - Gemini spent the budget on hidden thinking, which is why thinking is off for this call. ollama gemma4:31b OK 1,084 ms, inspection-needed / routine, sensible prose. ollama qwen3.5:397b returned no message content (a thinking model; not the default). PHOTO_ASSESS_PROVIDER is set to gemini on Railway after this lands (operator instruction 2026-09-22: 'figure it out the best way ... something free too or my ollama'). Not yet observed: a real customer MMS through the pipeline. THINKING KNOB CONFIRMED 2026-09-22 ~00:30Z by a direct read-only probe of the live endpoint (each shape run twice, prod key via railway run): with NO knob the model returns ~30 completion tokens, ~134 characters and NO SERVICE_SUGGEST line in ~4.4 s even at max_tokens 800 - the truncation this fixes; with extra_body.google.thinking_config it returns ~204 tokens, ~905 characters and the structured line in ~1.4 s; reasoning_effort 'none' alone is equivalent (~200 tokens, ~906 characters, ~1.3 s). So the shipped extra_body spelling IS honoured by Google's compatibility layer and the token budget alone does not explain the fix. A self-audit had provisionally withdrawn that claim on the theory that extra_body is an SDK-only field; the probe REFUTED the audit and the withdrawal was discarded before it shipped. TWO SHAPES RETURN HTTP 400 and are now pinned by vision-analyzer.providers.test.ts: the knobs are MUTUALLY EXCLUSIVE ('Expected one of either reasoning_effort or custom thinking_config') and a top-level google key is rejected ('Unknown name google'). Either 'improvement' would break every customer photo.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "NOT YET OBSERVED END TO END. The analyzer is live-probed on both providers; the MMS -> vision -> reply-draft path has not carried a real customer photo since the flag went ON (22:05Z 2026-09-22). READY: /api/admin/photo-assess with skipSmsSend=true on a sample photo, or the next inbound MMS. Gemini free tier is rate-limited (a few hundred requests a day) - more than this lane will ever send; if it 429s, PHOTO_ASSESS_PROVIDER=ollama is the verified fallback on the funded lane."
+        },
+        {
+          "severity": "P3",
+          "description": "No tire-size slot. The pipeline describes damage; it does not extract a structured size candidate, validate its syntax, or ask the customer to confirm it. Tire-size-from-photo is an IDEA, not built - and a photo model must not be asked to rule on repairability or safety, which the reply templates already refuse to do."
+        }
+      ],
+      "deferredScope": [
+        "Structured tire-size capture from a sidewall photo (quality gate -> sidewall detection -> OCR -> syntax-validated candidate -> customer confirmation). Only worth building once the prose pipeline is observed working on real photos, and only as a candidate the customer confirms, never as a fact."
+      ],
+      "lastVerifiedAt": "2026-09-22",
+      "codeState": "merged",
+      "operationalState": "unverified",
+      "exposure": "disabled"
+    },
+    {
+      "capabilityId": "abandoned-form-recovery",
+      "name": "A customer who typed a name or phone into a form and left gets one recovery text 30-120 minutes later",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "server/services/abandonedForms.ts: savePartialForm (write-through Map plus an upsert into abandoned_forms) is fed by POST /api/track-abandoned (routes/analyticsRoutes.ts); processAbandonedForms runs in the abandoned-forms tier job every 30 minutes, selects partials with a phone aged 30-120 minutes (MIN_AGE_MS / MAX_AGE_MS) that were not attempted, and sends through orchestrateSms type abandoned_form_recovery; rows expire after 24 hours. The ONLY client that sends the beacon is the tire-order modal (client/src/components/order/TireOrderModal.tsx, on blur with a name or phone). The booking form's beacon was deleted with the form in 52fc2699b (2026-05-19, \"kill booking lie\"); the server handler still formats a /book (step N) pageUrl for a sender that no longer exists. Since 2026-09-22 every run writes a details column: 'nothing eligible · N partial(s) in memory · M db row(s) in the 30-120 min window' or 'sent or queued N · failed M · ...', with 'db unavailable' / 'db scan failed' named as such, so a zero-record run is no longer indistinguishable from a refused send or a broken scan.",
+        "tests": "server/__tests__/abandonedForms.persistence.test.ts (10, run 2026-09-22 from a worktree: 10 passed): the age-window / phone / attempted rule, the Map-only path (one send, no re-send, no double-send), and the three details shapes - a send, nothing eligible, and a REFUSED send reported as failed 1 rather than nothing eligible. The DB-scan branch (rows counted, 'db scan failed') is integration-level and not unit-pinned.",
+        "liveRuns": "NONE observed. Read-only census 2026-09-22: abandoned_forms holds 0 rows (rows expire after 24h, so this says nothing before 09-21); the Railway deploy log for 2026-09-18..09-21 contains no \"Partial form captured\" line, i.e. no beacon landed in three days; cron_log shows 439 abandoned-forms runs in 30 days, every one completed with 0 records and no details. The lane has run idle since its feeder went; whether it ever sent a text before 2026-05-19 was not measured.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Starved by design, not broken: the booking form that fed this lane was deleted on purpose (the shop is first-come-first-served; there is no booking to abandon). The tire-order modal is the sole remaining feeder and produced no beacon in the three days of logs read. Decide whether the lane earns its 48 runs a day: retire the tier job (a deletion, non-customer-facing) or accept an idle lane that would text a tire-order abandoner if one ever appeared. Operator's call; recorded, not changed."
+        }
+      ],
+      "deferredScope": [],
+      "lastVerifiedAt": "2026-09-22",
+      "codeState": "merged",
+      "operationalState": "unverified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "statenour-cron-run-receipts",
+      "name": "Every statenour cron run leaves one honest row: started -> success (with resultCount) | failed | interrupted, duplicates named, and every cron view reads a positive list",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "#2525 -> 4b2511547 (lib/inngest/cron-lifecycle.ts: deriveResultCount reads the job's own return value; beginCronRun idempotent per (job, run id) because Inngest fires onRunStart once per parallel-step request; reconcileInterruptedRuns marks a stale started row `duplicate` when its run id has a terminal sibling and `interrupted` when it has none; settleCronRun and the on-failure backstop accept started|interrupted on an exact run id) · #2528 -> 586c6d86f (lib/services/cron-control.ts HARD_FAILURE_STATUSES = [failed, interrupted]; getCronStats fail14d/lastFailAt, failures24h in system-pages + cron-tree, the health-rate numerator, the 48h diagnostics and system-health's current window via tallyCronWindow all read it) · #2533 -> 7971309dc (scripts/proof/cron-status-census.ts, scripts/proof/mega-fanout-run-rows.ts as pnpm proof:cron-census / proof:mega-rows) · #2556 -> 054a2c784 (lib/observability/instrument-liveness.ts: tool.surfaced / tool.chosen read against the tool-routing turns; every row carries denominator {name,count,fallback}; the panel prints n / denominator.count)",
+        "tests": [
+          "apps/statenour/tests/observability/cron-lifecycle.test.ts (44: resultCount from output, never an invented 0, INT32-bounded; dedupe per run id; duplicate vs interrupted; exact-run-id override; never throws)",
+          "apps/statenour/tests/services/cron-status-truth.test.ts (10: positive failure list; unknown token is neither ok nor failed)",
+          "apps/statenour/tests/services/cron-stats-interrupted.test.ts (7: fail14d sums failed + interrupted; comment-stripped ratchet that no cron view compares status to the literal 'failed'; tallyCronWindow)",
+          "apps/statenour/lib/observability/instrument-liveness.test.ts (routing instruments take the routing denominator; a failed routing read falls back and says so)"
+        ],
+        "deploymentId": "railway main auto-deploy; /api/version a6b12bd live 2026-09-22 ~23:05Z (uptime 1,286 s when read at 23:27Z; includes #2525, #2528, #2533)",
+        "liveRuns": [
+          "railway run -s statenour-web -- pnpm proof:cron-census (read-only), 2026-09-22 ~23:11Z, 6 min after the a6b12bd deploy; pnpm proof:mega-rows (read-only), 2026-09-22, pre-fix histogram"
+        ],
+        "databaseAssertions": [
+          "prod census 6 min after the deploy: the 49 stale `started` rows -> `duplicate`, 0 `interrupted`, 0 stale started remain; last-24h success rows 694 · resultCount null 691 · zero 1 · >0 2 - the first count-bearing success since the deploy wrote resultCount = 0 (ran, produced nothing) instead of null",
+          "prod census before the fix (2026-09-22): success 10,522 · started 49 · partial 15 · failed 8 - the only statuses that exist; 692 of 694 daily successes carried resultCount = null (the column had no writer since 08-22); the 49 started rows were 10 mega-fanout run ids at 5-6 rows each (rows-per-run histogram {5:1, 6:9}), every run a success - duplicate births, not deaths"
+        ]
+      },
+      "blockers": [],
+      "deferredScope": [
+        "typed outcome column (SKIPPED_PREREQUISITE vs zero work vs a count) - operator-gated migration; a skip is resultCount = null today",
+        "the middleware's failure path (onRunError + isFinalAttempt) has no production receipt: no `failed` row since 2026-09-02 because nothing has failed",
+        "one row per mega-fanout run from the 2026-09-23 03:00Z slot onward - the first post-deploy fan-out is the receipt (proof:mega-rows)"
+      ],
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": "2026-10-22",
+      "codeState": "merged",
+      "operationalState": "live_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "statenour-dense-recall-pool",
+      "name": "The dense recall pool fills 50/50 under a pgvector iterative scan; graph edges are out of the vector index and were drained with a backup",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "#2521 -> df482e60c (lib/brain/contextual-recall.ts getKnnPoolRows: SET LOCAL hnsw.iterative_scan = relaxed_order inside a bounded transaction, sourceUnavailableAt liveness filter, RECALL_EXCLUDE_CATEGORIES bound as text[]; lib/brain/embedding-policy.ts TELEMETRY_CATEGORIES += semantic_edge, reply_judgment, chat_importance, crons, mission_surface_telemetry; lib/brain/semantic-link.ts stops embedding edges; scripts/drain-edge-vectors.ts) · #2546 (the drain backs up first: _bak_ table with a count check before the first DELETE) · #2533 -> 7971309dc (scripts/proof/recall-pool-fill.ts as pnpm proof:recall-pool)",
+        "tests": [
+          "apps/statenour/tests/brain/recall-knn-pool-iterative.test.ts (source contract on the shipped pool SQL: iterative scan inside the transaction, liveness + category filters, parameter order)",
+          "apps/statenour/tests/brain/telemetry-quarantine.test.ts",
+          "apps/statenour/tests/brain/semantic-link-quarantine.test.ts",
+          "apps/statenour/tests/scripts/drain-edge-vectors-dry-run.test.ts (8: dry run by default; backup after the dry-run return and before the DELETE; mismatch returns before the DELETE)"
+        ],
+        "deploymentId": "railway main auto-deploy; /api/version df482e6 at 2026-09-22 21:21Z, then a6b12bd live 2026-09-22 ~23:05Z",
+        "liveRuns": [
+          "railway run -s statenour-web -- pnpm proof:recall-pool (read-only), 2026-09-22 21:28Z and ~23:15Z after the drain",
+          "railway run -s statenour-web -- pnpm eval:recall (read-only, Cohere query embeddings = the only spend), 2026-09-22 23:27Z",
+          "railway run -s statenour-web -- pnpm exec tsx scripts/reindex-vector-index.ts --apply --index=<name>, 2026-09-22 ~23:30Z, one index per invocation",
+          "railway run -s statenour-web -- pnpm eval:recall (read-only; Cohere query embeddings = the spend), 2026-09-23 00:29Z post-#2553 and 01:42Z post-#2558"
+        ],
+        "databaseAssertions": [
+          "before the fix (prod, 2026-09-22): the pool SQL returned 9-28 of 50 rows because 45% of the HNSW candidates within ef_search were dead vectors and the post-filter starved; 58,950 of 92,190 brain-memory vectors (63.9%) were semantic_edge rows",
+          "after the deploy (prod): 4 real seeds, pool 50/50 each, 0 quarantined categories in the pool, 138-1031 ms",
+          "drain APPLIED 2026-09-22 ~23:10Z (operator-authorized, railway run against ep-quiet-wave-am320eo1-pooler): backup _bak_vector_embeddings_edge_drain_20260922 holds 58,950 rows = the pre-count; 12 batches deleted 58,950 semantic_edge vectors; 0 remain; brain-memory vectors 92,190 -> 33,240; the pool still fills 50/50 in 190-348 ms; restore route = INSERT INTO vector_embeddings SELECT * FROM the backup table",
+          "recall benchmark re-run 2026-09-22 23:27Z on the filled, drained pool (89 cases = 53 positive + 36 abstention): dense precision@5 0.245 raw = 41.1% on positives, identical to 09-18's 0.368 x 76 / 68 = 41.1% measured on the starved pool - the fix changed pool FILL, not ranking; hybrid 0.132 raw = 22% on positives, the first valid hybrid reading (09-18's ran with its vector half amputated), with the lexical FTS lane hitting its 900 ms statement timeout (57014) on ~47% of queries - recall composition is the next lever, not the pool",
+          "REINDEX INDEX CONCURRENTLY applied 2026-09-22 ~23:30Z (scripts/reindex-vector-index.ts --apply, #2549): vector_embeddings_embedding_vec_1536_hnsw 509 MB -> 295 MB in 96.1 s; vector_embeddings_embedding_vec_hnsw 519 MB -> 295 MB in 58.9 s; 0 _ccnew leftovers, both indexes valid, 39,770 rows unchanged - 42% of each index was tombstoned graph from the 64% delete",
+          "post-REINDEX pool proof 2026-09-23 00:11Z (pnpm proof:recall-pool, read-only): four seeds fill 50/50 in 158-612 ms, 0 quarantined categories; the exact pool statement via EXPLAIN ANALYZE: 50/50, 80 HNSW candidates walked, 2.15 ms server-side warm",
+          "the lexical lane was 99% ts_rank re-parsing content per candidate row (prod EXPLAIN 2026-09-22: 1,902 ms with the rank, 8 ms without) -> stored GENERATED column content_tsv + GIN (#2553 a20f788bc, migration 20260923000000 applied 2026-09-23 00:23Z, rehearsed on a Neon branch: ALTER 28.6 s exclusive lock, GIN 5.9 s): lane query 25.6 ms on prod, benchmark lexical timeouts 84 of 89 -> 0 of 89, hybrid pipeline median 2,446 -> 1,536 ms; precision unchanged within noise (dense 38-41% / hybrid 19-22% on positives) because the now-live lexical winners displaced dense hits in the token budget",
+          "the token budget charged content.length while rendering 200/150 chars (#2558 4531bee53, cloud session): one 15,000-char memory cost ~94% of the 16,000-char budget; renderedContent(m) is the one helper both the renderer and trimToTokenBudget read - measuring its precision effect is the next eval:recall run",
+          "cleanups 2026-09-23 01:3xZ (operator-approved): _bak_vector_embeddings_edge_drain_20260922 DROPPED (58,950 rows, 1,169 MB; 0 live edge vectors first confirmed), the 0007 expression GIN brain_memories_content_fts_idx DROPPED via recorded migration 20260923013000 (registry entry pruned in #2564), the Neon rehearsal branch deleted; brain_memories 275 -> 216 MB",
+          "post-#2558 eval:recall 2026-09-23 01:42-01:45Z (main with 4531bee53 deployed, 89 cases): budgetDropped 0 on 89 of 89 queries (was 37 queries with 7 drops), relevant memories per turn 10 (was 4.5), hybrid precision@5 0.132 raw = 22.2% on positives (from 0.113 = 19.0%) while the vector lane stayed at 0.226 - a real +3 points this time, not noise; lexical timeouts 0 of 89; pipeline median 1,406 ms / p90 1,801 ms (was 2,446 / 3,176 before #2553). Hybrid is still below dense (38.0% on positives): the remaining composition lever is the RRF / rerank ordering, not the budget"
+        ]
+      },
+      "blockers": [],
+      "deferredScope": [
+        "hybrid 22% vs dense 38% on positives after #2553 + #2558: the remaining gap is in the RRF fusion / rerank ordering (Cohere fallback while HF is 402) - design item, measure with eval:recall (embedding spend)"
+      ],
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": "2026-10-22",
+      "codeState": "merged",
+      "operationalState": "live_verified",
+      "exposure": "internal"
+    },
+    {
+      "capabilityId": "careers-candidate-intake",
+      "name": "Every /careers submission is saved with its source and texted to the owner's mobile within a minute (owner email and applicant acknowledgement are wired but blocked on the Resend domain)",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "live_verified",
+      "exposure": "production",
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": "2026-10-23",
+      "evidence": {
+        "codeCommit": "Merged #2557 (7d9f4de) + #2561 (df92eca: the P0 fix - #2557 as shipped failed EVERY submission ~01:19-01:36Z, because drizzle's insert named the 0129 columns before 0129 existed and the fallback retried through db.insert(); the fallback is now a raw 13-column INSERT) + this PR (claude/funny-gates-asubwi, audit fixes from three independent reviews): owner text goes FIRST; a confidential text carries no name or number (it leaves from the store phone staff can read); a confidential owner email goes to CEO_EMAIL alone with no push; no applicant name in any subject (notifyOwner logs titles); emails send escaped HTML; the greeting is one sanitized word; table-counted brakes (no second owner text for the same phone within 24h, owner alerts stop at 20/day, applicant emails at 30/day and one per address/day); ownerAlertedAt stamped when EITHER owner lane lands; server/sms.ts replays a queued text to an internal line as internal and exempts it from the drain's quiet-hour hold (lib/smsQueueReplay.ts) - before, a restart while the store phone was offline dead-lettered the owner alert. All three lanes are ON; each stops only when its switch is set: CANDIDATE_OWNER_ALERT=off / CANDIDATE_OWNER_SMS=off / CANDIDATE_ACK_EMAIL=off.",
+        "deploymentId": "c7a6b823-03ee-447e-b30e-74c6886efd44 (79983f9, serving at 01:57Z) and 83464ff5-c7fa-4170-82ad-8b38cf3f512c (df92eca, serving at 01:37Z) - both before this PR; the post-merge deploy gets its own live run.",
+        "liveRuns": "2026-09-23 01:37:05Z candidate #1 (test, pre-0129 fallback insert): saved; owner text delivered to the operator mobile from the store line.,2026-09-23 01:57:43Z candidate #2 (test, confidential, post-0129 full insert, phoneE164 set): saved; owner text delivered; the confidential email was addressed to the CEO inbox only - and, like every email, not delivered (Resend domain unverified). SENDING DOMAIN CORRECTED 2026-09-23. The blockage was NOT what the handoff note said. EMAIL_FROM was 'Nick's Tire & Auto <noreply@autonicks.com>' - a RETIRED domain (shared/business.ts already says so) that was not registered on this Resend account AT ALL, so Resend refused every send regardless of DNS. Meanwhile the only domain on the account, nickstire.org, had never been verified: status not_started, created 2026-04-05, with zero email DNS present (checked MX, TXT, DKIM, DMARC - all absent). Adding nickstire.org's records alone would have verified a domain the app did not send from, and mail would still have failed. Operator decided 2026-09-23 ('we dont have autonicks anymore'): EMAIL_FROM now reads 'Nick's Tire & Auto <noreply@nickstire.org>', set on the MAINnicks-tire-auto service with skipDeploys, so it takes effect on the next deploy. A grep of both apps confirms no functional code hardcoded the retired domain - the remaining mentions are comments and word-lists. DNS host identified from the registry, not inferred: RDAP names Global Domain Group LLC as registrar AND ns1/ns2.globaldomaingroup.com as the authoritative nameservers (registered 2026-03-15, expires 2027-03-15), so the three Resend records go there.",
+        "databaseAssertions": [
+          "Read-only probe 2026-09-23 02:18Z (Railway function, SELECT only): candidates holds exactly ids 1 and 2, both the tests above; created 2026-09-09 22:22Z (TiDB DDL job 1060), so no real application has been saved since the table went live.",
+          "TiDB INFORMATION_SCHEMA.DDL_JOBS: the 01:54Z run-migrations call executed exactly 11 jobs (1089-1099, the 0129 columns and indexes) and nothing else; shop_settings.tireMarkup still reads value 100 / updatedAt 2026-06-18, so the list's force-sync UPDATE changed nothing (now removed from the list)."
+        ],
+        "tests": [
+          "server/candidateIntake.test.ts 31 passed (13 red against the pre-audit service): order, confidential text anonymity, follow_up/no push, replyTo, subjects, HTML, greeting, brakes, stamping, GSM-7.",
+          "server/smsQueueInternalReplay.test.ts 2 passed, drives the REAL drain timer: 2 red on the old sms.ts (guard refused the replay; 2 AM owner alert held).",
+          "server/candidatesSilentLoss.test.ts 11 passed: clipped attribution saves, positionTitle whitelist, two-number phone saves without phoneE164, PII-free failure log, last-touch ref code; server/emailNotifyHtmlReplyTo.test.ts 3 passed (2 red on the old email-notify).",
+          "server/publicFormBoundsMatchSchema.test.ts extended for clipped(N); mutation clipped(600) on a 500 column fails it."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "OWNER AND APPLICANT EMAIL STILL DO NOT DELIVER, and the remaining step is the operator's: three DNS records at Global Domain Group for nickstire.org - TXT resend._domainkey (the DKIM p= value from Resend), MX send priority 10 feedback-smtp.us-east-1.amazonses.com, and TXT send 'v=spf1 include:amazonses.com ~all'. VERIFY, do not assume: railway run -s MAINnicks-tire-auto -- node scripts/maintenance/verify-resend-domain.mjs reports SENDING or NOT SENDING against Resend's own API, and --trigger asks Resend to re-check after the records are in. It distinguishes the failure that looks like DNS and is not: a From domain ABSENT from the account, which no DNS change can fix. Measured at the time of writing: status not_started, all 3 records not_started."
+        },
+        {
+          "severity": "P2",
+          "description": "This PR's intake changes are unit-verified; they get one live run on the post-merge deploy (non-confidential test, fresh test number so the same-phone brake does not skip the text)."
+        }
+      ],
+      "deferredScope": [
+        "resume upload (S3, type/size check; no parser)",
+        "SLA reminder cron (the instant text covers first response)",
+        "nextFollowUpAt has no writer yet (column exists since 0129)",
+        "A2P 10DLC recruiting campaign before any text to an applicant"
+      ]
+    },
+    {
+      "capabilityId": "receptionist-tire-inquiry-truth",
+      "name": "Voice scripts promise nothing no row records: no 'sent to the shop' for an ordinary tire inquiry, every callback routed through escalate, no named-person or timed promise; a config push never re-routes live transfers",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "PR #2559, squash-merged as e6eb5944 on 2026-09-23 (branch claude/gallant-hamilton-yjulym; the review round ended at 29bd9414). (1) An ordinary tire inquiry has persisted nothing but the call record since the 2026-06-05 no-lead directive, yet the caller heard \"I've sent the tire info to the shop\"; server/lib/tireInquiryReply.ts now says the size was NOTED and echoes it back. (2) Every callback any voice script promises now routes through escalate (callback_requests + Promise Ledger) or is no longer promised: the FLOW 1 close, the price pushback, CALLBACK CAPTURE (where the warm-transfer fallback returns an unanswered caller), odd-size stock checks, the towed-vehicle estimate, the closed-hours line (now 'when we're open', matching the ledger's next-close due time), the follow-up 'have him call you back', and the receptionist voicemail. (3) No named-person promise; the recovery lane no longer says a 5-6-week-old quote is 'still good'. (4) tireSizeFromVehicle gives no sidewall homework and no $60-$120 range. (5) The voice claim guard v2 treats a callback as backed when escalate ran on the call, so the prompt's own tracked promises do not raise the daily alert. (6) updateAssistant refuses to push when it cannot read the live assistant; it used to PATCH the placeholder landline and the legacy say-message plan. (7) Six log calls no longer carry the caller's name. The legacy notes-based rack-check lead path is unchanged. 2026-09-23 FOLLOW-UP: the 'noted' size is now recorded and shown at the counter (see blocker 1).",
+        "tests": "server/__tests__/vapiToolPromiseTruth.test.ts (20): three matchers (timed promise; callback without escalate on the same line, explicit or implied; named person) over eight scripts and every tool text, plus direct calls to the voice-agent procedures. Putting each shipped defect back reddened it, 10 of 10; restored 20/20. Its first version only called the reply helper, so the router could regress unseen (independent review), and its 'red 4 of 4' was 3 of 4 for the named reason. server/voiceClaimGuard.test.ts (v2, with a positive control). server/vapi.updateAssistant.failClosed.test.ts (3; red 2 of 3 on the old code). server/__tests__/voiceAgentLogPii.test.ts (2; red on the pre-fix file). Every test file touching the voice surface: 33 files, 422 passed, exit 0; tsc exit 0. PLUS 11 in server/__tests__/tireDemand.test.ts (JSON-string and object args, no name or phone kept, garbage size is null not a guess, summary positive control, legacy rows skipped, Eastern midnight in EDT and EST, and a pin that the webhook builds its state metadata with toolCallStateMetadata) and 4 in client/src/__tests__/arrival-load-strip.test.ts.",
+        "liveRuns": "NONE. Rungs: the tool replies, the claim guard and the confirmation and recovery scripts reach callers on deploy (the outbound scripts are sent with each call); the receptionist's prompt, tool text and voicemail reach Vapi only on Push Latest Config; the follow-up cadence prompt only when scripts/vapi-create-followup-assistant.ts runs. LIVE proof: a production call after those steps whose tireInquiry response reads 'noted', and a CALLBACK CAPTURE call whose voiceClaims record shows escalated true with no unbacked_callback_promise. OUTCOME: the census cannot see the counter; measure with a 'size known on arrival' event once the counter card exists (research doc Part I #5). EXPOSURE stays 'disabled' until the receptionist prompt is pushed to Vapi: the deployed tool replies only change what callers hear once the prompt that calls them is live. 2026-09-23 13:12Z: the prompt and tool text reached Vapi. The operator tapped Push Latest Config and Push Follow-Up Assistant on deployment df4dcfe7 (958b89ef7, which carries #2559 and #2580); the Railway log shows 'Updated Vapi assistant' (150fe622) and 'Updated Vapi follow-up assistant' (0daaf7dc), twice each, with no refusal. No live call has been read since, so the states do not move.",
+        "deploymentId": "railway main auto-deploy a7ec2279 of e6eb5944 (nickstire service), SUCCESS 03:32Z 2026-09-23; /api/health read commitShort e6eb59442, uptime 511 at 03:41Z. Live on deploy: tool replies, claim guard v2, confirmation + recovery scripts. NOT yet live: the receptionist prompt / tool text / voicemail (awaiting the operator's Push Latest Config) and the follow-up cadence prompt (awaiting scripts/vapi-create-followup-assistant.ts). The first follow-up, the stale-callback cron (#2569), merged as 4dca4aab."
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "PARTLY ADDRESSED 2026-09-23: the demand is now recorded. Every tireInquiry tool call's tool_called state row carries demand {size normalised by extractTireSize, new/used} (never name or phone; server/lib/tireDemand.ts toolCallStateMetadata), and Today -> Arrival load shows 'Asked by phone today · N tire callers: <sizes>' from dispatch.phoneTireDemandToday. Still open: nothing copies it to vapi_call_logs, so the census cannot read it yet, and it is not exercised in production. Original text: The claim is true but thin: the counter still receives nothing from an ordinary tire inquiry. Making 'noted' useful means persisting the demand (size, vehicle, new/used) to the call record and showing it at the counter: Part I #5 of docs/operations/CUSTOMER-CORPUS-RESEARCH-2026-09-23.md."
+        }
+      ]
+    },
+    {
+      "capabilityId": "today-owed-texts",
+      "name": "Customers waiting on a text reply appear on Today's action queue, and an unreadable inbox reads UNKNOWN, not clear",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "2026-09-23, branch claude/gallant-hamilton-yjulym. The first production census found 55 of 104 inbound text episodes ending with the customer's last text unanswered, and the Today queue (bookings, leads, callbacks, work orders) showed none of them. server/services/owedTexts.ts reads 7 days of sms_messages and decides each thread by its newest message: a failed outbound is skipped (the customer never got it), an outbound reply clears the thread, and an inbound text is owed unless it is an opt-out or opt-in keyword, a bare acknowledgement, a short-code sender, or younger than 15 minutes (the automated reply goes first). Waits are computed in SQL. It throws on a dead database; adminBundle carries it as the owedTexts slice, and OverviewSection's queueTrustworthy treats that slice as a veto on All clear. Queue items are type text, urgent after 4 hours, with a Texts filter; Open thread deep-links to the customer's SMS thread.",
+        "tests": "8 in server/__tests__/owedTexts.test.ts (positive control first; failed reply is no reply; grace window; STOP / Stop. / opt-out / START / ok thanks / thumbs-up owed nothing; short code; oldest wait first; a sentence starting with a keyword is still owed). MUTATION VERIFIED: removing the failed-reply skip and the grace window turned 2 of 8 red. 2 source pins in server/adminBundleTruth.test.ts (the slice exists and its reader throws; an unreadable slice vetoes All clear), MUTATION VERIFIED: dropping the veto turned 1 red. 12 related admin test files, 149 passed. Typecheck 0 errors.",
+        "liveRuns": "NOT YET: no production read has been made of the list's size or content."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not exercised in production. Proof needed: after deploy, open Today and compare the Texts filter against the SMS inbox for a few threads (one answered, one waiting, one STOP)."
+        },
+        {
+          "severity": "P3",
+          "description": "A reply made by phone call is invisible to this reader, so a customer the crew called back stays on the list until someone texts them or the thread ages past 7 days. Marking a thread handled without texting would need a stored dismissal; not built."
+        }
+      ],
+      "deferredScope": []
     }
   ],
   "axes": {

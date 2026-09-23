@@ -14,6 +14,7 @@
             "properties": {
               "context": {
                 "default": "ANYWHERE",
+                "description": "WHERE the task gets done, as a CODE - not a topic or description. Exactly one of: DESK · PHONE · SHOP · CAR · HOME · ANYWHERE.",
                 "enum": [
                   "DESK",
                   "PHONE",
@@ -30,6 +31,7 @@
               },
               "effort": {
                 "default": "M30",
+                "description": "Time budget as a CODE, not a duration string. Exactly one of: M5 (5 min) · M15 (15 min) · M30 (30 min) · H1 (1 hour) · H2PLUS (2+ hours).",
                 "enum": [
                   "M5",
                   "M15",
@@ -45,6 +47,7 @@
               },
               "loopKind": {
                 "default": "ONCE",
+                "description": "ONCE = one-shot · DAILY = repeats every day · WEEKLY = repeats on set weekdays (also send recurringDays) · PROMISE = commitment to someone (also send promiseTo).",
                 "enum": [
                   "ONCE",
                   "DAILY",
@@ -557,7 +560,7 @@
   },
   {
     "name": "arsenalWebSearch",
-    "description": "Web search with AI summarization. Prefers Perplexica (self-hosted, free, unlimited); falls back to Perplexity/Google, then to the multi-source quorum if the primary is unavailable. Powered by the Arsenal integration chain.",
+    "description": "Web search with AI summarization. Tries Tavily first; falls back to Perplexity/Google, then to the multi-source quorum if those are unavailable. Powered by the Arsenal integration chain.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -1058,11 +1061,12 @@
   },
   {
     "name": "createMissionPlan",
-    "description": "Create a mission with multiple linked tasks in one call. Use when Nour describes a multi-step project or goal.",
+    "description": "Create a mission with multiple linked tasks in one call. Use when Nour describes a multi-step project or goal. `tasks` must hold AT LEAST ONE task — an empty array is rejected and nothing is created, so if the steps are not known yet, create the tasks later with addTasksToProject rather than sending [].",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domain": {
+          "description": "Which life area this mission belongs to. Exactly one of: BUSINESS · PERSONAL · HEALTH · CONTENT · FINANCE.",
           "enum": [
             "BUSINESS",
             "PERSONAL",
@@ -1074,6 +1078,7 @@
         },
         "priority": {
           "default": 50,
+          "description": "1-100, higher is more important.",
           "maximum": 100,
           "minimum": 1,
           "type": "number"
@@ -1087,6 +1092,7 @@
             "properties": {
               "context": {
                 "default": "ANYWHERE",
+                "description": "WHERE the task gets done, as a CODE - not a topic or description. Exactly one of: DESK · PHONE · SHOP · CAR · HOME · ANYWHERE.",
                 "enum": [
                   "DESK",
                   "PHONE",
@@ -1103,6 +1109,7 @@
               },
               "effort": {
                 "default": "M30",
+                "description": "Time budget as a CODE, not a duration string. Exactly one of: M5 (5 min) · M15 (15 min) · M30 (30 min) · H1 (1 hour) · H2PLUS (2+ hours).",
                 "enum": [
                   "M5",
                   "M15",
@@ -1118,6 +1125,7 @@
               },
               "loopKind": {
                 "default": "ONCE",
+                "description": "ONCE = one-shot · DAILY = repeats every day · WEEKLY = repeats on set weekdays (also send recurringDays) · PROMISE = commitment to someone (also send promiseTo).",
                 "enum": [
                   "ONCE",
                   "DAILY",
@@ -1261,7 +1269,7 @@
         },
         "loopKind": {
           "default": "ONCE",
-          "description": "ONCE = one-shot · DAILY = repeats every day · PROMISE = commitment to someone",
+          "description": "ONCE = one-shot · DAILY = repeats every day · PROMISE = commitment to someone (also send promiseTo).",
           "enum": [
             "ONCE",
             "DAILY",
@@ -2563,6 +2571,7 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "context": {
+          "description": "What KIND of situation this is (not a location — unrelated to the task `context` field). Exactly one of: business · personal · negotiation · conflict · decision.",
           "enum": [
             "business",
             "personal",
@@ -3139,6 +3148,7 @@
         },
         "effort": {
           "default": "M15",
+          "description": "Time budget as a CODE, not a duration string. Exactly one of: M5 (5 min) · M15 (15 min) · M30 (30 min) · H1 (1 hour) · H2PLUS (2+ hours).",
           "enum": [
             "M5",
             "M15",
@@ -3554,7 +3564,7 @@
   },
   {
     "name": "searchWebVerified",
-    "description": "Cross-verified web search across multiple sources (Perplexity + Tavily + Exa + Google Grounding + Perplexica). Returns consensus when sources agree, or flags the disagreement when they diverge. Use for factual claims where being wrong matters: news, statistics, recent events, technical specs. Confidence ≥0.66 means 2+ sources agree. Prefer this over single-source web search when the operator's question is verifiable.",
+    "description": "Cross-verified web search across multiple sources (Perplexity + Tavily + Exa + Google Grounding). Returns consensus when sources agree, or flags the disagreement when they diverge. Use for factual claims where being wrong matters: news, statistics, recent events, technical specs. Confidence ≥0.66 means 2+ sources agree. Prefer this over single-source web search when the operator's question is verifiable.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
@@ -3590,8 +3600,7 @@
               "perplexity",
               "tavily",
               "exa",
-              "google",
-              "perplexica"
+              "google"
             ],
             "type": "string"
           },
@@ -4249,6 +4258,7 @@
           "description": "Set to null to UNLINK from goal · pass an id to link"
         },
         "loopKind": {
+          "description": "ONCE = one-shot · DAILY = repeats every day · PROMISE = commitment to someone (also send promiseTo).",
           "enum": [
             "ONCE",
             "DAILY",

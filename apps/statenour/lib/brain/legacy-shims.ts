@@ -199,10 +199,26 @@ export interface LegacyShopQuote {
 }
 
 /**
- * Recent N-day shop jobs. Currently no nickstire bridge query
- * exposes a list of recent jobs (`jobs_today` is single-day; no
- * range query). Returns empty + warn-once. Brain consumers degrade
- * to seasonal/heuristic context.
+ * Recent N-day shop jobs, read from the NICKSTIRE BRIDGE over HTTP.
+ *
+ * CORRECTED 2026-09-16. This comment previously said "no nickstire bridge
+ * query exposes a list of recent jobs (`jobs_today` is single-day; no range
+ * query). Returns empty + warn-once." That was false: the body below calls
+ * `recent_invoices` with a `days` range and maps the result. Measured with no
+ * DATABASE_URL set, it returned enough live invoices for the teaching-moments
+ * engine to emit two revenue moments (n=11 and n=8 day-samples).
+ *
+ * The staleness had a real cost. `tests/lib/brain-engines-smoke.test.ts`
+ * describes its subjects as "100% DB-dominated" and mocks only `@/lib/prisma`
+ * — reasonable if you believe this comment. Because this shim actually reaches
+ * the network, that test's verdict was decided by bridge reachability rather
+ * than by the contract it meant to lock: green in CI, red on a machine that can
+ * reach the bridge.
+ *
+ * So: this is a NETWORK read, not a DB read. Anything mocking the database
+ * alone has NOT emptied this input. It still returns [] + warn-once when the
+ * bridge errors or no sync key is configured, which is the degrade path the
+ * old comment described as the only path.
  */
 export async function recentShopJobs(days = 30): Promise<LegacyShopJob[]> {
   const res = await queryNick<{ invoices: Array<{ id: string; totalAmount: number; invoiceDate: string }> }>(

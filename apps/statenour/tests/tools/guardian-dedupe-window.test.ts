@@ -83,3 +83,44 @@ describe("withGuardian · approval dedupe 24h window", () => {
     expect(prismaMock.approvalRequest.create).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("withGuardian · shared approval-match rule (2026-09-23)", () => {
+  it("key-order-different but equal payloads match the existing request", async () => {
+    prismaMock.approvalRequest.findFirst.mockResolvedValueOnce({
+      id: "req_1",
+      status: "pending_approval",
+      payload: { target: "x", destructive: false, nested: { a: 1, b: 2 } },
+      expiresAt: new Date(Date.now() + 3600_000),
+    });
+    const guarded = withGuardian("test-tool-window", async () => "ok");
+    await expect(guarded({ nested: { b: 2, a: 1 }, destructive: false, target: "x" })).rejects.toMatchObject({
+      requestId: "req_1",
+    });
+    expect(prismaMock.approvalRequest.create).not.toHaveBeenCalled();
+  });
+
+  it("an expired pending/approved match is ignored and a new request is raised", async () => {
+    prismaMock.approvalRequest.findFirst.mockResolvedValueOnce({
+      id: "req_old",
+      status: "approved",
+      payload: PAYLOAD,
+      expiresAt: new Date(Date.now() - 1000),
+    });
+    const guarded = withGuardian("test-tool-window", async () => "ok");
+    await expect(guarded(PAYLOAD)).rejects.toMatchObject({ requestId: "req_new" });
+    expect(prismaMock.approvalRequest.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("an executed match replays the stored result and never re-executes", async () => {
+    prismaMock.approvalRequest.findFirst.mockResolvedValueOnce({
+      id: "req_1",
+      status: "executed",
+      payload: PAYLOAD,
+      resultPayload: { done: true },
+    });
+    const inner = vi.fn(async () => "ran-again");
+    const guarded = withGuardian("test-tool-window", inner);
+    await expect(guarded(PAYLOAD)).resolves.toEqual({ done: true });
+    expect(inner).not.toHaveBeenCalled();
+  });
+});

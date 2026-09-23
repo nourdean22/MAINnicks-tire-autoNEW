@@ -10,17 +10,23 @@
  * — i.e. exactly the object handed to the model. A read-mode turn whose
  * metric claimed a mutating tool was offered would reintroduce the
  * surfaced-vs-chosen confound on precisely the turns where the strip
- * matters. Delete the recordMetric call and this file goes red.
+ * matters. Delete the recordMetricStrict call and this file goes red.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { recordMetric, markSearchToolsFired, markInvokeToolFired } = vi.hoisted(() => ({
+const { recordMetric, recordMetricStrict, markSearchToolsFired, markInvokeToolFired } = vi.hoisted(() => ({
+  /** Kept so the mocked module still exports what other consumers import. */
   recordMetric: vi.fn().mockResolvedValue(undefined),
+  // 2026-09-16 · the surfacing census now uses the PROPAGATING writer. The
+  // fail-soft one could never reject, so its failure branch was dead code and
+  // a dead census instrument looked exactly like "that tool was never
+  // surfaced". The mock resolves a RECEIPT, matching the real signature.
+  recordMetricStrict: vi.fn().mockResolvedValue({ id: "metric-row-1" }),
   markSearchToolsFired: vi.fn().mockResolvedValue(undefined),
   markInvokeToolFired: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/lib/services/metrics", () => ({ recordMetric }));
+vi.mock("@/lib/services/metrics", () => ({ recordMetric, recordMetricStrict }));
 vi.mock("@/lib/ai/tool-selection-telemetry", () => ({
   markSearchToolsFired,
   markInvokeToolFired,
@@ -84,15 +90,15 @@ function args(overrides: Partial<Parameters<typeof prepareTools>[0]> = {}) {
 
 describe("prepareTools surfacing telemetry", () => {
   beforeEach(() => {
-    recordMetric.mockClear();
+    recordMetricStrict.mockClear();
     markSearchToolsFired.mockClear();
     markInvokeToolFired.mockClear();
   });
 
   it("records the FINAL offered set plus registered/discoverable/surfaced truth", async () => {
     const result = await prepareTools(args({ traceId: "trace-cap" }));
-    await vi.waitFor(() => expect(recordMetric).toHaveBeenCalledTimes(1));
-    const [metric, value, opts] = recordMetric.mock.calls[0];
+    await vi.waitFor(() => expect(recordMetricStrict).toHaveBeenCalledTimes(1));
+    const [metric, value, opts] = recordMetricStrict.mock.calls[0];
     expect(metric).toBe("tool.surfaced");
     // searchTools + invokeTool are force-added by the recovery lane, so the
     // recorded set proves the metric fires AFTER the forces, not on the raw
@@ -127,8 +133,8 @@ describe("prepareTools surfacing telemetry", () => {
         actionIntent: { intent: "create task", expectedTool: "toolC" } as never,
       }),
     );
-    await vi.waitFor(() => expect(recordMetric).toHaveBeenCalledTimes(1));
-    const [, , opts] = recordMetric.mock.calls[0];
+    await vi.waitFor(() => expect(recordMetricStrict).toHaveBeenCalledTimes(1));
+    const [, , opts] = recordMetricStrict.mock.calls[0];
     // toolB deleted by the operator blocklist; toolC force-added by the
     // action-intent coherence guarantee.
     expect(opts.tags.tools).toEqual(["invokeTool", "searchTools", "toolA", "toolC"]);
@@ -151,8 +157,8 @@ describe("prepareTools surfacing telemetry", () => {
 
   it("records the set AFTER the WP-14 read-mode strip — a stripped mutator must not appear offered", async () => {
     const result = await prepareTools(args({ actionPermission: "read" }));
-    await vi.waitFor(() => expect(recordMetric).toHaveBeenCalledTimes(1));
-    const [, value, opts] = recordMetric.mock.calls[0];
+    await vi.waitFor(() => expect(recordMetricStrict).toHaveBeenCalledTimes(1));
+    const [, value, opts] = recordMetricStrict.mock.calls[0];
     // toolA was stripped by read mode; recording it as offered would
     // falsely blame the model for never choosing a tool it never saw.
     expect(opts.tags.tools).toEqual(["invokeTool", "searchTools", "toolB"]);

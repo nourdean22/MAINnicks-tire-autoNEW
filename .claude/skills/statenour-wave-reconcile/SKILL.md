@@ -25,14 +25,32 @@ when a wave of work lands, before ending the session.
    a sibling's merge (2026-09-15: Session B's two entries sat at the top
    with its next PR open; the waves 2-3 entry went beneath them).
 
-   Then update the `**Last verified:**` stamp — **note there are TWO of
-   them, and the guard reads the FIRST.** `check-stale-docs.ts` parses the
-   first occurrence in the file, which is embedded mid-line inside the
-   corrupted 2026-06-21 blockquote near line 5 — not the standalone header
-   line near line 57 that looks like the obvious one. Previous waves
-   updated only the standalone stamp and left the first at 2026-07-29, so
-   `STALE_DOCS_STRICT` fails with "Date mismatch" after an edit that looks
-   correct. **Update both, or at minimum the first.**
+   Then update the `**Last verified:**` stamp. **Do not trust a line number
+   for it — find it with the guard's own regex.** `check-stale-docs.ts:226`
+   matches `/Last verified:(?:\*\*|\s)*(\d{4}-\d{2}-\d{2})/i`, i.e. the first
+   occurrence *followed by a DATE*. Verified 2026-09-18.
+
+   Run it from the REPO ROOT (the normal working directory) — the path is
+   `apps/statenour/docs/RECONCILIATION.md`. A bare `docs/RECONCILIATION.md`
+   throws `ENOENT` from the root, which is exactly how the first version of
+   this probe shipped: broken, in the step whose entire purpose is to stop you
+   editing the wrong stamp. Caught in review on #2428.
+
+   ```bash
+   node -e "const fs=require('fs');const p='apps/statenour/docs/RECONCILIATION.md';const c=fs.readFileSync(p,'utf8');const m=/Last verified:(?:\*\*|\s)*(\d{4}-\d{2}-\d{2})/i.exec(c);console.log(m&&m[1],'line',m&&c.slice(0,m.index).split('\n').length)"
+   ```
+
+   This skill previously said the guard reads a stamp "embedded mid-line
+   inside the corrupted 2026-06-21 blockquote near line 5" and told you to
+   update that one. **That is now wrong in two ways** and following it would
+   edit the wrong stamp: the corrupted blockquote sits near line 3062, not 5,
+   and it contains the bare text `` `**Last verified:**` `` with NO date — so
+   the regex skips it. The live match is the standalone stamp (line 3590 as
+   of 2026-09-18). Line numbers in this file move every wave; re-run the
+   probe instead of trusting any of these numbers, including these.
+
+   `AGENTS.md`'s `**Last refreshed:**` date must EQUAL the stamp above
+   (`check-stale-docs.ts:336` compares them and fails on mismatch).
 
 2. **`apps/statenour/AGENTS.md`** — update `**Last refreshed:**` (§1).
    If the wave changed deploy target, branch, versioning, test counts,

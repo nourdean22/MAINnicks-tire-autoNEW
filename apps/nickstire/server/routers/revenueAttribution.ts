@@ -1,4 +1,6 @@
 import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { collapseByInvoice, attributionCounts } from "../lib/attributionDedupe";
+import { BAND_CALIBRATION_CAVEAT, bandMix, bandOf, describeBand } from "../lib/attributionConfidenceBands";
 import { z } from "zod";
 import { invoices, leads, vapiCallLogs } from "../../drizzle/schema";
 import { adminProcedure, router } from "../_core/trpc";
@@ -182,7 +184,82 @@ export const revenueAttributionRouter = router({
       ORDER BY c.created_at DESC
       LIMIT ${input.limit}
     `);
-    return rowsFromExecute<Record<string, unknown>>(raw);
+    const rows = rowsFromExecute<Record<string, unknown>>(raw);
+
+    /**
+     * AN INVOICE CAN BE PAID ONCE, SO IT CAN BE CLAIMED ONCE.
+     *
+     * The query above dedupes by call_id (the latest candidate per call) and
+     * NOT by invoice_id. Observed live on 2026-09-18: of twenty weak matches,
+     * EIGHT claimed the same invoice #5160005 — one customer who rang eight
+     * times before coming in. Each row read "this call produced this invoice",
+     * so confirming them all would have counted that invoice eight times.
+     *
+     * This inflates REVENUE rather than demand, which makes it the more
+     * dangerous of the two defects this wave found: it is the number the system
+     * is judged by, and nobody audits a number they like.
+     *
+     * Duplicates are RETAINED and pointed at the primary rather than dropped —
+     * those seven calls are real contacts from the same customer. They stop
+     * being separate decisions about separate money; they do not stop existing.
+     */
+    const collapsed = collapseByInvoice(
+      rows.map((r) => ({
+        ...r,
+        id: Number(r.id),
+        callId: Number(r.callId),
+        invoiceId: r.invoiceId == null ? null : Number(r.invoiceId),
+        confidence: r.confidence == null ? null : Number(r.confidence),
+        resolution: String(r.resolution ?? ""),
+        createdAt: r.createdAt instanceof Date ? r.createdAt : new Date(String(r.createdAt)),
+      })),
+    );
+
+    return {
+      /** The decisions a human should actually make — one per invoice. */
+      /**
+       * Each row carries its OWN band, classified server-side.
+       *
+       * The band descriptions (label, basis, whatWouldRaiseIt) existed and were
+       * rendered nowhere — a producer with no consumer, in the same diff that
+       * was auditing other people's unwired producers. The knip orphan gate
+       * caught it, correctly.
+       *
+       * Classification stays on the server rather than the client importing
+       * `server/lib`: that would cross a layer boundary, and the band is a
+       * judgement about evidence, not a formatting concern.
+       */
+      rows: collapsed.primary.map((r) => ({
+        ...r,
+        band: describeBand(bandOf(r.confidence)),
+      })),
+      /** Same-invoice contacts, kept for context. NOT independent decisions. */
+      duplicates: collapsed.duplicates,
+      /** Invoices claimed by more than one call. Non-empty is normal; billing twice is not. */
+      contestedInvoiceIds: collapsed.contestedInvoiceIds,
+      /**
+       * Both counts side by side, so the gap is visible rather than implied.
+       * `candidateRows` is what this queue used to return; reporting it as
+       * conversions is the over-count.
+       */
+      counts: attributionCounts(collapsed),
+      /**
+       * WHAT THE CONFIDENCE NUMBERS ACTUALLY MEAN.
+       *
+       * The rows carry 0.9 and 0.75 next to real invoices, and an operator
+       * confirming money reads those as percentages. They are not: they are
+       * ordinal labels for two evidence recipes that differ by exactly one
+       * fact — whether the service text overlapped — and neither has ever been
+       * calibrated against outcomes.
+       *
+       * `inferredPct` is the number worth watching. A queue that is mostly
+       * inference is a queue where confirming in bulk is guessing in bulk, and
+       * the last defect found here was precisely that: eight calls claiming one
+       * invoice, each individually plausible.
+       */
+      bands: bandMix(collapsed.primary.map((r) => r.confidence)),
+      bandCaveat: BAND_CALIBRATION_CAVEAT,
+    };
   }),
 
   reconcile: adminProcedure.input(dateRangeSchema.extend({

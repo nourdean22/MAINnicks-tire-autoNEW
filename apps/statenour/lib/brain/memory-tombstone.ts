@@ -40,16 +40,66 @@ export async function dropEmbeddingsForMemories(
   memoryIds: string[],
   reason: string,
 ): Promise<number> {
-  if (memoryIds.length === 0) return 0;
+  return dropEmbeddingsForSource("brain_memory", memoryIds, reason);
+}
+
+/**
+ * The same tombstone for any source type whose rows are HARD-deleted.
+ *
+ * ⚠ THIS FILE'S HEADER WAS TRUE AND INCOMPLETE — TWICE.
+ *
+ * It said four brain_memory paths hard-delete without cleaning up, and fixed
+ * those. That was true OF brain_memory and read as though it were the whole
+ * story. A systematic sweep of every hard delete on the 11 embedded source
+ * tables (2026-09-18) found FIVE more, none of which cascaded:
+ *
+ *   · app/api/cron/data-cleanup   deleted situation_logs nightly on a 90-day
+ *     timer → 205 situation_log embeddings, 0 source rows, ever. (That sweep
+ *     is removed; see the route for why.)
+ *   · lib/system/stale-data-purger  deletes orphan chat_conversations AND
+ *     their chat_messages → 7 chat_message orphans measured.
+ *   · lib/services/chat-edit        truncates a conversation on edit/regenerate
+ *     → chat_message, 2,473 embeddings with the newest written THAT DAY.
+ *   · lib/services/people/delete-ledger-row → relationship_ledger, 16
+ *     embeddings, newest the day before.
+ *   · lib/services/undo-token      undoing `person.create` → person_profile.
+ *
+ * Every one of those runs on a schedule or on a user action, so each count is
+ * a RATE, not a total.
+ *
+ * ⚠ AND FIVE SITES WERE CHECKED AND DELIBERATELY LEFT ALONE — lib/ai/reasoning
+ * {budget,idempotency,engine}.ts delete `reasoning_in_flight` /
+ * `reasoning_idempotency` rows, which are in-flight bookkeeping that measured
+ * ZERO rows on prod and are never observed in the vector index. Adding a
+ * cascade there would be dead code written to look thorough. "Delete on an
+ * embedded TABLE" is not the same as "deletes EMBEDDED ROWS"; check the
+ * category before adding a call.
+ *
+ * Generalising is the point: the next writer of a hard delete needs one
+ * obvious function to call, not a per-table convention to rediscover. Only
+ * HARD deletes belong here — a soft delete leaves the row addressable, and
+ * lib/db/embedding-shadow.ts marks those instead so they stay recoverable.
+ *
+ * Best-effort by design, exactly like the brain_memory path: the caller has
+ * already removed the rows, and turning a cleanup miss into a throw converts a
+ * storage leak into a failed prune.
+ */
+export async function dropEmbeddingsForSource(
+  sourceType: string,
+  sourceIds: string[],
+  reason: string,
+): Promise<number> {
+  if (sourceIds.length === 0) return 0;
   try {
     const res = await prisma.vectorEmbedding.deleteMany({
-      where: { sourceType: "brain_memory", sourceId: { in: memoryIds } },
+      where: { sourceType, sourceId: { in: sourceIds } },
     });
     return res.count;
   } catch (err) {
     log.warn("embedding_cleanup_failed", {
       reason,
-      memoryCount: memoryIds.length,
+      sourceType,
+      memoryCount: sourceIds.length,
       error: String((err as { message?: string })?.message ?? err).slice(0, 200),
     });
     return 0;

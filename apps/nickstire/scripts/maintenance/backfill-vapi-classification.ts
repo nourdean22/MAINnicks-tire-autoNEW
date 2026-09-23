@@ -10,6 +10,8 @@ import { vapiCallLogs } from "../../drizzle/schema";
 import { eq, gte, and } from "drizzle-orm";
 import { createLogger } from "../../server/lib/logger";
 import { classifyCall } from "../../server/services/vapiCallClassifier";
+import { extractCustomerTurns } from "../../server/services/customerTurns";
+import { disposeCall } from "../../shared/callTaxonomy";
 import { getCallStateHistory } from "../../server/services/voice-call-state";
 
 const log = createLogger("scripts:backfill-vapi-classification");
@@ -162,27 +164,32 @@ async function main() {
       let queueStatus: string | undefined = undefined;
       let queueUrgency: number | undefined = undefined;
 
-      const candidates = ["lost_opportunity", "callback_needed", "walk_in_directed", "tech_failure"];
-      if (candidates.includes(result.outcome)) {
+      /**
+       * 2026-09-18 · rewired to the taxonomy kernel.
+       *
+       * This block was the ELEVENTH hand-typed copy of the queue-candidate
+       * list, and it did not even agree with the live cron: `vapiCallEval.ts`
+       * had no urgency-8 tier, this did. So a backfill re-stamped rows with a
+       * different priority ladder than the one that produced them — and, left
+       * as-is, running this script would have silently reverted the queue
+       * semantics repaired in this wave (walk_in_directed back to "missed
+       * revenue", tech_failure back to an operator obligation).
+       *
+       * It is in `scripts/`, which `tsconfig.json` excludes, so no gate would
+       * have caught the divergence. Found by reading the diff, not by a tool.
+       */
+      const speech = extractCustomerTurns(transcript);
+      const disposition = disposeCall({
+        outcome: result.outcome,
+        speakerAttribution: result.speakerAttribution,
+        hasCustomerSpeech: speech.firstSubstantive !== null,
+        durationSeconds: row.durationSeconds ?? 0,
+        ageMinutes: Math.max(0, Math.floor((Date.now() - row.createdAt.getTime()) / 60_000)),
+        hasCapturedSpecifics: result.intents.includes("tire_size_request"),
+      });
+      if (disposition.queueEligible) {
         queueStatus = "pending";
-        // compute urgency
-        if (result.outcome === "callback_needed") {
-          queueUrgency = 9;
-        } else if (result.outcome === "lost_opportunity") {
-          if (result.intents.includes("new_tire") || result.intents.includes("used_tire") || result.intents.includes("brakes")) {
-            queueUrgency = 8;
-          } else if (result.intents.length > 0) {
-            queueUrgency = 7;
-          } else {
-            queueUrgency = 6;
-          }
-        } else if (result.outcome === "walk_in_directed") {
-          queueUrgency = 6;
-        } else if (result.outcome === "tech_failure") {
-          queueUrgency = 5;
-        } else {
-          queueUrgency = 4;
-        }
+        queueUrgency = disposition.priority;
       }
 
       const existingMetadata = typeof row.metadata === "string"

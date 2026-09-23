@@ -27,7 +27,18 @@ export interface Playbook {
 export const PLAYBOOKS: readonly Playbook[] = [
   {
     id: "reflect",
-    match: /\b(journal|reflect|reflection|debrief|how am i|how did i|mood|energy|sleep|tired|burn(ed|t)? out|anxious|pattern|blind spot)\b/i,
+    // 2026-09-19 · `blind spot` -> `blind spots?`. The trailing \b made the
+    // SINGULAR match and the PLURAL not: after "spot" comes "s", so there is
+    // no word boundary there. "what are my blind spots" — the natural
+    // phrasing, and literally the tool's own name (getBlindSpots) — has
+    // therefore never matched this playbook since it shipped.
+    //
+    // Found while demoting getBlindSpots out of CORE_TOOLS: the demotion was
+    // justified on this playbook being its fallback path, and writing the
+    // reachability test with REAL user text rather than text reverse-engineered
+    // from the regex showed the path did not exist. `pattern` above has the
+    // same shape but is already singular-correct for its usage.
+    match: /\b(journal|reflect|reflection|debrief|how am i|how did i|mood|energy|sleep|tired|burn(ed|t)? out|anxious|pattern|blind spots?)\b/i,
     tools: [
       "getHealthToday",
       "getSleepTrend",

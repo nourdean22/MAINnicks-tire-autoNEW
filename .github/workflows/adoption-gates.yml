@@ -161,3 +161,69 @@ jobs:
 
       - name: gate - no NEW unconsumed exports, files, or scripts
         run: cd apps/nickstire && node scripts/knip-orphan-gate.mjs
+
+  curdate-gate:
+    name: curdate gate (no new bare CURDATE() in server SQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+
+      # No install: the gate is node stdlib only.
+
+      # Two planted sites: the bare CURDATE() and one widened spelling, DATE(NOW()).
+      # A nonzero exit alone proves nothing (a crash or a bad flag exits nonzero
+      # too), so stderr must name the rule AND list each planted site.
+      - name: canary - the gate must FAIL on a planted CURDATE()
+        run: |
+          cd apps/nickstire
+          cp server/services/shopSales.ts server/services/shopSales.ts.bak
+          printf '\nexport const __curdateCanary__ = "SELECT CURDATE()";\nexport const __curdateCanaryWide__ = "SELECT DATE(NOW())";\n' >> server/services/shopSales.ts
+          status=0
+          node scripts/lint-curdate.mjs > "$RUNNER_TEMP/curdate.out" 2> "$RUNNER_TEMP/curdate.err" || status=$?
+          mv server/services/shopSales.ts.bak server/services/shopSales.ts
+          if [ "$status" -ne 1 ]; then
+            cat "$RUNNER_TEMP/curdate.err"
+            echo "::error::curdate gate canary - exit $status on planted sites, expected 1; the gate is blind or broken"
+            exit 1
+          fi
+          # The expanded headline exists only in real output (the source holds ${RULE}), so a
+          # crash that echoes the offending source line cannot satisfy it.
+          grep -qF "NEW site(s): a calendar date computed from the UTC DB clock" "$RUNNER_TEMP/curdate.err" || {
+            cat "$RUNNER_TEMP/curdate.err"
+            echo "::error::curdate gate canary - it failed without naming the rule; a crash is not a catch"
+            exit 1
+          }
+          grep -qE 'L[0-9]+ +CURDATE\(\)' "$RUNNER_TEMP/curdate.err" || {
+            cat "$RUNNER_TEMP/curdate.err"
+            echo "::error::curdate gate canary - the planted CURDATE() was not listed"
+            exit 1
+          }
+          grep -qE 'L[0-9]+ +DATE\(NOW\(\)' "$RUNNER_TEMP/curdate.err" || {
+            cat "$RUNNER_TEMP/curdate.err"
+            echo "::error::curdate gate canary - the planted DATE(NOW()) was not listed; the widened matcher is blind"
+            exit 1
+          }
+          echo "canary ok - both planted spellings were caught and the rule was named"
+
+      - name: canary - the gate must PASS on a clean tree
+        run: |
+          cd apps/nickstire
+          node scripts/lint-curdate.mjs > "$RUNNER_TEMP/curdate-clean.out" || {
+            echo "::error::curdate gate reports failure on an unmodified tree - the gate is stuck red"
+            exit 1
+          }
+          # Exit 0 must come from a scan that ran: the pass line is printed only after one.
+          grep -qE '[0-9]+ file\(s\) scanned' "$RUNNER_TEMP/curdate-clean.out" && grep -qF "no new site" "$RUNNER_TEMP/curdate-clean.out" || {
+            cat "$RUNNER_TEMP/curdate-clean.out"
+            echo "::error::curdate gate exited 0 without its pass line - it did not scan"
+            exit 1
+          }
+          echo "canary ok - clean tree passes"
+
+      - name: gate - no NEW bare CURDATE()
+        run: cd apps/nickstire && node scripts/lint-curdate.mjs

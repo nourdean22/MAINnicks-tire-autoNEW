@@ -161,6 +161,11 @@ class ShopMirror:
                     "cameraPose": (provenance or self.provenance).get("cameraPose"),
                     "detectorName": (provenance or self.provenance).get("detectorName"),
                     "calibrationVersion": (provenance or self.provenance).get("calibrationVersion"),
+                    # Episode trail (migration 0127). Seeded None: a producer without the
+                    # stitcher never sets them, and NULL reads as "not reported" rather
+                    # than as an empty trail.
+                    "episodeId": None,
+                    "memberTrackIds": None,
                     # A visit whose row is still queued keeps the class it was FIRST given,
                     # even across a restart that came up in a different mode.
                     "dataClass": pinned[0] if pinned else self.data_class,
@@ -174,6 +179,17 @@ class ShopMirror:
                 val = getattr(emission, attr, None)
                 if val:
                     row[key] = str(val)
+
+            # `VisionPipeline._emit` stamps these on the emission when the stitcher folded
+            # fragments into one episode. Lifted here so the DURABLE mirror carries the
+            # trail -- the sink in `vision/run_live.py` is the lab lane and `edge_main`
+            # never uses it.
+            ep = getattr(emission, "episode_id", None)
+            if ep:
+                row["episodeId"] = str(ep)
+            members = getattr(emission, "member_track_ids", None)
+            if members:
+                row["memberTrackIds"] = [int(m) for m in members]
 
             row["state"] = emission.state
             row["seq"] = int(emission.seq)

@@ -156,6 +156,21 @@ const HEDGE = String.raw`(?:\b(?:about|around|roughly|maybe|like|approximately|u
 const TIME_UNIT = String.raw`(?:minutes?|mins?|hours?|hrs?)`;
 
 /**
+ * A conditional connector immediately before the match position.
+ *
+ * Used as a negative lookbehind so a verdict INSIDE a condition is not scored as
+ * a verdict. "If it's safe to drive, bring it by" and "let me know if you can
+ * make it here" are correct assistant speech that happen to contain the literal
+ * words of a claim; declaring the condition is what makes them honest.
+ *
+ * JavaScript is unusual in allowing a variable-length lookbehind, so one
+ * alternation covers every connector instead of a stack of fixed-width ones.
+ * Declared once because a guard that protects only the branches its author
+ * happened to think of is the defect this constant exists to prevent.
+ */
+const NOT_CONDITIONAL = String.raw`(?<!\b(?:if|whether|unless|when|once|assuming)\s)`;
+
+/**
  * Any money figure at all. Applied only AFTER the approved anchors are removed,
  * so a match here is an unapproved price by construction.
  */
@@ -210,9 +225,173 @@ export const PROHIBITED_VOICE_CLAIMS: ProhibitedClaim[] = [
     re: /\b(?:nick|the\s+(?:owner|manager|tech|mechanic))\s+(?:will|'ll|is\s+going\s+to|can)\s+(?:look|check|take\s+care|handle|fix|see|do)\b/i,
   },
   {
-    // checkTireStock — "never promise a callback"; escalate is the CLOSED path.
+    // A callback promise is BACKED only when escalate() wrote the callback
+    // queue + Promise Ledger row. On a call whose messages show escalate ran,
+    // voiceClaimViolations skips this label (v2). The phrase exemption below
+    // is the transcript-only fallback for the scripted after-hours line, old
+    // ("first thing when we open") and new ("call you back when we're open").
     label: "unbacked_callback_promise",
-    re: /\b(?:i'?ll|we'?ll|someone\s+will|(?:i|we)\s+(?:am|are)\s+going\s+to)\s+(?:call|ring|get\s+back\s+to|reach\s+out\s+to)\s+(?:you|ya)\b(?!\s*(?:if|when\s+we\s+open|first\s+thing))/i,
+    re: /\b(?:i'?ll|we'?ll|someone\s+will|(?:i|we)\s+(?:am|are)\s+going\s+to)\s+(?:call|ring|get\s+back\s+to|reach\s+out\s+to)\s+(?:you|ya)\b(?!\s*(?:back\s+)?(?:if|when\s+we(?:'re|\s+are)?\s+open|first\s+thing))/i,
+  },
+
+  /* ── TIRE SAFETY · added 2026-09-18, sourced to primary documents ──
+   *
+   * These differ in kind from the claims above. The others cost money when
+   * wrong; these can put an unsafe tire back on a car, so the boundary is not
+   * "what can we prove" but "what can anyone determine over a phone".
+   *
+   * DELIBERATELY UNDER-MATCHING. This module's own header records why: a
+   * detector that guesses buries the claims that cost money. Every pattern
+   * below matches an UNHEDGED VERDICT only. "It's usually repairable if it's in
+   * the tread, but we can't confirm until we get it off the wheel" is correct
+   * assistant behaviour and must stay clean, so the hedged forms are allowed
+   * through on purpose and some real violations will be missed. Under-matching
+   * is the safe direction for a detector that cannot block speech.
+   */
+  {
+    /*
+     * A REPAIRABILITY VERDICT OVER THE PHONE.
+     *
+     * USTMA, Puncture Repair Procedures for Passenger and Light Truck Tires:
+     * "Repairs must be performed by removing the tire from the rim/wheel
+     * assembly to perform a complete inspection to assess all damage that may
+     * be present." The injury limit is 1/4 inch and shoulder/sidewall damage is
+     * not repairable at all — none of which is visible from a description.
+     *
+     * Nick may state the CRITERIA. He may not apply them to a tire nobody has
+     * seen.
+     */
+    label: "phone_repairability_verdict",
+    re: /\b(?:yeah|yes|sure)?,?\s*(?:we|i)\s+can\s+(?:definitely\s+|for\s+sure\s+)?(?:patch|plug)\s+(?:that|it|those)\b|\bwe'?ll\s+just\s+(?:patch|plug)\s+(?:that|it)\b|\bthat'?s\s+(?:definitely\s+|totally\s+)?(?:repairable|patchable|fixable)\b/i,
+  },
+  {
+    /*
+     * AN OUTSIDE-IN OR ON-THE-WHEEL REPAIR.
+     *
+     * USTMA is unambiguous: "NEVER perform an outside-in tire repair or
+     * on-the-wheel repair", and "A repair using a plug only or a patch only is
+     * NOT ACCEPTABLE." Offering one on the phone promises a procedure the shop
+     * should not perform.
+     */
+    label: "improper_tire_repair_offer",
+    re: /\b(?:patch|plug|repair|fix)\s+(?:it|that|the\s+tire)\s+(?:right\s+)?(?:while\s+it'?s\s+)?(?:still\s+)?on\s+the\s+(?:car|wheel|rim|vehicle)\b/i,
+  },
+  {
+    /*
+     * A SAFETY VERDICT FROM TIRE AGE.
+     *
+     * NHTSA sets NO replacement interval. Its exact wording is "SOME VEHICLE
+     * AND TIRE MANUFACTURERS RECOMMEND replacing tires that are six to ten
+     * years old" — an attribution, not a rule. Goodyear says six; Bridgestone
+     * and Michelin say ten; USTMA says calendar age alone cannot predict
+     * serviceable life. No federal rule expires a tire, and Ohio has no
+     * age-based tire law.
+     *
+     * Declaring a customer's tires expired, illegal or unsafe on age is both
+     * unsupported and a sales pressure this shop does not need.
+     */
+    /*
+     * Subject widened 2026-09-18 after a test miss: the verdict is just as
+     * unsupported without the noun. "Those are too old, they're unsafe" carries
+     * exactly the same claim as "your tires are unsafe", and a caller hears no
+     * difference. The compliant phrasings stay clean because they attribute
+     * ("some manufacturers recommend") rather than declare, and because
+     * "that are six to ten years old" is not "too old".
+     */
+    label: "tire_age_safety_verdict",
+    re: /\b(?:your\s+tires?|those|they|these)\s+(?:are|is|'re)\s+(?:expired|too\s+old|unsafe|illegal|no\s+longer\s+(?:safe|legal))\b|\bnhtsa\s+(?:says|recommends|requires|mandates)\b/i,
+  },
+  {
+    /*
+     * AN ABSOLUTE AWD CLAIM.
+     *
+     * The only primary document carrying a drivetrain-damage warning is Subaru
+     * Service Bulletin 03-75-15, whose stated applicability is the 2015MY WRX
+     * STI and whose subject is the DCCD warning light. It is not a general law
+     * of all-wheel drive. The per-brand tread-tolerance tables in wide
+     * circulation ("Toyota allows 2/32in") are unsourced retailer marketing.
+     *
+     * Correct behaviour is conditional: AWD vehicles CAN have matching
+     * requirements, and we would check what this vehicle calls for.
+     */
+    label: "awd_absolute_claim",
+    re: /\b(?:will|would|'ll)\s+(?:destroy|ruin|wreck|blow|burn\s+up)\s+(?:your\s+)?(?:differential|drivetrain|transfer\s+case|transmission)\b|\byou\s+(?:have\s+to|must|need\s+to)\s+replace\s+all\s+four\b(?!\s*(?:if|when|unless|on\s+some))/i,
+  },
+
+  /* ── REPAIR INTAKE · added 2026-09-18 ──
+   *
+   * The tire claims above cover the product the shop is named for. This pair
+   * covers the OTHER half of the phone traffic: a caller describing a symptom
+   * on a car nobody has seen.
+   *
+   * No primary document is needed for the boundary, because the boundary is
+   * epistemic rather than regulatory: a noise the assistant has not heard, on a
+   * vehicle it has not inspected, cannot be attributed to a part. Naming one is
+   * a guess wearing the shop's authority — and the caller then either declines
+   * a repair they need or arrives expecting one they do not.
+   *
+   * Same under-matching discipline as the tire block. Every pattern fires on an
+   * UNHEDGED VERDICT only: "it's your wheel bearing" is a claim, while "that
+   * could be a bearing, a heat shield, or the brakes — we'd have to drive it"
+   * is exactly the answer wanted and must stay clean. Hedged forms are allowed
+   * through on purpose.
+   */
+  {
+    /*
+     * NAMING THE FAILED PART FROM A DESCRIPTION.
+     *
+     * The part list is deliberately the common intake vocabulary rather than an
+     * exhaustive catalogue — an unmatched part is a missed violation, which is
+     * the safe direction, while a list padded with ambiguous words ("belt",
+     * "line", "pump") would fire on ordinary speech.
+     *
+     * Note what is NOT allowed between the subject and the part: no adverb slot
+     * exists, so "it's probably the alternator" and "it's usually the pads"
+     * never match. That is the hedge allowance, implemented by omission rather
+     * than by a second list that could drift out of step.
+     */
+    label: "phone_diagnosis_verdict",
+    re: /\b(?:that|it|this)'?s\s+(?:your\s+|the\s+|an?\s+)*(?:bad\s+|worn\s+|shot\s+|failing\s+|blown\s+|seized\s+)?(?:wheel\s+bearing|brake\s+(?:pads?|rotors?|calipers?)|rotors?|calipers?|alternator|starter|cv\s+(?:joint|axle)|tie\s+rod|ball\s+joint|serpentine\s+belt|water\s+pump|fuel\s+pump|catalytic\s+converter|head\s+gasket|control\s+arm|wheel\s+hub)\b|\byou\s+need\s+(?:an?\s+|new\s+)*(?:wheel\s+bearing|brake\s+(?:pads?|rotors?|calipers?)|rotors?|calipers?|alternator|starter|cv\s+(?:joint|axle)|tie\s+rod|ball\s+joint|serpentine\s+belt|water\s+pump|fuel\s+pump|catalytic\s+converter|head\s+gasket|control\s+arm|wheel\s+hub)\b|\byour\s+(?:wheel\s+bearing|brake\s+(?:pads?|rotors?|calipers?)|rotors?|calipers?|alternator|starter|cv\s+(?:joint|axle)|tie\s+rod|ball\s+joint|serpentine\s+belt|water\s+pump|fuel\s+pump|catalytic\s+converter|head\s+gasket|control\s+arm|wheel\s+hub)s?\s+(?:is|are|'s|'re)\s+(?:bad|shot|gone|toast|blown|seized|worn\s+out|failing)\b/i,
+  },
+  {
+    /*
+     * TELLING A CALLER WHETHER THE CAR IS SAFE TO DRIVE.
+     *
+     * The most consequential sentence on the whole line, in both directions. A
+     * green light nobody is qualified to give can put a caller on I-90 on a
+     * failing hub; a red light nobody is qualified to give sells a tow the car
+     * did not need.
+     *
+     * The correct answer is conditional and returns the judgement to the person
+     * who can actually feel the car: if it feels unsafe, do not drive it.
+     *
+     * THE CONDITIONAL LOOKBEHIND IS LOAD-BEARING, ON EVERY BRANCH. Without it
+     * this pattern fires on the compliant phrasings themselves — "we can't tell
+     * you WHETHER it's safe to drive" and "IF it's safe to drive, bring it by"
+     * both contain the literal verdict. A guard that flags the correct script is
+     * a guard staff route around, which is the failure this module's header
+     * warns about.
+     *
+     * CAUGHT IN SELF-REVIEW, 2026-09-18, and the miss is the lesson: the first
+     * version guarded the two branches whose false positives I had thought of
+     * and left the third bare, so "let me know IF YOU CAN MAKE IT HERE before
+     * six" — ordinary scheduling speech, four words of it — scored as a safety
+     * verdict. Every CLEAN test I had written exercised the two guarded
+     * branches. A guard is only as good as its least-tested alternative, so the
+     * lookbehind is now hoisted into one constant that each branch must use.
+     */
+    label: "drivability_safety_verdict",
+    re: new RegExp(
+      [
+        // an assertive green light
+        `${NOT_CONDITIONAL}\\b(?:you'?re|you\\s+are|you'?ll\\s+be|it'?s)\\s+(?:totally\\s+|perfectly\\s+|definitely\\s+|completely\\s+|absolutely\\s+)?(?:fine|safe|okay|ok)\\s+to\\s+drive\\b`,
+        // the same permission phrased as ability
+        `${NOT_CONDITIONAL}\\byou\\s+can\\s+(?:definitely\\s+|for\\s+sure\\s+|safely\\s+)?(?:make\\s+it\\s+(?:here|in|over)|drive\\s+(?:it|that|on\\s+it))\\b`,
+        // an assertive red light — unsupported in the other direction
+        `${NOT_CONDITIONAL}\\bit'?s\\s+(?:not|never)\\s+safe\\s+to\\s+drive\\b`,
+      ].join("|"),
+      "i",
+    ),
   },
 ];
 
@@ -293,7 +472,7 @@ export interface VoiceClaimResult {
  * text, return labels. The difference is only that voice scores AFTER the fact,
  * because there is nothing to block.
  */
-export function voiceClaimViolations(turns: string[]): string[] {
+export function voiceClaimViolations(turns: string[], ctx: { escalated?: boolean } = {}): string[] {
   const found = new Set<string>();
   for (const turn of turns) {
     // Approved anchors are removed first, so any surviving money figure is
@@ -303,6 +482,8 @@ export function voiceClaimViolations(turns: string[]): string[] {
     if (MONEY_RE.test(stripped)) found.add("unapproved_price_quote");
 
     for (const claim of PROHIBITED_VOICE_CLAIMS) {
+      // escalate ran on this call: its callback is in the queue and the ledger.
+      if (claim.label === "unbacked_callback_promise" && ctx.escalated) continue;
       if (claim.re.test(turn)) found.add(claim.label);
     }
   }
@@ -315,8 +496,28 @@ export function voiceClaimViolations(turns: string[]): string[] {
  * v1 (2026-07-27): first mechanical enforcement of voice claim rules. Versioned
  * from the start so a later rule change stays comparable in the data instead of
  * silently redefining what a stored violation meant.
+ *
+ * v2 (2026-09-23): `unbacked_callback_promise` is not raised on a call whose
+ * messages show escalate() ran, and the after-hours exemption also accepts
+ * "call you back when we're open". The prompt now routes EVERY callback it
+ * lets the assistant promise through escalate — including CALLBACK CAPTURE
+ * while open, after a transfer that did not connect — so v1 would flag those
+ * backed promises. Compare v1 and v2 counts of this label with that in mind.
  */
-export const VOICE_CLAIM_GUARD_VERSION = 1;
+export const VOICE_CLAIM_GUARD_VERSION = 2;
+
+/**
+ * Did escalate() run on this call? Vapi's artifact messages carry the model's
+ * tool calls as `toolCalls: [{ function: { name } }]` — the same shape
+ * server/routers/vapi.ts `callDetails` reads.
+ */
+function escalateRan(messages: unknown): boolean {
+  if (!Array.isArray(messages)) return false;
+  return messages.some((m) => {
+    const calls = (m as { toolCalls?: unknown })?.toolCalls;
+    return Array.isArray(calls) && calls.some((c) => (c as { function?: { name?: unknown } })?.function?.name === "escalate");
+  });
+}
 
 export interface VoiceClaimRecord {
   v: number;
@@ -329,6 +530,14 @@ export interface VoiceClaimRecord {
    * count would produce exactly the deceptive blended KPI the directive forbids.
    */
   botTells?: string[];
+  /**
+   * v2 · the model CALLED escalate() on this call, so a callback it promised is
+   * treated as backed. (A call that then failed server-side is logged by the
+   * tool itself; this field records the call, not its row.) Present only when
+   * role-tagged messages were read: a flat transcript cannot show tool calls,
+   * and "unknown" must not be stored as false.
+   */
+  escalated?: boolean;
 }
 
 /**
@@ -345,17 +554,20 @@ export function buildVoiceClaimRecord(args: {
   transcript?: unknown;
   messages?: unknown;
 }): VoiceClaimRecord | null {
-  const parsed = Array.isArray(args.messages) && args.messages.length
+  const fromMessages = Array.isArray(args.messages) && args.messages.length > 0;
+  const parsed = fromMessages
     ? extractAssistantTurnsFromMessages(args.messages)
     : extractAssistantTurns(args.transcript);
 
   if (!parsed.turns.length && !parsed.unparsed) return null;
 
+  const escalated = fromMessages ? escalateRan(args.messages) : undefined;
   return {
     v: VOICE_CLAIM_GUARD_VERSION,
-    violations: parsed.unparsed ? [] : voiceClaimViolations(parsed.turns),
+    violations: parsed.unparsed ? [] : voiceClaimViolations(parsed.turns, { escalated }),
     turnsScanned: parsed.turns.length,
     unparsed: parsed.unparsed,
     botTells: parsed.unparsed ? [] : botTellViolations(parsed.turns),
+    ...(escalated === undefined ? {} : { escalated }),
   };
 }

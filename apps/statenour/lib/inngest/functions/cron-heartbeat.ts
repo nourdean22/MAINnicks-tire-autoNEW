@@ -27,6 +27,7 @@
  * fan-out, the subsystem that actually broke.
  */
 import { getInngest } from "../client";
+import { TERMINAL_OK_STATUSES } from "../cron-lifecycle";
 import { onInngestFailure } from "../on-failure";
 import { MORNING_JOBS, EVENING_JOBS, WEEKLY_JOBS } from "../jobs";
 import { prisma } from "@/lib/prisma";
@@ -206,21 +207,27 @@ export const cronHeartbeat = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
-    // 2026-07-28 cron-truth hardening · SELF-ROW FIRST. This watchdog
-    // was itself invisible to Inngest Cloud for weeks (function-set
-    // drift, docs/audits/2026-07-28-cron-truth.md) and left no trace of
-    // its own absence. It now writes proof-of-invocation before doing
-    // anything else — the row the worker's out-of-band
-    // /api/cron/inngest-liveness check reads. If Inngest dies again,
-    // this row goes stale and a NON-Inngest scheduler notices within a
-    // day. Who watches the watcher: a different service, on purpose.
-    await step.run("self-row", async () => {
-      await prisma.cronJobLog
-        .create({ data: { jobName: "cron-heartbeat", status: "success" } })
-        .catch((e) => logError("inngest.cron-heartbeat", e, { stage: "self-row", risk: "liveness watchdog goes blind" }, "warn"));
-      return true;
-    });
-
+    // 2026-07-28 cron-truth hardening · SELF-ROW FIRST. This watchdog was
+    // itself invisible to Inngest Cloud for weeks (function-set drift,
+    // docs/audits/2026-07-28-cron-truth.md) and left no trace of its own
+    // absence. The row it wrote here is what the worker's out-of-band
+    // /api/cron/inngest-liveness check reads: if Inngest dies again, that row
+    // goes stale and a NON-Inngest scheduler notices within a day. Who watches
+    // the watcher: a different service, on purpose. That design still holds.
+    //
+    // ⚠⚠ 2026-09-17 — THE ROW IS GONE FROM HERE, AND IT WAS LYING. The comment
+    // said "proof-of-invocation", but the row it wrote said `status: "success"`,
+    // BEFORE any of the work below. So this watchdog reported a healthy run the
+    // instant it fired, and `fleet-truth`'s `inngest-heartbeat` probe — which
+    // reads exactly this jobName+success pair — went green on INVOCATION rather
+    // than completion. A watchdog that certifies itself healthy before doing its
+    // job is the precise failure it was built to catch, and it shipped that way
+    // for seven weeks.
+    //
+    // lib/inngest/cron-lifecycle.ts now writes `started` here (via the client's
+    // middleware) and settles it to `success` only when the handler actually
+    // returns, so the liveness beacon and its out-of-band reader both keep
+    // working — and start telling the truth.
     const expected = expectedJobs();
     const names = expected.map((e) => e.name);
 
@@ -234,10 +241,26 @@ export const cronHeartbeat = inngest.createFunction(
       // "the mega fan-out itself may be down" — a worse lie than the silence.
       //
       // The second answers the question the first structurally cannot: not "did
-      // it run" but "did it WORK". `not: "failed"` rather than `equals: "success"`
-      // because `partial` is a live third status (mega-fanout writes it), and an
-      // equals-filter would start false-paging the day a job legitimately reports
-      // partial. Index already exists: @@index([jobName, status, createdAt]).
+      // it run" but "did it WORK".
+      //
+      // ⚠⚠ THIS PREDICATE WAS `not: "failed"` AND THAT BECAME A FALSE GREEN.
+      // The reasoning behind it was sound for the vocabulary of the time:
+      // `partial` is a live third status (mega-fanout writes it to mean
+      // "finished, some children failed"), so an equals-"success" filter would
+      // have false-paged the day a job legitimately reported partial.
+      //
+      // What broke it was not this line. On 2026-09-17 a fourth status,
+      // `started`, was introduced for proof-of-invocation — written BEFORE the
+      // work. A negative predicate silently admits every status invented after
+      // it is written, so `not: "failed"` began counting "fired, outcome
+      // unknown" as WORKED. A cron that fires and crashes would have shown a
+      // fresh healthy timestamp here, which is the exact blindness the
+      // invocation row was added to remove, re-entering through the reader.
+      //
+      // ★ NAME THE TERMINAL STATES YOU ACCEPT. A positive list cannot be
+      // widened by someone else's new status: a future value is excluded until
+      // a human decides it belongs. That is the property `not:` lacks.
+      // Index already exists: @@index([jobName, status, createdAt]).
       const [anyRows, okRows] = await Promise.all([
         prisma.cronJobLog.groupBy({
           by: ["jobName"],
@@ -246,7 +269,9 @@ export const cronHeartbeat = inngest.createFunction(
         }),
         prisma.cronJobLog.groupBy({
           by: ["jobName"],
-          where: { jobName: { in: names }, status: { not: "failed" } },
+          // Spread: the export is `readonly` on purpose so no consumer can
+          // mutate the shared list, and Prisma's generated arg type is mutable.
+          where: { jobName: { in: names }, status: { in: [...TERMINAL_OK_STATUSES] } },
           _max: { createdAt: true },
         }),
       ]);

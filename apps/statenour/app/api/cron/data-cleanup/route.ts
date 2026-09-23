@@ -4,6 +4,8 @@ import { daysAgo } from "@/lib/utils/datetime";
 import { BRAIN_MEMORY_RETENTION } from "@/config/retention";
 import { purgeStaleCategory } from "@/lib/system/stale-data-purger";
 import { scrubExpiredPlates } from "@/lib/services/plate-retention";
+import { logError } from "@/lib/utils/error-log";
+import { sweepEmbeddingShadow } from "@/lib/db/embedding-shadow";
 import {
   NEVER_HARD_DELETE_CATEGORIES,
   judgeSweep,
@@ -254,11 +256,41 @@ export const GET = cronHandler(async () => {
   });
   deletedByTable.state_logs = stateLogs.count;
 
-  // SituationLog: 90d (rolling-trend widget data)
-  const situationLogs = await prisma.situationLog.deleteMany({
-    where: { createdAt: { lt: daysAgo(90) } },
-  });
-  deletedByTable.situation_logs = situationLogs.count;
+  // SituationLog: NO LONGER SWEPT · 2026-09-18.
+  //
+  // This used to be `deleteMany({ createdAt: { lt: daysAgo(90) } })`, labelled
+  // "90d (rolling-trend widget data)". That label was the defect: ONE TABLE,
+  // TWO INCOMPATIBLE CLASSIFICATIONS.
+  //
+  //   · here          — disposable widget telemetry, 90-day TTL
+  //   · journal-brain — a first-class journal SILO, sitting beside reflection /
+  //                     brain_dump / decision_replay, with grounding
+  //                     enrichment, goal/mission linking, thread membership
+  //                     and a recall embedding (lib/brain/journal-fanout.ts)
+  //
+  // Its three siblings have NO retention sweep at all. So the only journal silo
+  // on a timer was the one whose retention comment had forgotten it was a
+  // journal silo — and it is the only one measured empty. On 2026-09-18
+  // situation_logs held ZERO rows, had never held one at a checkpoint, and
+  // still carried 205 vector embeddings whose source ids point at nothing:
+  // searchable personal content with no record behind it.
+  //
+  // Volume is not the reason to sweep it. The 205 embeddings span 10 days of
+  // May 2026 — roughly 20 rows/day at the busiest this silo has ever been,
+  // against siblings holding 217 and 9 rows lifetime. Unbounded growth is not a
+  // live risk here; losing the operator's own situation log is.
+  //
+  // ⚠ DELETING WAS ALSO THE ORPHAN SOURCE. Nothing here cascaded to
+  // vector_embeddings, because sourceId is a plain text column with no foreign
+  // key. Every sweep therefore converted a journal entry into a permanent
+  // orphan embedding. Not sweeping removes the producer; the 205 already made
+  // are held out of recall by lib/db/embedding-shadow.ts rather than deleted,
+  // since their `content` is now the last surviving copy of that text.
+  //
+  // If a retention window is ever wanted again, it has to cascade — use
+  // dropEmbeddingsForSource("situation_log", ids, reason) from
+  // lib/brain/memory-tombstone.ts — and it should cover all four silos or none.
+  deletedByTable.situation_logs = 0;
 
   // DeviceCommand: completed only, 30d. Pending + failed kept forever.
   const deviceCmds = await prisma.deviceCommand.deleteMany({
@@ -305,6 +337,28 @@ export const GET = cronHandler(async () => {
   });
   deletedByTable.tool_verb_ratios = toolVerbRatios.count;
 
+  // ── Derived-index reconciliation · 2026-09-18 ────────────────────────────
+  // Every sweep above DELETES source rows. `vector_embeddings` indexes ~13 of
+  // those tables through a plain text ("sourceType","sourceId") pair with NO
+  // foreign key — one index, many sources, so there is no referential action to
+  // cascade. A delete up there therefore leaves a live, searchable embedding
+  // pointing at nothing, and measured 2026-09-18 that had happened 396 times
+  // outside brain_memory (which alone had a liveness filter at the recall
+  // boundary). Reconciling in the SAME run that causes it is the point: a
+  // separate nightly would drift, and this is the job that owes the debt.
+  //
+  // MARKS, NEVER DELETES — the embedding's `content` column is frequently the
+  // last surviving copy of a hard-deleted source. Bounded by
+  // MAX_NEW_MARKS_PER_RUN so a mass-delete night cannot turn into a mass
+  // quarantine without an operator running the script with --force.
+  //
+  // Never fails the cleanup: reconciliation is maintenance, and turning it into
+  // a hard error would file a successful prune as a failed cron.
+  const shadowSweep = await sweepEmbeddingShadow().catch((err: unknown) => {
+    logError("cron.data-cleanup", err, { fn: "sweepEmbeddingShadow" }, "warn");
+    return null;
+  });
+
   const totalDeleted = Object.values(deletedByTable).reduce((a, b) => a + b, 0);
 
   // v10.0.34 — audit trail for the cleanup. Pre-fix this cron mass-
@@ -338,14 +392,61 @@ export const GET = cronHandler(async () => {
   // on every run to date — including the night 54,107 rows were deleted.
   // ok:false files the run as FAILED (lib/services/cron-manager.ts
   // reportedFailureReason) so a blocked sweep is an alarm, not a footnote.
+  // ⚠ FAILURE MUST BE TOP-LEVEL OR IT IS NOT A FAILURE (2026-09-18 · review on
+  // #2430). `reportedFailureReason` in lib/services/cron-manager.ts reads ONLY a
+  // top-level `ok: false` — CronJobLog stores status/error/count, never this
+  // payload. So the first cut, which reported the shadow sweep's refusal nested
+  // under `embeddingShadow`, would have filed a run as SUCCESS while dead
+  // embeddings stayed searchable and nobody was told.
+  //
+  // That is precisely the defect repaired across this cron fleet on 2026-09-17,
+  // where three jobs wrote `status: "success"` before doing the work and
+  // /system/fleet was green for seven weeks. Reintroducing it one layer down,
+  // in the same file, is exactly how that class survives being "fixed".
+  // A SKIPPED SOURCE IS ALSO A FAILURE, and that is not obvious (2026-09-18,
+  // review on #2434). `refused` covers the cap; it does NOT cover a source the
+  // sweep declined individually — a missing table, a renamed soft-delete column,
+  // or the 100%-mark mapping guard. Those leave `refused:false` with an empty
+  // reason list, so the cron logged SUCCESS while that source went unreconciled
+  // and its stale embeddings stayed searchable.
+  //
+  // In steady state this list is EMPTY: all 11 allowlisted tables exist, all
+  // their soft-delete columns exist, and situation_log carries allowFullSweep.
+  // So a skip is never routine — it means the schema moved under the allowlist,
+  // which is exactly the thing that must not be discovered a month later.
+  const skipped = (shadowSweep?.sources ?? [])
+    .filter((s) => s.skipped)
+    .map((s) => `${s.sourceType}: ${s.skipped}`);
+
+  const failureReasons = [
+    ...blockedSweeps.map((b) => b.reason),
+    ...(shadowSweep === null ? ["embedding shadow sweep threw — see error_logs"] : []),
+    ...(shadowSweep?.refused && shadowSweep.refusedReason
+      ? [`embedding shadow sweep refused — ${shadowSweep.refusedReason}`]
+      : []),
+    ...(skipped.length > 0 ? [`embedding shadow sources skipped — ${skipped.join(" | ")}`] : []),
+  ];
+
   return {
-    ...(blockedSweeps.length > 0
-      ? { ok: false as const, reason: blockedSweeps.map((b) => b.reason).join(" | ") }
+    ...(failureReasons.length > 0
+      ? { ok: false as const, reason: failureReasons.join(" | ") }
       : {}),
     resultCount: totalDeleted,
     deletedByTable,
     totalDeleted,
     brainMemoryReport,
     blockedSweeps,
+    // Surfaced, not swallowed: a reconciliation that runs but is never reported
+    // is indistinguishable from one that never ran. `refused` means the cap
+    // held — that is a real signal, not a footnote.
+    embeddingShadow: shadowSweep
+      ? {
+          marked: shadowSweep.totalMarked,
+          cleared: shadowSweep.totalCleared,
+          refused: shadowSweep.refused,
+          refusedReason: shadowSweep.refusedReason,
+          skipped,
+        }
+      : { error: "sweep threw — see error_logs" },
   };
 });

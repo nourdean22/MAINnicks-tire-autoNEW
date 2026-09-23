@@ -76,6 +76,14 @@ export interface JobOpening {
    */
   salaryMinHourlyCents: number | null;
   salaryMaxHourlyCents: number | null;
+  /**
+   * Minimum hands-on experience in months. Must agree with the visible
+   * requirements list (e.g. "2+ years" = 24). > 0 is emitted as Google's
+   * experienceRequirements.monthsOfExperience; 0 = the role requires none,
+   * emitted as the literal "no requirements" Google asks for in that case;
+   * null = not stated (omitted).
+   */
+  experienceMonths: number | null;
 }
 
 export const JOB_OPENINGS: JobOpening[] = [
@@ -108,12 +116,20 @@ export const JOB_OPENINGS: JobOpening[] = [
       "Diagnostic experience with intermittent faults",
     ],
     status: "open",
-    datePosted: "2026-09-09",
+    // 2026-09-23 · the terms changed (hourly pay published), which is the
+    // case this field's rule allows; it also moves the sitemap <lastmod>.
+    datePosted: "2026-09-23",
     validThrough: "2026-12-31",
-    // Deliberately null: the shop does not publish a band for this role. The
-    // schema therefore omits baseSalary rather than emitting an empty one.
-    salaryMinHourlyCents: null,
-    salaryMaxHourlyCents: null,
+    // 2026-09-23 · owner decision: match Enterprise Mobility's Euclid service
+    // center — posting 558870 (verified live 2026-09-23): USD $30.00-$37.50/hr,
+    // $30 start, +$1/hr per ASE after the required minimum of 4 (up to 8).
+    // Enterprise REQUIRES those 4 ASEs and adds benefits and a $400/yr tool
+    // stipend; this role asks 2+ years, ASE optional — same numbers, easier
+    // entry. A public pay floor the shop must honour — change it only with the
+    // owner. Research: docs/recruiting/RECRUITING-ENGINE-2026-09.md.
+    salaryMinHourlyCents: 3000,
+    salaryMaxHourlyCents: 3750,
+    experienceMonths: 24,
   },
   {
     slug: "service-advisor",
@@ -144,10 +160,20 @@ export const JOB_OPENINGS: JobOpening[] = [
       "Bilingual (Spanish, Arabic, or other languages common in our community)",
     ],
     status: "open",
-    datePosted: "2026-09-09",
+    // 2026-09-23 · the terms changed (hourly pay published), which is the
+    // datePosted rule's own exception.
+    datePosted: "2026-09-23",
     validThrough: "2026-12-31",
-    salaryMinHourlyCents: null,
-    salaryMaxHourlyCents: null,
+    // Owner-set 2026-09-23 ("set the service advisor pay to the average"):
+    // centred on the Cleveland average for automotive service advisors,
+    // $25.16/hr (ZipRecruiter, 2026-08-16; most earn $17.93-$28.89). A local
+    // family tire shop posts $20-$25/hr. The floor matches the tire-tech floor.
+    // Hourly base only; no commission is promised. A public pay floor the shop
+    // must honour — change it only with the owner.
+    salaryMinHourlyCents: 2200,
+    salaryMaxHourlyCents: 2800,
+    // Prior advisor experience is listed under "nice", not required.
+    experienceMonths: 0,
   },
   {
     slug: "tire-technician",
@@ -156,7 +182,7 @@ export const JOB_OPENINGS: JobOpening[] = [
     level: "Entry to Mid",
     employmentType: "FULL_TIME",
     description:
-      "The role that keeps us running. Fast hands, attention to TPMS sensors, and the discipline to torque lug nuts to spec without skipping steps. We're one of Cleveland's busiest tire operations — there's always work, the pace is real, and the money is consistent.",
+      "The role that keeps us running. Fast hands, attention to TPMS sensors, and the discipline to torque lug nuts to spec without skipping steps. Tires are the core of this shop — the pace is real, and the pay is hourly.",
     responsibilities: [
       "Mount, balance, and install tires on cars, trucks, SUVs, and fleet vans",
       "Perform TPMS sensor service and resets",
@@ -177,10 +203,21 @@ export const JOB_OPENINGS: JobOpening[] = [
       "Ability to work efficiently during high-volume periods",
     ],
     status: "open",
-    datePosted: "2026-09-09",
+    // 2026-09-23 · the terms changed (hourly pay published), which is the
+    // case this field's rule allows; it also moves the sitemap <lastmod>.
+    datePosted: "2026-09-23",
     validThrough: "2026-12-31",
-    salaryMinHourlyCents: null,
-    salaryMaxHourlyCents: null,
+    // 2026-09-23 · owner-set when the band was presented as Enterprise
+    // Euclid's. Checked afterwards (enterprisemobility.com 562425/552533, BLS
+    // May 2025): Enterprise's Lube and Tire Technician STARTS at $20/hr; its
+    // $22 figure belongs to an Associate role needing 2 years + 2 ASEs. So this
+    // floor sits about $2/hr ABOVE Enterprise's tire start (near the Cleveland
+    // tire-repairer 75th percentile, $22.82). Public pay floor — the owner
+    // decides whether to keep it; change only with the owner.
+    salaryMinHourlyCents: 2200,
+    salaryMaxHourlyCents: 2550,
+    // Prior tire experience is listed under "nice", not required.
+    experienceMonths: 0,
   },
 ];
 
@@ -199,6 +236,46 @@ export function jobOpeningBySlug(slug: string): JobOpening | undefined {
 }
 
 /**
+ * Visible hourly pay string, e.g. "$30.00–$37.50/hr", or null when the role
+ * has no published band. The job page renders THIS so the visible figure and
+ * baseSalary can never disagree — Google requires markup to match the page.
+ */
+export function formatHourlyPayRange(job: JobOpening): string | null {
+  const { salaryMinHourlyCents: lo, salaryMaxHourlyCents: hi } = job;
+  if (lo == null && hi == null) return null;
+  const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+  if (lo != null && hi != null && lo !== hi) return `${fmt(lo)}–${fmt(hi)}/hr`;
+  return `${fmt((lo ?? hi)!)}/hr`;
+}
+
+function escapeHtml(t: string): string {
+  return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function htmlList(heading: string, items: string[]): string {
+  if (items.length === 0) return "";
+  return `<p><strong>${heading}</strong></p><ul>${items.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`;
+}
+
+/**
+ * Google: description is "the full description of the job in HTML format".
+ * The first version joined description + responsibilities into one run-on
+ * plain-text string and dropped the requirements list entirely. Every string
+ * here is also rendered visibly on the job page.
+ */
+function buildJobDescriptionHtml(job: JobOpening, shopHours: string): string {
+  const pay = formatHourlyPayRange(job);
+  return [
+    `<p>${escapeHtml(job.description)}</p>`,
+    htmlList("What you'll do", job.responsibilities),
+    htmlList("What we need", job.requirements),
+    htmlList("Nice to have", job.nice),
+    pay ? `<p><strong>Pay:</strong> ${escapeHtml(pay)}, hourly.</p>` : "",
+    `<p><strong>Shop hours:</strong> ${escapeHtml(shopHours)}</p>`,
+  ].join("");
+}
+
+/**
  * Build the JobPosting for ONE opening.
  *
  * Returns null for a non-open role, so a filled job cannot emit structured
@@ -210,6 +287,8 @@ export function buildJobPostingSchema(
     siteUrl: string;
     orgName: string;
     logoUrl: string;
+    /** Visible shop-hours line, e.g. BUSINESS.hours.display. */
+    shopHours: string;
     address: { street: string; city: string; state: string; zip: string };
   },
 ): Record<string, unknown> | null {
@@ -219,7 +298,7 @@ export function buildJobPostingSchema(
     "@context": "https://schema.org",
     "@type": "JobPosting",
     title: job.title,
-    description: [job.description, ...job.responsibilities].join(" "),
+    description: buildJobDescriptionHtml(job, ctx.shopHours),
     identifier: { "@type": "PropertyValue", name: ctx.orgName, value: job.slug },
     datePosted: job.datePosted,
     validThrough: job.validThrough,
@@ -260,6 +339,16 @@ export function buildJobPostingSchema(
       value.value = (lo ?? hi)! / 100;
     }
     schema.baseSalary = { "@type": "MonetaryAmount", currency: "USD", value };
+  }
+
+  if (job.experienceMonths === 0) {
+    // Google: "If there aren't any requirements, use the no requirements value."
+    schema.experienceRequirements = "no requirements";
+  } else if (job.experienceMonths != null) {
+    schema.experienceRequirements = {
+      "@type": "OccupationalExperienceRequirements",
+      monthsOfExperience: job.experienceMonths,
+    };
   }
 
   return schema;

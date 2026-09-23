@@ -52,24 +52,16 @@ function configuredHook() {
 /**
  * Resolve `${CLAUDE_PROJECT_DIR}` and split into argv, honouring quotes.
  *
- * SEPARATORS ARE NORMALISED, and the reason matters. The configured command
- * uses Windows backslashes — as does the graphify hook beside it — because the
- * operator's machine is Windows. Run verbatim on a Linux CI runner, a
- * backslash path is one filename containing backslashes, so the first CI run of
- * this file failed with MODULE_NOT_FOUND while the hook was perfectly correct
- * on the machine it runs on.
- *
- * Normalising is a HARNESS concern, not a weakened assertion: the claim under
- * test is "the configured script detects an oversized index", not "this path
- * string parses on every OS". To keep it from masking a genuinely wrong path,
- * the resolved script is existence-checked below — a typo'd path still fails,
- * it just fails saying so instead of saying MODULE_NOT_FOUND.
+ * NO SEPARATOR NORMALISATION, on purpose (2026-09-23). This used to rewrite the
+ * configured backslashes to "/" before running, calling it a harness concern.
+ * It was the defect: on Linux (every cloud session) the real hook ran the
+ * backslash path verbatim, failed MODULE_NOT_FOUND and failed open, while this
+ * test, having fixed the path first, stayed green. The hooks now use "/", which
+ * node resolves on Windows too; hookCommand.test.mjs runs each one verbatim.
  */
 function resolveArgv(command) {
   const expanded = command.replaceAll("${CLAUDE_PROJECT_DIR}", ROOT);
-  return (expanded.match(/"[^"]*"|\S+/g) ?? [])
-    .map((t) => t.replace(/^"|"$/g, ""))
-    .map((t) => (t.includes("\\") ? t.replaceAll("\\", "/") : t));
+  return (expanded.match(/"[^"]*"|\S+/g) ?? []).map((t) => t.replace(/^"|"$/g, ""));
 }
 
 /** Run the CONFIGURED command with extra args against a scratch memory dir. */

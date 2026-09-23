@@ -280,3 +280,88 @@ fixes, unlike a frozen or looping camera, which is a VISION problem the pipeline
 DEGRADED_VISION without restarting. **A producer started by hand does not come back on its
 own** -- only the Scheduled Task from §3 restarts it, which is the main reason to install it
 rather than run `python edge_main.py` in a terminal.
+
+---
+
+## 8. The office conversation capture (added 2026-09-22)
+
+A second, independent producer on the same box. The lot cameras answer "what vehicles were
+here"; this one answers "what was actually said at the counter", which is the half no camera
+can see.
+
+**It is a different pipeline with a different privacy posture, so it is deliberately not
+folded into `edge_main.py`.** The audio never leaves this machine: it is transcribed locally
+and only the TEXT is posted. `conversation_episodes.audioRef` stores a path, never a
+recording.
+
+### Install it
+
+One command, once, as Administrator. Read the key on this machine so it never travels:
+
+```powershell
+railway run -s MAINnicks-tire-auto -- printenv CAMERA_INGEST_KEY
+cd C:\NOURCITY\camera-bridge\scripts
+.\install-office-capture.ps1 -SourceUrl "rtsp://<user>:<pass>@192.168.0.167/live0" -IngestKey "<paste>"
+```
+
+It verifies every prerequisite BEFORE changing anything -- Administrator, Python >= 3.9,
+`tzdata`, `ffmpeg`, the whisper binary, and a live `ffprobe` proving the camera really carries
+an audio stream -- and names the fix for each. `-WhatIf` shows the changes without making them.
+
+The ingest key and the RTSP URL go into the MACHINE environment, not the task's arguments: a
+scheduled task's command line is readable by any user via `schtasks /query /v`, and the camera
+credentials are inside that URL.
+
+### Hours
+
+08:00-18:00 America/New_York, **every day including weekends** (operator's choice, 2026-09-22).
+Outside that window the stream is never opened -- the office is a private room after hours.
+
+The hours live in ONE place, `vision/officeloop.py`, not in the Task Scheduler trigger. The
+task runs at boot and the loop decides its own hours, so there is no second schedule to keep in
+sync with the first. To change them, pass `--open` / `--close` when registering, or edit
+`DEFAULT_OPEN` / `DEFAULT_CLOSE`.
+
+### The three things that will bite
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Task starts and dies instantly; log says `no tz database entry` | **Windows ships no system timezone database.** stdlib `zoneinfo` cannot resolve `America/New_York` without the `tzdata` package -- measured here 2026-09-22 on Python 3.14.4 | `python -m pip install tzdata`. There is deliberately NO fallback to a fixed UTC offset: it would work most of the year and then shift the shop's hours by an hour on each DST day, which is the failure hardest to notice |
+| Every episode lands `SKIPPED` with no facts | The transcriber is missing or broken and posting empty transcripts | Check the log for `transcriber_missing` / `transcriptError`. An empty transcript WITH an error stores as FAILED; one WITHOUT an error means the room was genuinely quiet. Those are different findings and the row keeps them apart |
+| Episodes store but `factsStored` is always 0 | Transcript coverage below 65% | **This is the gate working, not a bug.** See below |
+
+### Why most episodes will refuse facts at first
+
+Measured 2026-09-22: a 90-second office sample transcribed on this machine produced text for
+**37.4s of 90s**. The 50s that came back empty were NOT quiet -- they carried normal
+conversational energy (-16.7 to -31.2 dB against -21 to -36 dB for the windows that did
+transcribe), and the 44% that did return was semantically incoherent.
+
+So the server refuses to extract facts below 65% coverage. A summariser fed a gappy transcript
+does not produce a thin summary; it produces a fluent, confident, WRONG one -- and at a tire
+shop a confident wrong "205/55 R16" is worse than no number at all.
+
+Nothing needs changing as the audio improves: coverage rises, facts start flowing, no code
+change. If coverage stays low for several days, the answer is a microphone at the counter, not
+a threshold edit.
+
+### Verify one window by hand
+
+```powershell
+cd C:\NOURCITY\camera-bridge\vision
+python officepost.py --source-url $env:NICK_OFFICE_RTSP --out-dir C:\nick-office-audio --seconds 60 --dry-run
+```
+
+`--dry-run` transcribes and prints the payload without posting. Drop it to post for real; the
+reply carries `transcriptStatus`, `coverage` and `dropped`.
+
+**Calibrate the silence threshold from the real room** rather than trusting the default, and do
+it during a BUSY stretch -- a calibration run in a quiet hour derives its threshold from room
+tone, and the capture then splits on nothing:
+
+```powershell
+python officeaudio.py --source-url $env:NICK_OFFICE_RTSP --out-dir C:\nick-office-audio --calibrate --calib-samples 12 --calib-spacing 60
+```
+
+It exits 5 and proposes nothing when the samples are too few or too flat to separate speech
+from the floor. That refusal is the correct outcome, not an error to work around.

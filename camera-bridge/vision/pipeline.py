@@ -26,10 +26,11 @@ from __future__ import annotations
 import os
 import sys
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Optional, Sequence
 
 from .baylatch import BayLatch, VisitTiming
+from .stitch import EpisodeStitcher
 from .census import PreexistingCensus
 from .detector import CouncilResult, DetectorCouncil
 from .evidence import EvidencePacket, EvidenceStore
@@ -66,6 +67,12 @@ class PipelineStats:
     preexisting_crossed: int = 0
     candidates: int = 0
     arrivals: int = 0
+    #: Arrivals with re-acquisitions folded out: a track judged to CONTINUE an earlier
+    #: visit does not increment this, while `arrivals` above is left exactly as it was.
+    #: Reported ALONGSIDE, never instead of -- the operator's 2026-09-18 instruction was
+    #: to keep the counter running and unhidden and let the data prove itself, so this
+    #: is a shadow measurement of what de-duplication WOULD do, not a silent correction.
+    arrivals_after_stitch: int = 0
     rejected_no_entry_evidence: int = 0
     motion_only_frames: int = 0
     visitd_states: Counter = field(default_factory=Counter)
@@ -117,6 +124,10 @@ class VisionPipeline:
         self.stats = PipelineStats()
         self.timings: dict[int, VisitTiming] = {}
         self._track_visit: dict[int, str] = {}
+        #: Re-acquisition stitcher. `compare_fn` is left unset deliberately: nothing in
+        #: this pipeline builds a `VehicleFingerprint` yet, and injecting a comparer with
+        #: no fingerprints to compare would be a gate that cannot fail.
+        self.stitch = EpisodeStitcher(camera=camera)
         self._start_ts: Optional[float] = None
         self._was_unhealthy = False
         self._in_blind_interval = False
@@ -179,12 +190,32 @@ class VisionPipeline:
         payload = {"type": kind, "before": {}, "after": after}
         event = self._parse_event(payload) if self._parse_event else payload
         emissions = list(self.tracker.handle_event(event))
+        tm = self.timings.get(track.track_id)
+        stamped: list = []
         for em in emissions:
             self.stats.visitd_states[getattr(em, "state", "?")] += 1
             vid = getattr(em, "visit_id", None)
             if vid:
                 self._track_visit[track.track_id] = vid
-        return emissions
+            # STAMP THE EPISODE TRAIL ON THE EMISSION, not on a sink.
+            # `ShopMirror.row_for()` is the DURABLE path -- `edge_main` never touches
+            # `VisitSink`, which is the lab lane only. Attaching this to the sink left
+            # every production visit without a trail while the tests passed, because the
+            # tests drive the lab lane. `row_for` already lifts per-emission attributes
+            # (source_generation, camera_pose, ...) off the emission, so this rides the
+            # same seam instead of inventing a second one.
+            if tm is not None and (tm.episode_id or tm.member_track_ids):
+                # `dataclasses.replace`, NOT setattr: `Emission` is frozen. The replaced
+                # copy goes back into the list so downstream readers see the trail.
+                stamped.append(replace(
+                    em,
+                    episode_id=tm.episode_id,
+                    member_track_ids=(list(tm.member_track_ids)
+                                      if tm.member_track_ids else None),
+                ))
+                continue
+            stamped.append(em)
+        return stamped
 
     # -------------------------------------------------------------------- main step
     def step(self, frame: Frame, detections: Optional[Sequence[Detection]] = None,
@@ -193,6 +224,11 @@ class VisionPipeline:
         if self._start_ts is None:
             self._start_ts = now
         self.stats.frames += 1
+        # Stamped by `WgcWindowSource.set_canonical`. None on sources that do not stamp
+        # it, and None is handled as "unknown" rather than as a distinct epoch -- an
+        # unstamped source must not have every stitch refused for lack of a field it was
+        # never going to provide.
+        _layout_epoch = (frame.meta or {}).get("layoutEpoch")
         out: dict[str, Any] = {"emissions": [], "suppressed": None, "born": [], "died": []}
 
         # 0. Is this frame even OF the camera? -----------------------------------
@@ -354,7 +390,22 @@ class VisionPipeline:
                 t.evidence = "arrival"
                 t.entry_reason = verdict["reason"]
                 self.stats.arrivals += 1
-                self.timings[t.track_id] = VisitTiming(arrived_at=now, wait_started_at=now)
+                # Does this track CONTINUE a visit already in progress? The arrival
+                # counter above is deliberately incremented first and left alone: this
+                # decides TIMING ATTRIBUTION and episode identity, not whether the shop
+                # saw an arrival. A stitch that carried the original `arrived_at` is the
+                # whole fix -- without it the re-acquired track restarts the clock at
+                # `now` and `waitToBay` is measured from the wrong instant.
+                sd = self.stitch.adopt(t, now, layout_epoch=_layout_epoch)
+                if not sd.stitched:
+                    self.stats.arrivals_after_stitch += 1
+                started = sd.arrived_at if (sd.stitched and sd.arrived_at is not None) else now
+                self.timings[t.track_id] = VisitTiming(
+                    arrived_at=started, wait_started_at=started,
+                    episode_id=sd.episode_id,
+                    continues_track_id=sd.continues_track_id,
+                    member_track_ids=(sd.member_track_ids or [t.track_id]),
+                )
                 emissions = self._emit("new", t, now)
                 out["emissions"].extend(emissions)
                 self.evidence.write(EvidencePacket(
@@ -388,7 +439,23 @@ class VisionPipeline:
                 tm = self.timings.get(t.track_id)
                 if tm:
                     tm.departed_at = now
+                    # A death is NOT necessarily a departure -- 86% of deaths on this
+                    # shop's ledger were never re-acquired, but the ones that are were
+                    # a car that never left. So the fragment stays adoptable for the
+                    # stitch window, carrying the episode and its original arrival.
+                    self.stitch.retire(
+                        t, now, episode_id=tm.episode_id or f"{self.camera}-{t.track_id}",
+                        arrived_at=tm.arrived_at,
+                        member_track_ids=tm.member_track_ids or [t.track_id],
+                        layout_epoch=_layout_epoch,
+                    )
             self._track_visit.pop(t.track_id, None)
+
+        # 8b. Fragment expiry runs EVERY step, not only inside `adopt()`. Overnight a
+        # producer has deaths and no new arrivals, so an expiry that only fired on adopt
+        # would let the fragment store grow without bound -- and the unclaimed counter,
+        # which is the signal that the window is mistuned, would never advance.
+        self.stitch.expire(now)
 
         # 9. visitd's own clock -------------------------------------------------
         for em in self.tracker.tick(now):
@@ -403,4 +470,7 @@ class VisionPipeline:
         d["openVisits"] = len(getattr(self.tracker, "open_visits", lambda: [])())
         d["occupiedBays"] = self.bays.occupied_bays()
         d["falseArrivalsFromPreexisting"] = 0  # structural: preexisting never reaches visitd
+        # Refusals included: a stitcher that never stitches and a stitcher that merges
+        # everything both show up as "stitched" alone, and they need opposite fixes.
+        d["stitch"] = self.stitch.to_dict()
         return d

@@ -1,0 +1,80 @@
+-- vector_embeddings · record WHEN a source row stopped being available · 2026-09-18
+-- ADDITIVE · nullable · NO DATA MUTATION · NOTHING IS DELETED.
+--
+-- WHY THIS EXISTS
+-- `vector_embeddings` is a DERIVED index over ~13 source tables, keyed by
+-- ("sourceType", "sourceId") with no foreign key — one table indexes many
+-- sources, so there is no referential action to lean on. When a source row is
+-- hard-deleted or soft-deleted, its embedding stays behind and stays
+-- searchable. Measured on prod 2026-09-18 across 97,627 rows:
+--
+--   sourceType          total   source missing   source soft-deleted
+--   brain_memory        91314             8082                  9243
+--   situation_log         205              205                     0
+--   brain_dump           1447                0                   161
+--   mission                25               10                     5
+--   chat_message         2473                7                     0
+--   reflection            217                0                     7
+--   document                1                1                     0
+--
+-- ⚠ THE 8,082 FIGURE IS NOT THE LEAK, AND SAYING SO WOULD BE THE THIRD
+-- REPETITION OF AN OVER-GENERAL CLAIM IN THIS FILE'S NEIGHBOURHOOD.
+-- lib/db/pgvector.ts already filters source liveness IN SQL — but its predicate
+-- reads `"sourceType" <> 'brain_memory' OR EXISTS (...)`, which short-circuits
+-- to TRUE for every other type. So brain_memory's 17,325 dead rows are ALREADY
+-- excluded from recall, exactly as lib/db/embedding-cleanup.ts says. What that
+-- module's header then over-generalises to is the rest: the 396 dead rows in
+-- situation_log / brain_dump / mission / chat_message / reflection / document
+-- have NO liveness filter at all. They surface in semantic search, they consume
+-- a LIMIT slot, and the caller then drops them when the source join returns
+-- nothing. A silently shortened result set, not an error.
+--
+-- WHY A COLUMN AND NOT SIX MORE SUBQUERIES
+-- The alternative is one EXISTS per source type inside the hot recall query.
+-- That is six correlated subqueries evaluated per row over a 97k-row vector
+-- scan, to answer a question whose answer changes at most once per row per day.
+-- Materialising it into one indexed column turns the hot path into a single
+-- `IS NULL` test and lets brain_memory's 17,325 dead rows stop being scanned
+-- too — 19% of that table.
+--
+-- WHY NOTHING IS DELETED — THIS IS THE "SHADOW" PART.
+-- `vector_embeddings.content` holds a TEXT copy of the source. For a
+-- HARD-deleted source it is frequently the LAST SURVIVING COPY: measured
+-- 2026-08-16, 100% of 4,867 brain_memory orphans had no surviving
+-- brain_memories row with the same key. Deleting them is not cleanup, it is
+-- destroying operator-authored content with no backup. So this repairs the
+-- DERIVED INDEX in shadow — a reversible mark — and leaves the evidence alone.
+--
+-- RESTORE ROUTE (demonstrated, one statement, no data lost):
+--   UPDATE "vector_embeddings"
+--      SET "sourceUnavailableAt" = NULL, "sourceUnavailableReason" = NULL;
+-- Recall returns to exactly today's behaviour. Nothing to un-delete, because
+-- nothing was deleted.
+--
+-- NAMING — READ BEFORE "SHORTENING" THIS.
+-- Two columns, not one, because the timestamp must mean exactly ONE thing.
+-- "sourceUnavailableAt" = when a sweep observed the source was not live.
+-- "sourceUnavailableReason" = which flavour: 'row_absent' (hard-deleted or
+-- never existed — the embedding may be the last copy) vs 'soft_deleted' (the
+-- source row is still there and recoverable). Those call for different operator
+-- actions, so folding them into one token would repeat the exact defect fixed
+-- in cron_job_log.status (one word meaning two states, every reader wrong) and
+-- in vector_embeddings.model (identity vs placeholder vs fingerprint).
+--
+-- COLUMN CASING — the TABLE is mapped via @@map, but these COLUMNS are not;
+-- they keep Prisma's camelCase verbatim, so they are double-quoted here. A
+-- snake_case spelling silently creates a SECOND, unreachable column.
+--
+-- THE INDEX IS PARTIAL AND DELIBERATELY BACKWARDS.
+-- The hot path filters `IS NULL`, which is ~82% of the table — an index there
+-- is useless and the planner would ignore it. The rows worth indexing are the
+-- marked minority: the sweeper's self-heal pass and any operator audit both
+-- need "show me everything currently quarantined", and that is a ~17k-row
+-- partial index instead of a 97k-row full one.
+
+ALTER TABLE "vector_embeddings" ADD COLUMN IF NOT EXISTS "sourceUnavailableAt" TIMESTAMP(3);
+ALTER TABLE "vector_embeddings" ADD COLUMN IF NOT EXISTS "sourceUnavailableReason" TEXT;
+
+CREATE INDEX IF NOT EXISTS "vector_embeddings_source_unavailable_idx"
+  ON "vector_embeddings" ("sourceType", "sourceUnavailableAt")
+  WHERE "sourceUnavailableAt" IS NOT NULL;

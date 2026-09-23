@@ -129,16 +129,29 @@ describe("tool description examples", () => {
       expect(block).not.toContain('Example: {\\"thought\\"');
     });
 
-    it("createTask's code enums carry a legend the model can follow", () => {
-      const src = readFileSync(join(TOOLS_DIR, "tasks.ts"), "utf8");
-      const at = src.indexOf("  createTask: tool({");
-      const block = src.slice(at, at + 3000);
+    it("createTask's code enums carry a legend the model can follow", async () => {
       // Prod sent {"effort":"30 min"} and {"context":"Newsletter creation"}
       // because M30/DESK are unguessable and neither field described itself.
-      expect(block).toMatch(/effort:[\s\S]{0,400}describe\(/);
-      expect(block).toContain("M30 (30 min)");
-      expect(block).toMatch(/context:[\s\S]{0,400}describe\(/);
-      expect(block).toContain("DESK");
+      //
+      // 2026-09-16 · this asserted the legend was INLINE IN tasks.ts SOURCE.
+      // That coupled a claim about the SCHEMA to a fact about file layout, and
+      // it went red when the legend moved to the shared task-field-legends.ts —
+      // while the property it names was not merely intact but extended to the
+      // five sibling call sites the inline version had left broken. Asserting
+      // the built schema instead survives that move and is the stronger claim:
+      // it is what the model is actually handed.
+      const { nourTools } = await import("@/lib/ai/tools");
+      const shape = (
+        (nourTools as Record<string, { inputSchema: { shape: Record<string, { description?: string }> } }>)
+          .createTask.inputSchema
+      ).shape;
+
+      expect(shape.effort.description, "effort has no legend").toContain("M30 (30 min)");
+      expect(shape.context.description, "context has no legend").toContain("DESK");
+      // The legend must decode the code, not merely mention it — "effort" that
+      // says "M30" and nothing else leaves the model exactly as stuck.
+      expect(shape.effort.description).toContain("H2PLUS (2+ hours)");
+      expect(shape.context.description).toContain("not a topic");
     });
   });
 });

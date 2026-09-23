@@ -220,6 +220,62 @@ export async function runAlternatePaths(args: {
       let laneToolCalls: Array<{ name: string }> = [];
       let laneEvidenceText = "";
       let laneReceiptsAvailable = false;
+
+      /**
+       * 2026-09-17 · regen and self-consistency DO pass `tools` (they spread
+       * `genBase`), so they can invoke tools — but they discarded
+       * `r.toolCalls` and returned only `r.text`. Both therefore declared
+       * themselves BLIND, and `tool.chosen` under-reported every turn they
+       * handled. Only the pre-flush lane captured receipts.
+       *
+       * ⚠ ATTRIBUTION IS NOT A UNION. Regen generates up to twice and
+       * self-consistency samples three times; exactly ONE generation becomes
+       * the reply. Recording every sample's calls would over-report tools that
+       * never reached the operator — the mirror of the measured-zero problem.
+       * So each generation is remembered with its text, and after the lane
+       * picks a winner the calls are taken from the generation whose text IS
+       * the winner. No match (e.g. a synthesised answer) means the lane stays
+       * BLIND rather than guessing.
+       */
+      const laneSamples: Array<{ text: string; calls: string[] }> = [];
+      const rememberLaneSample = (r: { text?: string; toolCalls?: unknown }) => {
+        const calls = ((r.toolCalls ?? []) as Array<{ toolName?: string }>)
+          .map((c) => String(c.toolName ?? ""))
+          .filter(Boolean);
+        laneSamples.push({ text: String(r.text ?? ""), calls });
+      };
+      /**
+       * TELEMETRY receipts, deliberately SEPARATE from `laneReceiptsAvailable`.
+       *
+       * ⚠ Those two flags feed different consumers and must not be conflated.
+       * `laneReceiptsAvailable` is the ENFORCEMENT channel: per the comment at
+       * the enforcement block below, blind SUPPRESSES BLOCKING, and flipping it
+       * true makes a named resource judgeable on this lane. Setting it from
+       * attribution — while `laneEvidenceText` stays empty, because these lanes
+       * capture names but not tool RESULTS — would strip the support that
+       * `checkNamedSources` looks for and could block a genuinely tool-backed
+       * answer. That is a live behaviour change, not measurement.
+       *
+       * So attribution feeds ONLY the `tool.chosen` lane. Enforcement keeps
+       * exactly the blindness it had before this change.
+       */
+      let laneTelemetryObserved = false;
+      /** Identity of the lane that handled this turn, stamped on `tool.chosen`. */
+      let laneName = "unknown";
+      /** Attribute the winning generation's calls; blind when it cannot be identified. */
+      const applyLaneAttribution = async (winningText: string) => {
+        const { attributeWinningSample } = await import(
+          "@/lib/services/chat/lane-sample-attribution"
+        );
+        const a = attributeWinningSample({
+          samples: laneSamples,
+          winningText,
+          alreadyAvailable: laneReceiptsAvailable,
+        });
+        if (!a) return; // honest blind — never attribute a sample that did not win
+        laneToolCalls = a.toolNames.map((name) => ({ name }));
+        laneTelemetryObserved = true;
+      };
       // Shared generateText config for the regen + self-consistency
       // branches (identical shape) — hoisted so a new field is added
       // once, not in two places that could silently disagree.
@@ -232,6 +288,7 @@ export async function runAlternatePaths(args: {
       };
 
       if (multiAgentOn) {
+        laneName = "multi-agent";
         const { runAutoDecompose } = await import(
           "@/lib/ai/chat/multi-agent-detect"
         );
@@ -241,6 +298,7 @@ export async function runAlternatePaths(args: {
         );
         log.info("multi_agent_auto_path", { intent: turnSignal.intent });
       } else if (deepOn) {
+        laneName = "deep";
         // v-truth · LIVE-DATA ACCESS for deep reasoning. The reasoning
         // engine can't call tools, so it would otherwise reason blind to
         // current numbers. Pre-fetch a compact real-business snapshot and
@@ -317,7 +375,18 @@ export async function runAlternatePaths(args: {
           chunkDelayMs: 8,
           onComplete: (finalWinner) => {
             log.info("deep_reasoning_path_completed", { intent: turnSignal.intent, hadSnapshot: liveSnapshot.length > 0 });
-            return __altPersist({ text: finalWinner, finishReason: "stop" });
+            // laneToolNames/laneReceiptsAvailable: this callback hands the walk
+            // NO `ev.steps`, so without these it would record a confident
+            // `tool.chosen = 0` for a turn that may well have invoked tools.
+            // This lane does not surface its calls, so it declares itself BLIND
+            // rather than being counted as a measured zero.
+            return __altPersist({
+              text: finalWinner,
+              finishReason: "stop",
+              laneToolNames: laneToolCalls.map((c) => c.name),
+              laneReceiptsAvailable: laneTelemetryObserved,
+              laneName,
+            });
           }
         });
 
@@ -338,6 +407,7 @@ export async function runAlternatePaths(args: {
           onFinishPromise: Promise.resolve(),
         });
       } else if (regenOn) {
+        laneName = "regen";
         const { generateText } = await import("ai");
         const genOnce = async (sys: string, temp: number): Promise<string> => {
           const r = await generateText({
@@ -346,6 +416,7 @@ export async function runAlternatePaths(args: {
             system: sys,
             temperature: temp,
           } as Parameters<typeof generateText>[0]);
+          rememberLaneSample(r);
           return r.text;
         };
         const regen = await maybePreStreamRegen({
@@ -367,6 +438,7 @@ export async function runAlternatePaths(args: {
           intent: turnSignal.intent,
         });
       } else if (selfConsistencyOn) {
+        laneName = "self-consistency";
         const { generateText } = await import("ai");
         const { selfConsistentAnswer } = await import(
           "@/lib/ai/chat/self-consistency"
@@ -380,6 +452,7 @@ export async function runAlternatePaths(args: {
               system: finalSystemPrompt,
               temperature: Math.min(0.9, turnSignal.temperature + 0.15),
             } as Parameters<typeof generateText>[0]);
+            rememberLaneSample(r);
             return r.text;
           },
         });
@@ -390,6 +463,7 @@ export async function runAlternatePaths(args: {
           intent: turnSignal.intent,
         });
       } else if (preflushOn && preflushRisk) {
+        laneName = "preflush";
         // ONE full generation, no regen, no sampling: the point of this lane
         // is not a better draft, it is a draft that exists BEFORE the flush so
         // the enforcement block below can strip an unearned claim.
@@ -431,6 +505,7 @@ export async function runAlternatePaths(args: {
           .filter(Boolean)
           .join(" | ");
         laneReceiptsAvailable = true;
+        laneTelemetryObserved = true;
         log.info("evidence_preflush_path", {
           intent: turnSignal.intent,
           register: preflushRisk.register,
@@ -439,6 +514,13 @@ export async function runAlternatePaths(args: {
           webSearchPinned,
         });
       }
+
+      // Runs for every lane. The pre-flush lane already set
+      // `laneReceiptsAvailable` from its own generateText result and is left
+      // untouched; regen and self-consistency are attributed here from the
+      // generation whose text actually won. A lane that recorded no samples
+      // (multi-agent, deep) is unaffected and stays honestly blind.
+      await applyLaneAttribution(winner);
 
       if (winner && winner.trim().length > 0) {
         // ── EVIDENCE ENFORCEMENT — 2026-09-10 ───────────────────────
@@ -468,13 +550,21 @@ export async function runAlternatePaths(args: {
               import("@/lib/ai/chat/named-source-claims"),
               import("@/lib/ai/chat/output-guardian"),
             ]);
-            // The regen/self-consistency/multi-agent lanes do not surface
-            // their tool calls, so for them the receipt channel is BLIND --
-            // not "no tool fired". That distinction is load-bearing: blind
-            // suppresses blocking, so enforcement there can only repair
-            // length and strip unearned tags. The pre-flush lane DOES
-            // surface its receipts (laneReceiptsAvailable), so a named
-            // resource with no receipt can be judged on that lane.
+            // The regen/self-consistency/multi-agent lanes reach ENFORCEMENT
+            // blind -- not "no tool fired". That distinction is load-bearing:
+            // blind suppresses blocking, so enforcement there can only repair
+            // length and strip unearned tags. The pre-flush lane DOES surface
+            // its receipts (laneReceiptsAvailable), so a named resource with
+            // no receipt can be judged on that lane.
+            //
+            // ⚠ 2026-09-17 · regen and self-consistency now attribute their
+            // winning generation's tool NAMES for `tool.chosen`, but that goes
+            // to `laneTelemetryObserved`, NOT here. They capture names without
+            // tool RESULTS, so `laneEvidenceText` stays empty; flipping
+            // `receiptsAvailable` true would end blind-suppression while giving
+            // `checkNamedSources` no evidence to find support in, and a
+            // genuinely tool-backed answer could be blocked or stripped.
+            // Measurement must not silently become enforcement.
             const receipts = {
               toolCalls: laneToolCalls,
               evidenceText: laneEvidenceText,
@@ -547,7 +637,16 @@ export async function runAlternatePaths(args: {
           chunkSize: 24,
           chunkDelayMs: 8,
           onComplete: () =>
-            __altPersist({ text: winner, finishReason: "stop" }),
+            __altPersist({
+              text: winner,
+              finishReason: "stop",
+              // Same reason as the deep-reasoning lane above: no `ev.steps`
+              // reaches the walk, so the receipt state must be stated
+              // explicitly instead of inferred as zero.
+              laneToolNames: laneToolCalls.map((c) => c.name),
+              laneReceiptsAvailable: laneTelemetryObserved,
+              laneName,
+            }),
         });
         return buildChatResponse({
           streamResponse,

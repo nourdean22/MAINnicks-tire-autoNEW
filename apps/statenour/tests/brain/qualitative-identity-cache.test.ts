@@ -42,16 +42,6 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { brainMemory: mocks.brainMemory, reflection: mocks.reflection },
 }));
 
-// L2 is a no-op here so the assertions measure the L1 mechanism only:
-// invalidate() fires redisDel WITHOUT awaiting it, so a live Redis would
-// race the "did re-query" assertion.
-vi.mock("@/lib/utils/redis", () => ({
-  redisGet: async () => null,
-  redisSet: async () => false,
-  redisDel: async () => false,
-  redisDelPrefix: async () => 0,
-}));
-
 // Imported AFTER vi.mock so the module picks up the mocked deps.
 import {
   addManualEntry,

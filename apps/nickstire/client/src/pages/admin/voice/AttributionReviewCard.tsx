@@ -53,7 +53,19 @@ export function AttributionReviewCard() {
     );
   }
 
-  const rows = (data ?? []) as Array<{
+  /*
+   * 2026-09-18 - reviewQueue now returns an OBJECT, not an array, because an
+   * invoice can be paid once and so can be claimed once. Live that day: of 20
+   * weak matches, EIGHT claimed invoice #5160005 - one customer who rang eight
+   * times - and each row read "this call produced this invoice". Confirming
+   * them all would have counted that invoice eight times.
+   *
+   * NOTE THE CAST BELOW WAS WHY TYPECHECK STAYED GREEN through that shape
+   * change: `as Array<...>` asserts rather than checks, so `.map` would have
+   * thrown at render while every gate passed. Reading `data?.rows` explicitly
+   * is the fix; the cast is kept only to name the row fields.
+   */
+  const rows = (data?.rows ?? []) as Array<{
     runId?: number | null;
     callId: number;
     leadId?: number | null;
@@ -65,6 +77,15 @@ export function AttributionReviewCard() {
     evidence?: unknown;
     createdAt?: string | Date | null;
     latest?: string | null;
+    /** Server-classified evidence band. Optional because this is a CAST, not a
+     *  check — if the server stops sending it, TS cannot tell us, so the
+     *  render guards on `row.band &&` rather than trusting the type. */
+    band?: {
+      label: string;
+      basis: string;
+      whatWouldRaiseIt: string | null;
+      observed: boolean;
+    } | null;
   }>;
 
   const decide = async (row: (typeof rows)[number], decision: Decision) => {
@@ -108,6 +129,50 @@ export function AttributionReviewCard() {
         <p className="text-xs text-muted-foreground">No call ↔ invoice matches are waiting for a ruling.</p>
       ) : (
         <ul className="divide-y divide-border/30">
+          {/* Same-invoice contacts are collapsed, never silently dropped. An
+              operator who sees eight rows become one deserves to know why, and
+              a queue that shrinks without explaining itself is a queue nobody
+              trusts. */}
+          {(data?.duplicates?.length ?? 0) > 0 && (
+            <div className="mb-3 text-xs text-muted-foreground bg-amber-500/5 border border-amber-500/20 rounded p-2">
+              <span className="text-amber-400 font-medium">
+                {data!.duplicates.length} same-invoice contact(s) collapsed
+              </span>
+              {" "}across {data!.contestedInvoiceIds.length} invoice(s). An invoice can be
+              paid once, so it is claimed once - the rest are the same customer
+              calling again, kept as history rather than counted as separate money.
+              {data!.counts.overcountFactor != null && data!.counts.overcountFactor > 1 && (
+                <span className="block mt-1">
+                  Counting each row as a conversion would have overstated attributed
+                  revenue by {data!.counts.overcountFactor}x.
+                </span>
+              )}
+            </div>
+          )}
+          {/* WHAT THE CONFIDENCE NUMBERS MEAN, AND WHAT THEY DO NOT.
+              0.9 and 0.75 sit beside real invoices and read as percentages.
+              They are ordinal labels for two evidence recipes differing by one
+              fact — whether the service text overlapped — and neither has been
+              calibrated against outcomes. `inferredPct` is the number worth
+              watching: a queue that is mostly inference is a queue where
+              confirming in bulk is guessing in bulk, which is exactly how the
+              eight-calls-one-invoice over-count happened. */}
+          {data?.bands && data.bands.total > 0 && (
+            <div className="mb-3 text-xs text-muted-foreground border border-border/20 rounded p-2">
+              <span className="text-foreground/70 font-medium">Evidence mix:</span>{" "}
+              {data.bands.verified > 0 && <>{data.bands.verified} verified link(s) · </>}
+              {data.bands.strong > 0 && <>{data.bands.strong} phone+time+service · </>}
+              {data.bands.weak > 0 && <>{data.bands.weak} phone+time only · </>}
+              {data.bands.unscored > 0 && <>{data.bands.unscored} no single invoice</>}
+              {data.bands.inferredPct != null && (
+                <span className={data.bands.inferredPct >= 80 ? "block mt-1 text-amber-300" : "block mt-1"}>
+                  {data.bands.inferredPct}% of these rest on inference rather than a
+                  recorded link{data.bands.inferredPct >= 80 ? " — confirming in bulk here is guessing in bulk." : "."}
+                </span>
+              )}
+              <span className="block mt-1 text-foreground/40">{data.bandCaveat}</span>
+            </div>
+          )}
           {rows.map((row) => {
             const rowKey = `${row.callId}:${row.invoiceId ?? "x"}:${row.runId ?? "x"}`;
             const busy = busyKey?.startsWith(`${row.callId}:`) ?? false;
@@ -123,6 +188,20 @@ export function AttributionReviewCard() {
                     {row.leadId ? ` · lead #${row.leadId}` : ""}
                     {row.workOrderId ? ` · WO ${row.workOrderId}` : ""}
                   </div>
+                  {/* The band in words. `observed` is the distinction that
+                      matters: only a recorded lead link is observed, and
+                      everything else is a guess with a number on it. The
+                      title carries what would RAISE this row — the only part
+                      an operator can act on without opening the call. */}
+                  {row.band && (
+                    <div
+                      className={row.band.observed ? "text-emerald-400/80" : "text-amber-400/70"}
+                      title={row.band.whatWouldRaiseIt ?? row.band.basis}
+                    >
+                      {row.band.label}
+                      {!row.band.observed && " · inferred"}
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <button

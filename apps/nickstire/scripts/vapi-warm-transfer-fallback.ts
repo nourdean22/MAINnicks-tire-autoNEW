@@ -29,6 +29,17 @@
  *   pnpm exec tsx scripts/vapi-warm-transfer-fallback.ts                # dry run
  *   pnpm exec tsx scripts/vapi-warm-transfer-fallback.ts --apply
  *   pnpm exec tsx scripts/vapi-warm-transfer-fallback.ts --rollback vapi-snapshots/<file>.json
+ *   pnpm exec tsx scripts/vapi-warm-transfer-fallback.ts --snapshot-only      # write a rollback artifact, patch nothing
+ *   pnpm exec tsx scripts/vapi-warm-transfer-fallback.ts --rollback-legacy    # dry run of the reversed diff
+ *   pnpm exec tsx scripts/vapi-warm-transfer-fallback.ts --rollback-legacy --apply
+ *
+ * 2026-09-22 (review on #2490): the experimental plan reached production
+ * WITHOUT this script's --apply, so no snapshot of the pre-change tools
+ * exists anywhere. `--snapshot-only` writes one of the CURRENT tools (a
+ * rollback point for the next change), and `--rollback-legacy` restores
+ * the documented pre-change plan from the runbook's own diff — mode
+ * warm-transfer-say-message, no dialTimeout, no fallbackPlan — without
+ * needing a file that was never taken. Both snapshot before any write.
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -108,9 +119,23 @@ async function patchTools(assistantId: string, model: AssistantModel, tools: Arr
   });
 }
 
+/** Write the assistant's FULL model.tools to a local gitignored file and read it back; throws before any write can follow if it does not verify. */
+function writeSnapshot(assistantId: string, tools: Array<Record<string, unknown>>): string {
+  fs.mkdirSync(SNAPSHOT_DIR, { recursive: true });
+  const snapPath = path.join(SNAPSHOT_DIR, `${assistantId}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+  fs.writeFileSync(snapPath, JSON.stringify({ assistantId, takenAt: new Date().toISOString(), tools }, null, 2));
+  const readBack = JSON.parse(fs.readFileSync(snapPath, "utf8"));
+  if (!Array.isArray(readBack.tools) || readBack.tools.length !== tools.length) {
+    throw new Error("Snapshot verification failed — NOT patching.");
+  }
+  return snapPath;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const apply = args.includes("--apply");
+  const snapshotOnly = args.includes("--snapshot-only");
+  const rollbackLegacy = args.includes("--rollback-legacy");
   const rollbackIdx = args.indexOf("--rollback");
   const rollbackFile = rollbackIdx >= 0 ? args[rollbackIdx + 1] : null;
   const assistantArgIdx = args.indexOf("--assistant");
@@ -143,19 +168,35 @@ async function main() {
   const dest = destinations[numberIdx];
   const currentPlan = (dest.transferPlan as Record<string, unknown> | undefined) ?? {};
 
-  const targetPlan: Record<string, unknown> = {
-    mode: "warm-transfer-experimental",
-    message: (currentPlan.message as string) ?? DEFAULT_ANNOUNCE,
-    ...(currentPlan.sipVerb ? { sipVerb: currentPlan.sipVerb } : {}),
-    dialTimeout: DIAL_TIMEOUT_SEC,
-    fallbackPlan: {
-      message: FALLBACK_MESSAGE,
-      endCallEnabled: false,
-    },
-  };
+  // ── SNAPSHOT-ONLY: a rollback artifact of what is live, no write ────
+  if (snapshotOnly) {
+    const snapPath = writeSnapshot(assistantId, tools);
+    console.log(`\nSnapshot written + verified (nothing patched): ${snapPath}`);
+    console.log("This file is gitignored (apps/nickstire/vapi-snapshots/); it lives only on the machine that ran this.");
+    return;
+  }
+
+  // The reversed diff: the plan the runbook documents as pre-change. No
+  // dialTimeout, no fallbackPlan — VAPI's warm-transfer-say-message has neither.
+  const targetPlan: Record<string, unknown> = rollbackLegacy
+    ? {
+        mode: "warm-transfer-say-message",
+        message: (currentPlan.message as string) ?? DEFAULT_ANNOUNCE,
+        ...(currentPlan.sipVerb ? { sipVerb: currentPlan.sipVerb } : {}),
+      }
+    : {
+        mode: "warm-transfer-experimental",
+        message: (currentPlan.message as string) ?? DEFAULT_ANNOUNCE,
+        ...(currentPlan.sipVerb ? { sipVerb: currentPlan.sipVerb } : {}),
+        dialTimeout: DIAL_TIMEOUT_SEC,
+        fallbackPlan: {
+          message: FALLBACK_MESSAGE,
+          endCallEnabled: false,
+        },
+      };
 
   console.log("\nCURRENT destination:", redact(JSON.stringify({ number: dest.number, message: dest.message, transferPlan: currentPlan }, null, 2)));
-  console.log("\nTARGET transferPlan:", JSON.stringify(targetPlan, null, 2));
+  console.log(`\nTARGET transferPlan (${rollbackLegacy ? "LEGACY — the reversed diff" : "experimental + fallback"}):`, JSON.stringify(targetPlan, null, 2));
   console.log("(destination number and pre-transfer message are NOT changed)");
 
   if (!apply) {
@@ -164,13 +205,7 @@ async function main() {
   }
 
   // ── SNAPSHOT (mandatory before any write) ───────────────────
-  fs.mkdirSync(SNAPSHOT_DIR, { recursive: true });
-  const snapPath = path.join(SNAPSHOT_DIR, `${assistantId}-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-  fs.writeFileSync(snapPath, JSON.stringify({ assistantId, takenAt: new Date().toISOString(), tools }, null, 2));
-  const readBack = JSON.parse(fs.readFileSync(snapPath, "utf8"));
-  if (!Array.isArray(readBack.tools) || readBack.tools.length !== tools.length) {
-    throw new Error("Snapshot verification failed — NOT patching.");
-  }
+  const snapPath = writeSnapshot(assistantId, tools);
   console.log(`\nSnapshot written + verified: ${snapPath}`);
 
   const newDest = { ...dest, transferPlan: targetPlan };
@@ -182,7 +217,7 @@ async function main() {
   const after = await vapiFetch<Assistant>(`/assistant/${assistantId}`);
   const afterPlan = ((after.model?.tools ?? []).find((t) => t.type === "transferCall") as any)
     ?.destinations?.find((d: any) => d.type === "number")?.transferPlan;
-  console.log("\nAPPLIED. Read-back transferPlan:", JSON.stringify(afterPlan, null, 2));
+  console.log(`\nAPPLIED (${rollbackLegacy ? "legacy plan restored" : "experimental plan"}). Read-back transferPlan:`, JSON.stringify(afterPlan, null, 2));
   console.log(`Rollback at any time:\n  pnpm exec tsx scripts/vapi-warm-transfer-fallback.ts --assistant ${assistantId} --rollback "${snapPath}"`);
 }
 

@@ -88,13 +88,46 @@ export function fuseRankings<T extends { id: string }>(
   scorers: Array<(item: T) => number>,
   opts: FusionOptions = {},
 ): Array<{ id: string; item: T; score: number; lanes: number[] }> {
-  const lanes: Array<RankedItem<T>[]> = scorers.map((scorer) => {
+  const built = scorers.map((scorer, idx) => {
     const scored = items.map((item) => ({
       id: item.id,
       item,
       rawScore: scorer(item),
     }));
-    return scored.sort((a, b) => (b.rawScore ?? 0) - (a.rawScore ?? 0));
+    // 2026-09-18 · A lane whose every score is IDENTICAL carries no ranking
+    // information — but RRF cannot see that, because it deliberately ignores
+    // absolute scores and reads POSITION only. The sort below is stable, so a
+    // fully-tied lane silently degrades into "input order", and
+    // reciprocalRankFusion then pays it out as 1/(k+1), 1/(k+2), ... — a real,
+    // monotonically decreasing signal manufactured from nothing.
+    //
+    // Found by review on PR #2425, where it mattered concretely: with zero
+    // topics `keywordScore(m, [])` is 0 for every candidate, and
+    // contextual-recall's pool is `orderBy confidence desc` with KNN-only
+    // vector hits unioned in AFTERWARD. The phantom lane therefore boosted
+    // generic high-confidence memories and penalised the vector hits — exactly
+    // the failure that PR was fixing. I had asserted the opposite ("uniform,
+    // therefore ranking-neutral"); uniform is neutral only for a score-based
+    // fusion, and this one is rank-based.
+    const first = scored[0]?.rawScore ?? 0;
+    const informative = scored.length > 1 && scored.some((s) => (s.rawScore ?? 0) !== first);
+    return {
+      lane: scored.sort((a, b) => (b.rawScore ?? 0) - (a.rawScore ?? 0)),
+      weight: opts.weights?.[idx] ?? 1,
+      informative,
+    };
   });
-  return reciprocalRankFusion(lanes, opts);
+
+  // Drop uninformative lanes, carrying each surviving lane's weight with it so
+  // the weights array cannot shift out of alignment with the lanes it indexes.
+  // If EVERY lane is tied there is nothing to rank by; keep them all rather
+  // than returning an empty result, which would be a far worse regression than
+  // the phantom ordering this guards against.
+  const surviving = built.filter((b) => b.informative);
+  const use = surviving.length > 0 ? surviving : built;
+
+  return reciprocalRankFusion(
+    use.map((b) => b.lane),
+    { ...opts, ...(opts.weights ? { weights: use.map((b) => b.weight) } : {}) },
+  );
 }

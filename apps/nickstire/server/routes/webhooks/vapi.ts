@@ -19,6 +19,8 @@ import { Router, type Request, type Response } from "express";
 import express from "express";
 import { timingSafeEqual } from "node:crypto";
 import { createLogger } from "../../lib/logger";
+import { isDuplicateKeyError } from "../../lib/dbErrors";
+import { toolCallLogFields } from "../../lib/vapiToolCallLog";
 
 const log = createLogger("webhooks:vapi");
 const router = Router();
@@ -217,7 +219,7 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string): Promi
   // silently dead. Only set when the tool didn't already provide one.
   if (phoneCallId && args.callId == null) args.callId = phoneCallId;
 
-  log.info("Vapi tool call", { name: call.function.name, args });
+  log.info("Vapi tool call", { ...toolCallLogFields(call.function.name, args) });
 
   try {
     // Each tool delegates to the corresponding voiceAgent procedure.
@@ -278,10 +280,10 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string): Promi
       case "bookSlot":
         output = await caller.bookSlot(args as { name: string; phone: string; service: string; vehicle?: string; preferredDay?: string; callId?: string });
         break;
-      // wave-179: warm-lead capture for tire inquiries that don't yet
-      // commit. Already existed but wasn't wired. Now Vapi can call
-      // tireInquiry → lead lands in admin with source="callback" + a
-      // [VOICE-AGENT TIRE INQUIRY] marker.
+      // wave-179: tire-inquiry tagging. Since 2026-06-05 an ordinary inquiry
+      // writes no admin lead (the call record is the record); only the legacy
+      // notes-based rack check lands in Leads with source="callback" and a
+      // [VOICE-AGENT TIRE INQUIRY] marker. See voiceAgent.tireInquiry.
       case "tireInquiry":
         output = await caller.tireInquiry(args as { name: string; phone: string; tireSize?: string; vehicle?: string; newOrUsed?: "new" | "used" | "either"; installationNeeded?: boolean; callId?: string });
         break;
@@ -291,9 +293,17 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string): Promi
       case "scheduleCallback":
         output = await caller.scheduleCallback(args as { name: string; phone: string; reason?: string; preferredTime?: string; callId?: string });
         break;
-      // wave-181: physical rack-check capture. Caller refused to drive
-      // over without stock confirmation → AI promises a 15-min callback,
-      // tool flags lead with urgency=5 + fires Telegram to front desk.
+      // Physical rack-check capture. Caller wants stock confirmed before
+      // driving over.
+      //
+      // THIS COMMENT USED TO SAY "AI promises a 15-min callback" — the exact
+      // opposite of what the handler now does. `checkTireStock` returns an
+      // aiHint reading "do NOT state whether the tire is in stock, and do NOT
+      // promise a callback or any timeframe", and hands off to a human
+      // instead. The wave-181 behaviour it described was deliberately
+      // reversed; the comment was not. Corrected 2026-09-22 while wiring the
+      // Promise Ledger, because a comment claiming a promise is made is
+      // exactly what sends the next reader looking for a promise record.
       case "checkTireStock":
         output = await caller.checkTireStock(args as { name: string; phone: string; tireSize: string; vehicle?: string; callId?: string });
         break;
@@ -303,7 +313,7 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string): Promi
         output = await caller.escalate(args as { name: string; phone: string; reason: string; urgency?: "low" | "medium" | "high"; callId?: string });
         break;
       case "sendConfirmationSms":
-        output = await caller.sendConfirmationSms(args as { phone: string; summary: string; mapLink?: string });
+        output = await caller.sendConfirmationSms(args as { phone: string; summary: string; mapLink?: string; callId?: string });
         break;
 
       default:
@@ -494,7 +504,7 @@ async function processCallEndReport(
           // Tolerate dup-key on retry — webhooks can fire twice
           firstLog = false;
           const msg = err instanceof Error ? err.message : String(err);
-          if (!/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+          if (!isDuplicateKeyError(err)) {
             log.warn("vapi_call_logs insert failed", { error: msg });
           }
         });
@@ -580,6 +590,64 @@ async function processCallEndReport(
         } catch (speechErr) {
           log.warn("[vapi webhook] customer-speech persist failed (analytics only)", {
             error: speechErr instanceof Error ? speechErr.message : String(speechErr),
+          });
+        }
+
+        // TRANSFER ARTIFACT · the only signal that can prove a human ANSWERED.
+        //
+        // Every transfer metric in this app has been built on
+        // `endedReason === "assistant-forwarded-call"`, which VAPI's own docs
+        // say confirms the transfer was INITIATED, not completed — their
+        // troubleshooting page sends you to the provider's call log for the
+        // outcome. So a call that rang an empty counter and dropped to
+        // voicemail has scored identically to one Nick answered on the second
+        // ring, and no connect-rate built on it could ever emit a failure for
+        // the one case it exists to detect.
+        //
+        // `artifact.transfers[]` carries a real per-attempt status. VAPI
+        // describes blind-transfer outcome detection as enabled PER
+        // ORGANISATION, so whether this account receives it is an empirical
+        // question — which is exactly why `artifactPresent` is persisted
+        // separately from the verdict. That flag is the live answer, read from
+        // production rather than assumed from documentation.
+        //
+        // Separate try on purpose, same as customerSpeech above: one analytics
+        // write failing must not take the other down, and neither may affect
+        // the webhook's 200.
+        try {
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
+          const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
+          // Write only when there is something to say: a per-attempt record, or
+          // an ended reason proving a transfer was ATTEMPTED. A call that never
+          // tried to hand off gets no verdict at all — the old test here was
+          // `artifactPresent || transfers.length`, and artifactPresent is true
+          // whenever Vapi sends a transfers ARRAY — which it does, empty, on
+          // calls that never transferred — which is how 20 of 31 calls came to
+          // carry "unknown" for a transfer that never happened.
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
+            const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
+            await d.execute(sql`
+              UPDATE vapi_call_logs
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
+              WHERE vapiCallId = ${String(callId)}
+            `);
+            if (read.unrecognisedStatuses.length) {
+              // A status VAPI added that this app does not model. Loud, because
+              // silently bucketing it as unknown would hide a real drift.
+              log.warn("[vapi webhook] unmodelled transfer status from VAPI", {
+                statuses: read.unrecognisedStatuses,
+              });
+            }
+          }
+        } catch (transferErr) {
+          log.warn("[vapi webhook] transfer-artifact persist failed (analytics only)", {
+            error: transferErr instanceof Error ? transferErr.message : String(transferErr),
           });
         }
 
@@ -919,7 +987,10 @@ router.post("/vapi", async (req: Request, res: Response) => {
           // tool = confirmed). Append-only · multiple events per call
           // are correct (the trail tells you the agent re-engaged after
           // a tool call). Fire-and-forget · NEVER blocks webhook.
-          import("../../services/voice-call-state").then(({ classifyToolToState, recordCallState }) => {
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
             for (const c of calls) {
               const state = classifyToolToState(c.function?.name ?? "");
               if (state) {
@@ -927,7 +998,9 @@ router.post("/vapi", async (req: Request, res: Response) => {
                   callId,
                   assistantId,
                   state,
-                  metadata: { tool: c.function?.name, toolCallId: c.id },
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
                 });
               }
             }
@@ -956,6 +1029,32 @@ router.post("/vapi", async (req: Request, res: Response) => {
         }
         // Acknowledge — no work needed for V1
         res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
         return;
       }
 

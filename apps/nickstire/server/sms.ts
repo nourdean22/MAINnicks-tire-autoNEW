@@ -30,6 +30,8 @@ import { internalLineFor } from "./services/nonCustomerFilter";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
 import { isGatewayOnline } from "./lib/gateway-device";
 import { affectedRowCount } from "./lib/db-affected";
+import { isUnknownColumnError } from "./lib/dbErrors";
+import { isInternalLineDestination, queuedReplayIntent } from "./lib/smsQueueReplay";
 
 import { BUSINESS } from "@shared/business";
 const log = createLogger("sms");
@@ -363,7 +365,10 @@ const delayedQueue: DelayedMessage[] = [];
 let delayedTimer: ReturnType<typeof setInterval> | null = null;
 
 function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
-  const scheduledFor = getNextSendWindow();
+  // An internal line (operator / staff) is quiet-hours exempt at send time,
+  // so it is due immediately here too; it still waits for the gateway.
+  // lib/smsQueueReplay.ts has the why (2026-09-23).
+  const scheduledFor = isInternalLineDestination(to) ? new Date() : getNextSendWindow();
   // wave-181.102 (#3b) — keep a reference to the queued object so the
   // DB-persist IIFE below can stamp its smsMessages row id back onto it.
   // processDelayedQueue() needs dbId to mark the row "sent" after the
@@ -438,7 +443,11 @@ function noteDrainHold(reason: string | null, queued: number): void {
 
 async function processDelayedQueue(): Promise<void> {
   if (delayedQueue.length === 0) return;
-  if (!isWithinSendingHours()) {
+  // Quiet hours hold customer numbers only. A message to an internal line
+  // (the operator's mobile) is exempt at send time, and holding it here made
+  // an owner alert queued while the store phone was offline wait until 8 AM.
+  const withinSendingHours = isWithinSendingHours();
+  if (!withinSendingHours && !delayedQueue.some((m) => isInternalLineDestination(m.to))) {
     noteDrainHold("outside sending hours (8AM-8PM ET)", delayedQueue.length);
     return;
   }
@@ -463,7 +472,9 @@ async function processDelayedQueue(): Promise<void> {
       return;
     }
   }
-  noteDrainHold(null, delayedQueue.length);
+  // Outside hours only internal-line texts drain; customer texts are still
+  // held, so the hold reason stays the quiet-hours one rather than "cleared".
+  noteDrainHold(withinSendingHours ? null : "outside sending hours (8AM-8PM ET)", delayedQueue.length);
 
   const now = Date.now();
   // Drain ready messages atomically to prevent race with concurrent queueForLater
@@ -476,6 +487,8 @@ async function processDelayedQueue(): Promise<void> {
     // row stays "queued", and a restart rehydrates + RE-SENDS it (a dupe).
     // Hold it one more cycle until dbId is set.
     if (msg.dbId == null) {
+      stillPending.push(msg);
+    } else if (!withinSendingHours && !isInternalLineDestination(msg.to)) {
       stillPending.push(msg);
     } else if (now >= msg.scheduledFor.getTime()) {
       ready.push(msg);
@@ -513,8 +526,7 @@ async function processDelayedQueue(): Promise<void> {
               .set({ status: "sent", sentAt: new Date() })
               .where(eq(smsMessages.id, msg.dbId));
           } catch (err) {
-            const emsg = err instanceof Error ? err.message : String(err);
-            if (!/unknown column|1054/i.test(emsg)) throw err;
+            if (!isUnknownColumnError(err)) throw err;
             await db.update(smsMessages)
               .set({ status: "sent" })
               .where(eq(smsMessages.id, msg.dbId));
@@ -567,7 +579,7 @@ export async function recordSendFailure(dbId: number, reason: string): Promise<v
     `);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/unknown column|1054/i.test(msg)) {
+    if (isUnknownColumnError(err)) {
       if (!sendAttemptsColumnMissing) {
         sendAttemptsColumnMissing = true;
         log.warn("0104 columns absent — retry bounding inactive until apply-sms-send-attempts runs (48h time-bound still terminal)");
@@ -620,8 +632,7 @@ export async function recoverStaleSendingRows(): Promise<{ requeued: number; fai
           AND createdAt < DATE_SUB(NOW(), INTERVAL 48 HOUR)
       `);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!/unknown column|1054/i.test(msg)) throw err;
+      if (!isUnknownColumnError(err)) throw err;
       ancient = await db.execute(sql`
         UPDATE sms_messages SET status = 'failed'
         WHERE status = 'sending' AND direction = 'outbound'
@@ -743,7 +754,18 @@ export async function rehydrateQueuedFromDb(limit = 100): Promise<number> {
 
         // wave-181.102 (#3b) — carry the row id so the post-send update
         // marks THIS row "sent" — else a later restart re-sends it.
-        delayedQueue.push({ to: msg.phone, body: msg.body, scheduledFor: getNextSendWindow(), dbId: msg.id });
+        // 2026-09-23 — the row does not store send options. A row addressed
+        // to an internal line is replayed as internal (and is due now), or
+        // sendSms's internal-line guard refuses it and the operator's alert
+        // is dead-lettered after MAX_SEND_ATTEMPTS. lib/smsQueueReplay.ts.
+        const replay = queuedReplayIntent(msg.phone);
+        delayedQueue.push({
+          to: msg.phone,
+          body: msg.body,
+          scheduledFor: replay ? new Date() : getNextSendWindow(),
+          dbId: msg.id,
+          ...(replay ? { opts: replay } : {}),
+        });
         rehydrated++;
     }
     if (rehydrated > 0) {

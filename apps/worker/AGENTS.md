@@ -65,7 +65,8 @@ canonical: if you change the env contract, change it here first, then `DEPLOY.md
   string `===`.
 - **`/health` is a DUMB liveness / deploy gate — always 200 while the process serves.** It must never
   gate on scheduler state, the DB, or a downstream service (`index.ts`, `res.status(200)` is a
-  literal). Railway probes this path (`railway.json` `healthcheckPath`), and a probe with restart
+  literal). Railway probes this path (`.railway/railway.ts`, this service's `healthcheck`; it moved out of
+  `railway.json` when that file was deleted on 2026-09-18), and a probe with restart
   authority that checks derived state turns a blip into a restart storm. Scheduler freshness rides
   in the BODY as diagnostics only.
 - **`GET /health/scheduler` is the freshness signal** — 503 when the newest tick is older than

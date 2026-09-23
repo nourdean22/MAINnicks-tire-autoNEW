@@ -80,6 +80,132 @@ export function isConfigurationError(message?: string | null): boolean {
   return CONFIG_ERROR_RE.test(message) || CONFIG_ENV_VAR_RE.test(message);
 }
 
+/** Head kept: enough to identify the tool and the shape of the input. */
+const ERROR_HEAD = 140;
+/** Tail kept: where the REASON lives. Deliberately the larger half. */
+const ERROR_TAIL = 300;
+
+/**
+ * Condense a tool error for storage WITHOUT discarding why it failed.
+ *
+ * THE DEFECT THIS REPLACES. This was `errorMessage.slice(0, 200)` — a head
+ * truncation. AI SDK validation errors are shaped:
+ *
+ *   Invalid input for tool X: Type validation failed: Value: {…big json…}.
+ *   Error message: <THE ACTUAL REASON>
+ *
+ * The reason is at the TAIL, and the value dump in front of it is routinely
+ * longer than 200 characters. So the stored evidence was the input prefix and
+ * never the cause. Measured on production 2026-09-16: all three
+ * `createMissionPlan` failures were EXACTLY 200 chars, every one cut off
+ * mid-payload — the tool was known to fail 75% of the time and no row said why.
+ *
+ * It compounds. `lib/ai/tool-description-rewrite.ts` feeds `lastErrors` to an
+ * LLM as failure evidence, on the premise that "one LLM pass over a tool's
+ * recent failures" fixes the description. Evidence containing no failure reason
+ * cannot do that — the rewriter was reading input fragments and guessing.
+ *
+ * Keeping both ends is format-agnostic: it survives a reason at the tail (AI
+ * SDK), a reason at the head (most thrown Errors), and gives up nothing when
+ * the message is short enough to keep whole.
+ */
+export function condenseToolError(raw: string): string {
+  const msg = raw.trim();
+  if (msg.length <= ERROR_HEAD + ERROR_TAIL) return msg;
+  return `${msg.slice(0, ERROR_HEAD)} … [${msg.length - ERROR_HEAD - ERROR_TAIL} chars elided] … ${msg.slice(-ERROR_TAIL)}`;
+}
+
+/**
+ * Longest real catalog name is 26 chars (`getInstagramAutopostStatus`), and 181
+ * of 181 are pure `[A-Za-z][A-Za-z0-9_]*`. 64 leaves generous headroom while
+ * staying far below the column's VarChar(120) — the point is to reject payloads,
+ * not to police naming.
+ *
+ * Dots are allowed because historical keys like `arsenal.webSearch` and
+ * `memory.remember` exist in this table from an older namespacing scheme. They
+ * are not in today's catalog, but they ARE real invocations and must not be
+ * reclassified as junk by a guard added years later.
+ */
+const RECORDABLE_TOOL_NAME = /^[A-Za-z][A-Za-z0-9_.]{0,63}$/;
+
+/**
+ * Is this a tool NAME, or a tool CALL that something mistook for a name?
+ *
+ * THE ROW THAT FORCED THIS. Production held a `tool_telemetry` row whose
+ * `tool_name` was 101 characters of an entire tool-call payload — arguments,
+ * newlines, and a stray `</arg_value>` closing tag:
+ *
+ *     searchColdMemory({
+ *       query: "nicks tire instagram post",
+ *       ...
+ *     })</arg_value>
+ *
+ * Nothing in this repo emits that encoding — grepped `lib/` and `app/` for
+ * `arg_value` and found nothing — so it came from the MODEL's output through a
+ * provider/SDK parse that handed back the whole blob as `toolName`. We cannot
+ * fix that parser from here, which is exactly why the boundary has to hold.
+ *
+ * The damage is not one junk row. `tool_name` is the UNIQUE key every reader
+ * joins on: the usage census, the never-chosen analysis, and the
+ * description-rewrite cron's `lastErrors` evidence. A real `searchColdMemory`
+ * call was attributed to the garbage key, so that tool's `totalCalls` is short
+ * by at least one and every derived rate inherits the error. A telemetry table
+ * that accepts any string as a key cannot be trusted by anything that reads it.
+ */
+export function isRecordableToolName(name: unknown): name is string {
+  return typeof name === "string" && RECORDABLE_TOOL_NAME.test(name);
+}
+
+/**
+ * Describe a rejected tool name WITHOUT reproducing any of it.
+ *
+ * ⚠ THE FIRST CUT OF THIS GUARD LEAKED THE PAYLOAD IT REJECTED. It logged
+ * `JSON.stringify(name.slice(0, 160))`, and `logError` persists its `message`
+ * VERBATIM into `ErrorLog.message` and also `console.warn`s it — while
+ * `redactSensitive` covers only the structured `extra` object, never the
+ * message. So a malformed call carrying a customer phone number, message body,
+ * search query or token would have moved that payload out of the rejected
+ * telemetry key and INTO the database and the infrastructure logs. The
+ * specimen that prompted this guard already contained real operator content
+ * (`query: "nicks tire instagram post"`).
+ *
+ * A guard that keeps junk out of one table must not pipe it into another. So:
+ * length, a stable non-reversible digest for correlating repeats, and a fixed
+ * reason code. No substring of the value, ever.
+ *
+ * The digest is FNV-1a — deliberately not a crypto import on a hot path, and
+ * its only job is "is this the same bad name as last time", not secrecy.
+ */
+export function describeRejectedToolName(name: unknown): {
+  reason: string;
+  length: number;
+  digest: string;
+  type: string;
+} {
+  const type = name === null ? "null" : typeof name;
+  if (typeof name !== "string") {
+    return { reason: "not-a-string", length: 0, digest: "-", type };
+  }
+  let h = 0x811c9dc5;
+  for (let i = 0; i < name.length; i++) {
+    h ^= name.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  const reason =
+    name.length === 0
+      ? "empty"
+      : /[\n\r]/.test(name)
+        ? "contains-newline"
+        : /[(){}[\]<>]/.test(name)
+          ? "contains-call-syntax"
+          : name.length > 64
+            ? "too-long"
+            : !/^[A-Za-z]/.test(name)
+              ? "bad-first-char"
+              : "disallowed-characters";
+  return { reason, length: name.length, digest: h.toString(16).padStart(8, "0"), type };
+}
+
 /**
  * Record a single tool invocation. Merges into an aggregate row per
  * tool (one row per tool, updated per call) so we can query recent
@@ -88,11 +214,43 @@ export function isConfigurationError(message?: string | null): boolean {
  * Graceful: never throws. Caller should fire-and-forget.
  */
 export async function recordToolInvocation(inv: ToolInvocation): Promise<void> {
+  // Refuse a malformed key rather than minting a row for it — but LOUDLY.
+  // Dropping it silently would trade a corrupt row for a missing one, and this
+  // module's own header is about exactly that trade being a bad one.
+  //
+  // ⚠ NOT UNDER `instrumentScope(...)`, AND THAT IS THE POINT. The first cut
+  // logged this as `instrument.tool_invocation` purely because that name was
+  // already in KNOWN_INSTRUMENTS — which is the wrong reason to pick a channel.
+  // `buildInstrumentFailures()` defines EVERY `instrument.*` row as an
+  // instrument that FAILED TO WRITE, and this path deliberately returns BEFORE
+  // the write. So a healthy validation rejection would have rendered on /system
+  // as a broken telemetry writer and inflated `totalFailures` — a guard working
+  // correctly, reported as the thing it prevents.
+  //
+  // A refusal is not a write failure. It goes to this module's ordinary error
+  // scope, the same one its other two logError calls use, where it is still
+  // persisted and still console-visible — just not masquerading as an outage.
+  if (!isRecordableToolName(inv.toolName)) {
+    // METADATA ONLY — never a substring of the value. See
+    // `describeRejectedToolName`: `logError` persists its message verbatim and
+    // echoes it to the console, and redaction covers only `extra`.
+    const d = describeRejectedToolName(inv.toolName);
+    logError(
+      "ai.tool-telemetry",
+      new Error(
+        `refused a non-identifier tool name [reason=${d.reason} type=${d.type} ` +
+          `len=${d.length} digest=${d.digest}]`,
+      ),
+      { fn: "recordToolInvocation", rejected: true, conversationId: inv.conversationId ?? null },
+      "warn",
+    );
+    return;
+  }
   try {
     const successDelta = inv.success ? 1 : 0;
     const failDelta = inv.success ? 0 : 1;
     const errorMessage = !inv.success && inv.errorMessage
-      ? inv.errorMessage.slice(0, 200)
+      ? condenseToolError(inv.errorMessage)
       : null;
 
     // v10.0.194 → v10.0.529.106 Wave 53 · canonical typed write.

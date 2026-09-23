@@ -166,4 +166,187 @@ describe("findRelevantContradictions", () => {
     // not re-marking.
     expect(prisma.brainMemory.create).not.toHaveBeenCalled();
   });
+
+  // Unit-length so its cosine against SAME_DIRECTION_EMBEDDING ([1,0,0,0])
+  // is exactly 0.65: below the 0.7 default, above a 0.6 override.
+  const BELOW_DEFAULT_ABOVE_LOWERED_THRESHOLD_EMBEDDING = [0.65, 0.7599341943872264, 0, 0];
+
+  it("similarityThreshold override (2026-09-17, NICK_CORRECTION_THRESHOLD_BOOST) · a ~0.65 hit misses the 0.7 default and is caught when the caller lowers the bar", async () => {
+    (prisma.brainMemory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      makeUnresolvedRow(),
+    ]);
+    (prisma.brainMemory.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (prisma.brainMemory.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "log" });
+
+    (getEmbedding as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING)
+      .mockResolvedValueOnce(BELOW_DEFAULT_ABOVE_LOWERED_THRESHOLD_EMBEDDING);
+    const missedAtDefault = await findRelevantContradictions({
+      userMessage: USER_MESSAGE,
+      conversationId: "conv-5",
+    });
+    expect(missedAtDefault).toBeNull();
+
+    // Same ~0.65 pair; caller passes the exact override
+    // NICK_CORRECTION_THRESHOLD_BOOST sends (brain-context.ts) — now it hits.
+    (getEmbedding as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING)
+      .mockResolvedValueOnce(BELOW_DEFAULT_ABOVE_LOWERED_THRESHOLD_EMBEDDING);
+    const hitWithBoost = await findRelevantContradictions({
+      userMessage: USER_MESSAGE,
+      conversationId: "conv-6",
+      similarityThreshold: 0.6,
+    });
+    expect(hitWithBoost).not.toBeNull();
+    expect(hitWithBoost?.key).toBe("abc123");
+    expect(hitWithBoost?.similarity).toBeCloseTo(0.65, 6);
+  });
+
+  it("similarityThreshold is ignored when non-finite (garbage tolerance — falls back to the 0.7 default)", async () => {
+    (prisma.brainMemory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      makeUnresolvedRow(),
+    ]);
+    (prisma.brainMemory.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (getEmbedding as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING)
+      .mockResolvedValueOnce(BELOW_DEFAULT_ABOVE_LOWERED_THRESHOLD_EMBEDDING);
+
+    const hit = await findRelevantContradictions({
+      userMessage: USER_MESSAGE,
+      conversationId: "conv-7",
+      similarityThreshold: NaN,
+    });
+    expect(hit).toBeNull();
+  });
+});
+
+/**
+ * 2026-09-18 · NEAR-MISS INSTRUMENT.
+ *
+ * NICK_CORRECTION_THRESHOLD_BOOST has sat off since 2026-09-17 with the
+ * reason "the 0.6 choice is a conservative starting guess, not calibrated",
+ * and there was no way to calibrate it: a turn that surfaced nothing recorded
+ * nothing, so the scores that ALMOST cleared the bar were precisely the data
+ * nobody had. findRelevantContradictions now logs the best score it saw when
+ * nothing cleared, which is the distribution the boost threshold should be
+ * picked from.
+ *
+ * These pin the two things that make the instrument trustworthy: it fires on a
+ * real near miss, and it stays SILENT when there were no candidates at all --
+ * conflating "nothing scored" with "nothing cleared" would bias the collected
+ * distribution upward and argue for a lower bar than the evidence supports.
+ */
+describe("findRelevantContradictions · near-miss instrument", () => {
+  // cos([1,0,0,0], [0.65, 0.76, 0, 0]) ~= 0.65: under the 0.7 default, over
+  // the 0.6 the boost would use. Exactly the band the flag decides.
+  const BAND_EMBEDDING = [0.65, 0.76, 0, 0];
+
+  it("logs the best score when candidates scored but none cleared the bar", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    (prisma.brainMemory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([makeUnresolvedRow()]);
+    (getEmbedding as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING)
+      .mockResolvedValueOnce(BAND_EMBEDDING);
+
+    const hit = await findRelevantContradictions({ userMessage: USER_MESSAGE, conversationId: "conv-nm" });
+
+    expect(hit, "behaviour is unchanged — a sub-threshold score still surfaces nothing").toBeNull();
+
+    const line = info.mock.calls.find((c) => String(c[0]).includes("near_miss"));
+    expect(line, "the instrument did not fire — no evidence would ever be collected").toBeTruthy();
+    const payload = JSON.parse(String(line![1]));
+    expect(payload.threshold).toBe(0.7);
+    expect(payload.candidates).toBe(1);
+    // The whole point: this score is in the band the boost would have caught.
+    expect(payload.bestSim).toBeGreaterThanOrEqual(0.6);
+    expect(payload.bestSim).toBeLessThan(0.7);
+    info.mockRestore();
+  });
+
+  /**
+   * The first version of this test mocked findMany -> [] and asserted silence.
+   * It passed, and a mutation that removed the `if (bestAny)` guard entirely
+   * ALSO passed it — because an empty findMany returns at `rows.length === 0`,
+   * hundreds of lines before the log site. The test could never fail for the
+   * case it claimed to guard.
+   *
+   * The guard's real subject is: candidates EXISTED, but every one of their
+   * embeddings came back empty (provider down), so nothing was ever scored.
+   * That is an absence of signal, and logging bestSim 0 for it would drag the
+   * collected distribution toward zero and argue for a lower bar than the
+   * evidence supports. This version reaches the guard.
+   */
+  it("stays SILENT when candidates existed but every embedding failed", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    (prisma.brainMemory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([makeUnresolvedRow()]);
+    (getEmbedding as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING) // the user message embeds fine
+      .mockResolvedValueOnce([]); // the candidate's does not
+
+    const hit = await findRelevantContradictions({ userMessage: USER_MESSAGE, conversationId: "conv-noembed" });
+
+    expect(hit).toBeNull();
+    expect(
+      info.mock.calls.filter((c) => String(c[0]).includes("near_miss")),
+      "logged a near miss for a turn where nothing was ever scored — biases the distribution toward zero",
+    ).toEqual([]);
+    info.mockRestore();
+  });
+
+  it("stays silent on a HIT — a surfaced contradiction is not a near miss", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    (prisma.brainMemory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([makeUnresolvedRow()]);
+    (prisma.brainMemory.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (prisma.brainMemory.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "log" });
+    (getEmbedding as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING);
+
+    const hit = await findRelevantContradictions({ userMessage: USER_MESSAGE, conversationId: "conv-hit" });
+
+    expect(hit).not.toBeNull();
+    expect(info.mock.calls.filter((c) => String(c[0]).includes("near_miss"))).toEqual([]);
+    info.mockRestore();
+  });
+
+  it("a caller-lowered bar turns that same near miss into a hit (what the flag does)", async () => {
+    (prisma.brainMemory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([makeUnresolvedRow()]);
+    (prisma.brainMemory.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (prisma.brainMemory.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "log" });
+    (getEmbedding as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING)
+      .mockResolvedValueOnce(BAND_EMBEDDING);
+
+    const hit = await findRelevantContradictions({
+      userMessage: USER_MESSAGE,
+      conversationId: "conv-boost",
+      similarityThreshold: 0.6,
+    });
+
+    expect(hit, "the band embedding must clear 0.6 or the fixture proves nothing").not.toBeNull();
+    expect(hit!.similarity).toBeLessThan(0.7);
+  });
+});
+
+describe("near-miss instrument · NaN hardening (found in self-audit)", () => {
+  it("an unscoreable candidate never lands in the distribution as null", () => {
+    // cosineSimilarity returns NaN for a zero-magnitude vector. NaN poisons a
+    // running max (`sim > NaN` is false forever) and JSON.stringify(NaN) is
+    // null — so without the isFinite guard a single bad vector would publish
+    // `bestSim: null` into the data this instrument exists to collect.
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    (prisma.brainMemory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([makeUnresolvedRow()]);
+    (getEmbedding as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(SAME_DIRECTION_EMBEDDING)
+      .mockResolvedValueOnce([0, 0, 0, 0]); // non-empty, but zero magnitude
+
+    return findRelevantContradictions({ userMessage: USER_MESSAGE, conversationId: "conv-nan" }).then((hit) => {
+      expect(hit).toBeNull();
+      const lines = info.mock.calls.filter((c) => String(c[0]).includes("near_miss"));
+      for (const l of lines) {
+        expect(JSON.parse(String(l[1])).bestSim, "a null/NaN score reached the distribution").not.toBeNull();
+      }
+      info.mockRestore();
+    });
+  });
 });

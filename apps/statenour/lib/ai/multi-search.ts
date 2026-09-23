@@ -22,9 +22,7 @@
  *   - Promise.allSettled · partial failure is the common case, not
  *     the exception. Never let one source's outage poison the others.
  *   - 8s per-source timeout · cap blast radius. Guardian's 25s is
- *     too generous for an interactive chat path. EXCEPTION: Perplexica
- *     (self-hosted synthesis, 24-38s) gets PERPLEXICA_TIMEOUT_MS — an 8s
- *     budget guarantees it always times out and never contributes.
+ *     too generous for an interactive chat path.
  *   - Missing API key → skip silently. Not an error, just a smaller
  *     quorum. (Operator may not have provisioned all three keys.)
  *   - Consensus = lexical-overlap heuristic on top-claim sentences.
@@ -36,7 +34,6 @@ import { askPerplexity, type PerplexityResponse } from "@/lib/integrations/perpl
 import { askTavily, type TavilyResponse } from "@/lib/integrations/tavily";
 import { askExa, type ExaResponse } from "@/lib/integrations/exa";
 import { askGoogleSearch } from "@/lib/integrations/google-search";
-import { askPerplexica, hasPerplexica, PERPLEXICA_TIMEOUT_MS } from "@/lib/integrations/perplexica";
 // v10.0.525 · #12 silent-failure-hunter H1 fix · the all-sources-
 // failed path was returning empty without any log surface, which
 // risks the very fabrication searchWebVerified exists to prevent.
@@ -44,7 +41,7 @@ import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("ai/multi-search");
 
-export type SourceName = "perplexity" | "tavily" | "exa" | "google" | "perplexica";
+export type SourceName = "perplexity" | "tavily" | "exa" | "google";
 
 export interface MultiSourceCitation {
   url: string;
@@ -86,10 +83,8 @@ export interface MultiSourceOptions {
 /* ---------- internals ---------- */
 
 const DEFAULT_TIMEOUT_MS = 8_000;
-// 2026-07-05 improvement · Perplexica added LAST so dedupCitations (keep-first)
-// preserves the metered sources' authoritative order (perplexity > tavily >
-// exa); the free self-hosted source is lowest dedup precedence — no reorder.
-const ALL_SOURCES: SourceName[] = ["perplexity", "tavily", "exa", "google", "perplexica"];
+// Order is dedupCitations (keep-first) precedence: perplexity > tavily > exa.
+const ALL_SOURCES: SourceName[] = ["perplexity", "tavily", "exa", "google"];
 
 /**
  * Race a promise against a timeout. Resolves to the promise's
@@ -113,7 +108,6 @@ function hasApiKey(source: SourceName): boolean {
   if (source === "tavily") return Boolean(process.env.TAVILY_API_KEY);
   if (source === "exa") return Boolean(process.env.EXA_API_KEY);
   if (source === "google") return Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY);
-  if (source === "perplexica") return hasPerplexica();
   return false;
 }
 
@@ -211,16 +205,12 @@ export async function multiSourceSearch(
   query: string,
   opts: MultiSourceOptions = {},
 ): Promise<MultiSourceResult> {
-  // 2026-07-05 · Perplexica joins the DEFAULT quorum only when actually
-  // configured. AG-16 extends that rationale to EVERY source: confidence
-  // denominators now use available.length (sources that passed hasApiKey),
-  // so unkeyed sources never dilute scores — previously, with only 2 of 4
+  // AG-16 · confidence denominators use available.length (sources that
+  // passed hasApiKey), so unkeyed sources never dilute scores — previously, with only 2 of 4
   // sources keyed, a perfect 2-source agreement could never exceed 0.5
   // while the searchWebVerified tool description promised ">=0.66 means
   // 2+ sources agree". Explicit `opts.sources` is always honored verbatim.
-  const requested = opts.sources?.length
-    ? opts.sources
-    : ALL_SOURCES.filter((s) => s !== "perplexica" || hasPerplexica());
+  const requested = opts.sources?.length ? opts.sources : ALL_SOURCES;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   // Skip sources whose API key isn't configured · not an error.
@@ -288,24 +278,6 @@ export async function multiSourceSearch(
         askExa(query, baseOpts),
         timeoutMs,
         "exa",
-      );
-      return {
-        name,
-        content: r.content,
-        citations: r.citations,
-        model: r.model,
-      };
-    }
-    if (name === "perplexica") {
-      // Free self-hosted 5th source. askPerplexica is already withGuardian-
-      // wrapped (reliabilityOnly). Perplexica synthesis is 24-38s — the metered
-      // sources' 8s budget would guarantee a timeout, so give it the dedicated
-      // PERPLEXICA_TIMEOUT_MS (never LESS than the caller's budget). 'balanced'
-      // mode trades a little speed for better retrieval on verification queries.
-      const r = await withTimeout(
-        askPerplexica(query, { optimizationMode: "balanced" }),
-        Math.max(timeoutMs, PERPLEXICA_TIMEOUT_MS),
-        "perplexica",
       );
       return {
         name,

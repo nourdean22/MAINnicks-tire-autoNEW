@@ -34,6 +34,7 @@ import { WiringCensusPanel } from "@/components/system/wiring-census-panel";
 import { TrustLadderPanel } from "@/components/system/trust-ladder-panel";
 import { HomeDecisionPanel } from "@/components/system/home-decision-panel";
 import { ToolUsageCensusPanel } from "@/components/system/tool-usage-census-panel";
+import { EvidenceGatePanel } from "@/components/system/evidence-gate-panel";
 import { ObservabilityStatusPanel } from "@/components/system/observability-status-panel";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the three
@@ -327,6 +328,14 @@ export default function SystemPage() {
           their place? Report-only; feeds the description-rewrite cron's
           queue and the searchTools demotion decision, never automation. */}
       <ToolUsageCensusPanel />
+
+      {/* Evidence-gate calibration — the readout AGENTS.md §4 L6 defers
+          enforcement on ("once the shadow false-positive rate is known").
+          Sits beside the census deliberately: both are shadow measurements
+          whose numbers are only trustworthy while their instruments are
+          alive, and both refuse to state a figure on a thin sample rather
+          than render a confident one. Report-only; nothing promotes off it. */}
+      <EvidenceGatePanel />
 
       {/* ── NAVIGATION ───────────────────────────────────────────── */}
       {/* System hub — live-chip cards grouped by domain. Degraded

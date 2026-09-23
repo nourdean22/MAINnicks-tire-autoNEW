@@ -93,9 +93,17 @@ export interface InternalLine {
   note: string;
 }
 
+/**
+ * The operator's own mobile (his "CEO line"). Exported so the few lanes that
+ * SHOULD reach him — the careers new-candidate alert, by his instruction of
+ * 2026-09-23 — read the same value this guard refuses automated customer
+ * sends to. One definition; the alert and the guard cannot drift apart.
+ */
+export const OPERATOR_MOBILE_LAST10 = "2168488888"; // pii-allow: operator's own mobile, see INTERNAL_LINES below
+
 export const INTERNAL_LINES: readonly InternalLine[] = [
   {
-    last10: "2168488888", // pii-allow: the OPERATOR'S OWN mobile, hardcoded on purpose as the internal-line filter so the recovery crons stop texting him (he had already received 18 automated customer messages across 8 lanes). Removing it re-breaks that guard. Not allowlisted globally because, unlike the shop main/VAPI/Twilio lines, this one is not public.
+    last10: OPERATOR_MOBILE_LAST10, // pii-allow: the OPERATOR'S OWN mobile, hardcoded on purpose as the internal-line filter so the recovery crons stop texting him (he had already received 18 automated customer messages across 8 lanes). Removing it re-breaks that guard. Not allowlisted globally because, unlike the shop main/VAPI/Twilio lines, this one is not public.
     note: "Operator's own mobile — confirmed by the operator 2026-08-25. Held 1 unpaid invoice ($846.72) that the recovery cron was about to text him about. Had already received 18 automated customer messages across 8 lanes.",
   },
   {

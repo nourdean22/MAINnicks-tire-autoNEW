@@ -1,4 +1,5 @@
 import { eq, desc, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { CANDIDATE_SLA_OPEN_STATUSES, CANDIDATE_SOURCE_HONEYPOT, type CandidateStatus } from "@shared/candidateLifecycle";
 import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import {
@@ -428,12 +429,12 @@ export async function updateReferralStatus(id: number, status: "pending" | "visi
 // vehicle_visits — a caller must never render "not yet migrated" as "zero
 // referrals" or crash the caller's own request.
 
-/** True only for MySQL's "table doesn't exist" — 1146 / ER_NO_SUCH_TABLE — never for any other error. Exported for a direct unit test rather than only exercised indirectly. */
-export function isMissingTableError(err: unknown): boolean {
-  const code = (err as { code?: string; errno?: number } | null)?.code;
-  const errno = (err as { code?: string; errno?: number } | null)?.errno;
-  return code === "ER_NO_SUCH_TABLE" || errno === 1146;
-}
+// "Table doesn't exist" (1146) only, looking through drizzle's
+// DrizzleQueryError wrapper to the driver error on `.cause`. One definition
+// lives in lib/dbErrors.ts; it is re-exported here for this file's callers and
+// tests.
+import { isMissingTableError, isUnknownColumnError } from "./lib/dbErrors";
+export { isMissingTableError, isUnknownColumnError };
 
 export async function createTechnicianReferral(referral: InsertTechnicianReferral) {
   const db = await getDb();
@@ -661,7 +662,9 @@ export async function getCandidateSlaBreaches() {
           // ever calling them would have silently emptied the alarm while the
           // person kept waiting. `updateStatus` stamps contactedAt whenever it
           // writes "contacted", so the surviving set is {new, interviewing}.
-          inArray(candidates.status, ["new", "interviewing"]),
+          inArray(candidates.status, [...CANDIDATE_SLA_OPEN_STATUSES]),
+          // A honeypot-flagged row is saved for review, not owed a 48h reply.
+          ne(candidates.source, CANDIDATE_SOURCE_HONEYPOT),
           // The 24 comes from SLA_THRESHOLD_HOURS.warning rather than a literal:
           // it was hard-coded here AND declared there, so raising the surfacing
           // threshold in one place would have left this query still returning
@@ -693,7 +696,10 @@ export async function getCandidateSlaBreaches() {
       }),
     };
   } catch (err) {
-    if (isMissingTableError(err)) return { available: true as const, rows: [] as Row[] };
+    // available:false, as for a dead handle above: with no table there is no
+    // way to know who is waiting, and "no one is waiting" is the one answer
+    // this must never fabricate.
+    if (isMissingTableError(err)) return { available: false as const, rows: [] as Row[] };
     throw err;
   }
 }
@@ -824,16 +830,180 @@ export async function updateTechnicianReferralStatus(
 // code for any environment where 0122 hasn't been applied yet (a fresh
 // dev DB, for instance), not dead code from the cutover.
 
+/**
+ * Columns added by drizzle/0129_candidates_recruiting_funnel.sql. The DDL is
+ * hand-applied, so for a window the code knows these and production may not.
+ */
+export const CANDIDATE_0129_COLUMNS = [
+  "intent",
+  "moveReasons",
+  "phoneE164",
+  "refCode",
+  "gclid",
+  "utmTerm",
+  "utmContent",
+  "nextFollowUpAt",
+  "ownerAlertedAt",
+] as const;
+
+
+/**
+ * INSERT naming ONLY the columns the table had before drizzle/0129. Used when
+ * production has not had 0129 applied yet. Exported so a test can render the
+ * exact SQL and prove no 0129 column appears in it.
+ */
+export function buildPre0129CandidateInsert(c: InsertCandidate) {
+  return sql`INSERT INTO candidates (name, phone, email, positionTitle, experienceLevel, message, source, utmSource, utmMedium, utmCampaign, landingPage, referrer, sessionId) VALUES (${c.name}, ${c.phone}, ${c.email ?? null}, ${c.positionTitle ?? null}, ${c.experienceLevel ?? null}, ${c.message ?? null}, ${c.source ?? "careers"}, ${c.utmSource ?? null}, ${c.utmMedium ?? null}, ${c.utmCampaign ?? null}, ${c.landingPage ?? null}, ${c.referrer ?? null}, ${c.sessionId ?? null})`;
+}
+
 export async function createCandidate(candidate: InsertCandidate) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   try {
     const result = await db.insert(candidates).values(candidate);
-    return { success: true, id: Number(result[0].insertId) } as const;
+    return { success: true, id: Number(result[0].insertId), columns0129: true } as const;
   } catch (err) {
     if (isMissingTableError(err)) {
       return { success: false, migrationPending: true as const };
     }
+    // 0129 not applied yet: save the application with the pre-0129 columns
+    // rather than lose it. The caller folds intent/move-reasons into
+    // `message` too, so nothing the applicant said is dropped either way.
+    if (isUnknownColumnError(err)) {
+      // RAW SQL, deliberately. Drizzle's MySQL insert names EVERY column in
+      // schema.ts (writing `default` for the ones not supplied), so retrying
+      // through db.insert() with the 0129 keys removed still names them and
+      // fails identically — measured in production 2026-09-23 01:20Z: every
+      // careers application 500'd until this path stopped using drizzle.
+      log.warn("[createCandidate] 0129 columns missing — saved with pre-0129 columns");
+      const result = await db.execute(buildPre0129CandidateInsert(candidate));
+      const header = (Array.isArray(result) ? result[0] : result) as { insertId?: number };
+      return { success: true, id: Number(header.insertId), columns0129: false } as const;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Pre-0129 projection — every column the table had before the recruiting
+ * funnel DDL. A FUNCTION, not a module constant: a constant dereferences
+ * `candidates` at import time, which breaks every test that mocks
+ * ../drizzle/schema without that export (CI, 2026-09-23).
+ */
+const candidateBaseProjection = () => ({
+  id: candidates.id,
+  name: candidates.name,
+  phone: candidates.phone,
+  email: candidates.email,
+  positionTitle: candidates.positionTitle,
+  experienceLevel: candidates.experienceLevel,
+  message: candidates.message,
+  source: candidates.source,
+  status: candidates.status,
+  utmSource: candidates.utmSource,
+  utmMedium: candidates.utmMedium,
+  utmCampaign: candidates.utmCampaign,
+  landingPage: candidates.landingPage,
+  referrer: candidates.referrer,
+  sessionId: candidates.sessionId,
+  contactedAt: candidates.contactedAt,
+  contactedBy: candidates.contactedBy,
+  notes: candidates.notes,
+  createdAt: candidates.createdAt,
+  updatedAt: candidates.updatedAt,
+});
+
+const candidateFullProjection = () => ({
+  ...candidateBaseProjection(),
+  intent: candidates.intent,
+  moveReasons: candidates.moveReasons,
+  phoneE164: candidates.phoneE164,
+  refCode: candidates.refCode,
+  gclid: candidates.gclid,
+  utmTerm: candidates.utmTerm,
+  utmContent: candidates.utmContent,
+  nextFollowUpAt: candidates.nextFollowUpAt,
+  ownerAlertedAt: candidates.ownerAlertedAt,
+});
+
+/** Stamp the owner-alert time. A no-op (not an error) before 0129 is applied. */
+export async function markCandidateOwnerAlerted(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.update(candidates).set({ ownerAlertedAt: new Date() }).where(eq(candidates.id, id));
+  } catch (err) {
+    if (isUnknownColumnError(err)) return;
+    throw err;
+  }
+}
+
+/**
+ * Earlier rows with the same normalized phone — the duplicate-applicant check.
+ * `available: false` when the lookup could not run, so a caller cannot mistake
+ * "couldn't check" for "first time we've seen them" (the fabricated-read gate,
+ * server/fabricatedAdminReadGate.test.ts, enforces this shape).
+ */
+export async function findCandidatesByPhoneE164(
+  phoneE164: string,
+  excludeId: number,
+): Promise<{ available: boolean; rows: Array<{ id: number; createdAt: Date; status: string }> }> {
+  const db = await getDb();
+  if (!db) return { available: false, rows: [] };
+  try {
+    const rows = await db
+      .select({ id: candidates.id, createdAt: candidates.createdAt, status: candidates.status })
+      .from(candidates)
+      .where(and(eq(candidates.phoneE164, phoneE164), sql`${candidates.id} <> ${excludeId}`))
+      .orderBy(desc(candidates.createdAt))
+      .limit(5);
+    return { available: true, rows };
+  } catch (err) {
+    if (isUnknownColumnError(err) || isMissingTableError(err)) return { available: false, rows: [] };
+    throw err;
+  }
+}
+
+/**
+ * The abuse brake on candidateIntake's sends. candidates.submit is a public
+ * form that texts the operator from the store line and emails whatever
+ * address was typed; its only other limit is 10 submissions/hour/IP. Counts
+ * rows saved in the last 24 hours — not sends — excluding the row being
+ * processed and honeypot rows. Read from the table, so it survives restarts.
+ * Time math stays in SQL (NOW() - INTERVAL), per the TiDB timezone rule.
+ * `available: false` = could not count; the caller decides which way to fail.
+ */
+export async function getCandidateSendBudget(input: {
+  excludeId: number;
+  email: string | null;
+  phoneE164: string | null;
+}): Promise<{ available: boolean; last24h: number; sameEmail24h: number; samePhone24h: number }> {
+  const unavailable = { available: false, last24h: 0, sameEmail24h: 0, samePhone24h: 0 };
+  const db = await getDb();
+  if (!db) return unavailable;
+  try {
+    const [row] = await db
+      .select({
+        last24h: sql<number>`COUNT(*)`,
+        sameEmail24h: sql<number>`COALESCE(SUM(${candidates.email} = ${input.email ?? ""}), 0)`,
+        samePhone24h: sql<number>`COALESCE(SUM(${candidates.phoneE164} = ${input.phoneE164 ?? ""}), 0)`,
+      })
+      .from(candidates)
+      .where(
+        and(
+          sql`${candidates.createdAt} >= NOW() - INTERVAL 24 HOUR`,
+          ne(candidates.source, CANDIDATE_SOURCE_HONEYPOT),
+          sql`${candidates.id} <> ${input.excludeId}`,
+        ),
+      );
+    return {
+      available: true,
+      last24h: Number(row?.last24h ?? 0),
+      sameEmail24h: Number(row?.sameEmail24h ?? 0),
+      samePhone24h: Number(row?.samePhone24h ?? 0),
+    };
+  } catch (err) {
+    if (isUnknownColumnError(err) || isMissingTableError(err)) return unavailable;
     throw err;
   }
 }
@@ -848,8 +1018,24 @@ export async function getCandidates() {
   // that is genuinely empty.
   if (!db) return { available: false as const, migrationPending: false as const, rows: [] as Candidate[] };
   try {
-    const rows: Candidate[] = await db.select().from(candidates).orderBy(desc(candidates.createdAt)).limit(500);
-    return { available: true as const, migrationPending: false as const, rows };
+    // Named columns, never a bare select(): adding 0129 to schema.ts would
+    // otherwise make this read name columns production may not have yet.
+    try {
+      const rows = (await db
+        .select(candidateFullProjection())
+        .from(candidates)
+        .orderBy(desc(candidates.createdAt))
+        .limit(500)) as Candidate[];
+      return { available: true as const, migrationPending: false as const, rows };
+    } catch (err) {
+      if (!isUnknownColumnError(err)) throw err;
+      const rows = (await db
+        .select(candidateBaseProjection())
+        .from(candidates)
+        .orderBy(desc(candidates.createdAt))
+        .limit(500)) as Candidate[];
+      return { available: true as const, migrationPending: false as const, rows };
+    }
   } catch (err) {
     if (isMissingTableError(err)) {
       return { available: true as const, migrationPending: true as const, rows: [] as Candidate[] };
@@ -861,7 +1047,7 @@ export async function getCandidates() {
 export async function updateCandidateStatus(
   id: number,
   updates: {
-    status?: "new" | "contacted" | "interviewing" | "hired" | "declined" | "withdrew";
+    status?: CandidateStatus;
     contactedAt?: Date;
     contactedBy?: string;
     notes?: string;
@@ -869,7 +1055,19 @@ export async function updateCandidateStatus(
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(candidates).set(updates).where(eq(candidates.id, id));
+  const { contactedAt, ...rest } = updates;
+  await db
+    .update(candidates)
+    .set({
+      ...rest,
+      // First contact is a fact about the past: keep the earliest stamp.
+      // Moving a candidate from "contacted" to "offer" must not reset the
+      // time-to-first-contact metric to today.
+      ...(contactedAt
+        ? { contactedAt: sql`COALESCE(${candidates.contactedAt}, ${sql.param(contactedAt, candidates.contactedAt)})` }
+        : {}),
+    })
+    .where(eq(candidates.id, id));
   return { success: true };
 }
 
@@ -2167,6 +2365,7 @@ export async function deleteTechnician(id: number) {
 
 // ─── INVOICE HELPERS ─────────────────────────────────────────
 import { invoices, type InsertInvoice } from "../drizzle/schema";
+import { isDuplicateKeyError } from "./lib/dbErrors";
 
 import { createLogger } from "./lib/logger";
 
@@ -2190,22 +2389,34 @@ export async function getNextInvoiceNumber(): Promise<string> {
   return prefix + "001";
 }
 
-/** Create an invoice record with retry on unique constraint collision */
-export async function createInvoice(data: InsertInvoice): Promise<{ success: boolean; id: number }> {
+/**
+ * Create an invoice record, taking the next number on a collision.
+ *
+ * Returns `invoiceNumber`: the number the row was STORED under. Use it, not
+ * the number you passed in. The number comes from MAX()+1 with no lock, so two
+ * invoices created at once can ask for the same one, and the second is stored
+ * under the next number. Until 2026-09-23 placeOrder kept its own copy, so a
+ * retry would have linked the tire order and the Stripe checkout to the other
+ * customer's invoice.
+ *
+ * The collision test reads the driver error through drizzle's wrapper: its
+ * `code` is undefined and its message is the SQL, so the old inline check never
+ * matched a real collision and the first one threw instead of retrying.
+ */
+export async function createInvoice(data: InsertInvoice): Promise<{ success: boolean; id: number; invoiceNumber: string | null }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
+  const row = { ...data };
   // Retry up to 3 times on unique constraint violations (concurrent invoice creation)
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const result = await db.insert(invoices).values(data);
-      return { success: true, id: Number(result[0].insertId) };
+      const result = await db.insert(invoices).values(row);
+      return { success: true, id: Number(result[0].insertId), invoiceNumber: row.invoiceNumber ?? null };
     } catch (err: unknown) {
-      const errObj = err as Record<string, unknown>;
-      const isDuplicate = errObj?.code === "ER_DUP_ENTRY" || String(errObj?.message || "").includes("Duplicate entry");
-      if (isDuplicate && data.invoiceNumber && attempt < 2) {
+      if (isDuplicateKeyError(err) && row.invoiceNumber && attempt < 2) {
         // Regenerate invoice number and retry
-        data.invoiceNumber = await getNextInvoiceNumber();
+        row.invoiceNumber = await getNextInvoiceNumber();
         continue;
       }
       throw err;

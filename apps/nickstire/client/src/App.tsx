@@ -105,6 +105,7 @@ const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
 // Restore from git history at wave-181.97 if rankings drop signal real value.
 const Careers = lazy(() => import("./pages/Careers"));
 const JobPage = lazy(() => import("./pages/JobPage"));
+const MechanicPayCalculator = lazy(() => import("./pages/MechanicPayCalculator"));
 const BookingPage = lazy(() => import("./pages/BookingPage"));
 const GuidesIndex = lazy(() => import("./pages/GuidesIndex"));
 const GuidePage = lazy(() => import("./pages/GuidePage"));
@@ -420,6 +421,8 @@ function Router() {
                 markup on a list page; verified live 2026-09-10 that /careers
                 carried three and these URLs 404'd. */}
             <Route path={"/careers/:slug"} component={JobPage} />
+            {/* Flat rate vs hourly calculator — recruiting content, not a job. */}
+            <Route path={"/mechanic-pay-calculator"} component={MechanicPayCalculator} />
             {/* Women's Safety & Pit Stop Experience */}
             <Route path={"/womens-safety"} component={WomensSafetyPage} />
             {/* Legal pages */}
