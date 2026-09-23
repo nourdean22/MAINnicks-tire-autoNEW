@@ -93,7 +93,7 @@ export async function buildReelRecoveryLedger(opts?: { limit?: number; jobId?: n
 
     const rows = opts?.jobId
       ? await d.select().from(reelJobs).where(eq(reelJobs.id, opts.jobId)).limit(1)
-      : await d.select().from(reelJobs).orderBy(desc(reelJobs.id)).limit(limit);
+      : await d.select().from(reelJobs).orderBy(desc(reelJobs.createdAt), desc(reelJobs.id)).limit(limit);
 
     const entries: ReelLedgerEntry[] = [];
     for (const job of rows) {
