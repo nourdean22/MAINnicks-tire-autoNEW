@@ -272,8 +272,9 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
    prompt now holds FCFS, a measured alert outcome, two VIP rows, a day score and busiest/slowest-day patterns
    instead of 'Nick AI has 30 learned memories'. kpi-snapshot is still 49h stale and WILL stay so until the
    first hourly pass after 07:00 ET - that is the fix working, not failing. NEXT: auto_analysis and vip_detection
-   are still unkeyed writers (4 near-duplicate 'Busiest day' rows now sit in the prompt) - same identity fix as
-   #2529, one line each.
+   WERE ALREADY KEYED in #2529 (busiest_slowest_day,
+   vip_customers_60d) - this line originally claimed they were not, and reading the source refuted it before any
+   code changed. The duplicates in the prompt are LEGACY snapshots the keying cannot merge retroactively. See 15.
 
 14. WEATHER SMS STAYS ON - operator decision 2026-09-23 ('leave the weather sms on'). No flag change was made;
    weather_triggered_sms has been 1 since 2026-05-20. DO NOT RE-ASK THIS. What ON means, measured read-only
@@ -1289,3 +1290,17 @@ Before acting on a doc's factual claim about prod, read prod. And before reporti
 result as a fact about the repo, check what your search EXCLUDED.
 
 External audit's "/brakes broken" (stale cache; renders fine live) and "duplicate brake-cost blogs" (exist in neither routes.ts nor the real GSC export).
+
+15. WEATHER IS LIVE, AND 343 MEMORY ROWS ARE SUPERSEDED. (a) OPENWEATHER_API_KEY set on Railway 2026-09-23 on
+   operator instruction. It 401'd for ~15 min and went 200 the moment the operator verified their account
+   email - OpenWeather returns the SAME 401 for an unactivated key and a wrong one, so only time or the
+   account page can tell them apart; the email check is the first thing to ask next time. Verified through
+   evaluateWeatherTriggers (the no-SMS entry point): 'moderate rain', heavy_rain SATISFIED. Zero weather_
+   texts sent so far; briefings tier is 12 h and last ran 37 min before the check, so the first possible send
+   is ~11.5 h out and only if the rain holds. KILL PATH is the FLAG, not the key: set weather_triggered_sms
+   to 0 with scripts/maintenance/set-feature-flag.mjs.
+   (b) The identity mechanism WORKS - 7 rolling rows, one per writer that has fired. The prompt duplicates are
+   LEGACY snapshots from before #2529, 343 of them behind a rolling row, which is the entire reason the store
+   sits at 528 over its 500 cap. scripts/maintenance/prune-superseded-memories.mjs (dry run first) takes it to
+   185 and SKIPS sources with no rolling row yet (daily_score 75, shopdriver_mirror 43, intelligence_autopilot
+   20, statenour_pull 10) because for those the snapshots are all Nick has. The DELETE is the operator's.
