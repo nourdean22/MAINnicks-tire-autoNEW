@@ -19,7 +19,9 @@ export type DeclineProvenance = "counter" | "inferred" | "unknown";
 export type DeclineCaptureRead =
   | { status: "ok"; capturedIds: ReadonlySet<number> }
   | { status: "not_enabled" }
-  | { status: "error"; error: string };
+  // `available: false` is the house marker for an honest outage shape
+  // (scripts/lib/fabricatedAdminReadScan.mjs): a dead handle is an error, never an empty set.
+  | { status: "error"; available?: false; error: string };
 
 export function declineProvenance(estimateId: number, read: DeclineCaptureRead): DeclineProvenance {
   if (read.status === "error") return "unknown";

@@ -89,7 +89,7 @@ export async function captureDeclineAtCounter(input: {
 export async function readDeclineCaptures(estimateIds: readonly number[]): Promise<DeclineCaptureRead> {
   const { getDb } = await import("../db");
   const d = await getDb();
-  if (!d) return { status: "error", error: "database unavailable" };
+  if (!d) return { status: "error", available: false, error: "database unavailable" };
   if (estimateIds.length === 0) return { status: "ok", capturedIds: new Set() };
   try {
     const { declinedWorkCaptures } = await import("../../drizzle/schema");
@@ -109,7 +109,7 @@ export async function readDeclineCaptures(estimateIds: readonly number[]): Promi
 export type ConfirmedCountRead =
   | { status: "ok"; count: number }
   | { status: "not_enabled" }
-  | { status: "error"; error: string };
+  | { status: "error"; available?: false; error: string };
 
 /**
  * How many UNMATCHED estimates since `since` were captured at the counter — the
@@ -120,7 +120,7 @@ export type ConfirmedCountRead =
 export async function countCounterConfirmedUnmatched(since: Date): Promise<ConfirmedCountRead> {
   const { getDb } = await import("../db");
   const d = await getDb();
-  if (!d) return { status: "error", error: "database unavailable" };
+  if (!d) return { status: "error", available: false, error: "database unavailable" };
   try {
     const { algEstimates, declinedWorkCaptures } = await import("../../drizzle/schema");
     const [row] = await d
