@@ -3833,11 +3833,6 @@
     },
     {
       "file": "apps/nickstire/server/lib/cache.ts",
-      "symbol": "initCache",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/lib/cache.ts",
       "symbol": "cacheGet",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
