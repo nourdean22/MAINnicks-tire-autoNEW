@@ -363,16 +363,26 @@ export async function arrivalSignalsForQueue(cutoff: Date): Promise<{
  * still 'expected') as no_show, so a follow-up path can reach them and the Today
  * screen isn't cluttered with stale expectations.
  */
-export async function expireStaleExpectedArrivals(daysStale = 2): Promise<{ expired: number }> {
+export async function expireStaleExpectedArrivals(daysStale = 2, now: Date = new Date()): Promise<{ expired: number }> {
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) return { expired: 0 };
+    // expectedDate is a shop (Eastern) calendar date, so the cutoff is computed
+    // from the Eastern date in JS. It used to be DATE_SUB(CURDATE(), …), and the
+    // DB session date is UTC: from 8 PM ET (7 PM in winter) to midnight it is
+    // already tomorrow, so the sweep marked arrivals no_show a day early, and
+    // no_show feeds the recovery lane. Calendar-day arithmetic at UTC noon, so a
+    // DST change inside the window cannot move the day.
+    const days = Math.max(0, Math.floor(daysStale));
+    const cutoffNoon = new Date(`${toShopDateStr(now)}T12:00:00Z`);
+    cutoffNoon.setUTCDate(cutoffNoon.getUTCDate() - days);
+    const cutoff = cutoffNoon.toISOString().slice(0, 10);
     const res = await db.execute(sql`
       UPDATE expected_arrivals
       SET status = 'no_show'
-      WHERE status = 'expected' AND expectedDate < DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(Math.max(0, Math.floor(daysStale))))} DAY)`);
+      WHERE status = 'expected' AND expectedDate < ${cutoff}`);
     const expired = affectedRowCount(res);
     if (expired > 0) log.info(`expired ${expired} stale expected arrivals to no_show`);
     return { expired };

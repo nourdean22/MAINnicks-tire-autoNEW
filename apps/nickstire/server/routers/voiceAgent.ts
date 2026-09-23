@@ -174,7 +174,7 @@ export const voiceAgentRouter = router({
       return {
         low,
         high,
-        sourceNote: range.sourceNote + (isLuxury ? " European/luxury vehicles run a bit higher on parts." : ""),
+        sourceNote: range.sourceNote + (isLuxury ? " Some European makes run a bit higher on parts." : ""),
         serviceTitle: matched.title,
         shouldEscalate: false,
       };
