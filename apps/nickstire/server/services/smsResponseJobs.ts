@@ -30,6 +30,7 @@ import { createHash } from "node:crypto";
 import { createLogger } from "../lib/logger";
 import { affectedRowCount } from "../lib/db-affected";
 import { isMissingTableError } from "../lib/dbErrors";
+import { isNonCustomer } from "./nonCustomerFilter";
 
 const log = createLogger("sms-response-jobs");
 
@@ -441,30 +442,139 @@ export interface HumanPendingSummary {
   oldestWaitingMinutes: number | null;
 }
 
+/** One open human_pending obligation (one inbound text), as the reader returns it. */
+export interface HumanPendingRow {
+  jobId: number;
+  conversationId: number;
+  phone: string;
+  customerName: string | null;
+  body: string;
+  waitingMinutes: number;
+  /** dueAt (createdAt + HUMAN_SLA_MS) has passed. */
+  overdue: boolean;
+}
+
+/** A customer waiting on a human reply: one per conversation. */
+export interface WaitingConversation {
+  conversationId: number;
+  phone: string;
+  customerName: string | null;
+  /** The customer's latest waiting text. */
+  preview: string;
+  /** Since the OLDEST open text in the thread. */
+  waitingMinutes: number;
+  overdue: boolean;
+  /** Open texts in the thread. */
+  texts: number;
+}
+
 /**
- * The Needs-Reply truth for the admin: how many customers are waiting on a
- * human, how many have blown the SLA (dueAt in the past), and how long the
- * oldest has been waiting. Throws on DB unavailability — the caller must
- * render UNKNOWN, never zero (the admin-truth rule).
+ * Pure: open obligations -> waiting customers, oldest wait first. The ONE
+ * reduction behind Today's queue, the Outreach badge and the morning brief,
+ * so their counts cannot disagree (post-merge audit I, 2026-09-23). A customer
+ * who texts twice is one waiting customer; an internal line (the operator's
+ * own mobile, the shop's number) is not a customer at all.
  */
-export async function humanPendingSummary(): Promise<HumanPendingSummary> {
+export function waitingConversations(rows: ReadonlyArray<HumanPendingRow>): WaitingConversation[] {
+  const byThread = new Map<number, { item: WaitingConversation; newest: number }>();
+  for (const r of rows) {
+    if (isNonCustomer({ customerPhone: r.phone, customerName: r.customerName })) continue;
+    const seen = byThread.get(r.conversationId);
+    if (!seen) {
+      byThread.set(r.conversationId, {
+        newest: r.waitingMinutes,
+        item: {
+          conversationId: r.conversationId,
+          phone: r.phone,
+          customerName: r.customerName,
+          preview: previewOf(r.body),
+          waitingMinutes: r.waitingMinutes,
+          overdue: r.overdue,
+          texts: 1,
+        },
+      });
+      continue;
+    }
+    seen.item.texts++;
+    seen.item.overdue ||= r.overdue;
+    if (r.waitingMinutes > seen.item.waitingMinutes) seen.item.waitingMinutes = r.waitingMinutes;
+    if (r.waitingMinutes < seen.newest) {
+      seen.newest = r.waitingMinutes;
+      seen.item.preview = previewOf(r.body);
+    }
+  }
+  return Array.from(byThread.values(), (t) => t.item).sort((a, b) => b.waitingMinutes - a.waitingMinutes);
+}
+
+function previewOf(body: string): string {
+  return String(body ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+}
+
+/** Pure: the counts, from the same reduction as the list. */
+export function summarizeWaitingConversations(rows: ReadonlyArray<HumanPendingRow>): HumanPendingSummary {
+  const waiting = waitingConversations(rows);
+  return {
+    humanPending: waiting.length,
+    overdue: waiting.filter((w) => w.overdue).length,
+    oldestWaitingMinutes: waiting[0]?.waitingMinutes ?? null,
+  };
+}
+
+/** Open obligations are few (each is a customer a human owes); the cap is a guard, oldest kept. */
+const HUMAN_PENDING_READ_CAP = 2000;
+
+/** Read every open obligation. Throws on DB unavailability: UNKNOWN, never zero. */
+async function readHumanPendingRows(): Promise<HumanPendingRow[]> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
   if (!db) throw new Error("database unavailable — human-pending count is UNKNOWN, not zero");
+  // Ages come from the DB's own NOW(): driver-parsed TiDB timestamps shift on an ET host.
   const [rows] = await db.execute(sql`
-    SELECT COUNT(*) AS humanPending,
-           COALESCE(SUM(CASE WHEN dueAt < NOW() THEN 1 ELSE 0 END), 0) AS overdue,
-           TIMESTAMPDIFF(MINUTE, MIN(createdAt), NOW()) AS oldestWaitingMinutes
-    FROM sms_response_jobs
-    WHERE status = 'human_pending'
+    SELECT j.id AS jobId,
+           j.conversationId,
+           j.customerPhone AS phone,
+           c.customerName,
+           j.body,
+           TIMESTAMPDIFF(MINUTE, j.createdAt, NOW()) AS waitingMinutes,
+           CASE WHEN j.dueAt < NOW() THEN 1 ELSE 0 END AS overdue
+    FROM sms_response_jobs j
+    LEFT JOIN sms_conversations c ON c.id = j.conversationId
+    WHERE j.status = 'human_pending'
+    ORDER BY j.createdAt ASC
+    LIMIT ${HUMAN_PENDING_READ_CAP}
   `);
-  const row = (rows as Array<{ humanPending: number | string; overdue: number | string; oldestWaitingMinutes: number | string | null }>)[0];
-  return {
-    humanPending: Number(row?.humanPending ?? 0),
-    overdue: Number(row?.overdue ?? 0),
-    oldestWaitingMinutes: row?.oldestWaitingMinutes == null ? null : Number(row.oldestWaitingMinutes),
-  };
+  return (rows as Array<Record<string, unknown>>).map((r) => ({
+    jobId: Number(r.jobId),
+    conversationId: Number(r.conversationId),
+    phone: String(r.phone ?? ""),
+    customerName: r.customerName == null ? null : String(r.customerName),
+    body: String(r.body ?? ""),
+    waitingMinutes: Number(r.waitingMinutes ?? 0),
+    overdue: Number(r.overdue ?? 0) === 1,
+  }));
+}
+
+/**
+ * The customers waiting on a human reply, for Today's queue. Closes exactly
+ * when ROS-058 does: a human send (human_replied) or "No reply needed"
+ * (no_reply_required). An automated text does not close it. Throws on DB
+ * unavailability so the bundle reports the slice unavailable, not "All clear".
+ */
+export async function listWaitingConversations(): Promise<WaitingConversation[]> {
+  return waitingConversations(await readHumanPendingRows());
+}
+
+/**
+ * The Needs-Reply truth for the admin: how many customers are waiting on a
+ * human, how many have blown the SLA (dueAt in the past), and how long the
+ * oldest has been waiting. Counts customers (conversations), not texts, and
+ * never an internal line — the same reduction Today's queue shows. Throws on
+ * DB unavailability — the caller must render UNKNOWN, never zero (the
+ * admin-truth rule).
+ */
+export async function humanPendingSummary(): Promise<HumanPendingSummary> {
+  return summarizeWaitingConversations(await readHumanPendingRows());
 }
 
 export interface WaitingCustomer {

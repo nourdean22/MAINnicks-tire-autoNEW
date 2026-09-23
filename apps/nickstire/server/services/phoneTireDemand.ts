@@ -18,12 +18,12 @@ export async function getPhoneTireDemandToday(now = new Date()): Promise<TireDem
   // Since Eastern midnight, as a duration from the DB's own NOW(): no driver-parsed timestamp involved.
   const minutes = minutesSinceShopMidnight(now);
   const rows = await d
-    .select({ metadata: voiceLatencyEvents.metadata })
+    .select({ callId: voiceLatencyEvents.callId, metadata: voiceLatencyEvents.metadata })
     .from(voiceLatencyEvents)
     .where(and(
       eq(voiceLatencyEvents.stage, "state_tool_called"),
       gte(voiceLatencyEvents.createdAt, sql`NOW() - INTERVAL ${minutes} MINUTE`),
     ))
     .limit(2000);
-  return summarizeTireDemand(rows.map((r: { metadata: unknown }) => r.metadata));
+  return summarizeTireDemand(rows);
 }

@@ -97,9 +97,10 @@ describe("Overview stops claiming All clear on reads that did not happen", () =>
 
 describe("owed texts (2026-09-23): a customer waiting on a text reply is on Today", () => {
   it("the bundle reads them as their own slice, so a failed read is reported, not emptied", () => {
-    expect(bundle).toMatch(/getOwedTexts\(\)/);
+    // The ROS-058 reader since post-merge audit I; it throws when the DB is down.
+    expect(bundle).toMatch(/listWaitingConversations\(\)/);
     expect(bundle).toMatch(/owedTexts: sliceStatus\(owedTexts, dbDown\)/);
-    expect(readCode("server/services/owedTexts.ts")).toMatch(/if \(!d\) throw new Error\("Database not available"\)/);
+    expect(readCode("server/services/smsResponseJobs.ts")).toMatch(/if \(!db\) throw new Error\("database unavailable — human-pending count is UNKNOWN, not zero"\)/);
   });
 
   it("an unreadable owed-texts slice vetoes All clear", () => {

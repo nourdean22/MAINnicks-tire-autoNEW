@@ -52,34 +52,54 @@ export function toolCallStateMetadata(name: string | undefined, toolCallId: stri
 }
 
 export interface TireDemandSummary {
-  /** Tire inquiries counted (one per tool call). */
+  /** Tire callers: distinct calls with at least one tireInquiry. */
   total: number;
-  /** Most-asked first; ties by size. */
+  /** Most-asked first; ties by size. `count` is calls that asked for the size. */
   sizes: Array<{ size: string; count: number; new: number; used: number }>;
-  /** Inquiries with no usable size: the caller did not know it, or it did not parse. */
+  /** Calls whose tire inquiries gave no usable size: the caller did not know it, or it did not parse. */
   sizeUnknown: number;
 }
 
-/** Summarise the `demand` metadata of tireInquiry state rows. Rows without it are skipped. */
-export function summarizeTireDemand(metadatas: ReadonlyArray<unknown>): TireDemandSummary {
-  const bySize = new Map<string, { size: string; count: number; new: number; used: number }>();
-  let total = 0;
-  let sizeUnknown = 0;
-  for (const m of metadatas) {
-    const meta = (m && typeof m === "object" ? m : {}) as { tool?: unknown; demand?: Partial<TireDemand> };
+/** One tool_called state row: the Vapi call id (voice_latency_events.call_id) and its metadata. */
+export interface ToolCallStateRow {
+  callId: string;
+  metadata: unknown;
+}
+
+/**
+ * Summarise the `demand` metadata of tireInquiry state rows, ONE CALLER PER
+ * CALL (post-merge audit J, 2026-09-23). A caller who asks for front and rear
+ * sizes, or an assistant that re-calls the tool, writes several rows for one
+ * call; counted per row, that read as several callers and over-pulled stock.
+ * A size asked twice in one call counts once for that size; two sizes in one
+ * call count once each. Rows without `demand` are skipped.
+ */
+export function summarizeTireDemand(rows: ReadonlyArray<ToolCallStateRow>): TireDemandSummary {
+  const calls = new Map<string, Map<string, Set<TireCondition | null>>>();
+  for (const { callId, metadata } of rows) {
+    const meta = (metadata && typeof metadata === "object" ? metadata : {}) as { tool?: unknown; demand?: Partial<TireDemand> };
     if (meta.tool !== "tireInquiry" || !meta.demand || typeof meta.demand !== "object") continue;
-    total++;
+    const sizes = calls.get(callId) ?? new Map<string, Set<TireCondition | null>>();
+    calls.set(callId, sizes);
     const size = typeof meta.demand.size === "string" ? meta.demand.size : null;
-    if (!size) {
-      sizeUnknown++;
-      continue;
+    if (!size) continue;
+    const conditions = sizes.get(size) ?? new Set<TireCondition | null>();
+    conditions.add(meta.demand.condition ?? null);
+    sizes.set(size, conditions);
+  }
+
+  const bySize = new Map<string, { size: string; count: number; new: number; used: number }>();
+  let sizeUnknown = 0;
+  for (const sizes of Array.from(calls.values())) {
+    if (sizes.size === 0) sizeUnknown++;
+    for (const [size, conditions] of Array.from(sizes.entries())) {
+      const row = bySize.get(size) ?? { size, count: 0, new: 0, used: 0 };
+      row.count++;
+      if (conditions.has("new")) row.new++;
+      if (conditions.has("used")) row.used++;
+      bySize.set(size, row);
     }
-    const row = bySize.get(size) ?? { size, count: 0, new: 0, used: 0 };
-    row.count++;
-    if (meta.demand.condition === "new") row.new++;
-    if (meta.demand.condition === "used") row.used++;
-    bySize.set(size, row);
   }
   const sizes = Array.from(bySize.values()).sort((a, b) => b.count - a.count || a.size.localeCompare(b.size));
-  return { total, sizes, sizeUnknown };
+  return { total: calls.size, sizes, sizeUnknown };
 }

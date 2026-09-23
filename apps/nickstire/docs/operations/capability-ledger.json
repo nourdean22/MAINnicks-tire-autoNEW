@@ -2415,13 +2415,13 @@
       "blockers": [
         {
           "severity": "P3",
-          "description": "PARTLY ADDRESSED 2026-09-23: the demand is now recorded. Every tireInquiry tool call's tool_called state row carries demand {size normalised by extractTireSize, new/used} (never name or phone; server/lib/tireDemand.ts toolCallStateMetadata), and Today -> Arrival load shows 'Asked by phone today · N tire callers: <sizes>' from dispatch.phoneTireDemandToday. Still open: nothing copies it to vapi_call_logs, so the census cannot read it yet, and it is not exercised in production. Original text: The claim is true but thin: the counter still receives nothing from an ordinary tire inquiry. Making 'noted' useful means persisting the demand (size, vehicle, new/used) to the call record and showing it at the counter: Part I #5 of docs/operations/CUSTOMER-CORPUS-RESEARCH-2026-09-23.md."
+          "description": "PARTLY ADDRESSED 2026-09-23: the demand is now recorded. Every tireInquiry tool call's tool_called state row carries demand {size normalised by extractTireSize, new/used} (never name or phone; server/lib/tireDemand.ts toolCallStateMetadata), and Today -> Arrival load shows 'Asked by phone today · N tire callers: <sizes>' from dispatch.phoneTireDemandToday, counting ONE caller per Vapi call (voice_latency_events.call_id; post-merge audit J: front + rear sizes or a re-called tool had read as two callers). Still open: nothing copies it to vapi_call_logs, so the census cannot read it yet, and it is not exercised in production. Original text: The claim is true but thin: the counter still receives nothing from an ordinary tire inquiry. Making 'noted' useful means persisting the demand (size, vehicle, new/used) to the call record and showing it at the counter: Part I #5 of docs/operations/CUSTOMER-CORPUS-RESEARCH-2026-09-23.md."
         }
       ]
     },
     {
       "capabilityId": "today-owed-texts",
-      "name": "Customers waiting on a text reply appear on Today's action queue, and an unreadable inbox reads UNKNOWN, not clear",
+      "name": "Customers waiting on a human text reply (the ROS-058 obligation) appear on Today's action queue, and an unreadable queue reads UNKNOWN, not clear",
       "owner": "operator",
       "codeState": "merged",
       "operationalState": "unit_verified",
@@ -2429,18 +2429,22 @@
       "lastVerifiedAt": "2026-09-23",
       "verificationExpiresAt": null,
       "evidence": {
-        "codeCommit": "2026-09-23, branch claude/gallant-hamilton-yjulym. The first production census found 55 of 104 inbound text episodes ending with the customer's last text unanswered, and the Today queue (bookings, leads, callbacks, work orders) showed none of them. server/services/owedTexts.ts reads 7 days of sms_messages and decides each thread by its newest message: a failed outbound is skipped (the customer never got it), an outbound reply clears the thread, and an inbound text is owed unless it is an opt-out or opt-in keyword, a bare acknowledgement, a short-code sender, or younger than 15 minutes (the automated reply goes first). Waits are computed in SQL. It throws on a dead database; adminBundle carries it as the owedTexts slice, and OverviewSection's queueTrustworthy treats that slice as a veto on All clear. Queue items are type text, urgent after 4 hours, with a Texts filter; Open thread deep-links to the customer's SMS thread.",
-        "tests": "8 in server/__tests__/owedTexts.test.ts (positive control first; failed reply is no reply; grace window; STOP / Stop. / opt-out / START / ok thanks / thumbs-up owed nothing; short code; oldest wait first; a sentence starting with a keyword is still owed). MUTATION VERIFIED: removing the failed-reply skip and the grace window turned 2 of 8 red. 2 source pins in server/adminBundleTruth.test.ts (the slice exists and its reader throws; an unreadable slice vetoes All clear), MUTATION VERIFIED: dropping the veto turned 1 red. 12 related admin test files, 149 passed. Typecheck 0 errors.",
+        "codeCommit": "Post-merge audit I (2026-09-23, branch nickstire/today-owed-texts-ros058) replaced #2582's parallel derivation. #2582 decided each thread from 7 days of sms_messages, so 'No reply needed' (which closes the ROS-058 obligation) left the item in place, any outbound (including an automated cron text) cleared a thread a human still owed, internal lines showed as 'Texting customer', and Today disagreed with the Outreach badge. Now server/services/smsResponseJobs.ts listWaitingConversations reads sms_response_jobs WHERE status = 'human_pending' and reduces it with waitingConversations: one item per conversation (waiting since the oldest open text, showing the latest), internal lines and test data dropped by nonCustomerFilter.isNonCustomer, oldest first. humanPendingSummary (Outreach badge, morning brief) is summarizeWaitingConversations over the SAME rows, so the counts agree by construction and now count customers, not texts. It throws on a dead database; adminBundle carries it as the owedTexts slice and queueTrustworthy treats that slice as a veto on All clear. Items are type text, Urgent when past the 30-min HUMAN_SLA_MS (was 4 hours); Open thread deep-links to the SMS thread (smsConversations.send closes the obligation), and the secondary action is the existing smsConversations.markNoReplyNeeded, which had no UI consumer until now. server/services/owedTexts.ts, server/lib/owedTextsRule.ts and their test are deleted.",
+        "tests": "server/__tests__/todayWaitingTexts.test.ts (10): positive control; no_reply_required leaves Today; an automated text does not clear it (only human_replied does); operator mobile and shop line never appear; two texts = one customer; SLA urgency; Today count == summary for the same rows; empty is a real zero; 2 source pins (bundle reads the ROS-058 reader, the old derivation is gone; Today wires markNoReplyNeeded). RED ON MAIN: the four audit scenarios run through #2582's pickOwedTexts failed 4 of 4, and the new file failed 10 of 10. server/smsHumanPending.test.ts summary tests now read open-obligation rows (3, incl. two texts in one thread = one customer). server/adminBundleTruth.test.ts pins updated.",
         "liveRuns": "NOT YET: no production read has been made of the list's size or content."
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "Not exercised in production. Proof needed: after deploy, open Today and compare the Texts filter against the SMS inbox for a few threads (one answered, one waiting, one STOP)."
+          "description": "Not exercised in production. Proof needed: after deploy, the Today Texts filter count equals the Outreach badge's 'customers waiting on a human reply', and 'No reply needed' on a Today item removes it and lowers the badge."
         },
         {
-          "severity": "P3",
-          "description": "A reply made by phone call is invisible to this reader, so a customer the crew called back stays on the list until someone texts them or the thread ages past 7 days. Marking a thread handled without texting would need a stored dismissal; not built."
+          "severity": "P2",
+          "description": "Approving or resolving a draft in the Outreach Human Review Inbox (smsOrchestrator.actionHumanReview) does not close the ROS-058 obligation (pre-existing; the badge already over-counts these). Today now shows the same thing, so such a customer stays until 'No reply needed'. Fix: call resolveHumanPendingForConversation after a successful send / resolve there. Left out of audit I because it edits an SMS send path."
+        },
+        {
+          "severity": "P2",
+          "description": "Coverage is ROS-058's, by design (one source of truth), and narrower than #2582's message-log read: a text becomes a human obligation only when the orchestrator DRAFTS (jobStatusFor -> human_pending). A reply skipped because the event's rollout mode is 'off', or blocked by preflight, maps to 'suppressed' (no obligation), and a job that ends failed or dead is none either, so such a customer is on neither Today nor the Outreach badge. Proof needed: a production count of inbound texts in 7 days whose response job ended suppressed/failed/dead with no later outbound. If it is material, the fix belongs in ROS-058 (jobStatusFor / the blocked path), not in a second reader."
         }
       ],
       "deferredScope": []
