@@ -7,6 +7,13 @@ import { execSync } from "node:child_process";
 import { mergeWithPriorOverrides, renderLedgerMarkdown } from "./branch-sweep.mjs";
 import { CLASSIFICATIONS } from "./classify-branch.mjs";
 import { resolveToken } from "./github-client.mjs";
+import { liveDecision } from "./live-gate.mjs";
+
+// ~657 GitHub API requests per run (measured 2026-09-23, 158 branches) — two runs an
+// hour exhausted CI's per-repo token budget. Gated to diffs that touch the sweep's
+// own code (see live-gate.mjs); the reason prints either way.
+const sweepGate = liveDecision("AGENT_OS_LIVE_SWEEP");
+console.log(sweepGate.reason);
 
 test("mergeWithPriorOverrides: a prior override survives when the fresh classification is still QUARANTINE", () => {
   const fresh = [{ branch: "x", classification: CLASSIFICATIONS.QUARANTINE, reason: "fresh reason" }];
@@ -69,7 +76,7 @@ test("renderLedgerMarkdown: a pipe character in a reason does not break the tabl
   assert.match(md, /a \\\| b/);
 });
 
-test("LIVE, report-only: the full sweep pipeline runs end-to-end against real GitHub data, writes nothing", { skip: !resolveToken() }, () => {
+test("LIVE, report-only: the full sweep pipeline runs end-to-end against real GitHub data, writes nothing", { skip: !sweepGate.run ? sweepGate.reason : !resolveToken() ? "no GitHub token" : false }, () => {
   const env = { ...process.env, NODE_USE_ENV_PROXY: "1", NODE_NO_WARNINGS: "1" };
   const out = execSync(`${process.execPath} branch-sweep.mjs --report-only`, {
     cwd: import.meta.dirname,
