@@ -77,6 +77,34 @@ export function isSchemaBugError(err: unknown): boolean {
   );
 }
 
+/**
+ * A log-safe one-liner for a caught database error: each level's class name
+ * plus the driver code / errno, e.g. "DrizzleQueryError > Error ER_DUP_ENTRY/1062".
+ *
+ * It never includes a message. A DrizzleQueryError's message is the SQL and its
+ * bound params (customer name, phone, email), and the driver's own text echoes
+ * the offending value ("Duplicate entry '+1216...' for key ..."). Logging
+ * `err.message` therefore puts customer PII into Railway logs.
+ */
+export function describeDbError(err: unknown): string {
+  const parts: string[] = [];
+  let e: unknown = err;
+  for (let depth = 0; depth < 4 && e != null; depth++) {
+    if (typeof e !== "object") {
+      parts.push(typeof e);
+      break;
+    }
+    const x = e as DriverErrorShape & { name?: unknown };
+    // Constructor first: DrizzleQueryError leaves `.name` as "Error".
+    const ctor = (e as object).constructor?.name;
+    const name = ctor && ctor !== "Object" ? ctor : typeof x.name === "string" && x.name ? x.name : "Object";
+    const code = [typeof x.code === "string" ? x.code : null, typeof x.errno === "number" ? String(x.errno) : null].filter(Boolean).join("/");
+    parts.push(code ? `${name} ${code}` : name);
+    e = x.cause;
+  }
+  return parts.join(" > ") || "unknown error";
+}
+
 type DriverErrorShape = {
   code?: unknown;
   errno?: unknown;
