@@ -161,3 +161,41 @@ jobs:
 
       - name: gate - no NEW unconsumed exports, files, or scripts
         run: cd apps/nickstire && node scripts/knip-orphan-gate.mjs
+
+  curdate-gate:
+    name: curdate gate (no new bare CURDATE() in server SQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+
+      # No install: the gate is node stdlib only.
+
+      - name: canary - the gate must FAIL on a planted CURDATE()
+        run: |
+          cd apps/nickstire
+          cp server/services/shopSales.ts server/services/shopSales.ts.bak
+          printf '\nexport const __curdateCanary__ = "SELECT CURDATE()";\n' >> server/services/shopSales.ts
+          if node scripts/lint-curdate.mjs > /dev/null 2>&1; then
+            mv server/services/shopSales.ts.bak server/services/shopSales.ts
+            echo "::error::curdate gate canary - a planted CURDATE() scanned clean; the gate is blind"
+            exit 1
+          fi
+          mv server/services/shopSales.ts.bak server/services/shopSales.ts
+          echo "canary ok - planted CURDATE() was caught"
+
+      - name: canary - the gate must PASS on a clean tree
+        run: |
+          cd apps/nickstire
+          node scripts/lint-curdate.mjs > /dev/null || {
+            echo "::error::curdate gate reports failure on an unmodified tree - the gate is stuck red"
+            exit 1
+          }
+          echo "canary ok - clean tree passes"
+
+      - name: gate - no NEW bare CURDATE()
+        run: cd apps/nickstire && node scripts/lint-curdate.mjs

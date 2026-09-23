@@ -1,0 +1,173 @@
+{
+  "$comment": "Bare CURDATE() sites accepted at the gate's introduction (2026-09-23). ANY NEW SITE FAILS \u2014 see scripts/lint-curdate.mjs. effect classes, most to least customer impact: customer-send (decides who receives a text) > customer-state (changes a customer's recorded state) > customer-view (shown to a customer) > staff-today (a today/period count staff or the owner read) > alert-dedupe (once-per-day alert key) > rolling-window (N-day window; drifts by hours). Every effect below happens only while the code runs between 20:00 and 24:00 Eastern (19:00 in winter), when UTC CURDATE() is already tomorrow. No site governs an SMS sending window: sms.ts computes those in JS in America/New_York.",
+  "entries": [
+    {
+      "file": "server/_core/statenour-bridge-routes.ts",
+      "count": 8,
+      "effect": "staff-today",
+      "reason": "Today's paid revenue (DATE(invoiceDate)=CURDATE()) sent to Nour OS reads the next day after 8 PM ET; the rest are N-day windows that drift by hours."
+    },
+    {
+      "file": "server/cron/jobs/intelligenceAutopilot.ts",
+      "count": 5,
+      "effect": "staff-today",
+      "reason": "Today's revenue and bookings counts in the autopilot read reset to zero after 8 PM ET; 7-day windows drift by hours."
+    },
+    {
+      "file": "server/cron/jobs/retentionSequences.ts",
+      "count": 1,
+      "effect": "customer-send",
+      "reason": "DATEDIFF(CURDATE(), lastVisitDate) decides which retention tier TEXT a customer gets; a run after 8 PM ET shifts every tier boundary by one day."
+    },
+    {
+      "file": "server/cron/jobs/statenourSync.ts",
+      "count": 13,
+      "effect": "staff-today",
+      "reason": "Today and yesterday paid revenue in the owner's StateNour sync: after 8 PM ET 'today' is empty and 'yesterday' is today. Week-over-week leads/revenue/bookings windows drift by hours."
+    },
+    {
+      "file": "server/cron/jobs/unpaidInvoiceRecovery.ts",
+      "count": 1,
+      "effect": "alert-dedupe",
+      "reason": "Day key for a once-per-day aged-out alert; the day boundary moves to 8 PM ET (an alert can repeat or be held within one ET day)."
+    },
+    {
+      "file": "server/cron/jobs/vapiCallEval.ts",
+      "count": 1,
+      "effect": "alert-dedupe",
+      "reason": "Day key on a once-per-day insert; boundary at 8 PM ET."
+    },
+    {
+      "file": "server/cron/jobs/vapiLatencySync.ts",
+      "count": 1,
+      "effect": "alert-dedupe",
+      "reason": "Day key for the latency-breach alert; boundary at 8 PM ET."
+    },
+    {
+      "file": "server/routers/advanced/invoices.ts",
+      "count": 11,
+      "effect": "staff-today",
+      "reason": "Admin revenue analytics: N-day windows drift by hours; the month-to-date row flips to the next month after 8 PM ET on the last day."
+    },
+    {
+      "file": "server/routers/campaigns.ts",
+      "count": 2,
+      "effect": "customer-send",
+      "reason": "DATEDIFF(CURDATE(), lastVisitDate) <= 90 / 91-365 builds a campaign AUDIENCE; a build after 8 PM ET moves a customer across the 90-day line a day early."
+    },
+    {
+      "file": "server/routers/chat.ts",
+      "count": 1,
+      "effect": "customer-view",
+      "reason": "Web chat context 'today's bookings' (createdAt >= CURDATE()) reads 0 after 8 PM ET, which feeds the wait/busy context shown to a customer. Shop is closed then, so impact is small."
+    },
+    {
+      "file": "server/routers/controlCenter.ts",
+      "count": 2,
+      "effect": "rolling-window",
+      "reason": "30-day and 7-day windows; drift of hours on a multi-day window."
+    },
+    {
+      "file": "server/routers/conversion.ts",
+      "count": 1,
+      "effect": "staff-today",
+      "reason": "Bookings-today count reads 0 after 8 PM ET."
+    },
+    {
+      "file": "server/routers/customers.ts",
+      "count": 2,
+      "effect": "staff-today",
+      "reason": "Month-to-date new customers flips at 8 PM ET on the last day; the 6-8 day 'eligible for follow-up' count shifts a day after 8 PM ET (the sender itself is not in this file)."
+    },
+    {
+      "file": "server/routers/intelligence.ts",
+      "count": 1,
+      "effect": "staff-today",
+      "reason": "Bookings-today count reads 0 after 8 PM ET."
+    },
+    {
+      "file": "server/routers/trafficFunnel.ts",
+      "count": 4,
+      "effect": "rolling-window",
+      "reason": "N-day traffic windows on a date column; drift of hours."
+    },
+    {
+      "file": "server/routes/nour-os-query.ts",
+      "count": 7,
+      "effect": "rolling-window",
+      "reason": "N-day windows for Nour OS queries (the file's 'today' was already moved to ET in v1.7.6); drift of hours."
+    },
+    {
+      "file": "server/services/competitorMonitor.ts",
+      "count": 1,
+      "effect": "alert-dedupe",
+      "reason": "Day key on a competitor-change alert insert; boundary at 8 PM ET."
+    },
+    {
+      "file": "server/services/costDetailCoverage.ts",
+      "count": 1,
+      "effect": "alert-dedupe",
+      "reason": "Day key on a coverage alert insert; boundary at 8 PM ET."
+    },
+    {
+      "file": "server/services/dataPipelines.ts",
+      "count": 11,
+      "effect": "staff-today",
+      "reason": "Week-to-date and month-to-date revenue flip to the next period after 8 PM ET on the boundary day; 7-day windows drift by hours."
+    },
+    {
+      "file": "server/services/declinedWorkSignals.ts",
+      "count": 1,
+      "effect": "rolling-window",
+      "reason": "Lookback window for declined-work signals; drift of hours on a multi-day lookback."
+    },
+    {
+      "file": "server/services/engines/revenue.ts",
+      "count": 4,
+      "effect": "staff-today",
+      "reason": "bookings.preferredDate is an ET YYYY-MM-DD string compared with UTC CURDATE(): after 8 PM ET today's bookings drop out of 'upcoming' and count toward no-shows. Same shape NT-009 fixed in crudAutomation."
+    },
+    {
+      "file": "server/services/expectedArrivals.ts",
+      "count": 1,
+      "effect": "customer-state",
+      "reason": "The no-show sweep (expectedDate < CURDATE() - N) marks arrivals no_show a few hours early after 8 PM ET, and no_show feeds the recovery lane. The file's arrival-window code already uses the ET date (see its comment)."
+    },
+    {
+      "file": "server/services/intelligenceEngines.ts",
+      "count": 4,
+      "effect": "staff-today",
+      "reason": "Today / week-to-date / month-to-date paid revenue flip after 8 PM ET."
+    },
+    {
+      "file": "server/services/opportunityQueue.ts",
+      "count": 1,
+      "effect": "customer-state",
+      "reason": "Booking-derived opportunities: preferredDate (ET string) < CURDATE() - 1 day; after 8 PM ET a booking becomes a missed-booking opportunity a day early, which can put a customer into an outreach queue."
+    },
+    {
+      "file": "server/services/safetyMonitor.ts",
+      "count": 7,
+      "effect": "staff-today",
+      "reason": "Today's invoices and 30/90-day windows for the safety monitor; 'today' reads empty after 8 PM ET."
+    },
+    {
+      "file": "server/services/shopDriverMirror.ts",
+      "count": 1,
+      "effect": "staff-today",
+      "reason": "Today's mirrored ShopDriver invoice check (DATE(invoiceDate)=CURDATE()) reads the next day after 8 PM ET."
+    },
+    {
+      "file": "server/services/shopStatus.ts",
+      "count": 2,
+      "effect": "rolling-window",
+      "reason": "7-day window ending before today; drift of hours."
+    },
+    {
+      "file": "server/services/weatherIntelligence.ts",
+      "count": 1,
+      "effect": "customer-send",
+      "reason": "DATEDIFF(CURDATE(), lastVisitDate) >= 60 picks the lapsed customers a weather push targets; shifts a day after 8 PM ET."
+    }
+  ]
+}

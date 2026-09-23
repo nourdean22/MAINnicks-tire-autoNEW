@@ -90,7 +90,7 @@ The ladder: BUILT ≠ WIRED ≠ TESTED ≠ DEPLOYED ≠ LIVE-OBSERVED ≠ OUTCOM
 
 | Item | Action | Why |
 |---|---|---|
-| "capability-ledger-updated satisfied by ledger diff" | **PROMOTE to a gate fix, then DELETE the memory** | A memory that teaches agents how to satisfy a gate by editing a file is a false-green generator. **Demonstrated in this PR:** `dod-compiler.mjs --enforce` derived `capability-ledger-updated` for this diff (receptionist tool text) and marked it PASSED on the **unrelated** counter-audio-capture evidence entry already on `main`. The requirement should check that the evidence names a file in THIS diff. |
+| "capability-ledger-updated satisfied by ledger diff" | **PROMOTE to a gate fix, then DELETE the memory** | Satisfying the rule with a ledger diff is by design (`satisfiedByDiff`). The real defect was found in this PR: `dod-compiler.mjs` judges an evidence entry "fresh" by comparing it with the **tip** of the base branch (`git show origin/main:…`), not the merge base. When `main` moves on and rewrites an entry, a branch still carrying the old entry reads as fresh. Locally this PR passed on exactly that; CI (which merges `main` first) then called it STALE, correctly. Fix: compare against `git merge-base`. Separately, the output quotes the manifest entry's text even when the ledger diff is what satisfied the rule, which reads like "passed on an unrelated entry". |
 | "bare squash merge drops co-author trailer" | **PROMOTE to a script check** | `gh pr merge --squash` without `--body` is a mechanical rule. A merge helper, or a CI check on the squash commit, enforces it; a memory only hopes. |
 | "git add aborts on one bad pathspec" | **DELETE** | Generic git behaviour; costs index space. |
 | "TaskStop kills wrapper not tree", "Railway CLI rate limiting + ledger render check" | KEEP | Real, non-obvious harness traps. |
@@ -632,6 +632,45 @@ census run.
 14. Re-run the census monthly. Compare the primitives, and kill any item whose falsifier fired.
 
 ---
+
+## Part L — The `CURDATE()` gate, and the sites to fix, ranked by customer effect
+
+`pnpm lint:curdate` (`scripts/lint-curdate.mjs`, with a baseline in `config/curdate-baseline.json`)
+fails on any **new** bare `CURDATE()` in `server/**/*.ts`. The session date is UTC, so "today" flips
+at 8 PM Eastern (7 PM in winter).
+
+- **Baseline:** 96 occurrences in 28 files. Comments are not counted, and neither are tests. Each
+  file carries an effect class and a reason.
+- **Ratchet:** fixing a site fails the gate until the baseline is lowered, so the freed slack cannot
+  absorb a new site later.
+- **Proof:** `scripts/lintCurdate.test.ts` has 6 tests. A planted site fails, the real tree passes,
+  and blinding the matcher reddens 4 of them. `adoption-gates.yml` carries the same planted/clean
+  canary pair as the knip gate.
+- **Wiring:** in `pnpm run verify` and in the `node` CI job, for parity.
+- **Fix to use:**
+  - `getBusinessDateKey()` (`server/lib/timezoneAssert.ts`, the NT-009 fix), passed as a parameter;
+  - or `DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))` in SQL (`kpiSnapshot.ts`).
+
+**Every effect below happens only while the code runs between 20:00 and midnight Eastern.** No site
+controls an SMS sending window: `sms.ts` computes those in Eastern time in JS (verified).
+
+| Rank | File (sites) | Class | What goes wrong after 8 PM ET |
+|---|---|---|---|
+| 1 | `services/expectedArrivals.ts` (1) | customer-state | The no-show sweep marks an arrival `no_show` hours early, and `no_show` feeds the recovery lane. |
+| 2 | `cron/jobs/retentionSequences.ts` (1) | customer-send | Every retention tier boundary shifts a day, which changes which customers get which text. |
+| 3 | `routers/campaigns.ts` (2) | customer-send | A campaign audience built then moves a customer across the 90-day line a day early. |
+| 4 | `services/weatherIntelligence.ts` (1) | customer-send | The weather push's lapsed-customer set (≥ 60 days) shifts a day. |
+| 5 | `services/opportunityQueue.ts` (1) | customer-state | A booking becomes a missed-booking opportunity a day early, which can put a customer into an outreach queue. |
+| 6 | `routers/chat.ts` (1) | customer-view | The web chat's "bookings today" context reads 0. The shop is closed then, so the effect is small. |
+| 7 | `services/engines/revenue.ts` (4) | staff-today | `bookings.preferredDate` (an Eastern date string) is compared with the UTC date, so today's bookings drop out of "upcoming" and count as no-shows. This is the NT-009 shape. |
+| 8 | `cron/jobs/statenourSync.ts` (13), `_core/statenour-bridge-routes.ts` (8) | staff-today | The owner's today/yesterday revenue: "today" reads empty and "yesterday" reads today. |
+| 9 | `services/dataPipelines.ts` (11), `services/intelligenceEngines.ts` (4), `routers/advanced/invoices.ts` (11), `routers/customers.ts` (2) | staff-today | Week-to-date and month-to-date figures roll to the next period on the boundary day. |
+| 10 | `cron/jobs/intelligenceAutopilot.ts` (5), `services/safetyMonitor.ts` (7), `services/shopDriverMirror.ts` (1), `routers/intelligence.ts` (1), `routers/conversion.ts` (1) | staff-today | "Today" counts read zero. |
+| 11 | `cron/jobs/unpaidInvoiceRecovery.ts`, `cron/jobs/vapiCallEval.ts`, `cron/jobs/vapiLatencySync.ts`, `services/competitorMonitor.ts`, `services/costDetailCoverage.ts` (1 each) | alert-dedupe | A once-per-day alert key rolls at 8 PM, so an alert can repeat or be held within one Eastern day. |
+| 12 | `routers/controlCenter.ts` (2), `routers/trafficFunnel.ts` (4), `routes/nour-os-query.ts` (7), `services/declinedWorkSignals.ts` (1), `services/shopStatus.ts` (2) | rolling-window | An N-day window drifts by a few hours. Lowest priority. |
+
+Fix ranks 1–7 one file per PR, each with a test that fixes the clock at 21:00 Eastern and asserts
+the Eastern date is used. Each fix lowers the baseline in the same PR.
 
 ## Part K — Operator steering 2026-09-23, folded in
 
