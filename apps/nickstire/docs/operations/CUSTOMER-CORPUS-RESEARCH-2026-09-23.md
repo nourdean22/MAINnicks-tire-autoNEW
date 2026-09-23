@@ -10,8 +10,9 @@
    - about 40 dated production measurements from earlier sessions, each labelled as such;
    - 42 findings verified in code this session (Part C), 18 of them fixed in this PR — most after
      three independent reviews of the first draft found what its author had missed;
-   - the one command that runs the three-month analysis read-only against production. It is built,
-     tested, proven end-to-end on a synthetic fixture, and waiting on one operator run:
+   - the one command that runs the three-month analysis read-only against production. It is built and
+     tested end-to-end on a synthetic fixture (110 tests; no SQL has executed yet), and waiting on one
+     operator run:
      `railway run -s MAINnicks-tire-auto -- pnpm diag:customer-corpus -- --since 2026-06-22 --until 2026-09-22 --json`.
 2. **A true 2026-06-22 → 09-22 transcript corpus does not exist.** Full transcripts were archived
    only from about **2026-07-23**. From 07-12 there are customer turns only (12 turns × 300
@@ -192,61 +193,90 @@ Sources: `scripts/data-census.ts:46-47`, `docs/audits/call-mix-2026-07-26.md:95-
 ### §4. The instrument (built this session; the operator's one gate is running it)
 
 `pnpm diag:customer-corpus` — `scripts/diagnostics/customer-corpus-census.mts` plus the pure
-library `scripts/lib/customerCorpus.ts`.
+library `scripts/lib/customerCorpus.ts`. Rebuilt after the independent census review: the first
+version's 39 tests could not see the defects the review found, and the section below describes the
+rebuilt instrument.
 
 - **Read-only.** Every statement is a SELECT. It reads `vapi_call_logs`, `vapi_call_archives`,
   `sms_messages`, `sms_conversations`, `callback_requests`, `expected_arrivals`,
-  `sms_response_jobs`, `customer_promises`, `revenue_opportunities` and `invoices`.
-- **Episodes are built by a 24-hour gap across call and SMS.** An outbound-only run never opens an
-  episode. The live kernel's fixed-bucket count is printed beside it.
+  `sms_response_jobs`, `customer_promises`, `revenue_opportunities` and `invoices`. A table that
+  cannot be read makes every field derived from it `null` in JSON and UNKNOWN in text, never zero.
+- **Coverage first.** Per Eastern week: calls with customer turns (from the archive transcript, else
+  `metadata.customerSpeech`, which the webhook has written since 07-26 and which is the only source
+  for a call with no archive row) and texts. A week with no turns is UNKNOWN, not quiet.
+- **Time.** A call is placed at its start — the archive's `started_at`, else the log row's insert
+  time minus the duration, because `vapi_call_logs` is written by the end-of-call webhook. Days are
+  Eastern business days (`getBusinessDateKey`), never UTC days.
+- **Episodes are built by a 24-hour gap from the customer's last contact,** across call and SMS.
+  An outbound-only run never opens an episode. The live kernel's fixed-bucket count is printed
+  beside it.
 - **The need is read with the existing `classifyVoiceDemand`** (`server/services/voiceDemandClassifier.ts`),
-  applied to every turn. An opening "get me a person" is kept as a separate fact. The census adds
-  **no third taxonomy**, and it is that classifier's first reader over live data.
+  applied to every customer turn in time order, so a text sent before the call states the need. An
+  opening "get me a person" is kept as a separate fact. The census adds **no third taxonomy**, and it
+  is that classifier's first reader over live data. Need shares are over episodes with readable
+  customer text from real customers; episodes with no text, spam or wrong-number calls and STOP-only
+  texts are counted apart, and an ALL row gives every column's base rate over every episode.
 - **Per need, it prints:**
-  - redials within 2 h;
+  - redials within 2 h, and recontacts (a customer-initiated contact ≥10 minutes after the previous
+    one ended; a chase by the shop is never a reply);
   - call + text episodes;
   - after-hours starts (hours come from `BUSINESS.hours.structured`);
-  - transfer attempted vs the provider's `connected` / `not_connected` verdict;
+  - transfer attempted vs the provider's `connected` / `not_connected` verdict, and transfer-failure
+    incidents;
   - callback row vs callback done;
-  - assistant promises, and whether a *delivered* outbound text or a completed callback followed
-    within 26 h (a failed text does not count — a defect this session's fixture run caught and
-    fixed);
+  - assistant promises, and whether a **human** visibly followed them: a `human_replied` response
+    job, or a callback marked called or completed. An automated text does not count, and neither
+    does a failed one;
   - arrival row vs arrived;
-  - invoice **linkage** within 14 d, split into new and existing customers and labelled "not
-    causation";
-  - friction phrases;
-  - opt-outs.
+  - invoice **linkage**: a non-refunded invoice for the same phone dated (Eastern) from the
+    episode's start day to 14 days after, each invoice to one episode, split into new and existing
+    customers and labelled "linked", never "won". An episode whose 14-day window has not closed is
+    left out of the rate, not counted as unlinked;
+  - friction phrases, with the all-episode base rate beside each filtered rate;
+  - opt-outs, and STOP-looking questions ("can you stop by?") that are owed a reply.
 - **Repeated-fact burden:** it flags a tire size or vehicle given in an earlier call of the episode
   that the assistant asks for again.
-- **What the assistant asks:** size, vehicle, name, phone, quantity. **What it promises:** callback,
-  text, rack check, status update.
-- **Texts:** first-reply latency split by open and closed hours, last inbound left unanswered,
-  `human_pending`, opt-outs, failed outbound.
+- **What the assistant asks:** size, vehicle, name, phone, quantity — counted only as questions.
+  **What it promises:** callback, text, rack check, status update.
+- **Texts:** first-reply latency split by the first text's own open or closed hour, last inbound
+  left unanswered, `human_pending`, opt-outs, failed outbound.
 - **Classifier disagreement:** calls where the live kernel found no intent but the demand
-  classifier found a tire need.
-- **Also (added after the operator's steering, Part K):** recontact ≥10 minutes, link confidence
-  (single / consistent / ambiguous), transfer-failure incidents, opportunity rows, and `--export`.
-- **Privacy:**
+  classifier found a tire need, both recomputed on the same customer text.
+- **Also (Part K):** link confidence (single / consistent / ambiguous), opportunity rows, and
+  `--export`.
+- **Privacy — mask before you match, match before you print:**
   - Phones become a salted hash: per-run by default, or stable via `CORPUS_ANALYSIS_SALT`.
   - Customer text is masked **before** classification (Part C #19).
-  - `--excerpts N` prints only masked windows of at most ~15 words, and `maskPII` runs before any
-    match.
-  - `--json` is aggregate-only.
-  - **Known masking limit:** a name that is not introduced ("my name is…", "this is…") survives
-    masking. Treat `--excerpts` output as sensitive and do not commit it.
+  - Anything printed (`--excerpts`, `--export`) goes through `maskForOutput`, which hashes every
+    remaining digit (plates, card tails, house numbers), and call turns go through `maskTurns`: the
+    customer's answer to a name ask is replaced whole (or, past four words, loses every capitalised
+    word), because a bare name matches no pattern.
+  - `--excerpts N` prints only masked windows of at most ~15 words. `--json` is aggregate-only.
+  - **Known masking limit:** a name that is neither introduced ("my name is…", "this is…") nor
+    given in answer to a name ask survives masking. Treat `--excerpts` output as sensitive and do not
+    commit it.
 - **Proof it measures something:**
-  - `scripts/lib/customerCorpus.test.ts`: 27 tests, including three positive controls that pin
-    defects in existing code (no intent for a bare tire request, the 8 PM episode split, a phone
-    number read as a tire size).
-  - `scripts/diagnostics/customerCorpusCensus.fixture.test.ts`: 12 tests running the real runner
-    end-to-end on a synthetic fixture. That includes an export refused inside the repo, and an
-    export with a real and a spoken phone number in a text body that must come out masked.
-  - Mutation checks:
-    - breaking sessionization reddened 3 tests;
-    - dropping phone masking reddened 2;
-    - narrowing the tire pattern reddened 1;
-    - counting failed texts as follow-up reddened 1;
-    - un-masking the export body reddened 1.
+  - `scripts/lib/customerCorpus.test.ts`: 78 tests, including four positive controls that pin
+    defects in existing code (no intent for a bare tire request, the 8 PM episode split, and a phone
+    number read as a tire size — by the raw classifier, and not once masked).
+  - `scripts/diagnostics/customerCorpusCensus.fixture.test.ts`: 32 tests running the real runner
+    end-to-end on a synthetic fixture (17 inbound calls, 17 texts, 19 episodes): a same-business-day
+    invoice links, a refund never does, an unread table reads UNKNOWN, a malformed date exits 2
+    before any read, the export is refused inside a git checkout and written mode 600, and no fake
+    name, street, email, plate or phone digit reaches stdout, the excerpts or the export.
+  - Mutation checks on the final code (each restored; control 143 of 143):
+    - the export keeps its digits → 3 tests red;
+    - sessionize never continues an episode → 21 red;
+    - opt-out never recognised → 4 red.
+  - **Two defects in existing server code the rebuild surfaced, recorded rather than fixed here:**
+    - `isOptOutBody("Stop.")` and `isOptOutBody("stop!")` are false (`shared/smsOptOutKeywords.ts:60`
+      is an exact match after trim and upper-case), so for a punctuated STOP the gateway handler in
+      `sms.ts` sends no unsubscribe confirmation and `smsInstrumentation.optOutAt` stays unset. The
+      customer IS suppressed: the orchestrator's parser (`smsResponseParser.ts:61`) matches the word,
+      sets `smsOptOut`, invalidates the send cache and writes the compliance row. The census strips
+      trailing punctuation before its own opt-out count. Part I 4f.
+    - `detectIntents("do you do oil changes")` is `[]`: `vapiCallClassifier.ts:42` needs the singular
+      "change". Another way the live kernel under-counts a stated need (Part C #4).
 
 **What the census still cannot see (operator-side exports if these matter):**
 1. The audio. Accent, noise and ASR errors need `recording_url` while it is live, or Vapi
@@ -282,7 +312,7 @@ library `scripts/lib/customerCorpus.ts`.
 | 17 | TiDB silently turns `SELECT … FOR UPDATE SKIP LOCKED` into a plain non-locking read — no lock at all (EXT: pingcap/tidb#69782, open, confirmed this session). **nickstire has no such usage** (REPO grep). | — | A guard for any future claim or queue code: compare-and-swap `UPDATE … WHERE state=?` checking affected rows = 1 (the repo's `claim-before-act`). |
 | 18 | The memory counterfactual traced two reach paths and missed the receptionist-lesson path (A2). | `nickMemory.ts:254-278` | None today (source filter). Doc accuracy only. |
 | 19 | `classifyVoiceDemand` reads a **phone number** as a tire size: "(216) 555-0102" → `tire_size_help`, 0.8. | Pinned by a positive control in `customerCorpus.test.ts`; the census masks before classifying | A caller reciting a callback number would be counted as tire demand. **Whoever wires this classifier must mask first, or fix its size rule.** |
-| 20 | 98 bare `CURDATE()` sites in `server/` (UTC session date, not Eastern), despite the AGENTS.md rule. | `grep -rn CURDATE server` | Fixing one is pointless. The fix is a lint gate with an allow-list: **shipped, Part L**. |
+| 20 | 109 sites in 33 `server/` files compute a calendar date from the UTC session clock — 96 bare `CURDATE()` plus `DATE_FORMAT(NOW(), …)`, `DATEDIFF(NOW(), …)` and the other spellings — despite the AGENTS.md rule. | `pnpm lint:curdate --list` | Fixing one is pointless. The fix is a lint gate with a reason-carrying baseline: **shipped, Part L**. |
 | 21 | The stale-callback cron flips an unworked callback to `no-answer` **and stamps `calledAt = NOW()`** with nobody having called. It notes "Auto-SMS: we will call you back" and texts the customer "still in our queue … we'll reach out shortly". The row then leaves the `new` queue. | `server/cron/jobs/crudAutomation.ts:184-229` | A callback nobody worked looks like a callback someone attempted, and it drops out of every "new" count after one more promise to the customer. The queue census's "no-answer 24 of 31" likely includes these; the census now counts them apart through an SQL flag. **Fix (protected core; own PR):** keep `status='new'`, never stamp `calledAt` on the automatic path, and record the auto-text claim in `notes` with a conditional UPDATE. |
 | 22 | The prompt promised **untracked callbacks** in three places: the FLOW 1 close ("I'll have the shop check the rack and call you back"), the price-pushback capture, and CALLBACK CAPTURE ("someone can follow up" → a text only). `escalate`, the only tracked callback writer, was forbidden while OPEN. CALLBACK CAPTURE is what the warm-transfer `fallbackPlan` hands an unanswered caller back to. | `vapi.ts` prompt (FLOW 1, Rule 2 pushback, CALLBACK CAPTURE, tools list); runbook line 53 claimed "→ escalate" | The one caller the shop had already failed got the one promise no row recorded. The ledger's "0 callback rows since 09-21" was never evidence the fallback had not fired. **Fixed in this PR**; live after Push Latest Config. |
 | 23 | "Push Latest Config" used to PATCH the code defaults whenever its read of the live assistant failed: the placeholder shop landline and the legacy say-message plan with no fallback. | `vapi.ts` `updateAssistant` pre-fetch | One transient Vapi error during a push would silently re-route every transfer and drop the 09-21 fallback. **Fixed in this PR** (fail-closed: refuse and ask to retry). |
@@ -693,13 +723,22 @@ census run.
    routes more callbacks through `escalate` (CALLBACK CAPTURE while open), so more rows now reach
    that cron. Their Promise Ledger row still surfaces a miss, but the callback itself leaves the
    to-do queue after one alert. Protected core, so its own PR with targeted tests and rollback
-   notes.
+   notes. **Fix prepared** in a worktree (commit 2e835295: a conditional notes-marker claim, the row
+   stays `new`, one alert per row, a failed read fails the run; 5 tests, tsc 0). It lands as the
+   next PR after this one merges.
 4c. `convertedToLead`'s meaning (Part C #38): row persisted, or capture tool fired? Decide, then
    move `tireInquiry` or rename the column, with a before/after note.
 4d. The SMS promises (Part C #39–#41): the after-hours auto-reply first, because its queue is already
    25–27 rows past 30 days. OPERATOR copy decision, plus a promise row per capture.
 4e. The STOP over-match (Part C #42): a compliance-reviewed narrowing, with the lookalike texts from
    the probe as tests in both directions (a real STOP must still opt out).
+4f. The STOP under-match (§4): `isOptOutBody` should accept a trailing `.` or `!`, so a punctuated
+   STOP gets its confirmation reply and `optOutAt`. The orchestrator already suppresses it; the fix
+   is in `shared/smsOptOutKeywords.ts`, with the same both-directions tests as 4e.
+4g. `lint:brand-voice` never reads `server/routers/voiceAgent.ts`: its scope
+   (`scripts/lib/brandVoiceScope.ts`) lists only `services/vapi.ts` for voice, yet the router's tool
+   replies are spoken to callers (this PR's edits there were scanned by nothing: "0 file(s)
+   scanned"). Add the router to the voice surface.
 5. `tireInquiry` → `metadata.demand` persistence plus a counter card (depends on nothing). Measure
    it with a "size known on arrival" event on the card: the census cannot see the counter.
 6. Add the safety rule and spoken-size normalisation to `voiceDemandClassifier`, then shadow-wire it
@@ -720,40 +759,69 @@ census run.
 ## Part L — The `CURDATE()` gate, and the sites to fix, ranked by customer effect
 
 `pnpm lint:curdate` (`scripts/lint-curdate.mjs`, with a baseline in `config/curdate-baseline.json`)
-fails on any **new** bare `CURDATE()` in `server/**/*.ts`. The session date is UTC, so "today" flips
-at 8 PM Eastern (7 PM in winter).
+fails on any **new** calendar date computed from the UTC session clock in `server/**`. The session
+clock is UTC, so a UTC day runs from 8 PM to 8 PM Eastern (7 PM to 7 PM in winter).
 
-- **Baseline:** 96 occurrences in 28 files. Comments are not counted, and neither are tests. Each
-  file carries an effect class and a reason.
-- **Ratchet:** fixing a site fails the gate until the baseline is lowered, so the freed slack cannot
-  absorb a new site later.
-- **Proof:** `scripts/lintCurdate.test.ts` has 6 tests. A planted site fails, the real tree passes,
-  and blinding the matcher reddens 4 of them. `adoption-gates.yml` carries the same planted/clean
-  canary pair as the knip gate.
+- **What counts as a site:** `CURDATE()`, `CURRENT_DATE`, `UTC_DATE`, and any calendar function —
+  `DATE`, `DATE_FORMAT`, `DATEDIFF`, `TO_DAYS`, `WEEK`, `MONTH`, `YEAR`, `HOUR` and the rest —
+  applied directly to `NOW()`, `SYSDATE()`, `UTC_TIMESTAMP` or `CURRENT_TIMESTAMP`, including
+  inside `DATE_SUB` / `DATE_ADD`. Not a site: the clock converted first
+  (`DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))`), or a rolling window
+  (`NOW() - INTERVAL 24 HOUR`), which has no day boundary to get wrong.
+- **Baseline:** 109 sites in 33 files — the 96 bare `CURDATE()` in 28 files the first version
+  counted, plus 13 sites in the other spellings, 9 of them in 5 files it could not see at all
+  (`engines/growth.ts`, `engines/marketing.ts`, `engines/customer.ts`, `cron/scheduler.ts`,
+  `pipelines/gbp-reviews.ts`). Each file carries a count, an effect class and a reason that says who
+  sees the wrong figure and when; every reason was re-read against the code.
+- **Ratchet, both ways:** a file with more sites than its baseline fails (NEW); a file with fewer
+  also fails until the baseline is lowered, so the freed slack cannot absorb a new site later.
+  `--baseline` only lowers counts and drops files at zero; it refuses to raise a count or add a file
+  (the first version rewrote every count, so A going 1→0 and B going 1→2 re-baselined green).
+- **The source is lexed, not regexed.** SQL can only live in string and template text, so comments,
+  regex literals and code are masked before matching. The regex stripper this replaced opened a
+  "block comment" at the `*/*` inside an Accept header and hid 1,429 lines in 6 files from itself;
+  a site planted after `shopDriverMirror.ts:231` passed. The lexer fails closed on an unterminated
+  string, template, comment or regex.
+- **Proof:** `scripts/lintCurdate.test.ts`, 33 tests: a planted site fails and names both fixes;
+  the fixed-site ratchet; five untrustworthy baseline entries (empty reason, missing or unknown
+  effect, no count, duplicate); `--baseline` refusing a raise and writing nothing; twelve lexer
+  cases (the Accept header, a cron string, `//cdn…` inside a template, a regex holding `/*`, JSX,
+  a SQL `-- ` comment inside a literal); every spelling on both sides of the line; the real tree
+  against the real baseline; and a check that the lexer agrees with the TypeScript parser on every
+  non-space character of every scanned file. Mutation checks on the final code: blinding the gate
+  to `DATE_FORMAT` reddens 2 tests; letting `--baseline` raise a count reddens 2.
+  `adoption-gates.yml` carries the planted/clean canary pair: the planted run must name the rule
+  and both planted spellings, and the clean run must print its pass line.
 - **Wiring:** in `pnpm run verify` and in the `node` CI job, for parity.
 - **Fix to use:**
   - `getBusinessDateKey()` (`server/lib/timezoneAssert.ts`, the NT-009 fix), passed as a parameter;
   - or `DATE(CONVERT_TZ(NOW(), '+00:00', 'America/New_York'))` in SQL (`kpiSnapshot.ts`).
 
-**Every effect below happens only while the code runs between 20:00 and midnight Eastern.** No site
-controls an SMS sending window: `sms.ts` computes those in Eastern time in JS (verified).
+**Two shapes of error, not one.** (1) A today / week / month window over a column holding a UTC
+instant (`createdAt`, `invoiceDate`, `lastVisitDate`) is shifted four hours earlier (five in winter)
+**all day**: at 10 AM it already holds last evening's rows from 8 PM on, and from 8 PM ET it restarts
+near empty. (2) A day count, or a date compared with an Eastern calendar date
+(`bookings.preferredDate`, `expected_arrivals.expectedDate`), is one day off **only between 8 PM ET
+(7 PM in winter) and midnight**. No site controls an SMS sending window: `sms.ts` computes those in
+Eastern time in JS (verified).
 
-| Rank | File (sites) | Class | What goes wrong after 8 PM ET |
+| Rank | File (sites) | Class | What goes wrong |
 |---|---|---|---|
 | 1 | `services/expectedArrivals.ts` (1) | customer-state | The no-show sweep marks an arrival `no_show` hours early, and `no_show` feeds the recovery lane. |
 | 2 | `cron/jobs/retentionSequences.ts` (1) | customer-send | Every retention tier boundary shifts a day, which changes which customers get which text. |
-| 3 | `routers/campaigns.ts` (2) | customer-send | A campaign audience built then moves a customer across the 90-day line a day early. |
+| 3 | `routers/campaigns.ts` (2) | customer-send | A campaign audience built after 8 PM ET moves a customer across the 90-day line a day early. |
 | 4 | `services/weatherIntelligence.ts` (1) | customer-send | The weather push's lapsed-customer set (≥ 60 days) shifts a day. |
-| 5 | `services/opportunityQueue.ts` (1) | customer-state | A booking becomes a missed-booking opportunity a day early, which can put a customer into an outreach queue. |
-| 6 | `routers/chat.ts` (1) | customer-view | The web chat's "bookings today" context reads 0. The shop is closed then, so the effect is small. |
-| 7 | `services/engines/revenue.ts` (4) | staff-today | `bookings.preferredDate` (an Eastern date string) is compared with the UTC date, so today's bookings drop out of "upcoming" and count as no-shows. This is the NT-009 shape. |
-| 8 | `cron/jobs/statenourSync.ts` (13), `_core/statenour-bridge-routes.ts` (8) | staff-today | The owner's today/yesterday revenue: "today" reads empty and "yesterday" reads today. |
-| 9 | `services/dataPipelines.ts` (11), `services/intelligenceEngines.ts` (4), `routers/advanced/invoices.ts` (11), `routers/customers.ts` (2) | staff-today | Week-to-date and month-to-date figures roll to the next period on the boundary day. |
-| 10 | `cron/jobs/intelligenceAutopilot.ts` (5), `services/safetyMonitor.ts` (7), `services/shopDriverMirror.ts` (1), `routers/intelligence.ts` (1), `routers/conversion.ts` (1) | staff-today | "Today" counts read zero. |
-| 11 | `cron/jobs/unpaidInvoiceRecovery.ts`, `cron/jobs/vapiCallEval.ts`, `cron/jobs/vapiLatencySync.ts`, `services/competitorMonitor.ts`, `services/costDetailCoverage.ts` (1 each) | alert-dedupe | A once-per-day alert key rolls at 8 PM, so an alert can repeat or be held within one Eastern day. |
-| 12 | `routers/controlCenter.ts` (2), `routers/trafficFunnel.ts` (4), `routes/nour-os-query.ts` (7), `services/declinedWorkSignals.ts` (1), `services/shopStatus.ts` (2) | rolling-window | An N-day window drifts by a few hours. Lowest priority. |
+| 5 | `services/opportunityQueue.ts` (2) | customer-state | Yesterday's unclosed booking requests become no-show opportunities about four hours before Eastern midnight would make them (the collector never sends; an operator works the queue), and an inspection deferral's age reads one day high. |
+| 6 | `routers/conversion.ts` (1) | customer-view | The PUBLIC `shopCapacity` feed behind the site's UrgencyWidget counts last evening's online bookings into "today" all day, so the widget appears, or says "Today is full", sooner than the load warrants. |
+| 7 | `routers/chat.ts` (1) | customer-view | The web chat's "bookings today" context reads 0 after 8 PM. The shop is closed then, so the effect is small. |
+| 8 | `services/engines/revenue.ts` (4) | staff-today | `bookings.preferredDate` (an Eastern date string) is compared with the UTC date, so today's bookings drop out of "upcoming" and count as no-shows. This is the NT-009 shape. |
+| 9 | `cron/jobs/statenourSync.ts` (13), `_core/statenour-bridge-routes.ts` (8) | staff-today | The owner's today/yesterday revenue: "today" holds last evening from 8 PM on, reads empty after 8 PM, and "yesterday" reads today. |
+| 10 | `services/dataPipelines.ts` (11), `routers/advanced/invoices.ts` (11), `services/intelligenceEngines.ts` (4), `services/engines/growth.ts` (3), `services/engines/marketing.ts` (3), `routers/customers.ts` (3) | staff-today | Week-to-date and month-to-date figures start at 8 PM ET on the previous period's last day and restart near zero after 8 PM ET on the last day, which flips the growth and review trends until midnight. |
+| 11 | `services/safetyMonitor.ts` (8), `cron/jobs/intelligenceAutopilot.ts` (5), `routers/intelligence.ts` (2), `services/shopDriverMirror.ts` (1), `services/engines/customer.ts` (1), `cron/scheduler.ts` (1), `pipelines/gbp-reviews.ts` (1) | staff-today | "Today" counts read zero after 8 PM ET, and day counts read one day high. The safety monitor runs every 2 h at all hours: a run between 8 PM ET and midnight sees about $0 and, with `safety_monitor_enabled` on, warns "Daily revenue at 0% of 30-day avg" — a false alert the noon guard does not stop. |
+| 12 | `cron/jobs/unpaidInvoiceRecovery.ts`, `cron/jobs/vapiCallEval.ts`, `cron/jobs/vapiLatencySync.ts`, `services/competitorMonitor.ts`, `services/costDetailCoverage.ts` (1 each) | alert-dedupe | A once-per-day alert key rolls at 8 PM, so an alert can repeat or be held within one Eastern day. |
+| 13 | `routers/controlCenter.ts` (2), `routers/trafficFunnel.ts` (4), `routes/nour-os-query.ts` (7), `services/declinedWorkSignals.ts` (1), `services/shopStatus.ts` (2) | rolling-window | An N-day window drifts by a few hours. Lowest priority. |
 
-Fix ranks 1–7 one file per PR, each with a test that fixes the clock at 21:00 Eastern and asserts
+Fix ranks 1–8 one file per PR, each with a test that fixes the clock at 21:00 Eastern and asserts
 the Eastern date is used. Each fix lowers the baseline in the same PR.
 
 ## Part K — Operator steering 2026-09-23, folded in
@@ -772,14 +840,18 @@ the Eastern date is used. Each fix lowers the baseline in the same PR.
   verdict, or, before verdicts existed, a forwarded call redialled within 15 minutes (labelled as a
   proxy). The output reads as 1 incident plus N customer-recovery obligations, not N lost leads.
 - **The export the operator specified.**
-  - `--export <file>` writes one JSONL row per episode, with no raw phone and no name:
+  - `--export <file>` writes one JSONL row per episode, with no raw phone, no name and no digit:
     - a salted `customerKey`;
-    - masked turns (capped at 400 characters);
-    - masked text bodies;
-    - per-contact need, transfer, eval outcome and ended reason;
+    - masked turns and text bodies (capped at 400 characters), every remaining digit hashed to `#`;
+    - coarse times only — the Eastern start hour, whole minutes from the episode start, durations
+      to 10 seconds — because exact timestamps join back to provider logs;
+    - per-contact need, transfer state, eval outcome, ended reason, and the structured tire size
+      and vehicle;
     - every derived primitive.
-  - `customer_name_present` is kept as a boolean only.
-  - It refuses to write inside a git checkout and writes mode 600.
+  - `nameShared` is kept as a boolean only.
+  - It refuses to write inside a git checkout or to a missing folder, prints the whole report
+    before writing (a failed write loses nothing), and writes mode 600 (on Windows the folder's
+    ACL applies, and the stderr line says so).
   - A **stable** salt for month-over-month joins comes from `CORPUS_ANALYSIS_SALT` in the shell,
     never the repo; without it the salt is per-run.
   - Media counts are **not** exportable: `sms_messages` has no media column.

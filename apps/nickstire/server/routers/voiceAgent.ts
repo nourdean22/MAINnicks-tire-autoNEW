@@ -1011,7 +1011,7 @@ export const voiceAgentRouter = router({
         success: true,
         handOffToHuman: true,
         aiHint:
-          "You cannot see the rack. Do NOT state whether the tire is in stock, never give a timeframe, and never promise a callback except through escalate. Hand the caller to a person so someone can physically check it: transferCall while open; escalate (CALLBACK CAPTURE) while closed, if they won't hold, or if the transfer doesn't connect.",
+          "You cannot see the rack. Do NOT state whether the tire is in stock, do not promise a timeframe, and do not promise a callback yourself: only escalate records one. Hand the caller to a person so someone can physically check it: transferCall while open; escalate (CALLBACK CAPTURE) while closed, if they won't hold, or if the transfer doesn't connect.",
       };
     }),
 
