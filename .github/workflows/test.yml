@@ -318,6 +318,11 @@ jobs:
         if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto lint:orphans
 
+      # Same parity rule as the orphan gate: in the verify chain AND named here.
+      - name: Nickstire · no new bare CURDATE()
+        if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
+        run: pnpm --filter nicks-tire-auto lint:curdate
+
       - name: Nickstire · route registry validation
         if: ${{ needs.changes.outputs.nickstire == 'true' || needs.changes.outputs.workflow == 'true' }}
         run: pnpm --filter nicks-tire-auto validate:routes

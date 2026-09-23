@@ -48,9 +48,9 @@ pnpm 10 only — never npm, never yarn.
 | Full suite | `pnpm exec vitest run` |
 
 `pnpm run verify` chains, in order: `env:validate` · `typecheck:raw` · `lint` · `lint:source` ·
-`lint:sql` · `lint:hooks` · `lint:brand-voice` · `lint:pii` · `validate:routes` · `prerender:check` ·
-`prerender:semantic-check` · `migrations:check` · `test` · `build`. Name the failing link when you
-report a red, not "verify failed".
+`lint:sql` · `lint:hooks` · `lint:brand-voice` · `lint:pii` · `lint:cron-wiring` · `lint:orphans` ·
+`lint:curdate` · `validate:routes` · `prerender:check` · `prerender:semantic-check` · `migrations:check` ·
+`test` · `build`. Name the failing link when you report a red, not "verify failed".
 
 > **Serial is the DEFAULT now — do not pass pool flags by hand.** `vitest.config.ts` sets
 > `pool: "forks"` + `poolOptions.forks.singleFork: true`, so `vitest run`, `pnpm run test` and

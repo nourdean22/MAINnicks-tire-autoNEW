@@ -1897,7 +1897,7 @@
         },
         {
           "severity": "P2",
-          "description": "The fallbackPlan (assistant returns on no-answer and captures a callback) is DEPLOYED_NOT_OBSERVED: no call since 2026-09-21 has rung out at the counter, so the path that justified the experimental mode has never executed in production. The runbook's canary (call the line, let the destination ring out) remains the way to prove it; a not_connected artifact verdict or a callback_requests row created during a forwarded call would be the first evidence."
+          "description": "The fallbackPlan (assistant returns on no-answer and captures a callback) is DEPLOYED_NOT_OBSERVED: no call since 2026-09-21 has rung out at the counter, so the path that justified the experimental mode has never executed in production. The runbook's canary (call the line, let the destination ring out) remains the way to prove it; a not_connected artifact verdict or a callback_requests row created during a forwarded call would be the first evidence. CORRECTION 2026-09-23 (#2559): until #2559 a fired fallback could NOT create a callback_requests row — the prompt's CALLBACK CAPTURE ended in sendConfirmationSms only and escalate was forbidden while OPEN — so '0 callback rows since the change' was never evidence either way; only the absence of a not_connected verdict was. From #2559, once the operator pushes the config, CALLBACK CAPTURE calls escalate and a callback row during a forwarded call becomes real evidence."
         }
       ],
       "deferredScope": [
@@ -2383,6 +2383,28 @@
         "resume upload (S3, type/size check; no parser)",
         "SLA reminder cron (the instant text covers first response)",
         "A2P 10DLC recruiting campaign before any text to an applicant"
+      ]
+    },
+    {
+      "capabilityId": "receptionist-tire-inquiry-truth",
+      "name": "Voice scripts promise nothing no row records: no 'sent to the shop' for an ordinary tire inquiry, every callback routed through escalate, no named-person or timed promise; a config push never re-routes live transfers",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "PR #2559 (branch claude/gallant-hamilton-yjulym; commits a13dae1, 33bb145, 896c3a16 and the review round). (1) An ordinary tire inquiry has persisted nothing but the call record since the 2026-06-05 no-lead directive, yet the caller heard \"I've sent the tire info to the shop\"; server/lib/tireInquiryReply.ts now says the size was NOTED and echoes it back. (2) Every callback any voice script promises now routes through escalate (callback_requests + Promise Ledger) or is no longer promised: the FLOW 1 close, the price pushback, CALLBACK CAPTURE (where the warm-transfer fallback returns an unanswered caller), odd-size stock checks, the towed-vehicle estimate, the closed-hours line (now 'when we're open', matching the ledger's next-close due time), the follow-up 'have him call you back', and the receptionist voicemail. (3) No named-person promise; the recovery lane no longer says a 5-6-week-old quote is 'still good'. (4) tireSizeFromVehicle gives no sidewall homework and no $60-$120 range. (5) The voice claim guard v2 treats a callback as backed when escalate ran on the call, so the prompt's own tracked promises do not raise the daily alert. (6) updateAssistant refuses to push when it cannot read the live assistant; it used to PATCH the placeholder landline and the legacy say-message plan. (7) Six log calls no longer carry the caller's name. The legacy notes-based rack-check lead path is unchanged.",
+        "tests": "server/__tests__/vapiToolPromiseTruth.test.ts (20): three matchers (timed promise; callback without escalate on the same line, explicit or implied; named person) over eight scripts and every tool text, plus direct calls to the voice-agent procedures. Putting each shipped defect back reddened it, 10 of 10; restored 20/20. Its first version only called the reply helper, so the router could regress unseen (independent review), and its 'red 4 of 4' was 3 of 4 for the named reason. server/voiceClaimGuard.test.ts (v2, with a positive control). server/vapi.updateAssistant.failClosed.test.ts (3; red 2 of 3 on the old code). server/__tests__/voiceAgentLogPii.test.ts (2; red on the pre-fix file). Every test file touching the voice surface: 33 files, 422 passed, exit 0; tsc exit 0.",
+        "liveRuns": "NONE. Rungs: the tool replies, the claim guard and the confirmation and recovery scripts reach callers on deploy (the outbound scripts are sent with each call); the receptionist's prompt, tool text and voicemail reach Vapi only on Push Latest Config; the follow-up cadence prompt only when scripts/vapi-create-followup-assistant.ts runs. LIVE proof: a production call after those steps whose tireInquiry response reads 'noted', and a CALLBACK CAPTURE call whose voiceClaims record shows escalated true with no unbacked_callback_promise. OUTCOME: the census cannot see the counter; measure with a 'size known on arrival' event once the counter card exists (research doc Part I #5). EXPOSURE reads 'disabled' only because the checker allows nothing else before merge; the post-merge update must add the deploymentId.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "The claim is true but thin: the counter still receives nothing from an ordinary tire inquiry. Making 'noted' useful means persisting the demand (size, vehicle, new/used) to the call record and showing it at the counter: Part I #5 of docs/operations/CUSTOMER-CORPUS-RESEARCH-2026-09-23.md."
+        }
       ]
     }
   ],
