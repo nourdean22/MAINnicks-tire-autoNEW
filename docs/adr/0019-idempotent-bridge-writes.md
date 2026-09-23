@@ -26,14 +26,18 @@
    conditional `UPDATE`, one row at a time. It does not need `SKIP LOCKED`.
 4. statenour records each key in a new `bridge_receipts` table, in the same Prisma transaction as the
    business write, with `INSERT ... ON CONFLICT DO NOTHING`. A replay returns `200 {duplicate: true}`
-   and writes nothing.
-5. The two bus destinations (`nour-os-bridge` and `statenour-sync`) collapse into one outbox row per
+   and writes nothing. Work that runs after the response (the brain pipeline, alerts) is keyed through
+   `action_attempts`, so a replay re-runs only what did not finish.
+5. The double POST ends in two steps. First, a one-line phase 0a narrows `statenour-sync` to the three
+   types the bridge does not carry. Then the two bus destinations collapse into one outbox row per
    bus event. The Telegram webhook hop becomes a receiver-side side effect keyed through statenour's
    existing `action_attempts`, so a replay cannot re-alert.
-6. Rows that cannot be delivered become `dead` in place. The owner sees them as a count, and one
-   admin action replays them.
-7. Rollout goes in three steps: shadow enqueue, then a comparison, then cutover one event family at a
-   time behind a flag. It exits on four measured criteria (§9).
+6. Rows that can never be delivered (a permanent 4xx) become `dead` in place. Transient failures never
+   kill a row; a pending age over 1 hour raises an alarm instead. The owner sees both as counts, and
+   one admin action replays dead rows.
+7. Rollout: phase 0a first (it needs no new table), then the receiver, then shadow enqueue with a
+   comparison, then cutover one event family at a time behind a flag. It exits on five measured
+   criteria (§9).
 
 ---
 
@@ -79,7 +83,9 @@ Each bus event that has a bridge mapping reaches `/api/sync/events` **twice**, u
 - it arrives again as `nickstire:lead_captured` through #3, which is not in that map, so it is stored
   in the audit log only.
 
-The result is two `AuditEvent` rows per event. Both carry the raw `event.data`, **including name and
+The result is two `AuditEvent` rows per event from `/api/sync/events`. Sender #2 adds a third: the
+webhook route writes its own (S `app/api/webhooks/nickstire/route.ts:203`). So today's baseline is
+**about 3.0 `AuditEvent` rows per bridged event**. The copies carry the raw `event.data`, **including name and
 phone** (`emit.leadCaptured`, N `services/eventBus.ts:672-674`), so PII crosses into Neon today. That
 contradicts §8 item 2 of the architecture doc.
 
@@ -140,9 +146,19 @@ not fixed here.
   (§8 item 2) once it exists.
 - **A new fact gets a new key.** A state change is a new fact, so the new state belongs in the
   discriminator. A repeat of the same fact is the same key.
-- **The derivation is a registry entry.** An event type with no derivation is rejected at enqueue.
-  This is the enforcement point for the event-type registry in §8 item 1, and both registries are the
-  same file.
+- **No clock values in keys.** A key names a row id, never a timestamp. A millisecond timestamp is a
+  13-digit run, which T1's phone-number guard (no run of 10 or more digits) rejects. When a fact is
+  "the Nth time X happened", its key is the id of the row that records the Nth time.
+- **The derivation is a registry entry, and an unregistered type is never dropped.** Every bus type
+  that exists today has an entry below. A type added later without one falls back to today's direct
+  send, with no key, and logs `unregistered_event_type`. Its count is shown on the owner radar next to
+  the dead count. This registry is also the event-type registry from §8 item 1; the two are one file.
+- **Latest-wins types coalesce.** Some types report current state rather than a fact: drafts, mirror
+  and refresh heartbeats. Their key names the object only. The enqueue is
+  `INSERT ... ON DUPLICATE KEY UPDATE payload=VALUES(payload), status='pending', due_at=NOW(3), claim_token=NULL`,
+  so the newest state replaces an unsent older one. If a send is in flight, clearing `claim_token`
+  makes that sender's settle a no-op, and the row goes out again with the newer payload. The receiver
+  skips the receipt for these types, because its own upsert is already idempotent (§6.2).
 
 | Source | Event type (registry) | Key |
 |---|---|---|
@@ -152,11 +168,16 @@ not fixed here.
 | `emit.invoiceCreated` / `invoicePaid` | `shop.invoice.created` / `.paid` | `v1:shop.invoice.<created\|paid>:invoice:<invoiceNumber>` |
 | `emit.paymentReceived` | `shop.payment.received` | `v1:shop.payment.received:order:<orderNumber>` |
 | `emit.estimateGenerated` | `shop.estimate.presented` | `v1:shop.estimate.presented:estimate:<id>` |
-| `emit.emergencyRequest` | `lead.emergency` | `v1:lead.emergency:emergency:<row id>` |
+| `emit.emergencyRequest` | `lead.emergency` | `v1:lead.emergency:emergency:<row id>`. **The emit carries no id today** (`routers/emergency.ts:160-165` sends only name, phone, problem and urgency). The implementation passes the id of the row the route persists. If the route persists none, adding that row is part of the change, and it is protected core. |
 | review detected | `review.received` | `v1:review.received:review:<google review id>` |
-| work-order status | `shop.work_order.status` | `v1:shop.work_order.status:wo:<id>:<toStatus>:<statusChangedAt ms>`. The transition time is part of the key because a work order can re-enter a status. |
-| `social_draft:sync` | `content.draft.synced` | `v1:content.draft.synced:draft:<id>:<updatedAt ms>` |
-| escalation (#6) | `obligation.opened` | `v1:obligation.opened:<trigger>:<subjectId>`, where the subject is the draft, run or reconciliation-window id the caller already holds. Re-escalating the same subject is the same obligation, and statenour must not open a second task. |
+| work-order status | `shop.work_order.status` | `v1:shop.work_order.status:transition:<work_order_transitions.id>` (`drizzle/schema.ts:2235-2245`). The transition row is the fact, so a work order that re-enters a status gets a new key with no timestamp. Callers of `onWorkOrderStatusChange` must pass the inserted transition id. |
+| `emit.tireOrderPlaced` | `shop.tire_order.placed` | `v1:shop.tire_order.placed:tire_order:<order row id>` (emit sites `routers/gatewayTire.ts:747,848`) |
+| `campaign_sent` | `comms.campaign.sent` | `v1:comms.campaign.sent:campaign:<campaign id>` (`routers/campaigns.ts:583`) |
+| `social_posted` | `content.social.posted` | `v1:content.social.posted:draft:<draft id>:<platform>` |
+| `stage_changed` | `shop.stage.changed` | `v1:shop.stage.changed:<entity>:<entity id>:<to stage>`. This is a fact, but a re-entered stage collides with the earlier key. Until the emit site carries a transition-row id, this type stays on the direct-send fallback rather than risk deduping a real re-entry. |
+| `social_draft:sync` | `content.draft.synced` (latest-wins) | `v1:content.draft.synced:draft:<id>`. Coalesces; the receiver keeps its existing upsert on `data.id` (S `app/api/sync/events/route.ts:96`). `social_drafts.updatedAt` has one-second precision and moves on any update (`drizzle/schema.ts:3786-3792`), so it cannot be a version. |
+| `mirror_synced` / `data_refreshed` | `sync.mirror.completed` / `sync.data.refreshed` (latest-wins) | `v1:sync.<mirror.completed\|data.refreshed>:source:<source name>`. Coalesces to the newest heartbeat per source. |
+| escalation (#6) | `obligation.opened` | `v1:obligation.opened:<trigger>:<subjectId>`. **`OwnerEscalation` has no subject field today** (`services/ownerEscalation.ts:20-38`). The change adds a required `subjectId`; the two callers already hold one (the draft or run id at `_core/bridge-routes.ts:1017`, and the reconciliation window at `services/revenueReconciliation.ts:162`). Re-escalating the same subject is the same obligation, so statenour must not open a second task. |
 | experiment verdict (#7) | `experiment.verdict` + claim | `v1:experiment.verdict:experiment:<experimentId>:<contractHash>:<status>`. A daily re-post of an unchanged verdict dedupes; a changed status is a new fact. |
 | shop-floor / vendor-health snapshots | (not facts) | Excluded from the outbox. They are latest-wins state and stay on the existing sender until #4's follow-up. |
 
@@ -179,8 +200,7 @@ CREATE TABLE IF NOT EXISTS bridge_outbox (
   payload          JSON         NOT NULL,   -- the exact body item to send
   occurred_at      TIMESTAMP(3) NOT NULL,   -- business time, not enqueue time
   status           VARCHAR(32)  NOT NULL DEFAULT 'pending', -- pending|sending|delivered|dead|shadow
-  attempts         INT          NOT NULL DEFAULT 0,
-  max_attempts     INT          NOT NULL DEFAULT 8,
+  attempts         INT          NOT NULL DEFAULT 0,   -- every claim; observability only, never a death sentence
   due_at           TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   claim_token      VARCHAR(36)  NULL,
   claimed_at       TIMESTAMP(3) NULL,
@@ -212,8 +232,12 @@ await db.transaction(async (tx) => {
   const [lead] = await tx.insert(leads).values(...).$returningId();
   await enqueueBridge(tx, { type: "lead.created", objectId: lead.id, payload, occurredAt });
 });
-afterCommit(() => drainOne(key));   // fast path, best effort, never awaited by the request
+void drainOne(key).catch(logOnly);  // fast path: runs once the transaction has resolved; best effort
 ```
+
+There is no `afterCommit` hook in nickstire. The fast path is simply the next statement after
+`await db.transaction(...)` resolves, fired without `await` so that the request never waits on
+statenour.
 
 - `enqueueBridge` is `INSERT IGNORE`. `affectedRows === 0` means the fact was already enqueued, which
   is a correct no-op.
@@ -242,8 +266,15 @@ uses, tightened per the `claim-before-act` skill:
 4. **Settle** only while the token is still ours, with `... WHERE id=:id AND claim_token=:uuid`:
    - A 2xx, including `{duplicate:true}`, becomes `delivered`.
    - A 408, 429, 5xx or network error becomes `pending` with
-     `due_at = NOW + min(30s x 2^(attempts-1), 1h)` plus 0-20% jitter.
-   - Any other 4xx, or reaching `max_attempts`, becomes `dead`.
+     `due_at = NOW + min(30s x 2^(attempts-1), 1h)` plus 0-20% jitter. **These never make a row
+     `dead`.** A count-based limit on 15-minute sweeps would kill every row after roughly 2 hours of
+     statenour downtime, which is exactly the outage the outbox exists to survive. A long outage
+     instead shows up as `oldestPendingAgeSec` on the radar (§5.5).
+   - Any other 4xx, or a per-item rejection in a 2xx batch response, becomes `dead`. These are
+     permanent: resending the same bytes cannot succeed.
+   - `last_error` is truncated to 500 characters in code before the settle. Under
+     `STRICT_TRANS_TABLES` an over-long value makes the settle itself fail, and the row would then
+     cycle through `sending` forever.
    - If the settle affects 0 rows, the lease was lost and another drainer owns the row. The receiver's
      dedupe makes the double send harmless.
 5. **Batching.** The drainer may group up to 20 claimed rows for the same route into one POST. Each
@@ -285,8 +316,12 @@ uses, tightened per the `claim-before-act` skill:
      payload itself.
 - **Replay:** one admin action sets `dead -> pending, attempts=0, due_at=NOW()` with a compare-and-swap
   on `status='dead'`. It is safe because the receiver dedupes.
-- **Retention:** `delivered` rows are pruned after 30 days by the existing `retention-all` job; `dead`
-  rows are kept until replayed or dismissed.
+- **An outage alarm.** When `oldestPendingAgeSec` exceeds 1 hour, the same 0 -> >0 Telegram rule
+  fires. This replaces the attempt cap as the signal that something is wrong.
+- **Retention:** prune in `cleanupOldData` (`cron/jobs/cleanup.ts:7`), which already deletes aged
+  rows from other tables. Delivered rows go after 30 days, and leftover `shadow` rows go once phase 1
+  ends. `dead` rows are kept until replayed or dismissed. (`retention-all` is the wrong job: it sends
+  customer-retention texts and deletes nothing, `cron/scheduler.ts:2176-2191`.)
 
 ---
 
@@ -324,6 +359,10 @@ ON CONFLICT (idempotency_key) DO NOTHING
 RETURNING idempotency_key;
 ```
 
+**`/api/sync/events` has no transaction today.** Each `auditEvent.create` stands alone (S `route.ts:28`),
+and `processShopEvent` runs fire-and-forget after the response (S `route.ts:134-157`). The key-aware
+path wraps the receipt and the `AuditEvent` in one `prisma.$transaction`.
+
 - **One row returned: first delivery.** Do the business write, then set `result_ref`.
 - **Zero rows: replay.** Run `UPDATE bridge_receipts SET seen_count = seen_count + 1, last_seen_at = now()`,
   read `result_ref`, and return `200 {duplicate: true, resultRef}`. For a batch with a claim, the
@@ -333,7 +372,20 @@ RETURNING idempotency_key;
 It is one transaction, so a crash between the receipt and the business write rolls both back, and the
 next delivery is correctly "first".
 
-### 6.3 The alert moves behind the key
+**Work outside the transaction goes behind `action_attempts`, or a receipt would bury it.** Once a
+receipt exists, every replay reads as a duplicate. Anything that runs after the response, such as the
+brain pipeline, would then never run again if it died. So each such side effect gets its own attempt,
+using `beginAttempt` and `verifyAttempt` (S `lib/services/action-attempts.ts:127,251`) and the
+`holdUntil` lease:
+
+- `operationKey = "nickstire-pipeline:" + idempotencyKey`, begun before `processShopEvent` and
+  verified when it resolves.
+- On a replay, the receiver reads that attempt. If it is not VERIFIED and its lease has expired, the
+  receiver re-runs **the pipeline only**, never the business write.
+- **Latest-wins types skip the receipt.** Their existing upsert is already idempotent: drafts on
+  `socialPublishQueue.id` (S `route.ts:96`), heartbeats on their source.
+
+### 6.3 The alert moves behind the key, the same way
 
 - `/api/sync/events` raises the real-time Telegram alert for critical types itself, and only on first
   delivery, through `action_attempts` with `operationKey = "nickstire-alert:" + idempotencyKey`. An
@@ -351,7 +403,9 @@ next delivery is correctly "first".
 - It also carries `busType` (`lead_captured`) so that nothing the audit-only copy recorded is lost.
 - The receiver writes **one** `AuditEvent` per key.
 - `social_draft:sync`, `mirror_synced` and `data_refreshed`, which today travel only via #3, get
-  registry entries and ride the same outbox.
+  latest-wins registry entries (§4) and ride the same outbox. Every other current bus type has an
+  entry too. `stage_changed` is the one exception: it stays on the direct-send fallback until it
+  carries a transition id. No type is dropped when the old senders retire.
 
 ---
 
@@ -377,8 +431,10 @@ operations).
 | T4 | Claim race (`claim-before-act` canary): two drainers share one stale read, and between one drainer's read and its swap the other renews only `claimed_at`. Exactly one sends. The mocked arm asserts that the WHERE clause names `id`, `status`, `due_at` and `claimed_at` | a field is dropped from the predicate, or the claim updates by `id` |
 | T5 | A settle holding a stale token affects 0 rows and does not overwrite the new claimant | the settle is `WHERE id=` only (the `smsResponseJobs` shape) |
 | T6 | **Receiver replay:** POST the same batch (an event plus a claim resting on it) twice. Expect 1 `reality_events` row, 1 `evidence_claims` row, the second response `{duplicate:true}`, and `seen_count=2`. **Positive control:** the same test without the key header writes 2 rows, which is today's behaviour. That proves the test can see a duplicate. | the receipt insert leaves the transaction, or `ON CONFLICT` is dropped |
-| T7 | **End-to-end replay after a crash:** drain a row, have the receiver commit, and kill the drainer before it settles. Advance past the lease, sweep, reclaim and resend. Expect exactly 1 business row in statenour and the outbox row `delivered` | any of T2, T4, T5 or T6 regresses |
-| T8 | Poison: a 400 becomes `dead` on the first attempt; a 503 becomes `pending` with backoff; a replay action moves `dead` to `pending` and then to `delivered` | a 4xx is retried forever, or a 5xx is marked dead |
+| T7 | **End-to-end replay after a crash:** drain a row, have the receiver commit, and kill the drainer before it settles. Advance past the lease, sweep, reclaim and resend. Expect exactly 1 business row in statenour, the outbox row `delivered`, **and the pipeline actually run**: its `nickstire-pipeline:` attempt is VERIFIED. A second arm kills the pipeline after the receipt commits, then replays the key. Expect the pipeline to re-run once and the business write not to be repeated. | any of T2, T4, T5 or T6 regresses, or the pipeline runs outside its attempt |
+| T8 | Poison: a 400 becomes `dead` on the first attempt; a 503 becomes `pending` with backoff and **stays pending past 20 attempts**; a replay action moves `dead` to `pending` and then to `delivered`; a 2,000-character error is stored truncated and the settle succeeds | a 4xx is retried forever, a transient error is ever marked dead, or an over-long `last_error` wedges the row |
+| T12 | Latest-wins coalescing: two draft updates enqueued back to back give one row carrying the second payload. An update that lands while the first send is in flight makes that sender's settle a no-op, and the row is resent with the newer payload. | the enqueue is `INSERT IGNORE` for a latest-wins type, or it does not clear `claim_token` |
+| T13 | An unregistered bus type is sent directly, never dropped, and increments `unregistered_event_type` | the registry rejects it outright |
 | T9 | The escalation `open_loop` sent twice creates 1 task | the receipt is skipped on the `nour-os` route |
 | T10 | Alert once: a critical event delivered twice sends one Telegram message; an alert that failed on the first delivery is retried on the second | the alert is sent outside the `action_attempts` key |
 | T11 | A missing table (`schema.ts` ahead of the DDL) makes the enqueue fall back to the direct send, and the request still succeeds | the fallback throws, which would fail closed on lead creation |
@@ -394,15 +450,25 @@ Every one of these is run against the unfixed code, or with the guard removed, b
 `featureFlags`. It is the kill switch: setting it back to `off` restores today's senders exactly. The
 legacy sender code stays until 14 days after the last family has been cut over.
 
-1. **Phase 0: receiver first.** Deploy statenour with `bridge_receipts` and key-aware routes. Senders
+1. **Phase 0a: end the double POST now, with no new table.** Narrow the `statenour-sync` destination's
+   `handles` from `"all"` (N `services/eventBus.ts:467-525`) to the three types the bridge does not
+   carry: `social_draft:sync`, `mirror_synced` and `data_refreshed`. `AuditEvent` rows per bridged
+   event drop from about 3.0 to about 2.0 (the webhook's copy remains). Every one of the 17
+   `BusinessEvent` types (N `services/eventBus.ts:25-42`) keeps exactly one path: the bridge maps the
+   other 14 (`:93-108`). The trade is honest: #3's copy was also a second chance of delivery when the
+   bridge's breaker was open. But that copy was audit-only, never mapped into `processShopEvent`, so
+   what is given up is a duplicate audit row, not a pipeline run. This is a one-line change, and it
+   can ship before anything else in this note.
+2. **Phase 0b: receiver first.** Deploy statenour with `bridge_receipts` and key-aware routes. Senders
    without a key behave as they do today.
-2. **Phase 1: shadow (7 days).** nickstire enqueues every fact with `status='shadow'` (never drained)
+3. **Phase 1: shadow (7 days).** nickstire enqueues every fact with `status='shadow'` (never drained)
    while the legacy senders keep running. Compare:
    - **Completeness:** for each day, the rows in `leads`, `bookings`, callbacks and emergencies against
      the `shadow` rows by type. **The target is 0 missing** and 0 duplicates.
    - **Baseline duplication**, measured before cutover: in statenour, `AuditEvent` rows per shop event
-     (expected about 2.0, from §2.3), and `open_loop` tasks per escalation subject.
-3. **Phase 2: cutover by family**, from least to most critical:
+     (about 3.0 before phase 0a and about 2.0 after it, from §2.3), and `open_loop` tasks per
+     escalation subject.
+4. **Phase 2: cutover by family**, from least to most critical:
    1. `experiment.verdict`, which runs daily and has no customer impact;
    2. `obligation.opened`;
    3. content and sync types;
@@ -412,12 +478,13 @@ legacy sender code stays until 14 days after the last family has been cut over.
    Each step turns the drain on for the family and switches off #1, #2 and #3 for it in the same
    deploy.
 
-**Exit criteria.** All four must be measured over 7 days after the last family:
+**Exit criteria.** All five must be measured over 7 days after the last family:
 
 | Criterion | Target | Read from |
 |---|---|---|
 | Delivery | 100% of non-shadow outbox rows `delivered`, or `dead` with an explanation; 0 rows `pending` for more than 1 h | `bridge_outbox` |
-| Duplication | `AuditEvent` per bridged key = 1.00 (baseline about 2.0); `open_loop` tasks per subject = 1 | statenour `audit_events`, `bridge_receipts` |
+| Duplication | `AuditEvent` per bridged key = 1.00 (baseline about 3.0, about 2.0 after phase 0a); `open_loop` tasks per subject = 1 | statenour `audit_events`, `bridge_receipts` |
+| No silent loss | `unregistered_event_type` = 0, or every non-zero type has an entry queued | nickstire logs, radar |
 | Dedupe exercised | at least 1 receipt with `seen_count > 1` (proves the path fired, not only that it exists) | `bridge_receipts` |
 | Latency | critical families at p95 `delivered_at - occurred_at` of 60 s or less | `bridge_outbox` |
 
@@ -448,8 +515,10 @@ legacy sender code stays until 14 days after the last family has been cut over.
 - the outbox schema, the claim and settle protocol, and the drain placement (fast path plus the
   `statenour-live-sync` sweep);
 - the receiver receipt table and its transaction placement;
-- collapsing #1, #2 and #3 into one row;
-- alerts keyed through `action_attempts`;
+- phase 0a (narrowing `statenour-sync`), then collapsing #1, #2 and #3 into one row;
+- alerts and the post-response pipeline keyed through `action_attempts`;
+- transient failures never kill a row; an age alarm replaces the attempt cap;
+- latest-wins types coalesce, and unregistered types fall back to a direct send;
 - the dead-letter surface;
 - the rollout, the exit criteria, the tests and the scope exclusions.
 
@@ -463,14 +532,14 @@ legacy sender code stays until 14 days after the last family has been cut over.
    is the nickstire -> statenour write path the architecture doc cites it for. The implementation PR
    should amend that row to "adopted for nickstire -> statenour (ADR-0019)". Its reopen trigger for
    the other direction still stands.
-3. **The fast path on the request thread.** `afterCommit` runs in-process. If the operator wants zero
-   request-path latency added even on failure, the fast path can move to a microtask. It never blocks
-   the response either way; this is a tuning call.
+3. **`stage_changed` needs a transition row.** Until its emit carries one, it stays on the direct
+   send. Whether to add a stage-transition table, or to accept a coalescing latest-stage key, is a
+   product call.
 4. **Idempotency keys on the admin mutations** (#9, #10) are low-risk and could ride the first code PR.
    #10 may already be broken: its tRPC target needs a session cookie that nickstire does not send
    (S `lib/auth-guard.ts:121-141`). That is unverified at runtime.
-5. **The ADR number.** Q-43's design note runs in parallel. If both take 0019, whichever merges second
-   renumbers.
+5. **The emergency row.** Whether `routers/emergency.ts` persists a row the key can name is
+   unverified. If it does not, adding one is protected-core work in the first code PR.
 
 ---
 
