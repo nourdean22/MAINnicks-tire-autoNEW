@@ -225,9 +225,13 @@ export const PROHIBITED_VOICE_CLAIMS: ProhibitedClaim[] = [
     re: /\b(?:nick|the\s+(?:owner|manager|tech|mechanic))\s+(?:will|'ll|is\s+going\s+to|can)\s+(?:look|check|take\s+care|handle|fix|see|do)\b/i,
   },
   {
-    // checkTireStock — "never promise a callback"; escalate is the CLOSED path.
+    // A callback promise is BACKED only when escalate() wrote the callback
+    // queue + Promise Ledger row. On a call whose messages show escalate ran,
+    // voiceClaimViolations skips this label (v2). The phrase exemption below
+    // is the transcript-only fallback for the scripted after-hours line, old
+    // ("first thing when we open") and new ("call you back when we're open").
     label: "unbacked_callback_promise",
-    re: /\b(?:i'?ll|we'?ll|someone\s+will|(?:i|we)\s+(?:am|are)\s+going\s+to)\s+(?:call|ring|get\s+back\s+to|reach\s+out\s+to)\s+(?:you|ya)\b(?!\s*(?:if|when\s+we\s+open|first\s+thing))/i,
+    re: /\b(?:i'?ll|we'?ll|someone\s+will|(?:i|we)\s+(?:am|are)\s+going\s+to)\s+(?:call|ring|get\s+back\s+to|reach\s+out\s+to)\s+(?:you|ya)\b(?!\s*(?:back\s+)?(?:if|when\s+we(?:'re|\s+are)?\s+open|first\s+thing))/i,
   },
 
   /* ── TIRE SAFETY · added 2026-09-18, sourced to primary documents ──
@@ -468,7 +472,7 @@ export interface VoiceClaimResult {
  * text, return labels. The difference is only that voice scores AFTER the fact,
  * because there is nothing to block.
  */
-export function voiceClaimViolations(turns: string[]): string[] {
+export function voiceClaimViolations(turns: string[], ctx: { escalated?: boolean } = {}): string[] {
   const found = new Set<string>();
   for (const turn of turns) {
     // Approved anchors are removed first, so any surviving money figure is
@@ -478,6 +482,8 @@ export function voiceClaimViolations(turns: string[]): string[] {
     if (MONEY_RE.test(stripped)) found.add("unapproved_price_quote");
 
     for (const claim of PROHIBITED_VOICE_CLAIMS) {
+      // escalate ran on this call: its callback is in the queue and the ledger.
+      if (claim.label === "unbacked_callback_promise" && ctx.escalated) continue;
       if (claim.re.test(turn)) found.add(claim.label);
     }
   }
@@ -490,8 +496,28 @@ export function voiceClaimViolations(turns: string[]): string[] {
  * v1 (2026-07-27): first mechanical enforcement of voice claim rules. Versioned
  * from the start so a later rule change stays comparable in the data instead of
  * silently redefining what a stored violation meant.
+ *
+ * v2 (2026-09-23): `unbacked_callback_promise` is not raised on a call whose
+ * messages show escalate() ran, and the after-hours exemption also accepts
+ * "call you back when we're open". The prompt now routes EVERY callback it
+ * lets the assistant promise through escalate — including CALLBACK CAPTURE
+ * while open, after a transfer that did not connect — so v1 would flag those
+ * backed promises. Compare v1 and v2 counts of this label with that in mind.
  */
-export const VOICE_CLAIM_GUARD_VERSION = 1;
+export const VOICE_CLAIM_GUARD_VERSION = 2;
+
+/**
+ * Did escalate() run on this call? Vapi's artifact messages carry the model's
+ * tool calls as `toolCalls: [{ function: { name } }]` — the same shape
+ * server/routers/vapi.ts `callDetails` reads.
+ */
+function escalateRan(messages: unknown): boolean {
+  if (!Array.isArray(messages)) return false;
+  return messages.some((m) => {
+    const calls = (m as { toolCalls?: unknown })?.toolCalls;
+    return Array.isArray(calls) && calls.some((c) => (c as { function?: { name?: unknown } })?.function?.name === "escalate");
+  });
+}
 
 export interface VoiceClaimRecord {
   v: number;
@@ -504,6 +530,14 @@ export interface VoiceClaimRecord {
    * count would produce exactly the deceptive blended KPI the directive forbids.
    */
   botTells?: string[];
+  /**
+   * v2 · the model CALLED escalate() on this call, so a callback it promised is
+   * treated as backed. (A call that then failed server-side is logged by the
+   * tool itself; this field records the call, not its row.) Present only when
+   * role-tagged messages were read: a flat transcript cannot show tool calls,
+   * and "unknown" must not be stored as false.
+   */
+  escalated?: boolean;
 }
 
 /**
@@ -520,17 +554,20 @@ export function buildVoiceClaimRecord(args: {
   transcript?: unknown;
   messages?: unknown;
 }): VoiceClaimRecord | null {
-  const parsed = Array.isArray(args.messages) && args.messages.length
+  const fromMessages = Array.isArray(args.messages) && args.messages.length > 0;
+  const parsed = fromMessages
     ? extractAssistantTurnsFromMessages(args.messages)
     : extractAssistantTurns(args.transcript);
 
   if (!parsed.turns.length && !parsed.unparsed) return null;
 
+  const escalated = fromMessages ? escalateRan(args.messages) : undefined;
   return {
     v: VOICE_CLAIM_GUARD_VERSION,
-    violations: parsed.unparsed ? [] : voiceClaimViolations(parsed.turns),
+    violations: parsed.unparsed ? [] : voiceClaimViolations(parsed.turns, { escalated }),
     turnsScanned: parsed.turns.length,
     unparsed: parsed.unparsed,
     botTells: parsed.unparsed ? [] : botTellViolations(parsed.turns),
+    ...(escalated === undefined ? {} : { escalated }),
   };
 }

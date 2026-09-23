@@ -1,0 +1,23 @@
+-- 20260923013000_drop_brain_fts_expression_index · 2026-09-23 · operator-approved DROP · pgvector untouched.
+--
+-- Retires the 0007_brain_fts expression GIN `brain_memories_content_fts_idx` (created 2026-06-02 over
+-- to_tsvector('english', content)). Since 20260923000000_brain_content_tsv (applied to production 2026-09-23
+-- 00:23Z) every brain_memories full-text reader filters and ranks on the STORED column content_tsv and its GIN
+-- brain_memories_content_tsv_idx; the expression index served nothing but its own maintenance cost on every
+-- write (measured 64 MB after the table rewrite, 86 MB before). Verified before the drop (read-only, production):
+-- no reader on main matches `to_tsvector('english', content)` against brain_memories; pg_stat_user_indexes showed
+-- the old index at 5,386 scans since the stats reset (all before #2553 deployed) and the new one at 336 scans in
+-- its first hour.
+--
+-- The `0007_brain_fts` entry in app/api/system/apply-pending-migration/route.ts is removed in the same PR so the
+-- IF NOT EXISTS machinery cannot resurrect the index (rule from the statenour-migration skill: a deliberate DROP
+-- prunes every re-apply path). No prisma/migrations/0007_* directory ever existed, so a fresh database never had
+-- this index; on such a database this statement is a no-op.
+--
+-- Operator approval 2026-09-23 ~01:40Z: "u go do these for me i approve it" (DROP the old expression index,
+-- delete the Neon rehearsal branch, DROP the _bak_ table). Applied with the autocommit runner:
+--   railway run -s statenour-web -- pnpm exec tsx scripts/apply-pending-migration.ts \
+--     prisma/migrations/20260923013000_drop_brain_fts_expression_index/migration.sql
+-- then recorded with `prisma migrate resolve --applied 20260923013000_drop_brain_fts_expression_index`.
+
+DROP INDEX IF EXISTS "brain_memories_content_fts_idx";

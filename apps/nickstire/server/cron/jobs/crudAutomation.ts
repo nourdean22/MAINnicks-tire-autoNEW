@@ -181,61 +181,93 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
   }
 }
 
-/** 4. Callback auto-escalation — re-alert on callbacks stuck >4h */
+/**
+ * 4. Callback auto-escalation — a callback nobody has worked 4 hours after it
+ * was requested.
+ *
+ * The row STAYS `new`: it is still owed a call, and every queue reader lists
+ * only `new` (routers/intelligence.ts morning brief, the admin callbacks view).
+ * Until 2026-09-23 this job "claimed" a row by flipping it to `no-answer` and
+ * stamping `calledAt = NOW()` with nobody having called. The callback dropped
+ * off every to-do list after one Telegram ping, the customer was texted "still
+ * in our queue" about a row no longer in any queue, and `no-answer` / `calledAt`
+ * stopped meaning a person tried. (Rows flipped that way carry "Auto-SMS: we
+ * will call you back" in notes; the customer-corpus census counts them apart.)
+ *
+ * AT MOST ONCE PER ROW, and the alert with it: a conditional UPDATE appends
+ * ESCALATED_MARK only while the row is `new` and unmarked, and only a row THIS
+ * run claimed (affectedRows 1) is texted and alerted. A row escalated earlier is
+ * skipped, so the Telegram alert no longer repeats every run when the SMS flag
+ * is off. A crash between the claim and the send loses the text, never doubles
+ * it — the same trade the old status flip made.
+ */
+const ESCALATED_MARK = "[auto-escalated: unworked 4h, still owed a call]";
+
 export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: number; details?: string }> {
-  try {
-    const { getDb } = await import("../../db");
-    const { sql } = await import("drizzle-orm");
-    const d = await getDb();
-    if (!d) return { recordsProcessed: 0, details: "No DB" };
+  const { getDb } = await import("../../db");
+  const { sql } = await import("drizzle-orm");
+  const d = await getDb();
+  if (!d) return { recordsProcessed: 0, details: "No DB" };
 
-    const [rows] = await d.execute(sql`
-      SELECT id, name, phone, context FROM callback_requests
-      WHERE status = 'new'
-        AND createdAt < DATE_SUB(NOW(), INTERVAL 4 HOUR)
-        AND createdAt > DATE_SUB(NOW(), INTERVAL 3 DAY)
-      LIMIT 10
-    `);
+  const unmarked = sql`(notes IS NULL OR LOCATE(${ESCALATED_MARK}, notes) = 0)`;
+  // A read failure throws to the runner (recorded as failed), never a soft "completed".
+  const [rows] = await d.execute(sql`
+    SELECT id, name, phone, context FROM callback_requests
+    WHERE status = 'new'
+      AND createdAt < DATE_SUB(NOW(), INTERVAL 4 HOUR)
+      AND createdAt > DATE_SUB(NOW(), INTERVAL 3 DAY)
+      AND ${unmarked}
+    LIMIT 10
+  `);
+  const stale = rows as RawRow[];
+  if (stale.length === 0) return { recordsProcessed: 0, details: "No callbacks unworked >4h awaiting escalation" };
 
-    const stale = rows as RawRow[];
-    if (stale.length === 0) return { recordsProcessed: 0, details: "No stale callbacks" };
+  const claimed: RawRow[] = [];
+  for (const cb of stale) {
+    try {
+      const [res] = await d.execute(sql`
+        UPDATE callback_requests
+        SET notes = CONCAT(COALESCE(notes, ''), ${`\n${ESCALATED_MARK}`})
+        WHERE id = ${cb.id} AND status = 'new' AND ${unmarked}
+      `);
+      if (((res as unknown as { affectedRows?: number }).affectedRows ?? 0) === 1) claimed.push(cb);
+    } catch (err) {
+      log.warn("escalateStaleCallbacks: claim failed", { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  if (claimed.length === 0) {
+    return { recordsProcessed: 0, details: `${stale.length} stale callback(s) found, none claimed (already escalated or no longer new)` };
+  }
 
-    // Send customer a "we'll call you back" SMS (gated by feature flag)
-    const { sendSms } = await import("../../sms");
-    const { isEnabled: isEnabledCallback } = await import("../../services/featureFlags");
-    let smsSent = 0;
-    if (await isEnabledCallback("sms_appointment_reminders")) {
-      for (const cb of stale.filter((c) => c.phone)) {
-        try {
-          // At-most-once claim — flip status BEFORE the send so a crash
-          // can't leave it 'new' for the next run to re-text.
-          const [claimRes] = await d.execute(sql`UPDATE callback_requests SET status = 'no-answer', notes = CONCAT(COALESCE(notes, ''), '\nAuto-SMS: we will call you back'), calledAt = NOW() WHERE id = ${cb.id} AND status = 'new'`);
-          if (((claimRes as unknown as { affectedRows?: number }).affectedRows ?? 0) === 0) continue;
-          // Wave-108: callback fallback via shop gateway (1:1)
-          const cbResult = await sendSms(String(cb.phone), `Your callback's still in our queue at Nick's Tire & Auto — we'll reach out shortly. Need us sooner? (216) 862-0005.`, { via: "shop" });
-          // 2026-09-01 (audit F-3): count only texts that will reach the customer.
-          const { smsWillReachCustomer: cbWillReach } = await import("../../lib/smsOutcome");
-          if (cbWillReach(cbResult)) smsSent++;
-        } catch (err) { log.warn("escalateStaleCallbacks: SMS/status update failed", { error: err instanceof Error ? err.message : String(err) }); }
+  // The customer text is true now: the row is still in the queue.
+  const { sendSms } = await import("../../sms");
+  const { isEnabled } = await import("../../services/featureFlags");
+  let smsSent = 0;
+  if (await isEnabled("sms_appointment_reminders")) {
+    const { smsWillReachCustomer } = await import("../../lib/smsOutcome");
+    for (const cb of claimed.filter((c) => c.phone)) {
+      try {
+        const res = await sendSms(String(cb.phone), `Your callback's still in our queue at Nick's Tire & Auto — we'll reach out shortly. Need us sooner? (216) 862-0005.`, { via: "shop" });
+        // 2026-09-01 (audit F-3): count only texts that will reach the customer.
+        if (smsWillReachCustomer(res)) smsSent++;
+      } catch (err) {
+        log.warn("escalateStaleCallbacks: SMS failed", { error: err instanceof Error ? err.message : String(err) });
       }
     }
-
-    // Alert shop via Telegram
-    if (stale.length > 0) {
-      try {
-        const { sendTelegram } = await import("../../services/telegram");
-        await sendTelegram(
-          `📞 CALLBACK ALERT: ${stale.length} callbacks unanswered >4h!\n\n` +
-          stale.slice(0, 5).map((c) => `${c.name || "?"} — ${c.phone || "no phone"}: ${(String(c.context || "general")).slice(0, 50)}`).join("\n") +
-          `\n\nCall them back NOW.`
-        );
-      } catch (err) { log.warn("escalateStaleCallbacks: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
-    }
-
-    return { recordsProcessed: stale.length, details: `${stale.length} escalated, ${smsSent} SMS sent` };
-  } catch (e: unknown) {
-    return { recordsProcessed: 0, details: `Callback escalation failed: ${(e as Error).message}` };
   }
+
+  try {
+    const { sendTelegram } = await import("../../services/telegram");
+    await sendTelegram(
+      `📞 CALLBACK ALERT: ${claimed.length} callback(s) unanswered >4h — still in the queue\n\n` +
+      claimed.slice(0, 5).map((c) => `${c.name || "?"} — ${c.phone || "no phone"}: ${(String(c.context || "general")).slice(0, 50)}`).join("\n") +
+      `\n\nCall them back NOW.`
+    );
+  } catch (err) {
+    log.warn("escalateStaleCallbacks: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+
+  return { recordsProcessed: claimed.length, details: `${claimed.length} escalated (left new, still owed a call), ${smsSent} SMS sent` };
 }
 
 /** 5. Low-stock inventory alerts via Telegram */

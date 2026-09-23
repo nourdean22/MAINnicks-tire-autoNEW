@@ -278,10 +278,10 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string): Promi
       case "bookSlot":
         output = await caller.bookSlot(args as { name: string; phone: string; service: string; vehicle?: string; preferredDay?: string; callId?: string });
         break;
-      // wave-179: warm-lead capture for tire inquiries that don't yet
-      // commit. Already existed but wasn't wired. Now Vapi can call
-      // tireInquiry → lead lands in admin with source="callback" + a
-      // [VOICE-AGENT TIRE INQUIRY] marker.
+      // wave-179: tire-inquiry tagging. Since 2026-06-05 an ordinary inquiry
+      // writes no admin lead (the call record is the record); only the legacy
+      // notes-based rack check lands in Leads with source="callback" and a
+      // [VOICE-AGENT TIRE INQUIRY] marker. See voiceAgent.tireInquiry.
       case "tireInquiry":
         output = await caller.tireInquiry(args as { name: string; phone: string; tireSize?: string; vehicle?: string; newOrUsed?: "new" | "used" | "either"; installationNeeded?: boolean; callId?: string });
         break;

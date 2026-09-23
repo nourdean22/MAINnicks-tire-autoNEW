@@ -64,7 +64,9 @@ function bufferShadow(over: Record<string, unknown> = {}) {
       { reason: "factual lookup with no tool expected to fire", buffered: 77, bannered: 6 },
       { reason: "invites a specific figure with no tool behind it", buffered: 13, bannered: 0 },
     ],
-    banner: { turns: 7, wouldHaveBuffered: 6, wouldHaveStreamed: 1, noShadow: 0, recallPct: null as number | null },
+    banner: { turns: 7, wouldHaveBuffered: 6, wouldHaveStreamed: 1, noShadow: 0, legacyShadow: 0, recallPct: null as number | null },
+    // 2026-09-23 (#2560) · legacy = shadows that recomputed toolsExpected after generation, excluded from every rate.
+    legacy: { withShadow: 0, wouldBuffer: 0, wouldStream: 0 },
     sufficient: true,
     caveat: "6 of 7 verifier-banner turns would have buffered - too few banner turns (40 needed) to state a recall rate.",
     ...over,
