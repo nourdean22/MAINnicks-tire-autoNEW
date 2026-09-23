@@ -18,7 +18,7 @@
  * new, and say nothing when both sources are empty and healthy (an empty
  * board is not an alert).
  */
-import { CalendarClock, CarFront } from "lucide-react";
+import { CalendarClock, CarFront, PhoneIncoming } from "lucide-react";
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { getBusinessDateKey } from "@/lib/businessDate";
@@ -65,14 +65,41 @@ export function stripHasNothingToSay(args: {
   arrivalsCount: number;
   tomorrowCount: number;
   bookingsTrustworthy: boolean;
+  /** Tire inquiries by phone today. An unreadable count is never silence. */
+  phoneDemandCount?: number;
+  phoneDemandError?: boolean;
 }): boolean {
   return (
     !args.arrivalsError &&
     args.arrivalsLoaded &&
     args.bookingsTrustworthy &&
     args.arrivalsCount === 0 &&
-    args.tomorrowCount === 0
+    args.tomorrowCount === 0 &&
+    !args.phoneDemandError &&
+    (args.phoneDemandCount ?? 0) === 0
   );
+}
+
+/** Shape of dispatch.phoneTireDemandToday (server/lib/tireDemand.ts TireDemandSummary). */
+interface PhoneTireDemand {
+  total: number;
+  sizes: Array<{ size: string; count: number; new: number; used: number }>;
+  sizeUnknown: number;
+}
+
+/**
+ * "225/65R17 ×3 (2 used) · 205/55R16 · +1 more · 2 without a size" — the sizes
+ * to pull for callers who may walk in. Null when nobody asked.
+ */
+export function phoneDemandLine(d: PhoneTireDemand, maxSizes = 4): string | null {
+  if (d.total === 0) return null;
+  const parts = d.sizes.slice(0, maxSizes).map((s) => {
+    const cond = [s.used ? `${s.used} used` : "", s.new ? `${s.new} new` : ""].filter(Boolean).join(", ");
+    return `${s.size}${s.count > 1 ? ` ×${s.count}` : ""}${cond ? ` (${cond})` : ""}`;
+  });
+  if (d.sizes.length > maxSizes) parts.push(`+${d.sizes.length - maxSizes} more`);
+  if (d.sizeUnknown) parts.push(`${d.sizeUnknown} without a size`);
+  return parts.join(" · ");
 }
 
 export default function ArrivalLoadStrip({
@@ -94,6 +121,15 @@ export default function ArrivalLoadStrip({
     refetchIntervalInBackground: false,
   });
 
+  // Sizes tire callers asked about today (tireInquiry), so the counter can pull stock.
+  const demandQuery = trpc.dispatch.phoneTireDemandToday.useQuery(undefined, {
+    refetchInterval: 120_000,
+    staleTime: 90_000,
+    refetchIntervalInBackground: false,
+  });
+  const demand = demandQuery.data as PhoneTireDemand | undefined;
+  const demandText = demand ? phoneDemandLine(demand) : null;
+
   const arrivals = (arrivalsQuery.data ?? []) as unknown as ExpectedArrivalRow[];
   const tomorrowKey = useMemo(() => tomorrowBusinessDateKey(), []);
   const tomorrowBookings = useMemo(() => bookingsForDate(bookings, tomorrowKey), [bookings, tomorrowKey]);
@@ -108,6 +144,8 @@ export default function ArrivalLoadStrip({
       arrivalsCount: arrivals.length,
       tomorrowCount: tomorrowBookings.length,
       bookingsTrustworthy,
+      phoneDemandCount: demand?.total ?? 0,
+      phoneDemandError: demandQuery.isError,
     })
   ) {
     return null;
@@ -148,6 +186,22 @@ export default function ArrivalLoadStrip({
           {arrivals.length > 5 && (
             <p className="mt-1 text-[10px] text-muted-foreground">+{arrivals.length - 5} more expected</p>
           )}
+        </div>
+      ) : null}
+
+      {demandQuery.isError ? (
+        <p className="mt-2 text-xs text-amber-400">
+          Phone tire requests unreadable — unknown, not zero.
+        </p>
+      ) : demand && demandText ? (
+        <div className="mt-2 flex items-start gap-2 text-xs">
+          <PhoneIncoming className="w-3.5 h-3.5 mt-0.5 text-muted-foreground shrink-0" />
+          <span>
+            <span className="text-muted-foreground">
+              Asked by phone today · {demand.total} tire caller{demand.total === 1 ? "" : "s"}:{" "}
+            </span>
+            <span className="font-medium">{demandText}</span>
+          </span>
         </div>
       ) : null}
 
