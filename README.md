@@ -292,17 +292,17 @@ The customer site + an autonomous operations backend for the shop.
 
 A deliberately thin **cron dispatcher** — not where jobs run.
 
-- **Two source files:** `src/index.ts` (Express: `/health` + `POST /cron/mega` +
+- **Three source files:** `src/storage.ts` (render uploads), `src/index.ts` (Express: `/health` + `POST /cron/mega` +
   `POST /cron/mega-evening`, enforces `CRON_SECRET`, refuses to boot without it) and
   `src/scheduler.ts` (an in-process `node-cron` loop for sub-hourly jobs).
 - Every tick **forwards an authenticated `fetch` to `STATENOUR_WEB_URL/api/cron/<name>`**
   (fire-and-forget, 60s timeout) — the worker holds no business logic and touches no DB.
-- High-frequency jobs (all UTC): `brain-bus-backfill` (2m), `error-telegram-push` (5m),
-  `alert-telegram-push` (15m), `calendar-premeeting` (15m, daytime), `bus-exhaustion-watch`
-  (30m), `provider-ping` (hourly). Daily/weekly jobs ride the `/cron/mega*` endpoints that
+- High-frequency jobs (all UTC, `apps/worker/src/scheduler.ts:124-170`): `brain-bus-drain` (15m),
+  `outbox-drain` (15m), `device-heartbeat-sentinel` (15m), `inngest-liveness` (daily 13:00), plus an
+  in-process video-render loop (15m) that is not forwarded. Daily/weekly jobs ride the `/cron/mega*` endpoints that
   Railway's scheduler hits. The authoritative job registry lives in
   `apps/statenour/config/crons.ts`; the worker's table is a per-deploy snapshot.
-- Operator controls (kill-switch / run-now / status) live on statenour-web's cron deck.
+- Operator controls (kill-switch / run-now / status) live on statenour-web's `/system/crons`.
 
 ---
 

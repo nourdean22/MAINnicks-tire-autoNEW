@@ -15,7 +15,7 @@ rollback, not for routine code work. Cross-cutting repo rules: root [`AGENTS.md`
 - **`AGENTS.md` is canonical for the env contract.** It was verified against `src/` and
   `package.json`, not against prose. `DEPLOY.md` once listed `DATABASE_URL` /
   `NICKSTIRE_DATABASE_URL` as CRITICAL from an earlier design; that was corrected and it now defers
-  here (`DEPLOY.md:43-45`), so the two no longer disagree. If you change the env contract, change
+  here (`DEPLOY.md:45-48`), so the two no longer disagree. If you change the env contract, change
   `AGENTS.md` first, then `DEPLOY.md`.
 
 <!--

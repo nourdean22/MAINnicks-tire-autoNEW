@@ -11,14 +11,17 @@
 | Service | `statenour-worker` |
 | Service ID | `e70db361-4a30-45e9-b869-327845817531` |
 | Environment | `production` (`84f0d4b4-efcd-480f-a761-27589e0a095f`) |
-| Region | US West |
+| Region | `us-west2` (`.railway/railway.ts:88`). The two web apps moved to `us-east4-eqdc4a` on 2026-09-23 (#2600); the worker did not |
 | Public URL | `statenour-worker-production.up.railway.app` (private API only · not user-facing) |
 | Build context | monorepo root |
-| Dockerfile | `apps/worker/Dockerfile` (or root if collocated) |
+| Dockerfile | `apps/worker/Dockerfile` (`.railway/railway.ts:85`) |
 
 ## Deploy trigger
 
-Auto-deploys on push to **`main`** when files under `apps/worker/**` change.
+Auto-deploys on push to **`main`** when a watched path changes. The watch list is `.railway/railway.ts:85`, the only
+build/deploy config in the repo: `apps/worker/**` minus this file, `AGENTS.md` and `CLAUDE.md`, plus
+`apps/statenour/lib/**`, `packages/reel-engine/**`, `apps/nickstire/patches/**` and the root workspace files.
+Deploys do not wait for CI (`checkSuites: false`, same line).
 
 ## Pre-deploy validation
 
@@ -47,7 +50,9 @@ runtime → node 24 + dist/index.js + node-cron schedules
 REQUIRED (the process refuses to boot or silently no-ops without these):
 - `CRON_SECRET` · Bearer secret for `/cron/*`, compared with `timingSafeEqual`; **fail-closed** —
   the server refuses to start when it is empty
-- `STATENOUR_WEB_URL` · internal base URL every tick is forwarded to
+- `STATENOUR_WEB_URL` · base URL every tick is forwarded to. In production it is the PUBLIC
+  `statenour-web-production.up.railway.app`, not the private network (worker boot log, read
+  2026-09-23, `docs/research/2026-09-23-estate-master-architecture.md` §1.1)
 
 USED:
 - `PORT` · listener (default 8080) · `SERVICE_ROLE`
@@ -62,27 +67,28 @@ ignores them.
 ## Cron jobs
 
 The worker **forwards ticks**; the jobs themselves execute as statenour-web route handlers.
-Live registry: GET `/api/cron/list` on statenour-web; manifest of record:
+Live catalog: GET `/api/settings/crons` on statenour-web; manifest of record:
 `apps/statenour/config/crons.ts` (guarded by `pnpm check:crons`).
 
 Registered here in `src/scheduler.ts`:
 - `brain-bus-drain` · every 15m → GET `/api/cron/brain-bus-drain`
 - `outbox-drain` · every 15m → GET `/api/cron/outbox-drain`
 - `inngest-liveness` · daily 13:00 UTC → GET `/api/cron/inngest-liveness`
+- `device-heartbeat-sentinel` · every 15m → GET `/api/cron/device-heartbeat-sentinel`
 - `POST /cron/mega` and `/cron/mega-evening` → `/api/cron/mega?slot=morning|evening`
 
-Plus one job that runs **in-process** rather than forwarding: a 2-minute video-render loop that
+Plus one job that runs **in-process** rather than forwarding: a 15-minute video-render loop (`*/2` until #1696) that
 polls `/api/sync/queue/render`, renders MP4 via `@nour/reel-engine` (Remotion), uploads through
 `src/storage.ts`, and POSTs `/api/sync/queue/render-complete` (reverting the item to `approved` on
 failure).
 
-Operator surface: `/system/cron-deck` (kill switch · run-now · per-job status).
+Operator surface: `/system/crons` (kill switch · run-now · per-job status).
 
 ## Rollback
 
 Same as other services · Railway dashboard → Deployments → previous green → Redeploy.
 
-If a cron is causing problems, kill via `/system/cron-deck` BEFORE rolling back the
+If a cron is causing problems, kill via `/system/crons` BEFORE rolling back the
 service · prevents the rollback from re-triggering the bad cron immediately.
 
 ## Common failure modes
@@ -90,7 +96,7 @@ service · prevents the rollback from re-triggering the bad cron immediately.
 | Symptom | Diagnosis | Fix |
 |---|---|---|
 | Worker crash loop | Unhandled promise rejection in a tick or the render loop | Check Railway logs · identify the failing job and add the missing catch |
-| Cron silently stopped | Service replica count 0 OR `CRON_KILL_SWITCH=true` | Check Railway replica + `/system/cron-deck` |
+| Cron silently stopped | Service replica count 0 OR the job's kill switch is off | Check Railway replica + `/system/crons` |
 | Nickstire bridge 401 | `STATENOUR_SYNC_KEY` drift between services | Sync the env var across statenour-web + nickstire + worker (all 3 must match) |
 
 ## Related docs
