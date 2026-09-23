@@ -45,6 +45,14 @@ export const LIVE_CANARIES = {
     entries: ["repo-rescue.mjs", "repo-rescue.test.mjs"],
     extra: [".github/workflows/agent-policy.yml"],
   },
+  // Only ~2 requests, but they run on EVERY PR: when the installation budget is
+  // spent (e.g. by the Monday branch-sweep run) both 403 and turn every PR's
+  // `adapter parity + canaries` red. Measured 2026-09-23 on #2603.
+  AGENT_OS_LIVE_GHCLIENT: {
+    label: "github-client real-API canaries",
+    entries: ["github-client.mjs", "github-client.test.mjs"],
+    extra: [".github/workflows/agent-policy.yml"],
+  },
 };
 
 const FORCE_EVENTS = new Set(["workflow_dispatch", "schedule"]);
