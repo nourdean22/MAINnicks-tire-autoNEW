@@ -874,6 +874,9 @@
     "capability-ledger-updated-superseded-2582-owed-texts": {
       "ref": "docs/operations/capability-ledger.json: new capability today-owed-texts (codeState merged, operationalState unit_verified, exposure disabled per the ladder until integration-verified), with its code, tests (mutation-verified), 'not yet' live runs, and two blockers: a P2 naming the production check and a P3 that phone-call replies are invisible. REALITY-LEDGER.md re-rendered."
     },
+    "capability-ledger-updated-superseded-2584-tire-demand": {
+      "ref": "docs/operations/capability-ledger.json receptionist-tire-inquiry-truth: its P3 blocker ('the counter still receives nothing from an ordinary tire inquiry') marked PARTLY ADDRESSED with what is now recorded and shown, and what is still open (not copied to vapi_call_logs, not exercised in production); codeCommit and tests extended. States unchanged. REALITY-LEDGER.md re-rendered."
+    },
     "cron-fail-closed-superseded-2026-09-23-pre-dberrors-followup": {
       "ref": "DEFERRED, with reason: the cron file in this diff is server/cron/jobs/missedCallRecovery.ts, and the only change there is a comment (the 'already became a lead' note now says convertedToLead means 'reached a tool', operator decision C 2026-09-23). No control flow, query or failure path changes, so there is no fail-closed behaviour to test; the existing missed-call tests (6) pass unchanged."
     },
@@ -882,6 +885,9 @@
     },
     "capability-ledger-updated-superseded-2026-09-23-sibling-main": {
       "ref": "docs/operations/capability-ledger.json receptionist-tire-inquiry-truth: its P3 blocker ('the counter still receives nothing from an ordinary tire inquiry') marked PARTLY ADDRESSED with what is now recorded and shown, and what is still open (not copied to vapi_call_logs, not exercised in production); codeCommit and tests extended. States unchanged. REALITY-LEDGER.md re-rendered."
+    },
+    "capability-ledger-updated-superseded-2026-09-23-sibling-main-2": {
+      "ref": "docs/operations/capability-ledger.json sms-customer-identity: codeCommit and tests extended with the opt-out over-match fix (visits like 'Stop by around 3?' no longer unsubscribe; every real opt-out still does; red 5 of 7 on the old rule). States unchanged. The other changes in this diff (campaign segment day counts and today's-bookings count from the shop's Eastern date, curdate baseline lowered 108 -> 105) move no capability: no ledger entry tracks those reads. REALITY-LEDGER.md re-rendered."
     }
   }
 }

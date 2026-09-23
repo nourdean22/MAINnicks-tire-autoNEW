@@ -58,7 +58,14 @@ const PATTERNS: Array<{ pattern: RegExp; intent: ParsedResponse["intent"]; autoA
   // the live path produced no unsubscribe action, no compliance row and no
   // confirmation reply. This regex is the one the production webhooks actually
   // reach — smsResponseJobs -> smsOrchestrator -> parseSmsResponse.
-  { pattern: /^\s*(stop|stopall|unsubscribe|opt[\s-]?out|revoke|end|quit|remove\s+me)\b/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 99 },
+  //
+  // 2026-09-23: "starts with a keyword" also caught visits, and silently
+  // unsubscribed the customer from every text: "Stop by around 3?", "stop in
+  // tomorrow", "End of the day works". Only those constructions are carved out
+  // (they cannot be a revocation) and go to a person; every other reply that
+  // opens with a keyword, punctuated or phrased ("Stop.", "stop texting me"),
+  // still unsubscribes. Missing a real opt-out is the worse error.
+  { pattern: /^\s*(stop(?!\s+(by|in|over|at|off)\b)|stopall|unsubscribe|opt[\s-]?out|revoke|end(?!\s+(of|up)\b)|quit|remove\s+me)\b/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 99 },
 
   // Reschedule hints
   { pattern: /reschedule|different (time|day|date)|move (my|the) appointment|change (time|date)/i, intent: "reschedule", autoAction: "flag-for-followup", confidence: 85 },

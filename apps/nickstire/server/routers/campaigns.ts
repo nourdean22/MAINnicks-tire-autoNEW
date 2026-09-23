@@ -18,6 +18,7 @@ import { STORE_PHONE, STORE_NAME } from "@shared/const";
 import { BUSINESS } from "@shared/business";
 
 import { db } from "../lib/db-helper";
+import { getBusinessDateKey } from "../lib/timezoneAssert";
 
 import { createLogger } from "../lib/logger";
 
@@ -66,6 +67,8 @@ export async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"):
   // two SMS-campaign paths can never drift on who counts as reachable.
   const phoneFilter = campaignEligiblePhoneSql;
 
+  // Day counts from the shop's (Eastern) date: CURDATE() is the UTC date,
+  // already tomorrow from 8 PM ET, which moved every segment edge a day early.
   if (segment === "recent") {
     // Active in last 90 days
     return d.select({
@@ -73,7 +76,7 @@ export async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"):
       firstName: customers.firstName,
       phone: customers.phone,
     }).from(customers).where(
-      and(phoneFilter, sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) <= 90`)
+      and(phoneFilter, sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(${getBusinessDateKey()}, ${customers.lastVisitDate}) <= 90`)
     ).limit(5000);
   } else if (segment === "lapsed") {
     // Haven't visited in 91-365 days
@@ -82,7 +85,7 @@ export async function getSegmentCustomers(segment: "recent" | "lapsed" | "all"):
       firstName: customers.firstName,
       phone: customers.phone,
     }).from(customers).where(
-      and(phoneFilter, sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(CURDATE(), ${customers.lastVisitDate}) BETWEEN 91 AND 365`)
+      and(phoneFilter, sql`${customers.lastVisitDate} IS NOT NULL AND DATEDIFF(${getBusinessDateKey()}, ${customers.lastVisitDate}) BETWEEN 91 AND 365`)
     ).limit(5000);
   } else {
     // All customers

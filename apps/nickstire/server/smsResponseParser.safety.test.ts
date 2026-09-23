@@ -61,3 +61,29 @@ describe("parseSmsResponse confirm path is unaffected", () => {
     expect(parseSmsResponse(msg).intent).toBe("confirm");
   });
 });
+
+/**
+ * Opt-out over-match (2026-09-23). The unsubscribe rule matched any reply that
+ * STARTS with a keyword, so a customer asking "Stop by around 3?" or saying
+ * "End of the day works" was silently unsubscribed from every text. These
+ * phrasings cannot be a revocation; they now go to a person. Every real
+ * opt-out, punctuated or phrased, still unsubscribes.
+ */
+describe("parseSmsResponse unsubscribes on an opt-out, not on a visit", () => {
+  it.each([
+    "STOP", "Stop.", "stop!", "STOP ALL", "Stopall", "Unsubscribe", "opt out", "Opt-out", "OPTOUT", "Revoke",
+    "End", "END.", "Quit", "remove me", "Stop texting me", "stop sending these", "Remove me from your list",
+  ])("%s unsubscribes", (msg) => {
+    expect(parseSmsResponse(msg).intent).toBe("unsubscribe");
+  });
+
+  it.each([
+    "Stop by around 3?", "Can I stop in tomorrow", "stop over after work", "I'll stop at the shop at noon",
+    "stop off on my way", "End of the day works", "end up needing 2 tires",
+  ])("%s does not unsubscribe", (msg) => {
+    const r = parseSmsResponse(msg);
+    expect(r.intent).not.toBe("unsubscribe");
+    expect(r.autoAction).not.toBe("unsubscribe-customer");
+  });
+});
+
