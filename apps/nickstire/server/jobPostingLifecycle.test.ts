@@ -207,13 +207,11 @@ describe("pay is published, and the page shows the same number the markup claims
   // posting (WrenchWay/ASE 2025). The owner set ranges matched to Enterprise
   // Euclid (docs/recruiting/RECRUITING-ENGINE-2026-09.md).
   //
-  // Service advisor is the ONE deliberate exception: the owner has not given a
-  // number. Adding a new role without pay must fail here until someone decides.
-  const PAY_NOT_YET_SET_BY_OWNER = new Set(["service-advisor"]);
-
-  it("every open role outside the named exception carries a numeric baseSalary", () => {
+  // Service advisor was the one exception until the owner set its range
+  // (2026-09-23). Every open role now carries pay, and a new role without it
+  // fails here until someone decides.
+  it("every open role carries a numeric baseSalary", () => {
     for (const job of openJobOpenings()) {
-      if (PAY_NOT_YET_SET_BY_OWNER.has(job.slug)) continue;
       const s = buildJobPostingSchema(job, CTX)!;
       expect(s.baseSalary, `${job.slug}: open role ships with no baseSalary`).toBeTruthy();
     }
@@ -222,7 +220,7 @@ describe("pay is published, and the page shows the same number the markup claims
   it("the locked ranges are exactly the owner's numbers", () => {
     expect(formatHourlyPayRange(jobOpeningBySlug("automotive-technician")!)).toBe("$30.00–$37.50/hr");
     expect(formatHourlyPayRange(jobOpeningBySlug("tire-technician")!)).toBe("$22.00–$25.50/hr");
-    expect(formatHourlyPayRange(jobOpeningBySlug("service-advisor")!)).toBeNull();
+    expect(formatHourlyPayRange(jobOpeningBySlug("service-advisor")!)).toBe("$22.00–$28.00/hr");
   });
 
   it("the job page renders the pay string, and the form no longer hardcodes a stale ceiling", () => {

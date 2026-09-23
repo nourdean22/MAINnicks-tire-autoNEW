@@ -99,7 +99,7 @@ Funnel events: `careers_view` -> `job_view` -> `cta_click` (exists) -> `form_sta
 
 ### P0 - next 24h / 7 days (owner actions, no code)
 1. Owner sets a **published floor rate, guarantee, schedule rule (2 days off, Sunday optional) and a benefits list**, and a service-advisor range. Nothing is published until this exists.
-2. Rename the Facebook page from "Moe's Euclid Tire & Auto."
+2. Rename the Facebook page from "Moe's Euclid Tire & Auto." (Parked by the owner 2026-09-23: not now.)
 3. Email the job links to autotech@tri-c.edu; register on Tri-C Handshake; create an OhioMeansJobs account; call Greater Cleveland Works about OJT.
 4. Sign up for the ASE Connects free trial (contribute pay data).
 5. Pull Railway access logs for `/careers*` and identify the Indeed crawler UA.
@@ -107,6 +107,7 @@ Funnel events: `careers_view` -> `job_view` -> `cta_click` (exists) -> `form_sta
 
 ### Decisions locked (operator, 2026-09-23)
 - **Pay = match Enterprise Euclid:** Automotive Technician **$30.00-$37.50/hr**; Tire/Hybrid Technician **$22.00-$25.50/hr**; Service Advisor **left blank** (no `baseSalary`, no visible figure) until the owner gives a number.
+  - **Owner decisions (2026-09-23, later):** the tire/hybrid floor stays at **$22.00** (above Enterprise's $20 Lube & Tire Tech start). Service Advisor is set to **$22.00-$28.00/hr**, centred on the Cleveland average for automotive service advisors ($25.16/hr, ZipRecruiter 2026-08-16 [S]; most earn $17.93-$28.89; a local family tire shop posts $20-$25). It is hourly base only, and no commission is promised. The Facebook page rename is parked (not now).
   - **Correction (2026-09-23, after publishing):** the auto-tech band matches Enterprise exactly [V 558870] - but Enterprise requires 4 ASEs for its $30, where Nick's asks 2+ years with ASE optional. The **tire/hybrid band was presented as Enterprise's and is not**: Enterprise's Lube and Tire Technician starts at **$20/hr** [V 552533, 562425]; its $22 figure is an Associate role requiring 2 years + 2 ASEs. So $22.00-$25.50 sits about **$2/hr above** Enterprise's tire start (near the Cleveland tire-repairer 75th percentile, $22.82, BLS May 2025). It stays live until the owner decides: keep (a real edge over Enterprise) or change to $20. The in-form helper text "Up to $35.../up to $25..." gets replaced by these ranges so the markup and visible copy match (Google requires this). These are public pay floors Nick's must honor.
 - **Scope = report + P0 + P1 code** in one branch/PR, split into logical commits.
 
@@ -233,7 +234,7 @@ A second plan was pasted mid-build. Each factual claim was checked before adopti
 **Review standing, measured (read-only, 2026-09-23, workload-evidence.sql query 5):** at the 2026-09-22 snapshot Nick's leads every tracked place - 1,715 Google reviews vs Meineke Cleveland 1,381, Moe's Tire Center 653, Firestone (Euclid Ave) 501, the rest under 300. The six shops added on 2026-09-23 (Confident Tire among them, 1,530 on SureCritic, Google count unknown) get their first snapshot at the next daily run; **re-run query 5 after 2026-09-24 before any "most reviewed" wording.** The same probe found "Midas (Euclid Ave)" resolving to Nick's OWN listing for 45 snapshots - the monitor now skips any competitor that resolves to Nick's place_id, and query 5 drops the historical rows. A second "Firestone 26086 Euclid Ave" entry was removed before its first run: the existing Firestone entry most likely resolves to that same store.
 
 **Still open (owner decisions or later work)**
-- Keep the tire/hybrid floor at $22 (above Enterprise's $20) or change it - Sec. 12 correction.
-- Service-advisor pay range; the real tech schedule (the page's "Sunday hours available" line predates this work); whether to publish a weekly guarantee and benefits - the Enterprise comparison is lost on those, not on the number.
+- ~~Keep the tire/hybrid floor at $22 or change it~~ - decided 2026-09-23: keep $22.
+- ~~Service-advisor pay range~~ (decided 2026-09-23: $22.00-$28.00/hr, see Sec. 12); the real tech schedule (the page's "Sunday hours available" line predates this work); whether to publish a weekly guarantee and benefits - the Enterprise comparison is lost on those, not on the number.
 - Never text STOP (or END, CANCEL, QUIT, UNSUBSCRIBE) from the operator's mobile to the shop line. The opt-out index reads every such inbound message ever logged (server/sms.ts), a later START does not clear that source, and the index also refuses internal texts - the careers alert would stop for good. (It is not the case today: the 2026-09-23 test texts were delivered.)
 - `nextFollowUpAt` has no writer yet (the owner alert no longer tells anyone to set it).

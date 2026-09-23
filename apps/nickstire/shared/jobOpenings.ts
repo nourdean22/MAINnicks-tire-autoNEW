@@ -160,12 +160,18 @@ export const JOB_OPENINGS: JobOpening[] = [
       "Bilingual (Spanish, Arabic, or other languages common in our community)",
     ],
     status: "open",
-    datePosted: "2026-09-09",
+    // 2026-09-23 · the terms changed (hourly pay published), which is the
+    // datePosted rule's own exception.
+    datePosted: "2026-09-23",
     validThrough: "2026-12-31",
-    // Owner has not set a service advisor range yet (2026-09-23). Null means
-    // no baseSalary and no visible figure — never a guessed number.
-    salaryMinHourlyCents: null,
-    salaryMaxHourlyCents: null,
+    // Owner-set 2026-09-23 ("set the service advisor pay to the average"):
+    // centred on the Cleveland average for automotive service advisors,
+    // $25.16/hr (ZipRecruiter, 2026-08-16; most earn $17.93-$28.89). A local
+    // family tire shop posts $20-$25/hr. The floor matches the tire-tech floor.
+    // Hourly base only; no commission is promised. A public pay floor the shop
+    // must honour — change it only with the owner.
+    salaryMinHourlyCents: 2200,
+    salaryMaxHourlyCents: 2800,
     // Prior advisor experience is listed under "nice", not required.
     experienceMonths: 0,
   },
