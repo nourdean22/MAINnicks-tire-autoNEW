@@ -1467,16 +1467,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/server/services/vendorHealth.ts",
-      "symbol": "startContinuousMonitoring",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/services/vendorHealth.ts",
-      "symbol": "stopContinuousMonitoring",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/server/services/promiseRisk.ts",
       "symbol": "getAtRiskJobs",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
@@ -3017,16 +3007,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/server/services/sms-scheduler.ts",
-      "symbol": "startSmsScheduler",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/services/sms-scheduler.ts",
-      "symbol": "stopSmsScheduler",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/shared/reviewReplyQa.ts",
       "symbol": "REPLY_BLOCK_PATTERNS",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
@@ -3829,11 +3809,6 @@
     {
       "file": "apps/nickstire/server/lib/jobQueue.ts",
       "symbol": "shutdownJobQueue",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/lib/cache.ts",
-      "symbol": "initCache",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {

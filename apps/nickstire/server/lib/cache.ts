@@ -1,7 +1,8 @@
 /**
- * Cache Layer — Redis with in-memory fallback
- * If REDIS_URL is set, uses Redis. Otherwise, uses a simple Map cache.
+ * Cache Layer — in-process Map cache with TTL.
  * All functions are no-op safe — the app works without caching.
+ * (A Redis path existed here until 2026-09-23; its initializer had no caller,
+ * ioredis was never a dependency, and production sets no REDIS_URL.)
  */
 
 import { createLogger } from "./logger";
@@ -12,50 +13,9 @@ const log = createLogger("cache");
 const memCache = new Map<string, { value: string; expiresAt: number }>();
 const MAX_MEM_CACHE_ENTRIES = 5000;
 
-let redisClient: {
-  get(key: string): Promise<string | null>;
-  setex(key: string, ttl: number, value: string): Promise<void>;
-  del(key: string): Promise<void>;
-  keys(pattern: string): Promise<string[]>;
-} | null = null;
-
-/** Initialize cache — call on server startup */
-export async function initCache(): Promise<void> {
-  const redisUrl = process.env.REDIS_URL;
-  if (!redisUrl) {
-    log.info("No REDIS_URL — using in-memory cache fallback");
-    return;
-  }
-
-  try {
-    // Dynamic import to avoid crash if ioredis not installed
-    const { default: Redis } = await import("ioredis");
-    const client = new Redis(redisUrl, {
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-      retryStrategy: (times: number) => Math.min(times * 100, 3000),
-    });
-
-    client.on("error", (err: Error) => log.error("Redis error", { error: err.message }));
-    client.on("connect", () => log.info("Redis connected"));
-
-    await client.connect();
-    redisClient = client as any;
-    log.info("Redis cache initialized");
-  } catch (err) {
-    log.warn("Redis unavailable — using in-memory fallback", { error: err instanceof Error ? err.message : String(err) });
-  }
-}
-
 /** Get cached value */
 export async function cacheGet<T>(key: string): Promise<T | null> {
   try {
-    if (redisClient) {
-      const val = await redisClient.get(key);
-      return val ? JSON.parse(val) : null;
-    }
-
-    // In-memory fallback
     const entry = memCache.get(key);
     if (entry && entry.expiresAt > Date.now()) {
       return JSON.parse(entry.value);
@@ -73,12 +33,7 @@ export async function cacheSet(key: string, value: unknown, ttlSeconds: number =
   try {
     const serialized = JSON.stringify(value);
 
-    if (redisClient) {
-      await redisClient.setex(key, ttlSeconds, serialized);
-      return;
-    }
-
-    // In-memory fallback — evict expired entries if at capacity
+    // Evict expired entries if at capacity
     if (memCache.size >= MAX_MEM_CACHE_ENTRIES) {
       cleanupMemCache();
       // If still over cap after cleanup, evict oldest entries
@@ -99,25 +54,15 @@ export async function cacheSet(key: string, value: unknown, ttlSeconds: number =
 /** Delete cached key */
 export async function cacheDelete(key: string): Promise<void> {
   try {
-    if (redisClient) {
-      await redisClient.del(key);
-      return;
-    }
     memCache.delete(key);
   } catch (err) {
     log.warn("Cache delete failed", { key, error: err instanceof Error ? err.message : String(err) });
   }
 }
 
-/** Delete all keys matching pattern (Redis only, no-op for memory) */
+/** Delete all keys matching a prefix pattern (a trailing "*" is stripped) */
 export async function cacheDeletePattern(pattern: string): Promise<void> {
   try {
-    if (redisClient) {
-      const keys = await redisClient.keys(pattern);
-      for (const key of keys) await redisClient.del(key);
-      return;
-    }
-    // In-memory: delete matching keys
     for (const key of memCache.keys()) {
       if (key.startsWith(pattern.replace("*", ""))) memCache.delete(key);
     }
@@ -136,7 +81,7 @@ export async function cached<T>(key: string, ttlSeconds: number, fetcher: () => 
   return fresh;
 }
 
-/** Cleanup expired entries (in-memory only — call periodically) */
+/** Cleanup expired entries (call periodically) */
 export function cleanupMemCache(): number {
   const now = Date.now();
   let removed = 0;
@@ -151,17 +96,12 @@ export function cleanupMemCache(): number {
 
 /** Cache stats for health check */
 export function getCacheStats(): { type: "redis" | "memory"; keys: number } {
-  return {
-    type: redisClient ? "redis" : "memory",
-    keys: redisClient ? -1 : memCache.size,
-  };
+  return { type: "memory", keys: memCache.size };
 }
 
-// Auto-cleanup expired in-memory cache entries every 5 minutes
+// Auto-cleanup expired cache entries every 5 minutes
 const cacheCleanupInterval = setInterval(() => {
-  if (!redisClient) {
-    cleanupMemCache();
-  }
+  cleanupMemCache();
 }, 5 * 60 * 1000);
 
 export function shutdownCache() {

@@ -5,7 +5,9 @@
  * On booking completion: schedules thank-you, 3-day review request, 6-month maintenance
  * On booking cancellation: cancels all pending scheduled messages
  *
- * The processScheduledSms() function runs on a 5-minute interval to send due messages.
+ * processScheduledSms() sends due messages. It runs from the `sms-scheduler`
+ * cron (server/cron/jobs/appointmentReminders.ts), behind the
+ * sms_appointment_reminders flag.
  */
 
 import { eq, and, lte, isNull } from "drizzle-orm";
@@ -336,32 +338,4 @@ export async function processScheduledSms() {
   }
 
   return { sent, failed };
-}
-
-// ─── START SCHEDULER (call from server startup) ─────────
-let schedulerInterval: ReturnType<typeof setInterval> | null = null;
-
-export function startSmsScheduler() {
-  if (schedulerInterval) return;
-
-  // Process every 5 minutes
-  schedulerInterval = setInterval(() => {
-    processScheduledSms().catch((err) => {
-      log.error("[SMS Scheduler] Error:", err);
-    });
-  }, 5 * 60 * 1000);
-
-  // Also run immediately on startup
-  processScheduledSms().catch((err) => {
-    log.error("[SMS Scheduler] Initial run error:", err);
-  });
-
-  console.info("[sms-scheduler:start] Started (5-minute interval)");
-}
-
-export function stopSmsScheduler() {
-  if (schedulerInterval) {
-    clearInterval(schedulerInterval);
-    schedulerInterval = null;
-  }
 }
