@@ -26,7 +26,7 @@
 import { ensureProxyEnv, ghJson } from "./github-client.mjs";
 import { classifyBranch, CLASSIFICATIONS } from "./classify-branch.mjs";
 import { gatherRemoteEvidence } from "./repo-status.mjs";
-import { arg, flag, originOwnerRepo, sh } from "./cli-common.mjs";
+import { arg, flag, originOwnerRepo, sh, isMainModule } from "./cli-common.mjs";
 
 /** Any worktree on THIS machine currently checked out to `branch`? Local-only by
  * construction — callers must not read a `false` here as "nowhere." */
@@ -104,7 +104,7 @@ async function main() {
   process.exit(result.rescued || result.reason === "dry-run" ? 0 : 1);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   main().catch((e) => {
     console.error(`[repo-rescue] ${e.message}`);
     process.exit(1);

@@ -26,6 +26,7 @@
  * Usage (CI):  node scripts/agent-os/check-source-citation.mjs --diff <file> --body <file>
  * Exit 0 = compliant or not triggered · exit 1 = triggered and uncited.
  */
+import { isMainModule } from "./cli-common.mjs";
 
 /** Blocks whose edits mean "we are adopting or moving a dependency". */
 const DEP_BLOCKS = new Set([
@@ -148,6 +149,6 @@ async function main() {
   process.exit(1);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`.replace(/\\/g, "/") || process.argv[1]?.endsWith("check-source-citation.mjs")) {
+if (isMainModule(import.meta.url)) {
   main();
 }
