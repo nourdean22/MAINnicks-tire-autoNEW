@@ -4,16 +4,24 @@
  * Built for search: leaf job pages carry the JobPosting schema (this list page
  * deliberately carries none), plain-language job descriptions, local SEO.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs, trackEvent, trackPhoneClick } from "@/components/SEO";
-import { openJobOpenings, jobOpeningPath } from "@shared/jobOpenings";
+import { openJobOpenings, jobOpeningPath, formatHourlyPayRange } from "@shared/jobOpenings";
 import { Link } from "wouter";
 import { BUSINESS, SITE_URL } from "@shared/business";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { getUtmData } from "@/lib/utm";
+import {
+  CANDIDATE_INTENTS,
+  CANDIDATE_INTENT_LABELS,
+  MOVE_REASONS,
+  MOVE_REASON_LABELS,
+  type CandidateIntent,
+  type MoveReason,
+} from "@shared/candidateLifecycle";
 import {
   Wrench,
   Shield,
@@ -40,6 +48,8 @@ interface Position {
   requirements: string[];
   nice: string[];
   schemaId: string;
+  /** Visible hourly band, identical to the leaf page's baseSalary, or null. */
+  pay: string | null;
   /**
    * Fixed original JobPosting date — NOT recomputed on render. Google's
    * job-posting content policy explicitly bans resetting datePosted when
@@ -65,16 +75,27 @@ const POSITIONS: Position[] = openJobOpenings().map((j) => ({
   requirements: j.requirements,
   nice: j.nice,
   schemaId: j.slug,
+  pay: formatHourlyPayRange(j),
   datePosted: j.datePosted,
 }));
 
+// One line per role that has a published band, e.g.
+// "Automotive Technician $30.00–$37.50/hr". Derived, never typed: the old
+// hardcoded ceiling-only helper text disagreed with the structured data.
+const PAY_SUMMARY = POSITIONS.filter((p) => p.pay).map((p) => `${p.title} ${p.pay}`);
+
 // ─── WHY WORK HERE ────────────────────────────────────────
 function buildWhyWork(reviewRating: number, reviewCountDisplay: string) {
+  // 2026-09-23 · rewritten to claims the shop can back. The previous first card
+  // said "one of Cleveland's busiest shops ... your hours are full" — the
+  // recruiting research could not verify that, and our own invoice mirror
+  // does not yet support it (docs/recruiting/RECRUITING-ENGINE-2026-09.md,
+  // Sec. 6). Workload numbers go here only once they are measured.
   return [
     {
       icon: Shield,
-      heading: "Consistent work, consistent money",
-      body: "We're one of Cleveland's busiest shops. The volume is here every single day. You won't sit around waiting for cars — you'll stay busy, your hours are full, and your check is on time. This is the kind of place where you can raise a family.",
+      heading: "Hourly pay, not flat rate",
+      body: `You're paid for the hours you work. ${PAY_SUMMARY.join(" · ")}. A slow afternoon doesn't come out of your check.`,
     },
     {
       icon: Wrench,
@@ -84,12 +105,12 @@ function buildWhyWork(reviewRating: number, reviewCountDisplay: string) {
     {
       icon: TrendingUp,
       heading: "Room to grow",
-      body: "If you want to develop diagnostics skills, move into a senior role, or eventually advise on shop operations, we're interested in growing with you. Pay scales with experience and what you bring to the table.",
+      body: "If you want to develop diagnostics skills, move into a senior role, or eventually advise on shop operations, we're interested in growing with you. ASE certifications and diagnostic skill move you up the posted range.",
     },
     {
       icon: Users,
-      heading: `${reviewRating} stars. ${reviewCountDisplay} reviews.`,
-      body: "That's not marketing — that's what our customers actually say. You'll work at a shop people trust and recommend. That kind of reputation means steady customers and a team that does things right.",
+      heading: `${reviewRating} stars. ${reviewCountDisplay} Google reviews.`,
+      body: "That's our customers talking, not our employees — it shows the cars keep coming. What it's like to work here, ask the techs. Stop by during business hours and see the bays yourself.",
     },
     {
       icon: Clock,
@@ -135,6 +156,9 @@ function PositionCard({ pos }: { pos: Position }) {
             {pos.type}
           </span>
         </div>
+        {pos.pay && (
+          <p className="mt-3 text-base font-bold text-nick-yellow">{pos.pay} · hourly</p>
+        )}
         <p className="mt-4 text-sm text-foreground/70 leading-relaxed">{pos.description}</p>
       </div>
 
@@ -208,12 +232,49 @@ function PositionCard({ pos }: { pos: Position }) {
 }
 
 // ─── APPLICATION FORM ─────────────────────────────────────
-export function ApplicationForm() {
+// Deep links into a specific lane: /careers#talk opens the form on "talk
+// privately", #tour on "see the shop", #stay on "keep me in mind". The hero's
+// confidential CTA uses #talk.
+const HASH_TO_INTENT: Record<string, CandidateIntent> = {
+  "#talk": "confidential",
+  "#tour": "shop_tour",
+  "#stay": "talent_network",
+  "#apprentice": "apprentice",
+};
+
+const INTENT_HINT: Record<CandidateIntent, string> = {
+  apply: "No resume required. We respond within 48 hours.",
+  confidential:
+    "Already working somewhere? This goes to the owner only. We won't call your shop — say how you'd like to be reached.",
+  shop_tour: "Come look at the bays and meet the owner before you decide anything. After hours works.",
+  talent_network: "Not ready to move? Leave your info and we'll check in when it makes sense for you.",
+  apprentice: "Want to learn the trade? Tell us about school, experience, and when you're available.",
+};
+
+export function ApplicationForm({ defaultPosition }: { defaultPosition?: string } = {}) {
+  const [intent, setIntent] = useState<CandidateIntent>("apply");
+  const [moveReasons, setMoveReasons] = useState<MoveReason[]>([]);
+  // Honeypot — see candidates.submit. Off-screen, never focusable.
+  const [website, setWebsite] = useState("");
+  useEffect(() => {
+    const apply = () => {
+      const next = HASH_TO_INTENT[window.location.hash];
+      if (next) setIntent(next);
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, []);
   const [form, setForm] = useState({
     name: "",
     phone: "",
     email: "",
-    position: POSITIONS[0].title,
+    // A job page passes its own title so the applicant never has to re-pick
+    // the role they are already reading about.
+    position:
+      defaultPosition && POSITIONS.some((p) => p.title === defaultPosition)
+        ? defaultPosition
+        : POSITIONS[0].title,
     experience: "",
     message: "",
     referredBy: "",
@@ -234,9 +295,11 @@ export function ApplicationForm() {
   const submitCandidate = trpc.candidates.submit.useMutation({
     onSuccess: (data) => {
       setSubmitted(true);
-      trackEvent("careers_application_submitted", { position: form.position });
+      trackEvent("careers_application_submitted", { position: form.position, intent });
       const referrerName = form.referredBy.trim();
-      if (referrerName) {
+      // id 0 is the honeypot's decoy success — nothing was saved, so there is
+      // no candidate to attach a $300 referral claim to.
+      if (referrerName && data.id) {
         submitTechReferral.mutate({
           candidateId: data.id,
           referrerName,
@@ -253,10 +316,15 @@ export function ApplicationForm() {
       <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-8 text-center">
         <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-4" />
         <h3 className="font-heading text-xl font-extrabold uppercase text-foreground mb-2">
-          Application Received
+          {intent === "apply" ? "Application Received" : "Got It"}
         </h3>
         <p className="text-sm text-foreground/60">
-          We'll review your info and reach out within 48 hours. If you'd like to follow up,
+          {intent === "confidential"
+            ? "This went to the owner only. We'll reach out the way you asked — never through your current shop."
+            : intent === "talent_network"
+              ? "You're on our list. We'll check in when it makes sense — no pressure."
+              : "We'll review your info and reach out within 48 hours."}{" "}
+          If you'd like to follow up,
           call us at <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("careers-post-submit")} className="text-primary font-semibold">{BUSINESS.phone.display}</a>.
         </p>
       </div>
@@ -285,8 +353,15 @@ export function ApplicationForm() {
     // narrower set (no utmTerm/utmContent/gclid) — pick only what the schema
     // declares rather than spreading getUtmData()'s full return, which would
     // include fields candidates.submit doesn't accept.
-    const { utmSource, utmMedium, utmCampaign, landingPage, referrer, sessionId } = getUtmData();
+    const { utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gclid, landingPage, referrer, sessionId } =
+      getUtmData();
     submitCandidate.mutate({
+      intent,
+      moveReasons: moveReasons.length ? moveReasons : null,
+      utmTerm,
+      utmContent,
+      gclid,
+      website: website || null,
       name: form.name,
       phone: form.phone,
       email: form.email || undefined,
@@ -302,8 +377,46 @@ export function ApplicationForm() {
     });
   };
 
+  const toggleReason = (r: MoveReason) =>
+    setMoveReasons((cur) => (cur.includes(r) ? cur.filter((x) => x !== r) : [...cur, r]));
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <fieldset>
+        <legend className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 mb-2">
+          What do you want to do?
+        </legend>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {CANDIDATE_INTENTS.map((i) => (
+            <button
+              key={i}
+              type="button"
+              aria-pressed={intent === i}
+              onClick={() => {
+                setIntent(i);
+                trackEvent("careers_intent_selected", { intent: i });
+              }}
+              className={`min-h-[48px] rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-colors ${
+                intent === i
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border/30 text-foreground/60 hover:border-primary/40"
+              }`}
+            >
+              {CANDIDATE_INTENT_LABELS[i]}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-foreground/50">{INTENT_HINT[intent]}</p>
+      </fieldset>
+
+      {/* Honeypot: off-screen, not tabbable, hidden from assistive tech. */}
+      <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", width: 1, height: 1, overflow: "hidden" }}>
+        <label>
+          Website
+          <input type="text" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
+        </label>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
@@ -377,14 +490,39 @@ export function ApplicationForm() {
             <option value="master">Master Tech (10+ years)</option>
           </select>
           <p className="text-[10px] text-foreground/30 mt-1">
-            Pay depends on experience and what you bring. Up to $35/hr for master techs, up to $25/hr for tire/hybrid techs.
+            Hourly pay: {PAY_SUMMARY.join(" · ")}. Where you land depends on experience and certifications.
           </p>
         </div>
       </div>
 
+      {intent !== "apply" && intent !== "apprentice" && (
+        <fieldset>
+          <legend className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 mb-2">
+            What would make you consider moving? (optional)
+          </legend>
+          <div className="flex flex-wrap gap-2">
+            {MOVE_REASONS.map((r) => (
+              <button
+                key={r}
+                type="button"
+                aria-pressed={moveReasons.includes(r)}
+                onClick={() => toggleReason(r)}
+                className={`min-h-[40px] rounded-full border px-3 text-xs font-semibold transition-colors ${
+                  moveReasons.includes(r)
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border/30 text-foreground/55 hover:border-primary/40"
+                }`}
+              >
+                {MOVE_REASON_LABELS[r]}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
       <div>
         <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
-          Tell us about yourself
+          {intent === "confidential" ? "Your question, and the best way to reach you" : "Tell us about yourself"}
         </label>
         <textarea
           value={form.message}
@@ -430,7 +568,7 @@ export function ApplicationForm() {
         {submitCandidate.isPending ? (
           <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</>
         ) : (
-          <><Send className="w-4 h-4" /> Submit Application</>
+          <><Send className="w-4 h-4" /> {intent === "apply" ? "Submit Application" : "Send"}</>
         )}
       </button>
     </form>
@@ -488,6 +626,19 @@ export default function Careers() {
                 Call to Inquire
               </a>
             </div>
+            <a
+              href="#talk"
+              onClick={() => trackEvent("careers_apply_cta_click", { position: "any", surface: "hero_confidential" })}
+              className="mt-5 inline-block text-sm text-foreground/60 underline underline-offset-4 hover:text-foreground"
+            >
+              Already working somewhere? Talk privately first — no application.
+            </a>
+            <Link
+              href="/mechanic-pay-calculator"
+              className="mt-2 block text-sm text-foreground/50 underline underline-offset-4 hover:text-foreground"
+            >
+              Flat rate vs hourly — run your own numbers
+            </Link>
           </div>
         </div>
       </section>
@@ -578,14 +729,20 @@ export default function Careers() {
       </section>
 
       {/* ─── APPLY NOW ────────────────────────────────────── */}
-      <section id="apply" className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20 border-t border-border/20">
+      <section id="apply" className="relative bg-[oklch(0.065_0.004_260)] py-16 lg:py-20 border-t border-border/20">
+        {/* Scroll targets for the lane deep links; ApplicationForm reads the hash. */}
+        <span id="talk" className="absolute top-0" aria-hidden="true" />
+        <span id="tour" className="absolute top-0" aria-hidden="true" />
+        <span id="stay" className="absolute top-0" aria-hidden="true" />
+        <span id="apprentice" className="absolute top-0" aria-hidden="true" />
         <div className="container">
           <div className="max-w-2xl mx-auto">
             <h2 className="font-heading text-3xl font-extrabold uppercase text-foreground mb-2">
-              Apply in 2 Minutes
+              Apply — or Just Talk
             </h2>
             <p className="text-sm text-foreground/55 leading-relaxed mb-8">
-              No resume required. Tell us who you are and what you can do. We respond within 48 hours.
+              No resume required. Apply in 2 minutes, ask a private question, set up a shop visit, or
+              just get on our list. We respond within 48 hours.
             </p>
             <ApplicationForm />
             <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -623,8 +780,8 @@ export default function Careers() {
             </h3>
             <p className="text-sm text-foreground/60 leading-relaxed max-w-lg mx-auto">
               Refer a technician who gets hired and stays 90 days — you get <span className="font-bold text-nick-yellow">$300 cash</span>.
-              Customers who refer a new hire get <span className="font-bold text-nick-yellow">free services on us</span>.
-              Just tell them to mention your name when they apply.
+              Customer, parts rep, tool-truck driver, fellow tech — anyone can refer.
+              Just tell them to put your name and phone in the "Referred by" box when they apply.
             </p>
           </div>
         </div>

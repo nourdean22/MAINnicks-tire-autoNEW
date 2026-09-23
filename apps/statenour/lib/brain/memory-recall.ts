@@ -432,16 +432,19 @@ function lexicalLane(query: string, limit: number, onFail?: () => void): Promise
               --     another -- which is exactly the multi-word
               --     paraphrase case this lane exists to catch.
               --
-              -- The WHERE clause below deliberately keeps the UNWEIGHTED
-              -- expression, because that is the one the existing GIN
-              -- index (brain_memories_content_fts_idx) is built on. A
-              -- weighted expression there would not match the index and
-              -- would turn every recall into a seq scan. So: filter on
-              -- the indexed form, rank on the weighted form -- Postgres
-              -- computes the rank only for rows that already matched.
+              -- The WHERE clause below filters on the STORED column
+              -- content_tsv (GIN brain_memories_content_tsv_idx, migration
+              -- 20260923000000_brain_content_tsv) and the rank re-labels
+              -- that stored vector with weight B instead of re-parsing
+              -- content: measured on production 2026-09-22, the inline
+              -- inline parse of content inside the rank was
+              -- 99% of the lexical lane's time (1,902 ms vs 8 ms without
+              -- it). The KEY is short and has no stored vector, so it is
+              -- still parsed inline at weight A. Postgres computes the
+              -- rank only for rows that already matched.
               (1.0 - LEAST(ts_rank_cd(
                        setweight(to_tsvector('english', coalesce(bm.key, '')), 'A') ||
-                       setweight(to_tsvector('english', bm.content), 'B'),
+                       setweight(bm.content_tsv, 'B'),
                        websearch_to_tsquery('english', $1)), 1.0))::float AS distance
        FROM brain_memories bm
        WHERE bm.deleted_at IS NULL
@@ -449,11 +452,11 @@ function lexicalLane(query: string, limit: number, onFail?: () => void): Promise
          AND bm.superseded_by_id IS NULL
          AND (bm.valid_until IS NULL OR bm.valid_until > NOW())
          AND bm.category = ANY($2)
-         -- INDEXED form. Do not add weights here.
-         AND to_tsvector('english', bm.content) @@ websearch_to_tsquery('english', $1)
+         -- INDEXED form (the stored column). Do not add weights here.
+         AND bm.content_tsv @@ websearch_to_tsquery('english', $1)
        ORDER BY ts_rank_cd(
                   setweight(to_tsvector('english', coalesce(bm.key, '')), 'A') ||
-                  setweight(to_tsvector('english', bm.content), 'B'),
+                  setweight(bm.content_tsv, 'B'),
                   websearch_to_tsquery('english', $1)) DESC
        LIMIT ${limit}`,
       query,

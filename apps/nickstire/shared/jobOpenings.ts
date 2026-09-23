@@ -76,6 +76,12 @@ export interface JobOpening {
    */
   salaryMinHourlyCents: number | null;
   salaryMaxHourlyCents: number | null;
+  /**
+   * Minimum hands-on experience in months, or null for none. Must agree with
+   * the visible requirements list (e.g. "2+ years" = 24). Emitted as Google's
+   * experienceRequirements.monthsOfExperience.
+   */
+  experienceMonths: number | null;
 }
 
 export const JOB_OPENINGS: JobOpening[] = [
@@ -110,10 +116,13 @@ export const JOB_OPENINGS: JobOpening[] = [
     status: "open",
     datePosted: "2026-09-09",
     validThrough: "2026-12-31",
-    // Deliberately null: the shop does not publish a band for this role. The
-    // schema therefore omits baseSalary rather than emitting an empty one.
-    salaryMinHourlyCents: null,
-    salaryMaxHourlyCents: null,
+    // 2026-09-23 · owner decision: match Enterprise Mobility's Euclid service
+    // center ($30/hr start, up to $37.50 with ASE step-ups, posted 2026). This
+    // is a public pay floor the shop must honour — change it only with the
+    // owner. Research: docs/recruiting/RECRUITING-ENGINE-2026-09.md.
+    salaryMinHourlyCents: 3000,
+    salaryMaxHourlyCents: 3750,
+    experienceMonths: 24,
   },
   {
     slug: "service-advisor",
@@ -146,8 +155,11 @@ export const JOB_OPENINGS: JobOpening[] = [
     status: "open",
     datePosted: "2026-09-09",
     validThrough: "2026-12-31",
+    // Owner has not set a service advisor range yet (2026-09-23). Null means
+    // no baseSalary and no visible figure — never a guessed number.
     salaryMinHourlyCents: null,
     salaryMaxHourlyCents: null,
+    experienceMonths: null,
   },
   {
     slug: "tire-technician",
@@ -156,7 +168,7 @@ export const JOB_OPENINGS: JobOpening[] = [
     level: "Entry to Mid",
     employmentType: "FULL_TIME",
     description:
-      "The role that keeps us running. Fast hands, attention to TPMS sensors, and the discipline to torque lug nuts to spec without skipping steps. We're one of Cleveland's busiest tire operations — there's always work, the pace is real, and the money is consistent.",
+      "The role that keeps us running. Fast hands, attention to TPMS sensors, and the discipline to torque lug nuts to spec without skipping steps. Tires are the core of this shop — the pace is real, and the pay is hourly.",
     responsibilities: [
       "Mount, balance, and install tires on cars, trucks, SUVs, and fleet vans",
       "Perform TPMS sensor service and resets",
@@ -179,8 +191,11 @@ export const JOB_OPENINGS: JobOpening[] = [
     status: "open",
     datePosted: "2026-09-09",
     validThrough: "2026-12-31",
-    salaryMinHourlyCents: null,
-    salaryMaxHourlyCents: null,
+    // 2026-09-23 · owner decision: matched to Enterprise Euclid's associate
+    // range. Public pay floor — change only with the owner.
+    salaryMinHourlyCents: 2200,
+    salaryMaxHourlyCents: 2550,
+    experienceMonths: null,
   },
 ];
 
@@ -199,6 +214,46 @@ export function jobOpeningBySlug(slug: string): JobOpening | undefined {
 }
 
 /**
+ * Visible hourly pay string, e.g. "$30.00–$37.50/hr", or null when the role
+ * has no published band. The job page renders THIS so the visible figure and
+ * baseSalary can never disagree — Google requires markup to match the page.
+ */
+export function formatHourlyPayRange(job: JobOpening): string | null {
+  const { salaryMinHourlyCents: lo, salaryMaxHourlyCents: hi } = job;
+  if (lo == null && hi == null) return null;
+  const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+  if (lo != null && hi != null && lo !== hi) return `${fmt(lo)}–${fmt(hi)}/hr`;
+  return `${fmt((lo ?? hi)!)}/hr`;
+}
+
+function escapeHtml(t: string): string {
+  return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function htmlList(heading: string, items: string[]): string {
+  if (items.length === 0) return "";
+  return `<p><strong>${heading}</strong></p><ul>${items.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`;
+}
+
+/**
+ * Google: description is "the full description of the job in HTML format".
+ * The first version joined description + responsibilities into one run-on
+ * plain-text string and dropped the requirements list entirely. Every string
+ * here is also rendered visibly on the job page.
+ */
+function buildJobDescriptionHtml(job: JobOpening, shopHours: string): string {
+  const pay = formatHourlyPayRange(job);
+  return [
+    `<p>${escapeHtml(job.description)}</p>`,
+    htmlList("What you'll do", job.responsibilities),
+    htmlList("What we need", job.requirements),
+    htmlList("Nice to have", job.nice),
+    pay ? `<p><strong>Pay:</strong> ${escapeHtml(pay)}, hourly.</p>` : "",
+    `<p><strong>Shop hours:</strong> ${escapeHtml(shopHours)}</p>`,
+  ].join("");
+}
+
+/**
  * Build the JobPosting for ONE opening.
  *
  * Returns null for a non-open role, so a filled job cannot emit structured
@@ -210,6 +265,8 @@ export function buildJobPostingSchema(
     siteUrl: string;
     orgName: string;
     logoUrl: string;
+    /** Visible shop-hours line, e.g. BUSINESS.hours.display. */
+    shopHours: string;
     address: { street: string; city: string; state: string; zip: string };
   },
 ): Record<string, unknown> | null {
@@ -219,7 +276,7 @@ export function buildJobPostingSchema(
     "@context": "https://schema.org",
     "@type": "JobPosting",
     title: job.title,
-    description: [job.description, ...job.responsibilities].join(" "),
+    description: buildJobDescriptionHtml(job, ctx.shopHours),
     identifier: { "@type": "PropertyValue", name: ctx.orgName, value: job.slug },
     datePosted: job.datePosted,
     validThrough: job.validThrough,
@@ -260,6 +317,13 @@ export function buildJobPostingSchema(
       value.value = (lo ?? hi)! / 100;
     }
     schema.baseSalary = { "@type": "MonetaryAmount", currency: "USD", value };
+  }
+
+  if (job.experienceMonths != null) {
+    schema.experienceRequirements = {
+      "@type": "OccupationalExperienceRequirements",
+      monthsOfExperience: job.experienceMonths,
+    };
   }
 
   return schema;

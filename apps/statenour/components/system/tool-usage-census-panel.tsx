@@ -123,7 +123,7 @@ export function ToolUsageCensusPanel() {
             {silent
               .map(
                 (r) =>
-                  `${r.instrument} ${r.status.toLowerCase()} ${r.writesInWindow}/${instrumentsQ.data?.assistantTurns ?? "?"}` +
+                  `${r.instrument} ${r.status.toLowerCase()} ${r.writesInWindow}/${r.denominator?.count ?? instrumentsQ.data?.assistantTurns ?? "?"}` +
                   (r.conditional ? " (conditional)" : ""),
               )
               .join(" · ")}

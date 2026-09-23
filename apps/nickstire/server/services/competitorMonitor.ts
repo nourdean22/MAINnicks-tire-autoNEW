@@ -75,6 +75,50 @@ const COMPETITORS: Array<{ name: string; placeId: string; searchQuery: string }>
     placeId: "",
     searchQuery: "EJ's Tire and Auto Repair Cleveland OH",
   },
+  // 2026-09-23 · the REVIEW-VOLUME set. The recruiting research
+  // (docs/recruiting/RECRUITING-ENGINE-2026-09.md Sec. 1 #5, Sec. 7) wants to
+  // say "most-reviewed tire & auto shop within N miles" and could not: these
+  // are the nearby shops whose public review counts came closest (aggregator
+  // figures, 2026-09-22: Conrad's Mayfield Hts ~931, NTB Mayfield ~554,
+  // Confident Tire Euclid 1,530 on SureCritic with Google unknown). Measuring
+  // them here, in the table that already persists snapshots, is what turns
+  // the claim into a dated fact — or rules it out. No superlative ships
+  // until a snapshot supports it.
+  {
+    name: "Confident Tire (Lakeland Blvd, Euclid)",
+    placeId: "",
+    searchQuery: "Confident Tire 25680 Lakeland Blvd Euclid OH",
+  },
+  {
+    name: "Firestone Complete Auto Care (26086 Euclid Ave, Euclid)",
+    placeId: "",
+    searchQuery: "Firestone Complete Auto Care 26086 Euclid Ave Euclid OH",
+  },
+  {
+    name: "Conrad's Tire Express (Mayfield Hts)",
+    placeId: "",
+    searchQuery: "Conrad's Tire Express 5739 Mayfield Rd Mayfield Heights OH",
+  },
+  {
+    name: "NTB (Mayfield Rd)",
+    placeId: "",
+    searchQuery: "NTB National Tire and Battery 3997 Mayfield Rd Cleveland Heights OH",
+  },
+  {
+    name: "Mr. Tire (South Euclid)",
+    placeId: "",
+    searchQuery: "Mr. Tire 4522 Mayfield Rd South Euclid OH",
+  },
+  {
+    name: "Tire Choice (South Euclid)",
+    placeId: "",
+    searchQuery: "Tire Choice Auto Service Centers 4311 Mayfield Rd South Euclid OH",
+  },
+  {
+    name: "Euclid Tire",
+    placeId: "",
+    searchQuery: "Euclid Tire 1054 E 222nd St Euclid OH",
+  },
 ];
 
 // In-memory cache of resolved Place IDs (survives across cron runs within same process)

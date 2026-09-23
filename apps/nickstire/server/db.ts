@@ -1,4 +1,5 @@
 import { eq, desc, and, gte, lte, sql, inArray } from "drizzle-orm";
+import { CANDIDATE_SLA_OPEN_STATUSES, type CandidateStatus } from "@shared/candidateLifecycle";
 import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import {
@@ -661,7 +662,7 @@ export async function getCandidateSlaBreaches() {
           // ever calling them would have silently emptied the alarm while the
           // person kept waiting. `updateStatus` stamps contactedAt whenever it
           // writes "contacted", so the surviving set is {new, interviewing}.
-          inArray(candidates.status, ["new", "interviewing"]),
+          inArray(candidates.status, [...CANDIDATE_SLA_OPEN_STATUSES]),
           // The 24 comes from SLA_THRESHOLD_HOURS.warning rather than a literal:
           // it was hard-coded here AND declared there, so raising the surfacing
           // threshold in one place would have left this query still returning
@@ -824,16 +825,131 @@ export async function updateTechnicianReferralStatus(
 // code for any environment where 0122 hasn't been applied yet (a fresh
 // dev DB, for instance), not dead code from the cutover.
 
+/**
+ * Columns added by drizzle/0129_candidates_recruiting_funnel.sql. The DDL is
+ * hand-applied, so for a window the code knows these and production may not.
+ */
+export const CANDIDATE_0129_COLUMNS = [
+  "intent",
+  "moveReasons",
+  "phoneE164",
+  "refCode",
+  "gclid",
+  "utmTerm",
+  "utmContent",
+  "nextFollowUpAt",
+  "ownerAlertedAt",
+] as const;
+
+/** MySQL/TiDB "unknown column" — 1054 / ER_BAD_FIELD_ERROR, including drizzle-wrapped causes. */
+export function isUnknownColumnError(err: unknown): boolean {
+  for (let e = err as { code?: unknown; errno?: unknown; cause?: unknown; message?: unknown } | null, i = 0; e && i < 3; e = e.cause as typeof e, i++) {
+    if (e.code === "ER_BAD_FIELD_ERROR" || e.errno === 1054) return true;
+    if (typeof e.message === "string" && /Unknown column/i.test(e.message)) return true;
+  }
+  return false;
+}
+
 export async function createCandidate(candidate: InsertCandidate) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   try {
     const result = await db.insert(candidates).values(candidate);
-    return { success: true, id: Number(result[0].insertId) } as const;
+    return { success: true, id: Number(result[0].insertId), columns0129: true } as const;
   } catch (err) {
     if (isMissingTableError(err)) {
       return { success: false, migrationPending: true as const };
     }
+    // 0129 not applied yet: save the application with the pre-0129 columns
+    // rather than lose it. The caller folds intent/move-reasons into
+    // `message` too, so nothing the applicant said is dropped either way.
+    if (isUnknownColumnError(err)) {
+      const base: Record<string, unknown> = { ...candidate };
+      for (const k of CANDIDATE_0129_COLUMNS) delete base[k];
+      log.warn("[createCandidate] 0129 columns missing — saved with pre-0129 columns");
+      const result = await db.insert(candidates).values(base as InsertCandidate);
+      return { success: true, id: Number(result[0].insertId), columns0129: false } as const;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Pre-0129 projection — every column the table had before the recruiting
+ * funnel DDL. A FUNCTION, not a module constant: a constant dereferences
+ * `candidates` at import time, which breaks every test that mocks
+ * ../drizzle/schema without that export (CI, 2026-09-23).
+ */
+const candidateBaseProjection = () => ({
+  id: candidates.id,
+  name: candidates.name,
+  phone: candidates.phone,
+  email: candidates.email,
+  positionTitle: candidates.positionTitle,
+  experienceLevel: candidates.experienceLevel,
+  message: candidates.message,
+  source: candidates.source,
+  status: candidates.status,
+  utmSource: candidates.utmSource,
+  utmMedium: candidates.utmMedium,
+  utmCampaign: candidates.utmCampaign,
+  landingPage: candidates.landingPage,
+  referrer: candidates.referrer,
+  sessionId: candidates.sessionId,
+  contactedAt: candidates.contactedAt,
+  contactedBy: candidates.contactedBy,
+  notes: candidates.notes,
+  createdAt: candidates.createdAt,
+  updatedAt: candidates.updatedAt,
+});
+
+const candidateFullProjection = () => ({
+  ...candidateBaseProjection(),
+  intent: candidates.intent,
+  moveReasons: candidates.moveReasons,
+  phoneE164: candidates.phoneE164,
+  refCode: candidates.refCode,
+  gclid: candidates.gclid,
+  utmTerm: candidates.utmTerm,
+  utmContent: candidates.utmContent,
+  nextFollowUpAt: candidates.nextFollowUpAt,
+  ownerAlertedAt: candidates.ownerAlertedAt,
+});
+
+/** Stamp the owner-alert time. A no-op (not an error) before 0129 is applied. */
+export async function markCandidateOwnerAlerted(id: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.update(candidates).set({ ownerAlertedAt: new Date() }).where(eq(candidates.id, id));
+  } catch (err) {
+    if (isUnknownColumnError(err)) return;
+    throw err;
+  }
+}
+
+/**
+ * Earlier rows with the same normalized phone — the duplicate-applicant check.
+ * `available: false` when the lookup could not run, so a caller cannot mistake
+ * "couldn't check" for "first time we've seen them" (the fabricated-read gate,
+ * server/fabricatedAdminReadGate.test.ts, enforces this shape).
+ */
+export async function findCandidatesByPhoneE164(
+  phoneE164: string,
+  excludeId: number,
+): Promise<{ available: boolean; rows: Array<{ id: number; createdAt: Date; status: string }> }> {
+  const db = await getDb();
+  if (!db) return { available: false, rows: [] };
+  try {
+    const rows = await db
+      .select({ id: candidates.id, createdAt: candidates.createdAt, status: candidates.status })
+      .from(candidates)
+      .where(and(eq(candidates.phoneE164, phoneE164), sql`${candidates.id} <> ${excludeId}`))
+      .orderBy(desc(candidates.createdAt))
+      .limit(5);
+    return { available: true, rows };
+  } catch (err) {
+    if (isUnknownColumnError(err) || isMissingTableError(err)) return { available: false, rows: [] };
     throw err;
   }
 }
@@ -848,8 +964,24 @@ export async function getCandidates() {
   // that is genuinely empty.
   if (!db) return { available: false as const, migrationPending: false as const, rows: [] as Candidate[] };
   try {
-    const rows: Candidate[] = await db.select().from(candidates).orderBy(desc(candidates.createdAt)).limit(500);
-    return { available: true as const, migrationPending: false as const, rows };
+    // Named columns, never a bare select(): adding 0129 to schema.ts would
+    // otherwise make this read name columns production may not have yet.
+    try {
+      const rows = (await db
+        .select(candidateFullProjection())
+        .from(candidates)
+        .orderBy(desc(candidates.createdAt))
+        .limit(500)) as Candidate[];
+      return { available: true as const, migrationPending: false as const, rows };
+    } catch (err) {
+      if (!isUnknownColumnError(err)) throw err;
+      const rows = (await db
+        .select(candidateBaseProjection())
+        .from(candidates)
+        .orderBy(desc(candidates.createdAt))
+        .limit(500)) as Candidate[];
+      return { available: true as const, migrationPending: false as const, rows };
+    }
   } catch (err) {
     if (isMissingTableError(err)) {
       return { available: true as const, migrationPending: true as const, rows: [] as Candidate[] };
@@ -861,7 +993,7 @@ export async function getCandidates() {
 export async function updateCandidateStatus(
   id: number,
   updates: {
-    status?: "new" | "contacted" | "interviewing" | "hired" | "declined" | "withdrew";
+    status?: CandidateStatus;
     contactedAt?: Date;
     contactedBy?: string;
     notes?: string;
@@ -869,7 +1001,19 @@ export async function updateCandidateStatus(
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(candidates).set(updates).where(eq(candidates.id, id));
+  const { contactedAt, ...rest } = updates;
+  await db
+    .update(candidates)
+    .set({
+      ...rest,
+      // First contact is a fact about the past: keep the earliest stamp.
+      // Moving a candidate from "contacted" to "offer" must not reset the
+      // time-to-first-contact metric to today.
+      ...(contactedAt
+        ? { contactedAt: sql`COALESCE(${candidates.contactedAt}, ${sql.param(contactedAt, candidates.contactedAt)})` }
+        : {}),
+    })
+    .where(eq(candidates.id, id));
   return { success: true };
 }
 

@@ -50,7 +50,9 @@ describe("runSchemaDriftCheck — happy path", () => {
           {
             column_name: e.column,
             is_nullable: e.nullable === false ? "NO" : "YES",
-            data_type: "text",
+            data_type: e.dataType ?? "text",
+            is_generated: e.generationExpression ? "ALWAYS" : "NEVER",
+            generation_expression: e.generationExpression ?? null,
           },
         ];
       }
@@ -87,7 +89,7 @@ describe("runSchemaDriftCheck — column_exists", () => {
     const responses = EXPECTATIONS.map((e, idx) => {
       if (idx === 0) return []; // missing
       if (e.kind === "column_exists") {
-        return [{ column_name: e.column, is_nullable: e.nullable === false ? "NO" : "YES" }];
+        return [{ column_name: e.column, is_nullable: e.nullable === false ? "NO" : "YES", data_type: e.dataType ?? "text", is_generated: e.generationExpression ? "ALWAYS" : "NEVER", generation_expression: e.generationExpression ?? null }];
       }
       if (e.kind === "regular_unique_absent") return [];
       return [{ indexname: e.kind === "partial_unique" ? e.indexName : (e as { indexName?: string }).indexName, indexdef: e.kind === "partial_unique" ? `CREATE UNIQUE INDEX foo WHERE ${e.predicate}` : "CREATE INDEX foo" }];
@@ -116,7 +118,7 @@ describe("runSchemaDriftCheck — partial_unique", () => {
         ];
       }
       if (e.kind === "column_exists") {
-        return [{ column_name: e.column, is_nullable: e.nullable === false ? "NO" : "YES" }];
+        return [{ column_name: e.column, is_nullable: e.nullable === false ? "NO" : "YES", data_type: e.dataType ?? "text", is_generated: e.generationExpression ? "ALWAYS" : "NEVER", generation_expression: e.generationExpression ?? null }];
       }
       if (e.kind === "regular_unique_absent") return [];
       return [{ indexname: (e as { indexName?: string }).indexName, indexdef: "CREATE INDEX foo" }];
@@ -142,7 +144,7 @@ describe("runSchemaDriftCheck — partial_unique", () => {
         ];
       }
       if (e.kind === "column_exists") {
-        return [{ column_name: e.column, is_nullable: e.nullable === false ? "NO" : "YES" }];
+        return [{ column_name: e.column, is_nullable: e.nullable === false ? "NO" : "YES", data_type: e.dataType ?? "text", is_generated: e.generationExpression ? "ALWAYS" : "NEVER", generation_expression: e.generationExpression ?? null }];
       }
       if (e.kind === "regular_unique_absent") return [];
       return [{ indexname: (e as { indexName?: string }).indexName, indexdef: "CREATE INDEX foo" }];
@@ -169,7 +171,7 @@ describe("runSchemaDriftCheck — regular_unique_absent", () => {
         ];
       }
       if (e.kind === "column_exists") {
-        return [{ column_name: e.column, is_nullable: e.nullable === false ? "NO" : "YES" }];
+        return [{ column_name: e.column, is_nullable: e.nullable === false ? "NO" : "YES", data_type: e.dataType ?? "text", is_generated: e.generationExpression ? "ALWAYS" : "NEVER", generation_expression: e.generationExpression ?? null }];
       }
       if (e.kind === "partial_unique") {
         return [
