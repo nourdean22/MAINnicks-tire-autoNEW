@@ -98,6 +98,10 @@ export const BRAIN_CATEGORIES = {
   BRAIN: "brain",
   BRAIN_DUMP_IMPORTANCE: "brain_dump_importance",
   EMOTIONAL_ARC: "emotional_arc",
+  /** Hourly mood rows (journal-ingest, pipeline-controller). Written since
+   *  v10.0.232 but never registered, so every chat turn's write logged
+   *  unknown_category and was flagged for review (registered 2026-09-23). */
+  EMOTIONAL_STATE: "emotional_state",
   LEARNING_JOURNAL: "learning_journal",
   LEARNING_VELOCITY: "learning_velocity",
   LESSON: "lesson",
