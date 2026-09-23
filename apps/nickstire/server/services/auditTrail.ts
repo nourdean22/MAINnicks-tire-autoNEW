@@ -58,6 +58,10 @@ export type AuditAction =
   // early (ends the 60-min takeover hold; humanTakeover.ts reads it)
   | "customer.sms_takeover_released"
   | "customer.sms_manual_send"
+  // 2026-09-23 · an operator closes a waiting text without replying (ROS-058
+  // markNoReplyNeeded). Deliberately NOT sms_manual_send: nothing was sent,
+  // so it must not arm the 60-min takeover hold humanTakeover.ts reads.
+  | "customer.sms_no_reply_needed"
   // Was listed three times; a repeated union member is a no-op to TS, so
   // nothing ever flagged it. Collapsed to one — no behaviour change.
   | "customer.sms_autosend_reply"

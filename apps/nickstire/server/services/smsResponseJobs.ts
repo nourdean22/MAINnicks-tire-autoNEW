@@ -442,16 +442,26 @@ export interface HumanPendingSummary {
   oldestWaitingMinutes: number | null;
 }
 
-/** One open human_pending obligation (one inbound text), as the reader returns it. */
+/**
+ * Open human_pending obligations for one conversation. The reader returns one
+ * row per conversation (grouped in SQL); a row for a single text is the same
+ * shape with texts = 1, so the reduction below accepts either.
+ */
 export interface HumanPendingRow {
   jobId: number;
   conversationId: number;
   phone: string;
   customerName: string | null;
+  /** The latest open text. */
   body: string;
+  /** Since the oldest open text. */
   waitingMinutes: number;
-  /** dueAt (createdAt + HUMAN_SLA_MS) has passed. */
+  /** Any open text's dueAt (createdAt + HUMAN_SLA_MS) has passed. */
   overdue: boolean;
+  /** Open texts this row stands for. Default 1. */
+  texts?: number;
+  /** Age of the latest open text. Default waitingMinutes. */
+  newestMinutes?: number;
 }
 
 /** A customer waiting on a human reply: one per conversation. */
@@ -479,10 +489,12 @@ export function waitingConversations(rows: ReadonlyArray<HumanPendingRow>): Wait
   const byThread = new Map<number, { item: WaitingConversation; newest: number }>();
   for (const r of rows) {
     if (isNonCustomer({ customerPhone: r.phone, customerName: r.customerName })) continue;
+    const texts = r.texts ?? 1;
+    const newest = r.newestMinutes ?? r.waitingMinutes;
     const seen = byThread.get(r.conversationId);
     if (!seen) {
       byThread.set(r.conversationId, {
-        newest: r.waitingMinutes,
+        newest,
         item: {
           conversationId: r.conversationId,
           phone: r.phone,
@@ -490,16 +502,16 @@ export function waitingConversations(rows: ReadonlyArray<HumanPendingRow>): Wait
           preview: previewOf(r.body),
           waitingMinutes: r.waitingMinutes,
           overdue: r.overdue,
-          texts: 1,
+          texts,
         },
       });
       continue;
     }
-    seen.item.texts++;
+    seen.item.texts += texts;
     seen.item.overdue ||= r.overdue;
     if (r.waitingMinutes > seen.item.waitingMinutes) seen.item.waitingMinutes = r.waitingMinutes;
-    if (r.waitingMinutes < seen.newest) {
-      seen.newest = r.waitingMinutes;
+    if (newest < seen.newest) {
+      seen.newest = newest;
       seen.item.preview = previewOf(r.body);
     }
   }
@@ -520,39 +532,52 @@ export function summarizeWaitingConversations(rows: ReadonlyArray<HumanPendingRo
   };
 }
 
-/** Open obligations are few (each is a customer a human owes); the cap is a guard, oldest kept. */
-const HUMAN_PENDING_READ_CAP = 2000;
-
-/** Read every open obligation. Throws on DB unavailability: UNKNOWN, never zero. */
+/**
+ * Read every open obligation, one row per conversation, in one pass. Grouped
+ * in SQL and deliberately UNCAPPED: the row count is the number of waiting
+ * customers, and a cap on per-text rows would silently drop the newest
+ * customers from Today and the badge once a backlog built up. Throws on DB
+ * unavailability: UNKNOWN, never zero.
+ */
 async function readHumanPendingRows(): Promise<HumanPendingRow[]> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
   if (!db) throw new Error("database unavailable — human-pending count is UNKNOWN, not zero");
   // Ages come from the DB's own NOW(): driver-parsed TiDB timestamps shift on an ET host.
+  // The latest body is the first of an ordered GROUP_CONCAT (createdAt, then id:
+  // TiDB ids are not time-ordered); truncation at group_concat_max_len only
+  // cuts the tail, and the preview needs 120 chars. SEPARATOR must be a SQL
+  // literal (not a bound param); a body containing '~|~' only shortens its preview.
   const [rows] = await db.execute(sql`
-    SELECT j.id AS jobId,
+    SELECT MIN(j.id) AS jobId,
            j.conversationId,
-           j.customerPhone AS phone,
-           c.customerName,
-           j.body,
-           TIMESTAMPDIFF(MINUTE, j.createdAt, NOW()) AS waitingMinutes,
-           CASE WHEN j.dueAt < NOW() THEN 1 ELSE 0 END AS overdue
+           MAX(j.customerPhone) AS phone,
+           MAX(c.customerName) AS customerName,
+           SUBSTRING_INDEX(GROUP_CONCAT(j.body ORDER BY j.createdAt DESC, j.id DESC SEPARATOR '~|~'), '~|~', 1) AS body,
+           COUNT(*) AS texts,
+           TIMESTAMPDIFF(MINUTE, MIN(j.createdAt), NOW()) AS waitingMinutes,
+           TIMESTAMPDIFF(MINUTE, MAX(j.createdAt), NOW()) AS newestMinutes,
+           MAX(CASE WHEN j.dueAt < NOW() THEN 1 ELSE 0 END) AS overdue
     FROM sms_response_jobs j
     LEFT JOIN sms_conversations c ON c.id = j.conversationId
     WHERE j.status = 'human_pending'
-    ORDER BY j.createdAt ASC
-    LIMIT ${HUMAN_PENDING_READ_CAP}
+    GROUP BY j.conversationId
   `);
-  return (rows as Array<Record<string, unknown>>).map((r) => ({
-    jobId: Number(r.jobId),
-    conversationId: Number(r.conversationId),
-    phone: String(r.phone ?? ""),
-    customerName: r.customerName == null ? null : String(r.customerName),
-    body: String(r.body ?? ""),
-    waitingMinutes: Number(r.waitingMinutes ?? 0),
-    overdue: Number(r.overdue ?? 0) === 1,
-  }));
+  return (rows as Array<Record<string, unknown>>).map((r) => {
+    const waitingMinutes = Number(r.waitingMinutes ?? 0);
+    return {
+      jobId: Number(r.jobId),
+      conversationId: Number(r.conversationId),
+      phone: String(r.phone ?? ""),
+      customerName: r.customerName == null ? null : String(r.customerName),
+      body: String(r.body ?? ""),
+      waitingMinutes,
+      overdue: Number(r.overdue ?? 0) === 1,
+      texts: r.texts == null ? 1 : Number(r.texts),
+      newestMinutes: r.newestMinutes == null ? waitingMinutes : Number(r.newestMinutes),
+    };
+  });
 }
 
 /**

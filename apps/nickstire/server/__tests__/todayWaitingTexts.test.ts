@@ -94,6 +94,17 @@ describe("Today's waiting texts follow the ROS-058 obligation", () => {
     });
   });
 
+  it("a grouped row (one per conversation, as the reader returns) keeps its text count and latest text", () => {
+    const items = waitingConversations([
+      { ...job(17, 400, { body: "Hello??" }), texts: 3, newestMinutes: 12 },
+      { ...job(18, 50), texts: 1, newestMinutes: 50 },
+    ]);
+    expect(items.map((i) => [i.conversationId, i.texts, i.waitingMinutes, i.preview])).toEqual([
+      [17, 3, 400, "Hello??"],
+      [18, 1, 50, "Do you have 225/65R17 in stock?"],
+    ]);
+  });
+
   it("an empty queue is a real zero with a null oldest", () => {
     expect(summarizeWaitingConversations([])).toEqual({ humanPending: 0, overdue: 0, oldestWaitingMinutes: null });
   });
@@ -108,6 +119,28 @@ describe("wiring (source pins)", () => {
     expect(bundle).not.toMatch(/getOwedTexts/);
     expect(() => read("server/services/owedTexts.ts")).toThrow();
     expect(() => read("server/lib/owedTextsRule.ts")).toThrow();
+  });
+
+  it("the reader groups per conversation in SQL and reads EVERY open obligation (no silent row cap)", () => {
+    // An oldest-first cap on per-text rows silently dropped the NEWEST customers
+    // once a backlog built up, and capped the badge count with it.
+    const src = read("server/services/smsResponseJobs.ts");
+    const reader = src.slice(src.indexOf("async function readHumanPendingRows"), src.indexOf("export async function listWaitingConversations"));
+    expect(reader).toMatch(/GROUP BY j\.conversationId/);
+    expect(reader).not.toMatch(/\bLIMIT\b/);
+  });
+
+  it("'No reply needed' is audited as its own action, so it never arms the 60-min human-takeover hold", () => {
+    // The takeover checks treat a customer.sms_manual_send row as proof a human is
+    // mid-conversation and downgrade the AI's next reply to a draft. A dismissal
+    // sends nothing, so it must not write that action.
+    const router = read("server/routers/smsConversations.ts");
+    const block = router.slice(router.indexOf("markNoReplyNeeded:"), router.indexOf("saveFeedback:"));
+    expect(block).toMatch(/action: "customer\.sms_no_reply_needed"/);
+    expect(block).not.toMatch(/customer\.sms_manual_send/);
+    for (const reader of ["server/services/humanTakeover.ts", "server/services/smsControl.ts"]) {
+      expect(read(reader)).not.toMatch(/sms_no_reply_needed/);
+    }
   });
 
   it("Today offers the existing 'No reply needed' mutation on a text item", () => {
