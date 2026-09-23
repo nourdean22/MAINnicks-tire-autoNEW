@@ -22,24 +22,29 @@ const log = createLogger("event-bus");
 
 // ─── EVENT TYPES ──────────────────────────────────────
 
-export type BusinessEvent =
-  | "lead_captured"
-  | "callback_requested"
-  | "booking_created"
-  | "booking_completed"
-  | "tire_order_placed"
-  | "invoice_created"
-  | "invoice_paid"
-  | "estimate_generated"
-  | "emergency_request"
-  | "payment_received"
-  | "review_detected"
-  | "campaign_sent"
-  | "stage_changed"
-  | "social_posted"
-  | "mirror_synced"
-  | "data_refreshed"
-  | "social_draft:sync";
+// Runtime list of every bus type, so a test can walk them all. The union below is
+// derived from it: adding a type here is the one place to add it.
+export const BUSINESS_EVENTS = [
+  "lead_captured",
+  "callback_requested",
+  "booking_created",
+  "booking_completed",
+  "tire_order_placed",
+  "invoice_created",
+  "invoice_paid",
+  "estimate_generated",
+  "emergency_request",
+  "payment_received",
+  "review_detected",
+  "campaign_sent",
+  "stage_changed",
+  "social_posted",
+  "mirror_synced",
+  "data_refreshed",
+  "social_draft:sync",
+] as const;
+
+export type BusinessEvent = (typeof BUSINESS_EVENTS)[number];
 
 export interface EventPayload {
   type: BusinessEvent;
@@ -464,11 +469,14 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
-  // 7. Statenour real-time sync (push ALL events immediately — full circle)
+  // 7. Statenour real-time sync — ONLY the types "nour-os-bridge" (#1) does not map.
+  // Q-12 phase 0 (docs/adr/0019-idempotent-bridge-writes.md §9): with "all", the other
+  // 14 types reached /api/sync/events twice (as an audit-only duplicate under
+  // nickstire:<bus type>). eventBus.statenourOnce.test.ts fails on 0 or 2 senders.
   registerDestination({
     name: "statenour-sync",
     enabled: true,
-    handles: "all", // Every event reaches statenour brain for processing
+    handles: ["social_draft:sync", "mirror_synced", "data_refreshed"],
     softFail: true,
     handler: async (event) => {
       const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
@@ -478,13 +486,6 @@ async function ensureInitialized(): Promise<void> {
       try {
         // Map event types to statenour brain categories for richer processing
         const categoryMap: Record<string, string> = {
-          lead_captured: "lead", callback_requested: "lead",
-          booking_created: "booking", booking_completed: "booking",
-          tire_order_placed: "invoice", invoice_created: "invoice", invoice_paid: "invoice",
-          payment_received: "invoice", estimate_generated: "invoice",
-          emergency_request: "emergency", review_detected: "review",
-          campaign_sent: "campaign", social_posted: "campaign",
-          stage_changed: "stage-change",
           mirror_synced: "sync", data_refreshed: "sync",
           "social_draft:sync": "campaign",
         };
@@ -615,8 +616,7 @@ export async function dispatch(
   const dispatchedTo: string[] = [];
 
   // Fire all matching destinations in parallel
-  const promises = destinations
-    .filter(d => d.enabled && (d.handles === "all" || d.handles.includes(type)))
+  const promises = routeFor(type)
     .map(async (dest) => {
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
@@ -664,6 +664,17 @@ export async function dispatch(
   }
 
   return { dispatched, failed, destinations: dispatchedTo };
+}
+
+/** The destinations dispatch() fires for `type`. */
+function routeFor(type: BusinessEvent): Destination[] {
+  return destinations.filter(d => d.enabled && (d.handles === "all" || d.handles.includes(type)));
+}
+
+/** Test seam: the real routing, without firing every destination's side effects. */
+export async function __routeForTest(type: BusinessEvent): Promise<Array<Pick<Destination, "name" | "handler">>> {
+  await ensureInitialized();
+  return routeFor(type);
 }
 
 // ─── CONVENIENCE FUNCTIONS ────────────────────────────
