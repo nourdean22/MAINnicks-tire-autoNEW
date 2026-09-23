@@ -39,6 +39,15 @@ jobs:
           node-version: 24
 
       - name: agent-os verify
+        env:
+          # Session Authority canaries (2026-09-23) make read-only GitHub API calls
+          # (branch/PR reads, compare) via scripts/agent-os/github-client.mjs and
+          # skip themselves when no token is available -- but this job's own
+          # checkout provides none by default, so they skipped everywhere until
+          # this line. No write-scoped call exists in any of them (verified:
+          # repo-rescue.test.mjs's real-PR path is dry-run only).
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/agent-os/verify.mjs
 
   source-citation:
