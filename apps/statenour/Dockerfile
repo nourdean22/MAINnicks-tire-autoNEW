@@ -83,6 +83,22 @@ RUN pnpm --filter @statenour/lenses run build
 RUN pnpm --filter @nour/social-assets run build
 RUN pnpm --filter @nour/ai-capabilities run build
 
+# Deploy skew (Q-35 · Sentry "Failed to find Server Action"). Railway hands a
+# Dockerfile build its variables ONLY through ARG, declared in the stage that
+# uses them (docs.railway.com/builds/dockerfiles). Both are no-ops when unset.
+#   RAILWAY_GIT_COMMIT_SHA — Railway-provided; next.config.ts turns it into
+#     `deploymentId`, so a client on the old build hard-navigates instead of
+#     fetching assets and RSC payloads the new image does not have.
+#   NEXT_SERVER_ACTIONS_ENCRYPTION_KEY — an operator-set service variable. Next
+#     salts every Server Action id with this key; unset, `next build` draws a
+#     random one (cached in .next/cache, which a Docker build never has), so
+#     EVERY deploy re-keys EVERY action, unchanged ones included. A stable key
+#     keeps unchanged actions callable from a tab opened before the deploy.
+#     The runtime reads the key from the build manifest, so it is not repeated
+#     in the runtime stage.
+ARG RAILWAY_GIT_COMMIT_SHA
+ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+
 # Build the Next.js app · produces apps/statenour/.next/standalone/
 ENV NODE_ENV=production
 WORKDIR /repo/apps/statenour
