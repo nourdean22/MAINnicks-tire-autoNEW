@@ -389,6 +389,23 @@ describe("needs, friction, promises", () => {
     expect(countPromises(["The shop can't text you tonight, but Nick will give you a call tomorrow."])).toMatchObject({ callback: 1, text_followup: 0 });
   });
 
+  it("a text sent during the call, a drop-off condition, and a present-tense 'when it's ready' are not open promises", () => {
+    for (const s of [
+      // the old scripted oil-change line (vapi.ts before 2026-09-23): conditional + automated
+      "pull up, we'll do it while you wait, or drop it off and we'll text when it's ready.",
+      "I'll text you the address real quick, drive safe.",
+      "We'll text you a confirmation with the address.",
+      "I'm going to send you a text with the details.",
+      "You'll get a text with the details.",
+      "We'll let you know when you pull up.",
+      "When it's ready you can pick it up.",
+    ]) expect(Object.values(countPromises([s])).reduce((a, b) => a + b, 0), s).toBe(0);
+    // real open promises still count
+    expect(countPromises(["Someone will call you back."]).callback).toBe(1);
+    expect(countPromises(["We'll text you once the parts come in."]).text_followup).toBe(1);
+    expect(countPromises(["I'll let you know when it's ready."]).status_update).toBe(1);
+  });
+
   it("a rack check is a promise only as a future check AND a report back", () => {
     expect(countPromises(["I'll have the team check the rack and let you know."]).rack_check).toBe(1);
     expect(countPromises(["Let me have the team check the rack."]).rack_check).toBe(0);

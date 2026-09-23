@@ -412,12 +412,22 @@ const PROMISE_PATTERNS = {
   text_followup: /\b(will|'ll|going to)\b.{0,20}\b(text|send (you )?(a )?(text|message|link))\b/i,
   // A FUTURE check that REPORTS BACK. "Let me check what we have" is the call working, not a promise.
   rack_check: /\b(will|'ll|going to|gonna|have (someone|the team|a tech\w*|nick|them))\b.{0,30}\b(?:(?:check|look at|look in)\b.{0,40}\b(?:rack|stock|inventory|in the back|what we have)|see what we have)\b.{0,60}\b(let you know|get back to you|call you|text you|reach out|update you|give you a call)\b/i,
-  status_update: /\b(let you know|update you|keep you posted|when (it'?s|your car is) ready)\b/i,
+  // Future tense required: "when it's ready you can pick it up" and "I'll let you know the
+  // price is $49" are not a later report (the 2026-09-23 census counted both).
+  status_update: /\b(will|'ll|going to|gonna)\b.{0,15}\b(let you know|update you|keep you posted|(text|call)( you)?\b.{0,10}when (it'?s|your car is) ready)\b/i,
 } as const;
 export type PromiseKind = keyof typeof PROMISE_PATTERNS;
 
 /** Something done DURING the call ("let me check", "one sec") — not an obligation. */
 const IN_CALL = /\b(let me (check|see|look)|one (sec|second|moment)|in a (sec|second|moment|minute)|right now|hold on)\b/i;
+/**
+ * Kept on the spot, or conditional on a drop-off the call cannot create: the
+ * address / confirmation text goes out during the call (sendConfirmationSms), and
+ * "drop it off and we'll text when it's ready" is the old scripted oil-change
+ * line (vapi.ts, reworded 2026-09-23) whose text is automated once a work order
+ * exists. Counting either as an open promise inflated oil-change to 30 of 42.
+ */
+const FULFILLED_OR_CONDITIONAL = /\b(text|send)\b.{0,25}\b(address|confirmation|details|recap|directions|location)\b|\bdrop (it|the car|your car) off\b|\bwhen you (pull up|get here|come in)\b/i;
 /**
  * A negation governing the action ("I can't check the inventory", "I don't think
  * the team will call"): the negation must reach the verb within four words, so
@@ -433,7 +443,7 @@ const NEGATED = /\b(can't|cannot|won't|unable to|not able to|don't)\b(?:\s+[\w']
 export function countPromises(assistantTurns: readonly string[]): Record<PromiseKind, number> {
   return countMatches(
     assistantTurns.map((t) => plain(t).split(/[.!?;]+|,\s*but\b/i).map((c) => c.trim())
-      .filter((c) => c && !IN_CALL.test(c) && !NEGATED.test(c))),
+      .filter((c) => c && !IN_CALL.test(c) && !NEGATED.test(c) && !FULFILLED_OR_CONDITIONAL.test(c))),
     PROMISE_PATTERNS,
   );
 }
