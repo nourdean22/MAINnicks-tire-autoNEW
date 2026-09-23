@@ -121,3 +121,32 @@ describe("cron/embed-backfill · bounded scans", () => {
     expect(storeGenericEmbedding).toHaveBeenCalledWith("brain_memory", "m1", expect.any(String));
   });
 });
+
+/**
+ * 2026-09-23 · the run's receipt. cron-manager's countFrom() records only an
+ * explicit `resultCount` into cron_job_logs, and this job never returned one:
+ * every logged run (7 in 3 days on production) carried resultCount NULL, so a
+ * backfill that embedded nothing could not be told from one that worked.
+ */
+describe("cron/embed-backfill · resultCount is the rows actually embedded", () => {
+  const body = async () => (await invoke()) as Record<string, unknown>;
+
+  it("one missing row embedded -> resultCount 1", async () => {
+    mockPrisma.$queryRaw.mockResolvedValueOnce([{ id: "m1", category: "goal", key: "k", content: "c" }]);
+    expect(await body()).toMatchObject({ resultCount: 1, totalSuccess: 1 });
+  });
+
+  it("nothing missing -> resultCount 0, a real zero rather than null", async () => {
+    // The default $queryRaw mock is the COUNT row, which the candidate query
+    // would read as one (bogus) candidate; say "no candidates" explicitly.
+    mockPrisma.$queryRaw.mockResolvedValueOnce([]);
+    expect((await body()).resultCount).toBe(0);
+  });
+
+  it("a failed embed is processed but not counted", async () => {
+    const { storeGenericEmbedding } = await import("@/lib/brain/embedding-utils");
+    vi.mocked(storeGenericEmbedding).mockRejectedValueOnce(new Error("quota"));
+    mockPrisma.$queryRaw.mockResolvedValueOnce([{ id: "m1", category: "goal", key: "k", content: "c" }]);
+    expect(await body()).toMatchObject({ resultCount: 0, totalProcessed: 1 });
+  });
+});
