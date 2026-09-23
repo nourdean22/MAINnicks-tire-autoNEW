@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
+import { REGISTRATION_METHODS, TIRE_CONDITIONS, TIRE_POSITIONS } from "@shared/tireTin";
 
 import { createLogger } from "../lib/logger";
 
@@ -260,4 +261,53 @@ export const workOrdersRouter = router({
     const { STATUS_CONFIG } = await import("../services/workOrderService");
     return STATUS_CONFIG;
   }),
+
+  // ─── Tire registration (49 CFR 574.8, Q-47) ─────────────────────────────
+  // Capture + form + record only. Nothing here contacts a customer or a manufacturer.
+
+  /** TINs captured per position, the expected tire count, and the compliance summary */
+  tireRegistration: adminProcedure
+    .input(z.object({ workOrderId: z.string().min(1).max(36) }))
+    .query(async ({ input }) => {
+      const { getRegistration, drizzleStore } = await import("../services/tireRegistration");
+      return getRegistration(drizzleStore(), input.workOrderId);
+    }),
+
+  /** Record one position's TIN (validated; an invalid TIN is rejected with the reason) */
+  captureTireTin: adminProcedure
+    .input(z.object({
+      workOrderId: z.string().min(1).max(36),
+      position: z.enum(TIRE_POSITIONS),
+      tin: z.string().min(1).max(40),
+      brand: z.string().max(100).optional(),
+      condition: z.enum(TIRE_CONDITIONS).default("new"),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { captureTin, drizzleStore } = await import("../services/tireRegistration");
+      return captureTin(drizzleStore(), { ...input, by: ctx.user.name || "admin" });
+    }),
+
+  /** Remove a position captured by mistake */
+  removeTirePosition: adminProcedure
+    .input(z.object({ workOrderId: z.string().min(1).max(36), position: z.enum(TIRE_POSITIONS) }))
+    .mutation(async ({ input }) => {
+      const { removePosition, drizzleStore } = await import("../services/tireRegistration");
+      return removePosition(drizzleStore(), input.workOrderId, input.position);
+    }),
+
+  /** Record how 574.8 was met for every new tire on the order (form handed over, or shop-submitted) */
+  recordTireRegistration: adminProcedure
+    .input(z.object({ workOrderId: z.string().min(1).max(36), method: z.enum(REGISTRATION_METHODS) }))
+    .mutation(async ({ input, ctx }) => {
+      const { recordRegistration, drizzleStore } = await import("../services/tireRegistration");
+      return recordRegistration(drizzleStore(), { ...input, by: ctx.user.name || "admin" });
+    }),
+
+  /** The printable 574.8(a)(1)(i) registration form, as a self-contained HTML page */
+  tireRegistrationForm: adminProcedure
+    .input(z.object({ workOrderId: z.string().min(1).max(36) }))
+    .query(async ({ input }) => {
+      const { registrationFormHtml, drizzleStore } = await import("../services/tireRegistration");
+      return { html: await registrationFormHtml(drizzleStore(), input.workOrderId) };
+    }),
 });

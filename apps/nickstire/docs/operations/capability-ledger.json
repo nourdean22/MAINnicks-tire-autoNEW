@@ -2444,6 +2444,39 @@
         }
       ],
       "deferredScope": []
+    },
+    {
+      "capabilityId": "tire-tin-registration",
+      "name": "Each installed tire's DOT code (TIN) is captured per position on the work order, and the 49 CFR 574.8 registration form is produced and its handling recorded",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "2026-09-23, branch nickstire/q47-tin-capture (Q-47). shared/tireTin.ts validates TINs against 49 CFR 574.5 (allowed symbols, 7-13 length, WWYY date code; pre-2000 3-digit codes flagged) and renders the 574.8(a)(1)(i) form; server/services/tireRegistration.ts + workOrders.tireRegistration/captureTireTin/removeTirePosition/recordTireRegistration/tireRegistrationForm; client/src/pages/admin/money/TireRegistrationPanel.tsx in the work-order drawer. Table tire_registrations (drizzle/0131, hand-applied, NOT applied).",
+        "tests": "shared/tireTin.test.ts (19) + server/services/tireRegistration.test.ts (13) + client/src/__tests__/tire-registration-panel.test.tsx (4) = 36 passed; 6 mutation controls each turned a named test red.",
+        "liveRuns": "none - migration 0131 not applied; nothing ran against production."
+      },
+      "blockers": [
+        {
+          "severity": "P1",
+          "description": "drizzle/0131_tire_registrations.sql must be applied by the operator; until then the panel shows a named error ('migration 0131 has not been applied'), never '0 tires'."
+        },
+        {
+          "severity": "P2",
+          "description": "Not exercised in production. Proof needed: on one tire job, capture 4 DOT codes, print the form, record 'Form handed to customer', and confirm the badge reads REGISTERED."
+        },
+        {
+          "severity": "P3",
+          "description": "Online tire orders (tire_orders) have no capture surface of their own; their install must go through a work order to be covered."
+        }
+      ],
+      "deferredScope": [
+        "No automatic submission to manufacturers and no customer message - both are external side effects that need the operator.",
+        "No 30-day due-date reminder for the shop-submitted routes."
+      ]
     }
   ],
   "axes": {
