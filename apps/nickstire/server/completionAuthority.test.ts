@@ -36,6 +36,21 @@ describe("operational evidence gates", () => {
     ).toEqual(expect.arrayContaining([expect.stringContaining("requires evidence.liveRuns or evidence.databaseAssertions")]));
   });
 
+  it("an evidence field that SAYS it is absent does not satisfy a gate", () => {
+    // POSITIVE CONTROL: this entry passed before 2026-09-23 — "NONE…" is non-empty text.
+    const noneSaid = { tests: ["t"], codeCommit: "c", deploymentId: "d", liveRuns: "NONE. No production call has been scored." };
+    expect(validateLedger(cap({ operationalState: "live_verified", evidence: noneSaid }))).toEqual(
+      expect.arrayContaining([expect.stringContaining("requires evidence.liveRuns or evidence.databaseAssertions")]),
+    );
+    expect(validateLedger(cap({ operationalState: "unit_verified", evidence: { tests: ["N/A"] } }))).toEqual(
+      expect.arrayContaining([expect.stringContaining("requires evidence.tests")]),
+    );
+    // …while real evidence, and an honest NONE below the gate, both still pass.
+    expect(validateLedger(cap({ operationalState: "live_verified", evidence: { ...noneSaid, liveRuns: "2026-09-22 call abc: transfer connected" } })))
+      .not.toEqual(expect.arrayContaining([expect.stringContaining("requires evidence.liveRuns")]));
+    expect(validateLedger(cap({ operationalState: "unit_verified", evidence: { tests: ["t"], liveRuns: "NONE yet." } }))).toEqual([]);
+  });
+
   it("deployed+ cannot carry P0/P1 blockers", () => {
     const errs = validateLedger(
       cap({

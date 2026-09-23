@@ -159,10 +159,11 @@ function nextOpenAt(
  *   - The outbound follow-up assistant's own script says "we'll have someone
  *     call you back TODAY" (FOLLOW_UP_SYSTEM_PROMPT), so close-of-business is
  *     the bound the shop itself stated.
- *   - The inbound script states no time, but the shop can only act while it is
- *     open, so the last moment it can honour "we'll call you back" on that day
- *     is closing time. That is a property of the hours, not a guess about
- *     intent.
+ *   - The inbound script promises "someone will call you back when we're open"
+ *     and names no hour (it said "first thing when we open" until 2026-09-23,
+ *     which this bound did not match). The shop can only act while it is
+ *     open, so the last moment it can honour that on the next open day is
+ *     closing time. That is a property of the hours, not a guess about intent.
  *
  * Returns null when no deadline is derivable, and callers must skip rather than
  * substitute one.

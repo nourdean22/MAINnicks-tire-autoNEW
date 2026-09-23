@@ -159,7 +159,7 @@ export const voiceAgentRouter = router({
         return {
           low: null,
           high: null,
-          sourceNote: "I'm not sure about that exact service — let me have someone call you back with a quote.",
+          sourceNote: "That one depends on what we see — free check, written quote before any work, no strings.",
           shouldEscalate: true,
         };
       }
@@ -321,14 +321,17 @@ export const voiceAgentRouter = router({
           }
         }
         // THE SHOP NOW OWES THIS CALL — record it as a promise, not just a
-        // request. The prompt only permits `escalate` when the shop is CLOSED
-        // and the caller wanted a human, and the scripted close offers a
-        // callback. The caller accepted and gave their number, so this is a
-        // commitment, which is the fact `callbackRequests` does not carry: that
-        // table is an intake queue with no due time and no kept/missed outcome.
+        // request. The prompt sends a caller here when the shop is CLOSED, or in
+        // CALLBACK CAPTURE (a transfer that didn't connect, a caller who won't
+        // hold), and every callback the prompt lets the assistant promise runs
+        // through this tool. The caller accepted and gave their number, so this
+        // is a commitment, which is the fact `callbackRequests` does not carry:
+        // that table is an intake queue with no due time and no kept/missed outcome.
         //
-        // Due time is DERIVED from the shop's own configured hours (next open),
-        // never invented. If hours cannot yield an instant, no promise is
+        // Due time is DERIVED from the shop's own configured hours: the end of
+        // the next open period (nextCloseAt — today's close while open, the next
+        // business day's close after hours), matching the spoken "when we're
+        // open", never invented. If hours cannot yield an instant, no promise is
         // created and the callbackRequests row above remains the untimed
         // obligation — see createVoicePromise for why a fabricated deadline is
         // worse than none.
@@ -543,8 +546,11 @@ export const voiceAgentRouter = router({
             found: true,
             vehicle: `${input.year ?? ""} ${input.make} ${input.model ?? ""}`.trim(),
             commonSizes: entry.size,
-            note: entry.note ?? "Trim level may change the size — check the door jamb sticker if you can.",
-            usedTirePriceRange: { low: 60, high: 120 },
+            // No homework: the size is read off the tire in the lot (prompt: SIZE
+            // UNKNOWN). No price field either — the prompt carries the one
+            // starting anchor, and the {60,120} range this used to return is a
+            // range the prompt forbids and a $120 top nothing in BUSINESS supports.
+            note: entry.note ?? "Trim level can change the size — we read it right off the tire when they pull up, free.",
             installPackageIncluded: true,
             installPackageContents: [
               "Mount + computer balance",
@@ -563,8 +569,7 @@ export const voiceAgentRouter = router({
         found: false,
         vehicle: `${input.year ?? ""} ${input.make} ${input.model ?? ""}`.trim(),
         commonSizes: null,
-        note: "I don't have your exact stock size on file. Easiest answer: check the side of any current tire on your vehicle for the size, or look at the sticker inside the driver's door jamb. Then call back or come in — we'll match it.",
-        usedTirePriceRange: { low: 60, high: 120 },
+        note: "No stock size on file for this one. Tell them to pull up — we read the size right off the tire in ten seconds, free. Never send them to check a sidewall or door jamb and call back.",
         installPackageIncluded: true,
         installPackageContents: [
           "Mount + computer balance",
@@ -577,14 +582,14 @@ export const voiceAgentRouter = router({
     }),
 
   /**
-   * TIRE INQUIRY CAPTURE — log a tire-specific call.
+   * TIRE INQUIRY — tag a tire call with its size.
    *
-   * The AI calls this when a customer asks about used tires but doesn't
-   * commit to a booking yet. Captures the size + vehicle + name + phone
-   * so we can follow up if they don't walk in.
-   *
-   * Different from a general escalation — these are warm leads, not
-   * complaints. They go to the leads table tagged source="voice-tire".
+   * The AI calls this once it has a tire size and a phone. Since 2026-06-05 an
+   * ordinary inquiry persists NOTHING beyond the call record (operator
+   * directive: no admin lead per tire caller), so the reply may say "noted",
+   * never "sent to the shop" (server/lib/tireInquiryReply.ts). Only the legacy
+   * notes-based rack check (/rack.?check/) still writes a `leads` row, with
+   * source="callback" and utmCampaign "vapi-rack-check".
    */
   // wave-178 STRIDE: gated behind voiceAgentInternalProcedure. This was
   // previously publicProcedure with no rate limit — any internet caller
@@ -624,17 +629,18 @@ export const voiceAgentRouter = router({
         ].filter(Boolean).join(" · ");
 
         // wave-180: rack-check requests bump urgency to 5 so the front
-        // desk surfaces them above ordinary warm leads (15-min promise).
+        // desk surfaces them above ordinary warm leads. (The "15-min promise"
+        // this once carried is gone from the prompt and the tool text.)
         const isRackCheck = !!input.notes && /rack.?check/i.test(input.notes);
 
         // 2026-06-05 · operator directive: ordinary voice tire inquiries no
         // longer create an admin lead. Every inbound call is already recorded
         // + transcribed in vapi_call_logs, so a "warm lead" per tire caller
         // was pure noise in the admin Leads feed. We persist a lead ONLY for a
-        // rack-check — a promised 15-min callback the front desk MUST act on
-        // (the dedicated `checkTireStock` tool is the primary rack-check path;
-        // this keeps the legacy notes-based rack-check working too). Ordinary
-        // inquiries are acknowledged and left to the call recording.
+        // rack-check — a request the front desk must act on (the prompt's
+        // RACK-CHECK hand-off is the primary path; this keeps the legacy
+        // notes-based rack-check working too). Ordinary inquiries are
+        // acknowledged and left to the call recording.
         if (!isRackCheck) {
           log.info("Voice agent tire inquiry — acknowledged, no admin lead (ordinary inquiry; call already recorded)", {
             nameGiven: Boolean(input.name),
@@ -648,7 +654,7 @@ export const voiceAgentRouter = router({
         // single call (or an immediate redial), which used to create two
         // source="callback" leads with zero dedup. Scoping to utmSource=
         // "voice-agent" guarantees the matched row is itself an urgency-5
-        // rack-check lead (the 15-min promise stays durably recorded) and a
+        // rack-check lead (the rack-check request stays durably recorded) and a
         // web/chat lead can never absorb a rack-check. Voice rows store
         // digits-only phones, so RIGHT(phone,10) tolerates a country-code
         // prefix (the lookupCustomer wave-181.2 pattern). Under 10 digits
@@ -701,7 +707,7 @@ export const voiceAgentRouter = router({
           // this inquiry (e.g. a second tire size) and link this call to it,
           // instead of creating a duplicate person in Leads. The annotation
           // is fail-open: if it errors the existing urgency-5 row still
-          // carries the rack-check promise.
+          // carries the rack-check request.
           try {
             const { eq, sql } = await import("drizzle-orm");
             await d.update(leads)
@@ -1005,7 +1011,7 @@ export const voiceAgentRouter = router({
         success: true,
         handOffToHuman: true,
         aiHint:
-          "You cannot see the rack. Do NOT state whether the tire is in stock, and do NOT promise a callback or any timeframe. Hand the caller to a person (transferCall while open, escalate while closed) so someone can physically check it.",
+          "You cannot see the rack. Do NOT state whether the tire is in stock, never give a timeframe, and never promise a callback except through escalate. Hand the caller to a person so someone can physically check it: transferCall while open; escalate (CALLBACK CAPTURE) while closed, if they won't hold, or if the transfer doesn't connect.",
       };
     }),
 
