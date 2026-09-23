@@ -1297,18 +1297,117 @@ def test_a_motionless_lot_is_not_a_frozen_camera():
     assert st2.ok is False
 
 
-def test_the_freeze_epsilon_sits_below_real_sensor_noise():
-    """The threshold is only meaningful next to the number it was chosen against."""
-    base = frames(1, [[]])[0].image
-    rng = np.random.default_rng(11)
-    noisy = np.clip(base.astype(np.int16) + rng.integers(-2, 3, base.shape), 0, 255).astype(np.uint8)
+def _live_static_frame(base, i, region=20):
+    """Frame `i` of a LIVE but motionless crop, in the band the real feed occupies.
 
-    assert mean_abs_diff(base, base) == 0.0, "the same buffer differs by exactly nothing"
-    live_delta = mean_abs_diff(base, noisy)
-    assert live_delta > FrameHealth().freeze_epsilon * 5, (
-        f"live noise {live_delta:.3f} must sit well clear of the epsilon; measured live "
-        f"footage was 0.26 minimum"
-    )
+    Three properties the real camera has, each of which a draft of this fixture lacked:
+
+    * consecutive frames differ by ~0.02 mean absolute difference -- the measured median
+      on the live 552x310 channel-1 crop. Not whole-frame noise: that lands an order of
+      magnitude high and is how the ORIGINAL fixture ended up noisier than the camera it
+      stood for, letting the real bug through. Confining faint noise to one region puts
+      the pair in the measured band.
+    * no frame is a byte-exact replay of an earlier one. An A/B/A/B fixture IS a two-frame
+      loop and `looping` is right to say so.
+    * no frame is a replay after `_thumb`'s stride-6 SUBSAMPLE either. Nudging a block and
+      walking it down the image looks varied at full resolution while different offsets
+      collide onto the same sampled rows -- byte-identical thumbnails, a synthetic loop.
+      Per-pixel noise cannot collide that way.
+    """
+    out = base.copy()
+    rng = np.random.default_rng(1000 + i)
+    patch = out[:region, :region].astype(np.int16)
+    out[:region, :region] = np.clip(
+        patch + rng.integers(-1, 2, patch.shape), 0, 255).astype(np.uint8)
+    return out
+
+
+def test_a_pair_in_the_REAL_crops_noise_band_is_not_a_frozen_sample():
+    """THE regression, measured on the live feed 2026-09-16.
+
+    The freeze discriminator used `mean_abs_diff(...) <= freeze_epsilon` with an epsilon
+    of 0.02, and the docstring justifying it cited live footage measuring >= 0.26. That
+    measurement was taken on the FULL SHOPSIGN frame, which carries the V380 overlay
+    clock ticking once a second and the street moving in the wide pane.
+
+    Then `--channel` landed and the thing being judged became a 552x310 crop of ONE lens:
+    static asphalt, parked cars, no clock. Re-measured there at the producer's own 3.8fps
+    cadence, over 285 consecutive pairs: median MAD 0.0198. The threshold was sitting ON
+    TOP of the live distribution -- 51% of perfectly healthy pairs read as "same buffer".
+
+    The camera flapped healthy <-> degraded_vision every few minutes in the shop admin,
+    and each flap re-armed the preexisting census, so a car arriving near one would be
+    classified PREEXISTING and never counted as an arrival. Nobody re-derived the
+    threshold when the image underneath it changed.
+    """
+    base = np.full((128, 128, 3), 90, dtype=np.uint8)
+    base[20:60, 30:70] = 200
+
+    delta = mean_abs_diff(_live_static_frame(base, 0), _live_static_frame(base, 1))
+    assert 0.0 < delta <= 0.06, (
+        f"fixture delta {delta:.4f} is outside the measured live band (~0.02); this test "
+        f"is not standing for the real feed any more")
+
+    fh = FrameHealth()
+    t = 1000.0
+    for i in range(40):                       # ~10s at 4fps, far past freeze_seconds
+        fh.update(t, _live_static_frame(base, i))
+        t += 0.25
+    st = fh.state(t)
+    assert st.frozen is False, (
+        "a live crop whose consecutive frames differ by the real ~0.02 is NOT a frozen "
+        "capture; judging it with an epsilon calibrated on the full frame is what broke "
+        "the shop camera")
+    assert st.ok is True, f"a quiet lot must stay healthy: {st}"
+
+
+def test_a_genuinely_stalled_capture_is_still_caught():
+    """The other direction. A detector that never says frozen is not a fix."""
+    base = np.full((128, 128, 3), 90, dtype=np.uint8)
+    base[20:60, 30:70] = 200
+    fh = FrameHealth()
+    t = 1000.0
+    for _ in range(40):
+        fh.update(t, base)                    # the same buffer, for ever
+        t += 0.25
+    st = fh.state(t)
+    assert st.frozen is True, "an identical repeated buffer IS a frozen capture"
+    assert st.ok is False
+
+
+def test_the_freeze_verdict_does_not_change_with_the_READ_RATE():
+    """`freeze_run` alone is a sample count, so it means different wall times at
+    different rates: 8 samples is 2.1s at 3.8fps and 0.27s at 29fps. Measured on the live
+    feed, WGC re-hands the same `_latest` buffer while the pane has not repainted -- 16
+    such stretches in 90s, the longest 0.79s. Counting samples, a faster loop turns those
+    same healthy stretches into a freeze verdict; at 8fps the real feed already read
+    unhealthy 75% of the time. The verdict has to be stated in seconds.
+    """
+    base = np.full((128, 128, 3), 90, dtype=np.uint8)
+    base[20:60, 30:70] = 200
+
+    def verdict(fps, stall_seconds):
+        fh = FrameHealth()
+        dt = 1.0 / fps
+        t = 1000.0
+        n = int(2.0 * fps) + 1
+        for i in range(n):                       # a live run first
+            fh.update(t, _live_static_frame(base, i)); t += dt
+        held = _live_static_frame(base, n)       # then hold one buffer for `stall_seconds`
+        stop = t + stall_seconds
+        while t <= stop:
+            fh.update(t, held); t += dt
+        return fh.state(t).frozen
+
+    # A 0.79s repeat -- the longest the LIVE feed produced -- is healthy at every rate.
+    for fps in (3.8, 8.0, 29.0):
+        assert verdict(fps, 0.79) is False, (
+            f"at {fps}fps a 0.79s buffer repeat read as frozen, but that is what the "
+            f"healthy camera actually does")
+
+    # A 5s stall is a real stall at every rate.
+    for fps in (3.8, 8.0, 29.0):
+        assert verdict(fps, 5.0) is True, f"at {fps}fps a 5s stall was missed"
 
 
 def test_a_parked_car_that_flickers_keeps_its_identity_but_a_departing_one_does_not():
@@ -1429,6 +1528,55 @@ def test_wgc_restore_works_when_only_a_title_was_given(monkeypatch):
     src2 = capture.WgcWindowSource(window_hwnd=999)
     assert src2._restore_target() is True
     assert src2.restores == 1
+
+
+def test_largest_titled_window_picks_the_pane_not_a_sibling_dialog(monkeypatch):
+    """Several V380 windows share one title, so a name is not an aim.
+
+    Measured on the shop PC 2026-09-10: the client had a 1280x720 feed, a 362x382 login
+    window and a 440x350 "Tips" dialog, ALL titled exactly "V380". Handing the name to
+    WindowsCapture let it choose the dialog, which WGC refused outright, and the mux then
+    failed over to the mss screen lane and captured whatever overlapped the window.
+    """
+    from vision import capture
+
+    sizes = {111: 362 * 382, 222: 1280 * 720, 333: 440 * 350}
+    monkeypatch.setattr(capture, "find_windows_titled", lambda title: [111, 222, 333])
+    monkeypatch.setattr(capture, "normal_area", lambda h: sizes[h])
+
+    assert capture.largest_titled_window("V380") == 222
+
+
+def test_largest_titled_window_ranks_a_minimised_pane_by_its_restored_size(monkeypatch):
+    """The canary for measuring with rcNormalPosition instead of GetWindowRect.
+
+    A minimised window's RECT is its ~160x28 taskbar placement -- smaller than the dialog
+    in front of it. Rank on that and the capture aims at the dialog precisely when the
+    operator has minimised the camera app, which is also exactly when the restore path is
+    supposed to save it. Sizes below are the ones measured on the shop PC.
+    """
+    from vision import capture
+
+    monkeypatch.setattr(capture, "find_windows_titled", lambda title: [222, 333])
+
+    # What a GetWindowRect-based picker would have seen: the dialog wins. This asserts the
+    # bug is real, not hypothetical -- without it the test below proves nothing.
+    rect_like = {222: 160 * 28, 333: 440 * 350}
+    monkeypatch.setattr(capture, "normal_area", lambda h: rect_like[h])
+    assert capture.largest_titled_window("V380") == 333, "precondition: rect sizes pick the dialog"
+
+    # What rcNormalPosition reports for the same two windows: the pane wins again.
+    placement_like = {222: 1280 * 720, 333: 440 * 350}
+    monkeypatch.setattr(capture, "normal_area", lambda h: placement_like[h])
+    assert capture.largest_titled_window("V380") == 222
+
+
+def test_largest_titled_window_is_none_when_nothing_matches(monkeypatch):
+    """No match must fall through to the library's own name matching, not to hwnd=0."""
+    from vision import capture
+
+    monkeypatch.setattr(capture, "find_windows_titled", lambda title: [])
+    assert capture.largest_titled_window("V380") is None
 
 
 def test_wgc_read_attempts_a_restore_when_delivery_stalls(monkeypatch):
@@ -1589,6 +1737,66 @@ def test_an_INJECTED_REAL_TRACKER_actually_receives_parsed_events():
     assert isinstance(seen[0], dict), "an explicit opt-out still hands over the raw payload"
 
 
+def test_portal_must_straddle_the_lot_boundary():
+    """A portal that cannot be crossed inward records zero arrivals and looks like a quiet lot.
+
+    Found on the shop PC 2026-09-16 against a hand-drawn calibration: every sampled portal
+    cell was inside the lot and none outside, so there was no outside half for a vehicle to
+    arrive FROM. Nothing else complains -- frames arrive, vehicles track, the health lattice
+    stays green -- so this has to fail at load time.
+    """
+    from vision.run_live import PortalNotUsable, assert_portal_straddles
+
+    lot = [(143, 117), (535, 130), (535, 294), (55, 294), (55, 192)]
+
+    # CANARY: the exact geometry that was wrong, asserted to FAIL. Without this the
+    # control below proves nothing -- a function that accepts everything would pass it.
+    import pytest
+    with pytest.raises(PortalNotUsable, match="entirely INSIDE"):
+        assert_portal_straddles(lot, [(55, 192), (143, 117), (187, 130), (99, 210)])
+
+    # the mirror mistake is equally unusable: nothing can land in the lot through it
+    with pytest.raises(PortalNotUsable, match="entirely OUTSIDE"):
+        assert_portal_straddles(lot, [(0, 0), (20, 0), (20, 20), (0, 20)])
+
+    # CONTROL: a band straddling the entry edge is accepted
+    assert_portal_straddles(lot, [(126, 97), (38, 172), (72, 212), (160, 137)])
+
+    # census mode declares no portal at all, and that is a legitimate, honest state
+    assert_portal_straddles(lot, [])
+
+
+def test_a_straddling_portal_actually_yields_a_crossing():
+    """Bind `assert_portal_straddles` to the behaviour it exists to protect.
+
+    That guard asserts a GEOMETRIC property -- part of the portal inside the lot, part
+    outside. On its own that is presence, not behaviour: it would still pass if
+    `EntryPortal` never reported a crossing at all. This asserts the consequence, using
+    the shape the guard accepts, and pins the two non-arrivals that matter operationally:
+    a vehicle that never enters, and one that was already parked when watching began.
+
+    The third case is why a freshly-started producer reports zero arrivals over a full
+    lot and is behaving correctly -- every car present at startup was born inside.
+    """
+    from vision.geometry import EntryPortal, Zone
+    from vision.run_live import assert_portal_straddles
+
+    lot = [(143, 117), (535, 130), (535, 294), (55, 294), (55, 192)]
+    portal = [(126, 97), (38, 172), (72, 212), (160, 137)]   # straddles the entry edge
+    assert_portal_straddles(lot, portal)                      # precondition, not the point
+
+    ep = EntryPortal(Zone("front_lot", lot), portal_zone=Zone("portal", portal))
+
+    arriving = [(100, 70), (110, 85), (126, 100), (140, 120), (160, 150), (200, 190)]
+    assert ep.evaluate(arriving)["crossed"] is True
+
+    # never enters -- the shape of traffic that must not be counted
+    passing = [(60, 40), (90, 55), (120, 70), (150, 85), (180, 95), (210, 105)]
+    assert ep.evaluate(passing)["crossed"] is False
+
+    # already inside when watching began: an occupant, not an arrival
+    parked = [(300, 240), (302, 241), (301, 240), (303, 242)]
+    assert ep.evaluate(parked)["crossed"] is False
 # ------------------------------------------------------- GATE: episode stitching
 def _arrival_run(x_start: float = 20.0, n_move: int = 7, n_park: int = 20):
     """Boxes+detections for one car driving in from outside and parking."""
