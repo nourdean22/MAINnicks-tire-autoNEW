@@ -82,6 +82,15 @@ export interface TurnRiskShadow {
   register?: string;
   reasons?: string[];
   toolsFired?: number;
+  /** The toolsExpected the classifier was fed (2026-09-23; absent on older rows). */
+  toolsExpected?: boolean;
+  /**
+   * Where that input came from: "routing" = the value live routing decided on
+   * before generation (route.ts, via persistBase); "recomputed" = derived after
+   * generation from the tool calls that ran - the pre-2026-09-23 behaviour, and
+   * a different question from the one the live lane answers (review on #2509).
+   */
+  toolsExpectedSource?: "routing" | "recomputed";
 }
 
 export interface GateVerdict {
@@ -130,6 +139,8 @@ export interface BannerCauseRow {
   wouldHaveBuffered: number;
   wouldHaveStreamed: number;
   noShadow: number;
+  /** Banner turns whose only shadow is a legacy (recomputed-toolsExpected) one — excluded, like noShadow. */
+  legacyShadow: number;
 }
 
 export type BlockDriver = "named_claim" | "fact_check" | "length" | "other";
@@ -155,10 +166,22 @@ export interface BufferShadow {
   since: string;
   /** Assistant turns in the cohort. */
   turns: number;
-  /** Turns carrying `evidenceGate.turnRisk`; the denominator of the buffer rate. */
+  /**
+   * Turns carrying a ROUTING-sourced `evidenceGate.turnRisk`; the denominator
+   * of the buffer rate. Only a shadow that replayed the routing-time
+   * toolsExpected answers "what would the live lane have done" (review on
+   * #2560): every rate below is computed over these and nothing else.
+   */
   withShadow: number;
   wouldBuffer: number;
   wouldStream: number;
+  /**
+   * Shadows that recomputed toolsExpected after generation (every row before
+   * 2026-09-23, and any unstamped row). They classified on whether a tool
+   * happened to fire - a different question - so they are counted here and
+   * EXCLUDED from withShadow, the rates, the reasons and the recall.
+   */
+  legacy: { withShadow: number; wouldBuffer: number; wouldStream: number };
   /** null below MIN_SAMPLE shadowed turns - deliberately not 0. */
   wouldBufferPct: number | null;
   /** Buffered turns by reason, each reason counted once per turn, most-cited first. */
@@ -170,6 +193,8 @@ export interface BufferShadow {
     wouldHaveStreamed: number;
     /** Banner turns with no shadow at all - a silent-instrument signal inside the cohort. */
     noShadow: number;
+    /** Banner turns whose only shadow is legacy (recomputed toolsExpected) - excluded from the recall like noShadow. */
+    legacyShadow: number;
     /** null below MIN_SAMPLE banner turns; the recall's own floor. */
     recallPct: number | null;
     /** The same counts split by which guard wrote the banner, most turns first. */
@@ -259,11 +284,12 @@ export function assembleBufferShadow(
   let withShadow = 0;
   let wouldBuffer = 0;
   let wouldStream = 0;
-  const banner = { turns: 0, wouldHaveBuffered: 0, wouldHaveStreamed: 0, noShadow: 0 };
+  const banner = { turns: 0, wouldHaveBuffered: 0, wouldHaveStreamed: 0, noShadow: 0, legacyShadow: 0 };
+  const legacy = { withShadow: 0, wouldBuffer: 0, wouldStream: 0 };
   const byCause = new Map<BannerCause, BannerCauseRow>();
   const causeRow = (t: GateTurn): BannerCauseRow => {
     const cause: BannerCause = t.bannerCause ?? "other";
-    const row = byCause.get(cause) ?? { cause, turns: 0, wouldHaveBuffered: 0, wouldHaveStreamed: 0, noShadow: 0 };
+    const row = byCause.get(cause) ?? { cause, turns: 0, wouldHaveBuffered: 0, wouldHaveStreamed: 0, noShadow: 0, legacyShadow: 0 };
     byCause.set(cause, row);
     return row;
   };
@@ -280,6 +306,20 @@ export function assembleBufferShadow(
       if (bannered) {
         banner.noShadow++;
         causeRow(t).noShadow++;
+      }
+      continue;
+    }
+    // 2026-09-23 (review on #2560, P1) · a shadow that did not replay the
+    // routing-time toolsExpected answers a different question from the live
+    // lane. It is counted, never averaged in: not in withShadow, the rate, the
+    // reasons or the recall. Before this deploy that is every row.
+    if (shadow.toolsExpectedSource !== "routing") {
+      legacy.withShadow++;
+      if (shadow.buffer) legacy.wouldBuffer++;
+      else legacy.wouldStream++;
+      if (bannered) {
+        banner.legacyShadow++;
+        causeRow(t).legacyShadow++;
       }
       continue;
     }
@@ -337,17 +377,26 @@ export function assembleBufferShadow(
   } else {
     parts.push(`${banner.wouldHaveBuffered} of ${classified} classified verifier-banner turns (${recallPct}%) would have buffered${unclassified}.`);
   }
-  // 2026-09-22 (review on #2509) · two limits of this reading, stated where the
+  // 2026-09-22 (review on #2509) · a limit of this reading, stated where the
   // number is: the banner marker is shared by the L2 action-receipt and
   // known-truth guards as well as the L6 gate, so not every banner is one the
-  // pre-flush lane could have prevented (the cause is not persisted yet); and
-  // the stored shadow recomputes toolsExpected from the tool calls that ran,
-  // where live routing knows it before generation, so a turn whose expected
-  // tool never fired can be classified differently here than it would be live.
+  // pre-flush lane could have prevented; the cause is read off the banner text.
   if (banner.turns > 0) {
     parts.push(
-      `Banner causes: ${causeRows.map((r) => `${r.cause} ${r.turns}`).join(" · ")} — a banner is any verifier banner, not only L6-preventable ones: the action-claim and action-receipt banners are outcomes the pre-flush lane could have held, a known-truth banner is the truth guard's. The shadow's toolsExpected is recomputed after generation.`,
+      `Banner causes: ${causeRows.map((r) => `${r.cause} ${r.turns}`).join(" · ")} — a banner is any verifier banner, not only L6-preventable ones: the action-claim and action-receipt banners are outcomes the pre-flush lane could have held, a known-truth banner is the truth guard's.`,
     );
+  }
+  // 2026-09-23 (review on #2509 P1, then #2560 P1) · shadows written before the
+  // routing-time toolsExpected rode into persist (and any unstamped row)
+  // classified on whether a tool happened to fire, which is not the question
+  // the live lane answers. They are EXCLUDED from every number above and
+  // stated here; once the cohort is all "routing" the caveat says so.
+  if (legacy.withShadow > 0) {
+    parts.push(
+      `${legacy.withShadow} legacy shadow(s) recomputed toolsExpected after generation (rows before 2026-09-23: ${legacy.wouldBuffer} would buffer, ${legacy.wouldStream} would stream) and are excluded from every rate here${banner.legacyShadow > 0 ? `, including ${banner.legacyShadow} banner turn(s)` : ""}.`,
+    );
+  } else if (withShadow > 0) {
+    parts.push("every shadow replayed the routing-time toolsExpected.");
   }
   const top = rows[0];
   if (top) {
@@ -363,6 +412,7 @@ export function assembleBufferShadow(
     withShadow,
     wouldBuffer,
     wouldStream,
+    legacy,
     wouldBufferPct,
     byReason: rows,
     banner: { ...banner, recallPct, byCause: causeRows },

@@ -479,8 +479,9 @@ function keywordScore(
 // across topics) over ALL non-deleted, confidence>=0.3 memories, backed by
 // the STORED generated column `brain_memories.content_tsv` and its GIN
 // `brain_memories_content_tsv_idx` (migration 20260923000000_brain_content_tsv;
-// the 0007_brain_fts expression index it replaces stays until the operator
-// drops it). Filter AND rank read the stored vector: measured on production
+// the 0007_brain_fts expression index it replaced was DROPPED 2026-09-23 by
+// 20260923013000_drop_brain_fts_expression_index, operator-approved). Filter
+// AND rank read the stored vector: measured on production
 // 2026-09-22, the same OR-of-topics query took 1,902 ms warm when ts_rank
 // re-parsed content for ~3,600 candidate rows and 8 ms with the rank
 // removed - the parse WAS the lane's cost, and the 900 ms statement timeout
@@ -531,14 +532,15 @@ export function buildLexicalTsQuery(topics: string[]): string {
  * Term COUNT was measured NOT to be the driver (caps 8/5/3 had equal
  * latency), so the topics stay uncapped.
  *
- * 2026-09-23 · the "slow tail" was never a tail. The cost was ts_rank
- * re-parsing `content` for every candidate row (1,902 ms warm on the
- * production query shape, 8 ms with the rank removed), a constant that the
- * timeout cut on 84 of 89 hybrid benchmark queries. #2553 moved filter and
- * rank onto the stored content_tsv column: the same query runs in 25.6 ms on
- * production and the post-fix benchmark timed out on 0 of 89 (lexical median
- * 162 ms, was ~1,020 ms). The timeout stays as a guard against a regression,
- * not as an accepted loss; the counters below should now read ~0.
+ * 2026-09-22 · THE DRIVER WAS FOUND: production EXPLAIN ANALYZE put 99% of
+ * the statement in ts_rank re-parsing `content` for every candidate row
+ * (1,902 ms with the rank, 8 ms without) — an expression index serves the
+ * predicate, never the rank, so this was a constant cost cut by the timeout,
+ * not a tail. 20260923000000_brain_content_tsv stores the vector; the lane
+ * now filters and ranks on `content_tsv` (25.6 ms on production). The 900 ms
+ * cap stays as a guard: measured 2026-09-23, 0 of 89 benchmark queries hit
+ * it (median 162 ms, p90 194, max 735).
+ * The counters below should now read ~0 on a post-#2553 process.
  */
 const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
 
@@ -567,6 +569,12 @@ const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
  * post-#2553 process whose `lexicalSkipPctCum` reads above a few percent is a
  * regression, not the old trade-off. The point stands: nobody would have
  * known either way without the counter.
+ *
+ * Measured 2026-09-23, after the stored column (see the timeout's comment
+ * above): 0 of 89 hybrid benchmark queries hit the budget (was 84 of 89 on the
+ * same corpus the night before), `lexicalSkipPctCum` reads 0. The counters
+ * stay — they are the instrument that proved the fix, and the one that will
+ * say so if the lane ever regresses.
  *
  * ⚠ AGGREGATE COUNTERS ARE SAFE HERE; PER-REQUEST STATE WOULD NOT BE. Several
  * chat turns share this module concurrently. A "last outcome" variable would be
