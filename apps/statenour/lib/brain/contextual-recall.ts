@@ -530,6 +530,15 @@ export function buildLexicalTsQuery(topics: string[]): string {
  * catch and the lane degrades to [] exactly like every other lexical failure.
  * Term COUNT was measured NOT to be the driver (caps 8/5/3 had equal
  * latency), so the topics stay uncapped.
+ *
+ * 2026-09-23 · the "slow tail" was never a tail. The cost was ts_rank
+ * re-parsing `content` for every candidate row (1,902 ms warm on the
+ * production query shape, 8 ms with the rank removed), a constant that the
+ * timeout cut on 84 of 89 hybrid benchmark queries. #2553 moved filter and
+ * rank onto the stored content_tsv column: the same query runs in 25.6 ms on
+ * production and the post-fix benchmark timed out on 0 of 89 (lexical median
+ * 162 ms, was ~1,020 ms). The timeout stays as a guard against a regression,
+ * not as an accepted loss; the counters below should now read ~0.
  */
 const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
 
@@ -550,8 +559,14 @@ const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
  * A decision made on data, with no instrument watching the data.
  *
  * Measured 2026-09-18 on a sequential unloaded probe: 9 of 25 queries over
- * budget (36%) — matching the 2026-08-27 figure exactly, so there is no
- * degradation today. The point is that nobody would have known either way.
+ * budget (36%) — matching the 2026-08-27 figure, which was read as "no
+ * degradation". It was the wrong reading: the counters were watching a
+ * constant cost, not a tail (see the timeout note above), and the
+ * 2026-09-22 benchmark put the hybrid-shaped rate at 94% (84 of 89). After
+ * #2553 the expected rate is ~0 (0 of 89 in the post-fix benchmark); a
+ * post-#2553 process whose `lexicalSkipPctCum` reads above a few percent is a
+ * regression, not the old trade-off. The point stands: nobody would have
+ * known either way without the counter.
  *
  * ⚠ AGGREGATE COUNTERS ARE SAFE HERE; PER-REQUEST STATE WOULD NOT BE. Several
  * chat turns share this module concurrently. A "last outcome" variable would be
@@ -832,6 +847,12 @@ const CHARS_PER_TOKEN_APPROX = 4;
  * Once #2553 made the lexical lane answer, its long OR-matched winners (top-10
  * average 11.5k-13.4k chars on production) evicted dense hits to pay for text
  * the model never saw. Test: tests/brain/recall-budget-rendered-chars.test.ts.
+ *
+ * Scope, stated precisely (review on #2558): this budget covers the three
+ * ranked sections only. The no-topics fallback (getFallbackMemories) renders
+ * its own 200-char slice and is not trimmed — it is capped by count (20). The
+ * graph expansion and the cross-source pull append AFTER this trim and were
+ * never inside the budget; both pre-date this change.
  */
 export function trimToTokenBudget(relevant: RelevantMemory[], budgetChars: number, wisdomSlots: number): number {
   const cost = (m: RelevantMemory) => renderedContent(m).length + provenancePrefix(m).length + 1;
@@ -1529,7 +1550,7 @@ export async function getContextualMemories(
     //
     // ⚠ CUMULATIVE MEANS INSENSITIVE TO RECENT CHANGE, and the field name says
     // `Cum` so nobody reads it as "the rate right now". On a long-lived process
-    // early history dominates forever: a lane that degrades from 36% to 90%
+    // early history dominates forever: a lane that degrades from ~0% to 90%
     // after 10k healthy queries barely moves this number. It answers "has this
     // lane been dropping queries?", NOT "is it dropping them now". A windowed
     // rate would answer the second, and is worth building only once this one
