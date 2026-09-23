@@ -24,6 +24,13 @@
  * declined-recovery cron currently texts against this same field.
  * `SIGNAL_CONFIDENCE` below is the honest label, and callers should surface it
  * rather than presenting these as confirmed refusals.
+ *
+ * UPDATE 2026-09-23 (Q-37). The matcher now also runs daily on its own
+ * (`estimate-invoice-match` tier job), so "unmatched" no longer means "the
+ * matcher has not run". It still does NOT mean "declined": it means "no
+ * matching invoice was found" — an inference. The only observed decline is a
+ * counter capture (declined_work_captures, shared/declineProvenance.ts). That is
+ * why SIGNAL_CONFIDENCE stays unverified_match rather than flipping.
  */
 import { createLogger } from "../lib/logger";
 import {
@@ -35,8 +42,8 @@ import {
 const log = createLogger("services:declined-work-signals");
 
 /**
- * How much to trust "unmatched = declined" today. Flipped to "confirmed" only
- * when the matcher runs on a schedule — do not hardcode optimism here.
+ * How much to trust "unmatched = declined". Scheduling the matcher (Q-37) did not
+ * make it a confirmation — see the header. Do not hardcode optimism here.
  */
 export const SIGNAL_CONFIDENCE = "unverified_match" as const;
 

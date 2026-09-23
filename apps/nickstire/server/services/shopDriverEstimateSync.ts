@@ -29,6 +29,7 @@ import { eq, and, gte, lte, isNull, sql, desc, asc } from "drizzle-orm";
 import { DECLINED_RECOVERY_WINDOW_DAYS } from "@shared/const";
 import { createLogger } from "../lib/logger";
 import { normalizePhone } from "../lib/phone";
+import { affectedRowCount } from "../lib/db-affected";
 
 const log = createLogger("shopdriver-estimate-sync");
 
@@ -936,10 +937,12 @@ export const MATCH_AMOUNT_TOLERANCE = 0.25;
 
 export async function backfillMatches(opts: BackfillMatchOptions = {}): Promise<BackfillMatchResult> {
   const dryRun = opts.dryRun ?? false;
-  const empty: BackfillMatchResult = { matched: 0, scanned: 0, skippedNoPhone: 0, ambiguous: 0, dryRun, preview: [] };
   const { getDb } = await import("../db");
   const d = await getDb();
-  if (!d) return empty;
+  // Q-37 · this used to return an all-zero result, which the scheduled
+  // estimate-invoice-match job would log as "nothing to match" on a day it
+  // could not see the table at all. A matcher that did not run is a failure.
+  if (!d) throw new Error("database unavailable — estimate matcher did not run");
 
   const { algEstimates, invoices } = await import("../../drizzle/schema");
   const { PHONE_MATCH_KEY_SQL, phoneMatchKey } = await import("../lib/phoneIdentity");
@@ -1004,13 +1007,18 @@ export async function backfillMatches(opts: BackfillMatchOptions = {}): Promise<
     if (candidates.length === 1) {
       if (dryRun) {
         preview.push({ estimateId: est.id, invoiceId: candidates[0].id, amountCents: est.estimatedAmount });
+        matched++;
       } else {
-        await d
+        // Q-37 · compare-and-swap on the field the decision read. Two passes can
+        // now overlap (a demand probe's runEstimateMirror and the scheduled
+        // estimate-invoice-match job); an update by id alone would let the later
+        // one overwrite a match it never re-checked. Only a won claim counts.
+        const res = await d
           .update(algEstimates)
           .set({ matchedInvoiceId: candidates[0].id, matchedAt: new Date() })
-          .where(eq(algEstimates.id, est.id));
+          .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.matchedInvoiceId)));
+        if (affectedRowCount(res) === 1) matched++;
       }
-      matched++;
     }
   }
 

@@ -15,6 +15,7 @@ import { confirmDialog } from "@/components/admin/ConfirmDialog";
 // and this file) + #3 fix (anchor burn on aged ≥7d-old estimates only).
 import { agedRecoverableDollars, dailyBurnDollars } from "./moneyMath";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
+import { CounterDeclineButton, DeclineProvenanceBadge, DeclineProvenanceStrip } from "./CounterDecline";
 import {
   Loader2, AlertTriangle, DollarSign, Phone, MessageSquare,
   TrendingUp, Clock, Filter, Flame, CheckSquare, Square, Send, Zap, X,
@@ -277,6 +278,11 @@ export default function DeclinedEstimatesSection() {
         />
       </div>
 
+      {/* Q-37 · how each decline is known: counter-observed vs inferred. */}
+      {!unknown && data && (
+        <DeclineProvenanceStrip captureStatus={data.captureStatus} counts={data.provenanceCounts} />
+      )}
+
       {/* Filter + Sort + Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="font-bold text-xl text-foreground tracking-wider">DECLINED WORK</h2>
@@ -534,6 +540,7 @@ export default function DeclinedEstimatesSection() {
                     <span className="font-bold text-foreground text-sm tracking-wider">
                       {est.customerName}
                     </span>
+                    <DeclineProvenanceBadge provenance={est.provenance} />
                     {isHotPriority && (
                       <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 font-semibold border border-amber-500/30 flex items-center gap-1" title="High recovery score — prioritize this lead">
                         <Flame className="w-2.5 h-2.5" /> SCORE {score}
@@ -624,6 +631,7 @@ export default function DeclinedEstimatesSection() {
                       SMS
                     </MessageCustomerLink>
                   )}
+                  <CounterDeclineButton estimateId={est.id} provenance={est.provenance} />
                   {!isFollowUp && (
                     <button
                       onClick={() => markFollowUp.mutate({ id: est.id })}

@@ -6,6 +6,8 @@ import { adminProcedure, publicProcedure, router } from "../../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { BUSINESS } from "../../../shared/business";
+import { declineProvenance, countDeclineProvenance } from "../../../shared/declineProvenance";
+import { captureDeclineAtCounter, readDeclineCaptures } from "../../services/declineCaptures";
 
 const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 import { eq, desc, gte, lte, and, sql, asc, inArray } from "drizzle-orm";
@@ -862,11 +864,17 @@ export const invoicesRouter = router({
         ? declined.filter((e: typeof declined[number]) => !dismissedIds.has(e.id)).slice(0, 200)
         : declined.slice(0, 200);
 
+      // Q-37 · how we know each one was declined: captured at the counter, or
+      // inferred from "no matching invoice". A failed capture read makes every
+      // row "unknown" — never "inferred" (shared/declineProvenance.ts).
+      const captures = await readDeclineCaptures(filtered.map((e: typeof filtered[number]) => e.id));
+
       // Map status field for UI compatibility — derive from follow-up flags
       const estimatesShaped = filtered.map((e: typeof filtered[number]) => ({
         ...e,
         // UI uses paymentStatus to color-code: "partial" = follow-up scheduled
         paymentStatus: e.followUp30dSent ? "30d-sent" : e.followUp7dSent ? "partial" : "pending",
+        provenance: declineProvenance(e.id, captures),
       }));
 
       const total = estimatesShaped.length;
@@ -881,7 +889,29 @@ export const invoicesRouter = router({
         recoverable: Math.round(recoverable / 100),
         recovered,
         recoveryRate,
+        provenanceCounts: countDeclineProvenance(filtered.map((e: typeof filtered[number]) => e.id), captures),
+        /** "ok" | "not_enabled" (migration 0131 pending) | "error" — the UI says which. */
+        captureStatus: captures.status,
       };
+    }),
+
+  /**
+   * Q-37 · one tap at the counter: "the customer declined this estimate".
+   * Records an OBSERVED decline (declined_work_captures). Contacts no one, and
+   * the declined-recovery SMS lane does not read it — that lane's behaviour is
+   * unchanged by this. Idempotent: a second tap reports the first capture.
+   */
+  captureDecline: adminProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input, ctx }) => {
+      const r = await captureDeclineAtCounter({ estimateId: input.id, capturedBy: ctx.user?.email || "admin" });
+      if (!r.ok) {
+        throw new TRPCError({
+          code: r.reason === "not_found" ? "NOT_FOUND" : r.reason === "not_enabled" ? "PRECONDITION_FAILED" : "SERVICE_UNAVAILABLE",
+          message: r.error,
+        });
+      }
+      return r;
     }),
 
   /**

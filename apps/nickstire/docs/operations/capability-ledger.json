@@ -2444,6 +2444,58 @@
         }
       ],
       "deferredScope": []
+    },
+    {
+      "capabilityId": "estimate-invoice-match-scheduled",
+      "name": "The estimate -> invoice matcher runs daily on its own, before the declined-work recovery sends",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "2026-09-23, branch nickstire/q37-declined-work-capture (Q-37). backfillMatches() used to run only inside runEstimateMirror(), i.e. only after a demand-driven ALG probe logged in AND fetched estimates; the match is local (alg_estimates x invoices). New daily tier job estimate-invoice-match runs it over DECLINED_RECOVERY_WINDOW_DAYS immediately before alg-declined-work-recovery. The write is now a compare-and-swap on matched_invoice_id IS NULL and counts only won claims; no database throws instead of reporting zero.",
+        "tests": "server/cron/estimateInvoiceMatch.test.ts 6 tests, two planted mutations red then restored. Full suite on this branch: 724 files passed / 2 skipped, 9,064 tests passed, exit 0 (after the proc-census regen).",
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not deployed yet; the first cron_log row for estimate-invoice-match is the live receipt."
+        }
+      ],
+      "deferredScope": null
+    },
+    {
+      "capabilityId": "declined-work-counter-capture",
+      "name": "The counter records a customer's decline in one tap, and every declined estimate says whether it was observed or inferred",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "2026-09-23, branch nickstire/q37-declined-work-capture (Q-37). declined_work_captures (migration 0131, hand-applied) + server/services/declineCaptures.ts (insert-as-claim on a unique estimate_id; three-state read ok / not_enabled / error) + shared/declineProvenance.ts (counter | inferred | unknown). Labelled on Declined Work (badge, strip, 48px DECLINED button via invoices.captureDecline), the Walk-Away drilldown, Today brief, the Declined Work insight strip and the Decision Inbox (counter -> verified).",
+        "tests": "shared/declineProvenance.test.ts 6 · server/services/declineCaptures.test.ts 11 · client/src/__tests__/counter-decline.test.tsx 7. Full suite on this branch: 724 files passed / 2 skipped, 9,064 tests passed, exit 0 (after the proc-census regen).",
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Operator applies drizzle/0131_declined_work_captures.sql; until then capture returns 'not enabled' and every decline renders as inferred."
+        },
+        {
+          "severity": "P3",
+          "description": "The declined-recovery SMS lane and voice-recovery dialer still treat inferred and observed declines alike; restricting them to observed ones is the operator's decision (FEATURE_DECLINED_RECOVERY / FEATURE_VOICE_RECOVERY)."
+        },
+        {
+          "severity": "P3",
+          "description": "ShopDriver line items (listTicketSessions) not read: the only captured response shows session headers, not lines, and a per-ticket fetch evicts the counter's login. Operator decision."
+        }
+      ],
+      "deferredScope": null
     }
   ],
   "axes": {

@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-23T12:34:05.746Z",
-  "count": 742,
+  "generatedAt": "2026-09-23T16:20:23.641Z",
+  "count": 743,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -190,6 +190,7 @@
     "mutation.intelligence.logDecision",
     "mutation.intelligence.updateDecisionOutcome",
     "mutation.invoices.bulkFollowUp",
+    "mutation.invoices.captureDecline",
     "mutation.invoices.create",
     "mutation.invoices.delete",
     "mutation.invoices.dismissEstimate",
