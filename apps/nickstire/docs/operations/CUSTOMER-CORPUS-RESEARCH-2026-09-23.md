@@ -723,9 +723,8 @@ census run.
    routes more callbacks through `escalate` (CALLBACK CAPTURE while open), so more rows now reach
    that cron. Their Promise Ledger row still surfaces a miss, but the callback itself leaves the
    to-do queue after one alert. Protected core, so its own PR with targeted tests and rollback
-   notes. **Fix prepared** in a worktree (commit 2e835295: a conditional notes-marker claim, the row
-   stays `new`, one alert per row, a failed read fails the run; 5 tests, tsc 0). It lands as the
-   next PR after this one merges.
+   notes. **Merged** as #2569 (4dca4aab, 2026-09-23): a conditional notes-marker claim, the row
+   stays `new`, one alert per row, a failed read fails the run; 5 tests, tsc 0, CI 15/15.
 4c. `convertedToLead`'s meaning (Part C #38): row persisted, or capture tool fired? Decide, then
    move `tireInquiry` or rename the column, with a before/after note.
 4d. The SMS promises (Part C #39–#41): the after-hours auto-reply first, because its queue is already
