@@ -38,7 +38,7 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
   const since = new Date(now.getTime() - EXCEPTION_WINDOW_MS);
   const costSince = new Date(now.getTime() - COST_WINDOW_DAYS * 86_400_000);
 
-  const [cronRows, deployPages, pendingActions, approvalRequests, commitments, lanes, spendAgg, unpriced, tasksDone] =
+  const [cronRows, deployPages, pendingActions, approvalRequests, expiredRequests, commitments, lanes, spendAgg, unpriced, tasksDone] =
     await Promise.all([
       guarded(
         "cron runs",
@@ -59,14 +59,27 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
         }),
       ),
       guarded("approvals", listPendingActions()),
+      // Live and expired requests are read separately: expired rows stay pending_approval
+      // forever, so one capped oldest-first list could hold only expired rows and hide
+      // every live decision (Codex review on #2645).
       guarded(
         "approvals",
         prisma.approvalRequest.findMany({
-          where: { status: "pending_approval" },
+          where: { status: "pending_approval", expiresAt: { gt: now } },
           select: { id: true, actionType: true, reason: true, createdAt: true, expiresAt: true },
           orderBy: { createdAt: "asc" },
-          take: 100,
+          take: 200,
         }),
+      ),
+      guarded(
+        "approvals",
+        prisma.approvalRequest
+          .aggregate({
+            where: { status: "pending_approval", expiresAt: { lte: now } },
+            _count: { _all: true },
+            _min: { createdAt: true },
+          })
+          .then((a) => ({ count: a._count._all, oldest: a._min.createdAt })),
       ),
       guarded(
         "commitments",
@@ -106,6 +119,7 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
     deployPages,
     pendingActions,
     approvalRequests,
+    expiredRequests,
     commitments,
     lanes,
     spend,

@@ -26,6 +26,7 @@ const base: OwnerPanelInput = {
   deployPages: [],
   pendingActions: [],
   approvalRequests: [],
+  expiredRequests: { count: 0, oldest: null },
   commitments: [],
   lanes: [],
   spend: { costCents: 500, calls: 10, unpricedCalls: 0 },

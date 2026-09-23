@@ -11,7 +11,7 @@
  *                         reads Home's judgment queue counts (operator-brief.ts)
  *   · commitments      -> commitments past their deadline, still active/accepted
  *   · lanes            -> listLaneStatus() (lib/ai/budget.ts), a capped lane
- *                         past its cap is STOPPED until midnight UTC
+ *                         past its cap is STOPPED until midnight ET (startOfDay)
  *   · cost             -> ai_generations cost_cents, tasks marked DONE
  *
  * Rules (each one is the empty-vs-error skill):
@@ -38,6 +38,8 @@ export const DECISIONS_VISIBLE_CAP = 5;
 export const DEPLOY_ALERT_TOOL = "railway.deploy_alert";
 
 const TERMINAL = new Set(["success", "partial", "failed", "interrupted"]);
+/** ActionAttempt states that record the provider accepted the page (lib/services/action-attempts.ts). */
+const DELIVERED_STATES = new Set(["SUCCEEDED_UNVERIFIED", "VERIFIED"]);
 
 export type Provenance = "MEASURED" | "ESTIMATE" | "UNMEASURED";
 
@@ -133,7 +135,11 @@ export interface OwnerPanelInput {
   cronRows: CronRow[] | null;
   deployPages: PageRow[] | null;
   pendingActions: PendingActionLite[] | null;
+  /** LIVE requests only (expiresAt in the future). Expired rows stay `pending_approval` forever,
+   *  so reading both in one capped list lets an expired backlog push every live one out. */
   approvalRequests: ApprovalRequestLite[] | null;
+  /** Expired-but-still-pending requests, counted — never listed, so a backlog cannot flood the panel. */
+  expiredRequests: { count: number; oldest: Date | null } | null;
   commitments: CommitmentLite[] | null;
   lanes: LaneLite[] | null;
   spend: SpendLite | null;
@@ -231,16 +237,23 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
   if (input.deployPages === null) unreadable.push("deploy pages");
   else
     for (const p of input.deployPages) {
-      const undelivered = p.state === "FAILED";
+      // Only a settled success is "delivered". EXECUTING (the settle never landed) and
+      // UNKNOWN say nothing about the phone, so they are unconfirmed, not delivered.
+      const delivered = DELIVERED_STATES.has(p.state);
+      const failed = p.state === "FAILED";
       exceptions.push(
         item(now, {
           key: `page:${p.id}`,
           kind: "deploy_page",
           // A delivered page already reached the owner's phone; it stays listed for the
-          // window (no success event is recorded to clear it) but only an undelivered one is red.
-          tone: undelivered ? "rose" : "amber",
-          title: undelivered ? `${describePage(p.operationKey)} · page NOT delivered` : describePage(p.operationKey),
-          detail: undelivered ? clip(p.reason) : "paged to Telegram",
+          // window (no success event is recorded to clear it) but is amber, not red.
+          tone: delivered ? "amber" : "rose",
+          title: failed
+            ? `${describePage(p.operationKey)} · page NOT delivered`
+            : delivered
+              ? describePage(p.operationKey)
+              : `${describePage(p.operationKey)} · delivery unconfirmed`,
+          detail: failed ? clip(p.reason) : delivered ? "paged to Telegram" : `page attempt is ${p.state}; no delivery was recorded`,
           since: p.startedAt,
           href: "/system/health",
           evidence: `action_attempts ${p.operationKey}`,
@@ -248,26 +261,67 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
       );
     }
 
-  if (input.pendingActions === null || input.approvalRequests === null) unreadable.push("approvals");
+  if (input.pendingActions === null || input.approvalRequests === null || input.expiredRequests === null)
+    unreadable.push("approvals");
   else {
+    // Expired approvals roll up to ONE row (same shape as Home's judgment queue):
+    // they need a re-request or a dismissal, and a backlog must not bury the rest.
+    let expiredCount = input.expiredRequests.count;
+    let oldestExpired = input.expiredRequests.oldest?.getTime() ?? Infinity;
+    const noteExpired = (at: Date) => {
+      expiredCount++;
+      oldestExpired = Math.min(oldestExpired, at.getTime());
+    };
     for (const a of input.pendingActions) {
-      const row = {
-        since: a.createdAt,
-        href: "/system/actions",
-        evidence: `autonomous_actions ${a.id}`,
-        detail: `rule ${a.ruleName}`,
-      };
-      if (a.expired)
-        exceptions.push(item(now, { ...row, key: `expired-action:${a.id}`, kind: "approval_expired", tone: "amber", title: `approval expired unanswered · ${a.actionType}`, detail: `${row.detail} · re-request or dismiss` }));
-      else decisions.push(item(now, { ...row, key: `action:${a.id}`, kind: "approval", tone: "neutral", title: `approve ${a.actionType}?` }));
+      if (a.expired) {
+        noteExpired(a.createdAt);
+        continue;
+      }
+      decisions.push(
+        item(now, {
+          key: `action:${a.id}`,
+          kind: "approval",
+          tone: "neutral",
+          title: `approve ${a.actionType}?`,
+          detail: `rule ${a.ruleName}`,
+          since: a.createdAt,
+          href: "/system/actions",
+          evidence: `autonomous_actions ${a.id}`,
+        }),
+      );
     }
     for (const r of input.approvalRequests) {
-      const expired = r.expiresAt.getTime() <= now.getTime();
-      const row = { since: r.createdAt, href: "/system/actions", evidence: `approval_requests ${r.id}`, detail: clip(r.reason) };
-      if (expired)
-        exceptions.push(item(now, { ...row, key: `expired-request:${r.id}`, kind: "approval_expired", tone: "amber", title: `approval expired unanswered · ${r.actionType}` }));
-      else decisions.push(item(now, { ...row, key: `request:${r.id}`, kind: "approval", tone: "neutral", title: `approve ${r.actionType}?` }));
+      // Expired between the read and now: count it, do not offer it as a decision.
+      if (r.expiresAt.getTime() <= now.getTime()) {
+        noteExpired(r.createdAt);
+        continue;
+      }
+      decisions.push(
+        item(now, {
+          key: `request:${r.id}`,
+          kind: "approval",
+          tone: "neutral",
+          title: `approve ${r.actionType}?`,
+          detail: clip(r.reason),
+          since: r.createdAt,
+          href: "/system/actions",
+          evidence: `approval_requests ${r.id}`,
+        }),
+      );
     }
+    if (expiredCount > 0)
+      exceptions.push(
+        item(now, {
+          key: "approvals-expired",
+          kind: "approval_expired",
+          tone: "amber",
+          title: `${expiredCount} ${expiredCount === 1 ? "approval" : "approvals"} expired unanswered`,
+          detail: "each needs a re-request or a dismissal",
+          since: Number.isFinite(oldestExpired) ? new Date(oldestExpired) : null,
+          href: "/system/actions",
+          evidence: "autonomous_actions + approval_requests past their freshness window",
+        }),
+      );
   }
 
   if (input.commitments === null) unreadable.push("commitments");
@@ -299,7 +353,7 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
           kind: "lane_stopped",
           tone: "rose",
           title: `AI lane ${l.feature} stopped · over its cap`,
-          detail: `${dollars(l.spentCents)} of ${dollars(l.capCents)} today · calls return nothing until midnight UTC`,
+          detail: `${dollars(l.spentCents)} of ${dollars(l.capCents)} today · calls return nothing until midnight ET`,
           since: null,
           href: "/system/ai-cost",
           evidence: `ai_generations feature=${l.feature} today`,

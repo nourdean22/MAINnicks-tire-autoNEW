@@ -27,6 +27,7 @@ const clean: OwnerPanelInput = {
   deployPages: [],
   pendingActions: [],
   approvalRequests: [],
+  expiredRequests: { count: 0, oldest: null },
   commitments: [],
   lanes: [],
   spend: { costCents: 1234, calls: 40, unpricedCalls: 0 },
@@ -61,6 +62,7 @@ describe("composeOwnerPanel · verdict", () => {
   it("names approvals as unreadable when either approval read failed", () => {
     expect(composeOwnerPanel({ ...clean, approvalRequests: null }).unreadable).toContain("approvals");
     expect(composeOwnerPanel({ ...clean, pendingActions: null }).unreadable).toContain("approvals");
+    expect(composeOwnerPanel({ ...clean, expiredRequests: null }).unreadable).toContain("approvals");
   });
 
   it("is ATTENTION with a count when exceptions exist, and still lists unreadable sources", () => {
@@ -119,8 +121,21 @@ describe("approvals · live is a decision, expired is an exception", () => {
       ],
     });
     expect(p.decisions.map((d) => d.key)).toEqual(["action:a1", "request:q1"]); // oldest first
-    expect(p.exceptions.map((e) => e.kind)).toEqual(["approval_expired", "approval_expired"]);
+    // Expired approvals roll up into ONE exception, aged from the oldest.
+    expect(p.exceptions).toHaveLength(1);
+    expect(p.exceptions[0]).toMatchObject({ kind: "approval_expired", title: "2 approvals expired unanswered", ageMin: 20_000 });
     expect(p.decisions.every((d) => d.href === "/system/actions")).toBe(true);
+  });
+
+  it("an expired backlog cannot hide live decisions or flood the exceptions (Codex P1 on #2645)", () => {
+    const p = composeOwnerPanel({
+      ...clean,
+      approvalRequests: [{ id: "live", actionType: "browser", reason: "r", createdAt: ago(5), expiresAt: new Date(now.getTime() + 60_000) }],
+      expiredRequests: { count: 150, oldest: ago(50_000) },
+    });
+    expect(p.decisions.map((d) => d.key)).toEqual(["request:live"]);
+    expect(p.exceptions).toHaveLength(1);
+    expect(p.exceptions[0]).toMatchObject({ title: "150 approvals expired unanswered", ageMin: 50_000 });
   });
 
   it("caps visible decisions and reports how many are hidden", () => {
@@ -156,6 +171,8 @@ describe("other exception sources", () => {
       ],
     });
     expect(p.exceptions.map((e) => e.key)).toEqual(["lane:chat"]);
+    // startOfDay() is ET midnight (lib/utils/datetime.ts) — the reset time must say so (Codex P2 on #2645).
+    expect(p.exceptions[0].detail).toMatch(/until midnight ET$/);
   });
 
   it("marks an undelivered deploy page, and sorts rose before amber", () => {
@@ -175,6 +192,18 @@ describe("other exception sources", () => {
       deployPages: [{ id: "p2", operationKey: "railway:deploy:abc12345:CRASHED", state: "SUCCEEDED_UNVERIFIED", reason: null, startedAt: ago(5) }],
     }).exceptions[0];
     expect(delivered).toMatchObject({ tone: "amber", title: "deploy crashed · abc12345", detail: "paged to Telegram" });
+  });
+
+  it("does not call an unsettled page delivered (Codex P2 on #2645)", () => {
+    for (const state of ["EXECUTING", "UNKNOWN"]) {
+      const [e] = composeOwnerPanel({
+        ...clean,
+        deployPages: [{ id: "p3", operationKey: "railway:deploy:abc12345:FAILED", state, reason: null, startedAt: ago(5) }],
+      }).exceptions;
+      expect(e.tone).toBe("rose");
+      expect(e.title).toBe("deploy failed · abc12345 · delivery unconfirmed");
+      expect(e.detail).not.toMatch(/paged to Telegram/);
+    }
     expect(describePage("railway:deploy:body-0123:CRASHED")).toBe("deploy crashed · unknown deployment");
   });
 });
