@@ -8,7 +8,7 @@
 ## Since 2026-09-23 — W16d (region, critic, categories, skip reason, reranker)
 
 - **statenour-web serves from Railway us-east4-eqdc4a**, next to the Neon database. statenour-worker is still in us-west2.
-- **The reranker is Cohere-first.** `BGE_RERANK=false` on statenour-web: `lib/brain/rerank.ts` tries Cohere, then BGE. The HF inference credits behind BGE were depleted (402 on every candidate). Not yet observed on a live turn at the time of writing.
+- **The reranker is Cohere-first.** `BGE_RERANK=false` on statenour-web: `lib/brain/rerank.ts` tries Cohere, then BGE. The HF inference credits behind BGE were depleted (402 on every candidate). Proven 16:40-16:47Z 09-23: 6 of 6 chat turns reranked by Cohere (25 in, 25 out), 0 BGE calls.
 - **The adversarial critic's budget is 30 s** (`ADVERSARIAL_GUARDIAN_OPTS`, measured p95 21.7 s). It runs after the reply streams; nobody waits on it.
 - **19 more brain categories are registered** (`emotional_state` + 18 with live writers, each pinned to its writer file in `tests/brain/emotional-state-category.test.ts`). Their writes no longer take the unknown-category path.
 - **`cron_job_logs."skipReason"`** (applied 2026-09-23) holds why a run chose not to work. Outcome is derived, never stored twice: skipReason set = skipped; else `resultCount` 0 = ran, produced nothing; N = did N units; NULL = ran, reported no count.
