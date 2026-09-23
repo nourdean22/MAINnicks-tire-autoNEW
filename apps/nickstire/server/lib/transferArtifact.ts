@@ -129,8 +129,41 @@ const asString = (v: unknown): string | null =>
 export function transferArtifactWorthPersisting(
   read: TransferArtifactRead,
   endedReason: string | null | undefined,
+  transferUpdateSeen = false,
 ): boolean {
-  return read.transfers.length > 0 || isTransferAttempt(endedReason);
+  return read.transfers.length > 0 || isTransferAttempt(endedReason) || transferUpdateSeen;
+}
+
+/**
+ * Did Vapi send a `transfer-update` for this call (recorded by the webhook as
+ * state `transfer_attempted`)?
+ *
+ * 2026-09-23: the census found 946 transfer attempts with a provider verdict on
+ * only 103. The ended reason misses an attempt whenever the call ends some
+ * other way after it (the customer hangs up during the ring, the transfer
+ * fails back to the assistant), and `transfer-update` was subscribed but fell
+ * to the webhook's default branch, so nothing recorded it. This is the third
+ * witness: an attempt Vapi told us about in real time.
+ */
+export function sawTransferUpdate(
+  states: ReadonlyArray<{ state: string; metadata?: Record<string, unknown> | null }>,
+): boolean {
+  // An assistant-to-assistant handoff also fires transfer-update; it never
+  // rings the shop, so it is not an attempt to reach a person.
+  return states.some(
+    (s) => s.state === "transfer_attempted" && s.metadata?.destinationType !== "assistant",
+  );
+}
+
+/**
+ * What a `transfer-update` may store. The destination's KIND only ("number",
+ * "sip", "assistant"), never the number itself: a destination is a phone
+ * number, and phone numbers stay out of telemetry rows.
+ */
+export function transferUpdateMetadata(event: unknown): { eventType: "transfer-update"; destinationType: string | null } {
+  const dest = (event as { destination?: unknown } | null)?.destination;
+  const kind = dest && typeof dest === "object" ? asString((dest as { type?: unknown }).type) : null;
+  return { eventType: "transfer-update", destinationType: kind };
 }
 
 export function readTransferArtifact(artifact: unknown): TransferArtifactRead {

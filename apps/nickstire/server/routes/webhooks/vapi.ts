@@ -613,8 +613,13 @@ async function processCallEndReport(
         // write failing must not take the other down, and neither may affect
         // the webhook's 200.
         try {
-          const { readTransferArtifact, transferArtifactWorthPersisting } = await import("../../lib/transferArtifact");
+          const { readTransferArtifact, transferArtifactWorthPersisting, sawTransferUpdate } = await import("../../lib/transferArtifact");
           const read = readTransferArtifact((event as { artifact?: unknown }).artifact);
+          // The live `transfer-update` witness (recorded below in the router).
+          // It catches the attempt the ended reason hides: a caller who hangs
+          // up while the shop line rings ends "customer-ended-call".
+          const { getCallStateHistory } = await import("../../services/voice-call-state");
+          const transferUpdateSeen = sawTransferUpdate(await getCallStateHistory(String(callId)));
           // Write only when there is something to say: a per-attempt record, or
           // an ended reason proving a transfer was ATTEMPTED. A call that never
           // tried to hand off gets no verdict at all — the old test here was
@@ -622,11 +627,12 @@ async function processCallEndReport(
           // whenever Vapi sends a transfers ARRAY — which it does, empty, on
           // calls that never transferred — which is how 20 of 31 calls came to
           // carry "unknown" for a transfer that never happened.
-          if (transferArtifactWorthPersisting(read, cleanEndedReason)) {
+          if (transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)) {
             const { sql } = await import("drizzle-orm");
+            const stored = { ...read, transferUpdateSeen };
             await d.execute(sql`
               UPDATE vapi_call_logs
-              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(read)} AS JSON))
+              SET metadata = JSON_SET(COALESCE(metadata, JSON_OBJECT()), '$.transferArtifact', CAST(${JSON.stringify(stored)} AS JSON))
               WHERE vapiCallId = ${String(callId)}
             `);
             if (read.unrecognisedStatuses.length) {
@@ -1016,6 +1022,32 @@ router.post("/vapi", async (req: Request, res: Response) => {
         }
         // Acknowledge — no work needed for V1
         res.json({ ack: true });
+        return;
+      }
+
+      // Vapi fires this when the assistant STARTS a transfer. It carries no
+      // outcome (that arrives in the end-of-call artifact, when Vapi sends
+      // one); it is the proof an attempt happened. Until 2026-09-23 it was
+      // subscribed but fell to the default branch, so an attempt whose call
+      // then ended some other way left no trace. Ack first, record detached;
+      // the destination's kind only, never its number.
+      case "transfer-update": {
+        res.json({ ack: true });
+        const callId = event.call?.id;
+        if (callId) {
+          const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+          void Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/transferArtifact"),
+          ]).then(([{ recordCallState }, { transferUpdateMetadata }]) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "transfer_attempted",
+              metadata: transferUpdateMetadata(event),
+            }),
+          ).catch(() => { /* intentionally swallowed: telemetry never breaks a live call */ });
+        }
         return;
       }
 
