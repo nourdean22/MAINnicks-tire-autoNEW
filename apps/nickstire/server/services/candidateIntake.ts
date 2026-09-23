@@ -40,6 +40,7 @@ import {
   type CandidateIntent,
 } from "@shared/candidateLifecycle";
 import { sendNotification } from "../email-notify";
+import { ENV } from "../_core/env";
 import { sendSms } from "../sms";
 import { normalizePhone } from "../lib/phone";
 import { OPERATOR_MOBILE_LAST10 } from "./nonCustomerFilter";
@@ -173,15 +174,27 @@ export async function runCandidateIntake(c: IntakeCandidate): Promise<void> {
       // smart-batching throttle exists for noisy categories, not this one.
       // high_value routes to BOTH the shop and the CEO inbox; "lead" reached
       // the shop inbox only, and the operator asked for his own copy.
-      const res = await sendNotification({
-        category: "high_value",
-        subject,
-        body,
-        bypassThrottle: true,
-        templateUsed: "candidate_owner_alert",
-      });
-      if (res.emailSent) await markCandidateOwnerAlerted(c.id);
-      else log.warn("[candidate-intake] owner alert not sent", { id: c.id });
+      //
+      // CONFIDENTIAL is the exception: the form promises "this goes to the
+      // owner only", so it goes to the CEO inbox alone — never the shared shop
+      // inbox (Codex on #2557). No CEO address configured -> no email at all;
+      // the owner text below still fires.
+      const confidential = c.intent === "confidential";
+      const ceo = ENV.ceoEmail.trim();
+      if (confidential && !ceo) {
+        log.warn("[candidate-intake] confidential owner email skipped — CEO_EMAIL not set", { id: c.id });
+      } else {
+        const res = await sendNotification({
+          category: "high_value",
+          subject,
+          body,
+          ...(confidential ? { overrideTo: [ceo] } : {}),
+          bypassThrottle: true,
+          templateUsed: "candidate_owner_alert",
+        });
+        if (res.emailSent) await markCandidateOwnerAlerted(c.id);
+        else log.warn("[candidate-intake] owner alert not sent", { id: c.id });
+      }
     } catch (err) {
       log.warn("[candidate-intake] owner alert failed", { id: c.id, err: String(err) });
     }

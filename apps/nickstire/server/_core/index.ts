@@ -561,6 +561,7 @@ async function startServer() {
   app.get("/sitemap.xml", async (_req, res) => {
     const { SITEMAP_ROUTES, BLOG_SLUGS } = await import("@shared/routes");
     const { JOB_OPENINGS } = await import("@shared/jobOpenings");
+    const { careersLeafVerdict } = await import("./spaFallback");
     const { GUIDES } = await import("@shared/guides");
     const { getPublishedArticles } = await import("../content-generator");
     const { isRedirectedPath } = await import("./redirects");
@@ -597,7 +598,9 @@ async function startServer() {
     // truth). Catches registry aliases AND DB-published slugs that were later
     // redirected (e.g. /blog/car-ac-not-blowing-cold).
     const urls = [
-      ...SITEMAP_ROUTES.filter(p => !isRedirectedPath(p.path)).map(p =>
+      // A filled/closed job leaf leaves the sitemap with its role, even while
+      // its route entry is still registered (spaFallback answers 404 for it).
+      ...SITEMAP_ROUTES.filter(p => !isRedirectedPath(p.path) && careersLeafVerdict(p.path) !== false).map(p =>
         `  <url>\n    <loc>${baseUrl}${p.path}</loc>${sitemapLastmod(jobLastmod.get(p.path))}\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`
       ),
       ...allBlogSlugs.filter(s => !isRedirectedPath(`/blog/${s}`)).map(s =>
