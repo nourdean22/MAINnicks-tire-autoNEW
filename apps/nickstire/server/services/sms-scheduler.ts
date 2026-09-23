@@ -25,9 +25,7 @@ import {
 } from "../sms";
 
 import { BUSINESS } from "@shared/business";
-import { createLogger } from "../lib/logger";
 
-const log = createLogger("services:sms-scheduler");
 /**
  * Convert an Eastern Time hour to UTC hour for a given date.
  * Railway runs UTC — we must offset scheduled times so customers
