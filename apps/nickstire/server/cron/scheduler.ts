@@ -9,7 +9,9 @@
  * TIER 1 (5 min):  Heartbeat — critical monitoring + SMS
  * TIER 2 (15 min): Pulse — dashboard sync, vendor health, form recovery
  * TIER 3 (2 hr):   Hourly — lead follow-up, intelligence, reviews
- * TIER 4 (24 hr):  Daily — segmentation, retention, reports, cleanup
+ * TIER 4 (daily, 09:30 ET): Daily — segmentation, retention, reports, cleanup
+ * TIER 5 (07:00 + 19:00 ET): Briefings — morning brief, daily report
+ *   (tiers 4-5 run on the ET wall clock, claimed per slot per day — wallClockTiers.ts)
  *
  * Each tier runs its jobs SEQUENTIALLY within the tier to avoid
  * DB connection stampedes. Jobs still have individual timeout + skip
@@ -20,6 +22,7 @@ import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
 import { acquireCronLock, releaseCronLock, jobTimeoutMs } from "./index";
 import { claimStartupPass, describeStartup, readLastRunAgeMs, startupAllowanceMs, type StartupClaim } from "./tierStartup";
+import { createWallClockRunner, isWallClockTier, startWallClockLoop } from "./wallClockTiers";
 
 const log = createLogger("scheduler");
 
@@ -892,7 +895,9 @@ function buildTiers(): void {
               details: `overnight probe → ${result.outcome} (${result.recordsProcessed} records, ${result.durationMs}ms)`,
             };
           } catch (e: unknown) {
-            return { details: `overnight probe failed: ${(e as Error).message}` };
+            // Thrown, not returned: a returned `details` string was logged as
+            // "completed", so a failed probe never reached cron_log as failed.
+            throw new Error(`overnight probe failed: ${e instanceof Error ? e.message : String(e)}`);
           }
         },
       },
@@ -921,7 +926,8 @@ function buildTiers(): void {
               details: `evening probe → ${result.outcome} (${result.recordsProcessed} records, ${result.durationMs}ms)`,
             };
           } catch (e: unknown) {
-            return { details: `evening probe failed: ${(e as Error).message}` };
+            // Thrown, not returned — same reason as alg-overnight-probe above.
+            throw new Error(`evening probe failed: ${e instanceof Error ? e.message : String(e)}`);
           }
         },
       },
@@ -1929,7 +1935,8 @@ function buildTiers(): void {
     lastRun: null,
   });
 
-  // ═══ TIER 4: DAILY (every 24 hr) ═══
+  // ═══ TIER 4: DAILY (once a day, 09:30 ET slot — wallClockTiers.ts) ═══
+  // intervalMs is the nominal cadence consumers read (getJobCadences); no timer uses it.
   // Everything that runs once a day — batched together
   tiers.push({
     name: "daily",
@@ -2763,7 +2770,8 @@ function buildTiers(): void {
     lastRun: null,
   });
 
-  // ═══ TIER 5: BRIEFINGS (every 12 hr) ═══
+  // ═══ TIER 5: BRIEFINGS (07:00 and 19:00 ET slots — wallClockTiers.ts) ═══
+  // intervalMs is the nominal cadence consumers read (getJobCadences); no timer uses it.
   // Morning brief + daily report — timing-critical
   tiers.push({
     name: "briefings",
@@ -2792,6 +2800,12 @@ function buildTiers(): void {
         // self-corrects on the next redeploy, and it fails toward silence rather
         // than toward a 3am push. Moving this job to the 2h tier would remove
         // the residual outright and is the real fix if it ever bites.
+        //
+        // 2026-09-23 · that residual is closed: the tier no longer has a phase.
+        // Its 07:00 ET slot lands inside this job's window every day and its
+        // 19:00 ET slot inside daily-report's and daily-wins-digest's, each
+        // claimed once per ET day (wallClockTiers.ts). The job's own window
+        // gate stays as the second layer.
         name: "nick-morning-brief",
         handler: async () => {
           const { sendMorningBrief } = await import("./jobs/morningBrief");
@@ -2861,6 +2875,8 @@ function buildTiers(): void {
   });
 }
 
+let stopWallClockLoop: (() => void) | undefined;
+
 /** Idempotent: builds the tier table once; safe for read-only callers (getJobCadences calls it). */
 function ensureTiersBuilt(): void {
   if (tiers.length === 0) buildTiers();
@@ -2878,6 +2894,12 @@ export function startTieredScheduler(): void {
   // Start all tiers (staggered to avoid memory spike on boot)
   for (const tier of tiers) {
     const idx = tiers.indexOf(tier);
+    // 2026-09-23 · daily and briefings run on the ET wall clock, not on a
+    // boot claim + setInterval — 32 deploys overnight meant their 24 h / 12 h
+    // timers never ticked and the boot claim set their time of day (daily ran
+    // at 04:29 ET, outside every customer lane's send window). They are
+    // started by the wall-clock loop below; see wallClockTiers.ts.
+    if (isWallClockTier(tier.name)) continue;
     // Every tier decides its boot-time fire from the age of its last run,
     // read from the state resetSkipCount() writes on every run (the
     // forensic-audit CRITICAL fix: cron_log never carried a 'tier:daily'
@@ -2932,6 +2954,25 @@ export function startTieredScheduler(): void {
     }, tier.intervalMs);
   }
 
+  const wallClockTierNames = tiers.filter((t) => isWallClockTier(t.name)).map((t) => t.name);
+  const wallClockRunner = createWallClockRunner({
+    getDb: async () => {
+      const { getDb } = await import("../db");
+      return getDb();
+    },
+    runTier: async (tierName) => {
+      const tier = tiers.find((t) => t.name === tierName);
+      if (tier) await runTier(tier);
+    },
+    isTierRunning: (tierName) => tiers.find((t) => t.name === tierName)?.running === true,
+    log,
+  });
+  stopWallClockLoop = startWallClockLoop(wallClockRunner, wallClockTierNames, {
+    // after the staggered boot passes of the interval tiers
+    bootDelayMs: tiers.length * 30_000,
+    onError: (tierName, err) => log.error(`Tier ${tierName} wall-clock pass failed:`, { error: err instanceof Error ? err.message : String(err) }),
+  });
+
   log.info(`Tiered scheduler started: ${tiers.length} tiers, ${tiers.reduce((s, t) => s + t.jobs.length, 0)} jobs`);
 
   // Seed business model into Nick's memory (runs once on startup)
@@ -2952,6 +2993,8 @@ export function startTieredScheduler(): void {
  * Stop the tiered scheduler.
  */
 export function stopTieredScheduler(): void {
+  stopWallClockLoop?.();
+  stopWallClockLoop = undefined;
   for (const tier of tiers) {
     if (tier.handle) clearInterval(tier.handle);
   }
