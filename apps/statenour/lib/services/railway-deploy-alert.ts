@@ -34,15 +34,15 @@ import { beginAttempt, settleAttempt } from "@/lib/services/action-attempts";
 const log = rootLogger.withSurface("webhooks/railway");
 
 /** Shorter than this and the env value is treated as unset: a guessable URL secret is no secret. */
-export const MIN_TOKEN_LENGTH = 24;
+const MIN_TOKEN_LENGTH = 24;
 
 /** Deployment states that page the owner. Everything else (BUILDING, SUCCESS, REMOVED...) is ignored. */
-export const PAGING_DEPLOY_STATES = new Set(["FAILED", "CRASHED"]);
+const PAGING_DEPLOY_STATES = new Set(["FAILED", "CRASHED"]);
 
 /** One page per (deployment, status) for this long — a crash-looping deploy pages once, not every restart. */
-export const DEPLOY_DEDUPE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const DEPLOY_DEDUPE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 /** Resource (volume / monitor) alerts: identical deliveries inside this window are one page. */
-export const RESOURCE_DEDUPE_WINDOW_MS = 6 * 60 * 60 * 1000;
+const RESOURCE_DEDUPE_WINDOW_MS = 6 * 60 * 60 * 1000;
 
 const TOOL = "railway.deploy_alert";
 
