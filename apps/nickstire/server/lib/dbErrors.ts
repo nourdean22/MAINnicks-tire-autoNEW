@@ -46,7 +46,7 @@ export function isMissingTableError(err: unknown): boolean {
  * false positive silently takes the degraded path on a real failure.
  *
  * One definition, 2026-09-23. db.ts had a copy that also text-matched the
- * drizzle wrapper's message; eleven other sites regexed `err.message` for
+ * drizzle wrapper's message, and a dozen other sites regexed `err.message` for
  * /unknown column|1054/, which on a wrapped error is the SQL and params. A real
  * 1054 never matched there, and a query whose params held 1054 did.
  */
@@ -62,9 +62,9 @@ const SCHEMA_BUG_ERRNOS = new Set([1054, 1051, 1109, 1064]);
 
 /**
  * A query the database could not even run as written: unknown column (1054),
- * unknown table (1051), unknown table alias (1109) or a syntax error (1064). That is a code or deploy
- * defect that waiting will not fix, so crons report it loudly instead of as a
- * quiet empty result. A missing table (1146) is deliberately NOT in this set:
+ * unknown table (1051), unknown table alias (1109) or a syntax error (1064).
+ * That is a code or deploy defect that waiting will not fix, so crons report
+ * it loudly instead of as a quiet empty result. A missing table (1146) is deliberately NOT in this set:
  * callers treat that as "migration pending".
  */
 export function isSchemaBugError(err: unknown): boolean {

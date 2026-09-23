@@ -70,18 +70,43 @@ function tableMap(): Map<string, string> {
   return out;
 }
 
-function findWriters(sources: string[], ident: string, dbName: string): string[] {
-  // Qualified identifiers count: `db.insert(schema.generationReservations)` and
-  // `insert(s.x)` are how the ledger services write — the first run of this
-  // canary missed them and reported four live tables as writerless.
-  const drizzle = new RegExp(`\\.(insert|update|delete)\\(\\s*(?:[A-Za-z_$][\\w$]*\\.)?${ident}\\b`);
-  const raw = new RegExp(`\\b(INSERT\\s+(IGNORE\\s+)?INTO|UPDATE|REPLACE\\s+INTO|DELETE\\s+FROM)\\s+\`?${dbName}\`?\\b`, "i");
-  const hits: string[] = [];
-  for (const f of sources) {
-    const text = readFileSync(f, "utf8");
-    if (drizzle.test(text) || raw.test(text)) hits.push(relative(APP, f));
+/**
+ * Every table each file writes, collected in ONE pass per file. The scan used
+ * to run two regexes per table over every file (~150 tables x ~1,500 files):
+ * 13s in a quiet process and past the 30s test timeout in a heap-heavy shuffled
+ * order (seed 29, 2026-09-23). The matching rules are unchanged:
+ *   · Drizzle: `.insert(x)` / `.update(x)` / `.delete(x)`, and the qualified
+ *     `.insert(schema.x)` form the ledger services use (the first run of this
+ *     canary missed it and reported four live tables as writerless). Both the
+ *     head and the qualified tail are recorded, as the old per-table regex
+ *     matched either.
+ *   · Raw SQL: INSERT [IGNORE] INTO / UPDATE / REPLACE INTO / DELETE FROM,
+ *     optional backticks, case-insensitive.
+ */
+const DRIZZLE_WRITE = /\.(?:insert|update|delete)\(\s*([A-Za-z_$][\w$]*)(?:\.([A-Za-z_$][\w$]*))?/g;
+const RAW_WRITE = /\b(?:INSERT\s+(?:IGNORE\s+)?INTO|UPDATE|REPLACE\s+INTO|DELETE\s+FROM)\s+`?([A-Za-z0-9_]+)/gi;
+
+type FileWrites = { file: string; idents: Set<string>; tables: Set<string> };
+const writesCache = new Map<string, FileWrites>();
+
+function writesOf(file: string): FileWrites {
+  const hit = writesCache.get(file);
+  if (hit) return hit;
+  const text = readFileSync(file, "utf8");
+  const idents = new Set<string>();
+  const tables = new Set<string>();
+  for (const m of text.matchAll(DRIZZLE_WRITE)) {
+    idents.add(m[1]);
+    if (m[2]) idents.add(m[2]);
   }
-  return hits;
+  for (const m of text.matchAll(RAW_WRITE)) tables.add(m[1].toLowerCase());
+  const out = { file: relative(APP, file), idents, tables };
+  writesCache.set(file, out);
+  return out;
+}
+
+function findWriters(sources: string[], ident: string, dbName: string): string[] {
+  return sources.map(writesOf).filter((w) => w.idents.has(ident) || w.tables.has(dbName.toLowerCase())).map((w) => w.file);
 }
 
 describe("every Drizzle table has a writer, or a reason it does not", () => {
