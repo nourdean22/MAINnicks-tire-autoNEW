@@ -1341,7 +1341,9 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
       log.error(`Reel autopost publish failed for job ${job.id}`, { error: ig?.error });
-      return { recordsProcessed: 0, details: `Publish failed: ${ig?.error ?? "unknown"} — not advancing index` };
+      // Throw, not return: a returned run is recorded `completed` and the cron
+      // observer never sees it. The job row is already restored above.
+      throw new Error(`Publish failed: ${ig?.error ?? "unknown"} — not advancing index`);
     }
 
     // Successfully posted live!

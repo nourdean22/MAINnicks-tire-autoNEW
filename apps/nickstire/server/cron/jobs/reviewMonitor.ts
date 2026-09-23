@@ -23,7 +23,7 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
     );
 
     if (!response.ok) {
-      return { recordsProcessed: 0, details: `Google API error: ${response.status}` };
+      throw new Error(`Google API error: ${response.status}`);
     }
 
     const data = await response.json();

@@ -433,9 +433,6 @@ export async function runCronFailureObserver(): Promise<{ recordsProcessed: numb
     };
   } catch (err) {
     log.error("[cron-observer] run failed:", err instanceof Error ? err.message : err);
-    return {
-      recordsProcessed: 0,
-      details: `error: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    throw err;
   }
 }
