@@ -28,7 +28,7 @@
 
 import { randomUUID } from "crypto";
 import { createLogger } from "../lib/logger";
-import { isMissingTableError } from "../lib/dbErrors";
+import { isMissingTableError, isUnknownColumnError } from "../lib/dbErrors";
 
 const log = createLogger("opportunity-queue");
 
@@ -945,7 +945,7 @@ export async function collectUnapprovedEstimates(): Promise<CollectorStats> {
     rows = rowsFromExecute(await db.execute(query(true)));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/unknown column|1054/i.test(msg)) {
+    if (isUnknownColumnError(err)) {
       try {
         rows = rowsFromExecute(await db.execute(query(false)));
       } catch (retryErr) {
@@ -1647,7 +1647,7 @@ export async function collectInspectionDeferrals(): Promise<CollectorStats> {
     rows = rowsFromExecute(await db.execute(baseQuery(true))) as unknown as Row[];
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/unknown column|1054/i.test(msg)) {
+    if (isUnknownColumnError(err)) {
       try {
         rows = rowsFromExecute(await db.execute(baseQuery(false))) as unknown as Row[];
       } catch {
@@ -1791,7 +1791,7 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (!isMissingTableError(err) && !/unknown column|1054/i.test(msg)) {
+    if (!isMissingTableError(err) && !isUnknownColumnError(err)) {
       log.warn("[opportunity-queue] estimate-concern reconciler failed", { error: msg });
     }
   }
@@ -1884,7 +1884,7 @@ export async function reconcileOpportunities(): Promise<ReconcileStats> {
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (!isMissingTableError(err) && !/unknown column|1054/i.test(msg)) {
+    if (!isMissingTableError(err) && !isUnknownColumnError(err)) {
       log.warn("[opportunity-queue] deferral reconciler failed", { error: msg });
     }
   }

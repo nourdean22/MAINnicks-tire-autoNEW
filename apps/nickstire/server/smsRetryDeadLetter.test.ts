@@ -15,16 +15,17 @@
  *      in-hours, unpaused, and something is genuinely due.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { DrizzleQueryError } from "drizzle-orm";
 
 vi.unmock("./sms");
 
 let executedSql: string[] = [];
-let executeThrows: string | null = null;
+let executeThrows: unknown = null;
 
 vi.mock("./db", () => ({
   getDb: async () => ({
     execute: async (q: unknown) => {
-      if (executeThrows) throw new Error(executeThrows);
+      if (executeThrows) throw typeof executeThrows === "string" ? new Error(executeThrows) : executeThrows;
       executedSql.push(JSON.stringify(q));
       return [{ affectedRows: 1 }];
     },
@@ -68,6 +69,29 @@ describe("recordSendFailure", () => {
     executeThrows = null;
     await recordSendFailure(45, "boom again");
     expect(executedSql.length).toBe(0);
+  });
+
+  // Production's shape: drizzle wraps the driver error, and the wrapper's own
+  // message is only the SQL and params (2026-09-23). The old regex on that
+  // message missed a real 1054 and matched an id of 1054.
+  const wrapped = (params: unknown[], cause: Error) => new DrizzleQueryError("UPDATE sms_messages SET send_attempts = ...", params, cause);
+
+  it("a drizzle-wrapped 1054 degrades ONCE too", async () => {
+    executeThrows = wrapped([46], Object.assign(new Error("Unknown column 'send_attempts' in 'field list'"), { code: "ER_BAD_FIELD_ERROR", errno: 1054 }));
+    const { recordSendFailure } = await import("./sms");
+    await recordSendFailure(46, "boom");
+    executeThrows = null;
+    await recordSendFailure(47, "boom again");
+    expect(executedSql.length).toBe(0);
+  });
+
+  it("control: a timeout on message id 1054 does NOT switch retry bounding off", async () => {
+    executeThrows = wrapped([1054], Object.assign(new Error("connect ETIMEDOUT"), { code: "ETIMEDOUT" }));
+    const { recordSendFailure } = await import("./sms");
+    await recordSendFailure(1054, "boom");
+    executeThrows = null;
+    await recordSendFailure(48, "boom again");
+    expect(executedSql.length).toBe(1);
   });
 });
 

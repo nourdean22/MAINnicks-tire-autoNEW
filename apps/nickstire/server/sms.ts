@@ -30,6 +30,7 @@ import { internalLineFor } from "./services/nonCustomerFilter";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
 import { isGatewayOnline } from "./lib/gateway-device";
 import { affectedRowCount } from "./lib/db-affected";
+import { isUnknownColumnError } from "./lib/dbErrors";
 import { isInternalLineDestination, queuedReplayIntent } from "./lib/smsQueueReplay";
 
 import { BUSINESS } from "@shared/business";
@@ -525,8 +526,7 @@ async function processDelayedQueue(): Promise<void> {
               .set({ status: "sent", sentAt: new Date() })
               .where(eq(smsMessages.id, msg.dbId));
           } catch (err) {
-            const emsg = err instanceof Error ? err.message : String(err);
-            if (!/unknown column|1054/i.test(emsg)) throw err;
+            if (!isUnknownColumnError(err)) throw err;
             await db.update(smsMessages)
               .set({ status: "sent" })
               .where(eq(smsMessages.id, msg.dbId));
@@ -579,7 +579,7 @@ export async function recordSendFailure(dbId: number, reason: string): Promise<v
     `);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/unknown column|1054/i.test(msg)) {
+    if (isUnknownColumnError(err)) {
       if (!sendAttemptsColumnMissing) {
         sendAttemptsColumnMissing = true;
         log.warn("0104 columns absent — retry bounding inactive until apply-sms-send-attempts runs (48h time-bound still terminal)");
@@ -632,8 +632,7 @@ export async function recoverStaleSendingRows(): Promise<{ requeued: number; fai
           AND createdAt < DATE_SUB(NOW(), INTERVAL 48 HOUR)
       `);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!/unknown column|1054/i.test(msg)) throw err;
+      if (!isUnknownColumnError(err)) throw err;
       ancient = await db.execute(sql`
         UPDATE sms_messages SET status = 'failed'
         WHERE status = 'sending' AND direction = 'outbound'

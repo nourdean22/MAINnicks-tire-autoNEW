@@ -5,6 +5,7 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { isUnknownColumnError } from "../lib/dbErrors";
 import { randomUUID } from "crypto";
 
 const log = createLogger("email-campaigns");
@@ -347,7 +348,10 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
     // 2026-09-01 (audit F-9/F-17): the missing column used to be reported as a
     // permanent silent "skip". It is a deploy-state defect — name the
     // migration and fail loudly so the observer sees it.
-    if ((err as Error).message?.includes("Unknown column") || (err as Error).message?.includes("lastEmailCampaignAt")) {
+    // Asked of the driver error, not the message: drizzle's wrapper message is
+    // the SQL itself, which names lastEmailCampaignAt, so a text match called
+    // every failure of this query (a timeout, say) "column missing".
+    if (isUnknownColumnError(err)) {
       throw new Error(`customers.lastEmailCampaignAt column is missing — apply drizzle/0114_estimates_followupsent_customers_lastemail.sql (${(err as Error).message})`);
     }
     log.error("[emailCampaigns] run failed:", { error: (err as Error).message });

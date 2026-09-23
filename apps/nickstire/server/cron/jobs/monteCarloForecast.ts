@@ -57,6 +57,7 @@
  */
 
 import { createLogger } from "../../lib/logger";
+import { isSchemaBugError } from "../../lib/dbErrors";
 
 const log = createLogger("cron:monte-carlo");
 
@@ -113,13 +114,9 @@ export async function processMonteCarloForecast(): Promise<ProcessResult> {
    * Same distinction the cross-sell job now makes (#1125): a schema error
    * is LOUD; a genuinely absent table is not.
    */
-  const isSchemaBug = (e: unknown) =>
-    typeof (e as { code?: string })?.code === "string" &&
-    ["ER_BAD_FIELD_ERROR", "ER_BAD_TABLE_ERROR", "ER_PARSE_ERROR"].includes((e as { code: string }).code);
-
   const statsFailed = (what: string, e: unknown) => {
     const error = e instanceof Error ? e.message : String(e);
-    if (isSchemaBug(e)) {
+    if (isSchemaBugError(e)) {
       log.error(`[monte-carlo] BROKEN · ${what} names a column/table that does not exist — the forecast cannot run`, { error });
       return { recordsProcessed: 0, details: `BROKEN: ${what} — ${error.slice(0, 120)}` };
     }

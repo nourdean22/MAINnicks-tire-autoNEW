@@ -90,6 +90,9 @@ Serial mode shares ONE process across ALL test files: one `globalThis`, one `pro
   (fake timers, env deletes).
 - RTL renders are auto-unmounted by the `afterEach(cleanup)` in `client/src/__tests__/setup.ts`
   (RTL auto-cleanup can't self-register because `globals: true` is off) — don't remove it.
+- The same `setup.ts` runs `afterAll(vi.dynamicImportSettled)` for EVERY file: an unawaited
+  `import()` still loading when a file ends evaluates into the NEXT file's cache before its mocks
+  register (real `db.ts`, live pool). Pre-fix replay: red 3/8 without it, 0/12 with it. Keep it.
 - Prove order-independence before shipping test changes:
   `pnpm exec vitest run --sequence.shuffle.files --sequence.seed=N` forces a deterministic file
   order; sweep a few seeds.

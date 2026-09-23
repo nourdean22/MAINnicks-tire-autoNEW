@@ -14,6 +14,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, router, dbAdminProcedure } from "../_core/trpc";
+import { isUnknownColumnError } from "../lib/dbErrors";
 
 export const smsOpsRouter = router({
   /** Everything on one read: pause, gateway, queue depth, caps, counters,
@@ -268,8 +269,7 @@ export const smsOpsRouter = router({
           WHERE id = ${input.messageId} AND status = 'failed' AND direction = 'outbound'
         `);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (!/unknown column|1054/i.test(msg)) throw err;
+        if (!isUnknownColumnError(err)) throw err;
         // pre-0104: replay without the attempt-reset columns
         result = await db.execute(sql`
           UPDATE sms_messages

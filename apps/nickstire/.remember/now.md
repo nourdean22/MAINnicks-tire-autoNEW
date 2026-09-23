@@ -32,6 +32,55 @@ open PR merges.
 missed-revenue queue was measuring Nick's own greeting. Full audit, graded evidence and the
 pre-"Reset to Shop" checklist: `docs/VOICE-RECOVERY-AUDIT-2026-09-18.md`.)
 
+
+## 2026-09-23 (midday) · Driver-error recognisers: the last text-matchers, and a suite-wide import guard
+
+**Defect class, now closed across the server.** drizzle-orm 0.45 wraps every driver error in a
+`DrizzleQueryError` whose message is ONLY `Failed query: <sql>\nparams: <params>`; the code,
+errno and driver text sit on `.cause`. #2574 fixed the missing-table and duplicate-key helpers.
+This follow-up moved `isUnknownColumnError` into `server/lib/dbErrors.ts` (db.ts re-exports it),
+added `isSchemaBugError` (1054/1051/1109/1064), and rewired 20 call sites that regexed
+`err.message` or read only the top-level `.code`: sms.ts x3, opportunityQueue x4, smsOps,
+crossSellOutreach, emailCampaigns, monteCarloForecast, weeklyRevenueDigest, recoveryLift x2,
+mediaRegistry, followupCadence, dashboardSync, shopdriver x3, webhooks/vapi.
+- A real wrapped 1054 never matched, so every "pre-migration, retry without the column" fallback
+  was dead in production. A wrapped TIMEOUT whose params held `1054` did match: on
+  `sms_messages.id` 1054, `recordSendFailure` would have switched retry bounding off for the
+  process. `smsRetryDeadLetter.test.ts` now drives both shapes; both tests fail on the old sms.ts.
+- emailCampaigns and dashboardSync matched a column/table name that their OWN SQL contains, so any
+  failure (a timeout) was reported as "apply migration 0114" / "0074 not applied".
+- **Rule:** never text-match a DB error. Use `lib/dbErrors` (`isMissingTableError`,
+  `isDuplicateKeyError`, `isUnknownColumnError`, `isSchemaBugError`). A source scan in
+  `server/lib/dbErrors.test.ts` fails if a regex comes back at any of the 20 sites.
+
+**Test isolation guard.** `client/src/__tests__/setup.ts` (setupFiles for every file) now awaits
+`vi.dynamicImportSettled()` in `afterAll`. Positive control, ordered replay of the pre-#2565
+`callbackAuditReceipt.test.ts` then `coupon-redemptions`: 3 of 8 runs red without the guard,
+0 of 12 with it.
+
+**Shuffled-order sweep found one more (fixed in the same PR).** `tableWriterCoverage.test.ts`
+timed out at 34-36s under seed 29 (31.3s even with the guard removed, so not the guard): two
+regexes per table x file. One pass per file now: 13.3s -> 0.14s; old vs new agree on all 154
+tables x 938 files (0 diffs); dropping `payments` from the allowlist still turns it red.
+
+**Shipped as #2589** (draft opened 13:01Z; merged tree 714 files, 8,952 tests, 0 failed, default
+order and seed 29). Merged key-wise with sibling #2581/#2582/#2583/#2584.
+
+**Cloud container (`bash scripts/cloud-setup.sh`, 2026-09-23):** Railway CLI 5.60.0 installed,
+workspace already installed. MISSING: `RAILWAY_TOKEN` (CLI unauthenticated; the Railway MCP
+connector still works), Node 24 (container has 22), `gh` (the GitHub MCP connector covers PRs).
+
+**PreToolUse guard was OFF in cloud sessions; FIXED in #2589 (`904cc7ea5`).** The node hooks in
+`.claude/settings.json` named their scripts with backslashes: MODULE_NOT_FOUND on Linux, fail-open,
+all 13 rules off. Now `/` separators; `scripts/agent-os/hookCommand.test.mjs` runs each configured
+command verbatim (red 4/5 before, 5/5 after) and `cloud-doctor` has a REQUIRED "policy hook fires"
+check. The live harness here began enforcing the moment the file changed. **One open check:** start
+a session on the Windows box and confirm a denied command is still blocked there.
+
+**Owner items still open:** delete Railway function `oneoff-careers-postdeploy` (inert, API
+delete timed out twice) · Resend DNS for nickstire.org (emails do not deliver) · mark test
+candidates #1/#2 withdrawn · never text STOP from the CEO mobile to the shop line.
+
 ## 2026-09-22 (night) · Counter-conversation capture — shipped, scheduled, NOT yet installed
 
 **PRODUCTION-PROVEN 2026-09-23 00:12Z.** After `f1c1db6f6` deployed, the same selftest episode

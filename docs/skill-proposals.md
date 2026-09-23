@@ -1989,3 +1989,28 @@ measurement. Every proposal below cites the moment in this wave that produced it
 > checkable rules belong by its own stated test — but it sits at its 200-line cap, so something goes to make
 > room. I am not choosing: this queue is propose-only, and the choice is a policy decision about where this
 > repo's PR mechanics live, not a defect with one correct fix.
+
+## 2026-09-23 · driver-error recognisers (#2574/#2589), suite-wide import guard, cloud container
+
+### P1 · guard-red-team (and `.claude/settings.json`, operator decision)
+- **Trigger (witnessed):** in this cloud session `git stash pop` and a `git push --force-with-lease` ran with no PreToolUse denial. Probe: `node "${CLAUDE_PROJECT_DIR}\scripts\agent-os\pretool.mjs"` on Linux fails `MODULE_NOT_FOUND`, exit 1 (fail-open); the same script via a `/` path on a `git stash pop` payload exits 2 (blocks). The hook command in `.claude/settings.json` uses Windows backslashes, so **all 13 policy rules are OFF in every Linux/cloud Claude session** while the adapter docs describe them as enforced.
+- **Cost:** a destructive-command guard silently absent in a whole class of sessions; nothing reported it. (The stash-pop here was on this session's own stash, so no damage.)
+- **Proposed edit:** (a) settings: use forward slashes (`node "${CLAUDE_PROJECT_DIR}/scripts/agent-os/pretool.mjs"`), which node resolves on Windows too — verify on the operator's Windows box before merging, same for the Stop and SessionStart hooks; (b) guard-red-team: add "prove the hook FIRES on every platform sessions run on (Windows desktop AND Linux cloud) — a canary that calls the script directly does not exercise the settings.json command string"; (c) `scripts/cloud-doctor.mjs`: add a check that pipes a known-deny payload through the exact settings.json command and expects exit 2.
+- **Confidence:** high (reproduced by probe)
+- **Status:** applied (operator-approved 2026-09-23, PR #2589)
+
+### P2 · nickstire-verify · evidence.json merge recipe
+- **Trigger (witnessed):** `.completion/evidence.json` conflicted on every base merge this session (#2565 twice, #2589 once) because sibling sessions rewrite the same per-diff keys (`capability-ledger-updated`, `operator-walkthrough`).
+- **Cost:** ~10 min each time, plus two script bugs on the first attempt (seeded from the wrong object; iterated the wrong side).
+- **Proposed edit:** add the three-way key-wise rule: for each key, take the side that changed vs merge-base; if both changed, ours stays current and theirs is kept as `<key>-superseded-<date>-sibling-main`; write with `json.dumps(indent=2, ensure_ascii=False)+"\n"` (round-trips byte-exact); then re-run `scripts/dod-compiler.mjs --base origin/main --enforce`.
+- **Confidence:** high (recurred 3x)
+- **Status:** applied (operator-approved 2026-09-23, PR #2589)
+
+### P3 · nickstire-verify · waiting on a background suite
+- **Trigger (witnessed):** two `until ! pgrep -f "vitest run"; do sleep; done` waiters never exited — `pgrep -f` matched the waiter's own command line, which contains the pattern. One sat out a 600s timeout.
+- **Cost:** ~10 minutes and two stuck background shells.
+- **Proposed edit:** wait on the suite's SUMMARY line in its log (`grep -q "^\s+Tests "`), never on `pgrep -f <pattern>`; if a pid is needed, capture `$!` at launch.
+- **Confidence:** medium (once, clear)
+- **Status:** applied (operator-approved 2026-09-23, PR #2589)
+
+(Applied directly this session with operator approval, not proposals: two nickstire-verify Traps — never text-match a DB error; a test near its timeout fails in shuffled orders, compare like-for-like file sets.)

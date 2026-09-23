@@ -106,7 +106,17 @@ first run found a fourth subject the hand-audit had missed.
 4. **Re-run the full probe set after ANY edit to the guard** — a fix for
    one bypass routinely reopens another (the #1355 matching-layer rebuild
    took an hour precisely because fixes interacted).
-5. **A canary that SPAWNS git must strip `GIT_*` env vars before it runs.**
+5. **Prove the hook FIRES from its configured command string, on every
+   platform sessions run on.** A canary that calls the script directly, or
+   one that "normalises" the configured command before running it, proves the
+   policy and says nothing about the wiring. Witnessed 2026-09-23: every node
+   hook in `.claude/settings.json` named its script with Windows backslashes,
+   so on Linux (every cloud session) it was MODULE_NOT_FOUND, exit 1, fail-open:
+   all 13 rules were off there, while `memoryHook.test.mjs` passed on Linux CI
+   because it rewrote `\` to `/` before running. `scripts/agent-os/hookCommand.test.mjs`
+   now runs each configured command verbatim through a shell and asserts the
+   deny exit AND the rule id; `scripts/cloud-doctor.mjs` repeats it per session.
+6. **A canary that SPAWNS git must strip `GIT_*` env vars before it runs.**
    Hooks inherit `GIT_DIR`/`GIT_INDEX_FILE` from the real commit that
    triggered them; a fixture repo-init under an inherited `GIT_DIR`
    re-initializes the SHARED `.git`, not a scratch one. Witnessed

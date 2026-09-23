@@ -22,6 +22,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { mediaAssets, type MediaAsset } from "../../drizzle/schema";
 import type { DB } from "../db";
 import { createLogger } from "../lib/logger";
+import { isMissingTableError } from "../lib/dbErrors";
 
 const log = createLogger("services:media-registry");
 
@@ -254,7 +255,7 @@ export async function registerProducedAsset(
     return await registerFromBuffer(database, buffer, input);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (/doesn't exist|ER_NO_SUCH_TABLE/i.test(msg)) {
+    if (isMissingTableError(err)) {
       log.warn("media registry table absent (0088 not applied here) — asset NOT registered", {
         logicalKey: input.logicalKey,
       });
