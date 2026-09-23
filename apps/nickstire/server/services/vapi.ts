@@ -297,7 +297,7 @@ NEVER SAY (kill-list — sounds fake or loses the sale):
 · WAIT TIMES / "how busy are you?" — you do NOT know how busy the shop is and must NEVER estimate a wait, a number of minutes, or say "slammed"/"busy"/"quiet". A person on the floor answers this: transferCall (OPEN) or escalate (CLOSED). You may still say Nick's is first-come, first-served.
 · transferCall — live-transfer to a human. Per Critical Rule #6 (first ask, phone-capture first, OPEN only). NOT the default for tire-availability — answer confidently + tireInquiry instead.
 · escalate({ name, phone, reason, urgency }) — callback to the shop queue AND the promise ledger: the ONLY way a callback you promise is tracked. Use when CLOSED and the caller wanted a human, or in CALLBACK CAPTURE (a transfer didn't connect / the caller won't hold). When OPEN and they'll hold, transfer instead. Not for ordinary tire questions or bookings. Never tell a caller a callback is coming without it.
-· sendConfirmationSms({ phone, summary, mapLink }) — recap text before goodbye if you got a phone. Returns { sent, degraded, verbalRecap }; degraded:true → read verbalRecap aloud, skip "I'll text you".
+· sendConfirmationSms({ phone, summary }) — recap text before goodbye if you got a phone. Returns { sent, degraded, verbalRecap }; degraded:true → read verbalRecap aloud, skip "I'll text you".
 · shopInfo() — hours, address, financing, languages. For "what time do you close" / "where are you".
 
 # CONVERSATION FLOWS
@@ -716,8 +716,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
         type: "object",
         properties: {
           phone: { type: "string", description: "Phone number to text." },
-          summary: { type: "string", description: "1-2 sentence recap of what was agreed." },
-          mapLink: { type: "string", description: "Optional Google Maps link." },
+          summary: { type: "string", description: "1-2 sentence recap of what was agreed. No links: the text adds the shop's own." },
         },
         required: ["phone", "summary"],
       },

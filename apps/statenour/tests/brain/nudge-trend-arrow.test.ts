@@ -20,7 +20,6 @@ const mocks = vi.hoisted(() => ({
   findFirst: vi.fn(),
   findMany: vi.fn(),
   findUnique: vi.fn(),
-  redisGet: vi.fn(),
 }));
 
 vi.mock("@/lib/brain/identity-snapshot", async (importOriginal) => {
@@ -45,12 +44,6 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: mocks.findUnique,
     },
   },
-}));
-vi.mock("@/lib/utils/redis", () => ({
-  redisGet: mocks.redisGet,
-  redisSet: vi.fn(),
-  redisDel: vi.fn(),
-  redisDelPrefix: vi.fn(),
 }));
 
 import { computeNudges } from "@/lib/brain/cross-system-nudge";
@@ -86,11 +79,6 @@ function snapshotWith(
 
 beforeEach(() => {
   invalidate("brain_nudges_v1");
-  // cached()'s L2 check is `fromRedis !== null` — an unconfigured vi.fn()
-  // resolves `undefined`, which is !== null, so cached() reads it as a
-  // Redis HIT of value undefined and returns that instead of computing.
-  // Must explicitly mock a miss.
-  mocks.redisGet.mockResolvedValue(null);
   mocks.countUnresolved.mockResolvedValue(0);
   mocks.loadGhostAccuracy.mockResolvedValue(null);
   mocks.loadActiveSkills.mockResolvedValue([]);

@@ -21,6 +21,11 @@ railway status
 All nine resources still present — **nothing was deleted**, which is the risk that actually
 mattered: IaC removes any resource omitted from `resources:`.
 
+**2026-09-23 · `perplexica`, `searxng-perplexica` and the 50 GB `perplexica-volume` retired.** The app
+stopped calling them in #2599; they were deleted in the dashboard/API and removed from `resources:` here in
+the same change, so the next `railway config plan` must read `already up to date` (not "2 to add").
+Live inventory after: 3 app services + Redis (redis-volume) + nickstire-media.
+
 ---
 
 ## Why this exists
