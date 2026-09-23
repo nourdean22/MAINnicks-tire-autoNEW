@@ -1,5 +1,5 @@
 import { eq, desc, and, gte, lte, sql, inArray } from "drizzle-orm";
-import { CANDIDATE_SLA_OPEN_STATUSES, type CandidateStatus } from "@shared/candidateLifecycle";
+import { CANDIDATE_SLA_OPEN_STATUSES, CANDIDATE_SOURCE_HONEYPOT, type CandidateStatus } from "@shared/candidateLifecycle";
 import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import {
@@ -663,6 +663,8 @@ export async function getCandidateSlaBreaches() {
           // person kept waiting. `updateStatus` stamps contactedAt whenever it
           // writes "contacted", so the surviving set is {new, interviewing}.
           inArray(candidates.status, [...CANDIDATE_SLA_OPEN_STATUSES]),
+          // A honeypot-flagged row is saved for review, not owed a 48h reply.
+          ne(candidates.source, CANDIDATE_SOURCE_HONEYPOT),
           // The 24 comes from SLA_THRESHOLD_HOURS.warning rather than a literal:
           // it was hard-coded here AND declared there, so raising the surfacing
           // threshold in one place would have left this query still returning
@@ -963,6 +965,50 @@ export async function findCandidatesByPhoneE164(
     return { available: true, rows };
   } catch (err) {
     if (isUnknownColumnError(err) || isMissingTableError(err)) return { available: false, rows: [] };
+    throw err;
+  }
+}
+
+/**
+ * The abuse brake on candidateIntake's sends. candidates.submit is a public
+ * form that texts the operator from the store line and emails whatever
+ * address was typed; its only other limit is 10 submissions/hour/IP. Counts
+ * rows saved in the last 24 hours — not sends — excluding the row being
+ * processed and honeypot rows. Read from the table, so it survives restarts.
+ * Time math stays in SQL (NOW() - INTERVAL), per the TiDB timezone rule.
+ * `available: false` = could not count; the caller decides which way to fail.
+ */
+export async function getCandidateSendBudget(input: {
+  excludeId: number;
+  email: string | null;
+  phoneE164: string | null;
+}): Promise<{ available: boolean; last24h: number; sameEmail24h: number; samePhone24h: number }> {
+  const unavailable = { available: false, last24h: 0, sameEmail24h: 0, samePhone24h: 0 };
+  const db = await getDb();
+  if (!db) return unavailable;
+  try {
+    const [row] = await db
+      .select({
+        last24h: sql<number>`COUNT(*)`,
+        sameEmail24h: sql<number>`COALESCE(SUM(${candidates.email} = ${input.email ?? ""}), 0)`,
+        samePhone24h: sql<number>`COALESCE(SUM(${candidates.phoneE164} = ${input.phoneE164 ?? ""}), 0)`,
+      })
+      .from(candidates)
+      .where(
+        and(
+          sql`${candidates.createdAt} >= NOW() - INTERVAL 24 HOUR`,
+          ne(candidates.source, CANDIDATE_SOURCE_HONEYPOT),
+          sql`${candidates.id} <> ${input.excludeId}`,
+        ),
+      );
+    return {
+      available: true,
+      last24h: Number(row?.last24h ?? 0),
+      sameEmail24h: Number(row?.sameEmail24h ?? 0),
+      samePhone24h: Number(row?.samePhone24h ?? 0),
+    };
+  } catch (err) {
+    if (isUnknownColumnError(err) || isMissingTableError(err)) return unavailable;
     throw err;
   }
 }

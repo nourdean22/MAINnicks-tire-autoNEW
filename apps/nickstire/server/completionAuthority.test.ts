@@ -173,8 +173,20 @@ describe("the rendered ledger may not know what day it is", () => {
  *                                      assigned an arm and the hero subline
  *                                      differs by arm; the resolver is
  *                                      PROPOSE-ONLY (no flag/copy write).
+ *   careers-candidate-intake         — 2026-09-23: any member of the public
+ *                                      submitting /careers triggers the owner
+ *                                      text (and, once Resend verifies, the
+ *                                      owner and applicant emails). The
+ *                                      operator turned all three lanes ON that
+ *                                      day; the row carries two live runs and
+ *                                      table-counted abuse brakes.
  */
-const MAY_CLAIM_PRODUCTION = new Set(["reel-pipeline-assembly", "shopstate-lot-band", "web-experiment-home-hero-subline"]);
+const MAY_CLAIM_PRODUCTION = new Set([
+  "reel-pipeline-assembly",
+  "shopstate-lot-band",
+  "web-experiment-home-hero-subline",
+  "careers-candidate-intake",
+]);
 
 describe("the repo's own ledger", () => {
   it("passes its own law, and nothing claims business verification or production exposure beyond the registry above", () => {

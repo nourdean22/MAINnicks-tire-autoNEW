@@ -84,15 +84,14 @@ const COMPETITORS: Array<{ name: string; placeId: string; searchQuery: string }>
   // them here, in the table that already persists snapshots, is what turns
   // the claim into a dated fact — or rules it out. No superlative ships
   // until a snapshot supports it.
+  // (A "Firestone 26086 Euclid Ave" entry was removed the same day: the
+  // "Firestone ... Euclid Ave" entry above most likely resolves to that same
+  // store — findPlaceFromText takes the first candidate with no location
+  // bias — and two rows for one store would double-count it.)
   {
     name: "Confident Tire (Lakeland Blvd, Euclid)",
     placeId: "",
     searchQuery: "Confident Tire 25680 Lakeland Blvd Euclid OH",
-  },
-  {
-    name: "Firestone Complete Auto Care (26086 Euclid Ave, Euclid)",
-    placeId: "",
-    searchQuery: "Firestone Complete Auto Care 26086 Euclid Ave Euclid OH",
   },
   {
     name: "Conrad's Tire Express (Mayfield Hts)",
@@ -321,6 +320,15 @@ export async function fetchCompetitorSnapshot(): Promise<CompetitorData[]> {
     }
     if (!placeId) {
       log.warn("Could not resolve Place ID for competitor", { name: c.name, query: c.searchQuery });
+      continue;
+    }
+    // A query can resolve to OUR OWN listing: measured 2026-09-23, "Midas
+    // (Euclid Ave)" had resolved to Nick's place_id for 45 snapshots (why
+    // Google matches that query to us is not known), filing Nick's 1,715
+    // reviews under a competitor's name in competitor_snapshots. Never store
+    // ourselves as a competitor.
+    if (NICKS_PLACE_ID && placeId === NICKS_PLACE_ID) {
+      log.warn("Competitor query resolved to Nick's own listing — skipped", { name: c.name, query: c.searchQuery });
       continue;
     }
 

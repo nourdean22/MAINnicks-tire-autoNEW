@@ -573,9 +573,15 @@ export async function handleRunMigrations() {
       `CREATE TABLE IF NOT EXISTS lifecycle_tracker_events (phone10 VARCHAR(10) PRIMARY KEY, customerName VARCHAR(255) DEFAULT NULL, events JSON NOT NULL, convertedAt TIMESTAMP NULL DEFAULT NULL, firstSeenAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, lastSeenAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_lifecycle_last_seen (lastSeenAt DESC), INDEX idx_lifecycle_unconverted (convertedAt, lastSeenAt DESC))`,
       // 2026-05-23 · drizzle/0054_tire_markup_100.sql — force tire markup to 100% (cost × 2)
       // Bug: admin UI defaulted to "50" — operator save = silent 50% markup. Backend default is 100.
-      // Idempotent: INSERT IGNORE then UPDATE force-syncs the value regardless of current state.
+      // INSERT IGNORE seeds 100 only when the row is missing.
+      // 2026-09-23 · its companion `UPDATE shop_settings SET value = '100'` is GONE. This
+      // list re-runs EVERY statement on every tap of Admin → System Health → "Apply
+      // pending migrations", so that UPDATE would reset a markup the operator edited
+      // (gatewayTire.updateMarkup) back to 100 each time. Verified before removal: the
+      // prod row has read value 100 / updatedBy system-migration-0054 / updatedAt
+      // 2026-06-18 throughout, so no run ever changed it. migrationListGuards.test.ts
+      // keeps any UPDATE/DELETE on shop_settings out of this list.
       `INSERT IGNORE INTO shop_settings (\`key\`, value, category, label, updatedBy) VALUES ('tireMarkup', '100', 'pricing', 'Tire Markup %', 'system-migration-0054')`,
-      `UPDATE shop_settings SET value = '100', updatedBy = 'system-migration-0054' WHERE \`key\` = 'tireMarkup'`,
       // 2026-05-23 · drizzle/0055_declined_recovery_sequence.sql — 5×3 SMS sequence
       // Adds new touch column triplets (3d/14d/45d) + recoveryProfile cache.
       // ALTER ... ADD COLUMN IF NOT EXISTS is MySQL 8+ — TiDB supports.
@@ -793,7 +799,9 @@ export async function handleRunMigrations() {
       // Duplicate-constraint re-run error. Drizzle defs: drizzle/schema.ts .references().
       `ALTER TABLE inspection_items ADD CONSTRAINT fk_inspection_items_inspection FOREIGN KEY (inspectionId) REFERENCES vehicle_inspections(id) ON DELETE CASCADE`,
       `ALTER TABLE customer_metrics ADD CONSTRAINT fk_customer_metrics_customer FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE CASCADE`,
-      `ALTER TABLE vehicles ADD CONSTRAINT fk_vehicles_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE`,
+      // fk_vehicles_customer removed 2026-09-23: drizzle/0117 retired the vehicles
+      // table, so the statement failed with ER_NO_SUCH_TABLE on every run and every
+      // run reported one error (measured on the 2026-09-23 01:54Z run).
       `ALTER TABLE work_order_items ADD CONSTRAINT fk_wo_items_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE`,
       `ALTER TABLE work_order_transitions ADD CONSTRAINT fk_wo_transitions_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE`,
       `ALTER TABLE qc_checklists ADD CONSTRAINT fk_qc_checklists_wo FOREIGN KEY (work_order_id) REFERENCES work_orders(id) ON DELETE CASCADE`,

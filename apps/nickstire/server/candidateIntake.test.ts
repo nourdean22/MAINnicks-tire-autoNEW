@@ -18,10 +18,12 @@ const sendNotification = vi.fn();
 const sendSms = vi.fn();
 const markCandidateOwnerAlerted = vi.fn();
 
-type Notify = { category: string; subject: string; body: string; overrideTo?: string[] };
+type Notify = { category: string; subject: string; body: string; html?: string; replyTo?: string; overrideTo?: string[] };
 const notifies = () => sendNotification.mock.calls.map((c) => c[0] as Notify);
 const ownerEmail = () => notifies().find((n) => !n.overrideTo);
 const ackEmail = () => notifies().find((n) => n.overrideTo);
+/** The applicant's copy specifically — a confidential owner email is addressed too. */
+const applicantCopy = () => notifies().find((n) => n.overrideTo?.[0] === "sam@example.com");
 const smsBody = () => String(sendSms.mock.calls[0]?.[1] ?? "");
 
 vi.mock("./email-notify", () => ({ sendNotification: (...a: unknown[]) => sendNotification(...a) }));
@@ -48,6 +50,7 @@ const base: IntakeCandidate = {
   utmMedium: null,
   utmCampaign: null,
   priorIds: [],
+  recent: { last24h: 0, sameEmail24h: 0, samePhone24h: 0 },
 };
 
 const ENV_KEYS = ["CANDIDATE_OWNER_ALERT", "CANDIDATE_OWNER_SMS", "CANDIDATE_ACK_EMAIL", "CANDIDATE_ALERT_PHONE", "CEO_EMAIL"];
@@ -179,8 +182,15 @@ describe("a failed send never throws out of intake (the application is already s
     expect(markCandidateOwnerAlerted).not.toHaveBeenCalled();
   });
 
-  it("does not stamp ownerAlertedAt when the mailer did not send", async () => {
+  it("stamps ownerAlertedAt when the TEXT lands even though the mailer did not send (email has been failing)", async () => {
     sendNotification.mockResolvedValue({ emailSent: false, pushSent: false, recipients: [], throttled: false });
+    await runCandidateIntake(base);
+    expect(markCandidateOwnerAlerted).toHaveBeenCalledWith(41);
+  });
+
+  it("does not stamp ownerAlertedAt when neither lane landed (text only queued, email not sent)", async () => {
+    sendNotification.mockResolvedValue({ emailSent: false, pushSent: false, recipients: [], throttled: false });
+    sendSms.mockResolvedValue({ success: true, queued: true });
     await runCandidateIntake(base);
     expect(markCandidateOwnerAlerted).not.toHaveBeenCalled();
   });
@@ -205,6 +215,16 @@ describe("message content", () => {
     expect(ownerEmail()?.body).toMatch(/Duplicate check: could not run/);
   });
 
+  it("the owner text stays GSM-7 for every intent (one em dash would force UCS-2: 70 chars/segment, not 160)", async () => {
+    // talent_network's label carries an em dash; the template once did too.
+    for (const intent of ["apply", "confidential", "shop_tour", "talent_network", "apprentice"] as const) {
+      sendSms.mockClear();
+      await runCandidateIntake({ ...base, intent, refCode: "mike-snap-on", priorIds: [7] });
+      expect(smsBody()).toMatch(/^[\n\x20-\x7E]+$/);
+      if (intent === "talent_network") expect(smsBody()).toMatch(/not ready - keep me in mind/i);
+    }
+  });
+
   it("the applicant ack promises nothing the site does not already promise", async () => {
     await runCandidateIntake(base);
     const apply = ackEmail()!.body;
@@ -213,5 +233,114 @@ describe("message content", () => {
     sendNotification.mockClear();
     await runCandidateIntake({ ...base, intent: "confidential" });
     expect(ackEmail()!.body).toMatch(/won't contact your current shop/);
+  });
+});
+
+describe("audit fixes (2026-09-23)", () => {
+  it("the owner text goes out BEFORE the owner email is attempted", async () => {
+    const order: string[] = [];
+    sendSms.mockImplementation(async () => (order.push("sms"), { success: true }));
+    sendNotification.mockImplementation(async () => (order.push("email"), { emailSent: true, pushSent: false, recipients: [], throttled: false }));
+    await runCandidateIntake(base);
+    expect(order.slice(0, 2)).toEqual(["sms", "email"]);
+  });
+
+  it("a confidential text names nobody (it leaves from the store phone staff can read)", async () => {
+    await runCandidateIntake({ ...base, intent: "confidential" });
+    const text = smsBody();
+    expect(text).toMatch(/PRIVATE CAREERS INQUIRY #41/);
+    expect(text).not.toContain("Sam");
+    expect(text).not.toContain("555-0142");
+    expect(text).not.toMatch(/employed/i);
+  });
+
+  it("a confidential owner email sends no push (follow_up) and goes to the CEO inbox alone", async () => {
+    process.env.CEO_EMAIL = "owner@example.com";
+    await runCandidateIntake({ ...base, intent: "confidential" });
+    const owner = notifies().find((n) => n.overrideTo?.[0] === "owner@example.com");
+    expect(owner?.category).toBe("follow_up");
+  });
+
+  it("a confidential applicant's reply goes to the owner, not the shared shop inbox", async () => {
+    process.env.CEO_EMAIL = "owner@example.com";
+    await runCandidateIntake({ ...base, intent: "confidential" });
+    expect(applicantCopy()?.replyTo).toBe("owner@example.com");
+    sendNotification.mockClear();
+    await runCandidateIntake(base);
+    expect(applicantCopy()?.replyTo).toBeUndefined();
+  });
+
+  it("no applicant name in any owner subject (notifyOwner logs the title)", async () => {
+    for (const intent of ["apply", "confidential", "shop_tour", "talent_network", "apprentice"] as const) {
+      sendNotification.mockClear();
+      process.env.CEO_EMAIL = "owner@example.com";
+      await runCandidateIntake({ ...base, intent });
+      for (const n of notifies().filter((x) => x.overrideTo?.[0] !== "sam@example.com")) {
+        expect(n.subject).not.toContain("Sam");
+        expect(n.subject).toContain("#41");
+      }
+    }
+  });
+
+  it("emails carry escaped HTML with the line breaks kept", async () => {
+    await runCandidateIntake({ ...base, message: "Ask about <script>x</script>\nsecond line" });
+    const html = ownerEmail()!.html!;
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).not.toContain("<script>");
+    expect(html).toMatch(/<br>/);
+    expect(ackEmail()!.html).toMatch(/<br>/);
+  });
+
+  it("a link typed as the name never reaches the owner's phone or email as a link", async () => {
+    await runCandidateIntake({ ...base, name: "Win big https://evil.example/claim now" });
+    expect(smsBody()).not.toMatch(/https?:|evil\.example/);
+    expect(smsBody()).toContain("[link removed]");
+    // (the email's own "Admin: https://nickstire.org/admin" line is ours)
+    expect(ownerEmail()!.body).not.toContain("evil.example");
+    expect(ownerEmail()!.body).toMatch(/Name: Win big \[link removed\] now/);
+    sendSms.mockClear();
+    await runCandidateIntake({ ...base, name: "Sam Wrench" });
+    expect(smsBody()).toContain("Sam Wrench");
+  });
+
+  it("the acknowledgement greets by one plain word, never by free text", async () => {
+    await runCandidateIntake({ ...base, name: "https://evil.example/win Smith" });
+    expect(ackEmail()!.body).toMatch(/^Hi there,/);
+    expect(ackEmail()!.body).not.toContain("evil");
+    sendNotification.mockClear();
+    await runCandidateIntake({ ...base, name: "José O'Neil" });
+    expect(ackEmail()!.body).toMatch(/^Hi José,/);
+  });
+
+  describe("brakes (from the table, so a restart does not reset them)", () => {
+    it("a same-phone repeat within 24h gets no second text; the email still goes", async () => {
+      await runCandidateIntake({ ...base, recent: { last24h: 1, sameEmail24h: 0, samePhone24h: 1 } });
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(ownerEmail()).toBeTruthy();
+    });
+
+    it("at 20 alerts in 24h the owner lanes stop (the row is still saved)", async () => {
+      await runCandidateIntake({ ...base, recent: { last24h: 20, sameEmail24h: 0, samePhone24h: 0 } });
+      expect(sendSms).not.toHaveBeenCalled();
+      expect(ownerEmail()).toBeUndefined();
+      sendSms.mockClear();
+      await runCandidateIntake({ ...base, recent: { last24h: 19, sameEmail24h: 0, samePhone24h: 0 } });
+      expect(sendSms).toHaveBeenCalledTimes(1);
+    });
+
+    it("one acknowledgement per address per day, and none past 30 a day", async () => {
+      await runCandidateIntake({ ...base, recent: { last24h: 1, sameEmail24h: 1, samePhone24h: 0 } });
+      expect(ackEmail()).toBeUndefined();
+      sendNotification.mockClear();
+      await runCandidateIntake({ ...base, recent: { last24h: 30, sameEmail24h: 0, samePhone24h: 0 } });
+      expect(ackEmail()).toBeUndefined();
+    });
+
+    it("an uncountable budget still alerts the owner but sends no applicant email", async () => {
+      await runCandidateIntake({ ...base, recent: null });
+      expect(sendSms).toHaveBeenCalledTimes(1);
+      expect(ownerEmail()).toBeTruthy();
+      expect(ackEmail()).toBeUndefined();
+    });
   });
 });

@@ -2205,23 +2205,23 @@
       "name": "Cleveland weather events (freeze, rain, heat, pothole season, salt end) stage GBP drafts and text lapsed customers",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "server/services/weatherIntelligence.ts reads OpenWeatherMap for Euclid, evaluates named triggers, stages GBP post drafts for owner review and - behind the feature flag weather_triggered_sms - texts lapsed customers through sendSms with opt-out handling. Scheduled by the weather-intel tier job in server/cron/scheduler.ts. 2026-09-22: the tier entry now declares requiresEnv OPENWEATHER_API_KEY and getJobCadences() reports each job's env gate, so an absent key is a scheduler SKIP that cron-skip-watchdog alerts on after seven days, instead of a completed zero-record run nothing looks at.",
+        "codeCommit": "server/services/weatherIntelligence.ts reads OpenWeatherMap for Euclid, evaluates named triggers, stages GBP post drafts for owner review and - behind the feature flag weather_triggered_sms - texts lapsed customers through sendSms with opt-out handling. Scheduled by the weather-intel tier job in server/cron/scheduler.ts. 2026-09-22: the tier entry now declares requiresEnv OPENWEATHER_API_KEY and getJobCadences() reports each job's env gate, so an absent key is a scheduler SKIP that cron-skip-watchdog alerts on after seven days, instead of a completed zero-record run nothing looks at. Read end to end 2026-09-23: sendWeatherSms (server/services/weatherIntelligence.ts) is gated on isEnabled('weather_triggered_sms'), selects customers with lastVisitDate 60+ days old, smsOptOut = 0 and a phone, LIMIT 10 per trigger event, skips anyone already texted for THAT trigger within 30 days (variantKey weather_<trigger>), appends withOptOut() and sends via sendSms({ via: 'shop' }) over the F25e gateway. Four triggers exist: heavy_rain, pothole_season, extreme_heat, salt_season_end, each a fixed template carrying the shop number. The cron job weather-intel declares requiresEnv OPENWEATHER_API_KEY, so with no key it logs status 'skipped' and the watchdog can see it.",
         "tests": "server/cron/weatherIntelEnvGate.test.ts, 3 tests: the job declares OPENWEATHER_API_KEY through getJobCadences(); the declared key is the only env the service reads (comment-stripped call sites); a job without an env gate reports an empty list (positive control). cronSkipWatchdogPrefix.test.ts already pins that the watchdog reads the requiresEnv: prefix.",
-        "liveRuns": "NONE, ever. OPENWEATHER_API_KEY is unset in production; all 8 cron_log rows for weather-intel (its whole history) read completed with details \"No API key\" and 0 records. cron-skip-watchdog reported \"no env-skip jobs in 7d window\" throughout. feature_flags.weather_triggered_sms = 1 (ON, \"Auto-SMS lapsed customers on weather events\", last updated 2026-05-20), so the SMS lane is armed and waiting on the key alone.",
+        "liveRuns": "NONE, ever. OPENWEATHER_API_KEY is unset in production; all 8 cron_log rows for weather-intel (its whole history) read completed with details \"No API key\" and 0 records. cron-skip-watchdog reported \"no env-skip jobs in 7d window\" throughout. feature_flags.weather_triggered_sms = 1 (ON, \"Auto-SMS lapsed customers on weather events\", last updated 2026-05-20), so the SMS lane is armed and waiting on the key alone. OPERATOR DECISION 2026-09-23: 'leave the weather sms on' - weather_triggered_sms STAYS ON (value 1 since 2026-05-20, read from feature_flags; no change made by this session). MEASURED THE SAME DAY, read-only: the eligible audience is 1,901 customers (60+ days lapsed, not opted out, phone present) out of 2,312 with a phone, of whom only 12 have opted out; sms_messages holds ZERO rows with a weather_ variantKey, so this lane has NEVER sent a text; cron_log shows weather-intel skipped=2 (last 2026-09-23T14:54) after previously completing 7 times with zero records. The lane is ARMED BUT UNREACHABLE: OPENWEATHER_API_KEY is absent from the Railway variable list, so adding that key is the single action that starts customer texts.",
         "deploymentId": null
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "Setting OPENWEATHER_API_KEY arms customer texts: weather_triggered_sms is ON in production and there is no further gate between a weather trigger and sendSms to lapsed customers. Decide the flag BEFORE the key. Either is an operator action: a Railway variable, or a feature_flags row - neither is taken on agent initiative."
+          "description": "THE KEY IS THE TRIGGER, AND THE FLAG IS ALREADY ON. The operator decided 2026-09-23 to leave weather_triggered_sms ON, so setting OPENWEATHER_API_KEY on Railway begins texting lapsed customers on the next weather-intel run with no further gate. Bounded by design: at most 10 texts per trigger event, a 30-day per-customer cooldown per trigger, opt-out respected and appended. READY: add the key when the first live send is wanted; the free data/2.5/weather plan is what the code calls."
         },
         {
           "severity": "P3",
-          "description": "The lane has never produced a GBP draft or a text, so the trigger thresholds and the copy have never been seen against real Cleveland weather; treat the first week after enablement as the acceptance run."
+          "description": "LIMIT 10 IS APPLIED BEFORE THE COOLDOWN FILTER, AND THE SELECT HAS NO ORDER BY. sendWeatherSms takes an arbitrary 10 of the 1,901 eligible customers, THEN skips those inside the 30-day cooldown. An unordered LIMIT tends to return the same rows run after run, so after the first event those 10 are all in cooldown and later runs send zero while 1,891 other lapsed customers are never reached - the lane would look like it is working (no errors, a completed run) while its reach is one arbitrary tenth of a percent. NOT FIXED BY THIS SESSION: the fix increases customer contact, which is an operator-instruction-only change. The honest order is to add the key, watch one trigger event, then decide whether to order the select (oldest lapse first) and filter the cooldown inside the query."
         }
       ],
       "deferredScope": [],
-      "lastVerifiedAt": "2026-09-22",
+      "lastVerifiedAt": "2026-09-23",
       "codeState": "merged",
       "operationalState": "unverified",
       "exposure": "disabled"
@@ -2353,35 +2353,45 @@
     },
     {
       "capabilityId": "careers-candidate-intake",
-      "name": "Every /careers submission reaches the owner within a minute (text + email), gets an acknowledgement, and is attributed to a source",
+      "name": "Every /careers submission is saved with its source and texted to the owner's mobile within a minute (owner email and applicant acknowledgement are wired but blocked on the Resend domain)",
       "owner": "operator",
       "codeState": "merged",
-      "operationalState": "unit_verified",
-      "exposure": "disabled",
+      "operationalState": "live_verified",
+      "exposure": "production",
       "lastVerifiedAt": "2026-09-23",
-      "verificationExpiresAt": null,
+      "verificationExpiresAt": "2026-10-23",
       "evidence": {
-        "codeCommit": "Merged #2557 (7d9f4de). Follow-up (Codex review on #2557): a CONFIDENTIAL lead's owner email goes to CEO_EMAIL alone - never the shared shop inbox the form promised it would not reach; no CEO_EMAIL -> no email, the owner text still fires. /careers#apply resets a previously chosen lane. PR #2557 (branch claude/funny-gates-asubwi). server/services/candidateIntake.ts runs after candidates.submit saves: owner email via sendNotification (bypassThrottle), owner TEXT from the store line to OPERATOR_MOBILE_LAST10 with messageClass internal (the declared intent sendSms's internal-line guard requires), applicant acknowledgement email. Operator instruction 2026-09-23. The applicant is never texted. Kill switches CANDIDATE_OWNER_ALERT / CANDIDATE_OWNER_SMS / CANDIDATE_ACK_EMAIL = off; CANDIDATE_ALERT_PHONE overrides the destination. Also: five intents (apply / talk privately / see the shop / keep me in mind / apprentice), move-reason chips, honeypot, E.164 repeat detection, refCode from ?ref=, gclid/utm_term/utm_content, drizzle/0129 with a pre-0129 insert fallback.",
+        "codeCommit": "Merged #2557 (7d9f4de) + #2561 (df92eca: the P0 fix - #2557 as shipped failed EVERY submission ~01:19-01:36Z, because drizzle's insert named the 0129 columns before 0129 existed and the fallback retried through db.insert(); the fallback is now a raw 13-column INSERT) + this PR (claude/funny-gates-asubwi, audit fixes from three independent reviews): owner text goes FIRST; a confidential text carries no name or number (it leaves from the store phone staff can read); a confidential owner email goes to CEO_EMAIL alone with no push; no applicant name in any subject (notifyOwner logs titles); emails send escaped HTML; the greeting is one sanitized word; table-counted brakes (no second owner text for the same phone within 24h, owner alerts stop at 20/day, applicant emails at 30/day and one per address/day); ownerAlertedAt stamped when EITHER owner lane lands; server/sms.ts replays a queued text to an internal line as internal and exempts it from the drain's quiet-hour hold (lib/smsQueueReplay.ts) - before, a restart while the store phone was offline dead-lettered the owner alert. All three lanes are ON; each stops only when its switch is set: CANDIDATE_OWNER_ALERT=off / CANDIDATE_OWNER_SMS=off / CANDIDATE_ACK_EMAIL=off.",
+        "deploymentId": "c7a6b823-03ee-447e-b30e-74c6886efd44 (79983f9, serving at 01:57Z) and 83464ff5-c7fa-4170-82ad-8b38cf3f512c (df92eca, serving at 01:37Z) - both before this PR; the post-merge deploy gets its own live run.",
+        "liveRuns": [
+          "2026-09-23 01:37:05Z candidate #1 (test, pre-0129 fallback insert): saved; owner text delivered to the operator mobile from the store line.",
+          "2026-09-23 01:57:43Z candidate #2 (test, confidential, post-0129 full insert, phoneE164 set): saved; owner text delivered; the confidential email was addressed to the CEO inbox only - and, like every email, not delivered (Resend domain unverified)."
+        ],
+        "databaseAssertions": [
+          "Read-only probe 2026-09-23 02:18Z (Railway function, SELECT only): candidates holds exactly ids 1 and 2, both the tests above; created 2026-09-09 22:22Z (TiDB DDL job 1060), so no real application has been saved since the table went live.",
+          "TiDB INFORMATION_SCHEMA.DDL_JOBS: the 01:54Z run-migrations call executed exactly 11 jobs (1089-1099, the 0129 columns and indexes) and nothing else; shop_settings.tireMarkup still reads value 100 / updatedAt 2026-06-18, so the list's force-sync UPDATE changed nothing (now removed from the list)."
+        ],
         "tests": [
-          "server/candidateIntake.test.ts (17): +3 confidential-routing tests, red without the fix (2 failed): the confidential owner email is addressed to the CEO inbox only and no default-routed (shop) email is sent; missing CEO_EMAIL sends no email but still texts; a normal application keeps shop+CEO routing.",
-          "server/candidateIntake.test.ts (13): destination is the operator mobile for every intent, never the applicant; opts are {via: shop, messageClass: internal}; each kill switch stops only its own lane; transport failures never throw; ownerAlertedAt stamped only when the mailer sent. Mutation-verified: pointing the text at another number fails 2 tests, dropping messageClass internal fails 1.",
-          "server/candidateLifecycle.test.ts (10): every status/intent fits VARCHAR(32); ?ref= parsing rejects anything we could not have issued; isUnknownColumnError fires on 1054 (direct and drizzle-wrapped) and on nothing else.",
-          "server/candidates.test.ts + candidatesSilentLoss.test.ts + candidateSla.test.ts unchanged and green."
+          "server/candidateIntake.test.ts 31 passed (13 red against the pre-audit service): order, confidential text anonymity, follow_up/no push, replyTo, subjects, HTML, greeting, brakes, stamping, GSM-7.",
+          "server/smsQueueInternalReplay.test.ts 2 passed, drives the REAL drain timer: 2 red on the old sms.ts (guard refused the replay; 2 AM owner alert held).",
+          "server/candidatesSilentLoss.test.ts 11 passed: clipped attribution saves, positionTitle whitelist, two-number phone saves without phoneE164, PII-free failure log, last-touch ref code; server/emailNotifyHtmlReplyTo.test.ts 3 passed (2 red on the old email-notify).",
+          "server/publicFormBoundsMatchSchema.test.ts extended for clipped(N); mutation clipped(600) on a 500 column fails it."
         ]
       },
       "blockers": [
         {
           "severity": "P2",
-          "description": "NOT YET OBSERVED LIVE. Needs one real submission after deploy: owner email received, text received on the operator mobile from the store line, acknowledgement email received. The store-line gateway (Capevace F25e) must be online for the text; if it is not, sendSms falls back per its own routing."
+          "description": "Owner email and applicant acknowledgement do not deliver: the Resend domain nickstire.org is unverified (status not_started). Operator action at the DNS host (Global Domain Group): TXT resend._domainkey, MX send -> feedback-smtp.us-east-1.amazonses.com (10), TXT send = v=spf1 include:amazonses.com ~all. Until then the owner text is the only alert."
         },
         {
           "severity": "P2",
-          "description": "drizzle/0129 is operator-pending (production DDL). Until applied, intent/moveReasons/phoneE164/refCode/attribution survive only inside `message`, and repeat detection reports 'could not run'."
+          "description": "This PR's intake changes are unit-verified; they get one live run on the post-merge deploy (non-confidential test, fresh test number so the same-phone brake does not skip the text)."
         }
       ],
       "deferredScope": [
         "resume upload (S3, type/size check; no parser)",
         "SLA reminder cron (the instant text covers first response)",
+        "nextFollowUpAt has no writer yet (column exists since 0129)",
         "A2P 10DLC recruiting campaign before any text to an applicant"
       ]
     },

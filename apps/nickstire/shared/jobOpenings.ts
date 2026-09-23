@@ -77,9 +77,11 @@ export interface JobOpening {
   salaryMinHourlyCents: number | null;
   salaryMaxHourlyCents: number | null;
   /**
-   * Minimum hands-on experience in months, or null for none. Must agree with
-   * the visible requirements list (e.g. "2+ years" = 24). Emitted as Google's
-   * experienceRequirements.monthsOfExperience.
+   * Minimum hands-on experience in months. Must agree with the visible
+   * requirements list (e.g. "2+ years" = 24). > 0 is emitted as Google's
+   * experienceRequirements.monthsOfExperience; 0 = the role requires none,
+   * emitted as the literal "no requirements" Google asks for in that case;
+   * null = not stated (omitted).
    */
   experienceMonths: number | null;
 }
@@ -114,11 +116,16 @@ export const JOB_OPENINGS: JobOpening[] = [
       "Diagnostic experience with intermittent faults",
     ],
     status: "open",
-    datePosted: "2026-09-09",
+    // 2026-09-23 · the terms changed (hourly pay published), which is the
+    // case this field's rule allows; it also moves the sitemap <lastmod>.
+    datePosted: "2026-09-23",
     validThrough: "2026-12-31",
     // 2026-09-23 · owner decision: match Enterprise Mobility's Euclid service
-    // center ($30/hr start, up to $37.50 with ASE step-ups, posted 2026). This
-    // is a public pay floor the shop must honour — change it only with the
+    // center — posting 558870 (verified live 2026-09-23): USD $30.00-$37.50/hr,
+    // $30 start, +$1/hr per ASE after the required minimum of 4 (up to 8).
+    // Enterprise REQUIRES those 4 ASEs and adds benefits and a $400/yr tool
+    // stipend; this role asks 2+ years, ASE optional — same numbers, easier
+    // entry. A public pay floor the shop must honour — change it only with the
     // owner. Research: docs/recruiting/RECRUITING-ENGINE-2026-09.md.
     salaryMinHourlyCents: 3000,
     salaryMaxHourlyCents: 3750,
@@ -153,13 +160,20 @@ export const JOB_OPENINGS: JobOpening[] = [
       "Bilingual (Spanish, Arabic, or other languages common in our community)",
     ],
     status: "open",
-    datePosted: "2026-09-09",
+    // 2026-09-23 · the terms changed (hourly pay published), which is the
+    // datePosted rule's own exception.
+    datePosted: "2026-09-23",
     validThrough: "2026-12-31",
-    // Owner has not set a service advisor range yet (2026-09-23). Null means
-    // no baseSalary and no visible figure — never a guessed number.
-    salaryMinHourlyCents: null,
-    salaryMaxHourlyCents: null,
-    experienceMonths: null,
+    // Owner-set 2026-09-23 ("set the service advisor pay to the average"):
+    // centred on the Cleveland average for automotive service advisors,
+    // $25.16/hr (ZipRecruiter, 2026-08-16; most earn $17.93-$28.89). A local
+    // family tire shop posts $20-$25/hr. The floor matches the tire-tech floor.
+    // Hourly base only; no commission is promised. A public pay floor the shop
+    // must honour — change it only with the owner.
+    salaryMinHourlyCents: 2200,
+    salaryMaxHourlyCents: 2800,
+    // Prior advisor experience is listed under "nice", not required.
+    experienceMonths: 0,
   },
   {
     slug: "tire-technician",
@@ -189,13 +203,21 @@ export const JOB_OPENINGS: JobOpening[] = [
       "Ability to work efficiently during high-volume periods",
     ],
     status: "open",
-    datePosted: "2026-09-09",
+    // 2026-09-23 · the terms changed (hourly pay published), which is the
+    // case this field's rule allows; it also moves the sitemap <lastmod>.
+    datePosted: "2026-09-23",
     validThrough: "2026-12-31",
-    // 2026-09-23 · owner decision: matched to Enterprise Euclid's associate
-    // range. Public pay floor — change only with the owner.
+    // 2026-09-23 · owner-set when the band was presented as Enterprise
+    // Euclid's. Checked afterwards (enterprisemobility.com 562425/552533, BLS
+    // May 2025): Enterprise's Lube and Tire Technician STARTS at $20/hr; its
+    // $22 figure belongs to an Associate role needing 2 years + 2 ASEs. So this
+    // floor sits about $2/hr ABOVE Enterprise's tire start (near the Cleveland
+    // tire-repairer 75th percentile, $22.82). Public pay floor — the owner
+    // decides whether to keep it; change only with the owner.
     salaryMinHourlyCents: 2200,
     salaryMaxHourlyCents: 2550,
-    experienceMonths: null,
+    // Prior tire experience is listed under "nice", not required.
+    experienceMonths: 0,
   },
 ];
 
@@ -319,7 +341,10 @@ export function buildJobPostingSchema(
     schema.baseSalary = { "@type": "MonetaryAmount", currency: "USD", value };
   }
 
-  if (job.experienceMonths != null) {
+  if (job.experienceMonths === 0) {
+    // Google: "If there aren't any requirements, use the no requirements value."
+    schema.experienceRequirements = "no requirements";
+  } else if (job.experienceMonths != null) {
     schema.experienceRequirements = {
       "@type": "OccupationalExperienceRequirements",
       monthsOfExperience: job.experienceMonths,
