@@ -531,6 +531,15 @@ export function buildLexicalTsQuery(topics: string[]): string {
  * catch and the lane degrades to [] exactly like every other lexical failure.
  * Term COUNT was measured NOT to be the driver (caps 8/5/3 had equal
  * latency), so the topics stay uncapped.
+ *
+ * 2026-09-22 · THE DRIVER WAS FOUND: production EXPLAIN ANALYZE put 99% of
+ * the statement in ts_rank re-parsing `content` for every candidate row
+ * (1,902 ms with the rank, 8 ms without) — an expression index serves the
+ * predicate, never the rank, so this was a constant cost cut by the timeout,
+ * not a tail. 20260923000000_brain_content_tsv stores the vector; the lane
+ * now filters and ranks on `content_tsv` (25.6 ms on production). The 900 ms
+ * cap stays as a guard: measured 2026-09-23, 0 of 89 benchmark queries hit
+ * it (median 162 ms, p90 194, max 735).
  */
 const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
 
@@ -553,6 +562,12 @@ const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
  * Measured 2026-09-18 on a sequential unloaded probe: 9 of 25 queries over
  * budget (36%) — matching the 2026-08-27 figure exactly, so there is no
  * degradation today. The point is that nobody would have known either way.
+ *
+ * Measured 2026-09-23, after the stored column (see the timeout's comment
+ * above): 0 of 89 hybrid benchmark queries hit the budget (was 84 of 89 on the
+ * same corpus the night before), `lexicalSkipPctCum` reads 0. The counters
+ * stay — they are the instrument that proved the fix, and the one that will
+ * say so if the lane ever regresses.
  *
  * ⚠ AGGREGATE COUNTERS ARE SAFE HERE; PER-REQUEST STATE WOULD NOT BE. Several
  * chat turns share this module concurrently. A "last outcome" variable would be
