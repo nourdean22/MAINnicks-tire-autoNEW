@@ -26,6 +26,7 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: read # repo-status.mjs lists and reads PRs per branch; on this private repo a token without it gets 403
 
 concurrency:
   group: branch-sweep
