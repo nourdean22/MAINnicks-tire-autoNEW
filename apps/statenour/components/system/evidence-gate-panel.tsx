@@ -131,6 +131,9 @@ function BufferShadowBlock({ shadow }: { shadow: BufferShadow }) {
         {shadow.banner.noShadow > 0 && (
           <span className="ml-1.5 text-rose-300">· {shadow.banner.noShadow} without a shadow</span>
         )}
+        {shadow.legacy.withShadow > 0 && (
+          <span className="ml-1.5 text-zinc-500">· {shadow.legacy.withShadow} legacy shadows excluded</span>
+        )}
       </p>
       {reasons.length > 0 && (
         <ul className="space-y-0.5">
