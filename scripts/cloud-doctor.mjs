@@ -26,7 +26,7 @@
  *
  * Nothing here writes, installs, sends or touches production. It only looks.
  */
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -190,6 +190,41 @@ add(
   prismaV ? (prismaV.split("\n").find((l) => /prisma/i.test(l)) ?? "present").trim() : "not resolvable — usually just means the workspace is not installed yet",
   "pnpm install --frozen-lockfile, then use pnpm --filter @statenour/web exec prisma …",
 );
+
+// ── the policy hook actually FIRES here ──────────────────────────────────
+// Run the PreToolUse command string from .claude/settings.json verbatim, the
+// way the harness does, on a payload the policy must deny. Until 2026-09-23 it
+// named its script with Windows backslashes: on Linux that is MODULE_NOT_FOUND,
+// a hook error fails open, and all 13 rules were off in every cloud session.
+// Evaluating a payload runs nothing; it only asks the policy for a verdict.
+{
+  let state = "UNKNOWN";
+  let detail = "no PreToolUse command hook in .claude/settings.json";
+  try {
+    const settings = JSON.parse(readFileSync(join(ROOT, ".claude", "settings.json"), "utf8"));
+    const cmd = (settings.hooks?.PreToolUse ?? []).flatMap((g) => g.hooks ?? []).find((h) => /pretool\.mjs/.test(h.command ?? ""))?.command;
+    if (cmd) {
+      const r = spawnSync(process.platform === "win32" ? cmd.replaceAll("${CLAUDE_PROJECT_DIR}", ROOT) : cmd, {
+        shell: process.platform === "win32" ? true : "/bin/sh",
+        input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "git stash pop" } }),
+        encoding: "utf8",
+        env: { ...process.env, CLAUDE_PROJECT_DIR: ROOT },
+        timeout: 20000,
+      });
+      const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+      if (r.status === 2 && /stash-pop/.test(out)) {
+        state = "OK";
+        detail = "PreToolUse hook denied a known-bad payload (stash-pop), exit 2";
+      } else {
+        state = "MISSING";
+        detail = `PreToolUse hook did not deny a known-bad payload (exit ${r.status})${/Cannot find module/.test(out) ? " — MODULE_NOT_FOUND: the configured path does not resolve here" : ""}`;
+      }
+    }
+  } catch (e) {
+    detail = `could not run the check: ${String(e?.message ?? e).slice(0, 120)}`;
+  }
+  add("required", "policy hook fires", state, detail, "fix the PreToolUse command in .claude/settings.json (use / separators); scripts/agent-os/hookCommand.test.mjs runs it verbatim");
+}
 
 // ── the push path ────────────────────────────────────────────────────────
 const lefthook = existsSync(join(ROOT, "lefthook.yml"));
