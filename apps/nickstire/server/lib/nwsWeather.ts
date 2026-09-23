@@ -4,9 +4,9 @@
  * WHY NWS. The data is US-government open data, "free to use for any purpose"
  * (weather.gov/documentation/services-web-api, read 2026-09-23), so a
  * commercial business may use it. It replaces:
- *   - OpenWeather in services/weatherIntelligence.ts, which needed an
- *     OPENWEATHER_API_KEY that MAINnicks-tire-auto never had (.railway/railway.ts),
- *     so the weather lane never ran;
+ *   - OpenWeather current conditions in services/weatherIntelligence.ts
+ *     (OPENWEATHER_API_KEY, first set on Railway 2026-09-23), which saw
+ *     weather only once it had arrived;
  *   - Open-Meteo in weather.ts, whose free API is non-commercial only
  *     (open-meteo.com/en/terms: "You may only use the free API services for
  *     non-commercial purposes"; commercial includes integrating it into a
