@@ -1,0 +1,44 @@
+-- cron_job_logs · skip reason · 2026-09-23
+-- PARKED, NOT APPLIED. Operator-approved apply only - see ../README.md.
+-- ADDITIVE · nullable · no default · no backfill · no data loss.
+-- Postgres adds a nullable, default-less column as a catalog change: no table
+-- rewrite, one brief ACCESS EXCLUSIVE lock.
+--
+-- WHY THIS EXISTS
+-- A cron run that decided NOT to do its work ("NICK_AUTONOMY off",
+-- "no_meta_token", "INNGEST_MEGA_V2 off", "recent-run-exists") settles as
+-- `success` with resultCount NULL - the same row as a run that did its work
+-- and simply reports no count. Measured read-only on production 2026-09-23
+-- 14:5xZ: 479 of the last 24 h's 694 `success` rows carry resultCount NULL,
+-- and nothing in the table can say how many of those were skips. The jobs
+-- already SAY so in their return value; lib/inngest/cron-lifecycle.ts reads
+-- that value for resultCount and throws the skip away.
+--
+-- THE OUTCOME IS DERIVED, NOT STORED TWICE. With this column a reader has:
+--   skipReason NOT NULL                 -> skipped (the reason is the text)
+--   resultCount = 0                     -> ran, produced nothing
+--   resultCount > 0                     -> ran, did N units of work
+--   both NULL                           -> ran, reported no count
+-- A separate outcome enum would be a second copy of resultCount that can
+-- disagree with it. One nullable text column is the whole missing fact.
+--
+-- NULL IS HONEST AND MUST STAY THE DEFAULT-LESS DEFAULT: every row before the
+-- writer ships, every route cron (cron-manager.ts), and every run that did not
+-- report a skip. Do not backfill - a guessed reason is a fabricated one.
+--
+-- COLUMN NAME: this table's columns keep Prisma's camelCase verbatim (the
+-- @@map is on the table only), hence "skipReason", double-quoted. A snake_case
+-- spelling creates a second, unreachable column.
+--
+-- NO INDEX: nothing filters on it yet. Add one with its first reader.
+--
+-- ORDER IS LOAD-BEARING (same as 20260917234500_cron_job_log_run_id):
+-- apply this BEFORE the model field lands in prisma/schema.prisma. Prisma's
+-- `create` RETURNs every scalar in the model, so a client that knows
+-- "skipReason" while the database lacks it fails EVERY write to this table,
+-- including cron-manager.ts - cron logging goes down repo-wide.
+-- Sequence: apply -> confirm the column exists -> promote this dir to
+-- prisma/migrations/ + `prisma migrate resolve --applied` -> then land the
+-- model field and its writer together.
+
+ALTER TABLE "cron_job_logs" ADD COLUMN IF NOT EXISTS "skipReason" TEXT;
