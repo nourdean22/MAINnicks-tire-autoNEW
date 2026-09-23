@@ -48,3 +48,39 @@ describe("drain-edge-vectors · dry run by default", () => {
     expect(CODE).toMatch(/if \(n === 0\) break;/);
   });
 });
+
+describe("drain-edge-vectors · an --apply run backs up first (2026-09-23)", () => {
+  const dryReturn = CODE.indexOf("if (!APPLY) {");
+  const backup = CODE.indexOf("CREATE TABLE ${BACKUP_TABLE} AS SELECT ve.* ${EDGE_VECTOR_MATCH}");
+  const del = CODE.indexOf("DELETE FROM vector_embeddings");
+
+  it("the backup copy of exactly the predicate's rows sits after the dry-run return and before the DELETE", () => {
+    expect(backup).toBeGreaterThan(dryReturn);
+    expect(del).toBeGreaterThan(backup);
+  });
+
+  it("a count mismatch between the backup and the pre-count RETURNS before the DELETE", () => {
+    const check = CODE.indexOf("if (backedUp !== edgeVectors) {");
+    expect(check).toBeGreaterThan(backup);
+    expect(check).toBeLessThan(del);
+    expect(CODE.slice(check, del)).toMatch(/\breturn;/);
+  });
+
+  it("refuses an existing backup table rather than appending to it, and validates the table name", () => {
+    const exists = CODE.indexOf("refusing: backup table ${BACKUP_TABLE} already exists");
+    expect(exists).toBeGreaterThan(dryReturn);
+    expect(exists).toBeLessThan(backup);
+    // the validator must accept its OWN default name - the first apply run refused
+    // _bak_vector_embeddings_edge_drain_20260922 because the pattern demanded a letter
+    // where the house pattern puts an underscore.
+    const validator = /^[a-z_][a-z0-9_]{0,62}$/;
+    expect(CODE).toContain(validator.source);
+    expect("_bak_vector_embeddings_edge_drain_20260923").toMatch(validator);
+  });
+
+  it("prints the restore route before deleting", () => {
+    const restore = CODE.indexOf("restore route: INSERT INTO vector_embeddings SELECT * FROM ${BACKUP_TABLE}");
+    expect(restore).toBeGreaterThan(backup);
+    expect(restore).toBeLessThan(del);
+  });
+});
