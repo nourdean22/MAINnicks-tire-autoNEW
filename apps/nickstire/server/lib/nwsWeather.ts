@@ -36,7 +36,7 @@ const POINTS_CACHE_MS = 24 * 60 * 60 * 1000;
 export const NWS_USER_AGENT = `NicksTireAuto/1.0 (${SITE_URL}; ${BUSINESS.phone.display})`;
 
 /** The shop's GBP-pinned coordinates, rounded to the 4 decimals NWS accepts. */
-export const SHOP_POINT = {
+const SHOP_POINT = {
   lat: Number(BUSINESS.geo.lat.toFixed(4)),
   lon: Number(BUSINESS.geo.lng.toFixed(4)),
 };
@@ -113,7 +113,7 @@ export function parseWindMph(raw: unknown): number | null {
   return /km\/h/i.test(raw) ? Math.round(top / 1.609) : top;
 }
 
-export function parsePoints(json: unknown): PointsInfo {
+function parsePoints(json: unknown): PointsInfo {
   const props = asObj(asObj(json, "points body").properties, "points.properties");
   return {
     forecast: asStr(props.forecast, "points.forecast"),

@@ -96,7 +96,7 @@ export function nwsForecastToWmoCode(shortForecast: string, precipChancePct: num
 }
 
 /** The current-hour NWS period -> this module's public WeatherData. */
-export function weatherFromNwsPeriod(p: NwsPeriod): WeatherData {
+function weatherFromNwsPeriod(p: NwsPeriod): WeatherData {
   const code = nwsForecastToWmoCode(p.shortForecast, p.precipChancePct);
   return {
     temperature_f: Math.round(p.temperatureF),

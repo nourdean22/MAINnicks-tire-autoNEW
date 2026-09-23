@@ -10,7 +10,7 @@
  * NCEI publishes the next normals period.
  */
 
-export const CLEVELAND_FIRST_FREEZE_NORMALS = {
+const CLEVELAND_FIRST_FREEZE_NORMALS = {
   station: "USW00014820",
   period: "1991-2020",
   /** [month, day] — first 32°F has happened by this date in 10% of years. */

@@ -5380,6 +5380,61 @@
       "file": "apps/nickstire/server/lib/self-healing.ts",
       "symbol": "__runRequestAnomalyCheckForTest",
       "reason": "INTENTIONAL TEST SEAM. It runs detectRequestAnomalies, the one pass the 60s health tick calls in production (runHealthCheck), so selfHealing.requestRate.test.ts can drive the real recordRequest to real anomaly log path minute by minute without starting the DB/AI checks. It is not an unwired capability."
+    },
+    {
+      "file": "apps/nickstire/server/__tests__/nwsWeatherFixtures.ts",
+      "symbol": null,
+      "reason": "Q-51 2026-09-23 · TEST HELPER, not production code: serves the recorded api.weather.gov fixtures to nwsWeather.test.ts, weatherIntelligence.nws.test.ts and weather.nws.test.ts. knip excludes *.test.ts from the project, so its only importers are invisible to it."
+    },
+    {
+      "file": "apps/nickstire/server/services/weatherIntelligence.ts",
+      "symbol": "evaluateForecast",
+      "reason": "Q-51 2026-09-23 · TEST SEAM. The pure trigger evaluation (forecast periods + alerts + clock -> triggers / imminent / details). Its runtime consumers are evaluateWeatherTriggers and checkWeatherTriggers in the same module (live via the weather-intel cron, shadowPlanner and contentManufacturing); weatherIntelligence.nws.test.ts drives it with a fixed clock."
+    },
+    {
+      "file": "apps/nickstire/server/services/weatherIntelligence.ts",
+      "symbol": "__resetWeatherAlertMemoryForTests",
+      "reason": "Q-51 2026-09-23 · TEST-ONLY RESET of the in-process operator-alert de-dup map, so each weatherIntelligence.nws.test.ts case starts clean in the shared serial process."
+    },
+    {
+      "file": "apps/nickstire/server/lib/nwsWeather.ts",
+      "symbol": "__resetNwsCacheForTests",
+      "reason": "Q-51 2026-09-23 · TEST-ONLY RESET of the 45-min NWS response cache; without it serial test files would read each other's cached fixtures."
+    },
+    {
+      "file": "apps/nickstire/server/lib/nwsWeather.ts",
+      "symbol": "NWS_CACHE_MS",
+      "reason": "Q-51 2026-09-23 · TEST-VISIBLE CONTRACT. nwsWeather.test.ts advances the clock past exactly this TTL to prove the refetch; the runtime consumer is cachedGet in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/lib/nwsWeather.ts",
+      "symbol": "NWS_USER_AGENT",
+      "reason": "Q-51 2026-09-23 · TEST-VISIBLE CONTRACT. NWS requires an identifying User-Agent; the tests assert every request carries exactly this string. Runtime consumer: nwsGetJson in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/lib/nwsWeather.ts",
+      "symbol": "parseWindMph",
+      "reason": "Q-51 2026-09-23 · TEST-VISIBLE PARSER for NWS wind strings ('7 to 12 mph'); runtime consumer is parsePeriods in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/lib/nwsWeather.ts",
+      "symbol": "parsePeriods",
+      "reason": "Q-51 2026-09-23 · TEST SEAM. Tests parse recorded/edited forecast fixtures directly into evaluateForecast. Runtime consumers: getForecastPeriods and getHourlyPeriods in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/lib/nwsWeather.ts",
+      "symbol": "parseAlerts",
+      "reason": "Q-51 2026-09-23 · TEST SEAM. Tests parse the recorded alerts fixture into evaluateForecast. Runtime consumer: getActiveAlerts in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/weather.ts",
+      "symbol": "nwsForecastToWmoCode",
+      "reason": "Q-51 2026-09-23 · TEST-VISIBLE MAPPING of NWS forecast text onto the WMO codes the notification bar reads, pinned case by case in weather.nws.test.ts. Runtime consumer: weatherFromNwsPeriod -> getWeather in the same module (public notification bar, shopState, vapi-bdi)."
+    },
+    {
+      "file": "apps/nickstire/server/weather.ts",
+      "symbol": "__resetWeatherCacheForTests",
+      "reason": "Q-51 2026-09-23 · TEST-ONLY RESET of the 15-min weather cache for weather.nws.test.ts in the shared serial process."
     }
   ]
 }
