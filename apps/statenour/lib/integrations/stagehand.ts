@@ -239,7 +239,7 @@ async function loadStagehand(): Promise<
  * monthly spending cap, OPENAI_API_KEY is out of quota, and OpenRouter has
  * near-zero credits ("can only afford 127 tokens") — Ollama Cloud is the one
  * FUNDED lane (the primary chat provider; openai-compatible at
- * <OLLAMA_BASE_URL>/v1, same registration Perplexica uses). Wired via
+ * <OLLAMA_BASE_URL>/v1). Wired via
  * Stagehand's ModelConfig object ({modelName, apiKey, baseURL} — the "openai/"
  * prefix selects its OpenAI-compatible client, the rest is the upstream model
  * id). Chain:
