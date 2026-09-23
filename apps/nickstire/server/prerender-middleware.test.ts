@@ -149,6 +149,13 @@ describe("prerender-middleware · a closed job leaf is never served its stale ar
     expect(r.next).toHaveBeenCalled();
   });
 
+  it("a trailing slash does not smuggle a stale artifact past the check", () => {
+    // path.join('/careers/no-such-role/', 'index.html') resolves to the same
+    // file, so '/careers/<slug>/' must get the same verdict as '/careers/<slug>'.
+    expect(run("/careers/no-such-role/").served).toBe(0);
+    expect(run("/careers/automotive-technician/").served).toBe(1);
+  });
+
   it("a role flipped to filled stops being served, even with its file on disk", async () => {
     const { JOB_OPENINGS } = await import("../shared/jobOpenings");
     const job = JOB_OPENINGS.find((j) => j.slug === "automotive-technician")!;

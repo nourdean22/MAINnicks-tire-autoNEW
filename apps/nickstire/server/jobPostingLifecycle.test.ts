@@ -247,6 +247,24 @@ describe("pay is published, and the page shows the same number the markup claims
     }
   });
 
+  it("experienceRequirements agrees with the visible requirements list", () => {
+    // 2026-09-23 review: tire tech and service advisor emitted nothing; Google
+    // asks for the literal "no requirements" when a role has none, and both
+    // list prior experience only under "nice".
+    const schemaFor = (slug: string) => buildJobPostingSchema(openJobOpenings().find((j) => j.slug === slug)!, CTX);
+    expect(schemaFor("automotive-technician")?.experienceRequirements).toMatchObject({
+      "@type": "OccupationalExperienceRequirements",
+      monthsOfExperience: 24,
+    });
+    expect(schemaFor("tire-technician")?.experienceRequirements).toBe("no requirements");
+    expect(schemaFor("service-advisor")?.experienceRequirements).toBe("no requirements");
+    for (const job of openJobOpenings()) {
+      if (job.experienceMonths !== 0) continue;
+      // "no requirements" is only true while no required line asks for years.
+      expect(job.requirements.join(" | "), job.slug).not.toMatch(/\d+\+?\s*(years?|yrs?)\b/i);
+    }
+  });
+
   it("the hiring organization logo is an image, not the favicon", () => {
     const page = readFileSync(resolve(APP, "client/src/pages/JobPage.tsx"), "utf8");
     expect(page).not.toContain("/favicon.ico");

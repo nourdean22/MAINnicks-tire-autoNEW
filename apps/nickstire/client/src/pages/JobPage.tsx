@@ -15,14 +15,16 @@ import { useRoute, Link } from "wouter";
 import { ArrowLeft, CheckCircle2, Clock, DollarSign, Gift, MapPin, Phone } from "lucide-react";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+import PageLayout from "@/components/PageLayout";
 import { BUSINESS, SITE_URL } from "@shared/business";
+import { getRouteByPath } from "@shared/routes";
 import {
   buildJobPostingSchema,
   formatHourlyPayRange,
   jobOpeningBySlug,
   jobOpeningPath,
 } from "@shared/jobOpenings";
-import { ApplicationForm } from "./Careers";
+import { ApplicationForm, chooseCareersIntent } from "./Careers";
 import NotFound from "./NotFound";
 
 export default function JobPage() {
@@ -37,7 +39,9 @@ export default function JobPage() {
   const schema = buildJobPostingSchema(job, {
     siteUrl: SITE_URL,
     orgName: BUSINESS.name,
-    // A real 512px PNG, not the .ico favicon the first version pointed at.
+    // A PNG, not the .ico favicon the first version pointed at. The file is
+    // named 512 but measures 180x180 (as does icon-192x192.png); Google's
+    // logo minimum is 112x112, so it qualifies as it is.
     logoUrl: `${SITE_URL}/icon-512x512.png`,
     shopHours: BUSINESS.hours.display,
     address: {
@@ -52,11 +56,16 @@ export default function JobPage() {
   // baseSalary — Google requires markup to match what the page shows.
   const pay = formatHourlyPayRange(job);
 
+  // PageLayout (2026-09-23): site nav, footer, a <main> landmark, and the
+  // scroll reset — without it, opening a role from a cached /careers kept the
+  // old scroll offset and landed below the pay box.
   return (
-    <div className="min-h-screen bg-background">
+    <PageLayout activeHref="/careers" showChat={false}>
       <SEOHead
         title={`${job.title} — ${BUSINESS.address.city}, ${BUSINESS.address.state} | ${BUSINESS.name}`}
-        description={job.description.slice(0, 155)}
+        // The prerendered HTML's description comes from shared/routes.ts and
+        // carries the pay; hydrating a different one swapped it back out.
+        description={getRouteByPath(jobOpeningPath(job.slug))?.description ?? job.description.slice(0, 155)}
         canonicalPath={jobOpeningPath(job.slug)}
       />
       {schema && (
@@ -109,6 +118,7 @@ export default function JobPage() {
           <div className="mt-6 flex flex-wrap gap-3">
             <a
               href="#apply"
+              onClick={() => chooseCareersIntent("apply")}
               className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3 rounded-xl font-semibold text-sm min-h-[48px]"
             >
               Apply in 2 minutes
@@ -187,6 +197,6 @@ export default function JobPage() {
           </p>
         </div>
       </section>
-    </div>
+    </PageLayout>
   );
 }

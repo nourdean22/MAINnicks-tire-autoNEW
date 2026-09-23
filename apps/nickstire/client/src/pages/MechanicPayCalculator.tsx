@@ -11,10 +11,27 @@ import { useState } from "react";
 import { Link } from "wouter";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs, trackEvent } from "@/components/SEO";
-import { annualize, breakEvenFlagHours, weeklyFlatRatePay, weeklyHourlyPay } from "@shared/payCalculator";
+import {
+  annualize,
+  breakEvenFlagHours,
+  clampPayInput,
+  PAY_INPUT_LIMITS,
+  weeklyFlatRatePay,
+  weeklyHourlyPay,
+} from "@shared/payCalculator";
 import { formatHourlyPayRange, jobOpeningBySlug, jobOpeningPath } from "@shared/jobOpenings";
+import { getRouteByPath } from "@shared/routes";
 
+/** Whole dollars for weekly/yearly totals. */
 const usd = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+/** A rate keeps its cents: $40.25/hr must not print as "$40". */
+const usdRate = (n: number) =>
+  n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
+/** Lenient parse of what was typed; blank or partial ("", ".") counts as 0. */
+const num = (v: string) => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+};
 
 const TECH = jobOpeningBySlug("automotive-technician");
 const TECH_OPEN = TECH?.status === "open";
@@ -23,56 +40,84 @@ const TECH_PAY = TECH ? formatHourlyPayRange(TECH) : null;
 // a tech can count on, not the ceiling.
 const DEFAULT_HOURLY = TECH?.salaryMinHourlyCents != null ? TECH.salaryMinHourlyCents / 100 : 30;
 
+/**
+ * Neutral defaults (2026-09-23 review): the same rate and the same 40 hours on
+ * both sides, so the page opens at "same money" and the tech's own numbers
+ * decide. The first version defaulted to 45 hours worked against 32 flagged —
+ * a slow flat-rate week plus overtime only on the hourly side — which made
+ * hourly "win" before anyone typed anything.
+ */
+const DEFAULTS = {
+  hourlyRate: String(DEFAULT_HOURLY),
+  hoursWorked: "40",
+  flagRate: String(DEFAULT_HOURLY),
+  flagged: "40",
+  guarantee: "0",
+  weeks: "50",
+};
+
 function NumberField({
   label,
   value,
   onChange,
-  step = 1,
   suffix,
+  max,
 }: {
   label: string;
-  value: number;
-  onChange: (n: number) => void;
-  step?: number;
+  value: string;
+  onChange: (v: string) => void;
   suffix?: string;
+  max: number;
 }) {
+  // Text + inputMode="decimal", holding exactly what was typed: a number input
+  // bound to a number snapped a cleared field to "0" (then "03", "032") and
+  // could not hold a leading ".5".
+  const over = num(value) > max;
   return (
     <label className="block">
       <span className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/45 block mb-1.5">{label}</span>
       <div className="flex items-center gap-2">
         <input
-          type="number"
+          type="text"
           inputMode="decimal"
-          min={0}
-          step={step}
-          value={Number.isFinite(value) ? value : ""}
-          onChange={(e) => onChange(e.target.value === "" ? 0 : Number(e.target.value))}
+          autoComplete="off"
+          value={value}
+          onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ""))}
           className="w-full min-h-[48px] bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 text-base text-foreground focus:border-primary/50 focus:outline-none"
         />
         {suffix && <span className="text-xs text-foreground/45 shrink-0">{suffix}</span>}
       </div>
+      {over && <span className="mt-1 block text-[11px] text-amber-400">Counted as {max} — the calculator's maximum.</span>}
     </label>
   );
 }
 
 export default function MechanicPayCalculator() {
-  const [hourlyRate, setHourlyRate] = useState(DEFAULT_HOURLY);
-  const [hoursWorked, setHoursWorked] = useState(45);
-  const [flagRate, setFlagRate] = useState(40);
-  const [flagged, setFlagged] = useState(32);
-  const [guarantee, setGuarantee] = useState(0);
-  const [weeks, setWeeks] = useState(50);
+  const [hourlyRate, setHourlyRate] = useState(DEFAULTS.hourlyRate);
+  const [hoursWorked, setHoursWorked] = useState(DEFAULTS.hoursWorked);
+  const [flagRate, setFlagRate] = useState(DEFAULTS.flagRate);
+  const [flagged, setFlagged] = useState(DEFAULTS.flagged);
+  const [guarantee, setGuarantee] = useState(DEFAULTS.guarantee);
+  const [weeks, setWeeks] = useState(DEFAULTS.weeks);
 
-  const hourlyWeek = weeklyHourlyPay({ ratePerHour: hourlyRate, hoursWorked });
-  const flatWeek = weeklyFlatRatePay({ ratePerFlagHour: flagRate, flaggedHours: flagged, guaranteedHours: guarantee });
-  const breakEven = breakEvenFlagHours({ ratePerHour: hourlyRate, hoursWorked }, flagRate);
+  const hourly = { ratePerHour: num(hourlyRate), hoursWorked: num(hoursWorked) };
+  const hourlyWeek = weeklyHourlyPay(hourly);
+  const flatWeek = weeklyFlatRatePay({
+    ratePerFlagHour: num(flagRate),
+    flaggedHours: num(flagged),
+    guaranteedHours: num(guarantee),
+  });
+  const breakEven = breakEvenFlagHours(hourly, num(flagRate));
+  // The rate the math actually used, for the sentence below.
+  const flagRateUsed = clampPayInput("rate", num(flagRate));
+  const weeksUsed = num(weeks);
   const diff = hourlyWeek - flatWeek;
 
   return (
     <PageLayout activeHref="/careers" showChat={false}>
       <SEOHead
         title="Mechanic Pay Calculator: Flat Rate vs Hourly | Nick's Tire & Auto"
-        description="Compare flat-rate and hourly mechanic pay with your own numbers: flag rate, flagged hours, guarantee, overtime. Weekly and yearly take-home, and your break-even flag hours."
+        description={getRouteByPath("/mechanic-pay-calculator")?.description ?? ""}
         canonicalPath="/mechanic-pay-calculator"
       />
       <Breadcrumbs items={[{ label: "Careers", href: "/careers" }, { label: "Mechanic Pay Calculator" }]} />
@@ -81,7 +126,7 @@ export default function MechanicPayCalculator() {
         <div className="container max-w-3xl">
           <p className="text-xs font-semibold tracking-[0.12em] uppercase text-foreground/40 mb-3">For technicians</p>
           <h1 className="font-heading text-4xl lg:text-5xl font-extrabold uppercase text-foreground leading-tight">
-            Flat Rate vs Hourly: <span className="text-nick-yellow">What Would You Actually Take Home?</span>
+            Flat Rate vs Hourly: <span className="text-nick-yellow">What Would You Actually Earn?</span>
           </h1>
           <p className="mt-4 text-foreground/65 leading-relaxed">
             A $40 flag rate sounds better than $30 an hour — until a slow week. Put in your real numbers: what
@@ -94,15 +139,15 @@ export default function MechanicPayCalculator() {
         <div className="container max-w-3xl grid gap-8 md:grid-cols-2">
           <div className="space-y-4 rounded-2xl border border-border/25 p-5">
             <h2 className="font-heading text-lg font-extrabold uppercase text-foreground">Hourly job</h2>
-            <NumberField label="Hourly rate" value={hourlyRate} onChange={setHourlyRate} step={0.25} suffix="$/hr" />
-            <NumberField label="Hours worked per week" value={hoursWorked} onChange={setHoursWorked} suffix="hrs" />
+            <NumberField label="Hourly rate" value={hourlyRate} onChange={setHourlyRate} suffix="$/hr" max={PAY_INPUT_LIMITS.rate} />
+            <NumberField label="Hours worked per week" value={hoursWorked} onChange={setHoursWorked} suffix="hrs" max={PAY_INPUT_LIMITS.hoursWorked} />
             <p className="text-xs text-foreground/45">Hours over 40 counted at 1.5×.</p>
           </div>
           <div className="space-y-4 rounded-2xl border border-border/25 p-5">
             <h2 className="font-heading text-lg font-extrabold uppercase text-foreground">Flat-rate job</h2>
-            <NumberField label="Flag rate" value={flagRate} onChange={setFlagRate} step={0.25} suffix="$/flag hr" />
-            <NumberField label="Hours you actually flag per week" value={flagged} onChange={setFlagged} step={0.5} suffix="hrs" />
-            <NumberField label="Guaranteed hours (0 if none)" value={guarantee} onChange={setGuarantee} suffix="hrs" />
+            <NumberField label="Flag rate" value={flagRate} onChange={setFlagRate} suffix="$/flag hr" max={PAY_INPUT_LIMITS.rate} />
+            <NumberField label="Hours you actually flag per week" value={flagged} onChange={setFlagged} suffix="hrs" max={PAY_INPUT_LIMITS.flaggedHours} />
+            <NumberField label="Guaranteed hours (0 if none)" value={guarantee} onChange={setGuarantee} suffix="hrs" max={PAY_INPUT_LIMITS.guaranteedHours} />
           </div>
         </div>
 
@@ -112,12 +157,12 @@ export default function MechanicPayCalculator() {
               <div>
                 <p className="text-xs uppercase tracking-wide text-foreground/45">Hourly</p>
                 <p className="text-2xl font-extrabold text-foreground">{usd(hourlyWeek)}/wk</p>
-                <p className="text-sm text-foreground/55">{usd(annualize(hourlyWeek, weeks))}/yr</p>
+                <p className="text-sm text-foreground/55">{usd(annualize(hourlyWeek, weeksUsed))}/yr</p>
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-foreground/45">Flat rate</p>
                 <p className="text-2xl font-extrabold text-foreground">{usd(flatWeek)}/wk</p>
-                <p className="text-sm text-foreground/55">{usd(annualize(flatWeek, weeks))}/yr</p>
+                <p className="text-sm text-foreground/55">{usd(annualize(flatWeek, weeksUsed))}/yr</p>
               </div>
             </div>
             <p className="mt-4 text-sm text-foreground/75">
@@ -127,10 +172,11 @@ export default function MechanicPayCalculator() {
                   ? `Hourly pays ${usd(diff)} more this week.`
                   : `Flat rate pays ${usd(-diff)} more this week.`}{" "}
               {breakEven != null &&
-                `To match the hourly check you'd need to flag ${breakEven} hours at ${usd(flagRate)} — every week, slow weeks included.`}
+                `To match the hourly check you'd need to flag ${breakEven} hours at ${usdRate(flagRateUsed)} — every week, slow weeks included.`}
             </p>
+            <p className="mt-2 text-xs text-foreground/45">Gross pay, before taxes and deductions.</p>
             <div className="mt-4 max-w-[220px]">
-              <NumberField label="Working weeks per year" value={weeks} onChange={setWeeks} suffix="wks" />
+              <NumberField label="Working weeks per year" value={weeks} onChange={setWeeks} suffix="wks" max={PAY_INPUT_LIMITS.workingWeeks} />
             </div>
           </div>
 
