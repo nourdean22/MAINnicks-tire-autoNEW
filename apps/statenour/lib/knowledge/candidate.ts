@@ -38,9 +38,20 @@ export const KnowledgeEvidenceSchema = z.object({
   score: z.number().min(0).max(1).optional(),
 });
 
+/**
+ * 2026-09-23 (Codex P2 on #2553) · the ceiling on a candidate's content. brain_memories.content_tsv
+ * (GENERATED) and the older expression index evaluate to_tsvector(content) on every write and abort
+ * above Postgres's 1 MiB tsvector limit; nothing bounded content before this. Set from production:
+ * the last 60 days' live maximum is 5,125 chars (p99 <= 5k), and the only rows near 15k are one
+ * 2026-06-24 archive import - 32,000 rejects nothing real and sits ~60x under where the limit bites
+ * (297 KB of tsvector came from 561,770 chars). Reject, never truncate: a clipped note would hash,
+ * dedupe and index as something the source never said.
+ */
+export const KNOWLEDGE_CONTENT_MAX_CHARS = 32_000;
+
 export const KnowledgeCandidateSchema = z.object({
   id: z.string().min(1),
-  content: z.string().min(1),
+  content: z.string().min(1).max(KNOWLEDGE_CONTENT_MAX_CHARS),
   contentHash: z.string().regex(/^[a-f0-9]{64}$/),
   kind: z.enum(KNOWLEDGE_KINDS),
   sourceType: z.enum(KNOWLEDGE_SOURCE_TYPES),
