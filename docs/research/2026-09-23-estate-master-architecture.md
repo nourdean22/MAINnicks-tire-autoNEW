@@ -933,21 +933,22 @@ the loop never outruns your ability to review.
 
 | Property | Setting | Why |
 |---|---|---|
-| Host | A Claude Code **Routine** in this cloud environment, `create_new_session_on_fire: true` | Each firing is a fresh container with a fresh clone of `main`: no laptop, no expired login, no shared checkout with sibling sessions |
+| Host | A Claude Code **Routine** (`trig_01QfkSbj2EUDy7ZaEEQASx2B`, "NOURCITY shift loop tick", armed 2026-09-23) that wakes the orchestrating session every 4 hours at :46 UTC. Each tick spawns at most one **worker** session with the repo attached (`create_session`, tag `shift-loop`) | A Routine that starts a fresh session directly was tried first and rejected: its sessions carry no repo source and no tools, so they could not clone or open a PR. Spawned sessions with the repo attached are proven: all eleven wave-1 sessions opened draft PRs |
 | Cadence | every 4 hours | Six chances a day; back-pressure below keeps the PR rate at your merge rate |
-| Connectors | **none** | The container has no `RAILWAY_TOKEN` and no `DATABASE_URL` (verified 2026-09-23), and the Routine stores no Railway/Neon/Gmail grant, so a firing cannot reach production or a customer channel even if a fetched page tells it to (`docs/CLOUD-ENVIRONMENT.md` §"one Railway token unlocks both databases" is exactly the authority this loop must not hold) |
-| Output per firing | at most ONE draft PR, or one repair pass on an existing loop PR, or nothing | `OVERNIGHT-MANDATE.md` §1: a firing with nothing worth proposing is a valid firing |
-| Back-pressure | **at most 3 open loop PRs**; at the cap, the firing only repairs its own open PRs (CI red, merge conflict, review comments), oldest first | Your attention is the scarce resource; unreviewed PRs rot |
-| Claim | a PR body line `shift-loop-item: <ID>`; before building, search open, merged AND closed PRs for it | `claim-before-act`: two firings must not build the same item; a closed-unmerged PR is your "no" and the item is skipped |
+| Tools | Workers carry an **allowlist** in their prompt: GitHub tools, repo attach, PR subscription, public documentation. Nothing else — not Railway, Neon, Sentry, Gmail or any ad or media tool, not even read-only | The org does not allow restricting a Routine's connectors, and whether a spawned session inherits the account's connectors is UNVERIFIED. So this boundary is an instruction plus the PreToolUse hook, not construction. The containers hold no `RAILWAY_TOKEN` or `DATABASE_URL` (verified 2026-09-23) |
+| Output per tick | at most ONE worker: one draft PR, or one repair pass on an open loop PR, or nothing | `OVERNIGHT-MANDATE.md` §1: a firing with nothing worth proposing is a valid firing |
+| Back-pressure | **at most 3 open loop PRs** (wave 1 included); at the cap, a tick spawns only a repair worker for the oldest red or conflicted one | Your attention is the scarce resource; unreviewed PRs rot. With wave 1's eleven PRs open, the loop repairs and reviews until you merge or close them |
+| Claim | a PR body line `shift-loop-item: <ID>`, plus one issue, "shift-loop: claims and skips", where each worker posts its claim before building and a skip (with evidence) when the premise check finds an item already done. Your comments on that issue are how you record decisions the queue waits on | `claim-before-act`; the skip record stops every tick re-checking an item a sibling session already shipped (two were, mid-write, on 2026-09-23) |
 | Merge | **never** — you merge from your phone | Night Shift's rule; `OVERNIGHT-MANDATE.md` §2; `docs/UPSTREAMS.md` rejects autonomous production self-modification |
-| Evaluators | may ADD tests; may never weaken, delete or rewrite an existing test, lint gate, CI workflow, `config/agent-os/**`, `scripts/agent-os/**`, `scripts/night-shift/**`, `.claude/**` or a policy file | Evaluator separation, same list as `config/agent-os/evaluator-paths.json` |
+| Evaluators | Workers may ADD tests; may never weaken, delete or rewrite an existing test, lint gate, CI workflow, `config/agent-os/**`, `scripts/agent-os/**`, `scripts/night-shift/**`, `.claude/**` or a policy file. The orchestrator reviews each green loop PR's full diff at its current head and comments only on real defects | Evaluator separation, same list as `config/agent-os/evaluator-paths.json`; the reviewer is never the author |
 | Protected core | allowed as a PR with a targeted test, a compatibility note and a rollback note; the PR's first line says `PROTECTED CORE` | `apps/nickstire/PROTECTED-CORE.md` |
-| Kill criteria | three most recent loop PRs closed without merge → the loop disables its own Routine and opens one issue explaining why | Night Shift README kill rule |
-| Stop | say "stop" in any session → the Routine is deleted; or pause it in the Routines list | "until I say stop" |
+| Kill criteria | three most recent loop PRs closed without merge → the tick disables the Routine and tells you why | Night Shift README kill rule |
+| Stop | say "stop" in the orchestrating session → the next tick deletes the Routine (or ask for it immediately); or pause or delete it in the Routines list | "until I say stop" |
 
-**What the loop cannot do by construction** (and therefore what stays on your side of §15): apply
-Railway config, change env vars, create or delete services, write to either database, send or
-publish anything, rotate credentials, or merge.
+**What the loop must not do** (and therefore what stays on your side of §15): apply Railway config,
+change env vars, create or delete services, write to either database, send or publish anything,
+rotate credentials, or merge. The workers hold no production credentials in their environment; the
+connector boundary is instruction-level (Tools row above).
 
 ### 14.3 The work queue
 
@@ -967,14 +968,15 @@ closed) already carries.
 
 **Wave 1 — in flight.** Eleven cloud sessions, one draft PR each, none allowed to merge: nine
 started 2026-09-23 ~14:15Z, and Q-41/Q-42 at 14:31-14:33Z for defects found while this document
-was being written. Q-42's defect had already been fixed on `main` by a sibling session (#2592);
-its session is instructed to re-verify first and open no PR in that case. IDs are stable claim
-keys; row order is the priority.
+was being written. All eleven opened draft PRs: Q-01 #2600 · Q-02 #2599 · Q-03 #2598 · Q-04 #2601 ·
+Q-05 #2603 · Q-06 #2610 · Q-07 #2602 · Q-08 #2597 · Q-09 #2605 · Q-41 #2606 · Q-42 #2607. Each carries
+a `shift-loop-item` line, so wave 1 counts against the loop's cap of three open PRs until you merge
+or close it. IDs are stable claim keys; row order is the priority.
 
 | ID | Item | Evidence | Acceptance | Tier |
 |---|---|---|---|---|
 | Q-41 | Receptionist recap text: never put a model-written URL in a customer text; drop `mapLink` from the Vapi tool schema; log the real not-sent reason and never "sent" for a draft; redact the tool-call log line (it printed a caller's name and full phone). The duplicate guard landed separately in #2594 | §1.4 (live, 14:25Z) | A recap with an invented link sends with the canonical link (red on `main` first); no PII in the log line | LOOP (VAPI = PROTECTED CORE) · then OPERATOR Vapi config push |
-| Q-42 | A paid tire order marks its own invoice paid after an invoice-number collision | `REGION-LATENCY-2026-09-23.md` §6 item 1 | **Done on `main` in #2592** (sibling session); the Q-42 session should find it and stop | — |
+| Q-42 | A paid tire order marks its own invoice paid after an invoice-number collision | `REGION-LATENCY-2026-09-23.md` §6 item 1 | The collision itself was fixed on `main` in #2592 (sibling session); #2607 adds the payment-side guard, so a payment can never mark another customer's invoice paid | LOOP (payments = PROTECTED CORE) |
 | Q-01 | `.railway/railway.ts` region parity + docs-only watch exclusions, with offline gates | §1.1, §1.3 | Region assertion and negation-safety gate, each with a positive control | LOOP · then OPERATOR `plan`/`apply` |
 | Q-02 | Retire the SearXNG/Perplexica rungs from statenour search | §4.3 | No live import remains; Tavily first | LOOP · then OPERATOR deletes 2 services + 50 GB volume |
 | Q-03 | Approval gate must not replay executed approvals | §10.1 S3 | Red-first tests for replay, canonical compare, same-request idempotency | LOOP |
