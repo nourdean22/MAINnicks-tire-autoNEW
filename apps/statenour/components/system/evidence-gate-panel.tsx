@@ -131,6 +131,11 @@ function BufferShadowBlock({ shadow }: { shadow: BufferShadow }) {
         {shadow.banner.noShadow > 0 && (
           <span className="ml-1.5 text-rose-300">· {shadow.banner.noShadow} without a shadow</span>
         )}
+        {/* Optional chain on purpose: during a deploy skew the tRPC payload can come from a server
+            that predates `legacy` (2026-09-23); a missing block must not take the whole panel down. */}
+        {(shadow.legacy?.withShadow ?? 0) > 0 && (
+          <span className="ml-1.5 text-zinc-500">· {shadow.legacy.withShadow} legacy shadows excluded</span>
+        )}
       </p>
       {reasons.length > 0 && (
         <ul className="space-y-0.5">

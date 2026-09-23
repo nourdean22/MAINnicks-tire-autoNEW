@@ -105,6 +105,14 @@ export interface BuildOnFinishInput {
   systemPrompt: string;
   finalTaskType: string;
   userContent: string;
+  /**
+   * 2026-09-23 (review on #2509, P1) · the ROUTING-TIME toolsExpected
+   * (route.ts: actionIntent || webSearchIntent || webSearchRecency), so the E3
+   * shadow classifies the turn on the input the live pre-flush lane used, not
+   * on whether a tool happened to fire. Absent only for a caller that never
+   * routed; the shadow then recomputes it and says so.
+   */
+  toolsExpected?: boolean;
   // truth-substrate audit P1 (#16): the per-turn ResponseContract (built in
   // route.ts). When present, the finalize gate runs the contract-aware variant
   // to EMIT richer telemetry (contract-compliance signals). NOTE: on the default
@@ -524,17 +532,32 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           );
           // 2026-09-15 · E3 shadow: would the pre-flush lane have buffered
           // this turn? Same pure classifier the lane uses (assessTurnRisk),
-          // fed what actually happened (tools fired or not), so a week of
-          // rows answers "what share of turns would stop streaming" before
-          // NICK_EVIDENCE_PREFLUSH is turned on.
+          // so a week of rows answers "what share of turns would stop
+          // streaming" before NICK_EVIDENCE_PREFLUSH is turned on.
+          //
+          // 2026-09-23 (review on #2509, P1) · fed the ROUTING-TIME
+          // toolsExpected when the route supplied it. The shadow used to
+          // recompute it from the tool calls that ran, but live routing
+          // decides before generation: a web-search turn whose tool never
+          // fired read toolsExpected=false here and was stamped "would have
+          // buffered" where the live lane streamed it (and an unexpected tool
+          // call produced the inverse). The stamp names which input it
+          // replayed so the reader can keep the two cohorts apart.
           let turnRisk: unknown = null;
           try {
             const { assessTurnRisk } = await import("@/lib/ai/chat/turn-risk");
-            const risk = assessTurnRisk(userContent, {
-              toolsExpected: capturedToolCalls.length > 0,
-              intent: turnSignal.intent,
-            });
-            turnRisk = { buffer: risk.buffer, risk: risk.risk, register: risk.register, reasons: risk.reasons, toolsFired: capturedToolCalls.length };
+            const routed = typeof deps.toolsExpected === "boolean";
+            const toolsExpected = routed ? deps.toolsExpected === true : capturedToolCalls.length > 0;
+            const risk = assessTurnRisk(userContent, { toolsExpected, intent: turnSignal.intent });
+            turnRisk = {
+              buffer: risk.buffer,
+              risk: risk.risk,
+              register: risk.register,
+              reasons: risk.reasons,
+              toolsFired: capturedToolCalls.length,
+              toolsExpected,
+              toolsExpectedSource: routed ? "routing" : "recomputed",
+            };
           } catch {
             /* measurement only */
           }
