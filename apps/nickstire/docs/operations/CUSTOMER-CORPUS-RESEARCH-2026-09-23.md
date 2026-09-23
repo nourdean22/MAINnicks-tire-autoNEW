@@ -2,6 +2,10 @@
 
 **Answer first.**
 
+0. **Update, 2026-09-23 11:30Z — the census has run** (operator, read-only, output
+   `docs/diagnostics/customer-corpus-2026-06-22_2026-09-22.json`, merged in #2576). Its results are **Part M**,
+   labelled **CORPUS·census**. Points 1 and 2 below describe the state before that run and are kept as written.
+
 1. **This session did not read the production corpus.** There was no database credential in the
    container. The only route to one was the Railway variable listing, which prints every production
    secret in plaintext into the transcript, and that exposure was judged not worth it. The Neon
@@ -49,9 +53,67 @@
 | **REPO** | Verified repo fact: read in code this session (`origin/main` d72823e at the start, this PR's branch after) |
 | **CORPUS·prior** | Customer-corpus fact measured read-only in production by an earlier session, with its date and source. Not re-verified this session. |
 | **EXT** | External fact from a source, with date. Two load-bearing ones were re-fetched and confirmed this session: τ-Voice numbers and the TiDB SKIP LOCKED PR. The rest were agent-sourced from primary or secondary pages. |
+| **CORPUS·census** | Measured by the first production run of this PR's census (Part M), 2026-09-23 |
 | **INFER** | Research inference |
 | **EXP** | Experimental idea |
 | **OPERATOR** | A decision only the operator can make |
+
+---
+
+## Part M — The first production census (2026-06-22 → 09-22), CORPUS·census
+
+Source: `docs/diagnostics/customer-corpus-2026-06-22_2026-09-22.json` (#2576), aggregate only: salted keys, no
+phone, no customer text. Read-only run by the operator on 2026-09-23. Every ratio below keeps its denominator.
+
+**Coverage first.** 3,060 inbound calls, 6,662 texts, 2,046 episodes. Customer turns came from the archive for
+1,831 calls, from `customerSpeech` for 309, and from nothing for 920: the weeks of 06-22 and 06-29 have **zero**
+customer turns, and 07-06 has 29 of 247. So 513 episodes (25%) are counted apart as `no_transcript`, and the
+need shares are over the 1,494 episodes with readable customer text.
+
+**What customers came for** (share of 1,494): tire service 26.2%, asked for a person first 19.5%, unclear 14.4%,
+brakes 7.5%, general repair 3.3%, used-tire price 3.1%, hours/location 2.9%, walk-in today 2.9%, oil change 2.8%,
+tire-size help 2.8%, and a long tail. Tire needs together (tire service, used-tire price and availability, new-tire
+quote, size help, flat, TPMS) are about 37%.
+
+**Findings, ranked by customer effect.**
+
+1. **Reaching a person is the top need, and the instrument cannot see most transfers.** 946 of 2,046 episodes
+   attempted a transfer; 36 carry a provider `connected` verdict and 67 `not_connected`; the rest carry none. Of
+   the 291 episodes that opened by asking for a person, 283 attempted a transfer and 16 are verified connected.
+   16 incidents had 3–6 customers' transfers fail within one hour (427 failures, 352 of them the redial proxy).
+   `wants_human` fired in 329 episodes and `wants_manager_owner` in 79. *Caveat:* "attempted" may over-count
+   (Part I #11 is the instrument work); the connected count is a floor, not a rate.
+2. **No promise was followed by a person.** 108 episodes carry an assistant promise (text follow-up 89, status
+   update 92, callback 10, by phrase); a human followed up in 0 of 108, and 0 Promise Ledger rows exist in those
+   episodes. Oil-change episodes carry one in 30 of 42, far above any other need. **Spot-checked 2026-09-23:**
+   most of those are the scripted drop-off line ("drop it off and we'll text when it's ready",
+   `services/vapi.ts`), and the counter also counted texts sent during the call. Both fixed in the same PR: the
+   counter skips in-call texts and drop-off conditions (`customerCorpus.test.ts`), and the script no longer
+   promises a ready-text the assistant cannot trigger. Re-run the census for the true count.
+3. **Callbacks: 6 rows, 0 called by a person, 5 flipped by the old stale-callback cron** — the exact defect #2569
+   fixed on 2026-09-23 (rows now stay `new`).
+4. **Arrivals: 178 "coming in" rows, 23 arrived (12.9%).** Part of the gap was the early no-show sweep fixed in
+   #2575; most is real drop-off, and the row is mostly the assistant's suggestion (§3).
+5. **Invoice linkage: 112 of 1,731 eligible episodes (6.5%)**, $63,811 linked, median $460, 79 of them new
+   customers (315 censored). Linkage is not causation. Tire service links 13/312 (4.2%); used-tire price 0/41;
+   brakes 18/88 (20%).
+6. **Recovery queue: 660 episodes carry an opportunity row, 0 marked won.** Either the queue is not worked or its
+   outcomes are not recorded; both are worth knowing.
+7. **Texts: 55 of 104 inbound text episodes end with the customer's last text unanswered;** 140 outbound texts
+   failed; 38 jobs sat in `human_pending` at run time (a snapshot). Median first reply is seconds (automated).
+8. **Effort:** 529 episodes (26%) include a redial within 2 h; 296 (14%) needed a later customer-initiated contact.
+   Re-asked facts are rare (size 3, vehicle 8). The assistant asked for a phone number 1,475 times in 3,060 calls.
+9. **The live classifier misses most intent:** 1,077 calls got no intent from `detectIntents`, 195 of them with
+   tire words; 4,832 of 7,339 customer turns are `unclear` to the demand classifier (short turns like "yes").
+   `price_uncertainty` is the top friction label (710) — a label the classifier attaches by rule, not a quote.
+
+**Blind spots that still apply:** a callback made from a personal phone leaves no row (so 0 of 6 and 0 of 108 are
+floors), the counter is invisible to this data, and June transcripts do not exist.
+
+**What this ranks first** (Part I order updated): (1) transfer outcome instrumentation and a ring-out test call;
+(2) put the owed-contact queues (new callbacks, unanswered texts, `human_pending`) in front of the phone each
+morning; (3) back or stop every assistant promise (oil-change line done); (4) a tire-demand record the
+counter can see.
 
 ---
 
@@ -709,8 +771,8 @@ census run.
 
 ## Part I — Next repo investigations, in dependency order (continuous; stop only at a gate)
 
-1. **OPERATOR GATE:** run the census over 06-22 → 09-22 and 07-23 → 09-22 (`--json`). Nothing
-   below the line is ranked until it runs.
+1. ~~**OPERATOR GATE:** run the census~~ **Done 2026-09-23** (06-22 → 09-22, #2576; results in Part M).
+   The 07-23 → 09-22 run is still worth doing: it drops the transcript-less June weeks.
 2. Read the census coverage table. If archive completeness is below 90% in any week after 07-23,
    fix `vapiCallArchive` first (the 500-per-run cap and 14-day horizon mean a stall longer than 14
    days loses calls for good).
