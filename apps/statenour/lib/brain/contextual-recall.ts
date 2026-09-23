@@ -654,6 +654,21 @@ export function lexicalSkipRate(): number | null {
  */
 const RERANK_CALL_BUDGET_MS = 1_500;
 
+/** Outcome of a stage that was started early and is awaited later. */
+type Settled<T> = { ok: true; value: T } | { ok: false; error: unknown };
+
+/**
+ * Attach the rejection handler when a stage STARTS, not when it is awaited. A
+ * promise that rejects before anything awaits it is an unhandledRejection, and
+ * that crashes a Node process; the caller re-throws `error` at its await.
+ */
+function settle<T>(p: Promise<T>): Promise<Settled<T>> {
+  return p.then(
+    (value): Settled<T> => ({ ok: true, value }),
+    (error: unknown): Settled<T> => ({ ok: false, error }),
+  );
+}
+
 /**
  * Race a rerank promise against the budget: budget expiry and rejection
  * both resolve null, which every call site already treats as "keep the
@@ -1058,30 +1073,66 @@ export async function getContextualMemories(
 
   const queryText = buildQueryText(topics, recentMessages);
 
-  // Load all viable memories from DB
-  // v10.0.46 — added `deletedAt: null` filter. Pre-fix soft-deleted
-  // memories (retracted wisdom, superseded snapshots, deleted chat
-  // importance) were ranked + injected into Nick's system prompt on
-  // every chat turn. This was the highest-leverage CRITICAL because
-  // it ran per-turn, not nightly.
-  const tDb = Date.now();
-  const allMemories = await prisma.brainMemory.findMany({
-    where: {
-      confidence: { gte: 0.3 },
-      deletedAt: null,
-      // 2026-05-17 follow-up · exclude binary-payload categories
-      category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
-      // BDN-310 supersession honored (2026-08-19): superseded or
-      // expired-validity beliefs leave the recall pool.
-      ...validityWhere(opts.asOf),
-    },
-    orderBy: { confidence: "desc" },
-    take: 300,
-    // v10.0.354 · pull `source` so we can weight by ingestion pipeline
-    // v10.0.396 · seenCount + updatedAt for wisdom freshness decay
-    select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true },
-  });
-  timings.dbFetch = Date.now() - tDb;
+  // ── Two-phase pipeline (2026-09-23) ─────────────────────────────────
+  // brain-context races this whole function at 3 s (withTimeout(…, 3000,
+  // null)) and every stage used to run one after another. Measured on
+  // production 2026-09-23: five chat recalls took 5,663 / 4,035 / 3,565 /
+  // 2,997 / 4,230 ms and the block reached the prompt on exactly one of them,
+  // the 2,997 ms one (persisted receipts since 09-18: 4 of 89 chat turns).
+  // The stages do not all depend on each other:
+  //   PHASE A  dbFetch · lexical · knnPool read concurrently; each needs only
+  //            topics, the query embedding and asOf.
+  //   PHASE B  crossSource + related start the moment phase A lands (they need
+  //            only queryText / topics) and overlap semantic → rerank → graph;
+  //            their lines are appended afterwards in the original order, so
+  //            the rendered block is unchanged.
+  // Phase B waits for phase A on purpose, because the Neon adapter pool is max
+  // 10 and every other brain-context block draws on the same pool
+  // (lib/prisma.ts): phase A holds 3 reads at once, and phase B peaks at 4
+  // (graph's two neighbour lookups overlapping crossSource and related),
+  // where starting everything together would put 5 in flight at t0. Stage
+  // timings now overlap, so they no longer sum to `ms` in [brain-recall].
+  // Test: tests/brain/recall-stage-concurrency.test.ts.
+  const excludeSet = new Set<string>(RECALL_EXCLUDE_CATEGORIES);
+  const [allMemories, lexicalAll, knnAll] = await Promise.all([
+    // Load all viable memories from DB
+    // v10.0.46 — added `deletedAt: null` filter. Pre-fix soft-deleted
+    // memories (retracted wisdom, superseded snapshots, deleted chat
+    // importance) were ranked + injected into Nick's system prompt on
+    // every chat turn. This was the highest-leverage CRITICAL because
+    // it ran per-turn, not nightly.
+    timed("dbFetch", () =>
+      prisma.brainMemory.findMany({
+        where: {
+          confidence: { gte: 0.3 },
+          deletedAt: null,
+          // 2026-05-17 follow-up · exclude binary-payload categories
+          category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
+          // BDN-310 supersession honored (2026-08-19): superseded or
+          // expired-validity beliefs leave the recall pool.
+          ...validityWhere(opts.asOf),
+        },
+        orderBy: { confidence: "desc" },
+        take: 300,
+        // v10.0.354 · pull `source` so we can weight by ingestion pipeline
+        // v10.0.396 · seenCount + updatedAt for wisdom freshness decay
+        select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true },
+      }),
+    ),
+    // Wave B · lexical lane + candidate-pool union. Run a real Postgres FTS
+    // (getLexicalMatches) across ALL memories, not just the top-300-by-
+    // confidence pool above, so a strong lexical match on a low-confidence
+    // memory can still surface. Filter excluded categories in JS (cheap on
+    // <=50 rows), build the per-id rank map for the lane, and UNION any FTS hit
+    // not already in allMemories into the candidate pool. Best-effort: on any
+    // failure lexicalRows is [] and the keyword lane falls back to keywordScore.
+    timed("lexical", () => getLexicalMatches(topics, 50, opts.asOf)),
+    // F3 · true-KNN candidates. Only when the caller supplied the query
+    // embedding (the chat hot path) — other callers keep today's pool shape.
+    opts.queryEmbedding && opts.queryEmbedding.length > 0
+      ? timed("knnPool", () => getKnnPoolRows(opts.queryEmbedding!, 50, opts.asOf))
+      : Promise.resolve([] as LexicalRow[]),
+  ]);
 
   if (allMemories.length === 0) {
     console.log("[brain-recall]", {
@@ -1093,27 +1144,31 @@ export async function getContextualMemories(
     return "";
   }
 
-  // Wave B · lexical lane + candidate-pool union. Run a real Postgres FTS
-  // (getLexicalMatches) across ALL memories, not just the top-300-by-
-  // confidence pool above, so a strong lexical match on a low-confidence
-  // memory can still surface. Filter excluded categories in JS (cheap on
-  // <=50 rows), build the per-id rank map for the lane, and UNION any FTS hit
-  // not already in allMemories into the candidate pool. Best-effort: on any
-  // failure lexicalRows is [] and the keyword lane falls back to keywordScore.
-  const excludeSet = new Set<string>(RECALL_EXCLUDE_CATEGORIES);
-  const lexicalRows = (await timed("lexical", () => getLexicalMatches(topics, 50, opts.asOf)))
-    .filter((r) => !excludeSet.has(r.category));
+  // PHASE B starts here (see the note above). settle() attaches the rejection
+  // handler NOW: a stage that fails while semantic is still pending must not
+  // surface as an unhandledRejection, which crashes a Node process. The error is
+  // re-thrown at the await further down, where the sequential version threw it.
+  const topicLower = topics.map((t) => t.toLowerCase());
+  const crossSourceP = settle(
+    timed("crossSource", async () => {
+      const out: string[] = [];
+      await appendCrossSourceContext(out, queryText, opts.excludeChatConversationIds);
+      return out;
+    }),
+  );
+  const relatedP = settle(
+    timed("related", async () => {
+      const out: string[] = [];
+      await appendRelatedContext(out, topicLower);
+      return out;
+    }),
+  );
+
+  const lexicalRows = lexicalAll.filter((r) => !excludeSet.has(r.category));
   const useLexical = lexicalRows.length > 0;
   const lexicalRankById = new Map<string, number>();
   for (const r of lexicalRows) lexicalRankById.set(r.id, r.rank);
-  // F3 · true-KNN candidates. Only when the caller supplied the query
-  // embedding (the chat hot path) — other callers keep today's pool shape.
-  const knnRows =
-    opts.queryEmbedding && opts.queryEmbedding.length > 0
-      ? (await timed("knnPool", () => getKnnPoolRows(opts.queryEmbedding!, 50, opts.asOf))).filter(
-          (r) => !excludeSet.has(r.category),
-        )
-      : [];
+  const knnRows = knnAll.filter((r) => !excludeSet.has(r.category));
   const existingIds = new Set(allMemories.map((m) => m.id));
   const toPoolRow = (r: LexicalRow) => ({
     id: r.id,
@@ -1529,16 +1584,18 @@ export async function getContextualMemories(
   // model gets access to older insight that lives outside the
   // brain_memory table. Scored by the same hybrid formula but with
   // synthetic confidence/recency (see embedding-utils.semanticSearch).
-  const linesBeforeCross = lines.length;
-  await timed("crossSource", () =>
-    appendCrossSourceContext(lines, queryText, opts.excludeChatConversationIds),
-  );
-  const crossSourceLines = lines.length - linesBeforeCross;
+  // Started in phase B (above); appended here so the block's section order is
+  // exactly what the sequential version rendered.
+  const crossSource = await crossSourceP;
+  if (!crossSource.ok) throw crossSource.error;
+  const crossSourceLines = crossSource.value.length;
+  lines.push(...crossSource.value);
 
-  // Pull related commitments, loops, people (same as v1)
-  const topicLower = topics.map((t) => t.toLowerCase());
-  const linesBeforeRelated = lines.length;
-  await timed("related", () => appendRelatedContext(lines, topicLower));
+  // Pull related commitments, loops, people (same as v1) · started in phase B.
+  const related = await relatedP;
+  if (!related.ok) throw related.error;
+  const relatedLines = related.value.length;
+  lines.push(...related.value);
 
   const skipRate = lexicalSkipRate();
   console.log("[brain-recall]", {
@@ -1549,7 +1606,7 @@ export async function getContextualMemories(
     relevant: relevant.length,
     rerankFired,
     crossSourceLines,
-    relatedLines: lines.length - linesBeforeRelated,
+    relatedLines,
     budgetDropped,
     // CUMULATIVE since process start, not this turn — a rate needs a
     // denominator, and one turn cannot supply one. `null` rather than 0 when
