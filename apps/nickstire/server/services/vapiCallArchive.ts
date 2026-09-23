@@ -19,6 +19,7 @@
  */
 import { and, desc, eq, gte, isNull, or } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { isMissingTableError } from "../lib/dbErrors";
 
 const log = createLogger("services:vapi-archive");
 
@@ -125,13 +126,6 @@ export function buildArchivePayload(detail: VapiArchiveDetail, row: ArchiveSourc
     costTotal: typeof detail.cost === "number" && Number.isFinite(detail.cost) ? detail.cost.toFixed(4) : null,
     transcriptCapturedAt: transcript ? now : null,
   };
-}
-
-function isMissingTableError(error: unknown): boolean {
-  const code = (error as { code?: string })?.code;
-  const errno = (error as { errno?: number })?.errno;
-  const message = error instanceof Error ? error.message : String(error);
-  return code === "ER_NO_SUCH_TABLE" || errno === 1146 || /doesn't exist/i.test(message);
 }
 
 export async function archiveRecentVapiCalls(options?: { limit?: number }): Promise<ArchiveRunResult> {

@@ -429,12 +429,12 @@ export async function updateReferralStatus(id: number, status: "pending" | "visi
 // vehicle_visits — a caller must never render "not yet migrated" as "zero
 // referrals" or crash the caller's own request.
 
-/** True only for MySQL's "table doesn't exist" — 1146 / ER_NO_SUCH_TABLE — never for any other error. Exported for a direct unit test rather than only exercised indirectly. */
-export function isMissingTableError(err: unknown): boolean {
-  const code = (err as { code?: string; errno?: number } | null)?.code;
-  const errno = (err as { code?: string; errno?: number } | null)?.errno;
-  return code === "ER_NO_SUCH_TABLE" || errno === 1146;
-}
+// "Table doesn't exist" (1146) only, looking through drizzle's
+// DrizzleQueryError wrapper to the driver error on `.cause`. One definition
+// lives in lib/dbErrors.ts; it is re-exported here for this file's callers and
+// tests.
+import { isMissingTableError } from "./lib/dbErrors";
+export { isMissingTableError };
 
 export async function createTechnicianReferral(referral: InsertTechnicianReferral) {
   const db = await getDb();
@@ -696,7 +696,10 @@ export async function getCandidateSlaBreaches() {
       }),
     };
   } catch (err) {
-    if (isMissingTableError(err)) return { available: true as const, rows: [] as Row[] };
+    // available:false, as for a dead handle above: with no table there is no
+    // way to know who is waiting, and "no one is waiting" is the one answer
+    // this must never fabricate.
+    if (isMissingTableError(err)) return { available: false as const, rows: [] as Row[] };
     throw err;
   }
 }

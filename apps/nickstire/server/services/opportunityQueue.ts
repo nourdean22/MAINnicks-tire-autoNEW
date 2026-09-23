@@ -28,6 +28,7 @@
 
 import { randomUUID } from "crypto";
 import { createLogger } from "../lib/logger";
+import { isMissingTableError } from "../lib/dbErrors";
 
 const log = createLogger("opportunity-queue");
 
@@ -175,11 +176,6 @@ export interface OpportunityRow {
 // ─── DB plumbing with graceful degrade ──────────────────────────────
 
 let tableMissingWarned = false;
-
-function isMissingTableError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /doesn'?t exist|ER_NO_SUCH_TABLE|1146/i.test(msg);
-}
 
 function warnMissingOnce(where: string): void {
   if (!tableMissingWarned) {
