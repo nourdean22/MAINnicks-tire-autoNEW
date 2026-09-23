@@ -1897,7 +1897,7 @@
         },
         {
           "severity": "P2",
-          "description": "The fallbackPlan (assistant returns on no-answer and captures a callback) is DEPLOYED_NOT_OBSERVED: no call since 2026-09-21 has rung out at the counter, so the path that justified the experimental mode has never executed in production. The runbook's canary (call the line, let the destination ring out) remains the way to prove it; a not_connected artifact verdict or a callback_requests row created during a forwarded call would be the first evidence."
+          "description": "The fallbackPlan (assistant returns on no-answer and captures a callback) is DEPLOYED_NOT_OBSERVED: no call since 2026-09-21 has rung out at the counter, so the path that justified the experimental mode has never executed in production. The runbook's canary (call the line, let the destination ring out) remains the way to prove it; a not_connected artifact verdict or a callback_requests row created during a forwarded call would be the first evidence. CORRECTION 2026-09-23 (#2559): until #2559 a fired fallback could NOT create a callback_requests row — the prompt's CALLBACK CAPTURE ended in sendConfirmationSms only and escalate was forbidden while OPEN — so '0 callback rows since the change' was never evidence either way; only the absence of a not_connected verdict was. From #2559, once the operator pushes the config, CALLBACK CAPTURE calls escalate and a callback row during a forwarded call becomes real evidence."
         }
       ],
       "deferredScope": [

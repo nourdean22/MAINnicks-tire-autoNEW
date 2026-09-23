@@ -206,6 +206,26 @@
    "failureReason": null,
    "t": 1789571400,
    "optOutT": null
+  },
+  {
+   "id": 18,
+   "phone": "2165550101",
+   "direction": "outbound",
+   "body": "Nick's Tire & Auto: 17625 Euclid Ave, open 7 days.",
+   "status": "delivered",
+   "failureReason": null,
+   "t": 1789480920,
+   "optOutT": null
+  },
+  {
+   "id": 19,
+   "phone": "2165550102",
+   "direction": "inbound",
+   "body": "ok thanks",
+   "status": "received",
+   "failureReason": null,
+   "t": 1789578000,
+   "optOutT": null
   }
  ],
  "callback_requests": [
@@ -213,7 +233,8 @@
    "phone": "(216) 555-0101",
    "status": "no-answer",
    "t": 1789483260,
-   "calledT": null
+   "calledT": 1789497900,
+   "autoNoAnswer": 1
   }
  ],
  "expected_arrivals": [

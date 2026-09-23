@@ -66,6 +66,9 @@ export function maskPII(text: string): string {
     .replace(/\b\d{7,}\b/g, "[NUMBER]")
     .replace(/\b\d{2,6}\s+(?:[NSEW]\.?\s+)?[A-Z][a-z]+\s+(?:st|street|ave|avenue|rd|road|blvd|dr|drive|ln|lane|ct|way)\b\.?/gi, "[ADDRESS]")
     .replace(/\b(my name is|this is|name's|it's|i'm)\s+([A-Z][a-z]+)(\s+[A-Z][a-z]+)?/g, "$1 [NAME]")
+    // The assistant addresses the caller by name ("Thanks, John." / "Got it, Maria,"):
+    // a capitalised word between an address form and punctuation is a name.
+    .replace(/\b(thanks|thank you|got it|okay|ok|alright|perfect|great|hi|hey|sure|sorry|no problem)(,?\s+)([A-Z][a-z]+)(?=\s*[.,!?])/gi, "$1$2[NAME]")
     // spoken phone numbers ("two one six five five five ...") — seven or more digit words in a row
     .replace(/\b(?:(?:zero|oh|one|two|three|four|five|six|seven|eight|nine)[\s,.-]+){6,}(?:zero|oh|one|two|three|four|five|six|seven|eight|nine)\b/gi, "[SPOKEN-NUMBER]");
 }
@@ -338,26 +341,45 @@ export function isOpen(at: Date, timeZone: string = BUSINESS.timezone): boolean 
 /* ───────────────────────── recontact · link · incidents ───────────────────────── */
 
 /**
- * Did the customer have to come back? Customer-initiated contacts only (calls
- * and inbound texts). A contact under `immediateMin` after the previous one
- * ENDED is a dropped-line or hold redial and is counted apart: "had to
- * recontact" means the first contact did not finish the job, which a
- * two-minute reconnect does not show.
+ * Did the customer have to come back ON THEIR OWN? Input: the episode's
+ * customer contacts (`call` / `text`) plus the shop's DELIVERED outbound texts
+ * (`shop`). A later customer contact is:
+ *   - a REPLY (not counted) when it is a text and the shop texted since the
+ *     previous customer contact — the conversation working, not a chase;
+ *   - IMMEDIATE when it starts under `immediateMin` after the previous
+ *     customer contact ENDED — a dropped line or hold redial, counted apart;
+ *   - otherwise a RECONTACT. A CALL is never a reply: the confirmation text
+ *     the shop fires seconds after hang-up must not hide a customer who had to
+ *     phone back an hour later.
  */
 export function recontacts(
-  contacts: ReadonlyArray<{ at: Date; endAt?: Date }>,
+  contacts: ReadonlyArray<{ at: Date; endAt?: Date; by: "call" | "text" | "shop" }>,
   immediateMin = 10,
-): { immediate: number; later: number } {
+): { immediate: number; later: number; replies: number } {
   const sorted = [...contacts].sort((a, b) => a.at.getTime() - b.at.getTime());
   let immediate = 0;
   let later = 0;
-  for (let i = 1; i < sorted.length; i++) {
-    const prevEnd = (sorted[i - 1]!.endAt ?? sorted[i - 1]!.at).getTime();
-    if (sorted[i]!.at.getTime() - prevEnd < immediateMin * 60_000) immediate++;
-    else later++;
+  let replies = 0;
+  let prevCustomerEnd: number | null = null;
+  let shopSinceLast = false;
+  for (const c of sorted) {
+    if (c.by === "shop") {
+      if (prevCustomerEnd !== null) shopSinceLast = true;
+      continue;
+    }
+    if (prevCustomerEnd !== null) {
+      if (c.by === "text" && shopSinceLast) replies++;
+      else if (c.at.getTime() - prevCustomerEnd < immediateMin * 60_000) immediate++;
+      else later++;
+    }
+    prevCustomerEnd = (c.endAt ?? c.at).getTime();
+    shopSinceLast = false;
   }
-  return { immediate, later };
+  return { immediate, later, replies };
 }
+
+/** A bare acknowledgement ("ok thanks", "👍") is not a message owed a reply. */
+export const ACKNOWLEDGEMENT = /^\s*(?:(?:ok(?:ay)?|k|kk|thanks?|thank you|thx|ty|great|cool|perfect|got it|sounds good|will do|appreciate it|👍|🙏|❤️)[\s,.!]*)+$/iu;
 
 /**
  * How sure is the gap rule that these contacts are one need? `ambiguous` when

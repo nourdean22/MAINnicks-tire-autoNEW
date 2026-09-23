@@ -204,7 +204,7 @@ export const voiceAgentRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        log.info("Voice agent bookSlot called (bypassing DB bookings table)", { name: input.name, service: input.service });
+        log.info("Voice agent bookSlot called (bypassing DB bookings table)", { nameGiven: Boolean(input.name), service: input.service });
 
         // wave-fix-2026-05-25 (audit #107) · mark this call as converted
         // so VAPI eval scoring + conversion-rate dashboards count it.
@@ -379,10 +379,10 @@ export const voiceAgentRouter = router({
             log.warn("Telegram escalation alert failed", { err: e instanceof Error ? e.message : String(e) });
           }
         }
-        log.info("Voice agent escalated", { name: input.name, urgency: input.urgency });
+        log.info("Voice agent escalated", { nameGiven: Boolean(input.name), urgency: input.urgency });
         return {
           success: true,
-          message: `Escalated to human callback queue. Nick will call ${input.name} back.`,
+          message: `On the shop's callback list — the shop will call ${input.name} back.`,
         };
       } catch (err) {
         log.error("Voice agent escalate failed", { err: err instanceof Error ? err.message : String(err) });
@@ -637,7 +637,7 @@ export const voiceAgentRouter = router({
         // inquiries are acknowledged and left to the call recording.
         if (!isRackCheck) {
           log.info("Voice agent tire inquiry — acknowledged, no admin lead (ordinary inquiry; call already recorded)", {
-            name: input.name,
+            nameGiven: Boolean(input.name),
             size: input.tireSize,
           });
           return { success: true, message: ordinaryTireInquiryReply(input.tireSize) };
@@ -695,7 +695,7 @@ export const voiceAgentRouter = router({
             utmCampaign: isRackCheck ? "vapi-rack-check" : "vapi-tire-inquiry",
           }).$returningId();
           newLeadId = insertedLeadRows[0]?.id ?? null;
-          log.info("Voice agent tire inquiry captured", { name: input.name, size: input.tireSize, leadId: newLeadId });
+          log.info("Voice agent tire inquiry captured", { nameGiven: Boolean(input.name), size: input.tireSize, leadId: newLeadId });
         } else {
           // Same caller's voice lead from the last 5 min — annotate it with
           // this inquiry (e.g. a second tire size) and link this call to it,
@@ -710,7 +710,7 @@ export const voiceAgentRouter = router({
           } catch (annotateErr) {
             log.warn("[voiceAgent:tireInquiry] dedup annotate failed (existing lead still holds the promise)", { leadId: dedupLeadId, err: annotateErr instanceof Error ? annotateErr.message : String(annotateErr) });
           }
-          log.info("Voice agent tire inquiry deduped onto existing voice lead", { name: input.name, leadId: dedupLeadId });
+          log.info("Voice agent tire inquiry deduped onto existing voice lead", { nameGiven: Boolean(input.name), leadId: dedupLeadId });
         }
 
         // wave-fix-2026-05-25 (audit #107) · same convertedToLead update
@@ -1038,7 +1038,7 @@ export const voiceAgentRouter = router({
           sourcePage: "vapi-voice-agent",
           status: "new",
         });
-        log.info("Voice agent scheduleCallback captured", { name: input.name });
+        log.info("Voice agent scheduleCallback captured", { nameGiven: Boolean(input.name) });
 
         // Same commitment as `escalate`, different entry point: the assistant
         // OFFERED the callback and the caller accepted by giving their details.

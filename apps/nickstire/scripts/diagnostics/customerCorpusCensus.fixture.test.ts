@@ -39,9 +39,21 @@ describe("customer-corpus-census over the fixture", () => {
     expect(out.counts.kernelBucketEpisodes).toBe(8);
   });
 
-  it("a failed text is not a follow-up to a promise", () => {
+  it("neither a failed text nor the confirmation text seconds after hang-up is a follow-up to a promise", () => {
+    // Customer A: promise at 14:00, confirmation delivered 14:02 (same call's paperwork),
+    // a real follow-up text at 15:00 that FAILED. Nothing counts.
     expect(out.assistantPromises.episodesWithPromise).toBe(1);
     expect(out.assistantPromises.followedByVisibleContact).toBe(0);
+  });
+
+  it("a callback the cron flipped to 'no-answer' (calledAt stamped, nobody called) is not a callback done", () => {
+    expect(out.callbacks.episodesWithRow).toBe(1);
+    expect(out.callbacks.humanCalled).toBe(0);
+    expect(out.callbacks.autoNoAnswerNobodyCalled).toBe(1);
+  });
+
+  it("a STOP and an 'ok thanks' are not texts left unanswered; the unanswered question is", () => {
+    expect(out.sms.episodesLastInboundUnanswered).toBe(1); // the evening used-tire question
   });
 
   it("re-asking a size the caller already gave is counted", () => {

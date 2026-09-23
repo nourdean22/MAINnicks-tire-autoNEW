@@ -3,6 +3,7 @@ import { detectIntents } from "../../server/services/vapiCallClassifier";
 import { episodeKey, intentFamily } from "../../shared/callTaxonomy";
 import { classifyVoiceDemand } from "../../server/services/voiceDemandClassifier";
 import {
+  ACKNOWLEDGEMENT,
   clusterIncidents,
   countMatches,
   customerToken,
@@ -102,6 +103,14 @@ describe("masking — mask before you match, match before you print", () => {
 
   it("names after an introduction are masked", () => {
     expect(maskPII("Hi, my name is Jordan Example and I need tires")).toBe("Hi, my name is [NAME] and I need tires");
+  });
+
+  it("names the assistant addresses the caller by are masked", () => {
+    expect(maskPII("Thanks, Jordan. And what's the best number?")).toBe("Thanks, [NAME]. And what's the best number?");
+    expect(maskPII("Got it, Maria, one sec")).toBe("Got it, [NAME], one sec");
+    expect(maskPII("Perfect Sam!")).toBe("Perfect [NAME]!");
+    // a capitalised word not followed by punctuation is left alone (a make, a street)
+    expect(maskPII("Got it, Honda Civic")).toBe("Got it, Honda Civic");
   });
 
   it("an excerpt is a short window, never the line, and already masked", () => {
@@ -209,11 +218,34 @@ describe("recontact, link confidence, incident grouping", () => {
 
   it("a reconnect under 10 minutes after the call ENDED is immediate; a later one is a recontact", () => {
     const r = recontacts([
-      { at: at("2026-09-15T14:00:00Z"), endAt: at("2026-09-15T14:05:00Z") },
-      { at: at("2026-09-15T14:08:00Z"), endAt: at("2026-09-15T14:09:00Z") }, // 3 min after end
-      { at: at("2026-09-15T16:00:00Z") }, // hours later
+      { at: at("2026-09-15T14:00:00Z"), endAt: at("2026-09-15T14:05:00Z"), by: "call" },
+      { at: at("2026-09-15T14:08:00Z"), endAt: at("2026-09-15T14:09:00Z"), by: "call" }, // 3 min after end
+      { at: at("2026-09-15T16:00:00Z"), by: "call" }, // hours later
     ]);
-    expect(r).toEqual({ immediate: 1, later: 1 });
+    expect(r).toEqual({ immediate: 1, later: 1, replies: 0 });
+  });
+
+  it("a text answering the shop's text is a reply, not a recontact", () => {
+    const r = recontacts([
+      { at: at("2026-09-15T14:00:00Z"), by: "text" },
+      { at: at("2026-09-15T14:30:00Z"), by: "shop" },
+      { at: at("2026-09-15T15:00:00Z"), by: "text" },
+    ]);
+    expect(r).toEqual({ immediate: 0, later: 0, replies: 1 });
+  });
+
+  it("a CALL after the shop's automatic confirmation text is still a recontact", () => {
+    const r = recontacts([
+      { at: at("2026-09-15T14:00:00Z"), endAt: at("2026-09-15T14:02:00Z"), by: "call" },
+      { at: at("2026-09-15T14:02:30Z"), by: "shop" }, // confirmation text, seconds after hang-up
+      { at: at("2026-09-15T14:45:00Z"), by: "call" },
+    ]);
+    expect(r).toEqual({ immediate: 0, later: 1, replies: 0 });
+  });
+
+  it("an acknowledgement is not owed a reply; a question is", () => {
+    for (const ack of ["ok thanks", "Thank you!", "👍", "ok", "got it, thanks"]) expect(ACKNOWLEDGEMENT.test(ack)).toBe(true);
+    for (const q of ["ok is my car ready?", "thanks, how much for two tires", "yes"]) expect(ACKNOWLEDGEMENT.test(q)).toBe(false);
   });
 
   it("different need families across contacts are ambiguous; tire intents are one family", () => {

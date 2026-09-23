@@ -52,6 +52,12 @@ What each piece buys:
 - **`fallbackPlan` + `endCallEnabled: false`** — on no-answer the assistant RETURNS
   to the caller and runs the prompt's existing CALLBACK CAPTURE flow (name + phone
   → escalate). Before this change those callers got silence then a drop.
+  **Correction 2026-09-23 (#2559):** until #2559 that was not what the prompt did —
+  CALLBACK CAPTURE ended in `sendConfirmationSms` only, and `escalate` was forbidden
+  while OPEN, so the callback this fallback promises ("I'll make sure the shop calls
+  you right back") left no `callback_requests` row and no promise. #2559 routes
+  CALLBACK CAPTURE through `escalate`; it reaches the live assistant on the next
+  "Push Latest Config".
 - **`dialTimeout: 25`** (~5 rings, down from 60s) — a caller is never parked a full
   minute before recovery kicks in.
 - Destination number, pre-transfer message, and announce line are **unchanged**.

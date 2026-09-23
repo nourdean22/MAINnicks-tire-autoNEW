@@ -44,6 +44,7 @@ import { detectIntents } from "../../server/services/vapiCallClassifier.ts";
 import { episodeKey, intentFamily } from "../../shared/callTaxonomy.ts";
 import { extractTireSize, extractVehicle } from "../../shared/callDemandExtraction.ts";
 import {
+  ACKNOWLEDGEMENT,
   ASK_PATTERNS,
   clusterIncidents,
   countMatches,
@@ -160,7 +161,11 @@ try {
     FROM sms_messages m JOIN sms_conversations c ON c.id = m.conversationId
     WHERE m.createdAt >= FROM_UNIXTIME(?) AND m.createdAt <= FROM_UNIXTIME(?)`, [S, U]);
   const callbacks = await q("callback_requests", `
-    SELECT phone, status, UNIX_TIMESTAMP(createdAt) AS t, UNIX_TIMESTAMP(calledAt) AS calledT
+    SELECT phone, status, UNIX_TIMESTAMP(createdAt) AS t, UNIX_TIMESTAMP(calledAt) AS calledT,
+           -- The stale-callback cron (crudAutomation.ts escalateStaleCallbacks) flips an
+           -- unworked row to 'no-answer' AND stamps calledAt with nobody having called,
+           -- leaving this marker in notes. A flag, never the notes text (it can hold PII).
+           (notes LIKE '%Auto-SMS: we will call you back%') AS autoNoAnswer
     FROM callback_requests WHERE createdAt >= FROM_UNIXTIME(?) AND createdAt <= FROM_UNIXTIME(?)`, [S, U_AHEAD]);
   const arrivals = await q("expected_arrivals", `
     SELECT customerPhone AS phone, status, source, UNIX_TIMESTAMP(createdAt) AS t, UNIX_TIMESTAMP(arrivedAt) AS arrivedT
@@ -216,6 +221,8 @@ try {
   const STOP = /^\s*(stop|stopall|unsubscribe|end|quit|cancel|opt ?out)\b/i;
   /** A failed or still-queued text reached nobody: it is not a reply and not a follow-up. */
   const reached = (s: SmsC) => s.channel === "sms_out" && (s.status === "sent" || s.status === "delivered");
+  /** A human worked the callback. 'no-answer' is excluded: the stale-callback cron sets it (with calledAt) without calling anyone. */
+  const humanCalled = (r: Row) => r.status === "called" || r.status === "completed";
   const smsContacts: SmsC[] = (sms ?? []).map((r) => ({
     phone10: phoneKey(r.phone), at: new Date(Number(r.t) * 1000),
     channel: r.direction === "inbound" ? "sms_in" : "sms_out", ref: String(r.id),
@@ -261,7 +268,7 @@ try {
   interface EpFacts {
     family: string; openedWithHuman: boolean; demandFriction: string; calls: number; smsIn: number; smsOut: number; redials: number; multiChannel: boolean;
     openStart: boolean; transferAttempted: boolean; transferConnected: boolean; transferNotConnected: boolean;
-    callbackRow: boolean; callbackCompleted: boolean; promisesMade: number; promiseFollowedByContact: boolean | null;
+    callbackRow: boolean; callbackCompleted: boolean; callbackAutoNoAnswer: boolean; promisesMade: number; promiseFollowedByContact: boolean | null;
     arrivalRow: boolean; arrived: boolean; linkedInvoice: boolean; linkedCents: number; existingCustomer: boolean;
     friction: Record<Friction, number>; reaskedKnownSize: boolean; reaskedKnownVehicle: boolean; optOut: boolean;
     humanPending: boolean; firstReplyMin: number | null; unansweredInbound: boolean; kernelIntentless: boolean;
@@ -313,13 +320,19 @@ try {
       }
     }
     const promisesMade = cs.reduce((n, c) => n + Object.values(countMatches(c.assistant, PROMISE_PATTERNS)).reduce((a, b) => a + b, 0), 0);
-    // Follow-up evidence available to a SELECT: an outbound text, a completed
-    // callback row, or another call, after the first promise, within 26 h.
+    // Follow-up evidence available to a SELECT, within 26 h of the first promise:
+    // a delivered outbound text sent 15+ minutes after the promising call ENDED
+    // (the confirmation and forwarded-call texts fire within seconds of hang-up —
+    // they are the same call's paperwork, not the promise being kept), or a
+    // callback a human marked called/completed. `calledAt` alone is not evidence:
+    // the stale-callback cron stamps it without calling anyone.
     let promiseFollowed: boolean | null = null;
     if (promisesMade > 0) {
-      const pAt = cs.find((c) => Object.values(countMatches(c.assistant, PROMISE_PATTERNS)).some((v) => v > 0))!.at.getTime();
-      const outText = smsContacts.some((s) => s.phone10 === e.phone10 && reached(s) && s.at.getTime() > pAt && s.at.getTime() <= pAt + 26 * 3_600_000);
-      const cbDone = (cbBy.get(e.phone10) ?? []).some((r) => inWin(r.calledT, pAt, pAt + 26 * 3_600_000));
+      const promising = cs.find((c) => Object.values(countMatches(c.assistant, PROMISE_PATTERNS)).some((v) => v > 0))!;
+      const pAt = promising.at.getTime();
+      const pEnd = pAt + promising.durationSeconds * 1000;
+      const outText = smsContacts.some((s) => s.phone10 === e.phone10 && reached(s) && s.at.getTime() >= pEnd + 15 * 60_000 && s.at.getTime() <= pAt + 26 * 3_600_000);
+      const cbDone = (cbBy.get(e.phone10) ?? []).some((r) => humanCalled(r) && inWin(r.calledT, pAt, pAt + 26 * 3_600_000));
       promiseFollowed = outText || cbDone;
     }
 
@@ -342,10 +355,13 @@ try {
         if (hit) list.push(`${customerToken(e.phone10, SALT)}: …${hit}…`);
       }
     }
-    const customerInit = e.contacts
-      .filter((c) => c.channel !== "sms_out")
-      .map((c) => ({ at: c.at, endAt: c.channel === "call" ? new Date(c.at.getTime() + (c as CallC).durationSeconds * 1000) : c.at }));
-    const rc = recontacts(customerInit);
+    const rc = recontacts(e.contacts
+      .filter((c) => c.channel !== "sms_out" || reached(c as SmsC))
+      .map((c) => ({
+        at: c.at,
+        endAt: c.channel === "call" ? new Date(c.at.getTime() + (c as CallC).durationSeconds * 1000) : c.at,
+        by: c.channel === "sms_out" ? ("shop" as const) : c.channel === "call" ? ("call" as const) : ("text" as const),
+      })));
     const perContactNeeds = e.contacts
       .filter((c) => c.channel !== "sms_out")
       .map((c) => (c.channel === "call" ? (c as CallC).need : episodeNeed([(c as SmsC).body]).need));
@@ -361,14 +377,19 @@ try {
       transferConnected: cs.some((c) => c.transfer === "connected"),
       transferNotConnected: cs.some((c) => c.transfer === "not_connected"),
       callbackRow: cbRows.length > 0 || cs.some((c) => c.hasCallbackRow),
-      callbackCompleted: cbRows.some((r) => r.status === "completed" || r.calledT != null),
+      callbackCompleted: cbRows.some(humanCalled),
+      callbackAutoNoAnswer: cbRows.some((r) => Number(r.autoNoAnswer) === 1),
       promisesMade, promiseFollowedByContact: promiseFollowed,
       arrivalRow: arrRows.length > 0, arrived: arrRows.some((r) => r.status === "arrived"),
       linkedInvoice: linked.length > 0, linkedCents: linked.reduce((n, r) => n + Number(r.cents ?? 0), 0),
       existingCustomer: invs.some((r) => Number(r.t) * 1000 < startAt),
       friction, reaskedKnownSize: reSize, reaskedKnownVehicle: reVehicle,
       optOut: ss.some((s) => s.optOut), humanPending: (jobBy.get(e.phone10) ?? []).some((r) => r.status === "human_pending" && inWin(r.t, startAt, endAt)),
-      firstReplyMin, unansweredInbound: inbound.length > 0 && !ss.some((s) => reached(s) && s.at > inbound[inbound.length - 1]!.at),
+      firstReplyMin, unansweredInbound: (() => {
+        // A STOP is not a message owed a reply (the opt-out confirmation, if any, is not a reply).
+        const owed = inbound.filter((s) => !s.optOut && !ACKNOWLEDGEMENT.test(s.body));
+        return owed.length > 0 && !ss.some((s) => reached(s) && s.at > owed[owed.length - 1]!.at);
+      })(),
       kernelIntentless: cs.some((c) => c.kernelIntents.length === 0 && c.customer.length > 0),
       turnsCustomer: customerTurns.length,
       ledgerPromises: (prmBy.get(e.phone10) ?? []).filter((r) => inWin(r.t, startAt, endAt + 2 * 3_600_000)).length,
@@ -423,6 +444,7 @@ try {
     transferAttempted: share(xs, (f) => f.transferAttempted), transferConnected: share(xs, (f) => f.transferConnected),
     transferNotConnected: share(xs, (f) => f.transferNotConnected),
     callbackRow: share(xs, (f) => f.callbackRow), callbackCompleted: share(xs, (f) => f.callbackCompleted),
+    callbackAutoNoAnswer: share(xs, (f) => f.callbackAutoNoAnswer),
     promised: share(xs, (f) => f.promisesMade > 0), promiseFollowed: share(xs.filter((f) => f.promisesMade > 0), (f) => f.promiseFollowedByContact === true),
     arrivalRow: share(xs, (f) => f.arrivalRow), arrived: share(xs, (f) => f.arrived),
     linkedInvoice: share(xs, (f) => f.linkedInvoice), linkedMedianUsd: median(xs.filter((f) => f.linkedInvoice).map((f) => f.linkedCents / 100)),
@@ -490,6 +512,12 @@ try {
       note: "clusters of >=3 customers whose transfer failed within 60 min of each other; failure = not_connected verdict, or a forwarded call redialled within 15 min (proxy)",
       failures: failures.length, proxyFailures, incidents: incidents.map((i) => ({ ...i, start: i.start.toISOString(), end: i.end.toISOString() })),
     },
+    callbacks: {
+      note: "human-called = status called|completed. auto no-answer = the stale-callback cron flipped the row after 4h and texted 'still in our queue' — nobody called (it also stamps calledAt, so calledAt is not evidence).",
+      episodesWithRow: facts.filter((f) => f.callbackRow).length,
+      humanCalled: facts.filter((f) => f.callbackCompleted).length,
+      autoNoAnswerNobodyCalled: facts.filter((f) => f.callbackAutoNoAnswer).length,
+    },
     opportunities: {
       episodesWithRow: facts.filter((f) => f.opportunities > 0).length,
       episodesWithWonRow: facts.filter((f) => f.opportunityWon).length,
@@ -514,7 +542,7 @@ try {
   } else {
     log(`\n3 · NEEDS — voiceDemandClassifier intent, episode-level; each cell "k/n" of that need's episodes`);
     for (const r of rows) log(`  ${r.family.padEnd(34)} ${String(r.episodes).padStart(5)} ${r.share.padStart(6)} · contacts~${r.medianContacts} · opened asking for a person ${r.openedWithHuman} · redial ${r.redial} · call+text ${r.multiChannel} · after-hours ${r.afterHours}\n` +
-      `      transfer tried ${r.transferAttempted}, connected ${r.transferConnected}, verified-failed ${r.transferNotConnected} · callback row ${r.callbackRow}, done ${r.callbackCompleted} · promised ${r.promised}, followed ${r.promiseFollowed}\n` +
+      `      transfer tried ${r.transferAttempted}, connected ${r.transferConnected}, verified-failed ${r.transferNotConnected} · callback row ${r.callbackRow}, human-called ${r.callbackCompleted}, auto 'no-answer' (nobody called) ${r.callbackAutoNoAnswer} · promised ${r.promised}, followed ${r.promiseFollowed}\n` +
       `      arrival row ${r.arrivalRow}, arrived ${r.arrived} · invoice linked ${r.linkedInvoice} (median $${r.linkedMedianUsd ?? "-"}) · existing customer ${r.existingCustomer} · friction ${r.anyFriction} · opt-out ${r.optOut}\n` +
       `      came back >=10 min later ${r.recontactedLater} · ambiguous link ${r.ambiguousLink} · opportunity row ${r.opportunityRow}`);
     log(`  classifier: ${summary.classifierCoverage.belowLowConfidence}/${summary.classifierCoverage.labelledTurns} labelled turns below LOW_CONFIDENCE ${LOW_CONFIDENCE} (model-tier / human candidates) · intents never seen: ${summary.classifierCoverage.intentsNeverSeen.length} of ${VOICE_INTENTS.length}`);
@@ -529,6 +557,7 @@ try {
     log(`\n7b · RECONTACT  episodes where the customer came back >=10 min later ${summary.recontact.episodesRecontactedLater}/${N} (${pct(summary.recontact.episodesRecontactedLater, N)}) · immediate reconnect only ${summary.recontact.episodesImmediateOnly}`);
     log(`     EPISODE LINKS single ${summary.linkConfidence.single} · consistent ${summary.linkConfidence.consistent} · AMBIGUOUS ${summary.linkConfidence.ambiguous} (reported, never forced)`);
     log(`     TRANSFER INCIDENTS failures ${failures.length} (proxy ${proxyFailures}) → ${incidents.length} system incident(s) of >=3 customers${incidents.map((i) => `\n       ${i.start.toISOString()} → ${i.end.toISOString()} · ${i.customers} customers · ${i.failures} failures`).join("")}`);
+    log(`     CALLBACKS in ${summary.callbacks.episodesWithRow} episodes · a human called ${summary.callbacks.humanCalled} · auto-flipped to 'no-answer' with nobody calling ${summary.callbacks.autoNoAnswerNobodyCalled}${callbacks ? "" : " (table UNKNOWN)"}`);
     log(`     OPPORTUNITY ROWS in ${summary.opportunities.episodesWithRow} episodes (won ${summary.opportunities.episodesWithWonRow})${opportunities ? "" : " (table UNKNOWN)"}`);
     log(`\n8 · INVOICE LINKAGE (not causation) episodes linked ${summary.invoiceLinkage.linkedEpisodes}/${N} · of them new customers ${summary.invoiceLinkage.linkedEpisodesNewCustomers} · linked total $${(summary.invoiceLinkage.linkedCentsTotal / 100).toFixed(0)}`);
     if (EXCERPTS > 0) {
