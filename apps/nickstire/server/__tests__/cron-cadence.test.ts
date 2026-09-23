@@ -34,6 +34,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { hasRunThisShopDay, shopDayStartMs } from "../cron/scheduler";
+import { sliceBlock } from "../testUtils/sourceBlock";
 
 const SOURCE = readFileSync(join(process.cwd(), "server/cron/scheduler.ts"), "utf-8");
 
@@ -200,6 +201,25 @@ describe("tier placement · no businessHoursOnly job may sit in the 24h daily ti
     // Scoped to the daily block on purpose: the same literal is correct
     // and expected in the 15min and 2h tiers.
     expect(DAILY_BLOCK()).not.toMatch(/businessHoursOnly:\s*true/);
+  });
+
+  it("the daily tier declares NO oncePerShopDay job either — the claim is gated to business hours", () => {
+    // kpi-snapshot sat here until 2026-09-22: claimOncePerShopDay() returns
+    // false outside 07:00-20:59 ET, so a 24h tier whose phase parks outside
+    // those hours skips the job every day with no cron_log row. The
+    // businessHoursOnly assertion above cannot see this — the flag is
+    // implied by the claim, not written on the job.
+    expect(DAILY_BLOCK()).not.toMatch(/oncePerShopDay:\s*true/);
+  });
+
+  it("kpi-snapshot lives in the 2h hourly tier and claims once per shop day", () => {
+    expect(DAILY_BLOCK()).not.toContain('name: "kpi-snapshot"');
+    // sliceBlock, not indexOf + slice: a missing anchor would widen the region to
+    // EOF and let this pass on another job's declaration (server/failOpenSliceGate.test.ts).
+    const declaration = sliceBlock(HOURLY_BLOCK(), 'name: "kpi-snapshot"', "handler:", {
+      label: "the kpi-snapshot job in the hourly tier",
+    });
+    expect(declaration).toMatch(/oncePerShopDay:\s*true/);
   });
 
   it.each(STARVED_JOBS)("%s now lives in the 2h hourly tier", (job) => {

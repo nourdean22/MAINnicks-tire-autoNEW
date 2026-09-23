@@ -4,6 +4,77 @@
 missed-revenue queue was measuring Nick's own greeting. Full audit, graded evidence and the
 pre-"Reset to Shop" checklist: `docs/VOICE-RECOVERY-AUDIT-2026-09-18.md`.)
 
+## 2026-09-22 (night) · Counter-conversation capture — shipped, scheduled, NOT yet installed
+
+**What exists now.** Four layers, all merged or in flight: `conversation_episodes` (migration
+0128, **APPLIED IN PROD** — 90 applied / 42 skipped / 132 total; the one error is the
+pre-existing `vehicles` FK, a table retired by 0117) · `camera-bridge/vision/officeaudio.py`
+(capture + room calibration) · `server/services/conversationFacts.ts` (extraction, every fact
+carries its transcript segment) · `POST /api/conversation-episodes` (ingest, fail-closed auth on
+`CAMERA_INGEST_KEY`, which ALREADY EXISTED on Railway). #2530 merged `0092eddc7`; #2547 carries
+the rest.
+
+**⚠⚠⚠ THE EXTRACTOR SHIPPED DEAD AND 12 GREEN TESTS SAID NOTHING.** Found only by applying the
+migration and POSTing one marked selftest episode to the LIVE route: it returned
+`transcriptStatus: FAILED, engine: null` — row written, auth fine, coverage 0.929, extraction
+never ran. Two defects: `outputSchema` was passed as a BARE JSON Schema where the gateway type is
+`{ name, schema, strict? }` (an `as never` cast silenced the exact compile error), and the result
+was read from `res.text`, a field `InvokeResult` has never had (content is at
+`choices[0].message.content`). **Both survived because the hand-written `vi.mock` returned
+`{ text, model }` — a shape that does not exist.** A mock encodes the author's misunderstanding
+and then certifies it. The mock is now built by a helper TYPED as `InvokeResult`. Receipt:
+reverting the content path now reddens 6 tests; before the mock was fixed it reddened NONE.
+
+**⚠⚠ WINDOWS SHIPS NO SYSTEM TZ DATABASE.** stdlib `zoneinfo` raises `ZoneInfoNotFoundError` for
+`America/New_York` without the `tzdata` package — measured here on Python 3.14.4. The shop PC is
+Windows too, so this would have been its first crash. `tzdata` is now pinned in
+`vision/requirements.txt` as load-bearing, and `officeloop._zone()` raises a named
+`TimezoneDataMissing` carrying the pip command. **There is deliberately NO fallback to a fixed UTC
+offset** — it works most of the year and then shifts the shop's hours by an hour on each DST day.
+
+**Hours: 08:00–18:00 America/New_York, EVERY day incl. weekends** (operator, 2026-09-22). They
+live in ONE place, `vision/officeloop.py`, not in a Task Scheduler trigger — the task runs at boot
+and the loop decides its own hours. The 18:00 edge is TRIMMED, not overrun (a 300 s capture
+starting 17:58 is shortened to land on 18:00; the office is private after hours).
+
+**★ The gate that makes the bad mic survivable.** MEASURED: a 90 s office sample transcribed for
+**37.4 s of 90 s**, and the unrecovered 50 s carried NORMAL conversational energy (−16.7..−31.2 dB
+vs −21..−36 dB for the windows that DID transcribe) — so **level does not predict
+intelligibility** and the first `LOW_LEVEL_DB = -45` heuristic was REFUTED by its own first
+measurement (now −55, cap only). The real signal is transcript COVERAGE: below 65% the extractor
+emits NO facts. A summariser fed a gappy transcript produces fluent, confident, WRONG summaries.
+Expect mostly refusals at first — that is the gate working. Coverage is the UNION of transcript
+spans, never their sum (whisper overlaps; summing three test spans gives 67% and turns the gate
+OFF where the union gives 44% and turns it ON).
+
+**Empty-vs-error, three layers deep.** `transcriptError` (producer) outranks everything in the
+route's status ladder, because a dead transcriber yields an empty segment list that would
+otherwise store as SKIPPED — a durable claim the counter was silent all day. `ok:false`
+(extractor) is FAILED, not "no facts". Empty-with-no-error is a real finding.
+
+**⚠⚠ A CONFLICTING PR DISPATCHES NO CI AT ALL.** #2530 sat 18 min with ZERO check runs while
+sibling branches dispatched normally. Cause: `mergeable=CONFLICTING` / `mergeStateStatus=DIRTY`,
+so GitHub cannot build `refs/pull/N/merge` and no `pull_request` workflow fires. It reads exactly
+like an Actions outage. Close/reopen does NOT help; merging main does. **Check `gh pr view N
+--json mergeable,mergeStateStatus` before diagnosing a missing-CI symptom.**
+
+**⚠ `.completion/evidence.json` conflicts on every concurrent session.** Resolve by taking MAIN's
+copy as the base (it carries sibling demotions) and laying your two derived entries over it —
+demoting main's current ones to `-superseded-<tag>` keys. Never overwrite: an entry is another
+session's receipt.
+
+**BLOCKED ON ONE HUMAN ACTION — the shop PC.** Nothing is installed there yet; no session on that
+machine was reachable. One command, as Administrator:
+`camera-bridge/scripts/install-office-capture.ps1 -SourceUrl "rtsp://…@192.168.0.167/live0"
+-IngestKey "<from: railway run -s MAINnicks-tire-auto -- printenv CAMERA_INGEST_KEY>"`. It
+preflights admin / python / tzdata / ffmpeg / the whisper binary / a live ffprobe for real audio
+BEFORE changing anything, and puts the key and RTSP URL in the MACHINE environment rather than the
+task's arguments (`schtasks /query /v` exposes arguments to any user; the RTSP credentials are in
+that URL). Full runbook: `camera-bridge/docs/SHOP-PC-RUNBOOK.md` §8.
+
+**Left deliberately in prod:** one row, `episodeId = selftest-2026-09-22-conversation-ingest`,
+`source = selftest` — the end-to-end evidence. Remove it when a delete path exists.
+
 ## 2026-09-22 · Execution state (persisted for the next instance)
 
 **Mission.** Continuous completion on apps/nickstire: finish active work, wire BUILT-UNWIRED, fix
@@ -145,9 +216,36 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
    #2529 f10029b52 (memory identity + censuses) · #2532 2ca58d9f7 (#2514 rebuilt) · #2531 5825e17e7
    (harvest replay with tools) · #2534 213bce3c0 (#2515 rebuilt) · #2535 orchestration-status-reconcile
    (see PR). Five earlier squash merges carry no Co-Authored-By trailer (single-commit PRs squash to the
-   PR body); every merge since passes --subject/--body-file with it. Not done: abandoned-forms details
-   (the one silent zero #2532 did not cover); the #2490/#2496 Codex threads handed over by the statenour
-   session; the counterfactual memory diagnostic (mandate item 9).
+   PR body); every merge since passes --subject/--body-file with it. Later the same evening: #2537 2bdf14ead
+   (warm-transfer --snapshot-only/--rollback-legacy, the #2490 thread) · #2538 9262310f5 (harvest --out
+   follows links, the #2496 thread) · #2541 684cdab53 (flag script + photo-assess ledger truth) all MERGED
+   with the trailer. abandoned-forms details shipped (this PR). Still not done: the counterfactual memory
+   diagnostic (mandate item 9); live observation of the reconciler's first cron_log row.
+
+11. OPERATOR ROUND TWO (23:05Z, 'figure it out the best way for photo assess provider something free too or
+   my ollama ... u sure i havent given open weather key? 3 and 4 are ok too'). (a) Photo assess: vision-analyzer
+   gains gemini (free tier, GEMINI_API_KEY) and ollama (OLLAMA_API_KEY, gemma4:31b) providers, both LIVE-PROBED
+   on the shop's tread photo (gemini 2.5s with thinking off; gemma4 1.1s); PHOTO_ASSESS_PROVIDER=gemini set on
+   Railway once the PR lands. (b) OpenWeather: NOT given - OPENWEATHER_API_KEY is absent from the Railway
+   variable list (checked 23:06Z); only .env.example mentions it. (c) Item 3 EXECUTED with count-verified backup
+   tables: prune-health-memories 173 rows (store 721 -> 548, _bak_shop_settings_health_prune_20260922);
+   backstamp-queued-orchestrations sent 225 / failed 27 of 252 (_bak_sms_orchestrations_backstamp_20260922; 21
+   rows with no message row stay queued); release-voice-recovery-claims 15 of 15 within 60d
+   (_bak_alg_estimates_voice_release_20260922; 95 older left by design - the lane dials them 5/day 10-17 ET).
+   (d) Item 4 (45 human_pending in sms_response_jobs: 5 <= 7d, 15 8-30d, 25 > 30d; 6 are carrier 'blocked from
+   originating' bounces, ~5 are vendor spam) READ ONLY - no customer reply is sent on an 'ok'; a precise
+   instruction is needed to expire the stale rows or draft replies. LIVE 23:07Z: orchestration-status-reconcile
+   first pass stamped 35; identity memory rows 4; review-requests no longer gateway-held.
+
+12. THE PROMPT IS NOISE (mandate item 9, counterfactual). pnpm diag:memory-counterfactual replays the two paths
+   into Nick's prompt: 9 of the 10 rows injected every turn were writer noise re-emitted into thousands of
+   uses ('Nick AI has 30 learned memories' 4,904; 'Outcome unknown.' 2,517; textless commitments; '0/0 bays
+   FULL' x4); 498 of 548 rows can never reach an answer. Shipped: memoryWriterGuards.ts on the four writers
+   (7 tests), the diagnostic, and prune-junk-memories.mjs (dry run first; the DELETE is the operator's).
+   Doc: docs/operations/NICK-MEMORY-COUNTERFACTUAL-2026-09-22.md. NOT changed: the confidence x uses
+   ranking - the diagnostic prints the two alternative sets; decide from those after the prune. Also this
+   evening: kpi-snapshot moved daily -> hourly tier (oncePerShopDay on a 24h tier parks outside business
+   hours; skipped with no cron_log row, STALE 48h); the daily tier now declares no oncePerShopDay job.
 4. Duplicate-key helper consolidation onto `server/lib/dbErrors.ts` (proposals.ts,
    shopDriverMirror.ts x2, promiseLedger.ts).
 5. Tighten the transfer-artifact write in `routes/webhooks/vapi.ts` (~:621) to

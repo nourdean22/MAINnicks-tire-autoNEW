@@ -1396,11 +1396,17 @@ function buildTiers(): void {
             const data = await res.json();
             const brain = data?.data || data;
             const { remember } = await import("../services/nickMemory");
+            // Empty text and statements about Nick's own memory store are not
+            // remembered: "[statenour] Nick AI has 30 learned memories" was
+            // re-pulled every pass into 4,904 uses (2026-09-22).
+            const { pulledMemoryText } = await import("../services/memoryWriterGuards");
             let imported = 0;
 
             // Pull insights (brain analysis, reflections, predictions)
             for (const insight of (brain.recentInsights || []).slice(0, 5)) {
-              await remember({ type: "insight", content: `[statenour] ${insight.title || insight.content || ""}`.slice(0, 500), source: "statenour_pull", confidence: 0.8 });
+              const content = pulledMemoryText("[statenour]", insight.title || insight.content);
+              if (!content) continue;
+              await remember({ type: "insight", content, source: "statenour_pull", confidence: 0.8 });
               imported++;
             }
 
@@ -1430,7 +1436,9 @@ function buildTiers(): void {
 
             // Pull commitments (things Nour committed to)
             for (const commit of (brain.commitments || []).slice(0, 2)) {
-              await remember({ type: "preference", content: `[statenour-commitment] ${commit.text || commit.title || ""} — deadline: ${commit.deadline || "none"}, status: ${commit.status || "active"}`.slice(0, 500), source: "statenour_commitments", confidence: 0.9 });
+              const content = pulledMemoryText("[statenour-commitment]", commit.text || commit.title, ` — deadline: ${commit.deadline || "none"}, status: ${commit.status || "active"}`);
+              if (!content) continue;
+              await remember({ type: "preference", content, source: "statenour_commitments", confidence: 0.9 });
               imported++;
             }
 
@@ -1845,6 +1853,26 @@ function buildTiers(): void {
         },
       },
       {
+        // 2026-09-01 (audit F-4) · kpi_snapshots had NO writer for the life of
+        // the schema; kpi.history returned [] to every caller. One row per
+        // completed shop week, idempotent, once per shop day.
+        //
+        // 2026-09-22 · moved here from the daily tier. `oncePerShopDay` claims
+        // through claimOncePerShopDay(), which is gated to business hours, so
+        // on the 24h tier the job ran only when that tier's phase happened to
+        // land inside 07:00-20:59 ET: the boot-claim pass fired the daily tier
+        // at 04:29 ET on 09-22 and the job was skipped with no cron_log row,
+        // while self-healing reported it 48h stale. Same ROS-081 class as the
+        // digest above; here it gets ~7 chances a day and the claim keeps it
+        // exactly-once.
+        name: "kpi-snapshot",
+        oncePerShopDay: true,
+        handler: async () => {
+          const { processKpiSnapshot } = await import("./jobs/kpiSnapshot");
+          return processKpiSnapshot();
+        },
+      },
+      {
         // 2026-08-23 · WIRED. Same defect as campaign-resume: registered in
         // cron/index.ts, present in no tier, ZERO cron_log rows ever.
         //
@@ -1968,17 +1996,6 @@ function buildTiers(): void {
         handler: async () => {
           const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
           return processCustomerSegmentation();
-        },
-      },
-      // 2026-09-01 (audit F-4) · kpi_snapshots had NO writer for the life of
-      // the schema; kpi.history returned [] to every caller. One row per
-      // completed shop week, idempotent, once per shop day.
-      {
-        name: "kpi-snapshot",
-        oncePerShopDay: true,
-        handler: async () => {
-          const { processKpiSnapshot } = await import("./jobs/kpiSnapshot");
-          return processKpiSnapshot();
         },
       },
       // wave-181.111 · psychographic profile (10 segments) daily refresh.
