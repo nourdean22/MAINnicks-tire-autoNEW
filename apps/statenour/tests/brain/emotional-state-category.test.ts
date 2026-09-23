@@ -22,3 +22,43 @@ describe("emotional_state category", () => {
     expect(isKnownCategory("definitely_not_a_category_2026")).toBe(false);
   });
 });
+
+/**
+ * 18 more categories with live writers that were never registered
+ * (registered 2026-09-23). Each writer is pinned by file, so a writer that
+ * moves or stops writing fails here instead of leaving a stale registry row.
+ */
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const LIVE_WRITERS: ReadonlyArray<[category: string, writer: string]> = [
+  ["action_outcome", "lib/brain/pipeline-controller.ts"],
+  ["business_alert", "lib/brain/pipeline-controller.ts"],
+  ["business_event", "lib/brain/pipeline-controller.ts"],
+  ["camera_alert", "lib/brain/camera-intelligence.ts"],
+  ["concern", "lib/brain/journal-ingest.ts"],
+  ["deep_research", "lib/ai/deep-research.ts"],
+  ["deep_scan", "lib/brain/deep-scan.ts"],
+  ["employee_attendance", "lib/brain/camera-intelligence.ts"],
+  ["improvement_hypothesis", "lib/brain/improve-agent.ts"],
+  ["lead_intent", "lib/integrations/gmail-sync.ts"],
+  ["link_analysis", "app/api/telegram/webhook/route.ts"],
+  ["meta_pattern", "lib/brain/memory-consolidation.ts"],
+  ["operating_rhythm", "lib/brain/operating-rhythm.ts"],
+  ["pricing_intelligence", "lib/brain/autonomous-engine.ts"],
+  ["revenue_playbook", "lib/brain/drive-ingest.ts"],
+  ["routine", "lib/integrations/gmail-sync.ts"],
+  ["shop_traffic", "lib/brain/camera-intelligence.ts"],
+  ["visual_input", "app/api/telegram/webhook/route.ts"],
+];
+
+describe("live-writer categories registered 2026-09-23", () => {
+  it.each(LIVE_WRITERS)("%s is registered", (category) => {
+    expect(isKnownCategory(category)).toBe(true);
+  });
+
+  it.each(LIVE_WRITERS)("%s is still written by %s", (category, writer) => {
+    const src = readFileSync(resolve(__dirname, "../..", writer), "utf8");
+    expect(src).toContain(`"${category}"`);
+  });
+});

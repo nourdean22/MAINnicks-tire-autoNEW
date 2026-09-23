@@ -638,6 +638,28 @@ export const BRAIN_CATEGORIES = {
    *  confirms/rejects through the ThreadRail UI. */
   JOURNAL_THREAD_SUGGESTION: "journal_thread_suggestion",
 
+  // ── Live writers that were never registered (registered 2026-09-23) ──
+  // Each is written today by the file named beside it. Unregistered, every
+  // write logged unknown_category and was flagged for review.
+  ACTION_OUTCOME: "action_outcome", // lib/brain/pipeline-controller.ts
+  BUSINESS_ALERT: "business_alert", // lib/brain/pipeline-controller.ts
+  BUSINESS_EVENT: "business_event", // lib/brain/pipeline-controller.ts
+  CAMERA_ALERT: "camera_alert", // lib/brain/camera-intelligence.ts
+  CONCERN: "concern", // lib/brain/journal-ingest.ts
+  DEEP_RESEARCH: "deep_research", // lib/ai/deep-research.ts
+  DEEP_SCAN: "deep_scan", // lib/brain/deep-scan.ts
+  EMPLOYEE_ATTENDANCE: "employee_attendance", // lib/brain/camera-intelligence.ts
+  IMPROVEMENT_HYPOTHESIS: "improvement_hypothesis", // lib/brain/improve-agent.ts
+  LEAD_INTENT: "lead_intent", // lib/integrations/gmail-sync.ts
+  LINK_ANALYSIS: "link_analysis", // app/api/telegram/webhook/route.ts
+  META_PATTERN: "meta_pattern", // lib/brain/memory-consolidation.ts
+  OPERATING_RHYTHM: "operating_rhythm", // lib/brain/operating-rhythm.ts
+  PRICING_INTELLIGENCE: "pricing_intelligence", // lib/brain/autonomous-engine.ts
+  REVENUE_PLAYBOOK: "revenue_playbook", // lib/brain/drive-ingest.ts (computed, not a literal)
+  ROUTINE: "routine", // lib/integrations/gmail-sync.ts
+  SHOP_TRAFFIC: "shop_traffic", // lib/brain/camera-intelligence.ts
+  VISUAL_INPUT: "visual_input", // app/api/telegram/webhook/route.ts
+
   // ═══ DEPRECATED — kept so old data still reads; codemod migrates writes ═══
 
   /** @deprecated use RELATIONSHIPS (plural). Typo-split migration target. */
