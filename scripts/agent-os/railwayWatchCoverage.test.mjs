@@ -51,7 +51,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -83,6 +83,8 @@ const ALWAYS_REQUIRED = ["pnpm-lock.yaml", "pnpm-workspace.yaml", "package.json"
  * or an ANCESTOR of the requirement is coverage.
  */
 export function covers(pattern, required) {
+  // A negation EXCLUDES; it can never be what makes a path watched.
+  if (String(pattern).startsWith("!")) return false;
   if (pattern === "**" || pattern === "**/*") return true;
   const prefix = String(pattern).replace(/\/\*\*(\/\*)?$/, "").replace(/\/$/, "");
   if (prefix === required) return true;
@@ -169,9 +171,171 @@ export function iacWatchPatterns(serviceName) {
   // patterns can never be read as this one's.
   const next = src.indexOf("service(", start + 10);
   const block = src.slice(start, next === -1 ? undefined : next);
-  const m = block.match(/watchPatterns:\s*\[([^\]]*)\]/);
+  // Strings only, so a `]` inside a pattern (a character class) cannot end the
+  // array early and hide every later entry. Anything else fails to parse -> null.
+  const m = block.match(/watchPatterns:\s*\[((?:\s*"[^"]*"\s*,?)*)\s*\]/);
   if (!m) return null;
   return [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+}
+
+/**
+ * ── NEGATIONS · `!pattern` entries that stop doc-only commits redeploying ──
+ *
+ * Measured 2026-09-22/23: the shop server deployed 32 times in 13.5 hours and 8
+ * of those were documentation-only commits, because `apps/nickstire/**` watches
+ * everything. Each deploy restarts ~118 in-process scheduled jobs and the SMS
+ * queue. Railway watch paths are gitignore-style and a `!` line after an
+ * include excludes (docs.railway.com/builds/build-configuration).
+ *
+ * ⚠⚠ A NEGATION IS THE ONE EDIT THAT MOVES THIS GATE TOWARD DEPLOYING LESS, so
+ * it is only allowed where an input has been PROVEN not to be one. Every path
+ * inside an app is treated as a build/runtime input unless NON_INPUTS below
+ * names it, with the evidence. A negation that could exclude any required path
+ * (a declared input, a workspace package, a patch, a root manifest) fails.
+ *
+ * `keep` lists sub-paths of a non-input that ARE inputs and must stay watched.
+ * nickstire's `docs/reel-packs` is the live example: the server reads it at
+ * RUNTIME (server/services/reelPackRegistry.ts -> approvedReelPackRotation.ts
+ * -> cron/jobs/dailyReelPost.ts), so a pack edit must redeploy. That is why
+ * the IaC file negates each other docs/ subdirectory by name instead of
+ * `!apps/nickstire/docs/**` plus a re-include: git cannot re-include a file
+ * whose parent directory is excluded, and Railway does not document otherwise.
+ *
+ * Evidence (2026-09-23, grep of every non-doc tracked file in the app for a
+ * `docs/` path, a `"docs"` path segment, `?raw`, `import.meta.glob`, and
+ * readFile/readdir of `.md`): outside reel-packs, `apps/nickstire/docs/**` is
+ * read only by tests (*.test.ts) and dev scripts (scripts/*.mjs), never by
+ * `vite build`, the esbuild server bundle, `scripts/build-maybe-prerender.mjs`
+ * or server code; `.remember/` is read by nothing. apps/worker's three .md files
+ * are read by nothing and its Dockerfile copies no .md individually.
+ * NOT excluded: `apps/statenour/docs/**`. The server reads it at runtime
+ * (app/api/cron/subtask-usage-audit reads docs/adr/0017, lib/services/
+ * system-change-digest.ts and lib/evals/memory-eval-report.ts read the
+ * memory-eval grounding docs), so it has no entry here.
+ */
+export const NON_INPUTS = {
+  "MAINnicks-tire-auto": { ".remember": [], docs: ["reel-packs"] },
+  "statenour-worker": { "AGENTS.md": [], "CLAUDE.md": [], "DEPLOY.md": [] },
+};
+
+/** Every top-level path of the app, minus proven non-inputs (plus their `keep`s). */
+export function appInputs(app, service) {
+  const nonInputs = NON_INPUTS[service] ?? {};
+  const out = [];
+  for (const child of readdirSync(join(REPO, app))) {
+    if (Object.hasOwn(nonInputs, child)) out.push(...nonInputs[child].map((k) => `${app}/${child}/${k}`));
+    else out.push(`${app}/${child}`);
+  }
+  return out.sort();
+}
+
+const segmentRe = (seg) =>
+  new RegExp(
+    "^" +
+      seg
+        .replace(/[.+^${}()|\\]/g, "\\$&")
+        .replace(/\[!/g, "[^")
+        .replace(/\*/g, "[^/]*")
+        .replace(/\?/g, "[^/]") +
+      "$",
+  );
+
+/**
+ * Could the negation `negation` stop a change under `required` from deploying?
+ *
+ * Deliberately conservative, in gitignore terms:
+ *  - a pattern with no inner `/` matches at ANY depth (`!*.md` is `!**\/*.md`);
+ *  - matching an ANCESTOR of `required` excludes all of it (git excludes the
+ *    directory's contents);
+ *  - matching something INSIDE `required` is a partial exclusion, also a fail,
+ *    unless `required` is a file (`isFile`), which has nothing inside it.
+ */
+export function negationExcludes(negation, required, isFile = false) {
+  let body = String(negation).replace(/^!/, "").replace(/\/$/, "");
+  body = body.startsWith("/") ? body.slice(1) : body.includes("/") ? body : `**/${body}`;
+  const n = body.split("/");
+  const r = required.split("/");
+  const walk = (i, j) => {
+    if (i === n.length) return true;
+    if (j === r.length) return !isFile;
+    if (n[i] === "**") return walk(i + 1, j) || walk(i, j + 1);
+    return segmentRe(n[i]).test(r[j]) && walk(i + 1, j + 1);
+  };
+  return walk(0, 0);
+}
+
+/** `{ negation, required }` for every required path some negation could exclude. */
+export function excludedInputs(required, patterns, isFile = () => false) {
+  const out = [];
+  for (const neg of patterns.filter((p) => String(p).startsWith("!"))) {
+    for (const r of required) if (negationExcludes(neg, r, isFile(r))) out.push({ negation: neg, required: r });
+  }
+  return out;
+}
+
+/**
+ * Negations that no EARLIER include covers. Railway: "negations will only work
+ * if you include files in a preceding rule" — so such a line silently does
+ * nothing. Harmless, but it means the fix it was written for is not live.
+ */
+export function inertNegations(patterns) {
+  return patterns.filter((p, k) => {
+    if (!String(p).startsWith("!")) return false;
+    const segs = p.slice(1).replace(/^\//, "").split("/");
+    const firstGlob = segs.findIndex((s) => /[*?[]/.test(s));
+    const prefix = segs.slice(0, firstGlob === -1 ? segs.length : firstGlob).join("/");
+    return !patterns.slice(0, k).some((inc) => covers(inc, prefix));
+  });
+}
+
+const isRepoFile = (rel) => {
+  try {
+    return statSync(join(REPO, rel)).isFile();
+  } catch {
+    return false; // absent: treat as a directory, the stricter reading
+  }
+};
+
+for (const { app, label, service } of SERVICES) {
+  test(`${label}: no negation excludes a build or runtime input`, () => {
+    const patterns = iacWatchPatterns(service);
+    assert.ok(patterns && patterns.length > 0, `could not read ${service} watchPatterns from .railway/railway.ts`);
+
+    for (const [child, keeps] of Object.entries(NON_INPUTS[service] ?? {})) {
+      for (const k of keeps) {
+        assert.ok(
+          existsSync(join(REPO, app, child, k)),
+          `NON_INPUTS keeps ${app}/${child}/${k}, which no longer exists. It moved, so the runtime ` +
+            `input it protected is now unprotected. Find its new path and keep that instead.`,
+        );
+      }
+    }
+
+    // Any tree this service watches OUTSIDE its own app (e.g. the worker's
+    // apps/statenour/lib) is assumed to be an input: nothing proves otherwise.
+    const watchedElsewhere = patterns
+      .filter((p) => !p.startsWith("!"))
+      .map((p) => p.replace(/\/\*\*(\/\*)?$/, "").replace(/\/$/, ""))
+      .filter((p) => !/[*?[]/.test(p) && p !== app && !p.startsWith(`${app}/`));
+    const required = [...new Set([
+      ...appInputs(app, service),
+      ...watchedElsewhere,
+      ...workspaceClosure(app),
+      ...patchInputs(),
+      ...ALWAYS_REQUIRED,
+    ])];
+    const hits = excludedInputs(required, patterns, isRepoFile);
+    assert.deepEqual(
+      hits,
+      [],
+      `${label}: these negations could stop a change to a real input from redeploying, so production ` +
+        `would keep serving the old build:\n` +
+        hits.map((h) => `    - ${h.negation}  excludes  ${h.required}`).join("\n") +
+        `\nOnly negate paths listed in NON_INPUTS (scripts/agent-os/railwayWatchCoverage.test.mjs), with evidence.`,
+    );
+
+    assert.deepEqual(inertNegations(patterns), [], `${label}: negation(s) with no preceding include do nothing`);
+  });
 }
 
 for (const { app, label, service } of SERVICES) {
@@ -270,4 +434,43 @@ test("patchInputs is derived from the manifest and is non-empty today", () => {
     p.length > 0 && p.every((x) => x.endsWith(".patch")),
     `expected patch paths from root pnpm.patchedDependencies, got ${JSON.stringify(p)}`,
   );
+});
+
+// ── NEGATION FIXTURES · a negation gate that cannot go red would bless any exclusion ──
+
+test("MUTATION · negating a workspace package is caught", () => {
+  const hits = excludedInputs(["packages/utils", "apps/nickstire/server"], ["apps/nickstire/**", "packages/utils/**", "!packages/utils/**"]);
+  assert.deepEqual(hits, [{ negation: "!packages/utils/**", required: "packages/utils" }]);
+});
+
+test("MUTATION · a blanket docs negation is caught when a runtime input lives inside docs", () => {
+  assert.equal(negationExcludes("!apps/nickstire/docs/**", "apps/nickstire/docs/reel-packs"), true);
+  assert.equal(negationExcludes("!apps/nickstire/docs/*", "apps/nickstire/docs/reel-packs"), true);
+  assert.equal(negationExcludes("!apps/nickstire/**", "apps/nickstire/server"), true);
+  assert.equal(negationExcludes("!apps/nickstire/docs/audits/**", "apps/nickstire/docs/reel-packs"), false);
+  assert.equal(negationExcludes("!apps/nickstire/docs/*.md", "apps/nickstire/docs/reel-packs"), false);
+});
+
+test("MUTATION · an ancestor, a descendant, and an unanchored basename all count as excluding", () => {
+  assert.equal(negationExcludes("!packages/**", "packages/utils"), true); // ancestor
+  assert.equal(negationExcludes("!packages/utils/src/**", "packages/utils"), true); // partial
+  assert.equal(negationExcludes("!*.json", "package.json", true), true); // any depth
+  assert.equal(negationExcludes("!*.md", "apps/nickstire/README.md", true), true);
+  assert.equal(negationExcludes("!apps/worker/AGENTS.md", "package.json", true), false);
+  assert.equal(negationExcludes("!packages/utils/README.md", "pnpm-lock.yaml", true), false);
+});
+
+test("MUTATION · a negation with no preceding include is reported as inert", () => {
+  assert.deepEqual(inertNegations(["!apps/nickstire/docs/**", "apps/nickstire/**"]), ["!apps/nickstire/docs/**"]);
+  assert.deepEqual(inertNegations(["apps/nickstire/**", "!apps/nickstire/docs/*.md"]), []);
+});
+
+test("MUTATION · a character class cannot truncate the parsed pattern list", () => {
+  assert.equal(negationExcludes("!packages/[u]tils/**", "packages/utils"), true);
+  assert.equal(negationExcludes("!packages/[!u]tils/**", "packages/utils"), false);
+  assert.equal(negationExcludes("!packages/[!x]tils/**", "packages/utils"), true);
+});
+
+test("MUTATION · a negation never counts as coverage", () => {
+  assert.deepEqual(missingPatterns(["packages/utils"], ["!packages/utils/**"]), ["packages/utils"]);
 });
