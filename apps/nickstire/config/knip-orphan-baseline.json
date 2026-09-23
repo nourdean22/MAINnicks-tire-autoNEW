@@ -5380,6 +5380,11 @@
       "file": "apps/nickstire/server/lib/transferArtifact.ts",
       "symbol": "MIN_CONNECT_SAMPLE",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The floor below which computeConnectRate returns null instead of a percentage. Live consumer is computeConnectRate in the same module. Exported so the test asserts the real boundary rather than pinning a literal that stops tracking it - the defect being replaced was a metric that always had a confident number and was always wrong, so the threshold is the load-bearing part."
+    },
+    {
+      "file": "apps/nickstire/server/lib/self-healing.ts",
+      "symbol": "__runRequestAnomalyCheckForTest",
+      "reason": "INTENTIONAL TEST SEAM. It runs detectRequestAnomalies, the one pass the 60s health tick calls in production (runHealthCheck), so selfHealing.requestRate.test.ts can drive the real recordRequest to real anomaly log path minute by minute without starting the DB/AI checks. It is not an unwired capability."
     }
   ]
 }
