@@ -540,6 +540,7 @@ export function buildLexicalTsQuery(topics: string[]): string {
  * now filters and ranks on `content_tsv` (25.6 ms on production). The 900 ms
  * cap stays as a guard: measured 2026-09-23, 0 of 89 benchmark queries hit
  * it (median 162 ms, p90 194, max 735).
+ * The counters below should now read ~0 on a post-#2553 process.
  */
 const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
 
@@ -560,8 +561,14 @@ const LEXICAL_STATEMENT_TIMEOUT_MS = 900;
  * A decision made on data, with no instrument watching the data.
  *
  * Measured 2026-09-18 on a sequential unloaded probe: 9 of 25 queries over
- * budget (36%) — matching the 2026-08-27 figure exactly, so there is no
- * degradation today. The point is that nobody would have known either way.
+ * budget (36%) — matching the 2026-08-27 figure, which was read as "no
+ * degradation". It was the wrong reading: the counters were watching a
+ * constant cost, not a tail (see the timeout note above), and the
+ * 2026-09-22 benchmark put the hybrid-shaped rate at 94% (84 of 89). After
+ * #2553 the expected rate is ~0 (0 of 89 in the post-fix benchmark); a
+ * post-#2553 process whose `lexicalSkipPctCum` reads above a few percent is a
+ * regression, not the old trade-off. The point stands: nobody would have
+ * known either way without the counter.
  *
  * Measured 2026-09-23, after the stored column (see the timeout's comment
  * above): 0 of 89 hybrid benchmark queries hit the budget (was 84 of 89 on the
@@ -848,6 +855,12 @@ const CHARS_PER_TOKEN_APPROX = 4;
  * Once #2553 made the lexical lane answer, its long OR-matched winners (top-10
  * average 11.5k-13.4k chars on production) evicted dense hits to pay for text
  * the model never saw. Test: tests/brain/recall-budget-rendered-chars.test.ts.
+ *
+ * Scope, stated precisely (review on #2558): this budget covers the three
+ * ranked sections only. The no-topics fallback (getFallbackMemories) renders
+ * its own 200-char slice and is not trimmed — it is capped by count (20). The
+ * graph expansion and the cross-source pull append AFTER this trim and were
+ * never inside the budget; both pre-date this change.
  */
 export function trimToTokenBudget(relevant: RelevantMemory[], budgetChars: number, wisdomSlots: number): number {
   const cost = (m: RelevantMemory) => renderedContent(m).length + provenancePrefix(m).length + 1;
@@ -1545,7 +1558,7 @@ export async function getContextualMemories(
     //
     // ⚠ CUMULATIVE MEANS INSENSITIVE TO RECENT CHANGE, and the field name says
     // `Cum` so nobody reads it as "the rate right now". On a long-lived process
-    // early history dominates forever: a lane that degrades from 36% to 90%
+    // early history dominates forever: a lane that degrades from ~0% to 90%
     // after 10k healthy queries barely moves this number. It answers "has this
     // lane been dropping queries?", NOT "is it dropping them now". A windowed
     // rate would answer the second, and is worth building only once this one
