@@ -8,7 +8,7 @@
    (statenour) database holds no call or SMS corpus (I checked the table list). So this document
    contains **zero new customer-corpus facts**. It contains:
    - about 40 dated production measurements from earlier sessions, each labelled as such;
-   - 38 findings verified in code this session (Part C), 18 of them fixed in this PR — most after
+   - 41 findings verified in code this session (Part C), 18 of them fixed in this PR — most after
      three independent reviews of the first draft found what its author had missed;
    - the one command that runs the three-month analysis read-only against production. It is built,
      tested, proven end-to-end on a synthetic fixture, and waiting on one operator run:
@@ -301,6 +301,9 @@ library `scripts/lib/customerCorpus.ts`.
 | 36 | The live **voice claim guard** exempted only the old after-hours wording, so every `escalate`-backed CALLBACK CAPTURE promise ("someone will call you back") would have been flagged `unbacked_callback_promise` and fed the daily Telegram alert. | `server/services/voiceClaimGuard.ts`, `vapiCallEval.ts` daily aggregate | **Fixed**: guard v2 reads the call's tool calls and treats a callback as backed when `escalate` ran; the version bump keeps v1 and v2 counts distinguishable (PROTECTED-CORE rule 2). |
 | 37 | The capability-ledger checker accepted **"NONE. …" as live evidence**: a non-empty string satisfied `live_verified requires liveRuns`. 11 entries write liveRuns that way (all below the gate today). | `scripts/check-capability-ledger.mjs` | **Fixed**: a field that says it is absent satisfies no gate; canary in `completionAuthority.test.ts`. |
 | 38 | `tireInquiry` is still in `WRITE_TOOLS`, so every ordinary tire inquiry sets `convertedToLead = 1` with no lead behind it (the same shape `checkTireStock` was moved out for on 2026-07-20). | `server/services/voice-call-state.ts` | **Not fixed here**: moving it shifts a KPI, so it needs its own PR with a before/after note. |
+| 39 | The SMS **after-hours auto-reply** promises "We'll reach back out when we open at {nextOpen}", and one variant hard-codes "We'll text or call you back **tomorrow morning** when we open" (wrong for a text sent after midnight). The only thing tracking it is the `human_pending` queue — 25–27 rows older than 30 days (QUEUE-CENSUS). | `server/services/smsMessageCatalog.ts:133-137` (`after_hours_capture`) | A promise broken at scale, on the channel customers are told to use. **Not fixed here** (operator-owned SMS copy): write a `customer_promises` row per capture, due at next open plus a window, and keep only the `{nextOpen}` wording. |
+| 40 | The legacy AI receptionist's default says "leave your name and number and **we'll call you first thing**". | `server/services/aiReceptionist.ts:72`, reached from `routes/webhooks/twilio.ts` | Probably unreachable (Twilio has been dead since wave-103, #11); **verify, then delete the path or fix the line**. |
+| 41 | Tire special-order templates promise "We'll call you with real options and pricing before anything is ordered" and "We'll call you with the next step". | `server/services/customerMessageTemplates.ts:50-128` (`gatewayTire.ts`, `nickActions.ts`) | Which row tracks these calls is **unverified**. Trace it before counting them as kept or broken. |
 
 ---
 
@@ -684,8 +687,15 @@ census run.
 4. ~~Delete the "promised 15 min callback" tool text~~ and ~~route every callback promise through
    `escalate`~~ **Done in this PR** (Part C "Shipped"). The Vapi config push is still an OPERATOR
    click. Still open: the dead `scheduleCallback` / `quoteRange` dispatch and auditor branches.
-4b. The stale-callback cron (Part C #21): stop stamping `calledAt` / `no-answer` on the automatic
-   path. Protected core, so its own PR with targeted tests.
+4b. **First follow-up.** The stale-callback cron (Part C #21): stop stamping `calledAt` / `no-answer`
+   on the automatic path, keep the row in the `new` queue, and dedupe its Telegram alert. This PR
+   routes more callbacks through `escalate` (CALLBACK CAPTURE while open), so more rows now reach
+   that cron. Their Promise Ledger row still surfaces a miss, but the callback itself leaves the
+   to-do queue after one alert. Protected core, so its own PR with targeted tests and rollback
+   notes.
+4c. `tireInquiry` out of `WRITE_TOOLS` (Part C #38), with a before/after note on `convertedToLead`.
+4d. The SMS promises (Part C #39–#41): the after-hours auto-reply first, because its queue is already
+   25–27 rows past 30 days. OPERATOR copy decision, plus a promise row per capture.
 5. `tireInquiry` → `metadata.demand` persistence plus a counter card (depends on nothing). Measure
    it with a "size known on arrival" event on the card: the census cannot see the counter.
 6. Add the safety rule and spoken-size normalisation to `voiceDemandClassifier`, then shadow-wire it
