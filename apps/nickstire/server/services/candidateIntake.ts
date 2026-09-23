@@ -66,26 +66,26 @@ export interface IntakeCandidate {
   priorIds: number[] | null;
 }
 
-export function ownerAlertEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+function ownerAlertEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.CANDIDATE_OWNER_ALERT ?? "").trim().toLowerCase() !== "off";
 }
 
-export function applicantAckEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+function applicantAckEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.CANDIDATE_ACK_EMAIL ?? "").trim().toLowerCase() !== "off";
 }
 
-export function ownerSmsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+function ownerSmsEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.CANDIDATE_OWNER_SMS ?? "").trim().toLowerCase() !== "off";
 }
 
 /** E.164 destination for the owner text; null if the override is unusable. */
-export function ownerAlertPhone(env: NodeJS.ProcessEnv = process.env): string | null {
+function ownerAlertPhone(env: NodeJS.ProcessEnv = process.env): string | null {
   const override = (env.CANDIDATE_ALERT_PHONE ?? "").trim();
   return normalizePhone(override || OPERATOR_MOBILE_LAST10);
 }
 
-/** Pure: the owner text — short enough for one or two segments. Exported for tests. */
-export function buildOwnerSms(c: IntakeCandidate): string {
+/** Pure: the owner text — short enough for one or two segments. */
+function buildOwnerSms(c: IntakeCandidate): string {
   const wants = c.intent === "apply" ? "applied" : CANDIDATE_INTENT_LABELS[c.intent].toLowerCase();
   const repeat = c.priorIds && c.priorIds.length > 0 ? " (REPEAT)" : "";
   const lines = [
@@ -98,8 +98,8 @@ export function buildOwnerSms(c: IntakeCandidate): string {
   return lines.filter(Boolean).join("\n");
 }
 
-/** Pure: subject + body of the owner alert. Exported for tests. */
-export function buildOwnerAlert(c: IntakeCandidate): { subject: string; body: string } {
+/** Pure: subject + body of the owner alert. */
+function buildOwnerAlert(c: IntakeCandidate): { subject: string; body: string } {
   const label = CANDIDATE_INTENT_LABELS[c.intent];
   const reasons = parseMoveReasons(c.moveReasons).map((r) => MOVE_REASON_LABELS[r]);
   const source =
@@ -137,8 +137,8 @@ export function buildOwnerAlert(c: IntakeCandidate): { subject: string; body: st
   return { subject, body };
 }
 
-/** Pure: the applicant acknowledgement. Exported for tests. */
-export function buildApplicantAck(c: IntakeCandidate): { subject: string; body: string } {
+/** Pure: the applicant acknowledgement. */
+function buildApplicantAck(c: IntakeCandidate): { subject: string; body: string } {
   const first = c.name.split(/\s+/)[0] || c.name;
   const what =
     c.intent === "confidential"
@@ -171,8 +171,10 @@ export async function runCandidateIntake(c: IntakeCandidate): Promise<void> {
       const { subject, body } = buildOwnerAlert(c);
       // bypassThrottle: a job applicant is rare and expensive to miss — the
       // smart-batching throttle exists for noisy categories, not this one.
+      // high_value routes to BOTH the shop and the CEO inbox; "lead" reached
+      // the shop inbox only, and the operator asked for his own copy.
       const res = await sendNotification({
-        category: "lead",
+        category: "high_value",
         subject,
         body,
         bypassThrottle: true,
@@ -202,8 +204,10 @@ export async function runCandidateIntake(c: IntakeCandidate): Promise<void> {
   if (applicantAckEnabled() && c.email) {
     try {
       const { subject, body } = buildApplicantAck(c);
+      // follow_up: no default recipients and NO owner push — the applicant's
+      // own copy must not fire a second alert at the operator.
       await sendNotification({
-        category: "lead",
+        category: "follow_up",
         subject,
         body,
         overrideTo: [c.email],

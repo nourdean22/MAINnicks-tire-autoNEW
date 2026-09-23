@@ -8,27 +8,27 @@
  *
  * The tests assert BEHAVIOUR on the send boundary (who receives what, through
  * which channel, under which declared intent) with the transports mocked —
- * never that a function "exists".
+ * never that a function "exists". Everything goes through runCandidateIntake,
+ * the one entry point production calls; the message builders are private.
  */
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendNotification = vi.fn();
 const sendSms = vi.fn();
 const markCandidateOwnerAlerted = vi.fn();
 
+type Notify = { category: string; subject: string; body: string; overrideTo?: string[] };
+const notifies = () => sendNotification.mock.calls.map((c) => c[0] as Notify);
+const ownerEmail = () => notifies().find((n) => !n.overrideTo);
+const ackEmail = () => notifies().find((n) => n.overrideTo);
+const smsBody = () => String(sendSms.mock.calls[0]?.[1] ?? "");
+
 vi.mock("./email-notify", () => ({ sendNotification: (...a: unknown[]) => sendNotification(...a) }));
 vi.mock("./sms", () => ({ sendSms: (...a: unknown[]) => sendSms(...a) }));
 vi.mock("./db", () => ({ markCandidateOwnerAlerted: (...a: unknown[]) => markCandidateOwnerAlerted(...a) }));
 
-import {
-  applicantAckEnabled,
-  buildApplicantAck,
-  buildOwnerAlert,
-  buildOwnerSms,
-  ownerAlertPhone,
-  runCandidateIntake,
-  type IntakeCandidate,
-} from "./services/candidateIntake";
+import { runCandidateIntake, type IntakeCandidate } from "./services/candidateIntake";
 import { OPERATOR_MOBILE_LAST10 } from "./services/nonCustomerFilter";
 
 const base: IntakeCandidate = {
@@ -71,11 +71,18 @@ afterEach(() => {
 describe("defaults (operator instruction 2026-09-23): email + text to the operator + applicant ack", () => {
   it("sends the owner email, the owner text and the applicant email", async () => {
     await runCandidateIntake(base);
-    const recipients = sendNotification.mock.calls.map((c) => (c[0] as { overrideTo?: string[] }).overrideTo);
-    expect(recipients).toContainEqual(undefined); // owner email: default shop/CEO routing
-    expect(recipients).toContainEqual(["sam@example.com"]); // applicant ack
+    expect(ownerEmail()).toBeTruthy();
+    expect(ackEmail()?.overrideTo).toEqual(["sam@example.com"]);
     expect(sendSms).toHaveBeenCalledTimes(1);
     expect(markCandidateOwnerAlerted).toHaveBeenCalledWith(41);
+  });
+
+  it("owner email reaches the shop AND CEO inboxes; the applicant copy never pushes to the owner", async () => {
+    // email-notify ROUTING_TABLE: high_value = shop + CEO + push; follow_up =
+    // no default recipients, no push. "lead" would have reached the shop only.
+    await runCandidateIntake(base);
+    expect(ownerEmail()?.category).toBe("high_value");
+    expect(ackEmail()?.category).toBe("follow_up");
   });
 
   it("texts the OPERATOR'S mobile from the store line with internal intent — never the applicant", async () => {
@@ -107,8 +114,8 @@ describe("each send has its own kill switch", () => {
   it("CANDIDATE_OWNER_ALERT=off stops only the owner email", async () => {
     process.env.CANDIDATE_OWNER_ALERT = "off";
     await runCandidateIntake(base);
-    expect(sendNotification).toHaveBeenCalledTimes(1);
-    expect((sendNotification.mock.calls[0][0] as { overrideTo?: string[] }).overrideTo).toEqual(["sam@example.com"]);
+    expect(ownerEmail()).toBeUndefined();
+    expect(ackEmail()).toBeTruthy();
     expect(sendSms).toHaveBeenCalledTimes(1);
   });
 
@@ -121,17 +128,17 @@ describe("each send has its own kill switch", () => {
 
   it("CANDIDATE_ACK_EMAIL=off stops only the applicant email", async () => {
     process.env.CANDIDATE_ACK_EMAIL = "off";
-    expect(applicantAckEnabled()).toBe(false);
     await runCandidateIntake(base);
-    expect(sendNotification).toHaveBeenCalledTimes(1);
-    expect((sendNotification.mock.calls[0][0] as { overrideTo?: string[] }).overrideTo).toBeUndefined();
+    expect(ackEmail()).toBeUndefined();
+    expect(ownerEmail()).toBeTruthy();
   });
 
   it("CANDIDATE_ALERT_PHONE overrides the destination; garbage disables rather than misroutes", async () => {
     process.env.CANDIDATE_ALERT_PHONE = "216-000-1234";
-    expect(ownerAlertPhone()).toBe("+12160001234");
+    await runCandidateIntake(base);
+    expect(sendSms.mock.calls[0][0]).toBe("+12160001234");
+    sendSms.mockClear();
     process.env.CANDIDATE_ALERT_PHONE = "not-a-phone";
-    expect(ownerAlertPhone()).toBeNull();
     await runCandidateIntake(base);
     expect(sendSms).not.toHaveBeenCalled();
   });
@@ -153,23 +160,29 @@ describe("a failed send never throws out of intake (the application is already s
 });
 
 describe("message content", () => {
-  it("a confidential lead is flagged to contact discreetly in both the email and the text", () => {
-    const c = { ...base, intent: "confidential" as const, moveReasons: "no_flat_rate,schedule" };
-    expect(buildOwnerAlert(c).body).toMatch(/CONFIDENTIAL/);
-    expect(buildOwnerAlert(c).body).toMatch(/Would move for: Off flat rate, Better schedule/);
-    expect(buildOwnerSms(c)).toMatch(/discreetly/);
+  it("a confidential lead is flagged to contact discreetly in both the email and the text", async () => {
+    await runCandidateIntake({ ...base, intent: "confidential", moveReasons: "no_flat_rate,schedule" });
+    expect(ownerEmail()?.body).toMatch(/CONFIDENTIAL/);
+    expect(ownerEmail()?.body).toMatch(/Would move for: Off flat rate, Better schedule/);
+    expect(smsBody()).toMatch(/discreetly/);
   });
 
-  it("a repeat applicant is called out; an unrunnable duplicate check says so instead of implying 'new'", () => {
-    expect(buildOwnerAlert({ ...base, priorIds: [7, 3] }).body).toMatch(/REPEAT: same phone as candidate #7, #3/);
-    expect(buildOwnerSms({ ...base, priorIds: [7] })).toMatch(/REPEAT/);
-    expect(buildOwnerAlert({ ...base, priorIds: null }).body).toMatch(/Duplicate check: could not run/);
+  it("a repeat applicant is called out; an unrunnable duplicate check says so instead of implying 'new'", async () => {
+    await runCandidateIntake({ ...base, priorIds: [7, 3] });
+    expect(ownerEmail()?.body).toMatch(/REPEAT: same phone as candidate #7, #3/);
+    expect(smsBody()).toMatch(/REPEAT/);
+    sendNotification.mockClear();
+    await runCandidateIntake({ ...base, priorIds: null });
+    expect(ownerEmail()?.body).toMatch(/Duplicate check: could not run/);
   });
 
-  it("the applicant ack promises nothing the site does not already promise", () => {
-    const apply = buildApplicantAck(base).body;
+  it("the applicant ack promises nothing the site does not already promise", async () => {
+    await runCandidateIntake(base);
+    const apply = ackEmail()!.body;
     expect(apply).toMatch(/within 48 hours/);
-    expect(buildApplicantAck({ ...base, intent: "confidential" }).body).toMatch(/won't contact your current shop/);
     expect(apply).toMatch(/don't add you to any mailing list/);
+    sendNotification.mockClear();
+    await runCandidateIntake({ ...base, intent: "confidential" });
+    expect(ackEmail()!.body).toMatch(/won't contact your current shop/);
   });
 });

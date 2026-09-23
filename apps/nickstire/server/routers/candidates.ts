@@ -155,6 +155,8 @@ export const candidatesRouter = router({
       // Narrowed by the success check above; the union's failure arm has no id.
       const id = (result as { id: number }).id;
       void (async () => {
+        // null = "could not check" (no parseable phone, or the lookup failed);
+        // [] would claim "first time we've seen them", which we don't know.
         const prior = phoneE164 ? await findCandidatesByPhoneE164(phoneE164, id).catch(() => null) : null;
         await runCandidateIntake({
           id,
@@ -170,7 +172,7 @@ export const candidatesRouter = router({
           utmSource: input.utmSource ?? null,
           utmMedium: input.utmMedium ?? null,
           utmCampaign: input.utmCampaign ?? null,
-          priorIds: prior ? prior.map((p) => p.id) : phoneE164 ? null : [],
+          priorIds: prior && prior.available ? prior.rows.map((p) => p.id) : null,
         });
       })().catch((err) => log.warn("[candidates.submit] intake failed", { id, err: String(err) }));
 

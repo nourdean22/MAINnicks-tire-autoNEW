@@ -874,8 +874,13 @@ export async function createCandidate(candidate: InsertCandidate) {
   }
 }
 
-/** Pre-0129 projection — every column the table had before the recruiting funnel DDL. */
-const CANDIDATE_BASE_PROJECTION = {
+/**
+ * Pre-0129 projection — every column the table had before the recruiting
+ * funnel DDL. A FUNCTION, not a module constant: a constant dereferences
+ * `candidates` at import time, which breaks every test that mocks
+ * ../drizzle/schema without that export (CI, 2026-09-23).
+ */
+const candidateBaseProjection = () => ({
   id: candidates.id,
   name: candidates.name,
   phone: candidates.phone,
@@ -896,10 +901,10 @@ const CANDIDATE_BASE_PROJECTION = {
   notes: candidates.notes,
   createdAt: candidates.createdAt,
   updatedAt: candidates.updatedAt,
-};
+});
 
-const CANDIDATE_FULL_PROJECTION = {
-  ...CANDIDATE_BASE_PROJECTION,
+const candidateFullProjection = () => ({
+  ...candidateBaseProjection(),
   intent: candidates.intent,
   moveReasons: candidates.moveReasons,
   phoneE164: candidates.phoneE164,
@@ -909,7 +914,7 @@ const CANDIDATE_FULL_PROJECTION = {
   utmContent: candidates.utmContent,
   nextFollowUpAt: candidates.nextFollowUpAt,
   ownerAlertedAt: candidates.ownerAlertedAt,
-};
+});
 
 /** Stamp the owner-alert time. A no-op (not an error) before 0129 is applied. */
 export async function markCandidateOwnerAlerted(id: number): Promise<void> {
@@ -925,15 +930,16 @@ export async function markCandidateOwnerAlerted(id: number): Promise<void> {
 
 /**
  * Earlier rows with the same normalized phone — the duplicate-applicant check.
- * Returns null (unknown), never [], when the lookup could not run, so a caller
- * cannot mistake "couldn't check" for "first time we've seen them".
+ * `available: false` when the lookup could not run, so a caller cannot mistake
+ * "couldn't check" for "first time we've seen them" (the fabricated-read gate,
+ * server/fabricatedAdminReadGate.test.ts, enforces this shape).
  */
 export async function findCandidatesByPhoneE164(
   phoneE164: string,
   excludeId: number,
-): Promise<Array<{ id: number; createdAt: Date; status: string }> | null> {
+): Promise<{ available: boolean; rows: Array<{ id: number; createdAt: Date; status: string }> }> {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) return { available: false, rows: [] };
   try {
     const rows = await db
       .select({ id: candidates.id, createdAt: candidates.createdAt, status: candidates.status })
@@ -941,9 +947,9 @@ export async function findCandidatesByPhoneE164(
       .where(and(eq(candidates.phoneE164, phoneE164), sql`${candidates.id} <> ${excludeId}`))
       .orderBy(desc(candidates.createdAt))
       .limit(5);
-    return rows;
+    return { available: true, rows };
   } catch (err) {
-    if (isUnknownColumnError(err) || isMissingTableError(err)) return null;
+    if (isUnknownColumnError(err) || isMissingTableError(err)) return { available: false, rows: [] };
     throw err;
   }
 }
@@ -962,7 +968,7 @@ export async function getCandidates() {
     // otherwise make this read name columns production may not have yet.
     try {
       const rows = (await db
-        .select(CANDIDATE_FULL_PROJECTION)
+        .select(candidateFullProjection())
         .from(candidates)
         .orderBy(desc(candidates.createdAt))
         .limit(500)) as Candidate[];
@@ -970,7 +976,7 @@ export async function getCandidates() {
     } catch (err) {
       if (!isUnknownColumnError(err)) throw err;
       const rows = (await db
-        .select(CANDIDATE_BASE_PROJECTION)
+        .select(candidateBaseProjection())
         .from(candidates)
         .orderBy(desc(candidates.createdAt))
         .limit(500)) as Candidate[];
@@ -1003,7 +1009,9 @@ export async function updateCandidateStatus(
       // First contact is a fact about the past: keep the earliest stamp.
       // Moving a candidate from "contacted" to "offer" must not reset the
       // time-to-first-contact metric to today.
-      ...(contactedAt ? { contactedAt: sql`COALESCE(${candidates.contactedAt}, ${contactedAt})` } : {}),
+      ...(contactedAt
+        ? { contactedAt: sql`COALESCE(${candidates.contactedAt}, ${sql.param(contactedAt, candidates.contactedAt)})` }
+        : {}),
     })
     .where(eq(candidates.id, id));
   return { success: true };

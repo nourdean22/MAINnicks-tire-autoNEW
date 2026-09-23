@@ -241,7 +241,7 @@ function htmlList(heading: string, items: string[]): string {
  * plain-text string and dropped the requirements list entirely. Every string
  * here is also rendered visibly on the job page.
  */
-export function buildJobDescriptionHtml(job: JobOpening, shopHours: string): string {
+function buildJobDescriptionHtml(job: JobOpening, shopHours: string): string {
   const pay = formatHourlyPayRange(job);
   return [
     `<p>${escapeHtml(job.description)}</p>`,

@@ -93,7 +93,7 @@ export default function JobPage() {
               <div>
                 <p className="text-[12px] uppercase tracking-wide text-foreground/45">Pay</p>
                 <p className="text-base font-bold text-foreground">
-                  {pay ? `${pay} · hourly, not flat rate` : "Hourly — discussed at interview"}
+                  {pay ? `${pay} · hourly, not flat rate` : "Discussed at interview"}
                 </p>
               </div>
             </div>
