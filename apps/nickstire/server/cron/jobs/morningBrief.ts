@@ -504,7 +504,7 @@ Systems over motivation. Let's go.`;
     return { recordsProcessed: 1, details: `Full brief sent. ${pendingCount} pending. $${monthRevenue.toLocaleString()} 30d rev.` };
   } catch (err) {
     log.error("Morning brief failed:", { error: err instanceof Error ? err.message : String(err) });
-    return { details: `Error: ${err instanceof Error ? err.message : "unknown"}` };
+    throw err;
   }
 }
 

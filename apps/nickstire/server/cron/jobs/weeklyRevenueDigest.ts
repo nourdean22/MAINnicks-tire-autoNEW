@@ -417,17 +417,17 @@ export async function runWeeklyRevenueDigest(now: Date = new Date()): Promise<Pr
     const msg = e instanceof Error ? e.message : String(e);
     if (isSchemaBugError(e)) {
       log.error("weekly revenue digest hit a SCHEMA BUG — nothing sent", { error: msg });
-      return { recordsProcessed: 0, details: `SCHEMA BUG — ${msg}` };
+      throw new Error(`SCHEMA BUG — ${msg}`, { cause: e });
     }
     log.warn("weekly revenue digest failed — nothing sent", { error: msg });
-    return { recordsProcessed: 0, details: `digest failed: ${msg}` };
+    throw new Error(`digest failed: ${msg}`, { cause: e });
   }
 
   const text = buildWeeklyRevenueDigestText(data);
   const { sendTelegram } = await import("../../services/telegram");
   const sent = await sendTelegram(text);
   if (!sent) {
-    return { recordsProcessed: 0, details: "digest computed but Telegram send failed" };
+    throw new Error("digest computed but Telegram send failed");
   }
 
   log.info("weekly revenue digest sent", {

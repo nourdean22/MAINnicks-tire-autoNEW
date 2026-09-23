@@ -30,7 +30,7 @@ export async function processReminders(): Promise<{ recordsProcessed: number; de
     const result = await processReminderQueue();
     return { recordsProcessed: result?.sent || 0, details: `${result?.sent || 0} reminders sent` };
   } catch (e: unknown) {
-    return { recordsProcessed: 0, details: `Reminders failed: ${(e as Error).message}` };
+    throw new Error(`Reminders failed: ${(e as Error).message}`, { cause: e });
   }
 }
 
@@ -114,7 +114,7 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
 
     return { recordsProcessed: noShows.length, details: `${noShows.length} no-shows flagged, ${smsSent} SMS sent` };
   } catch (e: unknown) {
-    return { recordsProcessed: 0, details: `No-show detection failed: ${(e as Error).message}` };
+    throw new Error(`No-show detection failed: ${(e as Error).message}`, { cause: e });
   }
 }
 
@@ -177,7 +177,7 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
 
     return { recordsProcessed: stale.length, details: `${stale.length} stale bookings cancelled, ${smsSent} rebook SMS sent` };
   } catch (e: unknown) {
-    return { recordsProcessed: 0, details: `Stale booking cleanup failed: ${(e as Error).message}` };
+    throw new Error(`Stale booking cleanup failed: ${(e as Error).message}`, { cause: e });
   }
 }
 
@@ -304,7 +304,7 @@ export async function alertLowStock(): Promise<{ recordsProcessed: number; detai
     if (msg?.includes("doesn't exist") || msg?.includes("no such table")) {
       return { recordsProcessed: 0, details: "No inventory table" };
     }
-    return { recordsProcessed: 0, details: `Low-stock check failed: ${msg}` };
+    throw new Error(`Low-stock check failed: ${msg}`, { cause: e });
   }
 }
 
@@ -380,7 +380,7 @@ export async function autoAdvanceWorkOrders(): Promise<{ recordsProcessed: numbe
     }
     return { recordsProcessed: affected, details: `${affected} WOs auto-advanced to invoiced` };
   } catch (e: unknown) {
-    return { recordsProcessed: 0, details: `WO auto-advance failed: ${(e as Error).message}` };
+    throw new Error(`WO auto-advance failed: ${(e as Error).message}`, { cause: e });
   }
 }
 
@@ -413,7 +413,7 @@ export async function autoEscalateBookingPriority(): Promise<{ recordsProcessed:
     }
     return { recordsProcessed: affected, details: `${affected} bookings escalated` };
   } catch (e: unknown) {
-    return { recordsProcessed: 0, details: `Booking escalation failed: ${(e as Error).message}` };
+    throw new Error(`Booking escalation failed: ${(e as Error).message}`, { cause: e });
   }
 }
 
@@ -486,7 +486,7 @@ export async function autoFetchAndDraftReviews(): Promise<{ recordsProcessed: nu
     // Table might not exist
     const msg = (e as Error).message;
     if (msg?.includes("doesn't exist")) return { recordsProcessed: 0, details: "No review_replies table" };
-    return { recordsProcessed: 0, details: `Review drafting failed: ${msg}` };
+    throw new Error(`Review drafting failed: ${msg}`, { cause: e });
   }
 }
 
@@ -513,7 +513,7 @@ export async function autoGenerateContent(): Promise<{ recordsProcessed: number;
 
     return { recordsProcessed: 1, details: `Article draft: "${article?.title || "generated"}"` };
   } catch (e: unknown) {
-    return { recordsProcessed: 0, details: `Content gen failed: ${(e as Error).message}` };
+    throw new Error(`Content gen failed: ${(e as Error).message}`, { cause: e });
   }
 }
 
@@ -598,7 +598,7 @@ export async function closeReferralLoop(): Promise<{ recordsProcessed: number; d
   } catch (e: unknown) {
     const msg = (e as Error).message;
     if (msg?.includes("doesn't exist")) return { recordsProcessed: 0, details: "No referrals table" };
-    return { recordsProcessed: 0, details: `Referral loop failed: ${msg}` };
+    throw new Error(`Referral loop failed: ${msg}`, { cause: e });
   }
 }
 
@@ -682,6 +682,6 @@ export async function notifyNewVips(): Promise<{ recordsProcessed: number; detai
 
     return { recordsProcessed: notified, details: `${notified} new VIPs notified` };
   } catch (e: unknown) {
-    return { recordsProcessed: 0, details: `VIP notification failed: ${(e as Error).message}` };
+    throw new Error(`VIP notification failed: ${(e as Error).message}`, { cause: e });
   }
 }

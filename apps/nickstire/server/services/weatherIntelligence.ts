@@ -211,7 +211,10 @@ export async function checkWeatherTriggers(): Promise<{ triggered: string[]; det
       `https://api.openweathermap.org/data/2.5/weather?lat=${LAT}&lon=${LON}&appid=${apiKey}&units=imperial`,
       { signal: AbortSignal.timeout(5000) }
     );
-    if (!res.ok) return { triggered: [], details: `API error: ${res.status}` };
+    // Throw, not return: this is the weather-intel cron handler's result, and a
+    // returned failure is recorded `completed` (invisible to the cron observer).
+    // Both non-cron callers (contentManufacturing) already wrap it in try/catch.
+    if (!res.ok) throw new Error(`API error: ${res.status}`);
 
     const raw = await res.json();
     const data: WeatherData = {
@@ -251,6 +254,6 @@ export async function checkWeatherTriggers(): Promise<{ triggered: string[]; det
     };
   } catch (err) {
     log.warn("Weather check failed", { err });
-    return { triggered: [], details: "Fetch failed" };
+    throw err;
   }
 }
