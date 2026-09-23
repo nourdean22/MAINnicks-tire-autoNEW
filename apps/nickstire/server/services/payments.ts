@@ -286,13 +286,26 @@ export async function finalizeTireOrderPayment(params: {
     return; // another concurrent caller already claimed + handled this order
   }
 
-  const invNum = params.invoiceNumber || order.invoiceNumber || undefined;
+  let invNum = params.invoiceNumber || order.invoiceNumber || undefined;
   if (invNum) {
-    // Align the invoice total to what Stripe actually collected (tires +
-    // tax + card fee) — the placement-time invoice didn't know the fee.
-    await d.update(invoices)
-      .set({ paymentStatus: "paid", paymentMethod: "card", totalAmount: params.amountCents })
-      .where(eq(invoices.invoiceNumber, invNum));
+    // The number alone is not proof: a stale one names another customer's
+    // invoice. Touch the row only if placeOrder created it for THIS order.
+    const [invoice] = await d.select({
+      id: invoices.id,
+      customerPhone: invoices.customerPhone,
+      serviceDescription: invoices.serviceDescription,
+    }).from(invoices).where(eq(invoices.invoiceNumber, invNum)).limit(1);
+    const { invoiceBelongsToTireOrder } = await import("../lib/tire-order-guards");
+    if (invoice && invoiceBelongsToTireOrder(invoice, order)) {
+      // Align the invoice total to what Stripe actually collected (tires +
+      // tax + card fee) — the placement-time invoice didn't know the fee.
+      await d.update(invoices)
+        .set({ paymentStatus: "paid", paymentMethod: "card", totalAmount: params.amountCents })
+        .where(eq(invoices.id, invoice.id));
+    } else {
+      log.error(`Tire order ${params.tireOrderNumber} is PAID but invoice ${invNum} ${invoice ? "belongs to another customer" : "does not exist"} — left untouched; reconcile the invoice by hand`);
+      invNum = undefined; // never hand the shop another customer's invoice number
+    }
   }
 
   const amountPaid = params.amountCents / 100;
