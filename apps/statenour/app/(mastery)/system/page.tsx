@@ -36,6 +36,7 @@ import { HomeDecisionPanel } from "@/components/system/home-decision-panel";
 import { ToolUsageCensusPanel } from "@/components/system/tool-usage-census-panel";
 import { EvidenceGatePanel } from "@/components/system/evidence-gate-panel";
 import { ObservabilityStatusPanel } from "@/components/system/observability-status-panel";
+import { OwnerPanel } from "@/components/system/owner-panel";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the three
 // authedFetch reads (diagnostics + brain status + health) are now three
@@ -278,6 +279,11 @@ export default function SystemPage() {
           {d ? d.kpis.errors_24h : diagnosticsQuery.isError ? "unknown" : "…"}
         </p>
       </section>
+
+      {/* Q-24 (2026-09-23) · what needs the owner: exceptions with age and
+          evidence, decisions waiting, cost per outcome. Platform verdict above,
+          owner verdict here; both list only exceptions. */}
+      <OwnerPanel />
 
       {/* Ops telemetry — cost SLO · voice latency · eval pass · drift */}
       <ObservabilityRow />

@@ -9,6 +9,7 @@
  */
 
 import { listLaneStatus } from "@/lib/ai/budget";
+import { buildOwnerPanel } from "@/lib/system/owner-panel-data";
 import { z } from "zod";
 import { operatorProcedure } from "../../trpc";
 import { buildHealthReport } from "@/lib/services/system-health";
@@ -248,6 +249,12 @@ export const healthProcedures = {
   aiCost: operatorProcedure.query(async () => buildAiCostFeed()),
   /** U6 (2026-09-08) · per-lane spend vs cap for today. */
   aiLanes: operatorProcedure.query(async () => listLaneStatus()),
+  /**
+   * Q-24 (2026-09-23) · the owner panel on /system: exceptions that need the
+   * owner, decisions waiting on him, cost per outcome. Read-only composition
+   * of existing reads; a failed read is named, never a clear.
+   */
+  ownerPanel: operatorProcedure.query(async () => buildOwnerPanel()),
 
   /**
    * scattered-components slice · owner-only · today's AI spend vs the
