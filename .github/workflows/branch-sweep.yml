@@ -1,0 +1,68 @@
+name: Branch sweep
+
+# Weekly Session Authority sweep: classify every branch on origin (LANDED /
+# QUARANTINE / human-overridden SALVAGE / OBSOLETE / NEEDS_SPECIAL_HANDLING) and
+# post the result to a standing tracking issue.
+#
+# Deliberately does NOT commit anything back to main. root AGENTS.md: "NEVER push
+# or commit directly to main" — that rule is written for a human/agent action, but
+# an automated scheduled job writing straight to the protected branch is the same
+# shape of risk with nobody watching. Night Shift already established the pattern
+# this follows: propose, never merge. So this posts to an ISSUE, not a commit;
+# `node scripts/agent-os/branch-sweep.mjs` (no --report-only) still writes the
+# local ledger files for a human/session to commit through a normal PR, same as
+# any other change.
+#
+# This is a NEW workflow file, not an addition to an existing one, because it
+# needs a trigger type (`schedule`) none of this repo's other workflows use —
+# see docs/agent-os/README.md on why new checks are usually dropped in as
+# scripts/agent-os/*.test.mjs instead of a workflow edit.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # 06:17 UTC every Monday — off the hour, avoids the GitHub Actions scheduler's own top-of-hour pile-up
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: branch-sweep
+  cancel-in-progress: false # a sweep already in flight should finish, not be replaced mid-write
+
+jobs:
+  sweep:
+    name: classify every branch, post the ledger
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+
+      - name: run the sweep (report-only, writes nothing to the tree)
+        id: sweep
+        run: |
+          node scripts/agent-os/branch-sweep.mjs --report-only > /tmp/branch-sweep.md
+          echo "generated $(wc -l < /tmp/branch-sweep.md) lines"
+
+      - name: post or update the tracking issue
+        run: |
+          TITLE="Branch sweep ledger (auto-updated)"
+          BODY_FILE=/tmp/branch-sweep.md
+          echo "" >> "$BODY_FILE"
+          echo "_Posted by the \`branch-sweep\` workflow — run \`node scripts/agent-os/branch-sweep.mjs\` locally to write the committable version of this ledger (\`docs/agent-os/BRANCH-SWEEP.md\`) to your tree._" >> "$BODY_FILE"
+
+          NUM=$(gh issue list --search "in:title \"$TITLE\"" --state open --json number --jq '.[0].number')
+          if [ -n "$NUM" ] && [ "$NUM" != "null" ]; then
+            gh issue edit "$NUM" --body-file "$BODY_FILE"
+            echo "updated issue #$NUM"
+          else
+            gh issue create --title "$TITLE" --body-file "$BODY_FILE"
+          fi

@@ -48,16 +48,6 @@ const LITERAL_ALLOWLIST: { file: string; text: string; count: number; reason: st
   },
 ];
 
-/**
- * NOT an allowlist: real swallowed failures in a file another session owns
- * right now. Shrink-only — the count may fall to 0 (the owner fixed it; then
- * delete the entry) but never rise. Nothing else may be added here.
- */
-const KNOWN_OPEN: { file: string; text: string; max: number; owner: string }[] = [
-  { file: "server/cron/scheduler.ts", text: "overnight probe failed: ${(e as Error).message}", max: 1, owner: "concurrent scheduler.ts session (2026-09-23)" },
-  { file: "server/cron/scheduler.ts", text: "evening probe failed: ${(e as Error).message}", max: 1, owner: "concurrent scheduler.ts session (2026-09-23)" },
-];
-
 /** Every `details:` string literal — template, double- or single-quoted, even on the next line. */
 const DETAILS_LITERAL = /details:\s*(?:`([^`]*)`|"([^"\n]*)"|'([^'\n]*)')/g;
 /** Leads with failed/error, or names a failure mid-string ("X failed: …", "API error: …"). */
@@ -132,7 +122,6 @@ describe("cron handlers fail loudly", () => {
     const offenders: string[] = [];
     const allowlisted: string[] = [];
     const literalHits = new Map<string, number>();
-    const openHits = new Map<string, number>();
     for (const file of modules) {
       const rel = file.slice(APP.length + 1).replace(/\\/g, "/");
       const hits = swallowedFailures(readFileSync(file, "utf8"));
@@ -141,8 +130,6 @@ describe("cron handlers fail loudly", () => {
       for (const h of hits) {
         const entry = LITERAL_ALLOWLIST.find((e) => e.file === rel && e.text === h.text);
         if (entry) { literalHits.set(`${rel}|${h.text}`, (literalHits.get(`${rel}|${h.text}`) ?? 0) + 1); continue; }
-        const open = KNOWN_OPEN.find((e) => e.file === rel && e.text === h.text);
-        if (open) { openHits.set(`${rel}|${h.text}`, (openHits.get(`${rel}|${h.text}`) ?? 0) + 1); continue; }
         offenders.push(`${rel}:${h.line} ${JSON.stringify(h.text.slice(0, 80))}`);
       }
     }
@@ -151,9 +138,6 @@ describe("cron handlers fail loudly", () => {
     // removed one is a stale entry.
     for (const e of LITERAL_ALLOWLIST) {
       expect(literalHits.get(`${e.file}|${e.text}`) ?? 0, `${e.file}: allowlisted literal ${JSON.stringify(e.text)} count drifted — re-justify or remove`).toBe(e.count);
-    }
-    for (const e of KNOWN_OPEN) {
-      expect(openHits.get(`${e.file}|${e.text}`) ?? 0, `${e.file}: known-open swallow ${JSON.stringify(e.text)} was COPIED — it may only shrink`).toBeLessThanOrEqual(e.max);
     }
     // A stale allowlist entry (file no longer matches) would be silent; keep it honest.
     for (const rel of Object.keys(ALLOWLIST)) {

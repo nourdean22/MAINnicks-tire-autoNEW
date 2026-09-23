@@ -15,6 +15,11 @@
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/check-memory-index.mjs\" --quiet",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/session-lease-status.mjs\"",
+            "timeout": 10
           }
         ]
       }
@@ -26,6 +31,11 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/pretool.mjs\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/lease-check.mjs\"",
             "timeout": 10
           }
         ]

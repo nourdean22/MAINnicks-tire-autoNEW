@@ -38,6 +38,27 @@ try {
     Write-Error "Failed to add git worktree: $_"
 }
 
+# 1.5. Acquire a Session Authority lease (2026-09-23) now that the worktree
+#      exists. agent-start.mjs exits 0 both when it acquires the lease AND on
+#      an infrastructure failure (no network, no token) -- a broken lease
+#      service must never block worktree creation. It exits nonzero ONLY when
+#      another session actively, verifiably holds this branch right now, which
+#      is the one case worth stopping for: this worktree's uncommitted work
+#      would then risk colliding with theirs.
+Write-Host "`nAcquiring Session Authority lease..." -ForegroundColor Yellow
+try {
+    node (Join-Path $PSScriptRoot "agent-os/agent-start.mjs") --branch $branchName --worktree $targetAbsPath --session-kind bridge --claimed-by "worktree-setup.ps1"
+    $leaseExit = $LASTEXITCODE
+} catch {
+    Write-Host "[*] Could not run the lease check ($_) -- proceeding without one." -ForegroundColor Yellow
+    $leaseExit = 0
+}
+if ($leaseExit -ne 0) {
+    Write-Host "[X] ABORTING. '$branchName' appears to be actively leased by another session -- see the message above." -ForegroundColor Red
+    Write-Host "    This worktree's uncommitted work could collide with theirs." -ForegroundColor Red
+    exit 1
+}
+
 # 2. Copy env files
 Write-Host "`nCopying environment files..." -ForegroundColor Yellow
 # Selection lives in its own script so the rule is testable without building a

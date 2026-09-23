@@ -148,7 +148,14 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
 
   try {
     // Check approval gate for high-risk actions
-    const gateResult = await checkApprovalGate(type, params);
+    const gateResult = await checkApprovalGate(type, params, undefined, undefined, {
+      approvalId: typeof action.approvalId === "string" ? action.approvalId : undefined,
+    });
+    if (gateResult.replay) {
+      // Same approved request, already executed · hand back its receipt,
+      // never run it a second time.
+      return { action: type, success: true, result: gateResult.replay.result };
+    }
     if (!gateResult.approved) {
       publishCockpitEvent({
         type: "approval.required",
@@ -162,7 +169,7 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
       return {
         action: type,
         success: false,
-        error: `GATED: Operator approval required (ID: ${gateResult.approvalId})`,
+        error: `GATED: Operator approval required (ID: ${gateResult.approvalId}). Once approved it runs once; to read its result, re-emit this action with "approvalId": "${gateResult.approvalId}".`,
         result: { approvalId: gateResult.approvalId, gated: true }
       };
     }
