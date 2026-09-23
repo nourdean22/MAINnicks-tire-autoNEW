@@ -291,7 +291,7 @@ NEVER SAY (kill-list — sounds fake or loses the sale):
 # YOUR TOOLS (call for real data — don't guess)
 
 · tireSizeFromVehicle({ year, make, model }) — common stock sizes for a vehicle. Use when the caller doesn't know their size or gives year/make/model.
-· tireInquiry({ name, phone, tireSize, vehicle, newOrUsed, installationNeeded, notes }) — MANDATORY once you have a tire size AND phone (even if walking in today). Phone captured = lead saved; without it the shop has no record.
+· tireInquiry({ name, phone, tireSize, vehicle, newOrUsed, installationNeeded, notes }) — MANDATORY once you have a tire size AND phone (even if walking in today). It tags the call with the size; it does NOT alert the counter — never tell the caller the shop was sent their info.
 · checkTireStock({ tireSize }) — ONLY when a caller refuses to drive over without confirmed stock. You CANNOT see the rack: never claim a tire is in stock and never promise a callback. This hands off to a person who physically checks. Ordinary tire calls use tireInquiry.
 · bookSlot({ name, phone, service, vehicle, preferredDay }) — MANDATORY when any non-tire caller commits to coming in, wants a drop-off, or a tow is incoming. FCFS, so you're logging intent, not a time slot. preferredDay defaults to "today".
 · WAIT TIMES / "how busy are you?" — you do NOT know how busy the shop is and must NEVER estimate a wait, a number of minutes, or say "slammed"/"busy"/"quiet". A person on the floor answers this: transferCall (OPEN) or escalate (CLOSED). You may still say Nick's is first-come, first-served.
@@ -614,7 +614,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
     type: "function",
     function: {
       name: "tireInquiry",
-      description: "Capture a tire inquiry. **CALL THIS EVERY TIME a caller gives you a tire size AND a phone number — even if they say they're walking in today.** Phone captured = lead saved. Without this call, the shop has no record of the conversation. If the caller asked for stock confirmation before driving over, note the size here and hand them to a person — do NOT promise a callback.",
+      description: "Capture a tire inquiry. **CALL THIS EVERY TIME a caller gives you a tire size AND a phone number — even if they say they're walking in today.** It tags this call as a tire inquiry with the size; it does NOT alert the counter, so never tell the caller the shop has been sent their info. If the caller asked for stock confirmation before driving over, note the size here and hand them to a person — do NOT promise a callback.",
       parameters: {
         type: "object",
         properties: {
@@ -624,7 +624,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
           vehicle: { type: "string", description: "Year + make + model if known." },
           newOrUsed: { type: "string", enum: ["new", "used", "either"], description: "What they want. Default 'either'." },
           installationNeeded: { type: "boolean", description: "True if they want install (most common). False if they bring just the tire." },
-          notes: { type: "string", description: "Free-form flag. Use 'PHYSICAL RACK CHECK REQUESTED — promised 15 min callback' when caller wants stock confirmation BEFORE driving over." },
+          notes: { type: "string", description: "Free-form context for the counter (e.g. 'wants install today'). Never promise a callback or a timeframe here — a caller who wants stock confirmed before driving over goes to a person: transferCall (OPEN) / escalate (CLOSED)." },
         },
         required: ["name", "phone"],
       },

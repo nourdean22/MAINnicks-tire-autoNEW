@@ -173,7 +173,11 @@ export function episodeNeed(customerTurns: readonly string[]): EpisodeNeed {
   let first = true;
   const all: VoiceIntent[] = [];
   for (const t of customerTurns) {
-    const c = classifyVoiceDemand(t);
+    // MASK FIRST. The classifier's size rule reads "(216) 555-0102" as a tire
+    // size (tire_size_help, 0.8) — a caller reciting a callback number would be
+    // filed as tire demand. Pinned in customerCorpus.test.ts; whoever wires the
+    // classifier into the eval cron must mask (or fix the rule) the same way.
+    const c = classifyVoiceDemand(maskPII(t));
     if (c.intent === "unclear") continue;
     if (first) { openedWithHuman = c.intent === "human_requested"; first = false; }
     if (!all.includes(c.intent)) all.push(c.intent);
@@ -329,4 +333,78 @@ export function isOpen(at: Date, timeZone: string = BUSINESS.timezone): boolean 
   const m = /^(\d{2}):\d{2}-(\d{2}):\d{2}$/.exec(span ?? "");
   if (!m) return false;
   return hour >= Number(m[1]) && hour < Number(m[2]);
+}
+
+/* ───────────────────────── recontact · link · incidents ───────────────────────── */
+
+/**
+ * Did the customer have to come back? Customer-initiated contacts only (calls
+ * and inbound texts). A contact under `immediateMin` after the previous one
+ * ENDED is a dropped-line or hold redial and is counted apart: "had to
+ * recontact" means the first contact did not finish the job, which a
+ * two-minute reconnect does not show.
+ */
+export function recontacts(
+  contacts: ReadonlyArray<{ at: Date; endAt?: Date }>,
+  immediateMin = 10,
+): { immediate: number; later: number } {
+  const sorted = [...contacts].sort((a, b) => a.at.getTime() - b.at.getTime());
+  let immediate = 0;
+  let later = 0;
+  for (let i = 1; i < sorted.length; i++) {
+    const prevEnd = (sorted[i - 1]!.endAt ?? sorted[i - 1]!.at).getTime();
+    if (sorted[i]!.at.getTime() - prevEnd < immediateMin * 60_000) immediate++;
+    else later++;
+  }
+  return { immediate, later };
+}
+
+/**
+ * How sure is the gap rule that these contacts are one need? `ambiguous` when
+ * two contacts name needs from different families (tire intents are one
+ * family). Never forced: the census counts ambiguous episodes and reports them
+ * apart rather than splitting or merging on a guess.
+ */
+export function linkConfidence(needsPerContact: readonly VoiceIntent[]): "single" | "consistent" | "ambiguous" {
+  if (needsPerContact.length <= 1) return "single";
+  const fam = new Set(
+    needsPerContact
+      .filter((n) => n !== "unclear" && n !== "human_requested")
+      .map((n) => (isTireIntent(n) ? "tire" : n)),
+  );
+  return fam.size > 1 ? "ambiguous" : "consistent";
+}
+
+/**
+ * SRE-style grouping: failures that touch several customers inside one window
+ * are ONE system incident with N customer-recovery obligations, not N lost
+ * leads. A cluster opens on a failure and absorbs every failure within
+ * `windowMin` of the cluster's LAST failure; it is an incident candidate only
+ * when at least `minCustomers` distinct customers are in it.
+ */
+export function clusterIncidents(
+  failures: ReadonlyArray<{ at: Date; phone10: string }>,
+  windowMin = 60,
+  minCustomers = 3,
+): Array<{ start: Date; end: Date; customers: number; failures: number }> {
+  const sorted = [...failures].sort((a, b) => a.at.getTime() - b.at.getTime());
+  const out: Array<{ start: Date; end: Date; phones: Set<string>; failures: number }> = [];
+  for (const f of sorted) {
+    const open = out[out.length - 1];
+    if (open && f.at.getTime() - open.end.getTime() <= windowMin * 60_000) {
+      open.end = f.at;
+      open.failures++;
+      open.phones.add(f.phone10 || `anon-${open.failures}`);
+    } else {
+      out.push({ start: f.at, end: f.at, phones: new Set([f.phone10 || "anon-0"]), failures: 1 });
+    }
+  }
+  return out
+    .filter((c) => c.phones.size >= minCustomers)
+    .map((c) => ({ start: c.start, end: c.end, customers: c.phones.size, failures: c.failures }));
+}
+
+/** True when an introduction phrase is present — recorded as a boolean, never the name. */
+export function namePresent(text: string): boolean {
+  return /\b(my name is|this is|name's)\s+[A-Z][a-z]+/.test(String(text ?? ""));
 }

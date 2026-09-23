@@ -37,13 +37,15 @@
  * prints UNKNOWN for its section — never a zero (empty-vs-error).
  */
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import mysql from "mysql2/promise";
 import { detectIntents } from "../../server/services/vapiCallClassifier.ts";
 import { episodeKey, intentFamily } from "../../shared/callTaxonomy.ts";
 import { extractTireSize, extractVehicle } from "../../shared/callDemandExtraction.ts";
 import {
   ASK_PATTERNS,
+  clusterIncidents,
   countMatches,
   customerToken,
   excerptAround,
@@ -53,14 +55,19 @@ import {
   median,
   episodeNeed,
   isTireIntent,
+  linkConfidence,
+  maskPII,
+  namePresent,
   parseTurns,
   pct,
   phoneKey,
   PROMISE_PATTERNS,
+  recontacts,
   sessionize,
   type Contact,
   type Friction,
 } from "../lib/customerCorpus.ts";
+import type { VoiceIntent } from "../../server/services/voiceDemandClassifier.ts";
 
 const arg = (name: string, fallback: string | null = null) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -83,7 +90,28 @@ if (!url || !url.startsWith("mysql://")) {
   process.exit(1);
 }
 
-const SALT = randomBytes(8).toString("hex");
+/**
+ * Salt. A per-run salt makes tokens unlinkable across runs (the default for a
+ * printed report). A monthly re-run that must join episodes across months
+ * needs a STABLE salt: set CORPUS_ANALYSIS_SALT in the shell, never in the repo.
+ */
+const STABLE_SALT = process.env.CORPUS_ANALYSIS_SALT ?? "";
+const SALT = STABLE_SALT || randomBytes(8).toString("hex");
+const EXPORT = arg("export");
+if (EXPORT) {
+  // An export carries masked conversation text. It must never land in a git
+  // checkout, where one `git add` publishes it: refuse any path under a .git root.
+  let d = dirname(resolve(EXPORT));
+  for (;;) {
+    if (existsSync(resolve(d, ".git"))) {
+      console.error(`--export refused: ${resolve(EXPORT)} is inside a git checkout (${d}). Write it outside the repo.`);
+      process.exit(2);
+    }
+    const up = dirname(d);
+    if (up === d) break;
+    d = up;
+  }
+}
 const log = (...a: unknown[]) => { if (!JSON_OUT) console.log(...a); };
 const S = Math.floor(since.getTime() / 1000);
 const U = Math.floor(until.getTime() / 1000);
@@ -106,6 +134,10 @@ async function q(label: string, sql: string, params: unknown[]): Promise<Row[] |
     unknown.push(`${label}: ${(e as Error).message.slice(0, 160)}`);
     return null;
   }
+}
+/** Export turns: masked, capped at 400 chars each — enough to read language, never a whole monologue. */
+function parseTurnsForExport(c: { customer: string[]; assistant: string[]; turnsOrdered?: Array<{ role: string; text: string }> }) {
+  return (c.turnsOrdered ?? []).map((t) => ({ role: t.role, text: maskPII(t.text).slice(0, 400) }));
 }
 const parseJson = (v: unknown): unknown => {
   if (v == null) return null;
@@ -139,6 +171,9 @@ try {
   const promises = await q("customer_promises", `
     SELECT customer_phone AS phone, promise_type AS type, status, UNIX_TIMESTAMP(created_at) AS t
     FROM customer_promises WHERE created_at >= FROM_UNIXTIME(?) AND created_at <= FROM_UNIXTIME(?)`, [S, U]);
+  const opportunities = await q("revenue_opportunities", `
+    SELECT customer_phone AS phone, source_type AS sourceType, state, UNIX_TIMESTAMP(created_at) AS t
+    FROM revenue_opportunities WHERE created_at >= FROM_UNIXTIME(?) AND created_at <= FROM_UNIXTIME(?)`, [S, U_AHEAD]);
   // Invoices from a year back: the earlier ones answer "existing customer?", the
   // later ones answer "linked within 14 days?". Amounts are cents.
   const invoices = await q("invoices", `
@@ -150,6 +185,7 @@ try {
     customer: string[]; assistant: string[]; attributed: boolean; kernelIntents: string[];
     evalOutcome: string | null; endedReason: string; transfer: "none" | "attempted" | "connected" | "not_connected";
     durationSeconds: number; tireSize: string | null; vehicle: string | null; hasCallbackRow: boolean; outbound: boolean;
+    need: VoiceIntent; nameShared: boolean; turnsOrdered: Array<{ role: string; text: string }>;
   }
   interface SmsC extends Contact { body: string; status: string; optOut: boolean }
   const callContacts: CallC[] = [];
@@ -173,6 +209,8 @@ try {
       tireSize: customer.map((t) => extractTireSize(t)).find(Boolean) ?? null,
       vehicle: customer.map((t) => extractVehicle(t)).find(Boolean) ?? null,
       hasCallbackRow: r.callbackId != null, outbound,
+      need: episodeNeed(customer).need, nameShared: customer.some(namePresent),
+      turnsOrdered: EXPORT ? turns : [],
     });
   }
   const STOP = /^\s*(stop|stopall|unsubscribe|end|quit|cancel|opt ?out)\b/i;
@@ -217,6 +255,7 @@ try {
     for (const r of rows ?? []) { const k = phoneKey(r.phone); if (!k) continue; (m.get(k) ?? (m.set(k, []), m.get(k)!)).push(r); }
     return m;
   };
+  const oppBy = byPhone(opportunities);
   const cbBy = byPhone(callbacks), arrBy = byPhone(arrivals), jobBy = byPhone(jobs), invBy = byPhone(invoices), prmBy = byPhone(promises);
 
   interface EpFacts {
@@ -227,7 +266,10 @@ try {
     friction: Record<Friction, number>; reaskedKnownSize: boolean; reaskedKnownVehicle: boolean; optOut: boolean;
     humanPending: boolean; firstReplyMin: number | null; unansweredInbound: boolean; kernelIntentless: boolean;
     turnsCustomer: number; ledgerPromises: number;
+    recontactLater: number; recontactImmediate: number; link: "single" | "consistent" | "ambiguous";
+    opportunities: number; opportunityWon: boolean; nameShared: boolean;
   }
+  const exportRows: string[] = [];
   const facts: EpFacts[] = [];
   const kernelDisagree = { intentlessButTireWords: 0, intentless: 0, outcomes: {} as Record<string, number> };
   const askTotals = countMatches([], ASK_PATTERNS);
@@ -300,7 +342,19 @@ try {
         if (hit) list.push(`${customerToken(e.phone10, SALT)}: …${hit}…`);
       }
     }
+    const customerInit = e.contacts
+      .filter((c) => c.channel !== "sms_out")
+      .map((c) => ({ at: c.at, endAt: c.channel === "call" ? new Date(c.at.getTime() + (c as CallC).durationSeconds * 1000) : c.at }));
+    const rc = recontacts(customerInit);
+    const perContactNeeds = e.contacts
+      .filter((c) => c.channel !== "sms_out")
+      .map((c) => (c.channel === "call" ? (c as CallC).need : episodeNeed([(c as SmsC).body]).need));
+    const link = linkConfidence(perContactNeeds);
+    const opps = (oppBy.get(e.phone10) ?? []).filter((r) => inWin(r.t, startAt, endAt + 2 * 3_600_000));
     facts.push({
+      recontactLater: rc.later, recontactImmediate: rc.immediate, link,
+      opportunities: opps.length, opportunityWon: opps.some((r) => r.state === "won"),
+      nameShared: cs.some((c) => c.nameShared) || inbound.some((s) => namePresent(s.body)),
       family: en.need, openedWithHuman: en.openedWithHuman, demandFriction: en.friction, calls: cs.length, smsIn: inbound.length, smsOut: ss.length - inbound.length,
       redials, multiChannel: cs.length > 0 && inbound.length > 0, openStart: isOpen(e.start),
       transferAttempted: cs.some((c) => c.transfer !== "none"),
@@ -319,7 +373,41 @@ try {
       turnsCustomer: customerTurns.length,
       ledgerPromises: (prmBy.get(e.phone10) ?? []).filter((r) => inWin(r.t, startAt, endAt + 2 * 3_600_000)).length,
     });
+    if (EXPORT) {
+      // Masked text only; the phone is a salted token; the derived facts carry no PII.
+      const { friction: fr, ...derived } = facts[facts.length - 1]!;
+      exportRows.push(JSON.stringify({
+        customerKey: e.phone10 ? customerToken(e.phone10, SALT) : null,
+        start: e.start.toISOString(), end: e.end.toISOString(),
+        needs: perContactNeeds, ...derived, friction: fr,
+        contacts: e.contacts.map((c) => c.channel === "call"
+          ? {
+              channel: "call", at: c.at.toISOString(), durationSeconds: (c as CallC).durationSeconds,
+              endedReason: (c as CallC).endedReason, evalOutcome: (c as CallC).evalOutcome, transfer: (c as CallC).transfer,
+              tireSize: (c as CallC).tireSize, vehicle: (c as CallC).vehicle,
+              turns: parseTurnsForExport(c as CallC),
+            }
+          : { channel: c.channel, at: c.at.toISOString(), status: (c as SmsC).status, body: maskPII((c as SmsC).body) }),
+      }));
+    }
   }
+
+  /* ───────────── incidents: one system failure, many customers ───────────── */
+  // A failure is the provider's own not_connected verdict, or — for calls before
+  // the verdict existed — a forwarded call the same customer redialled within 15
+  // minutes (the measured proxy; labelled as such).
+  const failures: Array<{ at: Date; phone10: string }> = [];
+  const callsByPhone = new Map<string, CallC[]>();
+  for (const c of callContacts) (callsByPhone.get(c.phone10) ?? (callsByPhone.set(c.phone10, []), callsByPhone.get(c.phone10)!)).push(c);
+  let proxyFailures = 0;
+  for (const c of callContacts) {
+    if (c.transfer === "not_connected") { failures.push({ at: c.at, phone10: c.phone10 }); continue; }
+    if (c.transfer !== "attempted" || !c.phone10) continue;
+    const end = c.at.getTime() + c.durationSeconds * 1000;
+    const redial = (callsByPhone.get(c.phone10) ?? []).some((o) => o.at.getTime() > end && o.at.getTime() - end <= 15 * 60_000);
+    if (redial) { failures.push({ at: c.at, phone10: c.phone10 }); proxyFailures++; }
+  }
+  const incidents = clusterIncidents(failures);
 
   /* ───────────── report ───────────── */
   const N = facts.length;
@@ -341,6 +429,9 @@ try {
     existingCustomer: share(xs, (f) => f.existingCustomer),
     anyFriction: share(xs, (f) => Object.values(f.friction).some((v) => v > 0)),
     optOut: share(xs, (f) => f.optOut),
+    recontactedLater: share(xs, (f) => f.recontactLater > 0),
+    ambiguousLink: share(xs, (f) => f.link === "ambiguous"),
+    opportunityRow: share(xs, (f) => f.opportunities > 0),
   }));
   const frictionTotals = Object.fromEntries(Object.keys(FRICTION_PATTERNS).map((k) => [k, facts.filter((f) => f.friction[k as Friction] > 0).length]));
   const inboundSmsEps = facts.filter((f) => f.smsIn > 0);
@@ -370,6 +461,27 @@ try {
       failedOutbound: smsContacts.filter((s) => s.channel === "sms_out" && s.status === "failed").length,
     },
     kernelDisagreement: kernelDisagree,
+    recontact: {
+      note: "later = a customer-initiated contact >=10 min after the previous one ended; immediate = a reconnect under 10 min",
+      episodesRecontactedLater: facts.filter((f) => f.recontactLater > 0).length,
+      episodesImmediateOnly: facts.filter((f) => f.recontactImmediate > 0 && f.recontactLater === 0).length,
+      base: N,
+    },
+    linkConfidence: {
+      single: facts.filter((f) => f.link === "single").length,
+      consistent: facts.filter((f) => f.link === "consistent").length,
+      ambiguous: facts.filter((f) => f.link === "ambiguous").length,
+    },
+    transferIncidents: {
+      note: "clusters of >=3 customers whose transfer failed within 60 min of each other; failure = not_connected verdict, or a forwarded call redialled within 15 min (proxy)",
+      failures: failures.length, proxyFailures, incidents: incidents.map((i) => ({ ...i, start: i.start.toISOString(), end: i.end.toISOString() })),
+    },
+    opportunities: {
+      episodesWithRow: facts.filter((f) => f.opportunities > 0).length,
+      episodesWithWonRow: facts.filter((f) => f.opportunityWon).length,
+    },
+    namesShared: facts.filter((f) => f.nameShared).length,
+    salt: STABLE_SALT ? "stable (CORPUS_ANALYSIS_SALT)" : "per-run",
     invoiceLinkage: {
       note: "linked = a paid-or-pending invoice for the same phone within 14 days of episode start. Not attribution, not causation.",
       linkedEpisodes: facts.filter((f) => f.linkedInvoice).length,
@@ -379,13 +491,18 @@ try {
     unknownSections: unknown,
   };
 
+  if (EXPORT) {
+    writeFileSync(EXPORT, exportRows.join("\n") + (exportRows.length ? "\n" : ""), { mode: 0o600 });
+    console.error(`EXPORT ${exportRows.length} episodes → ${resolve(EXPORT)} (mode 600; masked text; salt ${STABLE_SALT ? "stable" : "per-run — set CORPUS_ANALYSIS_SALT to join across runs"}). Not for git.`);
+  }
   if (JSON_OUT) {
     console.log(JSON.stringify(summary, null, 2));
   } else {
     log(`\n3 · NEEDS — voiceDemandClassifier intent, episode-level; each cell "k/n" of that need's episodes`);
     for (const r of rows) log(`  ${r.family.padEnd(34)} ${String(r.episodes).padStart(5)} ${r.share.padStart(6)} · contacts~${r.medianContacts} · opened asking for a person ${r.openedWithHuman} · redial ${r.redial} · call+text ${r.multiChannel} · after-hours ${r.afterHours}\n` +
       `      transfer tried ${r.transferAttempted}, connected ${r.transferConnected}, verified-failed ${r.transferNotConnected} · callback row ${r.callbackRow}, done ${r.callbackCompleted} · promised ${r.promised}, followed ${r.promiseFollowed}\n` +
-      `      arrival row ${r.arrivalRow}, arrived ${r.arrived} · invoice linked ${r.linkedInvoice} (median $${r.linkedMedianUsd ?? "-"}) · existing customer ${r.existingCustomer} · friction ${r.anyFriction} · opt-out ${r.optOut}`);
+      `      arrival row ${r.arrivalRow}, arrived ${r.arrived} · invoice linked ${r.linkedInvoice} (median $${r.linkedMedianUsd ?? "-"}) · existing customer ${r.existingCustomer} · friction ${r.anyFriction} · opt-out ${r.optOut}\n` +
+      `      came back >=10 min later ${r.recontactedLater} · ambiguous link ${r.ambiguousLink} · opportunity row ${r.opportunityRow}`);
     log(`  blocking friction (voiceDemandClassifier): ${Object.entries(summary.demandFriction).map(([k, v]) => `${k} ${v}`).join(" · ")}`);
     log(`\n4 · FRICTION PRIMITIVES — episodes with ≥1 signal (base: all ${N} episodes)`);
     for (const [k, v] of Object.entries(frictionTotals)) log(`  ${k.padEnd(20)} ${String(v).padStart(5)}  ${pct(v as number, N)}`);
@@ -394,6 +511,10 @@ try {
     log(`  PROMISES made in ${promiseEps.length} episodes (${Object.entries(promiseTotals).map(([k, v]) => `${k} ${v}`).join(" · ")}); followed by a visible outbound text or completed callback within 26h: ${summary.assistantPromises.followedByVisibleContact}/${promiseEps.length}; customer_promises rows in those episodes: ${summary.assistantPromises.ledgerRowsInThoseEpisodes}${promises ? "" : " (table UNKNOWN)"}`);
     log(`\n6 · TEXTS  episodes with an inbound text ${inboundSmsEps.length} · median first reply ${median(replyOpen)?.toFixed(0) ?? "-"} min (open) / ${median(replyClosed)?.toFixed(0) ?? "-"} min (closed) · last inbound unanswered ${summary.sms.episodesLastInboundUnanswered} · human_pending ${summary.sms.humanPendingEpisodes} · opt-out ${summary.sms.optOutEpisodes} · failed outbound ${summary.sms.failedOutbound}`);
     log(`\n7 · LIVE CLASSIFIER vs CUSTOMER WORDS  calls with speech but no kernel intent ${kernelDisagree.intentless}; of those, carrying tire words ${kernelDisagree.intentlessButTireWords} · their eval outcomes ${JSON.stringify(kernelDisagree.outcomes)}`);
+    log(`\n7b · RECONTACT  episodes where the customer came back >=10 min later ${summary.recontact.episodesRecontactedLater}/${N} (${pct(summary.recontact.episodesRecontactedLater, N)}) · immediate reconnect only ${summary.recontact.episodesImmediateOnly}`);
+    log(`     EPISODE LINKS single ${summary.linkConfidence.single} · consistent ${summary.linkConfidence.consistent} · AMBIGUOUS ${summary.linkConfidence.ambiguous} (reported, never forced)`);
+    log(`     TRANSFER INCIDENTS failures ${failures.length} (proxy ${proxyFailures}) → ${incidents.length} system incident(s) of >=3 customers${incidents.map((i) => `\n       ${i.start.toISOString()} → ${i.end.toISOString()} · ${i.customers} customers · ${i.failures} failures`).join("")}`);
+    log(`     OPPORTUNITY ROWS in ${summary.opportunities.episodesWithRow} episodes (won ${summary.opportunities.episodesWithWonRow})${opportunities ? "" : " (table UNKNOWN)"}`);
     log(`\n8 · INVOICE LINKAGE (not causation) episodes linked ${summary.invoiceLinkage.linkedEpisodes}/${N} · of them new customers ${summary.invoiceLinkage.linkedEpisodesNewCustomers} · linked total $${(summary.invoiceLinkage.linkedCentsTotal / 100).toFixed(0)}`);
     if (EXCERPTS > 0) {
       log(`\n9 · MASKED EXCERPTS (customer token = per-run salted hash; windows only)`);

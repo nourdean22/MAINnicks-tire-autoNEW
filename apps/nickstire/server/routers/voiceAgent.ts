@@ -103,6 +103,19 @@ function priceRangeForService(service: typeof SERVICES[number]): {
   };
 }
 
+/**
+ * What the receptionist says after an ORDINARY tire inquiry — one that, since
+ * the 2026-06-05 directive, persists nothing but the call record. It used to
+ * say "I've sent the tire info to the shop", which was not true: the caller
+ * walked in believing the counter had their size. It may say the size was
+ * noted and echo it back (so a mis-heard size can be corrected on the spot);
+ * it may not claim anything was sent. Pinned by vapiToolPromiseTruth.test.ts.
+ */
+export function ordinaryTireInquiryReply(tireSize?: string | null): string {
+  const heard = tireSize ? `Got it — ${tireSize}, noted.` : "Got it, noted.";
+  return `${heard} Walk in any day, we usually have most common sizes on the rack from $60 installed.`;
+}
+
 // ─── Router ─────────────────────────────────────────────
 
 export const voiceAgentRouter = router({
@@ -598,10 +611,11 @@ export const voiceAgentRouter = router({
       vehicle: z.string().max(200).optional(),
       newOrUsed: z.enum(["new", "used", "either"]).default("either"),
       installationNeeded: z.boolean().default(true),
-      // wave-180: free-form flag for special-attention inquiries.
-      // Currently used for "PHYSICAL RACK CHECK REQUESTED — promised
-      // 15 min callback" when caller wanted stock confirmation BEFORE
-      // driving over. Appears in the admin notes column.
+      // wave-180: free-form flag for special-attention inquiries. It used to
+      // carry "PHYSICAL RACK CHECK REQUESTED — promised 15 min callback"; the
+      // tool text no longer asks for that (nothing tracks the promise — see
+      // vapiToolPromiseTruth.test.ts), but a notes value matching /rack.?check/
+      // still takes the lead path below for compatibility.
       notes: z.string().max(500).optional(),
       callId: z.string().max(100).optional(),
     }))
@@ -638,10 +652,7 @@ export const voiceAgentRouter = router({
             name: input.name,
             size: input.tireSize,
           });
-          return {
-            success: true,
-            message: `Got it — I've sent the tire info to the shop. ${input.tireSize ? `Looking for ${input.tireSize}.` : ""} Walk in any day, we usually have most common sizes on the rack from $60 installed.`,
-          };
+          return { success: true, message: ordinaryTireInquiryReply(input.tireSize) };
         }
 
         // lead-source hygiene · 5-min dedup scoped to VOICE-AGENT rows only —

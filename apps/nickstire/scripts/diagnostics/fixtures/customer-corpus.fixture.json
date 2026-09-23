@@ -89,6 +89,51 @@
    "transcript": null,
    "messages": null,
    "callType": "outboundPhoneCall"
+  },
+  {
+   "id": 20,
+   "vapiCallId": "fx-20",
+   "phoneNumber": "2165550108",
+   "durationSeconds": 70,
+   "endedReason": "assistant-forwarded-call",
+   "evalOutcome": "human_handoff",
+   "callbackId": null,
+   "leadId": null,
+   "metadata": "{\"intents\": [], \"transferArtifact\": {\"verdict\": \"not_connected\"}}",
+   "t": 1789743600,
+   "transcript": "AI: Hi\nUser: can I speak to a manager please\nAI: Connecting you now.",
+   "messages": null,
+   "callType": "inboundPhoneCall"
+  },
+  {
+   "id": 21,
+   "vapiCallId": "fx-21",
+   "phoneNumber": "2165550109",
+   "durationSeconds": 70,
+   "endedReason": "assistant-forwarded-call",
+   "evalOutcome": "human_handoff",
+   "callbackId": null,
+   "leadId": null,
+   "metadata": "{\"intents\": [], \"transferArtifact\": {\"verdict\": \"not_connected\"}}",
+   "t": 1789744800,
+   "transcript": "AI: Hi\nUser: can I speak to a manager please\nAI: Connecting you now.",
+   "messages": null,
+   "callType": "inboundPhoneCall"
+  },
+  {
+   "id": 22,
+   "vapiCallId": "fx-22",
+   "phoneNumber": "2165550110",
+   "durationSeconds": 70,
+   "endedReason": "assistant-forwarded-call",
+   "evalOutcome": "human_handoff",
+   "callbackId": null,
+   "leadId": null,
+   "metadata": "{\"intents\": [], \"transferArtifact\": {\"verdict\": \"not_connected\"}}",
+   "t": 1789746600,
+   "transcript": "AI: Hi\nUser: can I speak to a manager please\nAI: Connecting you now.",
+   "messages": null,
+   "callType": "inboundPhoneCall"
   }
  ],
  "sms": [
@@ -141,6 +186,26 @@
    "failureReason": "gateway_timeout",
    "t": 1789484400,
    "optOutT": null
+  },
+  {
+   "id": 16,
+   "phone": "2165550105",
+   "direction": "inbound",
+   "body": "also do you have used tires 17 inch",
+   "status": "received",
+   "failureReason": null,
+   "t": 1789668000,
+   "optOutT": null
+  },
+  {
+   "id": 17,
+   "phone": "2165550102",
+   "direction": "inbound",
+   "body": "you can reach me at (216) 555-0102 or two one six five five five zero one zero two",
+   "status": "received",
+   "failureReason": null,
+   "t": 1789571400,
+   "optOutT": null
   }
  ],
  "callback_requests": [
@@ -187,6 +252,14 @@
    "cents": 9000,
    "paymentStatus": "paid",
    "t": 1772377200
+  }
+ ],
+ "revenue_opportunities": [
+  {
+   "phone": "2165550101",
+   "sourceType": "vapi_call",
+   "state": "won",
+   "t": 1789484400
   }
  ]
 }

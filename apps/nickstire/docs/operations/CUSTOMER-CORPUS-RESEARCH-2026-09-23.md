@@ -186,7 +186,7 @@ library `scripts/lib/customerCorpus.ts`.
 
 - **Read-only.** Every statement is a SELECT. It reads `vapi_call_logs`, `vapi_call_archives`,
   `sms_messages`, `sms_conversations`, `callback_requests`, `expected_arrivals`,
-  `sms_response_jobs`, `customer_promises` and `invoices`.
+  `sms_response_jobs`, `customer_promises`, `revenue_opportunities` and `invoices`.
 - **Episodes are built by a 24-hour gap across call and SMS.** An outbound-only run never opens an
   episode. The live kernel's fixed-bucket count is printed beside it.
 - **The need is read with the existing `classifyVoiceDemand`** (`server/services/voiceDemandClassifier.ts`),
@@ -214,20 +214,29 @@ library `scripts/lib/customerCorpus.ts`.
   `human_pending`, opt-outs, failed outbound.
 - **Classifier disagreement:** calls where the live kernel found no intent but the demand
   classifier found a tire need.
+- **Also (added after the operator's steering, Part K):** recontact ≥10 minutes, link confidence
+  (single / consistent / ambiguous), transfer-failure incidents, opportunity rows, and `--export`.
 - **Privacy:**
-  - Phones become a per-run salted hash.
+  - Phones become a salted hash: per-run by default, or stable via `CORPUS_ANALYSIS_SALT`.
+  - Customer text is masked **before** classification (Part C #19).
   - `--excerpts N` prints only masked windows of at most ~15 words, and `maskPII` runs before any
     match.
   - `--json` is aggregate-only.
   - **Known masking limit:** a name that is not introduced ("my name is…", "this is…") survives
     masking. Treat `--excerpts` output as sensitive and do not commit it.
 - **Proof it measures something:**
-  - `scripts/lib/customerCorpus.test.ts`: 21 tests, including two positive controls that pin the
-    live-kernel defects.
-  - `scripts/diagnostics/customerCorpusCensus.fixture.test.ts`: 7 tests running the real runner
-    end-to-end on a synthetic fixture.
-  - Mutation checks: breaking sessionization reddened 3 tests, dropping phone masking 2, narrowing
-    the tire pattern 1, counting failed texts as follow-up 1.
+  - `scripts/lib/customerCorpus.test.ts`: 27 tests, including three positive controls that pin
+    defects in existing code (no intent for a bare tire request, the 8 PM episode split, a phone
+    number read as a tire size).
+  - `scripts/diagnostics/customerCorpusCensus.fixture.test.ts`: 12 tests running the real runner
+    end-to-end on a synthetic fixture. That includes an export refused inside the repo, and an
+    export with a real and a spoken phone number in a text body that must come out masked.
+  - Mutation checks:
+    - breaking sessionization reddened 3 tests;
+    - dropping phone masking reddened 2;
+    - narrowing the tire pattern reddened 1;
+    - counting failed texts as follow-up reddened 1;
+    - un-masking the export body reddened 1.
 
 **What the census still cannot see (operator-side exports if these matter):**
 1. The audio. Accent, noise and ASR errors need `recording_url` while it is live, or Vapi
@@ -256,14 +265,34 @@ library `scripts/lib/customerCorpus.ts`.
 | 10 | Three separate "car is ready" texts, one hard-coding "open until 6pm" (wrong on Sundays, 9–4). | `dropOffFlow.ts:193`, `workOrderService.ts:368`, `routers/booking.ts:710` | A wrong-hours text on Sundays; duplicate texts possible. |
 | 11 | One Android SMS gateway phone; Twilio "dead since wave-103"; the consent gate is SHADOW by default. | `sms.ts:1213-1214, 1862-1900` | A single point of failure (offline ~18 h on 09-21/22). EXT: automated business traffic over a consumer SIM violates carrier terms (T-Mobile T&Cs; CTIA "non-consumer" definition) and is filtered silently. |
 | 12 | `expected_arrivals` no-show = no invoice within 3 days, written for any walk-in suggestion. The no-show sweep uses a bare `CURDATE()`, which AGENTS.md forbids. | `expectedArrivals.ts:210, 366` | Measures the assistant, not the customer (§3). |
-| 13 | The `callback-escalation` cron sets `no-answer` without anyone calling; the ">4 h" Telegram prints the full phone number. | `cron/jobs/crudAutomation.ts:212-229` | Callback outcome data is polluted, and a PII leak into chat. |
+| 13 | The `callback-escalation` cron sets `no-answer` without anyone calling. The ">4 h" Telegram prints the full phone number, while the high-urgency `escalate` alert masks it. | `cron/jobs/crudAutomation.ts:212-229`; `voiceAgent.ts:363-376` | Callback outcome data is polluted. The phone-number difference is **OPERATOR**: the owner needs the number to call back (PROTECTED-CORE rule 5 says "unnecessarily"), so it is not changed here. |
 | 14 | `conversation_episodes` is written and **read by nothing**. Counter audio is captured during office hours. | `routes/conversationRoutes.ts:79`; no readers | EXT: Ohio protects an oral communication only where there is a justified expectation of privacy. Staff-party counter talk is likely fine; customers talking to each other are not. **OPERATOR:** signage and notice before install. |
 | 15 | Photo assessment extracts no tire size or DOT code; there is no customer upload page; the flag defaults off. | `vision-analyzer.ts:70-75, 117` | A photo cannot yet replace "read me the numbers on the sidewall". |
 | 16 | Four continuity stores and no per-phone context given to voice. `getCustomerJourneyTimeline` exists and is admin-only. | `smsOrchestrator.ts:1697`; `vapi-bdi.ts:71` (reachability depends on Vapi phone-number routing) | Nothing lets the assistant say "is this about the Camry from Tuesday?" |
 | 17 | TiDB silently ignores `SELECT … FOR UPDATE SKIP LOCKED` (EXT: pingcap/tidb#69782, open, confirmed this session). **nickstire has no such usage** (REPO grep). | — | A guard for any future claim or queue code: compare-and-swap `UPDATE … WHERE state=?` checking affected rows = 1 (the repo's `claim-before-act`). |
 | 18 | The memory counterfactual traced two reach paths and missed the receptionist-lesson path (A2). | `nickMemory.ts:254-278` | None today (source filter). Doc accuracy only. |
+| 19 | `classifyVoiceDemand` reads a **phone number** as a tire size: "(216) 555-0102" → `tire_size_help`, 0.8. | Pinned by a positive control in `customerCorpus.test.ts`; the census masks before classifying | A caller reciting a callback number would be counted as tire demand. **Whoever wires this classifier must mask first, or fix its size rule.** |
+| 20 | 98 bare `CURDATE()` sites in `server/` (UTC session date, not Eastern), despite the AGENTS.md rule. | `grep -rn CURDATE server` | Fixing one is pointless. The fix is a lint gate with an allow-list (queued as its own task). |
 
 ---
+
+### Shipped in this PR (second commit): the untracked promise and the false "sent to the shop"
+
+Part C #1 and #2 are fixed at the text level. The reply and tool text now tell the truth; the
+counter still receives nothing, and making "noted" useful is Part I #5.
+
+- **The ordinary-inquiry reply.** `ordinaryTireInquiryReply()` (`server/routers/voiceAgent.ts`)
+  says "Got it — 225/65R17, noted." It echoes the size so a mis-heard one can be corrected on the
+  spot, and never says it was sent.
+- **The tool and prompt text.** The `tireInquiry.notes` text no longer asks for "promised 15 min
+  callback". The `tireInquiry` description and the system prompt no longer claim "lead saved".
+- **Proof.** `server/__tests__/vapiToolPromiseTruth.test.ts` has 5 tests. It went red 4 of 4
+  against the unfixed code (positive control) and green after the fix.
+- **Ladder.** The reply text reaches callers **on deploy** (it is a tool response). The tool
+  descriptions and prompt reach Vapi **only when the operator presses "Push Latest Config"**
+  (`updateAssistant`, `vapi.ts:1645`). Until then the live assistant still reads the old text:
+  DEPLOYED ≠ LIVE. The legacy notes-based rack-check lead path still works for any notes containing
+  "rack check", for compatibility.
 
 ## Part D — Taxonomy, effort, obligations, trust
 
@@ -319,6 +348,24 @@ chance on a held-out month, no index is justified.
 - **The QUEUE-CENSUS verdict ("not before each queue has a drain") is right, but incomplete.** The
   generalisation already exists: `customer_promises` is the kernel. What is missing is
   **writers** (Part C #1–#3) and **close paths** (Part C #8).
+- **Lifecycle test, which the operator asked for before any generalising.** It compares the four
+  obligation kinds against the lifecycle OPEN → ASSIGNED → WAITING → FULFILLED / MISSED /
+  CANCELLED, with owner, due, source, customer, evidence and completion proof. Read from code:
+
+  | Kind | Persisted today? | Owner | Due | Evidence of completion | Customer sees it |
+  |---|---|---|---|---|---|
+  | Callback | `callback_requests` (new → called / no-answer / completed); plus a `customer_promises` row **only** via `escalate` / `scheduleCallback` | `calledBy` (free text) | **none** on `callback_requests`; `due_at` = next close on the promise row | `calledAt` (a cron can set `no-answer` with nobody calling) | a "still in our queue" text after 4 h |
+  | Rack check | **no row** (`checkTireStock` writes nothing; the legacy notes path writes a lead) | — | — | — | — |
+  | Status update | **no row** ("we text when done" rides `drop_off_sms_flow`; the status-message writer is unwired) | — | — | — | — |
+  | Transfer recovery | **no row**: a recovery-queue *lane* computed at read time (15-min SLA constant) plus a forwarded-call follow-up text | — | derived | — | the follow-up text |
+
+  **Verdict (REPO):** the four kinds do not share a lifecycle today, because three of them have no
+  lifecycle at all. The shape the operator describes already exists as `customer_promises`: open /
+  kept / missed / cancelled, `owner`, `due_at`, `source_kind` / `source_id`, `customer_phone`,
+  `kept_evidence`. ASSIGNED is `owner IS NOT NULL`; WAITING is `open` before `due_at`. So the
+  generalisation is **not a new kernel**. It is making the missing obligations exist as rows in the
+  one that is there, then letting the census show whether the four kinds actually behave alike
+  (due-window distribution, keep rate, evidence source).
 - **Recommendation:**
   1. Every spoken or written commitment calls one helper that writes a `customer_promises` row:
      callback, rack check, "we'll text when done", and "someone will follow up". The helper
@@ -566,8 +613,9 @@ census run.
    fix `vapiCallArchive` first (the 500-per-run cap and 14-day horizon mean a stall longer than 14
    days loses calls for good).
 3. Wire the `markNoReplyNeeded` / `releaseTakeover` UI (no dependency).
-4. Delete the "promised 15 min callback" tool text and the dead dispatch branches (no dependency;
-   a Vapi config push is an OPERATOR click).
+4. ~~Delete the "promised 15 min callback" tool text~~ **Done in this PR** (Part C "Shipped"). The
+   Vapi config push is still an OPERATOR click. Still open: the dead `scheduleCallback` /
+   `quoteRange` dispatch and auditor branches.
 5. `tireInquiry` → `metadata.demand` persistence plus a counter card (depends on nothing; measured
    by the census's `reaskedKnownSize`).
 6. Add the safety rule and spoken-size normalisation to `voiceDemandClassifier`, then shadow-wire it
@@ -584,6 +632,67 @@ census run.
 14. Re-run the census monthly. Compare the primitives, and kill any item whose falsifier fired.
 
 ---
+
+## Part K — Operator steering 2026-09-23, folded in
+
+**What changed in this PR because of it:**
+
+- **`customer_had_to_recontact_shop`.** The census now reports, per need and overall, episodes where
+  a customer-initiated contact came ≥10 minutes after the previous one ended. Reconnects under 10
+  minutes are counted apart, because a dropped line is not "the first contact did not finish the
+  job".
+- **`episode_link_confidence`.** Each episode is `single` / `consistent` / `ambiguous`. Ambiguous
+  means two contacts named needs from different families; tire intents count as one family.
+  Ambiguous episodes are reported, never forced apart or together.
+- **Incident grouping (SRE).** Transfer failures cluster into one system incident when three or
+  more customers fail within 60 minutes of each other. A failure is the provider's `not_connected`
+  verdict, or, before verdicts existed, a forwarded call redialled within 15 minutes (labelled as a
+  proxy). The output reads as 1 incident plus N customer-recovery obligations, not N lost leads.
+- **The export the operator specified.**
+  - `--export <file>` writes one JSONL row per episode, with no raw phone and no name:
+    - a salted `customerKey`;
+    - masked turns (capped at 400 characters);
+    - masked text bodies;
+    - per-contact need, transfer, eval outcome and ended reason;
+    - every derived primitive.
+  - `customer_name_present` is kept as a boolean only.
+  - It refuses to write inside a git checkout and writes mode 600.
+  - A **stable** salt for month-over-month joins comes from `CORPUS_ANALYSIS_SALT` in the shell,
+    never the repo; without it the salt is per-run.
+  - Media counts are **not** exportable: `sms_messages` has no media column.
+- **Join.** `revenue_opportunities` rows inside each episode, and whether one was `won`.
+
+**Where the steering and this document disagreed, and what stands:**
+
+| Point | Steering said | Evidence | Stands as |
+|---|---|---|---|
+| Arize Phoenix | BORROW / maybe adopt | The licence is **ELv2** (verified from its LICENSE by the OSS scan). ELv2 **permits internal self-hosted use**; it forbids offering Phoenix as a hosted service. So it is legal for Nick's internally, and my Part J line "never embed ELv2" was too broad. The blocker is operational: a Python server that duplicates the eval cron plus promptfoo. | **BORROW the dataset-from-production and versioned-experiment mechanisms; do not deploy.** Part J corrected. |
+| Memory traps | Promote all five into guards | The memories are machine-local and were not visible here. Only two are cheap, checkable invariants: ledger-edit-without-render (already completion sub-gate 4, so the memory can shrink to "guard: completion-authority sub-gate 4"), and the co-author trailer on squash merges (a merge-helper check). "TaskStop leaves children" and "Railway rate limit" are harness or tool behaviour a repo test cannot exercise. The best guard for them is a wrapper script used everywhere (for example a `railway-read` wrapper with backoff), otherwise they stay memories. "git add bad pathspec": a pre-commit completeness check (staged set against intended set) is heavier than the trap it prevents. | Promote the two cheap ones; wrap Railway reads; keep the TaskStop memory in the short form "failure + guard". |
+| Obligation kernel | Test whether the four kinds share a lifecycle | Part D §7 now carries that test from code: three of the four have no persisted lifecycle, and `customer_promises` already has the target shape. | No new kernel. Make the missing rows exist in `customer_promises`, then let the census decide. |
+| Vapi assistant-based warm transfer | Canary it | Confirmed this session against Vapi's docs: `warm-transfer-experimental` gives the transfer assistant `transferSuccessful` / `transferCancel` (voicemail, busy, no answer, IVR, decline), and no telephony-provider restriction is stated. It is already the live mode per the runbook. | Handle `transfer-update`, run the ring-out canary, then call it LIVE-OBSERVED. |
+| RCS | Watch / small pilot | Business RCS needs a registered brand and agent through an aggregator; it cannot ride the Android gateway. | WATCH. SMS stays universal. |
+
+**The operator's 20 corpus questions, mapped to what answers them:**
+
+| # | Question | Answered by |
+|---|---|---|
+| 1–2 | Top jobs-to-be-done; tire vs repair vs status/info share | census §3 (need per episode) |
+| 3 | What customers volunteer first | export → first customer turn per episode (masked) → TnT-LLM-style labelling pass |
+| 4 | What Nick asks unnecessarily | census §5 asks, plus `reaskedKnownSize` / `Vehicle` |
+| 5 | Corrections of size, vehicle or name | census `not_understood` friction (proxy); the exact fields need the export plus a reading pass |
+| 6 | Causes of same-day redials | census redial and recontact by need; the export for why |
+| 7 | Transfer initiated → verified connection | census transfer tried / connected / verified-failed, plus incidents |
+| 8 | Which callback promises close | census promised → delivered follow-up; `callback_requests` done |
+| 9 | "Coming today" → arrival | census arrival row → arrived. Remember that the row is mostly the assistant's suggestion (§3). |
+| 10 | Invoice-linked vs non-linked episode shape | export, split on `linkedInvoice` |
+| 11–12 | Which texts get replies; what prompts STOP | census texts section plus the export (the outbound body before a STOP) |
+| 13–14 | AI replies that trigger human intervention; where humans do better | `sms_response_jobs` outcomes plus `nickgpt_drafts` edits (not yet in the census — add when the census first runs) |
+| 15 | Highest-effort episodes | sort the export by the raw primitives (no composite) |
+| 16 | Labour without customer value | the `active_job_status` share plus the transfer-connected share, per need |
+| 17 | Status calls a status text could remove | the `active_job_status` episode count (upper bound) |
+| 18 | Where photo intake removes knowledge burden | `tire_size_help` / `unknown_tire_size` friction episodes |
+| 19 | What a high-converting *legitimate* tire episode looks like | export: linked tire episodes against unlinked ones |
+| 20 | What correlates with repeat customers | census `existingCustomer` plus a 90-day forward join (next monthly run) |
 
 ## Part J — Paste-ready directive for the next Claude session
 
@@ -606,8 +715,10 @@ You are continuing Nick's Tire customer-operations work in apps/nickstire. Stand
 6. Stop only at an operator gate: customer-facing copy or sends, Vapi config pushes, production
    writes, vendor or spend decisions, signage or consent — or when told STOP. At a gate, finish
    everything that does not depend on it, and give the operator one exact action.
-7. OSS: borrow mechanisms from permissive licences (MIT/Apache/BSD). Never embed AGPL, SSPL, BSL,
-   ELv2 or unlicensed code (Unleash server, Emmett, Inngest server, Restate, Phoenix, Twenty).
+7. OSS: borrow mechanisms from permissive licences (MIT/Apache/BSD). Never embed or redistribute
+   AGPL, SSPL, BSL or unlicensed code (Unleash server, Emmett, Inngest server, Restate, Twenty).
+   ELv2 (Phoenix) permits internal self-hosting but not embedding or hosting as a service;
+   prefer its mechanisms.
    TiDB silently ignores SKIP LOCKED: claims are compare-and-swap UPDATEs checking affected rows = 1.
 8. Privacy: mask before match, match before print; phones as hashes in any artifact; no PII in logs
    or Telegram.

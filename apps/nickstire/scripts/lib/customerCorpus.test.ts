@@ -1,9 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { detectIntents } from "../../server/services/vapiCallClassifier";
 import { episodeKey, intentFamily } from "../../shared/callTaxonomy";
+import { classifyVoiceDemand } from "../../server/services/voiceDemandClassifier";
 import {
+  clusterIncidents,
   countMatches,
   customerToken,
+  linkConfidence,
+  namePresent,
+  recontacts,
   excerptAround,
   FRICTION_PATTERNS,
   frictionOf,
@@ -156,6 +161,12 @@ describe("needs, friction, promises", () => {
     expect(episodeNeed(["hey I dropped my car off this morning, is it done"]).need).toBe("active_job_status");
   });
 
+  it("POSITIVE CONTROL: the raw demand classifier reads a phone number as a tire size; the census masks first", () => {
+    const s = "you can reach me at (216) 555-0102";
+    expect(classifyVoiceDemand(s).intent).toBe("tire_size_help");
+    expect(episodeNeed([s]).need).not.toBe("tire_size_help");
+  });
+
   it("nothing classifiable stays unclear, never a default bucket", () => {
     expect(episodeNeed(["hello?", "uh"]).need).toBe("unclear");
   });
@@ -190,5 +201,52 @@ describe("open hours come from BUSINESS.hours.structured", () => {
     expect(isOpen(new Date("2026-09-21T22:00:00Z"))).toBe(false); // Mon 18:00 EDT
     expect(isOpen(new Date("2026-09-20T20:30:00Z"))).toBe(false); // Sun 16:30 EDT
     expect(isOpen(new Date("2026-09-20T14:00:00Z"))).toBe(true); // Sun 10:00 EDT
+  });
+});
+
+describe("recontact, link confidence, incident grouping", () => {
+  const at = (iso: string) => new Date(iso);
+
+  it("a reconnect under 10 minutes after the call ENDED is immediate; a later one is a recontact", () => {
+    const r = recontacts([
+      { at: at("2026-09-15T14:00:00Z"), endAt: at("2026-09-15T14:05:00Z") },
+      { at: at("2026-09-15T14:08:00Z"), endAt: at("2026-09-15T14:09:00Z") }, // 3 min after end
+      { at: at("2026-09-15T16:00:00Z") }, // hours later
+    ]);
+    expect(r).toEqual({ immediate: 1, later: 1 });
+  });
+
+  it("different need families across contacts are ambiguous; tire intents are one family", () => {
+    expect(linkConfidence(["used_tire_price"])).toBe("single");
+    expect(linkConfidence(["used_tire_price", "tire_size_help", "unclear"])).toBe("consistent");
+    expect(linkConfidence(["human_requested", "brakes"])).toBe("consistent");
+    expect(linkConfidence(["brakes", "used_tire_price"])).toBe("ambiguous");
+  });
+
+  it("three customers failing inside an hour is one incident; two is not", () => {
+    const f = (iso: string, p: string) => ({ at: at(iso), phone10: p });
+    const incidents = clusterIncidents([
+      f("2026-09-15T14:00:00Z", "2165550101"),
+      f("2026-09-15T14:20:00Z", "2165550102"),
+      f("2026-09-15T15:10:00Z", "2165550103"), // 50 min after the last — same cluster
+      f("2026-09-16T14:00:00Z", "2165550104"),
+      f("2026-09-16T14:10:00Z", "2165550105"),
+    ]);
+    expect(incidents).toHaveLength(1);
+    expect(incidents[0]).toMatchObject({ customers: 3, failures: 3 });
+  });
+
+  it("the same customer failing three times is not a system incident", () => {
+    const p = "2165550101";
+    expect(clusterIncidents([
+      { at: at("2026-09-15T14:00:00Z"), phone10: p },
+      { at: at("2026-09-15T14:05:00Z"), phone10: p },
+      { at: at("2026-09-15T14:10:00Z"), phone10: p },
+    ])).toEqual([]);
+  });
+
+  it("a name is recorded as present, never returned", () => {
+    expect(namePresent("hi this is Jordan with a flat")).toBe(true);
+    expect(namePresent("hi I need a flat fixed")).toBe(false);
   });
 });
