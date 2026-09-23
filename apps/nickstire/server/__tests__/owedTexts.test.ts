@@ -5,7 +5,7 @@
  * and a STOP, an opt-in or a bare "ok thanks" is owed nothing.
  */
 import { describe, expect, it } from "vitest";
-import { needsNoReply, pickOwedTexts, type OwedTextRow } from "../services/owedTexts";
+import { pickOwedTexts, type OwedTextRow } from "../lib/owedTextsRule";
 
 let nextId = 1;
 const msg = (
@@ -65,10 +65,10 @@ describe("pickOwedTexts", () => {
   });
 });
 
-describe("needsNoReply", () => {
-  it("keeps a sentence that merely starts with a keyword", () => {
-    expect(needsNoReply("Stop by around 3?")).toBe(false);
-    expect(needsNoReply("ok but how much for two tires")).toBe(false);
-    expect(needsNoReply("Stop")).toBe(true);
+describe("a sentence that merely starts with a keyword is still owed", () => {
+  it("\"Stop by around 3?\" and \"ok but how much\" need an answer; a bare \"Stop\" does not", () => {
+    expect(pickOwedTexts([msg(10, "inbound", 90, "Stop by around 3?")])).toHaveLength(1);
+    expect(pickOwedTexts([msg(11, "inbound", 90, "ok but how much for two tires")])).toHaveLength(1);
+    expect(pickOwedTexts([msg(12, "inbound", 90, "Stop")])).toEqual([]);
   });
 });
