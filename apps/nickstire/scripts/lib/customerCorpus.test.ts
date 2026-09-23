@@ -389,10 +389,8 @@ describe("needs, friction, promises", () => {
     expect(countPromises(["The shop can't text you tonight, but Nick will give you a call tomorrow."])).toMatchObject({ callback: 1, text_followup: 0 });
   });
 
-  it("a text sent during the call, a drop-off condition, and a present-tense 'when it's ready' are not open promises", () => {
+  it("a text sent during the call and a present-tense 'when it's ready' are not open promises", () => {
     for (const s of [
-      // the old scripted oil-change line (vapi.ts before 2026-09-23): conditional + automated
-      "pull up, we'll do it while you wait, or drop it off and we'll text when it's ready.",
       "I'll text you the address real quick, drive safe.",
       "We'll text you a confirmation with the address.",
       "I'm going to send you a text with the details.",
@@ -404,6 +402,21 @@ describe("needs, friction, promises", () => {
     expect(countPromises(["Someone will call you back."]).callback).toBe(1);
     expect(countPromises(["We'll text you once the parts come in."]).text_followup).toBe(1);
     expect(countPromises(["I'll let you know when it's ready."]).status_update).toBe(1);
+  });
+
+  // #2580's filter dropped every clause naming a drop-off or a "text ... details", so
+  // these real promises scored ZERO. A drop-off is the condition, not the fulfilment,
+  // and a details text tied to a later event is a promise to follow up.
+  it("a promise made on a drop-off, or a details text tied to a later event, still counts", () => {
+    const total = (s: string) => Object.values(countPromises([s])).reduce((a, b) => a + b, 0);
+    expect(countPromises(["Drop it off and we'll text you when it's done."]).text_followup).toBe(1);
+    expect(countPromises(["Drop it off and someone will call you when it's ready."]).callback).toBe(1);
+    expect(countPromises(["I'll text you the details once the parts come in."]).text_followup).toBe(1);
+    // the old scripted oil-change line (vapi.ts before 2026-09-23) promised a text
+    // nothing sends; #2580 removed it from the prompt, so the census must see it
+    expect(total("pull up, we'll do it while you wait, or drop it off and we'll text when it's ready.")).toBeGreaterThan(0);
+    // a drop-off offer with no follow-up promise stays at zero
+    expect(total("Drop it off if you can't wait.")).toBe(0);
   });
 
   it("a rack check is a promise only as a future check AND a report back", () => {

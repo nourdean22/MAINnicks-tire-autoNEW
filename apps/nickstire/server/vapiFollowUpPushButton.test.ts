@@ -104,6 +104,25 @@ describe("PUSH FOLLOW-UP ASSISTANT · the server's pin decides the target", () =
     expect(err.some((l) => l.includes("Vapi follow-up assistant update failed") && l.includes("400"))).toBe(true);
   });
 
+  // #2571 read the env var directly, bypassing followUpAssistantIdOrNull(), so a
+  // pin left on the retired duplicate receptionist would have had the follow-up
+  // prompt PATCHed over it.
+  it("a pin naming the RETIRED assistant is refused and nothing is PATCHed", async () => {
+    vi.stubEnv("VAPI_FOLLOWUP_ASSISTANT_ID", "afcad79e-ec33-4156-98fe-7eb325c1222a");
+    const res = await push();
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/retired/i);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("an explicit RETIRED id is refused too, whatever the pin says", async () => {
+    vi.stubEnv("VAPI_FOLLOWUP_ASSISTANT_ID", "asst_canary");
+    const res = await push({ assistantId: " afcad79e-ec33-4156-98fe-7eb325c1222a " });
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/retired/i);
+    expect(calls).toHaveLength(0);
+  });
+
   it("an explicit id still wins over the pin", async () => {
     vi.stubEnv("VAPI_FOLLOWUP_ASSISTANT_ID", "asst_canary");
     await push({ assistantId: "asst_other" });

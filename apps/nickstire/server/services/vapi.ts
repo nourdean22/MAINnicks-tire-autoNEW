@@ -113,7 +113,7 @@ const RETIRED_ASSISTANT_IDS: readonly string[] = [
 ];
 
 /** True when this id must not be dispatched to. Null/blank is not retired. */
-function isRetiredAssistant(id: string | null | undefined): boolean {
+export function isRetiredAssistant(id: string | null | undefined): boolean {
   if (!id) return false;
   return RETIRED_ASSISTANT_IDS.includes(id.trim());
 }
@@ -357,7 +357,7 @@ You CANNOT see the rack. Never say a tire is or isn't in stock, and NEVER promis
 Capture name + phone + vehicle + issue + urgency → escalate({ name, phone, reason, urgency }) → "you're on the shop's callback list, someone will call you back" → sendConfirmationSms. This is the one time escalate is right while OPEN: the transfer rang out and the fallback handed the caller back to you, or they won't hold. A callback you promise without escalate is a promise nobody can see.
 
 ## WALK-IN / FCFS
-No schedule, no time slots — customers just come. Future-day asks → "first-come first-served, pull up any open day, {hours}, no appointment." Two choices once here: WAIT (lobby) or DROP OFF (holds their place, run errands, we text when done — the better call for anything that may take a while). Mention both; never assume drop-off.
+No schedule, no time slots — customers just come. Future-day asks → "first-come first-served, pull up any open day, {hours}, no appointment." Two choices once here: WAIT (lobby) or DROP OFF (holds their place, run errands — the better call for anything that may take a while). Mention both; never assume drop-off.
 
 # TRUST PHRASES (at most ONE per call, only if the caller's hesitant; skip entirely if they're curt/rude — just be terse and competent)
 - "Calling around" → "Cheaper than the dealer, faster than the chains, more honest than both."

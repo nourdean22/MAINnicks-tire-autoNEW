@@ -5,6 +5,7 @@
 
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { Loader2, RefreshCw, Zap } from "lucide-react";
 
 interface VapiCallRow {
@@ -146,9 +147,19 @@ export default function VapiPanel() {
             )}
             {firstAssistantId && (
               <button
-                onClick={() => updateFollowUp.mutate({ serverUrl: "https://nickstire.org/api/webhooks/vapi" })}
+                // Overwrites the prompt of the assistant that places real outbound
+                // calls, one slot from the receptionist push: two taps, in-DOM
+                // confirm (window.confirm is suppressed in iOS PWA standalone).
+                onClick={async () => {
+                  const ok = await confirmDialog({
+                    title: "Push the follow-up caller's config?",
+                    message: "Overwrites the prompt and tools of the assistant that places outbound follow-up calls. The receptionist is not touched.",
+                    confirmLabel: "Push follow-up config",
+                  });
+                  if (ok) updateFollowUp.mutate({ serverUrl: "https://nickstire.org/api/webhooks/vapi" });
+                }}
                 disabled={updateFollowUp.isPending}
-                className="flex items-center gap-1.5 border border-primary/30 text-primary bg-primary/5 px-3 py-1 text-[10px] font-bold tracking-wide hover:bg-primary/10 disabled:opacity-50"
+                className="flex items-center gap-1.5 min-h-[48px] border border-primary/30 text-primary bg-primary/5 px-3 py-1 text-[10px] font-bold tracking-wide hover:bg-primary/10 disabled:opacity-50"
               >
                 {updateFollowUp.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                 {updateFollowUp.isPending ? "PUSHING..." : "PUSH FOLLOW-UP ASSISTANT"}
