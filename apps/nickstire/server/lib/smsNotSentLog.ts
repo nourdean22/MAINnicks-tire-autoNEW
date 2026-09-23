@@ -20,17 +20,33 @@ export interface NotSentLogFields {
   phoneSuffix: string;
 }
 
+/** The orchestrator's starting value for `reason`: it says nothing about the cause. */
+const DEFAULT_REASON = "system_triggered";
+
+/**
+ * The most specific cause the result carries. `reason` stays at its
+ * "system_triggered" default on several not-sent paths (the preflight guard,
+ * draft-only mode, an internal error) that record the real code only in
+ * noSendReason / statusReason. On 2026-09-23 a recap held for a
+ * hallucinated_url logged "system_triggered".
+ */
+function causeOf(result: { reason?: string | null; statusReason?: string | null; noSendReason?: string | null }): string {
+  if (result.noSendReason) return result.noSendReason;
+  if (result.reason && result.reason !== DEFAULT_REASON) return result.reason;
+  return result.statusReason || result.reason || "unspecified";
+}
+
 /** Null when the text went out; otherwise the fields to log. */
 export function notSentLogFields(
   event: { type: string; phone?: string | null },
-  result: { status: string; reason?: string | null },
+  result: { status: string; reason?: string | null; statusReason?: string | null; noSendReason?: string | null },
 ): NotSentLogFields | null {
   if (SENT_STATUSES.has(result.status)) return null;
   const digits = String(event.phone ?? "").replace(/\D/g, "");
   return {
     type: event.type,
     status: result.status,
-    reason: result.reason || "unspecified",
+    reason: causeOf(result),
     phoneSuffix: digits.length >= 4 ? digits.slice(-4) : "????",
   };
 }

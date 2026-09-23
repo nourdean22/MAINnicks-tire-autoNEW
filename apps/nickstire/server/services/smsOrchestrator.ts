@@ -40,6 +40,8 @@ const log = createLogger("sms-orchestrator");
 
 export type SmsOrchestratorEvent = (
   | { type: "inbound_sms"; phone: string; body: string; conversationId: number }
+  // mapLink is IGNORED (kept only so old callers still type-check): the recap
+  // always carries VAPI_RECAP_LINK. See that constant.
   | { type: "vapi_confirmation"; phone: string; summary: string; mapLink?: string; vapiCallId?: string }
   | { type: "vapi_forwarded_call_followup"; phone: string; vapiCallId?: string }
   | { type: "after_hours_capture"; phone: string; name: string; captureType: "lead" | "booking" | "callback"; sourceId?: string }
@@ -63,7 +65,22 @@ export interface SmsOrchestratorResult {
   providerUsed: "shop" | "twilio" | "none";
   cooldownKey?: string;
   status: "received" | "classified" | "compiled" | "drafted" | "approved" | "blocked" | "skipped" | "queued" | "sending" | "sent" | "delivered" | "failed" | "replied" | "expired" | "cancelled";
+  /** The same codes stored on the sms_orchestrations row. `reason` alone is
+   *  often the "system_triggered" default, so the not-sent log reads these. */
+  statusReason?: string;
+  noSendReason?: string | null;
 }
+
+/**
+ * The only link a phone-call recap text carries.
+ *
+ * The recap tool used to take a `mapLink` from the voice model. On 2026-09-23
+ * the model invented one ("https://goo.gl/maps/abc123"), the preflight guard
+ * flagged it as hallucinated_url, and the caller's text sat as a draft. A model
+ * never supplies a URL for a customer text; the server does. This one is on the
+ * preflight guard's approved domains, so the recap is not held for review.
+ */
+export const VAPI_RECAP_LINK = "https://nickstire.org/contact";
 
 export interface CustomerContext {
   phone: string;
@@ -640,6 +657,8 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
           customerContext: existing.customerContext || "{}",
           providerUsed: (existing.providerUsed || "none") as "shop" | "twilio" | "none",
           status: existing.status as any,
+          statusReason: existing.statusReason ?? undefined,
+          noSendReason: existing.noSendReason ?? null,
         };
       }
     } catch (err) {
@@ -680,7 +699,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
   let legacyBody = "";
   if (event.type !== "inbound_sms") {
     if (event.type === "vapi_confirmation") {
-      legacyBody = (event as any).legacyMessageBody || `${event.summary}\n\n📍 17625 Euclid Ave, Cleveland\n📞 ${BUSINESS.phone.display}\n${(event as any).mapLink || "https://nickstire.org/contact"}`;
+      legacyBody = (event as any).legacyMessageBody || `${event.summary}\n\n📍 17625 Euclid Ave, Cleveland\n📞 ${BUSINESS.phone.display}\n${VAPI_RECAP_LINK}`;
     } else if (event.type === "manual_admin_reply") {
       legacyBody = (event as any).legacyMessageBody || event.message;
     } else if (event.type === "photo_assess_reply") {
@@ -715,6 +734,8 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       customerContext: "{}",
       providerUsed: "none",
       status,
+      statusReason,
+      noSendReason,
     };
     if (db && orchestrationId) {
       await db.update(smsOrchestrations).set({ status, statusReason, reason, noSendReason }).where(eq(smsOrchestrations.id, orchestrationId));
@@ -771,6 +792,8 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       customerContext: "{}",
       providerUsed: "shop",
       status,
+      statusReason,
+      noSendReason,
     };
 
     if (db) {
@@ -869,6 +892,8 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
           providerUsed: "none",
           cooldownKey,
           status,
+          statusReason,
+          noSendReason,
         };
 
         if (db && event.type === "inbound_sms" && orchestrationId) {
@@ -1384,7 +1409,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
           compiledAssignment = assignVariantWithExperiment("booking_reminder", contextPayload);
         } else if (event.type === "vapi_confirmation") {
           compiledAssignment = assignVariantWithExperiment("vapi_confirmation", contextPayload);
-          compiledAssignment.body = `${event.summary}\n\n📍 17625 Euclid Ave, Cleveland\n📞 ${BUSINESS.phone.display}\n${event.mapLink || "https://nickstire.org/contact"}`;
+          compiledAssignment.body = `${event.summary}\n\n📍 17625 Euclid Ave, Cleveland\n📞 ${BUSINESS.phone.display}\n${VAPI_RECAP_LINK}`;
         } else if (event.type === "manual_admin_reply") {
           compiledAssignment = {
             body: event.message,
@@ -1620,6 +1645,8 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
     providerUsed,
     cooldownKey,
     status,
+    statusReason,
+    noSendReason,
   };
 
   if (db) {
