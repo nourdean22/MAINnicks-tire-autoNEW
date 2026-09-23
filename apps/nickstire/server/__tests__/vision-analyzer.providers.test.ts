@@ -71,6 +71,11 @@ describe("analyzePhoto · gemini", () => {
     // thinking off + a visible budget: the live probe with a 400-token budget returned 66 characters
     expect(body.max_tokens).toBe(800);
     expect(body.extra_body).toEqual({ google: { thinking_config: { thinking_budget: 0 } } });
+    // The endpoint validates strictly and the two thinking knobs are mutually
+    // exclusive (both measured as HTTP 400 on 2026-09-22, see the source comment).
+    // Sending either of these alongside extra_body breaks every customer photo.
+    expect(body.reasoning_effort).toBeUndefined();
+    expect(body.google).toBeUndefined();
     const parts = body.messages[0].content;
     expect(parts[0]).toEqual({ type: "text", text: expect.stringContaining("SERVICE_SUGGEST") });
     expect(parts[1].type).toBe("image_url");

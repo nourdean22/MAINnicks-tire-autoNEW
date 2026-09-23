@@ -6,6 +6,12 @@ pre-"Reset to Shop" checklist: `docs/VOICE-RECOVERY-AUDIT-2026-09-18.md`.)
 
 ## 2026-09-22 (night) · Counter-conversation capture — shipped, scheduled, NOT yet installed
 
+**PRODUCTION-PROVEN 2026-09-23 00:12Z.** After `f1c1db6f6` deployed, the same selftest episode
+re-posted: `transcriptStatus: DONE · factsStored: 4 · dropped: [] · coverage: 0.929 · engine:
+deepseek-v4-pro`. Before the fix the identical post returned `FAILED / engine: null`. The chain
+is proven live: migration -> table -> shared-key auth -> route -> extraction -> facts with
+provenance. #2547 merged `f1c1db6f6`.
+
 **What exists now.** Four layers, all merged or in flight: `conversation_episodes` (migration
 0128, **APPLIED IN PROD** — 90 applied / 42 skipped / 132 total; the one error is the
 pre-existing `vehicles` FK, a table retired by 0117) · `camera-bridge/vision/officeaudio.py`
@@ -236,6 +242,38 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
    originating' bounces, ~5 are vendor spam) READ ONLY - no customer reply is sent on an 'ok'; a precise
    instruction is needed to expire the stale rows or draft replies. LIVE 23:07Z: orchestration-status-reconcile
    first pass stamped 35; identity memory rows 4; review-requests no longer gateway-held.
+
+12. THE PROMPT IS NOISE (mandate item 9, counterfactual). pnpm diag:memory-counterfactual replays the two paths
+   into Nick's prompt: 9 of the 10 rows injected every turn were writer noise re-emitted into thousands of
+   uses ('Nick AI has 30 learned memories' 4,904; 'Outcome unknown.' 2,517; textless commitments; '0/0 bays
+   FULL' x4); 498 of 548 rows can never reach an answer. Shipped: memoryWriterGuards.ts on the four writers
+   (7 tests), the diagnostic, and prune-junk-memories.mjs (dry run first; the DELETE is the operator's).
+   Doc: docs/operations/NICK-MEMORY-COUNTERFACTUAL-2026-09-22.md. NOT changed: the confidence x uses
+   ranking - the diagnostic prints the two alternative sets; decide from those after the prune. Also this
+   evening: kpi-snapshot moved daily -> hourly tier (oncePerShopDay on a 24h tier parks outside business
+   hours; skipped with no cron_log row, STALE 48h); the daily tier now declares no oncePerShopDay job.
+
+13. THE SELF-AUDIT WAS WRONG, AND PROBING IT BEFORE PUSHING IS WHAT SAVED THE LANE. I doubted #2550's claim
+   that Gemini thinking was off (its probe had ALSO doubled max_tokens, and extra_body looks like an
+   OpenAI-SDK-only field). I wrote the correction - reasoning_effort plus a top-level google.thinking_config -
+   then probed it. Measured twice each against the live endpoint: no knob = ~30 tokens, ~134 chars, NO
+   SERVICE_SUGGEST line even at max_tokens 800; extra_body = ~204 tokens, ~905 chars, line present;
+   reasoning_effort 'none' = equivalent; BOTH together = HTTP 400 'Expected one of either reasoning_effort or
+   custom thinking_config'; google at top level = HTTP 400 'Unknown name google'. So Google's compat layer DOES
+   read extra_body, the shipped code was right, and my correction would have 400'd every customer photo two
+   different ways. The withdrawal was discarded; what shipped is the measurement in a source comment plus three
+   assertions that neither 400 shape is sent. LESSON: a self-audit is a HYPOTHESIS, not a finding - probe it
+   with the same suspicion you applied to the original claim.
+
+   LIVE-OBSERVED at 00:40Z: abandoned-forms details text in cron_log ('nothing eligible · 0 partial(s) in
+   memory · 0 db row(s) in the 30-120 min window'); orchestration-status-reconcile 4 runs / 35 stamped, last run
+   'left queued 0 of 0' - the backlog is drained, 260 stamped sent, the 21 with no message row stay queued by
+   design; nick memory 528 rows after the junk prune (20 rows, _bak_shop_settings_junk_prune_20260923), and the
+   prompt now holds FCFS, a measured alert outcome, two VIP rows, a day score and busiest/slowest-day patterns
+   instead of 'Nick AI has 30 learned memories'. kpi-snapshot is still 49h stale and WILL stay so until the
+   first hourly pass after 07:00 ET - that is the fix working, not failing. NEXT: auto_analysis and vip_detection
+   are still unkeyed writers (4 near-duplicate 'Busiest day' rows now sit in the prompt) - same identity fix as
+   #2529, one line each.
 4. Duplicate-key helper consolidation onto `server/lib/dbErrors.ts` (proposals.ts,
    shopDriverMirror.ts x2, promiseLedger.ts).
 5. Tighten the transfer-artifact write in `routes/webhooks/vapi.ts` (~:621) to

@@ -57,7 +57,14 @@ import {
   type InstrumentFailureView,
 } from "./instrument-failures";
 
-export type InstrumentStatus = "HEALTHY" | "UNDERPOWERED" | "STALE" | "NEVER_RAN" | "FAILING";
+/**
+ * UNKNOWN (2026-09-22, review on #2482): this row could not be READ - its
+ * liveness source rejected, the failure sample was truncated before it, or the
+ * shared denominator could not be counted. It is neither healthy nor failing;
+ * it is unread, and a monitoring failure that rendered as "no warning" is the
+ * exact false green this module exists to remove.
+ */
+export type InstrumentStatus = "HEALTHY" | "UNDERPOWERED" | "STALE" | "NEVER_RAN" | "FAILING" | "UNKNOWN";
 
 /**
  * Below this many writes in the window, a per-turn instrument cannot support a
@@ -96,6 +103,8 @@ export interface InstrumentLivenessInput {
    * instruments lying does not get to be vague about what it counted.
    */
   unit?: "writes" | "tools touched";
+  /** Set when the liveness read itself failed; the row is UNKNOWN, not zero. */
+  sourceError?: string;
 }
 
 function describeCount(n: number, unit: NonNullable<InstrumentLivenessInput["unit"]>): string {
@@ -103,9 +112,29 @@ function describeCount(n: number, unit: NonNullable<InstrumentLivenessInput["uni
   return `${n} write${n === 1 ? "" : "s"}`;
 }
 
+/**
+ * 2026-09-23 (review on #2482) · which turns an instrument could have written
+ * on. Every persisted assistant message used to be the denominator, but
+ * fast-path confirmations, image results and scheduled follow-ups never enter
+ * tool routing, so tool.surfaced read STALE in a window they dominated.
+ * `fallback` is true when the path's own counter had no rows to read and the
+ * shared assistant-turn count stood in - said out loud, never silent.
+ */
+export interface InstrumentDenominator {
+  name: "assistant turns" | "tool-routing turns";
+  count: number;
+  fallback: boolean;
+}
+
+/** Instruments that fire only on turns that entered tool routing. */
+export const TOOL_ROUTING_INSTRUMENTS: ReadonlySet<string> = new Set(["tool.surfaced", "tool.chosen"]);
+const TOOL_ROUTING_COUNTER = "tool_selection_turn";
+
 export interface InstrumentHealthRow {
   instrument: string;
   status: InstrumentStatus;
+  /** The turns this instrument could have written on, and where that count came from. */
+  denominator: InstrumentDenominator;
   /** One sentence an operator can act on. Never empty. */
   reason: string;
   lastWriteAt: string | null;
@@ -127,26 +156,38 @@ export interface InstrumentHealthView {
   attention: InstrumentHealthRow[];
   /** Carried from the failures view: when true every failure count is a floor. */
   failuresTruncated: boolean;
+  /** Reads that failed while building this view (failures sample, denominator). Empty when every read landed. */
+  sourceErrors: string[];
   caveat: string;
 }
 
 const STATUS_RANK: Record<InstrumentStatus, number> = {
   FAILING: 0,
-  NEVER_RAN: 1,
-  STALE: 2,
-  UNDERPOWERED: 3,
-  HEALTHY: 4,
+  UNKNOWN: 1,
+  NEVER_RAN: 2,
+  STALE: 3,
+  UNDERPOWERED: 4,
+  HEALTHY: 5,
 };
+
+function describeError(e: unknown): string {
+  return (e instanceof Error ? e.message : String(e)).slice(0, 200);
+}
 
 /** Pure — the status rules, with no database and no clock but the one passed in. */
 export function assembleInstrumentHealth(
   inputs: ReadonlyArray<InstrumentLivenessInput>,
   failures: InstrumentFailureView,
-  assistantTurns: number,
+  assistantTurnsRead: number | null,
   windowHours: number,
   since: Date,
+  sourceErrors: readonly string[] = [],
 ): InstrumentHealthView {
   const failuresByName = new Map(failures.failing.map((f) => [f.instrument, f.failures]));
+  // A denominator that could not be counted is not zero turns: with it unknown,
+  // no written instrument can be called STALE, UNDERPOWERED or HEALTHY.
+  const denominatorKnown = assistantTurnsRead !== null;
+  const assistantTurns = assistantTurnsRead ?? 0;
 
   // 2026-09-22 · the deferred-turn heartbeat is the denominator the conditional
   // shadows never had. When it is among the inputs AND has ever written, its
@@ -158,20 +199,39 @@ export function assembleInstrumentHealth(
   // after it deploys), so every earlier verdict is unchanged in that case.
   const heartbeat = inputs.find((i) => i.instrument === DEFERRED_TURN_INSTRUMENT);
   const pathRuns = heartbeat && heartbeat.lastWriteAt !== null ? heartbeat.writesInWindow : null;
+  const routingCounter = inputs.find((i) => i.instrument === TOOL_ROUTING_COUNTER);
+  const routingRuns =
+    routingCounter && routingCounter.lastWriteAt !== null && !routingCounter.sourceError ? routingCounter.writesInWindow : null;
 
   const rows: InstrumentHealthRow[] = inputs.map((input) => {
     const failuresInWindow = failuresByName.get(input.instrument) ?? 0;
     const conditional = CONDITIONAL_INSTRUMENTS[input.instrument] ?? null;
-    const coverage = assistantTurns > 0 ? input.writesInWindow / assistantTurns : null;
+    const onToolPath = TOOL_ROUTING_INSTRUMENTS.has(input.instrument) && routingRuns !== null;
+    const denominator: InstrumentDenominator = onToolPath
+      ? { name: "tool-routing turns", count: routingRuns as number, fallback: false }
+      : { name: "assistant turns", count: assistantTurns, fallback: TOOL_ROUTING_INSTRUMENTS.has(input.instrument) };
+    const turnsLabel = onToolPath ? "tool-routing turns" : "turns";
+    const coverage = denominator.count > 0 ? input.writesInWindow / denominator.count : null;
     const pct = coverage === null ? "n/a" : `${(coverage * 100).toFixed(1)}%`;
     const unit = input.unit ?? "writes";
     const counted = describeCount(input.writesInWindow, unit);
 
     let status: InstrumentStatus;
     let reason: string;
-    if (failuresInWindow > 0) {
+    if (input.sourceError) {
+      status = "UNKNOWN";
+      reason = `liveness source unavailable: ${input.sourceError} — this row is unread, not healthy`;
+    } else if (failuresInWindow > 0) {
       status = "FAILING";
       reason = `${failuresInWindow} write failure${failuresInWindow === 1 ? "" : "s"} logged in ${windowHours}h — every count from this instrument is a floor`;
+    } else if (failures.truncated) {
+      // The sample hit its cap: an instrument absent from it may simply be
+      // older in the window than the newest `sampleCap` rows. Absent is not clean.
+      status = "UNKNOWN";
+      reason = `the failure sample hit its ${failures.sampleCap}-row cap and this instrument is not in it — its failures in ${windowHours}h may be uncounted`;
+    } else if (!denominatorKnown && input.lastWriteAt !== null) {
+      status = "UNKNOWN";
+      reason = "assistant-turn denominator unavailable — writes cannot be read as a rate or as staleness";
     } else if (input.lastWriteAt === null) {
       status = "NEVER_RAN";
       reason = `no row has ever been written — a wiring test, not a log reader, is what can find why${
@@ -190,9 +250,14 @@ export function assembleInstrumentHealth(
       // nothing on those turns is a reading of zero events, not a lapse.
       status = "UNDERPOWERED";
       reason = `0 writes while the deferred path ran on ${pathRuns} of ${assistantTurns} turns — ${conditional}; the condition did not occur, the writer is not dead (last wrote ${input.lastWriteAt.toISOString()})`;
-    } else if (input.writesInWindow === 0 && assistantTurns > 0) {
+    } else if (onToolPath && input.writesInWindow === 0 && denominator.count === 0 && assistantTurns > 0) {
+      // The path's own counter says tool routing ran on no turn in this window:
+      // there was nothing for the instrument to write on. Not dead, not stale.
+      status = "UNDERPOWERED";
+      reason = `0 writes while tool routing ran on 0 of ${assistantTurns} assistant turns in this window — the path did not run, the writer is not dead (last wrote ${input.lastWriteAt.toISOString()})`;
+    } else if (input.writesInWindow === 0 && denominator.count > 0) {
       status = "STALE";
-      reason = `0 writes across ${assistantTurns} assistant turns; last wrote ${input.lastWriteAt.toISOString()}${
+      reason = `0 writes across ${denominator.count} ${onToolPath ? "tool-routing turns" : "assistant turns"}; last wrote ${input.lastWriteAt.toISOString()}${
         conditional
           ? pathRuns === 0
             ? " — and the deferred path wrote no heartbeat in this window either, so the whole path did not run"
@@ -201,17 +266,18 @@ export function assembleInstrumentHealth(
       }`;
     } else if (input.writesInWindow < MIN_POWERED_N) {
       status = "UNDERPOWERED";
-      reason = `${counted} across ${assistantTurns} turns (${pct}) — below n=${MIN_POWERED_N}, cannot support a rate${
+      reason = `${counted} across ${denominator.count} ${turnsLabel} (${pct}) — below n=${MIN_POWERED_N}, cannot support a rate${
         conditional ? `; ${conditional}, so this is a rare phenomenon, not a dead writer` : ""
       }`;
     } else {
       status = "HEALTHY";
-      reason = `${counted} across ${assistantTurns} turns (${pct}), no failures logged`;
+      reason = `${counted} across ${denominator.count} ${turnsLabel} (${pct}), no failures logged`;
     }
 
     return {
       instrument: input.instrument,
       status,
+      denominator,
       reason,
       lastWriteAt: input.lastWriteAt ? input.lastWriteAt.toISOString() : null,
       writesInWindow: input.writesInWindow,
@@ -232,6 +298,7 @@ export function assembleInstrumentHealth(
     rows,
     attention,
     failuresTruncated: failures.truncated,
+    sourceErrors: [...sourceErrors],
     caveat:
       "Status is derived from rows written, not from code existing. UNDERPOWERED means a " +
       "reading exists and cannot support a rate; for a conditional instrument that is " +
@@ -308,21 +375,49 @@ export async function buildInstrumentHealth(windowHours = 24): Promise<Instrumen
   // widens every element to the union type, and `failures` stops being an
   // InstrumentFailureView at the call below. A typed 2-tuple plus a
   // homogeneous map is the same round-trips and stays typed.
+  // 2026-09-22 (review on #2482) · EVERY read degrades on its own. One rejected
+  // source used to reject the whole view, and the panel rendered "no data" as no
+  // warning - a monitoring failure disguised as calm. A failed read is now an
+  // UNKNOWN row (or an UNKNOWN denominator) that says which read failed.
+  const sourceErrors: string[] = [];
   const [failures, assistantTurns] = await Promise.all([
-    buildInstrumentFailures(windowHours),
-    prisma.chatMessage.count({ where: { role: "assistant", createdAt: { gte: since } } }),
+    buildInstrumentFailures(windowHours).catch((e: unknown): InstrumentFailureView => {
+      sourceErrors.push(`failures: ${describeError(e)}`);
+      return {
+        windowHours,
+        since: since.toISOString(),
+        totalFailures: 0,
+        failing: [],
+        instrumentsWithNoFailures: [],
+        truncated: true, // nothing was read, so every count is a floor of zero
+        sampleCap: 0,
+        caveat: "the failure reader itself failed; no failure count here is a reading",
+      };
+    }),
+    prisma.chatMessage.count({ where: { role: "assistant", createdAt: { gte: since } } }).catch((e: unknown) => {
+      sourceErrors.push(`assistant turns: ${describeError(e)}`);
+      return null;
+    }),
   ]);
   const inputs = await Promise.all(
     KNOWN_INSTRUMENTS.map((name): Promise<InstrumentLivenessInput> => {
-      if (SYSTEM_METRIC_INSTRUMENTS.has(name)) return systemMetricLiveness(name, since);
-      if (name === "tool_selection_turn") return toolSelectionTurnLiveness(since);
-      if (name === "tool_invocation") return toolInvocationLiveness(since);
-      // A registered instrument with no liveness source is itself a finding.
-      // It reports as NEVER_RAN with a reason naming the gap, rather than
-      // vanishing from the view — vanishing is how instruments become alibis.
-      return Promise.resolve({ instrument: name, lastWriteAt: null, writesInWindow: 0 });
+      const read = (): Promise<InstrumentLivenessInput> => {
+        if (SYSTEM_METRIC_INSTRUMENTS.has(name)) return systemMetricLiveness(name, since);
+        if (name === "tool_selection_turn") return toolSelectionTurnLiveness(since);
+        if (name === "tool_invocation") return toolInvocationLiveness(since);
+        // A registered instrument with no liveness source is itself a finding.
+        // It reports as NEVER_RAN with a reason naming the gap, rather than
+        // vanishing from the view — vanishing is how instruments become alibis.
+        return Promise.resolve({ instrument: name, lastWriteAt: null, writesInWindow: 0 });
+      };
+      return read().catch((e: unknown) => ({
+        instrument: name,
+        lastWriteAt: null,
+        writesInWindow: 0,
+        sourceError: describeError(e),
+      }));
     }),
   );
 
-  return assembleInstrumentHealth(inputs, failures, assistantTurns, windowHours, since);
+  return assembleInstrumentHealth(inputs, failures, assistantTurns, windowHours, since, sourceErrors);
 }

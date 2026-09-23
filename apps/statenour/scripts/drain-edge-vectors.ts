@@ -32,6 +32,19 @@ import { PrismaClient } from "@prisma/client";
 const APPLY = process.argv.includes("--apply");
 const batchArg = process.argv.find((a) => a.startsWith("--batch="));
 const BATCH = Math.max(100, Math.min(20_000, Number(batchArg?.slice("--batch=".length) ?? 5000) || 5000));
+// 2026-09-23 · an --apply run backs up first. Every row the predicate would
+// delete is copied into a backup table (house pattern: _bak_<table>_<op>_<yyyymmdd>)
+// and the delete refuses to start unless the backup holds exactly the pre-count.
+// The copy is the restore route: INSERT ... SELECT it back. Derived, regenerable
+// data still gets one; "regenerable" has been wrong before.
+const backupArg = process.argv.find((a) => a.startsWith("--backup-table="));
+const BACKUP_TABLE = backupArg
+  ? backupArg.slice("--backup-table=".length)
+  : `_bak_vector_embeddings_edge_drain_${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`;
+if (!/^[a-z_][a-z0-9_]{0,62}$/.test(BACKUP_TABLE)) {
+  console.error(`refusing: backup table name must match ^[a-z_][a-z0-9_]{0,62}$ (got ${JSON.stringify(BACKUP_TABLE)})`);
+  process.exit(1);
+}
 
 const EDGE_VECTOR_MATCH = `FROM vector_embeddings ve
    JOIN brain_memories bm ON bm.id = ve."sourceId"
@@ -67,6 +80,27 @@ async function main(): Promise<void> {
     }
 
     // ── APPLY · only reachable with --apply ────────────────────────────────
+    // Backup before the first delete; abort on any count mismatch.
+    const [existing] = await prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
+      `SELECT count(*)::bigint AS n FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = $1`,
+      BACKUP_TABLE,
+    );
+    if (Number(existing?.n ?? 0) > 0) {
+      console.error(`refusing: backup table ${BACKUP_TABLE} already exists - pick another --backup-table= or drop the old one first (operator)`);
+      process.exitCode = 1;
+      return;
+    }
+    await prisma.$executeRawUnsafe(`CREATE TABLE ${BACKUP_TABLE} AS SELECT ve.* ${EDGE_VECTOR_MATCH}`);
+    const [backed] = await prisma.$queryRawUnsafe<Array<{ n: bigint }>>(`SELECT count(*)::bigint AS n FROM ${BACKUP_TABLE}`);
+    const backedUp = Number(backed?.n ?? 0);
+    console.log(`backup: ${BACKUP_TABLE} holds ${backedUp} rows (pre-count ${edgeVectors})`);
+    if (backedUp !== edgeVectors) {
+      console.error(`refusing to delete: backup count ${backedUp} != pre-count ${edgeVectors} (rows moved under us; re-run)`);
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`restore route: INSERT INTO vector_embeddings SELECT * FROM ${BACKUP_TABLE}; then DROP TABLE ${BACKUP_TABLE} once the change is confirmed good (operator)`);
+
     let deleted = 0;
     for (let batch = 1; ; batch++) {
       const n = await prisma.$executeRawUnsafe(

@@ -1396,11 +1396,17 @@ function buildTiers(): void {
             const data = await res.json();
             const brain = data?.data || data;
             const { remember } = await import("../services/nickMemory");
+            // Empty text and statements about Nick's own memory store are not
+            // remembered: "[statenour] Nick AI has 30 learned memories" was
+            // re-pulled every pass into 4,904 uses (2026-09-22).
+            const { pulledMemoryText } = await import("../services/memoryWriterGuards");
             let imported = 0;
 
             // Pull insights (brain analysis, reflections, predictions)
             for (const insight of (brain.recentInsights || []).slice(0, 5)) {
-              await remember({ type: "insight", content: `[statenour] ${insight.title || insight.content || ""}`.slice(0, 500), source: "statenour_pull", confidence: 0.8 });
+              const content = pulledMemoryText("[statenour]", insight.title || insight.content);
+              if (!content) continue;
+              await remember({ type: "insight", content, source: "statenour_pull", confidence: 0.8 });
               imported++;
             }
 
@@ -1430,7 +1436,9 @@ function buildTiers(): void {
 
             // Pull commitments (things Nour committed to)
             for (const commit of (brain.commitments || []).slice(0, 2)) {
-              await remember({ type: "preference", content: `[statenour-commitment] ${commit.text || commit.title || ""} — deadline: ${commit.deadline || "none"}, status: ${commit.status || "active"}`.slice(0, 500), source: "statenour_commitments", confidence: 0.9 });
+              const content = pulledMemoryText("[statenour-commitment]", commit.text || commit.title, ` — deadline: ${commit.deadline || "none"}, status: ${commit.status || "active"}`);
+              if (!content) continue;
+              await remember({ type: "preference", content, source: "statenour_commitments", confidence: 0.9 });
               imported++;
             }
 
