@@ -7,6 +7,35 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Customer-corpus wave (2026-09-23): what changed in live behaviour
+
+Deployed: production served `958b89ef7` from 13:08Z (deployment `df4dcfe7`), which carries every PR
+below. The operator tapped **Push Latest Config** and **Push Follow-Up Assistant** at 13:12Z; the
+Railway log shows `Updated Vapi assistant` (receptionist `150fe622…`) and `Updated Vapi follow-up
+assistant` (`0daaf7dc…`), twice each, and no refusal. Grounded in the first production census
+(#2576, `docs/operations/CUSTOMER-CORPUS-RESEARCH-2026-09-23.md` Part M).
+
+| Contract | Where | PR |
+|---|---|---|
+| Every callback the receptionist promises goes through `escalate` (callback row + Promise Ledger); Push Latest Config refuses to push when it cannot read the live assistant | `services/vapi.ts`, `routers/voiceAgent.ts` | #2559 |
+| The stale-callback cron leaves an unworked callback `new`: no fake `no-answer`, no `calledAt`, one alert per row | `cron/jobs/crudAutomation.ts` | #2569 |
+| PUSH FOLLOW-UP ASSISTANT button; both pushes log their result | `routers/vapi.ts`, `VapiPanel.tsx` | #2571, #2575 |
+| The no-show sweep uses the Eastern date | `services/expectedArrivals.ts` | #2575 |
+| The after-hours web-form text gives the real opening time (`{nextOpen}`) and promises no callback | `services/smsMessageCatalog.ts` | #2579 |
+| The assistant no longer promises "we'll text when it's ready" on a drop-off | `services/vapi.ts` | #2580 |
+| Vapi `transfer-update` is recorded (state `transfer_attempted`, destination kind only); the end-of-call `transferArtifact` carries `transferUpdateSeen`. Proves an attempt, never an answer | `routes/webhooks/vapi.ts`, `lib/transferArtifact.ts` | #2581 |
+| Today's action queue lists customers whose last text is unanswered (7 days, 15-min grace, no STOP/ack/short codes); an unreadable inbox vetoes "All clear". A reply by phone call is invisible to it | `services/owedTexts.ts`, `lib/owedTextsRule.ts`, `OverviewSection.tsx` | #2582 |
+| Today -> Arrival load shows the tire sizes phone callers asked about today (size + new/used, never name or phone), counted from the #2584 deploy on | `lib/tireDemand.ts`, `dispatch.phoneTireDemandToday` | #2584 |
+| The live unsubscribe rule no longer fires on "stop by/in/over/at/off" or "end of/up"; every other reply opening with an opt-out keyword still unsubscribes | `services/smsResponseParser.ts` | #2587 |
+| Campaign recent/lapsed audiences and the capacity estimate's "today's bookings" use the Eastern date (curdate baseline 105 sites / 30 files) | `routers/campaigns.ts`, `routers/conversion.ts` | #2587 |
+
+Operator decisions recorded the same day: `convertedToLead` means "reached a tool" (option C, behaviour
+kept); the AI voice-recovery lane stays on, and STOP stops both texts and calls.
+
+**Not yet observed in production:** a `transfer_attempted` row on a transferred call; the Texts filter
+against the SMS inbox; the "Asked by phone today" line after a tire call; the new drop-off wording on
+a live call.
+
 ## Careers job pages, and the cloaking incident that produced them (2026-09-10)
 
 **`/careers/<slug>` leaf pages are LIVE and correct.** Three of them - automotive-technician,

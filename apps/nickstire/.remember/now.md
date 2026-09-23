@@ -1,6 +1,34 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-23 (midday)** (driver-error recognisers + suite-wide import guard: first entry below. Previous header, 2026-09-22 (late): four fixes from one cron census: voice-recovery never connected (#2497), self-healing hollowing out Nick's memory (#2500), weather-intel invisible to the skip watchdog (#2502), transfer verdicts on calls that never transferred (#2503). Earlier today: #2479, #2488, #2490, #2491, #2492, #2494 MERGED. Prior header preserved below.)
+**Updated: 2026-09-23 13:20Z** (customer-corpus wave: #2569 #2571 #2575 #2579 #2580 #2581 #2582 #2584 #2587 merged and deployed on `958b89ef7`; config pushed 13:12Z. Prior header preserved below.)
+
+## 2026-09-23 · Customer-corpus wave — merged, deployed, config pushed
+
+**State.** Every PR merged; production `958b89ef7` (deployment `df4dcfe7`). Push Latest Config and
+Push Follow-Up Assistant tapped 13:12Z, both logged `Updated`. Contracts: `docs/CURRENT-TRUTH.md`
+"Customer-corpus wave". Research and ranked findings: `docs/operations/CUSTOMER-CORPUS-RESEARCH-2026-09-23.md`
+Part M (census), Part C (defects), Part I (work order), Part L (CURDATE ranks).
+
+**Owed to the operator (not code):** one transferred test call (proves `transfer_attempted` +
+`transferUpdateSeen`); compare Today's Texts filter with the SMS inbox; check "Asked by phone today"
+after a tire call; add `RAILWAY_TOKEN` to the cloud environment (the cloud container has no Railway
+auth and runs Node 22, not 24; `scripts/cloud-setup.sh` reports both).
+
+**Next, in order:**
+1. Re-run the census over 07-23 -> 09-22 (`railway run -s MAINnicks-tire-auto -- pnpm diag:customer-corpus`):
+   June has no transcripts, and the promise counter changed (#2580).
+2. Copy `toolDemand` to `vapi_call_logs` at end of call so the census can read tire demand (#2584 stores it
+   on the state trail only).
+3. Research doc Part C #40 (legacy Twilio "we'll call you first thing") and #41 (special-order templates).
+4. The index SQL opt-out lists (`sms.ts:207`, `lib/sms-eligibility.ts:57`) still exact-match: "Stop." is
+   caught live by the parser, not by the index.
+
+**Traps met this wave:** the knip orphan gate fails an export only a test imports (move the pure rule to a
+lib the service imports); `proc-census.json` must be regenerated (`PROC_CENSUS_WRITE=1`) when a tRPC
+procedure is added; one pushable branch means one open PR at a time, so hold local commits until the
+open PR merges.
+
+**Updated: 2026-09-22 (late)** (four fixes from one cron census: voice-recovery never connected (#2497), self-healing hollowing out Nick's memory (#2500), weather-intel invisible to the skip watchdog (#2502), transfer verdicts on calls that never transferred (#2503). Earlier today: #2479, #2488, #2490, #2491, #2492, #2494 MERGED. Prior header preserved below.)
 missed-revenue queue was measuring Nick's own greeting. Full audit, graded evidence and the
 pre-"Reset to Shop" checklist: `docs/VOICE-RECOVERY-AUDIT-2026-09-18.md`.)
 

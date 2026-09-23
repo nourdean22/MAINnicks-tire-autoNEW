@@ -305,10 +305,11 @@ async function chatPostInner(req: Request) {
   // exactly as before. The three pure intent regexes now evaluate
   // BEFORE the budget gate below (they ran after it inline) — zero
   // side effects, zero I/O, so ordering is unobservable.
-  const { deriveTurnSignals } = await import("./derive-turn-signals");
+  const { deriveTurnSignals, takeClassificationIfLanded } = await import("./derive-turn-signals");
   const {
     aiConfig,
     classification,
+    classificationPromise,
     mode,
     taskTypeForMode,
     queryShape,
@@ -1013,7 +1014,9 @@ ${priorsBlock}`;
       traceId: __traceId,
       modeOverride,
       personality,
-      classification,
+      // Undefined on a fixed-mode turn that did not wait for the classifier:
+      // take it if it has landed, never wait for it (derive-turn-signals.ts).
+      classification: classification ?? (await takeClassificationIfLanded(classificationPromise)),
       recalledHits,
       detectedContradictions,
       deeperContextCount,
@@ -1253,7 +1256,7 @@ ${priorsBlock}`;
     deeperContextCount,
     deeperContextTypes,
     contextBlocksFired,
-    classification,
+    classification: classification ?? (await takeClassificationIfLanded(classificationPromise)),
     recalledMemories: recalledHits,
     recallProvenance,
     recallProvenanceReason,
