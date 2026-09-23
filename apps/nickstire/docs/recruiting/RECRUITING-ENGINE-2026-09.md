@@ -161,3 +161,53 @@ Self-hosted ATS/CRM (OpenCATS/Twenty/Espo/Odoo/Frappe: duplicates the existing c
 
 ## Sources (primary unless noted)
 Google JobPosting docs (updated 2026-09-08) developers.google.com/search/docs/appearance/structured-data/job-posting | Indexing API quota developers.google.com/search/apis/indexing-api/v3/quota-pricing | Indeed single-source feed policy (2026-03-31) indeed.com/help/employers/articles/single-source-feed-policy-effective-march-31-2026 | HR Dive on Indeed crawl hrdive.com/news/visibility-ends-for-certain-free-single-source-xml-feeds-on-indeed/816209/ | Indeed pricing (2026-08-19) indeed.com/hire/resources/howtohub/how-pricing-works-on-indeed | Google Ads employment policy support.google.com/adspolicy/answer/9997418 | TikTok SAC ads.tiktok.com/help/article/list-of-targeting-restrictions-for-special-ad-categories | Tri-C employer jobs tri-c.edu/programs/automotive-technology/employer-job-openings.html | Tri-C Handshake tri-c.edu/career-services/employer-services/handshake.html | ASE acquires WrenchWay prnewswire.com (2026-06-30) | ASE Connects shops aseconnects.com/solutions/shops/ | Enterprise Euclid enterprisemobility.com/en/careers/job.html/522500 [S] | GCRTA riderta.com/events/2026/3/13/mechanics-hiring-event | USPS about.usps.com/newsroom/local-releases/oh/2025/0623 | BLS OEWS Cleveland | WrenchWay/ASE 2026 Voice of Technician via autobodynews (2026-03-10) [S] | TechForce supply/demand (May 2026) techforce.org/supplydemand | Ohio min wage com.ohio.gov | Encino Motorcars law.cornell.edu/supremecourt/text/16-1362 | DOL FS#20 | 29 CFR 531.35 | Cleveland pay transparency (Jackson Lewis) | ORC 2953.25 (CQE) | bonds4jobs.com | SkillBridge skillbridge.mil | TechCred development.ohio.gov/techcred | ApprenticeOhio | Greater Cleveland Works greaterclevelandworks.org/for-employers | FTC 16 CFR 255 | Cal.com closed-source cal.com/blog/cal-com-goes-closed-source-why | Resend inbound resend.com/docs/dashboard/receiving/introduction | Turnstile developers.cloudflare.com/turnstile | iCIMS referral retention [vendor] | SCCA NEOHIO neohioscca.com | Cars & Coffee Cleveland carsandcoffeecleveland.net.
+
+---
+
+## 15. Merge with the operator's second research pass (2026-09-23)
+
+A second plan was pasted mid-build. Each factual claim was checked before adoption; the ideas that survived are folded in here. The framing it contributed is kept as the positioning rule:
+
+> **High autonomy + high standards + low bureaucracy + plentiful straightforward work.** Never advertise "easy" or "less strict" - those read as low standards to an elite tech. Say "mostly profitable bread-and-butter work, less time fighting the system", and pair every freedom with a standard (torque spec, clean diagnosis, no hidden comebacks, clean bay).
+
+### Claims verified / not verified
+
+| Claim | Verdict | Source |
+|---|---|---|
+| ASE Education Foundation DOL registered-apprenticeship grant pays sponsors **$3,500 per apprentice** ($2,500 at 90 days + $1,000 at 9 months); shops without a program can get help building one | **[V]** - biggest item the first report missed | aseeducationfoundation.org/apprenticeship ; repairerdrivennews.com 2026-09-01 |
+| Tri-C Automotive open house **Sat Oct 3, 2026**, 9-11am, Western Campus (Parma) | **[V]** | events.tri-c.edu/event/automotive-technology-open-house-western-campus-2048 |
+| NE Ohio master techs are offered $40-50/hr | **[S] partly** - a Parma dealer posting "up to $45/hr" + $1,500 sign-on; ZipRecruiter national master-tech avg ~$37.54/hr. The locked $30.00-$37.50 matches Enterprise Euclid but sits **below the local top end for true masters**. | ziprecruiter.com (Parma listings, master-tech salary page) |
+| WrenchWay/ASE 2026: 41% prefer hourly/salary + production bonus; 38% don't want weekends | **[S]** not re-fetched; consistent in direction with the 2025 numbers in Sec. 2 | autobodynews (2026-03-10) |
+| /reviews page throws a dynamic-module error | **not reproduced** - the Googlebot view renders fully. A browser chunk-load error is plausible given Railway redeploys every few minutes; unconfirmed. | curl 2026-09-23 |
+
+### Adopted (and where it now lives)
+
+1. **Confidential lane** - "Already working somewhere? Talk privately first - no application." Built: hero link + form lane (`#talk`), owner alert marked CONFIDENTIAL / "contact discreetly".
+2. **Conversation is the conversion unit**, not the application. Built: five intents (apply / talk privately / see the shop / keep me in mind / apprentice), stored in `candidates.intent`.
+3. **"What would make you move?" self-selector** - proprietary market intelligence. Built: `candidates.moveReasons` chips.
+4. **Talent Network / candidate liquidity.** Built: `talent_network` + `not_now` statuses and the `nextFollowUpAt` column. Target from the second pass, kept as the 90-day goal: ~150 known prospects -> ~15 warm -> ~4 A/master relationships -> ~3 apprentice prospects, at all times.
+5. **Finer lifecycle** for source economics. Built: 17 statuses in `shared/candidateLifecycle.ts`; the SLA alarm watches the pre-contact set; `contactedAt` keeps the first stamp.
+6. **Referral connector network** (tool-truck reps, parts reps, tow drivers, instructors, former employees). Built: admin link + QR generator (`/careers?ref=<code>`), `candidates.refCode`, by-source rollup.
+7. **Instant alerts.** Built, per the operator's instruction: text to the operator's own mobile from the store line + owner email + applicant acknowledgement email.
+8. **Apprentice farm system** (Level 0 helper -> tires/TPMS -> brakes -> alignment -> electrical/diag -> B -> A/diagnostic, each with checklist, mentor, raise trigger, ASE target). Owner/field work: enrol as a registered-apprenticeship sponsor via the ASE grant (Sec. 4 table) to collect the $3,500 per apprentice.
+9. **After-hours private shop tour** and **quarterly "Wrench Night"** (diagnostic challenge, tool demos, pizza, discreet "talk privately" QR). Both **[H]** - run once, measure conversations per event, keep only if at least one qualified conversation results.
+10. **Earnings calculator** built from Nick's real pay plan (40/45/50/55 productive hours -> $), later backed by the anonymized weekly production distribution. Same rule as Sec. 6: publish distributions only after reconciliation.
+
+### Not adopted, with reasons
+
+- **Docling resume parsing** - a Python service beside a Node stack, for 5-20 hires a year that the owner reads personally. Resume upload itself stays a P1 option (S3 + type/size check), no parser.
+- **Activepieces / n8n** - the existing cron + sendNotification + sendSms already cover every flow built here.
+- **"You are not working seven days because we're open seven days"** - strong line, but it is a schedule promise; publish only once the owner states the real tech schedule.
+- **`/careers/workload` page** - same condition as Sec. 6; the invoice mirror (104-143 paid invoices/month) does not yet support "busiest shop".
+- **Outbound resume databases (Indeed Smart Sourcing, ZipRecruiter, OhioMeansJobs)** - adopted as a *process* (one hour each morning, ten plausible profiles, log each contact) rather than code; OhioMeansJobs resume search is free, the others are paid.
+
+## 16. What shipped in code (PR #2557)
+
+- JobPosting carries `baseSalary` (auto tech $30.00-$37.50/hr, tire/hybrid $22.00-$25.50/hr, service advisor blank until the owner sets it), HTML description with requirements + hours, `experienceRequirements`, a PNG logo. Visible pay above the fold; a drift test pins route meta to the same numbers.
+- Unknown or closed `/careers/<slug>` answers a real 404 (was a soft 200).
+- Indeed crawler tokens (`indeedjobbot`, `indeedbot`) get prerendered HTML. Confirm they appear in Railway http logs; delete any that never fire.
+- Candidate intake: owner text (store line -> operator mobile, internal class), owner email, applicant ack email; kill switches `CANDIDATE_OWNER_ALERT` / `CANDIDATE_OWNER_SMS` / `CANDIDATE_ACK_EMAIL` = off.
+- Five intents, move-reason chips, honeypot, E.164 repeat-applicant detection, gclid/utm_term/utm_content capture, referral codes, 17-status lifecycle, admin rollup + QR generator.
+- `drizzle/0129` (hand-applied, nullable) with a pre-0129 fallback so nothing breaks before it is applied.
+
+**Owner steps after merge:** apply 0129 - run the prerender refresh workflow - ping the Indexing API for the 3 job URLs - decide the service-advisor range and the real tech schedule - register for the Tri-C Oct 3 open house and the ASE apprenticeship program.
