@@ -1298,12 +1298,10 @@ const UTILITY_PAGES: RouteEntry[] = [
     title: "Mechanic Pay Calculator: Flat Rate vs Hourly | Nick's Tire & Auto",
     description: "Compare flat-rate and hourly mechanic pay with your own numbers: flag rate, flagged hours, guarantee, overtime. Weekly and yearly pay, plus break-even flag hours.",
     group: "utility",
-    // sitemap:false UNTIL the first prerender refresh has written
-    // prerendered/mechanic-pay-calculator/index.html. prerender:check fails a
-    // sitemap route with no artifact (crawlers would get the empty shell), and
-    // a local regen would boot the server against the production DB. Flip to
-    // true in the PR that commits the artifact.
-    sitemap: false,
+    // In the sitemap since the 2026-09-23 prerender refresh (79983f9) wrote
+    // prerendered/mechanic-pay-calculator/index.html — prerender:check fails a
+    // sitemap route with no artifact.
+    sitemap: true,
     prerender: true,
   },
   {
