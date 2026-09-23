@@ -95,6 +95,21 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-09-23 — the first production census, and what it moved
+
+The census (#2576) read three months of calls and texts as customer episodes. What it found, and what
+shipped the same day, is in `docs/CURRENT-TRUTH.md` ("Customer-corpus wave") and the research doc Part M.
+The short version for anyone quoting production:
+
+- **Transfers:** 946 attempts, a provider verdict on only 103. `transfer-update` is now recorded (#2581);
+  a connect rate still needs the provider's status and stays a floor.
+- **Promises:** 0 of 108 assistant promises were followed by a person. The untracked ones are gone from
+  the scripts (#2559, #2580, #2579); the census counter was corrected for in-call texts and drop-off
+  conditions, so re-run it before quoting the old number.
+- **Texts:** 55 of 104 text episodes ended unanswered. They now sit on Today's action queue (#2582).
+- **Opt-out:** "Stop by around 3?" used to unsubscribe the customer from everything. Fixed (#2587).
+- **Pushed live 13:12Z:** receptionist and follow-up assistant, both logged `Updated`, no refusal.
+
 ## 2026-09-16 — "we could not check the opt-out list" had been reading as "nobody opted out"
 
 Shipped as #2361 (`34d53af5c`), #2363 (`e94ab8998`) and #2371 (`46e3194f4`);
