@@ -227,7 +227,7 @@ export async function runReelCommentResponder(): Promise<{ recordsProcessed: num
     .select()
     .from(reelJobs)
     .where(and(eq(reelJobs.status, "posted"), isNotNull(reelJobs.igPostId)))
-    .orderBy(desc(reelJobs.id))
+    .orderBy(desc(reelJobs.createdAt), desc(reelJobs.id))
     .limit(RECENT_REELS);
 
   if (posted.length === 0) return { recordsProcessed: 0, details: "no recently-posted reels to scan" };
