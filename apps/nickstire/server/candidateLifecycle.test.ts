@@ -16,7 +16,11 @@ import {
   referralLinkFor,
   slugifyRefCode,
 } from "../shared/candidateLifecycle";
-import { isUnknownColumnError } from "./db";
+import { buildPre0129CandidateInsert, CANDIDATE_0129_COLUMNS, isUnknownColumnError } from "./db";
+import { MySqlDialect } from "drizzle-orm/mysql-core";
+import { drizzle } from "drizzle-orm/mysql2";
+import { getTableConfig } from "drizzle-orm/mysql-core";
+import { candidates } from "../drizzle/schema";
 
 describe("every value fits the columns it is written to", () => {
   it("status and intent values fit VARCHAR(32)", () => {
@@ -77,5 +81,34 @@ describe("isUnknownColumnError — the pre-0129 fallback trigger", () => {
     expect(isUnknownColumnError({ code: "ER_DUP_ENTRY" })).toBe(false);
     expect(isUnknownColumnError(new Error("connect ETIMEDOUT"))).toBe(false);
     expect(isUnknownColumnError(null)).toBe(false);
+  });
+});
+
+describe("the pre-0129 fallback insert names no 0129 column (production 500, 2026-09-23)", () => {
+  // Drizzle's MySQL insert lists EVERY schema column (`default` for unsupplied
+  // ones). The first fallback reused db.insert() and failed exactly like the
+  // original insert, so every careers application 500'd in production until
+  // 0129 was applied. This renders the REAL SQL the fallback sends.
+  const dialect = new MySqlDialect();
+  const q = dialect.sqlToQuery(
+    buildPre0129CandidateInsert({ name: "A", phone: "2165550100", source: "careers", intent: "confidential", phoneE164: "+12165550100" }),
+  );
+
+  it("contains none of the 0129 columns, even when the input object carries them", () => {
+    const cols = q.sql.slice(q.sql.indexOf("(") + 1, q.sql.indexOf(")"));
+    for (const c of CANDIDATE_0129_COLUMNS) expect(cols, c).not.toMatch(new RegExp(`\\b${c}\\b`));
+  });
+
+  it("every column it names exists in schema.ts and is not a 0129 addition", () => {
+    const schemaCols = new Set(getTableConfig(candidates).columns.map((c) => c.name));
+    const cols = q.sql.slice(q.sql.indexOf("(") + 1, q.sql.indexOf(")")).split(",").map((s) => s.trim());
+    for (const c of cols) expect(schemaCols.has(c), c).toBe(true);
+    expect(cols.length).toBe(13);
+    expect(q.params).toHaveLength(13);
+  });
+
+  it("positive control: drizzle's own insert DOES name 0129 columns — the reason the raw path exists", () => {
+    const drizzleSql = drizzle.mock().insert(candidates).values({ name: "A", phone: "1" }).toSQL().sql;
+    expect(drizzleSql).toMatch(/`intent`/);
   });
 });

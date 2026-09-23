@@ -236,6 +236,9 @@ function PositionCard({ pos }: { pos: Position }) {
 // privately", #tour on "see the shop", #stay on "keep me in mind". The hero's
 // confidential CTA uses #talk.
 const HASH_TO_INTENT: Record<string, CandidateIntent> = {
+  // #apply is the hero "Apply Now" target: it must RESET a lane chosen earlier
+  // (#talk then Apply Now used to submit as confidential — Codex on #2557).
+  "#apply": "apply",
   "#talk": "confidential",
   "#tour": "shop_tour",
   "#stay": "talent_network",

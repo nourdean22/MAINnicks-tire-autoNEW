@@ -27,6 +27,8 @@ const smsBody = () => String(sendSms.mock.calls[0]?.[1] ?? "");
 vi.mock("./email-notify", () => ({ sendNotification: (...a: unknown[]) => sendNotification(...a) }));
 vi.mock("./sms", () => ({ sendSms: (...a: unknown[]) => sendSms(...a) }));
 vi.mock("./db", () => ({ markCandidateOwnerAlerted: (...a: unknown[]) => markCandidateOwnerAlerted(...a) }));
+// ENV is built once at import; read CEO_EMAIL live so a test can set it.
+vi.mock("./_core/env", () => ({ ENV: { get ceoEmail() { return process.env.CEO_EMAIL ?? ""; } } }));
 
 import { runCandidateIntake, type IntakeCandidate } from "./services/candidateIntake";
 import { OPERATOR_MOBILE_LAST10 } from "./services/nonCustomerFilter";
@@ -48,7 +50,7 @@ const base: IntakeCandidate = {
   priorIds: [],
 };
 
-const ENV_KEYS = ["CANDIDATE_OWNER_ALERT", "CANDIDATE_OWNER_SMS", "CANDIDATE_ACK_EMAIL", "CANDIDATE_ALERT_PHONE"];
+const ENV_KEYS = ["CANDIDATE_OWNER_ALERT", "CANDIDATE_OWNER_SMS", "CANDIDATE_ACK_EMAIL", "CANDIDATE_ALERT_PHONE", "CEO_EMAIL"];
 const saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
@@ -110,6 +112,31 @@ describe("defaults (operator instruction 2026-09-23): email + text to the operat
   });
 });
 
+describe("confidential means owner-only (the form promises it)", () => {
+  // Codex review on #2557: high_value routes to the SHOP inbox too, so an
+  // employed tech's private inquiry reached a shared inbox.
+  it("a confidential lead's email goes to the CEO inbox alone", async () => {
+    process.env.CEO_EMAIL = "owner@example.com";
+    await runCandidateIntake({ ...base, intent: "confidential" });
+    const owner = notifies().find((n) => n.overrideTo?.[0] === "owner@example.com");
+    expect(owner?.body).toMatch(/CONFIDENTIAL/);
+    // every owner-alert email for this lead is addressed, none uses default routing
+    expect(notifies().filter((n) => !n.overrideTo)).toHaveLength(0);
+  });
+
+  it("no CEO address configured -> no confidential email at all, but the owner text still fires", async () => {
+    await runCandidateIntake({ ...base, intent: "confidential", email: null });
+    expect(sendNotification).not.toHaveBeenCalled();
+    expect(sendSms).toHaveBeenCalledTimes(1);
+  });
+
+  it("a normal application still uses shop + CEO routing", async () => {
+    process.env.CEO_EMAIL = "owner@example.com";
+    await runCandidateIntake(base);
+    expect(ownerEmail()?.category).toBe("high_value");
+  });
+});
+
 describe("each send has its own kill switch", () => {
   it("CANDIDATE_OWNER_ALERT=off stops only the owner email", async () => {
     process.env.CANDIDATE_OWNER_ALERT = "off";
@@ -161,9 +188,11 @@ describe("a failed send never throws out of intake (the application is already s
 
 describe("message content", () => {
   it("a confidential lead is flagged to contact discreetly in both the email and the text", async () => {
+    process.env.CEO_EMAIL = "owner@example.com";
     await runCandidateIntake({ ...base, intent: "confidential", moveReasons: "no_flat_rate,schedule" });
-    expect(ownerEmail()?.body).toMatch(/CONFIDENTIAL/);
-    expect(ownerEmail()?.body).toMatch(/Would move for: Off flat rate, Better schedule/);
+    const owner = notifies().find((n) => n.overrideTo?.[0] === "owner@example.com");
+    expect(owner?.body).toMatch(/CONFIDENTIAL/);
+    expect(owner?.body).toMatch(/Would move for: Off flat rate, Better schedule/);
     expect(smsBody()).toMatch(/discreetly/);
   });
 

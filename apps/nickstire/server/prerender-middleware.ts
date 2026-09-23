@@ -14,6 +14,7 @@ import fs from "fs";
 import path from "path";
 
 import { createLogger } from "./lib/logger";
+import { careersLeafVerdict } from "./_core/spaFallback";
 
 const log = createLogger("prerender-middleware");
 // Bot User-Agent patterns (case-insensitive matching)
@@ -149,6 +150,12 @@ export function createPrerenderMiddleware(prerenderedDir: string) {
     ) {
       return next();
     }
+
+    // A closed or unknown job leaf must NOT be served its stale artifact: the
+    // file for a filled role still carries a live JobPosting. Fall through so
+    // the SPA fallback answers 404 (Google's removal signal for an expired
+    // posting). Codex review on #2557.
+    if (careersLeafVerdict(urlPath) === false) return next();
 
     // Look for prerendered HTML
     let htmlPath: string;

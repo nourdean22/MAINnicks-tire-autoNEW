@@ -86,7 +86,7 @@ const CAREERS_PREFIX = "/careers/";
  * expired posting is a 404/410 (or dropping the markup). Checked BEFORE the
  * registry, since a closed role's route entry may still be registered.
  */
-function careersLeafVerdict(pathname: string): boolean | null {
+export function careersLeafVerdict(pathname: string): boolean | null {
   if (!pathname.startsWith(CAREERS_PREFIX)) return null;
   const slug = pathname.slice(CAREERS_PREFIX.length);
   if (slug.length === 0 || slug.includes("/")) return null;
