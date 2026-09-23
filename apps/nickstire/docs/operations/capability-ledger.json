@@ -2212,8 +2212,8 @@
       },
       "blockers": [
         {
-          "severity": "P2",
-          "description": "LIVE AND ARMED as of 2026-09-23: the flag is ON, the key is set and authenticating, and heavy_rain was satisfied at the time of the check. The next briefings pass that finds a trigger satisfied will text up to 10 lapsed customers with no further gate. Bounded: 10 per trigger event, 30-day per-customer cooldown per trigger, opt-out appended. The kill path if it is ever wrong is the flag, not the key: set weather_triggered_sms to 0 via scripts/maintenance/set-feature-flag.mjs."
+          "severity": "P1",
+          "description": "ARMED AND UNVERIFIED — the highest open item on this row. As of 2026-09-23 the flag is ON, OPENWEATHER_API_KEY authenticates, and heavy_rain was SATISFIED at the time of the check, so the next briefings pass that finds a trigger met will text up to 10 lapsed customers with no further gate and no human in the loop. NO SEND HAS EVER BEEN OBSERVED (sms_messages holds zero weather_ rows), which is why operationalState stays 'unverified' and exposure is 'internal' rather than 'limited_autonomy' - the validator requires live_verified for autonomous exposure, and claiming it here would be the DEPLOYED-is-not-LIVE_OBSERVED conflation. Exposure was 'disabled' until this change; that was accurate only while the key was absent. Bounded: 10 per trigger event, 30-day per-customer cooldown per trigger, opt-out appended. KILL PATH IS THE FLAG, NOT THE KEY: scripts/maintenance/set-feature-flag.mjs --key weather_triggered_sms --value 0 --execute. PROMOTES ON: the first observed send - then operationalState goes live_verified (liveRuns) and exposure limited_autonomy, and this blocker resolves."
         },
         {
           "severity": "P3",
@@ -2224,7 +2224,7 @@
       "lastVerifiedAt": "2026-09-23",
       "codeState": "merged",
       "operationalState": "unverified",
-      "exposure": "disabled"
+      "exposure": "internal"
     },
     {
       "capabilityId": "mms-photo-assess",
