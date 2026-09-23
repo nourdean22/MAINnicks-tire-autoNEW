@@ -40,10 +40,29 @@ jobs:
         with:
           fetch-depth: 0
 
+      # 2026-09-23 · git, not the API. With a token, paths-filter lists a PR's files
+      # through the GitHub API; when the repo's token budget ran out ("403 API rate
+      # limit exceeded for installation") this job failed and `node` was SKIPPED, so
+      # no PR could show a test result. `token: ''` makes v4 diff with git instead
+      # (src/main.ts: no token -> git.getChanges(base, HEAD)). A PR is checked out as
+      # its merge commit; its first parent is the base branch tip it was merged onto,
+      # so HEAD^1..HEAD is exactly the PR's change (the default base, the payload's
+      # base.sha, can lag main and would sweep in main's newer files). Fail loudly if
+      # HEAD is not a merge commit rather than diff against the wrong parent.
+      - name: Resolve PR base (merge commit's first parent)
+        id: prbase
+        if: github.event_name == 'pull_request'
+        run: |
+          git rev-parse --verify -q HEAD^2 >/dev/null || { echo "::error::expected the PR merge commit at HEAD"; exit 1; }
+          echo "sha=$(git rev-parse HEAD^1)" >> "$GITHUB_OUTPUT"
+
       - name: Detect changed paths
         id: filter
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         with:
+          token: ''
+          base: ${{ steps.prbase.outputs.sha }}
+          list-files: shell
           filters: |
             nickstire:
               - 'apps/nickstire/**'

@@ -12,6 +12,9 @@
  * reopen the exploit.
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { DrizzleQueryError } from "drizzle-orm";
 import {
   deriveExpectedPriceCents,
   evaluateOrderPrice,
@@ -179,14 +182,46 @@ describe("generateOrderNumber", () => {
   });
 });
 
+// placeOrder retries an order-number collision only if this recogniser fires.
+// drizzle-orm 0.45 throws a DrizzleQueryError whose message is the SQL and
+// params; the driver's ER_DUP_ENTRY sits on `.cause`. The old local copy
+// text-matched the top-level message, so a real collision never retried and
+// the customer's order failed (post-merge audit 2026-09-23, item H). The
+// errors below are the shape a real insert produces.
+const dupOrderNumber = () =>
+  Object.assign(new Error("Duplicate entry 'TO-20260610-123' for key 'tire_orders.tire_orders_orderNumber_unique'"), {
+    code: "ER_DUP_ENTRY",
+    errno: 1062,
+  });
+const wrapInsert = (cause: Error, params: unknown[] = ["TO-20260610-123", "Jane Doe", "+12165551234"]) =>
+  new DrizzleQueryError("insert into `tire_orders` (`orderNumber`, `customerName`, `customerPhone`) values (?, ?, ?)", params, cause);
+
 describe("isDuplicateKeyError", () => {
-  it("detects the MySQL duplicate-entry error", () => {
+  it("detects the drizzle-wrapped duplicate-entry error a real insert throws", () => {
+    const wrapped = wrapInsert(dupOrderNumber());
+    expect(wrapped.message).not.toContain("Duplicate entry"); // the wrapper hides the driver text
+    expect(isDuplicateKeyError(wrapped)).toBe(true);
+  });
+
+  it("still detects a bare driver error", () => {
+    expect(isDuplicateKeyError(dupOrderNumber())).toBe(true);
     expect(isDuplicateKeyError(new Error("Duplicate entry 'TO-20260610-123' for key 'tire_orders.tire_orders_orderNumber_unique'"))).toBe(true);
   });
 
-  it("ignores unrelated errors", () => {
+  it("ignores unrelated errors, including a wrapped one whose params mention a duplicate", () => {
     expect(isDuplicateKeyError(new Error("Connection lost"))).toBe(false);
     expect(isDuplicateKeyError("random string")).toBe(false);
+    const timeout = Object.assign(new Error("connect ETIMEDOUT"), { code: "ETIMEDOUT" });
+    expect(isDuplicateKeyError(wrapInsert(timeout, ["Duplicate entry", 1062]))).toBe(false);
+  });
+
+  it("placeOrder and the lot run-id allocator use the one shared definition (comment-stripped)", () => {
+    const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const guards = strip(readFileSync(resolve(__dirname, "lib/tire-order-guards.ts"), "utf8"));
+    expect(guards).not.toMatch(/function isDuplicateKeyError/);
+    expect(guards).not.toContain("Duplicate entry");
+    const lot = strip(readFileSync(resolve(__dirname, "routers/lot.ts"), "utf8"));
+    expect(lot).toMatch(/import \{[^}]*isDuplicateKeyError[^}]*\} from "\.\.\/lib\/dbErrors"/);
   });
 });
 
