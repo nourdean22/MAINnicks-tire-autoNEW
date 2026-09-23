@@ -80,8 +80,16 @@ describe("shutdown shortens, and only its own locks", () => {
 describe("the shutdown path actually calls it", () => {
   it("SIGTERM hands the locks back", () => {
     expect(CORE).toContain("relinquishHeldLocksForShutdown()");
-    const region = CORE.slice(CORE.indexOf('process.on("SIGTERM"'));
-    expect(region.slice(0, 2000)).toContain("relinquishHeldLocksForShutdown");
+    // Q-10 · the SIGTERM handler runs the stops declared in the
+    // createGracefulShutdown({...}) wiring; the handback must be one of them,
+    // and the handler must actually call that wiring.
+    const wiringAt = CORE.indexOf("createGracefulShutdown({");
+    expect(wiringAt).toBeGreaterThan(-1);
+    const wiring = CORE.slice(wiringAt, CORE.indexOf("sources: [", wiringAt));
+    expect(wiring).toContain("relinquishHeldLocksForShutdown");
+    const handler = CORE.slice(CORE.indexOf('process.on("SIGTERM"'));
+    expect(handler.slice(0, 200)).toContain("shutdownOnSigterm()");
+    expect(CORE).toContain("const shutdownOnSigterm = createGracefulShutdown({");
   });
 
   it("it is fire-and-forget — shutdown never waits on it", () => {
