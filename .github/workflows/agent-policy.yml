@@ -37,10 +37,32 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0 # live-gate diffs against the base commit, from git, not the API
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
+
+      # 2026-09-23 · API budget. The LIVE full-sweep canary costs ~657 GitHub requests
+      # per run (measured: 158 branches); GITHUB_TOKEN gets ~1,000/hour per repo, so
+      # two runs an hour 403'd every PR's CI. Live canaries now run only when the diff
+      # touches their own code (import closure), on workflow_dispatch, or when forced
+      # with AGENT_OS_LIVE_SWEEP=1 / AGENT_OS_LIVE_RESCUE=1 — see
+      # scripts/agent-os/live-gate.mjs. The diff comes from git: a PR is checked out as
+      # its merge commit, whose first parent is the base; a push diffs against
+      # `before`. This step FAILS if that diff can't be computed rather than letting
+      # the tests fall back to a live run.
+      - name: decide live canaries (git diff, no API)
+        env:
+          EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          case "$GITHUB_EVENT_NAME" in
+            pull_request) BASE=$(git rev-parse HEAD^1) ;;
+            push) BASE="$EVENT_BEFORE" ;;
+            *) BASE=$(git rev-parse HEAD) ;;
+          esac
+          node scripts/agent-os/live-gate.mjs --base "$BASE" >> "$GITHUB_ENV"
 
       - name: agent-os verify
         env:
