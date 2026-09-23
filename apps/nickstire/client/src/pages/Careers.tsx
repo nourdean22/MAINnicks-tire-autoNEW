@@ -633,6 +633,12 @@ export default function Careers() {
             >
               Already working somewhere? Talk privately first — no application.
             </a>
+            <Link
+              href="/mechanic-pay-calculator"
+              className="mt-2 block text-sm text-foreground/50 underline underline-offset-4 hover:text-foreground"
+            >
+              Flat rate vs hourly — run your own numbers
+            </Link>
           </div>
         </div>
       </section>

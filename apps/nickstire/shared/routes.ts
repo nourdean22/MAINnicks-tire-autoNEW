@@ -1289,6 +1289,24 @@ const UTILITY_PAGES: RouteEntry[] = [
     prerender: true,
   },
   {
+    // Technician-facing tool (docs/recruiting/RECRUITING-ENGINE-2026-09.md).
+    // NOT under /careers/ — that prefix is reserved for job leaves, and an
+    // unknown /careers/<slug> is a 404 by design (server/_core/spaFallback.ts).
+    path: "/mechanic-pay-calculator",
+    priority: 0.6,
+    changefreq: "monthly",
+    title: "Mechanic Pay Calculator: Flat Rate vs Hourly | Nick's Tire & Auto",
+    description: "Compare flat-rate and hourly mechanic pay with your own numbers: flag rate, flagged hours, guarantee, overtime. Weekly and yearly pay, plus break-even flag hours.",
+    group: "utility",
+    // sitemap:false UNTIL the first prerender refresh has written
+    // prerendered/mechanic-pay-calculator/index.html. prerender:check fails a
+    // sitemap route with no artifact (crawlers would get the empty shell), and
+    // a local regen would boot the server against the production DB. Flip to
+    // true in the PR that commits the artifact.
+    sitemap: false,
+    prerender: true,
+  },
+  {
     path: "/careers",
     priority: 0.7,
     changefreq: "weekly",
