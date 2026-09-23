@@ -322,7 +322,11 @@ try {
       // The live queue's key (recoveryQueue.ts): stored intents, the row's createdAt, fixed UTC-day buckets.
       bucketKey: episodeKey(phone10 || `anon-${r.id}`, intentFamily(stored ?? kernelIntents), loggedAt),
       evalOutcome: (r.evalOutcome as string | null) ?? null, endedReason: String(r.endedReason ?? ""),
-      transfer: transferState(asRecord(meta.transferArtifact).verdict, String(r.endedReason ?? "")),
+      transfer: transferState(
+        asRecord(meta.transferArtifact).verdict,
+        String(r.endedReason ?? ""),
+        asRecord(meta.transferArtifact).transferUpdateSeen,
+      ),
       tireSize: customer.map((t) => extractTireSize(t)).find(Boolean) ?? null,
       vehicle: customer.map((t) => extractVehicle(t)).find(Boolean) ?? null,
       hasCallbackRow: r.callbackId != null,

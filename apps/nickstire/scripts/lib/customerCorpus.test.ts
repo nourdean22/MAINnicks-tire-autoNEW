@@ -438,6 +438,9 @@ describe("opt-out, transfers, business dates", () => {
     expect(transferState("connected", "assistant-forwarded-call")).toBe("connected");
     expect(transferState("not_connected", "assistant-forwarded-call")).toBe("not_connected");
     expect(transferState(undefined, "customer-ended-call")).toBe("none");
+    // The live transfer-update witness catches the attempt the ended reason hides.
+    expect(transferState("unknown", "customer-ended-call", true)).toBe("attempted");
+    expect(transferState("unknown", "customer-ended-call", "true")).toBe("none");
   });
 
   it("a coverage week is the Eastern business week (Mon–Sun), not the UTC one", () => {

@@ -192,7 +192,9 @@ describe("transferArtifactWorthPersisting · a verdict only for a call that ATTE
     const src = readFileSync(resolve(__dirname, "../routes/webhooks/vapi.ts"), "utf8")
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/(^|[^:])\/\/.*$/gm, "$1");
-    expect(src).toContain("transferArtifactWorthPersisting(read, cleanEndedReason)");
+    // 2026-09-23: plus the live transfer-update witness read from the state trail.
+    expect(src).toContain("transferArtifactWorthPersisting(read, cleanEndedReason, transferUpdateSeen)");
+    expect(src).toContain("sawTransferUpdate(await getCallStateHistory(");
     expect(src).not.toContain("read.artifactPresent ||");
   });
 });

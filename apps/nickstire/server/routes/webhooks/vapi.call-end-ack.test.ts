@@ -55,6 +55,7 @@ vi.mock("../../services/voice-call-state", () => ({
 }));
 
 import { vapiWebhookRouter } from "./vapi";
+import { recordCallState } from "../../services/voice-call-state";
 
 let server: http.Server;
 let port: number;
@@ -139,5 +140,27 @@ describe("end-of-call-report · speed-to-ack", () => {
     const res = await postEvent({ type: "some-future-vapi-event" });
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ack: true });
+  });
+});
+
+describe("transfer-update · recorded, not dropped (2026-09-23)", () => {
+  it("acks and records a transfer_attempted state without the destination number", async () => {
+    const res = await postEvent({
+      type: "transfer-update",
+      call: { id: "call-transfer-1", assistantId: "asst-1" },
+      destination: { type: "number", number: "+12165550142" },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ack: true });
+    // The record is detached; give its dynamic imports a beat.
+    await vi.waitFor(() =>
+      expect(recordCallState).toHaveBeenCalledWith({
+        callId: "call-transfer-1",
+        assistantId: "asst-1",
+        state: "transfer_attempted",
+        metadata: { eventType: "transfer-update", destinationType: "number" },
+      }),
+    );
+    expect(JSON.stringify(vi.mocked(recordCallState).mock.calls)).not.toContain("555");
   });
 });
