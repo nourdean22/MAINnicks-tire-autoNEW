@@ -34,8 +34,15 @@ only what changes how you WORK is repeated here.
   never reject, which made one instrument's error branch dead code. The receipt type makes
   the fail-soft writer unassignable to an instrument's deps.
 - **The evidence gate readout exists** (`system.evidenceGateCalibration`, rendered by
-  `EvidenceGatePanel`). Current verdict: **DO NOT PROMOTE — n=12 against a floor of 40.**
-  It refuses to state a rate below the floor; do not compute one from the counts.
+  `EvidenceGatePanel`). The 2026-09-17 verdict was "DO NOT PROMOTE, n=12 against a floor
+  of 40". **Re-read 2026-09-23 02:26Z (Neon, read-only, the reader's own filter replayed):**
+  after-fix cohort n=119, 52 would block (verdict `block` 27 + `repair` 25) = 43.7%;
+  before-fix 34 of 91 = 37.4%. The sample is SUFFICIENT and the rate did not fall, so the
+  answer is still do not promote, now on evidence rather than on a thin sample. The
+  buffer-shadow half of the same panel restarted with #2560 (2026-09-23): only shadows
+  stamped `toolsExpectedSource: "routing"` count, every earlier row (128) is legacy and
+  excluded, so it reads "rate withheld" until 40 routing-sourced turns exist. The panel is
+  the live source; do not compute a rate from counts it withholds.
 - **Scratch debris is gated repo-wide** by `scripts/agent-os/scratchDebris.test.mjs`
   (agent-policy workflow, every PR). Temp probes are welcome; committing them is not.
 - **The overnight operating doctrine is version-controlled** at repo-root
