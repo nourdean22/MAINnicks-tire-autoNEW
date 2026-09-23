@@ -4,7 +4,7 @@ import SalesCard from "./SalesCard";
 import PromisesPanel from "./PromisesPanel";
 import InspectionCapturePanel from "./InspectionCapturePanel";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
-import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
+import MessageCustomerLink, { buildMessageCustomerHref } from "@/components/admin/MessageCustomerLink";
 import { getAdminActionableCounts } from "@/lib/adminActionableCounts";
 import { buildAdminSignals } from "@/lib/adminSignals";
 import { getBusinessDateKey, isBusinessDate } from "@/lib/businessDate";
@@ -29,6 +29,7 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { navigateToAdminSection } from "./shared";
+import { navigateToAdminUrl } from "./shared/navigation";
 import ArrivalLoadStrip from "./today/ArrivalLoadStrip";
 import ExceptionFeed from "./today/ExceptionFeed";
 import { MorningBrief } from "./today/MorningBrief";
@@ -78,6 +79,23 @@ const DUPLICATE_ALIAS_SIGNAL_IDS = ["ops-instagram"] as const;
 
 function requestLabel(item: ActionItem): string {
   return item.type === "workOrder" ? "work order" : item.type;
+}
+
+/** "42 min" / "5 h" / "2 d" — from the SQL-computed wait, not a driver-parsed timestamp. */
+function waitLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  if (minutes < 48 * 60) return `${Math.floor(minutes / 60)} h`;
+  return `${Math.floor(minutes / (24 * 60))} d`;
+}
+
+/** Shape of one bundle.owedTexts entry (server/services/owedTexts.ts OwedText). */
+interface OwedTextItem {
+  conversationId: number;
+  phone: string;
+  customerName: string | null;
+  preview: string;
+  lastInboundAt: string | Date;
+  waitingMinutes: number;
 }
 
 export default function OverviewSection() {
@@ -151,6 +169,7 @@ export default function OverviewSection() {
   const bookings = (bundle?.bookings ?? []) as BookingItem[];
   const leads = (bundle?.leads ?? []) as LeadItem[];
   const callbacks = (bundle?.callbacks ?? []) as CallbackItem[];
+  const owedTexts = (bundle?.owedTexts ?? []) as OwedTextItem[];
 
   /**
    * WHICH OF THOSE EMPTY ARRAYS ARE REAL?
@@ -171,7 +190,8 @@ export default function OverviewSection() {
    * therefore invisible to this check.
    */
   const queueTrustworthy =
-    !workOrdersFailed && !unavailable.some((s) => s === "leads" || s === "bookings" || s === "callbacks");
+    !workOrdersFailed &&
+    !unavailable.some((s) => s === "leads" || s === "bookings" || s === "callbacks" || s === "owedTexts");
   /**
    * The work-order read is capped, so a full page is a LOWER BOUND, not a count.
    * Saying "37" when the true number could be anything above 30 is the same
@@ -262,8 +282,24 @@ export default function OverviewSection() {
         totalRevenue: workOrder.total ? Number(workOrder.total) : undefined,
       });
     }
+    // Customers waiting on a text reply. Census 2026-09-23: 55 of 104 text
+    // episodes ended with the customer's last text unanswered, and none of
+    // them appeared on this queue.
+    for (const text of owedTexts) {
+      items.push({
+        id: `text-${text.conversationId}`,
+        entityId: text.conversationId,
+        type: "text",
+        name: text.customerName || "Texting customer",
+        detail: `Waiting ${waitLabel(text.waitingMinutes)} · "${text.preview}"`,
+        phone: text.phone,
+        urgency: text.waitingMinutes >= 4 * 60 ? 4 : 3,
+        createdAt: text.lastInboundAt,
+        status: "awaiting_reply",
+      });
+    }
     return items.sort((a, b) => b.urgency - a.urgency || new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  }, [bookings, callbacks, currentWorkOrders, leads]);
+  }, [bookings, callbacks, currentWorkOrders, leads, owedTexts]);
 
   const filteredQueue = filter === "all" ? queue : queue.filter((item) => item.type === filter);
   const todaysBookings = bookings.filter(
@@ -293,8 +329,20 @@ export default function OverviewSection() {
     utils.adminSecurity.recentActions.invalidate();
   }
 
+  function openTextThread(item: ActionItem) {
+    navigateToAdminUrl(
+      { metaKey: false, ctrlKey: false, shiftKey: false, altKey: false },
+      buildMessageCustomerHref(item.phone ?? ""),
+      "campaigns",
+    );
+  }
+
   async function performPrimary(item: ActionItem) {
     const definition = getQueueActionDefinition(item.type);
+    if (item.type === "text") {
+      openTextThread(item);
+      return;
+    }
     if (item.type === "workOrder") {
       navigateToAdminSection("customers");
       await logReceipt(item, "admin.work_order_opened", { status: item.status });
@@ -321,6 +369,10 @@ export default function OverviewSection() {
 
   async function performSecondary(item: ActionItem) {
     const definition = getQueueActionDefinition(item.type);
+    if (item.type === "text") {
+      openTextThread(item);
+      return;
+    }
     if (item.type === "callback") {
       navigateToAdminSection("callTrackingView");
       await logReceipt(item, "admin.callback_opened", { status: item.status });
@@ -506,7 +558,7 @@ export default function OverviewSection() {
             <p className="text-xs text-muted-foreground mt-1">Every completed action returns a durable ACT reference.</p>
           </div>
           <div className="flex flex-wrap gap-1" role="group" aria-label="Filter queue">
-            {(["all", "booking", "lead", "callback", "workOrder"] as const).map((value) => (
+            {(["all", "booking", "lead", "callback", "workOrder", "text"] as const).map((value) => (
               <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value} className={`px-2.5 py-1.5 rounded text-xs ${filter === value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"}`}>
                 {value === "all" ? "All" : value === "workOrder" ? "Work orders" : `${value.charAt(0).toUpperCase()}${value.slice(1)}s`}
               </button>
@@ -544,7 +596,7 @@ export default function OverviewSection() {
           <div className="space-y-2">
             {filteredQueue.map((item) => {
               const definition = getQueueActionDefinition(item.type);
-              const Icon = item.type === "booking" ? CalendarClock : item.type === "lead" ? Users : item.type === "callback" ? Phone : Wrench;
+              const Icon = item.type === "booking" ? CalendarClock : item.type === "lead" ? Users : item.type === "callback" ? Phone : item.type === "text" ? MessageSquare : Wrench;
               return (
                 <article key={item.id} className="rounded-md border border-border/30 bg-background/50 p-3 flex flex-col lg:flex-row lg:items-center gap-3">
                   <div className="flex items-start gap-3 flex-1 min-w-0">

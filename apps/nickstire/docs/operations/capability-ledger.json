@@ -2420,6 +2420,32 @@
           "description": "The claim is true but thin: the counter still receives nothing from an ordinary tire inquiry. Making 'noted' useful means persisting the demand (size, vehicle, new/used) to the call record and showing it at the counter: Part I #5 of docs/operations/CUSTOMER-CORPUS-RESEARCH-2026-09-23.md."
         }
       ]
+    },
+    {
+      "capabilityId": "today-owed-texts",
+      "name": "Customers waiting on a text reply appear on Today's action queue, and an unreadable inbox reads UNKNOWN, not clear",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "2026-09-23, branch claude/gallant-hamilton-yjulym. The first production census found 55 of 104 inbound text episodes ending with the customer's last text unanswered, and the Today queue (bookings, leads, callbacks, work orders) showed none of them. server/services/owedTexts.ts reads 7 days of sms_messages and decides each thread by its newest message: a failed outbound is skipped (the customer never got it), an outbound reply clears the thread, and an inbound text is owed unless it is an opt-out or opt-in keyword, a bare acknowledgement, a short-code sender, or younger than 15 minutes (the automated reply goes first). Waits are computed in SQL. It throws on a dead database; adminBundle carries it as the owedTexts slice, and OverviewSection's queueTrustworthy treats that slice as a veto on All clear. Queue items are type text, urgent after 4 hours, with a Texts filter; Open thread deep-links to the customer's SMS thread.",
+        "tests": "8 in server/__tests__/owedTexts.test.ts (positive control first; failed reply is no reply; grace window; STOP / Stop. / opt-out / START / ok thanks / thumbs-up owed nothing; short code; oldest wait first; a sentence starting with a keyword is still owed). MUTATION VERIFIED: removing the failed-reply skip and the grace window turned 2 of 8 red. 2 source pins in server/adminBundleTruth.test.ts (the slice exists and its reader throws; an unreadable slice vetoes All clear), MUTATION VERIFIED: dropping the veto turned 1 red. 12 related admin test files, 149 passed. Typecheck 0 errors.",
+        "liveRuns": "NOT YET: no production read has been made of the list's size or content."
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Not exercised in production. Proof needed: after deploy, open Today and compare the Texts filter against the SMS inbox for a few threads (one answered, one waiting, one STOP)."
+        },
+        {
+          "severity": "P3",
+          "description": "A reply made by phone call is invisible to this reader, so a customer the crew called back stays on the list until someone texts them or the thread ages past 7 days. Marking a thread handled without texting would need a stored dismissal; not built."
+        }
+      ],
+      "deferredScope": []
     }
   ],
   "axes": {
