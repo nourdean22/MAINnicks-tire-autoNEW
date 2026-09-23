@@ -84,8 +84,6 @@ When bringing the Railway service online or resetting a machine:
    OLLAMA_MODEL              Ollama Cloud chat/reason lane model id
    OLLAMA_FAST_MODEL         Ollama Cloud fast lane (classify/extract/summary/sql)
    OLLAMA_VISION_MODEL       Ollama Cloud vision model (image chat turns)
-   PERPLEXICA_CHAT_PROVIDER  perplexica synthesis provider type (openai|gemini)
-   PERPLEXICA_CHAT_MODEL     perplexica synthesis model id
    GITHUB_TOKEN              Files (GitHub) tool — fine-grained, Contents: Read-only
    ```
 3. **Platform-set** (Railway/Node supplies automatically — never hand-set):
@@ -357,7 +355,7 @@ Last-resort recovery from a Neon branch:
 | Device offline | `/api/health` devices block vs `/api/system/pulse` |
 | Queue backlog | `/system` page → queue pending count |
 | Integration stale | `/system` page → integrations last-sync |
-| Web search never `arsenal/perplexica` | `GET /api/system/perplexica-diag` (Bearer `$CRON_SECRET`) → receipt: `health` (provider+model verification), `source`, `fallbackUsed`, `telemetry` (last success / latency / sourceCount). `sourceCount:0` + healthy config = SearXNG engines bot-blocked (see ledger 2026-07-22). |
+| Web search degraded (`arsenal/fallback` or "no results") | `GET /api/system/chat-health` → `ai:tool-exec` errors `arsenalWebSearch: all sources returned nothing` / `multiSourceSearch: zero search sources configured`. Primary rung is Tavily (`TAVILY_API_KEY`); `tavily_primary_error` warn logs carry the reason when it misses. |
 | Browser agent "not_installed" / dead | `GET /api/browser/diagnostics` (owner-gated, open in an authed browser tab) → `{browserbase:{configured}, stagehand:{installed}, ready}`. NOTE: `railway ssh` + `require.resolve` false-negatives on Turbopack externals — trust the endpoint, not a bare node probe. Watch a run live/replay via the `browseAndDo` receipt's `replayUrl`. |
 
 ---

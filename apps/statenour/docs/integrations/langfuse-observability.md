@@ -106,7 +106,7 @@ the likely cause named in the log, instead of a green badge over a dead pipe.
 
 ## Proving it landed — `POST /api/system/observability-probe`
 
-CRON_SECRET-gated, mirroring `/api/system/perplexica-diag`. It plants a known
+CRON_SECRET-gated, mirroring `/api/cron/*`. It plants a known
 positive in each sink from inside the deployed process and **flushes**:
 
 ```
