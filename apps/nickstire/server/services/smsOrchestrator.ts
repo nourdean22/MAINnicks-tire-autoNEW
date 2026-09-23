@@ -26,6 +26,7 @@ import { classifyIntent } from "./classifiers";
 import { isEnabled } from "./featureFlags";
 import { BUSINESS } from "@shared/business";
 import { createLogger } from "../lib/logger";
+import { notSentLogFields } from "../lib/smsNotSentLog";
 import { normalizePhone } from "../lib/phone";
 import { eq, and, desc, gte, sql, like, or } from "drizzle-orm";
 import { getTemplateVariant, assignVariantWithExperiment, REPLY_CONFIGS } from "./smsMessageCatalog";
@@ -522,8 +523,19 @@ export async function getRolloutMode(eventType: string): Promise<"off" | "shadow
 
 /**
  * Main SMS Orchestrator execution method.
+ *
+ * A text that does not go out leaves one log line with its reason (cooldown,
+ * opt-out, auto-send off, …). The decision was only in sms_orchestrations
+ * before, so a missing text was invisible in the Railway log (2026-09-23).
  */
 export async function orchestrateSms(event: SmsOrchestratorEvent): Promise<SmsOrchestratorResult> {
+  const result = await orchestrateSmsDecide(event);
+  const notSent = notSentLogFields(event, result);
+  if (notSent) log.info("SMS not sent", { ...notSent });
+  return result;
+}
+
+async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrchestratorResult> {
   const normalizedPhone = normalizePhone(event.phone) || event.phone.replace(/\D/g, "").slice(-10);
   // forensic-audit CRITICAL · 10-digit match key (see loadCustomerContext).
   const phone10 = normalizedPhone.replace(/\D/g, "").slice(-10);
