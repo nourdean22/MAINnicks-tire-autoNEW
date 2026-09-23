@@ -8,7 +8,8 @@
    (statenour) database holds no call or SMS corpus (I checked the table list). So this document
    contains **zero new customer-corpus facts**. It contains:
    - about 40 dated production measurements from earlier sessions, each labelled as such;
-   - 18 defects verified in code this session that shape what customers experience;
+   - 38 findings verified in code this session (Part C), 18 of them fixed in this PR — most after
+     three independent reviews of the first draft found what its author had missed;
    - the one command that runs the three-month analysis read-only against production. It is built,
      tested, proven end-to-end on a synthetic fixture, and waiting on one operator run:
      `railway run -s MAINnicks-tire-auto -- pnpm diag:customer-corpus -- --since 2026-06-22 --until 2026-09-22 --json`.
@@ -20,15 +21,18 @@
    week before any finding.
 3. **The strongest customer-facing problems are already visible in code and earlier measurements.
    None of them needs new architecture.**
-   - The assistant tells tire callers "I've sent the tire info to the shop" when nothing but the
-     call log is stored.
-   - A tool description still instructs the model to promise a "15 min callback" that the system
-     prompt forbids and nothing tracks.
-   - 45 texted customers are waiting on a human. 27 of them have waited more than 30 days, and the
-     only way to close one is to send a text, because the "no reply needed" procedure has no UI
-     caller.
-   - One Android phone carries about 80% of customer texting with no fallback. It was offline for
-     about 18 hours on 09-21/22.
+   - The assistant told tire callers "I've sent the tire info to the shop" when nothing but the
+     call log is stored, and a tool description told the model to promise a "15 min callback" that
+     nothing tracks. Both are **fixed in this PR**, with every other untracked callback promise the
+     review found (Part C "Shipped"). The tool replies are live on deploy; the receptionist's prompt
+     and tool text only after the operator presses Push Latest Config.
+   - 45 `human_pending` text rows wait on a human: about 34 are customers (6 are carrier bounces, ~5
+     vendor spam), and 25–27 are older than 30 days (two sources disagree). A reply typed on the
+     gateway phone does not close a row, so 45 is an upper bound. The only way to close one is to
+     send a text, because the "no reply needed" procedure has no UI caller.
+   - One Android phone is the path for about 80% of customer-facing text *flows* (a count of flows,
+     not of volume), with no fallback. At 09-22 21:12Z it had been offline 20.6 h and was still
+     offline when measured; the outage had been intermittent since 09-21 02:05Z.
    - The call is recorded but the greeting discloses neither the recording nor the AI.
    - The demand classifier that can actually read "I need two tires" is built, tested and wired to
      nothing.
@@ -41,7 +45,7 @@
 
 | Label | Meaning |
 |---|---|
-| **REPO** | Verified repo fact: read in code at `origin/main` d72823e this session |
+| **REPO** | Verified repo fact: read in code this session (`origin/main` d72823e at the start, this PR's branch after) |
 | **CORPUS·prior** | Customer-corpus fact measured read-only in production by an earlier session, with its date and source. Not re-verified this session. |
 | **EXT** | External fact from a source, with date. Two load-bearing ones were re-fetched and confirmed this session: τ-Voice numbers and the TiDB SKIP LOCKED PR. The rest were agent-sourced from primary or secondary pages. |
 | **INFER** | Research inference |
@@ -61,7 +65,7 @@ The ladder: BUILT ≠ WIRED ≠ TESTED ≠ DEPLOYED ≠ LIVE-OBSERVED ≠ OUTCOM
 | `NICK-MEMORY-COUNTERFACTUAL` + writer guards (`memoryWriterGuards.ts`, 125888a) | Guards are TESTED and DEPLOYED (merged). The prune is operator-run, so it is not LIVE. The doc itself says OUTCOME is "next step". | **Nearly none** (see A2) | KEEP the guards. The doc has a **scope gap**: it traces two reach paths and misses a third, the receptionist-lesson path (A2). |
 | `NICK-MEMORY-EVICTION-SIMULATION` | A MEASURED diagnostic; two policies rejected | None | KEEP as dated evidence. Do not cite it as current. |
 | `NICK-MEMORY-PROVENANCE-MODEL` | DESIGNED only: no writer, no reader, no test | None | **PARK.** It is a design with no consumer. It should not sit beside measured docs in `docs/operations/` as if it were operating truth. Move it under `docs/plans/`, or fold it into the counterfactual doc's "next" section. |
-| `CRON-OUTCOME-CENSUS` | MEASURED, with a reproduce command | **High, but only in one paragraph**: the SMS gateway incident | KEEP. The gateway finding deserved its own incident row, a fallback decision, and a customer-impact count: how many customer texts were queued or held, and how many were delayed past their usefulness. |
+| `CRON-OUTCOME-CENSUS` | MEASURED, with a reproduce command | **High**: the SMS gateway incident (a 16-line section among many) | KEEP. The gateway finding deserved its own incident row, a fallback decision, and a customer-impact count: how many customer texts were queued or held, and how many were delayed past their usefulness. |
 | `QUEUE-CENSUS` + `orchestration-status-reconcile` | MEASURED. The reconcile job is BUILT and TESTED; no live-run receipt was found this session. | **High**: 45 customers waiting on a reply, 3 emergency rows, a 308-row status lie | KEEP. Its "operator decides #1" is **partly a code gap, not only a staffing gap**. `smsConversations.markNoReplyNeeded` (`server/routers/smsConversations.ts:387`) has no client caller (REPO, grep: zero hits in `client/src`). A `human_pending` row can only close by sending the customer a text, so the queue *cannot* be drained honestly. Wire the button before asking a human to drain it. |
 | `CRON-INVENTORY.md` regenerated | Generated artifact | None | KEEP. It is generated, so it is not a finding. |
 
@@ -71,7 +75,12 @@ The ladder: BUILT ≠ WIRED ≠ TESTED ≠ DEPLOYED ≠ LIVE-OBSERVED ≠ OUTCOM
   - `updateAssistant()` → `getPromptLessons()` (`server/services/vapi.ts:1660-1667`,
     `server/services/nickMemory.ts:263-278`) appends the top 3 `lesson` rows to the Vapi system
     prompt.
-  - This happens only on the operator's manual "Push Latest Config".
+  - This happens only on the operator's manual "Push Latest Config". That push sends the WHOLE
+    `buildAssistantConfig` (every prompt, tool and voice change on `main` from any session, not one
+    PR's lines), appends up to 3 auto-selected lessons that nobody reviews in that flow (the panel
+    previews them), and overwrites dashboard edits except the transfer tool. A second path,
+    `scripts/vapi-update-assistant.ts`, sends no lessons and forces `sipVerb: "dial"`. Run
+    `scripts/vapi-prompt-diff.ts` first to see what will change.
 - **REPO.** That path filters on `source === RECEPTIONIST_LESSON_SOURCE`
   (`nickMemory.ts:258`). So the junk `feedback_loop` lessons the counterfactual found at 100%
   confidence ("Alert 'proactive' was unknown. Outcome unknown.") **cannot** reach callers. I
@@ -96,7 +105,7 @@ The ladder: BUILT ≠ WIRED ≠ TESTED ≠ DEPLOYED ≠ LIVE-OBSERVED ≠ OUTCOM
 | "TaskStop kills wrapper not tree", "Railway CLI rate limiting + ledger render check" | KEEP | Real, non-obvious harness traps. |
 | The three extended memories (store verdict, hourly tier, join-key proxy) | KEEP | Extending beats duplicating. |
 | `.remember/now.md` | **DEMOTE history** | 1,276 lines. A handoff is read at session start; everything older than the last two waves belongs in a dated archive file. Its value is the top 60 lines. |
-| "Completed + 0 must say what it examined" (census rule) | **PROMOTE to an executable invariant** | A test over every registered cron's zero-record `details` string: it fails when a zero-record run has no denominator or reason. #2514 started this; the census names five jobs still silent. |
+| "Completed + 0 must say what it examined" (census rule) | **PROMOTE to an executable invariant** | A test over every registered cron's zero-record `details` string: it fails when a zero-record run has no denominator or reason. #2514 started this and fixed three of the five jobs the census named; two remain silent. |
 | "Every status-bearing table has a drain or a terminal state" (queue census) | **PROMOTE** | A registry test: each status table lists `drain: <job or UI procedure>` or `terminal: true`, and the test fails on a new status table with neither. |
 
 ### A4. What the night got right, stated plainly
@@ -131,37 +140,37 @@ behaviour. The critique is about **where the attention went**, not the quality o
 | ~07-23 → 09-22 | **yes**, assuming the first archive pass got the whole 14-day window (not verified); archive completeness after 08-08 has **never been measured** | yes | transfer artifact on 109 calls, all-time; speaker attribution and the new demand fields only from 09-18 |
 
 Sources: `scripts/data-census.ts:46-47`, `docs/audits/call-mix-2026-07-26.md:95-100`,
-`capability-ledger.json` (`vapi-call-archive`, lines 1843 and 1877), `server/services/vapiCallArchive.ts:26-28`.
+`capability-ledger.json` (`voice-demand-speaker-attribution`, `voice-transfer-connect-truth`), `server/services/vapiCallArchive.ts:26-28`.
 
 **SMS coverage caveats (CORPUS·prior):**
 - May 2026 failures dominate `sms_messages` (5,184 of 5,346).
 - Opt-out records start only 2026-07-13; earlier STOPs were dropped.
 - `sms_response_jobs` and `expected_arrivals` were missing in production 07-21 → 07-26.
-- Operator replies write two rows.
+- Operator replies wrote two rows until 2026-09-01 (`skipPersist`); older rows double-count them.
 - The 308 orchestration rows stuck at `queued` (fixed by the reconcile job going forward).
 
 ### §3. What earlier production reads already established (CORPUS·prior)
 
 | Fact | Value | Date · source |
 |---|---|---|
-| Inbound call volume | 2,094 in 90 d (~23/day); 986 in 30 d (~33/day) | 07-26 · `vapi_call_logs` (MIX) |
+| All calls (no inbound/outbound split was applied) | 2,094 in 90 d (~23/day); 986 in 30 d (~33/day) | 07-26 · `vapi_call_logs` (MIX) |
 | Forwarded to a human (`assistant-forwarded-call`) | 40.3% (843/2,094); 41.5% on 08-05 | 07-26 · 08-05 |
 | Callers whose **first substantive words** ask for a person | 20.9% (conservative) – 24.9% (classifier), n = 363 | 07-26 · customer turns |
 | …of those, forwarded promptly | 94.7% (72/76); median 2 customer turns before the forward | 07-26 |
 | First-turn demand (n = 363, deterministic tier) | human 24.9% · generic tire 16.1% · brakes 5.2% · used-tire price 2.7% · oil 2.5% · **unclear 34.2%** | 07-26 |
-| Blocking friction on the first turn | **price uncertainty 32.0%** · human required 24.9% · transportation 2.7% · unknown 35.5% | 07-26 |
+| Blocking friction on the first turn — **a label, not a measurement**: the classifier attaches `price_uncertainty` by rule to 15 service intents (`voiceDemandClassifier.ts:143-224`), so this restates the intent mix | price uncertainty 32.0% · human required 24.9% (= the `human_requested` share) · transportation 2.7% · unknown 35.5% | 07-26 |
 | Forward then redial within 15 min | 28% (280/1,016, 90 d); 22% (48/214, 14 d); 24% (57/240, 14 d, ~09-18) | 08-05 · 09-18 |
 | Warm transfer (experimental plan, live since 09-21 13:57Z) | 11 of 11 forwards `connected`; fallback never fired; **n = 11** | 09-22 |
-| Very short turns | 50% of 1,460 turns were 3 words or fewer; 16.4% hesitation stubs; "Hello? Hello?" is the most common opener | 08-07 · `stt-forensics.ts` |
+| Very short turns | 50% of 1,460 turns were 3 words or fewer; 16.4% hesitation stubs. Two or more bare "Hello?" in 0.7% of calls; the barge-in and first-audio theories were refuted by measurement (first assistant audio 0.41 s avg, 0.64 s max) | 08-07 · `stt-forensics.ts:24`, `docs/skill-proposals.md:533-540` |
 | Calls with fewer than 2 caller turns | 18% (89/492) | 08-08 |
 | Assistant latency | Time to first audio p50 0.40 s; reply gap p50 0.90 s, p90 2.29 s | 07-27, n = 100 |
 | Inbound texts | 43 in 30 d (09-22); 58 customer turns in 180 d (07-25) | ledger · ROS-058 |
-| Texts unanswered within 2 h | **74%**, including 10 opt-outs; automated reply p50 6 s against operator reply p50 4.5 min | 07-25, 180 d |
+| Texts unanswered within 2 h | **74%**, including 10 opt-outs; automated reply p50 6 s against operator reply p50 4.5 min. ROS-058: "mostly pre-orchestrator era" — it cannot support "we answer late" today | 180 d to 07-25 |
 | Texts waiting on a human | 45 `human_pending`: 25–27 over 30 d; 6 are carrier bounces, ~5 vendor spam | 09-22 |
 | Expected arrivals, 30 d | 116 written (all voice): 15 arrived · 89 no-show · 12 open. **66 of the 89 never named a day; 63 were price or inquiry calls** | 09-22 |
-| Promise ledger | `customer_promises` = **0 rows** | 09-22 |
+| Promise ledger | `customer_promises` = **0 rows**. Expected, and silent about customers: the only live voice writer (`escalate` → `createVoicePromise`, with a call ID) shipped 09-22 with no live run yet | 09-22 |
 | Voice recovery | 110 of 110 dials failed with a 400 error (06-18 → 09-20) | 09-22 |
-| Invoices | ~105–145 paid per month; 73 in the 30 d to 09-22 | CT:293 · now.md |
+| Invoices | ~105–145 paid per month (older, CT:293); **73 in the 30 d to 09-22** (latest, now.md) | CT:293 · now.md |
 | One-and-done customers | 77% ("VERIFIED 2026-07-19"; source query not located) | `data-census.ts:50` |
 
 **INFER — the cross-examination these numbers demand.**
@@ -171,12 +180,13 @@ Sources: `scripts/data-census.ts:46-47`, `docs/audits/call-mix-2026-07-26.md:95-
    need. The census's `episodeNeed` reads every turn, so the real tire share is still unknown. It
    is somewhere between 16% (generic tire, first turn) and a much larger number once human-first
    callers' later turns are read.
-2. **"Forwarded" was never "connected" before 09-18.** Every transfer-success figure before the
+2. **"Forwarded" was never "connected" before 09-21.** Every transfer-success figure before the
    warm-transfer plan is an attempt count. The 22–28% 15-minute redial rate is the best proxy for
    failed handoffs in that period.
 3. **The arrivals kernel mostly measures the assistant, not the customer.** `bookSlot` fires for any
-   non-tire walk-in lead and in parallel with every transfer (`shared/callTaxonomy.ts:275-290`, REPO),
-   so "no-show" means "no invoice". The honest reading of 15 arrived out of 116 is a lead-to-invoice
+   non-tire walk-in lead, and alongside a non-tire transfer once a phone is captured (the prompt's
+   PHONE-CAPTURE-BEFORE-TRANSFER; the `shared/callTaxonomy.ts:275-279` comment says the same), so
+   "no-show" means "no invoice". The honest reading of 15 arrived out of 116 is a lead-to-invoice
    rate, not a broken-commitment rate.
 
 ### §4. The instrument (built this session; the operator's one gate is running it)
@@ -240,8 +250,8 @@ library `scripts/lib/customerCorpus.ts`.
 
 **What the census still cannot see (operator-side exports if these matter):**
 1. The audio. Accent, noise and ASR errors need `recording_url` while it is live, or Vapi
-   stereo recordings copied to our own bucket. Vapi retention is 14 days on Usage-only and 30 on
-   Core, so the plan tier matters.
+   stereo recordings copied to our own bucket. Vapi retention (EXT, Vapi pricing docs) is 14 days on
+   Build / pay-as-you-go and 30 on Core, with a paid 60-day add-on, so the plan tier matters.
 2. MMS and photos. `sms_messages` has no media column; media lives in the gateway payload.
 3. Counter conversations. Zero episodes exist beyond one selftest row.
 4. Whether a human called back from a personal phone. It leaves no row, and this is the largest
@@ -255,50 +265,97 @@ library `scripts/lib/customerCorpus.ts`.
 |---|---|---|---|
 | 1 | Ordinary tire inquiries are told **"Got it — I've sent the tire info to the shop"** while nothing is persisted except the call log. The admin lead was removed 2026-06-05 as noise. | `server/routers/voiceAgent.ts:628-644` | The customer believes the counter has their size and vehicle; the counter does not. A walk-in or redial starts from zero: the textbook "repeat yourself" cause. |
 | 2 | `tireInquiry.notes` still tells the model to write **"promised 15 min callback"**, while the system prompt says "NEVER promise a callback or a timeframe — nobody is tracking that promise". The legacy path writes a lead but **no** `customer_promises` row. | `server/services/vapi.ts:627` vs the RACK-CHECK section (`:354`); `voiceAgent.ts:626-700` | An untracked 15-minute promise is possible in any call where the model follows the tool text over the prompt. |
-| 3 | The CALLBACK CAPTURE prompt section says "I'll send this to the shop so someone can follow up" and routes to `sendConfirmationSms`, not `escalate`. Only `escalate` and `scheduleCallback` write a promise. | `vapi.ts` CALLBACK CAPTURE section; `voiceAgent.ts:337-360` | A spoken follow-up promise with no obligation row. It helps explain `customer_promises = 0`. |
-| 4 | `detectIntents` (the live eval classifier) has **no pattern for a bare tire request**: "I need two tires for my Honda", "do you guys have tires" and "I need a tire" all give `[]`. It also misses a spoken size ("two two five sixty five seventeen"). | `server/services/vapiCallClassifier.ts:31-54`; pinned by a positive control in `customerCorpus.test.ts` | Plain tire buyers land in `unknown` / `unclassified`, and every tire-share and queue figure understates the core business. |
-| 5 | `voiceDemandClassifier.ts` reads those phrases correctly (`tire_service`), has `rack_check`, `active_job_status` and a friction taxonomy, and is **imported by nothing but its own test**. It misses "the wheel came off" (tire_service, not safety) and spoken sizes. | `grep classifyVoiceDemand`: one test file | BUILT + TESTED + UNWIRED: the doctrine's prime target. |
+| 3 | The CALLBACK CAPTURE prompt section says "I'll send this to the shop so someone can follow up" and routes to `sendConfirmationSms`, not `escalate`. Only `escalate` and `scheduleCallback` write a promise. | `vapi.ts` CALLBACK CAPTURE section; `voiceAgent.ts:337-360` | A spoken follow-up promise with no obligation row. (Only `escalate` writes a promise from a live call; `scheduleCallback` does too but is not in `VAPI_TOOLS`.) **Fixed in this PR** (#22). |
+| 4 | `detectIntents` (the live eval classifier) has **no pattern for a bare tire request**: "I need two tires for my Honda", "do you guys have tires" and "I need a tire" all give `[]`. It also misses a spoken size ("two two five sixty five seventeen"). | `server/services/vapiCallClassifier.ts:31-54`; pinned by a positive control in `customerCorpus.test.ts` | Plain tire buyers land in `unknown` / `unclassified`. Tire-share figures are biased both ways: before 09-18 the classifier read the assistant's own words (inflating tire share); since then bare tire requests get no intent (deflating it). |
+| 5 | `voiceDemandClassifier.ts` reads those phrases correctly (`tire_service`), has `rack_check`, `active_job_status` and a friction taxonomy, and is **imported by no production path** (only its own test and this census). It misses "the wheel came off" (tire_service, not safety) and spoken sizes. | `grep classifyVoiceDemand`: one test file | BUILT + TESTED + UNWIRED: the doctrine's prime target. |
 | 6 | `episodeKey` buckets by fixed UTC day (boundary 8 PM EDT / 7 PM EST) **and** keys on intent family. A tire call followed 40 minutes later by "can I talk to someone" is two episodes. | `shared/callTaxonomy.ts:389-398`; fixture: kernel 5 vs gap-based 4 | Inflated queue rows and a missed redial link, the exact thing the kernel exists to prevent. |
-| 7 | **No recording or AI disclosure.** `FIRST_MESSAGE` is "Nick's Tire and Auto — what can I do for you?" while `artifactPlan.recordingEnabled: true`. | `vapi.ts:414, 1062` | Ohio one-party consent covers the shop's own line (EXT, ORC 2933.52). Out-of-state all-party callers and AI-disclosure expectations are the risk (EXT: Invoca 2026, 83% want AI to identify itself; Gartner 2026, 87% require a route to a human). |
+| 7 | **No recording disclosure, and AI is disclosed only when asked.** `FIRST_MESSAGE` is "Nick's Tire and Auto — what can I do for you?" while `artifactPlan.recordingEnabled: true`; the prompt's COMPLIANCE NOTE admits AI only to a direct question. | `vapi.ts:414, 1062` | Ohio one-party consent covers the shop's own line (EXT, ORC 2933.52). Out-of-state all-party callers and AI-disclosure expectations are the risk (EXT: Invoca 2026, 83% want AI to identify itself; Gartner 2026, 87% require a route to a human). |
 | 8 | `human_pending` can close only by sending a text: `markNoReplyNeeded` and `smsOps.releaseTakeover` have no client caller. | `routers/smsConversations.ts:387`, `routers/smsOps.ts:307` | The 45-row queue cannot be honestly worked down; alerts fire on rows nobody can close. |
 | 9 | The only writer of `customer_status_messages` (`dispatch.sendMessage` / `generateMessage`) has no client caller. There is **no status tool** for voice; status calls are transferred. | `routers/dispatch.ts:~250-285`; `vapi.ts:347` | Proactive "your car is ready" is BUILT and unreachable, so status calls land on the counter. |
 | 10 | Three separate "car is ready" texts, one hard-coding "open until 6pm" (wrong on Sundays, 9–4). | `dropOffFlow.ts:193`, `workOrderService.ts:368`, `routers/booking.ts:710` | A wrong-hours text on Sundays; duplicate texts possible. |
-| 11 | One Android SMS gateway phone; Twilio "dead since wave-103"; the consent gate is SHADOW by default. | `sms.ts:1213-1214, 1862-1900` | A single point of failure (offline ~18 h on 09-21/22). EXT: automated business traffic over a consumer SIM violates carrier terms (T-Mobile T&Cs; CTIA "non-consumer" definition) and is filtered silently. |
+| 11 | One Android SMS gateway phone; Twilio "dead since wave-103"; the consent gate is SHADOW by default. | `sms.ts:1213-1214, 1862-1900` | A single point of failure (offline 20.6 h and counting at 09-22 21:12Z). EXT: automated business traffic over a consumer SIM violates carrier terms (T-Mobile T&Cs; CTIA "non-consumer" definition) and is filtered silently. |
 | 12 | `expected_arrivals` no-show = no invoice within 3 days, written for any walk-in suggestion. The no-show sweep uses a bare `CURDATE()`, which AGENTS.md forbids. | `expectedArrivals.ts:210, 366` | Measures the assistant, not the customer (§3). |
 | 13 | The `callback-escalation` cron sets `no-answer` without anyone calling. The ">4 h" Telegram prints the full phone number, while the high-urgency `escalate` alert masks it. | `cron/jobs/crudAutomation.ts:212-229`; `voiceAgent.ts:363-376` | Callback outcome data is polluted. The phone-number difference is **OPERATOR**: the owner needs the number to call back (PROTECTED-CORE rule 5 says "unnecessarily"), so it is not changed here. |
 | 14 | `conversation_episodes` is written and **read by nothing**. Counter audio is captured during office hours. | `routes/conversationRoutes.ts:79`; no readers | EXT: Ohio protects an oral communication only where there is a justified expectation of privacy. Staff-party counter talk is likely fine; customers talking to each other are not. The `.completion/evidence.json` entry for #2530 records "The operator has confirmed signage is posted" (corrects this row's first draft). |
-| 15 | Photo assessment extracts no tire size or DOT code; there is no customer upload page; the flag defaults off. | `vision-analyzer.ts:70-75, 117` | A photo cannot yet replace "read me the numbers on the sidewall". |
+| 15 | Photo assessment extracts no tire size or DOT code, and there is no customer upload page. The flag `photo_assess_enabled` was switched ON in production 2026-09-22 22:05Z (capability-ledger), and no customer MMS has been observed through it yet. | `vision-analyzer.ts:70-75, 117` | A photo cannot yet replace "read me the numbers on the sidewall". |
 | 16 | Four continuity stores and no per-phone context given to voice. `getCustomerJourneyTimeline` exists and is admin-only. | `smsOrchestrator.ts:1697`; `vapi-bdi.ts:71` (reachability depends on Vapi phone-number routing) | Nothing lets the assistant say "is this about the Camry from Tuesday?" |
-| 17 | TiDB silently ignores `SELECT … FOR UPDATE SKIP LOCKED` (EXT: pingcap/tidb#69782, open, confirmed this session). **nickstire has no such usage** (REPO grep). | — | A guard for any future claim or queue code: compare-and-swap `UPDATE … WHERE state=?` checking affected rows = 1 (the repo's `claim-before-act`). |
+| 17 | TiDB silently turns `SELECT … FOR UPDATE SKIP LOCKED` into a plain non-locking read — no lock at all (EXT: pingcap/tidb#69782, open, confirmed this session). **nickstire has no such usage** (REPO grep). | — | A guard for any future claim or queue code: compare-and-swap `UPDATE … WHERE state=?` checking affected rows = 1 (the repo's `claim-before-act`). |
 | 18 | The memory counterfactual traced two reach paths and missed the receptionist-lesson path (A2). | `nickMemory.ts:254-278` | None today (source filter). Doc accuracy only. |
 | 19 | `classifyVoiceDemand` reads a **phone number** as a tire size: "(216) 555-0102" → `tire_size_help`, 0.8. | Pinned by a positive control in `customerCorpus.test.ts`; the census masks before classifying | A caller reciting a callback number would be counted as tire demand. **Whoever wires this classifier must mask first, or fix its size rule.** |
-| 20 | 98 bare `CURDATE()` sites in `server/` (UTC session date, not Eastern), despite the AGENTS.md rule. | `grep -rn CURDATE server` | Fixing one is pointless. The fix is a lint gate with an allow-list (queued as its own task). |
+| 20 | 98 bare `CURDATE()` sites in `server/` (UTC session date, not Eastern), despite the AGENTS.md rule. | `grep -rn CURDATE server` | Fixing one is pointless. The fix is a lint gate with an allow-list: **shipped, Part L**. |
+| 21 | The stale-callback cron flips an unworked callback to `no-answer` **and stamps `calledAt = NOW()`** with nobody having called. It notes "Auto-SMS: we will call you back" and texts the customer "still in our queue … we'll reach out shortly". The row then leaves the `new` queue. | `server/cron/jobs/crudAutomation.ts:184-229` | A callback nobody worked looks like a callback someone attempted, and it drops out of every "new" count after one more promise to the customer. The queue census's "no-answer 24 of 31" likely includes these; the census now counts them apart through an SQL flag. **Fix (protected core; own PR):** keep `status='new'`, never stamp `calledAt` on the automatic path, and record the auto-text claim in `notes` with a conditional UPDATE. |
+| 22 | The prompt promised **untracked callbacks** in three places: the FLOW 1 close ("I'll have the shop check the rack and call you back"), the price-pushback capture, and CALLBACK CAPTURE ("someone can follow up" → a text only). `escalate`, the only tracked callback writer, was forbidden while OPEN. CALLBACK CAPTURE is what the warm-transfer `fallbackPlan` hands an unanswered caller back to. | `vapi.ts` prompt (FLOW 1, Rule 2 pushback, CALLBACK CAPTURE, tools list); runbook line 53 claimed "→ escalate" | The one caller the shop had already failed got the one promise no row recorded. The ledger's "0 callback rows since 09-21" was never evidence the fallback had not fired. **Fixed in this PR**; live after Push Latest Config. |
+| 23 | "Push Latest Config" used to PATCH the code defaults whenever its read of the live assistant failed: the placeholder shop landline and the legacy say-message plan with no fallback. | `vapi.ts` `updateAssistant` pre-fetch | One transient Vapi error during a push would silently re-route every transfer and drop the 09-21 fallback. **Fixed in this PR** (fail-closed: refuse and ask to retry). |
+| 24 | `escalate` told the model "Nick will call {name} back". | `voiceAgent.ts` escalate response | The model relays tool responses, and nothing assigns the callback to a "Nick" (inbound Critical Rule #2: never promise a specific person). **Fixed**: "the shop will call … back". |
+| 25 | `escalate`'s promise-due comment says "next open" but the code uses `nextCloseAt`. | `voiceAgent.ts` escalate → `createVoicePromise` | An after-hours "first thing when we open" was due at the next **close**, which is lenient. **Fixed**: the comment now matches the code, and the spoken promise no longer says "first thing" (#30). |
+| 26 | Six voice-agent log calls wrote the caller's **name** to Railway logs. | `voiceAgent.ts` (bookSlot, escalate, tireInquiry ×3, scheduleCallback) | A PII leak `lint:pii` cannot see (it matches shapes). **Fixed**, pinned by `voiceAgentLogPii.test.ts`. |
+| 27 | The outbound follow-up assistant opens "this is Nick from Nick's Tire and Auto" and is told not to volunteer that it is AI. The voice-recovery lane (`FEATURE_VOICE_RECOVERY=1` per truth_os) could not connect a single call until the 2026-09-22 dial fix (#2497, on `main`); from now on it **can** place AI-voiced calls to customers with declined estimates. Every voice lane is gated by the unified opt-out index (CURRENT-TRUTH "Outbound consent", 2026-09-16), which covers suppression, not affirmative consent. The SMS consent ledger exists but runs in SHADOW by design (ROS-095). | `vapi.ts` FOLLOW_UP prompt (~437, 463); `cron/jobs/voiceRecovery.ts`; `docs/QUALITY-PROGRAM-2026-09-07.md:334` already lists "any AI-voice outbound call = 'artificial voice' needing prior express consent" as a Phase 2 audit | EXT: FCC 24-17 (2024-02-08). The question was known; what is new is that the lane is armed and now works, so it is no longer theoretical. **OPERATOR/counsel decision before the next voice-recovery run; not changed here.** |
+| 28 | FLOW 1 odd sizes said **"let me have the manager confirm stock. Name and best number?"**, then called only `tireInquiry`, which alerts nobody. A caller who would not hold, or called while CLOSED, got a promise with no row. | `vapi.ts` FLOW 1 ODD line (independent review; missed by the first pass) | **Fixed**: odd sizes go to RACK-CHECK — a transfer while open, otherwise CALLBACK CAPTURE through `escalate`. |
+| 29 | The towed-vehicle confirm said **"soon as it lands we'll look and call you with the estimate"**: immediate service (Rule 3(b) forbids it) and a callback no row records (`bookSlot` writes no promise). | `vapi.ts` BROKEN-DOWN / TOWED | **Fixed**: "once it's here, free look and a written quote before any wrench moves" (23 words, inside the prompt's 25-word cap). |
+| 30 | The CLOSED-hours line promised a callback **"first thing when we open"**, while `escalate` records the promise as due at the END of the next open period (`nextCloseAt`), so a 5:55 PM callback scores as kept. `shopState.ts` justified that bound with "the inbound script states no time", which was false. | `vapi.ts` Rule 6; `voiceAgent.ts` escalate; `shared/shopState.ts` | **Fixed**: "someone will call you back when we're open"; docstring corrected. OPERATOR: a "first thing" promise is fine if the ledger due moves to next-open + N hours. |
+| 31 | The outbound follow-up offered **"Want me to have him call you back instead?"** and the confirmation and recovery scripts said "for him": a named-person promise nothing assigns. | `vapi.ts` FOLLOW_UP prompt, confirmation and recovery builders | **Fixed**: "someone from the shop"; "for the shop". The "this is Nick" persona stays with #27 (operator and counsel). |
+| 32 | The receptionist's voicemail said **"leave us your name and tire size… we'll call you back"**. | `vapi.ts` `VOICEMAIL_MESSAGE` | **Fixed**: "Call or text us at (216) 862-0005 whenever works." |
+| 33 | The recovery lane said **"That quote's still good"** (prompt and voicemail) about a 5–6-week-old quote. No rule makes a quote binding, and the lane dials since the 09-22 fix. | `vapi.ts` recovery prompt and voicemail | **Fixed**: "we'll take another look and go over the quote with you". OPERATOR: if the shop honours quotes for N weeks, record it in `business_facts` and restore the line. |
+| 34 | `tireSizeFromVehicle` told callers to **check the door jamb or sidewall and "call back"** (the prompt forbids that homework) and returned a **$60–$120 range** (the prompt forbids ranges; $120 has no source in `BUSINESS`). | `voiceAgent.ts` tireSizeFromVehicle | **Fixed**: "we read it right off the tire when they pull up"; no price field. |
+| 35 | Two prompt lines said `tireInquiry` / `bookSlot` give **"the human context"** on a transfer, and `tireInquiry.notes` was "context for the counter". The transfer whisper is fixed text, and the ordinary path discards `notes`. | `vapi.ts` PHONE-CAPTURE-BEFORE-TRANSFER, NO EMPTY TIRE TRANSFERS, `tireInquiry.notes` | **Fixed** to say what happens: the details are on record if the line drops, and not shown to the counter. |
+| 36 | The live **voice claim guard** exempted only the old after-hours wording, so every `escalate`-backed CALLBACK CAPTURE promise ("someone will call you back") would have been flagged `unbacked_callback_promise` and fed the daily Telegram alert. | `server/services/voiceClaimGuard.ts`, `vapiCallEval.ts` daily aggregate | **Fixed**: guard v2 reads the call's tool calls and treats a callback as backed when `escalate` ran; the version bump keeps v1 and v2 counts distinguishable (PROTECTED-CORE rule 2). |
+| 37 | The capability-ledger checker accepted **"NONE. …" as live evidence**: a non-empty string satisfied `live_verified requires liveRuns`. 11 entries write liveRuns that way (all below the gate today). | `scripts/check-capability-ledger.mjs` | **Fixed**: a field that says it is absent satisfies no gate; canary in `completionAuthority.test.ts`. |
+| 38 | `tireInquiry` is still in `WRITE_TOOLS`, so every ordinary tire inquiry sets `convertedToLead = 1` with no lead behind it (the same shape `checkTireStock` was moved out for on 2026-07-20). | `server/services/voice-call-state.ts` | **Not fixed here**: moving it shifts a KPI, so it needs its own PR with a before/after note. |
 
 ---
 
-### Shipped in this PR (second commit): the untracked promise and the false "sent to the shop"
+### Shipped in this PR: untracked promises, false claims, and the push that could re-route transfers
 
-Part C #1 and #2 are fixed at the text level. The reply and tool text now tell the truth; the
-counter still receives nothing, and making "noted" useful is Part I #5.
+Fixed in code: Part C #1, #2, #22–#24, #26, and #28–#37. #1 and #2 are fixed at the text level: the
+reply and tool text now tell the truth, the counter still receives nothing, and making "noted"
+useful is Part I #5.
 
-- **The ordinary-inquiry reply.** `ordinaryTireInquiryReply()` (`server/routers/voiceAgent.ts`)
+- **The ordinary-inquiry reply.** `ordinaryTireInquiryReply()` (`server/lib/tireInquiryReply.ts`)
   says "Got it — 225/65R17, noted." It echoes the size so a mis-heard one can be corrected on the
   spot, and never says it was sent.
-- **The tool and prompt text.** The `tireInquiry.notes` text no longer asks for "promised 15 min
-  callback". The `tireInquiry` description and the system prompt no longer claim "lead saved".
-- **Proof.** `server/__tests__/vapiToolPromiseTruth.test.ts` has 5 tests. It went red 4 of 4
-  against the unfixed code (positive control) and green after the fix.
-- **Ladder.** The reply text reaches callers **on deploy** (it is a tool response). The tool
-  descriptions and prompt reach Vapi **only when the operator presses "Push Latest Config"**
-  (`updateAssistant`, `vapi.ts:1645`). Until then the live assistant still reads the old text:
-  DEPLOYED ≠ LIVE. The legacy notes-based rack-check lead path still works for any notes containing
-  "rack check", for compatibility.
+- **Every callback any script promises is tracked (#22, #28–#33).** Every line of every script —
+  inbound, follow-up, confirmation, recovery, the voicemails, and the strings the tools hand back —
+  either routes its callback through `escalate` (which writes `callback_requests` and the Promise
+  Ledger) or no longer promises one. No promise names a person.
+- **No homework, no range, no false context (#34, #35).**
+- **The claim guard agrees with the prompt (#36)**, and **the push fails closed (#23)** when it
+  cannot read the live assistant. **No names in logs (#26).** **The ledger checker stops accepting
+  "NONE" as evidence (#37).**
+- **Proof:**
+  - `server/__tests__/vapiToolPromiseTruth.test.ts`, 20 tests. It checks eight scripts and every
+    tool description with three matchers (timed promise; callback without `escalate` on the same
+    line, explicit or implied; named person), and CALLS the voice-agent procedures to check what
+    the model relays. Putting each shipped defect back reddened it: 10 of 10 (the odd-size line,
+    the towed line, "have him call", the old voicemail, "first thing", "quote's still good", the
+    "sent to the shop" reply in the router, the door-jamb note plus range, the quoteRange note, the
+    notes claim). Restored: 20/20.
+  - The earlier version of that test only called the reply helper, so restoring the old string in
+    the router stayed green (the independent review's finding). Its first "red 4 of 4" was really
+    3 of 4 for the named reason: the size-echo test failed only because the helper did not exist
+    yet, and the old reply already echoed the size.
+  - `server/voiceClaimGuard.test.ts`: v2 backed vs unbacked, with a positive control.
+  - `server/completionAuthority.test.ts`: red on the old checker, green on the new one.
+  - `server/vapi.updateAssistant.failClosed.test.ts` went red 2 of 3 on the old code; its third test
+    pins that a good read carries the live number and the whole live transfer plan.
+  - `server/__tests__/voiceAgentLogPii.test.ts` is red on the pre-fix file and green after.
+  - Every test file touching the voice surface: 33 files, 422 tests, exit 0; `tsc` exit 0.
+- **Ladder — what reaches callers when:**
+  - **On deploy:** the tool replies (`voiceAgent.ts`: "noted", "the shop will call … back", the
+    size-lookup notes, the rack-check hint), the claim guard, and the confirmation and recovery
+    scripts, which are sent with each call (`systemPromptOverride`).
+  - **Only on Push Latest Config:** the receptionist's prompt, tool text and voicemail. See A2 for
+    what that push also carries.
+  - **Only when `scripts/vapi-create-followup-assistant.ts` runs:** the follow-up cadence's
+    `FOLLOW_UP_SYSTEM_PROMPT`, which lives on the follow-up assistant in Vapi. The script PATCHes
+    the existing assistant; no admin button calls `vapi.updateFollowUpAssistant`.
+  - Until each step happens, the live assistant still reads the old text: DEPLOYED ≠ LIVE. The
+    legacy notes-based rack-check lead path still works for any notes containing "rack check".
 
 ## Part D — Taxonomy, effort, obligations, trust
 
 ### §5. Taxonomy — adopt the one already built; do not invent
 
-- **Use `VoiceIntent`** (39 values, `voiceDemandClassifier.ts:31-47`) as the one taxonomy for calls
+- **Use `VoiceIntent`** (37 values, `voiceDemandClassifier.ts:31-46`) as the one taxonomy for calls
   **and** texts.
 - **Two known gaps to close in that module, not a new one:**
   - a `safety` rule ("wheel came off", "lug nuts", "no brakes") at priority 0;
@@ -354,7 +411,7 @@ chance on a held-out month, no index is justified.
 
   | Kind | Persisted today? | Owner | Due | Evidence of completion | Customer sees it |
   |---|---|---|---|---|---|
-  | Callback | `callback_requests` (new → called / no-answer / completed); plus a `customer_promises` row **only** via `escalate` / `scheduleCallback` | `calledBy` (free text) | **none** on `callback_requests`; `due_at` = next close on the promise row | `calledAt` (a cron can set `no-answer` with nobody calling) | a "still in our queue" text after 4 h |
+  | Callback | `callback_requests` (new → called / no-answer / completed); plus a `customer_promises` row **only** via `escalate` (`scheduleCallback` writes one too but is not in `VAPI_TOOLS`) | `calledBy` (free text) | **none** on `callback_requests`; `due_at` = next close on the promise row | `calledAt` (a cron can set `no-answer` with nobody calling) | a "still in our queue" text after 4 h |
   | Rack check | **no row** (`checkTireStock` writes nothing; the legacy notes path writes a lead) | — | — | — | — |
   | Status update | **no row** ("we text when done" rides `drop_off_sms_flow`; the status-message writer is unwired) | — | — | — | — |
   | Transfer recovery | **no row**: a recovery-queue *lane* computed at read time (15-min SLA constant) plus a forwarded-call follow-up text | — | derived | — | the follow-up text |
@@ -373,8 +430,8 @@ chance on a held-out month, no index is justified.
   2. `sms_response_jobs.human_pending` rows get a promise row whose `due_at` is the next
      business-hours 30 minutes.
   3. "Kept" only on **outcome evidence** (a delivered text, an inbound reply, or a completed call on
-     the promised number), never on an attempt. The ledger row `promise-auto-keep` already states
-     this rule.
+     the promised number), never on an attempt. No code or ledger entry implements this yet; the
+     `voice-promise-capture` entry says only an operator produces the "kept" count.
   4. The sweep never texts the customer on its own. It surfaces the miss to a human (the existing
      Decision Inbox).
 - **Falsifier:** if a month of census output shows promises in fewer than 3% of episodes, the
@@ -400,10 +457,13 @@ chance on a held-out month, no index is justified.
 - **EXT (confirmed this session).** τ-Voice (arXiv 2603.13686, 2026-03-14): the best voice agents
   complete 31–51% of grounded tasks on clean audio and 26–38% with realistic noise and accents,
   against 85% for text. 79–90% of failures are agent behaviour, not audio.
-  **INFER:** Nick's highest-value voice work is behavioural — what the agent promises and captures —
-  not ASR vendor choice.
-- **Entity capture.** Tire sizes spoken digit by digit ("two two five fifty r 18") are a measured
-  miss (`tire-size-recall.mjs:13-17`). The size exists in only 3 of 11 tire calls (09-22).
+  **INFER** (τ-Voice simulated full-duplex speech-to-speech agents; Nick's receptionist is a
+  cascaded Deepgram → gpt-4o → ElevenLabs pipeline, so this transfers by analogy only): Nick's
+  highest-value voice work is behavioural — what the agent promises and captures — not ASR vendor
+  choice.
+- **Entity capture.** In the 09-22 sample a size was *spoken* in 4 of 11 tire calls and captured in 3
+  (`tire-size-recall.mjs:13-17`); the digit-by-digit miss was fixed the same day. The real
+  constraint is callers not giving a size at all.
   **Recommendation:**
   1. Read back and confirm: "225, 65, R17 — right?"
   2. Offer a text link for a sidewall or door-jamb photo.
@@ -412,15 +472,18 @@ chance on a held-out month, no index is justified.
   vehicle and promised action. Shadow it against `extractDemand` first.
 - **Barge-in, silence and latency.** The measured p90 reply gap of 2.29 s is above the ~1.1 s
   cascaded-agent target (EXT: Twilio 2025) and well above the ~200 ms human baseline (EXT: Stivers
-  2009). "Hello? Hello?" as the top opener points at connect latency or first-audio issues. Do not
-  change the provider. Measure first-audio time on the calls whose first customer turn is "hello?".
+  2009). The earlier "Hello? Hello?" latency theory is **refuted** (first assistant audio 0.41 s avg /
+  0.64 s max; ≥2 bare "Hello?" in 0.7% of calls — §3). The gap to chase is the reply gap, not
+  first audio. Do not change the provider.
 - **Warm transfer.** 11 of 11 connected is n = 11. The runbook's ring-out canary has not run, and
   `transfer-update` events are subscribed but unhandled (REPO `vapi.ts:1019`). Handle the event and
   run the canary before calling transfer "proven".
 - **Regression evals.** Use Vapi Evals / Test Suites (EXT, docs; already paid for) for tool-call
-  assertions, plus promptfoo (MIT; OpenAI-owned since 2026-03, still MIT) over de-identified,
-  human-approved cases mined from `vapi_call_archives`. Do not adopt Langfuse self-hosted (four
-  datastores) or Phoenix (ELv2).
+  assertions over de-identified, human-approved cases mined from `vapi_call_archives`, and the
+  existing `tests/eval/run-suite.ts` pattern. `docs/UPSTREAMS.md` already rules on the rest:
+  Langfuse is ADOPTED as a Cloud SDK (statenour, 2026-08-25; self-hosting stays rejected), Phoenix
+  is WATCH, and Promptfoo is an eval-harness SPIKE scoped to six adversarial classes — not a voice
+  regression tool. Do not add a second eval platform for voice.
 - **SMS.** The single point of failure is physical (a phone). **OPERATOR** options:
   1. Keep the phone, add a health-to-page loop (exists) and cap automated volume.
   2. Register a 10DLC brand and campaign on a carrier API for automated lanes, and keep the phone
@@ -443,7 +506,8 @@ chance on a held-out month, no index is justified.
 - **Staff interruption load** = connected transfers × median handle time + callbacks completed ×
   median callback duration.
 - **Base rates to hold every claim against (CORPUS·prior):**
-  - ~700–1,000 inbound calls a month against ~105–145 paid invoices a month.
+  - ~700–1,000 calls a month (all directions) against 73–145 paid invoices a month (73 is the
+    latest 30-day count).
   - 77% one-and-done customers.
   - **INFER:** most calls are not new revenue. A lever that "saves 10% of lost calls" is worth at
     most 10% × (qualified share, unknown until the census) × conversion × ticket.
@@ -467,16 +531,19 @@ half-day block and test with block permutation.
 1. **A quarter of callers want a person before anything else, and getting one fast is success.**
    94.7% are forwarded within a median of 2 turns (CORPUS·prior). A "reduce transfers" goal would
    optimise against customers.
-2. **Price, not stock, is the first blocker.** Price uncertainty is 32% of first-turn friction
-   (CORPUS·prior), and the assistant is told never to speak to stock. **Contradiction:** the
-   architecture is tire-inventory-first while the customer's first question is "how much".
-3. **Callers are terse and the line is noisy.** Half of turns are 3 words or fewer; "Hello? Hello?"
-   leads. Designs that need long spoken answers (sizes, VINs, addresses) fight the channel. A photo
-   or text link is the fit.
+2. **Whether price or stock blocks callers first is not yet measured.** The 32% "price
+   uncertainty" is a label the classifier attaches by rule to 15 service intents, so "I need an oil
+   change" scores as price uncertainty; it restates the intent mix (call-mix-2026-07-26 made the same
+   leap). The assistant does speak to both: Rule 4 and FLOW 1 Beat 2 script "we keep most standard
+   sizes in stock", and it gives the sixty-dollar used-tire anchor. How often callers voice a price
+   concern needs a phrase-level count (the census export plus a reading pass).
+3. **Callers are terse.** Half of turns are 3 words or fewer. Designs that need long spoken answers
+   (sizes, VINs, addresses) fight the channel. A photo or text link is the fit.
 4. **"I'll come by" is usually the assistant's phrase, not the customer's commitment.** 66 of 89
    no-shows never named a day (CORPUS·prior).
-5. **Customers text rarely, and when they do we answer late.** 43 inbound texts in 30 d; 74% not
-   answered within 2 h (July). EXT says 56% of tire customers *prefer* texted updates.
+5. **Customers text rarely.** 43 inbound texts in 30 d. The 74% "not answered within 2 h" covers
+   the 180 days to 07-25, mostly before the SMS orchestrator (ROS-058), so it says nothing about
+   reply speed today. EXT says 56% of tire customers *prefer* texted updates.
    **Contradiction to test:** low inbound SMS may reflect that we never invite it and answer it
    slowly, not low preference.
 6. **Before warm transfer, about a quarter of forwarded callers called back within 15 minutes.**
@@ -488,10 +555,10 @@ half-day block and test with block permutation.
 | Trained behaviour | Evidence | Grade |
 |---|---|---|
 | **Redial** after a transfer | 22–28% forward → redial within 15 min (before 09-21) | CORPUS·prior (measured) |
-| **Ask for a person first** | The AI cannot answer price with confidence (§11.2) or stock (`checkTireStock` only hands off), so bypassing it is rational | INFER (the two inputs are measured; causation is not) |
-| **Repeat the tire size** | Part C #1: "sent to the shop" persists nothing | REPO mechanism; frequency **unmeasured** until the census's `reaskedKnownSize` runs |
+| **Ask for a person first** | The AI gives only three price anchors and hands every stock-confirmation request to a person, so a caller who wants a firm number or a confirmed tire has a reason to bypass it | INFER (mechanism from the prompt; frequency and causation unmeasured) |
+| **Repeat the tire size** | Part C #1: "sent to the shop" persisted nothing | REPO mechanism. Repeating it at the **counter** is visible to no read today; the census's `reaskedKnownSize` only sees the assistant re-asking in a later call |
 | **Call for status** | No status tool, the proactive status writer is unwired, and status calls are transferred | REPO mechanism; `active_job_status` share unmeasured |
-| **Not bother texting** | 74% unanswered within 2 h; 45 pending, 27 over 30 d | CORPUS·prior + INFER |
+| **Not bother texting** | 45 `human_pending` rows (~34 customers), 25–27 over 30 d; the 74% figure is pre-orchestrator (§3) | CORPUS·prior + INFER |
 
 ---
 
@@ -527,7 +594,7 @@ half-day block and test with block permutation.
 2. Gap-based episodes in `recoveryQueue.ts`, keyed on phone only, with intent kept as an attribute.
 3. `tireInquiry` persists its demand to `vapi_call_logs.metadata.demand` (the field already exists
    and is read by `tire-size-recall`) and a counter card shows it. No lead row, so no feed noise.
-4. Delete the "promised 15 min callback" text (`vapi.ts:627`) and the unregistered
+4. ~~Delete the "promised 15 min callback" text~~ (done in this PR). Still open: the unregistered
    `scheduleCallback` / `quoteRange` dispatch and auditor branches.
 5. A UI caller for `markNoReplyNeeded` and `releaseTakeover`.
 6. One obligation-writer helper over `customer_promises` (§7), with outcome-evidence keeping.
@@ -546,12 +613,13 @@ half-day block and test with block permutation.
    `getCustomerJourneyTimeline`.
 2. A graph database or embeddings memory for customers.
 3. A composite Customer Effort Index (§6).
-4. A voice provider migration. τ-Voice says the gap is behavioural.
+4. A voice provider migration. INFER from τ-Voice (a simulation of full-duplex agents; Nick's is
+   cascaded): the gap is behavioural.
 5. Another dashboard. The 1,118-row queue lesson.
 6. Proactive marketing blasts over the Android gateway. It is a carrier-terms risk and has no
    fallback.
-7. LLM summaries of counter audio before notice and signage exist, and before coverage stays above
-   65% for a week.
+7. LLM summaries of counter audio before a customer notice policy exists (the operator confirmed
+   signage is posted, Part C #14) and before coverage stays above 65% for a week.
 8. "My Garage" expansion. `customer_vehicles` is keyed to portal users, not phones.
 9. Re-enabling automated voice recovery dialing before the promise and consent path exists (110 of
    110 failed silently).
@@ -581,13 +649,13 @@ half-day block and test with block permutation.
 
 | Recommendation | Action | Builds on | Problem · Nick evidence · External | Acceptance test | Live proof required | Metric · kill switch · falsifier |
 |---|---|---|---|---|---|---|
-| Stop the false "sent to the shop" | **MODIFY** | `voiceAgent.ts:628-644`, `vapi_call_logs.metadata.demand` | Part C #1 · repeat burden · Zendesk 2026: 74% frustrated repeating (vendor) | A unit test: an ordinary inquiry writes demand to metadata; the message text is unchanged or truthful | A production call row with `metadata.demand.tireSize` from `tireInquiry` | `reaskedKnownSize` ↓ · revert commit · falsifier: re-ask rate already < 2% of multi-call episodes |
-| Remove the untracked 15-min promise | **DELETE** | `vapi.ts:627` | Part C #2 · prompt contradiction | Tool-schema snapshot test that has no "promised" text | The Vapi assistant config after push carries the new description | Assistant promise count (census) · revert · — |
+| Stop the false "sent to the shop" | **MODIFY** | `voiceAgent.ts:628-644`, `vapi_call_logs.metadata.demand` | Part C #1 · repeat burden · Zendesk 2026: 74% frustrated repeating (vendor) | A unit test: an ordinary inquiry writes demand to metadata; the message text is unchanged or truthful | A production call row with `metadata.demand.tireSize` from `tireInquiry` | a counter-side "size known on arrival" event on the card (the census cannot see the counter; `reaskedKnownSize` measures only the assistant re-asking) · revert commit · falsifier: < 5% of tire walk-ins called first |
+| Remove the untracked 15-min promise | **DELETE — done in this PR** | `vapi.ts` tool text | Part C #2 · prompt contradiction | `vapiToolPromiseTruth.test.ts` (timed-promise matcher over every script and tool text) | The Vapi assistant config after push carries the new description | Assistant promise count (census) · revert · — |
 | Obligation writer | **CONSOLIDATE** into `customer_promises` | `promiseLedger.ts:310`, `escalate`, `sms_response_jobs` | §7 · 0 rows · McCollough 2000 | A promise per commitment kind; kept only with evidence | A non-zero `customer_promises` row from voice, kept by evidence | kept / (kept + missed) · flag `promise_writer_enabled` · falsifier: < 3% of episodes carry a promise |
 | Wire `classifyVoiceDemand` | **MODIFY** (wire) | `voiceDemandClassifier.ts`, `vapiCallEval.ts` | Part C #4/#5 | Shadow field written; parity test against the fixture | 14 days of shadow rows in production; disagreement table from the census | `unclear` share, tire share · shadow-only · falsifier: disagreement < 5% |
 | Gap episodes | **MODIFY** | `callTaxonomy.ts:389` | Part C #6 | `customerCorpus.test.ts` case moved to the kernel | Queue episode count vs census call episodes | rows per customer · revert · falsifier: kernel and gap counts within 2% |
 | Close path for texts | **MODIFY** (wire UI) | `markNoReplyNeeded`, `SmsOrchestratorSection.tsx` | Part C #8 · 45 pending | RTL test: the button calls the procedure; two-tap confirm (iOS PWA rule) | `human_pending` count reaches ≤ 5, none > 7 d | median age · — · — |
-| Rack-check result text | **NEW** (thin) | `checkTireStock`, promises, `orchestrateSms` | §8 · price and stock blockers · J.D. Power photo effect | Admin "checked" action writes evidence and a draft text | 10 production rack checks closed with a sent result | arrival ≤ 3 d (switchback) · flag · falsifier: no arrival lift after 60 blocks |
+| Rack-check result text | **NEW** (thin) | `checkTireStock`, promises, `orchestrateSms` | §8 · stock-confirmation hand-offs · J.D. Power photo effect | Admin "checked" action writes evidence and a draft text | 10 production rack checks closed with a sent result | arrival ≤ 3 d (switchback) · flag · falsifier: no arrival lift after 60 blocks |
 | Status on request | **MODIFY** (wire) | `dispatch.sendMessage`, `/track` | Part C #9 · J.D. Power 56% prefer text | UI caller test | 5 status texts sent from the work-order screen | status calls ↓ (census `active_job_status`) · flag · falsifier: status calls < 2% of episodes |
 | Disclosure line | **MODIFY** (copy) | `FIRST_MESSAGE` | Part C #7 · Invoca/Gartner 2026 | Snapshot test on the greeting | Pushed config | 10-second hang-up rate · revert · — |
 | SMS lane split | **NEW** (vendor) | `sms.ts` provider switch | Part C #11 · CTIA/T-Mobile terms | Provider routing test | 10DLC campaign approved | delivered / sent · env · — |
@@ -613,11 +681,13 @@ census run.
    fix `vapiCallArchive` first (the 500-per-run cap and 14-day horizon mean a stall longer than 14
    days loses calls for good).
 3. Wire the `markNoReplyNeeded` / `releaseTakeover` UI (no dependency).
-4. ~~Delete the "promised 15 min callback" tool text~~ **Done in this PR** (Part C "Shipped"). The
-   Vapi config push is still an OPERATOR click. Still open: the dead `scheduleCallback` /
-   `quoteRange` dispatch and auditor branches.
-5. `tireInquiry` → `metadata.demand` persistence plus a counter card (depends on nothing; measured
-   by the census's `reaskedKnownSize`).
+4. ~~Delete the "promised 15 min callback" tool text~~ and ~~route every callback promise through
+   `escalate`~~ **Done in this PR** (Part C "Shipped"). The Vapi config push is still an OPERATOR
+   click. Still open: the dead `scheduleCallback` / `quoteRange` dispatch and auditor branches.
+4b. The stale-callback cron (Part C #21): stop stamping `calledAt` / `no-answer` on the automatic
+   path. Protected core, so its own PR with targeted tests.
+5. `tireInquiry` → `metadata.demand` persistence plus a counter card (depends on nothing). Measure
+   it with a "size known on arrival" event on the card: the census cannot see the counter.
 6. Add the safety rule and spoken-size normalisation to `voiceDemandClassifier`, then shadow-wire it
    into `vapi-eval` (depends on 1 for the baseline).
 7. Gap-based episodes in `recoveryQueue` (depends on 6 for family attributes).
@@ -627,8 +697,8 @@ census run.
 11. `transfer-update` handler plus the warm-transfer canary (independent; the canary is an OPERATOR
     test call).
 12. Promote the census rules to invariants (A3).
-13. Photo-assess structured size extraction (depends on the operator enabling
-    `photo_assess_enabled`).
+13. Photo-assess structured size extraction (no dependency left: `photo_assess_enabled` has been on
+    since 2026-09-22 22:05Z).
 14. Re-run the census monthly. Compare the primitives, and kill any item whose falsifier fired.
 
 ---
@@ -729,7 +799,7 @@ the Eastern date is used. Each fix lowers the baseline in the same PR.
 | 15 | Highest-effort episodes | sort the export by the raw primitives (no composite) |
 | 16 | Labour without customer value | the `active_job_status` share plus the transfer-connected share, per need |
 | 17 | Status calls a status text could remove | the `active_job_status` episode count (upper bound) |
-| 18 | Where photo intake removes knowledge burden | `tire_size_help` / `unknown_tire_size` friction episodes |
+| 18 | Where photo intake removes knowledge burden | **Not answerable from the classifier**: `tire_size_help` / `unknown_tire_size` fire when a caller *states* a size (and on phone numbers), not when they cannot give one. Needs a "don't know my size" phrase count in the export reading pass |
 | 19 | What a high-converting *legitimate* tire episode looks like | export: linked tire episodes against unlinked ones |
 | 20 | What correlates with repeat customers | census `existingCustomer` plus a 90-day forward join (next monthly run) |
 
@@ -758,7 +828,8 @@ You are continuing Nick's Tire customer-operations work in apps/nickstire. Stand
    AGPL, SSPL, BSL or unlicensed code (Unleash server, Emmett, Inngest server, Restate, Twenty).
    ELv2 (Phoenix) permits internal self-hosting but not embedding or hosting as a service;
    prefer its mechanisms.
-   TiDB silently ignores SKIP LOCKED: claims are compare-and-swap UPDATEs checking affected rows = 1.
+   TiDB silently turns SKIP LOCKED into a plain non-locking read: claims are compare-and-swap
+   UPDATEs checking affected rows = 1.
 8. Privacy: mask before match, match before print; phones as hashes in any artifact; no PII in logs
    or Telegram.
 9. Report with receipts: files, tests (N passed, exit 0), PR link, what is DONE / BLOCKED-ON-X /
