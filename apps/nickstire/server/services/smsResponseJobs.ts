@@ -29,6 +29,7 @@
 import { createHash } from "node:crypto";
 import { createLogger } from "../lib/logger";
 import { affectedRowCount } from "../lib/db-affected";
+import { isMissingTableError } from "../lib/dbErrors";
 
 const log = createLogger("sms-response-jobs");
 
@@ -187,22 +188,11 @@ export interface ObligationHandle {
   created: boolean;
 }
 
-/**
- * Is this the "the table isn't there" failure, as opposed to a transient fault?
- *
- * The distinction decides what the webhook does: a missing table is a deploy-state
- * problem that retrying cannot fix (retrying would only spin the provider's
- * at-least-once redelivery into a storm), so we degrade loudly. Anything else may
- * well succeed on the next attempt, so the caller should hand the retry back to the
- * provider rather than swallow the obligation.
- */
-function isMissingTableError(err: unknown): boolean {
-  const e = err as { errno?: number; code?: string; message?: string } | null;
-  if (!e) return false;
-  if (e.errno === 1146) return true;
-  if (e.code === "ER_NO_SUCH_TABLE") return true;
-  return /doesn'?t exist|no such table|unknown table/i.test(e.message ?? "");
-}
+// isMissingTableError (lib/dbErrors) decides what the webhook does. A missing
+// table is a deploy-state problem that retrying cannot fix: retrying would only
+// spin the provider's at-least-once redelivery into a storm, so we degrade
+// loudly. Anything else may well succeed on the next attempt, so the caller
+// should hand the retry back to the provider rather than swallow the obligation.
 
 /**
  * Durably record the obligation to respond, and say whether it is durable.
