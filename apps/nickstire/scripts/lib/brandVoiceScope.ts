@@ -20,6 +20,10 @@ export const IN_SCOPE: { rx: RegExp; surface: VoiceSurface }[] = [
   { rx: /^client\/src\/pages\/.*\.tsx$/, surface: "web" },
   { rx: /^client\/src\/components\/.*\.tsx$/, surface: "web" },
   { rx: /^server\/services\/vapi\.ts$/, surface: "voice" },
+  // The voice-agent tool procedures return strings the receptionist reads to
+  // callers verbatim (the "noted" reply, size-lookup notes, stock hints); the
+  // server/routers exclusion above would otherwise leave that copy unscanned.
+  { rx: /^server\/routers\/voiceAgent\.ts$/, surface: "voice" },
   { rx: /^server\/cron\/jobs\/.*Sequences\.ts$/, surface: "sms" },
   { rx: /^server\/cron\/jobs\/.*Outreach\.ts$/, surface: "sms" },
   { rx: /^server\/cron\/jobs\/.*Recovery\.ts$/, surface: "sms" },

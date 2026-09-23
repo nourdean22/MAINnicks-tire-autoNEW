@@ -59,6 +59,11 @@ describe("scopeOf — scope rules unaffected by the fix (behavior preserved)", (
     expect(scopeOf("server/services/vapi.ts")).toBe("voice");
   });
 
+  it("matches the voice-agent tool router, whose return strings the receptionist speaks — the only server/routers file in scope", () => {
+    expect(scopeOf("server/routers/voiceAgent.ts")).toBe("voice");
+    expect(scopeOf("server/routers/voiceAgentOther.ts")).toBeNull();
+  });
+
   it("matches an SMS sequence/outreach/recovery cron job", () => {
     expect(scopeOf("server/cron/jobs/winbackSequences.ts")).toBe("sms");
     expect(scopeOf("server/cron/jobs/leadOutreach.ts")).toBe("sms");

@@ -1564,12 +1564,17 @@ export async function updateFollowUpAssistant(assistantId: string, serverUrl?: s
       method: "PATCH",
       body: JSON.stringify(config),
     });
+    // Logged like updateAssistant's push, so a tap on PUSH FOLLOW-UP ASSISTANT
+    // can be verified from the Railway logs and not only from the toast.
     if (!res.ok) {
       const text = await res.text();
+      log.error("Vapi follow-up assistant update failed", { id: assistantId, status: res.status, body: text.slice(0, 500) });
       return { success: false, error: `${res.status}: ${text.slice(0, 200)}` };
     }
+    log.info("Updated Vapi follow-up assistant", { id: assistantId });
     return { success: true };
   } catch (err) {
+    log.error("Vapi follow-up assistant update threw", { id: assistantId, err: err instanceof Error ? err.message : String(err) });
     return { success: false, error: err instanceof Error ? err.message : "Update failed" };
   }
 }

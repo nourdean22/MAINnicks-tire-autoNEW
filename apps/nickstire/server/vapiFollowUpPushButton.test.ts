@@ -69,6 +69,41 @@ describe("PUSH FOLLOW-UP ASSISTANT · the server's pin decides the target", () =
     expect(calls).toHaveLength(0);
   });
 
+  it("a successful push writes 'Updated Vapi follow-up assistant' with the id, so the logs can verify a tap", async () => {
+    vi.stubEnv("VAPI_FOLLOWUP_ASSISTANT_ID", "asst_canary");
+    const out: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      out.push(String(chunk));
+      return true;
+    });
+    try {
+      await push();
+    } finally {
+      spy.mockRestore();
+    }
+    const line = out.find((l) => l.includes("Updated Vapi follow-up assistant"));
+    expect(line).toBeDefined();
+    expect(line).toContain("asst_canary");
+  });
+
+  it("a rejected push writes an error line naming the status", async () => {
+    vi.stubEnv("VAPI_FOLLOWUP_ASSISTANT_ID", "asst_canary");
+    vi.stubGlobal("fetch", async () => new Response("bad config", { status: 400 }));
+    const err: string[] = [];
+    const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk: unknown) => {
+      err.push(String(chunk));
+      return true;
+    });
+    let res: { success: boolean };
+    try {
+      res = await push();
+    } finally {
+      spy.mockRestore();
+    }
+    expect(res.success).toBe(false);
+    expect(err.some((l) => l.includes("Vapi follow-up assistant update failed") && l.includes("400"))).toBe(true);
+  });
+
   it("an explicit id still wins over the pin", async () => {
     vi.stubEnv("VAPI_FOLLOWUP_ASSISTANT_ID", "asst_canary");
     await push({ assistantId: "asst_other" });
