@@ -118,6 +118,17 @@ function normalizeContent(content: string): string {
   return content.replace(/\r\n/g, "\n").replace(/[ \t]+$/gm, "").trim();
 }
 
+/**
+ * The length the schema will judge: content after the same normalisation
+ * buildKnowledgeCandidate applies. Ingest scripts use it to report an oversize
+ * source as such (quarantine / skip with a named reason) BEFORE building, so a
+ * long note is a visible degraded item rather than a thrown ZodError that
+ * flips a whole vault's sync health to "error" (review on #2562).
+ */
+export function normalizedContentLength(content: string): number {
+  return normalizeContent(content).length;
+}
+
 function toIso(value: string | Date | undefined): string {
   const date = value instanceof Date ? value : value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) throw new Error("Knowledge candidate observedAt is invalid.");

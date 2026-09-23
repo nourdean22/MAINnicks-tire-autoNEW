@@ -13,19 +13,32 @@
  * 561,770 chars), so it rejects nothing real today and makes the write-time failure unreachable.
  *
  * Reject, never truncate: a silently clipped note would hash, dedupe and index as something the source
- * never said. The only callers are the owner-authed /api/knowledge/candidates route (a Zod rejection is a
- * 400 there) and the adapters that feed it.
+ * never said. Callers: the owner-authed /api/knowledge/candidates route (a Zod rejection is a 400 there),
+ * and the two ingest scripts that build candidates from files and persist them directly -
+ * scripts/ingest-obsidian-candidates.ts (obsidian:ingest / sync / watch) and
+ * scripts/ingest-notebooklm-candidates.ts. Those pre-check normalizedContentLength() against the bound
+ * BEFORE building, so an oversize note is a reported quarantine row / rejected item, not a thrown
+ * ZodError counted as `failed` that flips the whole vault's sync health to "error" (self-review on
+ * #2562). Note the Obsidian adapter prefixes `[title]\n`, so a note body's effective ceiling is
+ * 32,000 minus the title and 3 chars - the pre-check measures the prefixed text.
  *
  * Positive control (recorded): against the unbounded schema the two "over the bound" cases are red
- * (buildKnowledgeCandidate returns a candidate instead of throwing; safeParse succeeds).
+ * (buildKnowledgeCandidate returns a candidate instead of throwing; safeParse succeeds); against the
+ * scripts without the pre-check the two ingest contracts are red.
  */
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
   buildKnowledgeCandidate,
   KNOWLEDGE_CONTENT_MAX_CHARS,
   KnowledgeCandidateSchema,
+  normalizedContentLength,
 } from "@/lib/knowledge/candidate";
+
+const root = new URL("../../../", import.meta.url);
+const read = (rel: string) => readFileSync(new URL(rel, root), "utf8");
+const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
 
 const build = (content: string) =>
   buildKnowledgeCandidate({
@@ -64,5 +77,41 @@ describe("KnowledgeCandidateSchema · content is bounded", () => {
   it("the bound applies to normalised content: trailing whitespace does not count against it", () => {
     const candidate = build("z".repeat(KNOWLEDGE_CONTENT_MAX_CHARS) + "   \n\n");
     expect(candidate.content).toHaveLength(KNOWLEDGE_CONTENT_MAX_CHARS);
+  });
+});
+
+describe("ingest scripts · an oversize source is reported before the schema throws", () => {
+  it("normalizedContentLength measures exactly what the schema judges (CRLF, trailing blanks, trim)", () => {
+    expect(normalizedContentLength("a\r\nb  \n\n")).toBe(3);
+    const body = "x".repeat(KNOWLEDGE_CONTENT_MAX_CHARS);
+    expect(normalizedContentLength(body + "   \n")).toBe(KNOWLEDGE_CONTENT_MAX_CHARS);
+    expect(() => build(body + "   \n")).not.toThrow();
+    expect(() => build(body + "y")).toThrow();
+  });
+
+  it("the Obsidian ingest pre-checks the PREFIXED text against the bound before building, and reports rather than fails", () => {
+    const src = strip(read("scripts/ingest-obsidian-candidates.ts"));
+    const check = src.indexOf("normalizedContentLength(`[${title}]\\n${parsed.content}`)");
+    const build = src.indexOf("const candidate = buildObsidianCandidate(");
+    expect(check).toBeGreaterThan(-1);
+    expect(build).toBeGreaterThan(check);
+    const between = src.slice(check, build);
+    expect(between).toMatch(/> KNOWLEDGE_CONTENT_MAX_CHARS/);
+    expect(between).toMatch(/counters\.quarantined \+= 1/);
+    expect(between).not.toMatch(/counters\.failed/);
+    expect(between).toMatch(/continue;/);
+  });
+
+  it("the NotebookLM ingest pre-checks item.text against the bound before building, and rejects rather than fails", () => {
+    const src = strip(read("scripts/ingest-notebooklm-candidates.ts"));
+    const check = src.indexOf("normalizedContentLength(item.text)");
+    const build = src.indexOf("buildNotebookLmCandidate({");
+    expect(check).toBeGreaterThan(-1);
+    expect(build).toBeGreaterThan(check);
+    const between = src.slice(check, build);
+    expect(between).toMatch(/> KNOWLEDGE_CONTENT_MAX_CHARS/);
+    expect(between).toMatch(/summary\.rejected \+= 1/);
+    expect(between).not.toMatch(/failures/);
+    expect(between).toMatch(/continue;/);
   });
 });
