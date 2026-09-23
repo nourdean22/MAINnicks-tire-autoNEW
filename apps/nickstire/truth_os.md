@@ -95,6 +95,31 @@ detailed in `docs/CURRENT-TRUTH.md`:
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
 
+## 2026-09-23 — twenty DB-error checks were reading the SQL, not the error
+
+Shipped as #2574 (missing table, duplicate key) and #2589 (the rest). drizzle-orm
+0.45 wraps every driver error in a `DrizzleQueryError` whose message is only
+`Failed query: <sql>\nparams: <params>`; the code, errno and driver text sit on
+`.cause`. Twenty call sites regexed that message or read only the top-level
+`.code`. Until #2589 is live, all of the following were true in production:
+
+- **Every "migration not applied yet, retry without the column" fallback was
+  unreachable** (sms.ts x3, opportunityQueue x4, smsOps replay, recoveryLift x2):
+  a real wrapped 1054 never matched.
+- **A failed query whose params held `1054` did match.** On `sms_messages.id`
+  1054 a timeout would have switched retry bounding off for the process.
+- **emailCampaigns and dashboardSync called every failure "migration not
+  applied"**: their regexes named a column/table their own SQL contains.
+- **monteCarloForecast and weeklyRevenueDigest never reported BROKEN** on a
+  schema bug; they read only the top-level `.code`.
+- **shopdriver x3, followupCadence and the vapi webhook missed a wrapped
+  duplicate**, so a lost race took the error path.
+
+**Rule:** never text-match a database error. Ask `server/lib/dbErrors.ts`
+(`isMissingTableError`, `isDuplicateKeyError`, `isUnknownColumnError`,
+`isSchemaBugError`). A source scan in `server/lib/dbErrors.test.ts` fails if a
+regex comes back at any of the twenty sites.
+
 ## 2026-09-16 — "we could not check the opt-out list" had been reading as "nobody opted out"
 
 Shipped as #2361 (`34d53af5c`), #2363 (`e94ab8998`) and #2371 (`46e3194f4`);

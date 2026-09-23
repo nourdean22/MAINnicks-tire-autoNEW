@@ -30,6 +30,23 @@ mediaRegistry, followupCadence, dashboardSync, shopdriver x3, webhooks/vapi.
 `callbackAuditReceipt.test.ts` then `coupon-redemptions`: 3 of 8 runs red without the guard,
 0 of 12 with it.
 
+**Shuffled-order sweep found one more (fixed in the same PR).** `tableWriterCoverage.test.ts`
+timed out at 34-36s under seed 29 (31.3s even with the guard removed, so not the guard): two
+regexes per table x file. One pass per file now: 13.3s -> 0.14s; old vs new agree on all 154
+tables x 938 files (0 diffs); dropping `payments` from the allowlist still turns it red.
+
+**Shipped as #2589** (draft opened 13:01Z; merged tree 714 files, 8,952 tests, 0 failed, default
+order and seed 29). Merged key-wise with sibling #2581/#2582/#2583/#2584.
+
+**Cloud container (`bash scripts/cloud-setup.sh`, 2026-09-23):** Railway CLI 5.60.0 installed,
+workspace already installed. MISSING: `RAILWAY_TOKEN` (CLI unauthenticated; the Railway MCP
+connector still works), Node 24 (container has 22), `gh` (the GitHub MCP connector covers PRs).
+
+**⚠ PreToolUse guard is OFF in cloud sessions.** `.claude/settings.json` runs
+`node "${CLAUDE_PROJECT_DIR}\scripts\agent-os\pretool.mjs"`; on Linux that path does not resolve
+(exit 1, fail-open), so none of the 13 rules fire. The script itself blocks when called with `/`
+(exit 2 on `git stash pop`). Proposal P1 in `docs/skill-proposals.md`; needs a Windows check.
+
 **Owner items still open:** delete Railway function `oneoff-careers-postdeploy` (inert, API
 delete timed out twice) · Resend DNS for nickstire.org (emails do not deliver) · mark test
 candidates #1/#2 withdrawn · never text STOP from the CEO mobile to the shop line.

@@ -49,6 +49,20 @@ because only sub-gate 1 was documented:
 
 ## Traps
 
+- **Never text-match a database error.** drizzle-orm 0.45 wraps every driver
+  error; the wrapper's message is the SQL and its params, and the code/errno
+  live on `.cause`. A regex on `err.message` misses the real 1054/1062/1146
+  and matches any query whose params contain those digits or whose SQL names
+  the table. Twenty sites did this until #2574/#2589. Use
+  `server/lib/dbErrors.ts`; test with drizzle's own `DrizzleQueryError`, not a
+  look-alike, plus a wrapped timeout whose params hold the code as the control.
+- **A test within ~2x of its timeout is a shuffled-order failure waiting to
+  happen.** `tableWriterCoverage` passed at 13s in default order and timed out
+  at 34-36s under `--sequence.shuffle.files --sequence.seed=29`, reproducibly
+  (2026-09-23; fixed by reading each file once, 0.14s). Sweep a few seeds before
+  shipping test changes, and compare runs only on the SAME file set: a branch
+  with a different test-file count shuffles into a different order, so "main
+  passes seed 29" proved nothing until the same tree ran without the change.
 - **A derived scan set must include the WIRING file it derives from.**
   `server/__tests__/cronNoSwallowedFailure.test.ts` scanned every module
   `scheduler.ts` imports and never `scheduler.ts` itself — which held 13
