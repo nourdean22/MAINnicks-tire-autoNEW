@@ -1,15 +1,17 @@
 /**
- * Cache Layer — in-process Map cache with TTL.
+ * Cache Layer — in-process Map with TTL.
  * All functions are no-op safe — the app works without caching.
- * (A Redis path existed here until 2026-09-23; its initializer had no caller,
- * ioredis was never a dependency, and production sets no REDIS_URL.)
+ *
+ * 2026-09-23 · the optional Redis branch was removed. Its only entry point,
+ * initCache(), had no caller, so the Redis client was never created and every
+ * read and write already took the Map path below. Behaviour is unchanged.
  */
 
 import { createLogger } from "./logger";
 
 const log = createLogger("cache");
 
-// ─── In-memory fallback cache ───────────────────
+// ─── In-memory cache ───────────────────────────
 const memCache = new Map<string, { value: string; expiresAt: number }>();
 const MAX_MEM_CACHE_ENTRIES = 5000;
 
@@ -60,7 +62,7 @@ export async function cacheDelete(key: string): Promise<void> {
   }
 }
 
-/** Delete all keys matching a prefix pattern (a trailing "*" is stripped) */
+/** Delete all keys matching a "prefix*" pattern */
 export async function cacheDeletePattern(pattern: string): Promise<void> {
   try {
     for (const key of memCache.keys()) {
@@ -81,7 +83,7 @@ export async function cached<T>(key: string, ttlSeconds: number, fetcher: () => 
   return fresh;
 }
 
-/** Cleanup expired entries (call periodically) */
+/** Cleanup expired entries (in-memory only — call periodically) */
 export function cleanupMemCache(): number {
   const now = Date.now();
   let removed = 0;
@@ -95,11 +97,14 @@ export function cleanupMemCache(): number {
 }
 
 /** Cache stats for health check */
-export function getCacheStats(): { type: "redis" | "memory"; keys: number } {
-  return { type: "memory", keys: memCache.size };
+export function getCacheStats(): { type: "memory"; keys: number } {
+  return {
+    type: "memory",
+    keys: memCache.size,
+  };
 }
 
-// Auto-cleanup expired cache entries every 5 minutes
+// Auto-cleanup expired in-memory cache entries every 5 minutes
 const cacheCleanupInterval = setInterval(() => {
   cleanupMemCache();
 }, 5 * 60 * 1000);

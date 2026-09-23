@@ -26,7 +26,19 @@ const results = [];
 
 function run(label, argv) {
   process.stdout.write(`\n── ${label} ${"─".repeat(Math.max(0, 58 - label.length))}\n`);
-  const r = spawnSync(process.execPath, argv, { cwd: ROOT, stdio: "inherit" });
+  // Session Authority canaries (2026-09-23) make live GitHub API calls via
+  // github-client.mjs, whose fetch() silently 401s behind this environment's proxy
+  // unless NODE_USE_ENV_PROXY=1 is set from process START — setting it inside a
+  // running script does nothing (verified). A spawned child is a fresh process, so
+  // setting it here is the correct place, once, for every discovered test file,
+  // rather than each one re-exec'ing itself individually. NODE_NO_WARNINGS rides
+  // along: enabling the env-proxy-agent makes Node print a one-time "[UNDICI-EHPA]
+  // Warning: EnvHttpProxyAgent is experimental" line to stderr, which broke
+  // memoryHook.test.mjs's unrelated "nothing operator-facing goes to stderr"
+  // canary the first time this line was added without it — caught by running the
+  // FULL suite, not just the new tests, before trusting this change.
+  const env = process.env.HTTPS_PROXY ? { ...process.env, NODE_USE_ENV_PROXY: "1", NODE_NO_WARNINGS: "1" } : process.env;
+  const r = spawnSync(process.execPath, argv, { cwd: ROOT, stdio: "inherit", env });
   if (r.error) {
     console.error(`\n[agent-os] could not run ${label}: ${r.error.message}`);
     process.exit(2);

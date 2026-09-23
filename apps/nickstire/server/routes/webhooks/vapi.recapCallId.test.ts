@@ -119,3 +119,63 @@ describe("sendConfirmationSms through the webhook", () => {
     expect(h.events[0].vapiCallId).toBeUndefined();
   });
 });
+
+// 2026-09-23. The model invented mapLink "https://goo.gl/maps/abc123"; the
+// preflight guard held the text as a draft. The live assistant keeps sending
+// the argument until the next config push, so the call must still succeed,
+// and the link must never reach the orchestrator.
+describe("a model-supplied mapLink", () => {
+  it("is accepted but never forwarded to the orchestrator", async () => {
+    const call = recapCall("call-recap-map");
+    (call.toolCalls[0].function.arguments as Record<string, unknown>).mapLink = "https://goo.gl/maps/abc123";
+
+    const res = await postEvent(call);
+
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.body.results?.[0]?.result ?? "{}")).toMatchObject({ sent: true });
+    expect(h.events).toHaveLength(1);
+    expect(h.events[0]).not.toHaveProperty("mapLink");
+    expect(JSON.stringify(h.events[0])).not.toContain("goo.gl");
+  });
+});
+
+// 2026-09-23. The "Vapi tool call" line printed args whole: the caller's full
+// name and full phone number in the Railway log.
+describe("the Vapi tool call log line", () => {
+  it("carries the tool, the argument keys and the last 4 digits only", async () => {
+    const lines: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      lines.push(String(chunk));
+      return true;
+    });
+    try {
+      await postEvent({
+        type: "tool-calls",
+        call: { id: "call-log-1" },
+        toolCalls: [
+          {
+            id: "tool-call-2",
+            function: {
+              name: "sendConfirmationSms",
+              arguments: { name: "Jordan Testcaller", phone: "(216) 555-0187", summary: "Used tire, walking in today" },
+            },
+          },
+        ],
+      });
+    } finally {
+      spy.mockRestore();
+    }
+
+    const toolLine = lines.find((l) => l.includes("Vapi tool call"));
+    // Positive control: the line was emitted at all, so the absences below mean something.
+    expect(toolLine).toBeDefined();
+    expect(toolLine).toContain("sendConfirmationSms");
+    expect(toolLine).toContain("0187");
+    expect(toolLine).toContain('"argKeys"');
+    expect(toolLine).not.toContain("5550187");
+    expect(toolLine).not.toContain("555-0187");
+    expect(toolLine).not.toContain("Jordan");
+    expect(toolLine).not.toContain("Testcaller");
+    expect(toolLine).not.toContain("walking in");
+  });
+});

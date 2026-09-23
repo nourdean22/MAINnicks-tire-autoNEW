@@ -140,6 +140,20 @@ describe("executeApprovedToolAsync · restart survival", () => {
     );
   });
 
+  it("the claim refuses expired approvals: its WHERE pins expiresAt > now", async () => {
+    withGuardian("test.expiry_claim", vi.fn(async () => "ok"));
+    prismaMock.approvalRequest.findUnique.mockResolvedValue({
+      id: "req-exp", toolId: "test.expiry_claim", payload: {},
+    });
+
+    await executeApprovedToolAsync("req-exp");
+
+    const where = prismaMock.approvalRequest.updateMany.mock.calls[0][0].where;
+    expect(where.id).toBe("req-exp");
+    expect(where.expiresAt?.gt).toBeInstanceOf(Date);
+    expect(Math.abs((where.expiresAt.gt as Date).getTime() - Date.now())).toBeLessThan(10_000);
+  });
+
   it("skips execution entirely when the atomic claim misses (already executing)", async () => {
     prismaMock.approvalRequest.updateMany.mockResolvedValueOnce({ count: 0 });
     const durableInner = vi.fn(async () => "should-not-run");

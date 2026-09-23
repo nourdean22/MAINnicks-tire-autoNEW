@@ -158,6 +158,18 @@ is not far away.
 reader at it. The gate's assertions do not change — only where it reads the
 patterns from.
 
+## Amendment · 2026-09-23 · negated watch paths
+
+"Coverage, not equality" still holds, with one deliberate exception: `!` negations
+in `.railway/railway.ts`, added because 8 of 32 shop-server deploys on
+2026-09-22/23 were docs-only commits, each restarting ~118 in-process jobs.
+A negation is the one edit that makes the gate allow deploying LESS, so it is
+fenced: every top-level path in an app counts as an input unless `NON_INPUTS`
+in the gate names it with evidence, and a negation that could exclude any input
+(including one inside a non-input, such as nickstire's runtime-read
+`docs/reel-packs`) fails. Positive controls: planting `!packages/utils/**`,
+`!apps/nickstire/docs/**` or `!apps/statenour/docs/**` each turns it red.
+
 ## References
 
 - [ADR-0014](0014-railway-root-directory-trap.md) — the first occurrence

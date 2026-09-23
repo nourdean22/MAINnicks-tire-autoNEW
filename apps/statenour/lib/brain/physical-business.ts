@@ -34,8 +34,9 @@ export async function buildPhysicalBusinessContextBlock(): Promise<string> {
   if (!event || !event.payload) return "";
 
   const ctx = event.payload as unknown as CeoBusinessContextV1;
-  // The `new Date(...)` wrapper is load-bearing, not redundant: on an L2
-  // (Redis) cache hit createdAt comes back as a JSON string, not a Date.
+  // The `new Date(...)` wrapper accepts either a Date or an ISO string.
+  // It was load-bearing while a Redis cache tier (retired 2026-09-23)
+  // returned createdAt as a JSON string; it stays as a cheap guard.
   const ageMins = Math.floor((Date.now() - new Date(event.createdAt).getTime()) / 60000);
   
   const lines: string[] = [`## [PHYSICAL_TRUTH] Nick's Tire Shop Floor (sync ${ageMins}m ago)`];
@@ -79,8 +80,8 @@ export async function buildPhysicalBusinessContextBlock(): Promise<string> {
  * another writer of `eventType: "ceo_business_context"` ever appears it
  * must call this too, or its row stays invisible to /chat for 300s.
  *
- * Multi-replica caveat: this clears THIS instance's L1 plus the shared
- * L2 (Redis) key. Sibling replicas keep their own L1 copy until the TTL
+ * Multi-replica caveat: this clears THIS instance's in-process cache
+ * only. Sibling replicas keep their own copy until the TTL
  * expires — the TTL is still the backstop, this just collapses the
  * common single-replica case from 300s to 0.
  */

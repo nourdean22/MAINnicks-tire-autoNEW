@@ -3,7 +3,7 @@
  * observability sink, from inside the deployed process.
  *
  * Cron-secret gated (Authorization: Bearer $CRON_SECRET), exactly like
- * /api/system/perplexica-diag. Why it exists: on 2026-09-02 production had
+ * /api/cron/*. Why it exists: on 2026-09-02 production had
  * real Langfuse keys, the boot log said `langfuse_started`, the log showed
  * model calls succeeding an hour later — and Langfuse held zero observations.
  * A green badge, a started processor and a silent sink are indistinguishable

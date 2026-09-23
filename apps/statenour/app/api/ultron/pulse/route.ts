@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  *
  * One composite call replaces what would otherwise be 8+ fragmented fetches
  * across the old /mastery + /body + /financial + /drift + /causation surfaces.
- * Cached 60s (L1) + Redis on top.
+ * Cached 60s in-process (lib/utils/cache.ts).
  *
  * Shape is flat and stable. The UI maps each chip to a color/spark/delta
  * without needing to understand the underlying engines.

@@ -7,9 +7,14 @@ the documents that are actually maintained.
 
 ## Where the roadmap actually lives
 
+**Cross-app master architecture and the live work queue (2026-09-23):**
+[`docs/research/2026-09-23-estate-master-architecture.md`](../research/2026-09-23-estate-master-architecture.md)
+— production truth read live, preserve / consolidate / retire, Railway topology, and §14.4, the
+ordered queue the cloud shift loop works from. An item's status is its PR, not a line here.
+
 | Product | Canonical roadmap | Mission |
 |---|---|---|
-| Nick's Tire | [`apps/nickstire/docs/REVENUE-OPS-ROADMAP.md`](../../apps/nickstire/docs/REVENUE-OPS-ROADMAP.md) — dependency-ordered, revenue impact per wave | [`agent-os/product/nickstire/mission.md`](../../agent-os/product/nickstire/mission.md) |
+| Nick's Tire | The master doc's §14.4 queue. [`apps/nickstire/docs/REVENUE-OPS-ROADMAP.md`](../../apps/nickstire/docs/REVENUE-OPS-ROADMAP.md) is Wave 1/2 history, unchanged since 2026-07-11 (per `apps/nickstire/CLAUDE.md`) | [`agent-os/product/nickstire/mission.md`](../../agent-os/product/nickstire/mission.md) |
 | NOUR OS (statenour) | No single canonical file — work runs in waves closed out in `CURRENT-TRUTH.md`. See [`agent-os/product/statenour/roadmap.md`](../../agent-os/product/statenour/roadmap.md) for the trust-ranked source list. | [`agent-os/product/statenour/mission.md`](../../agent-os/product/statenour/mission.md) |
 
 ## Where current status actually lives

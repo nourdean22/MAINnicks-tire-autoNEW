@@ -21,6 +21,11 @@ railway status
 All nine resources still present — **nothing was deleted**, which is the risk that actually
 mattered: IaC removes any resource omitted from `resources:`.
 
+**2026-09-23 · `perplexica`, `searxng-perplexica` and the 50 GB `perplexica-volume` retired.** The app
+stopped calling them in #2599; they were deleted in the dashboard/API and removed from `resources:` here in
+the same change, so the next `railway config plan` must read `already up to date` (not "2 to add").
+Live inventory after: 3 app services + Redis (redis-volume) + nickstire-media.
+
 ---
 
 ## Why this exists
@@ -76,6 +81,28 @@ defaulting to yes.
 evaluated (`pnpm add -w -D railway`, or evaluate a copy with `--file` from a directory that has it).
 
 **Always run `railway config plan` and confirm `0 to destroy` before `apply`.**
+
+## 2026-09-23 · region and negated watch paths (not live until applied)
+
+Two hand edits, both gated in `scripts/agent-os/`:
+
+1. **Region.** `MAINnicks-tire-auto` and `statenour-web` now declare `us-east4-eqdc4a`, matching
+   the live move made on 2026-09-23 (next to TiDB and Neon in AWS us-east-1). Before this edit an
+   apply would have moved both back to `us-west2`. `railwayRegion.test.mjs` pins every service that
+   holds `DATABASE_URL` to its database's region, or to a recorded "no DB client" reason.
+2. **`!` watch paths.** Docs-only commits no longer redeploy nickstire (`docs/**` except
+   `docs/reel-packs`, which the server reads at runtime, and `.remember/**`) or the worker (its
+   three `.md` files). `railwayWatchCoverage.test.mjs` fails if any negation could exclude a build
+   or runtime input; the proof for each exclusion is in its `NON_INPUTS` comment.
+
+Operator steps, in order:
+
+1. `railway config plan`. Expect exactly 2 changes and `0 to destroy`: the `watchPatterns` of
+   `MAINnicks-tire-auto` and of `statenour-worker`. The regions are already live, so they should
+   show NO diff. A region line or a `statenour-web` change means live is not what was recorded on
+   2026-09-23: stop and check before applying.
+2. `railway config apply` at a quiet hour. A watch-pattern change can rebuild the service.
+3. `railway config plan` again. It must read *already up to date*.
 
 ## Notes
 

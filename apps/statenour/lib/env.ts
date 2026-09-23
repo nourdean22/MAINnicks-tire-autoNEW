@@ -71,7 +71,6 @@ export const ENV_SPEC: Spec[] = [
   { key: "TWILIO_ACCOUNT_SID",  tier: "runtime", description: "SMS sender" },
   { key: "TWILIO_AUTH_TOKEN",   tier: "runtime", description: "SMS sender" },
   { key: "BRIDGE_API_KEY",      tier: "runtime", description: "nickstire admin bridge" },
-  { key: "REDIS_URL",           tier: "runtime", description: "L2 cache — app degrades to in-memory L1 without it" },
   { key: "VAPID_PUBLIC_KEY",    tier: "runtime", description: "Web push — PWA" },
   { key: "VAPID_PRIVATE_KEY",   tier: "runtime", description: "Web push — PWA" },
   { key: "GOOGLE_PLACES_API_KEY", tier: "runtime", description: "GBP reviews feed" },
