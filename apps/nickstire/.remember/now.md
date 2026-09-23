@@ -274,6 +274,21 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
    first hourly pass after 07:00 ET - that is the fix working, not failing. NEXT: auto_analysis and vip_detection
    are still unkeyed writers (4 near-duplicate 'Busiest day' rows now sit in the prompt) - same identity fix as
    #2529, one line each.
+
+14. WEATHER SMS STAYS ON - operator decision 2026-09-23 ('leave the weather sms on'). No flag change was made;
+   weather_triggered_sms has been 1 since 2026-05-20. DO NOT RE-ASK THIS. What ON means, measured read-only
+   the same day: 1,901 eligible customers (60+ days lapsed, not opted out, phone present) of 2,312 with a
+   phone; only 12 opted out; ZERO weather_ texts have ever been sent; weather-intel now logs status 'skipped'
+   (requiresEnv OPENWEATHER_API_KEY) instead of completing with zero records. The lane is ARMED BUT
+   UNREACHABLE - OPENWEATHER_API_KEY is absent from Railway, and adding it is the single action that starts
+   customer texts, with no further gate. Bounded: 10 texts per trigger event, 30-day per-customer cooldown
+   per trigger, opt-out appended.
+
+   FINDING, NOT FIXED (P3, needs an operator instruction because the fix INCREASES customer contact):
+   sendWeatherSms applies LIMIT 10 BEFORE the cooldown filter and the select has no ORDER BY, so it takes an
+   arbitrary 10 of the 1,901, and after the first trigger event those 10 sit in a 30-day cooldown while later
+   runs send zero - a completed run with full reach of about one tenth of one percent. Fix when wanted: order
+   by oldest lapse and move the cooldown into the query.
 4. Duplicate-key helper consolidation onto `server/lib/dbErrors.ts` (proposals.ts,
    shopDriverMirror.ts x2, promiseLedger.ts).
 5. Tighten the transfer-artifact write in `routes/webhooks/vapi.ts` (~:621) to
