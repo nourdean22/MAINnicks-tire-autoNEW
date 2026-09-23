@@ -58,6 +58,15 @@ export default function VapiPanel() {
     },
     onError: (err: { message: string }) => toast.error("Update failed: " + err.message),
   });
+  // The outbound follow-up caller is a separate Vapi assistant; its prompt only
+  // changes when this pushes it (it used to need a terminal script).
+  const updateFollowUp = trpc.vapi.updateFollowUpAssistant.useMutation({
+    onSuccess: (result) => {
+      if (result.success) toast.success("Follow-up assistant updated · prompt + tools re-pushed");
+      else toast.error("Follow-up update failed: " + (result.error || "unknown"));
+    },
+    onError: (err: { message: string }) => toast.error("Follow-up update failed: " + err.message),
+  });
 
   const connected = status?.connected ?? false;
   const firstAssistantId = status?.assistants?.[0]?.id;
@@ -124,6 +133,7 @@ export default function VapiPanel() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/50">Configured Assistants</p>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
             {firstAssistantId && (
               <button
                 onClick={() => updateAssistant.mutate({ serverUrl: "https://nickstire.org/api/webhooks/vapi" })}
@@ -134,6 +144,17 @@ export default function VapiPanel() {
                 {updateAssistant.isPending ? "PUSHING..." : "PUSH LATEST CONFIG"}
               </button>
             )}
+            {firstAssistantId && (
+              <button
+                onClick={() => updateFollowUp.mutate({ serverUrl: "https://nickstire.org/api/webhooks/vapi" })}
+                disabled={updateFollowUp.isPending}
+                className="flex items-center gap-1.5 border border-primary/30 text-primary bg-primary/5 px-3 py-1 text-[10px] font-bold tracking-wide hover:bg-primary/10 disabled:opacity-50"
+              >
+                {updateFollowUp.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                {updateFollowUp.isPending ? "PUSHING..." : "PUSH FOLLOW-UP ASSISTANT"}
+              </button>
+            )}
+            </div>
           </div>
           {/* DOES THE PUSH REACH THE LINE CALLERS DIAL?
               Rendered directly under the button because it is the only thing
