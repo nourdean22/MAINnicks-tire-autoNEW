@@ -42,10 +42,12 @@ order and seed 29). Merged key-wise with sibling #2581/#2582/#2583/#2584.
 workspace already installed. MISSING: `RAILWAY_TOKEN` (CLI unauthenticated; the Railway MCP
 connector still works), Node 24 (container has 22), `gh` (the GitHub MCP connector covers PRs).
 
-**⚠ PreToolUse guard is OFF in cloud sessions.** `.claude/settings.json` runs
-`node "${CLAUDE_PROJECT_DIR}\scripts\agent-os\pretool.mjs"`; on Linux that path does not resolve
-(exit 1, fail-open), so none of the 13 rules fire. The script itself blocks when called with `/`
-(exit 2 on `git stash pop`). Proposal P1 in `docs/skill-proposals.md`; needs a Windows check.
+**PreToolUse guard was OFF in cloud sessions; FIXED in #2589 (`904cc7ea5`).** The node hooks in
+`.claude/settings.json` named their scripts with backslashes: MODULE_NOT_FOUND on Linux, fail-open,
+all 13 rules off. Now `/` separators; `scripts/agent-os/hookCommand.test.mjs` runs each configured
+command verbatim (red 4/5 before, 5/5 after) and `cloud-doctor` has a REQUIRED "policy hook fires"
+check. The live harness here began enforcing the moment the file changed. **One open check:** start
+a session on the Windows box and confirm a denied command is still blocked there.
 
 **Owner items still open:** delete Railway function `oneoff-careers-postdeploy` (inert, API
 delete timed out twice) · Resend DNS for nickstire.org (emails do not deliver) · mark test
