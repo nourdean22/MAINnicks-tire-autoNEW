@@ -310,7 +310,13 @@ delete GIT_ENV.GIT_WORK_TREE;
 
 function getStagedFiles() {
   try {
-    const out = execSync("git diff --cached --name-only --diff-filter=ACMR", {
+    // `--relative` (with cwd APP_ROOT) lists ONLY this app's files, relative to
+    // it - the same base the per-file pathspec below resolves against. Without
+    // it the list is repo-root-relative, so the repo ROOT's own `scripts/`
+    // (another package) survived the prefix strip, matched `^scripts/`, and
+    // then resolved inside apps/nickstire to an EMPTY diff: every merge commit
+    // carrying root scripts failed closed as UNSCANNED (2026-09-23, 27 files).
+    const out = execSync("git diff --cached --name-only --relative --diff-filter=ACMR", {
       cwd: APP_ROOT,
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024,
@@ -320,7 +326,6 @@ function getStagedFiles() {
       .split("\n")
       .map((f) => f.trim())
       .filter(Boolean)
-      .map((f) => f.replace(/^apps\/nickstire\//, ""))
       .filter(isInScope);
   } catch (err) {
     stagedReadError = err && err.message ? err.message : String(err);

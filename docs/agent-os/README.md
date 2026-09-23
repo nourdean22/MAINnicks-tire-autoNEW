@@ -29,6 +29,15 @@ path filter and escalates CI from a ~1-minute security job to a full turbo sweep
 nickstire and statenour validator (~50 minutes). Adding a new guard should cost a file, not an
 hour of CI — so new checks are dropped in as `*.test.mjs` and the workflow never changes.
 
+**GitHub API budget.** CI's `GITHUB_TOKEN` gets ~1,000 requests/hour per repo, shared by every
+workflow. verify.mjs prints `GitHub API requests this run: N` from the meter in
+`github-client.mjs`. A LIVE canary that costs more than a handful of requests must be gated
+through `scripts/agent-os/live-gate.mjs`: it runs only when the diff touches its own code (import
+closure), on `workflow_dispatch`, or when forced (`AGENT_OS_LIVE_SWEEP=1`, `AGENT_OS_LIVE_RESCUE=1`,
+`AGENT_OS_LIVE_GHCLIENT=1` for the sweep, repo-rescue and github-client canaries). The ungated
+full-sweep canary cost 657 requests per run and 403'd every PR's CI on 2026-09-23; the 2-request
+github-client canaries 403'd every PR whenever another workflow had spent the budget.
+
 ## Adding a rule
 
 1. Write it in `AGENTS.md` (repo-wide) or `apps/<app>/AGENTS.md` (app-specific). **Not** in an adapter.

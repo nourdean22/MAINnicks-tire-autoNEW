@@ -2792,6 +2792,15 @@ model CronJobLog {
   /// @@map on the table itself, so the DB column is the double-quoted
   /// "resultCount". A snake_case spelling creates a second, unreachable column.
   resultCount Int?
+  /// Why the run chose not to work, from the job's own return value
+  /// (`skipped: "<reason>"`, or `skipped: true` + `reason`); see
+  /// lib/services/cron-skip-reason.ts. NULL = the run reported no skip - every
+  /// row before 2026-09-23 and every run that did its work. Outcome is DERIVED,
+  /// never stored twice: skipReason set -> skipped; else resultCount 0 -> ran,
+  /// produced nothing; N -> did N units; NULL -> ran, reported no count.
+  /// camelCase column like the rest of this table ("skipReason", quoted).
+  /// Applied 2026-09-23: prisma/migrations/20260923150000_cron_job_log_skip_reason/.
+  skipReason String?
   /// Inngest run id, for rows opened by lib/inngest/cron-lifecycle.ts.
   ///
   /// The JOIN KEY that lets a run's terminal update find the exact row its own
