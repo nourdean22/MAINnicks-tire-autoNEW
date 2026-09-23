@@ -14,6 +14,7 @@
  * Extensible via registerRecoveryAction()
  */
 
+import { BUSINESS } from "@shared/business";
 import { createLogger } from "./logger";
 
 const log = createLogger("self-healing");
@@ -159,6 +160,15 @@ const REQUEST_HISTORY_SIZE = 30; // track last 30 minutes
 const requestTimestamps: number[] = []; // raw request timestamps for current window
 const requestRateHistory: { timestamp: number; count: number }[] = [];
 let lastRequestBucketTime = 0;
+// A drop must hold this many consecutive minutes before it is logged: one
+// quiet minute on a small shop's site is normal, not an outage.
+const DROP_SUSTAIN_MINUTES = 5;
+const DROP_REPEAT_MINUTES = 15; // re-log a standing drop this often, not every minute
+let lowRateStreak = 0;
+// Crawlers and hashed static-asset fetches are not customer traffic. A
+// Baiduspider burst for stale /assets/*.js chunks (2026-09-23) is what
+// poisoned the old mean baseline.
+const CRAWLER_UA = /bot|spider|crawl|slurp/i;
 
 // ─── Anomaly Log ───────────────────────────────────
 
@@ -636,10 +646,33 @@ function logAnomaly(anomaly: AnomalyEntry): void {
 
 /**
  * Call this from request middleware to track request rate.
- * Non-blocking — just pushes a timestamp.
+ * Non-blocking — just pushes a timestamp. Crawler user agents and
+ * /assets/* fetches are not counted.
  */
-export function recordRequest(): void {
+export function recordRequest(path?: string, userAgent?: string): void {
+  if (path?.startsWith("/assets/")) return;
+  if (userAgent && CRAWLER_UA.test(userAgent)) return;
   requestTimestamps.push(Date.now());
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/** True while the shop is open, per BUSINESS.hours.structured in the shop's timezone. */
+function isShopOpenAt(ms: number): boolean {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: BUSINESS.timezone, weekday: "long", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(new Date(ms));
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? "";
+  const day = get("weekday").toLowerCase() as keyof typeof BUSINESS.hours.structured;
+  const span = BUSINESS.hours.structured[day];
+  if (!span) return false;
+  const [open, close] = span.split("-");
+  const now = `${get("hour")}:${get("minute")}`;
+  return now >= open && now < close;
 }
 
 function flushRequestBucket(): void {
@@ -668,12 +701,16 @@ function detectRequestAnomalies(): void {
 
   if (requestRateHistory.length < 5) return; // need baseline
 
-  // Calculate baseline (average of all but last entry)
-  const baseline = requestRateHistory.slice(0, -1);
-  const avgRate = baseline.reduce((sum, b) => sum + b.count, 0) / baseline.length;
+  // Baseline = MEDIAN of the prior buckets, excluding the minutes of a drop
+  // already in progress (so a real outage does not teach itself to the
+  // baseline). A mean let two burst minutes read every normal minute after
+  // them as a 90% drop.
   const current = requestRateHistory[requestRateHistory.length - 1];
+  const prior = requestRateHistory.slice(0, -1 - lowRateStreak);
+  if (prior.length < 4) { lowRateStreak = 0; return; }
+  const avgRate = median(prior.map(b => b.count));
 
-  if (avgRate < 1) return; // too low to meaningfully detect anomalies
+  if (avgRate < 1) { lowRateStreak = 0; return; } // too low to meaningfully detect anomalies
 
   const ratio = current.count / avgRate;
 
@@ -691,19 +728,27 @@ function detectRequestAnomalies(): void {
     log.warn(anomaly.message, { ratio: ratio.toFixed(1), severity: anomaly.severity });
   }
 
-  // Drop detection: >70% below normal
-  if (ratio < 0.3 && avgRate > 5) {
+  // Drop detection: >70% below normal, sustained, while the shop is open.
+  // Traffic after close is legitimately near zero.
+  lowRateStreak = ratio < 0.3 && avgRate > 5 && isShopOpenAt(current.timestamp) ? lowRateStreak + 1 : 0;
+  const sustainedFor = lowRateStreak - DROP_SUSTAIN_MINUTES;
+  if (sustainedFor >= 0 && sustainedFor % DROP_REPEAT_MINUTES === 0) {
     const anomaly: AnomalyEntry = {
       timestamp: Date.now(),
       type: "request_drop",
       severity: ratio < 0.1 ? "critical" : "warning",
-      message: `Request drop detected: ${current.count}/min vs baseline ${Math.round(avgRate)}/min (${Math.round((1 - ratio) * 100)}% drop)`,
+      message: `Request drop detected: ${current.count}/min vs baseline ${Math.round(avgRate)}/min (${Math.round((1 - ratio) * 100)}% drop, ${lowRateStreak} min)`,
       value: current.count,
       baseline: avgRate,
     };
     logAnomaly(anomaly);
     log.warn(anomaly.message, { ratio: ratio.toFixed(2), severity: anomaly.severity });
   }
+}
+
+/** Test seam: one request-rate pass exactly as the 60s health tick runs it. */
+export function __runRequestAnomalyCheckForTest(): void {
+  detectRequestAnomalies();
 }
 
 function checkEventLoopHealth(): void {

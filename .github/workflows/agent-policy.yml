@@ -21,6 +21,10 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read # Session Authority canaries read PR state (list/get) via the GitHub API;
+    # an explicit `permissions:` block implicitly sets every OTHER scope to none,
+    # so contents:read alone 403'd GET /pulls with "Resource not accessible by
+    # integration" -- caught from the real CI log, not anticipated up front.
 
 concurrency:
   group: agent-policy-${{ github.ref }}
@@ -39,6 +43,15 @@ jobs:
           node-version: 24
 
       - name: agent-os verify
+        env:
+          # Session Authority canaries (2026-09-23) make read-only GitHub API calls
+          # (branch/PR reads, compare) via scripts/agent-os/github-client.mjs and
+          # skip themselves when no token is available -- but this job's own
+          # checkout provides none by default, so they skipped everywhere until
+          # this line. No write-scoped call exists in any of them (verified:
+          # repo-rescue.test.mjs's real-PR path is dry-run only).
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/agent-os/verify.mjs
 
   source-citation:

@@ -20,6 +20,12 @@
 export interface AgentAction {
   type: string;
   params: Record<string, unknown>;
+  /**
+   * Set when re-emitting a previously GATED action: names the approval
+   * request it follows up, so the gate can return that request's stored
+   * result instead of raising a new approval (lib/tools/approval-match.ts).
+   */
+  approvalId?: string;
 }
 
 /** The receipt one executed action produces. */
