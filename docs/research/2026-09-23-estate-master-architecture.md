@@ -43,8 +43,9 @@ STARVED (wired and running, but its input data does not exist) for capabilities;
       in-process jobs and the SMS queue.
    3. Fix the three money-integrity defects already found: a paid tire order can be marked paid
       against another customer's invoice; the receptionist's recap text is held whenever the
-      voice model invents a URL; and that text has no working duplicate guard. The first two
-      fixes are in flight (§14.4 Q-42, Q-41); the third is being added to Q-41 at review.
+      voice model invents a URL; and that text had no working duplicate guard. Sibling sessions
+      fixed the first and third on `main` while this was written (#2592, #2594); the invented-URL
+      fix is in flight (§14.4 Q-41).
    4. Make every outbound contact deliverable and provably consented. All customer texts leave
       from one Android phone on a Verizon SIM (offline about a day across 2026-09-21/22), a route
       carrier rules say automated business texting should not use; plain-English opt-outs
@@ -443,7 +444,7 @@ revenue the loops leave on the table.
 | Phone demand | Vapi receptionist → `nickstire.org/api/webhooks/vapi` | LIVE | Three-month census: 946 transfer attempts, a provider verdict on only 103 until #2590 recorded `transfer-update` |
 | Text demand | SMS inbox via the gateway phone | LIVE, leaky | Census: 55 of 104 inbound text episodes ended with the customer's text unanswered; "owed texts" joined the Today queue on 2026-09-23 |
 | Web demand | Forms (lead, callback, emergency, tire order) | LIVE | `REGION-LATENCY-2026-09-23.md` §3.2 |
-| Phone recap text | `sendConfirmationSms` → orchestrator → gateway | LEAKY | Held as a draft whenever the voice model invents a URL (seen live 14:25Z, §1.4); no working duplicate guard (`REGION-LATENCY-2026-09-23.md` §6) |
+| Phone recap text | `sendConfirmationSms` → orchestrator → gateway | LEAKY | Held as a draft whenever the voice model invents a URL (seen live 14:25Z, §1.4; Q-41). The missing duplicate guard (`REGION-LATENCY-2026-09-23.md` §6) was fixed in #2594 |
 | Lot arrivals | Two cameras → camera-visits | EXERCISED today (heartbeats + state transitions in the live log) | Plates empty: plate reading is not running (and Ohio HB 725 would restrict commercial plate-reader use, §10.3) |
 | Obligations | Callbacks, promises, owed texts | Partial | `customer_promises` has the right shape; 3 of 4 obligation kinds have no persisted lifecycle (research doc Part K); 45 overdue today |
 | Estimates, invoices, payment method | ShopDriver Elite / Auto Labor Guide, mirrored by scrape | FRAGILE | Undocumented backend, shop's own login; each probe kicks the counter's session; parts, labor and tax written as 0 since 2026-05 |
@@ -966,12 +967,14 @@ closed) already carries.
 
 **Wave 1 — in flight.** Eleven cloud sessions, one draft PR each, none allowed to merge: nine
 started 2026-09-23 ~14:15Z, and Q-41/Q-42 at 14:31-14:33Z for defects found while this document
-was being written. IDs are stable claim keys; row order is the priority.
+was being written. Q-42's defect had already been fixed on `main` by a sibling session (#2592);
+its session is instructed to re-verify first and open no PR in that case. IDs are stable claim
+keys; row order is the priority.
 
 | ID | Item | Evidence | Acceptance | Tier |
 |---|---|---|---|---|
-| Q-41 | Receptionist recap text: never put a model-written URL in a customer text; drop `mapLink` from the Vapi tool schema; log the real not-sent reason and never "sent" for a draft; redact the tool-call log line (it printed a caller's name and full phone); pass Vapi's `callId` so the duplicate guard can match (requested at review) | §1.4 (live, 14:25Z); `REGION-LATENCY-2026-09-23.md` §6 item 2 | A recap with an invented link sends with the canonical link (red on `main` first); no PII in the log line | LOOP (VAPI = PROTECTED CORE) · then OPERATOR Vapi config push |
-| Q-42 | A paid tire order marks its own invoice paid after an invoice-number collision | `REGION-LATENCY-2026-09-23.md` §6 item 1 (`db.ts:2391-2414`, `gatewayTire.ts:702-774`) | Collision test red on `main`, green after | LOOP (payments = PROTECTED CORE) |
+| Q-41 | Receptionist recap text: never put a model-written URL in a customer text; drop `mapLink` from the Vapi tool schema; log the real not-sent reason and never "sent" for a draft; redact the tool-call log line (it printed a caller's name and full phone). The duplicate guard landed separately in #2594 | §1.4 (live, 14:25Z) | A recap with an invented link sends with the canonical link (red on `main` first); no PII in the log line | LOOP (VAPI = PROTECTED CORE) · then OPERATOR Vapi config push |
+| Q-42 | A paid tire order marks its own invoice paid after an invoice-number collision | `REGION-LATENCY-2026-09-23.md` §6 item 1 | **Done on `main` in #2592** (sibling session); the Q-42 session should find it and stop | — |
 | Q-01 | `.railway/railway.ts` region parity + docs-only watch exclusions, with offline gates | §1.1, §1.3 | Region assertion and negation-safety gate, each with a positive control | LOOP · then OPERATOR `plan`/`apply` |
 | Q-02 | Retire the SearXNG/Perplexica rungs from statenour search | §4.3 | No live import remains; Tavily first | LOOP · then OPERATOR deletes 2 services + 50 GB volume |
 | Q-03 | Approval gate must not replay executed approvals | §10.1 S3 | Red-first tests for replay, canonical compare, same-request idempotency | LOOP |
