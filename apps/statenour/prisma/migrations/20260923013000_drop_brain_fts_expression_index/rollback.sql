@@ -1,0 +1,23 @@
+-- ROLLBACK for 20260923013000_drop_brain_fts_expression_index
+--
+-- Captured from pg_indexes.indexdef on production on 2026-09-23 00:2xZ, BEFORE the drop (the read that
+-- verified the new GIN was live): this is the exact definition Postgres held, not a reconstruction. Running
+-- this restores the 0007_brain_fts expression index byte-for-byte; the only additions are CONCURRENTLY and
+-- IF NOT EXISTS so it can run against a live table without a write-blocking lock.
+--
+-- WHEN it is needed: only if a deployment must roll back to a build older than #2553 (a20f788bc, deployed
+-- 2026-09-23 01:02Z). That code queries `to_tsvector('english', content)` against brain_memories, and
+-- without this index it returns to the measured ~1.9 s path that exceeds the lexical lane's 900 ms budget.
+-- Current and later builds read the stored column content_tsv and never touch this index.
+--
+-- HOW to run it: CONCURRENTLY refuses to run inside a transaction, so use the autocommit runner
+--   railway run -s statenour-web -- pnpm exec tsx scripts/apply-pending-migration.ts \
+--     prisma/migrations/20260923013000_drop_brain_fts_expression_index/rollback.sql
+-- Build cost, measured on a Neon clone of production 2026-09-22 for a GIN of the same shape over the same
+-- 57,230 rows: 5.9 s (non-concurrent); CONCURRENTLY takes longer but blocks nothing. Verify afterwards with
+--   SELECT indexdef, indisvalid FROM pg_indexes i JOIN pg_class c ON c.relname = i.indexname
+--   JOIN pg_index x ON x.indexrelid = c.oid WHERE i.indexname = 'brain_memories_content_fts_idx';
+-- (indisvalid must be true; a failed CONCURRENTLY build leaves an INVALID index to drop and retry).
+-- Indexes are pure derived data: recreating one costs the rebuild and nothing else.
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS brain_memories_content_fts_idx ON public.brain_memories USING gin (to_tsvector('english'::regconfig, content));

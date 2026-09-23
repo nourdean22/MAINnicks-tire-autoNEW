@@ -67,6 +67,19 @@ describe("brain_memories FTS · the migration, the Prisma guard and the sentinel
     expect(GENERATION_EXPR).toBe("to_tsvector('english', content)");
   });
 
+  it("the drop of the old expression index ships its verified inverse (review on #2564): rollback.sql recreates the exact pre-drop definition", () => {
+    const dir = "prisma/migrations/20260923013000_drop_brain_fts_expression_index/";
+    expect(existsSync(new URL(dir + "migration.sql", root))).toBe(true);
+    expect(existsSync(new URL(dir + "rollback.sql", root))).toBe(true);
+    const drop = stripSqlComments(read(dir + "migration.sql"));
+    const rollback = stripSqlComments(read(dir + "rollback.sql"));
+    expect(drop).toMatch(/DROP INDEX IF EXISTS\s+"?brain_memories_content_fts_idx"?/);
+    // the inverse is the definition pg_indexes held before the drop, with CONCURRENTLY + IF NOT EXISTS so it can run live
+    expect(rollback).toMatch(/CREATE INDEX CONCURRENTLY IF NOT EXISTS\s+"?brain_memories_content_fts_idx"?\s+ON\s+(?:public\.)?"?brain_memories"?\s+USING gin \(to_tsvector\('english'(?:::regconfig)?, "?content"?\)\)/);
+    expect(rollback).not.toMatch(/\bDROP\b/i);
+    expect(rollback).not.toMatch(/vector_embeddings/i);
+  });
+
   it("schema.prisma declares the column Unsupported with a db-generated default so db push cannot drop it (the chat_messages pattern)", () => {
     const schema = read("prisma/schema.prisma");
     const model = /model BrainMemory \{[\s\S]*?\n\}/.exec(schema)?.[0] ?? "";
