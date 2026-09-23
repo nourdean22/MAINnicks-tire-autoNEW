@@ -343,3 +343,60 @@ describe("UNKNOWN is a status, not an absence (review on #2482)", () => {
     expect(view.assistantTurns).toBe(0);
   });
 });
+
+/**
+ * 2026-09-23 · review on #2482 (P1): every persisted assistant message was the
+ * denominator, including fast-path confirmations, image results and scheduled
+ * follow-ups that never enter tool routing. In a window dominated by those, a
+ * working tool.surfaced writer read STALE or artificially low. The tool-path
+ * instruments now read against the turns that entered tool routing - the
+ * tool_selection_turn rows in the window - and say so in their reason.
+ */
+describe("eligible-turn denominator (review on #2482)", () => {
+  const routing = (writes: number, everWrote = true) => ({ instrument: "tool_selection_turn", lastWriteAt: everWrote ? SINCE : null, writesInWindow: writes });
+  const surfaced = (writes: number) => ({ instrument: "tool.surfaced", lastWriteAt: new Date("2026-09-22T10:00:00Z"), writesInWindow: writes });
+  const rowOf = (view: ReturnType<typeof assembleInstrumentHealth>, name: string) => view.rows.find((r) => r.instrument === name)!;
+
+  it("tool.surfaced reads its coverage against tool-routing turns, not every assistant message", () => {
+    const view = assembleInstrumentHealth([routing(50), surfaced(40)], noFailures(), 253, WINDOW_H, SINCE);
+    const row = rowOf(view, "tool.surfaced");
+    expect(row.status).toBe("HEALTHY");
+    expect(row.coverage).toBeCloseTo(40 / 50, 6);
+    expect(row.reason).toContain("40 writes across 50 tool-routing turns");
+    expect(row.denominator).toEqual({ name: "tool-routing turns", count: 50, fallback: false });
+  });
+
+  it("zero writes while tool routing ran on NO turn is UNDERPOWERED (the path did not run), not STALE", () => {
+    const view = assembleInstrumentHealth([routing(0), surfaced(0)], noFailures(), 253, WINDOW_H, SINCE);
+    const row = rowOf(view, "tool.surfaced");
+    expect(row.status).toBe("UNDERPOWERED");
+    expect(row.reason).toContain("tool routing ran on 0");
+    expect(row.reason).toContain("writer is not dead");
+  });
+
+  it("zero writes while tool routing DID run is STALE and names the routing denominator", () => {
+    const view = assembleInstrumentHealth([routing(50), surfaced(0)], noFailures(), 253, WINDOW_H, SINCE);
+    const row = rowOf(view, "tool.surfaced");
+    expect(row.status).toBe("STALE");
+    expect(row.reason).toContain("0 writes across 50 tool-routing turns");
+  });
+
+  it("POSITIVE CONTROL: without a routing counter among the inputs, the shared denominator is used and marked as a fallback", () => {
+    const view = assembleInstrumentHealth([surfaced(294)], noFailures(), 253, WINDOW_H, SINCE);
+    const row = rowOf(view, "tool.surfaced");
+    expect(row.reason).toContain("294 writes across 253 turns");
+    expect(row.denominator).toEqual({ name: "assistant turns", count: 253, fallback: true });
+  });
+
+  it("a routing counter that has NEVER written falls back too - a dead counter is not a zero-turn window", () => {
+    const view = assembleInstrumentHealth([routing(0, false), surfaced(0)], noFailures(), 253, WINDOW_H, SINCE);
+    expect(rowOf(view, "tool.surfaced").status).toBe("STALE");
+    expect(rowOf(view, "tool.surfaced").denominator.fallback).toBe(true);
+  });
+
+  it("the routing counter itself and the aggregate tool_invocation stay on assistant turns", () => {
+    const view = assembleInstrumentHealth([routing(50), { instrument: "tool_invocation", lastWriteAt: SINCE, writesInWindow: 8, unit: "tools touched" }], noFailures(), 253, WINDOW_H, SINCE);
+    expect(rowOf(view, "tool_selection_turn").denominator).toEqual({ name: "assistant turns", count: 253, fallback: false });
+    expect(rowOf(view, "tool_invocation").denominator.name).toBe("assistant turns");
+  });
+});
