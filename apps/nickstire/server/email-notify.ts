@@ -306,7 +306,8 @@ async function sendGmailMCP(
   to: string[],
   subject: string,
   content: string,
-  cc?: string[]
+  cc?: string[],
+  replyTo?: string,
 ): Promise<{ sent: boolean; messageIds?: string[] }> {
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) {
@@ -323,7 +324,7 @@ async function sendGmailMCP(
 
       const { data, error } = await resend.emails.send({
         from: fromEmail,
-        replyTo: process.env.SHOP_EMAIL || undefined,
+        replyTo: replyTo || process.env.SHOP_EMAIL || undefined,
         to,
         cc: cc && cc.length > 0 ? cc : undefined,
         subject,
@@ -393,6 +394,12 @@ export interface NotifyInput {
   /** Skip the smart-batching throttle — for load-bearing transactional
    *  sends (e.g. a paid-order hand-off) that must never be dropped. */
   bypassThrottle?: boolean;
+  /** Email HTML when `body` is plain text. `body` is sent as the email's HTML
+   *  otherwise, where its line breaks collapse into one paragraph; the owner
+   *  push always gets the plain `body`. */
+  html?: string;
+  /** Reply-To for this email; defaults to SHOP_EMAIL. */
+  replyTo?: string;
 }
 
 export async function sendNotification(input: NotifyInput): Promise<{
@@ -457,13 +464,14 @@ export async function sendNotification(input: NotifyInput): Promise<{
   let emailSent = false;
   let retried = false;
   if (activeRecipients.length > 0) {
-    let result = await sendGmailMCP(activeRecipients, input.subject, input.body);
+    const emailContent = input.html ?? input.body;
+    let result = await sendGmailMCP(activeRecipients, input.subject, emailContent, undefined, input.replyTo);
     if (!result.sent) {
       // Retry once after 2 second delay
       retried = true;
       sendStats.totalRetried++;
       await new Promise((r) => setTimeout(r, 2000));
-      result = await sendGmailMCP(activeRecipients, input.subject, input.body);
+      result = await sendGmailMCP(activeRecipients, input.subject, emailContent, undefined, input.replyTo);
     }
     emailSent = result.sent;
 
@@ -534,7 +542,9 @@ export async function sendNotification(input: NotifyInput): Promise<{
   });
 
   log.info(
-    `Notification sent: category=${input.category} email=${emailSent ? "sent" : "skipped"}${retried ? " (retried)" : ""} push=${pushSent ? "sent" : "skipped"} recipients=${activeRecipients.join(",") || "none"}`,
+    // Recipient DOMAINS only: an applicant acknowledgement goes to an address
+    // a member of the public typed, and full addresses in Railway logs are PII.
+    `Notification sent: category=${input.category} email=${emailSent ? "sent" : "skipped"}${retried ? " (retried)" : ""} push=${pushSent ? "sent" : "skipped"} recipients=${activeRecipients.map((r) => `*@${r.split("@")[1] ?? "?"}`).join(",") || "none"}`,
   );
 
   return { emailSent, pushSent, recipients: activeRecipients, throttled: throttledRecipients.length > 0 };

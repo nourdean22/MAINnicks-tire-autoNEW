@@ -16,7 +16,9 @@ import {
   updateCandidateStatus,
   getCandidateSlaBreaches,
   findCandidatesByPhoneE164,
+  getCandidateSendBudget,
 } from "../db";
+import { JOB_OPENINGS } from "@shared/jobOpenings";
 import {
   CANDIDATE_INTENTS,
   CANDIDATE_INTENT_LABELS,
@@ -24,7 +26,9 @@ import {
   CANDIDATE_CONTACT_IMPLIED_STATUSES,
   MOVE_REASONS,
   MOVE_REASON_LABELS,
+  normalizeRefCode,
   refCodeFromLandingPage,
+  CANDIDATE_SOURCE_HONEYPOT,
 } from "@shared/candidateLifecycle";
 import { normalizePhone } from "../lib/phone";
 import { runCandidateIntake } from "../services/candidateIntake";
@@ -33,6 +37,27 @@ import { logAdminAction } from "../services/auditTrail";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("routers:candidates");
+
+/**
+ * Attribution the browser captured (utm.ts, from sessionStorage): CLIPPED to
+ * the column, never rejected. A strict .max() failed the whole application —
+ * on every retry in that tab — whenever an ad click carried a long landing
+ * URL. The applicant's own fields (name, phone, email, message) still reject.
+ */
+const clipped = (max: number) =>
+  z
+    .string()
+    .nullish()
+    .transform((v) => (v == null ? v : v.slice(0, max)));
+
+/** positionTitle is free text from a public POST and goes into the owner's
+ *  email and text, so only a real posting's title (or null) is kept. */
+const POSITION_TITLES = new Set(JOB_OPENINGS.map((j) => j.title));
+
+/** candidates.phoneE164 is VARCHAR(20); normalizePhone passes any "+" string of
+ *  11+ characters, so "+1216..., 216..." would be rejected by STRICT mode and
+ *  fail the whole application. Only a real E.164 number is attached. */
+const E164 = /^\+[1-9]\d{7,14}$/;
 
 export const candidatesRouter = router({
   /**
@@ -51,18 +76,20 @@ export const candidatesRouter = router({
         positionTitle: z.string().max(100).nullish(),
         experienceLevel: z.string().max(32).nullish(),
         message: z.string().max(2000).nullish(),
-        utmSource: z.string().max(100).nullish(),
-        utmMedium: z.string().max(100).nullish(),
-        utmCampaign: z.string().max(255).nullish(),
-        landingPage: z.string().max(500).nullish(),
-        referrer: z.string().max(500).nullish(),
-        sessionId: z.string().max(64).nullish(),
+        utmSource: clipped(100),
+        utmMedium: clipped(100),
+        utmCampaign: clipped(255),
+        landingPage: clipped(500),
+        referrer: clipped(500),
+        sessionId: clipped(64),
         // ── 2026-09-23 recruiting funnel (drizzle/0129) ──────────────────
         intent: z.enum(CANDIDATE_INTENTS).nullish(),
         moveReasons: z.array(z.enum(MOVE_REASONS)).max(MOVE_REASONS.length).nullish(),
-        utmTerm: z.string().max(255).nullish(),
-        utmContent: z.string().max(255).nullish(),
-        gclid: z.string().max(255).nullish(),
+        utmTerm: clipped(255),
+        utmContent: clipped(255),
+        gclid: clipped(255),
+        /** Last-touch ?ref= code the form kept in sessionStorage (validated below). */
+        refCode: clipped(64),
         /**
          * Honeypot. Rendered off-screen and aria-hidden; a person never fills
          * it, a form-spamming bot fills every field. Chosen over a CAPTCHA
@@ -72,12 +99,14 @@ export const candidatesRouter = router({
       }),
     )
     .mutation(async ({ input }) => {
-      // A filled honeypot gets the same success shape a person gets, so the
-      // bot learns nothing — and nothing is written or sent.
-      if (input.website && input.website.trim() !== "") {
-        log.info("[candidates.submit] honeypot filled — dropped");
-        return { success: true as const, id: 0 };
-      }
+      // A filled honeypot is SAVED, flagged, and never alerted — not dropped.
+      // The first version discarded it, but browser autofill can fill a
+      // hidden field for a real person, and a silently lost applicant is the
+      // one failure this endpoint exists to prevent (candidatesSilentLoss.
+      // test.ts). A flagged row costs a glance in admin; a dropped master
+      // tech costs the hire. The bot still gets the ordinary success shape.
+      const suspectedBot = Boolean(input.website && input.website.trim() !== "");
+      if (suspectedBot) log.info("[candidates.submit] honeypot filled — saved as careers_honeypot, no alerts");
       const name = sanitizeText(input.name);
       const phone = sanitizePhone(input.phone);
       if (!name || !phone) {
@@ -86,8 +115,12 @@ export const candidatesRouter = router({
       const email = input.email ? sanitizeEmail(input.email) : null;
       const intent = input.intent ?? "apply";
       const reasons = Array.from(new Set(input.moveReasons ?? []));
-      const phoneE164 = normalizePhone(phone);
-      const refCode = refCodeFromLandingPage(input.landingPage);
+      const normalized = normalizePhone(phone);
+      const phoneE164 = normalized && E164.test(normalized) ? normalized : null;
+      // Last touch wins: the landing page is the FIRST page of the session.
+      const refCode = normalizeRefCode(input.refCode) ?? refCodeFromLandingPage(input.landingPage);
+      const positionTitle =
+        input.positionTitle && POSITION_TITLES.has(input.positionTitle) ? input.positionTitle : null;
       // Intent and reasons ALSO ride in `message`, human-readable, so they
       // survive the pre-0129 fallback insert and show in every existing view.
       const header = [
@@ -102,10 +135,10 @@ export const candidatesRouter = router({
           name,
           phone,
           email: email || null,
-          positionTitle: input.positionTitle ?? null,
+          positionTitle,
           experienceLevel: input.experienceLevel ?? null,
           message,
-          source: "careers",
+          source: suspectedBot ? CANDIDATE_SOURCE_HONEYPOT : "careers",
           utmSource: input.utmSource ?? null,
           utmMedium: input.utmMedium ?? null,
           utmCampaign: input.utmCampaign ?? null,
@@ -124,7 +157,14 @@ export const candidatesRouter = router({
           ...(input.utmContent ? { utmContent: input.utmContent } : {}),
         });
       } catch (err) {
-        log.error("[candidates.submit] failed:", err);
+        // Code and errno only: a DrizzleQueryError's message carries the bound
+        // params — the applicant's name, phone, email and message — and the
+        // logger copies message and stack into Railway.
+        const e = err as { code?: string; errno?: number; cause?: { code?: string; errno?: number } };
+        log.error("[candidates.submit] failed", {
+          code: e?.cause?.code ?? e?.code ?? "unknown",
+          errno: e?.cause?.errno ?? e?.errno ?? null,
+        });
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "We couldn't save your application. Please call us instead.",
@@ -154,16 +194,18 @@ export const candidatesRouter = router({
       // an alert failure must not turn a saved application into an error.
       // Narrowed by the success check above; the union's failure arm has no id.
       const id = (result as { id: number }).id;
+      if (suspectedBot) return { success: true as const, id };
       void (async () => {
         // null = "could not check" (no parseable phone, or the lookup failed);
         // [] would claim "first time we've seen them", which we don't know.
         const prior = phoneE164 ? await findCandidatesByPhoneE164(phoneE164, id).catch(() => null) : null;
+        const budget = await getCandidateSendBudget({ excludeId: id, email: email || null, phoneE164 }).catch(() => null);
         await runCandidateIntake({
           id,
           name,
           phone,
           email: email || null,
-          positionTitle: input.positionTitle ?? null,
+          positionTitle,
           experienceLevel: input.experienceLevel ?? null,
           message,
           intent,
@@ -173,6 +215,10 @@ export const candidatesRouter = router({
           utmMedium: input.utmMedium ?? null,
           utmCampaign: input.utmCampaign ?? null,
           priorIds: prior && prior.available ? prior.rows.map((p) => p.id) : null,
+          recent:
+            budget && budget.available
+              ? { last24h: budget.last24h, sameEmail24h: budget.sameEmail24h, samePhone24h: budget.samePhone24h }
+              : null,
         });
       })().catch((err) => log.warn("[candidates.submit] intake failed", { id, err: String(err) }));
 

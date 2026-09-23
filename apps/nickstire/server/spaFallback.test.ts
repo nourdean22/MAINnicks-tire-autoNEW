@@ -133,6 +133,14 @@ describe("resolvePublicPath — job leaves exist only while the role is open", (
     }
   });
 
+  it("a trailing slash never turns a leaf into a second 200 URL, and never rescues a closed one", () => {
+    // Open role: the slash variant keeps its pre-existing answer (not a new
+    // duplicate page with its own canonical).
+    expect(resolvePublicPath("/careers/automotive-technician/").status).toBe(404);
+    // Unknown/closed role: 404 either way.
+    expect(resolvePublicPath("/careers/does-not-exist/").status).toBe(404);
+  });
+
   it("the /careers list page itself stays a page", () => {
     expect(resolvePublicPath("/careers").status).toBe(200);
   });

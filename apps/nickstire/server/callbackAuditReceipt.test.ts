@@ -24,14 +24,35 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 // vi.mock factories are hoisted above module scope, so the doubles have to be
 // created inside vi.hoisted or the factory closes over an uninitialised const.
-const { logAdminAction, updateCallbackStatus, dispatch } = vi.hoisted(() => ({
+const { logAdminAction, updateCallbackStatus, dispatch, remember, trackAlertOutcome } = vi.hoisted(() => ({
   logAdminAction: vi.fn<(arg: Record<string, unknown>) => Promise<void>>(() => Promise.resolve()),
   updateCallbackStatus: vi.fn(() => Promise.resolve({ id: 7, status: "called" })),
   dispatch: vi.fn(() => Promise.resolve()),
+  remember: vi.fn(() => Promise.resolve()),
+  trackAlertOutcome: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("./services/auditTrail", () => ({ logAdminAction }));
 vi.mock("./services/eventBus", () => ({ dispatch }));
+/**
+ * updateStatus also fires `import("../services/feedbackLoop")` (completed)
+ * and `import("../services/nickMemory")` (no-answer) without awaiting them.
+ * Left real and unsettled, those imports were still loading when this file
+ * ended. Vitest then reset the module cache for the NEXT file, and the
+ * leftover import evaluated server/db.ts into it with the real mysql2 driver
+ * before that file's own vi.mock calls had registered. So the next file's
+ * `import("../db")` got a live pool.
+ *
+ * Witnessed 2026-09-23 with a mocker trace: coupon-redemptions, next in some
+ * file orders, failed 3 tests intermittently with ENOTFOUND on its dummy
+ * DATABASE_URL.
+ *
+ * Nothing imports either module statically, so these stubs are the whole
+ * surface. The afterEach below settles every in-flight import while this
+ * file's mocks are still the active ones.
+ */
+vi.mock("./services/nickMemory", () => ({ remember }));
+vi.mock("./services/feedbackLoop", () => ({ trackAlertOutcome }));
 /**
  * db() === null makes the linked-lead hygiene block return without touching a
  * database; that path is covered elsewhere and is not what this file pins.
@@ -87,7 +108,8 @@ describe("callback.updateStatus — server-side audit receipt", () => {
     logAdminAction.mockImplementation(() => Promise.resolve());
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await vi.dynamicImportSettled();
     vi.clearAllMocks();
   });
 
@@ -129,5 +151,15 @@ describe("callback.updateStatus — server-side audit receipt", () => {
 
     expect(updateCallbackStatus).toHaveBeenCalledWith(12, "called", "left voicemail");
     expect(logAdminAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("the unawaited follow-ups finish inside this file, on the stubs", async () => {
+    const caller = appRouter.createCaller(adminContext());
+    await caller.callback.updateStatus({ id: 3, status: "completed" });
+    await caller.callback.updateStatus({ id: 4, status: "no-answer" });
+    await vi.dynamicImportSettled();
+
+    expect(trackAlertOutcome).toHaveBeenCalledWith("callback_followup", "acted");
+    expect(remember).toHaveBeenCalledWith(expect.objectContaining({ source: "callback_feedback" }));
   });
 });

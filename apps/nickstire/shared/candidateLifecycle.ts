@@ -14,6 +14,15 @@
  * is 17 characters. Never widen this list past 32 without a DDL change.
  */
 
+/**
+ * candidates.source for a submission whose hidden honeypot field was filled.
+ * Saved (never dropped — autofill can fill it for a real person), never
+ * alerted, kept out of the 48h SLA alarm, badged in admin. 16 chars; the
+ * column is VARCHAR(40). technicianReferrals only links rows whose source is
+ * exactly "careers", so a flagged row cannot carry a $300 claim.
+ */
+export const CANDIDATE_SOURCE_HONEYPOT = "careers_honeypot";
+
 /** What the person asked for on the form. `apply` is the default. */
 export const CANDIDATE_INTENTS = [
   "apply",
@@ -37,7 +46,7 @@ export const CANDIDATE_INTENT_ACTION: Record<CandidateIntent, string> = {
   apply: "Review the application and call.",
   confidential: "Currently employed — contact DISCREETLY (text first, never call their shop).",
   shop_tour: "Wants to see the shop — offer an after-hours visit time.",
-  talent_network: "Not ready to move — reply once, then set a follow-up date.",
+  talent_network: "Not ready to move — reply once, then check back in a few months.",
   apprentice: "Apprentice interest — ask about schooling and availability.",
 };
 
@@ -145,13 +154,19 @@ export function parseMoveReasons(raw: string | null | undefined): MoveReason[] {
 export function refCodeFromLandingPage(landingPage: string | null | undefined): string | null {
   if (!landingPage) return null;
   try {
-    const raw = new URL(landingPage, "https://nickstire.org").searchParams.get("ref");
-    if (!raw) return null;
-    const code = raw.trim().toLowerCase();
-    return /^[a-z0-9-]{1,64}$/.test(code) ? code : null;
+    return normalizeRefCode(new URL(landingPage, "https://nickstire.org").searchParams.get("ref"));
   } catch {
     return null;
   }
+}
+
+/** A referral code as issued ([a-z0-9-], 1-64 chars, lowercased), or null. The
+ *  one rule for both the landing-page code and the last-touch code the careers
+ *  form keeps in sessionStorage. */
+export function normalizeRefCode(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const code = raw.trim().toLowerCase();
+  return /^[a-z0-9-]{1,64}$/.test(code) ? code : null;
 }
 
 /** Referral link for a code — what the admin panel prints on a QR card. */

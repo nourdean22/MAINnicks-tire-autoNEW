@@ -90,6 +90,14 @@ function zodMaxes(
   for (const m of block.matchAll(/(\w+):\s*z\s*\.string\(\)[^,\n]*?\.max\((\d+)\)/g)) {
     out[m[1]] = Number(m[2]);
   }
+  // `field: clipped(N)` (routers/candidates.ts, 2026-09-23) TRUNCATES to N
+  // instead of rejecting — for attribution captured by the browser, where a
+  // rejection lost the whole application. It is a bound all the same, so it
+  // is held to the same <= width rule; candidatesSilentLoss.test.ts proves the
+  // truncation itself.
+  for (const m of block.matchAll(/(\w+):\s*clipped\((\d+)\)/g)) {
+    out[m[1]] = Number(m[2]);
+  }
   return out;
 }
 

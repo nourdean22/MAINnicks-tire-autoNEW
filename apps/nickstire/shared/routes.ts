@@ -1270,7 +1270,7 @@ const UTILITY_PAGES: RouteEntry[] = [
     priority: 0.7,
     changefreq: "weekly",
     title: "Service Advisor Job — Cleveland OH | Nick’s Tire & Auto",
-    description: "Hiring a service advisor in Cleveland, OH. Translate technician findings honestly, no pressure upsells. Fast-paced family-run shop. Apply in 2 minutes.",
+    description: "Service advisor job in Cleveland, OH: $22.00–$28.00/hr, hourly. Explain technician findings honestly, no pressure upsells. Apply in 2 minutes.",
     group: "utility",
     sitemap: true,
     prerender: true,
@@ -1298,12 +1298,10 @@ const UTILITY_PAGES: RouteEntry[] = [
     title: "Mechanic Pay Calculator: Flat Rate vs Hourly | Nick's Tire & Auto",
     description: "Compare flat-rate and hourly mechanic pay with your own numbers: flag rate, flagged hours, guarantee, overtime. Weekly and yearly pay, plus break-even flag hours.",
     group: "utility",
-    // sitemap:false UNTIL the first prerender refresh has written
-    // prerendered/mechanic-pay-calculator/index.html. prerender:check fails a
-    // sitemap route with no artifact (crawlers would get the empty shell), and
-    // a local regen would boot the server against the production DB. Flip to
-    // true in the PR that commits the artifact.
-    sitemap: false,
+    // In the sitemap since the 2026-09-23 prerender refresh (79983f9) wrote
+    // prerendered/mechanic-pay-calculator/index.html — prerender:check fails a
+    // sitemap route with no artifact.
+    sitemap: true,
     prerender: true,
   },
   {
@@ -1311,7 +1309,7 @@ const UTILITY_PAGES: RouteEntry[] = [
     priority: 0.7,
     changefreq: "weekly",
     title: "Careers — Auto Tech Jobs Cleveland | Nick's Tire & Auto",
-    description: "Hiring automotive technicians ($30.00–$37.50/hr), tire/hybrid techs ($22.00–$25.50/hr) and a service advisor in Cleveland, OH. Hourly, not flat rate. Apply in 2 min.",
+    description: "Hiring auto techs ($30.00–$37.50/hr), tire/hybrid techs ($22.00–$25.50/hr) and a service advisor ($22.00–$28.00/hr) in Cleveland, OH. Hourly pay.",
     group: "utility",
     sitemap: true,
     prerender: true,

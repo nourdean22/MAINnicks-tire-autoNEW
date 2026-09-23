@@ -4,13 +4,14 @@
  * Built for search: leaf job pages carry the JobPosting schema (this list page
  * deliberately carries none), plain-language job descriptions, local SEO.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs, trackEvent, trackPhoneClick } from "@/components/SEO";
 import { openJobOpenings, jobOpeningPath, formatHourlyPayRange } from "@shared/jobOpenings";
 import { Link } from "wouter";
 import { BUSINESS, SITE_URL } from "@shared/business";
+import { getRouteByPath } from "@shared/routes";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { getUtmData } from "@/lib/utm";
@@ -19,6 +20,7 @@ import {
   CANDIDATE_INTENT_LABELS,
   MOVE_REASONS,
   MOVE_REASON_LABELS,
+  normalizeRefCode,
   type CandidateIntent,
   type MoveReason,
 } from "@shared/candidateLifecycle";
@@ -95,7 +97,9 @@ function buildWhyWork(reviewRating: number, reviewCountDisplay: string) {
     {
       icon: Shield,
       heading: "Hourly pay, not flat rate",
-      body: `You're paid for the hours you work. ${PAY_SUMMARY.join(" · ")}. A slow afternoon doesn't come out of your check.`,
+      // Definitional, not a guarantee of hours: the owner has not published a
+      // weekly guarantee (docs/recruiting/RECRUITING-ENGINE-2026-09.md Sec. 12).
+      body: `You're paid for every hour you're on the clock, not just the jobs you flag.${PAY_SUMMARY.length ? ` ${PAY_SUMMARY.join(" · ")}.` : ""}`,
     },
     {
       icon: Wrench,
@@ -105,7 +109,7 @@ function buildWhyWork(reviewRating: number, reviewCountDisplay: string) {
     {
       icon: TrendingUp,
       heading: "Room to grow",
-      body: "If you want to develop diagnostics skills, move into a senior role, or eventually advise on shop operations, we're interested in growing with you. ASE certifications and diagnostic skill move you up the posted range.",
+      body: "If you want to develop diagnostics skills, move into a senior role, or eventually advise on shop operations, we're interested in growing with you. Where you start in the posted range depends on your experience and skills.",
     },
     {
       icon: Users,
@@ -245,16 +249,35 @@ const HASH_TO_INTENT: Record<string, CandidateIntent> = {
   "#apprentice": "apprentice",
 };
 
+/**
+ * In-page CTAs call this as well as linking to their #anchor. A hash that is
+ * already current fires no hashchange, so tapping "Talk privately", then the
+ * "Apply now" lane, then "Talk privately" again used to leave the form on
+ * apply — and a confidential question went out on the shop-inbox route.
+ */
+const INTENT_EVENT = "careers:intent";
+export function chooseCareersIntent(intent: CandidateIntent) {
+  window.dispatchEvent(new CustomEvent<CandidateIntent>(INTENT_EVENT, { detail: intent }));
+}
+
+/** Last-touch referral code (?ref=). utm.ts keeps the FIRST landing page, so a
+ *  referral QR opened in a tab that already had a session lost its code. */
+const REF_STORAGE_KEY = "nt_careers_ref";
+
 const INTENT_HINT: Record<CandidateIntent, string> = {
   apply: "No resume required. We respond within 48 hours.",
   confidential:
-    "Already working somewhere? This goes to the owner only. We won't call your shop — say how you'd like to be reached.",
-  shop_tour: "Come look at the bays and meet the owner before you decide anything. After hours works.",
+    "Already working somewhere? This goes straight to the owner. We won't call your shop — say how you'd like to be reached.",
+  shop_tour: "Come look at the bays and meet the owner before you decide anything. Tell us what time works for you.",
   talent_network: "Not ready to move? Leave your info and we'll check in when it makes sense for you.",
   apprentice: "Want to learn the trade? Tell us about school, experience, and when you're available.",
 };
 
 export function ApplicationForm({ defaultPosition }: { defaultPosition?: string } = {}) {
+  // Unique per rendered form (the /careers hub and each job page render one),
+  // so every label can point at its input — iOS autofill and screen readers
+  // both key off that association.
+  const uid = useId();
   const [intent, setIntent] = useState<CandidateIntent>("apply");
   const [moveReasons, setMoveReasons] = useState<MoveReason[]>([]);
   // Honeypot — see candidates.submit. Off-screen, never focusable.
@@ -264,9 +287,23 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
       const next = HASH_TO_INTENT[window.location.hash];
       if (next) setIntent(next);
     };
+    const chosen = (e: Event) => {
+      const next = (e as CustomEvent<CandidateIntent>).detail;
+      if (CANDIDATE_INTENTS.includes(next)) setIntent(next);
+    };
     apply();
+    try {
+      const ref = normalizeRefCode(new URLSearchParams(window.location.search).get("ref"));
+      if (ref) sessionStorage.setItem(REF_STORAGE_KEY, ref);
+    } catch {
+      // storage blocked (private mode): the landing-page code still applies
+    }
     window.addEventListener("hashchange", apply);
-    return () => window.removeEventListener("hashchange", apply);
+    window.addEventListener(INTENT_EVENT, chosen);
+    return () => {
+      window.removeEventListener("hashchange", apply);
+      window.removeEventListener(INTENT_EVENT, chosen);
+    };
   }, []);
   const [form, setForm] = useState({
     name: "",
@@ -277,7 +314,7 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
     position:
       defaultPosition && POSITIONS.some((p) => p.title === defaultPosition)
         ? defaultPosition
-        : POSITIONS[0].title,
+        : (POSITIONS[0]?.title ?? ""),
     experience: "",
     message: "",
     referredBy: "",
@@ -298,10 +335,12 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
   const submitCandidate = trpc.candidates.submit.useMutation({
     onSuccess: (data) => {
       setSubmitted(true);
+      // A filled honeypot is saved server-side (source careers_honeypot) and
+      // shown the ordinary success — but it is not an application, so it
+      // neither counts as a conversion nor files a $300 referral claim.
+      if (website) return;
       trackEvent("careers_application_submitted", { position: form.position, intent });
       const referrerName = form.referredBy.trim();
-      // id 0 is the honeypot's decoy success — nothing was saved, so there is
-      // no candidate to attach a $300 referral claim to.
       if (referrerName && data.id) {
         submitTechReferral.mutate({
           candidateId: data.id,
@@ -323,7 +362,7 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
         </h3>
         <p className="text-sm text-foreground/60">
           {intent === "confidential"
-            ? "This went to the owner only. We'll reach out the way you asked — never through your current shop."
+            ? "This went straight to the owner. We'll reach out the way you asked — never through your current shop."
             : intent === "talent_network"
               ? "You're on our list. We'll check in when it makes sense — no pressure."
               : "We'll review your info and reach out within 48 hours."}{" "}
@@ -358,9 +397,19 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
     // include fields candidates.submit doesn't accept.
     const { utmSource, utmMedium, utmCampaign, utmTerm, utmContent, gclid, landingPage, referrer, sessionId } =
       getUtmData();
+    let refCode: string | null = null;
+    try {
+      refCode = sessionStorage.getItem(REF_STORAGE_KEY);
+    } catch {
+      refCode = null;
+    }
+    // The chips only show on the lanes that ask "what would make you move?";
+    // a choice made there and then abandoned by switching lanes is not sent.
+    const reasonsShown = intent !== "apply" && intent !== "apprentice";
     submitCandidate.mutate({
       intent,
-      moveReasons: moveReasons.length ? moveReasons : null,
+      moveReasons: reasonsShown && moveReasons.length ? moveReasons : null,
+      refCode,
       utmTerm,
       utmContent,
       gclid,
@@ -412,20 +461,32 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
         <p className="mt-2 text-xs text-foreground/50">{INTENT_HINT[intent]}</p>
       </fieldset>
 
-      {/* Honeypot: off-screen, not tabbable, hidden from assistive tech. */}
+      {/* Honeypot: off-screen, not tabbable, hidden from assistive tech. The
+          label and name avoid words autofill looks for ("website", "url",
+          "company"); a filled value is SAVED and flagged server-side, never
+          dropped, in case a browser fills it for a real person anyway. */}
       <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", width: 1, height: 1, overflow: "hidden" }}>
-        <label>
-          Website
-          <input type="text" tabIndex={-1} autoComplete="off" value={website} onChange={(e) => setWebsite(e.target.value)} />
-        </label>
+        <label htmlFor={`${uid}-hp`}>Leave this field empty</label>
+        <input
+          id={`${uid}-hp`}
+          name="nt_leave_empty"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+        />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+          <label htmlFor={`${uid}-name`} className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
             Name *
           </label>
           <input
+            id={`${uid}-name`}
+            name="name"
+            autoComplete="name"
             type="text"
             required
             value={form.name}
@@ -435,10 +496,14 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
           />
         </div>
         <div>
-          <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+          <label htmlFor={`${uid}-phone`} className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
             Phone *
           </label>
           <input
+            id={`${uid}-phone`}
+            name="tel"
+            autoComplete="tel"
+            inputMode="tel"
             type="tel"
             required
             value={form.phone}
@@ -450,10 +515,14 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
       </div>
 
       <div>
-        <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+        <label htmlFor={`${uid}-email`} className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
           Email (optional)
         </label>
         <input
+          id={`${uid}-email`}
+          name="email"
+          autoComplete="email"
+          inputMode="email"
           type="email"
           value={form.email}
           onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
@@ -464,10 +533,12 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+          <label htmlFor={`${uid}-position`} className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
             Position
           </label>
           <select
+            id={`${uid}-position`}
+            name="position"
             value={form.position}
             onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))}
             className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 py-3 text-sm text-foreground focus:border-primary/50 focus:outline-none"
@@ -478,10 +549,12 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
           </select>
         </div>
         <div>
-          <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+          <label htmlFor={`${uid}-experience`} className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
             Experience Level
           </label>
           <select
+            id={`${uid}-experience`}
+            name="experience"
             value={form.experience}
             onChange={(e) => setForm((f) => ({ ...f, experience: e.target.value }))}
             className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded-lg px-4 py-3 text-sm text-foreground focus:border-primary/50 focus:outline-none"
@@ -492,9 +565,11 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
             <option value="senior">Senior (5+ years)</option>
             <option value="master">Master Tech (10+ years)</option>
           </select>
-          <p className="text-[10px] text-foreground/30 mt-1">
-            Hourly pay: {PAY_SUMMARY.join(" · ")}. Where you land depends on experience and certifications.
-          </p>
+          {PAY_SUMMARY.length > 0 && (
+            <p className="text-[10px] text-foreground/30 mt-1">
+              Hourly pay: {PAY_SUMMARY.join(" · ")}. Where you start depends on your experience and skills.
+            </p>
+          )}
         </div>
       </div>
 
@@ -510,7 +585,7 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
                 type="button"
                 aria-pressed={moveReasons.includes(r)}
                 onClick={() => toggleReason(r)}
-                className={`min-h-[40px] rounded-full border px-3 text-xs font-semibold transition-colors ${
+                className={`min-h-[48px] rounded-full border px-4 text-xs font-semibold transition-colors ${
                   moveReasons.includes(r)
                     ? "border-primary bg-primary/10 text-foreground"
                     : "border-border/30 text-foreground/55 hover:border-primary/40"
@@ -524,10 +599,12 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
       )}
 
       <div>
-        <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+        <label htmlFor={`${uid}-message`} className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
           {intent === "confidential" ? "Your question, and the best way to reach you" : "Tell us about yourself"}
         </label>
         <textarea
+          id={`${uid}-message`}
+          name="message"
           value={form.message}
           onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
           placeholder="What kind of work have you done? What are you looking for? Keep it brief — we'll talk details in person."
@@ -538,10 +615,15 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+          <label htmlFor={`${uid}-refname`} className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
             Referred by (optional)
           </label>
           <input
+            id={`${uid}-refname`}
+            name="referred_by"
+            // Someone ELSE's name: autofill must never put the applicant's own
+            // name here (it would attach a $300 claim to the wrong person).
+            autoComplete="off"
             type="text"
             value={form.referredBy}
             onChange={(e) => setForm((f) => ({ ...f, referredBy: e.target.value }))}
@@ -550,10 +632,15 @@ export function ApplicationForm({ defaultPosition }: { defaultPosition?: string 
           />
         </div>
         <div>
-          <label className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
+          <label htmlFor={`${uid}-refphone`} className="text-xs font-semibold tracking-[0.05em] uppercase text-foreground/40 block mb-1.5">
             Their phone (optional)
           </label>
           <input
+            id={`${uid}-refphone`}
+            name="referrer_phone"
+            // The REFERRER's phone, never the applicant's — keep autofill out.
+            autoComplete="off"
+            inputMode="tel"
             type="tel"
             value={form.referredByPhone}
             onChange={(e) => setForm((f) => ({ ...f, referredByPhone: e.target.value }))}
@@ -588,7 +675,9 @@ export default function Careers() {
     <PageLayout activeHref="/careers" showChat={true}>
       <SEOHead
         title="Careers | Nick's Tire & Auto Cleveland — We're Hiring"
-        description="We're hiring automotive technicians, service advisors, and tire techs in Cleveland, Ohio. Family-run shop. Honest work environment. No flat-rate grind. Apply now."
+        // Same description the prerendered HTML carries (shared/routes.ts), so
+        // hydration does not swap the pay-bearing snippet for an older one.
+        description={getRouteByPath("/careers")?.description ?? ""}
         canonicalPath="/careers"
       />
       {/* v1.7 SEO · BreadcrumbList */}
@@ -614,7 +703,10 @@ export default function Careers() {
             <div className="mt-8 flex flex-wrap gap-4 stagger-in">
               <a
                 href="#apply"
-                onClick={() => trackEvent("careers_apply_cta_click", { position: "any", surface: "hero" })}
+                onClick={() => {
+                  chooseCareersIntent("apply");
+                  trackEvent("careers_apply_cta_click", { position: "any", surface: "hero" });
+                }}
                 className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-6 py-3 rounded-xl font-semibold text-sm tracking-wide hover:opacity-90 transition-opacity"
               >
                 Apply Now
@@ -631,14 +723,17 @@ export default function Careers() {
             </div>
             <a
               href="#talk"
-              onClick={() => trackEvent("careers_apply_cta_click", { position: "any", surface: "hero_confidential" })}
-              className="mt-5 inline-block text-sm text-foreground/60 underline underline-offset-4 hover:text-foreground"
+              onClick={() => {
+                chooseCareersIntent("confidential");
+                trackEvent("careers_apply_cta_click", { position: "any", surface: "hero_confidential" });
+              }}
+              className="mt-3 flex w-fit min-h-[48px] items-center text-sm text-foreground/60 underline underline-offset-4 hover:text-foreground"
             >
               Already working somewhere? Talk privately first — no application.
             </a>
             <Link
               href="/mechanic-pay-calculator"
-              className="mt-2 block text-sm text-foreground/50 underline underline-offset-4 hover:text-foreground"
+              className="flex w-fit min-h-[48px] items-center text-sm text-foreground/50 underline underline-offset-4 hover:text-foreground"
             >
               Flat rate vs hourly — run your own numbers
             </Link>

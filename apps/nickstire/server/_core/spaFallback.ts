@@ -88,9 +88,18 @@ const CAREERS_PREFIX = "/careers/";
  */
 export function careersLeafVerdict(pathname: string): boolean | null {
   if (!pathname.startsWith(CAREERS_PREFIX)) return null;
-  const slug = pathname.slice(CAREERS_PREFIX.length);
+  const raw = pathname.slice(CAREERS_PREFIX.length);
+  // One trailing slash names the same leaf FILE: the prerender middleware's
+  // path.join("/careers/<slug>/", "index.html") resolves to the same artifact,
+  // so a closed role must be refused with or without it, or its stale
+  // JobPosting slips through (post-merge audit, 2026-09-23).
+  const slug = raw.replace(/\/$/, "");
   if (slug.length === 0 || slug.includes("/")) return null;
-  return jobOpeningBySlug(slug)?.status === "open";
+  if (jobOpeningBySlug(slug)?.status !== "open") return false;
+  // An OPEN role is only "the leaf" at its canonical, slash-less path. The
+  // slash variant defers to the pre-existing handling (null) rather than
+  // becoming a second 200 URL with its own canonical.
+  return raw.endsWith("/") ? null : true;
 }
 
 function isKnownPublicPath(pathname: string): boolean {
