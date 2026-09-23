@@ -7,7 +7,8 @@
  * sweep's backlog (past dates) into fake demand.
  */
 import { describe, expect, it } from "vitest";
-import { bookingsForDate, phoneDemandLine, stripHasNothingToSay, tomorrowBusinessDateKey } from "../pages/admin/today/ArrivalLoadStrip";
+import { bookingsForDate, stripHasNothingToSay, tomorrowBusinessDateKey } from "../pages/admin/today/ArrivalLoadStrip";
+import { phoneDemandLine } from "../pages/admin/today/phoneDemand";
 import type { BookingItem } from "../pages/admin/today/types";
 
 const b = (over: Partial<BookingItem>): BookingItem => ({
