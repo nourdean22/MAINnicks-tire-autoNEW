@@ -293,7 +293,9 @@ lightness — which would silently restore the drift. Pinned by
 
 - Application: `apps/nickstire`
 - Public site and admin: `https://nickstire.org`
-- Deployment: GitHub `main` to Railway
+- Deployment: GitHub `main` to Railway service `MAINnicks-tire-auto`, region `us-east4-eqdc4a`
+  (Virginia) since 2026-09-23 13:20Z, next to TiDB (`us-east-1`): a query round trip is ~5 ms,
+  was ~65-72 ms from `us-west2`. Receipts: `operations/REGION-LATENCY-2026-09-23.md` §8.
 - Client: React 19 and Vite
 - Server: Express 4 and tRPC 11
 - Canonical operational database: TiDB Cloud / MySQL through Drizzle
