@@ -701,7 +701,7 @@ export const gatewayTireRouter = router({
       // Create invoice IMMEDIATELY — invoice = job is real, customer owes
       let invoiceNumber = "";
       try {
-        invoiceNumber = await getNextInvoiceNumber();
+        const requestedNumber = await getNextInvoiceNumber();
         let laborRate = 115;
         try {
           const [setting] = await d.select().from(shopSettings).where(eq(shopSettings.key, "laborRate")).limit(1);
@@ -721,10 +721,10 @@ export const gatewayTireRouter = router({
         const taxAmountCents = Math.round(partsCostCents * taxRate);
         const grandTotalCents = laborCostCents + partsCostCents + taxAmountCents;
 
-        await createInvoice({
+        const created = await createInvoice({
           customerName: input.customerName,
           customerPhone: input.customerPhone,
-          invoiceNumber,
+          invoiceNumber: requestedNumber,
           totalAmount: grandTotalCents,
           partsCost: partsCostCents,
           laborCost: laborCostCents,
@@ -736,6 +736,11 @@ export const gatewayTireRouter = router({
           source: "manual",
           invoiceDate: new Date(),
         });
+        // The number the invoice was STORED under. A collision moves it to the
+        // next one, and the order link, the Stripe checkout and the payment all
+        // follow this value. Assigned only after the insert succeeds, so a
+        // failed insert never returns another customer's number to the page.
+        invoiceNumber = created.invoiceNumber ?? requestedNumber;
 
         // Unified event bus
         import("../services/eventBus").then(({ emit }) =>
