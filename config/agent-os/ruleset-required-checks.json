@@ -1,0 +1,21 @@
+{
+  "name": "required-status-checks",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/heads/main"], "exclude": [] } },
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "always" }
+  ],
+  "rules": [
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "required_status_checks": [
+          { "context": "Completion Authority / completion-authority" },
+          { "context": "Agent policy / adapter parity + canaries" }
+        ],
+        "strict_required_status_checks_policy": true
+      }
+    }
+  ]
+}
