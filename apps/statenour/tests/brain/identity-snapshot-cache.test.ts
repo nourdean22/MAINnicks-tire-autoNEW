@@ -15,7 +15,7 @@
  * cross-system-nudge).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
@@ -76,8 +76,6 @@ let storedContent = "";
 describe("loadIdentitySnapshot() read cache", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // L2 off — this pins L1 behavior, not Redis reachability.
-    vi.stubEnv("REDIS_URL", "");
     // Literal mirrors IDENTITY_CACHE_KEY in lib/brain/identity-snapshot.ts.
     invalidate("identity_snapshot_current");
     storedContent = JSON.stringify(makeSnapshot(40));
@@ -86,10 +84,6 @@ describe("loadIdentitySnapshot() read cache", () => {
       storedContent = args.data.content;
       return { id: "identity-current" };
     });
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
   });
 
   it("two turns read the row ONCE and render an identical block", async () => {

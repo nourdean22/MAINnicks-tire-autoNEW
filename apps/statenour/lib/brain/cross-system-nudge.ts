@@ -35,8 +35,8 @@ import { cached, invalidate } from "@/lib/utils/cache";
  * 2026-08-06 · cache key for the whole nudge set. See `computeNudges`.
  *
  * MULTI-REPLICA CAVEAT — read before raising the TTL. `invalidate()`
- * clears L2 (Redis) and the calling replica's L1, but a SIBLING Railway
- * replica keeps serving its own warm L1 copy until that copy's own TTL
+ * clears only the calling replica's in-process cache; a SIBLING Railway
+ * replica keeps serving its own warm copy until that copy's own TTL
  * expires. So the worst-case "dismissed nudge is still on screen"
  * window equals the TTL, not zero. 300s is acceptable for a
  * single-operator app; every second added to the TTL is a second added

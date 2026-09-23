@@ -36,15 +36,6 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { brainMemory: mocks.brainMemory, reflection: mocks.reflection },
 }));
 vi.mock("@/lib/utils/error-log", () => ({ logError: mocks.logError }));
-// L2 is a no-op so the assertions measure the L1 cache only — same reason
-// as tests/brain/qualitative-identity-cache.test.ts.
-vi.mock("@/lib/utils/redis", () => ({
-  redisGet: async () => null,
-  redisSet: async () => false,
-  redisDel: async () => false,
-  redisDelPrefix: async () => 0,
-}));
-
 import { loadQualitativeIdentity } from "@/lib/brain/qualitative-identity";
 
 // Mirrors CACHE_KEY in lib/brain/qualitative-identity.ts — the same

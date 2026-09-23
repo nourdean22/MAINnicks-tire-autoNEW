@@ -386,8 +386,8 @@ export async function removeEntry(bucket: IdentityBucket, text: string): Promise
  * addManualEntry/removeEntry runs update() against a missing row and
  * throws Prisma P2025.
  *
- * Multi-replica caveat: clears THIS instance's L1 plus the shared L2
- * (Redis) key; sibling replicas age out on the TTL.
+ * Multi-replica caveat: clears THIS instance's in-process cache only;
+ * sibling replicas age out on the TTL.
  */
 export function invalidateQualitativeIdentityCache(): void {
   invalidate(CACHE_KEY);

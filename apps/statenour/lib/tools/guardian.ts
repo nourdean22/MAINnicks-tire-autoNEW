@@ -26,6 +26,8 @@ import { currentTurn } from "@/lib/agent/turn-context";
 import { logger as rootLogger } from "@/lib/logger";
 import { evaluateToolAction } from "@/lib/tools/tool-policy";
 import { prisma } from "@/lib/prisma";
+import { APPROVAL_DEDUPE_WINDOW_MS, samePayload } from "@/lib/tools/approval-match";
+import { isApprovalRequestExpired } from "@/lib/automation/approval-freshness";
 import { AsyncLocalStorage } from "async_hooks";
 
 const log = rootLogger.withSurface("tools/guardian");
@@ -80,6 +82,9 @@ export async function executeApprovedToolAsync(requestId: string): Promise<void>
     const claim = await prisma.approvalRequest.updateMany({
       where: { 
         id: requestId, 
+        // An expired approval authorizes nothing (approval-freshness.ts);
+        // pinned in the claim so no path past the approve mutation can run it.
+        expiresAt: { gt: new Date() },
         OR: [
           { status: "approved" },
           { status: "executing", updatedAt: { lt: staleTime } }
@@ -514,25 +519,34 @@ export function withGuardian<T, A extends unknown[]>(
         // permanently blocked the same action, and an old executed row
         // replayed its stale resultPayload as if fresh. Same-payload
         // requests a day apart are legitimately new intents.
-        const DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000;
+        //
+        // 2026-09-23 · rule shared with checkApprovalGate, documented in
+        // lib/tools/approval-match.ts: payloads compare canonically, and an
+        // expired pending/approved row is ignored (it authorizes nothing).
+        // The executed branch below only REPLAYS the stored result — it
+        // never re-executes.
+        const now = new Date();
         const existing = await prisma.approvalRequest.findFirst({
           where: {
             toolId: toolName,
             status: {
               in: ["pending_approval", "approved", "rejected", "executed", "failed"]
             },
-            createdAt: { gte: new Date(Date.now() - DEDUPE_WINDOW_MS) }
+            createdAt: { gte: new Date(now.getTime() - APPROVAL_DEDUPE_WINDOW_MS) }
           },
           orderBy: { createdAt: "desc" }
         });
 
         let matched = existing;
-        if (existing) {
-          const existingStr = JSON.stringify(existing.payload);
-          const currentStr = JSON.stringify(payload);
-          if (existingStr !== currentStr) {
-            matched = null;
-          }
+        if (existing && !samePayload(existing.payload, payload)) {
+          matched = null;
+        }
+        if (
+          matched &&
+          (matched.status === "pending_approval" || matched.status === "approved") &&
+          isApprovalRequestExpired(matched, now)
+        ) {
+          matched = null;
         }
 
         if (matched) {

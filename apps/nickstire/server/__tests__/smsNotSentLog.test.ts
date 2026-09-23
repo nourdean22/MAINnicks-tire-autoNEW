@@ -35,6 +35,26 @@ describe("notSentLogFields", () => {
     expect(notSentLogFields({ type: "t" }, { status: "blocked", reason: "" })?.reason).toBe("unspecified");
   });
 
+  // 2026-09-23: a recap held by the preflight guard logged reason
+  // "system_triggered", the orchestrator's default. The code lives in
+  // noSendReason / statusReason on those paths.
+  it("reports the recorded cause, not the 'system_triggered' default", () => {
+    const vapi = { type: "vapi_confirmation", phone: "+12165550142" };
+    expect(
+      notSentLogFields(vapi, { status: "drafted", reason: "system_triggered", statusReason: "hallucinated_url", noSendReason: "hallucinated_url" })?.reason,
+    ).toBe("hallucinated_url");
+    expect(
+      notSentLogFields(vapi, { status: "drafted", reason: "system_triggered", statusReason: "draft_only_rollout_mode", noSendReason: "draft_only_mode" })?.reason,
+    ).toBe("draft_only_mode");
+    // No noSendReason: a specific `reason` wins over a generic statusReason …
+    expect(
+      notSentLogFields(vapi, { status: "drafted", reason: "complex_intent:pricing", statusReason: "requires_operator_review" })?.reason,
+    ).toBe("complex_intent:pricing");
+    // … but the default does not.
+    expect(notSentLogFields(vapi, { status: "failed", reason: "system_triggered", statusReason: "internal_error" })?.reason).toBe("internal_error");
+    expect(notSentLogFields(vapi, { status: "failed", reason: "system_triggered" })?.reason).toBe("system_triggered");
+  });
+
   it("orchestrateSms runs every result through it and logs 'SMS not sent'", () => {
     const src = readFileSync(resolve(__dirname, "../services/smsOrchestrator.ts"), "utf8");
     expect(src).toMatch(/const result = await orchestrateSmsDecide\(event\);\s*const notSent = notSentLogFields\(event, result\);\s*if \(notSent\) log\.info\("SMS not sent"/);
