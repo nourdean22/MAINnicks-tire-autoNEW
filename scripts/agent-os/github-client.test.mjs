@@ -12,10 +12,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { resolveToken, ghJson, ghPaginate } from "./github-client.mjs";
+import { liveDecision } from "./live-gate.mjs";
 
 const REPO = "nourdean22/MAINnicks-tire-autoNEW";
 const auth = resolveToken();
+// The two real-API tests below run only when this diff touches the client (or on
+// dispatch/schedule, or AGENT_OS_LIVE_GHCLIENT=1): ~2 requests, but on every PR,
+// and a spent installation budget 403'd them into every PR's red — live-gate.mjs.
+const ghclientGate = liveDecision("AGENT_OS_LIVE_GHCLIENT");
+console.log(ghclientGate.reason);
+const liveSkip = !ghclientGate.run ? ghclientGate.reason : !auth;
 
 test("a GitHub token can be resolved in this environment (precondition for the rest)", () => {
   assert.ok(auth, "resolveToken() returned null — gh auth token failed AND GH_TOKEN/GITHUB_TOKEN are both unset");
@@ -37,7 +47,7 @@ test("BROKEN control: a raw fetch() with NODE_USE_ENV_PROXY unset 401s against t
   assert.equal(r.stdout.trim(), "401", `expected the unshimmed control to 401; got: ${r.stdout}${r.stderr}`);
 });
 
-test("FIXED: ghJson() reaches the real API and returns this repo", { skip: !auth }, () => {
+test("FIXED: ghJson() reaches the real API and returns this repo", { skip: liveSkip }, () => {
   // Mirrors the BROKEN control above exactly, but in a child with
   // NODE_USE_ENV_PROXY=1 set from process start (setting it mid-process, as this
   // test file's own process would be doing if it called ghJson() in-process, does
@@ -91,7 +101,7 @@ test("resolveToken falls back to GITHUB_TOKEN when GH_TOKEN is absent and gh is 
   assert.equal(out.source, "GITHUB_TOKEN env");
 });
 
-test("LIVE: ghPaginate crosses a real page boundary without the numeric-ID proxy 403 (real regression)", { skip: !auth }, () => {
+test("LIVE: ghPaginate crosses a real page boundary without the numeric-ID proxy 403 (real regression)", { skip: liveSkip }, () => {
   // The repo's own /branches endpoint has 130+ branches (>100 = at least 2 pages)
   // at last count, and this environment's proxy previously 403'd the second page
   // because ghPaginate followed the Link header's numeric-ID URL verbatim. This
@@ -117,4 +127,21 @@ test("resolveToken returns null when nothing is available", () => {
     { encoding: "utf8", env, cwd: import.meta.dirname, timeout: 10000 },
   );
   assert.equal(r.stdout.trim(), "null");
+});
+
+test("API meter: with AGENT_OS_GH_CALL_LOG set, each request appends {script, method, path}; unset, nothing is written", (t) => {
+  // No network: the request targets a closed local port, and the meter records
+  // before fetch() runs, so the line is written even though the call fails.
+  const dir = mkdtempSync(join(tmpdir(), "gh-meter-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const log = join(dir, "calls.jsonl");
+  const script = "import('./github-client.mjs').then(m=>m.ghFetch('http://127.0.0.1:9/repos/o/r/pulls',{method:'GET'})).catch(()=>{}).finally(()=>process.exit(0))";
+  const base = { ...process.env, PATH: "/nonexistent-empty-dir", GH_TOKEN: "t" };
+  delete base.HTTPS_PROXY;
+  delete base.AGENT_OS_GH_CALL_LOG;
+  spawnSync(process.execPath, ["-e", script], { cwd: import.meta.dirname, encoding: "utf8", env: { ...base, AGENT_OS_GH_CALL_LOG: log }, timeout: 15000 });
+  const lines = readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.deepEqual(lines, [{ script: "(eval)", method: "GET", path: "/repos/o/r/pulls" }]);
+  spawnSync(process.execPath, ["-e", script], { cwd: import.meta.dirname, encoding: "utf8", env: base, timeout: 15000 });
+  assert.equal(readFileSync(log, "utf8").trim().split("\n").length, 1, "a run without the env var must not write");
 });

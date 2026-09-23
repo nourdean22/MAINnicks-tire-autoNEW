@@ -447,7 +447,7 @@ export async function listReelPublishQueue(limit = 25): Promise<{
     .select()
     .from(reelJobs)
     .where(and(eq(reelJobs.status, "assembled"), isNotNull(reelJobs.mp4Url), ne(reelJobs.mp4Url, "")))
-    .orderBy(desc(reelJobs.id))
+    .orderBy(desc(reelJobs.createdAt), desc(reelJobs.id))
     .limit(limit);
 
   // Probed once rather than per row: whether the table exists is a property of

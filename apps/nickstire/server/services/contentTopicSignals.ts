@@ -82,7 +82,7 @@ export async function gatherTopicSignals(now: Date = new Date()): Promise<Signal
     if (d) {
       const { reelJobs } = await import("../../drizzle/schema");
       const { desc } = await import("drizzle-orm");
-      const rows = await d.select({ payload: reelJobs.payload }).from(reelJobs).orderBy(desc(reelJobs.id)).limit(25);
+      const rows = await d.select({ payload: reelJobs.payload }).from(reelJobs).orderBy(desc(reelJobs.createdAt), desc(reelJobs.id)).limit(25);
       for (const r of rows) {
         try {
           const t = (JSON.parse(String(r.payload ?? "{}")) as { topic?: string }).topic;
@@ -124,7 +124,7 @@ export async function gatherTopicSignals(now: Date = new Date()): Promise<Signal
       const rows = await d
         .select({ text: customerTestimonials.text })
         .from(customerTestimonials)
-        .orderBy(desc(customerTestimonials.id))
+        .orderBy(desc(customerTestimonials.createdAt), desc(customerTestimonials.id))
         .limit(12);
       const themes = (rows as Array<{ text: string | null }>)
         .map((r) => String(r.text ?? "").trim())
@@ -166,7 +166,7 @@ export async function gatherTopicSignals(now: Date = new Date()): Promise<Signal
       const rows = await d
         .select({ f: contentExperimentAssignments.franchiseId })
         .from(contentExperimentAssignments)
-        .orderBy(desc(contentExperimentAssignments.id))
+        .orderBy(desc(contentExperimentAssignments.assignedAt), desc(contentExperimentAssignments.id))
         .limit(10);
       const recent = (rows as Array<{ f: string | null }>).map((r) => r.f).filter(Boolean) as FranchiseId[];
       if (recent.length) signals.recentFranchises = recent;
