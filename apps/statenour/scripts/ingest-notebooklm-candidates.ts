@@ -8,6 +8,7 @@ import {
   parseNotebookLmMarkdown,
   type NotebookLmExtractedItem,
 } from "../lib/knowledge/adapters/notebooklm";
+import { KNOWLEDGE_CONTENT_MAX_CHARS, normalizedContentLength } from "../lib/knowledge/candidate";
 import { persistKnowledgeCandidate } from "../lib/knowledge/candidate-store";
 import { prisma } from "../lib/prisma";
 
@@ -223,6 +224,15 @@ async function main(): Promise<void> {
 
   for (const item of items) {
     try {
+      // 2026-09-23 (#2562) · the candidate schema bounds content and rejects rather than
+      // truncates; report an oversize extraction as rejected with the reason instead of
+      // letting the ZodError land in `failures`.
+      const itemChars = normalizedContentLength(item.text);
+      if (itemChars > KNOWLEDGE_CONTENT_MAX_CHARS) {
+        summary.rejected += 1;
+        console.warn(`[NotebookLM] oversize item from ${item.sourceFile}: ${itemChars} chars > ${KNOWLEDGE_CONTENT_MAX_CHARS} - rejected, not ingested`);
+        continue;
+      }
       const grounding = await ground(item, sources);
       const operatorConfirmedAction = options.createTasks && (!highStakes || options.allowHighStakesActions);
       const candidate = buildNotebookLmCandidate({

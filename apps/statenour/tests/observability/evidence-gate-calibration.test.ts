@@ -144,13 +144,13 @@ describe("assembleBufferShadow - the E3 pre-flush lane's shadow (2026-09-22)", (
   const FIGURE = "invites a specific figure with no tool behind it";
   const risky = (at: Date, reasons: string[], over: Partial<GateTurn> = {}): GateTurn => ({
     createdAt: at,
-    gate: { verdict: "pass", turnRisk: { buffer: true, risk: "high", register: "coaching", reasons, toolsFired: 0 } },
+    gate: { verdict: "pass", turnRisk: { buffer: true, risk: "high", register: "coaching", reasons, toolsFired: 0, toolsExpected: false, toolsExpectedSource: "routing" } },
     excerpt: "reply",
     ...over,
   });
   const calm = (at: Date, over: Partial<GateTurn> = {}): GateTurn => ({
     createdAt: at,
-    gate: { verdict: "pass", turnRisk: { buffer: false, risk: "low", register: "coaching", reasons: [], toolsFired: 0 } },
+    gate: { verdict: "pass", turnRisk: { buffer: false, risk: "low", register: "coaching", reasons: [], toolsFired: 0, toolsExpected: false, toolsExpectedSource: "routing" } },
     excerpt: "reply",
     ...over,
   });
@@ -291,10 +291,10 @@ describe("banner causes (review on #2509)", () => {
     const at = (n: number) => new Date(Date.parse(SHADOW) + (n + 1) * 60_000);
     const LOOKUP = "factual lookup with no tool expected to fire";
     const risky = (n: number, over: Partial<GateTurn>): GateTurn => ({
-      createdAt: at(n), gate: { verdict: "pass", turnRisk: { buffer: true, risk: "high", register: "coaching", reasons: [LOOKUP], toolsFired: 0 } }, excerpt: "reply", ...over,
+      createdAt: at(n), gate: { verdict: "pass", turnRisk: { buffer: true, risk: "high", register: "coaching", reasons: [LOOKUP], toolsFired: 0, toolsExpected: false, toolsExpectedSource: "routing" } }, excerpt: "reply", ...over,
     });
     const calm = (n: number, over: Partial<GateTurn>): GateTurn => ({
-      createdAt: at(n), gate: { verdict: "pass", turnRisk: { buffer: false, risk: "low", register: "coaching", reasons: [], toolsFired: 0 } }, excerpt: "reply", ...over,
+      createdAt: at(n), gate: { verdict: "pass", turnRisk: { buffer: false, risk: "low", register: "coaching", reasons: [], toolsFired: 0, toolsExpected: false, toolsExpectedSource: "routing" } }, excerpt: "reply", ...over,
     });
     const turns = [
       ...Array.from({ length: 30 }, (_, i) => risky(i, { verifierBanner: true, bannerCause: "l2_action_claim" })),
@@ -304,10 +304,10 @@ describe("banner causes (review on #2509)", () => {
     ];
     const out = assembleBufferShadow(turns, { since: SHADOW });
     expect(out.banner.byCause).toEqual([
-      { cause: "l2_action_claim", turns: 30, wouldHaveBuffered: 30, wouldHaveStreamed: 0, noShadow: 0 },
-      { cause: "action_receipt", turns: 8, wouldHaveBuffered: 8, wouldHaveStreamed: 0, noShadow: 0 },
-      { cause: "known_truth", turns: 5, wouldHaveBuffered: 0, wouldHaveStreamed: 5, noShadow: 0 },
-      { cause: "other", turns: 1, wouldHaveBuffered: 0, wouldHaveStreamed: 1, noShadow: 0 },
+      { cause: "l2_action_claim", turns: 30, wouldHaveBuffered: 30, wouldHaveStreamed: 0, noShadow: 0, legacyShadow: 0 },
+      { cause: "action_receipt", turns: 8, wouldHaveBuffered: 8, wouldHaveStreamed: 0, noShadow: 0, legacyShadow: 0 },
+      { cause: "known_truth", turns: 5, wouldHaveBuffered: 0, wouldHaveStreamed: 5, noShadow: 0, legacyShadow: 0 },
+      { cause: "other", turns: 1, wouldHaveBuffered: 0, wouldHaveStreamed: 1, noShadow: 0, legacyShadow: 0 },
     ]);
     expect(out.caveat).toContain("l2_action_claim 30 · action_receipt 8 · known_truth 5 · other 1");
     expect(out.caveat).toContain("not only L6-preventable");

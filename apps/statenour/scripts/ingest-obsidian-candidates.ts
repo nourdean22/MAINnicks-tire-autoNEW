@@ -5,6 +5,7 @@ import {
   buildObsidianCandidate,
   parseObsidianFrontmatter,
 } from "../lib/knowledge/adapters/obsidian";
+import { KNOWLEDGE_CONTENT_MAX_CHARS, normalizedContentLength } from "../lib/knowledge/candidate";
 import { persistKnowledgeCandidate } from "../lib/knowledge/candidate-store";
 import { getObsidianEngineConfig, readEngineStatus, writeEngineStatus } from "../lib/obsidian/engine-config";
 import { dirHasIgnoreMarker } from "../lib/obsidian/ignore";
@@ -66,6 +67,22 @@ function quarantine(filePath: string, vaultRoot: string): QuarantinedFileInfo {
     reason: "Missing or invalid category and no safe filename classification.",
     detected_at: new Date().toISOString(),
     suggested_fix: "Add valid YAML frontmatter with category and move the note back to an ingest folder.",
+  };
+}
+
+/**
+ * 2026-09-23 (#2562) · a note whose candidate would exceed KNOWLEDGE_CONTENT_MAX_CHARS
+ * is reported as a quarantine ROW (the operator sees it in the engine status with the
+ * fix named) but is NOT moved and NOT counted as failed: the schema rejects rather than
+ * truncates, and one long note must not flip the whole vault's health to "error".
+ */
+function oversizeNotice(filePath: string, vaultRoot: string, chars: number): QuarantinedFileInfo {
+  return {
+    filename: path.basename(filePath),
+    relativePath: path.relative(vaultRoot, filePath).replaceAll(path.sep, "/"),
+    reason: `Note is ${chars} chars after normalisation; knowledge candidates are bounded at ${KNOWLEDGE_CONTENT_MAX_CHARS} (the tsvector write-time ceiling). Left in place, not ingested.`,
+    detected_at: new Date().toISOString(),
+    suggested_fix: "Split the note, or move the bulk into an attachment the note links to, then re-run the ingest.",
   };
 }
 
@@ -143,6 +160,15 @@ async function main(): Promise<void> {
           ? parsed.metadata.title.trim()
           : inferred.title;
         const relativePath = path.relative(target.root, filePath).replaceAll(path.sep, "/");
+        // Same text buildObsidianCandidate hands the schema (`[title]\n` + body): the
+        // bound applies to the candidate, so the title prefix counts against it.
+        const candidateChars = normalizedContentLength(`[${title}]\n${parsed.content}`);
+        if (candidateChars > KNOWLEDGE_CONTENT_MAX_CHARS) {
+          quarantinedFiles.push(oversizeNotice(filePath, config.vaultPath, candidateChars));
+          counters.quarantined += 1;
+          console.warn(`[Obsidian] oversize ${relativePath}: ${candidateChars} chars > ${KNOWLEDGE_CONTENT_MAX_CHARS} - reported, not ingested`);
+          continue;
+        }
         const candidate = buildObsidianCandidate({
           content: parsed.content,
           title,

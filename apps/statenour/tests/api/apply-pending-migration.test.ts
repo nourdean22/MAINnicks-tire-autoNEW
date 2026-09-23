@@ -71,7 +71,7 @@ beforeEach(() => {
 
 describe("POST /api/system/apply-pending-migration · ledger drift-guard", () => {
   it("applies registry DDL without ever touching _prisma_migrations", async () => {
-    const res = await post({ name: "0007_brain_fts" });
+    const res = await post({ name: "20260902000000_restore_idempotency_partials" });
     expect(res.status).toBe(200);
     expect(executeRawUnsafe).toHaveBeenCalled();
     for (const call of [...executeRawUnsafe.mock.calls, ...queryRawUnsafe.mock.calls]) {
@@ -80,7 +80,7 @@ describe("POST /api/system/apply-pending-migration · ledger drift-guard", () =>
   });
 
   it("tells the operator the ledger step instead of writing it", async () => {
-    const res = await post({ name: "0007_brain_fts" });
+    const res = await post({ name: "20260902000000_restore_idempotency_partials" });
     const json = (await res.json()) as Record<string, unknown>;
     expect(json.applied).toBe(true);
     expect(String(json.ledger)).toMatch(/migrate resolve --applied/);
@@ -98,7 +98,7 @@ describe("POST /api/system/apply-pending-migration · ledger drift-guard", () =>
     queryRawUnsafe.mockImplementation(async (sql: string) =>
       /pg_indexes/i.test(String(sql)) ? [] : [{ count: 0 }],
     );
-    const res = await post({ name: "0007_brain_fts" });
+    const res = await post({ name: "20260902000000_restore_idempotency_partials" });
     expect(res.status).toBe(500);
     const json = (await res.json()) as Record<string, unknown>;
     expect(json.applied).toBe(false);
@@ -116,7 +116,7 @@ describe("POST /api/system/apply-pending-migration · ledger drift-guard", () =>
       if (/pg_indexes/i.test(String(sql))) throw new Error("connection terminated");
       return [{ count: 0 }];
     });
-    const res = await post({ name: "0007_brain_fts" });
+    const res = await post({ name: "20260902000000_restore_idempotency_partials" });
     expect(res.status).toBe(500);
     const json = (await res.json()) as Record<string, unknown>;
     expect(json.applied).toBe(false);
@@ -127,5 +127,23 @@ describe("POST /api/system/apply-pending-migration · ledger drift-guard", () =>
     const res = await post({ name: "not-a-registered-migration" });
     expect(res.status).toBe(400);
     expect(executeRawUnsafe).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 2026-09-23 (review on #2564): `0007_brain_fts` created the expression GIN brain_memories_content_fts_idx,
+   * dropped in production by 20260923013000_drop_brain_fts_expression_index once every brain_memories FTS
+   * reader moved to the stored column content_tsv. The registry entry was removed so IF NOT EXISTS cannot
+   * resurrect the index. The generic unknown-name test above cannot tell that key apart from a typo, so this
+   * one pins the EXACT key: if anyone re-adds the entry, this fails before the endpoint can rebuild 64 MB of
+   * write-amplifying index behind a green suite.
+   */
+  it("keeps 0007_brain_fts retired: the exact key answers 400, executes no SQL, and is not offered as available", async () => {
+    const res = await post({ name: "0007_brain_fts" });
+    expect(res.status).toBe(400);
+    const json = (await res.json()) as { error?: string; available?: string[] };
+    expect(String(json.error)).toMatch(/unknown migration/i);
+    expect(json.available ?? []).not.toContain("0007_brain_fts");
+    expect(executeRawUnsafe).not.toHaveBeenCalled();
+    expect(queryRawUnsafe).not.toHaveBeenCalled();
   });
 });
