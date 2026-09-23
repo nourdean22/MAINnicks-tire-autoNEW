@@ -48,19 +48,17 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
     const result = data.result || {};
     const reviews: any[] = result.reviews || [];
 
-    // Sync backup stats to shop_settings DB table
-    const totalReviews = typeof result.user_ratings_total === "number" ? result.user_ratings_total : null;
-    const rating = typeof result.rating === "number" ? result.rating : null;
-
-    if (totalReviews !== null && rating !== null) {
-      try {
-        const { saveBackupStatsToDb } = await import("../../google-reviews");
-        await saveBackupStatsToDb(totalReviews, rating);
-        log.info(`[ReviewMonitor] Synced backup stats to DB: count=${totalReviews}, rating=${rating}`);
-      } catch (err) {
-        log.error("[ReviewMonitor] Failed to sync backup stats to DB:", err);
-      }
-    }
+    // Q-48 (2026-09-23): the rating/count are no longer copied into
+    // shop_settings (Places terms forbid storing them; see google-reviews.ts).
+    //
+    // Review TEXT is still stored below in review_replies. That is a known,
+    // operator-visible tradeoff, not an oversight: reply drafting is an
+    // ASYNC human-in-the-loop queue — the owner reads the review beside its
+    // draft hours later in admin -> Review Replies, and dedup across 6-hourly
+    // runs needs the stored row. The compliant source for the shop's OWN
+    // reviews is the Google Business Profile API (quota 0 until Google
+    // approves the access form); moving this job onto it is what removes the
+    // Places copy. See the Q-48 PR for the full note.
 
     if (!reviews.length) {
       return { recordsProcessed: 0, details: "No reviews returned from API" };

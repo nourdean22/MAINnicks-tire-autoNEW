@@ -99,24 +99,10 @@ WHERE wo.created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)
 GROUP BY line_type
 ORDER BY line_count DESC;
 
--- 5. Review-volume standing (competitor_snapshots, written daily by the
---    competitor-monitor cron). Latest capture per place. Nick's own count
---    comes from the site's live Places read, not this table.
---    Rows filed under another name with NICK'S OWN place_id are dropped:
---    "Midas (Euclid Ave)" resolved to Nick's listing for 45 snapshots before
---    the 2026-09-23 guard, and would otherwise read as a competitor tied with
---    Nick's on reviews.
-SELECT cs.competitor_name, cs.review_count, cs.rating, cs.captured_at
-FROM competitor_snapshots cs
-JOIN (
-  SELECT place_id, MAX(captured_at) AS latest
-  FROM competitor_snapshots
-  GROUP BY place_id
-) last ON last.place_id = cs.place_id AND last.latest = cs.captured_at
-WHERE NOT (
-  cs.competitor_name <> 'Nick''s Tire & Auto (You)'
-  AND cs.place_id IN (
-    SELECT place_id FROM competitor_snapshots WHERE competitor_name = 'Nick''s Tire & Auto (You)'
-  )
-)
-ORDER BY cs.review_count DESC;
+-- 5. Review-volume standing — RETIRED 2026-09-23 (Q-48). competitor_snapshots
+--    no longer stores review counts or ratings: Google Maps Platform Terms allow
+--    caching a place_id, not Places content, so the table is a place_id registry
+--    (source = 'place_id') and its rating/review_count columns are defaults (0),
+--    not data. A "most-reviewed nearby" claim now needs a same-day ON-DEMAND read
+--    (server/services/competitorMonitor.ts fetchCompetitorSnapshot), cited with
+--    the date it was read — never a stored snapshot.
