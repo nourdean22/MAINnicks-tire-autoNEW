@@ -71,7 +71,7 @@ beforeEach(() => {
 
 describe("POST /api/system/apply-pending-migration · ledger drift-guard", () => {
   it("applies registry DDL without ever touching _prisma_migrations", async () => {
-    const res = await post({ name: "0007_brain_fts" });
+    const res = await post({ name: "20260902000000_restore_idempotency_partials" });
     expect(res.status).toBe(200);
     expect(executeRawUnsafe).toHaveBeenCalled();
     for (const call of [...executeRawUnsafe.mock.calls, ...queryRawUnsafe.mock.calls]) {
@@ -80,7 +80,7 @@ describe("POST /api/system/apply-pending-migration · ledger drift-guard", () =>
   });
 
   it("tells the operator the ledger step instead of writing it", async () => {
-    const res = await post({ name: "0007_brain_fts" });
+    const res = await post({ name: "20260902000000_restore_idempotency_partials" });
     const json = (await res.json()) as Record<string, unknown>;
     expect(json.applied).toBe(true);
     expect(String(json.ledger)).toMatch(/migrate resolve --applied/);
@@ -98,7 +98,7 @@ describe("POST /api/system/apply-pending-migration · ledger drift-guard", () =>
     queryRawUnsafe.mockImplementation(async (sql: string) =>
       /pg_indexes/i.test(String(sql)) ? [] : [{ count: 0 }],
     );
-    const res = await post({ name: "0007_brain_fts" });
+    const res = await post({ name: "20260902000000_restore_idempotency_partials" });
     expect(res.status).toBe(500);
     const json = (await res.json()) as Record<string, unknown>;
     expect(json.applied).toBe(false);
@@ -116,7 +116,7 @@ describe("POST /api/system/apply-pending-migration · ledger drift-guard", () =>
       if (/pg_indexes/i.test(String(sql))) throw new Error("connection terminated");
       return [{ count: 0 }];
     });
-    const res = await post({ name: "0007_brain_fts" });
+    const res = await post({ name: "20260902000000_restore_idempotency_partials" });
     expect(res.status).toBe(500);
     const json = (await res.json()) as Record<string, unknown>;
     expect(json.applied).toBe(false);

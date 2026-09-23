@@ -479,8 +479,9 @@ function keywordScore(
 // across topics) over ALL non-deleted, confidence>=0.3 memories, backed by
 // the STORED generated column `brain_memories.content_tsv` and its GIN
 // `brain_memories_content_tsv_idx` (migration 20260923000000_brain_content_tsv;
-// the 0007_brain_fts expression index it replaces stays until the operator
-// drops it). Filter AND rank read the stored vector: measured on production
+// the 0007_brain_fts expression index it replaced was DROPPED 2026-09-23 by
+// 20260923013000_drop_brain_fts_expression_index, operator-approved). Filter
+// AND rank read the stored vector: measured on production
 // 2026-09-22, the same OR-of-topics query took 1,902 ms warm when ts_rank
 // re-parsed content for ~3,600 candidate rows and 8 ms with the rank
 // removed - the parse WAS the lane's cost, and the 900 ms statement timeout
