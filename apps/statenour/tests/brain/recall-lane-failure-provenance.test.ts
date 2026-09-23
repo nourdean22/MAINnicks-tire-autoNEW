@@ -225,12 +225,12 @@ function stripSqlComments(sql: string): string {
 
 describe("the lexical lane ranks on weight + cover density, filters on the index", () => {
   /**
-   * The index (brain_memories_content_fts_idx, 2026-06-02) is built on
-   * the UNWEIGHTED `to_tsvector('english', content)`. Putting weights in
-   * the WHERE clause would stop matching it and turn every recall into a
-   * seq scan -- a silent, permanent performance regression that no test
-   * would otherwise notice. So the invariant is: filter unweighted, rank
-   * weighted.
+   * The GIN (brain_memories_content_tsv_idx, 2026-09-23; it replaced the
+   * 2026-06-02 expression index, dropped the same day) is built on the
+   * STORED, unweighted column `content_tsv`. Putting weights in the WHERE
+   * clause would stop matching it and turn every recall into a seq scan --
+   * a silent, permanent performance regression that no test would
+   * otherwise notice. So the invariant is: filter unweighted, rank weighted.
    */
   it("keeps the WHERE predicate in the indexed form", async () => {
     let lexicalSql = "";
