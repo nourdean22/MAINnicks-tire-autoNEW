@@ -6,6 +6,12 @@ pre-"Reset to Shop" checklist: `docs/VOICE-RECOVERY-AUDIT-2026-09-18.md`.)
 
 ## 2026-09-22 (night) · Counter-conversation capture — shipped, scheduled, NOT yet installed
 
+**PRODUCTION-PROVEN 2026-09-23 00:12Z.** After `f1c1db6f6` deployed, the same selftest episode
+re-posted: `transcriptStatus: DONE · factsStored: 4 · dropped: [] · coverage: 0.929 · engine:
+deepseek-v4-pro`. Before the fix the identical post returned `FAILED / engine: null`. The chain
+is proven live: migration -> table -> shared-key auth -> route -> extraction -> facts with
+provenance. #2547 merged `f1c1db6f6`.
+
 **What exists now.** Four layers, all merged or in flight: `conversation_episodes` (migration
 0128, **APPLIED IN PROD** — 90 applied / 42 skipped / 132 total; the one error is the
 pre-existing `vehicles` FK, a table retired by 0117) · `camera-bridge/vision/officeaudio.py`
