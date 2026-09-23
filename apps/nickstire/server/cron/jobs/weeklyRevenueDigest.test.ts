@@ -5,8 +5,9 @@
  *   · cents→dollars happens exactly once (48253 cents = $482.53-class fixture)
  *   · the TiDB tuple shape [rows, fields] AND the flat-rows shape both parse
  *   · repeat/new/no-phone shares are computed from cents, not re-rounded dollars
- *   · a thrown query sends NOTHING (a zeros-digest on failure is a lie)
- *   · a schema error (ER_BAD_FIELD_ERROR) reports loudly as SCHEMA BUG
+ *   · a thrown query sends NOTHING (a zeros-digest on failure is a lie) and the
+ *     run REJECTS, so cron_log records `failed` (not a `completed` run)
+ *   · a schema error (ER_BAD_FIELD_ERROR) rejects loudly as SCHEMA BUG
  *   · an empty week with working queries DOES send, with the import warning
  *   · the Monday gate is shop-timezone (ET), not server-UTC
  *   · HTML-unsafe service names are escaped before hitting parse_mode:HTML
@@ -408,10 +409,10 @@ describe("runWeeklyRevenueDigest", () => {
 
   it("sends NOTHING when a query throws — a zeros digest would be a lie", async () => {
     execute.mockRejectedValueOnce(new Error("connect ETIMEDOUT"));
-    const res = await runWeeklyRevenueDigest(MONDAY_NOON_ET);
+    // REJECTS, not resolves: a returned failure is recorded `completed` in
+    // cron_log and the failure observer never sees it.
+    await expect(runWeeklyRevenueDigest(MONDAY_NOON_ET)).rejects.toThrow(/digest failed: connect ETIMEDOUT/);
     expect(sendTelegram).not.toHaveBeenCalled();
-    expect(res.recordsProcessed).toBe(0);
-    expect(res.details).toContain("digest failed");
   });
 
   it("sends NOTHING when a LATE query throws — the revenue half must not ship alone", async () => {
@@ -426,10 +427,8 @@ describe("runWeeklyRevenueDigest", () => {
       .mockResolvedValueOnce([[], []])
       .mockResolvedValueOnce([[{ cnt: 6, cents: 389000 }], []])
       .mockRejectedValueOnce(new Error("connect ETIMEDOUT")); // lead rows — 5th
-    const res = await runWeeklyRevenueDigest(MONDAY_NOON_ET);
+    await expect(runWeeklyRevenueDigest(MONDAY_NOON_ET)).rejects.toThrow(/digest failed/);
     expect(sendTelegram).not.toHaveBeenCalled();
-    expect(res.recordsProcessed).toBe(0);
-    expect(res.details).toContain("digest failed");
   });
 
   it("reports a LATE schema error as SCHEMA BUG, not a transient failure", async () => {
@@ -444,9 +443,8 @@ describe("runWeeklyRevenueDigest", () => {
       .mockRejectedValueOnce(
         Object.assign(new Error("Unknown column 'callbacksOpenz'"), { code: "ER_BAD_FIELD_ERROR" }),
       );
-    const res = await runWeeklyRevenueDigest(MONDAY_NOON_ET);
+    await expect(runWeeklyRevenueDigest(MONDAY_NOON_ET)).rejects.toThrow(/SCHEMA BUG/);
     expect(sendTelegram).not.toHaveBeenCalled();
-    expect(res.details).toContain("SCHEMA BUG");
   });
 
   it("reports a schema error loudly as SCHEMA BUG (#1125 distinction)", async () => {
@@ -454,16 +452,13 @@ describe("runWeeklyRevenueDigest", () => {
       code: "ER_BAD_FIELD_ERROR",
     });
     execute.mockRejectedValueOnce(err);
-    const res = await runWeeklyRevenueDigest(MONDAY_NOON_ET);
+    await expect(runWeeklyRevenueDigest(MONDAY_NOON_ET)).rejects.toThrow(/SCHEMA BUG — Unknown column 'totalAmountz'/);
     expect(sendTelegram).not.toHaveBeenCalled();
-    expect(res.details).toContain("SCHEMA BUG");
   });
 
   it("reports a failed Telegram send as a failure, not success", async () => {
     queueHappyPath();
     sendTelegram.mockResolvedValue(false);
-    const res = await runWeeklyRevenueDigest(MONDAY_NOON_ET);
-    expect(res.recordsProcessed).toBe(0);
-    expect(res.details).toContain("Telegram send failed");
+    await expect(runWeeklyRevenueDigest(MONDAY_NOON_ET)).rejects.toThrow(/Telegram send failed/);
   });
 });

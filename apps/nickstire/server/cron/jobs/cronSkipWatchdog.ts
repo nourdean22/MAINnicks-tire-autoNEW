@@ -180,6 +180,6 @@ export async function processCronSkipWatchdog(): Promise<{
     log.error("Cron skip watchdog failed", {
       error: err instanceof Error ? err.message : String(err),
     });
-    return { recordsProcessed: 0, details: `error: ${err instanceof Error ? err.message : String(err)}` };
+    throw err;
   }
 }

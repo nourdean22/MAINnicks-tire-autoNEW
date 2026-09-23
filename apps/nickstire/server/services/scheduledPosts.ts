@@ -234,6 +234,6 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
     return { recordsProcessed: posted + partial + failed, details: detail };
   } catch (err) {
     log.error("runScheduledPosts failed (scheduled_posts table missing? migration 0071 not applied yet?)", err);
-    return { recordsProcessed: 0, details: "error (see logs)" };
+    throw err;
   }
 }

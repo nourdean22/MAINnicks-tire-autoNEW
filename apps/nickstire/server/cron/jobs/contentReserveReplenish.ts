@@ -14,9 +14,6 @@ export async function runContentReserveReplenish(): Promise<{ recordsProcessed: 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log.error("Content reserve replenishment cron job failed:", err);
-    return {
-      recordsProcessed: 0,
-      details: `error=${msg}`
-    };
+    throw new Error(`error=${msg}`, { cause: err });
   }
 }

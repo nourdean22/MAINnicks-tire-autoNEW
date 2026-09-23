@@ -165,7 +165,7 @@ export async function pullCloudCameraSnapshots(): Promise<{ recordsProcessed?: n
     const res = await fetch(`${STATENOUR_URL}/api/sync/nour-os`, {
       headers: { "x-sync-key": SYNC_KEY },
     });
-    if (!res.ok) return { details: "Failed to fetch from statenour" };
+    if (!res.ok) throw new Error("Failed to fetch from statenour");
 
     const data = await res.json();
 
@@ -220,6 +220,6 @@ export async function pullCloudCameraSnapshots(): Promise<{ recordsProcessed?: n
 
     return { recordsProcessed: updated, details: `${updated} cloud cameras updated from ${devices.length} devices` };
   } catch (err) {
-    return { details: `Error: ${err instanceof Error ? err.message : String(err)}` };
+    throw err;
   }
 }
