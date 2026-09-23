@@ -15,7 +15,19 @@ import {
   getCandidates,
   updateCandidateStatus,
   getCandidateSlaBreaches,
+  findCandidatesByPhoneE164,
 } from "../db";
+import {
+  CANDIDATE_INTENTS,
+  CANDIDATE_INTENT_LABELS,
+  CANDIDATE_STATUSES,
+  CANDIDATE_CONTACT_IMPLIED_STATUSES,
+  MOVE_REASONS,
+  MOVE_REASON_LABELS,
+  refCodeFromLandingPage,
+} from "@shared/candidateLifecycle";
+import { normalizePhone } from "../lib/phone";
+import { runCandidateIntake } from "../services/candidateIntake";
 import { sanitizeText, sanitizePhone, sanitizeEmail } from "../sanitize";
 import { logAdminAction } from "../services/auditTrail";
 import { createLogger } from "../lib/logger";
@@ -45,15 +57,45 @@ export const candidatesRouter = router({
         landingPage: z.string().max(500).nullish(),
         referrer: z.string().max(500).nullish(),
         sessionId: z.string().max(64).nullish(),
+        // ── 2026-09-23 recruiting funnel (drizzle/0129) ──────────────────
+        intent: z.enum(CANDIDATE_INTENTS).nullish(),
+        moveReasons: z.array(z.enum(MOVE_REASONS)).max(MOVE_REASONS.length).nullish(),
+        utmTerm: z.string().max(255).nullish(),
+        utmContent: z.string().max(255).nullish(),
+        gclid: z.string().max(255).nullish(),
+        /**
+         * Honeypot. Rendered off-screen and aria-hidden; a person never fills
+         * it, a form-spamming bot fills every field. Chosen over a CAPTCHA
+         * because it needs no keys and adds no friction for applicants.
+         */
+        website: z.string().max(200).nullish(),
       }),
     )
     .mutation(async ({ input }) => {
+      // A filled honeypot gets the same success shape a person gets, so the
+      // bot learns nothing — and nothing is written or sent.
+      if (input.website && input.website.trim() !== "") {
+        log.info("[candidates.submit] honeypot filled — dropped");
+        return { success: true as const, id: 0 };
+      }
       const name = sanitizeText(input.name);
       const phone = sanitizePhone(input.phone);
       if (!name || !phone) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Name and phone required" });
       }
       const email = input.email ? sanitizeEmail(input.email) : null;
+      const intent = input.intent ?? "apply";
+      const reasons = Array.from(new Set(input.moveReasons ?? []));
+      const phoneE164 = normalizePhone(phone);
+      const refCode = refCodeFromLandingPage(input.landingPage);
+      // Intent and reasons ALSO ride in `message`, human-readable, so they
+      // survive the pre-0129 fallback insert and show in every existing view.
+      const header = [
+        intent !== "apply" ? `[${CANDIDATE_INTENT_LABELS[intent]}]` : "",
+        reasons.length ? `Would move for: ${reasons.map((r) => MOVE_REASON_LABELS[r]).join(", ")}` : "",
+      ].filter(Boolean).join("\n");
+      const body = sanitizeText(input.message ?? "") || "";
+      const message = [header, body].filter(Boolean).join("\n") || null;
       let result: Awaited<ReturnType<typeof createCandidate>>;
       try {
         result = await createCandidate({
@@ -62,7 +104,7 @@ export const candidatesRouter = router({
           email: email || null,
           positionTitle: input.positionTitle ?? null,
           experienceLevel: input.experienceLevel ?? null,
-          message: sanitizeText(input.message ?? "") || null,
+          message,
           source: "careers",
           utmSource: input.utmSource ?? null,
           utmMedium: input.utmMedium ?? null,
@@ -70,6 +112,16 @@ export const candidatesRouter = router({
           landingPage: input.landingPage ?? null,
           referrer: input.referrer ?? null,
           sessionId: input.sessionId ?? null,
+          // 0129 columns: attached only when there is something to write, so
+          // a plain application emits the same insert it always did.
+          // NULL intent reads as "apply" (the only kind before 0129).
+          ...(intent !== "apply" ? { intent } : {}),
+          ...(reasons.length ? { moveReasons: reasons.join(",") } : {}),
+          ...(phoneE164 ? { phoneE164 } : {}),
+          ...(refCode ? { refCode } : {}),
+          ...(input.gclid ? { gclid: input.gclid } : {}),
+          ...(input.utmTerm ? { utmTerm: input.utmTerm } : {}),
+          ...(input.utmContent ? { utmContent: input.utmContent } : {}),
         });
       } catch (err) {
         log.error("[candidates.submit] failed:", err);
@@ -97,7 +149,32 @@ export const candidatesRouter = router({
           message: "We couldn't save your application. Please call us instead.",
         });
       }
-      return result;
+
+      // After the save, never before it, and never awaited by the applicant:
+      // an alert failure must not turn a saved application into an error.
+      // Narrowed by the success check above; the union's failure arm has no id.
+      const id = (result as { id: number }).id;
+      void (async () => {
+        const prior = phoneE164 ? await findCandidatesByPhoneE164(phoneE164, id).catch(() => null) : null;
+        await runCandidateIntake({
+          id,
+          name,
+          phone,
+          email: email || null,
+          positionTitle: input.positionTitle ?? null,
+          experienceLevel: input.experienceLevel ?? null,
+          message,
+          intent,
+          moveReasons: reasons.length ? reasons.join(",") : null,
+          refCode,
+          utmSource: input.utmSource ?? null,
+          utmMedium: input.utmMedium ?? null,
+          utmCampaign: input.utmCampaign ?? null,
+          priorIds: prior ? prior.map((p) => p.id) : phoneE164 ? null : [],
+        });
+      })().catch((err) => log.warn("[candidates.submit] intake failed", { id, err: String(err) }));
+
+      return { success: true as const, id };
     }),
 
   /** Empty-vs-error: `migrationPending` distinguishes "0122 not applied yet" from "no applicants yet". */
@@ -119,14 +196,17 @@ export const candidatesRouter = router({
     .input(
       z.object({
         id: z.number(),
-        status: z.enum(["new", "contacted", "interviewing", "hired", "declined", "withdrew"]),
+        status: z.enum(CANDIDATE_STATUSES),
         notes: z.string().max(2000).nullish(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       await updateCandidateStatus(input.id, {
         status: input.status,
-        contactedAt: input.status === "contacted" ? new Date() : undefined,
+        // Any status that means a human really reached the person stamps
+        // contactedAt — the SLA alarm keys off it. updateCandidateStatus keeps
+        // an earlier stamp rather than overwriting it.
+        contactedAt: CANDIDATE_CONTACT_IMPLIED_STATUSES.includes(input.status) ? new Date() : undefined,
         notes: input.notes ?? undefined,
       });
       logAdminAction({

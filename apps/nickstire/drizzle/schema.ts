@@ -4958,10 +4958,31 @@ export const candidates = mysqlTable("candidates", {
   contactedAt: timestamp("contactedAt"),
   contactedBy: varchar("contactedBy", { length: 255 }),
   notes: text("notes"),
+  // ── drizzle/0129_candidates_recruiting_funnel.sql (hand-applied) ──────
+  // All nullable; written only when supplied, with a pre-0129 fallback on
+  // ER_BAD_FIELD_ERROR (server/db.ts createCandidate). Reads name columns
+  // explicitly — never a bare select() on this table.
+  /** apply | confidential | shop_tour | talent_network | apprentice */
+  intent: varchar("intent", { length: 32 }),
+  /** Comma list from the "what would make you move?" self-selector. */
+  moveReasons: varchar("moveReasons", { length: 500 }),
+  /** Normalized phone (server/lib/phone.ts) — the duplicate-applicant key. */
+  phoneE164: varchar("phoneE164", { length: 20 }),
+  /** ?ref=<code> from a personal referral link or QR card. */
+  refCode: varchar("refCode", { length: 64 }),
+  gclid: varchar("gclid", { length: 255 }),
+  utmTerm: varchar("utmTerm", { length: 255 }),
+  utmContent: varchar("utmContent", { length: 255 }),
+  /** When a not-now / talent-network candidate is due another contact. */
+  nextFollowUpAt: timestamp("nextFollowUpAt"),
+  /** Set once the owner alert email was accepted by the mailer. */
+  ownerAlertedAt: timestamp("ownerAlertedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   index("idx_candidate_phone").on(table.phone),
+  index("idx_candidate_phone_e164").on(table.phoneE164),
+  index("idx_candidate_ref_code").on(table.refCode),
   index("idx_candidate_status").on(table.status),
   index("idx_candidate_created").on(table.createdAt),
 ]);

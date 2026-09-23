@@ -7,10 +7,20 @@
  * list above. See the `candidates` table's doc comment in
  * drizzle/schema.ts for the full rationale behind why this table exists.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, ChevronRight, Briefcase, Phone, Mail, AlertTriangle } from "lucide-react";
+import { Loader2, ChevronRight, Briefcase, Phone, Mail, AlertTriangle, QrCode } from "lucide-react";
+import { SITE_URL } from "@shared/business";
+import {
+  CANDIDATE_INTENT_LABELS,
+  CANDIDATE_STATUSES,
+  referralLinkFor,
+  slugifyRefCode,
+  type CandidateIntent,
+  type CandidateStatus,
+} from "@shared/candidateLifecycle";
 
 /**
  * The 48-hour promise, escalating. /careers says "We respond within 48 hours"
@@ -33,7 +43,76 @@ const STATUS_STYLE: Record<string, string> = {
   withdrew: "text-foreground/40 bg-foreground/5",
 };
 
-const STATUS_OPTIONS = ["new", "contacted", "interviewing", "hired", "declined", "withdrew"] as const;
+// One list for the router's zod enum and this dropdown (shared/candidateLifecycle.ts).
+const STATUS_OPTIONS = CANDIDATE_STATUSES;
+
+/** Statuses that count as "we got this person" in the by-source rollup. */
+const WON: readonly string[] = ["accepted", "started", "hired"];
+
+/**
+ * Where candidates came from, and how many became hires — per referral code
+ * first (the personal links/QR cards), else utm_source, else "direct".
+ * Raw counts with the total beside them, never a bare percentage: at this
+ * volume a ratio over 3 rows is noise dressed as a metric.
+ */
+function sourceRollup(rows: Array<{ refCode?: string | null; utmSource?: string | null; status: string }>) {
+  const m = new Map<string, { total: number; won: number }>();
+  for (const r of rows) {
+    const key = r.refCode ? `ref:${r.refCode}` : r.utmSource || "direct";
+    const e = m.get(key) ?? { total: 0, won: 0 };
+    e.total += 1;
+    if (WON.includes(r.status)) e.won += 1;
+    m.set(key, e);
+  }
+  return [...m.entries()].sort((a, b) => b[1].total - a[1].total);
+}
+
+/** Issue a personal referral link + printable QR for a tool rep, parts rep, employee, school. */
+function ReferralLinkCard() {
+  const [who, setWho] = useState("");
+  const code = slugifyRefCode(who);
+  const link = code ? referralLinkFor(code, SITE_URL) : "";
+  return (
+    <div className="mt-4 border-t border-border/20 pt-3">
+      <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-foreground/50 mb-2">
+        <QrCode className="w-3.5 h-3.5" /> Referral link + QR card
+      </p>
+      <input
+        value={who}
+        onChange={(e) => setWho(e.target.value)}
+        placeholder="Who is it for? e.g. Mike Snap-on Euclid"
+        className="w-full bg-[oklch(0.08_0.004_260)] border border-border/30 rounded px-2 py-2 text-[12px] text-foreground focus:border-primary/50 focus:outline-none"
+      />
+      {link && (
+        <div className="mt-3 flex flex-wrap items-start gap-4">
+          <QRCodeSVG value={link} size={128} includeMargin />
+          <div className="min-w-0 flex-1 text-[11px] text-foreground/60 space-y-1.5">
+            <p>
+              Code: <span className="font-mono text-foreground/85">{code}</span>
+            </p>
+            <p className="break-all font-mono text-foreground/70">{link}</p>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(link).then(
+                  () => toast.success("Link copied."),
+                  () => toast.error("Couldn't copy — long-press the link instead."),
+                );
+              }}
+              className="min-h-[40px] rounded border border-border/30 px-3 text-[11px] font-semibold text-foreground/80 hover:border-primary/40"
+            >
+              Copy link
+            </button>
+            <p className="text-foreground/40">
+              Anyone who applies through this link is tagged ref:{code} below. The $300 is still paid by the
+              referral record, after 90 days.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function CandidatesPanel() {
   const [open, setOpen] = useState(true);
@@ -184,14 +263,23 @@ export function CandidatesPanel() {
                     {c.experienceLevel && (
                       <span className="text-foreground/35">{c.experienceLevel} exp.</span>
                     )}
+                    {c.intent && c.intent !== "apply" && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider text-nick-yellow bg-nick-yellow/10">
+                        {CANDIDATE_INTENT_LABELS[c.intent as CandidateIntent] ?? c.intent}
+                      </span>
+                    )}
+                    {c.refCode && <span className="text-foreground/45">ref:{c.refCode}</span>}
                     <span className="text-foreground/30">
                       {new Date(c.createdAt).toLocaleDateString()}
                     </span>
+                    {c.message && (
+                      <p className="basis-full whitespace-pre-line text-foreground/55 line-clamp-3">{c.message}</p>
+                    )}
 
                     <select
                       value={c.status}
                       onChange={(e) =>
-                        updateStatus.mutate({ id: c.id, status: e.target.value as (typeof STATUS_OPTIONS)[number] })
+                        updateStatus.mutate({ id: c.id, status: e.target.value as CandidateStatus })
                       }
                       disabled={updateStatus.isPending}
                       className="ml-auto shrink-0 bg-[oklch(0.08_0.004_260)] border border-border/30 rounded px-2 py-1 text-[11px] text-foreground focus:border-primary/50 focus:outline-none"
@@ -205,8 +293,31 @@ export function CandidatesPanel() {
               })}
             </ul>
           )}
+          {rows.length > 0 && <SourceRollup rows={rows} />}
+          <ReferralLinkCard />
         </div>
       )}
+    </div>
+  );
+}
+
+function SourceRollup({ rows }: { rows: Array<{ refCode?: string | null; utmSource?: string | null; status: string }> }) {
+  const data = useMemo(() => sourceRollup(rows), [rows]);
+  return (
+    <div className="mt-4 border-t border-border/20 pt-3">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-foreground/50 mb-2">
+        By source — {rows.length} candidates total
+      </p>
+      <ul className="space-y-1 text-[12px]">
+        {data.map(([src, v]) => (
+          <li key={src} className="flex justify-between gap-3">
+            <span className="text-foreground/70 truncate">{src}</span>
+            <span className="text-foreground/50 shrink-0">
+              {v.total} in · {v.won} hired/accepted
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
