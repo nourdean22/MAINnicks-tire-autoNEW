@@ -15,7 +15,7 @@
  */
 import { randomUUID } from "crypto";
 import { createLogger } from "../lib/logger";
-import { isDuplicateKeyError } from "../lib/dbErrors";
+import { isDuplicateKeyError, isMissingTableError } from "../lib/dbErrors";
 
 const log = createLogger("promise-ledger");
 
@@ -47,10 +47,6 @@ export function classifyOverdue(dueAt: Date, now: Date): { overdue: boolean; hou
 }
 
 let tableMissingWarned = false;
-function isMissingTableError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /doesn'?t exist|ER_NO_SUCH_TABLE|1146/i.test(msg);
-}
 /**
  * A UNIQUE-constraint rejection. Migration 0125 put uq_promise_source on
  * (source_kind, source_id, promise_type), which means the DATABASE now refuses
