@@ -13,6 +13,7 @@ import {
   ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend
 } from "recharts";
 import DatabaseHygienePanel from "./DatabaseHygienePanel";
+import RunMigrationsCard from "./RunMigrationsCard";
 
 export default function SiteHealthSection() {
   const { data: health, isLoading, isError, refetch } = trpc.adminDashboard.siteHealth.useQuery();
@@ -569,6 +570,7 @@ export default function SiteHealthSection() {
       </div>
 
       {/* Database Hygiene & Cleanup Panel */}
+      <RunMigrationsCard />
       <DatabaseHygienePanel />
     </div>
   );

@@ -850,6 +850,15 @@ export function isUnknownColumnError(err: unknown): boolean {
   return false;
 }
 
+/**
+ * INSERT naming ONLY the columns the table had before drizzle/0129. Used when
+ * production has not had 0129 applied yet. Exported so a test can render the
+ * exact SQL and prove no 0129 column appears in it.
+ */
+export function buildPre0129CandidateInsert(c: InsertCandidate) {
+  return sql`INSERT INTO candidates (name, phone, email, positionTitle, experienceLevel, message, source, utmSource, utmMedium, utmCampaign, landingPage, referrer, sessionId) VALUES (${c.name}, ${c.phone}, ${c.email ?? null}, ${c.positionTitle ?? null}, ${c.experienceLevel ?? null}, ${c.message ?? null}, ${c.source ?? "careers"}, ${c.utmSource ?? null}, ${c.utmMedium ?? null}, ${c.utmCampaign ?? null}, ${c.landingPage ?? null}, ${c.referrer ?? null}, ${c.sessionId ?? null})`;
+}
+
 export async function createCandidate(candidate: InsertCandidate) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -864,11 +873,15 @@ export async function createCandidate(candidate: InsertCandidate) {
     // rather than lose it. The caller folds intent/move-reasons into
     // `message` too, so nothing the applicant said is dropped either way.
     if (isUnknownColumnError(err)) {
-      const base: Record<string, unknown> = { ...candidate };
-      for (const k of CANDIDATE_0129_COLUMNS) delete base[k];
+      // RAW SQL, deliberately. Drizzle's MySQL insert names EVERY column in
+      // schema.ts (writing `default` for the ones not supplied), so retrying
+      // through db.insert() with the 0129 keys removed still names them and
+      // fails identically — measured in production 2026-09-23 01:20Z: every
+      // careers application 500'd until this path stopped using drizzle.
       log.warn("[createCandidate] 0129 columns missing — saved with pre-0129 columns");
-      const result = await db.insert(candidates).values(base as InsertCandidate);
-      return { success: true, id: Number(result[0].insertId), columns0129: false } as const;
+      const result = await db.execute(buildPre0129CandidateInsert(candidate));
+      const header = (Array.isArray(result) ? result[0] : result) as { insertId?: number };
+      return { success: true, id: Number(header.insertId), columns0129: false } as const;
     }
     throw err;
   }
