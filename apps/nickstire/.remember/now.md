@@ -252,6 +252,28 @@ of insert (Railway log: "Memory reinforced", not "Memory stored").
    ranking - the diagnostic prints the two alternative sets; decide from those after the prune. Also this
    evening: kpi-snapshot moved daily -> hourly tier (oncePerShopDay on a 24h tier parks outside business
    hours; skipped with no cron_log row, STALE 48h); the daily tier now declares no oncePerShopDay job.
+
+13. THE SELF-AUDIT WAS WRONG, AND PROBING IT BEFORE PUSHING IS WHAT SAVED THE LANE. I doubted #2550's claim
+   that Gemini thinking was off (its probe had ALSO doubled max_tokens, and extra_body looks like an
+   OpenAI-SDK-only field). I wrote the correction - reasoning_effort plus a top-level google.thinking_config -
+   then probed it. Measured twice each against the live endpoint: no knob = ~30 tokens, ~134 chars, NO
+   SERVICE_SUGGEST line even at max_tokens 800; extra_body = ~204 tokens, ~905 chars, line present;
+   reasoning_effort 'none' = equivalent; BOTH together = HTTP 400 'Expected one of either reasoning_effort or
+   custom thinking_config'; google at top level = HTTP 400 'Unknown name google'. So Google's compat layer DOES
+   read extra_body, the shipped code was right, and my correction would have 400'd every customer photo two
+   different ways. The withdrawal was discarded; what shipped is the measurement in a source comment plus three
+   assertions that neither 400 shape is sent. LESSON: a self-audit is a HYPOTHESIS, not a finding - probe it
+   with the same suspicion you applied to the original claim.
+
+   LIVE-OBSERVED at 00:40Z: abandoned-forms details text in cron_log ('nothing eligible · 0 partial(s) in
+   memory · 0 db row(s) in the 30-120 min window'); orchestration-status-reconcile 4 runs / 35 stamped, last run
+   'left queued 0 of 0' - the backlog is drained, 260 stamped sent, the 21 with no message row stay queued by
+   design; nick memory 528 rows after the junk prune (20 rows, _bak_shop_settings_junk_prune_20260923), and the
+   prompt now holds FCFS, a measured alert outcome, two VIP rows, a day score and busiest/slowest-day patterns
+   instead of 'Nick AI has 30 learned memories'. kpi-snapshot is still 49h stale and WILL stay so until the
+   first hourly pass after 07:00 ET - that is the fix working, not failing. NEXT: auto_analysis and vip_detection
+   are still unkeyed writers (4 near-duplicate 'Busiest day' rows now sit in the prompt) - same identity fix as
+   #2529, one line each.
 4. Duplicate-key helper consolidation onto `server/lib/dbErrors.ts` (proposals.ts,
    shopDriverMirror.ts x2, promiseLedger.ts).
 5. Tighten the transfer-artifact write in `routes/webhooks/vapi.ts` (~:621) to
