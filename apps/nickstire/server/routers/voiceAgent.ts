@@ -412,6 +412,14 @@ export const voiceAgentRouter = router({
       phone: z.string().min(7).max(20),
       summary: z.string().min(2).max(500),
       mapLink: z.string().max(500).optional(),
+      // The webhook injects the live call's id into every tool's args
+      // (routes/webhooks/vapi.ts). This schema used to strip it, so the
+      // orchestrator's idempotency key fell through to a Date.now()+random
+      // value that can never match, and a second run of this tool on the same
+      // call (the model calling it twice, or a retry after a gateway timeout)
+      // could text the caller again. Same fix as the forwarded-call follow-up
+      // got on 2026-07-20.
+      callId: z.string().max(100).optional(),
     }))
     .mutation(async ({ input }) => {
       try {
@@ -421,6 +429,7 @@ export const voiceAgentRouter = router({
           phone: input.phone,
           summary: input.summary,
           mapLink: input.mapLink,
+          vapiCallId: input.callId,
         });
 
         // `sending` = the shop gateway timed out: attempted, deliberately not

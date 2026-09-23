@@ -312,7 +312,7 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string): Promi
         output = await caller.escalate(args as { name: string; phone: string; reason: string; urgency?: "low" | "medium" | "high"; callId?: string });
         break;
       case "sendConfirmationSms":
-        output = await caller.sendConfirmationSms(args as { phone: string; summary: string; mapLink?: string });
+        output = await caller.sendConfirmationSms(args as { phone: string; summary: string; mapLink?: string; callId?: string });
         break;
 
       default:
