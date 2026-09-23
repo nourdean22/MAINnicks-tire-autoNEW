@@ -1853,6 +1853,26 @@ function buildTiers(): void {
         },
       },
       {
+        // 2026-09-01 (audit F-4) · kpi_snapshots had NO writer for the life of
+        // the schema; kpi.history returned [] to every caller. One row per
+        // completed shop week, idempotent, once per shop day.
+        //
+        // 2026-09-22 · moved here from the daily tier. `oncePerShopDay` claims
+        // through claimOncePerShopDay(), which is gated to business hours, so
+        // on the 24h tier the job ran only when that tier's phase happened to
+        // land inside 07:00-20:59 ET: the boot-claim pass fired the daily tier
+        // at 04:29 ET on 09-22 and the job was skipped with no cron_log row,
+        // while self-healing reported it 48h stale. Same ROS-081 class as the
+        // digest above; here it gets ~7 chances a day and the claim keeps it
+        // exactly-once.
+        name: "kpi-snapshot",
+        oncePerShopDay: true,
+        handler: async () => {
+          const { processKpiSnapshot } = await import("./jobs/kpiSnapshot");
+          return processKpiSnapshot();
+        },
+      },
+      {
         // 2026-08-23 · WIRED. Same defect as campaign-resume: registered in
         // cron/index.ts, present in no tier, ZERO cron_log rows ever.
         //
@@ -1976,17 +1996,6 @@ function buildTiers(): void {
         handler: async () => {
           const { processCustomerSegmentation } = await import("./jobs/customerSegmentation");
           return processCustomerSegmentation();
-        },
-      },
-      // 2026-09-01 (audit F-4) · kpi_snapshots had NO writer for the life of
-      // the schema; kpi.history returned [] to every caller. One row per
-      // completed shop week, idempotent, once per shop day.
-      {
-        name: "kpi-snapshot",
-        oncePerShopDay: true,
-        handler: async () => {
-          const { processKpiSnapshot } = await import("./jobs/kpiSnapshot");
-          return processKpiSnapshot();
         },
       },
       // wave-181.111 · psychographic profile (10 segments) daily refresh.
