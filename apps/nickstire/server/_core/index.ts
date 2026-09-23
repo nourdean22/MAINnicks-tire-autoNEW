@@ -105,6 +105,7 @@ import { startTieredScheduler } from "../cron/scheduler";
 import { validateTwilioRequest } from "../middleware/twilioValidation";
 import { resolveNickDeployIdentity, resolveConfiguredSurfaces } from "../lib/deployIdentity";
 import { withBatchRegex, blockBatchedLimits } from "./batchGuard";
+import { createGracefulShutdown, resolveShutdownGraceMs, trackHttpRequests, type DrainSource } from "./gracefulShutdown";
 
 const serverLog = createLogger("server");
 
@@ -128,11 +129,13 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 let _httpServer: ReturnType<typeof createServer> | null = null;
+let _httpDrain: DrainSource | null = null;
 
 async function startServer() {
   const app = express();
   const server = createServer(app);
   _httpServer = server;
+  _httpDrain = trackHttpRequests(server);
   // Trust proxy — explicit Cloudflare/Railway reverse proxy trust
   const TRUST_PROXY = process.env.TRUST_PROXY ?? "loopback, linklocal, uniquelocal";
   app.set("trust proxy", TRUST_PROXY);
@@ -1351,8 +1354,7 @@ ${urls.join("\n")}
 
 // ─── Graceful Shutdown on Unhandled Rejection ───────
 // The logger already catches uncaughtException (exits) and unhandledRejection (logs).
-// This adds graceful HTTP server shutdown so in-flight requests finish before exit.
-let shuttingDown = false;
+// SIGTERM (below) drains in-flight cron, SMS and HTTP work before exit.
 
 process.on("unhandledRejection", (reason) => {
   const msg = reason instanceof Error ? reason.message : String(reason);
@@ -1363,35 +1365,60 @@ process.on("unhandledRejection", (reason) => {
   );
 });
 
+// Q-10 · the drain lives in gracefulShutdown.ts (tested with fake timers).
+// Every require() stays inside its stop so one failing module cannot block the
+// rest — the same isolation the inline try/catch chain had.
+const shutdownOnSigterm = createGracefulShutdown({
+  graceMs: resolveShutdownGraceMs(process.env.NICKSTIRE_SHUTDOWN_GRACE_MS),
+  exit: (code) => process.exit(code),
+  log: serverLog,
+  stops: [
+    { label: "http", run: () => { _httpServer?.close(() => serverLog.info("HTTP server closed")); } },
+    // Clears the tier timers AND sets the cron drain flag, so a pass already
+    // mid-loop starts no further job.
+    { label: "scheduler", run: () => require("../cron/scheduler").stopTieredScheduler() },
+    // Hand back any cron lock this dyno holds, SHORTENED to a grace window rather
+    // than deleted. Without it a deploy that lands mid-pulse leaves the job locked
+    // for its whole TTL — measured 2026-09-09: reel-pipeline was skipped on every
+    // pulse from 12:49 to 13:09 because the 12:41 holder was killed by a deploy
+    // and the 28-minute TTL had to run out. Fire-and-forget: shutdown must not
+    // wait on it, and it never throws. A job that then finishes inside the grace
+    // releases its lock normally (token-guarded delete).
+    {
+      label: "cron lock handback",
+      run: () => {
+        require("../cron/index").relinquishHeldLocksForShutdown()
+          .catch((e: unknown) => serverLog.warn("[server:shutdown] cron lock handback failed", { error: String(e) }));
+      },
+    },
+    { label: "SMS queue", run: () => require("../sms").stopDelayedQueueProcessor() },
+    { label: "Telegram timer", run: () => require("../services/telegram").stopBatchTimer?.() },
+    { label: "NOUR OS bridge", run: () => require("../nour-os-bridge").stopRetryProcessor?.() },
+  ],
+  sources: [
+    {
+      label: "cron",
+      pending: () => require("../cron/index").inFlightCronRuns(),
+      settled: () => require("../cron/index").whenCronRunsSettled(),
+    },
+    {
+      label: "sms-queue",
+      pending: () => require("../sms").delayedQueueCyclesInFlight().map(() => "delayed-queue cycle"),
+      settled: async () => {
+        const sms = require("../sms");
+        while (sms.delayedQueueCyclesInFlight().length) await Promise.all(sms.delayedQueueCyclesInFlight());
+      },
+    },
+    {
+      label: "http",
+      pending: () => _httpDrain?.pending() ?? [],
+      settled: () => _httpDrain?.settled() ?? Promise.resolve(),
+    },
+  ],
+});
+
 process.on("SIGTERM", () => {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  serverLog.info("SIGTERM received — starting graceful shutdown");
-
-  // 1. Stop accepting new connections
-  _httpServer?.close(() => serverLog.info("HTTP server closed"));
-
-  // 2. Stop all timers (cron, SMS queue, Telegram batch, NOUR OS retry)
-  try { require("../cron/scheduler").stopTieredScheduler(); } catch (e) { console.warn("[server:shutdown] scheduler stop failed:", e); }
-  // Hand back any cron lock this dyno holds, SHORTENED to a grace window rather
-  // than deleted. Without it a deploy that lands mid-pulse leaves the job locked
-  // for its whole TTL — measured 2026-09-09: reel-pipeline was skipped on every
-  // pulse from 12:49 to 13:09 because the 12:41 holder was killed by a deploy
-  // and the 28-minute TTL had to run out. Fire-and-forget: shutdown must not
-  // wait on it, and it never throws.
-  try {
-    require("../cron/index").relinquishHeldLocksForShutdown()
-      .catch((e: unknown) => console.warn("[server:shutdown] cron lock handback failed:", e));
-  } catch (e) { console.warn("[server:shutdown] cron lock handback failed:", e); }
-  try { require("../sms").stopDelayedQueueProcessor(); } catch (e) { console.warn("[server:shutdown] SMS queue stop failed:", e); }
-  try { require("../services/telegram").stopBatchTimer?.(); } catch (e) { console.warn("[server:shutdown] Telegram timer stop failed:", e); }
-  try { require("../nour-os-bridge").stopRetryProcessor?.(); } catch (e) { console.warn("[server:shutdown] NOUR OS bridge stop failed:", e); }
-
-  // 3. Give in-flight requests 10s to finish, then force exit
-  setTimeout(() => {
-    serverLog.warn("Graceful shutdown timeout — forcing exit");
-    process.exit(1);
-  }, 10_000).unref();
+  void shutdownOnSigterm();
 });
 
 startServer().catch((err) => {
