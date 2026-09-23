@@ -293,3 +293,53 @@ describe("deferred-turn heartbeat · the denominator the conditional shadows nev
     expect(rowOf(view, DEFERRED_TURN_INSTRUMENT).status).toBe("HEALTHY");
   });
 });
+
+/**
+ * 2026-09-22 · review on #2482. A read that fails is not a reading of zero, and an
+ * instrument missing from a truncated failure sample is not clean. Both were HEALTHY.
+ */
+describe("UNKNOWN is a status, not an absence (review on #2482)", () => {
+  const written = (instrument: string, n = 100) => ({ instrument, lastWriteAt: new Date("2026-09-22T10:00:00Z"), writesInWindow: n });
+
+  it("a liveness source that failed is an UNKNOWN row naming the error, sorted right after FAILING", () => {
+    const view = assembleInstrumentHealth(
+      [
+        written("tool.surfaced"),
+        { instrument: "tool_selection_turn", lastWriteAt: null, writesInWindow: 0, sourceError: "relation tool_selection_turns does not exist" },
+        { instrument: "tool_invocation", lastWriteAt: null, writesInWindow: 0 },
+      ],
+      withFailure("tool.chosen", 1),
+      253,
+      WINDOW_H,
+      SINCE,
+    );
+    const row = view.rows.find((r) => r.instrument === "tool_selection_turn")!;
+    expect(row.status).toBe("UNKNOWN");
+    expect(row.reason).toContain("does not exist");
+    expect(row.reason).toContain("unread, not healthy");
+    expect(view.attention.map((r) => r.status)).toEqual(["UNKNOWN", "NEVER_RAN"]);
+  });
+
+  it("a truncated failure sample makes an ABSENT instrument UNKNOWN, while a present one is still FAILING", () => {
+    const f = withFailure("tool.chosen", 40);
+    f.truncated = true;
+    const view = assembleInstrumentHealth([written("tool.surfaced"), written("tool.chosen", 50)], f, 253, WINDOW_H, SINCE);
+    expect(view.rows.find((r) => r.instrument === "tool.chosen")!.status).toBe("FAILING");
+    const absent = view.rows.find((r) => r.instrument === "tool.surfaced")!;
+    expect(absent.status).toBe("UNKNOWN");
+    expect(absent.reason).toContain(`${f.sampleCap}-row cap`);
+  });
+
+  it("POSITIVE CONTROL: the same absent instrument is HEALTHY when the sample was NOT truncated", () => {
+    const view = assembleInstrumentHealth([written("tool.surfaced")], withFailure("tool.chosen", 40), 253, WINDOW_H, SINCE);
+    expect(view.rows[0].status).toBe("HEALTHY");
+  });
+
+  it("an unknown denominator makes a written instrument UNKNOWN, and keeps a never-written one NEVER_RAN", () => {
+    const view = assembleInstrumentHealth([written("tool.surfaced"), { instrument: "tool_invocation", lastWriteAt: null, writesInWindow: 0 }], noFailures(), null, WINDOW_H, SINCE, ["assistant turns: connection refused"]);
+    expect(view.rows.find((r) => r.instrument === "tool.surfaced")!.status).toBe("UNKNOWN");
+    expect(view.rows.find((r) => r.instrument === "tool_invocation")!.status).toBe("NEVER_RAN");
+    expect(view.sourceErrors).toEqual(["assistant turns: connection refused"]);
+    expect(view.assistantTurns).toBe(0);
+  });
+});

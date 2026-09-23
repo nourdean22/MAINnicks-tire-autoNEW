@@ -57,7 +57,14 @@ import {
   type InstrumentFailureView,
 } from "./instrument-failures";
 
-export type InstrumentStatus = "HEALTHY" | "UNDERPOWERED" | "STALE" | "NEVER_RAN" | "FAILING";
+/**
+ * UNKNOWN (2026-09-22, review on #2482): this row could not be READ - its
+ * liveness source rejected, the failure sample was truncated before it, or the
+ * shared denominator could not be counted. It is neither healthy nor failing;
+ * it is unread, and a monitoring failure that rendered as "no warning" is the
+ * exact false green this module exists to remove.
+ */
+export type InstrumentStatus = "HEALTHY" | "UNDERPOWERED" | "STALE" | "NEVER_RAN" | "FAILING" | "UNKNOWN";
 
 /**
  * Below this many writes in the window, a per-turn instrument cannot support a
@@ -96,6 +103,8 @@ export interface InstrumentLivenessInput {
    * instruments lying does not get to be vague about what it counted.
    */
   unit?: "writes" | "tools touched";
+  /** Set when the liveness read itself failed; the row is UNKNOWN, not zero. */
+  sourceError?: string;
 }
 
 function describeCount(n: number, unit: NonNullable<InstrumentLivenessInput["unit"]>): string {
@@ -127,26 +136,38 @@ export interface InstrumentHealthView {
   attention: InstrumentHealthRow[];
   /** Carried from the failures view: when true every failure count is a floor. */
   failuresTruncated: boolean;
+  /** Reads that failed while building this view (failures sample, denominator). Empty when every read landed. */
+  sourceErrors: string[];
   caveat: string;
 }
 
 const STATUS_RANK: Record<InstrumentStatus, number> = {
   FAILING: 0,
-  NEVER_RAN: 1,
-  STALE: 2,
-  UNDERPOWERED: 3,
-  HEALTHY: 4,
+  UNKNOWN: 1,
+  NEVER_RAN: 2,
+  STALE: 3,
+  UNDERPOWERED: 4,
+  HEALTHY: 5,
 };
+
+function describeError(e: unknown): string {
+  return (e instanceof Error ? e.message : String(e)).slice(0, 200);
+}
 
 /** Pure — the status rules, with no database and no clock but the one passed in. */
 export function assembleInstrumentHealth(
   inputs: ReadonlyArray<InstrumentLivenessInput>,
   failures: InstrumentFailureView,
-  assistantTurns: number,
+  assistantTurnsRead: number | null,
   windowHours: number,
   since: Date,
+  sourceErrors: readonly string[] = [],
 ): InstrumentHealthView {
   const failuresByName = new Map(failures.failing.map((f) => [f.instrument, f.failures]));
+  // A denominator that could not be counted is not zero turns: with it unknown,
+  // no written instrument can be called STALE, UNDERPOWERED or HEALTHY.
+  const denominatorKnown = assistantTurnsRead !== null;
+  const assistantTurns = assistantTurnsRead ?? 0;
 
   // 2026-09-22 · the deferred-turn heartbeat is the denominator the conditional
   // shadows never had. When it is among the inputs AND has ever written, its
@@ -169,9 +190,20 @@ export function assembleInstrumentHealth(
 
     let status: InstrumentStatus;
     let reason: string;
-    if (failuresInWindow > 0) {
+    if (input.sourceError) {
+      status = "UNKNOWN";
+      reason = `liveness source unavailable: ${input.sourceError} — this row is unread, not healthy`;
+    } else if (failuresInWindow > 0) {
       status = "FAILING";
       reason = `${failuresInWindow} write failure${failuresInWindow === 1 ? "" : "s"} logged in ${windowHours}h — every count from this instrument is a floor`;
+    } else if (failures.truncated) {
+      // The sample hit its cap: an instrument absent from it may simply be
+      // older in the window than the newest `sampleCap` rows. Absent is not clean.
+      status = "UNKNOWN";
+      reason = `the failure sample hit its ${failures.sampleCap}-row cap and this instrument is not in it — its failures in ${windowHours}h may be uncounted`;
+    } else if (!denominatorKnown && input.lastWriteAt !== null) {
+      status = "UNKNOWN";
+      reason = "assistant-turn denominator unavailable — writes cannot be read as a rate or as staleness";
     } else if (input.lastWriteAt === null) {
       status = "NEVER_RAN";
       reason = `no row has ever been written — a wiring test, not a log reader, is what can find why${
@@ -232,6 +264,7 @@ export function assembleInstrumentHealth(
     rows,
     attention,
     failuresTruncated: failures.truncated,
+    sourceErrors: [...sourceErrors],
     caveat:
       "Status is derived from rows written, not from code existing. UNDERPOWERED means a " +
       "reading exists and cannot support a rate; for a conditional instrument that is " +
@@ -308,21 +341,49 @@ export async function buildInstrumentHealth(windowHours = 24): Promise<Instrumen
   // widens every element to the union type, and `failures` stops being an
   // InstrumentFailureView at the call below. A typed 2-tuple plus a
   // homogeneous map is the same round-trips and stays typed.
+  // 2026-09-22 (review on #2482) · EVERY read degrades on its own. One rejected
+  // source used to reject the whole view, and the panel rendered "no data" as no
+  // warning - a monitoring failure disguised as calm. A failed read is now an
+  // UNKNOWN row (or an UNKNOWN denominator) that says which read failed.
+  const sourceErrors: string[] = [];
   const [failures, assistantTurns] = await Promise.all([
-    buildInstrumentFailures(windowHours),
-    prisma.chatMessage.count({ where: { role: "assistant", createdAt: { gte: since } } }),
+    buildInstrumentFailures(windowHours).catch((e: unknown): InstrumentFailureView => {
+      sourceErrors.push(`failures: ${describeError(e)}`);
+      return {
+        windowHours,
+        since: since.toISOString(),
+        totalFailures: 0,
+        failing: [],
+        instrumentsWithNoFailures: [],
+        truncated: true, // nothing was read, so every count is a floor of zero
+        sampleCap: 0,
+        caveat: "the failure reader itself failed; no failure count here is a reading",
+      };
+    }),
+    prisma.chatMessage.count({ where: { role: "assistant", createdAt: { gte: since } } }).catch((e: unknown) => {
+      sourceErrors.push(`assistant turns: ${describeError(e)}`);
+      return null;
+    }),
   ]);
   const inputs = await Promise.all(
     KNOWN_INSTRUMENTS.map((name): Promise<InstrumentLivenessInput> => {
-      if (SYSTEM_METRIC_INSTRUMENTS.has(name)) return systemMetricLiveness(name, since);
-      if (name === "tool_selection_turn") return toolSelectionTurnLiveness(since);
-      if (name === "tool_invocation") return toolInvocationLiveness(since);
-      // A registered instrument with no liveness source is itself a finding.
-      // It reports as NEVER_RAN with a reason naming the gap, rather than
-      // vanishing from the view — vanishing is how instruments become alibis.
-      return Promise.resolve({ instrument: name, lastWriteAt: null, writesInWindow: 0 });
+      const read = (): Promise<InstrumentLivenessInput> => {
+        if (SYSTEM_METRIC_INSTRUMENTS.has(name)) return systemMetricLiveness(name, since);
+        if (name === "tool_selection_turn") return toolSelectionTurnLiveness(since);
+        if (name === "tool_invocation") return toolInvocationLiveness(since);
+        // A registered instrument with no liveness source is itself a finding.
+        // It reports as NEVER_RAN with a reason naming the gap, rather than
+        // vanishing from the view — vanishing is how instruments become alibis.
+        return Promise.resolve({ instrument: name, lastWriteAt: null, writesInWindow: 0 });
+      };
+      return read().catch((e: unknown) => ({
+        instrument: name,
+        lastWriteAt: null,
+        writesInWindow: 0,
+        sourceError: describeError(e),
+      }));
     }),
   );
 
-  return assembleInstrumentHealth(inputs, failures, assistantTurns, windowHours, since);
+  return assembleInstrumentHealth(inputs, failures, assistantTurns, windowHours, since, sourceErrors);
 }
