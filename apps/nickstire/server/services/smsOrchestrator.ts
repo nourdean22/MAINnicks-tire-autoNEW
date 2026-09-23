@@ -80,7 +80,7 @@ export interface SmsOrchestratorResult {
  * never supplies a URL for a customer text; the server does. This one is on the
  * preflight guard's approved domains, so the recap is not held for review.
  */
-export const VAPI_RECAP_LINK = "https://nickstire.org/contact";
+const VAPI_RECAP_LINK = "https://nickstire.org/contact";
 
 export interface CustomerContext {
   phone: string;
