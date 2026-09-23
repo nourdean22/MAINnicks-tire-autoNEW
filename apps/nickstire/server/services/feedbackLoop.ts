@@ -71,10 +71,15 @@ export function detectAnomalies(): Array<{ type: string; current: number; averag
  */
 export async function trackAlertOutcome(alertType: string, outcome: "acted" | "ignored" | "unknown"): Promise<void> {
   try {
+    // An unknown outcome is not a lesson: 'Alert "proactive" was unknown. Outcome
+    // unknown.' reached 2,517 uses and a permanent seat in Nick's prompt (2026-09-22).
+    const { alertOutcomeMemoryContent } = await import("./memoryWriterGuards");
+    const content = alertOutcomeMemoryContent(alertType, outcome);
+    if (!content) return;
     const { remember } = await import("./nickMemory");
     await remember({
       type: "lesson",
-      content: `Alert "${alertType}" was ${outcome}. ${outcome === "acted" ? "This type of alert drives action — keep sending." : outcome === "ignored" ? "This alert type may need a different approach or timing." : "Outcome unknown."}`,
+      content,
       source: "feedback_loop",
       confidence: outcome === "acted" ? 0.9 : 0.5,
     });

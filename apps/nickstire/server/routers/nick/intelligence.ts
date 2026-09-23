@@ -428,10 +428,14 @@ export async function handlePullFromStatenour() {
     let imported = 0;
 
     if (brain.recentInsights?.length) {
+      const { pulledMemoryText } = await import("../../services/memoryWriterGuards");
       for (const insight of brain.recentInsights.slice(0, 5)) {
+        // same guard as the cron pull: no empty text, nothing about Nick's own memory store
+        const content = pulledMemoryText("[From statenour brain]", insight.title || insight.detail);
+        if (!content) continue;
         await remember({
           type: "insight",
-          content: `[From statenour brain] ${insight.title || insight.detail || ""}`.slice(0, 500),
+          content,
           source: "statenour_pull",
           confidence: 0.8,
         });
