@@ -163,6 +163,15 @@ export function provenancePrefix(m: RelevantMemory): string {
   const seen = m.seenCount && m.seenCount > 1 ? ` · seen ${m.seenCount}x` : "";
   return `[${m.category} · ${EVIDENCE_LABEL[cls]}${seen}]`;
 }
+
+/**
+ * The slice of a memory's content the recall block renders: 200 chars for a
+ * direct hit, 150 otherwise. The renderer AND the token-budget trim read this
+ * one helper, so the budget charges exactly what the model is shown.
+ */
+export function renderedContent(m: RelevantMemory): string {
+  return m.content.slice(0, m.relevance === "direct" ? 200 : 150);
+}
 // 2026-05-17 follow-up · exclude binary-payload categories from
 // every recall path · keeps the prompt builder from pulling 100KB+
 // base64 audio blobs that have no semantic value (Phase 5 morning
@@ -807,6 +816,36 @@ const DEFAULT_TOKEN_BUDGET = 4000;
 const CHARS_PER_TOKEN_APPROX = 4;
 
 /**
+ * Drop lowest-relevance entries from the END of `relevant` (in place) until the
+ * block fits `budgetChars`, never below the first `wisdomSlots` entries — the
+ * wisdom memories, per the construction order in getContextualMemories.
+ * Returns how many were dropped.
+ *
+ * 2026-08-16 · count the rendered PREFIX too. The trimmer summed only
+ * content.length, so the `[category · evidence · seen Nx] ` prefix (and the
+ * `[category] (NN%) ` one before it) was invisible to the 4000-token cap —
+ * the block could run ~10-15% over its declared budget.
+ *
+ * 2026-09-23 · and charge the rendered CONTENT, not the stored one. The block
+ * shows renderedContent (200 / 150 chars) but the trim charged content.length,
+ * so a 15,000-char memory cost 94% of the 16k budget while rendering 200 chars.
+ * Once #2553 made the lexical lane answer, its long OR-matched winners (top-10
+ * average 11.5k-13.4k chars on production) evicted dense hits to pay for text
+ * the model never saw. Test: tests/brain/recall-budget-rendered-chars.test.ts.
+ */
+export function trimToTokenBudget(relevant: RelevantMemory[], budgetChars: number, wisdomSlots: number): number {
+  const cost = (m: RelevantMemory) => renderedContent(m).length + provenancePrefix(m).length + 1;
+  let totalChars = relevant.reduce((s, m) => s + cost(m), 0);
+  let dropped = 0;
+  const minKeep = Math.min(wisdomSlots, relevant.length);
+  while (relevant.length > minKeep && totalChars > budgetChars) {
+    totalChars -= cost(relevant.pop()!);
+    dropped++;
+  }
+  return dropped;
+}
+
+/**
  * U3 (2026-09-08, review on #2198) · the validity window of a belief, at an
  * instant. Every recall lane and the searchMemories tool read this one helper.
  *
@@ -1388,29 +1427,7 @@ export async function getContextualMemories(
   // until the total content size fits within the budget. Wisdom slots
   // (the first `wisdomSlots` entries) are PRESERVED · operator-grade
   // guarantee that the always-on wisdom layer never gets dropped.
-  const budgetChars = tokenBudget * CHARS_PER_TOKEN_APPROX;
-  // 2026-08-16 · count the rendered PREFIX too. The trimmer summed only
-  // content.length, so the `[category · evidence · seen Nx] ` prefix (and the
-  // `[category] (NN%) ` one before it) was invisible to the 4000-token cap —
-  // the block could run ~10-15% over its declared budget.
-  let totalChars = relevant.reduce(
-    (s, m) => s + m.content.length + provenancePrefix(m).length + 1,
-    0,
-  );
-  let budgetDropped = 0;
-  if (totalChars > budgetChars) {
-    // Strip from the END (lowest-relevance first) but never below the
-    // wisdom guarantee. The first `wisdomSlots` items in `relevant`
-    // are wisdom memories per the construction order above.
-    const minKeep = Math.min(wisdomSlots, relevant.length);
-    while (relevant.length > minKeep && totalChars > budgetChars) {
-      const dropped = relevant.pop();
-      if (dropped) {
-        totalChars -= dropped.content.length + provenancePrefix(dropped).length + 1;
-        budgetDropped++;
-      }
-    }
-  }
+  const budgetDropped = trimToTokenBudget(relevant, tokenBudget * CHARS_PER_TOKEN_APPROX, wisdomSlots);
 
   // Format for system prompt
   const mode = useEmbeddings ? "semantic" : "keyword";
@@ -1446,21 +1463,21 @@ export async function getContextualMemories(
   if (direct.length > 0) {
     lines.push(`### Directly Relevant`);
     for (const m of direct) {
-      lines.push(`${provenancePrefix(m)} ${m.content.slice(0, 200)}`);
+      lines.push(`${provenancePrefix(m)} ${renderedContent(m)}`);
     }
   }
 
   if (supporting.length > 0) {
     lines.push(`### Supporting Context`);
     for (const m of supporting) {
-      lines.push(`${provenancePrefix(m)} ${m.content.slice(0, 150)}`);
+      lines.push(`${provenancePrefix(m)} ${renderedContent(m)}`);
     }
   }
 
   if (background.length > 0) {
     lines.push(`### Core Knowledge`);
     for (const m of background) {
-      lines.push(`${provenancePrefix(m)} ${m.content.slice(0, 150)}`);
+      lines.push(`${provenancePrefix(m)} ${renderedContent(m)}`);
     }
   }
 
