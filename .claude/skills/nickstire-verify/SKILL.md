@@ -21,14 +21,20 @@ multiple sessions.
 
 `completion-authority` derives its requirements **per-diff**. Touching any
 `client/` file (an edit, a rename, even a DELETION) derives an
-`operator-walkthrough` requirement, and the `.completion/evidence.json`
-entry on `main` was written for a PREVIOUS diff — so an untouched entry is
-**stale by definition** and fails the gate.
+`operator-walkthrough` requirement, and any evidence already on `main` was
+written for a PREVIOUS diff — so it is **stale by definition** and fails the
+gate.
 
-Rewrite the matching entry to prove THIS diff before pushing. Say what the
-operator sees, and if the answer is "nothing", prove it (zero importers,
-identical render) rather than asserting it. Preserve the prior entry under
-a `...-superseded-<date>` key — the manifest is rolling, not append-only.
+Write the evidence for THIS diff in a NEW per-PR fragment,
+`.completion/evidence.d/<branch-slug>.json` (format in that directory's
+README): `{ "evidence": { "operator-walkthrough": { "ref": "..." } } }`, or
+`{ "deferred": "<reason>" }`. Say what the operator sees, and if the answer is
+"nothing", prove it (zero importers, identical render) rather than asserting
+it. A new file per PR never conflicts with a sibling PR. Freshness is by
+content: an entry whose exact text is already on the merge-base (any fragment,
+any legacy key) reads STALE, so copying old evidence does not pass. Rewriting
+the legacy `.completion/evidence.json` entry still counts, but conflicts with
+every concurrent PR — don't.
 
 Witnessed on #1428: red in 22s on a stale entry, green in 31s once rewritten.
 
@@ -36,8 +42,8 @@ Witnessed on #1428: red in 22s on a stale entry, green in 31s once rewritten.
 again."** Witnessed on #1830: `completion-authority` went red four times
 on one PR, each a different sub-gate, ~50 minutes of fix-push-poll cycles
 because only sub-gate 1 was documented:
-1. Stale per-diff `.completion/evidence.json` entry (above) — fix:
-   rewrite the matching entry for THIS diff.
+1. Stale or missing per-diff completion evidence (above) — fix: add a
+   fragment in `.completion/evidence.d/` written for THIS diff.
 2. Unresolved P1 review threads from the Codex review bot — fix: reply,
    then resolve via GraphQL `resolveReviewThread`.
 3. A capability-ledger cross-axis rule (`operator_only` requires >=
@@ -63,13 +69,14 @@ because only sub-gate 1 was documented:
   shipping test changes, and compare runs only on the SAME file set: a branch
   with a different test-file count shuffles into a different order, so "main
   passes seed 29" proved nothing until the same tree ran without the change.
-- **`.completion/evidence.json` conflicts on nearly every base merge** while
-  sibling sessions run: they rewrite the same per-diff keys
-  (`capability-ledger-updated`, `operator-walkthrough`). Witnessed 3x on
-  2026-09-23. Resolve three-way, per key, against the merge-base: take the side
-  that changed; if both changed, OURS stays current (it describes this diff)
-  and THEIRS is kept as `<key>-superseded-<date>-sibling-main`. Write with
-  `json.dumps(d, indent=2, ensure_ascii=False) + "\n"` (round-trips byte-exact),
+- **`.completion/evidence.json` conflicted on nearly every base merge**
+  (witnessed 3x on 2026-09-23) because sibling sessions rewrote the same
+  per-diff keys. Fixed by per-PR fragments (above) — write a fragment, not the
+  manifest. If an OLDER branch still carries a manifest edit and conflicts:
+  resolve three-way, per key, against the merge-base — take the side that
+  changed; if both changed, OURS stays current and THEIRS is kept as
+  `<key>-superseded-<date>-sibling-main`; write with
+  `json.dumps(d, indent=2, ensure_ascii=False) + "\n"` (round-trips byte-exact);
   then re-run `node scripts/dod-compiler.mjs --base origin/main --enforce`.
   A merged PR's conflict also stops `pull_request` CI from running at all:
   "no checks" on a pushed head means check `mergeable_state` first.
