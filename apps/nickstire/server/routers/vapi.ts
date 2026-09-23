@@ -1324,50 +1324,32 @@ export const vapiRouter = router({
         ? input.customerName.split(",")[1]?.trim().split(/\s+/)[0] || "there"
         : input.customerName.split(/\s+/)[0] || "there";
 
-      // Get the VAPI phone number ID (the inbound assistant's line)
-      const phoneNumbers = await vapiApiFetch<Array<{ id: string; number: string }>>("/phone-number");
-      const ourLine = phoneNumbers.find((p) => p.number === "+12164249249");
-      if (!ourLine) {
-        return { success: false, error: "Could not find the +12164249249 VAPI phone number" };
-      }
-
-      const body = {
-        assistantId,
-        phoneNumberId: ourLine.id,
-        customer: {
-          number: e164,
-          name: firstName,
-        },
-        assistantOverrides: {
-          variableValues: {
-            name: firstName,
-            lastService: input.lastService,
-          },
-        },
-      };
-
-      const res = await fetch(`https://api.vapi.ai/call`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
+      // Q-45 · through the one sanctioned dial, like every cron lane. This used
+      // to POST to Vapi directly with only variableValues, so the call opened
+      // with whatever the live assistant was last pushed with — a bare
+      // "{{name}}?", no business name up front, no callback number, no opt-out.
+      // The helper builds the 64.1200(b) opener, carries the do-not-call tool
+      // and leaves no voicemail (a sales call; the shop has no toll-free number).
+      const { placeVapiOutboundCall, buildFollowUpCallContent } = await import("../services/vapi");
+      const content = buildFollowUpCallContent({ customerName: firstName, lastService: input.lastService });
+      const call = await placeVapiOutboundCall({
+        customerNumber: e164,
+        lane: "followup_manual",
+        customerName: firstName,
+        openerBody: content.openerBody,
+        systemPrompt: content.systemPrompt,
+        variableValues: { name: firstName, lastService: input.lastService },
+        maxDurationSeconds: 180,
       });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        log.warn("makeFollowUpCall failed", { status: res.status, body: errText.slice(0, 300) });
-        return {
-          success: false,
-          error: `VAPI returned ${res.status}: ${errText.slice(0, 200)}`,
-        };
+      if (!call.success || !call.callId) {
+        log.warn("makeFollowUpCall failed", { errorKind: call.errorKind, error: (call.error ?? "unknown").slice(0, 300) });
+        return { success: false, error: call.error ?? "VAPI call failed" };
       }
-      const data = await res.json() as { id: string; status?: string };
-      log.info("Follow-up call queued", { callId: data.id, name: firstName, phone: e164.slice(-4) });
+      log.info("Follow-up call queued", { callId: call.callId, name: firstName, phone: e164.slice(-4) });
       return {
         success: true,
-        callId: data.id,
-        status: data.status || "queued",
+        callId: call.callId,
+        status: "queued",
       };
     }),
 

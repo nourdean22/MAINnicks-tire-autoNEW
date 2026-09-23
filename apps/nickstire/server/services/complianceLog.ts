@@ -116,7 +116,8 @@ export async function logSmsOptIn(params: {
 export async function logSmsOptOut(params: {
   phone: string;
   ipAddress?: string | null;
-  via: "keyword" | "admin" | "api";
+  /** "voice" · a do-not-call request spoken on an outbound AI call (Q-45). */
+  via: "keyword" | "admin" | "api" | "voice";
   keyword?: string;
 }): Promise<void> {
   const normalized = normalizePhone(params.phone);

@@ -35,7 +35,6 @@ import {
   buildFollowUpAssistantConfig,
   buildOutboundConfirmationPrompt,
   buildOutboundRecoveryPrompt,
-  buildRecoveryVoicemail,
 } from "../services/vapi";
 
 type Param = { description?: string };
@@ -61,9 +60,11 @@ const SCRIPTS: Array<[string, string]> = [
   ["confirmation prompt", buildOutboundConfirmationPrompt({ customerName: "Jordan", service: "brake check", preferredDay: "tomorrow" })],
   ["recovery prompt", buildOutboundRecoveryPrompt({ customerName: "Jordan", service: "front brakes", amountDollars: 400 })],
   ["receptionist voicemail", String((buildAssistantConfig() as { voicemailMessage?: string }).voicemailMessage ?? "")],
-  ["follow-up voicemail", String(followUpConfig.voicemailMessage ?? "")],
+  // "follow-up voicemail" is EMPTY since Q-45 (the follow-up caller makes
+  // sales calls and leaves no voicemail) — pinned in outboundCallCompliance.test.ts.
   ["confirmation voicemail", buildConfirmationVoicemail({ customerName: "Jordan", service: "brake check", preferredDay: "tomorrow" })],
-  ["recovery voicemail", buildRecoveryVoicemail({ customerName: "Jordan", service: "front brakes" })],
+  // "recovery voicemail" was retired with Q-45 (2026-09-23): voice recovery is
+  // a sales lane and leaves no voicemail at all — no toll-free opt-out number.
 ];
 
 // A closing quote or bracket can sit between the full stop and the space
