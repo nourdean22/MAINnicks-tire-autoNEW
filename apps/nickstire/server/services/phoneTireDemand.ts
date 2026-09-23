@@ -3,7 +3,8 @@
  * The rule and its rationale: server/lib/tireDemand.ts.
  */
 import { db } from "../lib/db-helper";
-import { minutesSinceShopMidnight, summarizeTireDemand, type TireDemandSummary } from "../lib/tireDemand";
+import { summarizeTireDemand, type TireDemandSummary } from "../lib/tireDemand";
+import { minutesSinceShopMidnight } from "../lib/timezoneAssert";
 
 /**
  * THROWS when the database is unreachable: an unreadable count is not zero

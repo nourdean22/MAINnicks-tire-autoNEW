@@ -83,11 +83,3 @@ export function summarizeTireDemand(metadatas: ReadonlyArray<unknown>): TireDema
   const sizes = Array.from(bySize.values()).sort((a, b) => b.count - a.count || a.size.localeCompare(b.size));
   return { total, sizes, sizeUnknown };
 }
-
-/** Whole minutes since midnight in the shop's timezone. A duration, so the DB clock's zone never matters. */
-export function minutesSinceShopMidnight(now: Date, timeZone = "America/New_York"): number {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(now);
-  const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
-  const min = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
-  return h * 60 + min;
-}

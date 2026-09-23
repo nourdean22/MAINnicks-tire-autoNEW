@@ -6,7 +6,8 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { minutesSinceShopMidnight, summarizeTireDemand, toolCallStateMetadata } from "../lib/tireDemand";
+import { summarizeTireDemand, toolCallStateMetadata } from "../lib/tireDemand";
+import { minutesSinceShopMidnight } from "../lib/timezoneAssert";
 
 const tireDemandFromToolArgs = (raw: unknown) => toolCallStateMetadata("tireInquiry", "t", raw).demand;
 

@@ -62,12 +62,6 @@
       "reason": "Admin revenue analytics (stats, intelligence). Ten DATE_SUB(CURDATE(), INTERVAL n DAY) windows start at 8 PM ET (7 PM in winter) instead of midnight: 4 extra hours (5 in winter) all day, and after 8 PM ET the window loses most of its first day. The month-to-date row (DATE_FORMAT(CURDATE(), '%Y-%m-01')) counts from 8 PM ET on the previous month's last day and flips to the new month, near $0, after 8 PM ET on a month's last day."
     },
     {
-      "file": "server/routers/campaigns.ts",
-      "count": 2,
-      "effect": "customer-send",
-      "reason": "getSegmentCustomers() builds the SMS campaign AUDIENCE with DATEDIFF(CURDATE(), lastVisitDate) <= 90 ('recent') and BETWEEN 91 AND 365 ('lapsed'); the StateNour bulk-SMS bridge targets the same segments. A campaign created or sent between 8 PM ET (7 PM in winter) and midnight moves customers across the 90- and 365-day lines one day early. Every send is operator-launched."
-    },
-    {
       "file": "server/routers/chat.ts",
       "count": 1,
       "effect": "customer-view",
@@ -78,12 +72,6 @@
       "count": 2,
       "effect": "rolling-window",
       "reason": "Admin todayPulse: declined estimates in the last 30 days and paid revenue in the last 7 days, both DATE_SUB(CURDATE(), ...) windows whose edge sits at 8 PM ET (7 PM in winter) instead of midnight, a drift of hours on a multi-day total."
-    },
-    {
-      "file": "server/routers/conversion.ts",
-      "count": 1,
-      "effect": "customer-view",
-      "reason": "PUBLIC shopCapacity (publicProcedure) feeds the site-wide UrgencyWidget: slotsRemainingToday = 32 - (active work orders + bookings with createdAt >= CURDATE()). CURDATE() is the UTC day, so during open hours the count also holds online bookings made 8 PM to midnight ET (7 PM in winter) the evening before, which makes the widget appear, or say 'Today is full - call us', sooner than the real load warrants. After 8 PM ET the shop is closed and the widget is hidden. (The first baseline called this staff-only; it is customer-facing.)"
     },
     {
       "file": "server/routers/customers.ts",

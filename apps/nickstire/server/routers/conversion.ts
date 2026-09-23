@@ -248,10 +248,13 @@ export const conversionRouter = router({
             AND COALESCE(updated_at, created_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
         `);
 
-        // Today's bookings
+        // Today's bookings, since Eastern midnight. CURDATE() started "today"
+        // at 8 PM ET the evening before (UTC midnight). A duration from the
+        // DB's own NOW() avoids any driver-shifted timestamp.
+        const { minutesSinceShopMidnight } = await import("../lib/timezoneAssert");
         const todayBookings = await safeCount(d, sql`
           SELECT COUNT(*) as cnt FROM bookings
-          WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')
+          WHERE createdAt >= NOW() - INTERVAL ${minutesSinceShopMidnight(new Date())} MINUTE AND status IN ('new', 'confirmed')
         `);
 
         // Daily capacity heuristic — 4 bays × 8 jobs/bay/day = 32 slots
