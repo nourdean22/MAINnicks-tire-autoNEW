@@ -55,7 +55,8 @@
     "diag:memory-eviction": "node scripts/diagnostics/memory-eviction-simulation.mjs",
     "diag:memory-counterfactual": "node scripts/diagnostics/memory-counterfactual.mjs",
     "diag:tire-size-recall": "tsx scripts/diagnostics/tire-size-recall.mjs",
-    "diag:voice-recovery": "tsx scripts/diagnostics/voice-recovery-status.mjs"
+    "diag:voice-recovery": "tsx scripts/diagnostics/voice-recovery-status.mjs",
+    "diag:customer-corpus": "tsx scripts/diagnostics/customer-corpus-census.mts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

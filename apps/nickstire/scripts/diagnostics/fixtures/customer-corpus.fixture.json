@@ -1,0 +1,192 @@
+{
+ "calls": [
+  {
+   "id": 1,
+   "vapiCallId": "fx-1",
+   "phoneNumber": "+12165550101",
+   "durationSeconds": 95,
+   "endedReason": "assistant-forwarded-call",
+   "evalOutcome": "human_handoff",
+   "callbackId": null,
+   "leadId": null,
+   "metadata": "{\"intents\": [\"tire_size_request\"]}",
+   "t": 1789480800,
+   "transcript": null,
+   "callType": "inboundPhoneCall",
+   "messages": "[{\"role\": \"bot\", \"message\": \"Nick's Tire and Auto, how can I help?\"}, {\"role\": \"user\", \"message\": \"I need two tires for my Honda, 225/65R17\"}, {\"role\": \"bot\", \"message\": \"Got it. Someone from the shop will call you back shortly.\"}]"
+  },
+  {
+   "id": 2,
+   "vapiCallId": "fx-2",
+   "phoneNumber": "+12165550101",
+   "durationSeconds": 60,
+   "endedReason": "customer-ended-call",
+   "evalOutcome": "lost_opportunity",
+   "callbackId": 7,
+   "leadId": null,
+   "metadata": "{\"intents\": []}",
+   "t": 1789483200,
+   "transcript": "AI: Thanks for calling. What size are your tires?\nUser: I already told you, it's the same size\nUser: can I talk to a real person\nAI: I'll have someone call you back.",
+   "messages": null,
+   "callType": "inboundPhoneCall"
+  },
+  {
+   "id": 3,
+   "vapiCallId": "fx-3",
+   "phoneNumber": "+12165550104",
+   "durationSeconds": 40,
+   "endedReason": "customer-ended-call",
+   "evalOutcome": "unknown",
+   "callbackId": null,
+   "leadId": null,
+   "metadata": "{\"intents\": []}",
+   "t": 1789522200,
+   "transcript": "AI: Hello\nUser: do you guys have used tires\nAI: Come on by, we're first come first serve.",
+   "messages": null,
+   "callType": "inboundPhoneCall"
+  },
+  {
+   "id": 4,
+   "vapiCallId": "fx-4",
+   "phoneNumber": "+12165550105",
+   "durationSeconds": 120,
+   "endedReason": "assistant-forwarded-call",
+   "evalOutcome": "human_handoff",
+   "callbackId": null,
+   "leadId": null,
+   "metadata": "{\"intents\": [\"brakes\"], \"transferArtifact\": {\"verdict\": \"connected\"}}",
+   "t": 1789657200,
+   "transcript": "AI: Hi\nUser: my brakes are grinding\nAI: Let me connect you.",
+   "messages": null,
+   "callType": "inboundPhoneCall"
+  },
+  {
+   "id": 5,
+   "vapiCallId": "fx-5",
+   "phoneNumber": "+12165550106",
+   "durationSeconds": 12,
+   "endedReason": "customer-ended-call",
+   "evalOutcome": "spam_or_wrong_number",
+   "callbackId": null,
+   "leadId": null,
+   "metadata": "{\"intents\": []}",
+   "t": 1789660800,
+   "transcript": "User: this is a recorded message about your google listing",
+   "messages": null,
+   "callType": "inboundPhoneCall"
+  },
+  {
+   "id": 6,
+   "vapiCallId": "fx-6",
+   "phoneNumber": "+12165550107",
+   "durationSeconds": 30,
+   "endedReason": "customer-ended-call",
+   "evalOutcome": null,
+   "callbackId": null,
+   "leadId": null,
+   "metadata": "{}",
+   "t": 1789664400,
+   "transcript": null,
+   "messages": null,
+   "callType": "outboundPhoneCall"
+  }
+ ],
+ "sms": [
+  {
+   "id": 11,
+   "phone": "2165550102",
+   "direction": "inbound",
+   "body": "is my car ready? I dropped it off this morning",
+   "status": "received",
+   "failureReason": null,
+   "t": 1789570800,
+   "optOutT": null
+  },
+  {
+   "id": 12,
+   "phone": "2165550102",
+   "direction": "outbound",
+   "body": "Checking with the tech now.",
+   "status": "delivered",
+   "failureReason": null,
+   "t": 1789576200,
+   "optOutT": null
+  },
+  {
+   "id": 13,
+   "phone": "2165550103",
+   "direction": "outbound",
+   "body": "Reminder from the shop",
+   "status": "sent",
+   "failureReason": null,
+   "t": 1789398000,
+   "optOutT": null
+  },
+  {
+   "id": 14,
+   "phone": "2165550103",
+   "direction": "inbound",
+   "body": "STOP",
+   "status": "received",
+   "failureReason": null,
+   "t": 1789398300,
+   "optOutT": null
+  },
+  {
+   "id": 15,
+   "phone": "2165550101",
+   "direction": "outbound",
+   "body": "We got your tire request",
+   "status": "failed",
+   "failureReason": "gateway_timeout",
+   "t": 1789484400,
+   "optOutT": null
+  }
+ ],
+ "callback_requests": [
+  {
+   "phone": "(216) 555-0101",
+   "status": "no-answer",
+   "t": 1789483260,
+   "calledT": null
+  }
+ ],
+ "expected_arrivals": [
+  {
+   "phone": "2165550104",
+   "status": "no_show",
+   "source": "voice",
+   "t": 1789522260,
+   "arrivedT": null
+  },
+  {
+   "phone": "2165550105",
+   "status": "arrived",
+   "source": "voice",
+   "t": 1789657320,
+   "arrivedT": 1789736400
+  }
+ ],
+ "sms_response_jobs": [],
+ "customer_promises": [],
+ "invoices": [
+  {
+   "phone": "216-555-0101",
+   "cents": 48000,
+   "paymentStatus": "paid",
+   "t": 1789927200
+  },
+  {
+   "phone": "2165550105",
+   "cents": 61000,
+   "paymentStatus": "paid",
+   "t": 1789758000
+  },
+  {
+   "phone": "2165550105",
+   "cents": 9000,
+   "paymentStatus": "paid",
+   "t": 1772377200
+  }
+ ]
+}
