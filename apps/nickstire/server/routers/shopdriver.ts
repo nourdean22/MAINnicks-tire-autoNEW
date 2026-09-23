@@ -26,12 +26,15 @@ const log = createLogger("routers:shopdriver");
  * before the insert misses the second case, and so did the old
  * UPDATE ... WHERE phone = <E.164>, which matched 0 rows while the row was
  * counted as updated. phone10 is the stricter key and covers both, so re-find
- * the row by it. Returns null when no row holds the key (caller skips the row).
+ * the row by it, then accept it only if its stored phone normalizes to the SAME
+ * canonical number: "+12165551234" and "+442165551234" share a phone10 but are
+ * different customers, and updating by id would overwrite the other one.
+ * Returns null when no row matches (caller skips the row).
  */
-async function findCustomerIdByPhone10(d: NonNullable<Awaited<ReturnType<typeof db>>>, phone: string): Promise<number | null> {
+async function findSameCustomerByPhone10(d: NonNullable<Awaited<ReturnType<typeof db>>>, phone: string): Promise<number | null> {
   const phone10 = phone.replace(/\D/g, "").slice(-10);
-  const [row] = await d.select({ id: customers.id }).from(customers).where(eq(customers.phone10, phone10)).limit(1);
-  return row?.id ?? null;
+  const [row] = await d.select({ id: customers.id, phone: customers.phone }).from(customers).where(eq(customers.phone10, phone10)).limit(1);
+  return row && normalizePhone(row.phone) === phone ? row.id : null;
 }
 
 /** Classify customer segment based on last visit date */
@@ -547,10 +550,10 @@ export const shopdriverRouter = router({
                 // The customer exists under this phone (a lost race, or the
                 // same number stored in another format). Update that row with
                 // the fresh fields so we don't lose the operator's data.
-                const existingId = await findCustomerIdByPhone10(d, phone);
+                const existingId = await findSameCustomerByPhone10(d, phone);
                 if (existingId == null) {
                   skippedCount++;
-                  log.warn("[ShopDriver] Customer import row skipped: duplicate key but no row by phone10", { phoneLast4: phone.slice(-4) });
+                  log.warn("[ShopDriver] Customer import row skipped: duplicate key held by a different number (same last 10 digits) or no row", { phoneLast4: phone.slice(-4) });
                   continue;
                 }
                 await d.update(customers).set({
@@ -799,9 +802,9 @@ export const shopdriverRouter = router({
             newCount++;
           } catch (err) {
             if (isDuplicateKeyError(err)) {
-              const existingId = await findCustomerIdByPhone10(d, phone);
+              const existingId = await findSameCustomerByPhone10(d, phone);
               if (existingId == null) {
-                log.warn("[ShopDriver] Customer sync row skipped: duplicate key but no row by phone10", { phoneLast4: phone.slice(-4) });
+                log.warn("[ShopDriver] Customer sync row skipped: duplicate key held by a different number (same last 10 digits) or no row", { phoneLast4: phone.slice(-4) });
                 continue;
               }
               await d.update(customers).set({

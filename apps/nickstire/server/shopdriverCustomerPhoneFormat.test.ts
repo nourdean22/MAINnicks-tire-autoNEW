@@ -49,7 +49,7 @@ vi.mock("./lib/db-helper", async () => {
         where: (cond: SQL) => ({
           limit: async () => {
             if (table !== schema.customers) return [];
-            const found = h.rows.filter((r) => matches(cond, r)).map((r) => ({ id: r.id }));
+            const found = h.rows.filter((r) => matches(cond, r)).map((r) => ({ id: r.id, phone: r.phone }));
             if (h.hiddenFromNextSelect.length) {
               h.rows.push(...h.hiddenFromNextSelect.splice(0));
               return [];
@@ -155,13 +155,24 @@ describe("ShopDriver CSV import: existing customer stored in another phone forma
     const boom = new DrizzleQueryError("select `id` from `customers` where `phone` = ?", ["+12165558888"], Object.assign(new Error("connect ETIMEDOUT"), { code: "ETIMEDOUT" }));
     h.hiddenFromNextSelect = [];
     const orig = h.rows;
-    h.rows = new Proxy(orig, { get: (t, k) => (k === "filter" ? () => { throw boom; } : Reflect.get(t, k)) });
-    const res2 = await admin().shopdriver.importCSV({ csvContent: csv("2165558888") });
-    h.rows = orig;
+    let res2: unknown;
+    try {
+      h.rows = new Proxy(orig, { get: (t, k) => (k === "filter" ? () => { throw boom; } : Reflect.get(t, k)) });
+      res2 = await admin().shopdriver.importCSV({ csvContent: csv("2165558888") });
+    } finally {
+      h.rows = orig;
+    }
     expect(res2).toMatchObject({ skippedRows: 1 });
     const all = output.join("");
     expect(all).toContain("DrizzleQueryError > Error ETIMEDOUT");
     expect(all).not.toContain("2165558888");
+  });
+
+  it("does NOT merge a different country's number that shares the last 10 digits (skips it)", async () => {
+    h.rows = [{ id: 7, phone: "+442165551234", firstName: "Other", email: null }];
+    const res = await admin().shopdriver.importCSV({ csvContent: csv("2165551234") });
+    expect(res).toMatchObject({ newCustomers: 0, updatedCustomers: 0, skippedRows: 1 });
+    expect(h.rows).toEqual([{ id: 7, phone: "+442165551234", firstName: "Other", email: null }]);
   });
 
   it("a genuinely new customer is inserted", async () => {
