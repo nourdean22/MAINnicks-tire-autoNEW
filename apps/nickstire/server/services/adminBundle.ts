@@ -26,6 +26,7 @@
 import { desc } from "drizzle-orm";
 import { getDashboardStats, getSiteHealth } from "../admin-stats";
 import { getBookings, getCallbackRequests } from "../db";
+import { getOwedTexts } from "./owedTexts";
 import { leads as leadsTable } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
@@ -111,12 +112,15 @@ export async function getOverviewMediumBundle() {
   // instead of throwing. Cheap: getDb() is pooled.
   const dbDown = !(await db());
 
-  const [stats, bookings, leads, callbacks, health] = await Promise.allSettled([
+  const [stats, bookings, leads, callbacks, health, owedTexts] = await Promise.allSettled([
     getDashboardStats(),
     getBookings(),
     listLeads(),
     getCallbackRequests(),
     getSiteHealth(),
+    // Customers waiting on a text reply (census 2026-09-23: 55 of 104 text
+    // episodes ended unanswered, and nothing on Today showed them).
+    getOwedTexts(),
   ]);
 
   const slices = {
@@ -125,6 +129,7 @@ export async function getOverviewMediumBundle() {
     leads: sliceStatus(leads, dbDown),
     callbacks: sliceStatus(callbacks, dbDown),
     health: sliceStatus(health, dbDown),
+    owedTexts: sliceStatus(owedTexts, dbDown),
   };
 
   const failed = Object.entries(slices).filter(([, s]) => !s.available).map(([k]) => k);
@@ -138,6 +143,7 @@ export async function getOverviewMediumBundle() {
     leads: settled(leads),
     callbacks: settled(callbacks),
     health: settled(health),
+    owedTexts: settled(owedTexts),
     /** Which reads actually succeeded. An empty list is only real when its slice is available. */
     slices,
     /** True when ANY slice failed — the one flag a screen needs to stop saying "All clear". */

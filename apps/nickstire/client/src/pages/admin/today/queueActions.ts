@@ -52,5 +52,17 @@ export function getQueueActionDefinition(type: ActionItem["type"]): QueueActionD
         secondaryConfirmMessage: (name) => `Open ${name}'s work order in Customers.`,
         secondaryDestructive: false,
       };
+    case "text":
+      // A customer waiting on a text reply. There is no status to flip: the
+      // item leaves the queue when the shop's reply is in the thread.
+      return {
+        primaryLabel: "Open thread",
+        primaryConfirmTitle: "Open text thread?",
+        primaryConfirmMessage: (name) => `Open ${name}'s text thread to reply.`,
+        secondaryLabel: "Open thread",
+        secondaryConfirmTitle: "Open text thread?",
+        secondaryConfirmMessage: (name) => `Open ${name}'s text thread to reply.`,
+        secondaryDestructive: false,
+      };
   }
 }

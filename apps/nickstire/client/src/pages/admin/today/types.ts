@@ -105,7 +105,7 @@ export interface ActionItem {
   id: string;
   /** Numeric entity ID — needed to call mutations (mark-done, delete) */
   entityId: number;
-  type: "booking" | "lead" | "callback" | "workOrder";
+  type: "booking" | "lead" | "callback" | "workOrder" | "text";
   name: string;
   detail: string;
   phone?: string | null;
