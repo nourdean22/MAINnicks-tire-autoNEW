@@ -13,6 +13,9 @@
  *      questions do not.
  *   5. The classify stage-timer records a "classify" stage on the
  *      injected tracker (the chat-pipeline log line depends on it).
+ *   6. (2026-09-23) A fixed mode — the per-request override or the
+ *      configured default — returns without waiting for classifyIntent,
+ *      an LLM call with an 8 s cap. Production has defaultMode "deep".
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -24,7 +27,7 @@ vi.mock("@/lib/ai/runtime/intent-router", () => ({
   classifyIntent: vi.fn(async () => ({ mode: "casual", persona: "default" })),
 }));
 
-import { deriveTurnSignals } from "@/app/api/ai/chat/derive-turn-signals";
+import { deriveTurnSignals, takeClassificationIfLanded } from "@/app/api/ai/chat/derive-turn-signals";
 import { createStageTracker } from "@/lib/ai/chat/timing";
 import { getAiConfig } from "@/lib/settings/ai-config";
 import { classifyIntent } from "@/lib/ai/runtime/intent-router";
@@ -156,5 +159,86 @@ describe("deriveTurnSignals · stage timing", () => {
     });
     const summary = tracker.summary();
     expect(JSON.stringify(summary)).toContain("classify");
+  });
+});
+
+describe("deriveTurnSignals · a fixed mode does not wait for the classifier (2026-09-23)", () => {
+  // Production's ai_config has defaultMode "deep" (Settings, 2026-08-31), so
+  // every turn waited up to 8 s for a classification that could not change
+  // its mode: the prompt build started 4.8-8.3 s after the request on
+  // 2026-09-23. These drive classifyIntent with a promise that has not
+  // settled and ask whether the turn got past it.
+  //
+  // Positive control (recorded when this block was written): against the
+  // pre-change module both "★" cases are red — the call is still waiting
+  // when the 50 ms window closes — and the first case is green on both.
+  function pendingClassifier() {
+    let resolve!: (v: unknown) => void;
+    let reject!: (e: unknown) => void;
+    const p = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    vi.mocked(classifyIntent).mockReturnValue(p as any);
+    return { resolve, reject };
+  }
+  const STILL_WAITING = "still waiting" as const;
+  const within = <T,>(p: Promise<T>, ms = 50) =>
+    Promise.race([p, new Promise<typeof STILL_WAITING>((r) => setTimeout(() => r(STILL_WAITING), ms))]);
+
+  it("with no fixed mode the turn still waits, and the classification decides the mode", async () => {
+    const c = pendingClassifier();
+    const pending = callWith("hello");
+    expect(await within(pending)).toBe(STILL_WAITING);
+    c.resolve({ mode: "engineer" });
+    const s = await pending;
+    expect(s.mode).toBe("deep");
+    expect(s.classification).toEqual({ mode: "engineer" });
+  });
+
+  it("★ the configured default mode returns without waiting for the classifier", async () => {
+    vi.mocked(getAiConfig).mockResolvedValue({ defaultMode: "deep" } as any);
+    pendingClassifier();
+    const s = await within(callWith("hello"));
+    expect(s).not.toBe(STILL_WAITING);
+    if (s === STILL_WAITING) return;
+    expect(s.mode).toBe("deep");
+    expect(s.classification).toBeUndefined();
+  });
+
+  it("★ a per-request mode override returns without waiting for the classifier", async () => {
+    pendingClassifier();
+    const s = await within(callWith("hello", { modeOverride: "standard" }));
+    expect(s).not.toBe(STILL_WAITING);
+    if (s === STILL_WAITING) return;
+    expect(s.mode).toBe("standard");
+  });
+
+  it("the classification still arrives on classificationPromise; takeClassificationIfLanded sees it only once it has landed", async () => {
+    vi.mocked(getAiConfig).mockResolvedValue({ defaultMode: "deep" } as any);
+    const c = pendingClassifier();
+    const s = await callWith("hello");
+    expect(await takeClassificationIfLanded(s.classificationPromise)).toBeUndefined();
+    const landed = { intent: "general_chat", mode: "operator", model: "m", provider: "p", targets: ["general"] };
+    c.resolve(landed);
+    expect(await s.classificationPromise).toEqual(landed);
+    expect(await takeClassificationIfLanded(s.classificationPromise)).toEqual(landed);
+  });
+
+  it("a classifier that rejects after the turn moved on settles to undefined, never an unhandled rejection", async () => {
+    vi.mocked(getAiConfig).mockResolvedValue({ defaultMode: "deep" } as any);
+    const unhandled: unknown[] = [];
+    const onUnhandled = (e: unknown) => unhandled.push(e);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const c = pendingClassifier();
+      const s = await callWith("hello");
+      c.reject(new Error("provider down"));
+      expect(await s.classificationPromise).toBeUndefined();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
   });
 });

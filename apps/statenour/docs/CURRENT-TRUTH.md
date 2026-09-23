@@ -43,13 +43,22 @@ only what changes how you WORK is repeated here.
   stamped `toolsExpectedSource: "routing"` count, every earlier row (128) is legacy and
   excluded, so it reads "rate withheld" until 40 routing-sourced turns exist. The panel is
   the live source; do not compute a rate from counts it withholds.
-- **Contextual recall rarely reached the model (measured 2026-09-23; fix in #2577, receipt owed).** `buildBrainContext`
-  races `getContextualMemories` at 3 s and the lane runs its stages sequentially, so the
-  "Context Memories" block landed on 4 of 89 chat turns since 09-18 (41 of 44 logged recalls
-  took over 3 s; on 09-23 it landed only on the one turn that finished in 2,997 ms, warm turns
-  included). "Hybrid Recall" is what the model actually sees. #2577 runs the independent
-  stages concurrently; until its post-deploy receipts are read, do not tune contextual ranking.
-  `pnpm eval:recall` calls the lane directly and cannot see the race.
+- **Contextual recall reaches the model now (fixed 2026-09-23: #2577 plus the region move).**
+  `buildBrainContext` races `getContextualMemories` at 3 s. Before, the lane ran its stages
+  one after another and the "Context Memories" block landed on 4 of 89 chat turns since 09-18.
+  #2577 runs the independent stages concurrently (3 of 5 turns landed on `us-west2`); moving
+  statenour-web next to Neon (next bullet) made it 3 of 3 at 1.4-2.6 s. The lexical lane was
+  skipped on 2 of the first 3 `us-east4` turns (its SQL passed the 900 ms `statement_timeout`
+  under the turn's query burst) - see RECONCILIATION W16c. `pnpm eval:recall` calls the lane
+  directly and cannot see the race.
+- **statenour-web runs in Railway `us-east4-eqdc4a` (Virginia) since 2026-09-23 12:32Z**, next
+  to its Neon database (`aws-us-east-1`). Until then it ran in `us-west2` (California) and every
+  query crossed the country (~60 ms per round trip). Every other Railway service
+  (statenour-worker, Redis, perplexica, searxng, nickstire's `MAINnicks-tire-auto`) is still in
+  `us-west2`; they reach statenour-web over its public domain or the private network, which
+  works across regions. Latency measured before 12:32Z 09-23 is not comparable with later.
+  The Neon compute (`ep-quiet-wave-am320eo1`) autoscales 0.5-2 CU since 12:48Z 09-23 (was
+  0.25-2, raised on the operator's approval so the chat turn's query burst meets more CPU).
 - **Scratch debris is gated repo-wide** by `scripts/agent-os/scratchDebris.test.mjs`
   (agent-policy workflow, every PR). Temp probes are welcome; committing them is not.
 - **The overnight operating doctrine is version-controlled** at repo-root
