@@ -469,14 +469,24 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
-  // 7. Statenour real-time sync — ONLY the types "nour-os-bridge" (#1) does not map.
-  // Q-12 phase 0 (docs/adr/0019-idempotent-bridge-writes.md §9): with "all", the other
-  // 14 types reached /api/sync/events twice (as an audit-only duplicate under
-  // nickstire:<bus type>). eventBus.statenourOnce.test.ts fails on 0 or 2 senders.
+  // 7. Statenour real-time sync. Q-12 phase 0 (docs/adr/0019-idempotent-bridge-writes.md §9):
+  // with "all", every type the "nour-os-bridge" (#1) also maps reached /api/sync/events twice.
+  // It now carries only (a) the 3 types the bridge does not map and (b) the types whose bridge
+  // adapter is mis-wired: it reads field names the emitters never send, so the bridge copy is
+  // an empty payload with a constant dedupe hash (distinct events within 5 min collapse) or
+  // drops the core field. Those keep today's double path until their adapter is fixed.
+  // eventBus.statenourOnce.test.ts drives the real bridge and pins both lists.
   registerDestination({
     name: "statenour-sync",
     enabled: true,
-    handles: ["social_draft:sync", "mirror_synced", "data_refreshed"],
+    handles: [
+      // (a) not mapped by the bridge
+      "social_draft:sync", "mirror_synced", "data_refreshed",
+      // (b) mis-wired bridge adapters (onRevenueMilestone, onInvoiceCreated, onCampaignResult,
+      // onStageChanged, onEmergencyRequest read fields these emitters do not send)
+      "invoice_paid", "payment_received", "estimate_generated",
+      "campaign_sent", "social_posted", "stage_changed", "emergency_request",
+    ],
     softFail: true,
     handler: async (event) => {
       const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
@@ -486,6 +496,10 @@ async function ensureInitialized(): Promise<void> {
       try {
         // Map event types to statenour brain categories for richer processing
         const categoryMap: Record<string, string> = {
+          invoice_paid: "invoice", payment_received: "invoice", estimate_generated: "invoice",
+          emergency_request: "emergency",
+          campaign_sent: "campaign", social_posted: "campaign",
+          stage_changed: "stage-change",
           mirror_synced: "sync", data_refreshed: "sync",
           "social_draft:sync": "campaign",
         };
