@@ -100,6 +100,36 @@ export interface GateTurn {
   excerpt?: string;
   /** The reply opens with the L2 verifier banner (`isVerifierRewritten`). */
   verifierBanner?: boolean;
+  /** Which guard wrote the banner, read off its first line (`classifyBannerCause`). */
+  bannerCause?: BannerCause | null;
+}
+
+/**
+ * 2026-09-23 (review on #2509) · the verifier marker is shared by four
+ * producers, and only two of them are outcomes the pre-flush lane could have
+ * held: the L2 fabrication rewriter ("… but no matching tool call fired") and
+ * the action-receipt verifier ("claimed action(s) … but tool call(s) failed /
+ * could not be verified / did not confirm success"). The known-truth guard
+ * ("asserts a status …" / "references retired …") is the truth guard's, not
+ * the lane's. The cause is not persisted, so it is read off the banner text -
+ * a source-contract test pins each producer's diagnostic to this classifier.
+ */
+export type BannerCause = "l2_action_claim" | "action_receipt" | "known_truth" | "other";
+
+export function classifyBannerCause(bannerText: string): BannerCause {
+  const firstLine = bannerText.split("\n")[0] ?? "";
+  if (/but no matching tool call fired/.test(firstLine)) return "l2_action_claim";
+  if (/claimed action\(s\)/.test(firstLine)) return "action_receipt";
+  if (/asserts a status|references retired or inactive infrastructure/.test(firstLine)) return "known_truth";
+  return "other";
+}
+
+export interface BannerCauseRow {
+  cause: BannerCause;
+  turns: number;
+  wouldHaveBuffered: number;
+  wouldHaveStreamed: number;
+  noShadow: number;
 }
 
 export type BlockDriver = "named_claim" | "fact_check" | "length" | "other";
@@ -142,6 +172,8 @@ export interface BufferShadow {
     noShadow: number;
     /** null below MIN_SAMPLE banner turns; the recall's own floor. */
     recallPct: number | null;
+    /** The same counts split by which guard wrote the banner, most turns first. */
+    byCause: BannerCauseRow[];
   };
   /** True when the shadowed sample supports a buffer rate. Says nothing about the recall. */
   sufficient: boolean;
@@ -228,20 +260,36 @@ export function assembleBufferShadow(
   let wouldBuffer = 0;
   let wouldStream = 0;
   const banner = { turns: 0, wouldHaveBuffered: 0, wouldHaveStreamed: 0, noShadow: 0 };
+  const byCause = new Map<BannerCause, BannerCauseRow>();
+  const causeRow = (t: GateTurn): BannerCauseRow => {
+    const cause: BannerCause = t.bannerCause ?? "other";
+    const row = byCause.get(cause) ?? { cause, turns: 0, wouldHaveBuffered: 0, wouldHaveStreamed: 0, noShadow: 0 };
+    byCause.set(cause, row);
+    return row;
+  };
   const byReason = new Map<string, BufferReasonRow>();
 
   for (const t of cohortTurns) {
     const shadow = t.gate.turnRisk;
     const bannered = t.verifierBanner === true;
-    if (bannered) banner.turns++;
+    if (bannered) {
+      banner.turns++;
+      causeRow(t).turns++;
+    }
     if (!shadow) {
-      if (bannered) banner.noShadow++;
+      if (bannered) {
+        banner.noShadow++;
+        causeRow(t).noShadow++;
+      }
       continue;
     }
     withShadow++;
     if (shadow.buffer) {
       wouldBuffer++;
-      if (bannered) banner.wouldHaveBuffered++;
+      if (bannered) {
+        banner.wouldHaveBuffered++;
+        causeRow(t).wouldHaveBuffered++;
+      }
       // A turn cites a reason once, however many times the classifier listed it.
       // JSON off the row is untyped: a non-array here must not be iterated
       // (a string would spread into characters).
@@ -254,10 +302,14 @@ export function assembleBufferShadow(
       }
     } else {
       wouldStream++;
-      if (bannered) banner.wouldHaveStreamed++;
+      if (bannered) {
+        banner.wouldHaveStreamed++;
+        causeRow(t).wouldHaveStreamed++;
+      }
     }
   }
 
+  const causeRows = [...byCause.values()].sort((a, b) => b.turns - a.turns || a.cause.localeCompare(b.cause));
   const rows = [...byReason.values()].sort(
     (a, b) => b.buffered - a.buffered || b.bannered - a.bannered || a.reason.localeCompare(b.reason),
   );
@@ -294,7 +346,7 @@ export function assembleBufferShadow(
   // tool never fired can be classified differently here than it would be live.
   if (banner.turns > 0) {
     parts.push(
-      "Banner = any verifier banner (L2 action-receipt, known-truth or L6), not only L6-preventable ones; the shadow's toolsExpected is recomputed after generation.",
+      `Banner causes: ${causeRows.map((r) => `${r.cause} ${r.turns}`).join(" · ")} — a banner is any verifier banner, not only L6-preventable ones: the action-claim and action-receipt banners are outcomes the pre-flush lane could have held, a known-truth banner is the truth guard's. The shadow's toolsExpected is recomputed after generation.`,
     );
   }
   const top = rows[0];
@@ -313,7 +365,7 @@ export function assembleBufferShadow(
     wouldStream,
     wouldBufferPct,
     byReason: rows,
-    banner: { ...banner, recallPct },
+    banner: { ...banner, recallPct, byCause: causeRows },
     sufficient,
     caveat: parts.join(" "),
   };
@@ -364,7 +416,8 @@ export async function buildEvidenceGateCalibration(): Promise<EvidenceGateCalibr
     const gate = (r.tokenUsage as { evidenceGate?: GateVerdict } | null)?.evidenceGate;
     if (!gate) continue;
     const content = r.content ?? "";
-    turns.push({ createdAt: r.createdAt, gate, excerpt: content, verifierBanner: isVerifierRewritten(content) });
+    const bannered = isVerifierRewritten(content);
+    turns.push({ createdAt: r.createdAt, gate, excerpt: content, verifierBanner: bannered, bannerCause: bannered ? classifyBannerCause(content) : null });
   }
   return assembleGateCalibration(turns);
 }
