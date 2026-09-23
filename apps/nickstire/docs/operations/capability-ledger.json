@@ -2379,6 +2379,28 @@
         "SLA reminder cron (the instant text covers first response)",
         "A2P 10DLC recruiting campaign before any text to an applicant"
       ]
+    },
+    {
+      "capabilityId": "receptionist-tire-inquiry-truth",
+      "name": "A tire caller is never told the shop was sent their info, and the receptionist is never instructed to promise an untracked timed callback",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "PR #2559 (branch claude/gallant-hamilton-yjulym). What changed and why:\n- An ordinary tire inquiry has persisted nothing but the call record since the 2026-06-05 no-lead directive, yet the caller heard \"I've sent the tire info to the shop\".\n- server/lib/tireInquiryReply.ts (ordinaryTireInquiryReply), used by routers/voiceAgent.ts, now says the size was NOTED and echoes it back, so a misheard size can be corrected on the call.\n- server/services/vapi.ts: the tireInquiry description and the system-prompt line no longer claim \"lead saved\", and tireInquiry.notes no longer tells the model to write \"promised 15 min callback\". The system prompt's RACK-CHECK section already forbids that promise because nothing tracks it.\n- The legacy notes-based rack-check lead path is unchanged, for compatibility.",
+        "tests": "server/__tests__/vapiToolPromiseTruth.test.ts (5), with a positive control first:\n- Against the unfixed code it went red 4 of 4, each for its named reason: the timed promise in tireInquiry.notes, \"lead saved\" in the tool text, and the reply saying \"sent … shop\".\n- Green after the fix.\n- The matcher is pinned against the exact text that shipped.\nFull nickstire suite: 695 files passed, 2 skipped; 8,645 tests passed, 58 skipped; tsc 0 errors.",
+        "liveRuns": "NONE. Rungs, stated so the ladder is honest:\n- The spoken reply string reaches callers when this deploys.\n- The tool descriptions and system-prompt line reach Vapi ONLY when the operator presses Push Latest Config (updateAssistant, server/services/vapi.ts).\n- Proof of LIVE is a production call after both steps whose tool response reads \"noted\".\n- Proof of OUTCOME is the customer-corpus census field reaskedKnownSize (pnpm diag:customer-corpus), which counts sizes re-asked in later calls of an episode.",
+        "deploymentId": null
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "The claim is now true but thin: the counter still receives nothing from an ordinary tire inquiry. Making 'noted' useful means persisting the demand (size, vehicle, new/used) to the call record and showing it at the counter. That is Part I #5 of docs/operations/CUSTOMER-CORPUS-RESEARCH-2026-09-23.md."
+        }
+      ]
     }
   ],
   "axes": {
