@@ -72,6 +72,18 @@ const BOT_PATTERNS = [
   "cohere-ai", // Cohere
   "duckassistbot", // DuckDuckGo AI answers
 
+  // ─── Job-board crawlers ────────────────────────────────────────────────
+  // Indeed's free organic channel for a small employer is crawling the
+  // employer's own career pages (its 2026-03-31 single-source feed policy
+  // made free XML feeds sponsored-only; Indeed says it still scrapes public
+  // career sites). Without these tokens Indeed was served the empty SPA shell
+  // for /careers/<slug> — no title, no pay, no JobPosting. Tokens from Indeed's
+  // crawler directory entries (Cloudflare Radar: IndeedJobBot; udger UA list:
+  // IndeedBot 1.1), checked 2026-09-23. NOT yet observed in our own logs —
+  // confirm in Railway http logs and delete any token that never fires.
+  "indeedjobbot",
+  "indeedbot",
+
   // DELIBERATELY ABSENT — do not "complete the set" by adding these:
   //
   //   google-extended — NOT a user agent. It is a robots.txt control token that

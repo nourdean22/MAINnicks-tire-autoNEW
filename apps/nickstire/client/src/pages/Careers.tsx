@@ -8,7 +8,7 @@ import { useState } from "react";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs, trackEvent, trackPhoneClick } from "@/components/SEO";
-import { openJobOpenings, jobOpeningPath } from "@shared/jobOpenings";
+import { openJobOpenings, jobOpeningPath, formatHourlyPayRange } from "@shared/jobOpenings";
 import { Link } from "wouter";
 import { BUSINESS, SITE_URL } from "@shared/business";
 import { trpc } from "@/lib/trpc";
@@ -40,6 +40,8 @@ interface Position {
   requirements: string[];
   nice: string[];
   schemaId: string;
+  /** Visible hourly band, identical to the leaf page's baseSalary, or null. */
+  pay: string | null;
   /**
    * Fixed original JobPosting date — NOT recomputed on render. Google's
    * job-posting content policy explicitly bans resetting datePosted when
@@ -65,16 +67,27 @@ const POSITIONS: Position[] = openJobOpenings().map((j) => ({
   requirements: j.requirements,
   nice: j.nice,
   schemaId: j.slug,
+  pay: formatHourlyPayRange(j),
   datePosted: j.datePosted,
 }));
 
+// One line per role that has a published band, e.g.
+// "Automotive Technician $30.00–$37.50/hr". Derived, never typed: the old
+// hardcoded ceiling-only helper text disagreed with the structured data.
+const PAY_SUMMARY = POSITIONS.filter((p) => p.pay).map((p) => `${p.title} ${p.pay}`);
+
 // ─── WHY WORK HERE ────────────────────────────────────────
 function buildWhyWork(reviewRating: number, reviewCountDisplay: string) {
+  // 2026-09-23 · rewritten to claims the shop can back. The previous first card
+  // said "one of Cleveland's busiest shops ... your hours are full" — the
+  // recruiting research could not verify that, and our own invoice mirror
+  // does not yet support it (docs/recruiting/RECRUITING-ENGINE-2026-09.md,
+  // Sec. 6). Workload numbers go here only once they are measured.
   return [
     {
       icon: Shield,
-      heading: "Consistent work, consistent money",
-      body: "We're one of Cleveland's busiest shops. The volume is here every single day. You won't sit around waiting for cars — you'll stay busy, your hours are full, and your check is on time. This is the kind of place where you can raise a family.",
+      heading: "Hourly pay, not flat rate",
+      body: `You're paid for the hours you work. ${PAY_SUMMARY.join(" · ")}. A slow afternoon doesn't come out of your check.`,
     },
     {
       icon: Wrench,
@@ -84,12 +97,12 @@ function buildWhyWork(reviewRating: number, reviewCountDisplay: string) {
     {
       icon: TrendingUp,
       heading: "Room to grow",
-      body: "If you want to develop diagnostics skills, move into a senior role, or eventually advise on shop operations, we're interested in growing with you. Pay scales with experience and what you bring to the table.",
+      body: "If you want to develop diagnostics skills, move into a senior role, or eventually advise on shop operations, we're interested in growing with you. ASE certifications and diagnostic skill move you up the posted range.",
     },
     {
       icon: Users,
-      heading: `${reviewRating} stars. ${reviewCountDisplay} reviews.`,
-      body: "That's not marketing — that's what our customers actually say. You'll work at a shop people trust and recommend. That kind of reputation means steady customers and a team that does things right.",
+      heading: `${reviewRating} stars. ${reviewCountDisplay} Google reviews.`,
+      body: "That's our customers talking, not our employees — it shows the cars keep coming. What it's like to work here, ask the techs. Stop by during business hours and see the bays yourself.",
     },
     {
       icon: Clock,
@@ -135,6 +148,9 @@ function PositionCard({ pos }: { pos: Position }) {
             {pos.type}
           </span>
         </div>
+        {pos.pay && (
+          <p className="mt-3 text-base font-bold text-nick-yellow">{pos.pay} · hourly</p>
+        )}
         <p className="mt-4 text-sm text-foreground/70 leading-relaxed">{pos.description}</p>
       </div>
 
@@ -208,12 +224,17 @@ function PositionCard({ pos }: { pos: Position }) {
 }
 
 // ─── APPLICATION FORM ─────────────────────────────────────
-export function ApplicationForm() {
+export function ApplicationForm({ defaultPosition }: { defaultPosition?: string } = {}) {
   const [form, setForm] = useState({
     name: "",
     phone: "",
     email: "",
-    position: POSITIONS[0].title,
+    // A job page passes its own title so the applicant never has to re-pick
+    // the role they are already reading about.
+    position:
+      defaultPosition && POSITIONS.some((p) => p.title === defaultPosition)
+        ? defaultPosition
+        : POSITIONS[0].title,
     experience: "",
     message: "",
     referredBy: "",
@@ -377,7 +398,7 @@ export function ApplicationForm() {
             <option value="master">Master Tech (10+ years)</option>
           </select>
           <p className="text-[10px] text-foreground/30 mt-1">
-            Pay depends on experience and what you bring. Up to $35/hr for master techs, up to $25/hr for tire/hybrid techs.
+            Hourly pay: {PAY_SUMMARY.join(" · ")}. Where you land depends on experience and certifications.
           </p>
         </div>
       </div>
@@ -623,8 +644,8 @@ export default function Careers() {
             </h3>
             <p className="text-sm text-foreground/60 leading-relaxed max-w-lg mx-auto">
               Refer a technician who gets hired and stays 90 days — you get <span className="font-bold text-nick-yellow">$300 cash</span>.
-              Customers who refer a new hire get <span className="font-bold text-nick-yellow">free services on us</span>.
-              Just tell them to mention your name when they apply.
+              Customer, parts rep, tool-truck driver, fellow tech — anyone can refer.
+              Just tell them to put your name and phone in the "Referred by" box when they apply.
             </p>
           </div>
         </div>
