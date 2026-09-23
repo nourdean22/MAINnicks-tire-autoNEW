@@ -54,6 +54,13 @@ export type SchemaExpectation =
       table: string;
       column: string;
       nullable?: boolean;
+      /** When set, information_schema.columns.data_type must equal it (e.g. "tsvector"). */
+      dataType?: string;
+      /** When set, the column must be GENERATED ALWAYS with exactly this generation_expression (Postgres's
+       *  canonical spelling, e.g. "to_tsvector('english'::regconfig, content)"). A generated column is the
+       *  ONLY guarantee that nothing has to maintain the value; an ordinary column with the same name reads
+       *  as healthy to a name check while its readers trust a value nothing updates (review on #2553). */
+      generationExpression?: string;
       reason: string;
     }
   | {
@@ -385,7 +392,10 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     table: "brain_memories",
     column: "content_tsv",
     nullable: true,
-    reason: "stored tsvector for the brain FTS lane - ranking on it costs a read, ranking on to_tsvector(content) cost 1.9 s per query",
+    dataType: "tsvector",
+    // Postgres's canonical spelling of the migration's expression, read back from production 2026-09-23 00:24Z.
+    generationExpression: "to_tsvector('english'::regconfig, content)",
+    reason: "stored GENERATED tsvector for the brain FTS lane - the readers trust it instead of parsing content (1.9 s per query); an ordinary or differently generated column would serve them a value nothing maintains",
   },
   {
     // Matched by DEFINITION, not by name (review on #2553): an index that merely carries the
@@ -428,6 +438,9 @@ interface ColumnRow {
   column_name: string;
   is_nullable: "YES" | "NO";
   data_type: string;
+  /** information_schema.columns.is_generated: "ALWAYS" | "NEVER" (Postgres 12+). */
+  is_generated?: string | null;
+  generation_expression?: string | null;
 }
 
 async function checkColumnExists(
@@ -442,7 +455,9 @@ async function checkColumnExists(
   const rows = await prisma.$queryRaw<ColumnRow[]>`
     SELECT column_name::text AS column_name,
            is_nullable::text AS is_nullable,
-           data_type::text AS data_type
+           data_type::text AS data_type,
+           is_generated::text AS is_generated,
+           generation_expression::text AS generation_expression
     FROM information_schema.columns
     WHERE table_schema = 'public'
       AND table_name = ${e.table}
@@ -463,6 +478,31 @@ async function checkColumnExists(
         severity: "medium",
         expectation: e,
         problem: `column "${e.table}"."${e.column}" nullability mismatch — expected ${e.nullable ? "nullable" : "NOT NULL"}, got ${rows[0].is_nullable}`,
+      };
+    }
+  }
+  // Type and generation are HIGH: the readers do not derive this value, they trust it. A wrong type
+  // breaks their SQL; an ordinary or differently generated column serves a value nothing maintains.
+  if (e.dataType && rows[0].data_type !== e.dataType) {
+    return {
+      severity: "high",
+      expectation: e,
+      problem: `column "${e.table}"."${e.column}" type mismatch — expected ${e.dataType}, got ${rows[0].data_type}`,
+    };
+  }
+  if (e.generationExpression) {
+    if (rows[0].is_generated !== "ALWAYS") {
+      return {
+        severity: "high",
+        expectation: e,
+        problem: `column "${e.table}"."${e.column}" is not a generated column (is_generated=${rows[0].is_generated ?? "unknown"}) — nothing maintains its value, readers trust it`,
+      };
+    }
+    if ((rows[0].generation_expression ?? "") !== e.generationExpression) {
+      return {
+        severity: "high",
+        expectation: e,
+        problem: `column "${e.table}"."${e.column}" generation expression drift — expected ${e.generationExpression}, got ${rows[0].generation_expression ?? "null"}`,
       };
     }
   }
