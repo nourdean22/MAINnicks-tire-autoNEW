@@ -28,6 +28,8 @@
  *   const repo = await ghJson("/repos/owner/repo");
  */
 import { spawnSync } from "node:child_process";
+import { appendFileSync } from "node:fs";
+import { basename } from "node:path";
 
 const API = "https://api.github.com";
 
@@ -77,6 +79,24 @@ export function resolveToken() {
   return null;
 }
 
+/** API budget meter (2026-09-23). CI's GITHUB_TOKEN gets ~1,000 requests/hour per
+ * repo, and live canaries here exhausted it ("403 API rate limit exceeded for
+ * installation") the day the full-sweep canary landed. When AGENT_OS_GH_CALL_LOG
+ * names a file, every request appends one JSON line {script, method, path} to it;
+ * verify.mjs sets it and prints the per-run total and top consumers, so the budget
+ * is measured on every run instead of discovered by the next 403. Never throws: a
+ * meter that can break the call it meters is worse than none. */
+function recordCall(method, url) {
+  const log = process.env.AGENT_OS_GH_CALL_LOG;
+  if (!log) return;
+  try {
+    const script = process.argv[1] ? basename(process.argv[1]) : "(eval)";
+    appendFileSync(log, JSON.stringify({ script, method, path: new URL(url).pathname }) + "\n");
+  } catch {
+    /* metering is best-effort */
+  }
+}
+
 /** Low-level fetch against the GitHub REST API. Caller must have already called
  * ensureProxyEnv() once at process start. Throws if no token can be resolved. */
 export async function ghFetch(path, opts = {}) {
@@ -97,6 +117,7 @@ export async function ghFetch(path, opts = {}) {
     );
   }
   const url = path.startsWith("http") ? path : `${API}${path}`;
+  recordCall(opts.method ?? "GET", url);
   return fetch(url, {
     ...opts,
     headers: {
