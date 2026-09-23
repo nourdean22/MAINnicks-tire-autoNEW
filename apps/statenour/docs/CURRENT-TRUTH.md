@@ -43,6 +43,11 @@ only what changes how you WORK is repeated here.
   stamped `toolsExpectedSource: "routing"` count, every earlier row (128) is legacy and
   excluded, so it reads "rate withheld" until 40 routing-sourced turns exist. The panel is
   the live source; do not compute a rate from counts it withholds.
+- **Contextual recall rarely reaches the model (measured 2026-09-23).** `buildBrainContext`
+  races `getContextualMemories` at 3 s and the lane runs its stages sequentially, so the
+  "Context Memories" block landed on 4 of 89 chat turns since 09-18 (41 of 44 logged recalls
+  took over 3 s). "Hybrid Recall" is what the model actually sees. Fix the race before
+  tuning contextual ranking; `pnpm eval:recall` calls the lane directly and cannot see it.
 - **Scratch debris is gated repo-wide** by `scripts/agent-os/scratchDebris.test.mjs`
   (agent-policy workflow, every PR). Temp probes are welcome; committing them is not.
 - **The overnight operating doctrine is version-controlled** at repo-root
