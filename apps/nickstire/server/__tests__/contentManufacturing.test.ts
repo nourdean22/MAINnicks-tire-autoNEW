@@ -90,7 +90,7 @@ vi.mock("../db", () => ({
 }));
 
 vi.mock("../services/weatherIntelligence", () => ({
-  checkWeatherTriggers: vi.fn().mockResolvedValue({
+  evaluateWeatherTriggers: vi.fn().mockResolvedValue({
     triggered: ["cold_snap"],
     details: "Cold snap trigger: 25 degrees"
   })

@@ -2229,7 +2229,8 @@
       "lastVerifiedAt": "2026-09-23",
       "codeState": "merged",
       "operationalState": "unverified",
-      "exposure": "internal"
+      "exposure": "internal",
+      "exposureNote": "DISPUTED 2026-09-23 (post-merge audit A), label NOT changed here - an operator call. This lane texts lapsed customers with no human in the loop once the flag and key are set (both are), so 'internal' understates it. Also: the heavy_rain SATISFIED reading above ('moderate rain') was an artifact of a units bug - both weather entry points multiplied OpenWeather rain.1h/snow.1h by 25.4, but those are already mm/h under units=imperial (openweathermap.org/current), so heavy_rain (> 20 mm/h) fired above ~0.79 mm/h. Fixed on branch nickstire/weather-units-no-content-sends, which also moves the content generator (contentManufacturing.ts explodeTopic/generateScoredDraft) off the sending checkWeatherTriggers() onto the pure evaluateWeatherTriggers(). No state moved."
     },
     {
       "capabilityId": "mms-photo-assess",

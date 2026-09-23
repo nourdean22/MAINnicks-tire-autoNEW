@@ -166,6 +166,24 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
 }
 
 /**
+ * The ONE parser for an OpenWeather current-weather response — both entry
+ * points below use it so they cannot drift. `rain.1h` / `snow.1h` are mm/h
+ * even with units=imperial ("only mm/h as units of measurement are available
+ * for this parameter", https://openweathermap.org/current). They were once
+ * multiplied by 25.4, which made heavy_rain (> 20 mm/h) fire on ~0.8 mm/h.
+ */
+export function parseCurrentWeather(raw: any, now: Date = new Date()): WeatherData {
+  return {
+    tempMax: raw?.main?.temp_max ?? 50,
+    tempMin: raw?.main?.temp_min ?? 40,
+    rainMm: raw?.rain?.["1h"] ?? 0,
+    snowMm: raw?.snow?.["1h"] ?? 0,
+    description: raw?.weather?.[0]?.description ?? "",
+    month: now.getMonth() + 1,
+  };
+}
+
+/**
  * PURE weather evaluation — fetch + classify, ZERO side effects (no alerts,
  * no SMS). This is the ONLY weather entry point observational surfaces
  * (shadow planner, dashboards) may use: #824 review found the Control tab's
@@ -184,14 +202,7 @@ export async function evaluateWeatherTriggers(): Promise<{ triggered: string[]; 
     );
     if (!res.ok) return { triggered: [], details: `API error: ${res.status}` };
     const raw = await res.json();
-    const data: WeatherData = {
-      tempMax: raw.main?.temp_max ?? 50,
-      tempMin: raw.main?.temp_min ?? 40,
-      rainMm: (raw.rain?.["1h"] ?? 0) * 25.4,
-      snowMm: (raw.snow?.["1h"] ?? 0) * 25.4,
-      description: raw.weather?.[0]?.description ?? "",
-      month: new Date().getMonth() + 1,
-    };
+    const data = parseCurrentWeather(raw);
     const triggered = TRIGGERS.filter((t) => t.check(data)).map((t) => t.id);
     return { triggered, details: `Temp: ${data.tempMin}-${data.tempMax}°F, ${data.description}` };
   } catch (e) {
@@ -214,14 +225,7 @@ export async function checkWeatherTriggers(): Promise<{ triggered: string[]; det
     if (!res.ok) return { triggered: [], details: `API error: ${res.status}` };
 
     const raw = await res.json();
-    const data: WeatherData = {
-      tempMax: raw.main?.temp_max ?? 50,
-      tempMin: raw.main?.temp_min ?? 40,
-      rainMm: (raw.rain?.["1h"] ?? 0) * 25.4,
-      snowMm: (raw.snow?.["1h"] ?? 0) * 25.4,
-      description: raw.weather?.[0]?.description ?? "",
-      month: new Date().getMonth() + 1,
-    };
+    const data = parseCurrentWeather(raw);
 
     const triggered: string[] = [];
 

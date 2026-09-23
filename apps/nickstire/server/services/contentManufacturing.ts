@@ -14,7 +14,8 @@ import {
 } from "../../drizzle/schema";
 import { invokeLLM } from "../_core/llm";
 import { createLogger } from "../lib/logger";
-import { checkWeatherTriggers } from "./weatherIntelligence";
+// PURE read only: checkWeatherTriggers() alerts Telegram and texts customers (2026-09-23 audit A).
+import { evaluateWeatherTriggers } from "./weatherIntelligence";
 import { applyCreativeSkills } from "./skillRouter";
 import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
 
@@ -138,7 +139,7 @@ export async function explodeTopic(
   // B. Query weather triggers
   let weatherDetails = "Normal Cleveland weather";
   try {
-    const weather = await checkWeatherTriggers();
+    const weather = await evaluateWeatherTriggers();
     weatherDetails = weather.details;
   } catch (e) {
     log.warn("Weather check failed during explodeTopic:", e);
@@ -634,7 +635,7 @@ export async function generateScoredDraft(
   // Gather current weather state for weather trigger check
   let weatherCond = "";
   try {
-    const weather = await checkWeatherTriggers();
+    const weather = await evaluateWeatherTriggers();
     if (weather.triggered.length > 0) {
       weatherCond = weather.triggered[0];
     }
