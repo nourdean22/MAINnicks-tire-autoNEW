@@ -138,6 +138,23 @@ vi.mock("../_core/notification", () => ({
   notifyOwner: (...args: any[]) => mockNotifyOwner(...args),
 }));
 
+// Every WHERE the orchestrator built in this test, rendered by drizzle's own
+// MySQL dialect, so an assertion reads the query that would reach TiDB.
+import { SQL } from "drizzle-orm";
+import { MySqlDialect } from "drizzle-orm/mysql-core";
+const dialect = new MySqlDialect();
+function cooldownStatuses(): string[] {
+  const q = mockDb.where.mock.calls
+    .map((args: unknown[]) => args[0])
+    .filter((c: unknown): c is SQL => c instanceof SQL)
+    .map((c: SQL) => dialect.sqlToQuery(c))
+    .find((r) => r.sql.includes("cooldown_key"));
+  if (!q) throw new Error("no cooldown query was built");
+  const inline = [...q.sql.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  const bound = q.params.filter((p): p is string => typeof p === "string");
+  return [...inline, ...bound];
+}
+
 // Import orchestrator and helpers
 import { orchestrateSms, loadCustomerContext, humanizeCopy } from "../services/smsOrchestrator";
 import { getTemplateVariant } from "../services/smsMessageCatalog";
@@ -423,6 +440,31 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
   // 13b-13c (2026-09-23). The recap tool now passes the call id
   // (routes/webhooks/vapi.recapCallId.test.ts), so the recap has a stable
   // idempotency key. These pin what that key buys, in both send paths.
+  // 2026-09-23 (operator: "leave them left out"). The shop gateway's delivery
+  // receipt flips a row from sent to delivered (routes/webhooks/smsGateway.ts)
+  // and a gateway timeout stores sending ("do not retry": lib/smsOutcome.ts
+  // smsClaimConsumed). A cooldown counting only sent and queued stops blocking
+  // the moment either happens. Booking reminders are left out on purpose: their
+  // 365-day key would block a rescheduled booking's new reminder.
+  it("Cooldown -> counts every status a sent text can reach", async () => {
+    await orchestrateSms({ type: "review_request", phone: "2165550021", name: "John", bookingId: 9 } as any);
+    const statuses = cooldownStatuses();
+    for (const s of ["sent", "queued", "sending", "delivered", "replied"]) expect(statuses).toContain(s);
+    expect(statuses).not.toContain("failed");
+  });
+
+  it("Cooldown -> booking reminders keep counting only sent and queued", async () => {
+    await orchestrateSms({
+      type: "booking_reminder", phone: "2165550022", name: "John", reminderType: "24h-before",
+      service: "Tires", refCode: "77", bookingId: 77,
+    } as any);
+    const statuses = cooldownStatuses();
+    expect(statuses).toContain("sent");
+    expect(statuses).toContain("queued");
+    expect(statuses).not.toContain("delivered");
+    expect(statuses).not.toContain("sending");
+  });
+
   it("Vapi confirmation -> a second recap on the same call returns the first and sends nothing", async () => {
     mockTableResponses.sms_orchestrations = [{
       id: 7,
