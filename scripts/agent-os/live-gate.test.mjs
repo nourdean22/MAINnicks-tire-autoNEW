@@ -133,6 +133,37 @@ test("E2E: AGENT_OS_LIVE_SWEEP=1 -> the gate lets it through to the token check 
   assert.match(r.stdout, /LIVE, report-only[^\n]*# SKIP no GitHub token/);
 });
 
+const GHC = "AGENT_OS_LIVE_GHCLIENT";
+const ghcSubject = subjectFor(GHC);
+
+test("github-client canaries: the client's own change -> RUN; an unrelated diff -> SKIP", () => {
+  assert.deepEqual(
+    ghcSubject.filter((f) => f.startsWith("scripts/")),
+    ["scripts/agent-os/github-client.mjs", "scripts/agent-os/github-client.test.mjs", "scripts/agent-os/live-gate.mjs"],
+  );
+  assert.ok(ghcSubject.includes(".github/workflows/agent-policy.yml"));
+  const run = decide({ name: GHC, changedFiles: ["docs/x.md", "scripts/agent-os/github-client.mjs"], subject: ghcSubject });
+  assert.equal(run.run, true);
+  assert.match(run.reason, /scripts\/agent-os\/github-client\.mjs/);
+  // A sweep-only change does not spend the client's requests, and vice versa.
+  const skip = decide({ name: GHC, changedFiles: ["apps/nickstire/server/index.ts", "scripts/agent-os/branch-sweep.mjs"], subject: ghcSubject });
+  assert.equal(skip.run, false);
+  assert.match(skip.reason, /AGENT_OS_LIVE_GHCLIENT=1 to force/);
+});
+
+test("E2E: AGENT_OS_LIVE_GHCLIENT=0 -> both real-API github-client tests SKIP with the reason; the offline ones still run", () => {
+  const env = { ...gitEnv(), AGENT_OS_LIVE_GHCLIENT: "0", GH_TOKEN: "t" }; // a token, so only the gate can skip them
+  delete env.GITHUB_EVENT_NAME;
+  delete env.NODE_TEST_CONTEXT;
+  delete env.HTTPS_PROXY; // keeps the proxy-only tests (one of which is live) out of this run
+  delete env.https_proxy;
+  const r = spawnSync(process.execPath, ["--test", "--test-reporter=tap", join(HERE, "github-client.test.mjs")], { encoding: "utf8", env, timeout: 60000 });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /FIXED: ghJson\(\)[^\n]*# SKIP[^\n]*AGENT_OS_LIVE_GHCLIENT=0 forces a skip/);
+  assert.match(r.stdout, /LIVE: ghPaginate[^\n]*# SKIP[^\n]*AGENT_OS_LIVE_GHCLIENT=0 forces a skip/);
+  assert.match(r.stdout, /^ok \d+ - resolveToken prefers GH_TOKEN/m);
+});
+
 test("every governed canary name is wired into a test file (no orphan gate entries)", () => {
   const sources = readdirSync(HERE)
     .filter((f) => f.endsWith(".test.mjs") && f !== "live-gate.test.mjs")
