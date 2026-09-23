@@ -433,8 +433,8 @@ export async function updateReferralStatus(id: number, status: "pending" | "visi
 // DrizzleQueryError wrapper to the driver error on `.cause`. One definition
 // lives in lib/dbErrors.ts; it is re-exported here for this file's callers and
 // tests.
-import { isMissingTableError } from "./lib/dbErrors";
-export { isMissingTableError };
+import { isMissingTableError, isUnknownColumnError } from "./lib/dbErrors";
+export { isMissingTableError, isUnknownColumnError };
 
 export async function createTechnicianReferral(referral: InsertTechnicianReferral) {
   const db = await getDb();
@@ -846,14 +846,6 @@ export const CANDIDATE_0129_COLUMNS = [
   "ownerAlertedAt",
 ] as const;
 
-/** MySQL/TiDB "unknown column" — 1054 / ER_BAD_FIELD_ERROR, including drizzle-wrapped causes. */
-export function isUnknownColumnError(err: unknown): boolean {
-  for (let e = err as { code?: unknown; errno?: unknown; cause?: unknown; message?: unknown } | null, i = 0; e && i < 3; e = e.cause as typeof e, i++) {
-    if (e.code === "ER_BAD_FIELD_ERROR" || e.errno === 1054) return true;
-    if (typeof e.message === "string" && /Unknown column/i.test(e.message)) return true;
-  }
-  return false;
-}
 
 /**
  * INSERT naming ONLY the columns the table had before drizzle/0129. Used when

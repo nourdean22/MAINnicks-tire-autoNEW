@@ -14,7 +14,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { DrizzleQueryError } from "drizzle-orm";
 import { isDuplicateKeyError } from "./dbErrors";
-import { isMissingTableError } from "../db";
+import { isMissingTableError, isUnknownColumnError } from "../db";
+import { isSchemaBugError } from "./dbErrors";
 
 // This file needs the REAL db module (serial mode shares one mock registry).
 vi.unmock("../db");
@@ -116,5 +117,99 @@ describe("one definition: no private copy of isMissingTableError remains (commen
       expect(src, f).not.toMatch(/function isMissingTableError/);
       expect(src, f).toContain("isMissingTableError");
     }
+  });
+});
+
+/**
+ * Unknown column (1054) and the schema-bug family, 2026-09-23.
+ *
+ * Eleven sites decided "pre-migration, take the fallback" or "this is a code
+ * bug, be loud" by regexing `err.message` for /unknown column|1054/ or by
+ * reading only the top-level `.code`. On a drizzle-wrapped error the message is
+ * the wrapper's SQL and params, so the fallback never fired on a real 1054, and
+ * a failed query whose params held 1054 (sms_messages.id 1054, say) took the
+ * fallback: sms.ts would then switch off retry bounding for the process.
+ */
+const unknownColumn = () => driverError("ER_BAD_FIELD_ERROR", 1054, "Unknown column 'send_attempts' in 'field list'");
+
+describe("isUnknownColumnError sees through drizzle's wrapper", () => {
+  it("recognises a drizzle-wrapped 1054 and a bare one", () => {
+    expect(isUnknownColumnError(wrap(unknownColumn()))).toBe(true);
+    expect(isUnknownColumnError({ code: "ER_BAD_FIELD_ERROR" })).toBe(true);
+    expect(isUnknownColumnError({ errno: 1054 })).toBe(true);
+    expect(isUnknownColumnError(new Error("Unknown column 'intent' in 'field list'"))).toBe(true);
+  });
+
+  it("does NOT read the wrapper's SQL or params as the driver's verdict", () => {
+    expect(isUnknownColumnError(wrap(timeout(), [1054]))).toBe(false);
+    expect(isUnknownColumnError(wrap(timeout(), ["Unknown column in my notes"]))).toBe(false);
+    expect(isUnknownColumnError(wrap(noSuchTable()))).toBe(false);
+    expect(isUnknownColumnError(wrap(dupEntry()))).toBe(false);
+    expect(isUnknownColumnError(null)).toBe(false);
+  });
+});
+
+describe("isSchemaBugError · 1054 / 1051 / 1109 / 1064, wrapped or bare", () => {
+  it("recognises each schema-bug code through the wrapper", () => {
+    expect(isSchemaBugError(wrap(unknownColumn()))).toBe(true);
+    expect(isSchemaBugError(wrap(driverError("ER_BAD_TABLE_ERROR", 1051, "Unknown table 'x'")))).toBe(true);
+    expect(isSchemaBugError(wrap(driverError("ER_UNKNOWN_TABLE", 1109, "Unknown table 'c' in field list")))).toBe(true);
+    expect(isSchemaBugError(wrap(driverError("ER_PARSE_ERROR", 1064, "You have an error in your SQL syntax")))).toBe(true);
+    expect(isSchemaBugError({ code: "ER_BAD_FIELD_ERROR" })).toBe(true);
+  });
+
+  it("a missing table, a timeout or a duplicate is not a schema bug", () => {
+    expect(isSchemaBugError(wrap(noSuchTable()))).toBe(false);
+    expect(isSchemaBugError(wrap(timeout(), [1054, 1064]))).toBe(false);
+    expect(isSchemaBugError(wrap(dupEntry()))).toBe(false);
+    expect(isSchemaBugError(undefined)).toBe(false);
+  });
+});
+
+describe("no call site text-matches for an unknown column any more (comment-stripped)", () => {
+  const sites = [
+    "../sms.ts",
+    "../services/opportunityQueue.ts",
+    "../routers/smsOps.ts",
+    "../cron/jobs/crossSellOutreach.ts",
+    "../services/emailCampaigns.ts",
+    "../cron/jobs/monteCarloForecast.ts",
+    "../cron/jobs/weeklyRevenueDigest.ts",
+  ];
+  it.each(sites)("%s uses the shared recognisers", (f) => {
+    const src = stripComments(readFileSync(resolve(__dirname, f), "utf8"));
+    expect(src).not.toMatch(/unknown column\|1054/i);
+    expect(src).not.toMatch(/includes\("Unknown column"\)/);
+    expect(src).not.toMatch(/ER_BAD_FIELD_ERROR/);
+    expect(src).toMatch(/isUnknownColumnError\(|isSchemaBugError\(/);
+  });
+
+  it("db.ts re-exports the shared isUnknownColumnError, no private copy", () => {
+    const src = stripComments(readFileSync(resolve(__dirname, "../db.ts"), "utf8"));
+    expect(src).not.toMatch(/function isUnknownColumnError/);
+  });
+});
+
+describe("the duplicate-key and missing-table sites that regexed the wrapper (comment-stripped)", () => {
+  // Same defect, other codes: each asked drizzle's wrapper message (the SQL and
+  // params) whether the driver said "duplicate" or "no such table".
+  // dashboardSync's regex named the table its own SQL reads, so every failure
+  // of that job read as "migration not applied".
+  it.each([
+    ["../services/recoveryLift.ts", /isUnknownColumnError\(v3err\)[\s\S]*isUnknownColumnError\(err\)/],
+    ["../services/mediaRegistry.ts", /isMissingTableError\(err\)/],
+    ["../cron/jobs/followupCadence.ts", /isDuplicateKeyError\(err\)/],
+    ["../cron/jobs/dashboardSync.ts", /isMissingTableError\(error\)/],
+    ["../routers/shopdriver.ts", /isDuplicateKeyError\(err\)/],
+    ["../routes/webhooks/vapi.ts", /isDuplicateKeyError\(err\)/],
+  ])("%s", (f, uses) => {
+    const src = stripComments(readFileSync(resolve(__dirname, f), "utf8"));
+    expect(src).toMatch(uses);
+    expect(src).not.toMatch(/\/[^/\n]*(Duplicate entry|ER_DUP_ENTRY|ER_NO_SUCH_TABLE|doesn'?\?t exist|unknown column|1054|1146)[^/\n]*\/i?\.test\(/i);
+  });
+
+  it("shopdriver's three race-lost branches all use it", () => {
+    const src = stripComments(readFileSync(resolve(__dirname, "../routers/shopdriver.ts"), "utf8"));
+    expect(src.match(/isDuplicateKeyError\(err\)/g)?.length).toBe(3);
   });
 });

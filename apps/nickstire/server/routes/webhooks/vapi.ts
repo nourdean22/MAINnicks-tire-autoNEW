@@ -19,6 +19,7 @@ import { Router, type Request, type Response } from "express";
 import express from "express";
 import { timingSafeEqual } from "node:crypto";
 import { createLogger } from "../../lib/logger";
+import { isDuplicateKeyError } from "../../lib/dbErrors";
 
 const log = createLogger("webhooks:vapi");
 const router = Router();
@@ -502,7 +503,7 @@ async function processCallEndReport(
           // Tolerate dup-key on retry — webhooks can fire twice
           firstLog = false;
           const msg = err instanceof Error ? err.message : String(err);
-          if (!/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+          if (!isDuplicateKeyError(err)) {
             log.warn("vapi_call_logs insert failed", { error: msg });
           }
         });

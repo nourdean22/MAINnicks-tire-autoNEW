@@ -40,6 +40,43 @@ export function isMissingTableError(err: unknown): boolean {
   );
 }
 
+/**
+ * Recognise MySQL's "unknown column" (1054 / ER_BAD_FIELD_ERROR). It gates the
+ * "migration not applied yet, retry without the new column" fallbacks, so a
+ * false positive silently takes the degraded path on a real failure.
+ *
+ * One definition, 2026-09-23. db.ts had a copy that also text-matched the
+ * drizzle wrapper's message; eleven other sites regexed `err.message` for
+ * /unknown column|1054/, which on a wrapped error is the SQL and params. A real
+ * 1054 never matched there, and a query whose params held 1054 did.
+ */
+export function isUnknownColumnError(err: unknown): boolean {
+  return anyDriverError(
+    err,
+    (code, errno, message) => code === "ER_BAD_FIELD_ERROR" || errno === 1054 || (message != null && /Unknown column/i.test(message)),
+  );
+}
+
+const SCHEMA_BUG_CODES = new Set(["ER_BAD_FIELD_ERROR", "ER_BAD_TABLE_ERROR", "ER_UNKNOWN_TABLE", "ER_PARSE_ERROR"]);
+const SCHEMA_BUG_ERRNOS = new Set([1054, 1051, 1109, 1064]);
+
+/**
+ * A query the database could not even run as written: unknown column (1054),
+ * unknown table (1051), unknown table alias (1109) or a syntax error (1064). That is a code or deploy
+ * defect that waiting will not fix, so crons report it loudly instead of as a
+ * quiet empty result. A missing table (1146) is deliberately NOT in this set:
+ * callers treat that as "migration pending".
+ */
+export function isSchemaBugError(err: unknown): boolean {
+  return anyDriverError(
+    err,
+    (code, errno, message) =>
+      (typeof code === "string" && SCHEMA_BUG_CODES.has(code)) ||
+      (typeof errno === "number" && SCHEMA_BUG_ERRNOS.has(errno)) ||
+      (message != null && /Unknown column/i.test(message)),
+  );
+}
+
 type DriverErrorShape = {
   code?: unknown;
   errno?: unknown;

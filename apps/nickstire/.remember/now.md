@@ -1,8 +1,38 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-22 (late)** (four fixes from one cron census: voice-recovery never connected (#2497), self-healing hollowing out Nick's memory (#2500), weather-intel invisible to the skip watchdog (#2502), transfer verdicts on calls that never transferred (#2503). Earlier today: #2479, #2488, #2490, #2491, #2492, #2494 MERGED. Prior header preserved below.)
+**Updated: 2026-09-23 (midday)** (driver-error recognisers + suite-wide import guard: first entry below. Previous header, 2026-09-22 (late): four fixes from one cron census: voice-recovery never connected (#2497), self-healing hollowing out Nick's memory (#2500), weather-intel invisible to the skip watchdog (#2502), transfer verdicts on calls that never transferred (#2503). Earlier today: #2479, #2488, #2490, #2491, #2492, #2494 MERGED. Prior header preserved below.)
 missed-revenue queue was measuring Nick's own greeting. Full audit, graded evidence and the
 pre-"Reset to Shop" checklist: `docs/VOICE-RECOVERY-AUDIT-2026-09-18.md`.)
+
+
+## 2026-09-23 (midday) · Driver-error recognisers: the last text-matchers, and a suite-wide import guard
+
+**Defect class, now closed across the server.** drizzle-orm 0.45 wraps every driver error in a
+`DrizzleQueryError` whose message is ONLY `Failed query: <sql>\nparams: <params>`; the code,
+errno and driver text sit on `.cause`. #2574 fixed the missing-table and duplicate-key helpers.
+This follow-up moved `isUnknownColumnError` into `server/lib/dbErrors.ts` (db.ts re-exports it),
+added `isSchemaBugError` (1054/1051/1109/1064), and rewired 20 call sites that regexed
+`err.message` or read only the top-level `.code`: sms.ts x3, opportunityQueue x4, smsOps,
+crossSellOutreach, emailCampaigns, monteCarloForecast, weeklyRevenueDigest, recoveryLift x2,
+mediaRegistry, followupCadence, dashboardSync, shopdriver x3, webhooks/vapi.
+- A real wrapped 1054 never matched, so every "pre-migration, retry without the column" fallback
+  was dead in production. A wrapped TIMEOUT whose params held `1054` did match: on
+  `sms_messages.id` 1054, `recordSendFailure` would have switched retry bounding off for the
+  process. `smsRetryDeadLetter.test.ts` now drives both shapes; both tests fail on the old sms.ts.
+- emailCampaigns and dashboardSync matched a column/table name that their OWN SQL contains, so any
+  failure (a timeout) was reported as "apply migration 0114" / "0074 not applied".
+- **Rule:** never text-match a DB error. Use `lib/dbErrors` (`isMissingTableError`,
+  `isDuplicateKeyError`, `isUnknownColumnError`, `isSchemaBugError`). A source scan in
+  `server/lib/dbErrors.test.ts` fails if a regex comes back at any of the 20 sites.
+
+**Test isolation guard.** `client/src/__tests__/setup.ts` (setupFiles for every file) now awaits
+`vi.dynamicImportSettled()` in `afterAll`. Positive control, ordered replay of the pre-#2565
+`callbackAuditReceipt.test.ts` then `coupon-redemptions`: 3 of 8 runs red without the guard,
+0 of 12 with it.
+
+**Owner items still open:** delete Railway function `oneoff-careers-postdeploy` (inert, API
+delete timed out twice) · Resend DNS for nickstire.org (emails do not deliver) · mark test
+candidates #1/#2 withdrawn · never text STOP from the CEO mobile to the shop line.
 
 ## 2026-09-22 (night) · Counter-conversation capture — shipped, scheduled, NOT yet installed
 

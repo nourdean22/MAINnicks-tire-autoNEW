@@ -17,6 +17,7 @@
  *     has assigned anyone.
  */
 import { createLogger } from "../lib/logger";
+import { isMissingTableError, isUnknownColumnError } from "../lib/dbErrors";
 
 const log = createLogger("recovery-lift");
 
@@ -168,15 +169,13 @@ export async function getRecoveryLiftReport(windowDays = 90): Promise<RecoveryLi
       v3.perProtocolTreated.ratePct = rate(v3.perProtocolTreated);
       v3.readable = v3.itt.treatment.n >= 30 && v3.itt.control.n >= 30;
     } catch (v3err) {
-      const v3msg = v3err instanceof Error ? v3err.message : String(v3err);
-      if (!/unknown column|doesn'?t exist|1054|1146/i.test(v3msg)) throw v3err;
+      if (!isUnknownColumnError(v3err) && !isMissingTableError(v3err)) throw v3err;
       log.warn("[recovery-lift] 0103 columns absent — v3 block empty");
     }
     return base;
   } catch (err) {
     // Pre-0100 environments: column doesn't exist yet — report empties.
-    const msg = err instanceof Error ? err.message : String(err);
-    if (/unknown column|doesn'?t exist|1054|1146/i.test(msg)) {
+    if (isUnknownColumnError(err) || isMissingTableError(err)) {
       log.warn("[recovery-lift] 0100 columns absent — returning empty report");
       return base;
     }

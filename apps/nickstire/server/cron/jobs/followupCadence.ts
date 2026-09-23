@@ -28,6 +28,7 @@
  * passing {{name}} / {{lastService}} via placeVapiOutboundCall variableValues.
  */
 import { createLogger } from "../../lib/logger";
+import { isDuplicateKeyError } from "../../lib/dbErrors";
 import { and, eq, gte, lte, inArray } from "drizzle-orm";
 
 const log = createLogger("cron:followup-cadence");
@@ -241,7 +242,7 @@ export async function runFollowupCadence(): Promise<RunResult> {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) { skipped++; continue; }
+      if (isDuplicateKeyError(err)) { skipped++; continue; }
       log.warn(`[followup-cadence] claim failed booking ${b.id} ${touch}`, { error: msg });
       failed++; continue;
     }
