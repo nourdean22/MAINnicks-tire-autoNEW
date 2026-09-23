@@ -214,6 +214,40 @@ describe("POST /api/webhooks/railway/[token]", () => {
     expect(h.sendTelegram.mock.calls[0][0]).toContain("VolumeAlert.triggered");
   });
 
+  // #2597 · Railway's webhook event enum names Monitor.triggered|resolved|deleted
+  // and VolumeAlert.triggered|resolved. Deleting a monitor is not an outage.
+  it("Monitor.deleted / Monitor.resolved are ignored; Monitor.triggered pages", async () => {
+    const resource = deployEvent("failed").resource;
+    for (const type of ["Monitor.deleted", "Monitor.resolved", "VolumeAlert.resolved"]) {
+      const res = await call(TOKEN, { type, resource, severity: "INFO", timestamp: "2026-09-23T12:05:00Z" });
+      expect(res.status).toBe(200);
+    }
+    expect(h.sendTelegram).not.toHaveBeenCalled();
+    await call(TOKEN, { type: "Monitor.triggered", resource, severity: "WARNING", timestamp: "2026-09-23T12:06:00Z" });
+    expect(h.sendTelegram).toHaveBeenCalledTimes(1);
+    expect(h.sendTelegram.mock.calls[0][0]).toContain("Monitor.triggered");
+  });
+
+  // #2597 · the (deployment, status) key has no occurrence in it, so the hold
+  // window IS the scope: a crash loop inside it pages once, a separate crash
+  // of the same deployment days later pages again.
+  it("the same deployment crashing again days later pages again; a crash loop within hours does not", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-09-23T12:00:00Z"));
+      await call(TOKEN, deployEvent("crashed"));
+      vi.setSystemTime(new Date("2026-09-23T13:00:00Z"));
+      await call(TOKEN, deployEvent("crashed", { timestamp: "2026-09-23T13:00:00.000Z" }));
+      expect(h.sendTelegram).toHaveBeenCalledTimes(1);
+      vi.setSystemTime(new Date("2026-09-26T09:00:00Z"));
+      const res = await call(TOKEN, deployEvent("crashed", { timestamp: "2026-09-26T09:00:00.000Z" }));
+      expect(await res.json()).toEqual({ ok: true, action: "sent" });
+      expect(h.sendTelegram).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("invalid JSON after a valid token → 400, nothing sent", async () => {
     const res = await call(TOKEN, "{not json");
     expect(res.status).toBe(400);

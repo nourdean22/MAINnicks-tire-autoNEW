@@ -301,15 +301,15 @@ async function chatPostInner(req: Request) {
   // shape → turn-intelligence → response contract → domain routing →
   // the three tool-mandatory intent detections) moved VERBATIM to
   // ./derive-turn-signals.ts. One typed input → one typed result; the
-  // classify stage-timer is threaded through and wraps classifyIntent
-  // exactly as before. The three pure intent regexes now evaluate
+  // classify stage-timer is threaded through and wraps classifyIntent,
+  // which runs only when no fixed mode decides the mode (2026-09-23;
+  // the stage then reads `classify=skipped`). The three pure intent regexes now evaluate
   // BEFORE the budget gate below (they ran after it inline) — zero
   // side effects, zero I/O, so ordering is unobservable.
-  const { deriveTurnSignals, takeClassificationIfLanded } = await import("./derive-turn-signals");
+  const { deriveTurnSignals } = await import("./derive-turn-signals");
   const {
     aiConfig,
     classification,
-    classificationPromise,
     mode,
     taskTypeForMode,
     queryShape,
@@ -1014,9 +1014,8 @@ ${priorsBlock}`;
       traceId: __traceId,
       modeOverride,
       personality,
-      // Undefined on a fixed-mode turn that did not wait for the classifier:
-      // take it if it has landed, never wait for it (derive-turn-signals.ts).
-      classification: classification ?? (await takeClassificationIfLanded(classificationPromise)),
+      // Undefined on a fixed-mode turn: the classifier is skipped (derive-turn-signals.ts).
+      classification,
       recalledHits,
       detectedContradictions,
       deeperContextCount,
@@ -1256,7 +1255,7 @@ ${priorsBlock}`;
     deeperContextCount,
     deeperContextTypes,
     contextBlocksFired,
-    classification: classification ?? (await takeClassificationIfLanded(classificationPromise)),
+    classification,
     recalledMemories: recalledHits,
     recallProvenance,
     recallProvenanceReason,

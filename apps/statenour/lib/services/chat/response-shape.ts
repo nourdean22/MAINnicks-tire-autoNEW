@@ -169,12 +169,15 @@ export function buildChatResponse(input: BuildChatResponseInput): Response {
   const sseStream = createCockpitSseStream({
     aiSdkStream: streamResponse.body || new ReadableStream(),
     traceId,
+    // No classification means the classifier did not run (a fixed-mode turn,
+    // derive-turn-signals.ts): say so rather than pass a guess off as its result.
     classification: classification || {
       intent: turnSignal.intent,
       mode: mode === "deep" ? "operator" : "fast",
       model: "unknown",
       provider: "unknown",
       targets: ["general"],
+      skipped: true,
     },
     recalledMemories,
     recallProvenance,
