@@ -22,11 +22,17 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { hasLocalWorktree, provenanceNote, rescueBranch } from "./repo-rescue.mjs";
 import { resolveToken } from "./github-client.mjs";
+import { liveDecision } from "./live-gate.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OWNER = "nourdean22";
 const REPO = "MAINnicks-tire-autoNEW";
 const auth = resolveToken();
+// The LIVE fixtures below cost ~10 GitHub API requests per run; gated to diffs that
+// touch repo-rescue's own code (live-gate.mjs) so CI's per-repo budget goes further.
+const rescueGate = liveDecision("AGENT_OS_LIVE_RESCUE");
+console.log(rescueGate.reason);
+const liveSkip = !rescueGate.run ? rescueGate.reason : !auth ? "no GitHub token" : false;
 
 test("STRUCTURAL: repo-rescue.mjs's own source never calls the pulls merge endpoint", () => {
   const src = readFileSync(join(HERE, "repo-rescue.mjs"), "utf8");
@@ -62,20 +68,20 @@ test("provenanceNote: names the branch, tip SHA, classification, and the never-m
   assert.match(note, /never merged/i);
 });
 
-test("LIVE, real fixture: rescueBranch on an already-LANDED branch stops at the zombie rule, no PR touched", { skip: !auth }, async () => {
+test("LIVE, real fixture: rescueBranch on an already-LANDED branch stops at the zombie rule, no PR touched", { skip: liveSkip }, async () => {
   const r = await rescueBranch("claude/nicks-eval-coverage-2026-09-18", { owner: OWNER, repo: REPO });
   assert.equal(r.rescued, false);
   assert.equal(r.reason, "zombie-rule");
   assert.equal(r.classification.classification, "LANDED");
 });
 
-test("LIVE, real fixture: rescueBranch on a genuinely-stranded (no ref, no PR) branch reports nothing to rescue", { skip: !auth }, async () => {
+test("LIVE, real fixture: rescueBranch on a genuinely-stranded (no ref, no PR) branch reports nothing to rescue", { skip: liveSkip }, async () => {
   const r = await rescueBranch("claude/nicks-tire-camera-gaps-36762d", { owner: OWNER, repo: REPO });
   assert.equal(r.rescued, false);
   assert.equal(r.reason, "no-remote-branch-to-rescue");
 });
 
-test("LIVE, real fixture, DRY-RUN ONLY: the messy reel-generate-schedule branch passes the early gates and reaches dry-run — never opens a real PR", { skip: !auth }, async () => {
+test("LIVE, real fixture, DRY-RUN ONLY: the messy reel-generate-schedule branch passes the early gates and reaches dry-run — never opens a real PR", { skip: liveSkip }, async () => {
   const r = await rescueBranch("nickstire/reel-generate-schedule", { owner: OWNER, repo: REPO, dryRun: true });
   assert.equal(r.reason, "dry-run", `expected to reach dry-run (this branch exists, has no merged PR of its own, no local worktree here); got: ${JSON.stringify(r)}`);
   assert.ok(r.wouldOpen.title.includes("reel-generate-schedule"));
