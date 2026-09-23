@@ -95,7 +95,7 @@ export async function resolveReelJobId(database: DB, draft: { id: string; briefJ
       .select({ id: reelJobs.id })
       .from(reelJobs)
       .where(eq(reelJobs.briefId, draft.id))
-      .orderBy(desc(reelJobs.id))
+      .orderBy(desc(reelJobs.createdAt), desc(reelJobs.id))
       .limit(1);
     return rows.length ? Number(rows[0].id) : null;
   } catch {

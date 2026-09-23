@@ -524,7 +524,7 @@ export const instagramStudioRouter = router({
         .select({ id: reviewReplies.id, author: reviewReplies.reviewerName, text: reviewReplies.reviewText, date: reviewReplies.reviewDate })
         .from(reviewReplies)
         .where(eq(reviewReplies.reviewRating, 5))
-        .orderBy(desc(reviewReplies.id))
+        .orderBy(desc(reviewReplies.createdAt), desc(reviewReplies.id))
         .limit(8);
       reviewLane.options = replies
         .filter((row) => (row.text ?? "").trim().length > 0)
@@ -545,7 +545,7 @@ export const instagramStudioRouter = router({
           .select({ id: reviewPipeline.id, author: reviewPipeline.authorName, text: reviewPipeline.reviewText, time: reviewPipeline.reviewTime })
           .from(reviewPipeline)
           .where(eq(reviewPipeline.rating, 5))
-          .orderBy(desc(reviewPipeline.id))
+          .orderBy(desc(reviewPipeline.createdAt), desc(reviewPipeline.id))
           .limit(8);
         const mapped = pipeline
           .filter((row) => (row.text ?? "").trim().length > 0)

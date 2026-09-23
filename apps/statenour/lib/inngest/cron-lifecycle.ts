@@ -2,7 +2,8 @@
  * Cron run lifecycle · one row per run, `started` -> `success` | `failed`,
  * or `interrupted` when no terminal event ever arrives (settled by AGE, see
  * `reconcileInterruptedRuns`). A success also carries `resultCount`, read off
- * the job's own return value (`deriveResultCount`).
+ * the job's own return value (`deriveResultCount`), and `skipReason` when the
+ * job said it chose not to work (`deriveSkipReason`).
  *
  * ★★★ WHY A MIDDLEWARE AND NOT A PER-HANDLER WRAPPER. The previous mechanism
  * (`recordSelfRow`) wrote ONE row before the work and called it done. Both a
@@ -68,6 +69,7 @@
  */
 
 import { Middleware } from "inngest";
+import { deriveSkipReason } from "@/lib/services/cron-skip-reason";
 
 /**
  * Statuses this module writes. `partial` is deliberately ABSENT: it remains
@@ -402,7 +404,9 @@ export async function settleCronRun(
         // Always written: a success overriding `interrupted` must also clear
         // the presumed-dead text that sweep left behind.
         error: err === undefined ? null : describeError(err),
-        ...(status === CRON_STATUS.success ? { resultCount: deriveResultCount(output) } : {}),
+        ...(status === CRON_STATUS.success
+          ? { resultCount: deriveResultCount(output), skipReason: deriveSkipReason(output) }
+          : {}),
       },
     });
   } catch (e) {

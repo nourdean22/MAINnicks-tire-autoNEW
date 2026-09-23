@@ -148,7 +148,7 @@ export const emergencyRouter = router({
         const created = await d
           .select()
           .from(emergencyRequests)
-          .orderBy(desc(emergencyRequests.id))
+          .orderBy(desc(emergencyRequests.createdAt), desc(emergencyRequests.id))
           .where(eq(emergencyRequests.phone, phone))
           .limit(1);
         const emergencyId = created[0]?.id || null;
