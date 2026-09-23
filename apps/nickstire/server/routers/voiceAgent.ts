@@ -25,8 +25,65 @@ import { SERVICES } from "../../shared/services";
 import { BUSINESS } from "../../shared/business";
 import { createLogger } from "../lib/logger";
 import { ordinaryTireInquiryReply } from "../lib/tireInquiryReply";
+import type { SmsOrchestratorEvent, SmsOrchestratorResult } from "../services/smsOrchestrator";
 
 const log = createLogger("voiceAgent");
+
+// ─── Recap text (sendConfirmationSms) ───────────────────
+
+/**
+ * Orchestrator statuses that mean the recap went out. `sent` is the send
+ * itself; the shop gateway's delivery receipt moves the row on to `delivered`
+ * within seconds (routes/webhooks/smsGateway.ts), and a reply moves it to
+ * `replied`. The orchestrator's per-call dedupe hands a second recap that row
+ * back, so the later states must read as sent too: until 2026-09-23 they read
+ * as "not sent" and Nick told a caller holding the text that texts were down.
+ * Same idea as the cooldown statuses in PR #2608 (lib/smsOutcome.ts
+ * smsClaimConsumed in row form), minus `sending` and `queued`, which stay
+ * handed-off-but-unconfirmed here.
+ */
+const RECAP_OUT_STATUSES: ReadonlySet<string> = new Set(["sent", "delivered", "replied"]);
+const RECAP_HANDED_OFF_STATUSES: ReadonlySet<string> = new Set(["queued", "sending"]);
+
+/**
+ * One shared import() of the orchestrator. Also what lets the concurrent
+ * recap tests read their mock: vitest 3.2.7 resolves concurrent dynamic
+ * import()s of a vi.mock'ed module past the mock
+ * (routes/webhooks/vapi.recapCallId.test.ts).
+ */
+let orchestratorModule: Promise<typeof import("../services/smsOrchestrator")> | undefined;
+function loadOrchestrator() {
+  orchestratorModule ??= import("../services/smsOrchestrator").catch((err) => {
+    orchestratorModule = undefined;
+    throw err;
+  });
+  return orchestratorModule;
+}
+
+/**
+ * Recaps in flight, by call id + 10-digit phone. The Vapi webhook runs every
+ * tool call in one message in parallel (routes/webhooks/vapi.ts), and the
+ * orchestrator writes its sms_orchestrations row only after sendSms returns,
+ * so two recap calls in one turn both missed its idempotency lookup and both
+ * texted the caller. A second call while the first is running now shares the
+ * first's result. Once it settles, the orchestrator's row-based dedupe takes
+ * over. In-process only: a unique index on idempotency_key would close it
+ * across instances (schema change, follow-up).
+ */
+const recapsInFlight = new Map<string, Promise<SmsOrchestratorResult>>();
+
+function orchestrateRecapOnce(event: Extract<SmsOrchestratorEvent, { type: "vapi_confirmation" }>): Promise<SmsOrchestratorResult> {
+  const run = () => loadOrchestrator().then(({ orchestrateSms }) => orchestrateSms(event));
+  if (!event.vapiCallId) return run();
+  const key = `${event.vapiCallId}:${event.phone.replace(/\D/g, "").slice(-10)}`;
+  const inFlight = recapsInFlight.get(key);
+  if (inFlight) return inFlight;
+  const p = run().finally(() => {
+    if (recapsInFlight.get(key) === p) recapsInFlight.delete(key);
+  });
+  recapsInFlight.set(key, p);
+  return p;
+}
 
 // ─── Helpers ────────────────────────────────────────────
 
@@ -428,8 +485,7 @@ export const voiceAgentRouter = router({
     }))
     .mutation(async ({ input }) => {
       try {
-        const { orchestrateSms } = await import("../services/smsOrchestrator");
-        const orchResult = await orchestrateSms({
+        const orchResult = await orchestrateRecapOnce({
           type: "vapi_confirmation",
           phone: input.phone,
           summary: input.summary,
@@ -450,12 +506,16 @@ export const voiceAgentRouter = router({
         // degraded:true costs one spoken address on a text that may well have
         // arrived. degraded:false costs a caller driving off with no address at
         // all. Not a symmetric trade.
-        const success = orchResult.status === "sent" || orchResult.status === "queued" || orchResult.status === "sending";
-        const degraded = orchResult.status !== "sent";
+        //
+        // `delivered` / `replied` (RECAP_OUT_STATUSES) are a `sent` row the
+        // gateway receipt or the caller has since moved on: sent, not degraded.
+        const wentOut = RECAP_OUT_STATUSES.has(orchResult.status);
+        const success = wentOut || RECAP_HANDED_OFF_STATUSES.has(orchResult.status);
+        const degraded = !wentOut;
 
         // Name the outcome the orchestrator returned. This line said "sent" for
         // every result, including a recap held as a draft (2026-09-23).
-        const outcome = orchResult.status === "sent" ? "sent" : success ? "handed off, delivery unconfirmed" : "NOT sent";
+        const outcome = wentOut ? "sent" : success ? "handed off, delivery unconfirmed" : "NOT sent";
         log.info(`Voice agent SMS ${outcome}`, {
           phone: input.phone.slice(-4),
           status: orchResult.status,
