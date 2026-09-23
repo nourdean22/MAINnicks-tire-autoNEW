@@ -18,7 +18,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { ASSISTANT_SYSTEM_PROMPT, VAPI_TOOLS } from "../services/vapi";
-import { ordinaryTireInquiryReply } from "../routers/voiceAgent";
+import { ordinaryTireInquiryReply } from "../lib/tireInquiryReply";
 
 type Param = { description?: string };
 type Tool = { function?: { name?: string; description?: string; parameters?: { properties?: Record<string, Param> } } };

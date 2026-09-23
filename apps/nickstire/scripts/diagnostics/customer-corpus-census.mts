@@ -67,7 +67,7 @@ import {
   type Contact,
   type Friction,
 } from "../lib/customerCorpus.ts";
-import type { VoiceIntent } from "../../server/services/voiceDemandClassifier.ts";
+import { classifyVoiceDemand, LOW_CONFIDENCE, VOICE_INTENTS, type VoiceIntent } from "../../server/services/voiceDemandClassifier.ts";
 
 const arg = (name: string, fallback: string | null = null) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -443,6 +443,20 @@ try {
     coverage: Object.fromEntries([...cov].sort()),
     counts: { inboundCalls: calls ? callContacts.length : null, outboundCallsExcluded: outboundCalls, texts: sms ? smsContacts.length : null, episodes: N, callEpisodes: callEps.length, kernelBucketEpisodes: bucketKeys.size },
     families: rows,
+    classifierCoverage: (() => {
+      // Every customer turn the demand classifier labelled (masked first, as
+      // episodeNeed does): how many sit below its own LOW_CONFIDENCE line —
+      // the turns its header says belong to a model tier or a human, i.e. the
+      // residue a wiring decision has to price — and which intents never occur.
+      let labelled = 0, low = 0;
+      for (const c of callContacts) for (const t of c.customer) {
+        const r = classifyVoiceDemand(maskPII(t));
+        if (r.intent === "unclear") continue;
+        labelled++;
+        if (r.confidence < LOW_CONFIDENCE) low++;
+      }
+      return { labelledTurns: labelled, belowLowConfidence: low, lowConfidenceLine: LOW_CONFIDENCE, intentsNeverSeen: VOICE_INTENTS.filter((i) => !fams.has(i)) };
+    })(),
     demandFriction: Object.fromEntries([...facts.reduce((m, f) => m.set(f.demandFriction, (m.get(f.demandFriction) ?? 0) + 1), new Map<string, number>())].sort((a, b) => b[1] - a[1])),
     friction: { episodesWithSignal: frictionTotals, baseEpisodes: N },
     repeatedFacts: {
@@ -503,6 +517,7 @@ try {
       `      transfer tried ${r.transferAttempted}, connected ${r.transferConnected}, verified-failed ${r.transferNotConnected} · callback row ${r.callbackRow}, done ${r.callbackCompleted} · promised ${r.promised}, followed ${r.promiseFollowed}\n` +
       `      arrival row ${r.arrivalRow}, arrived ${r.arrived} · invoice linked ${r.linkedInvoice} (median $${r.linkedMedianUsd ?? "-"}) · existing customer ${r.existingCustomer} · friction ${r.anyFriction} · opt-out ${r.optOut}\n` +
       `      came back >=10 min later ${r.recontactedLater} · ambiguous link ${r.ambiguousLink} · opportunity row ${r.opportunityRow}`);
+    log(`  classifier: ${summary.classifierCoverage.belowLowConfidence}/${summary.classifierCoverage.labelledTurns} labelled turns below LOW_CONFIDENCE ${LOW_CONFIDENCE} (model-tier / human candidates) · intents never seen: ${summary.classifierCoverage.intentsNeverSeen.length} of ${VOICE_INTENTS.length}`);
     log(`  blocking friction (voiceDemandClassifier): ${Object.entries(summary.demandFriction).map(([k, v]) => `${k} ${v}`).join(" · ")}`);
     log(`\n4 · FRICTION PRIMITIVES — episodes with ≥1 signal (base: all ${N} episodes)`);
     for (const [k, v] of Object.entries(frictionTotals)) log(`  ${k.padEnd(20)} ${String(v).padStart(5)}  ${pct(v as number, N)}`);

@@ -68,6 +68,13 @@ describe("customer-corpus-census over the fixture", () => {
     expect(out.linkConfidence.ambiguous).toBe(1);
   });
 
+  it("the classifier's own confidence line and intent list are reported (its first consumer)", () => {
+    expect(out.classifierCoverage.labelledTurns).toBeGreaterThan(0);
+    expect(out.classifierCoverage.lowConfidenceLine).toBe(0.7);
+    expect(out.classifierCoverage.intentsNeverSeen.length).toBeGreaterThan(0);
+    expect(out.classifierCoverage.intentsNeverSeen).not.toContain("brakes");
+  });
+
   it("coming back 10+ minutes later is a recontact; opportunity rows join", () => {
     // the tire caller (40 min later), the brakes caller's evening text, and the
     // status texter who nudged 10 minutes later with no reply in between
