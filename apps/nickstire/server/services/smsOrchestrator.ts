@@ -418,7 +418,7 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
     })
     .from(vapiCallLogs)
     .where(like(vapiCallLogs.phoneNumber, `%${phone10}`))
-    .orderBy(desc(vapiCallLogs.id))
+    .orderBy(desc(vapiCallLogs.createdAt), desc(vapiCallLogs.id))
     .limit(1);
     if (lastVapi && lastVapi.length > 0) {
       ctx.lastVapiCall = {
