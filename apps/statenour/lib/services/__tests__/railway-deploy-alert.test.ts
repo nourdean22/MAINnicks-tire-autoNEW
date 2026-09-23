@@ -153,6 +153,14 @@ describe("POST /api/webhooks/railway/[token]", () => {
     expect(h.sendTelegram.mock.calls[1][0]).toContain("Railway deploy CRASHED");
   });
 
+  it("Deployment.oom_killed (out of memory) pages like a crash", async () => {
+    const res = await call(TOKEN, deployEvent("oom_killed"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, action: "sent" });
+    expect(h.sendTelegram.mock.calls[0][0]).toContain("Railway deploy OOM_KILLED");
+    expect([...h.rows.values()][0].operationKey).toBe("railway:deploy:8107edff-4b8e-44fc-b43a-04566e847a2a:OOM_KILLED");
+  });
+
   it.each(["success", "building", "deploying", "removed", "sleeping"])("non-failure Deployment.%s → ignored, no page, no claim", async (status) => {
     const res = await call(TOKEN, deployEvent(status));
     expect(res.status).toBe(200);

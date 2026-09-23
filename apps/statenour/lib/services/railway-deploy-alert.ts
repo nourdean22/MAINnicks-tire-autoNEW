@@ -36,8 +36,12 @@ const log = rootLogger.withSurface("webhooks/railway");
 /** Shorter than this and the env value is treated as unset: a guessable URL secret is no secret. */
 const MIN_TOKEN_LENGTH = 24;
 
-/** Deployment states that page the owner. Everything else (BUILDING, SUCCESS, REMOVED...) is ignored. */
-const PAGING_DEPLOY_STATES = new Set(["FAILED", "CRASHED"]);
+/**
+ * Deployment states that page the owner. Everything else (BUILDING, SUCCESS, REMOVED...) is ignored.
+ * OOM_KILLED is Railway's `Deployment.oom_killed` event (the Railway MCP webhook enum, 2026-09-23):
+ * the service died out of memory, which is an outage exactly like a crash.
+ */
+const PAGING_DEPLOY_STATES = new Set(["FAILED", "CRASHED", "OOM_KILLED"]);
 
 /** One page per (deployment, status) for this long — a crash-looping deploy pages once, not every restart. */
 const DEPLOY_DEDUPE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
