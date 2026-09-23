@@ -73,9 +73,13 @@ describe("brain_memories FTS · the migration, the Prisma guard and the sentinel
     expect(model).toMatch(/content_tsv\s+Unsupported\("tsvector"\)\?\s+@default\(dbgenerated\(\)\)/);
   });
 
-  it("the schema sentinel expects both the column and its GIN on brain_memories", () => {
+  it("the schema sentinel expects the column, and the GIN by DEFINITION rather than by name", () => {
     const sentinel = strip(read("lib/db/schema-sentinel.ts"));
     expect(sentinel).toMatch(/kind:\s*"column_exists",\s*table:\s*"brain_memories",\s*column:\s*"content_tsv"/);
-    expect(sentinel).toMatch(/kind:\s*"index_exists",\s*table:\s*"brain_memories",\s*indexName:\s*"brain_memories_content_tsv_idx"/);
+    // Review on #2553: a name-only expectation accepts any index wearing the name (the old expression
+    // index renamed, a btree); the definition is the fact. The behavioural half of this contract lives
+    // in tests/lib/schema-sentinel-content-tsv.test.ts, which drives runSchemaDriftCheck.
+    expect(sentinel).toMatch(/kind:\s*"index_exists",\s*table:\s*"brain_memories",\s*indexName:\s*"USING gin \(content_tsv\)",\s*matchByDefinition:\s*true/);
+    expect(sentinel).not.toMatch(/indexName:\s*"brain_memories_content_tsv_idx"/);
   });
 });

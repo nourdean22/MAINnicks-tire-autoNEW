@@ -388,10 +388,16 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     reason: "stored tsvector for the brain FTS lane - ranking on it costs a read, ranking on to_tsvector(content) cost 1.9 s per query",
   },
   {
+    // Matched by DEFINITION, not by name (review on #2553): an index that merely carries the
+    // name - the old expression index renamed under it, or a btree - would pass a name check
+    // while the readers scan. The ILIKE runs server-side, so a wrong definition returns no row
+    // and reads as missing. Production indexdef, verified 2026-09-23 00:24Z:
+    // CREATE INDEX brain_memories_content_tsv_idx ON public.brain_memories USING gin (content_tsv)
     kind: "index_exists",
     table: "brain_memories",
-    indexName: "brain_memories_content_tsv_idx",
-    reason: "GIN over content_tsv - without it the brain FTS lane sequential-scans 57k rows",
+    indexName: "USING gin (content_tsv)",
+    matchByDefinition: true,
+    reason: "GIN over the STORED content_tsv - a name-only match would accept the wrong index and the brain FTS lane would scan 57k rows",
   },
 ];
 
