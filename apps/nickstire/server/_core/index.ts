@@ -260,7 +260,7 @@ async function startServer() {
   // (includes CSP with all allowed domains: ahrefs, GA, Meta, etc.)
   app.use(securityHeaders);
   // Request tracking for self-healing anomaly detection (non-blocking, ~0ms)
-  app.use((_req, _res, next) => { recordRequest(); next(); });
+  app.use((req, _res, next) => { recordRequest(req.path, req.get("user-agent")); next(); });
 
   // Rate limiting for public API endpoints to prevent spam/abuse
   // (apiLimiter, formLimiter, aiLimiter, uploadLimiter definitions moved
