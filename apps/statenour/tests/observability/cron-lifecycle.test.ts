@@ -578,6 +578,19 @@ describe("cron lifecycle · outcome receipts (2026-09-22)", () => {
     expect((await settled({ processed: 2.5 })).resultCount).toBeNull();
   });
 
+  it("a job that says it skipped settles with skipReason, a worked run with null (2026-09-23)", async () => {
+    // Before the column, both rows below were identical: success, resultCount null.
+    expect(await settled({ ok: true, skipped: "no_meta_token" })).toMatchObject({
+      status: "success",
+      resultCount: null,
+      skipReason: "no_meta_token",
+    });
+    expect(await settled({ slot: "evening", skipped: true, reason: "INNGEST_MEGA_V2 off" })).toMatchObject({
+      skipReason: "INNGEST_MEGA_V2 off",
+    });
+    expect((await settled({ swept: 7 })).skipReason).toBeNull();
+  });
+
   it("deriveResultCount is the single reader of a job's summary", async () => {
     const { deriveResultCount } = await loadMiddleware(makeStore().prisma);
     expect(deriveResultCount({ drained: 4 })).toBe(4);
