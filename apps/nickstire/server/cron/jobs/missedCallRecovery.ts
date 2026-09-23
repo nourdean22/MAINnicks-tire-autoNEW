@@ -52,7 +52,10 @@ export interface MissedCallRow {
  */
 export function isMissedCallEligible(row: MissedCallRow, nowMs: number): boolean {
   if (!row.phoneNumber) return false;
-  if (row.convertedToLead === 1) return false; // already became a lead
+  // convertedToLead means a capture/confirm tool fired on the call ("reached a
+  // tool"), not that a lead row exists: a tireInquiry-only caller has it set
+  // with nothing saved. Kept as a skip by operator decision, 2026-09-23 (C).
+  if (row.convertedToLead === 1) return false;
   if (row.leadId != null || row.callbackId != null) return false; // already captured
   if (row.recoveryAlreadyStamped) return false; // one-shot
   if (row.durationSeconds < MIN_DURATION_SECONDS) return false; // not a real conversation

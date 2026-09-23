@@ -130,10 +130,14 @@ export const TEMPLATE_VARIANTS: Record<string, string[]> = {
     "Hey, this is Nick's Tire & Auto. Text us the tire size or what the car is doing and the crew will pick it up from here.",
     "Hey, this is the team at Nick's. Anything else we can help you with on the car? Text us here or call {shopPhone}."
   ],
+  // 2026-09-23 · Fires on a web form submitted while closed (afterHours.ts), so
+  // never "thanks for texting"; {nextOpen} is the real opening time from the
+  // shop's hours, never a fixed "tomorrow morning"; and no "we'll reach back
+  // out", because nothing tracks that promise. afterHoursCaptureCopy.test.ts.
   after_hours_capture: [
-    "Thanks for reaching out to Nick's Tire & Auto. We're closed right now, but we got your message. We'll reach back out when we open at {nextOpen}.",
-    "Thanks for texting Nick's. We're closed for the day, but we've got your message. We'll text or call you back tomorrow morning when we open.",
-    "Got your request. We're closed right now, but we'll reach back out when we open. If it's urgent, text us what's going on with the car."
+    "Thanks for reaching out to Nick's Tire & Auto. We're closed right now and open again at {nextOpen}. Your request is saved for the crew. No appointment needed: pull up once we're open, 17625 Euclid Ave.",
+    "Got your request at Nick's Tire & Auto. We're closed until {nextOpen}, and it'll be waiting for the crew when we open. Reply with the tire size or what the car is doing so we're ready for you.",
+    "Thanks for contacting Nick's. We're closed right now and open again at {nextOpen}. Your request is saved. Walk-ins are first-come, first-served. Reply here with any questions and the crew will see them when we open."
   ],
   stale_lead_followup: [
     "Hey, this is Nick's on Euclid. Just checking if you still need help with the car? Let us know or call us at {shopPhone} to get it sorted.",
