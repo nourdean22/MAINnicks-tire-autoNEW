@@ -1,5 +1,17 @@
 # Session ledger — statenour
 
+**Updated: 2026-09-23 16:3xZ** (W16d, cloud session: #2588 #2596 #2612 merged, skipReason applied, Cohere-first rerank. W16c below.)
+
+## W16d (2026-09-23 afternoon) — region, critic, categories, skip reason, reranker
+
+**REPO SHA** · `origin/main` includes #2596 `abad2aad3`, #2595 `30d812f05`, #2612 `36abe3851`. statenour-web SUCCESS on `30d812f05` 15:39:36Z (critic + categories live); #2612's deploy was building at 16:23Z — verify by ancestry. Full entry: docs/RECONCILIATION.md -> W16d.
+
+**PROVEN** · pre-build gap 0.2 s after #2588 (was 4.8-8.3 s) · critic p95 21.7 s (n=110) -> budget 30 s · `skipReason` column live on prod, ledger 66 rows, cron logging unaffected (rows kept landing after the apply) · 0 duplicate cron rows since the idempotent begin (2,003 runs = 2,003 rows).
+
+**NEXT** · 1. Read the first chat turn's rerank line: Cohere, no HF 402. 2. First cron row with a non-null `skipReason` (e.g. `nick-action-execute` "NICK_AUTONOMY off"). 3. Attribute the node-UA caller getting 401 on nickstire `/api/nour-os/query`. 4. Discard the stale staged Railway patch setting `PERPLEXICA_*`. 5. Move the LIVE GitHub-API canaries off per-PR CI (they likely drained the installation quota 15:18-16:21Z+). 6. Recall composition via `pnpm eval:recall` (operator spend).
+
+**TRAPS** · a hand-inserted `_prisma_migrations` row must carry sha256(file) and the file must never change afterwards · apply the column BEFORE the model field ships (Prisma RETURNs every scalar) · the Railway MCP `list-deployments`/`get-logs` returned output-schema errors all afternoon; `railway-agent` still works · the agent cannot compare secret values across services · a cd that fails inside a compound command runs the rest in the wrong repo (a stray `core.hooksPath` was written and removed).
+
 **Updated: 2026-09-23** (Session F · instrument health + operator-repair flywheel · W16c close-out by the cloud session · Session E below)
 
 ## W16c (2026-09-22/23) — the receipt layer, the review sweep, the edge-vector drain, the lexical lane · 21 MERGED

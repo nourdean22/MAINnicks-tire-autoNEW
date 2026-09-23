@@ -1,5 +1,15 @@
 # Session ledger - nickstire
 
+**Updated: 2026-09-23 16:3xZ** (afternoon: us-east4 move + #2592 #2594 #2608 #2625 merged. Customer-corpus wave below.)
+
+## 2026-09-23 afternoon · region move + four fixes (cloud session)
+
+**State.** Production in us-east4 since 13:20Z. Merged: #2592 `428daede6` (invoice-number collision), #2594 `d1c768993` (recap once per call), #2608 `394bde23f` (cooldown counts delivered/sending/replied; booking reminders excepted), #2625 `61cd1bf19` (lint:pii `--relative`). #2608 and #2625 merged over infra-red CI (GitHub App API rate limit) on the operator's instruction. Contracts: `docs/CURRENT-TRUTH.md` "Afternoon of 2026-09-23".
+
+**Receipts.** DB 65 -> 5 ms median; homepage batch p50 ~205 -> 51-56 ms; 0 5xx; first live call 15:37Z: bookSlot 15:37:10, one sendConfirmationSms 15:37:12, Vapi webhooks 26-54 ms.
+
+**Next.** 1. Confirm the #2608 deploy by ancestry and that a delivered text still blocks a repeat within its cooldown. 2. Attribute the node-UA caller getting 401 on `/api/nour-os/query` (~14/min). 3. The tool-call webhook durations for 15:37:10-12 fell outside the sampled log window; read them on the next call.
+
 **Updated: 2026-09-23 13:20Z** (customer-corpus wave: #2569 #2571 #2575 #2579 #2580 #2581 #2582 #2584 #2587 merged and deployed on `958b89ef7`; config pushed 13:12Z. Prior header preserved below.)
 
 ## 2026-09-23 · Customer-corpus wave — merged, deployed, config pushed

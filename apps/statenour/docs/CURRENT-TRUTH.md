@@ -5,6 +5,14 @@
 > code win. Last verified **2026-09-17**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
 
+## Since 2026-09-23 — W16d (region, critic, categories, skip reason, reranker)
+
+- **statenour-web serves from Railway us-east4-eqdc4a**, next to the Neon database. statenour-worker is still in us-west2.
+- **The reranker is Cohere-first.** `BGE_RERANK=false` on statenour-web: `lib/brain/rerank.ts` tries Cohere, then BGE. The HF inference credits behind BGE were depleted (402 on every candidate). Not yet observed on a live turn at the time of writing.
+- **The adversarial critic's budget is 30 s** (`ADVERSARIAL_GUARDIAN_OPTS`, measured p95 21.7 s). It runs after the reply streams; nobody waits on it.
+- **19 more brain categories are registered** (`emotional_state` + 18 with live writers, each pinned to its writer file in `tests/brain/emotional-state-category.test.ts`). Their writes no longer take the unknown-category path.
+- **`cron_job_logs."skipReason"`** (applied 2026-09-23) holds why a run chose not to work. Outcome is derived, never stored twice: skipReason set = skipped; else `resultCount` 0 = ran, produced nothing; N = did N units; NULL = ran, reported no count.
+
 ## Since 2026-09-17 — W12, and the things that cost a session time to learn
 
 Shipped in #2381-#2386, all DEPLOYED-VERIFIED. Full detail in `docs/RECONCILIATION.md`;

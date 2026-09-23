@@ -7,6 +7,16 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Afternoon of 2026-09-23: region move and four fixes
+
+- **Production serves from Railway us-east4-eqdc4a** since 13:20Z (operator-approved). Receipts: `/api/health` SELECT 1 median 65 -> 5 ms, homepage data batch p50 ~205 -> 51-56 ms, 0 5xx. Detail: `docs/operations/REGION-LATENCY-2026-09-23.md` section 8.
+- **An SMS cooldown counts every status a sent text reaches** (#2608): `sent`, `queued`, `sending`, `delivered`, `replied`. It used to count only sent/queued, and the shop gateway's delivery receipt flipped rows to `delivered` within seconds, ending the cooldown. **Booking reminders keep sent/queued only** (operator decision): their 365-day `<bookingId>:<type>` key would otherwise block a rescheduled booking's reminder.
+- **The call recap text goes out once per call** (#2594): `sendConfirmationSms` takes the live call id, so the orchestrator's idempotency key matches a second attempt on the same call. First live receipt 15:37Z: `bookSlot` then one `sendConfirmationSms`.
+- **Tire orders and booking auto-invoices can no longer collide on an invoice number** (#2592): `createInvoice` returns the number it actually stored and callers use it.
+- **`bookSlot` records an EXPECTED ARRIVAL, not a booking** (by design, FCFS shop). Its log line "bypassing DB bookings table" is old wording, not a lost booking.
+- **`lint:pii` no longer fails merge commits that carry the repo root's `scripts/`** (#2625, `--relative`).
+- **Open:** `POST /api/nour-os/query` answers 401 to an unattributed `node`-UA caller ~14/min since at least 15:38Z. It is not statenour-web or statenour-worker (neither logs a bridge failure). Every call is rejected; nothing is exposed.
+
 ## Customer-corpus wave (2026-09-23): what changed in live behaviour
 
 Deployed: production served `958b89ef7` from 13:08Z (deployment `df4dcfe7`), which carries every PR
