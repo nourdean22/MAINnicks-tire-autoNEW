@@ -352,6 +352,13 @@ export const GET = cronHandler(async () => {
   const totalRemaining = Object.values(report).reduce((s, v) => s + v.remaining, 0);
   return {
     status: totalRemaining === 0 ? "complete" : "in_progress",
+    // The explicit claim cron-manager's countFrom() records into
+    // cron_job_logs.resultCount (it reads only this key). Rows actually
+    // embedded this run: 0 on a steady-state day is a real "nothing was
+    // missing", not "reported no count". Before 2026-09-23 every run of this
+    // job logged resultCount NULL, so a stalled backfill looked identical
+    // to a finished one.
+    resultCount: totalSuccess,
     totalProcessed,
     totalSuccess,
     totalRemaining,
