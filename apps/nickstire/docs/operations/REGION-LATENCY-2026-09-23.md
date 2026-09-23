@@ -1,6 +1,7 @@
 # Region latency: the app server is in California, the database in Virginia (2026-09-23)
 
 Read-only measurement. Nothing in Railway, the database or the code was changed for this doc.
+**Update, same day:** the move was made, operator-approved, and has served from `us-east4-eqdc4a` since 13:20:24Z. Results are in §8.
 
 ## Answer
 
@@ -185,6 +186,29 @@ WHERE stage = 'llm_first_token'
   AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.source')) = 'vapi-webhook'
   AND created_at >= NOW() - INTERVAL 30 DAY;
 ```
+
+## 8. Result: moved 2026-09-23, serving from Virginia since 13:20:24Z
+
+The operator approved the move ("move it if it will make everything better"). What was done:
+- Railway staged `deploy.multiRegionConfig` `{"us-west2": {"numReplicas": 1}}` → `{"us-east4-eqdc4a": {"numReplicas": 1}}` on `MAINnicks-tire-auto` only. The patch had 2 changes, on no other service, none destructive.
+- It was committed at about 13:11Z, after the #2586 deploy had gone live.
+- Deployment `377ce3dc` served from about 13:20:24Z.
+- A 5-second `/api/health` poll saw no non-200 response through the switch. The old instance drained and was removed.
+
+| Receipt | Before (`us-west2`) | After (`us-east4-eqdc4a`) |
+|---|---|---|
+| `/api/health` `SELECT 1`, 15 sequential samples | 63-91 ms, **median 65** (13:09Z) | 4-12 ms, **median 5** (13:20:51-13:21:25Z) |
+| Homepage batched data call, p50 per 5-minute bucket (Railway `http-response-time`) | 198-211 ms (12:45-13:15Z) | **51-56 ms** (13:20-13:30Z; 74 in the partial 13:35 bucket) |
+| All requests, p95 per bucket | 201-211 ms | 26-44 ms |
+| 5xx responses, the hour around the move | 0 | 0 of 7,862 requests |
+
+Reading the table:
+- **Railway's `totalDuration` appears to be time inside the region.** This is an inference: Vapi's informational webhooks stayed at 28 ms p50 after the move, and a cross-country leg would have added about 60 ms. So the Cleveland-side gain, and the longer Oregon-to-Virginia leg for Vapi, are still the §4 estimates, not measurements. It also means §2.2's "measured at Railway's edge" should read "in-region".
+- **The homepage call is not the §4 "about 15 ms".** The database part fell as expected. What remains in the ~52 ms is the batch's other work.
+- **The first live call on the new instance** (13:20:42-13:21:15Z) ended before any tool ran. Its informational webhooks took 28 ms p50, the same as before. The `bookSlot` and `sendConfirmationSms` receipts wait for a call that uses them.
+- **The next deploy** (`5ee7d698`, #2589, 13:32Z) is also in Virginia: 8-16 ms samples, one at 49.
+
+Consequence for §6.3, §6.4 and §6.6: each removable round trip now costs about 5 ms, not 72. Those items were parked: they save 5-40 ms each. §6 items 1 and 2 have fix PRs: #2592 (invoice number) and #2594 (recap text).
 
 ## What this does not establish
 

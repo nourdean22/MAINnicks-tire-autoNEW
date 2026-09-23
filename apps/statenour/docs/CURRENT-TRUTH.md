@@ -52,11 +52,12 @@ only what changes how you WORK is repeated here.
   under the turn's query burst) - see RECONCILIATION W16c. `pnpm eval:recall` calls the lane
   directly and cannot see the race.
 - **statenour-web runs in Railway `us-east4-eqdc4a` (Virginia) since 2026-09-23 12:32Z**, next
-  to its Neon database (`aws-us-east-1`). Until then it ran in `us-west2` (California) and every
-  query crossed the country (~60 ms per round trip). Every other Railway service
-  (statenour-worker, Redis, perplexica, searxng, nickstire's `MAINnicks-tire-auto`) is still in
-  `us-west2`; they reach statenour-web over its public domain or the private network, which
-  works across regions. Latency measured before 12:32Z 09-23 is not comparable with later.
+  to its Neon database (`aws-us-east-1`); nickstire's `MAINnicks-tire-auto` joined it at 13:20Z,
+  next to TiDB (`us-east-1`). Until then both ran in `us-west2` (California) and every query
+  crossed the country (~60-70 ms per round trip). statenour-worker, Redis, perplexica and searxng
+  are still in `us-west2`; they reach statenour-web over its public domain or the private
+  network, which works across regions. Latency measured before 12:32Z (statenour) or 13:20Z
+  (nickstire) on 09-23 is not comparable with later.
   The Neon compute (`ep-quiet-wave-am320eo1`) autoscales 0.5-2 CU since 12:48Z 09-23 (was
   0.25-2, raised on the operator's approval so the chat turn's query burst meets more CPU).
 - **Scratch debris is gated repo-wide** by `scripts/agent-os/scratchDebris.test.mjs`
