@@ -4,15 +4,14 @@ Migrations parked here are NOT in the live `prisma/migrations/`
 directory · `prisma migrate deploy` will not apply them. Move
 them back when ready.
 
-## ⏳ 2026-09-23 — ONE ENTRY IS GENUINELY PENDING
+## ✅ 2026-09-23 — EMPTY AGAIN
 
-`20260923150000_cron_job_log_skip_reason` — adds the nullable `"skipReason"`
-column to `cron_job_logs`. **Not applied** (verified read-only: the column
-does not exist on production). Awaiting the operator's apply. The model field
-and its writer land only AFTER the apply; the SQL header says why. Once
-applied and promoted, delete this section and the directory is empty again.
+`20260923150000_cron_job_log_skip_reason` was parked here, then applied to
+production the same day on the operator's instruction, promoted to
+`prisma/migrations/` and recorded in `_prisma_migrations` (66 rows; checksum
+= sha256 of the file, matching how every earlier row is recorded).
 
-## ✅ 2026-09-18 — THIS DIRECTORY WAS EMPTY, AND THAT WAS THE CORRECT STATE
+## ✅ 2026-09-18 — THIS DIRECTORY IS EMPTY, AND THAT IS THE CORRECT STATE
 
 It held five migrations for weeks. Measured read-only against Neon prod on
 2026-09-17, **all five were already applied** — the directory's whole premise,

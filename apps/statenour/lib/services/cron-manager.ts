@@ -11,6 +11,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/utils/error-log";
+import { deriveSkipReason } from "@/lib/services/cron-skip-reason";
 
 /**
  * A cron that CATCHES its own error and returns `{ ok: false }` resolves
@@ -127,7 +128,13 @@ export async function logCronRun(
       return { success: true, result, durationMs, reportedFailure: reported };
     }
     await prisma.cronJobLog.create({
-      data: { jobName, status: "success", duration: durationMs, resultCount: countFrom(result) },
+      data: {
+        jobName,
+        status: "success",
+        duration: durationMs,
+        resultCount: countFrom(result),
+        skipReason: deriveSkipReason(result),
+      },
     }).catch((e) => logError("cron.manager", e, { fn: "logCronRun", jobName, lost: "success-row" }, "warn"));
     return { success: true, result, durationMs };
   } catch (err) {

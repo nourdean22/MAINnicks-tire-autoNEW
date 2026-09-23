@@ -1,5 +1,5 @@
 -- cron_job_logs · skip reason · 2026-09-23
--- PARKED, NOT APPLIED. Operator-approved apply only - see ../README.md.
+-- APPLIED to production 2026-09-23 (operator-approved: "do the migrations for me").
 -- ADDITIVE · nullable · no default · no backfill · no data loss.
 -- Postgres adds a nullable, default-less column as a catalog change: no table
 -- rewrite, one brief ACCESS EXCLUSIVE lock.
