@@ -150,3 +150,25 @@ describe("prerender bot list — answer engines", () => {
     for (const ua of HUMANS) expect(isBot(ua), ua).toBe(false);
   });
 });
+
+describe("prerender bot list — job-board crawlers", () => {
+  // Indeed's free channel for Nick's is crawling /careers/<slug>. Before
+  // 2026-09-23 no Indeed token was listed, so it received the empty SPA shell
+  // (no JobPosting, no pay). See docs/recruiting/RECRUITING-ENGINE-2026-09.md.
+  const patterns = botPatterns();
+  const isBot = (ua: string) => patterns.some((p) => ua.toLowerCase().includes(p));
+
+  it("matches both published Indeed crawler user agents", () => {
+    expect(isBot("IndeedJobBot")).toBe(true);
+    expect(isBot("Mozilla/5.0 (Windows NT 6.1; rv:38.0) Gecko/20100101 Firefox/38.0 (IndeedBot 1.1)")).toBe(true);
+  });
+
+  it("does not sweep in a human browsing Indeed-referred traffic", () => {
+    // Humans arriving from indeed.com carry the referrer, not the UA; a plain
+    // Chrome UA must still get the SPA.
+    expect(
+      isBot("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"),
+    ).toBe(false);
+  });
+});
+

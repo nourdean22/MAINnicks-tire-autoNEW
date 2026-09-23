@@ -2346,6 +2346,39 @@
       "codeState": "merged",
       "operationalState": "live_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "careers-candidate-intake",
+      "name": "Every /careers submission reaches the owner within a minute (text + email), gets an acknowledgement, and is attributed to a source",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "PR #2557 (branch claude/funny-gates-asubwi). server/services/candidateIntake.ts runs after candidates.submit saves: owner email via sendNotification (bypassThrottle), owner TEXT from the store line to OPERATOR_MOBILE_LAST10 with messageClass internal (the declared intent sendSms's internal-line guard requires), applicant acknowledgement email. Operator instruction 2026-09-23. The applicant is never texted. Kill switches CANDIDATE_OWNER_ALERT / CANDIDATE_OWNER_SMS / CANDIDATE_ACK_EMAIL = off; CANDIDATE_ALERT_PHONE overrides the destination. Also: five intents (apply / talk privately / see the shop / keep me in mind / apprentice), move-reason chips, honeypot, E.164 repeat detection, refCode from ?ref=, gclid/utm_term/utm_content, drizzle/0129 with a pre-0129 insert fallback.",
+        "tests": [
+          "server/candidateIntake.test.ts (13): destination is the operator mobile for every intent, never the applicant; opts are {via: shop, messageClass: internal}; each kill switch stops only its own lane; transport failures never throw; ownerAlertedAt stamped only when the mailer sent. Mutation-verified: pointing the text at another number fails 2 tests, dropping messageClass internal fails 1.",
+          "server/candidateLifecycle.test.ts (10): every status/intent fits VARCHAR(32); ?ref= parsing rejects anything we could not have issued; isUnknownColumnError fires on 1054 (direct and drizzle-wrapped) and on nothing else.",
+          "server/candidates.test.ts + candidatesSilentLoss.test.ts + candidateSla.test.ts unchanged and green."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "NOT YET OBSERVED LIVE. Needs one real submission after deploy: owner email received, text received on the operator mobile from the store line, acknowledgement email received. The store-line gateway (Capevace F25e) must be online for the text; if it is not, sendSms falls back per its own routing."
+        },
+        {
+          "severity": "P2",
+          "description": "drizzle/0129 is operator-pending (production DDL). Until applied, intent/moveReasons/phoneE164/refCode/attribution survive only inside `message`, and repeat detection reports 'could not run'."
+        }
+      ],
+      "deferredScope": [
+        "resume upload (S3, type/size check; no parser)",
+        "SLA reminder cron (the instant text covers first response)",
+        "A2P 10DLC recruiting campaign before any text to an applicant"
+      ]
     }
   ],
   "axes": {
