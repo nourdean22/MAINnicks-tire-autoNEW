@@ -4,6 +4,13 @@ Migrations parked here are NOT in the live `prisma/migrations/`
 directory · `prisma migrate deploy` will not apply them. Move
 them back when ready.
 
+## ✅ 2026-09-23 — EMPTY AGAIN
+
+`20260923150000_cron_job_log_skip_reason` was parked here, then applied to
+production the same day on the operator's instruction, promoted to
+`prisma/migrations/` and recorded in `_prisma_migrations` (66 rows; checksum
+= sha256 of the file, matching how every earlier row is recorded).
+
 ## ✅ 2026-09-18 — THIS DIRECTORY IS EMPTY, AND THAT IS THE CORRECT STATE
 
 It held five migrations for weeks. Measured read-only against Neon prod on

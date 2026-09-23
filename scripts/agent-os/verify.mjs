@@ -15,7 +15,8 @@
  * Exit 0 = all green · 1 = a check failed · 2 = the harness itself is broken.
  */
 import { spawnSync } from "node:child_process";
-import { readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,6 +24,13 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
 
 const results = [];
+
+// GitHub API budget meter (2026-09-23): every ghFetch() in every spawned test appends
+// one line here (github-client.mjs), and the summary below prints the run's total and
+// top consumers. CI's token gets ~1,000 requests/hour per repo; a live canary that
+// silently grew to 657 requests per run exhausted it before anyone saw the number.
+const GH_CALL_LOG = process.env.AGENT_OS_GH_CALL_LOG || join(mkdtempSync(join(tmpdir(), "agent-os-gh-")), "calls.jsonl");
+process.env.AGENT_OS_GH_CALL_LOG = GH_CALL_LOG;
 
 function run(label, argv) {
   process.stdout.write(`\n── ${label} ${"─".repeat(Math.max(0, 58 - label.length))}\n`);
@@ -73,6 +81,12 @@ if (testFiles.length) {
 }
 
 // ── Summary ─────────────────────────────────────────────────────────────────
+const calls = existsSync(GH_CALL_LOG) ? readFileSync(GH_CALL_LOG, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
+const byScript = {};
+for (const c of calls) byScript[c.script] = (byScript[c.script] ?? 0) + 1;
+const top = Object.entries(byScript).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `${k} ${v}`);
+console.log(`\nGitHub API requests this run: ${calls.length}${top.length ? ` (${top.join(", ")})` : ""}`);
+
 const failed = results.filter((r) => r.code !== 0);
 console.log("\n" + "═".repeat(62));
 for (const r of results) console.log(`${r.code === 0 ? "PASS" : "FAIL"}  ${r.label}`);
