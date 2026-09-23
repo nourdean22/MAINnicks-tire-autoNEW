@@ -21,7 +21,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -76,4 +76,32 @@ test("control: the same configured hook ALLOWS a harmless command", () => {
   const pre = nodeHooks.find((h) => h.event === "PreToolUse" && h.command.includes("pretool.mjs"));
   const r = runHook(pre.command, JSON.stringify({ tool_name: "Bash", tool_input: { command: "git status" } }));
   assert.equal(r.code, 0, `a harmless command was not allowed (exit ${r.code})\n${r.out}`);
+});
+
+test("Session Authority (2026-09-23): the configured lease-check.mjs BLOCKS on a foreign unexpired marker, via its exact command string", async (t) => {
+  const check = nodeHooks.find((h) => h.event === "PreToolUse" && h.command.includes("lease-check.mjs"));
+  if (!check) return t.skip("lease-check.mjs not yet configured in .claude/settings.json");
+
+  // This runs against THIS repo's real .git directory (hookCommand.test.mjs's
+  // whole point is proving the CONFIGURED command against CLAUDE_PROJECT_DIR=ROOT)
+  // — so the fixture marker is written and ALWAYS removed via t.after(), restoring
+  // whatever was there before, regardless of assertion outcome. Never leaves a
+  // foreign marker behind to spuriously block a real later tool call this session.
+  const { writeLocalMarker, readLocalMarker, clearLocalMarker } = await import("./local-lease-marker.mjs");
+  const before = readLocalMarker(ROOT);
+  t.after(() => {
+    if (before) writeLocalMarker(ROOT, before);
+    else clearLocalMarker(ROOT);
+  });
+
+  const branch = execSync("git rev-parse --abbrev-ref HEAD", { cwd: ROOT, encoding: "utf8" }).trim();
+  writeLocalMarker(ROOT, {
+    branch,
+    sessionId: "hookCommand-test-fixture-foreign-session",
+    expiresAt: new Date(Date.now() + 3600000).toISOString(),
+  });
+
+  const r = runHook(check.command, JSON.stringify({ cwd: ROOT, tool_name: "Bash", tool_input: { command: "git status" } }));
+  assert.equal(r.code, 2, `expected a block via the configured command; got exit ${r.code}\n${r.out}`);
+  assert.match(r.out, /hookCommand-test-fixture-foreign-session/);
 });

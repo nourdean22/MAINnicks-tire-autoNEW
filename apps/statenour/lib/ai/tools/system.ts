@@ -14,43 +14,18 @@ import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
-import { hasPerplexica } from "@/lib/integrations/perplexica";
 
 // moneyprinter rewrites the shared MoneyPrinterTurbo config.toml before each
 // run while a prior 7-minute subprocess may still be reading it — one run at
 // a time, or an overlapping write corrupts the in-flight job's credentials.
 let moneyprinterInFlight = false;
 
-// ── Perplexica primary-source breaker (2026-08-15) ──────────────────────
-//
-// arsenalWebSearch races Perplexica as the PRIMARY, then falls back to a
-// multi-source quorum (Tavily ~2s). The race cap was a hardcoded 30s, chosen
-// in July when Perplexica was healthy (24.7-28.4s typical synthesis). It is
-// not healthy now, and the 30s buys nothing:
-//
-//   searxng-perplexica, 500 log lines sampled 2026-08-15: ZERO healthy
-//   responses · 116 SearxEngineCaptchaException (81 DuckDuckGo) · 29
-//   TooManyRequests · 2 AccessDenied. Engines blocked: duckduckgo, wikipedia,
-//   startpage, brave, google cse.
-//   perplexica, 400 lines: ZERO completed searches · 28 errors · 14x
-//   `status: 400 invalid_request_error` from its own chat backend.
-//
-// So every web search paid 30 seconds to a source that cannot answer, before
-// the quorum that can. That is a third of the client's 90s stall budget spent
-// before the model emits a token — two searches in a turn and the turn cannot
-// finish. It reads to the operator as "tools don't work, messages get cut off".
-//
-// Two changes. The cap drops to 6s (env-tunable) — even a HEALTHY Perplexica
-// took 24-28s, so it was already losing to Tavily on latency for most queries;
-// 6s simply stops pretending otherwise. And a breaker: after three consecutive
-// misses the primary is skipped entirely for ten minutes, so the cost is paid
-// once per window instead of once per search. A single success re-arms it, so
-// recovery is automatic and needs no deploy.
-const PERPLEXICA_PRIMARY_MS = Math.max(1_000, Number(process.env.PERPLEXICA_PRIMARY_MS) || 6_000);
-const PERPLEXICA_MISS_LIMIT = 3;
-const PERPLEXICA_COOLDOWN_MS = 10 * 60_000;
-let perplexicaMisses = 0;
-let perplexicaSkipUntil = 0;
+// Tavily primary cap (2026-09-23). askTavily is guardian-wrapped at 25s x 2
+// retries; an interactive chat turn cannot afford that on its FIRST rung, so
+// the primary attempt is capped and a miss falls through to the next rung.
+// Tavily answers in ~2s when healthy, so 8s (the quorum's per-source budget)
+// only ever cuts off a source that is already failing.
+const TAVILY_PRIMARY_MS = 8_000;
 
 /**
  * Pull the rendered video paths out of MoneyPrinterTurbo's CLI output.
@@ -402,7 +377,7 @@ export const systemTools = {
   // "describing" with "doing" for any quantitative question.
   searchWebVerified: tool({
     description:
-      "Cross-verified web search across multiple sources (Perplexity + Tavily + Exa + Google Grounding + Perplexica). Returns consensus when sources agree, or flags the disagreement when they diverge. Use for factual claims where being wrong matters: news, statistics, recent events, technical specs. Confidence ≥0.66 means 2+ sources agree. Prefer this over single-source web search when the operator's question is verifiable.",
+      "Cross-verified web search across multiple sources (Perplexity + Tavily + Exa + Google Grounding). Returns consensus when sources agree, or flags the disagreement when they diverge. Use for factual claims where being wrong matters: news, statistics, recent events, technical specs. Confidence ≥0.66 means 2+ sources agree. Prefer this over single-source web search when the operator's question is verifiable.",
     inputSchema: z.object({
       query: z
         .string()
@@ -410,7 +385,7 @@ export const systemTools = {
         .max(500)
         .describe("The natural-language question or claim to verify."),
       sources: z
-        .array(z.enum(["perplexity", "tavily", "exa", "google", "perplexica"]))
+        .array(z.enum(["perplexity", "tavily", "exa", "google"]))
         .optional()
         .describe(
           "Restrict to these sources. Default: all configured sources.",
@@ -513,7 +488,7 @@ export const systemTools = {
   }),
 
   arsenalWebSearch: tool({
-    description: "Web search with AI summarization. Prefers Perplexica (self-hosted, free, unlimited); falls back to Perplexity/Google, then to the multi-source quorum if the primary is unavailable. Powered by the Arsenal integration chain.",
+    description: "Web search with AI summarization. Tries Tavily first; falls back to Perplexity/Google, then to the multi-source quorum if those are unavailable. Powered by the Arsenal integration chain.",
     inputSchema: z.object({
       query: z.string().describe("Web search query"),
     }),
@@ -522,100 +497,43 @@ export const systemTools = {
       const fence = (s: string | undefined) =>
         fenceContent("arsenalWebSearch", "external_web", (s ?? "").slice(0, 2000));
 
-      // Primary · one source, cheapest-free-first: Perplexica (self-hosted,
-      // unlimited) → Perplexity (if keyed) → Google grounding. Wrapped so a
-      // single dead source — revoked key, timeout, retired model, sidecar down
-      // — degrades to the multi-source quorum instead of throwing (which the
-      // model would otherwise surface as a confident failure claim).
+      // Primary · one source at a time: Tavily (fastest healthy source, ~2s)
+      // → Perplexity (if keyed) → Google grounding. Wrapped so a single dead
+      // source — revoked key, timeout, retired model — degrades to the
+      // multi-source quorum instead of throwing (which the model would
+      // otherwise surface as a confident failure claim).
+      //
+      // 2026-09-23 · the two self-hosted search-sidecar rungs that used to sit
+      // ahead of Tavily are gone. Neither answered a single search in
+      // production (0 healthy responses / 0 completed searches, then a
+      // JSON-parse error on every request — docs/CURRENT-TRUTH.md), so every
+      // search paid their timeouts before reaching a source that works.
       try {
-        // Rung 0 · SearXNG direct. Perplexica's only addition over raw SearXNG
-        // is an LLM synthesis pass, and statenour's own model re-synthesizes
-        // whatever it returns — so that pass costs 25-46s to write a paraphrase
-        // for a reader that immediately rewrites it. Measured 2026-08-16:
-        // SearXNG 2.4-6.1s vs Perplexica 30.8-52.1s for the same three queries.
-        // Additive: on any failure this falls through to the chain below, so
-        // the worst case is exactly the previous behaviour.
-        const { hasSearxng, askSearxng } = await import("@/lib/integrations/searxng");
-        if (hasSearxng()) {
-          const r = await askSearxng(query).catch(async (err) => {
-            const { logger } = await import("@/lib/logger");
-            logger
-              .withSurface("ai/tools/arsenalWebSearch")
-              .warn("searxng_direct_failed_falling_through", {
-                error: String((err as { message?: string })?.message ?? err).slice(0, 240),
-              });
-            return null;
-          });
-          if (r?.content?.trim()) {
-            return {
-              content: fence(r.content),
-              citations: r.citations ?? [],
-              model: "searxng",
-              source: "arsenal/searxng",
-            };
-          }
-        }
-
-        if (hasPerplexica() && Date.now() >= perplexicaSkipUntil) {
-          const { askPerplexica } = await import("@/lib/integrations/perplexica");
-          // 2026-07-12 · FAIL-FAST on a hung primary. When perplexica's synth
-          // backend stalls (e.g. the Gemini key hit its spending cap →
-          // /api/search never returned) the guardian's 35s×2 = 70s burned the
-          // whole interactive budget before failover, so the chat stream
-          // aborted and the model refused with stale training data instead of
-          // the working Tavily quorum. Cap the PRIMARY attempt; on null the
-          // quorum (Tavily ~2s) answers. 30s = measured healthy perplexica on
-          // Ollama Cloud synthesis (gpt-oss:120b): 24.7-28.4s typical over
-          // 30-60 sources; the ~38s tail loses to Tavily by design. `.catch`
-          // keeps the losing promise from surfacing as an unhandled rejection
-          // after the race resolves.
+        if (process.env.TAVILY_API_KEY) {
+          const { askTavily } = await import("@/lib/integrations/tavily");
+          // `.catch` logs the reason and keeps the losing promise from
+          // surfacing as an unhandled rejection after the race resolves.
           const r = await Promise.race([
-            // `.catch(() => null)` used to discard the reason outright, and the
-            // reason was the whole answer. Perplexica has returned ZERO completed
-            // searches; its logs carried
-            //   400 prompt too long; exceeded max context length by 47237 tokens
-            // on every attempt — thrown by askPerplexica, then dropped here, so
-            // the failure looked generic for weeks. Not a dead sidecar, not a
-            // retired model id (gpt-oss:120b is alive): the synthesis prompt is
-            // 30-60 scraped sources folded into one call, ~175k tokens, against
-            // gpt-oss:120b's 128k window. Already on optimizationMode "speed",
-            // the leanest setting, so the model is the fix, not the mode —
-            // minimax-m3 and deepseek-v4-flash both carry 1M on the same flat plan.
-            // Log the reason, then degrade exactly as before.
-            askPerplexica(query).catch(async (err) => {
-              const message = String((err as { message?: string })?.message ?? err);
+            askTavily(query).catch(async (err) => {
               const { logger } = await import("@/lib/logger");
               logger
                 .withSurface("ai/tools/arsenalWebSearch")
-                .warn("perplexica_primary_error", {
-                  contextOverflow: /max context length|prompt too long/i.test(message),
-                  error: message.slice(0, 240),
+                .warn("tavily_primary_error", {
+                  error: String((err as { message?: string })?.message ?? err).slice(0, 240),
                 });
               return null;
             }),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), PERPLEXICA_PRIMARY_MS)),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), TAVILY_PRIMARY_MS)),
           ]);
-          if (!r?.content?.trim() && ++perplexicaMisses >= PERPLEXICA_MISS_LIMIT) {
-            perplexicaSkipUntil = Date.now() + PERPLEXICA_COOLDOWN_MS;
-            perplexicaMisses = 0;
-            const { logger } = await import("@/lib/logger");
-            logger
-              .withSurface("ai/tools/arsenalWebSearch")
-              .warn("perplexica_primary_tripped_skipping", {
-                cooldownMs: PERPLEXICA_COOLDOWN_MS,
-                capMs: PERPLEXICA_PRIMARY_MS,
-              });
-          }
           if (r?.content?.trim()) {
-            perplexicaMisses = 0;
-            // 2026-07-05 improvement · attribute web claims. arsenalWebSearch was
-            // the lone web tool discarding citations (searchWebVerified /
-            // arsenalDeepResearch already ship them). Each source returns
+            // 2026-07-05 improvement · attribute web claims. Each source returns
             // { url, title? }[]; forward them unfenced (URLs are metadata, not
             // model-followable instructions) so the message can render pills.
-            return { content: fence(r.content), citations: r.citations ?? [], model: "perplexica", source: "arsenal/perplexica" };
+            return { content: fence(r.content), citations: r.citations ?? [], model: r.model, source: "arsenal/tavily" };
           }
-        } else if (process.env.PERPLEXITY_API_KEY) {
+        }
+
+        if (process.env.PERPLEXITY_API_KEY) {
           const { researchTopic } = await import("@/lib/integrations/perplexity");
           const r = await researchTopic(query);
           if (r?.content?.trim()) {
@@ -640,18 +558,11 @@ export const systemTools = {
       // Fallback · multi-source quorum (Promise.allSettled · never throws on
       // partial failure). Keeps "search on X" alive when the primary is down;
       // surfaces an honest all-sources-failed note rather than an empty result.
-      // 2026-07-12 · when Perplexica IS the configured primary it was just
-      // exhausted above, so exclude it here — otherwise the quorum re-waits its
-      // full per-source budget on the known-dead source before the metered
-      // sources (Tavily/Exa/Perplexity) can answer. Unkeyed sources are skipped
-      // internally by hasApiKey, so this list is a ceiling, not a requirement.
+      // Tavily stays IN the quorum even after a primary miss: it is the one
+      // source production reliably has (CURRENT-TRUTH), so the quorum doubles
+      // as its retry. Unkeyed sources are skipped internally by hasApiKey.
       const { multiSourceSearch } = await import("@/lib/ai/multi-search");
-      const q = await multiSourceSearch(
-        query,
-        hasPerplexica()
-          ? { sources: ["perplexity", "tavily", "exa", "google"] }
-          : {},
-      );
+      const q = await multiSourceSearch(query);
       const body =
         q.consensus?.trim() ||
         q.sources.map((s) => `${s.name}: ${s.content}`).join("\n\n").trim() ||

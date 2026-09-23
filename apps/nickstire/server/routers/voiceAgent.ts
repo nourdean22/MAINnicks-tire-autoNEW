@@ -411,6 +411,11 @@ export const voiceAgentRouter = router({
     .input(z.object({
       phone: z.string().min(7).max(20),
       summary: z.string().min(2).max(500),
+      // Accepted and IGNORED. The live assistant config still offers this
+      // argument until the next config push, and a strict schema would reject
+      // the whole call. The recap's link is the server's (VAPI_RECAP_LINK in
+      // services/smsOrchestrator.ts): on 2026-09-23 the model invented a
+      // goo.gl link and the caller's text was held as a draft.
       mapLink: z.string().max(500).optional(),
       // The webhook injects the live call's id into every tool's args
       // (routes/webhooks/vapi.ts). This schema used to strip it, so the
@@ -428,7 +433,6 @@ export const voiceAgentRouter = router({
           type: "vapi_confirmation",
           phone: input.phone,
           summary: input.summary,
-          mapLink: input.mapLink,
           vapiCallId: input.callId,
         });
 
@@ -449,7 +453,10 @@ export const voiceAgentRouter = router({
         const success = orchResult.status === "sent" || orchResult.status === "queued" || orchResult.status === "sending";
         const degraded = orchResult.status !== "sent";
 
-        log.info("Voice agent SMS sent via orchestrator", {
+        // Name the outcome the orchestrator returned. This line said "sent" for
+        // every result, including a recap held as a draft (2026-09-23).
+        const outcome = orchResult.status === "sent" ? "sent" : success ? "handed off, delivery unconfirmed" : "NOT sent";
+        log.info(`Voice agent SMS ${outcome}`, {
           phone: input.phone.slice(-4),
           status: orchResult.status,
           degraded,

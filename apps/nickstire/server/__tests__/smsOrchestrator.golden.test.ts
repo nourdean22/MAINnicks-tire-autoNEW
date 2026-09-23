@@ -157,6 +157,7 @@ function cooldownStatuses(): string[] {
 
 // Import orchestrator and helpers
 import { orchestrateSms, loadCustomerContext, humanizeCopy } from "../services/smsOrchestrator";
+import { notSentLogFields } from "../lib/smsNotSentLog";
 import { getTemplateVariant } from "../services/smsMessageCatalog";
 import { generateDailySmsReport, generateWeeklySmsReport, getSmsVariantPerformance, trackDraftFeedback } from "../services/smsLearningEngine";
 
@@ -435,6 +436,45 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
 
     expect(res.shouldAutoSend).toBe(true);
     expect(res.body).toContain("Appointment booked for alignment");
+  });
+
+  // 13a (2026-09-23). The voice model invented a map link; the preflight guard
+  // flagged it as hallucinated_url and the caller's recap sat as a draft. The
+  // recap now always carries the server's link, whatever the event says.
+  it("Vapi confirmation -> an invented mapLink is replaced by the shop's link and the recap is not held", async () => {
+    const res = await orchestrateSms({
+      type: "vapi_confirmation",
+      phone: "2165550013",
+      summary: "Used tire question, walking in today",
+      mapLink: "https://goo.gl/maps/abc123",
+      vapiCallId: "call_vapi_maplink",
+    });
+
+    expect(res.body).toContain("https://nickstire.org/contact");
+    expect(res.body).not.toContain("goo.gl");
+    expect(res.status).not.toBe("drafted");
+    expect(res.noSendReason ?? null).not.toBe("hallucinated_url");
+    expect(res.shouldAutoSend).toBe(true);
+    expect(mockSendSms).toHaveBeenCalledTimes(1);
+    expect(String(mockSendSms.mock.calls[0][1])).toContain("https://nickstire.org/contact");
+    expect(String(mockSendSms.mock.calls[0][1])).not.toContain("goo.gl");
+  });
+
+  // 13a'. A URL the guard rejects can still arrive inside the summary; the
+  // not-sent log line must then name the guard's code, not "system_triggered".
+  it("Vapi confirmation held by the preflight guard -> the not-sent log names the guard's code", async () => {
+    const event = {
+      type: "vapi_confirmation" as const,
+      phone: "2165550013",
+      summary: "See https://goo.gl/maps/abc123 for directions",
+      vapiCallId: "call_vapi_preflight",
+    };
+    const res = await orchestrateSms(event);
+
+    expect(res.status).toBe("drafted");
+    expect(res.noSendReason).toBe("hallucinated_url");
+    expect(notSentLogFields(event, res)?.reason).toBe("hallucinated_url");
+    expect(mockSendSms).not.toHaveBeenCalled();
   });
 
   // 13b-13c (2026-09-23). The recap tool now passes the call id

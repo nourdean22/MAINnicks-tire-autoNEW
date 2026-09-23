@@ -37,13 +37,6 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-vi.mock("@/lib/utils/redis", () => ({
-  redisGet: async () => null,
-  redisSet: async () => false,
-  redisDel: async () => false,
-  redisDelPrefix: async () => 0,
-}));
-
 import { resetBrainState } from "@/lib/services/brain-domain";
 import {
   addManualEntry,
