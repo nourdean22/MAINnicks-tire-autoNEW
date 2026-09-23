@@ -420,6 +420,45 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     expect(res.body).toContain("Appointment booked for alignment");
   });
 
+  // 13b-13c (2026-09-23). The recap tool now passes the call id
+  // (routes/webhooks/vapi.recapCallId.test.ts), so the recap has a stable
+  // idempotency key. These pin what that key buys, in both send paths.
+  it("Vapi confirmation -> a second recap on the same call returns the first and sends nothing", async () => {
+    mockTableResponses.sms_orchestrations = [{
+      id: 7,
+      idempotencyKey: "idemp_vapi_confirmation_+12165550013_call_call_vapi_dup",
+      status: "sending",
+      messageBody: "first recap",
+      eventType: "vapi_confirmation",
+      shouldAutoSend: true,
+    }];
+
+    const res = await orchestrateSms({
+      type: "vapi_confirmation",
+      phone: "2165550013",
+      summary: "Appointment booked for alignment",
+      vapiCallId: "call_vapi_dup",
+    });
+
+    expect(res.id).toBe(7);
+    expect(res.status).toBe("sending");
+    expect(mockSendSms).not.toHaveBeenCalled();
+  });
+
+  it("Global kill switch -> the legacy send still records its idempotency key", async () => {
+    mockRolloutGlobalMode = "legacy_passthrough";
+
+    await orchestrateSms({
+      type: "vapi_confirmation",
+      phone: "2165550013",
+      summary: "Appointment booked for alignment",
+      vapiCallId: "call_vapi_legacy",
+    });
+
+    const inserted = mockDb.values.mock.calls.map((a: unknown[]) => a[0] as Record<string, unknown>);
+    expect(inserted.some((v) => v.idempotencyKey === "idemp_vapi_confirmation_+12165550013_call_call_vapi_legacy")).toBe(true);
+  });
+
   // 14. Abandoned form -> cooldown 7 days
   it("Abandoned form -> sends once, cooldown blocks repeat within 7 days", async () => {
     mockTableResponses.sms_orchestrations = [{ id: 42, cooldownKey: "abandoned_form:+12165550014", status: "sent", createdAt: new Date() }];

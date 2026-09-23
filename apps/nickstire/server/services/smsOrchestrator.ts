@@ -789,6 +789,9 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
           statusReason,
           legacyMessageBody: legacyBody,
           noSendReason,
+          // Without it the idempotency check above can never match a
+          // passthrough send, so a repeat on the same call could text again.
+          idempotencyKey,
           createdAt: new Date(),
           updatedAt: new Date(),
         };
