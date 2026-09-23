@@ -46,7 +46,8 @@ only what changes how you WORK is repeated here.
 - **Contextual recall rarely reaches the model (measured 2026-09-23).** `buildBrainContext`
   races `getContextualMemories` at 3 s and the lane runs its stages sequentially, so the
   "Context Memories" block landed on 4 of 89 chat turns since 09-18 (41 of 44 logged recalls
-  took over 3 s). "Hybrid Recall" is what the model actually sees. Fix the race before
+  took over 3 s; on 09-23 it landed only on the one turn that finished in 2,997 ms, warm turns
+  included). "Hybrid Recall" is what the model actually sees. Fix the race before
   tuning contextual ranking; `pnpm eval:recall` calls the lane directly and cannot see it.
 - **Scratch debris is gated repo-wide** by `scripts/agent-os/scratchDebris.test.mjs`
   (agent-policy workflow, every PR). Temp probes are welcome; committing them is not.
