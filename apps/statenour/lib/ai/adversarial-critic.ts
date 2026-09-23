@@ -175,10 +175,30 @@ Respond with a JSON object only · no prose · shape: {"objection": "<≤320 cha
   };
 }
 
-export const criticizeRecommendation = withGuardian("adversarial-critic", _criticize, {
-  timeoutMs: 8_000,
+/**
+ * A timeout is a claim about latency (precedent: judge-eval, JUDGE_GUARDIAN_OPTS).
+ * The budget was 8 s. agent_traces, label 'adversarial-critic', 2026-09-16 to
+ * 09-23 (n=110, all ollama deepseek-v4-flash, every call succeeded):
+ * p50 5.7 s, p90 14.9 s, p95 21.7 s, p99 32.3 s, max 32.7 s. 32 of 110 ran past
+ * 8 s. The guardian races the call and never cancels it, so each of those was
+ * billed and then thrown away, and the retry usually timed out the same way:
+ * 6 "api_timeout after 2 attempt(s)" on 09-23 against at least 4 objections
+ * kept. The critic runs post-stream and nobody waits on it, so the budget only
+ * decides whether a finished objection is kept.
+ */
+export const ADVERSARIAL_MEASURED_P95_MS = 21_700;
+export const ADVERSARIAL_GUARDIAN_OPTS = {
+  timeoutMs: 30_000,
   maxRetries: 1,
   reliabilityOnly: true, // internal post-stream critique sub-op
+} as const;
+
+// `reliabilityOnly: true` is repeated literally inside the call on purpose:
+// guardian-registry-drift.test.ts scans the text of each withGuardian(...) call
+// and cannot follow the spread (same reason as judge-eval's call site).
+export const criticizeRecommendation = withGuardian("adversarial-critic", _criticize, {
+  ...ADVERSARIAL_GUARDIAN_OPTS,
+  reliabilityOnly: true,
 });
 
 /**

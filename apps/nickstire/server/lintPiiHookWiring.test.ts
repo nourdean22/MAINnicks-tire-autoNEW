@@ -377,3 +377,71 @@ describe("the gate is actually WIRED into pre-commit", () => {
     expect(pkg.scripts.verify).toContain("lint:pii");
   });
 });
+
+/**
+ * 2026-09-23 · a merge commit from `main` could not be made. The repo ROOT has
+ * its own `scripts/` (scripts/agent-os/*.mjs), and `git diff --cached
+ * --name-only` reports repo-root-relative paths. The prefix strip left
+ * `scripts/agent-os/x.mjs` as-is, IN_SCOPE's `^scripts/` claimed it, and the
+ * per-file diff then resolved `scripts/agent-os/x.mjs` INSIDE apps/nickstire,
+ * found nothing, and failed closed: "27 staged in-scope file(s) produced an
+ * EMPTY diff". Every merge that brought another package's root scripts in was
+ * blocked, although none of them is this app's file.
+ *
+ * Both halves are asserted: another package's file is not this gate's
+ * business (no UNSCANNED, no block), AND a real violation staged beside it
+ * still blocks - a fix that simply went quiet would pass the first alone.
+ */
+function runStagedMany(
+  entries: Array<[path: string, source: string]>,
+  extraEnv: Record<string, string> = {},
+): { out: string; code: number | null } {
+  const indexFile = join(tmpdir(), `pii-root-${process.pid}-${Math.random().toString(36).slice(2)}.index`);
+  const env = { ...process.env, GIT_INDEX_FILE: indexFile, ...extraEnv };
+  const git = (args: string[], input?: string) =>
+    spawnSync("git", args, { cwd: APP, env, encoding: "utf8", input, maxBuffer: CHILD_MAX_BUFFER });
+
+  expect(git(["read-tree", "HEAD"]).status, "could not seed the scratch index").toBe(0);
+  for (const [path, source] of entries) {
+    const blob = git(["hash-object", "-w", "--stdin"], source);
+    expect(blob.status, "could not write the probe blob").toBe(0);
+    expect(
+      git(["update-index", "--add", "--cacheinfo", `100644,${blob.stdout.trim()},${path}`]).status,
+      `could not stage ${path} into the scratch index`,
+    ).toBe(0);
+  }
+  const r = spawnSync(process.execPath, [SCRIPT], {
+    cwd: APP, env, encoding: "utf8", timeout: 180_000, maxBuffer: CHILD_MAX_BUFFER,
+  });
+  return { out: `${r.stdout ?? ""}${r.stderr ?? ""}`, code: r.status };
+}
+
+/** Repo-root `scripts/`, NOT apps/nickstire/scripts/ - another package's file. */
+const ROOT_SCRIPT = "scripts/agent-os/ZzRootPiiProbe.mjs";
+
+describe("another package's staged files are not this app's to scan (2026-09-23)", () => {
+  for (const [label, extraEnv] of [
+    ["under GIT_DIR (a real commit)", () => ({ GIT_DIR: gitDirOf() })],
+    ["with a clean env", () => ({})],
+  ] as const) {
+    it(`a repo-root scripts/ file is neither UNSCANNED nor blocking — ${label}`, () => {
+      const { out, code } = runStagedMany([[ROOT_SCRIPT, "export const x = 1;\n"]], extraEnv());
+      expect(out).not.toContain("UNSCANNED");
+      expect(code).toBe(0);
+    });
+
+    it(`a violation in THIS app still blocks when a root scripts/ file is staged beside it — ${label}`, () => {
+      const { out, code } = runStagedMany(
+        [
+          [ROOT_SCRIPT, "export const x = 1;\n"],
+          [STAGED_AS, SOURCE_BLOCKED],
+        ],
+        extraEnv(),
+      );
+      expect(out).toContain(WHY);
+      expect(out).toContain(PRE_COMMIT_LABEL);
+      expect(out).not.toContain("UNSCANNED");
+      expect(code).toBe(1);
+    });
+  }
+});

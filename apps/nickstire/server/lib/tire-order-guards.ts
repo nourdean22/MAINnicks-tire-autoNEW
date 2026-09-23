@@ -126,11 +126,13 @@ export function generateOrderNumber(now: Date = new Date()): string {
  * MySQL unique-constraint violation. The only UNIQUE key on tire_orders
  * is orderNumber (id is auto-increment), so any duplicate-entry error on
  * insert is an order-number collision.
+ *
+ * Re-exported from lib/dbErrors, which follows drizzle's `.cause` to the
+ * driver error. The local copy that lived here text-matched the top-level
+ * message; on drizzle 0.45 that is the SQL and params, so placeOrder's
+ * collision retry never fired and a same-day collision failed the order.
  */
-export function isDuplicateKeyError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes("Duplicate entry");
-}
+export { isDuplicateKeyError } from "./dbErrors";
 
 /**
  * Is this invoice the one placeOrder created for this tire order?
