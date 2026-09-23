@@ -10,8 +10,8 @@
  * that never invalidates, so it is not sufficient on its own.
  *
  * Everything computeNudges reads is mocked; the cache module itself is
- * REAL. Only the Redis L2 is stubbed, so the assertions land on the
- * actual `cached()` / `invalidate()` behavior.
+ * REAL — `cached()` / `invalidate()` are wrapped in spies that call
+ * through, so (b2) can compare the keys the two sides use.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -31,10 +31,8 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   remember: vi.fn(),
   cleanupResolvedContradiction: vi.fn(),
-  redisGet: vi.fn(),
-  redisSet: vi.fn(),
-  redisDel: vi.fn(),
-  redisDelPrefix: vi.fn(),
+  cachedKeys: [] as string[],
+  invalidatedKeys: [] as string[],
 }));
 
 vi.mock("@/lib/brain/identity-snapshot", () => ({
@@ -76,14 +74,22 @@ vi.mock("@/lib/prisma", () => ({
     },
   },
 }));
-// L2 stub — keeps the test hermetic (no live Redis) while leaving the
-// real two-tier logic in lib/utils/cache.ts under test.
-vi.mock("@/lib/utils/redis", () => ({
-  redisGet: mocks.redisGet,
-  redisSet: mocks.redisSet,
-  redisDel: mocks.redisDel,
-  redisDelPrefix: mocks.redisDelPrefix,
-}));
+// Call-through wrappers: the real lib/utils/cache.ts runs, and each key
+// it is handed is recorded so (b2) can pin write-key === invalidate-key.
+vi.mock("@/lib/utils/cache", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/utils/cache")>();
+  return {
+    ...actual,
+    cached: (key: string, ttl: number, compute: () => Promise<unknown>) => {
+      mocks.cachedKeys.push(key);
+      return actual.cached(key, ttl, compute);
+    },
+    invalidate: (key: string) => {
+      mocks.invalidatedKeys.push(key);
+      actual.invalidate(key);
+    },
+  };
+});
 
 import { buildNudgeContextBlock, dismissNudge } from "@/lib/brain/cross-system-nudge";
 import { resolveContradiction } from "@/lib/brain/contradiction-surfacer";
@@ -128,9 +134,6 @@ beforeEach(async () => {
   mocks.update.mockResolvedValue({});
   mocks.cleanupResolvedContradiction.mockResolvedValue(undefined);
   mocks.remember.mockResolvedValue(undefined);
-  mocks.redisGet.mockResolvedValue(null);
-  mocks.redisSet.mockResolvedValue(true);
-  mocks.redisDel.mockResolvedValue(true);
 
   // Drop any L1 entry left by the previous test — deliberately via the
   // production dismiss path rather than a hardcoded cache key, so this
@@ -139,6 +142,8 @@ beforeEach(async () => {
   await dismissNudge({ source: "__test_reset__", text: "__test_reset__" });
 
   vi.clearAllMocks();
+  mocks.cachedKeys.length = 0;
+  mocks.invalidatedKeys.length = 0;
 });
 
 describe("computeNudges() 300s cache", () => {
@@ -240,14 +245,14 @@ describe("computeNudges() 300s cache", () => {
     expect(mocks.loadIdentitySnapshot).toHaveBeenCalledTimes(2);
   });
 
-  it("(b2) invalidation clears L2 (Redis), not just the in-process L1", async () => {
+  it("(b2) dismiss invalidates the exact key the cache was written under", async () => {
     await buildNudgeContextBlock();
-    const cachedKey = mocks.redisSet.mock.calls[0]?.[0];
+    const cachedKey = mocks.cachedKeys[0];
     expect(cachedKey).toBeTruthy();
 
     await dismissNudge({ source: "contradiction", text: "anything" });
 
     // Same key on both sides — a rename that misses one side fails here.
-    expect(mocks.redisDel).toHaveBeenCalledWith(cachedKey);
+    expect(mocks.invalidatedKeys).toContain(cachedKey);
   });
 });

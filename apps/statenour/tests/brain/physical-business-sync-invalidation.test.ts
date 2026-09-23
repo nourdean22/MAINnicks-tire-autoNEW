@@ -7,7 +7,7 @@
  * rendering the previous one for up to 300s.
  *
  * There is exactly ONE writer of that eventType (this route), so this
- * drives the REAL handler — only prisma, redis, auth and the drift
+ * drives the REAL handler — only prisma, auth and the drift
  * engine are mocked — and asserts the MECHANISM end to end: after the
  * POST, the next context-block build re-queries and renders the row the
  * POST just wrote.
@@ -39,15 +39,6 @@ vi.mock("@/lib/prisma", () => ({
 
 vi.mock("@/lib/mastery/drift-engine", () => ({
   getUnresolvedAlerts: vi.fn().mockResolvedValue([]),
-}));
-
-// L2 no-op — invalidate() fires redisDel without awaiting it, so a live
-// Redis would race the "did re-query" assertion.
-vi.mock("@/lib/utils/redis", () => ({
-  redisGet: async () => null,
-  redisSet: async () => false,
-  redisDel: async () => false,
-  redisDelPrefix: async () => 0,
 }));
 
 import { POST } from "@/app/api/sync/business/route";
