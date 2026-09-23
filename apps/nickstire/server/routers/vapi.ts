@@ -264,15 +264,21 @@ export const vapiRouter = router({
   // via scripts/vapi-create-followup-assistant.ts, so prompt/tool changes to
   // the follow-up caller (e.g. wave-140's dropped transferCall + revived
   // escalate) didn't reach live until someone ran the script.
+  // The admin panel calls this with no id, so the server's own pin decides
+  // which assistant is pushed (same rule as updateAssistant above).
   updateFollowUpAssistant: adminProcedure
     .input(z.object({
-      assistantId: z.string().min(1).max(100),
+      assistantId: z.string().min(1).max(100).optional(),
       serverUrl: z.string().url().optional(),
-    }))
+    }).optional())
     .mutation(async ({ input }) => {
       const { updateFollowUpAssistant } = await import("../services/vapi");
-      const serverUrl = input.serverUrl || "https://nickstire.org/api/webhooks/vapi";
-      return updateFollowUpAssistant(input.assistantId, serverUrl);
+      const serverUrl = input?.serverUrl || "https://nickstire.org/api/webhooks/vapi";
+      const assistantId = input?.assistantId || process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+      if (!assistantId) {
+        return { success: false as const, error: "No follow-up assistant id (VAPI_FOLLOWUP_ASSISTANT_ID unset)" };
+      }
+      return updateFollowUpAssistant(assistantId, serverUrl);
     }),
 
   recentCalls: adminProcedure
