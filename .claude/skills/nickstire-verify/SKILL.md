@@ -63,6 +63,20 @@ because only sub-gate 1 was documented:
   shipping test changes, and compare runs only on the SAME file set: a branch
   with a different test-file count shuffles into a different order, so "main
   passes seed 29" proved nothing until the same tree ran without the change.
+- **`.completion/evidence.json` conflicts on nearly every base merge** while
+  sibling sessions run: they rewrite the same per-diff keys
+  (`capability-ledger-updated`, `operator-walkthrough`). Witnessed 3x on
+  2026-09-23. Resolve three-way, per key, against the merge-base: take the side
+  that changed; if both changed, OURS stays current (it describes this diff)
+  and THEIRS is kept as `<key>-superseded-<date>-sibling-main`. Write with
+  `json.dumps(d, indent=2, ensure_ascii=False) + "\n"` (round-trips byte-exact),
+  then re-run `node scripts/dod-compiler.mjs --base origin/main --enforce`.
+  A merged PR's conflict also stops `pull_request` CI from running at all:
+  "no checks" on a pushed head means check `mergeable_state` first.
+- **Wait on a background suite by its SUMMARY line, never `pgrep -f`.** A loop
+  like `until ! pgrep -f "vitest run"` matches its own command line (which
+  contains the pattern) and never exits; two such waiters sat out a 600s
+  timeout on 2026-09-23. Poll the log for `^\s+Tests ` instead, or capture `$!`.
 - **A derived scan set must include the WIRING file it derives from.**
   `server/__tests__/cronNoSwallowedFailure.test.ts` scanned every module
   `scheduler.ts` imports and never `scheduler.ts` itself — which held 13

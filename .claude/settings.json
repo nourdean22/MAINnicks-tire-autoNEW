@@ -13,7 +13,7 @@
           },
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}\\scripts\\agent-os\\check-memory-index.mjs\" --quiet",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/check-memory-index.mjs\" --quiet",
             "timeout": 10
           }
         ]
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}\\scripts\\agent-os\\pretool.mjs\"",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/pretool.mjs\"",
             "timeout": 10
           }
         ]
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}\\scripts\\agent-os\\stop-check.mjs\"",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/stop-check.mjs\"",
             "timeout": 15
           }
         ]
