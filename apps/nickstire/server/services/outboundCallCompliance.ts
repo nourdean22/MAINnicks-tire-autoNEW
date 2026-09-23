@@ -46,7 +46,7 @@ export type OutboundLane = "voice_recovery" | "followup_cadence" | "followup_man
  *                     admin button (makeFollowUpCall).
  *   confirmation      informational — asks about a visit the customer booked.
  */
-export const OUTBOUND_LANE_CLASS: Record<OutboundLane, "sales" | "informational"> = {
+const OUTBOUND_LANE_CLASS: Record<OutboundLane, "sales" | "informational"> = {
   voice_recovery: "sales",
   followup_cadence: "sales",
   followup_manual: "sales",

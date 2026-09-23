@@ -25,8 +25,8 @@ import {
   CALLBACK_NUMBER,
   customerUtterances,
   DO_NOT_CALL_TOOL_NAME,
+  isSalesLane,
   isSpokenOptOut,
-  OUTBOUND_LANE_CLASS,
   SPOKEN_BUSINESS_NAME,
   type OutboundLane,
 } from "./outboundCallCompliance";
@@ -40,7 +40,11 @@ type Body = {
   };
 };
 
-const LANES = Object.keys(OUTBOUND_LANE_CLASS) as OutboundLane[];
+// Every member of OutboundLane; `satisfies` makes the compiler reject a lane
+// added to the type but not listed here.
+const LANE_SET = { voice_recovery: 1, followup_cadence: 1, followup_manual: 1, confirmation: 1 } satisfies Record<OutboundLane, 1>;
+const LANES = Object.keys(LANE_SET) as OutboundLane[];
+const SALES = LANES.filter(isSalesLane);
 
 describe("the words come from the shared business constants", () => {
   it("identity and callback number are BUSINESS.name and BUSINESS.phone, not re-typed strings", () => {
@@ -51,12 +55,8 @@ describe("the words come from the shared business constants", () => {
   });
 
   it("the classification is the one the PR states: three sales lanes, one informational", () => {
-    expect(OUTBOUND_LANE_CLASS).toEqual({
-      voice_recovery: "sales",
-      followup_cadence: "sales",
-      followup_manual: "sales",
-      confirmation: "informational",
-    });
+    expect(SALES).toEqual(["voice_recovery", "followup_cadence", "followup_manual"]);
+    expect(isSalesLane("confirmation")).toBe(false);
   });
 });
 
@@ -102,7 +102,7 @@ describe("placeVapiOutboundCall · the body every lane sends", () => {
     expect(o.firstMessage.endsWith("LANE WORDS")).toBe(true);
   });
 
-  it.each(LANES.filter((l) => OUTBOUND_LANE_CLASS[l] === "sales"))(
+  it.each(SALES)(
     "%s (sales) · the opt-out instruction is the very next sentence after the identity",
     async (lane) => {
       const o = await dial(lane);
@@ -132,7 +132,7 @@ describe("placeVapiOutboundCall · the body every lane sends", () => {
     expect(system).toContain(`call ${DO_NOT_CALL_TOOL_NAME} IMMEDIATELY`);
   });
 
-  it.each(LANES.filter((l) => OUTBOUND_LANE_CLASS[l] === "sales"))(
+  it.each(SALES)(
     "%s (sales) · voicemail ends WITHOUT a message, even when a lane passes one",
     async (lane) => {
       const o = await dial(lane, `Hi, this is ${SPOKEN_BUSINESS_NAME}, call ${CALLBACK_NUMBER}`);

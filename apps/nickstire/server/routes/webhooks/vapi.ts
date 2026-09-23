@@ -194,10 +194,8 @@ export function shouldSendForwardedFollowup(input: {
  * opt out a stranger or leave the caller callable. Idempotent: a repeat (a
  * webhook retry, or the tool firing AND the transcript check) re-writes the
  * same row. Only the last four digits are ever logged.
- *
- * Exported for tests.
  */
-export async function recordDoNotCallRequest(
+async function recordDoNotCallRequest(
   customerNumber: string | undefined,
   source: "tool" | "transcript",
   callId?: string,
