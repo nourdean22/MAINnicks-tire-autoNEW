@@ -2365,6 +2365,7 @@ export async function deleteTechnician(id: number) {
 
 // ─── INVOICE HELPERS ─────────────────────────────────────────
 import { invoices, type InsertInvoice } from "../drizzle/schema";
+import { isDuplicateKeyError } from "./lib/dbErrors";
 
 import { createLogger } from "./lib/logger";
 
@@ -2388,22 +2389,34 @@ export async function getNextInvoiceNumber(): Promise<string> {
   return prefix + "001";
 }
 
-/** Create an invoice record with retry on unique constraint collision */
-export async function createInvoice(data: InsertInvoice): Promise<{ success: boolean; id: number }> {
+/**
+ * Create an invoice record, taking the next number on a collision.
+ *
+ * Returns `invoiceNumber`: the number the row was STORED under. Use it, not
+ * the number you passed in. The number comes from MAX()+1 with no lock, so two
+ * invoices created at once can ask for the same one, and the second is stored
+ * under the next number. Until 2026-09-23 placeOrder kept its own copy, so a
+ * retry would have linked the tire order and the Stripe checkout to the other
+ * customer's invoice.
+ *
+ * The collision test reads the driver error through drizzle's wrapper: its
+ * `code` is undefined and its message is the SQL, so the old inline check never
+ * matched a real collision and the first one threw instead of retrying.
+ */
+export async function createInvoice(data: InsertInvoice): Promise<{ success: boolean; id: number; invoiceNumber: string | null }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
+  const row = { ...data };
   // Retry up to 3 times on unique constraint violations (concurrent invoice creation)
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const result = await db.insert(invoices).values(data);
-      return { success: true, id: Number(result[0].insertId) };
+      const result = await db.insert(invoices).values(row);
+      return { success: true, id: Number(result[0].insertId), invoiceNumber: row.invoiceNumber ?? null };
     } catch (err: unknown) {
-      const errObj = err as Record<string, unknown>;
-      const isDuplicate = errObj?.code === "ER_DUP_ENTRY" || String(errObj?.message || "").includes("Duplicate entry");
-      if (isDuplicate && data.invoiceNumber && attempt < 2) {
+      if (isDuplicateKeyError(err) && row.invoiceNumber && attempt < 2) {
         // Regenerate invoice number and retry
-        data.invoiceNumber = await getNextInvoiceNumber();
+        row.invoiceNumber = await getNextInvoiceNumber();
         continue;
       }
       throw err;

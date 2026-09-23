@@ -70,7 +70,7 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
     log.info(`[Booking] Invoice already exists for booking #${booking.id} — skipping auto-create`);
     return;
   }
-  const invoiceNumber = await getNextInvoiceNumber();
+  const requestedNumber = await getNextInvoiceNumber();
   const labor = estimateLaborFromService(booking.service || "General Repair");
 
   // Get labor rate from shop settings
@@ -90,11 +90,11 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
   const totalAmount = laborCost + taxAmount;
 
   // Create invoice in database
-  await createInvoice({
+  const created = await createInvoice({
     bookingId: booking.id,
     customerName: booking.name,
     customerPhone: booking.phone,
-    invoiceNumber,
+    invoiceNumber: requestedNumber,
     totalAmount,
     partsCost: 0, // Parts added manually by shop
     laborCost,
@@ -106,6 +106,8 @@ async function autoCreateInvoiceFromBooking(d: any, booking: any): Promise<void>
     source: "manual",
     invoiceDate: new Date(),
   });
+  // The number the invoice was stored under: a collision moves it to the next.
+  const invoiceNumber = created.invoiceNumber ?? requestedNumber;
 
   // Sync to Google Sheets
   await withRetry(
