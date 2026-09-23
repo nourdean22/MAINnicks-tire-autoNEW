@@ -17,8 +17,8 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 |---|---|---|
 | heartbeat | every 5m | 3 / 1 |
 | pulse | every 15m | 23 / 0 |
-| hourly | every 2h | 34 / 1 |
-| daily | every 1d | 52 / 0 |
+| hourly | every 2h | 35 / 1 |
+| daily | every 1d | 51 / 0 |
 | briefings | every 12h | 6 / 0 |
 
 **Total: 120 tiered jobs (118 scheduled automatically, 2 staged off the scheduler) + 6 HTTP-only registry jobs.**
@@ -76,6 +76,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `followup-cadence` | yes | no | yes | — |
 | `intelligence-autopilot` | yes | no | yes | — |
 | `intelligence-engines-live` | yes | no | yes | — |
+| `kpi-snapshot` | no | yes | yes | Writes one `kpi_snapshots` row per completed shop week (revenue, paid jobs, new customers, avg ticket, lead conversion, review requests/received) so `kpi.history` has data; idempotent per week. Added 2026-09-01 (audit F-4). |
 | `memory-sync-to-statenour` | no | no | yes | — |
 | `missed-call-recovery` | yes | no | yes | — |
 | `nick-auto-actions` | yes | no | yes | — |
@@ -127,7 +128,6 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `gsc-pipeline` | no | no | yes | — |
 | `inventory-demand-forecast` | no | no | yes | — |
 | `invoice-cross-reconciliation` | no | no | yes | — |
-| `kpi-snapshot` | no | yes | yes | Writes one `kpi_snapshots` row per completed shop week (revenue, paid jobs, new customers, avg ticket, lead conversion, review requests/received) so `kpi.history` has data; idempotent per week. Added 2026-09-01 (audit F-4). |
 | `low-stock-alerts` | no | no | yes | — |
 | `monte-carlo-forecast` | no | no | yes | — |
 | `no-show-detection` | no | no | yes | — |
