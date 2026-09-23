@@ -102,6 +102,7 @@ import { serveStatic, setupVite } from "./vite";
 import { createPrerenderMiddleware } from "../prerender-middleware";
 import { BUSINESS, SITE_URL } from "@shared/business";
 import { startTieredScheduler } from "../cron/scheduler";
+import { inFlightCronRuns, whenCronRunsSettled } from "../cron/index";
 import { validateTwilioRequest } from "../middleware/twilioValidation";
 import { resolveNickDeployIdentity, resolveConfiguredSurfaces } from "../lib/deployIdentity";
 import { withBatchRegex, blockBatchedLimits } from "./batchGuard";
@@ -1398,8 +1399,8 @@ const shutdownOnSigterm = createGracefulShutdown({
   sources: [
     {
       label: "cron",
-      pending: () => require("../cron/index").inFlightCronRuns(),
-      settled: () => require("../cron/index").whenCronRunsSettled(),
+      pending: inFlightCronRuns,
+      settled: whenCronRunsSettled,
     },
     {
       label: "sms-queue",

@@ -197,9 +197,6 @@ export async function whenCronRunsSettled(): Promise<void> {
   while (inFlightRuns.size) await Promise.all([...inFlightRuns.values()].map((r) => r.done));
 }
 
-/** Test-only: the drain flag is module state shared across a serial test run. */
-export function __resetCronDrainForTest(): void { cronDraining = false; inFlightRuns.clear(); }
-
 export async function acquireCronLock(jobName: string, ttlMs: number = LOCK_TTL_MS): Promise<LockResult> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");

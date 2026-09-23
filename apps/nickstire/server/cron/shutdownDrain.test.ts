@@ -14,9 +14,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../db", () => ({ getDb: async () => null }));
 
-import { __resetCronDrainForTest, inFlightCronRuns, runJobByName, registerJob, whenCronRunsSettled } from "./index";
-import { runTier, stopTieredScheduler, type Tier } from "./scheduler";
+import type { Tier } from "./scheduler";
 import { createGracefulShutdown } from "../_core/gracefulShutdown";
+
+// The drain flag is module state that only ever turns ON, so every test gets
+// fresh cron modules rather than a production reset hook.
+let inFlightCronRuns: typeof import("./index").inFlightCronRuns;
+let whenCronRunsSettled: typeof import("./index").whenCronRunsSettled;
+let runJobByName: typeof import("./index").runJobByName;
+let registerJob: typeof import("./index").registerJob;
+let runTier: typeof import("./scheduler").runTier;
+let stopTieredScheduler: typeof import("./scheduler").stopTieredScheduler;
 
 function deferred() {
   let resolve!: () => void;
@@ -34,8 +42,12 @@ async function until(cond: () => boolean) {
 }
 
 describe("cron shutdown drain", () => {
-  beforeEach(() => { __resetCronDrainForTest(); });
-  afterEach(() => { __resetCronDrainForTest(); });
+  beforeEach(async () => {
+    vi.resetModules();
+    ({ inFlightCronRuns, whenCronRunsSettled, runJobByName, registerJob } = await import("./index"));
+    ({ runTier, stopTieredScheduler } = await import("./scheduler"));
+  });
+  afterEach(() => { vi.resetModules(); });
 
   it("a job in flight at SIGTERM finishes, and no later job in the pass starts", async () => {
     const first = deferred();

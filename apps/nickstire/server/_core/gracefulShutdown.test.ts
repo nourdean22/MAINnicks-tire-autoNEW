@@ -11,9 +11,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
 import {
   createGracefulShutdown,
-  DEFAULT_SHUTDOWN_GRACE_MS,
-  MAX_SHUTDOWN_GRACE_MS,
-  MIN_SHUTDOWN_GRACE_MS,
   resolveShutdownGraceMs,
   trackHttpRequests,
   type DrainSource,
@@ -145,16 +142,17 @@ describe("createGracefulShutdown · a broken source", () => {
 });
 
 describe("resolveShutdownGraceMs", () => {
+  // default 25 s, range 1-120 s
   it("defaults when unset, blank or not a whole number", () => {
     for (const raw of [undefined, "", "  ", "abc", "25s", "-5", "1.5", "1e4"]) {
-      expect(resolveShutdownGraceMs(raw)).toBe(DEFAULT_SHUTDOWN_GRACE_MS);
+      expect(resolveShutdownGraceMs(raw)).toBe(25_000);
     }
   });
   it("accepts an in-range value and clamps out-of-range ones", () => {
     expect(resolveShutdownGraceMs("20000")).toBe(20_000);
     expect(resolveShutdownGraceMs(" 20000 ")).toBe(20_000);
-    expect(resolveShutdownGraceMs("0")).toBe(MIN_SHUTDOWN_GRACE_MS);
-    expect(resolveShutdownGraceMs("999999999")).toBe(MAX_SHUTDOWN_GRACE_MS);
+    expect(resolveShutdownGraceMs("0")).toBe(1_000);
+    expect(resolveShutdownGraceMs("999999999")).toBe(120_000);
   });
 });
 

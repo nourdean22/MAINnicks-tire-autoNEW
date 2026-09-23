@@ -21,9 +21,9 @@
  * the service needs it set above the budget (30 for the 25 s default).
  */
 
-export const DEFAULT_SHUTDOWN_GRACE_MS = 25_000;
-export const MIN_SHUTDOWN_GRACE_MS = 1_000;
-export const MAX_SHUTDOWN_GRACE_MS = 120_000;
+const DEFAULT_SHUTDOWN_GRACE_MS = 25_000;
+const MIN_SHUTDOWN_GRACE_MS = 1_000;
+const MAX_SHUTDOWN_GRACE_MS = 120_000;
 
 /**
  * NICKSTIRE_SHUTDOWN_GRACE_MS, validated: unset or not a whole number of
