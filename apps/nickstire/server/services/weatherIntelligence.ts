@@ -1,19 +1,26 @@
 /**
- * Weather Intelligence — Triggers marketing campaigns based on Cleveland weather
- * Uses OpenWeatherMap API to detect freeze, rain, heat, pothole season, salt end.
- * Stages GBP post drafts for owner review.
+ * Weather Intelligence — Triggers marketing campaigns based on Cleveland weather.
+ * Reads the National Weather Service 7-day forecast and active alerts
+ * (lib/nwsWeather.ts — public-domain data, no key) and detects freeze, heavy
+ * rain, snow, heat, pothole season and salt-season end days ahead, not only
+ * when the condition is already here. Alerts the operator with a GBP post
+ * draft for review.
  *
- * Requires: OPENWEATHER_API_KEY env var
+ * Customer SMS stays in SHADOW until the operator arms it: the
+ * weather_triggered_sms flag AND env WEATHER_SMS_SEND=1 (see sendWeatherSms),
+ * and even armed it only acts on triggers imminent within 24h. Before
+ * 2026-09-23 the lane read OpenWeather current conditions (OPENWEATHER_API_KEY,
+ * first set on Railway that day), which saw weather only once it arrived.
  */
 
 import { createLogger } from "../lib/logger";
 import { alertSystem } from "./telegram";
+import { getActiveAlerts, getForecastPeriods, type NwsAlert, type NwsPeriod } from "../lib/nwsWeather";
+import { describeFreezeTiming } from "../lib/clevelandFreezeNormals";
 
 const log = createLogger("weather-intel");
 
-// Cleveland/Euclid coordinates
-const LAT = 41.5932;
-const LON = -81.5268;
+const TZ = "America/New_York";
 
 interface WeatherTrigger {
   id: string;
@@ -22,27 +29,47 @@ interface WeatherTrigger {
   gbpDraft: string;
 }
 
-interface WeatherData {
+export interface WeatherData {
+  /** Highest forecast temperature over the forecast window (°F). */
   tempMax: number;
+  /** Lowest forecast temperature over the forecast window (°F). */
   tempMin: number;
-  rainMm: number;
-  snowMm: number;
+  /** First forecast period at or below 32°F, or an active NWS freeze alert. */
+  freezeAt: Date | null;
+  /** Heavy rain in the next 48h (named in the forecast, >=80% rain chance, or a flood alert). */
+  heavyRain: boolean;
+  /** Snow in the next 72h (>=50% chance) or an active winter-weather alert. */
+  snowExpected: boolean;
+  /** Active NWS heat alert. */
+  heatAlert: boolean;
   description: string;
+  /** Current month (1-12) in shop time. */
   month: number;
 }
+
+const monthInShopTz = (d: Date) =>
+  Number(new Intl.DateTimeFormat("en-US", { timeZone: TZ, month: "numeric" }).format(d));
 
 const TRIGGERS: WeatherTrigger[] = [
   {
     id: "first_freeze",
     name: "First Freeze",
-    check: (d) => d.tempMin <= 32 && d.month >= 10,
+    // Month of the FORECAST freeze, so a freeze a few days out is seen now.
+    check: (d) => d.freezeAt !== null && monthInShopTz(d.freezeAt) >= 10,
     gbpDraft: "First freeze of the season! Time to check your tires for winter readiness. We have winter tires starting at $60/tire installed with our free premium package. Book now: nickstire.org/booking",
   },
   {
     id: "heavy_rain",
     name: "Heavy Rain",
-    check: (d) => d.rainMm > 20,
+    check: (d) => d.heavyRain,
     gbpDraft: "Heavy rain in Cleveland today. Worn tires = hydroplaning risk. Free tread depth check — drive in anytime. Stay safe out there! (216) 862-0005",
+  },
+  {
+    id: "snow_forecast",
+    name: "Snow Forecast",
+    // Operator alert + GBP draft only: no SMS template exists for this id.
+    check: (d) => d.snowExpected,
+    gbpDraft: "Snow is in the Cleveland forecast. Check your tread and wiper blades before it lands. Free tread depth check — drive in anytime. (216) 862-0005",
   },
   {
     id: "pothole_season",
@@ -53,7 +80,7 @@ const TRIGGERS: WeatherTrigger[] = [
   {
     id: "extreme_heat",
     name: "Extreme Heat",
-    check: (d) => d.tempMax >= 92,
+    check: (d) => d.tempMax >= 92 || d.heatAlert,
     gbpDraft: "Extreme heat today! Is your AC blowing cold? We do full AC diagnostics and recharges. Keep your family cool — book now: nickstire.org/booking",
   },
   {
@@ -63,6 +90,81 @@ const TRIGGERS: WeatherTrigger[] = [
     gbpDraft: "Salt season is over. Protect your undercarriage from rust damage. We offer undercarriage inspections — catch corrosion early. (216) 862-0005",
   },
 ];
+
+const HOUR = 60 * 60 * 1000;
+// Freeze Watch/Warning, Hard Freeze — not a Frost Advisory (33-36°F is not a freeze).
+const FREEZE_ALERT = /freeze/i;
+const WINTER_ALERT = /winter storm|winter weather|lake effect snow|blizzard|ice storm/i;
+const HEAT_ALERT = /heat/i;
+const FLOOD_ALERT = /flood/i;
+
+function withinHours(p: NwsPeriod, now: Date, hours: number): boolean {
+  const start = Date.parse(p.startTime);
+  return Number.isFinite(start) && start - now.getTime() < hours * HOUR;
+}
+
+function deriveWeatherData(periods: NwsPeriod[], alerts: NwsAlert[], now: Date): WeatherData {
+  const temps = periods.map((p) => p.temperatureF);
+  const freezePeriod = periods.find((p) => p.temperatureF <= 32);
+  const freezeAlert = alerts.find((a) => FREEZE_ALERT.test(a.event));
+  const text = (p: NwsPeriod) => `${p.shortForecast} ${p.detailedForecast}`;
+  const pop = (p: NwsPeriod) => p.precipChancePct ?? 0;
+
+  let freezeAt: Date | null = freezePeriod ? new Date(freezePeriod.startTime) : null;
+  if (!freezeAt && freezeAlert) freezeAt = new Date(freezeAlert.onset ?? now.toISOString());
+
+  return {
+    tempMax: Math.max(...temps),
+    tempMin: Math.min(...temps),
+    freezeAt,
+    heavyRain:
+      periods.some((p) => withinHours(p, now, 48) && (/heavy rain/i.test(text(p)) || (/rain|showers|thunderstorm/i.test(p.shortForecast) && pop(p) >= 80))) ||
+      alerts.some((a) => FLOOD_ALERT.test(a.event)),
+    snowExpected:
+      periods.some((p) => withinHours(p, now, 72) && /snow/i.test(p.shortForecast) && pop(p) >= 50) ||
+      alerts.some((a) => WINTER_ALERT.test(a.event)),
+    heatAlert: alerts.some((a) => HEAT_ALERT.test(a.event)),
+    description: periods[0].shortForecast,
+    month: monthInShopTz(now),
+  };
+}
+
+/** Customer SMS may only act on what is imminent: the next 24 hours. */
+const IMMINENT_HOURS = 24;
+
+/**
+ * PURE: forecast periods + active alerts -> weather data, the triggers the
+ * whole forecast fires (operator alerts, drafts, planners — days ahead), the
+ * subset that is IMMINENT (next 24h; the only triggers customer SMS may use,
+ * because the SMS copy says "today"/"alert"), and an operator summary.
+ */
+export function evaluateForecast(
+  periods: NwsPeriod[],
+  alerts: NwsAlert[],
+  now: Date = new Date(),
+): { data: WeatherData; triggered: string[]; imminent: string[]; details: string } {
+  if (periods.length === 0) throw new Error("weather: no forecast periods to evaluate");
+  const data = deriveWeatherData(periods, alerts, now);
+  const triggered = TRIGGERS.filter((t) => t.check(data)).map((t) => t.id);
+
+  const nearPeriods = periods.filter((p, i) => i === 0 || withinHours(p, now, IMMINENT_HOURS));
+  const nearAlerts = alerts.filter((a) => a.onset === null || Date.parse(a.onset) - now.getTime() < IMMINENT_HOURS * HOUR);
+  const nearData = deriveWeatherData(nearPeriods, nearAlerts, now);
+  const imminent = TRIGGERS.filter((t) => t.check(nearData)).map((t) => t.id);
+
+  const parts = [`NWS 7-day ${data.tempMin}-${data.tempMax}°F, now ${data.description}`];
+  if (data.freezeAt) {
+    const day = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric" }).format(data.freezeAt);
+    parts.push(`freeze ${day} (${describeFreezeTiming(data.freezeAt)})`);
+  }
+  if (alerts.length > 0) parts.push(`alerts: ${[...new Set(alerts.map((a) => a.event))].join(", ")}`);
+  return { data, triggered, imminent, details: parts.join("; ") };
+}
+
+async function readForecast(): Promise<{ periods: NwsPeriod[]; alerts: NwsAlert[] }> {
+  const [periods, alerts] = await Promise.all([getForecastPeriods(), getActiveAlerts()]);
+  return { periods, alerts };
+}
 
 /** SMS messages for each weather trigger type */
 const WEATHER_SMS_TEMPLATES: Record<string, string> = {
@@ -83,6 +185,14 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
 
   const template = WEATHER_SMS_TEMPLATES[triggerId];
   if (!template) return 0;
+  // SHADOW until armed. The trigger source changed on 2026-09-23 (OpenWeather
+  // current conditions -> NWS forecast), so what fires a text changed too. The
+  // flag was armed against the OLD meaning; the operator re-arms against the
+  // new one with WEATHER_SMS_SEND=1. The flag stays the kill switch.
+  if (process.env.WEATHER_SMS_SEND !== "1") {
+    log.info(`Weather SMS shadow for "${triggerId}": not sent (set WEATHER_SMS_SEND=1 to arm)`);
+    return 0;
+  }
 
   try {
     const { getDb } = await import("../db");
@@ -168,89 +278,57 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
 /**
  * PURE weather evaluation — fetch + classify, ZERO side effects (no alerts,
  * no SMS). This is the ONLY weather entry point observational surfaces
- * (shadow planner, dashboards) may use: #824 review found the Control tab's
- * shadow plan could fire live customer SMS through checkWeatherTriggers().
+ * (shadow planner, dashboards, content drafting) may use: #824 review found
+ * the Control tab's shadow plan could fire live customer SMS through
+ * checkWeatherTriggers(). Throws when the forecast cannot be read, so a caller
+ * shows "unavailable", never "no weather triggers".
  */
 export async function evaluateWeatherTriggers(): Promise<{ triggered: string[]; details: string }> {
-  const apiKey = process.env.OPENWEATHER_API_KEY;
-  if (!apiKey) {
-    log.debug("OPENWEATHER_API_KEY not set, skipping");
-    return { triggered: [], details: "No API key" };
-  }
-  try {
-    const res = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${LAT}&lon=${LON}&appid=${apiKey}&units=imperial`,
-      { signal: AbortSignal.timeout(5000) }
-    );
-    if (!res.ok) return { triggered: [], details: `API error: ${res.status}` };
-    const raw = await res.json();
-    const data: WeatherData = {
-      tempMax: raw.main?.temp_max ?? 50,
-      tempMin: raw.main?.temp_min ?? 40,
-      rainMm: (raw.rain?.["1h"] ?? 0) * 25.4,
-      snowMm: (raw.snow?.["1h"] ?? 0) * 25.4,
-      description: raw.weather?.[0]?.description ?? "",
-      month: new Date().getMonth() + 1,
-    };
-    const triggered = TRIGGERS.filter((t) => t.check(data)).map((t) => t.id);
-    return { triggered, details: `Temp: ${data.tempMin}-${data.tempMax}°F, ${data.description}` };
-  } catch (e) {
-    return { triggered: [], details: e instanceof Error ? e.message : "weather evaluation failed" };
-  }
+  const { periods, alerts } = await readForecast();
+  const { triggered, details } = evaluateForecast(periods, alerts);
+  return { triggered, details };
 }
 
+/** Operator alerts repeat at most once per trigger per this window (twice-daily cron, multi-day forecasts). */
+const ALERT_REPEAT_MS = 20 * HOUR;
+const lastAlertAt = new Map<string, number>();
+
+/** Test-only. */
+export function __resetWeatherAlertMemoryForTests(): void {
+  lastAlertAt.clear();
+}
+
+/**
+ * The weather-intel cron handler: evaluate, alert the operator with the GBP
+ * draft, and hand each trigger to sendWeatherSms (shadow unless armed).
+ * Throws on a failed forecast read so cron_log records `failed`.
+ */
 export async function checkWeatherTriggers(): Promise<{ triggered: string[]; details: string }> {
-  const apiKey = process.env.OPENWEATHER_API_KEY;
-  if (!apiKey) {
-    log.debug("OPENWEATHER_API_KEY not set, skipping");
-    return { triggered: [], details: "No API key" };
-  }
+  const { periods, alerts } = await readForecast();
+  const { data, triggered, imminent, details } = evaluateForecast(periods, alerts);
 
-  try {
-    const res = await fetch(
-      `https://api.openweathermap.org/data/2.5/weather?lat=${LAT}&lon=${LON}&appid=${apiKey}&units=imperial`,
-      { signal: AbortSignal.timeout(5000) }
-    );
-    if (!res.ok) return { triggered: [], details: `API error: ${res.status}` };
-
-    const raw = await res.json();
-    const data: WeatherData = {
-      tempMax: raw.main?.temp_max ?? 50,
-      tempMin: raw.main?.temp_min ?? 40,
-      rainMm: (raw.rain?.["1h"] ?? 0) * 25.4,
-      snowMm: (raw.snow?.["1h"] ?? 0) * 25.4,
-      description: raw.weather?.[0]?.description ?? "",
-      month: new Date().getMonth() + 1,
-    };
-
-    const triggered: string[] = [];
-
-    for (const trigger of TRIGGERS) {
-      if (trigger.check(data)) {
-        triggered.push(trigger.id);
-        log.info(`Weather trigger fired: ${trigger.name}`, { data });
-        alertSystem(
-          `Weather: ${trigger.name}`,
-          `${trigger.gbpDraft.slice(0, 200)}\n\nTemp: ${data.tempMin}-${data.tempMax}°F`
-        ).catch((e) => { log.warn("[services/weatherIntelligence] fire-and-forget failed:", e); });
-
-        // Send weather-triggered SMS to lapsed customers
-        const smsSent = await sendWeatherSms(trigger.id);
-        if (smsSent > 0) {
-          alertSystem(
-            `Weather SMS: ${trigger.name}`,
-            `Sent ${smsSent} weather-triggered SMS for "${trigger.id}"`
-          ).catch((e) => { log.warn("[services/weatherIntelligence] fire-and-forget failed:", e); });
-        }
-      }
+  for (const id of triggered) {
+    const trigger = TRIGGERS.find((t) => t.id === id)!;
+    log.info(`Weather trigger fired: ${trigger.name}`, { data });
+    const last = lastAlertAt.get(id);
+    if (last === undefined || Date.now() - last >= ALERT_REPEAT_MS) {
+      lastAlertAt.set(id, Date.now());
+      alertSystem(
+        `Weather: ${trigger.name}`,
+        `${trigger.gbpDraft.slice(0, 200)}\n\n${details}`
+      ).catch((e) => { log.warn("[services/weatherIntelligence] fire-and-forget failed:", e); });
     }
 
-    return {
-      triggered,
-      details: `${data.tempMin}-${data.tempMax}°F, ${data.description}. ${triggered.length} triggers fired.`,
-    };
-  } catch (err) {
-    log.warn("Weather check failed", { err });
-    return { triggered: [], details: "Fetch failed" };
+    // A forecast days out drafts and alerts; only an imminent one may text.
+    if (!imminent.includes(id)) continue;
+    const smsSent = await sendWeatherSms(trigger.id);
+    if (smsSent > 0) {
+      alertSystem(
+        `Weather SMS: ${trigger.name}`,
+        `Sent ${smsSent} weather-triggered SMS for "${trigger.id}"`
+      ).catch((e) => { log.warn("[services/weatherIntelligence] fire-and-forget failed:", e); });
+    }
   }
+
+  return { triggered, details: `${details}. ${triggered.length} triggers fired.` };
 }

@@ -2828,7 +2828,13 @@ function buildTiers(): void {
         // detail. Declared here, the miss becomes the alarm that was built
         // for it. Setting the key ARMS weather_triggered_sms (flag is ON in
         // prod): decide that flag before the key.
-        requiresEnv: "OPENWEATHER_API_KEY",
+        //
+        // 2026-09-23 · the service now reads the keyless NWS forecast, so the
+        // env gate is gone (OPENWEATHER_API_KEY is no longer read). The job
+        // runs operator alerts + GBP drafts days ahead. Customer SMS is SHADOW
+        // until env WEATHER_SMS_SEND=1 on top of the flag, because the trigger
+        // meaning changed, and even armed it texts only on imminent (24h)
+        // triggers. A failed NWS read throws, so cron_log records `failed`.
         handler: async () => {
           const { checkWeatherTriggers } = await import("../services/weatherIntelligence");
           const result = await checkWeatherTriggers();
