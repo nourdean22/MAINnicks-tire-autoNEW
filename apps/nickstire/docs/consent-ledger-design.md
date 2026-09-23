@@ -1,7 +1,8 @@
 # Consent ledger - design note (Q-43)
 
 Status: **PROPOSED - design only, nothing built.** Written 2026-09-23 against
-`origin/main` `f04e4d0` (queue item Q-43 in
+`origin/main` `f04e4d0`, revised the same day after the orchestrator's review,
+with citations re-checked on `e223fa58` (queue item Q-43 in
 `docs/research/2026-09-23-estate-master-architecture.md` 14.4; context in 10.3,
 11.2 move 1 and 8 item 4). Consent, opt-out and quiet hours are protected core
 (`PROTECTED-CORE.md`). Every build step below therefore needs targeted tests,
@@ -28,14 +29,18 @@ the rule text as read on 2026-09-23 from the eCFR point-in-time copy of
 3. **Revocation from any channel writes the same event.** This covers inbound
    text (keyword or plain English), anything the caller says on a Vapi call,
    email one-click unsubscribes, and admin entries. A plain-English detector
-   **revokes** when it is sure. When it is unsure it **holds**: the number is
-   suppressed right away, and a human reviews it the same business day.
+   **revokes** when it is sure. When it is unsure it **holds** for human
+   review the same business day. A revoke is enforced **the moment it is
+   written, in every rollout mode**, through the existing `markPhoneOptedOut`.
+   The detector runs in the webhooks, before any orchestrator gate can return
+   early.
 4. **Every automated send records the consent basis that allowed it.** That
    is the event id plus the scope, written as an `audit_log` row
    (`consent.decision`), with no DDL on any existing table.
-5. **Rollout is off, then shadow, then enforcing suppression, then enforcing
-   grants lane by lane.** Only the last step can cost revenue, and it needs
-   the counsel answers in section 10 first.
+5. **Rollout is off, then shadow, then enforcing holds, then enforcing grants
+   lane by lane.** Shadow never covers a revoke: revocations are enforced from
+   the first step that writes them. Only the last step can cost revenue, and
+   it needs the counsel answers in section 10 first.
 
 ## 1. Premise check (what already exists)
 
@@ -49,7 +54,7 @@ and this design builds on them instead of beside them:**
 |---|---|---|---|
 | Suppression index, 4 sources | `server/sms.ts:147-243` (`loadSuppressionIndex` -> `ensureOptOutCache`) | Union of `customers.smsOptOut`, `sms_preferences.opted_out`, inbound bodies that are exactly an opt-out keyword (`:203-210`), and carrier-block notices. Honest failure: `ok:false` or `stale`, never an empty set (`:74-76`) | Keyword-exact only. No voice or email source. Suppression only: it says nothing about who agreed to what |
 | Opt-in "ledger" | `server/services/complianceLog.ts:82-108` (`logSmsOptIn` -> `audit_log` action `sms.opt_in`) and the reader `getSmsOptInIndex` (`:256-288`) | Consent rows keyed by phone, read at `sendSms` for `customer_marketing` in SHADOW (`server/sms.ts:1911-1933`; ROS-095 in `docs/ISSUE-REGISTRY.md:133`) | No scope, no disclosure text or version, no revocation. The writers record **"implicit consent"** on every lead and booking submission (`server/routers/lead.ts:183-192`, `server/routers/booking.ts:305-314`). See finding F1 |
-| Opt-out audit rows | `complianceLog.ts:116-132` (`sms.opt_out`) | Written by the live inbound path (`server/services/smsOrchestrator.ts:941-968`) | Keyword path only |
+| Opt-out audit rows | `complianceLog.ts:116-132` (`sms.opt_out`) | Written by the live inbound path (`server/services/smsOrchestrator.ts:960-987`) | Keyword path only |
 | Cross-lane gate test | `server/cron/jobs/outboundLanes.suppression.test.ts:314-347` | Fails if a dialing lane skips `loadSuppressionIndex()` | Does not check purpose or grants |
 | Prior deferral | `docs/plans/REVENUE-AUTOPILOT-2-AUDIT.md:60` | The purpose-scoped ledger was **deferred** on 2026-07-29 until a trigger fired: "a real purpose-specific opt-out request, a TCPA complaint/inquiry, or a channel expansion" | **The channel-expansion trigger has fired.** AI-voice outbound is live (`FEATURE_VOICE_RECOVERY=1`, `FEATURE_CONFIRMATION_CALLS=1`, `truth_os.md:22-23`), and the recovery lane placed its first connected calls after the 2026-09-22 dial fix (`docs/operations/CUSTOMER-CORPUS-RESEARCH-2026-09-23.md:387`) |
 
@@ -72,7 +77,18 @@ parallel system.
   "cancel" usually means cancel the appointment.
 - **Where a live opt-out lands.** The orchestrator sets
   `customers.smsOptOut=1`, calls `markPhoneOptedOut`, and writes `sms.opt_out`
-  (`smsOrchestrator.ts:941-968`).
+  (`smsOrchestrator.ts:960-987`).
+- **The parse is reached only after three early returns** (F6):
+  - rollout mode `off` (`smsOrchestrator.ts:738-762`);
+  - the global kill switch or event passthrough (`:763-851`), which is also
+    what a missing database produces (`getRolloutMode` returns
+    `legacy_passthrough` when there is no DB, `:520`);
+  - a number that is already opted out (`:892-946`). A START from that number
+    returns here too, before anything can read it (F2).
+- **The parser is first-hit, and `\bcancel\b` and "too much" come before
+  the unsubscribe rule** (`smsResponseParser.ts:41-49` vs `:68`). So "STOP.
+  Cancel all texts" cancels the booking and records no opt-out. Open draft
+  #2622 moves unsubscribe first and adds plain-English phrases to the parser.
 - **Dead code.** `handleInboundSms` (`server/sms.ts:1124`) is **not the live
   path**: its own header says it has zero callers (`:1113-1123`). It holds the
   only START handler and the only `start_keyword` opt-in writer
@@ -172,7 +188,9 @@ but it is a second definition to retire.
   Separately, the message-log source makes a keyword STOP **permanent**
   (`:90`, `:203-210`). This fails in the safe direction. It does mean a
   customer cannot re-subscribe by text, while the compliance comments
-  (`complianceLog.ts:248`) say they can.
+  (`complianceLog.ts:248`) say they can. A START handler added inside the
+  parser would still never run: an opted-out number returns at
+  `smsOrchestrator.ts:892-946`, before parsing.
 - **F3 - A spoken "stop calling" is never honoured.** Nothing turns it into a
   suppression, on any lane. With AI-voice lanes live, this is the
   highest-exposure gap in this note.
@@ -186,6 +204,15 @@ but it is a second definition to retire.
   missing is the compliance row and the confirmation text. **[COUNSEL]**
   whether "cancel" sent in reply to an appointment text is a revocation.
   Section 5.1 treats it as one, which is the rule's plain text.
+- **F6 - Any detector placed at the parse is bypassed exactly when it matters.**
+  The three early returns in 2.1 (rollout off, kill switch or no database,
+  already opted out) all run before `parseSmsResponse`. A plain-English
+  revocation sent while the orchestrator is off or the database is down is
+  never read. Only the keyword-exact index catches anything in that state.
+- **F7 - Voice revocations late in a call are cut off.** The stored customer
+  speech keeps 12 turns of at most 300 characters each
+  (`services/customerTurns.ts:29,31,215`). A "stop calling me" in turn 13, or
+  late in a long turn, is truncated away.
 
 ## 3. The rules this must satisfy
 
@@ -198,6 +225,7 @@ other sources are named in the table.
 | Other channels | A voicemail or an email to the business "creates a rebuttable presumption" of revocation | Emails to `unsubscribe@` or any shop address, and spoken requests | 64.1200(a)(11) |
 | Confirmation text | One text confirming the revocation, with no marketing, is allowed. Within 5 minutes it is presumed covered | The reply the SMS path already sends | 64.1200(a)(12) |
 | Revoke-all scope | A revocation for one kind of message also revokes unrelated robocalls and robotexts. **Effective date extended to 2027-01-31** | The shop already runs this posture (STOP suppresses every lane; operator decision 2026-09-16). The design keeps it, so this date changes nothing here | FCC DA 26-12 (released 2026-01-06) |
+| **Pending: draft revocation order** | Draft Report and Order + FNPRM, **FCC-CIRC 2609-05** (circulated 2026-09-09, CG Docket 02-278, on the 2026-09-30 open-meeting agenda). If adopted as drafted: (1) a caller may **designate an exclusive revocation method** (in-call key press or voice opt-out, the standard text keywords, or a designated website or number), and need not process revocations made any other way; with no designation, "any reasonable means" still applies; (2) a revocation made in response to an **informational** message may be read as covering only that informational category, while one made in response to marketing revokes all marketing. **Not in force; a draft can change before or at the vote** | Does not change this design. The plain-English detector stays as **policy** either way: the shop designates no exclusive method, and honouring plain English is the lower-risk posture for a business whose customers text in their own words. [COUNSEL] question 8 | FCC DOC-424844A1 (fact sheet and draft, released 2026-09-09) |
 | Informational calls and texts to cell phones | Autodialed or artificial-voice calls need "prior express consent" | `confirmationCalls`; transactional texts | 64.1200(a)(1)(iii) |
 | Telemarketing | Autodialed or artificial-voice telemarketing to a cell phone needs **prior express written consent**. To a residential line with an artificial voice, the same | Recovery and follow-up calls if counsel classifies them as telemarketing; marketing texts | 64.1200(a)(2), (a)(3) |
 | What written consent is | A signed agreement (e-signatures count). A clear and conspicuous disclosure that it authorizes telemarketing by autodialer or artificial voice, and that signing is **not a condition of purchase**. It names the phone number | The disclosure registry and checkbox in 5.4 | 64.1200(f)(9) |
@@ -247,7 +275,7 @@ Hand-applied TiDB DDL. Shape only; the SQL is written in the build PR.
 | `disclosure_version` | `VARCHAR(16) NULL` | |
 | `disclosure_sha256` | `CHAR(64) NULL` | Hash of the exact rendered text, recomputed server-side |
 | `evidence_ref` | `VARCHAR(191) NOT NULL` | e.g. `sms_messages:<id>`, `vapi:<callId>`, `booking:<id>`, `admin:<userId>:<uuid>`. NOT NULL so the unique key below works (MySQL unique keys ignore NULLs) |
-| `evidence_excerpt` | `VARCHAR(160) NULL` | **The matched phrase only.** Never a transcript or a full message body (PROTECTED-CORE rule 5) |
+| `evidence_excerpt` | `VARCHAR(160) NULL` | **The matched phrase only.** Never a transcript or a full message body (PROTECTED-CORE rule 5). Truncated in the writer, never by the database: under `STRICT_TRANS_TABLES` an over-width value rejects the **whole row**, and a lost revocation is the worst row to lose. The same rule covers every text column (`user_agent`, `actor`, `evidence_ref`) |
 | `detector_version` | `VARCHAR(16) NULL` | For plain-English and voice events |
 | `ip_address` | `VARCHAR(45) NULL` | Web grants |
 | `user_agent` | `VARCHAR(300) NULL` | Web grants |
@@ -261,10 +289,15 @@ Hand-applied TiDB DDL. Shape only; the SQL is written in the build PR.
 
 Keys and indexes:
 
-- `UNIQUE (source, evidence_ref, scope, action)`. Idempotency: a Vapi call
-  seen by both the webhook and the archive backstop, or a re-run of the
-  backfill, writes once. Writers use `INSERT IGNORE`; TiDB has no `ON
-  CONFLICT`.
+- `UNIQUE (subject_type, subject_key, source, evidence_ref, scope, action)`.
+  Idempotency: a Vapi call seen by both the webhook and the archive backstop,
+  or a re-run of the backfill, writes once. Writers use `INSERT IGNORE`; TiDB
+  has no `ON CONFLICT`. **The subject columns lead the key on purpose.**
+  Without them, one email unsubscribe writes an email-subject revoke and a
+  phone-subject revoke (5.3) with the same source, evidence and scope. The
+  second insert collides with the first and `INSERT IGNORE` drops it
+  silently, so the phone would never be suppressed. A test covers exactly
+  this.
 - `INDEX (subject_type, subject_key, occurred_at)`.
 - `INDEX (action, review_status)`.
 
@@ -285,11 +318,23 @@ thousands of rows, not millions.
    or `in_person` / `paper_form` with an `evidence_ref`. An admin grant with
    no evidence is rejected at write time, not at read time.
 5. **On a tie at the same instant, revoke wins over grant.**
+6. **The message-log source (the index's third) becomes time-aware in the
+   same PR as the START fix.** Today a keyword STOP in `sms_messages` is
+   permanent (`sms.ts:90`, `:203-210`), so no grant can ever lift it. The rule
+   becomes: a STOP is released only by a **later inbound START-family keyword
+   from the same number**, found in the same message log. That is the same
+   shape as the carrier-block release rule already in `carrierBlockedPhones`
+   (`sms.ts:78-91`). A ledger grant alone never releases a logged STOP; only
+   the customer's own later text does.
 
 ### 4.4 The one read path
 
 `ensureOptOutCache()` (`server/sms.ts:151`) gains **source 5**: every phone
-whose derived state is revoked or held joins `phones`. **No lane changes to
+whose derived state is revoked joins `phones`, in every mode. A held phone
+joins only once holds are enforced (step C in 8.2). Revokes are already
+enforced before this source exists, through `markPhoneOptedOut` at write time
+(5.1). Source 5 is the durable backstop that re-derives them after a restart
+or a missed `sms_preferences` write. **No lane changes to
 honour ledger suppressions.** Every lane already consults `phones`, and the
 gate test already proves that.
 
@@ -339,9 +384,35 @@ come later, once someone needs to query it.
 ### 5.1 Inbound text, including plain English
 
 A pure, versioned detector in `shared/revocationDetector.ts` returns
-`{verdict: 'revoke' | 'hold' | 'none', matched, version}`. It runs where the
-live path already parses the text (`smsOrchestrator.ts:941`), after
-`parseSmsResponse` and **only when that did not already unsubscribe**.
+`{verdict: 'revoke' | 'hold' | 'none', matched, version}`.
+
+**Where it runs: in both inbound webhooks, before the orchestrator.** Placed
+at the orchestrator's parse (`smsOrchestrator.ts:960`) it would be bypassed by
+all three early returns (F6). It runs instead:
+
+- in `routes/webhooks/smsGateway.ts`, beside the existing observers (`:355-358`)
+  but **awaited, inside the durable-obligation block before the ack**
+  (`:369`, the ROS-058 pattern), not fire-and-forget;
+- in `routes/webhooks/twilio.ts`, at the same point (`:110-114`).
+
+On `revoke`, the webhook does four things in this order:
+
+1. Calls `markPhoneOptedOut` (`sms.ts:285-291`). That updates the in-process
+   cache at once and writes `sms_preferences`, the index's second source. **This
+   is the enforcement, and it does not depend on the ledger or its mode.**
+2. Sets `customers.smsOptOut = 1`, as the orchestrator's branch does today.
+3. Writes the ledger `revoke` event and the `sms.opt_out` compliance row. A
+   failure here logs an error but never undoes step 1.
+4. Tells the orchestrator the message is a revocation, so it **skips every
+   booking and estimate action** for that message. "STOP. Cancel all texts"
+   must not cancel the booking. Appointment language in the same message goes
+   to a person instead (the #2622 follow-up 1 shape).
+
+**One phrase list, not two.** Open draft #2622 adds plain-English phrases to
+the parser itself. Whichever lands first owns the list in
+`shared/revocationDetector.ts`, and the other imports it. The parser keeps its
+job (intent), and the detector keeps its job (revocation). Neither keeps a
+private copy of the phrases.
 
 **Normalising the text.** Lowercase it, fold curly apostrophes, collapse
 spaces, and strip one trailing punctuation mark.
@@ -365,13 +436,14 @@ spaces, and strip one trailing punctuation mark.
   | take me off | "take (me \| my number) off", "remove (me \| my number)" |
   | no more messages | "no more (texts \| messages \| calls)", "stop sending" |
   | leave me alone | "leave me alone", "lose my number" |
-  | unsubscribe | "unsubscribe me" |
+  | unsubscribe | "unsubscribe me", "(want to) opt out" |
+  | cancel texts | "(stop \| cancel \| end \| quit) (all)? (my \| your \| the \| these)? (texts \| messages \| texting)" |
   | wrong number | "wrong number" |
 
   "Wrong number" revokes **that number**. Whatever consent is on file belonged
   to someone else, which is the reassigned-number case.
 
-**`hold` (suppress now, same-day human review):**
+**`hold` (same-day human review; suppressed once holds are enforced, step C):**
 
 - A bare "stop" or "end" inside a longer message that does not match the
   exemptions below.
@@ -421,22 +493,39 @@ width of its kind or status column (nickstire-tidb-ddl).
 | 24 hours | Escalates |
 | 5 business days | Pages the owner. This is half the legal ceiling |
 
-Throughout, the number stays suppressed, so a late review is never a
+During shadow a hold is recorded but not yet suppressed, so the review
+deadline is what keeps a real revocation inside the 10-business-day limit. A
+reviewer's "revoke" goes through the same `markPhoneOptedOut` path as any
+revoke. The 5-business-day page leaves half the legal window as margin. From
+step C onward the number is suppressed throughout, so a late review is never a
 violation.
 
-**Fix START (F2) in the same PR.** The live parser gains START / UNSTOP /
-YES-to-resubscribe handling that writes `grant` events with
-`source = sms_keyword`. The dead `handleInboundSms` is then deleted
-(prior-art: do not revive it).
+**Fix START (F2) in the same PR, at the webhook too.** A START handler in the
+parser would never run, because an opted-out number returns at
+`smsOrchestrator.ts:892-946` first. So the webhook detector also recognises the
+opt-in keywords (`SMS_OPT_IN_KEYWORDS`: START, UNSTOP, and YES only when the
+number is currently opted out). On a match it:
+
+1. calls `markPhoneOptedIn` (`sms.ts:298`, zero callers today);
+2. clears `customers.smsOptOut`;
+3. writes a `grant` event with `source = sms_keyword`, restoring the scopes the
+   number held before the revocation;
+4. relies on rule 6 of 4.3 to release the logged STOP, because the START is
+   now the later inbound message.
+
+The dead `handleInboundSms` is then deleted (prior-art: do not revive it).
 
 ### 5.2 Vapi call end, inbound and outbound
 
 - **Primary.** A new independent `try` block in `processCallEndReport`, next
   to the customer-speech block (`vapi.ts:543-595`). It runs the **same
-  detector over the customer turns only**, the ones
-  `extractCustomerTurnsFromMessages` already produces. This is deliberate.
-  The assistant's own lines (for example Q-45's "say stop to opt out") must
-  never read as the customer revoking.
+  detector over every customer message, with no cap** (F7). It takes the
+  role-tagged `artifact.messages` directly and skips only non-customer roles.
+  It must not reuse the stored speech record, which is capped at 12 turns of
+  300 characters (`customerTurns.ts:29,31,215`). That cap stays as it is for
+  the analytics record. Reading customer speech only is deliberate: the
+  assistant's own lines (for example Q-45's "say stop to opt out") must never
+  read as the customer revoking.
   - `evidence_ref = vapi:<callId>`.
   - `evidence_excerpt` = the matched phrase only.
   - "Stop calling" on any call suppresses **every** lane, including text.
@@ -450,9 +539,21 @@ YES-to-resubscribe handling that writes `grant` events with
   | - | revoke or hold | the detector's verdict stands |
 
   The model can only add suppression. It can never clear it.
-- **Backstop.** The daily archive pass (`vapiCallArchive.ts:131`) runs the
-  detector on newly archived transcripts. This covers calls whose webhook
-  processing failed. The unique key makes the double path idempotent.
+- **Backstop, driven by Vapi, not by our own table.** The archive pass selects
+  calls from `vapi_call_logs` (`vapiCallArchive.ts:142-161`), and the only
+  writer of that table is the detached `processCallEndReport`
+  (`routes/webhooks/vapi.ts:490`). A call whose webhook processing failed has
+  no row, so a table-driven backstop can never see it. The backstop instead
+  **lists recent calls from the Vapi API** (the existing `getRecentCalls`,
+  `services/vapi.ts:1984`, paged back over Vapi's 14-day retention) and runs
+  the detector on any call with no `consent.detector_ran` marker. The marker is
+  an `audit_log` row (`entity_id = vapi:<callId>`) written on every detector
+  run, whatever the verdict, so "no revocation found" and "never checked" stay
+  distinguishable. The unique
+  key makes the double path idempotent.
+- **One-time replay.** Existing `vapi_call_archives` transcripts are replayed
+  read-only as **holds** for review (section 7). They are never automatic
+  revokes, because they are historical.
 - **In-call opt-out (Q-45).** When Q-45 adds an automated in-call opt-out,
   that tool writes `source = vapi_optout_tool` with no review, because it is
   per se.
@@ -567,7 +668,8 @@ row uses `INSERT IGNORE` on the unique key) and scoped:
 | `audit_log` `sms.opt_out` | `revoke`, `backfill:audit_log` | `createdAt` |
 | `audit_log` `sms.opt_in`, sources `booking_form` / `lead_form:*` | `grant` **`sms_informational` + `voice_ai_informational` only** (F1) | `createdAt` |
 | Carrier-block notices | **Not backfilled.** A block is not consent (`sms.ts:78-91`); it stays a separate index source | - |
-| Historical plain-English inbound (detector replay) | `hold` with `review_status = pending`, **never an automatic revoke** | message `createdAt` |
+| Historical plain-English inbound (detector replay over `sms_messages`, including the new "cancel texts" family) | `hold` with `review_status = pending`, **never an automatic revoke** | message `createdAt` |
+| Historical Vapi transcripts (detector replay over `vapi_call_archives`, customer messages only, uncapped) | `hold`, `source = vapi_transcript`, `evidence_ref = vapi:<callId>` | call start |
 
 The last row needs to be said plainly. The replay may find past messages
 that a reasonable person would read as a revocation, **followed by further
@@ -611,11 +713,18 @@ rule 5).
 | Step | Mode | What changes for customers | Needs |
 |---|---|---|---|
 | A. DDL + pure functions (detector, `deriveContactState`, `decideContact`) + tests | `off` | Nothing | LOOP PR, then the OPERATOR applies the DDL |
-| B. Every write path in 5, the source-5 read, `consent.decision` rows; START fix | `shadow` | Nothing is blocked. Revocations are recorded and **would-block** decisions logged | LOOP PR (protected core); OPERATOR runs the backfill |
-| C. Enforce suppression (revoke and hold) | `enforce_suppression` | Fewer sends, only to people who revoked or are held | OPERATOR flag, after the exit criteria below |
+| B. Every write path in 5, the source-5 read, `consent.decision` rows; START fix | `shadow` | **Every revoke (plain English, voice, email, admin) is enforced at once** through `markPhoneOptedOut`. Holds and grants are recorded only; would-block decisions are logged | LOOP PR (protected core); OPERATOR runs the backfill |
+| C. Enforce holds | `enforce_holds` | Held numbers are also suppressed until a reviewer releases them | OPERATOR flag, after the exit criteria below |
 | D. Enforce grants, **one lane at a time** | per-lane allowlist | Lanes without the required consent stop reaching people who lack it | [COUNSEL] answers + OPERATOR per lane |
 
-**Exit criteria from shadow to C** (all measured, none by judgement):
+**Why revokes skip shadow.** A shadow window of 14 days or more is longer than
+the 10-business-day deadline in 64.1200(a)(10). A revocation the system has
+read, written down and then not honoured is the willfulness evidence 5.1 warns
+about, and the ledger itself would be that evidence. Shadow exists to measure
+**uncertain** decisions (holds and grants). A detected revoke is not
+uncertain.
+
+**Exit criteria from B to C** (all measured, none by judgement):
 
 1. **Minimum length.** At least 14 days of shadow **and** at least 200
    `consent.decision` rows.
@@ -633,7 +742,9 @@ rule 5).
    - says "stop calling me" on a call to the receptionist line;
    - clicks a one-click unsubscribe.
 
-   Each must show a ledger event and a would-block decision within 5 minutes.
+   Each must show a ledger event within 5 minutes, and the next automated
+   send to that handset must be **refused**, not just logged. Revokes are
+   enforced in step B, so this control tests real enforcement.
    A control that never fires proves nothing (positive-control-first).
 
 **What must not regress.**
@@ -642,8 +753,11 @@ rule 5).
   Watch the per-lane send counts against the 14 days before.
 - The index's `ok` rate.
 
-**Kill switch.** Set `CONSENT_LEDGER_MODE` back to `shadow`. The four existing
-sources keep suppressing whatever the ledger's mode is.
+**Kill switch.** Set `CONSENT_LEDGER_MODE` back to `shadow` (stops enforcing
+holds and grants) or `off` (stops ledger writes). **Neither un-enforces a
+revoke.** Revokes live in `sms_preferences` and `customers.smsOptOut`, which the
+index reads in every mode. Un-suppressing a number takes a customer START or a
+reviewer's recorded decision, never a flag.
 
 ### 8.3 Tests (red first where a fix is claimed)
 
@@ -678,9 +792,32 @@ sources keep suppressing whatever the ledger's mode is.
 email lane must call `decideContact(`. Add a planted-violation case (the
 file's existing mutation style) proving the gate goes red.
 
+**Webhook placement (F6):**
+
+- A plain-English revoke is enforced (`markPhoneOptedOut` called, the next
+  `sendSms` refused) with rollout mode `off`, with the kill switch on, and with
+  no database for the orchestrator. The webhook still acts in each case.
+- "STOP. Cancel all texts" with an active booking: revoke written, **booking
+  untouched**.
+- START from an opted-out number: `markPhoneOptedIn` called, `smsOptOut`
+  cleared, the logged STOP released (4.3 rule 6), a grant written. A STOP sent
+  after that START suppresses again.
+- In `shadow` mode, a revoke is enforced and a hold is not.
+
+**Ledger writes:**
+
+- An email unsubscribe that links to one phone writes **both** rows (the
+  subject-leading unique key; this test fails on the old key).
+- A 400-character excerpt and a long user agent are truncated in the writer,
+  and the row is stored.
+
 **Vapi end-of-call:**
 
 - A customer turn "stop calling me" writes a revoke.
+- The same phrase in customer turn 14, and at character 900 of one long turn,
+  still writes a revoke (F7).
+- A call with no `vapi_call_logs` row, found by the API-driven backstop, is
+  scanned.
 - An **assistant** turn containing "stop" writes nothing.
 - Webhook plus archive backstop for the same call writes one row.
 - A structured-data `true` with a detector `none` writes a hold.
@@ -749,6 +886,11 @@ modules, env restored in `afterEach`.
 6. What happens with past plain-English revocations that the replay (section
    7) finds were followed by automated sends?
 7. Retention floor and deletion requests (section 9).
+8. If FCC-CIRC 2609-05 is adopted on 2026-09-30 as drafted: should the shop
+   designate an exclusive revocation method? This note assumes **no**, and
+   keeps plain-English handling as policy. Should informational and marketing
+   revocations then be scoped separately, instead of today's revoke-all
+   posture?
 
 **For the operator:**
 
