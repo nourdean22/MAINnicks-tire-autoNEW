@@ -21,6 +21,10 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read # Session Authority canaries read PR state (list/get) via the GitHub API;
+    # an explicit `permissions:` block implicitly sets every OTHER scope to none,
+    # so contents:read alone 403'd GET /pulls with "Resource not accessible by
+    # integration" -- caught from the real CI log, not anticipated up front.
 
 concurrency:
   group: agent-policy-${{ github.ref }}
