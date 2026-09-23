@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { bookingsForDate, stripHasNothingToSay, tomorrowBusinessDateKey } from "../pages/admin/today/ArrivalLoadStrip";
+import { phoneDemandLine } from "../pages/admin/today/phoneDemand";
 import type { BookingItem } from "../pages/admin/today/types";
 
 const b = (over: Partial<BookingItem>): BookingItem => ({
@@ -77,3 +78,31 @@ describe("stripHasNothingToSay (self-review fix: untrustworthy is never silence)
     expect(stripHasNothingToSay({ ...quiet, tomorrowCount: 1 })).toBe(false);
   });
 });
+
+describe("phone tire demand (2026-09-23)", () => {
+  const quiet = { arrivalsError: false, arrivalsLoaded: true, arrivalsCount: 0, tomorrowCount: 0, bookingsTrustworthy: true };
+
+  it("a tire caller today is something to say, and an unreadable count is never silence", () => {
+    expect(stripHasNothingToSay({ ...quiet, phoneDemandCount: 0 })).toBe(true);
+    expect(stripHasNothingToSay({ ...quiet, phoneDemandCount: 2 })).toBe(false);
+    expect(stripHasNothingToSay({ ...quiet, phoneDemandError: true })).toBe(false);
+  });
+
+  it("lists the sizes to pull, most-asked first, with the new/used split", () => {
+    expect(phoneDemandLine({
+      total: 5,
+      sizes: [{ size: "225/65R17", count: 3, new: 1, used: 2 }, { size: "205/55R16", count: 1, new: 0, used: 0 }],
+      sizeUnknown: 1,
+    })).toBe("225/65R17 ×3 (2 used, 1 new) · 205/55R16 · 1 without a size");
+  });
+
+  it("caps the list and says how many more", () => {
+    const sizes = ["A", "B", "C", "D", "E", "F"].map((size) => ({ size, count: 1, new: 0, used: 0 }));
+    expect(phoneDemandLine({ total: 6, sizes, sizeUnknown: 0 })).toBe("A · B · C · D · +2 more");
+  });
+
+  it("nobody asked: no line", () => {
+    expect(phoneDemandLine({ total: 0, sizes: [], sizeUnknown: 0 })).toBeNull();
+  });
+});
+

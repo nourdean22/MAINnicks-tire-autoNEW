@@ -985,7 +985,10 @@ router.post("/vapi", async (req: Request, res: Response) => {
           // tool = confirmed). Append-only · multiple events per call
           // are correct (the trail tells you the agent re-engaged after
           // a tool call). Fire-and-forget · NEVER blocks webhook.
-          import("../../services/voice-call-state").then(({ classifyToolToState, recordCallState }) => {
+          Promise.all([
+            import("../../services/voice-call-state"),
+            import("../../lib/tireDemand"),
+          ]).then(([{ classifyToolToState, recordCallState }, { toolCallStateMetadata }]) => {
             for (const c of calls) {
               const state = classifyToolToState(c.function?.name ?? "");
               if (state) {
@@ -993,7 +996,9 @@ router.post("/vapi", async (req: Request, res: Response) => {
                   callId,
                   assistantId,
                   state,
-                  metadata: { tool: c.function?.name, toolCallId: c.id },
+                  // A tireInquiry also records what the caller asked for (size,
+                  // new/used; never name or phone) for Today's "Asked by phone".
+                  metadata: toolCallStateMetadata(c.function?.name, c.id, c.function?.arguments),
                 });
               }
             }
