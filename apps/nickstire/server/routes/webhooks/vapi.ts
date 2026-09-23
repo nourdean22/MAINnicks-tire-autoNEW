@@ -20,6 +20,7 @@ import express from "express";
 import { timingSafeEqual } from "node:crypto";
 import { createLogger } from "../../lib/logger";
 import { isDuplicateKeyError } from "../../lib/dbErrors";
+import { toolCallLogFields } from "../../lib/vapiToolCallLog";
 
 const log = createLogger("webhooks:vapi");
 const router = Router();
@@ -218,7 +219,7 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string): Promi
   // silently dead. Only set when the tool didn't already provide one.
   if (phoneCallId && args.callId == null) args.callId = phoneCallId;
 
-  log.info("Vapi tool call", { name: call.function.name, args });
+  log.info("Vapi tool call", { ...toolCallLogFields(call.function.name, args) });
 
   try {
     // Each tool delegates to the corresponding voiceAgent procedure.
