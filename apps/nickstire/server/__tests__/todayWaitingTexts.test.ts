@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { OPERATOR_MOBILE_LAST10 } from "../services/nonCustomerFilter";
+import { sliceBlock } from "../testUtils/sourceBlock";
 import {
   summarizeWaitingConversations,
   waitingConversations,
@@ -125,7 +126,7 @@ describe("wiring (source pins)", () => {
     // An oldest-first cap on per-text rows silently dropped the NEWEST customers
     // once a backlog built up, and capped the badge count with it.
     const src = read("server/services/smsResponseJobs.ts");
-    const reader = src.slice(src.indexOf("async function readHumanPendingRows"), src.indexOf("export async function listWaitingConversations"));
+    const reader = sliceBlock(src, "async function readHumanPendingRows", "export async function listWaitingConversations", { label: "smsResponseJobs.ts" });
     expect(reader).toMatch(/GROUP BY j\.conversationId/);
     expect(reader).not.toMatch(/\bLIMIT\b/);
   });
@@ -135,7 +136,7 @@ describe("wiring (source pins)", () => {
     // mid-conversation and downgrade the AI's next reply to a draft. A dismissal
     // sends nothing, so it must not write that action.
     const router = read("server/routers/smsConversations.ts");
-    const block = router.slice(router.indexOf("markNoReplyNeeded:"), router.indexOf("saveFeedback:"));
+    const block = sliceBlock(router, "markNoReplyNeeded:", "saveFeedback:", { label: "smsConversations.ts" });
     expect(block).toMatch(/action: "customer\.sms_no_reply_needed"/);
     expect(block).not.toMatch(/customer\.sms_manual_send/);
     for (const reader of ["server/services/humanTakeover.ts", "server/services/smsControl.ts"]) {
