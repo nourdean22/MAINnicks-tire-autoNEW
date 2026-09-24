@@ -299,8 +299,8 @@ A deliberately thin **cron dispatcher** — not where jobs run.
   (fire-and-forget, 60s timeout) — the worker holds no business logic and touches no DB.
 - High-frequency jobs (all UTC, `apps/worker/src/scheduler.ts:124-170`): `brain-bus-drain` (15m),
   `outbox-drain` (15m), `device-heartbeat-sentinel` (15m), `inngest-liveness` (daily 13:00), plus an
-  in-process video-render loop (15m) that is not forwarded. Daily/weekly jobs ride the `/cron/mega*` endpoints that
-  Railway's scheduler hits. The authoritative job registry lives in
+  in-process video-render loop (15m) that is not forwarded. Some daily/weekly jobs use Railway's
+  `/cron/mega*` fan-out, while standalone Inngest crons trigger independently. The authoritative job registry lives in
   `apps/statenour/config/crons.ts`; the worker's table is a per-deploy snapshot.
 - Operator controls (kill-switch / run-now / status) live on statenour-web's `/system/crons`.
 
