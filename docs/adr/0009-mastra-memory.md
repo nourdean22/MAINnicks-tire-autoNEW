@@ -1,6 +1,10 @@
 # ADR-0009 · Mastra memory · in-process Phase 1.2 → Postgres Phase 1.3
 
-> **Status**: Accepted (2026-05-17 · Wave-200 Phase 1.2)
+> **Status**: Superseded (2026-06-02; was Accepted 2026-05-17 · Wave-200 Phase 1.2). Commit `33a035257`
+> deleted the Mastra agent with its memory layer (see ADR-0001). Phase 1.3's flag-gated
+> `@mastra/pg` scaffold (`e4222be11`) went with it.
+> `MASTRA_MEMORY_BACKEND` is still set on Railway (`.railway/railway.ts:110`) but no code reads it.
+> The text below is history.
 > **Decision drivers**: AGENT_V2 path needs real conversational
 > continuity · operator stays migration-cautious · zero schema impact
 > for the first cutover · persistent storage parked for Phase 1.3

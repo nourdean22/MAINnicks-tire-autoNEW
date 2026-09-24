@@ -11,7 +11,7 @@ Last verified 2026-05-21. Source of truth for subsystem boundaries.
 > - `BrainBusEvent` table + `lib/db/brain-bus-durable.ts` — durable
 >   replay layer underneath the v8.5 LISTEN/NOTIFY brain-bus. Events
 >   persist with status/availableAt/attempts so a missed NOTIFY is
->   recovered by the every-2-min `brain-bus-backfill` cron.
+>   recovered by the every-15-min `brain-bus-drain` cron (worker; `brain-bus-backfill` was deleted 2026-05-28).
 > - `SchemaChangeLedger` table + `lib/db/schema-ledger.ts` — every
 >   `prisma db push` records reason + destructive flag + rollback plan
 >   + approver. `/system/schema-history` renders the audit trail.
@@ -267,11 +267,9 @@ lib/utils/http.ts → cronHandler(handler)
     · Error re-throw so apiHandler can surface HTTP failure
 
 /system/crons       → live deck w/ kill-switch + run-now + sparkline
-/system/cron-runs   → all-jobs index sortable + failures-first
-/system/cron-runs/[jobName] → per-job drill-down (duration trend
-                              + expandable error preview + run-now button)
-/api/system/crons/toggle → flip kill switch (writes BrainMemory).
-/api/system/crons/run    → fire a cron on demand (validates against manifest).
+                      (tRPC systemAutomation.cronDeck / setCronEnabled / runManifestCron)
+PATCH /api/settings/crons         → flip kill switch (writes BrainMemory).
+POST  /api/settings/crons/trigger → fire a cron on demand.
 ```
 
 Each cron is `active` (own schedule), `folded` (runs inside a parent

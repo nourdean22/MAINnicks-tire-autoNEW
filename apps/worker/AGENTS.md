@@ -25,15 +25,15 @@ An Express 4 + node-cron process on Railway's internal network. **Three source f
 
 1. **Forwards cron ticks** to statenour-web. It holds no business logic for those jobs: each tick is
    an authenticated `GET ${STATENOUR_WEB_URL}/api/cron/<name>` with a `Bearer CRON_SECRET`, a 60s
-   timeout (`scheduler.ts:37` `FORWARD_TIMEOUT_MS = 60_000`) and a per-job overlap guard
-   (`scheduler.ts:46` `inFlightForwards`, checked at `:387` — a slow forward skips the next tick
-   instead of stacking). Registered in `scheduler.ts`: `brain-bus-drain` (`:132` `*/15 * * * *`),
-   `outbox-drain` (`:141` `*/15 * * * *`), `inngest-liveness` (`:154` `0 13 * * *`, daily 13:00 UTC),
-`device-heartbeat-sentinel` (`:163` `*/15 * * * *`, camera/bridge heartbeat silence, ADR-0017).
-   `POST /cron/mega` (`index.ts:163`) and `/cron/mega-evening` (`index.ts:169`) forward the
+   timeout (`scheduler.ts:41` `FORWARD_TIMEOUT_MS = 60_000`) and a per-job overlap guard
+   (`scheduler.ts:50` `inFlightForwards`, checked at `:391` — a slow forward skips the next tick
+   instead of stacking). Registered in `scheduler.ts`: `brain-bus-drain` (`:136` `*/15 * * * *`),
+   `outbox-drain` (`:145` `*/15 * * * *`), `inngest-liveness` (`:158` `0 13 * * *`, daily 13:00 UTC),
+`device-heartbeat-sentinel` (`:167` `*/15 * * * *`, camera/bridge heartbeat silence, ADR-0017).
+   `POST /cron/mega` (`index.ts:168`) and `/cron/mega-evening` (`index.ts:174`) forward the
    morning/evening mega fan-out.
-2. **Renders approved videos in-process — every 15 minutes** (`RENDER_SCHEDULE`, `scheduler.ts:175`;
-   cron registered at `:420`, tick at `:423`):
+2. **Renders approved videos in-process — every 15 minutes** (`RENDER_SCHEDULE`, `scheduler.ts:179`;
+   cron registered at `:423`, tick at `:426`):
    polls `/api/sync/queue/render` for approved drafts, renders MP4 locally via `renderReelVideo`
    from `@nour/reel-engine` (Remotion), uploads through `storage.ts` (S3 + CloudFront URL or 24h
    presigned GET; local-fs fallback to `data/generated/` when `S3_BUCKET` is unset), then POSTs
@@ -60,7 +60,7 @@ canonical: if you change the env contract, change it here first, then `DEPLOY.md
 
 - **`CRON_SECRET` is fail-closed.** `requireCronSecret` (`index.ts:53`) compares with
   `timingSafeEqual` (imported at `index.ts:25`), and the process refuses to boot when the secret is
-  empty — `process.exit(1)` at `index.ts:48`, rationale at `:37-39` (an empty secret would compare
+  empty — `process.exit(1)` at `index.ts:48`, rationale at `:37-40` (an empty secret would compare
   equal and bypass auth). Never add a dev bypass, never fall back to
   string `===`.
 - **`/health` is a DUMB liveness / deploy gate — always 200 while the process serves.** It must never
@@ -70,13 +70,13 @@ canonical: if you change the env contract, change it here first, then `DEPLOY.md
   authority that checks derived state turns a blip into a restart storm. Scheduler freshness rides
   in the BODY as diagnostics only.
 - **`GET /health/scheduler` is the freshness signal** — 503 when the newest tick is older than
-  `SCHEDULER_STALE_MS`. **Derived, never a literal**: `deriveStaleWindowMs()` (`scheduler.ts:105`,
-  input `TICK_WRITING_SCHEDULES` `:181`) takes the fastest schedule that writes `lastTickAt` and
+  `SCHEDULER_STALE_MS`. **Derived, never a literal**: `deriveStaleWindowMs()` (`scheduler.ts:109`,
+  input `TICK_WRITING_SCHEDULES` `:185`) takes the fastest schedule that writes `lastTickAt` and
   allows two missed fires plus 5 min jitter — today `*/15` -> **35 min**. Change a cron and the
   window follows. **Never point `healthcheckPath` at this endpoint.** Safe to alert on; nothing
   restarts on it.
 - **Graceful drain on SIGTERM/SIGINT** — `drainInFlight(30_000)` bounded, `35_000` hard exit
-  (`index.ts:204`, `:200`, handlers at `:211-212`). Keep it, or a deploy can kill a render mid-write.
+  (`index.ts:209`, `:205`, handlers at `:216-217`). Keep it, or a deploy can kill a render mid-write.
 - `STATENOUR_SYNC_KEY` must match across statenour-web, nickstire and worker — a drift shows up as
   bridge 401s.
 
@@ -123,15 +123,16 @@ exactly that in a receipt — an unqualified "verified" reads as a test pass tha
 
 ## Cron job registry
 
-The **live** catalog is `GET /api/settings/crons` on statenour-web (`PATCH` toggles a job,
-`POST /api/settings/crons/trigger` fires one), and the manifest of record is
-`apps/statenour/config/crons.ts` (guarded by `pnpm check:crons`). This service only knows the three
+The **live** catalog is `/system/crons` on statenour-web (tRPC `systemAutomation.cronDeck`, manifest-backed).
+`GET /api/settings/crons` is NOT: it parses the deleted `vercel.json` and returns only hard-coded mega rows
+(`PATCH` there still toggles a job, `POST /api/settings/crons/trigger` fires one). The manifest of record is
+`apps/statenour/config/crons.ts` (guarded by `pnpm check:crons`). This service only knows the four
 job names hard-coded in `scheduler.ts` plus the two mega slots. Operator surface for kill-switch and
 run-now: `/system/crons`.
 
 <!--
   2026-08-21: this section said `GET /api/cron/list` and `/system/cron-deck`. Neither exists —
   a search of app/api/cron for `list`, and for `cron-deck` anywhere under app/, both return zero.
-  The same wrong pair still rides in apps/worker/DEPLOY.md:65. Corrected against
+  The same wrong pair rode in apps/worker/DEPLOY.md until 2026-09-23 (Q-30). Corrected against
   app/api/settings/crons/route.ts:1-3 and app/(mastery)/system/crons/page.tsx:4.
 -->
