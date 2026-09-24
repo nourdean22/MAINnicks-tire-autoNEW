@@ -53,15 +53,15 @@ export function getQueueActionDefinition(type: ActionItem["type"]): QueueActionD
         secondaryDestructive: false,
       };
     case "text":
-      // A customer waiting on a text reply. There is no status to flip: the
-      // item leaves the queue when the shop's reply is in the thread.
+      // A customer waiting on a human text reply (ROS-058). Replying from the
+      // thread closes it; so does "No reply needed" (e.g. answered by phone).
       return {
         primaryLabel: "Open thread",
         primaryConfirmTitle: "Open text thread?",
         primaryConfirmMessage: (name) => `Open ${name}'s text thread to reply.`,
-        secondaryLabel: "Open thread",
-        secondaryConfirmTitle: "Open text thread?",
-        secondaryConfirmMessage: (name) => `Open ${name}'s text thread to reply.`,
+        secondaryLabel: "No reply needed",
+        secondaryConfirmTitle: "No reply needed?",
+        secondaryConfirmMessage: (name) => `Close ${name}'s waiting text without replying (for example, you already called them).`,
         secondaryDestructive: false,
       };
   }

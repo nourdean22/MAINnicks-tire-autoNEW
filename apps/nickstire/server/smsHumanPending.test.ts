@@ -59,14 +59,23 @@ describe("resolution — only human actions close the obligation", () => {
 });
 
 describe("the summary tells the truth", () => {
-  it("returns counts + SLA overdue + oldest wait", async () => {
-    selectRows = [{ humanPending: "3", overdue: "1", oldestWaitingMinutes: "47" }];
+  const open = (conversationId: number, waitingMinutes: number, overdue: 0 | 1, customerPhone = `+1216404${1000 + conversationId}`) =>
+    ({ jobId: conversationId * 10 + waitingMinutes, conversationId, phone: customerPhone, customerName: null, body: "Do you have 225/65R17?", waitingMinutes: String(waitingMinutes), overdue });
+
+  it("returns customers waiting + SLA overdue + oldest wait, read from open obligations only", async () => {
+    selectRows = [open(1, 47, 1), open(2, 12, 0), open(3, 5, 0)];
     const s = await humanPendingSummary();
     expect(s).toEqual({ humanPending: 3, overdue: 1, oldestWaitingMinutes: 47 });
+    expect(executed.find((q) => /SELECT/i.test(q))).toMatch(/status = 'human_pending'/);
+  });
+
+  it("counts CUSTOMERS, not texts: two open texts in one thread are one waiting customer", async () => {
+    selectRows = [open(1, 47, 1), open(1, 3, 0)];
+    expect(await humanPendingSummary()).toEqual({ humanPending: 1, overdue: 1, oldestWaitingMinutes: 47 });
   });
 
   it("an empty queue reports zero with a null oldest — a real zero, from a real read", async () => {
-    selectRows = [{ humanPending: 0, overdue: 0, oldestWaitingMinutes: null }];
+    selectRows = [];
     const s = await humanPendingSummary();
     expect(s).toEqual({ humanPending: 0, overdue: 0, oldestWaitingMinutes: null });
   });

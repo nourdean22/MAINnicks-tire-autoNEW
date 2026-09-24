@@ -88,14 +88,15 @@ function waitLabel(minutes: number): string {
   return `${Math.floor(minutes / (24 * 60))} d`;
 }
 
-/** Shape of one bundle.owedTexts entry (server/services/owedTexts.ts OwedText). */
+/** Shape of one bundle.owedTexts entry (server/services/smsResponseJobs.ts WaitingConversation). */
 interface OwedTextItem {
   conversationId: number;
   phone: string;
   customerName: string | null;
   preview: string;
-  lastInboundAt: string | Date;
   waitingMinutes: number;
+  /** Past the ROS-058 30-min human-reply SLA. */
+  overdue: boolean;
 }
 
 export default function OverviewSection() {
@@ -164,6 +165,7 @@ export default function OverviewSection() {
   const leadUpdate = trpc.lead.update.useMutation();
   const callbackUpdate = trpc.callback.updateStatus.useMutation();
   const recordAction = trpc.adminSecurity.recordAction.useMutation();
+  const markNoReplyNeeded = trpc.smsConversations.markNoReplyNeeded.useMutation();
 
   const stats = bundle?.stats ?? null;
   const bookings = (bundle?.bookings ?? []) as BookingItem[];
@@ -282,9 +284,10 @@ export default function OverviewSection() {
         totalRevenue: workOrder.total ? Number(workOrder.total) : undefined,
       });
     }
-    // Customers waiting on a text reply. Census 2026-09-23: 55 of 104 text
-    // episodes ended with the customer's last text unanswered, and none of
-    // them appeared on this queue.
+    // Customers waiting on a human text reply: the ROS-058 obligation, so a
+    // human reply or "No reply needed" clears it and an automated text does
+    // not. Urgent is the same 30-min SLA the Outreach badge and alerts use.
+    const now = Date.now();
     for (const text of owedTexts) {
       items.push({
         id: `text-${text.conversationId}`,
@@ -293,8 +296,8 @@ export default function OverviewSection() {
         name: text.customerName || "Texting customer",
         detail: `Waiting ${waitLabel(text.waitingMinutes)} · "${text.preview}"`,
         phone: text.phone,
-        urgency: text.waitingMinutes >= 4 * 60 ? 4 : 3,
-        createdAt: text.lastInboundAt,
+        urgency: text.overdue ? 4 : 3,
+        createdAt: new Date(now - text.waitingMinutes * 60_000).toISOString(),
         status: "awaiting_reply",
       });
     }
@@ -370,7 +373,15 @@ export default function OverviewSection() {
   async function performSecondary(item: ActionItem) {
     const definition = getQueueActionDefinition(item.type);
     if (item.type === "text") {
-      openTextThread(item);
+      const confirmed = await confirmDialog({
+        title: definition.secondaryConfirmTitle,
+        message: definition.secondaryConfirmMessage(item.name),
+        confirmLabel: definition.secondaryLabel,
+      });
+      if (!confirmed) return;
+      const { closed } = await markNoReplyNeeded.mutateAsync({ conversationId: item.entityId });
+      await logReceipt(item, "admin.text_no_reply_needed", { closed });
+      await utils.adminDashboard.overviewMediumBundle.invalidate();
       return;
     }
     if (item.type === "callback") {
@@ -400,7 +411,7 @@ export default function OverviewSection() {
     await utils.adminDashboard.overviewMediumBundle.invalidate();
   }
 
-  const mutationPending = bookingUpdate.isPending || leadUpdate.isPending || callbackUpdate.isPending || recordAction.isPending;
+  const mutationPending = bookingUpdate.isPending || leadUpdate.isPending || callbackUpdate.isPending || markNoReplyNeeded.isPending || recordAction.isPending;
 
   /**
    * ONE definition, two consumers: the "Urgent leads" card and the morning

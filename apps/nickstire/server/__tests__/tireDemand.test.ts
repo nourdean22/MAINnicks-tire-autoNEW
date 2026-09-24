@@ -35,7 +35,10 @@ describe("tireDemandFromToolArgs", () => {
 });
 
 describe("summarizeTireDemand", () => {
-  const row = (size: string | null, condition: string | null = null, tool = "tireInquiry") => ({ tool, toolCallId: "t", demand: { size, condition } });
+  let n = 0;
+  /** One tool_called row. Each row is its own call unless `callId` says otherwise. */
+  const row = (size: string | null, condition: string | null = null, tool = "tireInquiry", callId = `call-${++n}`) =>
+    ({ callId, metadata: { tool, toolCallId: `t-${n}`, demand: { size, condition } } });
 
   it("POSITIVE CONTROL: counts sizes, most-asked first, with new/used split", () => {
     const s = summarizeTireDemand([
@@ -50,8 +53,46 @@ describe("summarizeTireDemand", () => {
   });
 
   it("skips other tools and rows written before the demand field existed", () => {
-    const s = summarizeTireDemand([row("225/65R17", null, "bookSlot"), { tool: "tireInquiry", toolCallId: "old" }, null, "x"]);
+    const s = summarizeTireDemand([
+      row("225/65R17", null, "bookSlot"),
+      { callId: "old", metadata: { tool: "tireInquiry", toolCallId: "old" } },
+      { callId: "n", metadata: null },
+      { callId: "x", metadata: "x" },
+    ]);
     expect(s).toEqual({ total: 0, sizes: [], sizeUnknown: 0 });
+  });
+
+  it("two tool calls in ONE call are one caller: front and rear sizes count once each", () => {
+    const s = summarizeTireDemand([row("225/65R17", "used", "tireInquiry", "call-A"), row("235/60R17", "used", "tireInquiry", "call-A")]);
+    expect(s.total).toBe(1);
+    expect(s.sizes).toEqual([
+      { size: "225/65R17", count: 1, new: 0, used: 1 },
+      { size: "235/60R17", count: 1, new: 0, used: 1 },
+    ]);
+  });
+
+  it("the assistant re-calling the tool for the same size is still one caller for that size", () => {
+    const s = summarizeTireDemand([row("225/65R17", null, "tireInquiry", "call-B"), row("225/65R17", "new", "tireInquiry", "call-B")]);
+    expect(s).toEqual({ total: 1, sizes: [{ size: "225/65R17", count: 1, new: 1, used: 0 }], sizeUnknown: 0 });
+  });
+
+  it("two call ids are two callers", () => {
+    const s = summarizeTireDemand([row("225/65R17", null, "tireInquiry", "call-C"), row("225/65R17", null, "tireInquiry", "call-D")]);
+    expect(s.total).toBe(2);
+    expect(s.sizes).toEqual([{ size: "225/65R17", count: 2, new: 0, used: 0 }]);
+  });
+
+  it("a call is 'without a size' only when none of its inquiries had one", () => {
+    const s = summarizeTireDemand([
+      row(null, null, "tireInquiry", "call-E"), row("205/55R16", null, "tireInquiry", "call-E"),
+      row(null, null, "tireInquiry", "call-F"), row(null, "used", "tireInquiry", "call-F"),
+    ]);
+    expect(s).toEqual({ total: 2, sizes: [{ size: "205/55R16", count: 1, new: 0, used: 0 }], sizeUnknown: 1 });
+  });
+
+  it("the reader passes the Vapi call id (voice_latency_events.call_id) with each row", () => {
+    const src = readFileSync(resolve(__dirname, "../services/phoneTireDemand.ts"), "utf8");
+    expect(src).toContain(".select({ callId: voiceLatencyEvents.callId, metadata: voiceLatencyEvents.metadata })");
   });
 });
 

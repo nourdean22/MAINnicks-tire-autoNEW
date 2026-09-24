@@ -26,7 +26,7 @@
 import { desc } from "drizzle-orm";
 import { getDashboardStats, getSiteHealth } from "../admin-stats";
 import { getBookings, getCallbackRequests } from "../db";
-import { getOwedTexts } from "./owedTexts";
+import { listWaitingConversations } from "./smsResponseJobs";
 import { leads as leadsTable } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
@@ -118,9 +118,9 @@ export async function getOverviewMediumBundle() {
     listLeads(),
     getCallbackRequests(),
     getSiteHealth(),
-    // Customers waiting on a text reply (census 2026-09-23: 55 of 104 text
-    // episodes ended unanswered, and nothing on Today showed them).
-    getOwedTexts(),
+    // Customers waiting on a human text reply: the ROS-058 obligation, the
+    // same reduction as the Outreach badge and the morning brief (audit I).
+    listWaitingConversations(),
   ]);
 
   const slices = {
