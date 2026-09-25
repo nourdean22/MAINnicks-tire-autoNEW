@@ -1,12 +1,13 @@
 # CLAUDE.md — NOURCITY monorepo (Claude Code adapter)
 
 Canonical cross-agent policy is **[`AGENTS.md`](./AGENTS.md)** — it applies to Claude sessions
-verbatim, no carve-outs. Both files below are IMPORTED, so they are already in your context:
+verbatim, no carve-outs. The files below are IMPORTED, so they are already in your context:
 
 @AGENTS.md
 @CLAUDE-OPERATING-PROFILE.md
+@NOUR-COMMAND.md
 
-<!-- Keep both on their own `@` lines: a markdown link passes a substring match but loads NOTHING
+<!-- Keep all imports on their own `@` lines: a markdown link passes a substring match but loads NOTHING
      (false green, 2026-08-21). Asserted by check-adapters.mjs:99,:165. Cap: 60 lines. Policy goes in
      AGENTS.md; Claude-only tool behavior in CLAUDE-OPERATING-PROFILE.md (capped at 160). -->
 
@@ -16,7 +17,8 @@ add Claude-only notes on top of it — and nickstire's also indexes that app's c
 
 ## Claude-specific
 
-- **Skills** (`.claude/skills/`, 25 repo-specific — invoke by exact name). Each `SKILL.md` carries
+- **Skills** (`.claude/skills/`, 26 repo-specific — invoke by exact name). `nour-command` is the
+  cross-cutting router; each `SKILL.md` carries
   its own full trigger and rationale; this is only the index for picking one.
   - Before commit/push → **statenour-verify** · **nickstire-verify**; writing the report →
     **answer-first**.
