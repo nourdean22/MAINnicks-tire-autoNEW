@@ -24,7 +24,9 @@ const STUDIO = readFileSync(path.join(__dirname, "..", "client", "src", "lib", "
 describe("the manual runner is as safe as the tiered one", () => {
   it("both runners derive the budget from ONE definition", () => {
     expect(INDEX).toContain("export function jobTimeoutMs");
-    expect(SCHED).toContain('import { acquireCronLock, releaseCronLock, jobTimeoutMs } from "./index"');
+    // The import line may carry other names (Q-10 added the drain helpers);
+    // what matters is that jobTimeoutMs comes from ./index and nowhere else.
+    expect(SCHED).toMatch(/import \{[^}]*\bjobTimeoutMs\b[^}]*\} from "\.\/index"/);
     // The duplicate that used to live in scheduler.ts is gone.
     expect(SCHED).not.toContain("function jobTimeoutMs(job:");
   });
