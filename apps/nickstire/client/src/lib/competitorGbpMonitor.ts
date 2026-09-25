@@ -1,9 +1,10 @@
 /**
  * Competitor GBP monitor — the watch list + what to record weekly.
  *
- * 2026-06-10 GBP growth wave. There IS a server-side competitor poller
- * (services/competitorMonitor writes competitor_snapshots + Telegram
- * alerts), but no admin read surface — the operator can't see trends.
+ * 2026-06-10 GBP growth wave. The server-side competitor monitor
+ * (services/competitorMonitor) keeps place_ids only since Q-48
+ * (2026-09-23): Google Places ratings/counts may not be stored, so it
+ * persists no trend and sends no alerts.
  * This module is the read-side model + the manual collection schema so
  * the data has a home until a richer admin view ships.
  *

@@ -9,9 +9,11 @@ owner-response presence) shows where Nick's can out-execute. Review
 VOLUME is the gap most worth closing — see the baseline.
 
 ## What exists
-- **Server poller** (`services/competitorMonitor`) already does daily
-  Places polling → `competitor_snapshots` + Telegram alerts. It runs but
-  has had no admin read surface (operator can't see trends).
+- **Server monitor** (`services/competitorMonitor`) keeps each competitor's
+  Google `place_id` in `competitor_snapshots` (source `place_id`) and reads
+  ratings on demand. Since Q-48 (2026-09-23) it stores no ratings or review
+  counts and sends no alerts: Google Maps Platform Terms allow caching
+  place_id, not Places content.
 - **New (this PR):** `client/src/lib/competitorGbpMonitor.ts` — the watch
   list, the audit-dated baseline, the weekly-check field list, and a pure
   `reviewVolumeGaps()` helper. Baseline is explicitly dated `2026-06` and
@@ -36,6 +38,6 @@ Read-only / manual. No aggressive scraping, no bypassing Google
 protections, no private credentials, no fabricated competitor data.
 
 ## Truth source
-`client/src/lib/competitorGbpMonitor.ts` + the existing
-`competitor_snapshots` table. Future automation: route the poller's
-snapshots into an admin read card (integration plan doc).
+`client/src/lib/competitorGbpMonitor.ts` (audit-dated baseline). Live
+ratings come from `fetchCompetitorSnapshot()` on demand and must not be
+written to the database (Q-48).

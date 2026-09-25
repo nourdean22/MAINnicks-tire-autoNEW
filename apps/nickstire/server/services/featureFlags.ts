@@ -125,12 +125,9 @@ export const FLAG_DEFINITIONS = [
   { key: "vapi_action_proposals", description: "On call-end, extract explicit caller asks (callback / booking) from actionable VAPI calls via a pinned LLM and land them as DRAFT proposals in the approval queue. Creates drafts only — execution always requires human approval. Requires migration 0111 applied. Flip ON after reviewing the first extractions by hand." },
 
   // ─── COMPETITIVE INTEL ────────────────────────────
-  // Decision-forcing by design: threshold breaches only, no digest. The
-  // competitor-monitor cron keeps persisting snapshots regardless of this
-  // flag — the flag gates ONLY the Telegram alert. 30-DAY KILL CLAUSE: if a
-  // month of alerts produces no operator decision, turn this off and delete
-  // the alert layer — an unread alert stream is stimulation, not intel.
-  { key: "competitor_threshold_alerts", description: "Telegram alert when a tracked competitor breaches a threshold (>=10 review gain or >=0.2 rating move vs previous snapshot). Deduped once/day per competitor+metric via cron_alerts_fired. Needs GOOGLE_PLACES_API_KEY working (REQUEST_DENIED now fails loud in cron_log). 30-day kill clause: no decision made from it in 30 days -> turn off." },
+  // competitor_threshold_alerts was retired 2026-09-23 (Q-48): the alerts
+  // diffed stored Google ratings/review counts, which the Places terms do not
+  // allow storing. drizzle/0131_places_content_purge.sql deletes its row.
 
   // ─── CREATIVE SKILL PACKS ─────────────────────────
   { key: "skill_ad_creative_enabled", description: "Augments staging of Meta Ads with localized hook strategies" },
