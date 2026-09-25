@@ -4,7 +4,7 @@
  * dialog (iOS PWA standalone suppresses window.prompt/confirm).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 type QueryResult = { data: unknown; isLoading: boolean; isError: boolean; error: unknown; refetch: () => void };
 
@@ -66,20 +66,23 @@ describe("TireRegistrationPanel", () => {
   it("captures a TIN for the chosen position inline, with no native dialog", () => {
     const promptSpy = vi.spyOn(window, "prompt");
     const confirmSpy = vi.spyOn(window, "confirm");
-    h.reg = ok({
-      workOrderId: "wo-1", expected: 4, rows: [],
-      summary: { state: "incomplete", expected: 4, captured: 0, missingTins: 4, invalidPositions: [], pendingPositions: [] },
-    });
-    render(<TireRegistrationPanel workOrderId="wo-1" />);
-    fireEvent.click(screen.getByRole("button", { name: "RR" }));
-    fireEvent.change(screen.getByPlaceholderText(/3D1 A7B2C4 2324/), { target: { value: "dot 3d1 a7b2c4 2324" } });
-    expect(screen.getByText(/made week 23 of 2024/)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Save RR/ }));
-    expect(h.captures).toEqual([{ workOrderId: "wo-1", position: "RR", tin: "dot 3d1 a7b2c4 2324", brand: undefined, condition: "new" }]);
-    expect(promptSpy).not.toHaveBeenCalled();
-    expect(confirmSpy).not.toHaveBeenCalled();
-    promptSpy.mockRestore();
-    confirmSpy.mockRestore();
+    try {
+      h.reg = ok({
+        workOrderId: "wo-1", expected: 4, rows: [],
+        summary: { state: "incomplete", expected: 4, captured: 0, missingTins: 4, invalidPositions: [], pendingPositions: [] },
+      });
+      render(<TireRegistrationPanel workOrderId="wo-1" />);
+      fireEvent.click(screen.getByRole("button", { name: "RR" }));
+      fireEvent.change(screen.getByPlaceholderText(/3D1 A7B2C4 2324/), { target: { value: "dot 3d1 a7b2c4 2324" } });
+      expect(screen.getByText(/made week 23 of 2024/)).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: /Save RR/ }));
+      expect(h.captures).toEqual([{ workOrderId: "wo-1", position: "RR", tin: "dot 3d1 a7b2c4 2324", brand: undefined, condition: "new" }]);
+      expect(promptSpy).not.toHaveBeenCalled();
+      expect(confirmSpy).not.toHaveBeenCalled();
+    } finally {
+      promptSpy.mockRestore();
+      confirmSpy.mockRestore();
+    }
   });
 
   it("drops a cached printable form after a TIN is replaced", async () => {
@@ -107,8 +110,8 @@ describe("TireRegistrationPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Registration form" }));
     expect(await screen.findByTitle("Tire registration form")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Remove LF" }));
-    expect(h.removes).toEqual([{ workOrderId: "wo-1", position: "LF" }]);
-    expect(screen.queryByTitle("Tire registration form")).toBeNull();
+    await waitFor(() => expect(h.removes).toEqual([{ workOrderId: "wo-1", position: "LF" }]));
+    await waitFor(() => expect(screen.queryByTitle("Tire registration form")).toBeNull());
   });
 
   it("an invalid TIN is refused client-side and never sent", () => {
