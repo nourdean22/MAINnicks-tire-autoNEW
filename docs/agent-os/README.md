@@ -15,6 +15,16 @@ the two: `AGENTS.md` carries judgment, and code carries enforcement.
 | 4 · Local enforcement | `.claude/settings.json` hooks + `scripts/agent-os/` | Deny unsafe tool calls before they run; gate completion claims. Claude-only — see "Honest limits". |
 | 5 · CI | [`.github/workflows/agent-policy.yml`](../../.github/workflows/agent-policy.yml) | Runs layers 3–4's checks on every PR, for every author, including humans. |
 
+## Execution framework
+
+`NOUR-COMMAND.md` is the default execution framework for non-trivial work; it is **not** a second engineering policy.
+Root `AGENTS.md` remains authoritative on safety, branching, verification, and app routing. Claude and Gemini import
+NOUR COMMAND directly; Copilot, Cursor, and Antigravity route to it from their always-loaded adapters. The parity checker
+and its canary suite fail if the file, root route, or required imports/pointers disappear.
+
+Detailed task routing lives in `docs/agent-os/NOUR-COMMAND-MODES.md`; Claude also exposes the explicit
+`.claude/skills/nour-command/SKILL.md` router. Domain-specific skills still win when their narrower trigger applies.
+
 ## One command
 
 ```bash

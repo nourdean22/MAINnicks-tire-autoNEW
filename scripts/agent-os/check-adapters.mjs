@@ -135,6 +135,7 @@ function requireThin(p, max) {
 }
 
 // ── 1 · Canonical root AGENTS.md ──────────────────────────────────────────────
+requireFile("NOUR-COMMAND.md", "default cross-agent execution framework");
 if (requireFile("AGENTS.md", "canonical cross-agent policy")) {
   for (const section of [
     "## Repo topology",
@@ -156,6 +157,7 @@ if (requireFile("AGENTS.md", "canonical cross-agent policy")) {
   ]) {
     requireMatch("AGENTS.md", new RegExp(section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), "required canonical section");
   }
+  requireMatch("AGENTS.md", /NOUR-COMMAND\.md/, "must route non-trivial work through Nour Command");
   forbidLine("AGENTS.md", /Two apps share this repo/, "stale two-app topology — three Railway services");
   forbidLine("AGENTS.md", /mcp_config\.json/, "references an untracked file; the launcher script + docs are canonical");
 }
@@ -165,14 +167,17 @@ if (requireFile("CLAUDE.md", "Claude Code adapter")) {
   // Anchored: an unanchored /@AGENTS\.md/ passes on any prose mention, which is the exact
   // false-green that let a LINKED profile ship as if it loaded (2026-08-21).
   requireMatch("CLAUDE.md", /^@AGENTS\.md$/m, "must IMPORT the canonical policy on its own @ line");
+  requireMatch("CLAUDE.md", /^@NOUR-COMMAND\.md$/m, "must IMPORT Nour Command on its own @ line");
   requireThin("CLAUDE.md", 60);
 }
 if (requireFile("GEMINI.md", "Gemini CLI adapter")) {
   requireMatch("GEMINI.md", /@AGENTS\.md/, "must import the canonical policy (memport)");
+  requireMatch("GEMINI.md", /^@NOUR-COMMAND\.md$/m, "must import Nour Command via memport");
   requireThin("GEMINI.md", 40);
 }
 if (requireFile(".github/copilot-instructions.md", "Copilot adapter")) {
   requireMatch(".github/copilot-instructions.md", /AGENTS\.md/, "must point at the canonical policy");
+  requireMatch(".github/copilot-instructions.md", /NOUR-COMMAND\.md/, "must route through Nour Command");
   requireThin(".github/copilot-instructions.md", 60);
 }
 for (const rule of ["repo-core", "nickstire", "statenour"]) {
@@ -180,6 +185,7 @@ for (const rule of ["repo-core", "nickstire", "statenour"]) {
   if (requireFile(p, "Cursor project rule")) {
     requireMatch(p, /AGENTS\.md/, "must point at an AGENTS.md");
     requireMatch(p, /alwaysApply:|globs:/, "mdc frontmatter must scope the rule");
+    if (rule === "repo-core") requireMatch(p, /NOUR-COMMAND\.md/, "always-on Cursor rule must route through Nour Command");
     requireThin(p, 60);
   }
 }
@@ -189,6 +195,7 @@ for (const rule of ["repo-core", "nickstire", "statenour"]) {
 // vs the autonomous-merge rule). Capping it is the fix; trimming it without the cap is not.
 if (requireFile(".antigravityrules", "Antigravity adapter")) {
   requireMatch(".antigravityrules", /AGENTS\.md/, "must point at the canonical policy");
+  requireMatch(".antigravityrules", /NOUR-COMMAND\.md/, "must route through Nour Command");
   requireThin(".antigravityrules", 60);
 }
 if (requireFile("docs/ANTIGRAVITY-RULES.md", "Antigravity reasoning layer (not policy)")) {
