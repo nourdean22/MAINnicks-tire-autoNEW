@@ -421,13 +421,17 @@ export type PromiseKind = keyof typeof PROMISE_PATTERNS;
 /** Something done DURING the call ("let me check", "one sec") — not an obligation. */
 const IN_CALL = /\b(let me (check|see|look)|one (sec|second|moment)|in a (sec|second|moment|minute)|right now|hold on)\b/i;
 /**
- * Kept on the spot, or conditional on a drop-off the call cannot create: the
- * address / confirmation text goes out during the call (sendConfirmationSms), and
- * "drop it off and we'll text when it's ready" is the old scripted oil-change
- * line (vapi.ts, reworded 2026-09-23) whose text is automated once a work order
- * exists. Counting either as an open promise inflated oil-change to 30 of 42.
+ * Kept on the spot: the address / confirmation / details text goes out DURING the
+ * call (sendConfirmationSms), and "we'll let you know when you pull up" happens at
+ * the counter. A details text tied to a later event ("once the parts come in") is
+ * NOT kept on the spot, so FUTURE_TRIGGER overrules it. A drop-off is only the
+ * condition of a promise, never its fulfilment: "drop it off and we'll text you
+ * when it's done" is a promise, and #2580 removed that very line from the prompt
+ * because nothing sends the text.
  */
-const FULFILLED_OR_CONDITIONAL = /\b(text|send)\b.{0,25}\b(address|confirmation|details|recap|directions|location)\b|\bdrop (it|the car|your car) off\b|\bwhen you (pull up|get here|come in)\b/i;
+const FULFILLED_IN_CALL = /\b(text|send)\b.{0,25}\b(address|confirmation|details|recap|directions|location)\b|\bwhen you (pull up|get here|come in)\b/i;
+const FUTURE_TRIGGER = /\b(once|after|as soon as|when (it|they|the|your)\b|later|tomorrow|tonight)\b/i;
+const keptInCall = (c: string) => FULFILLED_IN_CALL.test(c) && !FUTURE_TRIGGER.test(c);
 /**
  * A negation governing the action ("I can't check the inventory", "I don't think
  * the team will call"): the negation must reach the verb within four words, so
@@ -443,7 +447,7 @@ const NEGATED = /\b(can't|cannot|won't|unable to|not able to|don't)\b(?:\s+[\w']
 export function countPromises(assistantTurns: readonly string[]): Record<PromiseKind, number> {
   return countMatches(
     assistantTurns.map((t) => plain(t).split(/[.!?;]+|,\s*but\b/i).map((c) => c.trim())
-      .filter((c) => c && !IN_CALL.test(c) && !NEGATED.test(c) && !FULFILLED_OR_CONDITIONAL.test(c))),
+      .filter((c) => c && !IN_CALL.test(c) && !NEGATED.test(c) && !keptInCall(c))),
     PROMISE_PATTERNS,
   );
 }
