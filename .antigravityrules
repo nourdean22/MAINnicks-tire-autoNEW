@@ -19,7 +19,8 @@ Add only Antigravity-specific behavior here.**
 | Layer | File |
 |---|---|
 | Engineering policy (canonical) | [`AGENTS.md`](./AGENTS.md) + `apps/*/AGENTS.md` |
-| Operator persona, communication style, response shape | [`AGENT-OPERATING-PROFILE.md`](./AGENT-OPERATING-PROFILE.md) |\n| Default non-trivial-task execution framework | [`NOUR-COMMAND.md`](./NOUR-COMMAND.md) |
+| Operator persona, communication style, response shape | [`AGENT-OPERATING-PROFILE.md`](./AGENT-OPERATING-PROFILE.md) |
+| Default non-trivial-task execution framework | [`NOUR-COMMAND.md`](./NOUR-COMMAND.md) |
 | Antigravity reasoning layer — Wisdom Hierarchy, Logic Framework, Decision Filters, Drift Detection, Decision Log | [`docs/ANTIGRAVITY-RULES.md`](./docs/ANTIGRAVITY-RULES.md) |
 | Why enforcement is split from judgment | [`docs/agent-os/README.md`](./docs/agent-os/README.md) |
 
