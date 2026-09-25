@@ -4,15 +4,16 @@
  *
  * A checklist is too weak: requirements must be DERIVED from what actually
  * changed. This reads the diff against a base ref, maps touched paths to
- * mandatory completion requirements, and checks the branch's evidence
- * manifest (.completion/evidence.json) for each. With --enforce, missing
+ * mandatory completion requirements, and checks for FRESH evidence for each:
+ * a per-PR fragment (.completion/evidence.d/<branch-slug>.json, preferred) or
+ * the legacy manifest (.completion/evidence.json). With --enforce, missing
  * required evidence exits 1 — wired into CI so a PR cannot quietly claim
  * completion its diff does not support.
  *
  * Usage: node scripts/dod-compiler.mjs [--base origin/main] [--enforce]
  */
 import { execSync } from "node:child_process";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -106,18 +107,115 @@ try {
 }
 const isFresh = (id) => JSON.stringify(manifest.evidence?.[id]) !== JSON.stringify(baseEvidence[id]);
 
+/**
+ * PER-PR EVIDENCE FRAGMENTS — .completion/evidence.d/<branch-slug>.json.
+ *
+ * The single manifest forced a merge conflict on every pair of concurrent PRs:
+ * freshness means "this branch rewrote key X", so every PR touching
+ * server/services rewrote `capability-ledger-updated` and the second to merge
+ * always conflicted (2026-09-23: #2601, #2603, #2607, #2618 re-merged main 1-3x
+ * each). A new file per PR cannot conflict.
+ *
+ * Same shape as the manifest: { "evidence": { "<requirement-id>": { ref | deferred } } }.
+ * Freshness is by CONTENT, not by file: an entry counts only if its exact value
+ * appears nowhere at the merge-base — not in any fragment there, not in the
+ * legacy manifest, under any key. So an untouched fragment from an earlier PR,
+ * a renamed or copied one, or a superseded entry pasted back all read STALE,
+ * exactly as an untouched manifest entry does.
+ */
+const FRAGMENT_DIR = ".completion/evidence.d";
+const fragmentProblems = [];
+const entryKey = (v) => JSON.stringify(v);
+const evidenceText = (value) => typeof value === "string" && value.trim().length > 0 ? value : null;
+const evidenceRef = (ev) => evidenceText(ev?.ref);
+const evidenceDeferred = (ev) => evidenceText(ev?.deferred);
+const hasEvidence = (ev) => Boolean(evidenceRef(ev) || evidenceDeferred(ev));
+
+let mergeBase = base;
+try {
+  mergeBase = execSync(`git merge-base ${base} HEAD`, {
+    encoding: "utf8", cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"],
+  }).trim();
+} catch {
+  // Unrelated histories or a shallow clone: fall back to the base tip.
+}
+
+const baseValues = new Set(Object.values(baseEvidence).map(entryKey));
+try {
+  const legacyAtMergeBase = execSync(`git show ${mergeBase}:.completion/evidence.json`, {
+    encoding: "utf8", cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"],
+  });
+  for (const v of Object.values(JSON.parse(legacyAtMergeBase).evidence ?? {})) baseValues.add(entryKey(v));
+} catch {
+  // No legacy manifest at the merge-base.
+}
+try {
+  const listed = execSync(`git ls-tree -r --name-only ${mergeBase} -- "${FRAGMENT_DIR}/"`, {
+    encoding: "utf8", cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"],
+  }).split(/\r?\n/).filter((f) => f.endsWith(".json"));
+  for (const f of listed) {
+    try {
+      const raw = execSync(`git show "${mergeBase}:${f}"`, {
+        encoding: "utf8", cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"],
+      });
+      for (const v of Object.values(JSON.parse(raw).evidence ?? {})) baseValues.add(entryKey(v));
+    } catch {
+      // An unreadable fragment at base contributes nothing to compare against.
+    }
+  }
+} catch {
+  // No fragment directory at the merge-base.
+}
+
+/** requirement id -> [{ file, ev, fresh }] from the working tree's fragments. */
+const fragmentEvidence = new Map();
+const fragmentDirAbs = path.join(repoRoot, FRAGMENT_DIR);
+if (existsSync(fragmentDirAbs)) {
+  for (const name of readdirSync(fragmentDirAbs).filter((n) => n.endsWith(".json")).sort()) {
+    const rel = `${FRAGMENT_DIR}/${name}`;
+    let parsed;
+    try {
+      parsed = JSON.parse(readFileSync(path.join(fragmentDirAbs, name), "utf8"));
+    } catch (err) {
+      fragmentProblems.push(`${rel}: not valid JSON (${err.message})`);
+      continue;
+    }
+    for (const [id, ev] of Object.entries(parsed?.evidence ?? {})) {
+      if (!fragmentEvidence.has(id)) fragmentEvidence.set(id, []);
+      fragmentEvidence.get(id).push({ file: rel, ev, fresh: hasEvidence(ev) && !baseValues.has(entryKey(ev)) });
+    }
+  }
+}
+
 const requirements = [];
 for (const rule of RULES) {
   const touched = files.filter((f) => rule.match.test(f));
   if (!touched.length) continue;
   const fromDiff = rule.satisfiedByDiff ? files.some((f) => rule.satisfiedByDiff.test(f)) : false;
-  const ev = manifest.evidence?.[rule.id];
-  const hasEntry = Boolean(ev && (ev.ref || ev.deferred));
-  const fresh = hasEntry && isFresh(rule.id);
+  const frags = fragmentEvidence.get(rule.id) ?? [];
+  const freshFrag = frags.find((f) => f.fresh);
+  if (freshFrag) {
+    requirements.push({
+      id: rule.id,
+      description: rule.description,
+      touched: touched.length,
+      status: fromDiff ? "passed" : evidenceRef(freshFrag.ev) ? "passed" : "deferred",
+      evidence: fromDiff
+        ? "(satisfied by diff)"
+        : `${freshFrag.file}: ${evidenceRef(freshFrag.ev) ?? `DEFERRED: ${evidenceDeferred(freshFrag.ev)}`}`,
+    });
+    continue;
+  }
+  const legacyEv = manifest.evidence?.[rule.id];
+  // A stale fragment is reported over an absent legacy entry, so the author sees WHICH file went stale.
+  const staleFrag = !hasEvidence(legacyEv) ? frags.find((f) => hasEvidence(f.ev)) : undefined;
+  const ev = staleFrag ? staleFrag.ev : legacyEv;
+  const hasEntry = hasEvidence(ev);
+  const fresh = !staleFrag && hasEntry && isFresh(rule.id);
   const status = fromDiff
     ? "passed"
     : fresh
-      ? (ev.deferred ? "deferred" : "passed")
+      ? (evidenceDeferred(ev) ? "deferred" : "passed")
       : hasEntry
         ? "stale"
         : "missing";
@@ -127,10 +225,13 @@ for (const rule of RULES) {
     touched: touched.length,
     status,
     evidence: status === "stale"
-      ? `written for an EARLIER change, not this diff — ${String(ev.ref ?? ev.deferred).slice(0, 90)}`
-      : ev?.ref ?? (fromDiff ? "(satisfied by diff)" : ev?.deferred ? `DEFERRED: ${ev.deferred}` : null),
+      ? `${staleFrag ? `${staleFrag.file} ` : ""}written for an EARLIER change, not this diff — ${String(evidenceRef(ev) ?? evidenceDeferred(ev)).slice(0, 90)}`
+      : evidenceRef(ev) ?? (fromDiff ? "(satisfied by diff)" : evidenceDeferred(ev) ? `DEFERRED: ${evidenceDeferred(ev)}` : null),
   });
 }
+
+for (const p of fragmentProblems) console.error(`✗ evidence fragment unreadable — ${p}`);
+if (fragmentProblems.length && enforce) process.exit(1);
 
 if (!requirements.length) {
   console.log(`✓ DoD compiler: no completion requirements derived from ${files.length} changed files`);
@@ -151,10 +252,12 @@ for (const r of requirements) {
 if (missing && enforce) {
   console.error(
     `\n✗ ${missing} required completion evidence item(s) missing or STALE.\n` +
-    `  Add or UPDATE them in .completion/evidence.json (a ref, or an explicit deferred reason).\n` +
-    `  STALE means the entry EXISTS but was written for an earlier change. The manifest lives\n` +
-    `  on main while requirements are derived per-diff, so an untouched entry is not evidence\n` +
-    `  for YOUR diff — rewrite it to describe what THIS change proves.`,
+    `  Add them to a NEW per-PR fragment, ${FRAGMENT_DIR}/<branch-slug>.json:\n` +
+    `    { "evidence": { "<requirement-id>": { "ref": "..." } } }   (or { "deferred": "<reason>" })\n` +
+    `  One file per PR never conflicts with a sibling PR. (Rewriting the legacy\n` +
+    `  .completion/evidence.json entry still counts, but conflicts with every concurrent PR.)\n` +
+    `  STALE means the entry EXISTS but was written for an earlier change — the same text\n` +
+    `  is already on the base branch, so it is not evidence for YOUR diff.`,
   );
   process.exit(1);
 }

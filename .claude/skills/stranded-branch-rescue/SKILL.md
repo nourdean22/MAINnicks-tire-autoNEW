@@ -66,7 +66,8 @@ Only rescue when ALL of these hold:
 2. Merge only on CI-green AND the tip SHA unchanged from discovery.
 3. `.completion/evidence.json` conflicts resolve by its own documented
    rule: the merging branch's walkthrough wins, every other key
-   preserved.
+   preserved. (New branches write a per-PR fragment in
+   `.completion/evidence.d/` instead, which cannot conflict.)
 
 ## Zombie hygiene
 
