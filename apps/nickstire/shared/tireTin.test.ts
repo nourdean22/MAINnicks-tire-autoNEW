@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   checkTin, expectedTireCount, isTirePosition, registrationLink, renderRegistrationFormHtml,
-  summarizeRegistration, tinAgeYears, tirePositionsForCount REGISTRATION_METHODS, type RegistrationRowLike,
+  summarizeRegistration, tinAgeYears, tirePositionsForCount, REGISTRATION_METHODS, type RegistrationRowLike,
 } from "./tireTin";
 
 const NOW = new Date("2026-09-23T12:00:00Z");
