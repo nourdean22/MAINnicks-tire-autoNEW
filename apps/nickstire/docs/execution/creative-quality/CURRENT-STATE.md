@@ -1,15 +1,16 @@
 # Creative-quality long haul — current state
 
-Updated with midday Reel reconciliation: 2026-09-25T11:44Z · PR #2656 rebased on main `3909f7c5b`; 133/133 production preflight locally. The older long-haul milestones below retain their historical verification context; this update does not re-certify every July claim.
+Updated with midday Reel merge receipt: 2026-09-25T12:08:44Z · PR #2656 merged to main `55d5d5fa2`; 133/133 production preflight locally and all required PR gates green. The older long-haul milestones below retain their historical verification context; this update does not re-certify every July claim.
 
 ## 2026-09-25 · midday rotation reconciliation
 
-- **Rotation candidate:** 122 -> **133** approved packs, append-only; persisted cursor semantics are unchanged.
+- **Rotation:** 122 -> **133** approved packs on `main`, append-only; persisted cursor semantics are unchanged.
 - **Midday census:** 27 source concepts -> **11 distinct additions + 16 already-covered concepts** after reconciling against #2655's newer evening import. Map: `docs/reel-packs/MIDDAY-IMPORT-2026-09-25.json`.
 - **Pre-spend gate:** ratchet raised to `PREFLIGHT_PASSING_FLOOR = 133`; direct execution of the real builder + `runReelPreflight` returned **133 checked / 0 failures** locally.
 - **Useful failure caught:** UTQG social copy initially used the existing hard-block terms “warranty” / “guarantee.” Copy was changed to manufacturer tread-life coverage / mileage promise; the gate stayed intact.
 - **Deduping mattered:** rotor rust, oil-life/oil-pressure, ABS, XL, TPMS flash/steady, bead/rim slow leak, puncture repair zone, impact-vs-torque, two-new-tires rear, battery-light charging system, and directional/asymmetric mounting were already covered on current `main` and were not added again.
-- **Not claimed:** no live render/publish, production DB/env mutation, ad action, or Railway deployment receipt. Full GitHub CI remains the merge authority.
+- **Merge receipt:** #2656 squash-merged at `55d5d5fa21fb912c49b450e665c00f74df9c8b83` after CI · turbo-affected verify, Completion Authority, Secret Scanning, Adoption gates, Agent policy, and Admin completion diagnostic all succeeded (Evaluator separation skipped by design).
+- **Not claimed:** no live render/publish, production DB/env mutation, ad action, or Railway deployment receipt.
 
 ## 2026-09-25 · approved-pack rotation expansion
 
