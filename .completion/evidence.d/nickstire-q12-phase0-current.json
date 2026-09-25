@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No capability state moves in Q-12 phase 0. Seven event types whose nour-os bridge copy is proven faithful stop taking the duplicate direct statenour-sync path; three sync-only types retain their direct path; seven currently mis-wired bridge adapters intentionally retain both paths until fixed. The focused eventBus.statenourOnce.test.ts drives the real bridge with fetch stubbed and pins those lists. This phase is not the full transactional outbox/idempotent receiver."
+    }
+  }
+}
