@@ -106,7 +106,9 @@ async function mapWithConcurrency(items, limit, worker) {
 export async function sweepBranches(owner, repo, { ghPaginate, concurrency = 8 }) {
   const branches = await ghPaginate(`/repos/${owner}/${repo}/branches`);
   return mapWithConcurrency(branches, concurrency, async (b) => {
-    const evidence = await gatherRemoteEvidence(owner, repo, b.name);
+    // The branches listing itself proves this ref exists; do not spend one
+    // extra /branches/<name> request per branch rediscovering that fact.
+    const evidence = await gatherRemoteEvidence(owner, repo, b.name, { knownExistsOnOrigin: true });
     const result = classifyBranch(evidence);
     return { branch: b.name, ...evidence, ...result };
   });
