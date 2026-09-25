@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { aiChatWithVision, describeImage } from "@/lib/ai/vision-input";
+import { PROVIDERS_REGISTRY } from "@/config/ai-providers";
 
 describe("aiChatWithVision", () => {
   beforeEach(() => {
@@ -71,6 +72,30 @@ describe("aiChatWithVision", () => {
     const r = await aiChatWithVision([{ role: "user", content: "x" }]);
     expect(r.content).toBe("anthropic answer");
     expect(r.provider).toBe("anthropic");
+  });
+
+  it("the anthropic lane uses the registry's vision model with thinking off (Q-16)", async () => {
+    // Was the literal claude-haiku-4-5-20251001 (retirement not before
+    // 2026-10-15). The registry default must be what goes over the wire.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          content: [
+            { type: "thinking", thinking: "" },
+            { type: "text", text: "saw it" },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const r = await aiChatWithVision([{ role: "user", content: "x" }], { preferredProvider: "anthropic" });
+    const sent = JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body));
+    expect(sent.model).toBe(PROVIDERS_REGISTRY.anthropic.defaultVisionModel);
+    expect(sent.model).toBe("claude-sonnet-5");
+    expect(sent.thinking).toEqual({ type: "disabled" });
+    expect(sent.temperature).toBeUndefined();
+    expect(r.model).toBe("claude-sonnet-5");
+    expect(r.content).toBe("saw it");
   });
 
   it("throws when all providers fail", async () => {

@@ -1,5 +1,5 @@
 /**
- * AI generation tracking — persists every AI call to the database
+ * AI generation tracking â€” persists every AI call to the database
  * for cost visibility, debugging, and usage analytics.
  *
  * Now includes: cost estimation, daily budget tracking, per-feature analytics.
@@ -12,12 +12,12 @@ import { prisma } from "@/lib/prisma";
 // Pricing reference: Venice Pro (model card), Ollama Cloud Pro flat $20/mo
 // (zero per-token), OpenAI/Anthropic public list prices.
 //
-// Ollama is intentionally listed at $0.00 — the $20 flat fee is amortized
+// Ollama is intentionally listed at $0.00 â€” the $20 flat fee is amortized
 // across the month via a separate dashboard tile, not per-call. This keeps
 // per-feature breakdowns honest (a coach-goal call to qwen3-vl really IS
 // "free" at the margin once the subscription is paid).
 const MODEL_COSTS: Record<string, { input: number; output: number }> = {
-  // ── Venice (current Apr 2026 model list) ─────────────────────────────
+  // â”€â”€ Venice (current Apr 2026 model list) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   "venice-uncensored": { input: 0.35, output: 0.40 },          // stock fast model
   "olafangensan-glm-4.7": { input: 0.60, output: 0.80 },       // GLM-4.7 heretic (creative)
   "glm-4.7": { input: 0.60, output: 0.80 },                    // alias
@@ -25,7 +25,7 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   "llama-3.3-70b": { input: 0.35, output: 0.40 },              // legacy entry
   "deepseek-r1-671b": { input: 0.90, output: 2.50 },           // legacy entry
   "dolphin-2.9.3-mistral-7b": { input: 0.07, output: 0.07 },   // legacy entry
-  // ── Ollama Cloud Pro — $20/mo flat, $0 per-call ──────────────────────
+  // â”€â”€ Ollama Cloud Pro â€” $20/mo flat, $0 per-call â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   "qwen3-vl": { input: 0, output: 0 },              // retired 2026-06-16; kept for historical rows
   "qwen3-vl:235b-instruct": { input: 0, output: 0 }, // retired 2026-06-16; kept for historical rows
   "gemma4:31b": { input: 0, output: 0 },             // current vision default (succeeded qwen3-vl)
@@ -33,23 +33,26 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   "deepseek-v4-flash": { input: 0, output: 0 },
   "deepseek-v4-pro": { input: 0, output: 0 },
   "kimi-k2.6": { input: 0, output: 0 },
-  // ── OpenAI ───────────────────────────────────────────────────────────
+  // â”€â”€ OpenAI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   "gpt-4o": { input: 2.50, output: 10.0 },
   "gpt-4o-mini": { input: 0.15, output: 0.60 },
   "gpt-5": { input: 5.0, output: 20.0 },
   "gpt-oss": { input: 0, output: 0 },
-  // ── Anthropic ────────────────────────────────────────────────────────
-  "claude-sonnet-5": { input: 3.0, output: 15.0 }, // current Sonnet tier (anthropic fallback lane)
+  // â”€â”€ Anthropic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Sonnet 5: $2/$10 is the STANDARD price â€” "The previously scheduled increase to
+  // $3/$15 ... on September 1, 2026 will not occur." (platform.claude.com/docs/en/
+  // about-claude/pricing, read 2026-09-25). Pinned by tests/lib/ai/claude-pricing.test.ts.
+  "claude-sonnet-5": { input: 2.0, output: 10.0 }, // current Sonnet tier (anthropic fallback lane)
   "claude-sonnet-4-5": { input: 3.0, output: 15.0 },
   "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
   "claude-3-5-sonnet": { input: 3.0, output: 15.0 },
   "claude-haiku-3.5": { input: 0.80, output: 4.0 },
   "claude-opus-4": { input: 15.0, output: 75.0 },
-  // ── Image models (Venice) — flat per-image, mapped to per-call estimate
+  // â”€â”€ Image models (Venice) â€” flat per-image, mapped to per-call estimate
   // Per-image is recorded on the prompt-tokens side as a synthetic "image
   // ticket" so the cost dashboard can compare image vs chat spend without
   // a separate schema. Keep in sync with venice-image.ts model list.
-  "recraft-v4": { input: 50_000, output: 0 },        // $0.05/img → 50k synthetic tokens
+  "recraft-v4": { input: 50_000, output: 0 },        // $0.05/img â†’ 50k synthetic tokens
   "z-image-turbo": { input: 10_000, output: 0 },     // $0.01/img
   "flux-2-pro": { input: 40_000, output: 0 },        // $0.04/img
   "seedream-v4": { input: 50_000, output: 0 },       // $0.05/img
@@ -59,14 +62,14 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   default: { input: 0.50, output: 1.50 },
 };
 
-/** U6 · true when the model table names this SKU (substring match, same rule as estimateCostCents). */
+/** U6 Â· true when the model table names this SKU (substring match, same rule as estimateCostCents). */
 function MODEL_COSTS_HAS(model: string): boolean {
   const lower = model.toLowerCase();
   return Object.keys(MODEL_COSTS).some((k) => k !== "default" && lower.includes(k.toLowerCase()));
 }
 
 function estimateCostCents(model: string, promptTokens?: number, outputTokens?: number, provider?: string): number {
-  // U6 · provider family rate first (the same table provider.ts prices with);
+  // U6 Â· provider family rate first (the same table provider.ts prices with);
   // the model table below refines SKUs the family rate would misprice.
   if (provider) {
     const usd = estimateCostUsd(provider, promptTokens, outputTokens);
@@ -82,10 +85,10 @@ function estimateCostCents(model: string, promptTokens?: number, outputTokens?: 
 /**
  * Tracks an AI generation in the database with cost estimation.
  *
- * v10.0.529.106 · Wave 59 · added `conversationId` parameter to unlock
+ * v10.0.529.106 Â· Wave 59 Â· added `conversationId` parameter to unlock
  * per-conversation cost attribution. Pre-Wave-59 cost-slo.ts had to
  * fall back to grouping by `feature` name (which lost the breakdown).
- * Now optional · non-chat callers (cron · brain · social) can omit it.
+ * Now optional Â· non-chat callers (cron Â· brain Â· social) can omit it.
  */
 export async function trackGeneration(data: {
   feature: string;
@@ -95,9 +98,9 @@ export async function trackGeneration(data: {
   durationMs?: number;
   status?: string;
   conversationId?: string;
-  /** U6 · provider family (prices via lib/ai/pricing.ts when the model table has no SKU). */
+  /** U6 Â· provider family (prices via lib/ai/pricing.ts when the model table has no SKU). */
   provider?: string;
-  /** U6 · the cost the provider chain already computed — wins over every estimate. */
+  /** U6 Â· the cost the provider chain already computed â€” wins over every estimate. */
   costUsd?: number;
 }) {
   const costCents =
@@ -117,7 +120,7 @@ export async function trackGeneration(data: {
       conversationId: data.conversationId ?? null,
     },
   }).catch((err) => {
-    // Non-critical — don't break AI responses if tracking fails
+    // Non-critical â€” don't break AI responses if tracking fails
     console.error("[track] Failed to record generation:", err?.message);
   });
 }
@@ -131,7 +134,7 @@ export async function trackGeneration(data: {
  * Used by /system/costs to decide which model is the laggard before the
  * user feels it.
  *
- * Apr 28 · added during BATCH 2 (latency-tracker).
+ * Apr 28 Â· added during BATCH 2 (latency-tracker).
  */
 export interface ModelLatencyRow {
   model: string;
@@ -208,7 +211,7 @@ export async function getModelLatencyStats(
 }
 
 /**
- * v7 · BATCH 2C · Apr 28 — Per-model daily latency buckets for sparklines.
+ * v7 Â· BATCH 2C Â· Apr 28 â€” Per-model daily latency buckets for sparklines.
  * Returns last N days of avg p50 + p95 per model. Used by /system/costs
  * to render a tiny trend curve next to each model's latency row.
  */
@@ -264,10 +267,10 @@ export async function getModelLatencyTrend(daysBack: number = 7): Promise<ModelL
 export async function getAiUsageStats(daysBack: number = 7) {
   const since = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
 
-  // 2026-05-27 · the previous bare `.catch(() => [])` meant the
+  // 2026-05-27 Â· the previous bare `.catch(() => [])` meant the
   // /system/costs per-feature breakdown silently rendered $0 across
   // the board when the AiGeneration table was unreachable (schema
-  // drift, replica lag, etc.) — operator had no way to tell if cost
+  // drift, replica lag, etc.) â€” operator had no way to tell if cost
   // tracking itself was broken vs spend was genuinely zero. Log the
   // failure so the next operator hitting "why does costs show zero"
   // can grep prod logs.

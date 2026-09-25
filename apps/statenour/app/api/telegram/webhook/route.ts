@@ -1896,6 +1896,7 @@ async function handlePhoto(
     // Primary: Anthropic Claude (native vision support)
     if (anthropicKey) {
       try {
+        const { resolveProviderModel } = await import("@/lib/ai/provider");
         const aRes = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -1904,8 +1905,13 @@ async function handlePhoto(
             "anthropic-version": "2023-06-01",
           },
           body: JSON.stringify({
-            model: process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-latest",
+            // Central registry, not a literal: the literal here was
+            // claude-3-5-sonnet-latest (retired 2025-10-28): with ANTHROPIC_MODEL
+            // unset, photos silently degraded to caption-only analysis.
+            model: resolveProviderModel("anthropic", "vision"),
             max_tokens: 500,
+            // Sonnet 5 thinks adaptively by default; thinking shares max_tokens.
+            thinking: { type: "disabled" },
             messages: [{
               role: "user",
               content: [
@@ -1916,10 +1922,16 @@ async function handlePhoto(
           }),
         });
         if (aRes.ok) {
-          const aData = await aRes.json();
-          analysisText = aData.content?.[0]?.text ?? "";
+          const aData = (await aRes.json()) as { content?: Array<{ type: string; text?: string }> };
+          // Current models may lead with a thinking block; content[0] is not the text.
+          analysisText =
+            aData.content?.filter((c) => c.type === "text").map((c) => c.text ?? "").join("") ?? "";
+        } else {
+          console.warn("[telegram:webhook] photo analysis: Anthropic HTTP", aRes.status);
         }
-      } catch { /* fall through */ }
+      } catch (err) {
+        console.warn("[telegram:webhook] photo analysis: Anthropic request failed:", err instanceof Error ? err.message.slice(0, 200) : "unknown");
+      }
     }
 
     // Last resort: text-only analysis based on caption
