@@ -19,7 +19,7 @@ import { ensureProxyEnv, ghJson, ghPaginate } from "./github-client.mjs";
 import { createGitHubLeaseStore, readLease, isExpired } from "./lease.mjs";
 import { classifyBranch } from "./classify-branch.mjs";
 import { localGitState } from "./agent-finish.mjs";
-import { arg, flag, originOwnerRepo, sh } from "./cli-common.mjs";
+import { arg, flag, originOwnerRepo, sh, isMainModule } from "./cli-common.mjs";
 
 /** Parse `git worktree list --porcelain` into [{path, branch, headSha, detached}]. */
 export function parseWorktreePorcelain(text) {
@@ -126,7 +126,7 @@ async function main() {
   console.log(formatStatusTable(rows));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   main().catch((e) => {
     console.error(`[repo-status] ${e.message}`);
     process.exit(1);
