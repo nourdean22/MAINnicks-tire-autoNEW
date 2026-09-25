@@ -184,6 +184,16 @@ describe("every script and tool text the model reads promises nothing untracked"
     for (const [where, text] of SCRIPTS) expect([where, /quote('?s| is)\s+still\s+good/i.test(text)]).toEqual([where, false]);
   });
 
+  it("no script promises a 'done' / 'ready' text: nothing sends one on a drop-off", () => {
+    // #2580 removed "we'll text when it's ready" from the OIL line and the follow-up
+    // script but missed the WALK-IN / FCFS line ("we text when done"), so callers
+    // still heard it. No lane sends a completion text for a walk-in drop-off.
+    const DONE_TEXT = /\btext(s|ed)?\b(\s+you)?\b.{0,20}\bwhen\b.{0,15}\b(done|ready|finished)\b/i;
+    expect("drop it off, we text when done").toMatch(DONE_TEXT);
+    expect("drop it off and we'll text you when it's ready").toMatch(DONE_TEXT);
+    for (const [where, text] of SCRIPTS) expect([where, DONE_TEXT.test(text)]).toEqual([where, false]);
+  });
+
   it("escalate is allowed for CALLBACK CAPTURE during open hours, not only when closed", () => {
     const d = toolTexts().find((t) => t.where === "escalate")?.text ?? "";
     expect(d).not.toBe("");
