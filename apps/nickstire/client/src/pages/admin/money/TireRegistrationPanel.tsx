@@ -13,8 +13,8 @@ import { Loader2, Printer, RefreshCw, Trash2, CheckCircle2, AlertTriangle, Exter
 import { trpc } from "@/lib/trpc";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import {
-  checkTin, registrationLink, tinAgeYears, REGISTRATION_METHOD_LABELS, TIRE_POSITIONS, TIRE_POSITION_LABELS,
-  REGISTRATION_WINDOW_DAYS, type RegistrationMethod, type TireCondition, type TirePosition,
+  checkTin, registrationLink, tinAgeYears, REGISTRATION_METHOD_LABELS, tirePositionLabel, tirePositionsForCount,
+  REGISTRATION_WINDOW_DAYS, type RegistrationMethod, type TireCondition,
 } from "@shared/tireTin";
 
 const BTN = "min-h-12 min-w-12 px-3 text-xs font-medium rounded border transition-colors disabled:opacity-50";
@@ -40,10 +40,15 @@ export default function TireRegistrationPanel({ workOrderId }: { workOrderId: st
   });
 
   const rows = reg.data?.rows ?? [];
+  const expectedForPositions = reg.data?.expected ?? 0;
+  const positionChoices = useMemo(
+    () => tirePositionsForCount(Math.max(expectedForPositions, rows.length + 1)),
+    [expectedForPositions, rows.length],
+  );
   const taken = new Set(rows.map((r) => r.position));
-  const nextFree = TIRE_POSITIONS.find((p) => !taken.has(p)) ?? "LF";
+  const nextFree = positionChoices.find((p) => !taken.has(p)) ?? positionChoices[0] ?? "LF";
 
-  const [position, setPosition] = useState<TirePosition | null>(null);
+  const [position, setPosition] = useState<string | null>(null);
   const [tin, setTin] = useState("");
   const [brand, setBrand] = useState("");
   const [condition, setCondition] = useState<TireCondition>("new");
@@ -62,7 +67,7 @@ export default function TireRegistrationPanel({ workOrderId }: { workOrderId: st
     }
     capture.mutate(
       { workOrderId, position: livePos, tin, brand: brand.trim() || undefined, condition },
-      { onSuccess: () => { setTin(""); setPosition(null); tinRef.current?.focus(); } },
+      { onSuccess: () => { setFormHtml(null); setTin(""); setPosition(null); tinRef.current?.focus(); } },
     );
   };
 
@@ -138,7 +143,7 @@ export default function TireRegistrationPanel({ workOrderId }: { workOrderId: st
             const flagged = r.tinStatus !== "valid";
             return (
               <div key={r.position} className={`bg-card border p-2.5 flex items-center gap-3 ${flagged ? "border-red-500/40" : "border-border/30"}`}>
-                <div className="w-10 text-[11px] font-semibold text-foreground/60" title={TIRE_POSITION_LABELS[r.position as TirePosition]}>{r.position}</div>
+                <div className="w-10 text-[11px] font-semibold text-foreground/60" title={tirePositionLabel(r.position)}>{r.position}</div>
                 <div className="flex-1 min-w-0">
                   <div className="font-mono text-xs tracking-wider truncate">{r.tin ?? "—"}</div>
                   <div className="text-[10px] text-foreground/40 flex flex-wrap gap-x-2">
@@ -157,7 +162,7 @@ export default function TireRegistrationPanel({ workOrderId }: { workOrderId: st
                   disabled={remove.isPending}
                   onClick={async () => {
                     const ok = await confirmDialog({ title: `Remove ${r.position}?`, message: `DOT code ${r.tin ?? ""} will be removed from this work order.`, confirmLabel: "Remove", tone: "danger" });
-                    if (ok) remove.mutate({ workOrderId, position: r.position as TirePosition });
+                    if (ok) remove.mutate({ workOrderId, position: r.position }, { onSuccess: () => setFormHtml(null) });
                   }}
                   className={`${BTN} border-border/40 text-foreground/50 inline-flex items-center justify-center`}
                 >
@@ -176,7 +181,7 @@ export default function TireRegistrationPanel({ workOrderId }: { workOrderId: st
       {/* Capture one position */}
       <div className="bg-card border border-border/30 p-2.5 space-y-2">
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Tire position">
-          {TIRE_POSITIONS.map((p) => (
+          {positionChoices.map((p) => (
             <button
               key={p}
               type="button"
