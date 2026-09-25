@@ -1,6 +1,15 @@
 # Creative-quality long haul — current state
 
-Updated: 2026-07-17T16:20Z · main `aaf8ebbf5` (#833) · PR #834 open (repair P1 + Gemini failure logging + VO fixture)
+Updated with Reel-rotation receipt: 2026-09-25T11:21Z · main `f5f621379` (#2655). The older long-haul milestones below retain their historical verification context; this update does not re-certify every July claim.
+
+## 2026-09-25 · approved-pack rotation expansion
+
+- **Rotation:** 99 -> **122** approved packs, append-only; persisted cursor semantics are unchanged.
+- **Batch reconciliation:** 33 candidate lessons -> **23 new distinct packs + 10 already-covered concepts**. Audit: `docs/reel-packs/EVENING-IMPORT-2026-09-25.json`.
+- **Pre-spend gate:** `PREFLIGHT_PASSING_FLOOR = 122`; final #2655 CI proves all 122 rotating packs clear the production `runReelPreflight` path.
+- **Useful failure caught before merge:** the first run measured 99/122 because all 23 new packs shared a beat visual containing `generated readout`, which correctly violated `IN_FRAME_TEXT_PATTERN`. The wording was recast as wordless physical evidence in all 23; the gate was not weakened and the floor was not lowered.
+- **CI receipt:** affected check/lint/test/build **7/7 Turbo tasks green**, plus Completion Authority, Agent policy, Adoption gates, Admin diagnostic/typecheck, and Secret Scanning.
+- **Not claimed:** no live render/publish, no production DB/env mutation, no ad action, and no post-merge deployment receipt for this batch. Preflight-clean means eligible to enter the generation pipeline, not production-proven creative quality.
 
 ## FINAL-COMMAND scoreboard (honest)
 
