@@ -143,6 +143,16 @@ test("REAL BINARY: --force-release-foreign clears a foreign live marker even whe
   assert.equal(readLocalMarker(dir), null, "the marker that self-locked the worktree must be gone");
 });
 
+test("REAL BINARY: --force-release-foreign rejects another option as the reason", (t) => {
+  const dir = makeRepo();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeLocalMarker(dir, { branch: "main", sessionId: "someone-else", expiresAt: new Date(Date.now() + 3600000).toISOString() });
+  const r = runFinish(dir, ["--force-release-foreign", "--branch", "main"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /requires a prose reason/);
+  assert.equal(readLocalMarker(dir)?.sessionId, "someone-else", "an option token must never authorize a foreign release");
+});
+
 test("REAL BINARY: without --force-release-foreign an unreachable lease service leaves the marker alone", (t) => {
   const dir = makeRepo();
   t.after(() => rmSync(dir, { recursive: true, force: true }));
