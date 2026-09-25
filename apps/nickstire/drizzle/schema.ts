@@ -2246,13 +2246,13 @@ export const workOrderTransitions = mysqlTable("work_order_transitions", {
 
 /**
  * Tire registrations — each installed tire's TIN (DOT code) and how 49 CFR 574.8 was met.
- * One row per tire position on a work order (migration 0131, hand-applied). No FK on purpose:
+ * One row per tire position on a work order (migration 0130, hand-applied). No FK on purpose:
  * the compliance record must outlive a deleted work order. Values validated in shared/tireTin.ts.
  */
 export const tireRegistrations = mysqlTable("tire_registrations", {
   id: int("id").autoincrement().primaryKey(),
   workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
-  /** LF | RF | LR | RR | LRI | RRI | SPARE */
+  /** Base positions LF/RF/LR/RR/LRI/RRI/SPARE, plus EXTRA1..EXTRA999 when an order contains more tires. */
   position: varchar("position", { length: 8 }).notNull(),
   /** Normalized TIN; null = position reserved, TIN not captured yet */
   tin: varchar("tin", { length: 20 }),
