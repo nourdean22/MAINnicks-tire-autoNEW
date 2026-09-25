@@ -127,10 +127,10 @@ export function tinAgeYears(check: TinCheck, now: Date = new Date()): number | n
 
 // ─── Positions + registration methods ──────────────────────────────────────
 
-export const TIRE_POSITIONS = ["LF", "RF", "LR", "RR", "LRI", "RRI", "SPARE"] as const;
+const TIRE_POSITIONS = ["LF", "RF", "LR", "RR", "LRI", "RRI", "SPARE"] as const;
 export type NamedTirePosition = (typeof TIRE_POSITIONS)[number];
 export type TirePosition = NamedTirePosition | `EXTRA${number}`;
-export const TIRE_POSITION_LABELS: Record<NamedTirePosition, string> = {
+const TIRE_POSITION_LABELS: Record<NamedTirePosition, string> = {
   LF: "Left front", RF: "Right front", LR: "Left rear", RR: "Right rear",
   LRI: "Left rear inner", RRI: "Right rear inner", SPARE: "Spare",
 };
