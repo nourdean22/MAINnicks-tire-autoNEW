@@ -156,6 +156,17 @@ const MUST_NOT_UNSUBSCRIBE = [
   "please cancel my appointment",
   "Don't cancel my appointment",
   "what's your cancellation policy?",
+  "remove me from tomorrow's appointment",
+  "Remove me from my booking",
+  "take me off the schedule",
+  "take my number off the calendar",
+  // explicit negation of a would-be opt-out
+  "Don't stop texting me",
+  "Never stop texting me",
+  "I do not want to unsubscribe",
+  "Please don't opt me out",
+  "Do not remove me from your list",
+  "Don't cancel all texts",
   // a spam footer is not the sender revoking anything
   "Win a gift card! Reply STOP to end",
   "Win a gift card! Reply STOP to unsubscribe",
