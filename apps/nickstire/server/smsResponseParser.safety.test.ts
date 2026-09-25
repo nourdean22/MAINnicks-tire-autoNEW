@@ -87,3 +87,108 @@ describe("parseSmsResponse unsubscribes on an opt-out, not on a visit", () => {
   });
 });
 
+/**
+ * Revocation first (2026-09-23, audit item B). Two defects, both pinned here:
+ *
+ * 1. Rule order. PATTERNS is first-hit, and the opt-out rule sat AFTER the
+ *    confirm, cancel and decline rules. "STOP. Cancel all texts" matched
+ *    `\bcancel\b` first, so the orchestrator CANCELLED the customer's booking
+ *    and recorded no opt-out. A reply that revokes consent is honoured before
+ *    anything else in it is acted on (47 CFR 64.1200(a)(10): any reasonable
+ *    means; missing a real opt-out is the worse error).
+ * 2. The #2587 visit carve-outs used `\s+`, which spans a newline, and carved
+ *    out every "stop at" / "stop off" / "end of". "STOP" + a new line starting
+ *    "In the future" no longer unsubscribed, nor did "Stop at once".
+ *
+ * A bare "Cancel" stays cancel-my-appointment on purpose (the design note for
+ * the consent ledger, F5, leaves that to counsel).
+ */
+const MUST_UNSUBSCRIBE = [
+  // an opt-out that also says cancel, yes or too expensive
+  "STOP. Cancel all texts",
+  "Unsubscribe me, cancel",
+  "Stop texting me, too expensive",
+  "Yes, stop texting me",
+  // a keyword followed by a new line
+  "STOP\nIn the future please call me instead",
+  "Stop\nat least until next month",
+  // keywords that only look like the visit carve-outs
+  "Stop at once",
+  "stop off my list",
+  "End of discussion",
+  "End of story, stop texting me",
+  // plain-English revocations
+  "cancel all texts",
+  "cancel my texts",
+  "Please cancel all text messages",
+  "stop texting me",
+  "please stop texting me",
+  "Can you stop sending me messages",
+  "no more texts",
+  "No more messages please",
+  "don't text me",
+  "Dont text me anymore",
+  "Don\u2019t text me",
+  "do not contact me",
+  "remove me from your list",
+  "Please remove me from your list",
+  "Take me off your list",
+  "please unsubscribe me",
+  "I want to opt out",
+];
+
+const MUST_NOT_UNSUBSCRIBE = [
+  // visits (#2587 and the corpus research's own probes)
+  "Stop by around 3?",
+  "Stop by around 3 ok?",
+  "can you stop by?",
+  "stop in tomorrow",
+  "Stop at 3pm ok?",
+  "Stop at around noon",
+  "stop off at the shop later",
+  "stop off on my way",
+  "End of the day works",
+  "End of day works for me",
+  "end up needing 2 tires",
+  // appointment language
+  "Cancel",
+  "need to cancel",
+  "please cancel my appointment",
+  "Don't cancel my appointment",
+  "what's your cancellation policy?",
+  // a spam footer is not the sender revoking anything
+  "Win a gift card! Reply STOP to end",
+  "Win a gift card! Reply STOP to unsubscribe",
+  "Your code is 1234. Txt STOP to opt out",
+];
+
+describe("an opt-out is honoured before confirm, cancel or decline", () => {
+  it.each(MUST_UNSUBSCRIBE)("%j unsubscribes", (msg) => {
+    const r = parseSmsResponse(msg);
+    expect(r.intent).toBe("unsubscribe");
+    expect(r.autoAction).toBe("unsubscribe-customer");
+    expect(r.extractedData?.message).toBe(msg.trim());
+  });
+
+  it.each(MUST_NOT_UNSUBSCRIBE)("%j does not unsubscribe", (msg) => {
+    const r = parseSmsResponse(msg);
+    expect(r.intent).not.toBe("unsubscribe");
+    expect(r.autoAction).not.toBe("unsubscribe-customer");
+  });
+
+  it.each(["Cancel", "need to cancel", "please cancel my appointment"])(
+    "%j is still cancel-my-appointment, not an opt-out",
+    (msg) => {
+      const r = parseSmsResponse(msg);
+      expect(r.intent).toBe("cancel");
+      expect(r.autoAction).toBe("cancel-appointment");
+    },
+  );
+
+  it.each(["Stop by around 3?", "stop off at the shop later", "End of the day works"])(
+    "%j goes to a person, never silently acted on",
+    (msg) => {
+      expect(parseSmsResponse(msg).requiresHuman).toBe(true);
+    },
+  );
+});
