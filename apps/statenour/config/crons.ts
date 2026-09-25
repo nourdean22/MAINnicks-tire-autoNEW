@@ -278,14 +278,6 @@ export const CRONS: CronDef[] = [
     inngest: true,
     description: "Cleans up expired or stalled approval requests — Inngest-native.",
   },
-  {
-    name: "audit-todays-leads",
-    schedule: "0 8 * * *",
-    mode: "active",
-    category: "signals",
-    inngest: true,
-    description: "Audits today's leads from Nick's Tire & Auto bridge — Inngest-native.",
-  },
 
   // ── COMPOSE ─────────────────────────────────────────────────────────
 

@@ -34,8 +34,8 @@ export const approvalSweeper = getInngest().createFunction(
     // 2026-07-09 hardening (post-#617 review) · without these bounds the
     // sweeper would resurrect and EXECUTE every historically stuck
     // "approved" row on first deploy — including real customer SMS
-    // (audit-todays-leads writes shop.sendSms approvals the third-tier
-    // dispatch can now send). expiresAt was being written everywhere
+    // (shop.sendSms approvals, which the third-tier dispatch can send).
+    // expiresAt was being written everywhere
     // (24h default, 2h high/critical) but read NOWHERE — dead policy
     // until this filter. The age floor is belt+suspenders for legacy
     // rows created before expiresAt existed.
