@@ -21,6 +21,43 @@ interface ParsedResponse {
 
 // ─── Instant pattern matching (no AI needed) ────
 const PATTERNS: Array<{ pattern: RegExp; intent: ParsedResponse["intent"]; autoAction: string; confidence: number }> = [
+  // ─── Revocation FIRST ───
+  // PATTERNS is first-hit, so the order is the policy. Until 2026-09-23 this
+  // block sat after the confirm, cancel and decline rules: "STOP. Cancel all
+  // texts" matched `\bcancel\b`, the orchestrator CANCELLED the booking and
+  // no opt-out was recorded; "Stop texting me, too expensive" became a
+  // declined estimate. A reply that revokes consent is honoured before
+  // anything else in it is acted on (47 CFR 64.1200(a)(10): any reasonable
+  // means). Missing a real opt-out is the worse error.
+  //
+  // Unsubscribe — STOP/END/QUIT/UNSUBSCRIBE are the CTIA standard opt-out
+  // keywords. CANCEL is intentionally excluded: for an auto shop a lone
+  // "cancel" means cancel-my-appointment (matched below), not opt-out-of-
+  // all-SMS. Inbound SMS over the F25e gateway gets no carrier-level
+  // opt-out handling, so this app must catch these keywords itself.
+  // `revoke` added 2026-08-09: it was already in the SQL opt-out index (so the
+  // customer WAS suppressed within the 5-minute cache window) but not here, so
+  // the live path produced no unsubscribe action, no compliance row and no
+  // confirmation reply. This regex is the one the production webhooks actually
+  // reach — smsResponseJobs -> smsOrchestrator -> parseSmsResponse.
+  //
+  // Visit carve-outs (#2587): "Stop by around 3?", "stop in tomorrow", "End of
+  // the day works" are visits, not revocations, and go to a person. They are
+  // SAME-LINE only (`[ \t]+`, never `\s+`, which spans a newline and let
+  // "STOP" + a line starting "In the future..." escape), and "stop at" /
+  // "stop off" / "end of" are carved out only when a visit clearly follows,
+  // so "Stop at once", "stop off my list" and "End of discussion" unsubscribe.
+  { pattern: /^\s*(stop(?![ \t]+(by|in|over)\b)(?![ \t]+at[ \t]+(\d|(around|about|noon|lunch|the|your|ur|my|after|before)\b))(?![ \t]+off[ \t]+(at|on|by|in|after|before)\b)|stopall|unsubscribe|opt[\s-]?out|revoke|end(?![ \t]+up\b)(?![ \t]+of[ \t]+(the[ \t]+)?(day|week|month|year|business|shift|work|today|tomorrow)\b)|quit|remove\s+me)\b/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 99 },
+  // Plain-English revocation anywhere in the reply: "cancel all texts",
+  // "please stop texting me", "no more texts", "don't text me", "take me off
+  // your list". Only an explicit object (texts, messages, me, your list) makes
+  // cancel/stop/end a revocation here — a bare "cancel" stays an appointment
+  // cancel, and anything vaguer falls through to a person. "unsubscribe" /
+  // "opt out" mid-message need a subject ("unsubscribe me", "I want to opt
+  // out"), so a "Reply STOP to unsubscribe" spam footer is not read as the
+  // sender revoking. Curly apostrophes from iOS (U+2019) count.
+  { pattern: /\b(stop|cancel|end|quit)[ \t]+(all[ \t]+)?(the[ \t]+|my[ \t]+|your[ \t]+|these[ \t]+|those[ \t]+)?(texts?|text[ \t]+messages?|texting|messages?|messaging|sms)\b|\bstop[ \t]+(texting|messaging|contacting)\b|\bstop[ \t]+sending[ \t]+(me|us|these|those|texts?|messages?)\b|\b(do[ \t]+not|don['\u2019]?t)[ \t]+(text|message|contact|sms)[ \t]+(me|us|this[ \t]+number)\b|\bno[ \t]+more[ \t]+(texts?|text[ \t]+messages?|messages?)\b|\b(remove|take)[ \t]+(me|my[ \t]+number)[ \t]+(off|from)\b|\b(unsubscribe|opt[ \t-]?out)[ \t]+(me|us|this[ \t]+number)\b|\b(want|like|need)[ \t]+to[ \t]+(unsubscribe|opt[ \t-]?out)\b|\bopt[ \t]+me[ \t]+out\b/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 95 },
+
   // Confirmations
   { pattern: /^(yes|y|yep|yeah|yea|ok|okay|sure|confirm|confirmed|sounds good|see you|will be there|on my way)$/i, intent: "confirm", autoAction: "confirm-appointment", confidence: 95 },
   { pattern: /^(yes|y)\b/i, intent: "confirm", autoAction: "confirm-appointment", confidence: 85 },
@@ -47,25 +84,6 @@ const PATTERNS: Array<{ pattern: RegExp; intent: ParsedResponse["intent"]; autoA
   // Estimate declines
   { pattern: /^(decline|pass|too much|too expensive|no thanks|not right now|can'?t afford)$/i, intent: "decline-estimate", autoAction: "flag-for-followup", confidence: 85 },
   { pattern: /too (much|expensive|high)/i, intent: "decline-estimate", autoAction: "flag-for-followup", confidence: 80 },
-
-  // Unsubscribe — STOP/END/QUIT/UNSUBSCRIBE are the CTIA standard opt-out
-  // keywords. CANCEL is intentionally excluded: for an auto shop a lone
-  // "cancel" means cancel-my-appointment (matched above), not opt-out-of-
-  // all-SMS. Inbound SMS over the F25e gateway gets no carrier-level
-  // opt-out handling, so this app must catch these keywords itself.
-  // `revoke` added 2026-08-09: it was already in the SQL opt-out index (so the
-  // customer WAS suppressed within the 5-minute cache window) but not here, so
-  // the live path produced no unsubscribe action, no compliance row and no
-  // confirmation reply. This regex is the one the production webhooks actually
-  // reach — smsResponseJobs -> smsOrchestrator -> parseSmsResponse.
-  //
-  // 2026-09-23: "starts with a keyword" also caught visits, and silently
-  // unsubscribed the customer from every text: "Stop by around 3?", "stop in
-  // tomorrow", "End of the day works". Only those constructions are carved out
-  // (they cannot be a revocation) and go to a person; every other reply that
-  // opens with a keyword, punctuated or phrased ("Stop.", "stop texting me"),
-  // still unsubscribes. Missing a real opt-out is the worse error.
-  { pattern: /^\s*(stop(?!\s+(by|in|over|at|off)\b)|stopall|unsubscribe|opt[\s-]?out|revoke|end(?!\s+(of|up)\b)|quit|remove\s+me)\b/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 99 },
 
   // Reschedule hints
   { pattern: /reschedule|different (time|day|date)|move (my|the) appointment|change (time|date)/i, intent: "reschedule", autoAction: "flag-for-followup", confidence: 85 },
