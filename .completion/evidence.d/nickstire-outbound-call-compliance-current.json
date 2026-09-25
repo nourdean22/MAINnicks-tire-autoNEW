@@ -1,0 +1,10 @@
+{
+    "evidence":  {
+                     "cron-fail-closed":  {
+                                              "ref":  "Q-45 outbound AI-call safeguard rebuild: confirmationCalls.ts, followupCadence.ts and voiceRecovery.ts still fail closed on unreadable/stale suppression and dial failures while placeVapiOutboundCall owns the compliant opener/tool/voicemail payload. Local receipts on the reconciled current-main branch: six focused Vitest files, 82/82 tests green, including outboundCallCompliance (39), makeFollowUpCallSuppression (4), vapi do-not-call webhook (6), voice opt-out (8), outbound override (6), and voice promise truth (19); typecheck:raw exit 0."
+                                          },
+                     "capability-ledger-updated":  {
+                                                       "deferred":  "DEFERRED: this rebuild is code-complete and unit/type verified but not live-exercised. Do not promote a capability state or claim blanket legal compliance from tests. After merge, the protected operator step is to push/verify the Vapi assistant config and run a controlled outbound test per lane, including a spoken stop-calling request, then record the production receipt before advancing the ledger."
+                                                   }
+                 }
+}

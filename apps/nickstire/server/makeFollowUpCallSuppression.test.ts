@@ -47,6 +47,13 @@ function adminContext() {
   } as never;
 }
 
+/**
+ * Set by the fetch stub. Since Q-45 the procedure dials through
+ * placeVapiOutboundCall, which CATCHES network failures and returns them, so a
+ * rejection is no longer the only sign the network was reached — the flag is.
+ */
+let fetchReached = false;
+
 describe("makeFollowUpCall · the operator-triggered dial honours the opt-out index", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -54,7 +61,9 @@ describe("makeFollowUpCall · the operator-triggered dial honours the opt-out in
     vi.stubEnv("VAPI_FOLLOWUP_ASSISTANT_ID", "asst_canary");
     // If a regression ever lets execution past the guard, this makes it fail
     // LOUDLY instead of quietly placing a real call.
+    fetchReached = false;
     vi.stubGlobal("fetch", async () => {
+      fetchReached = true;
       throw new Error("fetch reached — the suppression guard did NOT stop the dial");
     });
   });
@@ -147,6 +156,7 @@ describe("makeFollowUpCall · the operator-triggered dial honours the opt-out in
     } catch (err) {
       reached = /fetch reached/.test(err instanceof Error ? err.message : String(err));
     }
+    reached = reached || fetchReached;
 
     expect(
       reached,
