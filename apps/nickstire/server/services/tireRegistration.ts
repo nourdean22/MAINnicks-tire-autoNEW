@@ -86,7 +86,8 @@ export interface CaptureInput {
  * pre-2000 (3-digit date code) TIN is stored but flagged, and keeps the order incomplete.
  */
 export async function captureTin(store: TireRegistrationStore, input: CaptureInput, now = new Date()): Promise<RegistrationView> {
-  if (!isTirePosition(input.position)) {
+  const position = input.position.trim().toUpperCase();
+  if (!isTirePosition(position)) {
     throw new TRPCError({ code: "BAD_REQUEST", message: `Unknown tire position: ${input.position}` });
   }
   if (!TIRE_CONDITIONS.includes(input.condition)) {
@@ -97,7 +98,7 @@ export async function captureTin(store: TireRegistrationStore, input: CaptureInp
     throw new TRPCError({ code: "BAD_REQUEST", message: check.issues.join(" ") });
   }
   await requireOrder(store, input.workOrderId);
-  const existing = (await store.listRows(input.workOrderId)).find((r) => r.position === input.position);
+  const existing = (await store.listRows(input.workOrderId)).find((r) => r.position === position);
 
   // A used tire has no 574.8 duty. A tire switched back to new must be registered again.
   let method: string = existing?.registrationMethod ?? "pending";
@@ -113,7 +114,7 @@ export async function captureTin(store: TireRegistrationStore, input: CaptureInp
 
   await store.upsertRow({
     workOrderId: input.workOrderId,
-    position: input.position,
+    position,
     tin: check.normalized,
     tinStatus: check.status,
     tinWeek: check.week,
@@ -129,8 +130,12 @@ export async function captureTin(store: TireRegistrationStore, input: CaptureInp
 }
 
 export async function removePosition(store: TireRegistrationStore, workOrderId: string, position: string): Promise<RegistrationView> {
+  const normalizedPosition = position.trim().toUpperCase();
+  if (!isTirePosition(normalizedPosition)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: `Unknown tire position: ${position}` });
+  }
   await requireOrder(store, workOrderId);
-  await store.deleteRow(workOrderId, position);
+  await store.deleteRow(workOrderId, normalizedPosition);
   return getRegistration(store, workOrderId);
 }
 
