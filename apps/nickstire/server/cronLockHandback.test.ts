@@ -17,6 +17,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { sliceBlock } from "./testUtils/sourceBlock";
 
 const INDEX = readFileSync(path.join(__dirname, "cron", "index.ts"), "utf8");
 const CORE = readFileSync(path.join(__dirname, "_core", "index.ts"), "utf8");
@@ -80,8 +81,14 @@ describe("shutdown shortens, and only its own locks", () => {
 describe("the shutdown path actually calls it", () => {
   it("SIGTERM hands the locks back", () => {
     expect(CORE).toContain("relinquishHeldLocksForShutdown()");
-    const region = CORE.slice(CORE.indexOf('process.on("SIGTERM"'));
-    expect(region.slice(0, 2000)).toContain("relinquishHeldLocksForShutdown");
+    // Q-10 · the SIGTERM handler runs the stops declared in the
+    // createGracefulShutdown({...}) wiring; the handback must be one of them,
+    // and the handler must actually call that wiring.
+    const stops = sliceBlock(CORE, "createGracefulShutdown({", "sources: [", { label: "_core/index.ts" });
+    expect(stops).toContain("relinquishHeldLocksForShutdown");
+    const handler = sliceBlock(CORE, 'process.on("SIGTERM"', "});", { label: "_core/index.ts" });
+    expect(handler).toContain("shutdownOnSigterm()");
+    expect(CORE).toContain("const shutdownOnSigterm = createGracefulShutdown({");
   });
 
   it("it is fire-and-forget — shutdown never waits on it", () => {
