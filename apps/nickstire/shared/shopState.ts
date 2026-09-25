@@ -190,6 +190,29 @@ export function nextCloseAt(
 }
 
 /**
+ * The next opening as "8:00 AM Wednesday": always the weekday, never "today"
+ * or "tomorrow". For text that may be READ later than it is written: the
+ * after-hours SMS is held through quiet hours and delivered after 8 AM, so a
+ * relative "8:00 AM tomorrow" written at 9 PM Tuesday was false by the time
+ * Wednesday's reader saw it (issue #2579). `businessState().nextChange` stays
+ * relative, because it is spoken at the moment it is computed.
+ *
+ * The next opening strictly after `now`: while open, that is the next day's.
+ * Null when no day has hours, never an invented time.
+ */
+export function nextOpeningLabel(now: Date, timezone: string, hours: Record<string, string>): string | null {
+  const { weekday, minutes } = localClock(now, timezone);
+  const idx = WEEKDAYS.indexOf(weekday as (typeof WEEKDAYS)[number]);
+  if (idx < 0) return null;
+  for (let i = 0; i <= 7; i++) {
+    const day = WEEKDAYS[(idx + i) % 7];
+    const r = parseRange(hours[day]);
+    if (r && (i > 0 || minutes < r.open)) return `${fmt(r.open)} ${day.charAt(0).toUpperCase()}${day.slice(1)}`;
+  }
+  return null;
+}
+
+/**
  * Advance `now` by N wall-clock minutes in the shop's timezone.
  *
  * Adding milliseconds directly is wrong across a DST boundary — the shop opens
