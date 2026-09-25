@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "Updated only capabilityId sms-customer-identity and its rendered REALITY-LEDGER row. Revocation-first ordering now honors explicit opt-outs before confirm/cancel/decline while preserving bare Cancel as appointment cancellation. Proof: server/smsResponseParser.safety.test.ts revocation matrix and services/smsResponseParser.ts."
+    }
+  }
+}
