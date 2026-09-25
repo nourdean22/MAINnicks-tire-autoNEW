@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "operator-pending: customer-facing recap/after-hours copy needs production observation after merge; this PR performs no live customer send."
+    },
+    "capability-ledger-updated": {
+      "ref": "No capability state promoted. server/services/smsOrchestrator.ts now derives {nextOpen} from shared/shopState nextOpeningLabel and redacts idempotency dedupe logs to last four digits; server/__tests__/smsOrchestrator.golden.test.ts pins weekday/DST labels plus last-4-only logging, and vapi.recapCallId.test.ts pins recap-call identity."
+    }
+  }
+}
