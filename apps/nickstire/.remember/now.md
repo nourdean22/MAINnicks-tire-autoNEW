@@ -1,12 +1,12 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-25 11:44Z** (Midday Reel reconciliation for PR #2656 against current `main` `3909f7c5b`: 27 source concepts -> 11 distinct additions + 16 already-covered; local production preflight 133/133. Prior header preserved below.)
+**Updated: 2026-09-25 12:08Z** (Midday Reel reconciliation PR #2656 merged to `main` at `55d5d5fa2`: 27 source concepts -> 11 distinct additions + 16 already-covered; 133/133 preflight-clean; all required PR gates green. Prior header preserved below.)
 
-## 2026-09-25 · Midday Reel reconciliation — 133/133 local preflight-clean
+## 2026-09-25 · Midday Reel reconciliation — #2656 merged; 133/133 preflight-clean
 
 **State.** The midday Reel batches were re-audited *after* #2655's evening import landed, rather than merging the stale branch blindly. **27 source concepts = 11 distinct lessons appended + 16 semantic duplicates already represented** by the live rotation. The machine-readable map is `docs/reel-packs/MIDDAY-IMPORT-2026-09-25.json`; the narrative audit is `docs/reel-packs/2026-09-25-midday-idea-rotation-audit.md`. Two older reviewed packs (nitrogen-vs-air and foggy-windshield A/C) are normalized and made reachable instead of cloned. Existing entries remain in place; the 11 additions are append-only because the durable cursor is an array index.
 
-**Gate receipt.** Running the real production builder plus `runReelPreflight` over the resulting rotation returned **133 checked / 0 failures** locally. The first reconciliation exposed one real content blocker in the new UTQG pack: the Reel safety bank rejects “warranty” and “guarantee” wording. The copy was recast as manufacturer tread-life coverage / mileage promise without weakening the safety rule. `server/reelPackRotationCoverage.test.ts` ratchets the floor from 122 to **133**. Full GitHub CI remains the merge authority; this entry does not substitute for it.
+**Gate receipt.** Running the real production builder plus `runReelPreflight` over the resulting rotation returned **133 checked / 0 failures** locally, and PR #2656 then passed the full required GitHub gate set before squash merge: **CI · turbo-affected verify, Completion Authority, Secret Scanning, Adoption gates, Agent policy, and Admin completion diagnostic all succeeded** (Evaluator separation was skipped by design). The first reconciliation exposed one real content blocker in the new UTQG pack: the Reel safety bank rejects “warranty” and “guarantee” wording. The copy was recast as manufacturer tread-life coverage / mileage promise without weakening the safety rule. `server/reelPackRotationCoverage.test.ts` ratchets the floor from 122 to **133**. Merge receipt: `55d5d5fa21fb912c49b450e665c00f74df9c8b83`, 2026-09-25T12:08:44Z.
 
 **Boundary.** This records reviewed, rotation-reachable, pre-spend-clean production inputs. It does **not** claim a Higgsfield render, Instagram/Facebook publish, production DB/env mutation, ad action, or post-merge Railway deployment receipt.
 
