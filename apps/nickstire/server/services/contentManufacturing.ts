@@ -144,13 +144,15 @@ export async function explodeTopic(
     log.warn("Weather check failed during explodeTopic:", e);
   }
 
-  // C. Competitor snapshot details
+  // C. Competitor names. Q-48 (2026-09-23): competitor_snapshots holds
+  // place_ids only — ratings are Google Places content that may not be
+  // stored, so the rating/review_count columns are defaults, not data.
   const comps = await db
-    .select({ name: competitorSnapshots.competitorName, rating: competitorSnapshots.rating })
+    .select({ name: competitorSnapshots.competitorName })
     .from(competitorSnapshots)
-    .orderBy(desc(competitorSnapshots.rating))
-    .limit(3);
-  const compDetails = comps.map((c) => `${c.name} (Rating: ${c.rating})`).join(", ");
+    .where(eq(competitorSnapshots.source, "place_id"))
+    .limit(50);
+  const compDetails = Array.from(new Set(comps.map((c) => c.name))).slice(0, 3).join(", ");
 
   const prompt = `
 You are a world-class attention engineer and Cleveland automotive content strategist.
