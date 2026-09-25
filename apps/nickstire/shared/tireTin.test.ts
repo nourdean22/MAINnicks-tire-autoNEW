@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  checkTin, expectedTireCount, registrationLink, renderRegistrationFormHtml,
-  summarizeRegistration, tinAgeYears, REGISTRATION_METHODS, type RegistrationRowLike,
+  checkTin, expectedTireCount, isTirePosition, registrationLink, renderRegistrationFormHtml,
+  summarizeRegistration, tinAgeYears, tirePositionsForCount, TIRE_POSITIONS,
+  REGISTRATION_METHODS, type RegistrationRowLike,
 } from "./tireTin";
 
 const NOW = new Date("2026-09-23T12:00:00Z");
@@ -74,6 +75,18 @@ describe("expectedTireCount", () => {
   });
 });
 
+describe("tire position allocation", () => {
+  it("adds deterministic EXTRA slots when an order contains more than seven tires", () => {
+    expect(tirePositionsForCount(7)).toEqual([...TIRE_POSITIONS]);
+    expect(tirePositionsForCount(8)).toEqual([...TIRE_POSITIONS, "EXTRA1"]);
+    expect(tirePositionsForCount(10).slice(-3)).toEqual(["EXTRA1", "EXTRA2", "EXTRA3"]);
+    expect(isTirePosition("EXTRA1")).toBe(true);
+    expect(isTirePosition("EXTRA999")).toBe(true);
+    expect(isTirePosition("EXTRA1000")).toBe(false);
+    expect(isTirePosition("EXTRA0")).toBe(false);
+  });
+});
+
 describe("summarizeRegistration — an unread order is never '0 tires'", () => {
   it("reports UNKNOWN when the order or its rows could not be read", () => {
     expect(summarizeRegistration(null, []).state).toBe("unknown");
@@ -112,7 +125,6 @@ describe("registration form (574.8(a)(1)(i))", () => {
     dealerStreet: "17625 Euclid Ave",
     dealerCityStateZip: "Cleveland, OH 44112",
     orderNumber: "WO-TEST-1",
-    saleDate: "Sep 23, 2026",
     vehicle: "2015 Honda Civic",
     tires: [
       { position: "LF", tin: "3D1A7B2C42324", brand: "Hankook", tireCondition: "new" },
@@ -129,6 +141,7 @@ describe("registration form (574.8(a)(1)(i))", () => {
     expect(html).toContain("17625 Euclid Ave");
     expect(html).toContain("Used — not covered by 574.8");
     expect(html).toContain("hankooktire.com");
+    expect(html).not.toContain("Date of sale");
   });
 
   it("escapes HTML in free-text fields", () => {
