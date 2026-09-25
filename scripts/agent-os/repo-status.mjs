@@ -41,34 +41,49 @@ export function parseWorktreePorcelain(text) {
 /** Gather remote evidence for one branch: existence, PR/merge state (per-PR reads
  * only), ahead/behind via the compare endpoint. Exported — repo-rescue.mjs and
  * branch-sweep.mjs reuse this exact gathering, not a second implementation. */
-export async function gatherRemoteEvidence(owner, repo, branch) {
+export async function gatherRemoteEvidence(
+  owner,
+  repo,
+  branch,
+  { knownExistsOnOrigin, ghJsonImpl = ghJson } = {},
+) {
   const base = `/repos/${owner}/${repo}`;
-  let existsOnOrigin = true;
-  try {
-    await ghJson(`${base}/branches/${encodeURIComponent(branch)}`);
-  } catch (e) {
-    if (/404/.test(e.message)) existsOnOrigin = false;
-    else throw e;
+  let existsOnOrigin = knownExistsOnOrigin;
+  if (existsOnOrigin === undefined) {
+    existsOnOrigin = true;
+    try {
+      await ghJsonImpl(`${base}/branches/${encodeURIComponent(branch)}`);
+    } catch (e) {
+      if (/404/.test(e.message)) existsOnOrigin = false;
+      else throw e;
+    }
   }
-
-  const candidates = await ghJson(`${base}/pulls?head=${owner}:${encodeURIComponent(branch)}&state=all`);
-  const prs = await Promise.all(
-    candidates.map(async (c) => {
-      const full = await ghJson(`${base}/pulls/${c.number}`); // authoritative merged field, never the list one
-      return { number: full.number, merged: full.merged === true, mergedAt: full.merged_at ?? undefined };
-    }),
-  );
 
   let aheadOfMain, behindOfMain;
   if (existsOnOrigin) {
     try {
-      const cmp = await ghJson(`${base}/compare/main...${encodeURIComponent(branch)}`);
+      const cmp = await ghJsonImpl(`${base}/compare/main...${encodeURIComponent(branch)}`);
       aheadOfMain = cmp.ahead_by;
       behindOfMain = cmp.behind_by;
     } catch {
       // compare can fail on an empty/orphan branch — leave undefined, not a false 0.
     }
   }
+
+  // For an existing branch whose current tip is fully contained in main,
+  // classifyBranch() is provably LANDED and does not consult PR history.
+  // Avoid the head-filter + per-PR reads entirely in that common case.
+  if (existsOnOrigin && aheadOfMain === 0) {
+    return { branch, existsOnOrigin, prs: [], aheadOfMain, behindOfMain };
+  }
+
+  const candidates = await ghJsonImpl(`${base}/pulls?head=${owner}:${encodeURIComponent(branch)}&state=all`);
+  const prs = await Promise.all(
+    candidates.map(async (c) => {
+      const full = await ghJsonImpl(`${base}/pulls/${c.number}`); // authoritative merged field, never the list one
+      return { number: full.number, merged: full.merged === true, mergedAt: full.merged_at ?? undefined };
+    }),
+  );
 
   return { branch, existsOnOrigin, prs, aheadOfMain, behindOfMain };
 }
