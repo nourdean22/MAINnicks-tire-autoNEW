@@ -10,9 +10,9 @@
  */
 import { TRPCError } from "@trpc/server";
 import {
-  checkTin, expectedTireCount, renderRegistrationFormHtml, summarizeRegistration,
-  REGISTRATION_METHODS, TIRE_CONDITIONS, TIRE_POSITIONS,
-  type RegistrationMethod, type RegistrationSummary, type TireCondition, type TirePosition,
+  checkTin, expectedTireCount, isTirePosition, renderRegistrationFormHtml, summarizeRegistration,
+  REGISTRATION_METHODS, TIRE_CONDITIONS,
+  type RegistrationMethod, type RegistrationSummary, type TireCondition,
   type WorkOrderLineLike,
 } from "@shared/tireTin";
 import { BUSINESS } from "@shared/business";
@@ -74,7 +74,7 @@ export async function getRegistration(store: TireRegistrationStore, workOrderId:
 
 export interface CaptureInput {
   workOrderId: string;
-  position: TirePosition;
+  position: string;
   tin: string;
   brand?: string | null;
   condition: TireCondition;
@@ -86,7 +86,7 @@ export interface CaptureInput {
  * pre-2000 (3-digit date code) TIN is stored but flagged, and keeps the order incomplete.
  */
 export async function captureTin(store: TireRegistrationStore, input: CaptureInput, now = new Date()): Promise<RegistrationView> {
-  if (!TIRE_POSITIONS.includes(input.position)) {
+  if (!isTirePosition(input.position)) {
     throw new TRPCError({ code: "BAD_REQUEST", message: `Unknown tire position: ${input.position}` });
   }
   if (!TIRE_CONDITIONS.includes(input.condition)) {
@@ -168,10 +168,6 @@ export async function recordRegistration(
   return getRegistration(store, input.workOrderId);
 }
 
-const ET_DATE = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York", month: "short", day: "numeric", year: "numeric",
-});
-
 /** The 574.8(a)(1)(i) paper form. Refused while any tire on the sale lacks a valid TIN. */
 export async function registrationFormHtml(store: TireRegistrationStore, workOrderId: string): Promise<string> {
   const order = await requireOrder(store, workOrderId);
@@ -189,7 +185,6 @@ export async function registrationFormHtml(store: TireRegistrationStore, workOrd
       dealerStreet: BUSINESS.address.street,
       dealerCityStateZip: `${BUSINESS.address.city}, ${BUSINESS.address.state} ${BUSINESS.address.zip}`,
       orderNumber: order.orderNumber,
-      saleDate: ET_DATE.format(order.completedAt ?? order.createdAt),
       vehicle,
       tires: view.rows
         .filter((r) => r.tin && r.tinStatus === "valid")
@@ -215,7 +210,7 @@ async function guardTable<T>(fn: () => Promise<T>): Promise<T> {
     if (isMissingTable(err)) {
       throw new TRPCError({
         code: "PRECONDITION_FAILED",
-        message: "Tire registration storage is not set up yet (migration 0131_tire_registrations has not been applied).",
+        message: "Tire registration storage is not set up yet (migration 0130_tire_registrations has not been applied).",
       });
     }
     throw err;
