@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "capabilityId sms-customer-identity + REALITY-LEDGER are aligned with server/smsResponseParser.safety.test.ts: 27 MUST_UNSUBSCRIBE and 29 MUST_NOT_UNSUBSCRIBE controls. Fresh P1 review adds negated-revocation controls and booking/schedule/calendar remove/take controls so those cannot become durable global SMS opt-outs."
+    }
+  }
+}

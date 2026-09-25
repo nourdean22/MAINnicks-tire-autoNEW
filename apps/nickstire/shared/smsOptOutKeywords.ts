@@ -20,7 +20,10 @@
  * revocation rule lets a consumer revoke by any reasonable method, including
  * plain English ("stop texting me", "take me off this list"). No list of exact
  * keywords can catch that, so it stays a human-review question rather than a
- * silent claim of completeness.
+ * silent claim of completeness. The live parser (smsResponseParser.ts) does
+ * honour the explicit phrasings ("stop texting me", "cancel all texts", "take
+ * me off your list", 2026-09-23), so the orchestrator records those; this
+ * whole-body index still does not, and only re-derives the bare keywords.
  */
 export const SMS_OPT_OUT_KEYWORDS = [
   "STOP",
