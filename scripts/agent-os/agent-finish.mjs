@@ -74,8 +74,8 @@ async function main() {
   }
   const foreignReason = arg("force-release-foreign", null);
   const forceForeign = flag("force-release-foreign") || foreignReason !== null;
-  if (forceForeign && !(foreignReason && foreignReason.trim())) {
-    process.stderr.write('[agent-finish] --force-release-foreign requires a reason: --force-release-foreign "why"\n');
+  if (forceForeign && !(foreignReason && foreignReason.trim() && !foreignReason.trim().startsWith("--"))) {
+    process.stderr.write('[agent-finish] --force-release-foreign requires a prose reason, not another option: --force-release-foreign "why"\n');
     process.exit(1);
   }
 
