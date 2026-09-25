@@ -59,13 +59,16 @@ describe("PUSH FOLLOW-UP ASSISTANT is a two-tap confirm with a 48px target", () 
 
   it("the first tap opens the in-DOM confirm and pushes nothing; a cancel pushes nothing", async () => {
     const confirmSpy = vi.spyOn(window, "confirm");
-    h.confirmAnswer = false;
-    render(<VapiPanel />);
-    fireEvent.click(followUpButton());
-    await waitFor(() => expect(h.confirmDialog).toHaveBeenCalledTimes(1));
-    expect(h.followUpMutate).not.toHaveBeenCalled();
-    expect(confirmSpy).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
+    try {
+      h.confirmAnswer = false;
+      render(<VapiPanel />);
+      fireEvent.click(followUpButton());
+      await waitFor(() => expect(h.confirmDialog).toHaveBeenCalledTimes(1));
+      expect(h.followUpMutate).not.toHaveBeenCalled();
+      expect(confirmSpy).not.toHaveBeenCalled();
+    } finally {
+      confirmSpy.mockRestore();
+    }
   });
 
   it("a confirmed second tap pushes exactly once", async () => {
