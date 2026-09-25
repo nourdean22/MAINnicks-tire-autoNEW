@@ -9,9 +9,8 @@
  *
  * One typed input → one typed result; the only I/O is getAiConfig +
  * classifyIntent (both already best-effort/bounded upstream of this
- * move). The classify stage-timer, via the injected stageTracker, ends
- * when classifyIntent settles; the turn awaits it only when no fixed
- * mode decides the mode (2026-09-23, see the mode block below).
+ * move). classifyIntent runs, timed by the injected stageTracker, only
+ * when no fixed mode decides the mode (2026-09-23, see the mode block).
  *
  * Everything else is pure (<2ms) derivation from user text — see the
  * original block comments preserved inline below.
@@ -32,23 +31,10 @@ type Classification = Awaited<
   ReturnType<typeof import("@/lib/ai/runtime/intent-router").classifyIntent>
 >;
 
-/**
- * The classification if it has already landed, else undefined. Never waits:
- * a settled promise wins Promise.race over the already-resolved fallback,
- * a pending one loses to it.
- */
-export function takeClassificationIfLanded(
-  pending: Promise<Classification | undefined>,
-): Promise<Classification | undefined> {
-  return Promise.race([pending, Promise.resolve(undefined)]);
-}
-
 export interface TurnSignals {
   aiConfig: Awaited<ReturnType<typeof getAiConfig>> | null;
-  /** Undefined when a fixed mode meant the turn did not wait for it — see classificationPromise. */
+  /** Undefined on a fixed-mode turn: the classifier is not called (see the mode block). */
   classification: Classification | undefined;
-  /** Always settles, never rejects; carries the classification once it lands. */
-  classificationPromise: Promise<Classification | undefined>;
   mode: ChatMode;
   taskTypeForMode: TaskType;
   queryShape: ReturnType<typeof detectQueryShape>;
@@ -92,41 +78,26 @@ export async function deriveTurnSignals(args: {
   //   2. Global default from the AI config (Settings page)
   //   3. Automatic detection via detectChatMode
   const aiConfig = await getAiConfig().catch((): null => null);
-  const { classifyIntent } = await import("@/lib/ai/runtime/intent-router");
-  const classifyTimer = stageTracker.start("classify");
-  const classifying = classifyIntent(userContent, traceId);
-  // 2026-09-23 · classifyIntent is an LLM call on the pre-stream path with an
-  // 8 s cap, and the mode below is its only pre-stream consumer. A per-request
-  // override or the configured default decides the mode first, so when either
-  // is set the turn no longer waits for it: the call runs on, and the stream's
-  // intent.classified event takes it only if it has landed by then
-  // (takeClassificationIfLanded; buildChatResponse already labels the turn
-  // when it has not). Production has had defaultMode "deep" since 2026-08-31,
-  // so every turn paid this wait for a result that could not change its mode:
-  // the prompt build started 4.8-8.3 s after the request on 2026-09-23, and the
-  // call hit its 8 s cap on 3 of 10 turns.
+  // 2026-09-23 · classifyIntent is an LLM call (8 s cap) whose only pre-stream
+  // consumer is the mode. A per-request override or the configured default
+  // decides the mode first, and production has had defaultMode "deep" since
+  // 2026-08-31, so on a fixed-mode turn the call is not made at all: its one
+  // other reader, the stream's intent.classified event, has no client listener
+  // (use-chat-transport re-dispatches it; chat-island reads only
+  // memory.recalled) and is labelled `skipped` by buildChatResponse. The
+  // classify stage is marked skipped rather than timed, so chat_pipeline_stages
+  // reads `classify=skipped`, never a 0 ms stage that looks like a fast call.
   const fixedMode = modeOverride || aiConfig?.defaultMode;
   let classification: Classification | undefined;
-  let classificationPromise: Promise<Classification | undefined>;
   let mode: ChatMode;
   if (fixedMode) {
     mode = fixedMode;
-    // Handled at creation: nothing awaits this promise before the stream, and
-    // a rejection nobody is listening to crashes a Node process.
-    classificationPromise = classifying.then(
-      (c) => {
-        classifyTimer.end();
-        return c;
-      },
-      (): undefined => {
-        classifyTimer.end();
-        return undefined;
-      },
-    );
+    stageTracker.meta("classify", { skipped: "fixed-mode" });
   } else {
-    classification = await classifying;
+    const { classifyIntent } = await import("@/lib/ai/runtime/intent-router");
+    const classifyTimer = stageTracker.start("classify");
+    classification = await classifyIntent(userContent, traceId);
     classifyTimer.end();
-    classificationPromise = Promise.resolve(classification);
     mode =
       classification.mode === "engineer" || classification.mode === "operator" ? "deep" : "standard";
   }
@@ -310,7 +281,6 @@ export async function deriveTurnSignals(args: {
   return {
     aiConfig,
     classification,
-    classificationPromise,
     mode,
     taskTypeForMode,
     queryShape,
