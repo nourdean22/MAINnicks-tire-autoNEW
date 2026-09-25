@@ -3,7 +3,7 @@ description: NOURCITY canonical repo policy — always apply
 alwaysApply: true
 ---
 
-Canonical agent policy lives in `AGENTS.md` at the repo root (Cursor also reads it natively) — treat it as binding.
+Canonical agent policy lives in `AGENTS.md` at the repo root (Cursor also reads it natively) — treat it as binding.\nFor every non-trivial task, read `NOUR-COMMAND.md` before acting; it is the default execution framework.
 
 - NEVER push `main`. Named branches (`nickstire/<task>` · `statenour/<task>` · `docs/<task>` · `chore/<task>`) + PR only.
 - Stage only your files by explicit path — never `git add -A`, never `--no-verify`, never force-push shared history.
