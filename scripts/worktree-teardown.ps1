@@ -234,7 +234,7 @@ try {
     $leaseExit = 0
 }
 if ($leaseExit -ne 0) {
-    Write-Host "[X] ABORTING. This worktree has uncommitted changes or unpushed commits -- see the message above." -ForegroundColor Red
+    Write-Host "[X] ABORTING. agent-finish.mjs refused -- see the message above (uncommitted/unpushed work, or the lease belongs to another session)." -ForegroundColor Red
     Write-Host "    Commit and push first, or re-run with -ForceDirtyRelease to abandon it anyway." -ForegroundColor Red
     Write-Host "    Nothing has been touched." -ForegroundColor Red
     exit 1
