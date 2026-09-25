@@ -14,8 +14,9 @@
  *   5. The classify stage-timer records a "classify" stage on the
  *      injected tracker (the chat-pipeline log line depends on it).
  *   6. (2026-09-23) A fixed mode — the per-request override or the
- *      configured default — returns without waiting for classifyIntent,
- *      an LLM call with an 8 s cap. Production has defaultMode "deep".
+ *      configured default — never calls classifyIntent (an LLM call with
+ *      an 8 s cap); the classify stage reads `skipped`. Production has
+ *      defaultMode "deep".
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -27,8 +28,8 @@ vi.mock("@/lib/ai/runtime/intent-router", () => ({
   classifyIntent: vi.fn(async () => ({ mode: "casual", persona: "default" })),
 }));
 
-import { deriveTurnSignals, takeClassificationIfLanded } from "@/app/api/ai/chat/derive-turn-signals";
-import { createStageTracker } from "@/lib/ai/chat/timing";
+import { deriveTurnSignals } from "@/app/api/ai/chat/derive-turn-signals";
+import { createStageTracker, formatStageLog } from "@/lib/ai/chat/timing";
 import { getAiConfig } from "@/lib/settings/ai-config";
 import { classifyIntent } from "@/lib/ai/runtime/intent-router";
 
@@ -214,31 +215,52 @@ describe("deriveTurnSignals · a fixed mode does not wait for the classifier (20
     expect(s.mode).toBe("standard");
   });
 
-  it("the classification still arrives on classificationPromise; takeClassificationIfLanded sees it only once it has landed", async () => {
+  // #2588 · the classification's only reader on a fixed-mode turn was the
+  // intent.classified SSE event, which no client listens to — so the call is
+  // not made at all. Positive control: against the 2026-09-23 module (call
+  // started, result only raced into the event) both cases below are red.
+  it("★ a fixed-mode turn never calls the classifier (configured default)", async () => {
     vi.mocked(getAiConfig).mockResolvedValue({ defaultMode: "deep" } as any);
-    const c = pendingClassifier();
+    vi.mocked(classifyIntent).mockClear();
     const s = await callWith("hello");
-    expect(await takeClassificationIfLanded(s.classificationPromise)).toBeUndefined();
-    const landed = { intent: "general_chat", mode: "operator", model: "m", provider: "p", targets: ["general"] };
-    c.resolve(landed);
-    expect(await s.classificationPromise).toEqual(landed);
-    expect(await takeClassificationIfLanded(s.classificationPromise)).toEqual(landed);
+    expect(s.mode).toBe("deep");
+    expect(s.classification).toBeUndefined();
+    expect(classifyIntent).not.toHaveBeenCalled();
   });
 
-  it("a classifier that rejects after the turn moved on settles to undefined, never an unhandled rejection", async () => {
-    vi.mocked(getAiConfig).mockResolvedValue({ defaultMode: "deep" } as any);
-    const unhandled: unknown[] = [];
-    const onUnhandled = (e: unknown) => unhandled.push(e);
-    process.on("unhandledRejection", onUnhandled);
-    try {
-      const c = pendingClassifier();
-      const s = await callWith("hello");
-      c.reject(new Error("provider down"));
-      expect(await s.classificationPromise).toBeUndefined();
-      await new Promise((r) => setTimeout(r, 0));
-      expect(unhandled).toEqual([]);
-    } finally {
-      process.off("unhandledRejection", onUnhandled);
-    }
+  it("★ a fixed-mode turn never calls the classifier (per-request override), and the stage log says skipped, not 0 ms", async () => {
+    vi.mocked(classifyIntent).mockClear();
+    const tracker = createStageTracker();
+    await deriveTurnSignals({
+      userContent: "hello",
+      messages: [],
+      modeOverride: "standard",
+      taskTypeOverride: undefined,
+      contentMode: false,
+      traceId: "t",
+      stageTracker: tracker,
+      log: logStub,
+    });
+    expect(classifyIntent).not.toHaveBeenCalled();
+    const line = formatStageLog("r", "standard", tracker.summary());
+    expect(line).toContain("classify=skipped");
+    expect(line).not.toMatch(/classify=\d/);
+  });
+
+  it("with no fixed mode the classifier is called once and its stage is timed", async () => {
+    vi.mocked(classifyIntent).mockClear();
+    const tracker = createStageTracker();
+    await deriveTurnSignals({
+      userContent: "hello",
+      messages: [],
+      modeOverride: undefined,
+      taskTypeOverride: undefined,
+      contentMode: false,
+      traceId: "t",
+      stageTracker: tracker,
+      log: logStub,
+    });
+    expect(classifyIntent).toHaveBeenCalledTimes(1);
+    expect(formatStageLog("r", "standard", tracker.summary())).toMatch(/classify=\d+/);
   });
 });

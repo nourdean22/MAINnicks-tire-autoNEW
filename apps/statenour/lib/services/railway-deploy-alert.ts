@@ -11,7 +11,10 @@
  *   · payload `{ type: "Deployment.failed", details: { id, status, commitHash,
  *     commitMessage, ... }, resource: { project, environment, service,
  *     deployment: { id } }, severity, timestamp }` — plus volume-usage and
- *     CPU/RAM monitor alert events whose type names are NOT documented;
+ *     CPU/RAM monitor alert events whose type names that page does NOT list;
+ *     Railway's webhook event enum (its API / MCP `create-webhook` eventTypes,
+ *     read 2026-09-23) names them: VolumeAlert.triggered|resolved and
+ *     Monitor.triggered|resolved|deleted;
  *   · deliveries are UNSIGNED — the only authentication is a secret in the
  *     URL, so the path token is the whole auth;
  *   · a non-2xx is retried up to 3 times, and delivery is best-effort and
@@ -43,8 +46,13 @@ const MIN_TOKEN_LENGTH = 24;
  */
 const PAGING_DEPLOY_STATES = new Set(["FAILED", "CRASHED", "OOM_KILLED"]);
 
-/** One page per (deployment, status) for this long — a crash-looping deploy pages once, not every restart. */
-const DEPLOY_DEDUPE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * One page per (deployment, status) for this long — a crash-looping deploy pages once per window,
+ * not every restart. Hours, not days (#2597): the key has no occurrence in it, so a 7-day hold made
+ * a second, separate crash of the same long-lived deployment days later page nobody. Past the
+ * window the settled claim is reclaimable (action-attempts.ts isDuplicate), so the next one pages.
+ */
+const DEPLOY_DEDUPE_WINDOW_MS = 6 * 60 * 60 * 1000;
 /** Resource (volume / monitor) alerts: identical deliveries inside this window are one page. */
 const RESOURCE_DEDUPE_WINDOW_MS = 6 * 60 * 60 * 1000;
 
@@ -161,10 +169,12 @@ export function classifyRailwayEvent(body: unknown, rawBody: string): RailwayCla
     };
   }
 
-  // Volume-usage and CPU/RAM monitor alerts. Railway does not document their
-  // type names, so match the family and let the type itself tell the owner.
+  // Volume-usage and CPU/RAM monitor alerts. Match the family (the webhooks
+  // docs page names none of them) and let the type itself tell the owner.
   if (/volume|monitor|alert|usage|cpu|memory|ram/.test(lower)) {
     if (/(resolved|recovered|cleared|ok)$/.test(lower)) return { action: "ignore", reason: "alert_resolved", eventType };
+    // Lifecycle of the monitor itself (Monitor.deleted, #2597): nothing is wrong with a service.
+    if (/(deleted|created|updated|removed|disabled|enabled)$/.test(lower)) return { action: "ignore", reason: "alert_lifecycle", eventType };
     const severity = (str(p.severity) ?? "ALERT").toUpperCase();
     const lines = [
       `🟠 <b>Railway ${escapeHtml(eventType.slice(0, 80))}</b> · ${escapeHtml(where[0])}`,
