@@ -3,6 +3,7 @@ import {
   captureTin, getRegistration, recordRegistration, registrationFormHtml, removePosition,
   type RegistrationRow, type TireRegistrationStore, type WorkOrderForRegistration,
 } from "./tireRegistration";
+import { tirePositionsForCount } from "@shared/tireTin";
 
 const NOW = new Date("2026-09-23T12:00:00Z");
 
@@ -78,6 +79,34 @@ describe("tire registration — capture flow per position", () => {
     expect(rows.get("wo-1|SPARE")?.registrationMethod).toBe("pending");
   });
 
+  it("supports work orders with more than seven tires without wedging completeness", async () => {
+    const order8: WorkOrderForRegistration = {
+      ...ORDER,
+      id: "wo-8",
+      orderNumber: "WO-2026-0008",
+      items: [{ type: "tire", quantity: "8", approved: true, declined: false }],
+    };
+    const { store } = memoryStore(order8);
+    const positions = tirePositionsForCount(8);
+    expect(positions).toHaveLength(8);
+    expect(positions.at(-1)).toBe("EXTRA1");
+    for (const position of positions) {
+      await captureTin(store, {
+        workOrderId: "wo-8",
+        position,
+        tin: TINS.LF,
+        brand: "Hankook",
+        condition: "new",
+        by: "tech",
+      }, NOW);
+    }
+    const beforeRecord = await getRegistration(store, "wo-8");
+    expect(beforeRecord.rows).toHaveLength(8);
+    expect(beforeRecord.summary.missingTins).toBe(0);
+    const done = await recordRegistration(store, { workOrderId: "wo-8", method: "form_given", by: "desk" }, NOW);
+    expect(done.summary.state).toBe("complete");
+  });
+
   it("refuses to record a registration step while any TIN is missing", async () => {
     const { store } = memoryStore(ORDER);
     await captureTin(store, { workOrderId: "wo-1", position: "LF", tin: TINS.LF, condition: "new", by: "tech" }, NOW);
@@ -118,6 +147,7 @@ describe("tire registration — the form and read failures", () => {
     for (const tin of Object.values(TINS)) expect(html).toContain(tin);
     expect(html).toContain("WO-2026-0001");
     expect(html).toContain("17625 Euclid Ave");
+    expect(html).not.toContain("Date of sale");
   });
 
   it("refuses to print the form while TINs are missing", async () => {
