@@ -17,7 +17,12 @@ import express from "express";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 
-const h = vi.hoisted(() => ({ events: [] as Array<Record<string, unknown>> }));
+const h = vi.hoisted(() => ({
+  events: [] as Array<Record<string, unknown>>,
+  // What the mocked orchestrator returns, and how long it takes to return it.
+  status: "sent" as string,
+  delayMs: 0,
+}));
 
 // No database: every persist and lookup on this path no-ops.
 vi.mock("../../db", async (importOriginal) => ({
@@ -34,7 +39,8 @@ vi.mock("../../services/voice-latency", () => ({ captureVoiceLatency: vi.fn(asyn
 vi.mock("../../services/smsOrchestrator", () => ({
   orchestrateSms: vi.fn(async (event: Record<string, unknown>) => {
     h.events.push(event);
-    return { id: 7, status: "sent" };
+    if (h.delayMs) await new Promise((r) => setTimeout(r, h.delayMs));
+    return { id: 7, status: h.status };
   }),
 }));
 
@@ -62,6 +68,8 @@ afterAll(async () => {
 
 beforeEach(() => {
   h.events = [];
+  h.status = "sent";
+  h.delayMs = 0;
 });
 
 /** node:http POST: immune to other files' globalThis.fetch stubs. */
@@ -177,5 +185,84 @@ describe("the Vapi tool call log line", () => {
     expect(toolLine).not.toContain("Jordan");
     expect(toolLine).not.toContain("Testcaller");
     expect(toolLine).not.toContain("walking in");
+  });
+});
+
+// Post-merge audit 2026-09-23, item C. The shop gateway's delivery receipt
+// flips the recap's row from sent to delivered within seconds
+// (routes/webhooks/smsGateway.ts), and a second recap on the same call gets
+// that row back from the orchestrator's per-call dedupe. The tool then said
+// sent:false, degraded:true, and Nick told a caller who already had the text
+// that texts were down.
+describe("a recap the orchestrator reports as already delivered", () => {
+  const result = async (status: string) => {
+    h.status = status;
+    const res = await postEvent(recapCall(`call-status-${status}`));
+    expect(res.status).toBe(200);
+    return JSON.parse(res.body.results?.[0]?.result ?? "{}") as Record<string, unknown>;
+  };
+
+  for (const status of ["delivered", "replied"]) {
+    it(`${status} -> sent, not degraded, no spoken fallback`, async () => {
+      const r = await result(status);
+      expect(r).toMatchObject({ sent: true, degraded: false });
+      expect(r.verbalRecap).toBeUndefined();
+    });
+  }
+
+  // Positive controls: the outcomes that genuinely may not have reached the
+  // caller still read the address aloud.
+  it("sending (gateway timeout) -> sent, degraded", async () => {
+    expect(await result("sending")).toMatchObject({ sent: true, degraded: true });
+  });
+  it("failed -> not sent, degraded, with the spoken fallback", async () => {
+    const r = await result("failed");
+    expect(r).toMatchObject({ sent: false, degraded: true });
+    expect(r.verbalRecap).toEqual(expect.stringContaining("Euclid"));
+  });
+  it("drafted (held for review) -> not sent, degraded", async () => {
+    expect(await result("drafted")).toMatchObject({ sent: false, degraded: true });
+  });
+});
+
+// Item C's race. dispatchToolCall runs every tool call in one webhook in
+// parallel, the orchestrator writes its row only after sendSms returns, and
+// idempotency_key is not a unique index, so two recap calls in one turn both
+// missed the dedupe and both texted the caller.
+describe("two recap calls for the same call in one webhook", () => {
+  const twoRecaps = (callId: string, phones: [string, string]) => ({
+    type: "tool-calls",
+    call: { id: callId },
+    toolCalls: phones.map((phone, i) => ({
+      id: `tool-call-par-${i}`,
+      function: { name: "sendConfirmationSms", arguments: { phone, summary: "Brake inspection today" } },
+    })),
+  });
+
+  it("reach the orchestrator once, and both report the one send", async () => {
+    h.delayMs = 50;
+    const res = await postEvent(twoRecaps("call-par-1", ["2165550100", "(216) 555-0100"]));
+
+    expect(res.status).toBe(200);
+    expect(h.events).toHaveLength(1);
+    const results = (res.body.results ?? []).map((r) => JSON.parse(r.result));
+    expect(results).toHaveLength(2);
+    for (const r of results) expect(r).toMatchObject({ sent: true, degraded: false });
+  });
+
+  // Also the canary for voiceAgent's shared orchestrator import: vitest 3.2.7
+  // resolves concurrent dynamic import()s of a vi.mock'ed module past the mock
+  // (all but the first get the REAL module), so without loadOrchestrator the
+  // second call here reaches the real orchestrator and this count is 1.
+  it("to two different numbers still send both", async () => {
+    h.delayMs = 50;
+    await postEvent(twoRecaps("call-par-2", ["2165550100", "2165550199"]));
+    expect(h.events).toHaveLength(2);
+  });
+
+  it("run again once the first has finished (the orchestrator's dedupe owns that case)", async () => {
+    await postEvent(recapCall("call-par-3"));
+    await postEvent(recapCall("call-par-3"));
+    expect(h.events).toHaveLength(2);
   });
 });
