@@ -760,82 +760,8 @@ export function clearHealthCache(): void {
   cachedAt = 0;
 }
 
-// ─── Continuous Monitoring (5 minute interval) ──────────
-
-let monitoringTimer: ReturnType<typeof setInterval> | null = null;
-let lastMonitoringResult: VendorHealthResult[] | null = null;
-
-/**
- * Start continuous vendor health monitoring.
- * Runs checks every 5 minutes and alerts via Telegram on state changes.
- */
-export function startContinuousMonitoring(): void {
-  if (monitoringTimer) return;
-
-  monitoringTimer = setInterval(async () => {
-    try {
-      // Force fresh check
-      clearHealthCache();
-      const report = await getVendorHealthReport();
-
-      // Compare with last result to detect changes
-      if (lastMonitoringResult) {
-        for (const current of report.results) {
-          const previous = lastMonitoringResult.find(r => r.vendor === current.vendor);
-          if (!previous) continue;
-
-          // Vendor went down
-          if (previous.status === "healthy" && (current.status === "down" || current.status === "degraded")) {
-            const firstError = current.checks.find(c => !c.passed)?.error;
-            try {
-              const { alertVendorDown } = await import("./telegram");
-              alertVendorDown(current.vendor, firstError);
-            } catch (e) {
-              log.warn("[services/vendorHealth] operation failed:", e);
-              // best-effort
-            }
-            log.error(`Vendor ${current.vendor} went ${current.status}`, {
-              vendor: current.vendor,
-              error: firstError,
-            });
-          }
-
-          // Vendor recovered
-          if ((previous.status === "down" || previous.status === "degraded") && current.status === "healthy") {
-            try {
-              const { alertVendorRecovered } = await import("./telegram");
-              alertVendorRecovered(current.vendor);
-            } catch (e) {
-              log.warn("[services/vendorHealth] operation failed:", e);
-              // best-effort
-            }
-            log.info(`Vendor ${current.vendor} recovered`, { vendor: current.vendor });
-          }
-        }
-      }
-
-      lastMonitoringResult = report.results;
-    } catch (err) {
-      log.warn("Continuous monitoring check failed", {
-        error: err instanceof Error ? (err as Error).message : String(err),
-      });
-    }
-  }, 5 * 60 * 1000); // Every 5 minutes
-
-  log.info("Continuous vendor health monitoring started (5 min interval)");
-}
-
-export function stopContinuousMonitoring(): void {
-  if (monitoringTimer) {
-    clearInterval(monitoringTimer);
-    monitoringTimer = null;
-  }
-}
-
-// 2026-05-23 · removed top-level auto-start. The tiered cron scheduler
-// (server/cron/scheduler.ts) ALREADY registers `vendor-health` in the
-// pulse tier — auto-starting here meant two parallel paths firing the
-// same probes on different cadences (one cron-tracked + observable,
-// one orphan setInterval with no observability + no tier-skip
-// awareness). startContinuousMonitoring is still exported for tests
-// or manual control, just not invoked at module load.
+// Continuous monitoring lives in the tiered cron scheduler
+// (server/cron/scheduler.ts registers `vendor-health` in the pulse tier).
+// The module-level setInterval that used to duplicate it
+// (startContinuousMonitoring) lost its auto-start 2026-05-23 and was
+// deleted 2026-09-23 with no caller left.

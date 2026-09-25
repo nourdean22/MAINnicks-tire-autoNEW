@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No capability state moves. Current-main caller verification on 2026-09-25 found zero code callers for startSmsScheduler, stopSmsScheduler, startContinuousMonitoring, or stopContinuousMonitoring. The live observable replacements remain the sms-scheduler and vendor-health jobs in server/cron/index.ts and server/cron/scheduler.ts. This diff only removes orphan interval wrappers plus their knip baseline entries; docs/operations/capability-ledger.json has no capability for these retired wrappers."
+    }
+  }
+}
