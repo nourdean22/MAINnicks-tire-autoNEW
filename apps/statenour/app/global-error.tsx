@@ -14,6 +14,15 @@
  */
 import { useEffect } from "react";
 import { reportGlobalError } from "@/lib/observability/report-global-error";
+import { reloadOnceForDeploySkew } from "@/lib/observability/deploy-skew";
+
+function sessionStore(): Storage | undefined {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return undefined;
+  }
+}
 
 export default function GlobalError({
   error,
@@ -23,6 +32,9 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    // A tab left open across a deploy (Q-35): one reload picks up the current
+    // build. Anything else, or a repeat, is reported as before.
+    if (reloadOnceForDeploySkew(error, sessionStore(), () => window.location.reload())) return;
     reportGlobalError(error);
   }, [error]);
 
