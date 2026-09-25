@@ -28,11 +28,33 @@ browser-profile presence, PowerShell profiles, WSL/Docker state, branch state,
 and worktree salvage. The 21-row worktree salvage manifest reported zero
 salvage errors. Do not put recovered secrets in Git.
 
+### Clean-room restore proof — 2026-09-25
+
+A brand-new private clone of current `main` at
+`2b0783ea58f04d9adc3456d5b1447cf46431ff35` was created at a separate path with
+no repo secrets copied in. `scripts/dev/bootstrap.ps1 -Install` completed
+successfully from that fresh checkout:
+
+- locked workspace install completed for all 13 workspace projects;
+- 2,185 packages resolved, 2,171 reused from the pnpm store, 0 downloaded;
+- StateNour Prisma client generated successfully;
+- `scripts/dev/doctor.mjs`: `DOCTOR_RESULT=PASS`;
+- `pnpm agent:verify`: 340 tests, 332 passed, 8 intentional skips, 0 failures;
+- adapter parity: 142 checks, 0 violations;
+- working tree remained clean;
+- bootstrap exit code: 0.
+
+This proves the repository + developer-toolchain side is reproducibly recoverable
+from GitHub on this Windows host. It deliberately does **not** prove recovery of
+personal credentials or secrets: the fresh checkout had no `.env` and no
+`camera-bridge/.env.local`.
+
 Known reset blockers remain: 2FA recovery-code completeness, passkey/cloud-sync
 recoverability, browser-password sync completeness, Windows Credential Manager,
 and secure backup of local-only credentials/configuration.
 
-**Reset verdict: NOT SAFE YET.**
+**Reset verdict: CODE/TOOLCHAIN RECOVERY PROVEN; FULL DEVICE RESET STILL BLOCKED
+BY CREDENTIAL RECOVERY.**
 
 ## Model/agent lanes
 
