@@ -63,8 +63,9 @@ export async function handleAfterHoursCapture(params: {
 }): Promise<boolean> {
   if (!isAfterHours()) return false;
 
-  const nextOpen = getNextOpenTime();
-
+  // The text's {nextOpen} is filled by the orchestrator from the same hours
+  // (shared/shopState.ts nextOpeningLabel), naming the day, because this text
+  // is held through quiet hours and read the next morning (issue #2579).
   try {
     const { orchestrateSms } = await import("./smsOrchestrator");
     await orchestrateSms({
