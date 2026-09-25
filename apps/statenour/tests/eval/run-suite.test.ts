@@ -55,6 +55,16 @@ describe("eval suite · scenario JSON contract", () => {
   });
 });
 
+describe("Nour Command runtime corpus", () => {
+  it("keeps the three operator-grade behavior cases in the suite", async () => {
+    const { scenarios } = await loadScenarios();
+    const ids = new Set(scenarios.map((s) => s.id));
+    expect(ids).toContain("persona-nour-command-solution-first");
+    expect(ids).toContain("persona-nour-command-truth-over-agreement");
+    expect(ids).toContain("decision-nour-command-creative-leverage");
+  });
+});
+
 describe("Scenario schema · representative cases", () => {
   it("accepts a minimal valid scenario", () => {
     const parsed = scenarioSchema.safeParse({
