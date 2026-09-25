@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "session-authority": {
+      "ref": "scripts/agent-os/lease-store.test.mjs, lease.test.mjs, lease-check.test.mjs, agent-finish.test.mjs and mainGuard.test.mjs cover one ref namespace, GitHub-style CAS/race behavior, holder-only release plus explicit forced foreign release, self-lock escape limited to exact agent-finish/explicit override, and Windows/space-safe CLI main detection. worktree-teardown.ps1 only changes the abort guidance; no live refs/leases/* write is performed by this PR."
+    }
+  }
+}
