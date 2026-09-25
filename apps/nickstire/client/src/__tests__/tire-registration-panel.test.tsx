@@ -11,6 +11,7 @@ type QueryResult = { data: unknown; isLoading: boolean; isError: boolean; error:
 const h = vi.hoisted(() => ({
   reg: { data: undefined, isLoading: false, isError: false, error: null, refetch: () => {} } as QueryResult,
   captures: [] as unknown[],
+  removes: [] as unknown[],
 }));
 
 vi.mock("@/lib/trpc", () => ({
@@ -23,11 +24,15 @@ vi.mock("@/lib/trpc", () => ({
     }),
     workOrders: {
       tireRegistration: { useQuery: () => h.reg },
-      captureTireTin: { useMutation: () => ({ mutate: (v: unknown) => { h.captures.push(v); }, isPending: false }) },
-      removeTirePosition: { useMutation: () => ({ mutate: () => {}, isPending: false }) },
+      captureTireTin: { useMutation: () => ({ mutate: (v: unknown, opts?: { onSuccess?: () => void }) => { h.captures.push(v); opts?.onSuccess?.(); }, isPending: false }) },
+      removeTirePosition: { useMutation: () => ({ mutate: (v: unknown, opts?: { onSuccess?: () => void }) => { h.removes.push(v); opts?.onSuccess?.(); }, isPending: false }) },
       recordTireRegistration: { useMutation: () => ({ mutate: () => {}, isPending: false }) },
     },
   },
+}));
+
+vi.mock("@/components/admin/ConfirmDialog", () => ({
+  confirmDialog: async () => true,
 }));
 
 import TireRegistrationPanel from "@/pages/admin/money/TireRegistrationPanel";
@@ -35,7 +40,7 @@ import TireRegistrationPanel from "@/pages/admin/money/TireRegistrationPanel";
 const ok = (data: unknown): QueryResult => ({ data, isLoading: false, isError: false, error: null, refetch: () => {} });
 
 describe("TireRegistrationPanel", () => {
-  beforeEach(() => { h.captures = []; });
+  beforeEach(() => { h.captures = []; h.removes = []; });
 
   it("a failed read renders an error with retry — never '0 tires'", () => {
     h.reg = { data: undefined, isLoading: false, isError: true, error: { message: "db down" }, refetch: () => {} };
@@ -75,6 +80,35 @@ describe("TireRegistrationPanel", () => {
     expect(confirmSpy).not.toHaveBeenCalled();
     promptSpy.mockRestore();
     confirmSpy.mockRestore();
+  });
+
+  it("drops a cached printable form after a TIN is replaced", async () => {
+    h.reg = ok({
+      workOrderId: "wo-1", expected: 1,
+      rows: [{ position: "LF", tin: "3D1A7B2C42324", tinStatus: "valid", tinWeek: 23, tinYear: 2024, tireBrand: "Hankook", tireCondition: "new", registrationMethod: "pending" }],
+      summary: { state: "incomplete", expected: 1, captured: 1, missingTins: 0, invalidPositions: [], pendingPositions: ["LF"] },
+    });
+    render(<TireRegistrationPanel workOrderId="wo-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Registration form" }));
+    expect(await screen.findByTitle("Tire registration form")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "LF" }));
+    fireEvent.change(screen.getByPlaceholderText(/3D1 A7B2C4 2324/), { target: { value: "3D1A7B2C42424" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save LF/ }));
+    expect(screen.queryByTitle("Tire registration form")).toBeNull();
+  });
+
+  it("drops a cached printable form after a captured position is removed", async () => {
+    h.reg = ok({
+      workOrderId: "wo-1", expected: 1,
+      rows: [{ position: "LF", tin: "3D1A7B2C42324", tinStatus: "valid", tinWeek: 23, tinYear: 2024, tireBrand: "Hankook", tireCondition: "new", registrationMethod: "pending" }],
+      summary: { state: "incomplete", expected: 1, captured: 1, missingTins: 0, invalidPositions: [], pendingPositions: ["LF"] },
+    });
+    render(<TireRegistrationPanel workOrderId="wo-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Registration form" }));
+    expect(await screen.findByTitle("Tire registration form")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove LF" }));
+    expect(h.removes).toEqual([{ workOrderId: "wo-1", position: "LF" }]);
+    expect(screen.queryByTitle("Tire registration form")).toBeNull();
   });
 
   it("an invalid TIN is refused client-side and never sent", () => {
