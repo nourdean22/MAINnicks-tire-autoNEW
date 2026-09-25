@@ -25,6 +25,7 @@ import { draftSmsReply } from "./nickgpt-client";
 import { classifyIntent } from "./classifiers";
 import { isEnabled } from "./featureFlags";
 import { BUSINESS } from "@shared/business";
+import { nextOpeningLabel } from "@shared/shopState";
 import { createLogger } from "../lib/logger";
 import { notSentLogFields } from "../lib/smsNotSentLog";
 import { normalizePhone } from "../lib/phone";
@@ -489,24 +490,17 @@ async function checkCooldown(cooldownKey: string, ttlMs: number, statuses: strin
   return recent.length > 0;
 }
 
-/** Helper to get next opening time as string */
+/**
+ * {nextOpen} for a text: the next opening with its weekday ("8:00 AM
+ * Wednesday"), from the shop's configured hours (shared/shopState.ts).
+ *
+ * The after-hours text is marketing-class, so sendSms holds it through quiet
+ * hours and delivers it after 8 AM. The hand-typed copy this replaced said
+ * "8:00 AM tomorrow", which a form at 9 PM Tuesday delivered on Wednesday
+ * morning (issue #2579), and it retyped hours BUSINESS.hours.structured owns.
+ */
 function getNextOpenTimeStr(): string {
-  const now = new Date();
-  const et = new Date(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone }));
-  const day = et.getDay();
-  const hour = et.getHours();
-
-  if (day === 0) {
-    if (hour < 9) return "9:00 AM today";
-    return "8:00 AM tomorrow (Monday)";
-  }
-  if (day === 6) {
-    if (hour < 8) return "8:00 AM today";
-    return "9:00 AM Sunday";
-  }
-  if (hour < 8) return "8:00 AM today";
-  if (day === 5) return "8:00 AM Saturday";
-  return "8:00 AM tomorrow";
+  return nextOpeningLabel(new Date(), BUSINESS.timezone, BUSINESS.hours.structured) ?? "our next business day";
 }
 
 /**
@@ -664,7 +658,13 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
         .limit(1);
 
       if (existing && existing.idempotencyKey === idempotencyKey) {
-        log.info("Idempotency match found, returning existing orchestration", { idempotencyKey });
+        // Never the key itself: it carries the customer's full number.
+        log.info("Idempotency match found, returning existing orchestration", {
+          type: event.type,
+          existingId: existing.id,
+          status: existing.status,
+          phone: phone10.slice(-4),
+        });
         return {
           id: existing.id,
           body: existing.messageBody || "",
