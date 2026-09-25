@@ -8,4 +8,5 @@ Copilot reads this repo's canonical agent policy natively: root [`AGENTS.md`](..
 4. **Database safety:** statenour migrations are hand-applied — never `prisma db push --accept-data-loss` (it silently drops pgvector); nickstire schema truth is `drizzle/schema.ts` (TiDB).
 5. **Both web apps run as standalone iOS PWAs** — `window.confirm/alert/prompt` are silently suppressed on the operator's phone; use in-DOM two-tap confirms.
 
-Full policy and verify rules: [`AGENTS.md`](../AGENTS.md). Default execution framework: [`NOUR-COMMAND.md`](../NOUR-COMMAND.md).\nAdapter parity is guarded by `pnpm agent:parity`.
+Full policy and verify rules: [`AGENTS.md`](../AGENTS.md). Default execution framework: [`NOUR-COMMAND.md`](../NOUR-COMMAND.md).
+Adapter parity is guarded by `pnpm agent:parity`.
