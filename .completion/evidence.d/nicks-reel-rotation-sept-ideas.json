@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "No capability state is promoted by this content/rotation change. The branch appends 11 deduplicated reviewed Reel-pack slugs after current main's 122 entries, normalizes two existing reviewed packs, raises reelPackRotationCoverage.test.ts to a 133-pack preflight floor, and records the 27 -> 11 + 16 reconciliation in MIDDAY-IMPORT-2026-09-25.json plus CURRENT-TRUTH / creative CURRENT-STATE / .remember/now.md. Local execution of the production builder + runReelPreflight returned 133 checked, 0 failures. Render, publish, deployment, DB/env, and ad actions remain explicitly unclaimed."
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "packVersion": "2026-09-25.rotation-v1",
+  "topic": "sidewall indent vs bulge",
+  "mechanicTruth": "Slight inward sidewall indentations can occur where radial body plies overlap and may be normal; an outward bulge is a different condition associated with internal structural damage and needs prompt professional inspection.",
+  "driverConfusion": "A normal inward radial-tire indentation is different from an outward sidewall bulge.",
+  "sourceNotes": [
+    {
+      "label": "Michelin tire sidewall indentation and bulge guidance",
+      "kind": "proof",
+      "supports": "Slight inward sidewall indentations can occur where radial body plies overlap and may be normal; an outward bulge is a different condition associated with internal structural damage and needs prompt professional inspection."
+    }
+  ],
+  "campaignKeyword": "TIRES",
+  "hookText": "A normal inward radial-tire indentation is different from an outward sidewall bulge.",
+  "usefulAbsurdity": "A small visual detail changes the diagnosis or decision.",
+  "loopIdea": "The last shot returns to the same opening macro angle and lighting for a seamless replay.",
+  "ask": {
+    "kind": "visit"
+  },
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "unbranded automotive component macro under clean shop light",
+      "motion": "slow push-in",
+      "onScreenText": "DENT GOES IN",
+      "narration": "An inward dent and an outward bubble are different."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "truth",
+      "visual": "two matching physical comparison samples on a clean bench",
+      "motion": "short lateral slide",
+      "onScreenText": "BUBBLE COMES OUT",
+      "narration": "Radial construction can create slight inward indentations."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "mechanism",
+      "visual": "wordless mechanical cross-section model of the relevant component",
+      "motion": "controlled macro orbit",
+      "onScreenText": "THEY ARE NOT THE SAME",
+      "narration": "An outward bulge points to a different structural condition."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "nuance",
+      "visual": "second physical comparison angle under the same lighting",
+      "motion": "locked comparison move",
+      "onScreenText": "OUTWARD BULGE NEEDS ATTENTION",
+      "narration": "That needs prompt professional inspection."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "payoff",
+      "visual": "return to the opening component macro from the same angle",
+      "motion": "slow return to opening composition",
+      "onScreenText": "INSPECT ABNORMAL SIDEWALLS",
+      "narration": "Direction and construction matter; do not group every sidewall shape together."
+    }
+  ],
+  "voiceoverScript": "An inward dent and an outward bubble are different. Radial construction can create slight inward indentations. An outward bulge points to a different structural condition. That needs prompt professional inspection. Direction and construction matter; do not group every sidewall shape together.",
+  "selectedCaption": "Slight inward sidewall indentations can occur where radial body plies overlap and may be normal; an outward bulge is a different condition associated with internal structural damage and needs prompt professional inspection. A normal inward radial-tire indentation is different from an outward sidewall bulge. Nick's Tire & Auto can inspect the actual condition before parts are replaced.",
+  "hashtags": [
+    "#TireBulge",
+    "#TireSidewall",
+    "#ClevelandCars",
+    "#ClevelandTires",
+    "#NicksTire"
+  ],
+  "productionPack": {
+    "distribution": "ad-ready",
+    "modelRecommendation": "Original Nick's footage first; cheapest competent Higgsfield I2V only for a missing connector shot; premium only after cheaper geometry fails.",
+    "creditEfficiencyNote": "Target 0 fresh credits.",
+    "platformOriginalitySafety": "Use first-party footage and deterministic overlays. Never present generated defects, readings, or customer events as real. Instagram/Facebook only; no TikTok-specific execution.",
+    "qaGate": [
+      "No fabricated measurements or defects.",
+      "No universal torque, pressure, or fitment claim.",
+      "No synthetic customer evidence."
+    ]
+  }
+}

@@ -204,6 +204,22 @@ export const APPROVED_REEL_PACK_SLUGS = [
   "2026-09-25-driven-flat-hidden-internal-damage",
   "2026-09-25-epdm-belt-wear-no-cracks",
   "2026-09-25-swollen-capped-lug-nuts",
+
+  // -- Approved 2026-09-25: midday-batch reconciliation after #2655 --------
+  // 27 source concepts reconciled against current main: 11 distinct lessons
+  // appended here; 16 are already covered by the existing/evening rotation.
+  // APPEND ONLY: reel_approved_pack_rotation_index is an array index.
+  "2026-09-06-nitrogen-vs-air-tire-fill",
+  "2026-08-27-foggy-windshield-recirculate-trick",
+  "2026-09-25-locking-lug-roadside-tool",
+  "2026-09-25-lug-nut-seat-shape-fit",
+  "2026-09-25-hidden-inner-lip-wheel-bend",
+  "2026-09-25-utqg-treadwear-not-mileage",
+  "2026-09-25-strut-misting-vs-leak",
+  "2026-09-25-run-flat-can-look-normal",
+  "2026-09-25-wheel-fitment-beyond-bolt-pattern",
+  "2026-09-25-sidewall-indent-vs-bulge",
+  "2026-09-25-ms-vs-3pmsf",
 ] as const;
 
 /**

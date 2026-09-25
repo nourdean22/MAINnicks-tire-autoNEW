@@ -169,9 +169,10 @@ describe("the rotation array's own invariants", () => {
  * fixed. The failure message still prints the blocking histogram, so the first
  * line of a red run names the class and the pack.
  */
-// 2026-09-25: operator evening-batch import adds 23 distinct packs. The full
-// rotation must remain preflight-clean; lowering this floor hides regressions.
-const PREFLIGHT_PASSING_FLOOR = 122;
+// 2026-09-25: evening import added 23 distinct packs; the reconciled midday
+// import adds 11 more distinct lessons after removing 16 semantic duplicates.
+// The full 133-pack rotation must remain preflight-clean; never lower the floor.
+const PREFLIGHT_PASSING_FLOOR = 133;
 
 /** Packs that clear the REAL pre-spend gate, not merely the builder. */
 function preflightVerdicts() {

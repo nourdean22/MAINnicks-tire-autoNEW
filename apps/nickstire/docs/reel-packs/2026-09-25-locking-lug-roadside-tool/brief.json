@@ -1,18 +1,18 @@
 {
   "packVersion": "2026-09-25.rotation-v1",
-  "topic": "nitrogen vs air tire fill",
-  "mechanicTruth": "Compressed air can be added to a nitrogen-filled tire; correct cold inflation pressure matters more than preserving nitrogen purity.",
-  "driverConfusion": "Nitrogen-filled tire: can you add normal compressed air?",
+  "topic": "wheel lock key roadside",
+  "mechanicTruth": "A locking wheel fastener requires its matching key or removal tool; a spare, jack, and lug wrench do not by themselves ensure wheel removal.",
+  "driverConfusion": "A spare tire kit can still leave you stuck if a locking wheel fastener is installed and its matching key is missing.",
   "sourceNotes": [
     {
-      "label": "Michelin tire inflation and nitrogen guidance",
+      "label": "McGard wheel-lock installation and replacement-key guidance",
       "kind": "proof",
-      "supports": "Compressed air can be added to a nitrogen-filled tire; correct cold inflation pressure matters more than preserving nitrogen purity."
+      "supports": "A locking wheel fastener requires its matching key or removal tool; a spare, jack, and lug wrench do not by themselves ensure wheel removal."
     }
   ],
-  "campaignKeyword": "PRESSURE",
-  "hookText": "Nitrogen-filled tire: can you add normal compressed air?",
-  "usefulAbsurdity": "A familiar visual cue can mean something different from the first assumption.",
+  "campaignKeyword": "SPARE",
+  "hookText": "A spare tire kit can still leave you stuck if a locking wheel fastener is installed and its matching key is missing.",
+  "usefulAbsurdity": "A small visual detail changes the diagnosis or decision.",
   "loopIdea": "The last shot returns to the same opening macro angle and lighting for a seamless replay.",
   "ask": {
     "kind": "visit"
@@ -25,8 +25,8 @@
       "purpose": "hook",
       "visual": "unbranded automotive component macro under clean shop light",
       "motion": "slow push-in",
-      "onScreenText": "NITROGEN TIRE LOW?",
-      "narration": "Nitrogen tire low? Regular air can still be added."
+      "onScreenText": "SPARE + JACK + WRENCH",
+      "narration": "Spare, jack, and wrench can still leave you stuck."
     },
     {
       "beatNumber": 2,
@@ -35,8 +35,8 @@
       "purpose": "truth",
       "visual": "two matching physical comparison samples on a clean bench",
       "motion": "short lateral slide",
-      "onScreenText": "REGULAR AIR IS OK",
-      "narration": "The gases can mix without harming the tire."
+      "onScreenText": "ONE LUG CAN STILL STOP YOU",
+      "narration": "A wheel lock needs its matching key."
     },
     {
       "beatNumber": 3,
@@ -45,8 +45,8 @@
       "purpose": "mechanism",
       "visual": "wordless mechanical cross-section model of the relevant component",
       "motion": "controlled macro orbit",
-      "onScreenText": "THE GASES CAN MIX",
-      "narration": "Correct cold pressure matters more than gas purity."
+      "onScreenText": "WHEEL LOCKS NEED THEIR KEY",
+      "narration": "Without it, the normal wrench may not remove the wheel."
     },
     {
       "beatNumber": 4,
@@ -55,8 +55,8 @@
       "purpose": "nuance",
       "visual": "second physical comparison angle under the same lighting",
       "motion": "locked comparison move",
-      "onScreenText": "PRESSURE STILL NEEDS CHECKING",
-      "narration": "Nitrogen does not eliminate pressure checks or leaks."
+      "onScreenText": "FIND IT BEFORE A FLAT",
+      "narration": "Find the key before a roadside flat."
     },
     {
       "beatNumber": 5,
@@ -65,15 +65,15 @@
       "purpose": "payoff",
       "visual": "return to the opening component macro from the same angle",
       "motion": "slow return to opening composition",
-      "onScreenText": "CORRECT PSI MATTERS MORE",
-      "narration": "Repeated pressure loss still needs diagnosis."
+      "onScreenText": "KEEP THE KEY WITH THE TOOLS",
+      "narration": "Keep it accessible with the vehicle tools."
     }
   ],
-  "voiceoverScript": "Nitrogen tire low? Regular air can still be added. The gases can mix without harming the tire. Correct cold pressure matters more than gas purity. Nitrogen does not eliminate pressure checks or leaks. Repeated pressure loss still needs diagnosis.",
-  "selectedCaption": "Compressed air can be added to a nitrogen-filled tire; correct cold inflation pressure matters more than preserving nitrogen purity. Nitrogen-filled tire: can you add normal compressed air? Nick's Tire & Auto can inspect the actual condition before parts are replaced.",
+  "voiceoverScript": "Spare, jack, and wrench can still leave you stuck. A wheel lock needs its matching key. Without it, the normal wrench may not remove the wheel. Find the key before a roadside flat. Keep it accessible with the vehicle tools.",
+  "selectedCaption": "A locking wheel fastener requires its matching key or removal tool; a spare, jack, and lug wrench do not by themselves ensure wheel removal. A spare tire kit can still leave you stuck if a locking wheel fastener is installed and its matching key is missing. Nick's Tire & Auto can inspect the actual vehicle or tire before parts are replaced.",
   "hashtags": [
-    "#NitrogenTires",
-    "#TirePressure",
+    "#WheelLocks",
+    "#FlatTire",
     "#ClevelandCars",
     "#ClevelandTires",
     "#NicksTire"
