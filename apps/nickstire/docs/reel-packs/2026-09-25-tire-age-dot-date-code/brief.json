@@ -71,7 +71,7 @@
       "startSecond": 12,
       "endSecond": 16,
       "purpose": "VALUE",
-      "visual": "Close inspection view that reveals the mechanical distinction without requiring any generated readout.",
+      "visual": "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
       "motion": "Short controlled lateral move with stable geometry.",
       "onScreenText": "LAST FOUR = WEEK + YEAR",
       "narration": "",
