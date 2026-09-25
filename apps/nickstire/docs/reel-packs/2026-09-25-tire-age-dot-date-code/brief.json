@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-tire-age-dot-date-code",
+  "title": "Great Tread Does Not Tell You the Tire's Birthday",
+  "topic": "Tire age is separate from tread depth and can be read from the DOT date code",
+  "mechanicTruth": "Tread depth and tire age measure different things; the final four digits of the DOT Tire Identification Number encode the week and year of manufacture, and age should be considered alongside condition and manufacturer guidance.",
+  "campaignKeyword": "DOT",
+  "hookText": "PLENTY OF TREAD",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "NHTSA tire-aging guidance + Michelin tire-age guidance",
+      "kind": "proof",
+      "supports": "Tread depth and tire age measure different things; the final four digits of the DOT Tire Identification Number encode the week and year of manufacture, and age should be considered alongside condition and manufacturer guidance."
+    }
+  ],
+  "videoPrompt": "Real deep-tread macro followed by a real DOT date-code close-up; never generate factual digits.",
+  "modelRecommendation": "Real tire only; no generated date-code text.",
+  "creditEfficiencyNote": "0 credits. Build a date-code library for used tires, spares and low-mileage vehicles.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "PLENTY OF TREAD",
+      "narration": "Tread depth does not tell you a tire's age.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "GOOD TIRE?",
+      "narration": "The final four digits of the DOT tire number encode the week and year of manufacture.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "HOW OLD IS IT?",
+      "narration": "Age is one part of the inspection, alongside tread, damage, use, and manufacturer guidance.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "LAST FOUR = WEEK + YEAR",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "TREAD + AGE + CONDITION",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "Tread depth does not tell you a tire's age. The final four digits of the DOT tire number encode the week and year of manufacture. Age is one part of the inspection, alongside tread, damage, use, and manufacturer guidance.",
+  "selectedCaption": "A tire can look nearly new and still be older than expected. The DOT date code gives the week and year of manufacture.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from tread-depth and used-tire inspection packs: this is tire age and the DOT date code."
+}

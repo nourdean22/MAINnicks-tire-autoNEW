@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-ohio-used-tire-whole-inspection",
+  "title": "Good Tread Does Not Automatically Make an Ohio Used Tire Installable",
+  "topic": "Ohio used-tire safety criteria go beyond tread depth",
+  "mechanicTruth": "Ohio law prohibits suppliers from installing used passenger tires that meet statutory unsafe-used-tire criteria, and those criteria include more than tread depth, including certain structural damage and improper repair conditions.",
+  "campaignKeyword": "TIRES",
+  "hookText": "PLENTY OF TREAD",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Ohio Revised Code 1345.022",
+      "kind": "proof",
+      "supports": "Ohio law prohibits suppliers from installing used passenger tires that meet statutory unsafe-used-tire criteria, and those criteria include more than tread depth, including certain structural damage and improper repair conditions."
+    }
+  ],
+  "videoPrompt": "Use real rejected used tires: outside tread first, then bead, liner, repair or structural evidence. Generated footage stays neutral.",
+  "modelRecommendation": "Real Nick's rejected-tire footage only.",
+  "creditEfficiencyNote": "0 credits. Each rejected tire becomes reusable proprietary evidence.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "PLENTY OF TREAD",
+      "narration": "Good tread is only one part of a used-tire decision.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "GOOD TIRE?",
+      "narration": "Ohio's unsafe-used-tire rules also cover structural damage and certain repair conditions.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "OHIO CHECKS MORE THAN TREAD",
+      "narration": "A legitimate inspection looks at the whole tire, including areas the customer cannot see.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "STRUCTURE + REPAIRS MATTER",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "INSPECT THE WHOLE TIRE",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "Good tread is only one part of a used-tire decision. Ohio's unsafe-used-tire rules also cover structural damage and certain repair conditions. A legitimate inspection looks at the whole tire, including areas the customer cannot see.",
+  "selectedCaption": "A used tire can have good tread and still fail the rest of the inspection. Ohio's unsafe-used-tire criteria go beyond tread depth. Nick's checks the whole tire before deciding whether it belongs back on the road.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from generic used-tire sales content: this is specifically Ohio's whole-tire safety standard."
+}

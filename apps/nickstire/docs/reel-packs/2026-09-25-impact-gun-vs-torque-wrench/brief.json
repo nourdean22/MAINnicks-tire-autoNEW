@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-impact-gun-vs-torque-wrench",
+  "title": "Impact-Gun Tight Is Not Verified Torque",
+  "topic": "Final wheel torque must be verified to the applicable specification",
+  "mechanicTruth": "Impact-tool output varies, so wheel hardware final torque should be verified using the vehicle or wheel manufacturer's applicable specification and tightening procedure.",
+  "campaignKeyword": "TIRES",
+  "hookText": "IMPACT: TIGHT",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Tire Rack wheel-installation guidance + Continental wheel-torque guidance",
+      "kind": "proof",
+      "supports": "Impact-tool output varies, so wheel hardware final torque should be verified using the vehicle or wheel manufacturer's applicable specification and tightening procedure."
+    }
+  ],
+  "videoPrompt": "Film actual wheel seating and final torque-wrench verification; keep specification values factual and out of synthetic footage.",
+  "modelRecommendation": "Real Nick's wheel-installation process only.",
+  "creditEfficiencyNote": "0 credits. One torque-wrench master can serve many future reels.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "IMPACT: TIGHT",
+      "narration": "An impact gun can make a lug tight, but its output varies.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "CORRECT TORQUE?",
+      "narration": "Final wheel torque should follow the applicable vehicle or wheel specification and tightening procedure.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "OUTPUT VARIES",
+      "narration": "The last step is verification, not judging how loud the impact sounded.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "USE THE APPLICABLE SPEC",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "SPEC -> SEQUENCE -> VERIFY",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "An impact gun can make a lug tight, but its output varies. Final wheel torque should follow the applicable vehicle or wheel specification and tightening procedure. The last step is verification, not judging how loud the impact sounded.",
+  "selectedCaption": "Fast and precise are different jobs. Impact tools are useful, but final wheel torque should be verified to the applicable specification and sequence.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from wheel-stud failure and general lug re-torque: this is impact output versus verified final torque."
+}

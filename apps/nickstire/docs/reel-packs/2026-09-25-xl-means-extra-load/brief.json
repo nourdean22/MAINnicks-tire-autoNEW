@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-xl-means-extra-load",
+  "title": "XL Means Extra Load, Not Extra Large",
+  "topic": "XL on a passenger tire means Extra Load",
+  "mechanicTruth": "On passenger tires, XL means Extra Load: a load-capability designation tied to reinforced construction and specified inflation/load conditions, not a statement that the tire is physically extra large.",
+  "campaignKeyword": "TIRES",
+  "hookText": "XL",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Michelin Extra Load tire guidance",
+      "kind": "proof",
+      "supports": "On passenger tires, XL means Extra Load: a load-capability designation tied to reinforced construction and specified inflation/load conditions, not a statement that the tire is physically extra large."
+    }
+  ],
+  "videoPrompt": "Use real XL sidewall markings and same-size tire examples; any construction comparison should be deterministic and unbranded.",
+  "modelRecommendation": "Real tire sidewall first; no generated text.",
+  "creditEfficiencyNote": "0 credits. One sidewall capture session supports many fitment lessons.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "XL",
+      "narration": "XL on a passenger tire does not mean extra large.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "EXTRA LARGE?",
+      "narration": "It means Extra Load.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "EXTRA LOAD",
+      "narration": "Two tires can share the same size while carrying different load specifications, so replacement fitment is more than matching the biggest numbers.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "SAME SIZE CAN HAVE DIFFERENT LOAD SPECS",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "MATCH THE VEHICLE REQUIREMENT",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "XL on a passenger tire does not mean extra large. It means Extra Load. Two tires can share the same size while carrying different load specifications, so replacement fitment is more than matching the biggest numbers.",
+  "selectedCaption": "XL on a passenger tire means Extra Load, not Extra Large. Size, load specification, speed rating, and vehicle requirements all matter when comparing replacement tires.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from the excluded generic sidewall-numbers repost: this is one focused XL misconception."
+}
