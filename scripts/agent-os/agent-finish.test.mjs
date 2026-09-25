@@ -168,6 +168,6 @@ test("REAL BINARY: --force-release-foreign with no reason is refused (exit 1) an
   writeLocalMarker(dir, { branch: "main", sessionId: "someone-else", expiresAt: new Date(Date.now() + 3600000).toISOString() });
   const r = runFinish(dir, ["--force-release-foreign"]);
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /requires a reason/);
+  assert.match(r.stderr, /requires a prose reason/);
   assert.equal(readLocalMarker(dir)?.sessionId, "someone-else");
 });
