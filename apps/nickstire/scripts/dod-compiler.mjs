@@ -126,7 +126,10 @@ const isFresh = (id) => JSON.stringify(manifest.evidence?.[id]) !== JSON.stringi
 const FRAGMENT_DIR = ".completion/evidence.d";
 const fragmentProblems = [];
 const entryKey = (v) => JSON.stringify(v);
-const hasEvidence = (ev) => Boolean(ev && (ev.ref || ev.deferred));
+const evidenceText = (value) => typeof value === "string" && value.trim().length > 0 ? value : null;
+const evidenceRef = (ev) => evidenceText(ev?.ref);
+const evidenceDeferred = (ev) => evidenceText(ev?.deferred);
+const hasEvidence = (ev) => Boolean(evidenceRef(ev) || evidenceDeferred(ev));
 
 let mergeBase = base;
 try {
@@ -196,10 +199,10 @@ for (const rule of RULES) {
       id: rule.id,
       description: rule.description,
       touched: touched.length,
-      status: fromDiff ? "passed" : freshFrag.ev.ref ? "passed" : "deferred",
+      status: fromDiff ? "passed" : evidenceRef(freshFrag.ev) ? "passed" : "deferred",
       evidence: fromDiff
         ? "(satisfied by diff)"
-        : `${freshFrag.file}: ${freshFrag.ev.ref ?? `DEFERRED: ${freshFrag.ev.deferred}`}`,
+        : `${freshFrag.file}: ${evidenceRef(freshFrag.ev) ?? `DEFERRED: ${evidenceDeferred(freshFrag.ev)}`}`,
     });
     continue;
   }
@@ -212,7 +215,7 @@ for (const rule of RULES) {
   const status = fromDiff
     ? "passed"
     : fresh
-      ? (ev.deferred ? "deferred" : "passed")
+      ? (evidenceDeferred(ev) ? "deferred" : "passed")
       : hasEntry
         ? "stale"
         : "missing";
@@ -222,8 +225,8 @@ for (const rule of RULES) {
     touched: touched.length,
     status,
     evidence: status === "stale"
-      ? `${staleFrag ? `${staleFrag.file} ` : ""}written for an EARLIER change, not this diff — ${String(ev.ref ?? ev.deferred).slice(0, 90)}`
-      : ev?.ref ?? (fromDiff ? "(satisfied by diff)" : ev?.deferred ? `DEFERRED: ${ev.deferred}` : null),
+      ? `${staleFrag ? `${staleFrag.file} ` : ""}written for an EARLIER change, not this diff — ${String(evidenceRef(ev) ?? evidenceDeferred(ev)).slice(0, 90)}`
+      : evidenceRef(ev) ?? (fromDiff ? "(satisfied by diff)" : evidenceDeferred(ev) ? `DEFERRED: ${evidenceDeferred(ev)}` : null),
   });
 }
 
