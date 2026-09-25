@@ -176,6 +176,18 @@ test("PINS: an empty entry ({}) in a new fragment is not evidence -> RED", (t) =
   assert.match(line(r.out, "cron-fail-closed"), /MISSING|STALE/);
 });
 
+test("PINS: non-string or blank ref/deferred values are not evidence", (t) => {
+  for (const ev of [{ ref: [] }, { ref: {} }, { deferred: [] }, { deferred: "   " }]) {
+    const dir = scratch(t, { legacy: false });
+    write(dir, CRON, "export {};\n");
+    write(dir, ".completion/evidence.d/chore-this-pr.json", { evidence: { "cron-fail-closed": ev } });
+    commit(dir);
+    const r = run(dir);
+    assert.equal(r.status, 1, r.out);
+    assert.match(line(r.out, "cron-fail-closed"), /MISSING/);
+  }
+});
+
 test("FAILS-ON-OLD: a malformed fragment fails --enforce loudly instead of being skipped", (t) => {
   const dir = scratch(t);
   write(dir, "docs/unrelated.md", "no rule path\n");
