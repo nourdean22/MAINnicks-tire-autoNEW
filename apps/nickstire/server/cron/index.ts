@@ -159,6 +159,44 @@ let _lockTableMissingLogged = false;
  */
 const heldLocks = new Map<string, LockToken>();
 
+/**
+ * Shutdown drain (Q-10). Every runner in this app — the tiered pass
+ * (scheduler.ts runTier), the manual tier run (runTierJobByName) and the HTTP
+ * trigger (runJobByName) — reports each handler it starts here, and checks
+ * `isCronDraining()` immediately before starting one. On SIGTERM the server
+ * calls `beginCronDrain()`, so no NEW handler starts, while the ones already
+ * running are awaited up to the shutdown grace budget (_core/gracefulShutdown.ts)
+ * instead of being killed by a fixed 10-second force-exit.
+ *
+ * The handler promise itself is tracked, not the timeout race around it: a job
+ * past its budget is still doing work, and exiting under it is the thing this
+ * guards against.
+ */
+let cronDraining = false;
+let cronRunSeq = 0;
+const inFlightRuns = new Map<number, { jobName: string; done: Promise<void> }>();
+
+export function beginCronDrain(): void { cronDraining = true; }
+export function isCronDraining(): boolean { return cronDraining; }
+
+/** Register a started handler; returns the same promise so call sites stay unchanged. */
+export function trackCronRun<T>(jobName: string, run: Promise<T>): Promise<T> {
+  const id = ++cronRunSeq;
+  const done = run.then(() => undefined, () => undefined).finally(() => { inFlightRuns.delete(id); });
+  inFlightRuns.set(id, { jobName, done });
+  return run;
+}
+
+/** Names of cron handlers still running, one entry per run. */
+export function inFlightCronRuns(): string[] {
+  return [...inFlightRuns.values()].map((r) => r.jobName);
+}
+
+/** Resolves once every tracked handler has settled (fulfilled or rejected). */
+export async function whenCronRunsSettled(): Promise<void> {
+  while (inFlightRuns.size) await Promise.all([...inFlightRuns.values()].map((r) => r.done));
+}
+
 export async function acquireCronLock(jobName: string, ttlMs: number = LOCK_TTL_MS): Promise<LockResult> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
@@ -388,13 +426,17 @@ export async function runJobByName(jobName: string): Promise<{ status: string; r
   if (lockResult.status === "held-by-other") {
     return { status: "skipped", details: "cross-dyno lock held by another process (Railway worker HTTP trigger)" };
   }
+  if (isCronDraining()) {
+    if (lockResult.status === "acquired") await releaseCronLock(lockResult);
+    return { status: "skipped", details: "server shutting down — no new job starts" };
+  }
 
   const startedAt = Date.now();
   let timedOut = false;
   let jobTimer: NodeJS.Timeout | undefined;
   try {
     const result = await Promise.race([
-      job.handler(),
+      trackCronRun(job.name, job.handler()),
       new Promise<never>((_, reject) => {
         jobTimer = setTimeout(() => { timedOut = true; reject(new Error("timeout")); }, budgetMs);
       }),
