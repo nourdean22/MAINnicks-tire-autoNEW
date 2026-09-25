@@ -1,0 +1,16 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "Q-48 current-main rebuild. server/placesContentStorage.test.ts pins that competitor-monitor and review-monitor no longer persist Google Places rating/review-count content. reviewMonitor still throws on non-OK/non-ZERO_RESULTS Places statuses; scheduler keeps requiresEnv gating and the competitor-monitor job reports only place_id registry counts. No customer send is added."
+    },
+    "migration-evidence": {
+      "deferred": "drizzle/0131_places_content_purge.sql is HAND-APPLIED / OPERATOR-PENDING and is NOT run by this PR. It deletes historical competitor_snapshots source=google_places, system_sync reviewCount/reviewRating rows, cmp:* alert dedupe rows, and the retired competitor_threshold_alerts flag. Current main already owns 0130_tire_registrations, so this rebuild renumbers the old Q-48 purge to 0131 and journals it at idx 144. Apply only after the code is deployed so old writers cannot repopulate the rows."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability state is promoted. This change removes a prohibited storage/history mechanism and its threshold alert; it does not prove a new customer-facing capability. Google Maps Platform terms rechecked 2026-09-25: general Maps terms prohibit caching Maps Content unless expressly permitted, while Service Specific Terms expressly permit caching place IDs and limited Places lat/lng. This safeguard keeps place_id and removes persisted rating/review-count history."
+    },
+    "operator-walkthrough": {
+      "deferred": "After deployment, Admin -> Growth should no longer claim automatic competitor rating/count history or threshold alerts. No live admin walkthrough is performed by this PR."
+    }
+  }
+}
