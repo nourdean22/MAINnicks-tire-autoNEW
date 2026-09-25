@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "server/cron/shutdownDrain.test.ts + server/_core/gracefulShutdown.test.ts: SIGTERM stops new cron/HTTP/SMS work, waits for in-flight work up to validated NICKSTIRE_SHUTDOWN_GRACE_MS, hands back locks, ignores a second SIGTERM, exits 0 on drain and 1 with SHUTDOWN_DRAIN_TIMEOUT when work exceeds the budget. Production effectiveness still requires operator-set RAILWAY_DEPLOYMENT_DRAINING_SECONDS above the grace budget."
+    }
+  }
+}
