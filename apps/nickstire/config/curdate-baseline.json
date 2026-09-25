@@ -98,12 +98,6 @@
       "reason": "Nour OS query windows (estimates, drop-offs, Uber requests) as DATE_SUB(CURDATE(), INTERVAL n DAY): the edge sits at 8 PM ET (7 PM in winter) instead of midnight, a drift of hours on a multi-day window. The file's 'today' already uses the ET date (v1.7.6)."
     },
     {
-      "file": "server/services/competitorMonitor.ts",
-      "count": 1,
-      "effect": "alert-dedupe",
-      "reason": "fired_for = CURDATE() is the once-per-day slot per competitor change for the owner's 'Competitor threshold breach' alert. The slot's day runs 8 PM to 8 PM ET (7 PM in winter), so an alert can repeat within one ET day and then be held until 8 PM the next. Owner-only."
-    },
-    {
       "file": "server/services/costDetailCoverage.ts",
       "count": 1,
       "effect": "alert-dedupe",
