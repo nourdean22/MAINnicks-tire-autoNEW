@@ -1,6 +1,15 @@
 # Creative-quality long haul — current state
 
-Updated with Reel-rotation receipt: 2026-09-25T11:21Z · main `f5f621379` (#2655). The older long-haul milestones below retain their historical verification context; this update does not re-certify every July claim.
+Updated with midday Reel reconciliation: 2026-09-25T11:44Z · PR #2656 rebased on main `3909f7c5b`; 133/133 production preflight locally. The older long-haul milestones below retain their historical verification context; this update does not re-certify every July claim.
+
+## 2026-09-25 · midday rotation reconciliation
+
+- **Rotation candidate:** 122 -> **133** approved packs, append-only; persisted cursor semantics are unchanged.
+- **Midday census:** 27 source concepts -> **11 distinct additions + 16 already-covered concepts** after reconciling against #2655's newer evening import. Map: `docs/reel-packs/MIDDAY-IMPORT-2026-09-25.json`.
+- **Pre-spend gate:** ratchet raised to `PREFLIGHT_PASSING_FLOOR = 133`; direct execution of the real builder + `runReelPreflight` returned **133 checked / 0 failures** locally.
+- **Useful failure caught:** UTQG social copy initially used the existing hard-block terms “warranty” / “guarantee.” Copy was changed to manufacturer tread-life coverage / mileage promise; the gate stayed intact.
+- **Deduping mattered:** rotor rust, oil-life/oil-pressure, ABS, XL, TPMS flash/steady, bead/rim slow leak, puncture repair zone, impact-vs-torque, two-new-tires rear, battery-light charging system, and directional/asymmetric mounting were already covered on current `main` and were not added again.
+- **Not claimed:** no live render/publish, production DB/env mutation, ad action, or Railway deployment receipt. Full GitHub CI remains the merge authority.
 
 ## 2026-09-25 · approved-pack rotation expansion
 

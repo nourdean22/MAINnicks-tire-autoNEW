@@ -1,90 +1,92 @@
 {
-  "topic_slug": "foggy-windshield-recirculate-trick",
-  "date": "2026-08-27",
-  "mode": "SCHEDULED",
-  "status": "READY_FOR_HUMAN_APPROVAL",
-  "motion_route_status": "BLOCKED_NO_MOTION_ROUTE",
-  "faceless": true,
-  "length_seconds": 24,
-  "aspect_ratio": "9:16",
-  "hook": "Your windshield is fogging up and you just made it worse.",
-  "cta": "One clue, one fix — stop by and we'll take a look.",
-  "standing_negative_prompt": "faces, hands close enough to show fingerprints or rings, human figures, on-screen text, logos, watermarks, subtitles",
-  "beats": [
+  "packVersion": "2026-09-25.rotation-v1",
+  "topic": "foggy windshield recirculate trick",
+  "mechanicTruth": "Air conditioning dehumidifies cabin air, so a vehicle can use A/C while heating or defrosting to send drier air toward a fogged windshield.",
+  "driverConfusion": "Why A/C can run while the heater or windshield defrost is on",
+  "sourceNotes": [
     {
-      "index": 1,
-      "start": 0,
-      "end": 3,
-      "vo": "If your windshield's fogging up, don't hit this button.",
-      "prompt": "Close-up dashboard shot, driver's hand reaching toward a car's recirculate button (looping arrow icon), interior car cabin, natural daylight through windshield, shallow depth of field, realistic automotive interior, motion toward the button."
-    },
-    {
-      "index": 2,
-      "start": 3,
-      "end": 7,
-      "vo": "Recirculate traps the moist air already inside your cabin.",
-      "prompt": "Car dashboard recirculate button glowing green/active, time-lapse style fog visibly thickening and creeping across the inside of a windshield, cool humid morning light, realistic condensation texture forming."
-    },
-    {
-      "index": 3,
-      "start": 7,
-      "end": 11,
-      "vo": "That's the opposite of what you want when the glass is already fogged.",
-      "prompt": "Driver's hand pulling back from a car dashboard button, slight camera pan across dashboard vents, foggy windshield still visible in background, realistic automotive interior lighting."
-    },
-    {
-      "index": 4,
-      "start": 11,
-      "end": 16,
-      "vo": "Turn off recirculate, crank the defrost, and add the AC — even in winter.",
-      "prompt": "Close-up of fingers pressing a car's defrost button then AC button on dashboard, vents visibly blowing air toward windshield, cool blue dashboard lighting, realistic automotive interior."
-    },
-    {
-      "index": 5,
-      "start": 16,
-      "end": 20,
-      "vo": "The AC pulls the humidity out of the air so the fog can't reform.",
-      "prompt": "Time-lapse of fog clearing from the inside of a car windshield, vents blowing steadily, morning light brightening through clearing glass, realistic condensation dissipating."
-    },
-    {
-      "index": 6,
-      "start": 20,
-      "end": 24,
-      "vo": "One clue, one fix — stop by and we'll take a look if it's not clearing.",
-      "prompt": "Static end-card frame, clean dashboard/windshield background for text overlay, no motion (SAVE freeze beat).",
-      "is_save_freeze": true
+      "label": "Toyota climate-control and windshield-defogging owner guidance",
+      "kind": "proof",
+      "supports": "Air conditioning dehumidifies cabin air, so a vehicle can use A/C while heating or defrosting to send drier air toward a fogged windshield."
     }
   ],
-  "ig_fb_primary_caption": "Your windshield's fogging up and recirculate just made it worse. 🚗💨 Here's the fix — turn it off, crank the defrost, add the AC (yes, even in winter). One clue, one fix. Stop by Nick's Tire & Auto if it's not clearing. #NicksTireAuto #CarCareTips #WindshieldFog #DefrostTrick #EuclidOhio",
-  "hashtags": ["NicksTireAuto", "CarCareTips", "WindshieldFog", "DefrostTrick", "DriveSafe", "ClevelandOhio", "EuclidOhio", "WinterDriving"],
-  "ad_variants": [
+  "campaignKeyword": "WIPERS",
+  "hookText": "Why A/C can run while the heater or windshield defrost is on",
+  "usefulAbsurdity": "A familiar visual cue can mean something different from the first assumption.",
+  "loopIdea": "The last shot returns to the same opening macro angle and lighting for a seamless replay.",
+  "ask": {
+    "kind": "visit"
+  },
+  "storyboardBeats": [
     {
-      "label": "A_curiosity",
-      "hook": "Stop hitting that button when your windshield fogs up.",
-      "caption": "Recirculate feels right but it traps the moisture that's fogging your glass. Defrost + AC clears it fast — even in winter.",
-      "cta": "Save this for your next foggy morning. Questions? Stop by and we'll take a look."
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "unbranded automotive component macro under clean shop light",
+      "motion": "slow push-in",
+      "onScreenText": "HEAT ON + A/C?",
+      "narration": "Heat is on, so why can the A/C help?"
     },
     {
-      "label": "B_direct_tip",
-      "hook": "Foggy windshield fix: 10 seconds, no fancy tools.",
-      "caption": "Turn off recirculate, run the defrost, add the AC. Humidity's the enemy — dry air clears the glass.",
-      "cta": "Bookmark this. And if your defrost isn't keeping up, stop by and we'll take a look."
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "truth",
+      "visual": "two matching physical comparison samples on a clean bench",
+      "motion": "short lateral slide",
+      "onScreenText": "A/C ALSO DRIES AIR",
+      "narration": "Air conditioning also removes moisture from cabin air."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "mechanism",
+      "visual": "wordless mechanical cross-section model of the relevant component",
+      "motion": "controlled macro orbit",
+      "onScreenText": "MOISTURE GETS REMOVED",
+      "narration": "Drier air helps clear interior windshield fog."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "nuance",
+      "visual": "second physical comparison angle under the same lighting",
+      "motion": "locked comparison move",
+      "onScreenText": "DRIER WARM AIR CLEARS GLASS",
+      "narration": "The system can warm that drier air afterward."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "payoff",
+      "visual": "return to the opening component macro from the same angle",
+      "motion": "slow return to opening composition",
+      "onScreenText": "THAT CAN BE NORMAL",
+      "narration": "Exact climate-control behavior varies by vehicle."
     }
   ],
-  "claim_evidence": {
-    "type": "general_hvac_knowledge",
-    "business_fact_rows_used": [],
-    "evidence_records_used": []
-  },
-  "credit_risk": {
-    "generation_attempted": false,
-    "estimated_cost_usd_if_seedance": 1.50,
-    "estimated_cost_usd_if_template_stock": 0,
-    "active_provider": "UNKNOWN"
-  },
-  "audio_rights": {
-    "music_bed_used": false,
-    "vo_only": true,
-    "rights_ledger_status": "NO_LEDGER_EXISTS_REPO_GAP"
+  "voiceoverScript": "Heat is on, so why can the A/C help? Air conditioning also removes moisture from cabin air. Drier air helps clear interior windshield fog. The system can warm that drier air afterward. Exact climate-control behavior varies by vehicle.",
+  "selectedCaption": "Air conditioning dehumidifies cabin air, so a vehicle can use A/C while heating or defrosting to send drier air toward a fogged windshield. Why A/C can run while the heater or windshield defrost is on Nick's Tire & Auto can inspect the actual condition before parts are replaced.",
+  "hashtags": [
+    "#WindshieldFog",
+    "#CarAC",
+    "#ClevelandCars",
+    "#ClevelandTires",
+    "#NicksTire"
+  ],
+  "productionPack": {
+    "distribution": "ad-ready",
+    "modelRecommendation": "Original Nick's footage first; cheapest competent Higgsfield I2V only for a missing connector shot; premium only after cheaper geometry fails.",
+    "creditEfficiencyNote": "Target 0 fresh credits.",
+    "platformOriginalitySafety": "Use first-party footage and deterministic overlays. Never present generated defects, readings, or customer events as real. Instagram/Facebook only; no TikTok-specific execution.",
+    "qaGate": [
+      "No fabricated measurements or defects.",
+      "No universal torque, pressure, or fitment claim.",
+      "No synthetic customer evidence."
+    ]
   }
 }

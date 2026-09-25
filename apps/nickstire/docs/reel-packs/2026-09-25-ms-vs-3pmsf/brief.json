@@ -1,0 +1,92 @@
+{
+  "packVersion": "2026-09-25.rotation-v1",
+  "topic": "ms vs 3pmsf",
+  "mechanicTruth": "M+S identifies a tread-design classification and does not by itself represent the standardized snow-traction performance threshold required for the Three-Peak Mountain Snowflake mark; 3PMSF can appear on winter and some all-weather tires.",
+  "driverConfusion": "M+S marking is not the same as Three-Peak Mountain Snowflake snow-traction qualification.",
+  "sourceNotes": [
+    {
+      "label": "Michelin tire sidewall and winter-marking guidance",
+      "kind": "proof",
+      "supports": "M+S identifies a tread-design classification and does not by itself represent the standardized snow-traction performance threshold required for the Three-Peak Mountain Snowflake mark; 3PMSF can appear on winter and some all-weather tires."
+    }
+  ],
+  "campaignKeyword": "TIRES",
+  "hookText": "M+S marking is not the same as Three-Peak Mountain Snowflake snow-traction qualification.",
+  "usefulAbsurdity": "A small visual detail changes the diagnosis or decision.",
+  "loopIdea": "The last shot returns to the same opening macro angle and lighting for a seamless replay.",
+  "ask": {
+    "kind": "visit"
+  },
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "unbranded automotive component macro under clean shop light",
+      "motion": "slow push-in",
+      "onScreenText": "M+S",
+      "narration": "M plus S is not the same as Three-Peak Mountain Snowflake."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "truth",
+      "visual": "two matching physical comparison samples on a clean bench",
+      "motion": "short lateral slide",
+      "onScreenText": "NOT THE SAME AS 3PMSF",
+      "narration": "M plus S does not by itself prove the standardized snow threshold."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "mechanism",
+      "visual": "wordless mechanical cross-section model of the relevant component",
+      "motion": "controlled macro orbit",
+      "onScreenText": "3PMSF USES A STANDARDIZED SNOW TEST",
+      "narration": "Three-Peak Mountain Snowflake does."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "nuance",
+      "visual": "second physical comparison angle under the same lighting",
+      "motion": "locked comparison move",
+      "onScreenText": "ALL-WEATHER CAN CARRY IT TOO",
+      "narration": "Some all-weather tires carry it too."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "payoff",
+      "visual": "return to the opening component macro from the same angle",
+      "motion": "slow return to opening composition",
+      "onScreenText": "READ THE ACTUAL QUALIFICATION",
+      "narration": "Read the actual qualification, not only the category name."
+    }
+  ],
+  "voiceoverScript": "M plus S is not the same as Three-Peak Mountain Snowflake. M plus S does not by itself prove the standardized snow threshold. Three-Peak Mountain Snowflake does. Some all-weather tires carry it too. Read the actual qualification, not only the category name.",
+  "selectedCaption": "M+S identifies a tread-design classification and does not by itself represent the standardized snow-traction performance threshold required for the Three-Peak Mountain Snowflake mark; 3PMSF can appear on winter and some all-weather tires. M+S marking is not the same as Three-Peak Mountain Snowflake snow-traction qualification. Nick's Tire & Auto can inspect the actual condition before parts are replaced.",
+  "hashtags": [
+    "#3PMSF",
+    "#WinterTires",
+    "#ClevelandCars",
+    "#ClevelandTires",
+    "#NicksTire"
+  ],
+  "productionPack": {
+    "distribution": "ad-ready",
+    "modelRecommendation": "Original Nick's footage first; cheapest competent Higgsfield I2V only for a missing connector shot; premium only after cheaper geometry fails.",
+    "creditEfficiencyNote": "Target 0 fresh credits.",
+    "platformOriginalitySafety": "Use first-party footage and deterministic overlays. Never present generated defects, readings, or customer events as real. Instagram/Facebook only; no TikTok-specific execution.",
+    "qaGate": [
+      "No fabricated measurements or defects.",
+      "No universal torque, pressure, or fitment claim.",
+      "No synthetic customer evidence."
+    ]
+  }
+}
