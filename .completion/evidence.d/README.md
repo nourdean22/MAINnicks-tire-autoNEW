@@ -13,7 +13,7 @@ Name it after your branch (`chore/evidence-fragments` -> `chore-evidence-fragmen
 }
 ```
 
-Each entry needs a `ref` (what proves it) or a `deferred` reason. Never leave it blank.
+Each entry needs a non-empty string `ref` (what proves it) or non-empty string `deferred` reason. Arrays, objects, booleans and blank strings are invalid evidence.
 
 - **A new file per PR never conflicts.** The old single manifest, `.completion/evidence.json`, conflicted
   on every pair of concurrent PRs, because freshness meant "this branch rewrote key X".
