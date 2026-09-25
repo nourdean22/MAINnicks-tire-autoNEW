@@ -193,7 +193,7 @@ loads nothing while still passing a substring check. Registry + design notes:
 ## Operating frameworks
 
 - [`AGENT-OPERATING-PROFILE.md`](./AGENT-OPERATING-PROFILE.md) — operator identity, response shape, §11 multi-agent safety.
-- [`NOUR-COMMAND.md`](./NOUR-COMMAND.md) — default non-trivial-task framework: infer outcome, recover context, define proof,
+- [`NOUR-COMMAND.md`](./NOUR-COMMAND.md) — **read before every non-trivial task**: infer outcome, recover context, define proof,
   route modes, run authorized work to empty, falsify success, simplify, and report evidence-backed completion.
 - [`.agents/frameworks/ciitty/SKILL.md`](.agents/frameworks/ciitty/SKILL.md) — CIITTY v2.1: **Blind Spot
   Check** + **Forgotten Factor Protocol** (what route/cron/webhook/env var depends on what I changed?).
