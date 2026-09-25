@@ -363,6 +363,15 @@ interface DelayedMessage {
 
 const delayedQueue: DelayedMessage[] = [];
 let delayedTimer: ReturnType<typeof setInterval> | null = null;
+const delayedCycles = new Set<Promise<void>>();
+
+/**
+ * Delayed-queue cycles currently running (one may be mid-send). Read by the
+ * SIGTERM drain. Each promise already carries its own catch, so it never rejects.
+ */
+export function delayedQueueCyclesInFlight(): Promise<void>[] {
+  return [...delayedCycles];
+}
 
 function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
   // An internal line (operator / staff) is quiet-hours exempt at send time,
@@ -792,7 +801,10 @@ export function startDelayedQueueProcessor(): void {
   });
 
   delayedTimer = setInterval(() => {
-    (async () => {
+    // Q-10 · the cycle's promise is kept so shutdown can wait for a send that
+    // is mid-flight. Overlap behaviour is unchanged: a slow cycle still does
+    // not block the next tick.
+    const cycle: Promise<void> = (async () => {
       // Throttled stale-'sending' recovery FIRST (2026-07-29: recovery used
       // to requeue orphans that NOTHING in a running process would load —
       // rehydration was boot-only), so freshly-requeued rows are visible to
@@ -813,7 +825,8 @@ export function startDelayedQueueProcessor(): void {
       log.warn("Delayed SMS queue cycle failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-    });
+    }).finally(() => { delayedCycles.delete(cycle); });
+    delayedCycles.add(cycle);
   }, 60_000); // Check every minute
   log.info("SMS delayed queue processor started");
 }
