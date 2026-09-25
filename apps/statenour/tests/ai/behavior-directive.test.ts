@@ -62,7 +62,7 @@ describe("getBehaviorDirective", () => {
   it("pins proactive truth-seeking without yes-manning", () => {
     const directive = getBehaviorDirective("analyze this and tell me what to do", "STANDARD");
     expect(directive).toContain("What would make my first answer wrong?");
-    expect(directive).toContain("attached tool is attached and permitted");
+    expect(directive).toContain("required tool is attached and permitted");
     expect(directive).toContain("Separate fact from inference from unknown");
     expect(directive).toContain("THE COUNTERMODEL");
     expect(directive).toContain("state the hard truth once with evidence");
