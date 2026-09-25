@@ -11,6 +11,11 @@ import { createLogger } from "../lib/logger";
 
 const log = createLogger("sms-parser");
 
+// A phrase that LOOKS like a revocation must not win when the customer
+// explicitly negates that action. These replies are ambiguous enough that a
+// person should read them; auto-opting out would reverse the sender's intent.
+const NEGATED_REVOCATION_PATTERN = /\b(?:do[ \t]+not|don['\u2019]?t|never)[ \t]+(?:want[ \t]+to[ \t]+)?(?:stop[ \t]+(?:texting|messaging|contacting)|stop[ \t]+sending[ \t]+(?:me|us)?[ \t]*(?:texts?|messages?)|(?:stop|cancel|end|quit)[ \t]+(?:all[ \t]+)?(?:the[ \t]+|my[ \t]+|your[ \t]+|these[ \t]+|those[ \t]+)?(?:texts?|text[ \t]+messages?|texting|messages?|messaging|sms)|unsubscribe(?:[ \t]+(?:me|us|this[ \t]+number))?|opt[ \t-]?out(?:[ \t]+(?:me|us|this[ \t]+number))?|opt[ \t]+(?:me|us)[ \t]+out|(?:remove|take)[ \t]+(?:me|my[ \t]+number)[ \t]+(?:off|from))\b/i;
+
 interface ParsedResponse {
   intent: "confirm" | "cancel" | "reschedule" | "approve-estimate" | "decline-estimate" | "question" | "unsubscribe" | "unknown";
   confidence: number;
@@ -47,7 +52,7 @@ const PATTERNS: Array<{ pattern: RegExp; intent: ParsedResponse["intent"]; autoA
   // "STOP" + a line starting "In the future..." escape), and "stop at" /
   // "stop off" / "end of" are carved out only when a visit clearly follows,
   // so "Stop at once", "stop off my list" and "End of discussion" unsubscribe.
-  { pattern: /^\s*(stop(?![ \t]+(by|in|over)\b)(?![ \t]+at[ \t]+(\d|(around|about|noon|lunch|the|your|ur|my|after|before)\b))(?![ \t]+off[ \t]+(at|on|by|in|after|before)\b)|stopall|unsubscribe|opt[\s-]?out|revoke|end(?![ \t]+up\b)(?![ \t]+of[ \t]+(the[ \t]+)?(day|week|month|year|business|shift|work|today|tomorrow)\b)|quit|remove\s+me)\b/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 99 },
+  { pattern: /^\s*(stop(?![ \t]+(by|in|over)\b)(?![ \t]+at[ \t]+(\d|(around|about|noon|lunch|the|your|ur|my|after|before)\b))(?![ \t]+off[ \t]+(at|on|by|in|after|before)\b)|stopall|unsubscribe|opt[\s-]?out|revoke|end(?![ \t]+up\b)(?![ \t]+of[ \t]+(the[ \t]+)?(day|week|month|year|business|shift|work|today|tomorrow)\b)|quit|remove[ \t]+me(?=[ \t]*(?:[.!?]|$)))\b/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 99 },
   // Plain-English revocation anywhere in the reply: "cancel all texts",
   // "please stop texting me", "no more texts", "don't text me", "take me off
   // your list". Only an explicit object (texts, messages, me, your list) makes
@@ -56,7 +61,7 @@ const PATTERNS: Array<{ pattern: RegExp; intent: ParsedResponse["intent"]; autoA
   // "opt out" mid-message need a subject ("unsubscribe me", "I want to opt
   // out"), so a "Reply STOP to unsubscribe" spam footer is not read as the
   // sender revoking. Curly apostrophes from iOS (U+2019) count.
-  { pattern: /\b(stop|cancel|end|quit)[ \t]+(all[ \t]+)?(the[ \t]+|my[ \t]+|your[ \t]+|these[ \t]+|those[ \t]+)?(texts?|text[ \t]+messages?|texting|messages?|messaging|sms)\b|\bstop[ \t]+(texting|messaging|contacting)\b|\bstop[ \t]+sending[ \t]+(me|us|these|those|texts?|messages?)\b|\b(do[ \t]+not|don['\u2019]?t)[ \t]+(text|message|contact|sms)[ \t]+(me|us|this[ \t]+number)\b|\bno[ \t]+more[ \t]+(texts?|text[ \t]+messages?|messages?)\b|\b(remove|take)[ \t]+(me|my[ \t]+number)[ \t]+(off|from)\b|\b(unsubscribe|opt[ \t-]?out)[ \t]+(me|us|this[ \t]+number)\b|\b(want|like|need)[ \t]+to[ \t]+(unsubscribe|opt[ \t-]?out)\b|\bopt[ \t]+me[ \t]+out\b/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 95 },
+  { pattern: /\b(stop|cancel|end|quit)[ \t]+(all[ \t]+)?(the[ \t]+|my[ \t]+|your[ \t]+|these[ \t]+|those[ \t]+)?(texts?|text[ \t]+messages?|texting|messages?|messaging|sms)\b|\bstop[ \t]+(texting|messaging|contacting)\b|\bstop[ \t]+sending[ \t]+(me|us|these|those|texts?|messages?)\b|\b(do[ \t]+not|don['\u2019]?t)[ \t]+(text|message|contact|sms)[ \t]+(me|us|this[ \t]+number)\b|\bno[ \t]+more[ \t]+(texts?|text[ \t]+messages?|messages?)\b|\b(remove|take)[ \t]+(me|my[ \t]+number)[ \t]+(off|from)[ \t]+(?:(?:the|your|this|our|my)[ \t]+)?(?:list|text(?:ing)?[ \t]+list|sms[ \t]+list|message[ \t]+list|marketing[ \t]+list|contact[ \t]+list|texts?|messages?|sms)\b|\b(unsubscribe|opt[ \t-]?out)[ \t]+(me|us|this[ \t]+number)\b|\b(want|like|need)[ \t]+to[ \t]+(unsubscribe|opt[ \t-]?out)\b|\bopt[ \t]+me[ \t]+out\b/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 95 },
 
   // Confirmations
   { pattern: /^(yes|y|yep|yeah|yea|ok|okay|sure|confirm|confirmed|sounds good|see you|will be there|on my way)$/i, intent: "confirm", autoAction: "confirm-appointment", confidence: 95 },
@@ -97,6 +102,15 @@ const PATTERNS: Array<{ pattern: RegExp; intent: ParsedResponse["intent"]; autoA
  */
 export function parseSmsResponse(message: string): ParsedResponse {
   const trimmed = message.trim();
+
+  if (NEGATED_REVOCATION_PATTERN.test(trimmed)) {
+    log.info("SMS contains a negated revocation phrase; routing to human");
+    return {
+      intent: "unknown",
+      confidence: 0,
+      requiresHuman: true,
+    };
+  }
 
   // Try pattern matching first (fast, no AI)
   for (const p of PATTERNS) {
