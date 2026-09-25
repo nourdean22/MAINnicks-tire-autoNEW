@@ -128,11 +128,37 @@ export function tinAgeYears(check: TinCheck, now: Date = new Date()): number | n
 // ─── Positions + registration methods ──────────────────────────────────────
 
 export const TIRE_POSITIONS = ["LF", "RF", "LR", "RR", "LRI", "RRI", "SPARE"] as const;
-export type TirePosition = (typeof TIRE_POSITIONS)[number];
-export const TIRE_POSITION_LABELS: Record<TirePosition, string> = {
+export type NamedTirePosition = (typeof TIRE_POSITIONS)[number];
+export type TirePosition = NamedTirePosition | `EXTRA${number}`;
+export const TIRE_POSITION_LABELS: Record<NamedTirePosition, string> = {
   LF: "Left front", RF: "Right front", LR: "Left rear", RR: "Right rear",
   LRI: "Left rear inner", RRI: "Right rear inner", SPARE: "Spare",
 };
+
+export function isTirePosition(value: string): value is TirePosition {
+  const normalized = value.trim().toUpperCase();
+  return (TIRE_POSITIONS as readonly string[]).includes(normalized) || /^EXTRA(?:[1-9]\d{0,2})$/.test(normalized);
+}
+
+/**
+ * Common passenger/light-truck positions come first. Orders with more tires get deterministic
+ * EXTRA1..EXTRA999 slots; the DB column is VARCHAR(8), so this stays inside the storage contract.
+ */
+export function tirePositionsForCount(count: number): TirePosition[] {
+  const requested = Math.max(0, Math.ceil(Number(count) || 0));
+  const target = Math.max(TIRE_POSITIONS.length, Math.min(1000, requested));
+  const positions: TirePosition[] = [...TIRE_POSITIONS];
+  for (let n = 1; positions.length < target; n += 1) positions.push(`EXTRA${n}` as TirePosition);
+  return positions;
+}
+
+export function tirePositionLabel(position: string): string {
+  if ((TIRE_POSITIONS as readonly string[]).includes(position)) {
+    return TIRE_POSITION_LABELS[position as NamedTirePosition];
+  }
+  const extra = /^EXTRA(\d+)$/.exec(position);
+  return extra ? `Extra tire ${extra[1]}` : position;
+}
 
 export const TIRE_CONDITIONS = ["new", "used"] as const;
 export type TireCondition = (typeof TIRE_CONDITIONS)[number];
@@ -251,7 +277,6 @@ export interface RegistrationFormInput {
   dealerStreet: string;
   dealerCityStateZip: string;
   orderNumber: string;
-  saleDate: string; // pre-formatted, e.g. "Sep 23, 2026"
   vehicle: string | null;
   tires: Array<{ position: string; tin: string; brand: string | null; tireCondition: string }>;
 }
@@ -286,7 +311,7 @@ h1{font-size:20px;margin:0 0 4px}table{width:100%;border-collapse:collapse;margi
 <h1>Tire Registration Form</h1>
 <p class="small">Federal law (49 CFR 574.8) — keep your tires registered so the manufacturer can reach you about a recall.</p>
 <p><strong>Sold by:</strong> ${esc(input.dealerName)}<br>${esc(input.dealerStreet)}<br>${esc(input.dealerCityStateZip)}</p>
-<p><strong>Order:</strong> ${esc(input.orderNumber)} &nbsp; <strong>Date of sale:</strong> ${esc(input.saleDate)}${
+<p><strong>Order:</strong> ${esc(input.orderNumber)}${
     input.vehicle ? ` &nbsp; <strong>Vehicle:</strong> ${esc(input.vehicle)}` : ""}</p>
 <table><thead><tr><th>Position</th><th>Tire identification number (DOT)</th><th>Brand</th><th>Condition</th></tr></thead><tbody>${rows}</tbody></table>
 <p><strong>Purchaser name</strong></p><div class="line"></div>
