@@ -5,6 +5,9 @@
  * args / find owner-repo / resolve a session identity," not five (2026-09-23).
  */
 import { execSync } from "node:child_process";
+import { realpathSync } from "node:fs";
+import { posix, win32 } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /** `--name value` -> value, else fallback. */
 export function arg(name, fallback = null) {
@@ -36,8 +39,8 @@ export function originOwnerRepo(cwd) {
  * pid+timestamp when CLAUDE_CODE_SESSION_ID is absent (a bare manual run), which is
  * intentionally unstable across invocations — that is correct for a manual run,
  * where there is no real session to be stable FOR. */
-export function resolveSessionId() {
-  return process.env.CLAUDE_CODE_SESSION_ID || `manual-${process.pid}-${Date.now()}`;
+export function resolveSessionId(env = process.env) {
+  return env.CLAUDE_CODE_SESSION_ID || `manual-${process.pid}-${Date.now()}`;
 }
 
 /** "bridge" | "cloud" | "unknown" — best-effort from the harness's own env vars,
@@ -55,4 +58,33 @@ export function resolveSessionKind() {
 /** Current branch of `cwd`, or the explicit --branch override. */
 export function resolveBranch(cwd) {
   return arg("branch") ?? sh("git rev-parse --abbrev-ref HEAD", cwd);
+}
+
+/**
+ * True when the module whose `import.meta.url` is `metaUrl` is the script node was
+ * launched with. Replaces `import.meta.url === \`file://${process.argv[1]}\``, which
+ * is NEVER true on Windows (argv[1] is `C:\\…\\x.mjs`, the URL is
+ * `file:///C:/…/x.mjs`) and not on POSIX either when the path has a space or other
+ * URL-escaped character — so every Session Authority CLI and the lease-check hook
+ * exited 0 having done nothing on the operator's machine (audit item O).
+ * Compares filesystem paths, not URL strings; case-insensitive on Windows; falls
+ * back to argv[1]'s realpath because node resolves symlinks for the main module.
+ * `windows` is injectable so the Windows branch is testable on Linux CI.
+ */
+export function isMainModule(metaUrl, argv1 = process.argv[1], { windows = process.platform === "win32" } = {}) {
+  if (!argv1) return false;
+  const p = windows ? win32 : posix;
+  let modulePath;
+  try {
+    modulePath = fileURLToPath(metaUrl, { windows });
+  } catch {
+    return false;
+  }
+  const norm = (x) => (windows ? p.resolve(x).toLowerCase() : p.resolve(x));
+  if (norm(argv1) === norm(modulePath)) return true;
+  try {
+    return norm(realpathSync(argv1)) === norm(modulePath);
+  } catch {
+    return false;
+  }
 }

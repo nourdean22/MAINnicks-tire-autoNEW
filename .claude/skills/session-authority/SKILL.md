@@ -69,6 +69,21 @@ node scripts/agent-os/agent-finish.mjs --force-release-dirty "why"
 
 The reason is written permanently into the release record.
 
+Only the session that holds a live lease can release it. If the holder is
+gone (its container was reclaimed, its lease is still live), confirm with the
+operator, then:
+
+```bash
+node scripts/agent-os/agent-finish.mjs --force-release-foreign "why"
+```
+
+The reason and your session id are recorded permanently. This is also the
+way out when `lease-check.mjs` blocks every call because this worktree holds
+another session's live marker: that one command, run on its own (no `;`,
+`&&`, pipe or subshell), is let through. An operator can instead set
+`AGENT_OS_LEASE_OVERRIDE="why"` for the session, which turns the block into
+a warning that repeats the reason.
+
 ## What this does NOT do
 
 It does not know whether your local working tree is dirty from any
