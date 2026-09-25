@@ -272,11 +272,18 @@ export const vapiRouter = router({
       serverUrl: z.string().url().optional(),
     }).optional())
     .mutation(async ({ input }) => {
-      const { updateFollowUpAssistant } = await import("../services/vapi");
+      const { updateFollowUpAssistant, followUpAssistantIdOrNull, isRetiredAssistant } = await import("../services/vapi");
       const serverUrl = input?.serverUrl || "https://nickstire.org/api/webhooks/vapi";
-      const assistantId = input?.assistantId || process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+      // The pin goes through the shared chokepoint, never a direct env read, so a
+      // pin left on the retired duplicate receptionist cannot be overwritten with
+      // the follow-up prompt. An explicit id gets the same retired check.
+      const explicit = input?.assistantId?.trim();
+      if (explicit && isRetiredAssistant(explicit)) {
+        return { success: false as const, error: "Refused: that id is a retired assistant. Push to the dedicated follow-up caller." };
+      }
+      const assistantId = explicit || followUpAssistantIdOrNull();
       if (!assistantId) {
-        return { success: false as const, error: "No follow-up assistant id (VAPI_FOLLOWUP_ASSISTANT_ID unset)" };
+        return { success: false as const, error: "No follow-up assistant id: VAPI_FOLLOWUP_ASSISTANT_ID is unset or points at a retired assistant" };
       }
       return updateFollowUpAssistant(assistantId, serverUrl);
     }),
