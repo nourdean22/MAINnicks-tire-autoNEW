@@ -42,7 +42,7 @@ export default function TireRegistrationPanel({ workOrderId }: { workOrderId: st
   const rows = reg.data?.rows ?? [];
   const expectedForPositions = reg.data?.expected ?? 0;
   const positionChoices = useMemo(
-    () => tirePositionsForCount(Math.max(expectedForPositions, rows.length + 1)),
+    () => tirePositionsForCount(Math.max(expectedForPositions, rows.length)),
     [expectedForPositions, rows.length],
   );
   const taken = new Set(rows.map((r) => r.position));
