@@ -18,7 +18,7 @@
  */
 import { ensureProxyEnv } from "./github-client.mjs";
 import { createGitHubLeaseStore, acquireLease } from "./lease.mjs";
-import { arg, originOwnerRepo, resolveBranch, resolveSessionId, resolveSessionKind } from "./cli-common.mjs";
+import { arg, originOwnerRepo, resolveBranch, resolveSessionId, resolveSessionKind, isMainModule } from "./cli-common.mjs";
 import { writeLocalMarker } from "./local-lease-marker.mjs";
 
 async function main() {
@@ -88,6 +88,6 @@ async function main() {
   process.exit(1);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   main();
 }
