@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   checkTin, expectedTireCount, isTirePosition, registrationLink, renderRegistrationFormHtml,
-  summarizeRegistration, tinAgeYears, tirePositionsForCount, TIRE_POSITIONS,
-  REGISTRATION_METHODS, type RegistrationRowLike,
+  summarizeRegistration, tinAgeYears, tirePositionsForCount REGISTRATION_METHODS, type RegistrationRowLike,
 } from "./tireTin";
 
 const NOW = new Date("2026-09-23T12:00:00Z");
@@ -77,8 +76,8 @@ describe("expectedTireCount", () => {
 
 describe("tire position allocation", () => {
   it("adds deterministic EXTRA slots when an order contains more than seven tires", () => {
-    expect(tirePositionsForCount(7)).toEqual([...TIRE_POSITIONS]);
-    expect(tirePositionsForCount(8)).toEqual([...TIRE_POSITIONS, "EXTRA1"]);
+    expect(tirePositionsForCount(7)).toEqual(["LF", "RF", "LR", "RR", "LRI", "RRI", "SPARE"]);
+    expect(tirePositionsForCount(8)).toEqual(["LF", "RF", "LR", "RR", "LRI", "RRI", "SPARE", "EXTRA1"]);
     expect(tirePositionsForCount(10).slice(-3)).toEqual(["EXTRA1", "EXTRA2", "EXTRA3"]);
     expect(isTirePosition("EXTRA1")).toBe(true);
     expect(isTirePosition("EXTRA999")).toBe(true);
