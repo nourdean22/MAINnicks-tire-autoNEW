@@ -54,7 +54,25 @@ let optOutCache: Set<string> | null = null;
 // alongside optOutCache from the message log; kept separate so refusal logs
 // say what actually happened (a block is not a STOP).
 let carrierBlockCache: Set<string> | null = null;
+// 2026-09-23 (Q-45) · the subset of optOutCache whose ONLY suppression source is
+// a spoken opt-out on an outbound AI call ("stop calling me"). Every member is
+// ALSO in optOutCache, so any reader that knows nothing about this set treats
+// the number as fully suppressed. Only sendSms consults it, to let a strictly
+// transactional text through (see VOICE_OPT_OUT_KEYWORD).
+let voiceOnlyCache: Set<string> | null = null;
 let optOutCacheLoadedAt = 0;
+
+/**
+ * `sms_preferences.opt_out_keyword` value for an opt-out SPOKEN on an outbound
+ * AI voice call (Q-45, 47 CFR 64.1200(b)(3)). Same store as every other
+ * opt-out — no second list — told apart by this marker because its SCOPE is
+ * narrower: it suppresses every AI-voice call and every marketing, recovery and
+ * follow-up text, but not a `customer_confirmation` text the customer asked for
+ * (a verification code, a status update on their own car). A text STOP, a
+ * customers.smsOptOut flag or an inbound STOP body for the same phone still
+ * wins and suppresses everything.
+ */
+export const VOICE_OPT_OUT_KEYWORD = "VOICE";
 const OPT_OUT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 /**
@@ -72,7 +90,7 @@ const OPT_OUT_CACHE_TTL_MS = 5 * 60 * 1000;
  * absence of ANY loaded index is `ok: false`.
  */
 type OptOutIndex =
-  | { ok: true; phones: Set<string>; carrierBlocked: Set<string>; stale: boolean }
+  | { ok: true; phones: Set<string>; carrierBlocked: Set<string>; voiceOnly: Set<string>; stale: boolean }
   | { ok: false; reason: string };
 
 /**
@@ -151,11 +169,11 @@ export async function loadSuppressionIndex(): Promise<OptOutIndex> {
 async function ensureOptOutCache(): Promise<OptOutIndex> {
   const now = Date.now();
   if (optOutCache && now - optOutCacheLoadedAt < OPT_OUT_CACHE_TTL_MS) {
-    return { ok: true, phones: optOutCache, carrierBlocked: carrierBlockCache ?? new Set(), stale: false };
+    return { ok: true, phones: optOutCache, carrierBlocked: carrierBlockCache ?? new Set(), voiceOnly: voiceOnlyCache ?? new Set(), stale: false };
   }
   const stale = (reason: string): OptOutIndex =>
     optOutCache
-      ? { ok: true, phones: optOutCache, carrierBlocked: carrierBlockCache ?? new Set(), stale: true }
+      ? { ok: true, phones: optOutCache, carrierBlocked: carrierBlockCache ?? new Set(), voiceOnly: voiceOnlyCache ?? new Set(), stale: true }
       : { ok: false, reason };
   try {
     const { getDb } = await import("./db");
@@ -164,10 +182,14 @@ async function ensureOptOutCache(): Promise<OptOutIndex> {
     const db = await getDb();
     if (!db) return stale("database unavailable");
     const fresh = new Set<string>();
+    const norm10 = (phone: string | null) => (phone || "").replace(/\D/g, "").slice(-10);
     const addNorm = (phone: string | null) => {
-      const norm = (phone || "").replace(/\D/g, "").slice(-10);
+      const norm = norm10(phone);
       if (norm.length === 10) fresh.add(norm);
     };
+    // Spoken voice opt-outs: suppressed like any other (into `fresh`), and
+    // remembered separately so the narrower scope can be computed at the end.
+    const voiceRows = new Set<string>();
     const rows = await db
       .select({ phone: customers.phone })
       .from(customers)
@@ -178,10 +200,17 @@ async function ensureOptOutCache(): Promise<OptOutIndex> {
     // this rebuild. Before, `fresh` came from customers.smsOptOut ONLY, so a
     // non-customer STOP was silently dropped within 5 min (TCPA exposure).
     const prefRows = await db
-      .select({ phone: smsPreferences.phone })
+      .select({ phone: smsPreferences.phone, keyword: smsPreferences.optOutKeyword })
       .from(smsPreferences)
       .where(eq(smsPreferences.optedOut, true));
-    for (const r of prefRows) addNorm(r.phone);
+    for (const r of prefRows) {
+      if (r.keyword === VOICE_OPT_OUT_KEYWORD) {
+        const n = norm10(r.phone);
+        if (n.length === 10) voiceRows.add(n);
+      } else {
+        addNorm(r.phone);
+      }
+    }
 
     // 2026-07-20 · THIRD source: the inbound messages themselves.
     //
@@ -235,10 +264,20 @@ async function ensureOptOutCache(): Promise<OptOutIndex> {
       lastInboundByPhone,
     );
 
+    // A number is voice-ONLY when nothing but a spoken opt-out suppresses it;
+    // every other source above means "stop everything" and wins. Computed
+    // after all full sources are in `fresh`, then the voice rows join it.
+    const freshVoiceOnly = new Set<string>();
+    for (const n of voiceRows) {
+      if (!fresh.has(n)) freshVoiceOnly.add(n);
+      fresh.add(n);
+    }
+
     optOutCache = fresh;
     carrierBlockCache = freshBlocked;
+    voiceOnlyCache = freshVoiceOnly;
     optOutCacheLoadedAt = now;
-    return { ok: true, phones: fresh, carrierBlocked: freshBlocked, stale: false };
+    return { ok: true, phones: fresh, carrierBlocked: freshBlocked, voiceOnly: freshVoiceOnly, stale: false };
   } catch (err) {
     // log.error, not warn: if this is the FIRST load, every outbound send is
     // about to be refused, and the operator needs to know why.
@@ -264,7 +303,9 @@ async function persistOptOutPreference(phone10: string, optedOut: boolean): Prom
     const { smsPreferences } = await import("../drizzle/schema");
     const db = await getDb();
     if (!db) return;
-    const stamp = optedOut ? { optedOutAt: new Date() } : { optedInAt: new Date() };
+    // A full opt-out clears the voice-only marker (Q-45): a STOP after a
+    // spoken "stop calling" widens the opt-out to every text.
+    const stamp = optedOut ? { optedOutAt: new Date(), optOutKeyword: null } : { optedInAt: new Date() };
     await db
       .insert(smsPreferences)
       .values({ phone: phone10, optedOut, ...stamp })
@@ -287,7 +328,56 @@ export function markPhoneOptedOut(phone: string): void {
   if (norm.length !== 10) return;
   if (!optOutCache) optOutCache = new Set();
   optOutCache.add(norm);
+  voiceOnlyCache?.delete(norm);
   void persistOptOutPreference(norm, true);
+}
+
+/**
+ * Record a do-not-call request SPOKEN on an outbound AI voice call (Q-45,
+ * 47 CFR 64.1200(b)(3): "record the called person's number to the caller's
+ * do-not-call list"). Same store as markPhoneOptedOut — sms_preferences, which
+ * loadSuppressionIndex reads — marked with VOICE_OPT_OUT_KEYWORD for its
+ * narrower scope (see that constant).
+ *
+ * Never DOWNGRADES: a number already opted out keeps its existing marker, so a
+ * prior text STOP stays a full opt-out. The IFs read the row's OLD values
+ * because `opted_out` is assigned last, which gives the same result whether
+ * the engine applies the assignments left to right (MySQL) or all at once.
+ *
+ * Awaited, unlike the SMS path, and returns whether the durable write landed:
+ * the caller tells the customer "you're off our list", and the end-of-call
+ * transcript check retries a failed write.
+ */
+export async function markPhoneVoiceOptedOut(phone: string): Promise<boolean> {
+  const norm = (phone || "").replace(/\D/g, "").slice(-10);
+  if (norm.length !== 10) return false;
+  if (!optOutCache) optOutCache = new Set();
+  if (!optOutCache.has(norm)) {
+    if (!voiceOnlyCache) voiceOnlyCache = new Set();
+    voiceOnlyCache.add(norm);
+  }
+  optOutCache.add(norm);
+  try {
+    const { getDb } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return false;
+    await db.execute(sql`
+      INSERT INTO sms_preferences (phone, opted_out, opt_out_keyword, opted_out_at)
+      VALUES (${norm}, 1, ${VOICE_OPT_OUT_KEYWORD}, NOW())
+      ON DUPLICATE KEY UPDATE
+        opt_out_keyword = IF(opted_out, opt_out_keyword, ${VOICE_OPT_OUT_KEYWORD}),
+        opted_out_at = IF(opted_out, opted_out_at, NOW()),
+        opted_out = 1
+    `);
+    return true;
+  } catch (err) {
+    log.error("voice opt-out persist FAILED — suppressed in this process only", {
+      error: err instanceof Error ? err.message : String(err),
+      errorId: "VOICE_OPT_OUT_PERSIST_FAILED",
+    });
+    return false;
+  }
 }
 
 /**
@@ -299,6 +389,7 @@ export function markPhoneOptedIn(phone: string): void {
   const norm = (phone || "").replace(/\D/g, "").slice(-10);
   if (norm.length !== 10) return;
   optOutCache?.delete(norm);
+  voiceOnlyCache?.delete(norm);
   void persistOptOutPreference(norm, false);
 }
 
@@ -1876,7 +1967,13 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
         return { success: false, error: `Cannot verify opt-out status (${index.reason}) — send refused` };
       }
       log.warn("opt-out status unverifiable; allowing INTERNAL message only", { reason: index.reason });
-    } else if (index.phones.has(last10)) {
+    } else if (
+      index.phones.has(last10) &&
+      // Q-45 · a SPOKEN "stop calling" does not cover a text the customer asked
+      // for (verification code, their own car's status). Only that class, and
+      // only when nothing but the voice opt-out suppresses the number.
+      !(messageClass === "customer_confirmation" && index.voiceOnly?.has(last10))
+    ) {
       smsStats.totalOptedOut++;
       log.info("[sendSms] not sent — recipient opted out (TCPA)", { to: last10.slice(-4), messageClass });
       return { success: false, error: "Customer opted out of SMS" };

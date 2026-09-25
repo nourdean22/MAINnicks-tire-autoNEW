@@ -230,12 +230,14 @@ export async function runConfirmationCalls(): Promise<RunResult> {
       service: b.service,
       preferredDay: "tomorrow",
     });
-    const firstMessage = `Hey ${firstName}, it's Nick's Tire — you still good for that ${b.service} tomorrow?`;
-
+    // Q-45 · informational lane: identity, recording notice and callback
+    // number up front; the do-not-call tool still rides the call.
     const call = await placeVapiOutboundCall({
       customerNumber: e164,
-      firstMessageOverride: firstMessage,
-      systemPromptOverride: systemPrompt,
+      lane: "confirmation",
+      customerName: firstName,
+      openerBody: `You still good for that ${b.service} tomorrow?`,
+      systemPrompt,
       voicemailMessage: voicemailMsg,
       maxDurationSeconds: 90,
     });

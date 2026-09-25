@@ -91,7 +91,7 @@ export async function runVoiceRecovery(): Promise<RunResult> {
   // loadSuppressionIndex now owns; left in place it would be dead weight
   // implying this job still derives suppression itself.
   const { algEstimates } = await import("../../../drizzle/schema");
-  const { placeVapiOutboundCall, buildOutboundRecoveryPrompt, buildRecoveryVoicemail } = await import("../../services/vapi");
+  const { placeVapiOutboundCall, buildOutboundRecoveryPrompt } = await import("../../services/vapi");
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
@@ -243,17 +243,15 @@ export async function runVoiceRecovery(): Promise<RunResult> {
       service,
       amountDollars: dollars,
     });
-    const voicemailMsg = buildRecoveryVoicemail({
-      customerName: firstName,
-      service,
-    });
-    const firstMessage = `Hey ${firstName}, it's Nick's Tire — you had a quote with us for ${service} a few weeks back. That still on your radar?`;
-
+    // Q-45 · a SALES lane: the helper prefixes the identity, the stop-calling
+    // instruction, the recording notice and the callback number, and leaves
+    // no voicemail (no toll-free opt-out number — 47 CFR 64.1200(b)(3)).
     const call = await placeVapiOutboundCall({
       customerNumber: e164,
-      firstMessageOverride: firstMessage,
-      systemPromptOverride: systemPrompt,
-      voicemailMessage: voicemailMsg,
+      lane: "voice_recovery",
+      customerName: firstName,
+      openerBody: `You had a quote with us for ${service} a few weeks back. That still on your radar?`,
+      systemPrompt,
       maxDurationSeconds: 90,
     });
 

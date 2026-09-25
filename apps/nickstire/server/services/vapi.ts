@@ -63,6 +63,15 @@
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "../../shared/business";
 import { OIL_PRICE } from "../../shared/pricing";
+import {
+  buildOutboundOpener,
+  CALLBACK_NUMBER,
+  DO_NOT_CALL_TOOL_NAME,
+  isSalesLane,
+  OUTBOUND_COMPLIANCE_PROMPT,
+  SPOKEN_BUSINESS_NAME,
+  type OutboundLane,
+} from "./outboundCallCompliance";
 
 const log = createLogger("vapi");
 
@@ -422,7 +431,16 @@ const FIRST_MESSAGE = "Nick's Tire and Auto — what can I do for you?";
 //   {{name}}        — customer first name (e.g. "Howard")
 //   {{lastService}} — service description (e.g. "brake job", "set of tires")
 
-const FOLLOW_UP_FIRST_MESSAGE = "{{name}}?";
+// Q-45 · 47 CFR 64.1200(b): the business identity FIRST, the stop-calling
+// instruction in the next sentence, then the recording notice + callback
+// number. Was "{{name}}?" — a bare name, identity only after the customer
+// answered, no number, no opt-out.
+const FOLLOW_UP_OPENER_BODY = "Just following up after your last visit — how is everything?";
+const FOLLOW_UP_FIRST_MESSAGE = buildOutboundOpener({
+  lane: "followup_cadence",
+  customerName: "{{name}}",
+  body: FOLLOW_UP_OPENER_BODY,
+});
 
 const FOLLOW_UP_SYSTEM_PROMPT = `# IDENTITY
 You're calling from Nick's Tire and Auto in Cleveland. Outbound follow-up to {{name}} after their {{lastService}}. This is a trust call, not a sales call.
@@ -430,11 +448,8 @@ You're calling from Nick's Tire and Auto in Cleveland. Outbound follow-up to {{n
 # HOW YOU TALK
 Direct, warm, Cleveland casual. Like a guy who fixed your car calling to make sure it's still running right. Short sentences. Real phone voice. Keep it under 3 minutes.
 
-# OPENER (two-step — do this exactly)
-Your firstMessage is just their name: "{{name}}?"
-Wait for them to confirm ("yeah" / "speaking" / "this is them").
-
-Once confirmed, say: "Hope you're doing good, this is Nick from Nick's Tire and Auto, and I don't mean to bother but I'm just following up after your last visit. How is everything?"
+# OPENER
+Your first message already said who we are, how to stop our calls, that the call may be recorded, the shop's number, and asked how everything is. Don't repeat it.
 
 Wrong number ("no" / "who?" / "wrong number"): "My bad — wrong number. Have a good one." End the call.
 No answer after a beat: "Hello — is this {{name}}?" One more try, then end.
@@ -503,6 +518,19 @@ interface VapiFunctionToolDef {
       required?: string[];
     };
   };
+  /** What Vapi SAYS around the call; `endCallAfterSpokenEnabled` hangs up after. */
+  messages?: Array<{ type: "request-complete" | "request-failed"; content: string; endCallAfterSpokenEnabled?: boolean }>;
+}
+
+/**
+ * Vapi's built-in voicemail tool. With an empty `messages` array Vapi plays the
+ * assistant's `voicemailMessage` — and when that is empty too, hangs up without
+ * a word, which is what a sales lane needs (Q-45; placeVapiOutboundCall).
+ */
+interface VapiVoicemailToolDef {
+  type: "voicemail";
+  function: { name: string; description: string };
+  messages: [];
 }
 
 // VAPI built-in transferCall tool — actually forwards the live call
@@ -524,7 +552,7 @@ interface VapiTransferCallToolDef {
   }>;
 }
 
-type VapiToolDef = VapiFunctionToolDef | VapiTransferCallToolDef;
+type VapiToolDef = VapiFunctionToolDef | VapiTransferCallToolDef | VapiVoicemailToolDef;
 
 const VAPI_TOOLS: VapiToolDef[] = [
   // 2026-05-06 wave-15 · transferCall added per first-day call analysis.
@@ -1480,7 +1508,10 @@ function buildFollowUpAssistantConfig(serverUrl?: string): VapiAssistantConfig {
       enabled: true,
       machineDetectionTimeout: 30,
     },
-    voicemailMessage: "Hey {{name}}, this is Nick from Nick's Tire and Auto, just following up after your last visit. If everything's good, no need to call back. If you got an issue or need anything, give us a ring at 216-862-0005. Drive safe.",
+    // Q-45 · EMPTY on purpose: this assistant makes sales calls, and 64.1200(b)(3)
+    // requires a TOLL-FREE opt-out number in any sales message left on
+    // voicemail. The shop has none, so it leaves none — Vapi hangs up.
+    voicemailMessage: "",
     analysisPlan: ANALYSIS_PLAN,
     artifactPlan: {
       recordingEnabled: true,
@@ -1739,21 +1770,25 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
 export interface VapiPlaceCallParams {
   /** Customer phone in E.164 format · e.g. "+12168620005" */
   customerNumber: string;
-  /** Override the assistant's default firstMessage. OMIT to keep the
-   *  assistant's own firstMessage (templated via variableValues). */
-  firstMessageOverride?: string;
-  /** Override the assistant's default systemPrompt. OMIT to use the
-   *  assistant's base prompt — e.g. the trust-call FOLLOW_UP_SYSTEM_PROMPT,
-   *  filled via variableValues (the wave-143 follow-up cadence does this). */
-  systemPromptOverride?: string;
+  /** Q-45 · which lane is dialling. Decides the opt-out instruction and
+   *  whether a voicemail may be left (outboundCallCompliance.ts). */
+  lane: OutboundLane;
+  /** First name for the greeting ("Hi Pat, this is ..."). */
+  customerName?: string | null;
+  /** The lane's own opening words. Spoken AFTER the compliance preamble —
+   *  there is no way to set the whole first message, on purpose. */
+  openerBody: string;
+  /** The lane's system prompt. REQUIRED since Q-45: every call sends a
+   *  complete model block, so the do-not-call tool and instruction ride every
+   *  call instead of depending on what the live assistant was last pushed with. */
+  systemPrompt: string;
   /** Optional · max 90s default · keeps cost predictable */
   maxDurationSeconds?: number;
-  /** wave-143 · LiquidJS variables to fill {{name}} / {{lastService}} etc.
-   *  in the assistant's base prompt + firstMessage when not overriding them. */
+  /** wave-143 · LiquidJS variables for any {{name}} / {{lastService}} left in the prompt. */
   variableValues?: Record<string, string>;
-  /** Voicemail message to leave when AMD detects an answering machine.
-   *  If provided, enables VAPI voicemail detection. The AI won't improvise
-   *  on voicemail — it plays this exact message and hangs up. */
+  /** Informational lanes only: the message left when AMD detects a machine.
+   *  Must name the business and give the callback number. IGNORED on a sales
+   *  lane — see placeVapiOutboundCall. */
   voicemailMessage?: string;
 }
 
@@ -1765,13 +1800,56 @@ export interface VapiPlaceCallParams {
  * escalate.
  */
 function followUpToolSet(): VapiToolDef[] {
-  return VAPI_TOOLS.filter((t) => {
+  const shared = VAPI_TOOLS.filter((t) => {
     const tool = t as unknown as Record<string, unknown>;
     const fn = tool.function as Record<string, unknown> | undefined;
     const name = fn?.name as string | undefined;
     return name === "escalate" || name === "sendConfirmationSms";
   });
+  return [...shared, DO_NOT_CALL_TOOL, END_ON_VOICEMAIL_TOOL];
 }
+
+/**
+ * Q-45 · the 64.1200(b)(3) opt-out mechanism: "automatically record the called
+ * person's number to the caller's do-not-call list and immediately terminate
+ * the call". The handler (routes/webhooks/vapi.ts) records the number VAPI
+ * dialled — never one the model supplies, so it takes no arguments. The
+ * `request-complete` message is spoken INSTEAD of a model turn and
+ * `endCallAfterSpokenEnabled` hangs up after it, so ending the call does not
+ * depend on the model. `request-failed` (our webhook unreachable) still ends
+ * the call; the end-of-call transcript check records the opt-out then.
+ * Outbound-only: the inbound receptionist never gets it.
+ */
+const DO_NOT_CALL_TOOL: VapiFunctionToolDef = {
+  type: "function",
+  function: {
+    name: DO_NOT_CALL_TOOL_NAME,
+    description:
+      "The person asked us not to call (\"stop calling\", \"take me off your list\", \"don't call me\"). Records their number to the shop's do-not-call list and ends the call. Call it immediately; no arguments.",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+  messages: [
+    {
+      type: "request-complete",
+      content: `Understood. I've taken this number off our call list and we won't call again. Sorry to bother you. Goodbye.`,
+      endCallAfterSpokenEnabled: true,
+    },
+    {
+      type: "request-failed",
+      content: `Understood, we won't call again. Sorry to bother you. Goodbye.`,
+      endCallAfterSpokenEnabled: true,
+    },
+  ],
+};
+
+const END_ON_VOICEMAIL_TOOL: VapiVoicemailToolDef = {
+  type: "voicemail",
+  function: {
+    name: "endOnVoicemail",
+    description: "You reached voicemail, an answering machine or an automated greeting. Ends the call.",
+  },
+  messages: [],
+};
 
 /**
  * The follow-up caller's LLM block, in ONE place: the assistant definition
@@ -1793,7 +1871,9 @@ function followUpModelBlock(systemPrompt: string = FOLLOW_UP_SYSTEM_PROMPT): Vap
   return {
     provider: "openai",
     model: "gpt-4o",
-    messages: [{ role: "system", content: systemPrompt }],
+    // Q-45 · appended HERE so no outbound prompt — the assistant's own or a
+    // call-time override — can go out without the do-not-call instruction.
+    messages: [{ role: "system", content: `${systemPrompt}\n\n${OUTBOUND_COMPLIANCE_PROMPT}` }],
     tools: followUpToolSet(),
     temperature: 0.5, // Slightly higher = more natural phrasing variance
     maxTokens: 200,
@@ -1835,35 +1915,42 @@ export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promis
     return { success: false, error: `Invalid customerNumber: not E.164 (shape ${params.customerNumber.replace(/\d/g, "#")})`, errorKind: "customer" };
   }
 
+  // Q-45 · an informational voicemail still has to identify the business and
+  // give the callback number (64.1200(b)(1)-(2)); refuse one that does not
+  // rather than leave it. Checked before any network call.
+  const sales = isSalesLane(params.lane);
+  const voicemailMessage = sales ? "" : (params.voicemailMessage ?? "").trim();
+  if (voicemailMessage && !(voicemailMessage.includes(SPOKEN_BUSINESS_NAME) && voicemailMessage.includes(CALLBACK_NUMBER))) {
+    return { success: false, error: `voicemailMessage for lane ${params.lane} must name ${SPOKEN_BUSINESS_NAME} and give ${CALLBACK_NUMBER}`, errorKind: "config" };
+  }
+
   try {
-    // wave-143 · build overrides conditionally. Callers either FULLY override
-    // the prompt (confirmation/recovery) OR keep the assistant's base prompt
-    // and just fill variableValues (the follow-up cadence reuses the
-    // trust-call FOLLOW_UP_SYSTEM_PROMPT via {{name}} / {{lastService}}).
+    // Q-45 · every override is built HERE, for every lane: the compliant
+    // opener, a COMPLETE model block (followUpModelBlock appends the
+    // do-not-call instruction and carries the do-not-call tool), and the
+    // voicemail policy. A lane supplies only its own words.
     const assistantOverrides: Record<string, unknown> = {
       maxDurationSeconds: params.maxDurationSeconds ?? 90,
-    };
-    if (params.firstMessageOverride !== undefined) assistantOverrides.firstMessage = params.firstMessageOverride;
-    if (params.systemPromptOverride !== undefined) {
-      // A COMPLETE model block, never a partial one — see followUpModelBlock.
-      assistantOverrides.model = followUpModelBlock(params.systemPromptOverride);
-    }
-    if (params.variableValues) assistantOverrides.variableValues = params.variableValues;
-
-    // Voicemail detection — when a voicemailMessage is provided, enable
-    // VAPI's AMD so it detects the beep and leaves a clean message instead
-    // of the AI improvising (burning 30-60s of credit talking to a machine).
-    if (params.voicemailMessage) {
-      assistantOverrides.voicemailMessage = params.voicemailMessage;
-      assistantOverrides.voicemailDetection = {
+      firstMessage: buildOutboundOpener({ lane: params.lane, customerName: params.customerName, body: params.openerBody }),
+      model: followUpModelBlock(params.systemPrompt),
+      // Always EXPLICIT, never inherited. A sales lane sends "", which makes
+      // Vapi hang up on a detected machine: 64.1200(b)(3) requires a toll-free
+      // opt-out number in any sales message left on voicemail, and the shop has
+      // none. Omitting the field would fall back to whatever message the live
+      // assistant was last pushed with.
+      voicemailMessage,
+      // AMD on every call, so a machine is detected and (on a sales lane) hung
+      // up on instead of hearing the sales opener.
+      voicemailDetection: {
         provider: "twilio",
         enabled: true,
         voicemailDetectionTypes: ["machine_end_beep", "machine_end_silence"],
         machineDetectionTimeout: 30,
         machineDetectionSpeechThreshold: 3500,
         machineDetectionSpeechEndThreshold: 2000,
-      };
-    }
+      },
+    };
+    if (params.variableValues) assistantOverrides.variableValues = params.variableValues;
 
     const res = await vapiFetch("/call", {
       method: "POST",
@@ -1908,12 +1995,12 @@ export function buildOutboundConfirmationPrompt(params: {
     `Cleveland casual. Warm. 60 seconds max. This is a quick heads-up, not a conversation.`,
     ``,
     `# FLOW`,
-    `Open: "Hey ${params.customerName}, it's Nick's Tire — you still good for that ${params.service} ${params.preferredDay}?"`,
+    `Your first message already said who we are, that the call may be recorded and the shop's number, then asked: "you still good for that ${params.service} ${params.preferredDay}?" Don't repeat it.`,
     ``,
     `YES → "Pull up anytime, first-come first-served. We're at 17625 Euclid Ave. See you then." End.`,
     `NO / reschedule → "No problem — come by whenever works, we're open 7 days. 17625 Euclid Ave." End.`,
     `"Actually I have a problem with the last work" → "Got it — tell me what's going on, I'll have someone call you back today." Get the issue. Call escalate({ name: "${params.customerName}", phone: "<their number>", reason: "Post-repair issue: <summary>", urgency: "high" }). End.`,
-    `Confused / wrong number → "216-862-0005 anytime. Have a good one." End.`,
+    `Confused / wrong number → "${CALLBACK_NUMBER} anytime. Have a good one." End.`,
     ``,
     `# NEVER SAY`,
     `- "appointment" / "scheduled" / "reservation" (we're walk-in, first-come first-served)`,
@@ -1930,7 +2017,8 @@ export function buildConfirmationVoicemail(params: {
   service: string;
   preferredDay: string;
 }): string {
-  return `Hey ${params.customerName}, Nick's Tire calling about your ${params.service} ${params.preferredDay} — we're at 17625 Euclid Ave, pull up anytime, first-come first-served. If anything changes, 216-862-0005. See you then.`;
+  // Q-45 · identity first (64.1200(b)(1)), callback number included ((b)(2)).
+  return `Hi ${params.customerName}, this is ${SPOKEN_BUSINESS_NAME} calling about your ${params.service} ${params.preferredDay} — we're at 17625 Euclid Ave, pull up anytime, first-come first-served. If anything changes, call us at ${CALLBACK_NUMBER}. See you then.`;
 }
 
 export function buildOutboundRecoveryPrompt(params: {
@@ -1954,13 +2042,13 @@ export function buildOutboundRecoveryPrompt(params: {
     `Cleveland casual. Zero pressure. 60-90 seconds. This is a relationship call — if they say no, you say "all good" and mean it.`,
     ``,
     `# FLOW`,
-    `Open: "Hey ${params.customerName}, it's Nick's Tire — you had a quote with us for ${params.service} a few weeks back. That still on your radar?"`,
+    `Your first message already said who we are, how to stop our calls, that the call may be recorded and the shop's number, then asked about the ${params.service} quote. Don't repeat it.`,
     ``,
     `INTERESTED → "Pull up any open day — we'll take another look and go over the quote with you. First-come first-served, 17625 Euclid Ave." End.`,
     `NOT INTERESTED → "No pressure — we're here when you need us. Drive safe." End.`,
     `"Went somewhere else" → "All good, glad you got it taken care of." End gracefully.`,
     `"Can't afford it" → "We got Acima payment plans if that helps — no credit needed, breaks it into chunks. Or just come by, no pressure, we can talk through it." End.${safetyLine}`,
-    `Busy / annoyed → "No worries — 216-862-0005 when you're ready." End fast.`,
+    `Busy / annoyed → "No worries — ${CALLBACK_NUMBER} when you're ready." End fast.`,
     ``,
     `# NEVER SAY`,
     `- "I appreciate your business" / "Thank you for choosing"`,
@@ -1973,13 +2061,9 @@ export function buildOutboundRecoveryPrompt(params: {
   ].join("\n");
 }
 
-/** Voicemail message for recovery calls — short, no pressure */
-export function buildRecoveryVoicemail(params: {
-  customerName: string;
-  service: string;
-}): string {
-  return `Hey ${params.customerName}, Nick's Tire — following up on that ${params.service} quote from a few weeks back. 216-862-0005 anytime if you want to get it taken care of. No rush.`;
-}
+// buildRecoveryVoicemail was removed with Q-45: voice recovery is a SALES lane,
+// and a sales message left on voicemail needs a toll-free opt-out number the
+// shop does not have (47 CFR 64.1200(b)(3)). The lane leaves no voicemail.
 
 export async function getRecentCalls(limit = 20): Promise<{
   success: boolean;
@@ -2025,6 +2109,22 @@ export async function getRecentCalls(limit = 20): Promise<{
 }
 
 export { ASSISTANT_SYSTEM_PROMPT, FIRST_MESSAGE, VAPI_TOOLS, buildAssistantConfig };
+/**
+ * The follow-up caller's prompt and opener words for ONE customer (Q-45). The
+ * cadence and the admin button used to lean on the live assistant's base
+ * prompt + firstMessage via variableValues; they now send both explicitly,
+ * so the call is compliant whatever the assistant was last pushed with. The
+ * {{name}} / {{lastService}} slots are filled here rather than left to Vapi's
+ * templating of an override.
+ */
+export function buildFollowUpCallContent(params: { customerName: string; lastService: string }): {
+  systemPrompt: string;
+  openerBody: string;
+} {
+  const fill = (t: string) => t.replaceAll("{{name}}", params.customerName).replaceAll("{{lastService}}", params.lastService);
+  return { systemPrompt: fill(FOLLOW_UP_SYSTEM_PROMPT), openerBody: fill(FOLLOW_UP_OPENER_BODY) };
+}
+
 export { FOLLOW_UP_SYSTEM_PROMPT, FOLLOW_UP_FIRST_MESSAGE, buildFollowUpAssistantConfig };
 
 // ─── Wave-105: On-duty manager phone (VAPI transfer destination) ───
