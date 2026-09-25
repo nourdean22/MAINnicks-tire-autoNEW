@@ -4,7 +4,7 @@
  */
 import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
-import { REGISTRATION_METHODS, TIRE_CONDITIONS, TIRE_POSITIONS } from "@shared/tireTin";
+import { isTirePosition, REGISTRATION_METHODS, TIRE_CONDITIONS } from "@shared/tireTin";
 
 import { createLogger } from "../lib/logger";
 
@@ -277,7 +277,7 @@ export const workOrdersRouter = router({
   captureTireTin: adminProcedure
     .input(z.object({
       workOrderId: z.string().min(1).max(36),
-      position: z.enum(TIRE_POSITIONS),
+      position: z.string().min(1).max(8).refine(isTirePosition, { message: "Unknown tire position." }),
       tin: z.string().min(1).max(40),
       brand: z.string().max(100).optional(),
       condition: z.enum(TIRE_CONDITIONS).default("new"),
@@ -289,7 +289,7 @@ export const workOrdersRouter = router({
 
   /** Remove a position captured by mistake */
   removeTirePosition: adminProcedure
-    .input(z.object({ workOrderId: z.string().min(1).max(36), position: z.enum(TIRE_POSITIONS) }))
+    .input(z.object({ workOrderId: z.string().min(1).max(36), position: z.string().min(1).max(8).refine(isTirePosition, { message: "Unknown tire position." }) }))
     .mutation(async ({ input }) => {
       const { removePosition, drizzleStore } = await import("../services/tireRegistration");
       return removePosition(drizzleStore(), input.workOrderId, input.position);
