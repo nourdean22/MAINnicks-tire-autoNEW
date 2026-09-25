@@ -194,7 +194,7 @@ export default function TireRegistrationPanel({ workOrderId }: { workOrderId: st
           ))}
         </div>
         <label className="block text-[10px] text-foreground/40">
-          DOT code for {TIRE_POSITION_LABELS[livePos]}{taken.has(livePos) ? " (replaces the saved one)" : ""}
+          DOT code for {tirePositionLabel(livePos)}{taken.has(livePos) ? " (replaces the saved one)" : ""}
           <input
             ref={tinRef}
             value={tin}
