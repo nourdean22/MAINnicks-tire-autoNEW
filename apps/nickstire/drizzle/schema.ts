@@ -2245,6 +2245,39 @@ export const workOrderTransitions = mysqlTable("work_order_transitions", {
 ]);
 
 /**
+ * Tire registrations — each installed tire's TIN (DOT code) and how 49 CFR 574.8 was met.
+ * One row per tire position on a work order (migration 0131, hand-applied). No FK on purpose:
+ * the compliance record must outlive a deleted work order. Values validated in shared/tireTin.ts.
+ */
+export const tireRegistrations = mysqlTable("tire_registrations", {
+  id: int("id").autoincrement().primaryKey(),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
+  /** LF | RF | LR | RR | LRI | RRI | SPARE */
+  position: varchar("position", { length: 8 }).notNull(),
+  /** Normalized TIN; null = position reserved, TIN not captured yet */
+  tin: varchar("tin", { length: 20 }),
+  /** valid | legacy_date_code | invalid */
+  tinStatus: varchar("tin_status", { length: 32 }),
+  tinWeek: int("tin_week"),
+  tinYear: int("tin_year"),
+  tireBrand: varchar("tire_brand", { length: 100 }),
+  /** new | used — 574.8 covers new tires only */
+  tireCondition: varchar("tire_condition", { length: 8 }).default("new").notNull(),
+  /** pending | form_given | dealer_submitted_paper | dealer_submitted_electronic | not_required_used */
+  registrationMethod: varchar("registration_method", { length: 32 }).default("pending").notNull(),
+  registeredAt: timestamp("registered_at"),
+  registeredBy: varchar("registered_by", { length: 100 }),
+  capturedBy: varchar("captured_by", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_tire_reg_wo_position").on(table.workOrderId, table.position),
+  index("idx_tire_reg_tin").on(table.tin),
+]);
+
+export type TireRegistration = typeof tireRegistrations.$inferSelect;
+
+/**
  * Specials / Promotions
  */
 export const specials = mysqlTable("specials", {
