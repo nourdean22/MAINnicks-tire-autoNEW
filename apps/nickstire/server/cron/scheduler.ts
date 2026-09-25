@@ -20,7 +20,7 @@
 
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
-import { acquireCronLock, releaseCronLock, jobTimeoutMs } from "./index";
+import { acquireCronLock, releaseCronLock, jobTimeoutMs, beginCronDrain, isCronDraining, trackCronRun } from "./index";
 import { claimStartupPass, describeStartup, readLastRunAgeMs, startupAllowanceMs, type StartupClaim } from "./tierStartup";
 import { createWallClockRunner, isWallClockTier, startWallClockLoop } from "./wallClockTiers";
 
@@ -47,7 +47,7 @@ export function reelPipelineCronShouldFailLoudly(gen: { processed: boolean; erro
   return !gen.processed && Boolean(gen.error);
 }
 
-interface TieredJob {
+export interface TieredJob {
   name: string;
   handler: () => Promise<{ recordsProcessed?: number; details?: string }>;
   /** Only run during business hours (7 AM - 9 PM ET) */
@@ -106,7 +106,7 @@ interface TieredJob {
 // derived from it — they did, and the HTTP path took a 10-minute lock for a
 // 14-minute job.
 
-interface Tier {
+export interface Tier {
   name: string;
   intervalMs: number;
   jobs: TieredJob[];
@@ -342,7 +342,10 @@ async function claimOncePerShopDay(jobName: string): Promise<boolean> {
   }
 }
 
-async function runTier(tier: Tier): Promise<void> {
+export async function runTier(tier: Tier): Promise<void> {
+  // Q-10 · a pass that fires after SIGTERM (a staggered boot timer, the
+  // wall-clock loop) must not start at all — not even its skip-state writes.
+  if (isCronDraining()) return;
   if (tier.running) {
     const skips = await bumpSkipCount(tier.name);
     log.info(`Tier ${tier.name} still running, skipping`, { consecutiveSkips: skips });
@@ -371,6 +374,10 @@ async function runTier(tier: Tier): Promise<void> {
   let skipped = 0;
 
   for (const job of tier.jobs) {
+    // Q-10 · SIGTERM landed mid-pass: the job in flight finishes (the
+    // shutdown drain waits for it), but the rest of the pass never starts.
+    if (isCronDraining()) break;
+
     // Skip disabled jobs
     if (job.enabled === false) { skipped++; continue; }
 
@@ -423,6 +430,14 @@ async function runTier(tier: Tier): Promise<void> {
       continue;
     }
 
+    // Q-10 · re-check after the lock await, and BEFORE the once-per-day claim
+    // below: a claim consumed and then skipped for shutdown would lose the
+    // job for the whole shop day. Hand the lock straight back.
+    if (isCronDraining()) {
+      if (lockResult.status === "acquired") await releaseCronLock(lockResult);
+      break;
+    }
+
     // ROS-081 · at-most-once-per-shop-day jobs claim their slot per JOB.
     // This MUST sit inside the cross-dyno lock above: two pods that each
     // read "not yet run today" would both claim and both fire, which is
@@ -445,7 +460,7 @@ async function runTier(tier: Tier): Promise<void> {
     let timedOut = false;
     try {
       const result = await Promise.race([
-        job.handler(),
+        trackCronRun(job.name, job.handler()),
         new Promise<never>((_, reject) => {
           jobTimer = setTimeout(() => { timedOut = true; reject(new Error("timeout")); }, jobTimeoutMs(job));
         }),
@@ -2993,6 +3008,9 @@ export function startTieredScheduler(): void {
  * Stop the tiered scheduler.
  */
 export function stopTieredScheduler(): void {
+  // Q-10 · clearing the intervals alone left a pass already inside runTier
+  // free to start every remaining job in its list after SIGTERM.
+  beginCronDrain();
   stopWallClockLoop?.();
   stopWallClockLoop = undefined;
   for (const tier of tiers) {
@@ -3134,8 +3152,12 @@ export async function runTierJobByName(jobName: string): Promise<{ status: strin
       if (lockResult.status === "held-by-other") {
         return { status: "skipped", details: "manual run skipped — cross-dyno lock held by another process" };
       }
+      if (isCronDraining()) {
+        if (lockResult.status === "acquired") await releaseCronLock(lockResult);
+        return { status: "skipped", details: "server shutting down — no new job starts" };
+      }
       try {
-        const result = await job.handler();
+        const result = await trackCronRun(job.name, job.handler());
         return { status: "completed", recordsProcessed: result.recordsProcessed, details: result.details };
       } catch (err) {
         return { status: "failed", details: err instanceof Error ? err.message : String(err) };
