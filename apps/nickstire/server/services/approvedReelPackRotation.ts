@@ -176,6 +176,34 @@ export const APPROVED_REEL_PACK_SLUGS = [
   "2026-09-06-sealed-transmission-no-dipstick-check",
   "2026-09-07-auto-headlights-wont-turn-on-dusk",
   "2026-09-07-wheel-stud-snapped",
+
+  // -- Approved 2026-09-25: operator-requested evening-batch import ----------
+  // 33 concepts reconciled against the live rotation: 23 distinct lessons
+  // appended below; 10 semantic duplicates are mapped in the import manifest.
+  // APPEND ONLY: reel_approved_pack_rotation_index is an array index.
+  "2026-09-25-oil-overfill-not-extra-protection",
+  "2026-09-25-ev-regen-brake-corrosion",
+  "2026-09-25-alignment-green-loose-parts",
+  "2026-09-25-balancer-zero-still-vibrates",
+  "2026-09-25-ohio-used-tire-whole-inspection",
+  "2026-09-25-impact-gun-vs-torque-wrench",
+  "2026-09-25-xl-means-extra-load",
+  "2026-09-25-oil-pressure-vs-oil-life",
+  "2026-09-25-rotor-surface-rust-overnight",
+  "2026-09-25-coolant-level-vs-freeze-protection",
+  "2026-09-25-starting-circuit-voltage-drop",
+  "2026-09-25-puncture-repair-zone",
+  "2026-09-25-two-new-tires-rear-axle",
+  "2026-09-25-tpms-flash-vs-steady",
+  "2026-09-25-tire-age-dot-date-code",
+  "2026-09-25-sidewall-max-psi-vs-placard",
+  "2026-09-25-directional-tire-rotation-arrow",
+  "2026-09-25-run-flat-limited-mobility",
+  "2026-09-25-battery-light-charging-system",
+  "2026-09-25-inner-outer-brake-pad-wear",
+  "2026-09-25-driven-flat-hidden-internal-damage",
+  "2026-09-25-epdm-belt-wear-no-cracks",
+  "2026-09-25-swollen-capped-lug-nuts",
 ] as const;
 
 /**

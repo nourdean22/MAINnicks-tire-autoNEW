@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-coolant-level-vs-freeze-protection",
+  "title": "A Full Coolant Tank Does Not Prove Winter Protection",
+  "topic": "Coolant level does not establish coolant concentration or freeze protection",
+  "mechanicTruth": "Coolant level and coolant freeze protection are different measurements; winter readiness depends on the correct coolant chemistry and concentration for the vehicle, not merely a full reservoir.",
+  "campaignKeyword": "SALT",
+  "hookText": "RESERVOIR: FULL",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Valvoline Zerex coolant concentration and freeze-protection guidance",
+      "kind": "proof",
+      "supports": "Coolant level and coolant freeze protection are different measurements; winter readiness depends on the correct coolant chemistry and concentration for the vehicle, not merely a full reservoir."
+    }
+  ],
+  "videoPrompt": "Cold-engine reservoir, real coolant sample and legitimate tester; add the freeze-protection scale in post.",
+  "modelRecommendation": "Real coolant sample and test equipment; no premium generation.",
+  "creditEfficiencyNote": "0 credits. Add footage to a reusable winter-readiness library.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "RESERVOIR: FULL",
+      "narration": "A full coolant reservoir tells you the level, not the freeze protection.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "WINTER READY?",
+      "narration": "Coolant chemistry and concentration determine cold-weather protection, and the correct specification is vehicle-specific.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "LEVEL != CONCENTRATION",
+      "narration": "Winter prep means verifying more than seeing liquid in the tank.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction without requiring any generated readout.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "CHEMISTRY + MIX MATTER",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "VERIFY THE VEHICLE SPEC",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "A full coolant reservoir tells you the level, not the freeze protection. Coolant chemistry and concentration determine cold-weather protection, and the correct specification is vehicle-specific. Winter prep means verifying more than seeing liquid in the tank.",
+  "selectedCaption": "Full reservoir does not automatically mean verified freeze protection. Correct chemistry, concentration, level, and system condition all matter.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from coolant-color and safe-reservoir-check packs: this is concentration and freeze protection."
+}

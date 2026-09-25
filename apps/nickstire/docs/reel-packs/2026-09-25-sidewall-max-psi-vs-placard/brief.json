@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-sidewall-max-psi-vs-placard",
+  "title": "The Biggest PSI Number on the Tire Is Not Automatically Your Target",
+  "topic": "Tire sidewall maximum pressure is not the vehicle's recommended operating pressure",
+  "mechanicTruth": "The pressure molded on a passenger tire sidewall is not automatically the vehicle's recommended operating pressure; the vehicle placard or owner guidance supplies the applicable cold-pressure target for the vehicle configuration.",
+  "campaignKeyword": "PRESSURE",
+  "hookText": "SIDEWALL PSI",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Michelin tire-pressure guidance",
+      "kind": "proof",
+      "supports": "The pressure molded on a passenger tire sidewall is not automatically the vehicle's recommended operating pressure; the vehicle placard or owner guidance supplies the applicable cold-pressure target for the vehicle configuration."
+    }
+  ],
+  "videoPrompt": "Use real tire sidewall and real door placard footage; keep every factual number from the actual vehicle.",
+  "modelRecommendation": "Real vehicle and tire footage only.",
+  "creditEfficiencyNote": "0 credits. One pressure-proof library supports many future episodes.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "SIDEWALL PSI",
+      "narration": "The biggest PSI number on the tire is not automatically the pressure your car wants.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "USE THAT AS THE TARGET?",
+      "narration": "The vehicle placard or owner guidance supplies the operating target, and front and rear values can differ.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "CHECK THE VEHICLE PLACARD",
+      "narration": "Set pressure cold to the applicable specification.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction without requiring any generated readout.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "FRONT / REAR CAN DIFFER",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "SET COLD TO THE APPLICABLE SPEC",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "The biggest PSI number on the tire is not automatically the pressure your car wants. The vehicle placard or owner guidance supplies the operating target, and front and rear values can differ. Set pressure cold to the applicable specification.",
+  "selectedCaption": "Sidewall maximum and vehicle operating pressure are different specifications. Nick's can check all four tires against the actual vehicle placard.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from overinflation and cold-weather-pressure packs: this is sidewall maximum versus vehicle placard target."
+}

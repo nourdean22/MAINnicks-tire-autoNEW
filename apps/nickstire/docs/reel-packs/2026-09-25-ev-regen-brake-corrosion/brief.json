@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-ev-regen-brake-corrosion",
+  "title": "EVs Can Use Their Brakes Less and Still Need Brake Attention",
+  "topic": "Regenerative braking can reduce friction-brake use and allow rotor corrosion",
+  "mechanicTruth": "Electric and hybrid vehicles can use regenerative braking for part of deceleration, reducing friction-brake use; reduced use can give rotor surface corrosion more opportunity to develop.",
+  "campaignKeyword": "BRAKES",
+  "hookText": "EV / HYBRID",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Brembo EV brake guidance",
+      "kind": "proof",
+      "supports": "Electric and hybrid vehicles can use regenerative braking for part of deceleration, reducing friction-brake use; reduced use can give rotor surface corrosion more opportunity to develop."
+    }
+  ],
+  "videoPrompt": "Real rotor footage plus deterministic regeneration graphics; any road hero stays illustrative.",
+  "modelRecommendation": "Real rotor footage plus deterministic graphics; one short geometry-sensitive hero only if needed.",
+  "creditEfficiencyNote": "Target 0 credits; maximum one reusable short hero.",
+  "distribution": "organic_first",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "EV / HYBRID",
+      "narration": "EVs and hybrids can slow partly through regenerative braking, so the friction brakes may work less.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "REGEN DOES PART OF THE WORK",
+      "narration": "That can give rotor corrosion more opportunity to build.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "FRICTION BRAKES WORK LESS",
+      "narration": "Less brake use does not mean the brake system never needs inspection.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction without requiring any generated readout.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "LESS USE CAN MEAN MORE CORROSION TIME",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "LESS USE != NO INSPECTION",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "EVs and hybrids can slow partly through regenerative braking, so the friction brakes may work less. That can give rotor corrosion more opportunity to build. Less brake use does not mean the brake system never needs inspection.",
+  "selectedCaption": "Regenerative braking is efficient, but the friction brakes still exist. Reduced use can give rotor corrosion more opportunity to develop, so EV and hybrid brakes still deserve inspection.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from morning rotor-rust education: this is reduced friction-brake use on EV and hybrid vehicles."
+}

@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-puncture-repair-zone",
+  "title": "A Tiny Nail Can Still Be Outside the Repair Zone",
+  "topic": "Puncture repairability depends on location and size, not only how small the nail looks",
+  "mechanicTruth": "Industry puncture-repair guidance limits repairs to the designated tread repair area and size limits; injuries extending into the shoulder or belt-edge area are not normal repair candidates.",
+  "campaignKeyword": "TIRES",
+  "hookText": "TINY NAIL",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "USTMA puncture-repair procedures",
+      "kind": "proof",
+      "supports": "Industry puncture-repair guidance limits repairs to the designated tread repair area and size limits; injuries extending into the shoulder or belt-edge area are not normal repair candidates."
+    }
+  ],
+  "videoPrompt": "Real puncture example plus deterministic top-down tread-zone overlays and internal inspection footage.",
+  "modelRecommendation": "Real tire and post graphics; no generative model needed.",
+  "creditEfficiencyNote": "0 credits. Save center, shoulder, sidewall and internal examples.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "TINY NAIL",
+      "narration": "A puncture can be tiny and still be in the wrong place for a normal repair.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "EASY REPAIR?",
+      "narration": "Industry guidance limits repairs to the proper tread area and size.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "LOCATION MATTERS",
+      "narration": "Location, internal condition, tire type, and manufacturer restrictions all matter.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction without requiring any generated readout.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "SHOULDER / BELT EDGE CHANGES THE ANSWER",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "DISMOUNT -> INSPECT -> DECIDE",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "A puncture can be tiny and still be in the wrong place for a normal repair. Industry guidance limits repairs to the proper tread area and size. Location, internal condition, tire type, and manufacturer restrictions all matter.",
+  "selectedCaption": "Small nail does not automatically mean small repair. Location and internal condition matter. Nick's can dismount and inspect the tire before deciding whether repair is appropriate.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from plug-vs-patch: this is the physical repair-zone boundary, not repair method."
+}

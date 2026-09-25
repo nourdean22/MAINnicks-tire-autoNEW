@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-oil-overfill-not-extra-protection",
+  "title": "More Oil Is Not Extra Protection",
+  "topic": "Oil above the upper mark is not extra protection",
+  "mechanicTruth": "Engine oil belongs within the manufacturer-specified operating range; filling above the upper mark is not extra protection and can create lubrication or sealing problems depending on the engine.",
+  "campaignKeyword": "CLUNK",
+  "hookText": "LOW OIL = BAD",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Honda owner guidance + Castrol oil-level guidance",
+      "kind": "proof",
+      "supports": "Engine oil belongs within the manufacturer-specified operating range; filling above the upper mark is not extra protection and can create lubrication or sealing problems depending on the engine."
+    }
+  ],
+  "videoPrompt": "Real dipstick and oil-service footage; use deterministic range graphics and keep factual marks out of generated footage.",
+  "modelRecommendation": "Real Nick's footage first; no generative video required.",
+  "creditEfficiencyNote": "Target 0 credits. Real level verification is stronger evidence than synthetic oil footage.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "LOW OIL = BAD",
+      "narration": "Low oil is bad, but more is not automatically better.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "MORE = BETTER?",
+      "narration": "Engines have a specified operating range.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "NO.",
+      "narration": "A quality oil service uses the correct oil, correct quantity, and a final level check using the vehicle's procedure.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction without requiring any generated readout.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "RIGHT OIL + RIGHT AMOUNT",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "VERIFY THE FINAL LEVEL",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "Low oil is bad, but more is not automatically better. Engines have a specified operating range. A quality oil service uses the correct oil, correct quantity, and a final level check using the vehicle's procedure.",
+  "selectedCaption": "Low oil is a problem. Overfilling is not extra insurance. The correct service is the right oil, right quantity, and a final level check using the vehicle's procedure.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from oil-change intervals and oil-pressure warnings: this is overfill versus the specified range."
+}

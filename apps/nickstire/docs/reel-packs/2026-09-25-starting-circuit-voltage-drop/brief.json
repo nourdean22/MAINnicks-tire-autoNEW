@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-starting-circuit-voltage-drop",
+  "title": "Battery Good, Starter Good, Crank Still Slow",
+  "topic": "Starting-circuit resistance can cause slow cranking even when battery and starter are serviceable",
+  "mechanicTruth": "A healthy battery and starter still depend on low-resistance cables and connections; corrosion, looseness, or cable damage can create voltage drop under cranking load.",
+  "campaignKeyword": "BATTERY",
+  "hookText": "BATTERY: GOOD",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "DENSO starter diagnostic procedure + Delco Remy voltage-drop guidance",
+      "kind": "proof",
+      "supports": "A healthy battery and starter still depend on low-resistance cables and connections; corrosion, looseness, or cable damage can create voltage drop under cranking load."
+    }
+  ],
+  "videoPrompt": "Accurate battery, cable, ground and starter path with real meter values added only from Nick's measurements.",
+  "modelRecommendation": "Real diagnostic measurements plus deterministic current-path graphics.",
+  "creditEfficiencyNote": "0 credits. Build a reusable electrical proof kit from actual tests.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "BATTERY: GOOD",
+      "narration": "A good battery and serviceable starter still need a low-resistance path between them.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "STARTER: GOOD",
+      "narration": "Corrosion, loose connections, or damaged cables can create voltage drop under cranking load.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "STILL CRANKS SLOW",
+      "narration": "Test the circuit before replacing another major part.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction without requiring any generated readout.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "THE PATH CAN DROP VOLTAGE",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "TEST THE CIRCUIT UNDER LOAD",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "A good battery and serviceable starter still need a low-resistance path between them. Corrosion, loose connections, or damaged cables can create voltage drop under cranking load. Test the circuit before replacing another major part.",
+  "selectedCaption": "Battery replaced and the engine still cranks slowly? The electrical path matters too. Nick's can test the starting circuit under load.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from battery-starter-alternator and terminal-corrosion packs: this teaches loaded circuit voltage drop."
+}

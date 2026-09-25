@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-battery-light-charging-system",
+  "title": "The Battery Icon Is a Charging-System Warning",
+  "topic": "A battery-shaped warning light does not automatically mean the battery itself has failed",
+  "mechanicTruth": "The dashboard battery icon is a charging-system warning; faults can involve the generator or alternator, belt, wiring, connections, controls, or the battery, and continued loss of charging can eventually drain the battery.",
+  "campaignKeyword": "BATTERY",
+  "hookText": "BATTERY ICON",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Toyota charging-system warning guidance + 2026 GMC Terrain owner guidance",
+      "kind": "proof",
+      "supports": "The dashboard battery icon is a charging-system warning; faults can involve the generator or alternator, belt, wiring, connections, controls, or the battery, and continued loss of charging can eventually drain the battery."
+    }
+  ],
+  "videoPrompt": "Blank cluster followed by accurate battery, generator, belt and charging-path footage; values remain real.",
+  "modelRecommendation": "Real Nick's charging-system tests plus deterministic circuit graphics.",
+  "creditEfficiencyNote": "0 credits. Reuse the cluster and charging-test master.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "BATTERY ICON",
+      "narration": "That battery-shaped warning light does not automatically mean the battery itself failed.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "BAD BATTERY?",
+      "narration": "It is a charging-system warning.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "CHARGING SYSTEM WARNING",
+      "narration": "The generator, belt, wiring, connections, controls, or battery can be involved.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction without requiring any generated readout.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "MULTIPLE CAUSES ARE POSSIBLE",
+      "narration": "Test the system before replacing parts.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "TEST THE SYSTEM",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "That battery-shaped warning light does not automatically mean the battery itself failed. It is a charging-system warning. The generator, belt, wiring, connections, controls, or battery can be involved. Test the system before replacing parts.",
+  "selectedCaption": "Battery icon on? Treat it as a charging-system clue, not an automatic battery verdict. Nick's can test the battery and charging system together.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from no-start battery-starter-alternator: this is specifically what the battery-shaped warning icon means."
+}

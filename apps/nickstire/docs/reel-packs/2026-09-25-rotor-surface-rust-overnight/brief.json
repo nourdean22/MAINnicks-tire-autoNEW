@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-rotor-surface-rust-overnight",
+  "title": "Orange Rotors Overnight Do Not Automatically Mean Ruined Rotors",
+  "topic": "Light brake-rotor surface oxidation after moisture is not automatically replacement",
+  "mechanicTruth": "Exposed iron brake rotors can develop light surface oxidation after moisture; light oxidation may clear from the swept surface during normal braking, while persistent corrosion, pitting, noise, pulsation, or degraded braking calls for inspection.",
+  "campaignKeyword": "BRAKES",
+  "hookText": "SILVER LAST NIGHT",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Hyundai brake-disc-cleaning guidance",
+      "kind": "proof",
+      "supports": "Exposed iron brake rotors can develop light surface oxidation after moisture; light oxidation may clear from the swept surface during normal braking, while persistent corrosion, pitting, noise, pulsation, or degraded braking calls for inspection."
+    }
+  ],
+  "videoPrompt": "Match-frame real rotor footage after moisture, next morning, and after normal use; keep actual corrosion factual.",
+  "modelRecommendation": "Real matched before-and-after footage; optional cheap rain atmosphere only.",
+  "creditEfficiencyNote": "Target 0 credits. Real matched framing is the asset.",
+  "distribution": "organic_first",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "SILVER LAST NIGHT",
+      "narration": "Brake rotors can turn orange quickly after sitting wet.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "ORANGE THIS MORNING",
+      "narration": "Light surface oxidation does not automatically mean replacement.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "RUINED?",
+      "narration": "What matters is whether it clears normally and whether corrosion, noise, pulsation, or braking behavior persists.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction without requiring any generated readout.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "LIGHT OXIDATION CAN CLEAR",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "PERSISTENT / PITTED / ROUGH -> INSPECT",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "Brake rotors can turn orange quickly after sitting wet. Light surface oxidation does not automatically mean replacement. What matters is whether it clears normally and whether corrosion, noise, pulsation, or braking behavior persists.",
+  "selectedCaption": "Orange rotor color after a wet night is not an automatic brake-job verdict. Light surface oxidation and persistent corrosion are different conditions.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from brake-squeal and uneven-pad packs: this is moisture-driven rotor surface oxidation."
+}

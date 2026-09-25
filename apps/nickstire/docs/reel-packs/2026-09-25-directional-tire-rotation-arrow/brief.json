@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-directional-tire-rotation-arrow",
+  "title": "A Brand-New Tire Can Still Be Mounted in the Wrong Direction",
+  "topic": "Directional tires must rotate in the direction specified by the sidewall arrow",
+  "mechanicTruth": "A directional tire is designed to rotate in one direction and should be installed so its molded rotation arrow matches forward wheel rotation; directional and asymmetric tire requirements are not the same thing.",
+  "campaignKeyword": "TIRES",
+  "hookText": "NEW TIRE",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Continental directional tire fitment guidance",
+      "kind": "proof",
+      "supports": "A directional tire is designed to rotate in one direction and should be installed so its molded rotation arrow matches forward wheel rotation; directional and asymmetric tire requirements are not the same thing."
+    }
+  ],
+  "videoPrompt": "Real directional tread and sidewall-arrow footage; any teaching arrow is added in post.",
+  "modelRecommendation": "Real tire inventory first; no premium generation.",
+  "creditEfficiencyNote": "0 credits. The same sidewall-language session supports many fitment lessons.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "NEW TIRE",
+      "narration": "A tire can be new, the right size, and still be installed in the wrong direction.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "RIGHT SIZE",
+      "narration": "Directional tires carry a rotation arrow that should match forward wheel rotation.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "STILL INSTALLED WRONG",
+      "narration": "That requirement is different from asymmetric inside-and-outside fitment.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction without requiring any generated readout.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "ARROW = FORWARD ROTATION",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "FITMENT IS MORE THAN SIZE",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "A tire can be new, the right size, and still be installed in the wrong direction. Directional tires carry a rotation arrow that should match forward wheel rotation. That requirement is different from asymmetric inside-and-outside fitment.",
+  "selectedCaption": "Right size is not the whole fitment check. Directional tires must rotate the way their sidewall arrow specifies. Nick's verifies orientation during installation.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from generic sidewall markings: this is directional orientation and the rotation arrow."
+}
