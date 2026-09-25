@@ -8,7 +8,7 @@ verbatim, no carve-outs. The files below are IMPORTED, so they are already in yo
 @NOUR-COMMAND.md
 
 <!-- Keep all imports on their own `@` lines: a markdown link passes a substring match but loads NOTHING
-     (false green, 2026-08-21). Asserted by check-adapters.mjs:99,:165. Cap: 60 lines. Policy goes in
+     (false green, 2026-08-21). Asserted by check-adapters.mjs + adapters.test.mjs. Cap: 60 lines. Policy goes in
      AGENTS.md; Claude-only tool behavior in CLAUDE-OPERATING-PROFILE.md (capped at 160). -->
 
 Per-app routing lives in `AGENTS.md` > **Context routing**. The `apps/<app>/CLAUDE.md` siblings
