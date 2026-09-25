@@ -527,6 +527,38 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     expect(mockSendSms).not.toHaveBeenCalled();
   });
 
+  // Post-merge audit 2026-09-23, item C. The dedupe line logged the whole
+  // idempotency key, which carries the caller's full number.
+  it("Vapi confirmation -> the dedupe log line carries the last 4 digits only", async () => {
+    mockTableResponses.sms_orchestrations = [{
+      id: 7,
+      idempotencyKey: "idemp_vapi_confirmation_+12165550013_call_call_vapi_log",
+      status: "delivered",
+      messageBody: "first recap",
+      eventType: "vapi_confirmation",
+      shouldAutoSend: true,
+    }];
+    const lines: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      lines.push(String(chunk));
+      return true;
+    });
+    try {
+      await orchestrateSms({
+        type: "vapi_confirmation",
+        phone: "2165550013",
+        summary: "Appointment booked for alignment",
+        vapiCallId: "call_vapi_log",
+      });
+    } finally {
+      spy.mockRestore();
+    }
+    const line = lines.find((l) => l.includes("Idempotency match found"));
+    expect(line).toBeDefined();
+    expect(line).toContain("0013");
+    expect(line).not.toContain("2165550013");
+  });
+
   it("Global kill switch -> the legacy send still records its idempotency key", async () => {
     mockRolloutGlobalMode = "legacy_passthrough";
 
@@ -542,6 +574,29 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
   });
 
   // 14. Abandoned form -> cooldown 7 days
+  // Issue #2579 / audit item D. The after-hours text is held by quiet hours
+  // and read the next morning, so {nextOpen} must name the day.
+  it.each([
+    ["Tue 21:00 ET", "8:00 AM Wednesday", "2026-09-22T21:00:00-04:00"],
+    ["Sun 21:00 ET", "8:00 AM Monday", "2026-09-20T21:00:00-04:00"],
+    ["Sat 21:00 ET, DST ends overnight", "9:00 AM Sunday", "2026-10-31T21:00:00-04:00"],
+  ])("After-hours capture at %s -> the text names %s, never 'tomorrow'", async (_when, expected, iso) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(iso));
+    try {
+      const res = await orchestrateSms({
+        type: "after_hours_capture",
+        phone: "2165550031",
+        name: "John",
+        captureType: "lead",
+      });
+      expect(res.body).toContain(expected);
+      expect(res.body).not.toMatch(/tomorrow|today/i);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("Abandoned form -> sends once, cooldown blocks repeat within 7 days", async () => {
     mockTableResponses.sms_orchestrations = [{ id: 42, cooldownKey: "abandoned_form:+12165550014", status: "sent", createdAt: new Date() }];
 
