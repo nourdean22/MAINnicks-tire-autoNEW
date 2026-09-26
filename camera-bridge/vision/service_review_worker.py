@@ -374,7 +374,6 @@ def analyze_case(
     context = meta["context"]
     track_id = int(context["trackId"])
     vehicle_box = tuple(float(v) for v in context["vehicleBox"])
-    base_stationary = float(context["stationarySeconds"])
     trigger_at = float(meta["at"])
     camera = str(context.get("camera") or "unknown")
     scorer = scorer or OutsideServiceShadow()
