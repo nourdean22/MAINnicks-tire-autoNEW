@@ -24,6 +24,7 @@ import numpy as np
 from .service_shadow import OutsideServiceShadow, ServiceCue, ServiceEvidenceLedger
 
 
+SERVICE_REVIEW_SCHEMA = "v1"
 MODEL_ID = "IDEA-Research/grounding-dino-tiny"
 # Pin the model repository revision used for the initial shadow lane. Model upgrades should
 # create a new measurement cohort rather than silently changing what an old score meant.
@@ -109,7 +110,10 @@ class GroundingDinoAnalyzer:
         self.threshold = float(threshold)
         self.text_threshold = float(text_threshold)
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.name = f"grounding-dino:{model_id}@{revision}"
+        self.name = (
+            f"grounding-dino-service-{SERVICE_REVIEW_SCHEMA}:{model_id}@{revision}"
+            f":box={self.threshold:.3f}:text={self.text_threshold:.3f}"
+        )
 
         self.processor = AutoProcessor.from_pretrained(model_id, revision=revision)
         self.model = AutoModelForZeroShotObjectDetection.from_pretrained(
