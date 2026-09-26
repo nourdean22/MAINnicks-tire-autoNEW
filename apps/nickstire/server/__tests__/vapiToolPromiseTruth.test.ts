@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The voice assistants must not promise what nothing tracks, and must not tell
  * a caller something happened that did not.
  *
@@ -7,13 +7,13 @@
  *    that, while the system prompt forbade it.
  * 2. Since 2026-06-05 an ordinary tire inquiry persists nothing but the call
  *    record (operator directive: no admin lead per caller), yet the caller was
- *    told "I've sent the tire info to the shop" â€” and walked in believing the
+ *    told "I've sent the tire info to the shop" — and walked in believing the
  *    counter had their size. The reply may say it was noted; never that it was
  *    sent.
  * 3. A spoken callback is only real if escalate() ran: it is the one tool that
  *    writes callback_requests AND the Promise Ledger row (voiceAgent.ts
  *    escalate). Every line of every script that promises a callback must route
- *    through escalate â€” including the implied ones ("let me have the manager
+ *    through escalate — including the implied ones ("let me have the manager
  *    confirm stock", "we'll look and call you with the estimate") and the ones
  *    outside the inbound prompt (follow-up, confirmation and recovery scripts,
  *    voicemails, and the strings the tools hand back for the model to relay).
@@ -66,15 +66,15 @@ const SCRIPTS: Array<[string, string]> = [
 ];
 
 // A closing quote or bracket can sit between the full stop and the space
-// ('â€¦a real answer." Never letâ€¦'); without it the next sentence's NEVER would
-// exempt the promise before it â€” a false negative this split once had.
+// ('…a real answer." Never let…'); without it the next sentence's NEVER would
+// exempt the promise before it — a false negative this split once had.
 const sentences = (text: string) => text.split(/(?<=[.!?]["\u201d')]?)\s+|\n+/).map((x) => x.trim()).filter(Boolean);
 const lines = (text: string) => text.split(/\n+/).map((x) => x.trim()).filter(Boolean);
 
 /**
- * An INSTRUCTION not to do it ("NEVER promise a callback", "Never send them toâ€¦
- * call back") is not a promise. Only that shape is exempt â€” a bare "no" is not
- * ("No worries â€” someone will call you back." is a promise).
+ * An INSTRUCTION not to do it ("NEVER promise a callback", "Never send them to…
+ * call back") is not a promise. Only that shape is exempt — a bare "no" is not
+ * ("No worries — someone will call you back." is a promise).
  */
 const INSTRUCTION_NEGATION = /\b(never|don'?t|do not|not)\s+(promise|say|tell|offer|claim|volunteer|give|send|ask)\b/i;
 
@@ -114,26 +114,26 @@ const homework = (text: string) => sentences(text).filter((x) => HOMEWORK.test(x
 
 describe("POSITIVE CONTROLS: each matcher catches the text that shipped", () => {
   it("timed promises", () => {
-    expect(timedPromises("Use 'PHYSICAL RACK CHECK REQUESTED â€” promised 15 min callback' whenâ€¦")).toHaveLength(1);
+    expect(timedPromises("Use 'PHYSICAL RACK CHECK REQUESTED — promised 15 min callback' when…")).toHaveLength(1);
     expect(timedPromises("We'll call you back in 15 minutes.")).toHaveLength(1);
     expect(timedPromises("Someone will get back to you within the hour.")).toHaveLength(1);
     expect(timedPromises("Tell them a fifteen-minute callback is coming.")).toHaveLength(1);
-    // â€¦and passes an instruction not to, and a duration that is not a promise
+    // …and passes an instruction not to, and a duration that is not a promise
     expect(timedPromises("Never promise a 15 min callback.")).toHaveLength(0);
     expect(timedPromises("Keep it under 3 minutes.")).toHaveLength(0);
   });
 
   it("untracked callback promises, explicit and implied", () => {
     // the pre-fix FLOW 1 odd-size line: an implied callback, no escalate
-    expect(untrackedCallbackPromises('- ODD/uncommon (24"+ rims, run-flats, oversized): "Less common for us â€” let me have the manager confirm stock. Name and best number?" â†’ tireInquiry â†’ transferCall only if they want to talk now (OPEN).')).toHaveLength(1);
+    expect(untrackedCallbackPromises('- ODD/uncommon (24"+ rims, run-flats, oversized): "Less common for us — let me have the manager confirm stock. Name and best number?" → tireInquiry → transferCall only if they want to talk now (OPEN).')).toHaveLength(1);
     // the pre-fix towed-vehicle confirm (bookSlot writes no promise row)
-    expect(untrackedCallbackPromises('Confirm: "car\'s at {location}, sending it to 17625 Euclid Ave â€” soon as it lands we\'ll look and call you with the estimate." â†’ bookSlot â†’ transferCall.')).toHaveLength(1);
+    expect(untrackedCallbackPromises('Confirm: "car\'s at {location}, sending it to 17625 Euclid Ave — soon as it lands we\'ll look and call you with the estimate." → bookSlot → transferCall.')).toHaveLength(1);
     // the pre-fix voicemail and the unregistered quoteRange note
-    expect(untrackedCallbackPromises("We didn't reach you â€” leave us your name and tire size, we'll call you back. (216) 862-0005.")).toHaveLength(1);
-    expect(untrackedCallbackPromises("I'm not sure about that exact service â€” let me have someone call you back with a quote.")).toHaveLength(1);
+    expect(untrackedCallbackPromises("We didn't reach you — leave us your name and tire size, we'll call you back. (216) 862-0005.")).toHaveLength(1);
+    expect(untrackedCallbackPromises("I'm not sure about that exact service — let me have someone call you back with a quote.")).toHaveLength(1);
     // a bare "no" does not exempt a promise
-    expect(untrackedCallbackPromises("No worries â€” someone will call you back.")).toHaveLength(1);
-    // â€¦and passes a line that escalates, and an instruction not to promise
+    expect(untrackedCallbackPromises("No worries — someone will call you back.")).toHaveLength(1);
+    // …and passes a line that escalates, and an instruction not to promise
     expect(untrackedCallbackPromises('Get name + phone, call escalate({ name, phone }), say "someone calls you back when we\'re open."')).toHaveLength(0);
     expect(untrackedCallbackPromises("NEVER promise a callback or a timeframe.")).toHaveLength(0);
   });
@@ -142,7 +142,7 @@ describe("POSITIVE CONTROLS: each matcher catches the text that shipped", () => 
     expect(NAMED_CALLBACK.test("Want me to have him call you back instead?")).toBe(true);
     expect(NAMED_CALLBACK.test("Nick will call Jordan back.")).toBe(true);
     expect(NAMED_CALLBACK.test("Want me to have someone from the shop call you back instead?")).toBe(false);
-    expect(homework("Trim level may change the size â€” check the door jamb sticker if you can.")).toHaveLength(1);
+    expect(homework("Trim level may change the size — check the door jamb sticker if you can.")).toHaveLength(1);
     expect(homework("Easiest answer: check the side of any current tire on your vehicle for the size.")).toHaveLength(1);
     expect(homework("Never send them to check a sidewall or door jamb and call back.")).toHaveLength(0);
   });
@@ -209,7 +209,7 @@ describe("every script and tool text the model reads promises nothing untracked"
 
 /**
  * What the tools hand back is what the caller hears: the model relays it. So
- * the replies are checked by CALLING the procedures, not by reading a helper â€”
+ * the replies are checked by CALLING the procedures, not by reading a helper —
  * putting "I've sent the tire info to the shop" back into the router must fail
  * here (it did not when only the helper was tested).
  */
@@ -244,7 +244,7 @@ describe("what the tools say back", () => {
     }
   });
 
-  it("tireSizeFromVehicle gives no sidewall homework, no call-back, and no price range â€” found or not", async () => {
+  it("tireSizeFromVehicle gives no sidewall homework, no call-back, and no price range — found or not", async () => {
     const c = await voiceCaller();
     for (const q of [{ year: 2019, make: "Honda", model: "Civic" }, { year: 1987, make: "Yugo", model: "GV" }]) {
       const res = (await c.tireSizeFromVehicle(q)) as Record<string, unknown>;
