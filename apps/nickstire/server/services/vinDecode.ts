@@ -35,7 +35,7 @@ export function normalizeVinForLookup(raw: string | null | undefined): string | 
   return /^[A-HJ-NPR-Z0-9]{11,17}$/.test(value) ? value : null;
 }
 
-export function normalizeVin(raw: string | null | undefined): string | null {
+function normalizeVin(raw: string | null | undefined): string | null {
   const value = normalizeVinForLookup(raw);
   // Enrichment/backfill stays strict: stored-vehicle decode requires a full VIN.
   return value?.length === 17 ? value : null;
