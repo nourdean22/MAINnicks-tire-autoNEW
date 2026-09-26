@@ -51,6 +51,10 @@ TRIGGERS = (
     "MODEL_OOD",
     "OPERATOR_CORRECTION",       # the highest-value label there is: a human said we were wrong
     "CAMERA_VS_RO_MISMATCH",     # the lot says a visit, the shop's records say none
+    # An arrived vehicle is stationary outside every calibrated bay. This is NOT a claim
+    # of service; it intentionally collects both waiting/parking negatives and true outside
+    # jack/tire/plug positives so a future classifier can be measured on THIS lot.
+    "NO_BAY_ACTIVITY_REVIEW",
     # UNWIRED ON PURPOSE, and this is the measurement that says so rather than a TODO.
     # Over 62 real visits in the edge ledger the dwell distribution is
     #   min 26s - p25 131s - median 345s - p75 990s - p90 1,885s - max 6,741s
@@ -106,6 +110,9 @@ TRIGGERS_WIRED = frozenset({
     # real case matched at 158 inliers against a floor of 18 and was caught by an independent
     # signal, not by its own fit quality.
     "SCENE_LOCATOR_LOW_CONFIDENCE",
+    # Fires once per arrived track after a configurable observed-stationary dwell outside
+    # every bay. The caller says only "ambiguous enough to review"; it never says service.
+    "NO_BAY_ACTIVITY_REVIEW",
 })
 # `SOURCE_FAILOVER` was listed here one commit before it had a caller, which is precisely
 # what the comment above forbids. It now fires from the generation-break branch in

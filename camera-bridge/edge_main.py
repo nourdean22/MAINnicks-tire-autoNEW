@@ -477,6 +477,7 @@ class EdgeLoop:
         shadow: Any = None,
         challenger: Any = None,
         relocate_seconds: float = 120.0,
+        service_review_seconds: float = 30.0,
         clock=time.time,
     ) -> None:
         self.pipeline = pipeline
@@ -515,6 +516,11 @@ class EdgeLoop:
         #: disagreements are not a counterfactual.
         self.challenger = challenger
         self._last_layout_epoch = None
+        # Corpus sampler only. This number is NOT a service classifier threshold; it says
+        # when an arrived, no-bay, stationary vehicle has become worth one review clip.
+        self.service_review_seconds = max(0.0, float(service_review_seconds))
+        self._service_review_armed: set[int] = set()
+        self._service_review_attempted: Dict[int, float] = {}
         self.camera = camera
         # REJECT an unknown mode at construction. Uppercasing whatever arrives turns a
         # programming error into a value the shop rejects 400 -- and it did: a local named
@@ -1255,6 +1261,54 @@ class EdgeLoop:
                         self.hard_cases.trigger("PORTAL_LOW_CONFIDENCE", ts, {
                             "bestScore": round(max(scores), 3), "detections": len(scores)})
 
+            # NO-BAY ACTIVITY REVIEW. This is deliberately a DATASET trigger, not a service
+            # classification. Nick's legitimately changes tires/plugs outside on jacks, but
+            # customers also wait or park in the same geometry. The only honest claim the
+            # deterministic edge can make is: an ARRIVED vehicle stayed still outside every
+            # calibrated bay long enough to be worth one labelled clip.
+            #
+            # One successful clip per live track. If the recorder's global per-reason
+            # cooldown suppresses a concurrent car, retry no faster than that cooldown
+            # instead of hammering trigger() four times a second and turning the drop counter
+            # into frames rather than opportunities.
+            tracks = getattr(getattr(self.vision, "tracks", None), "tracks", {}) or {}
+            live_ids = {int(tid) for tid in tracks}
+            self._service_review_armed.intersection_update(live_ids)
+            for old in list(self._service_review_attempted):
+                if old not in live_ids:
+                    self._service_review_attempted.pop(old, None)
+
+            bay_names = set(getattr(getattr(self.vision, "bays", None), "bays", {}) or {})
+            if self.service_review_seconds > 0:
+                for track in tracks.values():
+                    track_id = int(getattr(track, "track_id", -1))
+                    if track_id < 0 or track_id in self._service_review_armed:
+                        continue
+                    if getattr(track, "evidence", None) != "arrival":
+                        continue
+                    if int(getattr(track, "misses", 0) or 0) != 0:
+                        continue
+                    zones = set(getattr(track, "zones", None) or [])
+                    if zones & bay_names:
+                        continue
+                    stationary = float(track.stationary_for(ts))
+                    if stationary < self.service_review_seconds:
+                        continue
+                    last_attempt = self._service_review_attempted.get(track_id)
+                    retry_after = float(getattr(self.hard_cases, "cooldown_seconds", 60.0))
+                    if last_attempt is not None and ts - last_attempt < retry_after:
+                        continue
+                    self._service_review_attempted[track_id] = ts
+                    if self.hard_cases.trigger("NO_BAY_ACTIVITY_REVIEW", ts, {
+                        "trackId": track_id,
+                        "stationarySeconds": round(stationary, 3),
+                        "zones": sorted(zones),
+                        "bayNames": sorted(bay_names),
+                        "evidence": "arrival",
+                        "meaning": "review ambiguity only; NOT proof of outside service",
+                    }):
+                        self._service_review_armed.add(track_id)
+
             for path in self.hard_cases.flush_ready(ts):
                 log.info("hard case saved %s", path)
         except Exception:  # noqa: BLE001 - the corpus must never take the lot down
@@ -1714,11 +1768,20 @@ def parse_args(argv=None) -> argparse.Namespace:
                     help="JSONL of what the adjudicator ALONE would have decided, beside the "
                          "primary. Counterfactual only -- a challenger never gets a vote.")
     ap.add_argument("--hard-cases", default=os.environ.get("EDGE_HARD_CASES"),
-                    help="directory for clips of moments the system found HARD -- detector "
-                         "disagreement, a weak portal decision, an off-home pose, a layout "
-                         "change. Unset means no corpus is collected.")
+                    help="directory for clips of moments the system found HARD or worth "
+                         "labelling -- detector disagreement, weak portal decisions, off-home "
+                         "pose/layout changes, and no-bay activity review. Unset means no "
+                         "corpus is collected.")
     ap.add_argument("--hard-case-max-gb", type=float, default=2.0,
                     help="disk budget for the hard-case store; oldest clips are evicted first")
+    ap.add_argument(
+        "--service-review-seconds",
+        type=float,
+        default=float(os.environ.get("EDGE_SERVICE_REVIEW_SECONDS", "30")),
+        help="after this many OBSERVED stationary seconds, save one review clip for an arrived "
+             "vehicle outside all calibrated bays. This samples ambiguity for labelling; it "
+             "does NOT classify outside service. 0 disables.",
+    )
     ap.add_argument("--trajectories", default=os.environ.get("EDGE_TRAJECTORIES"),
                     help="SQLite path recording where vehicles actually drove, at 1 Hz. Feeds "
                          "`python -m vision.trajectory`, which PROPOSES a lot polygon measured "
@@ -1879,6 +1942,7 @@ def run_edge(args: argparse.Namespace) -> int:
         stall_exit_seconds=args.stall_exit_seconds, persist_seconds=args.persist_seconds,
         hard_cases=recorder, trajectories=trajectories, shadow=shadow, challenger=challenger,
         relocate_seconds=args.relocate_seconds,
+        service_review_seconds=args.service_review_seconds,
     )
 
     stop = threading.Event()
