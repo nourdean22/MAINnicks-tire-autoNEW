@@ -343,6 +343,54 @@ export function markPhoneOptedOut(phone: string): void {
 }
 
 /**
+ * Record a do-not-call request SPOKEN on an outbound AI voice call (Q-45,
+ * 47 CFR 64.1200(b)(3): "record the called person's number to the caller's
+ * do-not-call list"). Same store as markPhoneOptedOut — sms_preferences, which
+ * loadSuppressionIndex reads — marked with VOICE_OPT_OUT_KEYWORD for its
+ * narrower scope (see that constant).
+ *
+ * Never DOWNGRADES: a number already opted out keeps its existing marker, so a
+ * prior text STOP stays a full opt-out. The IFs read the row's OLD values
+ * because `opted_out` is assigned last, which gives the same result whether
+ * the engine applies the assignments left to right (MySQL) or all at once.
+ *
+ * Awaited, unlike the SMS path, and returns whether the durable write landed:
+ * the caller tells the customer "you're off our list", and the end-of-call
+ * transcript check retries a failed write.
+ */
+export async function markPhoneVoiceOptedOut(phone: string): Promise<boolean> {
+  const norm = (phone || "").replace(/\D/g, "").slice(-10);
+  if (norm.length !== 10) return false;
+  if (!optOutCache) optOutCache = new Set();
+  if (!optOutCache.has(norm)) {
+    if (!voiceOnlyCache) voiceOnlyCache = new Set();
+    voiceOnlyCache.add(norm);
+  }
+  optOutCache.add(norm);
+  try {
+    const { getDb } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return false;
+    await db.execute(sql`
+      INSERT INTO sms_preferences (phone, opted_out, opt_out_keyword, opted_out_at)
+      VALUES (${norm}, 1, ${VOICE_OPT_OUT_KEYWORD}, NOW())
+      ON DUPLICATE KEY UPDATE
+        opt_out_keyword = IF(opted_out, opt_out_keyword, ${VOICE_OPT_OUT_KEYWORD}),
+        opted_out_at = IF(opted_out, opted_out_at, NOW()),
+        opted_out = 1
+    `);
+    return true;
+  } catch (err) {
+    log.error("voice opt-out persist FAILED — suppressed in this process only", {
+      error: err instanceof Error ? err.message : String(err),
+      errorId: "VOICE_OPT_OUT_PERSIST_FAILED",
+    });
+    return false;
+  }
+}
+
+/**
  * Inverse — call when a customer texts START/UNSTOP and smsOptOut goes
  * back to 0. Removes from cache so future sends to this number resume, and
  * clears the durable sms_preferences flag.
