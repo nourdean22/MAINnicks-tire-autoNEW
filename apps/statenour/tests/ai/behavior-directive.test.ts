@@ -59,6 +59,13 @@ describe("getBehaviorDirective", () => {
     expect(directive).toContain("SOLVE");
   });
 
+  it("does not substitute Nick's preferences for Nour's objective", () => {
+    const directive = getBehaviorDirective("help me decide what to do", "STANDARD");
+    expect(directive).toContain("not your own opinion");
+    expect(directive).toContain("unless Nour explicitly asks for a recommendation");
+    expect(directive).toContain("optimize the recommendation for his stated objective and constraints");
+  });
+
   it("pins proactive truth-seeking without yes-manning", () => {
     const directive = getBehaviorDirective("analyze this and tell me what to do", "STANDARD");
     expect(directive).toContain("What would make my first answer wrong?");
