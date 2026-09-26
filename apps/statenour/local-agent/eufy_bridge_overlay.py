@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Fail-closed overlay for the tested ha-eufy-sdk-bridge runtime.
 
-Live commissioning on 2026-09-26 proved two gaps in upstream bridge v0.3.0:
+Live commissioning on 2026-09-26 proved three gaps in upstream bridge v0.3.0:
 1. the SDK exposes PTZ actions, but the bridge device.action router omits dev.ptz();
-2. generated go2rtc listeners bind all interfaces instead of the loopback-only boundary
+2. StateNour's preset.goto route is nested at dev.ptz().preset().goto(id), while the
+   upstream action router resolves only direct methods;
+3. generated go2rtc listeners bind all interfaces instead of the loopback-only boundary
    used by the StateNour local bridge.
 
 This module applies ONLY those exact, reviewed edits to bridge v0.3.0. Unknown versions or
@@ -23,14 +25,34 @@ SUPPORTED_VERSION = "0.3.0"
 WS_PATH = Path("src/ws-server.mjs")
 GO2RTC_PATH = Path("go2rtc-config.mjs")
 
-PTZ_OLD = (
-    "const surfaces = [dev.smartLight?.(), dev.camera?.(), dev.lock?.(), "
-    "dev.siren?.()].filter(Boolean);"
-)
-PTZ_NEW = (
-    "const surfaces = [dev.smartLight?.(), dev.camera?.(), dev.lock?.(), "
-    "dev.siren?.(), dev.ptz?.()].filter(Boolean);"
-)
+ROUTER_OLD = """          // Capability surfaces that expose actions. Add more accessors here as needed.
+          const surfaces = [dev.smartLight?.(), dev.camera?.(), dev.lock?.(), dev.siren?.()].filter(Boolean);
+          const surface = surfaces.find((s) => typeof s?.[action] === "function");
+          if (!surface) return fail(`no action '${action}' on ${msg.sn}`);
+          const t0 = Date.now();
+          dbg(`device.action → ${action} sn=${msg.sn} args=${JSON.stringify(args)}`);
+          try {
+            const result = await surface[action](...args);"""
+
+ROUTER_NEW = """          // Capability surfaces that expose actions. Add more accessors here as needed.
+          const ptz = dev.ptz?.();
+          const surfaces = [dev.smartLight?.(), dev.camera?.(), dev.lock?.(), dev.siren?.(), ptz].filter(Boolean);
+          let surface = surfaces.find((s) => typeof s?.[action] === "function");
+          let method = action;
+          // PTZ presets intentionally live behind a nested namespace: dev.ptz().preset().goto(id).
+          // Expose only the reviewed goto path rather than generically traversing arbitrary dotted names.
+          if (!surface && action === "preset.goto" && typeof ptz?.preset === "function") {
+            const preset = ptz.preset();
+            if (typeof preset?.goto === "function") {
+              surface = preset;
+              method = "goto";
+            }
+          }
+          if (!surface) return fail(`no action '${action}' on ${msg.sn}`);
+          const t0 = Date.now();
+          dbg(`device.action → ${action} sn=${msg.sn} args=${JSON.stringify(args)}`);
+          try {
+            const result = await surface[method](...args);"""
 
 LISTENER_REPLACEMENTS = (
     ('  listen: ":1984"', '  listen: "127.0.0.1:1984"'),
@@ -90,10 +112,8 @@ def _apply_file(path: Path, transforms: Iterable[tuple[str, str, str]]) -> tuple
         raise OverlayError(f"cannot read {path}: {exc}") from exc
 
     current = original
-    states: list[str] = []
     for old, new, label in transforms:
-        current, state = _replace_exact(current, old, new, label)
-        states.append(state)
+        current, _state = _replace_exact(current, old, new, label)
 
     changed = current != original
     if changed:
@@ -110,8 +130,8 @@ def verify(root: str | Path) -> OverlayReport:
     ws_text = (base / WS_PATH).read_text(encoding="utf-8")
     go_text = (base / GO2RTC_PATH).read_text(encoding="utf-8")
 
-    if PTZ_NEW not in ws_text or PTZ_OLD in ws_text:
-        raise OverlayError("PTZ action router overlay is not verified")
+    if ROUTER_NEW not in ws_text or ROUTER_OLD in ws_text:
+        raise OverlayError("PTZ/preset action router overlay is not verified")
 
     for old, new in LISTENER_REPLACEMENTS:
         if new not in go_text or old in go_text:
@@ -120,7 +140,7 @@ def verify(root: str | Path) -> OverlayReport:
     return OverlayReport(
         bridge_root=str(base),
         bridge_version=str(package["version"]),
-        ptz_router="verified",
+        ptz_router="verified_with_preset_goto",
         go2rtc_listeners="loopback_only",
         changed_files=(),
     )
@@ -133,7 +153,7 @@ def apply(root: str | Path) -> OverlayReport:
 
     ptz_state, ptz_changed = _apply_file(
         base / WS_PATH,
-        ((PTZ_OLD, PTZ_NEW, "PTZ device.action router"),),
+        ((ROUTER_OLD, ROUTER_NEW, "PTZ/preset device.action router"),),
     )
     if ptz_changed:
         changed.append(WS_PATH.as_posix())
