@@ -22,7 +22,10 @@ import { DECLINED_RECOVERY_WINDOW_DAYS } from "@shared/const";
 
 describe("estimate-invoice-match tier job", () => {
   beforeEach(() => vi.resetModules());
-  afterEach(() => vi.doUnmock("../services/shopDriverEstimateSync"));
+  afterEach(() => {
+    vi.doUnmock("../services/shopDriverEstimateSync");
+    vi.doUnmock("../db");
+  });
 
   it("is a daily, automatically scheduled job that runs before the recovery sends", async () => {
     const { getJobCadences } = await import("./scheduler");
@@ -104,5 +107,80 @@ describe("estimate-invoice-match tier job", () => {
     const r = await runTierJobHandlerUnlocked("estimate-invoice-match");
     expect(r.recordsProcessed).toBe(0);
     expect(r.details).toMatch(/no unmatched estimates/i);
+  });
+
+  it("paginates past 200 permanently-unmatched rows so later estimates cannot starve", async () => {
+    const { MySqlDialect } = await import("drizzle-orm/mysql-core");
+    const page = (start: number, count: number) => Array.from({ length: count }, (_, i) => ({
+      id: start + i,
+      customerPhone: "bad",
+      estimatedAmount: 10000,
+      estimateDate: new Date("2026-09-01T12:00:00Z"),
+    }));
+    const pages = [page(1, 200), page(201, 5)];
+    const whereArgs: unknown[] = [];
+    let selects = 0;
+    const fake = {
+      select: () => {
+        selects++;
+        const c: Record<string, any> = {};
+        c.from = () => c;
+        c.where = (w: unknown) => { whereArgs.push(w); return c; };
+        c.orderBy = () => c;
+        c.limit = async () => pages.shift() ?? [];
+        return c;
+      },
+    };
+    vi.doMock("../db", () => ({ getDb: async () => fake }));
+    const { backfillMatches } = await import("../services/shopDriverEstimateSync");
+    const r = await backfillMatches({ sinceDays: 60 });
+    expect(r.scanned).toBe(205);
+    expect(r.skippedNoPhone).toBe(205);
+    expect(selects).toBe(2);
+    const second = new MySqlDialect().sqlToQuery(whereArgs[1] as never);
+    expect(second.sql).toMatch(/`id` > \?/i);
+    expect(second.params).toContain(200);
+  });
+
+  it("runTier never invokes recovery when the matcher throws", async () => {
+    vi.doMock("../db", () => ({ getDb: async () => null }));
+    const matcher = vi.fn(async () => { throw new Error("matcher broke"); });
+    const recovery = vi.fn(async () => ({ recordsProcessed: 1 }));
+    const { runTier } = await import("./scheduler");
+    await runTier({
+      name: "q37-failure-canary",
+      intervalMs: 60_000,
+      running: false,
+      lastRun: null,
+      jobs: [
+        { name: "estimate-invoice-match", handler: matcher },
+        { name: "alg-declined-work-recovery", requiresSuccessfulJobs: ["estimate-invoice-match"], handler: recovery },
+      ],
+    });
+    expect(matcher).toHaveBeenCalledTimes(1);
+    expect(recovery).not.toHaveBeenCalled();
+  });
+
+  it("runTier never invokes recovery when the matcher times out", async () => {
+    vi.doMock("../db", () => ({ getDb: async () => null }));
+    let release!: () => void;
+    const wait = new Promise<void>((resolve) => { release = resolve; });
+    const matcher = vi.fn(async () => { await wait; return { recordsProcessed: 0 }; });
+    const recovery = vi.fn(async () => ({ recordsProcessed: 1 }));
+    const { runTier } = await import("./scheduler");
+    await runTier({
+      name: "q37-timeout-canary",
+      intervalMs: 60_000,
+      running: false,
+      lastRun: null,
+      jobs: [
+        { name: "estimate-invoice-match", timeoutMs: 5, handler: matcher },
+        { name: "alg-declined-work-recovery", requiresSuccessfulJobs: ["estimate-invoice-match"], handler: recovery },
+      ],
+    });
+    expect(matcher).toHaveBeenCalledTimes(1);
+    expect(recovery).not.toHaveBeenCalled();
+    release();
+    await new Promise((resolve) => setImmediate(resolve));
   });
 });
