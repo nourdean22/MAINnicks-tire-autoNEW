@@ -23,6 +23,8 @@ export interface SlashCommand {
 // Exported so the drift-guard test (tests/ai/command-drift.test.ts) can assert
 // every backend F5 command surfaces here. truth-substrate audit P1 (#18).
 export const SLASH_COMMANDS: SlashCommand[] = [
+  { cmd: "/drq", label: "Deep Research Prompt Writer", icon: "🔎", prompt: "DRQ: " },
+  { cmd: "/nickdrq", label: "Nick's Deep Research Writer", icon: "🛞", prompt: "NICKDRQ: " },
   { cmd: "/image", label: "Generate Image", icon: "📸", prompt: "Generate an image: " },
   { cmd: "/revenue", label: "Revenue Snapshot", icon: "📊", prompt: "Give me a full revenue snapshot — today, this week, pipeline, aging estimates, and what needs follow-up." },
   { cmd: "/leads", label: "Stale Leads", icon: "🔴", prompt: "Show me all leads that haven't been contacted in 24+ hours. Include urgency, name, service needed." },
