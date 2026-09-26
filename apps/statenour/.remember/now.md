@@ -34,9 +34,11 @@ critic avg 91.3/100; 12 perfect 100s; reply-gate clean 21/27; median 167 words. 
 14 pass / 9 repair / 4 block and critic regen candidates could still reach the user unchanged. This proves the
 detector was seeing real defects; it did NOT prove the separate evidence gate was ready for enforcement.
 
-**NEXT PROOF — DO NOT SKIP** · after enough real weak drafts occur on #2680, read
-`verified_regen_path` / `chat.pre_stream_regen` and compare attempt rate, `selectionReason`, first-vs-regen
-severity + critic deltas, `regenFired`, latency/cost, and which text actually shipped. Implementation/tests/deploy
+**NEXT PROOF — DO NOT SKIP** · after enough real weak drafts occur on #2680, read the live
+`verified_regen_path` event and compare `regenAttempted`, `regenFired`, `regenWasBetter`,
+`selectionReason`, first/regen overall, first/regen severity, and `intent`. Those are the fields actually emitted.
+`formatRegenTelemetry()` is UNWIRED today, so `chat.pre_stream_regen`, specificity deltas and regen latency/cost
+are not collectible production proof yet; wire and prove that writer before using them. Implementation/tests/deploy
 are PROVEN; real production repair win-rate is NOT YET PROVEN. Evidence-gate promotion remains a separate
 calibration decision.
 
