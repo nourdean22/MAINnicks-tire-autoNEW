@@ -38,6 +38,10 @@ def test_a_clip_carries_the_frames_BEFORE_the_trigger_not_just_after(tmp_path):
     assert meta["firstFrameAt"] <= 1006.0 + 1e-6, "the BEFORE window is missing"
     assert meta["lastFrameAt"] >= 1008.9, "the AFTER window is missing"
     assert meta["context"] == {"score": 0.41}
+    assert len(meta["frameTimestamps"]) == meta["frames"]
+    assert meta["frameTimestamps"][0] == pytest.approx(meta["firstFrameAt"])
+    assert meta["frameTimestamps"][-1] == pytest.approx(meta["lastFrameAt"])
+    assert meta["frameTimestamps"] == sorted(meta["frameTimestamps"])
     assert len([f for f in os.listdir(paths[0]) if f.endswith(".jpg")]) == meta["frames"]
 
 
