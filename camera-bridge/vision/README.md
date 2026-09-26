@@ -234,9 +234,16 @@ Outputs:
 - each processed clip gets `service-review.json` with the analyzer identity and shadow result;
 - a clip that accumulates sufficient person + mechanical + temporal evidence adds one row to
   `service-evidence.jsonl` with `authority=shadow_only`;
+- `episodes=replace` clips are read back from their verified MCAP episode after numbered JPEG
+  duplicates are removed; timestamps must match the exact `case.json` provenance;
 - old clips that lack exact `frameTimestamps` or `vehicleBox` are skipped rather than
   backfilled from guesses;
 - model/inference failure is case-local and visible in that clip's receipt.
+
+The default model is pinned to repository revision
+`a2bb814dd30d776dcf7e30523b00659f4f141c71`, which contains `model.safetensors`.
+The loader sets `use_safetensors=True`; it must not silently fall back to the legacy
+`pytorch_model.bin` pickle artifact.
 
 The default Grounding-DINO model source is Apache-2.0:
 https://huggingface.co/IDEA-Research/grounding-dino-tiny
