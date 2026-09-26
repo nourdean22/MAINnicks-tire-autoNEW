@@ -1,19 +1,20 @@
 import { createLogger } from "./lib/logger";
+import { getHourlyPeriods, type NwsPeriod } from "./lib/nwsWeather";
 const log = createLogger("weather");
 
 /**
- * Weather service for Cleveland, OH using Open-Meteo API (free, no API key required).
- * Fetches current conditions and generates weather-reactive notifications
- * that override the default notification bar during severe weather.
+ * Current weather for the shop, from the National Weather Service hourly
+ * forecast (lib/nwsWeather.ts — public-domain, commercial use allowed). The
+ * first hourly period is the current hour. Drives the weather-reactive
+ * notification bar, shop state and the voice agent's greeting.
  *
- * Cleveland coordinates: 41.4993, -81.6944
+ * 2026-09-23 · this read Open-Meteo's free endpoint, whose terms allow
+ * non-commercial use only; a business website is commercial use. The public
+ * shape (WMO weather_code) is kept so no consumer changes: NWS forecast text
+ * is mapped onto the WMO codes below by nwsForecastToWmoCode().
  */
 
-const CLEVELAND_LAT = 41.4993;
-const CLEVELAND_LON = -81.6944;
-
-// WMO Weather interpretation codes
-// https://open-meteo.com/en/docs
+// WMO Weather interpretation codes (the public weather_code vocabulary)
 const WMO_CODES: Record<number, string> = {
   0: "clear",
   1: "mainly_clear",
@@ -66,6 +67,49 @@ export interface WeatherAlert {
 let cachedWeather: { data: WeatherData; timestamp: number } | null = null;
 const CACHE_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
+/**
+ * NWS forecast text ("Chance Rain Showers", "Heavy Snow", "Mostly Sunny") ->
+ * the nearest WMO code, most severe match first. A low-probability "chance"
+ * of precipitation this hour is not weather happening now: it maps to cloudy.
+ */
+export function nwsForecastToWmoCode(shortForecast: string, precipChancePct: number | null = null): number {
+  const t = shortForecast.toLowerCase();
+  const precip = /snow|rain|showers|drizzle|sleet|thunderstorm|t-storm|ice|flurries/.test(t);
+  if (precip && /^(slight )?chance/.test(t) && (precipChancePct ?? 0) < 50) return 3;
+  if (/thunderstorm|t-storm/.test(t)) return /hail/.test(t) ? 96 : 95;
+  if (/blizzard|heavy snow/.test(t)) return 75;
+  if (/freezing rain|sleet|ice pellets|ice storm/.test(t)) return 66;
+  if (/freezing drizzle/.test(t)) return 56;
+  if (/snow showers/.test(t)) return /heavy/.test(t) ? 86 : 85;
+  if (/light snow|flurries/.test(t)) return 71;
+  if (/snow/.test(t)) return 73;
+  if (/heavy rain/.test(t)) return 65;
+  if (/showers/.test(t)) return /light|chance/.test(t) ? 80 : 81;
+  if (/drizzle/.test(t)) return 51;
+  if (/light rain/.test(t)) return 61;
+  if (/rain/.test(t)) return 63;
+  if (/fog/.test(t)) return 45;
+  if (/partly/.test(t)) return 2;
+  if (/mostly (sunny|clear)/.test(t)) return 1;
+  if (/sunny|clear/.test(t)) return 0;
+  return 3; // cloudy, overcast, haze, or text we do not recognise
+}
+
+/** The current-hour NWS period -> this module's public WeatherData. */
+function weatherFromNwsPeriod(p: NwsPeriod): WeatherData {
+  const code = nwsForecastToWmoCode(p.shortForecast, p.precipChancePct);
+  return {
+    temperature_f: Math.round(p.temperatureF),
+    wind_speed_mph: Math.round(p.windMph ?? 0),
+    weather_code: code,
+    weather_condition: WMO_CODES[code] || "unknown",
+    is_day: p.isDaytime,
+    // The NWS hourly forecast carries a chance of precipitation, not an
+    // amount. Precipitation is expressed through weather_code instead.
+    precipitation_mm: 0,
+  };
+}
+
 export async function getWeather(): Promise<WeatherData | null> {
   // Return cached data if fresh
   if (cachedWeather && Date.now() - cachedWeather.timestamp < CACHE_DURATION_MS) {
@@ -73,37 +117,25 @@ export async function getWeather(): Promise<WeatherData | null> {
   }
 
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${CLEVELAND_LAT}&longitude=${CLEVELAND_LON}&current=temperature_2m,wind_speed_10m,weather_code,is_day,precipitation&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America/New_York`;
-
-    // wave-181.90 (vibe-code-auditor finding) · AbortSignal.timeout caps
-    // wall-clock at 5s. Pre-fix · open-meteo hang would block any cron
-    // tick or request that hit this path indefinitely. The catch below
-    // already falls back to cached data + null · so a timeout just degrades
-    // gracefully to the same path as a non-200 response.
-    const response = await fetch(url, { signal: AbortSignal.timeout(5_000) });
-    if (!response.ok) {
-      log.warn("[Weather] API returned status:", response.status);
-      return cachedWeather?.data || null;
-    }
-
-    const json = await response.json();
-    const current = json.current;
-
-    const data: WeatherData = {
-      temperature_f: Math.round(current.temperature_2m),
-      wind_speed_mph: Math.round(current.wind_speed_10m),
-      weather_code: current.weather_code,
-      weather_condition: WMO_CODES[current.weather_code] || "unknown",
-      is_day: current.is_day === 1,
-      precipitation_mm: current.precipitation || 0,
-    };
-
+    const periods = await getHourlyPeriods();
+    // The hourly list is cached up to 45 min, so its first period can be an
+    // hour that has already ended: pick the one covering now.
+    const now = Date.now();
+    const current = periods.find((p) => Date.parse(p.startTime) <= now && now < Date.parse(p.endTime)) ?? periods[0];
+    const data = weatherFromNwsPeriod(current);
     cachedWeather = { data, timestamp: Date.now() };
     return data;
   } catch (error) {
-    log.warn("[Weather] Failed to fetch:", error);
+    // Display path: a failed read degrades to the last good reading, or to
+    // "no weather" (the notification bar then shows its default).
+    log.warn("[Weather] NWS read failed:", error);
     return cachedWeather?.data || null;
   }
+}
+
+/** Test-only. */
+export function __resetWeatherCacheForTests(): void {
+  cachedWeather = null;
 }
 
 export function getWeatherAlert(weather: WeatherData): WeatherAlert {
