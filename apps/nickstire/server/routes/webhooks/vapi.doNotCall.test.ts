@@ -30,8 +30,11 @@ import type { AddressInfo } from "node:net";
 
 const h = vi.hoisted(() => ({
   marked: [] as string[],
+  fullMarked: [] as string[],
   ledger: [] as Array<Record<string, unknown>>,
   suppressed: new Set<string>(),
+  voicePersisted: true,
+  fullPersisted: true,
 }));
 
 vi.mock("../../db", async (importOriginal) => ({
@@ -49,7 +52,11 @@ vi.mock("../../sms", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../sms")>()),
   markPhoneVoiceOptedOut: vi.fn(async (phone: string) => {
     h.marked.push(phone);
-    return true;
+    return h.voicePersisted;
+  }),
+  markPhoneFullyOptedOut: vi.fn(async (phone: string) => {
+    h.fullMarked.push(phone);
+    return h.fullPersisted;
   }),
   loadSuppressionIndex: vi.fn(async () => ({
     ok: true,
@@ -89,8 +96,11 @@ afterAll(async () => {
 
 beforeEach(() => {
   h.marked = [];
+  h.fullMarked = [];
   h.ledger = [];
   h.suppressed = new Set();
+  h.voicePersisted = true;
+  h.fullPersisted = true;
 });
 
 function postEvent(message: Record<string, unknown>): Promise<{ status: number; body: { results?: Array<{ result: string }> } }> {
@@ -143,6 +153,19 @@ describe("recordDoNotCall tool", () => {
     expect(h.marked).toEqual([]);
     expect(JSON.parse(res.body.results![0]!.result)).toEqual({ ok: false, endCall: true });
   });
+
+  it("does not claim success when the durable do-not-call write fails", async () => {
+    h.voicePersisted = false;
+    const res = await postEvent({
+      type: "tool-calls",
+      call: { id: "call_dnc_3", type: "outboundPhoneCall", customer: { number: DIALLED } },
+      toolCalls: [{ id: "tc3", type: "function", function: { name: "recordDoNotCall", arguments: {} } }],
+    });
+    expect(res.status).toBe(200);
+    expect(h.marked).toEqual(["2165550142"]);
+    expect(JSON.parse(res.body.results![0]!.result)).toEqual({ ok: false, endCall: true, retryable: true });
+    expect(h.ledger).toEqual([]);
+  });
 });
 
 describe("end-of-call transcript check", () => {
@@ -155,7 +178,35 @@ describe("end-of-call transcript check", () => {
       { role: "user", message: "Yeah, please stop calling me." },
     ]);
     expect(res.status).toBe(200);
-    await vi.waitFor(() => expect(h.marked).toEqual(["2165550142"]));
+    expect(h.marked).toEqual(["2165550142"]);
+    expect(h.ledger).toEqual([{ phone: "2165550142", via: "voice", keyword: "VOICE_TRANSCRIPT" }]);
+  });
+
+  it.each(["Please stop texting me.", "Don't contact me again.", "Unsubscribe me."])(
+    "broad customer opt-out %j is persisted as all-contact before ack",
+    async (utterance) => {
+      const res = await report({ id: `call_full_${utterance.length}`, type: "outboundPhoneCall", customer: { number: DIALLED } }, [
+        { role: "user", message: utterance },
+      ]);
+      expect(res.status).toBe(200);
+      expect(h.fullMarked).toEqual(["2165550142"]);
+      expect(h.marked).toEqual([]);
+      expect(h.ledger).toEqual([{ phone: "2165550142", via: "voice", keyword: "VOICE_TRANSCRIPT_FULL" }]);
+    },
+  );
+
+  it("returns 503 before ack when transcript persistence fails, then succeeds on retry", async () => {
+    const call = { id: "call_eoc_retry", type: "outboundPhoneCall", customer: { number: DIALLED } };
+    const messages = [{ role: "user", message: "Please stop calling me." }];
+    h.voicePersisted = false;
+    const first = await report(call, messages);
+    expect(first.status).toBe(503);
+    expect(h.ledger).toEqual([]);
+
+    h.voicePersisted = true;
+    const second = await report(call, messages);
+    expect(second.status).toBe(200);
+    expect(h.marked).toEqual(["2165550142", "2165550142"]);
     expect(h.ledger).toEqual([{ phone: "2165550142", via: "voice", keyword: "VOICE_TRANSCRIPT" }]);
   });
 
@@ -176,12 +227,13 @@ describe("end-of-call transcript check", () => {
     expect(h.marked).toEqual([]);
   });
 
-  it("an already-suppressed number is not re-recorded (one ledger row, not one per delivery)", async () => {
+  it("re-persists a transcript opt-out even when the in-memory suppression set already contains the number", async () => {
     h.suppressed = new Set(["2165550142"]);
-    await report({ id: "call_eoc_4", type: "outboundPhoneCall", customer: { number: DIALLED } }, [
-      { role: "user", message: "take me off your list" },
+    const res = await report({ id: "call_eoc_4", type: "outboundPhoneCall", customer: { number: DIALLED } }, [
+      { role: "user", message: "stop calling me" },
     ]);
-    await settle();
-    expect(h.marked).toEqual([]);
+    expect(res.status).toBe(200);
+    expect(h.marked).toEqual(["2165550142"]);
+    expect(h.ledger).toEqual([{ phone: "2165550142", via: "voice", keyword: "VOICE_TRANSCRIPT" }]);
   });
 });
