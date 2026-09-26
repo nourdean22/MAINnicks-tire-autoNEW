@@ -2452,6 +2452,60 @@
         }
       ],
       "deferredScope": []
+    },
+    {
+      "capabilityId": "estimate-invoice-match-scheduled",
+      "name": "The estimate -> invoice matcher runs daily on its own, before the declined-work recovery sends",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unverified",
+      "exposure": "internal",
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "Q-37 replacement branch nickstire/q37-declined-work-current-2026-09-26. backfillMatches() is wired as the daily estimate-invoice-match tier immediately before alg-declined-work-recovery, uses a compare-and-swap on matched_invoice_id IS NULL, and throws when no database is available.",
+        "tests": "Historical Q-37 branch proof: server/cron/estimateInvoiceMatch.test.ts 6 tests with planted mutations for the CAS guard and ordering. This replacement remains operationalState unverified until its exact-head CI passes.",
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Fresh replacement CI has not yet verified this rebuilt branch; after merge, the first cron_log row for estimate-invoice-match is the live receipt."
+        }
+      ],
+      "deferredScope": []
+    },
+    {
+      "capabilityId": "declined-work-counter-capture",
+      "name": "The counter records a customer's decline in one tap, and every declined estimate says whether it was observed or inferred",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unverified",
+      "exposure": "disabled",
+      "lastVerifiedAt": "2026-09-23",
+      "verificationExpiresAt": null,
+      "evidence": {
+        "codeCommit": "Q-37 replacement branch nickstire/q37-declined-work-current-2026-09-26. declined_work_captures is now migration 0132; server/services/declineCaptures.ts provides insert-as-claim and three-state reads; shared/declineProvenance.ts labels counter/inferred/unknown across the admin surfaces.",
+        "tests": "Historical Q-37 branch proof: shared/declineProvenance.test.ts, server/services/declineCaptures.test.ts, and client/src/__tests__/counter-decline.test.tsx. This replacement remains operationalState unverified until its exact-head CI passes.",
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Operator applies drizzle/0132_declined_work_captures.sql; until then capture returns not enabled and every decline renders as inferred."
+        },
+        {
+          "severity": "P3",
+          "description": "The declined-recovery SMS lane and voice-recovery dialer still treat inferred and observed declines alike; restricting them to observed declines is an operator decision."
+        },
+        {
+          "severity": "P3",
+          "description": "ShopDriver line items (listTicketSessions) are not read; the captured response shows session headers, not line items, and a per-ticket fetch may evict the counter login. Operator decision required."
+        }
+      ],
+      "deferredScope": [
+        "ShopDriver listTicketSessions line-item ingestion pending operator decision and a captured after-hours response."
+      ]
     }
   ],
   "axes": {
