@@ -5,7 +5,8 @@ from pathlib import Path
 
 from eufy_bridge_overlay import (
     GO2RTC_PATH,
-    PTZ_NEW,
+    ROUTER_NEW,
+    ROUTER_OLD,
     SUPPORTED_NAME,
     SUPPORTED_VERSION,
     WS_PATH,
@@ -24,15 +25,10 @@ class EufyBridgeOverlayTests(unittest.TestCase):
             json.dumps({"name": SUPPORTED_NAME, "version": version}),
             encoding="utf-8",
         )
-        ptz_line = (
-            "const surfaces = [dev.smartLight?.(), dev.camera?.(), dev.lock?.(), "
-            "dev.siren?.()].filter(Boolean);"
-        )
-        if drift:
-            ptz_line = "const surfaces = getCapabilitySurfaces(dev);"
-        (root / WS_PATH).write_text(ptz_line + "\n", encoding="utf-8")
+        router = "const surfaces = getCapabilitySurfaces(dev);" if drift else ROUTER_OLD
+        (root / WS_PATH).write_text(router + "\n", encoding="utf-8")
         (root / GO2RTC_PATH).write_text(
-            '\n'.join(
+            "\n".join(
                 (
                     '"api:"',
                     "'  listen: \":1984\"'",
@@ -48,19 +44,27 @@ class EufyBridgeOverlayTests(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         return root
 
-    def test_apply_patches_ptz_and_binds_media_loopback(self):
+    def test_apply_patches_ptz_preset_and_binds_media_loopback(self):
         root = self.fixture()
         report = apply(root)
         self.assertEqual(
             set(report.changed_files),
             {"src/ws-server.mjs", "go2rtc-config.mjs"},
         )
-        self.assertIn(PTZ_NEW, (root / WS_PATH).read_text(encoding="utf-8"))
+        ws = (root / WS_PATH).read_text(encoding="utf-8")
+        self.assertIn(ROUTER_NEW, ws)
+        self.assertIn('action === "preset.goto"', ws)
+        self.assertIn('method = "goto"', ws)
+
         go = (root / GO2RTC_PATH).read_text(encoding="utf-8")
         for port in (1984, 8554, 8555):
-            self.assertIn(f'127.0.0.1:{port}', go)
+            self.assertIn(f"127.0.0.1:{port}", go)
             self.assertNotIn(f'":{port}"', go)
-        self.assertEqual(verify(root).ptz_router, "verified")
+
+        self.assertEqual(
+            verify(root).ptz_router,
+            "verified_with_preset_goto",
+        )
 
     def test_apply_is_idempotent(self):
         root = self.fixture()
