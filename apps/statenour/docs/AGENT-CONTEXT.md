@@ -36,8 +36,7 @@ Nour's life, habits, business, and growth strategy.
 Repo HEAD later advanced to #2681 `36961a342` with Agent OS-only files; that deployment was correctly **SKIPPED** for `statenour-web`.
 Do not infer deploy drift merely because repo HEAD is newer than the app SHA.
 
-**Next proof owed:** read post-#2680 `verified_regen_path` / `chat.pre_stream_regen` telemetry after enough weak drafts exist.
-Implementation + deploy are proven; repair win-rate in real production traffic is not yet.
+**Next proof owed:** read post-#2680 `verified_regen_path` logs after enough weak drafts exist. The live event emits `regenFired`, `regenAttempted`, `regenWasBetter`, `selectionReason`, first/regen overall scores and severities, and `intent`. `formatRegenTelemetry()` is currently unwired, so `chat.pre_stream_regen`, specificity deltas, and regen latency/cost are NOT production proof sources yet. Implementation + deploy are proven; repair win-rate in real production traffic is not yet.
 
 ---
 
@@ -193,9 +192,9 @@ CRON_SECRET:     Must be set in Railway env for crons to fire
 
 ## Current Follow-Up (Quality Loop Only)
 
-1. Read `verified_regen_path` / `chat.pre_stream_regen` after enough real weak drafts have occurred.
-2. Compare first vs repaired candidate: severity, critic overall/specificity, `selectionReason`, and which draft shipped.
-3. Watch latency/cost from second-call attempts; one-shot is intentional and must not become an unbounded regen loop.
+1. Read `verified_regen_path` after enough real weak drafts have occurred.
+2. Compare the fields it actually emits: first/regen severity, first/regen overall, `selectionReason`, `regenAttempted`, `regenWasBetter`, `regenFired`, and `intent`.
+3. Do **not** claim specificity or second-attempt latency/cost from production yet: `formatRegenTelemetry()` is unwired. If those measurements become necessary, wire/persist the metric first and prove the writer.
 4. Keep the evidence gate in shadow until its own precision/calibration case changes.
 5. For the broader product backlog, use current `AGENTS.md` + `docs/CURRENT-TRUTH.md`; do not resurrect the June backlog below.
 
