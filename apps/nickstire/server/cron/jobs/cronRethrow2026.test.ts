@@ -120,11 +120,10 @@ describe("cron rethrow contract · 2026-09-01 audit F-9", () => {
     await expect(processReviewMonitor()).rejects.toThrow(/Google API error: 429/);
   });
 
-  it("checkWeatherTriggers (weather-intel handler) REJECTS on a non-OK OpenWeather response", async () => {
-    vi.stubEnv("OPENWEATHER_API_KEY", "canary-key");
+  it("checkWeatherTriggers (weather-intel handler) REJECTS on a non-OK NWS response", async () => {
     vi.stubGlobal("fetch", async () => new Response("down", { status: 503 }));
     const { checkWeatherTriggers } = await import("../../services/weatherIntelligence");
-    await expect(checkWeatherTriggers()).rejects.toThrow(/API error: 503/);
+    await expect(checkWeatherTriggers()).rejects.toThrow(/NWS 503/);
   });
 
   it("CANARY — a job that still swallows would RESOLVE here, proving `rejects` bites", async () => {
