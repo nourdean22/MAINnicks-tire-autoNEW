@@ -283,162 +283,6 @@ export default function ServicesOverview() {
         </div>
       </section>
 
-      <AeoAnswerBlock answer={AEO_ANSWER} />
-
-      <ServicesDifferentiators />
-
-      <section className="border-b border-border/20 bg-background py-12">
-        <div className="container">
-          <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
-            <div className="space-y-6 lg:col-span-8">
-              <h2 className="font-heading text-2xl font-black uppercase tracking-tight text-foreground">
-                Start with the problem
-              </h2>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {QUICK_PATHS.map((path) => (
-                  <Link
-                    key={path.href}
-                    href={path.href}
-                    onClick={() =>
-                      trackServicesAction(
-                        "quick_paths",
-                        "open_path",
-                        path.href,
-                        path.title,
-                      )
-                    }
-                    className="group block rounded-xl border border-border/30 bg-card/40 p-4 text-center transition-all hover:border-primary/40 hover:bg-card/80"
-                  >
-                    <span className="block font-heading text-sm font-extrabold text-foreground transition-colors group-hover:text-primary">
-                      {path.title}
-                    </span>
-                    <span className="mt-1 block text-[10px] text-foreground/50">
-                      {path.detail}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-
-            <aside className="space-y-4 rounded-2xl border border-primary/20 bg-[#1a1c20] p-6 lg:col-span-4">
-              <div className="flex items-center gap-2 text-primary">
-                <Clock className="h-5 w-5" />
-                <span className="font-heading text-sm font-extrabold uppercase tracking-wide">
-                  Sunday is a workday here
-                </span>
-              </div>
-              <h3 className="font-heading text-xl font-black uppercase tracking-tight text-white">
-                {BUSINESS.hours.sunday}
-              </h3>
-              <p className="text-xs leading-relaxed text-foreground/70">
-                Pull in for tires, brakes, oil changes, or a car that started making a new noise. Wait with it or drop it off. We run the same straight process every day we are open.
-              </p>
-              <div className="flex gap-3 border-t border-border/30 pt-2">
-                <a
-                  href={BUSINESS.phone.href}
-                  onClick={() => trackPhoneClick("services-sunday")}
-                  className="flex items-center gap-1 text-xs font-bold text-primary hover:underline"
-                >
-                  <Phone className="h-3.5 w-3.5" /> Call shop
-                </a>
-                <span className="text-foreground/20">|</span>
-                <a
-                  href={BUSINESS.urls.googleMapsDirectionsNamed}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() =>
-                    trackServicesAction(
-                      "sunday_card",
-                      "directions",
-                      BUSINESS.urls.googleMapsDirectionsNamed,
-                    )
-                  }
-                  className="text-xs font-bold text-nick-blue-light hover:underline"
-                >
-                  Directions & drop-off
-                </a>
-              </div>
-            </aside>
-          </div>
-
-          <div className="mt-8 rounded-xl border border-border/20 bg-card/10 p-6 text-sm leading-relaxed text-foreground/75">
-            Need the direct route? Start with{" "}
-            <Link
-              href="/tires"
-              onClick={() =>
-                trackServicesAction("direct_routes", "open_path", "/tires")
-              }
-              className="font-semibold text-primary underline hover:text-primary-foreground"
-            >
-              tires
-            </Link>
-            ,{" "}
-            <Link
-              href="/brakes"
-              onClick={() =>
-                trackServicesAction("direct_routes", "open_path", "/brakes")
-              }
-              className="font-semibold text-primary underline hover:text-primary-foreground"
-            >
-              brakes
-            </Link>
-            ,{" "}
-            <Link
-              href="/diagnostics"
-              onClick={() =>
-                trackServicesAction(
-                  "direct_routes",
-                  "open_path",
-                  "/diagnostics",
-                )
-              }
-              className="font-semibold text-primary underline hover:text-primary-foreground"
-            >
-              a check-engine problem
-            </Link>
-            , or{" "}
-            <Link
-              href="/emissions"
-              onClick={() =>
-                trackServicesAction("direct_routes", "open_path", "/emissions")
-              }
-              className="font-semibold text-primary underline hover:text-primary-foreground"
-            >
-              an Ohio E-Check failure
-            </Link>
-            . Bigger job or not sure what category fits?{" "}
-            <Link
-              href="/diagnose"
-              onClick={() =>
-                trackServicesAction(
-                  "direct_routes",
-                  "describe_problem",
-                  "/diagnose",
-                )
-              }
-              className="font-semibold text-primary underline hover:text-primary-foreground"
-            >
-              Describe what the car is doing
-            </Link>
-            . Cost holding the job up? See the{" "}
-            <Link
-              href="/financing"
-              onClick={() =>
-                trackServicesAction(
-                  "direct_routes",
-                  "payment_options",
-                  "/financing",
-                )
-              }
-              className="font-semibold text-primary underline hover:text-primary-foreground"
-            >
-              payment programs
-            </Link>{" "}
-            before you wait for the problem to get worse.
-          </div>
-        </div>
-      </section>
-
       <section className="py-16 lg:py-20" id="services-board">
         <div className="container">
           <div className="mb-10 max-w-3xl">
@@ -486,6 +330,10 @@ export default function ServicesOverview() {
           </div>
         </div>
       </section>
+
+      <AeoAnswerBlock answer={AEO_ANSWER} />
+
+      <ServicesDifferentiators />
 
       <section className="border-t border-border/30 py-16 lg:py-20">
         <div className="container max-w-3xl">
