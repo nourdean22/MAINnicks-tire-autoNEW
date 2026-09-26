@@ -21,7 +21,12 @@
  */
 
 import { critiqueOutput, type CriticScore } from "@/lib/ai/output-critic";
-import type { OutputShape } from "@/lib/ai/turn-intelligence";
+import {
+  runReplyGateWithContract,
+  type ContractGateDecision,
+} from "@/lib/ai/reply-gate";
+import type { ResponseContract } from "@/lib/ai/response-contract";
+import type { OutputShape, TurnSignal } from "@/lib/ai/turn-intelligence";
 
 export type Intent =
   | "factual"
@@ -34,6 +39,14 @@ export type Intent =
   | "reflective"
   | "analytical";
 
+export interface CandidateAssessment {
+  critic: CriticScore;
+  gate: ContractGateDecision | null;
+  /** One normalized severity used only for winner selection. */
+  severity: number;
+  needsRepair: boolean;
+  reasons: string[];
+}
 export interface PreStreamRegenArgs {
   /** Turn intent from turn-intelligence. Gates whether regen even fires. */
   intent: Intent;
@@ -44,6 +57,9 @@ export interface PreStreamRegenArgs {
    *  OK") — obedient terse replies were silently re-rolled here, paying
    *  a second generation for following instructions. */
   userPrompt?: string;
+  /** Full turn + response contract let this lane repair request-fit failures too. */
+  turnSignal?: TurnSignal;
+  responseContract?: ResponseContract | null;
   /** First-attempt generator · returns the model's reply as a string. */
   generateOnce: () => Promise<string>;
   /**
@@ -56,6 +72,7 @@ export interface PreStreamRegenArgs {
   regenOnce: (args: {
     firstAttempt: string;
     firstScore: CriticScore;
+    firstAssessment: CandidateAssessment;
     suggestedSystemPrefix: string;
   }) => Promise<string>;
 }
@@ -69,6 +86,17 @@ export interface PreStreamRegenResult {
   firstScore: CriticScore;
   /** Critic score on the regen, if regen was attempted. */
   regenScore: CriticScore | null;
+  firstAssessment: CandidateAssessment;
+  regenAssessment: CandidateAssessment | null;
+  /** Why the selector chose the second draft or kept the first. */
+  selectionReason:
+    | "first-passed"
+    | "intent-not-gated"
+    | "cleaner"
+    | "lower-severity"
+    | "higher-overall"
+    | "higher-specificity"
+    | "first-kept";
   /** Latency-cost breakdown for telemetry. */
   durationMs: {
     first: number;
