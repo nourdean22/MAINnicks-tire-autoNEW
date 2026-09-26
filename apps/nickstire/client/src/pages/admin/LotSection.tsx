@@ -674,14 +674,21 @@ function FloorCard({ v, fetchedAt, now }: { v: VisitRow; fetchedAt: number; now:
   );
 }
 
+type ConversationQueryData =
+  | { ok: true; conversations: ConversationRow[] }
+  | { ok: false; reason: string };
+
 function ConversationPanel({
   query,
 }: {
   query: ReturnType<typeof trpc.lot.conversations.useQuery>;
 }) {
-  const data = query.data;
+  // tRPC's decorated hook proxy widens ReturnType<useQuery>["data"] to {} at this
+  // component boundary. Re-narrow ONLY the procedure payload here; the server still owns
+  // runtime validation and every branch below preserves failed/unknown vs empty.
+  const data = query.data as ConversationQueryData | undefined;
   const rows: ConversationRow[] =
-    data?.ok === true ? (data.conversations as unknown as ConversationRow[]) : [];
+    data?.ok === true ? data.conversations : [];
 
   return (
     <Panel
