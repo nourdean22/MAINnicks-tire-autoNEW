@@ -20,6 +20,13 @@ import { randomUUID } from "crypto";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
 import { normalizePhone } from "../lib/phone";
+import {
+  appendConsentEvent,
+  getConsentLedgerMode,
+  loadConsentLedgerSnapshot,
+  type ConsentMethod,
+  type ConsentScope,
+} from "./consentLedger";
 import { desc, eq, sql, and } from "drizzle-orm";
 import { auditLog } from "../../drizzle/schema";
 
@@ -85,6 +92,9 @@ export async function logSmsOptIn(params: {
   ipAddress?: string | null;
   userAgent?: string | null;
   context?: Record<string, unknown>;
+  evidenceRef?: string;
+  ledgerScope?: ConsentScope;
+  ledgerMethod?: ConsentMethod;
 }): Promise<void> {
   const normalized = normalizePhone(params.phone);
   if (!normalized) return;
@@ -105,6 +115,20 @@ export async function logSmsOptIn(params: {
     },
     ipAddress: params.ipAddress,
   });
+  if (params.evidenceRef) {
+    await appendConsentEvent({
+      subjectType: "phone",
+      subjectKey: normalized,
+      scope: params.ledgerScope ?? (params.source.startsWith("start_keyword:") ? "all" : "sms_informational"),
+      action: "grant",
+      source: params.source,
+      method: params.ledgerMethod ?? (params.source.startsWith("start_keyword:") ? "sms_reply" : "web_submit_implicit"),
+      evidenceRef: params.evidenceRef,
+      ipAddress: params.ipAddress,
+      userAgent: params.userAgent,
+      actor: `system:${params.source.slice(0, 80)}`,
+    });
+  }
 }
 
 /**
@@ -119,6 +143,9 @@ export async function logSmsOptOut(params: {
   /** "voice" · a do-not-call request spoken on an outbound AI call (Q-45). */
   via: "keyword" | "admin" | "api" | "voice";
   keyword?: string;
+  evidenceRef?: string;
+  ledgerScope?: ConsentScope;
+  ledgerMethod?: ConsentMethod;
 }): Promise<void> {
   const normalized = normalizePhone(params.phone);
   if (!normalized) return;
@@ -130,6 +157,20 @@ export async function logSmsOptOut(params: {
     changes: { via: params.via, keyword: params.keyword ?? null },
     ipAddress: params.ipAddress,
   });
+  if (params.evidenceRef) {
+    await appendConsentEvent({
+      subjectType: "phone",
+      subjectKey: normalized,
+      scope: params.ledgerScope ?? (params.via === "voice" ? "voice_ai_marketing" : "all"),
+      action: "revoke",
+      source: params.via === "voice" ? "vapi_do_not_call" : params.via === "keyword" ? "sms_keyword" : params.via,
+      method: params.ledgerMethod ?? (params.via === "voice" ? "voice_call" : params.via === "keyword" ? "sms_reply" : "api"),
+      evidenceRef: params.evidenceRef,
+      evidenceExcerpt: params.keyword ?? null,
+      ipAddress: params.ipAddress,
+      actor: `system:${params.via}`,
+    });
+  }
 }
 
 // ─── Admin Login ───────────────────────────────────────
@@ -261,6 +302,26 @@ export async function getSmsOptInIndex(): Promise<SmsConsentIndex> {
   }
   const stale = (reason: string): SmsConsentIndex =>
     consentCache ? { ok: true, phones: consentCache, stale: true } : { ok: false, reason };
+
+  // Q-43 rollout: once the append-only ledger is enabled and available, the
+  // marketing gate reads its purpose-scoped grants instead of treating every
+  // historical audit-log opt-in as marketing consent. In off mode (the
+  // production default today), or while shadow waits on migration 0133,
+  // preserve the legacy audit-log view so this PR changes no live send policy.
+  const ledgerMode = getConsentLedgerMode();
+  if (ledgerMode !== "off") {
+    const ledger = await loadConsentLedgerSnapshot(ledgerMode);
+    if (!ledger.ok) return stale("consent ledger unavailable: " + ledger.reason);
+    if (ledger.available) {
+      const fresh = new Set<string>();
+      for (const [phone, scopes] of ledger.snapshot.grantsByPhone) {
+        if (scopes.has("sms_marketing")) fresh.add(phone);
+      }
+      consentCache = fresh;
+      consentCacheLoadedAt = now;
+      return { ok: true, phones: fresh, stale: false };
+    }
+  }
 
   const d = await db();
   if (!d) return stale("database unavailable");

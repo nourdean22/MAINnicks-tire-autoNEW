@@ -141,7 +141,14 @@ describe("recordDoNotCall tool", () => {
     expect(res.status).toBe(200);
     expect(h.marked).toEqual(["2165550142"]);
     expect(JSON.parse(res.body.results![0]!.result)).toEqual({ ok: true, endCall: true });
-    expect(h.ledger).toEqual([{ phone: "2165550142", via: "voice", keyword: "VOICE_TOOL" }]);
+    expect(h.ledger).toEqual([{
+      phone: "2165550142",
+      via: "voice",
+      keyword: "VOICE_TOOL",
+      evidenceRef: "vapi:call_dnc_1",
+      ledgerScope: "voice_ai_marketing",
+      ledgerMethod: "voice_call",
+    }]);
   });
 
   it("with no dialled number it records nothing, and says so", async () => {
@@ -179,7 +186,14 @@ describe("end-of-call transcript check", () => {
     ]);
     expect(res.status).toBe(200);
     expect(h.marked).toEqual(["2165550142"]);
-    expect(h.ledger).toEqual([{ phone: "2165550142", via: "voice", keyword: "VOICE_TRANSCRIPT" }]);
+    expect(h.ledger).toEqual([{
+      phone: "2165550142",
+      via: "voice",
+      keyword: "VOICE_TRANSCRIPT",
+      evidenceRef: "vapi:call_eoc_1",
+      ledgerScope: "voice_ai_marketing",
+      ledgerMethod: "voice_call",
+    }]);
   });
 
   it.each(["Please stop texting me.", "Don't contact me again.", "Unsubscribe me."])(
@@ -191,7 +205,14 @@ describe("end-of-call transcript check", () => {
       expect(res.status).toBe(200);
       expect(h.fullMarked).toEqual(["2165550142"]);
       expect(h.marked).toEqual([]);
-      expect(h.ledger).toEqual([{ phone: "2165550142", via: "voice", keyword: "VOICE_TRANSCRIPT_FULL" }]);
+      expect(h.ledger).toEqual([{
+        phone: "2165550142",
+        via: "voice",
+        keyword: "VOICE_TRANSCRIPT_FULL",
+        evidenceRef: `vapi:call_full_${utterance.length}`,
+        ledgerScope: "all",
+        ledgerMethod: "voice_call",
+      }]);
     },
   );
 
@@ -207,7 +228,14 @@ describe("end-of-call transcript check", () => {
     const second = await report(call, messages);
     expect(second.status).toBe(200);
     expect(h.marked).toEqual(["2165550142", "2165550142"]);
-    expect(h.ledger).toEqual([{ phone: "2165550142", via: "voice", keyword: "VOICE_TRANSCRIPT" }]);
+    expect(h.ledger).toEqual([{
+      phone: "2165550142",
+      via: "voice",
+      keyword: "VOICE_TRANSCRIPT",
+      evidenceRef: "vapi:call_eoc_retry",
+      ledgerScope: "voice_ai_marketing",
+      ledgerMethod: "voice_call",
+    }]);
   });
 
   it("the assistant's own \"say stop calling\" line does NOT opt the customer out", async () => {
@@ -234,6 +262,13 @@ describe("end-of-call transcript check", () => {
     ]);
     expect(res.status).toBe(200);
     expect(h.marked).toEqual(["2165550142"]);
-    expect(h.ledger).toEqual([{ phone: "2165550142", via: "voice", keyword: "VOICE_TRANSCRIPT" }]);
+    expect(h.ledger).toEqual([{
+      phone: "2165550142",
+      via: "voice",
+      keyword: "VOICE_TRANSCRIPT",
+      evidenceRef: "vapi:call_eoc_4",
+      ledgerScope: "voice_ai_marketing",
+      ledgerMethod: "voice_call",
+    }]);
   });
 });

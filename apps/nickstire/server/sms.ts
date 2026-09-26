@@ -235,6 +235,17 @@ async function ensureOptOutCache(): Promise<OptOutIndex> {
       JOIN sms_conversations sc ON sc.id = m.conversationId
       WHERE m.direction = 'inbound'
         AND UPPER(TRIM(m.body)) IN ('STOP','STOPALL','STOP ALL','UNSUBSCRIBE','CANCEL','END','QUIT','REVOKE','OPTOUT','OPT OUT')
+        AND NOT EXISTS (
+          SELECT 1
+          FROM sms_messages mi
+          WHERE mi.conversationId = m.conversationId
+            AND mi.direction = 'inbound'
+            AND UPPER(TRIM(mi.body)) IN ('START','UNSTOP','YES')
+            AND (
+              mi.createdAt > m.createdAt
+              OR (mi.createdAt = m.createdAt AND mi.id > m.id)
+            )
+        )
     `);
     for (const r of (optOutBodies[0] as Array<{ phone: string | null }>)) addNorm(r.phone);
 
@@ -263,6 +274,28 @@ async function ensureOptOutCache(): Promise<OptOutIndex> {
       blockNoticeRows[0] as Array<{ body: string; createdAt: Date | string }>,
       lastInboundByPhone,
     );
+
+    // Q-43 · FIFTH source: the append-only cross-channel consent ledger.
+    // Off and a missing table in shadow are deliberately no-ops; a real read
+    // failure must not impersonate an empty ledger. Revokes join the existing
+    // suppression set immediately. Holds join only after the operator advances
+    // the rollout to enforce_holds or enforce_grants.
+    const {
+      getConsentLedgerMode,
+      isConsentHoldEnforced,
+      loadConsentLedgerSnapshot,
+    } = await import("./services/consentLedger");
+    const ledgerMode = getConsentLedgerMode();
+    const ledger = await loadConsentLedgerSnapshot(ledgerMode);
+    if (!ledger.ok) {
+      return { ok: false, reason: "consent ledger unavailable: " + ledger.reason };
+    }
+    if (ledger.available) {
+      for (const phone of ledger.snapshot.revokedSmsPhones) fresh.add(phone);
+      if (isConsentHoldEnforced(ledgerMode)) {
+        for (const phone of ledger.snapshot.heldPhones) fresh.add(phone);
+      }
+    }
 
     // A number is voice-ONLY when nothing but a spoken opt-out suppresses it;
     // every other source above means "stop everything" and wins. Computed

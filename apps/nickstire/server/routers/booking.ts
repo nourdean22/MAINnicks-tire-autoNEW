@@ -310,6 +310,9 @@ export const bookingRouter = router({
           ipAddress: ctx.req?.ip ?? null,
           userAgent: ctx.req?.headers?.["user-agent"]?.toString() ?? null,
           context: { bookingId: result.id, refCode },
+          evidenceRef: `booking:${result.id}`,
+          ledgerScope: "sms_informational",
+          ledgerMethod: "web_submit_implicit",
         }),
       ).catch((err) => log.warn("[booking] compliance log failed:", err));
 

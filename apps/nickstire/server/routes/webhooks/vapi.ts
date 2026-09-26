@@ -234,6 +234,9 @@ async function recordDoNotCallRequest(
       phone: digits,
       via: "voice",
       keyword: source === "tool" ? "VOICE_TOOL" : scope === "all" ? "VOICE_TRANSCRIPT_FULL" : "VOICE_TRANSCRIPT",
+      evidenceRef: callId ? `vapi:${callId}` : undefined,
+      ledgerScope: scope === "all" ? "all" : "voice_ai_marketing",
+      ledgerMethod: "voice_call",
     });
   } catch {
     /* the ledger row is evidence, not the suppression — never fail the request on it */

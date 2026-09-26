@@ -2035,6 +2035,42 @@ export const smsPreferences = mysqlTable("sms_preferences", {
 });
 
 /**
+ * Q-43 append-only consent/revocation evidence. The TiDB table is hand-applied
+ * by migration 0133; code tolerates it being absent until the operator applies it.
+ */
+export const contactConsentEvents = mysqlTable("contact_consent_events", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  subjectType: varchar("subject_type", { length: 8 }).notNull(),
+  subjectKey: varchar("subject_key", { length: 255 }).notNull(),
+  customerKey: varchar("customer_key", { length: 64 }),
+  scope: varchar("scope", { length: 32 }).notNull(),
+  action: varchar("action", { length: 16 }).notNull(),
+  source: varchar("source", { length: 48 }).notNull(),
+  method: varchar("method", { length: 32 }).notNull(),
+  disclosureId: varchar("disclosure_id", { length: 64 }),
+  disclosureVersion: varchar("disclosure_version", { length: 16 }),
+  disclosureSha256: varchar("disclosure_sha256", { length: 64 }),
+  evidenceRef: varchar("evidence_ref", { length: 191 }).notNull(),
+  evidenceExcerpt: varchar("evidence_excerpt", { length: 160 }),
+  detectorVersion: varchar("detector_version", { length: 16 }),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: varchar("user_agent", { length: 300 }),
+  actor: varchar("actor", { length: 100 }).notNull(),
+  occurredAt: datetime("occurred_at", { mode: "date" }).notNull(),
+  occurredAtEstimated: tinyint("occurred_at_estimated").default(0).notNull(),
+  recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+  reviewStatus: varchar("review_status", { length: 16 }),
+  reviewedBy: varchar("reviewed_by", { length: 100 }),
+  reviewedAt: datetime("reviewed_at", { mode: "date" }),
+}, (table) => [
+  uniqueIndex("uq_contact_consent_event").on(
+    table.subjectType, table.subjectKey, table.source, table.evidenceRef, table.scope, table.action,
+  ),
+  index("idx_contact_consent_subject").on(table.subjectType, table.subjectKey, table.occurredAt),
+  index("idx_contact_consent_review").on(table.action, table.reviewStatus),
+]);
+
+/**
  * Tracks abandoned form submissions for recovery outreach.
  */
 export const formAbandonment = mysqlTable("form_abandonment", {

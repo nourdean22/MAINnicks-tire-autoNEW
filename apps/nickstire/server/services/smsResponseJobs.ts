@@ -245,7 +245,13 @@ export async function ensureResponseObligation(input: EnqueueInput): Promise<Obl
 export async function answerResponseObligation(handle: ObligationHandle, input: EnqueueInput): Promise<void> {
   if (!handle.durable || handle.jobId === null) {
     const { orchestrateSms } = await import("./smsOrchestrator");
-    await orchestrateSms({ type: "inbound_sms", phone: input.phone, body: input.body, conversationId: input.conversationId });
+    await orchestrateSms({
+      type: "inbound_sms",
+      phone: input.phone,
+      body: input.body,
+      conversationId: input.conversationId,
+      idempotencyKey: responseIdempotencyKey(input),
+    });
     return;
   }
   const claimed = await claimJobById(handle.jobId);
@@ -338,6 +344,7 @@ export async function runResponseJob(job: ResponseJob): Promise<void> {
       phone: job.customerPhone,
       body: job.body,
       conversationId: job.conversationId,
+      idempotencyKey: `sms_response_job:${job.id}`,
     });
     const next = jobStatusFor(result);
     if (next === "human_pending") {

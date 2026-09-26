@@ -188,6 +188,9 @@ export const leadRouter = router({
           ipAddress: ctx.req?.ip ?? null,
           userAgent: ctx.req?.headers?.["user-agent"]?.toString() ?? null,
           context: { leadId },
+          evidenceRef: leadId ? `lead:${leadId}` : undefined,
+          ledgerScope: "sms_informational",
+          ledgerMethod: "web_submit_implicit",
         }),
       ).catch((err) => log.warn("[lead] compliance log failed:", err));
 
