@@ -582,6 +582,9 @@ export default function ReviewsPage() {
                 ))}
               </div>
             </div>
+            <p className="mt-3 text-[11px] leading-relaxed text-foreground/35">
+              Google reviews are shown using the filters above. Default view: featured 4–5★ reviews, newest first. Choose All ratings to see the full returned set.
+            </p>
           </div>
         </section>
 
@@ -592,13 +595,14 @@ export default function ReviewsPage() {
             <div className="mb-6 flex items-center justify-between">
               <p className="text-sm text-foreground/50">
                 {isLoading ? "Loading reviews..." : `${filteredReviews.length} reviews`}
-                {(serviceFilter !== "All" || starFilter !== null || showAllRatings || recencyFilter !== "Most Recent") && (
+                {(serviceFilter !== "All" || starFilter !== null || showAllRatings || recencyFilter !== "Most Recent" || sortBy !== "Most Recent") && (
                   <button
                     onClick={() => {
                       setServiceFilter("All");
                       setStarFilter(null);
                       setShowAllRatings(false);
                       setRecencyFilter("Most Recent");
+                      setSortBy("Most Recent");
                     }}
                     className="ml-3 text-[#FDB913] text-xs hover:underline"
                   >
