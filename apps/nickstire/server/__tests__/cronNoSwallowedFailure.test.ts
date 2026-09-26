@@ -39,14 +39,7 @@ const ALLOWLIST: Record<string, string> = {
  * result, pinned by exact text and exact count so a second copy cannot hide
  * behind the first.
  */
-const LITERAL_ALLOWLIST: { file: string; text: string; count: number; reason: string }[] = [
-  {
-    file: "server/services/weatherIntelligence.ts",
-    text: "API error: ${res.status}",
-    count: 1,
-    reason: "evaluateWeatherTriggers() is the side-effect-free read for the shadow planner/dashboards; no cron handler calls it. checkWeatherTriggers (the cron path) throws.",
-  },
-];
+const LITERAL_ALLOWLIST: { file: string; text: string; count: number; reason: string }[] = [];
 
 /** Every `details:` string literal — template, double- or single-quoted, even on the next line. */
 const DETAILS_LITERAL = /details:\s*(?:`([^`]*)`|"([^"\n]*)"|'([^'\n]*)')/g;
