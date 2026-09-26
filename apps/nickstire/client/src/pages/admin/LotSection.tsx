@@ -907,7 +907,7 @@ export default function LotSection() {
               trendLabel="pulled in · bays 1 and 3"
             />
             <StatCard
-              label="Done, not left"
+              label="Pulled out, still here"
               value={n.counts.postService}
               icon={<LogOut className="w-4 h-4" />}
               color={n.counts.postService > 0 ? "text-amber-400" : "text-foreground"}
@@ -1001,11 +1001,11 @@ export default function LotSection() {
                 trendLabel="occupancy, never an arrival"
               />
               <StatCard
-                label="Waiting, already parked"
+                label="No bay observed, already parked"
                 value={n.counts.preexistingWaiting}
                 icon={<Clock className="w-4 h-4" />}
                 color="text-foreground/60"
-                trendLabel="excluded from Waiting above"
+                trendLabel="may be parked, queued, or outside service"
               />
             </MetricGrid>
           </Panel>
