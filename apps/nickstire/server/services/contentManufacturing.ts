@@ -1700,5 +1700,3 @@ export async function attributeRevenueToSocial(): Promise<{ itemsProcessed: numb
   log.info(`attributeRevenueToSocial finished: itemsProcessed=${itemsProcessed} bookingsAttributed=${bookingsAttributed}`);
   return { itemsProcessed, bookingsAttributed };
 }
-
-[executed on device: NattyNour (fb18de09-5ec0-444d-bcdd-33f7e867ac82)]
