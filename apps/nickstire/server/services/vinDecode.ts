@@ -1,17 +1,14 @@
 /**
  * Canonical VIN decoding via NHTSA vPIC.
  *
- * Single-VIN enrichment and backfill batches both live here so the repo has
- * exactly one vPIC mapping, validation, timeout and cache contract.
+ * This is the repo's single vPIC HTTP owner, mapping, validation, timeout,
+ * and cache contract for the VIN enrichment path that is actually wired today.
  */
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("vin-decode");
 const SINGLE_TIMEOUT_MS = 5_000;
-const BATCH_TIMEOUT_MS = 10_000;
 const VPIC_URL = "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/";
-const VPIC_BATCH_URL = "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVINValuesBatch/";
-const BATCH_MAX = 50;
 
 export interface VinDecodeResult {
   vin: string;
@@ -29,27 +26,12 @@ export interface VinDecodeResult {
   vpicError: string | null;
 }
 
-export interface VinBatchInput {
-  vin: string;
-  modelYear?: string | number | null;
-}
-
-export interface VinBatchDecodeResult {
-  input: VinBatchInput;
-  decoded: VinDecodeResult | null;
-}
-
 const cache = new Map<string, VinDecodeResult | null>();
 
 export function normalizeVin(raw: string | null | undefined): string | null {
   const value = (raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   // Full VIN only; I/O/Q are forbidden by ISO 3779.
   return /^[A-HJ-NPR-Z0-9]{17}$/.test(value) ? value : null;
-}
-
-function normalizeModelYear(raw: VinBatchInput["modelYear"]): string {
-  const value = String(raw ?? "").trim();
-  return /^\d{4}$/.test(value) ? value : "";
 }
 
 function cleanField(row: Record<string, string>, key: string): string | null {
@@ -121,70 +103,6 @@ export async function decodeVin(
     });
     return null;
   }
-}
-
-/**
- * Decode backfill inputs through vPIC's official batch endpoint.
- *
- * - invalid VINs stay in-place with decoded=null and never hit the network;
- * - valid uncached VINs are posted in chunks of at most 50;
- * - output order exactly matches input order;
- * - a failed chunk returns nulls for that chunk and never throws.
- */
-export async function decodeVinBatch(
-  inputs: VinBatchInput[],
-  fetchImpl: typeof fetch = fetch,
-): Promise<VinBatchDecodeResult[]> {
-  const output: VinBatchDecodeResult[] = inputs.map((input) => ({ input, decoded: null }));
-  const pending: Array<{ index: number; vin: string; modelYear: string }> = [];
-
-  inputs.forEach((input, index) => {
-    const vin = normalizeVin(input.vin);
-    if (!vin) return;
-    if (cache.has(vin)) {
-      output[index] = { input, decoded: cache.get(vin) ?? null };
-      return;
-    }
-    pending.push({ index, vin, modelYear: normalizeModelYear(input.modelYear) });
-  });
-
-  for (let offset = 0; offset < pending.length; offset += BATCH_MAX) {
-    const chunk = pending.slice(offset, offset + BATCH_MAX);
-    const params = new URLSearchParams({
-      format: "json",
-      data: chunk.map((entry) => entry.vin + "," + entry.modelYear).join(";"),
-    });
-
-    try {
-      const res = await fetchImpl(VPIC_BATCH_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: params.toString(),
-        signal: AbortSignal.timeout(BATCH_TIMEOUT_MS),
-      });
-      if (!res.ok) {
-        log.warn("vPIC batch non-OK response", { count: chunk.length, status: res.status });
-        continue;
-      }
-
-      const data = (await res.json()) as { Results?: Array<Record<string, string>> };
-      const rows = data.Results ?? [];
-      chunk.forEach((entry, chunkIndex) => {
-        const row = rows[chunkIndex];
-        if (!row) return;
-        const decoded = mapVpicRow(entry.vin, row);
-        cache.set(entry.vin, decoded);
-        output[entry.index] = { input: inputs[entry.index], decoded };
-      });
-    } catch (err) {
-      log.warn("vPIC batch decode failed", {
-        count: chunk.length,
-        err: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-
-  return output;
 }
 
 export function _clearVinDecodeCache(): void {

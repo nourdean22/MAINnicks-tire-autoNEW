@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   _clearVinDecodeCache,
   decodeVin,
-  decodeVinBatch,
   mergeDecoded,
 } from "./services/vinDecode";
 
@@ -119,69 +118,6 @@ describe("vinDecode canonical NHTSA path", () => {
       make: "Toyota",
       model: "Camry",
     });
-  });
-
-  it("uses the official batch endpoint in chunks of at most 50 and preserves order", async () => {
-    const inputs = Array.from({ length: 51 }, (_, index) => ({
-      vin: "1HGCM82633A" + String(index).padStart(6, "0"),
-      modelYear: index % 2 === 0 ? "2020" : null,
-    }));
-    const fetchSpy = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
-      expect(String(url)).toContain("DecodeVINValuesBatch");
-      expect(init?.method).toBe("POST");
-      const params = new URLSearchParams(String(init?.body ?? ""));
-      expect(params.get("format")).toBe("json");
-      const rows = String(params.get("data") ?? "").split(";").filter(Boolean).map((entry) => {
-        const [vin, modelYear] = entry.split(",");
-        return {
-          VIN: vin,
-          ErrorCode: "0",
-          ModelYear: modelYear || "2021",
-          Make: "FORD",
-          Model: "F-150",
-        };
-      });
-      return response(rows);
-    });
-
-    const result = await decodeVinBatch(inputs, fetchSpy as unknown as typeof fetch);
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
-    const firstBody = new URLSearchParams(String(fetchSpy.mock.calls[0]?.[1]?.body ?? ""));
-    const secondBody = new URLSearchParams(String(fetchSpy.mock.calls[1]?.[1]?.body ?? ""));
-    expect(String(firstBody.get("data") ?? "").split(";")).toHaveLength(50);
-    expect(String(secondBody.get("data") ?? "").split(";")).toHaveLength(1);
-    expect(result).toHaveLength(51);
-    result.forEach((entry, index) => {
-      expect(entry.input).toEqual(inputs[index]);
-      expect(entry.decoded?.vin).toBe(inputs[index].vin);
-    });
-  });
-
-  it("keeps invalid batch inputs in place but never sends them", async () => {
-    const fetchSpy = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
-      const params = new URLSearchParams(String(init?.body ?? ""));
-      const sent = String(params.get("data") ?? "").split(";").filter(Boolean);
-      expect(sent).toHaveLength(2);
-      return response(sent.map((entry) => ({
-        VIN: entry.split(",")[0],
-        ErrorCode: "0",
-        ModelYear: "2020",
-        Make: "HONDA",
-        Model: "Civic",
-      })));
-    });
-    const inputs = [{ vin: VIN_A }, { vin: "bad" }, { vin: VIN_B, modelYear: 2020 }];
-    const result = await decodeVinBatch(inputs, fetchSpy as unknown as typeof fetch);
-    expect(result[0].decoded?.vin).toBe(VIN_A);
-    expect(result[1].decoded).toBeNull();
-    expect(result[2].decoded?.vin).toBe(VIN_B);
-  });
-
-  it("returns nulls instead of throwing when a batch chunk is unavailable", async () => {
-    const fetchSpy = vi.fn(async () => response([], false, 503));
-    const result = await decodeVinBatch([{ vin: VIN_A }, { vin: VIN_B }], fetchSpy as unknown as typeof fetch);
-    expect(result.map((entry) => entry.decoded)).toEqual([null, null]);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it("keeps vehicleData as an adapter instead of a second vPIC decoder", () => {

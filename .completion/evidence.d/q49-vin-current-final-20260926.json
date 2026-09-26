@@ -1,7 +1,7 @@
 {
   "evidence": {
     "capability-ledger-updated": {
-      "deferred": "No user-facing capability state changes in Q49: this consolidates duplicate NHTSA vPIC VIN decoding into server/services/vinDecode.ts while preserving the existing vehicleData admin contract. The canonical module now owns single and batch vPIC requests, validation, timeouts, cache behavior, mapping, and merge semantics; vehicleData delegates VIN decode and continues to own recall awareness. Fresh verification on current main: server/vinDecode.test.ts + server/__tests__/vehicleData.test.ts passed 15/15, Nick's typecheck:raw passed, and pre-commit Nick's check/lint/route gates passed. Capability ledger state therefore remains unchanged until a separately scoped production capability promotion is warranted."
+      "deferred": "No user-facing capability state changes in Q49: this consolidates duplicate NHTSA vPIC VIN decoding into server/services/vinDecode.ts while preserving the existing vehicleData admin contract. The canonical module now owns the single vPIC request path production actually consumes, including validation, timeout, cache behavior, mapping, and merge semantics; vehicleData delegates VIN decode and continues to own recall awareness. A proposed batch API was removed after Adoption Gates proved it had no consumer rather than being baselined as dead code. Fresh verification on current main: server/vinDecode.test.ts + server/__tests__/vehicleData.test.ts passed 12/12, knip-orphan-gate reported 0 NEW findings, Nick's typecheck:raw passed, and pre-commit Nick's check/lint/route gates passed. Capability ledger state therefore remains unchanged until a separately scoped production capability promotion is warranted."
     }
   }
 }
