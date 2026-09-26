@@ -9,9 +9,58 @@ which lives in the `nourdean22/MAINnicks-tire-autoNEW` monorepo at
 > setup — that is history, not current truth. See
 > [`../CURRENT-TRUTH.md`](../CURRENT-TRUTH.md) for what's live.
 
-The project sits alongside the business repo `nickstire` but is intentionally
-separate: different stack (Next.js vs Express), different deploy target
-(Vercel vs Railway), different security surface (personal vs business ops).
+The project sits alongside the business app `nickstire` in the same monorepo but is intentionally
+separate: different application/runtime boundaries, domains, data ownership, and security surfaces
+(personal/owner intelligence vs business operations). Both deploy through their own Railway services.
+
+---
+
+## 2026-09-25–26 — Nick operator runtime + one-shot quality repair
+
+### #2673 · solution/principle-first live chat kernel
+- Prompt V2 now leads with the answer/move and governing mechanism on substantive turns.
+- Nick recovers context, uses available tools/data proactively, seeks disconfirming evidence, separates fact from inference/unknown,
+  uses creative angles only when they materially change the move, and continues through verification.
+- Operator alignment stays explicit: Nour owns the objective/final decision; the model should not become a yes-man.
+- Existing mutation confirmations, fencing, injection surfacing, and other execution safeguards were preserved.
+- Deployed as commit `2b0783ea58f04d9adc3456d5b1447cf46431ff35`.
+
+### Production quality audit between #2673 and #2680
+- 27 completed assistant turns: critic average **91.3/100**, 12 perfect 100s, 21/27 reply-gate clean,
+  median response length 167 words.
+- The audit also exposed the remaining gap: weak-draft detection could still be observational.
+  Evidence-shadow verdicts in the same cohort were 14 pass / 9 repair / 4 block; critic regen candidates did not always
+  force a better candidate to ship.
+
+### #2680 · quality detection becomes one-shot repair
+- `pre-stream-regen.ts` now assesses each candidate with the universal critic and, when available, the per-turn response contract.
+- Gated intents: factual, decision, creative, instructional, procedural, analytical.
+- A failing first draft gets exactly one repair instruction containing its measured failure reasons.
+- Candidate selection is deterministic: clean beats flagged; otherwise lower severity → higher overall score → higher specificity.
+- A partially improved repair may replace a worse first draft; a worse repair cannot win.
+- `alternate-paths.ts` passes the user prompt, turn signal, and response contract into the repair lane so request-fit failures
+  can trigger repair too.
+- Operator-preference boundary hardened: facts/mechanisms/options/consequences toward Nour's stated objective; no unsolicited
+  model preference; recommend when explicitly asked and optimize for his constraints; correct a false premise once with evidence.
+- New deterministic tests pin winner selection, creative-intent repair, prompt invariants, and a no-unsolicited-opinion persona eval.
+- Codex review caught an intermediate regression that removed truth-seeking phrases; the final head restored the phrases and
+  the existing "clearly and ONCE" invariant instead of weakening tests.
+- Squash merged as `2b021632bf2806c95e7e275ba56b7c64117ba8b6` (#2680).
+- Fresh push CI on the squash commit passed StateNour affected verify, authenticated e2e, Agent Policy, Adoption gates,
+  Lighthouse, Secret Scanning, and deploy drift.
+- Railway deployment `99ab4bda-931f-4dce-ba0d-807b91b8d9ec` reached **SUCCESS** on the exact #2680 commit.
+
+### #2681 · repo-agent runtime memory
+- `NOUR-COMMAND.md` updated; `docs/agent-os/NOUR-RUNTIME-KERNEL.md` and the intelligence-context hook/tests added.
+- This commit touched no StateNour app files, so Railway correctly skipped a `statenour-web` deploy.
+  Repo HEAD can therefore be newer than the live app SHA without drift.
+
+### Follow-up measurement
+Implementation and deploy are proven. Real-world repair effectiveness is not yet: measure post-#2680
+`verified_regen_path` using the fields it actually emits — attempt/fired/better flags, winner reason, first/regen
+overall and severity, and intent — before calling the quality loop production-proven. The richer
+`formatRegenTelemetry()` / `chat.pre_stream_regen` path is not wired to persistence as of this release, so it
+cannot yet support specificity or latency/cost claims.
 
 ---
 

@@ -2,8 +2,48 @@
 
 > **The one-screen answer to "where am I and what's real?"** If any other doc
 > contradicts this file as a *present-tense instruction*, this file and live
-> code win. Last verified **2026-09-17**. When in doubt, **verify in code, git,
+> code win. Last verified **2026-09-26**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
+
+## Since 2026-09-25/26 — Nick operator runtime + one-shot quality repair
+
+- **#2673 `2b0783ea` made the live chat solution/principle-first, proactive, creative when useful, and explicitly truth-seeking.**
+  The always-on Prompt V2 kernel says: recover context, use available tools/data, take the obvious safe/authorized next step,
+  seek disconfirming evidence, separate fact/inference/unknown, finish through verification, and defer the final decision to
+  the operator without rubber-stamping a false premise. Existing mutation confirmation, fencing, and injection safeguards
+  were preserved.
+- **The first production sample showed the kernel was useful but the quality loop was still observational.**
+  On the #2673 deployment, 27 completed assistant turns had an average critic score of **91.3/100**, 12 scored 100,
+  and 21/27 (77.8%) were clean at the reply gate. Median reply length was 167 words. But the same cohort's evidence
+  shadow returned 14 `pass`, 9 `repair`, and 4 `block` verdicts, and the critic could emit `REGEN_CANDIDATE`
+  without forcing the streamed answer to change. This is the measured reason #2680 exists.
+- **#2680 `2b021632` changes the buffered regen lane from "detect/log" to "detect -> one targeted repair -> compare -> ship the better draft."**
+  `pre-stream-regen.ts` now scores each candidate with the universal critic plus the per-turn response contract.
+  Gated intents are `factual`, `decision`, `creative`, `instructional`, `procedural`, and `analytical`;
+  casual/emotional/reflective turns stay flow-first. A failing first draft gets exactly one repair prompt containing the
+  measured failure reasons. The second draft wins when the same deterministic selector finds it cleaner, lower-severity,
+  higher-overall, or (at equal score) more specific. A partial repair may replace a worse first draft; a worse repair never wins.
+- **Operator preference is now an explicit boundary, not implied persona.** Nick supplies facts, mechanisms, options,
+  consequences, and execution toward Nour's stated objective. He does not substitute his own preferences/values/taste.
+  A recommendation is given when explicitly asked, optimized for Nour's objective and constraints. If the premise conflicts
+  with evidence, Nick corrects it once with evidence and then respects the operator's decision.
+- **Deployment truth:** #2680 merged at 2026-09-26 13:16:28Z and Railway deployment
+  `99ab4bda-931f-4dce-ba0d-807b91b8d9ec` reached **SUCCESS** on exact commit
+  `2b021632bf2806c95e7e275ba56b7c64117ba8b6`. Fresh post-merge push CI was green for
+  StateNour affected verify, authenticated e2e, Agent Policy, Adoption gates, Lighthouse, and deploy-drift.
+  Repo HEAD then advanced to #2681 `36961a342`, but that commit touched only Agent OS files and Railway correctly
+  marked the StateNour deployment **SKIPPED**. Therefore repo HEAD and live StateNour app SHA are intentionally different.
+- **#2681 is cross-agent memory, not a StateNour app deploy.** It adds/updates `NOUR-COMMAND.md`,
+  `docs/agent-os/NOUR-RUNTIME-KERNEL.md`, the intelligence-context hook, and its tests so coding agents inherit the same
+  outcome/truth/completion posture. It does not change bdnick.info runtime code.
+- **Still owed:** read post-#2680 `verified_regen_path` logs after enough real weak drafts exist. This is the
+  live proof source today: it emits `regenFired`, `regenAttempted`, `regenWasBetter`, `selectionReason`,
+  `firstOverall`, `firstSeverity`, `regenOverall`, `regenSeverity`, and `intent`. The helper
+  `formatRegenTelemetry()` can construct a richer `chat.pre_stream_regen` metric, but **has no live caller** as of
+  2026-09-26; do not query it or claim specificity/latency deltas from production until it is actually persisted.
+  Implementation and deployment are proven; the production *repair win rate* is not yet. Evidence-gate enforcement remains
+  a separate question: its shadow cohort was not a promote signal on 2026-09-23, so do not conflate the new quality repair
+  selector with promoting the evidence gate itself.
 
 ## Since 2026-09-17 — W12, and the things that cost a session time to learn
 

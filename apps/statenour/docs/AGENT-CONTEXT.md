@@ -3,7 +3,7 @@
 > For full context, read `AGENTS.md` in this directory. For one-screen reality check,
 > read `docs/CURRENT-TRUTH.md`. For monorepo rules, read root `AGENT-OPERATING-PROFILE.md` and the [CIITTY framework](.agents/frameworks/ciitty/SKILL.md).
 >
-> Last verified: 2026-06-10 · Post chat-error closeout + Journey Engine wave
+> Last verified: 2026-09-26 · Nick operator runtime + one-shot quality repair
 
 ---
 
@@ -20,6 +20,24 @@ Nour's life, habits, business, and growth strategy.
 - **Local path:** `[REPO_ROOT]/apps/statenour/`
 - **Deploy:** Push `main` → Railway auto-deploys via per-service watch path on `apps/statenour/**`
 
+## Current Nick Chat Contract (2026-09-26)
+
+- **Solution + principle first.** On substantive asks, lead with the answer/move and briefly name the governing mechanism.
+- **Proactive execution.** Recover context, use available tools/data, and take the obvious safe/authorized next step instead of handing work back to Nour.
+- **Truth over agreement.** Seek disconfirming evidence; separate FACT / INFERENCE / UNKNOWN; current evidence beats memory or prior AI claims.
+- **Facts, not the model's opinion.** Give mechanisms, options, consequences, and execution toward Nour's stated objective. Do not substitute model preferences/values/taste. Recommend only when Nour explicitly asks, then optimize for his objective/constraints.
+- **Creative only when useful.** Non-obvious/cross-domain angles must materially change the move; forced cleverness is filler.
+- **Finish + verify.** Code existence, a tool run, or a plausible plan is not completion.
+- **One-shot quality repair before ship.** For factual/decision/creative/instructional/procedural/analytical turns on the buffered regen lane, a weak first draft gets one targeted repair using the measured critic + response-contract failures. The better candidate wins even if the repair is only partially better; a worse repair never replaces the first draft.
+- **Safety/authority unchanged.** Mutation confirmations, fencing, injection surfacing, and other existing execution safeguards still apply.
+
+**Live app receipt:** StateNour deployment `99ab4bda-931f-4dce-ba0d-807b91b8d9ec` = commit
+`2b021632bf2806c95e7e275ba56b7c64117ba8b6` (#2680), Railway **SUCCESS**.
+Repo HEAD later advanced to #2681 `36961a342` with Agent OS-only files; that deployment was correctly **SKIPPED** for `statenour-web`.
+Do not infer deploy drift merely because repo HEAD is newer than the app SHA.
+
+**Next proof owed:** read post-#2680 `verified_regen_path` logs after enough weak drafts exist. The live event emits `regenFired`, `regenAttempted`, `regenWasBetter`, `selectionReason`, first/regen overall scores and severities, and `intent`. `formatRegenTelemetry()` is currently unwired, so `chat.pre_stream_regen`, specificity deltas, and regen latency/cost are NOT production proof sources yet. Implementation + deploy are proven; repair win-rate in real production traffic is not yet.
+
 ---
 
 ## ⚠️ Retired Paths — Do Not Reference
@@ -27,8 +45,8 @@ Nour's life, habits, business, and growth strategy.
 | Retired Item | What to Use Instead |
 |---|---|
 | Vercel | Railway only |
-| `codex/ollama-local` branch | `main` only |
-| `statenour-master` branch | `main` only |
+| Retired local-model feature/deploy branch aliases | `main` only |
+| Retired standalone StateNour mirror branch aliases | `main` only |
 | `nourdean22/statenour-os` repo | This monorepo only |
 | `C:\Users\[LOCAL_USER]\NOUR-OS` (or other local variants) | `[REPO_ROOT]` |
 | `scripts/pre-push-check.sh` (deleted) | repo-root `lefthook.yml` pre-push |
@@ -162,22 +180,23 @@ CRON_SECRET:     Must be set in Railway env for crons to fire
 
 ---
 
-## Active State (2026-06-10)
+## Active State (2026-09-26)
 
-- **Tests:** ~3007 tests / 211 files · all pass
-- **Prod migrations:** 31 applied (column-first, hand-applied)
-- **Latest ships:** chat `.match` crash fix · Journey Engine wave · morning-brief writer restored
-- **AI tools:** Venice primary · Ollama fallback · OpenAI for structured output
-- **5-layer fabrication defense:** Live and verified
-- **Ambition Engine:** P1–P3 complete · P4+ deferred
+- **Repo main:** #2681 `36961a342` at this snapshot; verify again before editing because sibling sessions are active.
+- **Live StateNour app:** #2680 `2b021632...` on Railway deployment `99ab4bda...` (SUCCESS).
+- **Prompt architecture:** Prompt V2 is live; the older prompt-cutover backlog is historical, not active work.
+- **Quality loop:** critic + response-contract assessment feeds one targeted pre-stream repair on gated intents; deterministic candidate comparison chooses the better draft.
+- **Operator posture:** facts/mechanisms/options/consequences first; no unsolicited model preference; recommendation only when asked; correct conflicting evidence once and then respect the operator's decision.
+- **Evidence gate:** still a separate shadow-calibration system. Do **not** treat #2680's quality repair as evidence-gate promotion.
+- **Primary follow-up:** measure real post-#2680 regen attempts/winners/score deltas before claiming the repair win-rate is production-proven.
 
-## Active Backlog (Priority Order — Don't Re-Attempt Shipped Items)
+## Current Follow-Up (Quality Loop Only)
 
-1. Watch judge-eval calibration verdict (`/system/judge-eval` · needs n≥30 comparisons)
-2. Phase 0 prerequisites for v2 prompt cutover (see `docs/v2-prompt-cutover-plan.md`)
-3. Phase 1 v2 prompt-builder canary (flip `NICK_PRIME_PROMPT=on` for 10% of turns)
-4. Calibration plot on `/brain` (math shipped; UI deferred until ≥10 resolved predictions)
-5. Per-policy fire history view (full chronological history not yet rendered)
+1. Read `verified_regen_path` after enough real weak drafts have occurred.
+2. Compare the fields it actually emits: first/regen severity, first/regen overall, `selectionReason`, `regenAttempted`, `regenWasBetter`, `regenFired`, and `intent`.
+3. Do **not** claim specificity or second-attempt latency/cost from production yet: `formatRegenTelemetry()` is unwired. If those measurements become necessary, wire/persist the metric first and prove the writer.
+4. Keep the evidence gate in shadow until its own precision/calibration case changes.
+5. For the broader product backlog, use current `AGENTS.md` + `docs/CURRENT-TRUTH.md`; do not resurrect the June backlog below.
 
 ## Operator-Gated Items (Agent Cannot Do These)
 
@@ -257,4 +276,4 @@ Every page/surface must have:
 
 ---
 
-*Update after each wave. Last updated: 2026-06-10.*
+*Update after each wave. Last updated: 2026-09-26.*
