@@ -132,13 +132,23 @@ const FULL_CONTACT_OPT_OUT_PATTERNS: RegExp[] = [
 
 export type SpokenOptOutScope = "voice" | "all";
 
+// Do not turn a customer's explicit negation into the opposite instruction.
+// The positive phrase matcher intentionally sees substrings such as
+// "stop calling", so "don't stop calling me" would otherwise suppress them.
+const NEGATED_SPOKEN_OPT_OUT =
+  /\b(?:do\s+not|don['’]?t|never)\s+(?:want\s+(?:you|us)\s+to\s+)?(?:stop\s+(?:calling|texting|contacting|bothering)|unsubscribe(?:\s+me)?|opt\s+(?:me\s+)?out)\b/gi;
+
 const normalizeSpokenOptOut = (utterance: string) =>
   utterance.toLowerCase().replace(/[’`]/g, "'").replace(/\s+/g, " ");
 
 export function spokenOptOutScope(utterance: string): SpokenOptOutScope | null {
   const t = normalizeSpokenOptOut(utterance);
-  if (!SPOKEN_OPT_OUT_PATTERNS.some((re) => re.test(t))) return null;
-  return FULL_CONTACT_OPT_OUT_PATTERNS.some((re) => re.test(t)) ? "all" : "voice";
+  // Negation is clause-local, not utterance-wide. Remove only phrases such as
+  // "don't stop calling" and still inspect the rest of a mixed instruction
+  // ("..., but stop texting me") for an actionable opt-out.
+  const actionable = t.replace(NEGATED_SPOKEN_OPT_OUT, " ");
+  if (!SPOKEN_OPT_OUT_PATTERNS.some((re) => re.test(actionable))) return null;
+  return FULL_CONTACT_OPT_OUT_PATTERNS.some((re) => re.test(actionable)) ? "all" : "voice";
 }
 
 export function isSpokenOptOut(utterance: string): boolean {

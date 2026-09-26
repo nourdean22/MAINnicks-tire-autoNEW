@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No capability state is promoted by this post-merge hardening PR, so docs/operations/capability-ledger.json is deliberately unchanged. The diff only prevents negated customer language such as 'don't stop calling me' from being inverted into a spoken opt-out and removes an unverified durable-suppression promise from Vapi transport playback. Fresh proof: server/services/outboundCallCompliance.test.ts covers pure negation plus mixed-intent clauses (for example, keep calls but stop texts) and verifies tool playback cannot claim 'taken off' or 'won't call again'; the focused Q-45 suite passed 107/107 tests, Nick's typechecks passed, and the real pre-push turbo --affected production build completed 10/10 tasks. Live capability state remains unchanged until a separately authorized production Vapi verification provides receipts."
+    }
+  }
+}
