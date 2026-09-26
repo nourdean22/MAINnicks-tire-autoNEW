@@ -1,18 +1,13 @@
 /**
- * VIN decode via NHTSA vPIC (2026-09-01 admin audit, artifact 3 §7 P2-2).
+ * Canonical VIN decoding via NHTSA vPIC.
  *
- * The public, licence-free decoder. Used to fill year / make / model on a
- * customer vehicle when a VIN is present and those fields are empty — never
- * to overwrite what a human typed. Provenance is explicit: the caller stores
- * the values, this module only returns them plus `source: "vpic"`.
- *
- * Contract: never throws, never blocks longer than TIMEOUT_MS, caches per VIN
- * for the process lifetime (vPIC answers do not change).
+ * This is the repo's single vPIC HTTP owner, mapping, validation, timeout,
+ * and cache contract for the VIN enrichment path that is actually wired today.
  */
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("vin-decode");
-const TIMEOUT_MS = 5000;
+const SINGLE_TIMEOUT_MS = 5_000;
 const VPIC_URL = "https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/";
 
 export interface VinDecodeResult {
@@ -20,64 +15,126 @@ export interface VinDecodeResult {
   year: string | null;
   make: string | null;
   model: string | null;
+  trim: string | null;
+  bodyClass: string | null;
+  driveType: string | null;
+  engineCylinders: string | null;
+  fuelType: string | null;
   source: "vpic";
+  fetchedAt: string;
   /** vPIC's own error text when the VIN failed its check digit / pattern. */
   vpicError: string | null;
 }
 
 const cache = new Map<string, VinDecodeResult | null>();
 
+export function normalizeVinForLookup(raw: string | null | undefined): string | null {
+  const value = (raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  // vPIC's admin lookup historically accepts partial VINs down to 11 chars.
+  // I/O/Q remain forbidden by ISO 3779.
+  return /^[A-HJ-NPR-Z0-9]{11,17}$/.test(value) ? value : null;
+}
+
 function normalizeVin(raw: string | null | undefined): string | null {
-  const v = (raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  // 17 chars, no I/O/Q per ISO 3779.
-  return /^[A-HJ-NPR-Z0-9]{17}$/.test(v) ? v : null;
+  const value = normalizeVinForLookup(raw);
+  // Enrichment/backfill stays strict: stored-vehicle decode requires a full VIN.
+  return value?.length === 17 ? value : null;
 }
 
-function titleCase(s: string): string {
-  return s.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+function cleanField(row: Record<string, string>, key: string): string | null {
+  const value = (row[key] ?? "").trim();
+  return value && value !== "Not Applicable" ? value : null;
 }
 
-export async function decodeVin(rawVin: string | null | undefined, fetchImpl: typeof fetch = fetch): Promise<VinDecodeResult | null> {
-  const vin = normalizeVin(rawVin);
-  if (!vin) return null;
+function titleCase(value: string): string {
+  return value.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
+
+function hasHardVpicError(errorCode: string): boolean {
+  if (!errorCode || errorCode === "0") return false;
+  const allowed = new Set(["0", "6", "7", "8", "14"]);
+  return errorCode.split(",").map((code) => code.trim()).filter(Boolean).some((code) => !allowed.has(code));
+}
+
+function mapVpicRow(vin: string, row: Record<string, string>): VinDecodeResult {
+  const errorCode = (row.ErrorCode ?? "").trim();
+  const hardError = hasHardVpicError(errorCode);
+  const field = (key: string): string | null => hardError ? null : cleanField(row, key);
+  const make = field("Make");
+  return {
+    vin,
+    year: /^\d{4}$/.test(field("ModelYear") ?? "") ? field("ModelYear") : null,
+    make: make ? titleCase(make) : null,
+    model: field("Model"),
+    trim: field("Trim"),
+    bodyClass: field("BodyClass"),
+    driveType: field("DriveType"),
+    engineCylinders: field("EngineCylinders"),
+    fuelType: field("FuelTypePrimary"),
+    source: "vpic",
+    fetchedAt: new Date().toISOString(),
+    vpicError: hardError ? (row.ErrorText ?? errorCode).slice(0, 160) : null,
+  };
+}
+
+async function decodeNormalizedVin(
+  vin: string,
+  fetchImpl: typeof fetch,
+): Promise<VinDecodeResult | null> {
   if (cache.has(vin)) return cache.get(vin) ?? null;
 
   try {
-    const res = await fetchImpl(`${VPIC_URL}${vin}?format=json`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+    const res = await fetchImpl(VPIC_URL + vin + "?format=json", {
+      signal: AbortSignal.timeout(SINGLE_TIMEOUT_MS),
+    });
     if (!res.ok) {
-      // Not cached: a 5xx/429 is transient and must not blank this VIN for the
-      // life of the process (self-review on PR #2063). Only a clean 2xx with
-      // no usable Results is a durable "nothing to decode".
+      // Transient failures are deliberately not cached.
       log.warn("vPIC non-OK response", { vinLast4: vin.slice(-4), status: res.status });
       return null;
     }
     const data = (await res.json()) as { Results?: Array<Record<string, string>> };
-    const r = data.Results?.[0];
-    if (!r) { cache.set(vin, null); return null; }
-    const errorCode = (r.ErrorCode ?? "").trim();
-    // vPIC returns "0" (clean) or a comma list; codes other than 0/6/7/8/14 mean
-    // the VIN itself is bad — decode text may still be partial but not trusted.
-    const hardError = errorCode !== "" && errorCode !== "0" && !/^(6|7|8|14)(,|$)/.test(errorCode);
-    const result: VinDecodeResult = {
-      vin,
-      year: !hardError && /^\d{4}$/.test(r.ModelYear ?? "") ? r.ModelYear : null,
-      make: !hardError && r.Make ? titleCase(r.Make) : null,
-      model: !hardError && r.Model ? r.Model : null,
-      source: "vpic",
-      vpicError: hardError ? (r.ErrorText ?? errorCode).slice(0, 160) : null,
-    };
+    const row = data.Results?.[0];
+    if (!row) {
+      cache.set(vin, null);
+      return null;
+    }
+    const result = mapVpicRow(vin, row);
     cache.set(vin, result);
     return result;
   } catch (err) {
-    log.warn("vPIC decode failed", { vinLast4: vin.slice(-4), err: err instanceof Error ? err.message : String(err) });
-    return null; // not cached: a transient failure may succeed later
+    log.warn("vPIC decode failed", {
+      vinLast4: vin.slice(-4),
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return null;
   }
 }
 
-/**
- * Fill ONLY the empty fields from a decode. Human-entered values always win.
- */
-export function mergeDecoded<T extends { year?: string | null; make?: string | null; model?: string | null }>(
+export async function decodeVin(
+  rawVin: string | null | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<VinDecodeResult | null> {
+  const vin = normalizeVin(rawVin);
+  return vin ? decodeNormalizedVin(vin, fetchImpl) : null;
+}
+
+/** Existing admin route compatibility: vPIC accepts partial 11-17 character VIN lookups. */
+export async function decodeVinForLookup(
+  rawVin: string | null | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<VinDecodeResult | null> {
+  const vin = normalizeVinForLookup(rawVin);
+  return vin ? decodeNormalizedVin(vin, fetchImpl) : null;
+}
+
+export function _clearVinDecodeCache(): void {
+  cache.clear();
+}
+
+/** Fill ONLY empty Y/M/M fields. Human-entered values always win. */
+export function mergeDecoded<
+  T extends { year?: string | null; make?: string | null; model?: string | null },
+>(
   vehicle: T,
   decoded: VinDecodeResult | null,
 ): T & { vinDecodedFrom?: "vpic" } {
