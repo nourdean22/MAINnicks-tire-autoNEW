@@ -1,0 +1,2 @@
+# Optional dependency for vision.officewake. Kept out of the canonical camera runtime.
+websockets>=12.0
