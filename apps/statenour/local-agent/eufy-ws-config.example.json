@@ -1,0 +1,8 @@
+{
+  "username": "YOUR_EUFY_EMAIL",
+  "password": "SET_LOCALLY_NEVER_COMMIT",
+  "country": "US",
+  "language": "en",
+  "trustedDeviceName": "statenour-os",
+  "persistentDir": "./eufy-data"
+}
