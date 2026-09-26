@@ -35,6 +35,7 @@ describe("pre-stream-regen · intent gating", () => {
   it("gates regen-worthy intents", () => {
     expect(shouldGateForIntent("factual")).toBe(true);
     expect(shouldGateForIntent("decision")).toBe(true);
+    expect(shouldGateForIntent("creative")).toBe(true);
     expect(shouldGateForIntent("instructional")).toBe(true);
     expect(shouldGateForIntent("procedural")).toBe(true);
     expect(shouldGateForIntent("analytical")).toBe(true);
@@ -43,7 +44,6 @@ describe("pre-stream-regen · intent gating", () => {
   it("does NOT gate flow-prioritized intents", () => {
     expect(shouldGateForIntent("casual")).toBe(false);
     expect(shouldGateForIntent("emotional")).toBe(false);
-    expect(shouldGateForIntent("creative")).toBe(false);
     expect(shouldGateForIntent("reflective")).toBe(false);
   });
 });
