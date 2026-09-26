@@ -27,7 +27,7 @@ from .service_shadow import OutsideServiceShadow, ServiceCue, ServiceEvidenceLed
 MODEL_ID = "IDEA-Research/grounding-dino-tiny"
 # Pin the model repository revision used for the initial shadow lane. Model upgrades should
 # create a new measurement cohort rather than silently changing what an old score meant.
-MODEL_REVISION = "c7309d120267d81bf3ed68383062e12a9102602d"
+MODEL_REVISION = "a2bb814dd30d776dcf7e30523b00659f4f141c71"
 
 PROMPTS = (
     "person",
@@ -112,7 +112,11 @@ class GroundingDinoAnalyzer:
 
         self.processor = AutoProcessor.from_pretrained(model_id, revision=revision)
         self.model = AutoModelForZeroShotObjectDetection.from_pretrained(
-            model_id, revision=revision
+            model_id,
+            revision=revision,
+            # Fail closed onto the non-pickle artifact. The pinned repository revision
+            # contains model.safetensors; do not silently fall back to pytorch_model.bin.
+            use_safetensors=True,
         ).to(self.device)
         self.model.eval()
 
