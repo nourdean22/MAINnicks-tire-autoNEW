@@ -19,6 +19,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional, Protocol, Sequence
 
+import numpy as np
+
 from .service_shadow import OutsideServiceShadow, ServiceCue, ServiceEvidenceLedger
 
 
@@ -62,10 +64,18 @@ _LABEL_ALIASES = {
 }
 
 
+@dataclass(frozen=True)
+class ReviewFrame:
+    at: float
+    source: str | np.ndarray
+    source_kind: str
+    label: str
+
+
 class CueAnalyzer(Protocol):
     name: str
 
-    def detect(self, image_path: str) -> Sequence[ServiceCue]:
+    def detect(self, image: str | np.ndarray) -> Sequence[ServiceCue]:
         ...
 
 
@@ -118,8 +128,15 @@ class GroundingDinoAnalyzer:
                 return _LABEL_ALIASES[phrase]
         return None
 
-    def detect(self, image_path: str) -> Sequence[ServiceCue]:
-        image = self._Image.open(image_path).convert("RGB")
+    def detect(self, image_source: str | np.ndarray) -> Sequence[ServiceCue]:
+        if isinstance(image_source, str):
+            image = self._Image.open(image_source).convert("RGB")
+        else:
+            frame = np.asarray(image_source)
+            if frame.ndim != 3 or frame.shape[2] < 3:
+                raise ValueError("episode frame is not a 3-channel image")
+            # vision.episode.read_frames returns OpenCV BGR. Grounding-DINO consumes RGB.
+            image = self._Image.fromarray(frame[:, :, :3][:, :, ::-1]).convert("RGB")
         labels = [list(PROMPTS)]
         inputs = self.processor(images=image, text=labels, return_tensors="pt")
         moved = {}
@@ -207,7 +224,7 @@ def _write_result(case_dir: Path, result: ReviewResult, *, extra: Optional[dict]
     os.replace(tmp, final)
 
 
-def _load_case(case_dir: Path) -> tuple[dict, list[tuple[float, Path]]]:
+def _load_case(case_dir: Path) -> tuple[dict, list[ReviewFrame]]:
     case_path = case_dir / "case.json"
     if not case_path.is_file():
         raise ValueError("missing case.json")
@@ -224,43 +241,81 @@ def _load_case(case_dir: Path) -> tuple[dict, list[tuple[float, Path]]]:
         int(context["trackId"])
         float(context["stationarySeconds"])
         trigger_at = float(meta["at"])
+        expected_frames = int(meta["frames"])
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("case lacks valid track/timing provenance") from exc
 
-    frames = sorted(case_dir.glob("*.jpg"))
-    timestamps = meta.get("frameTimestamps")
-    if not isinstance(timestamps, list) or len(timestamps) != len(frames):
+    raw_timestamps = meta.get("frameTimestamps")
+    if not isinstance(raw_timestamps, list) or len(raw_timestamps) != expected_frames:
         raise ValueError("case lacks exact frameTimestamps provenance")
-    timed: list[tuple[float, Path]] = []
-    for ts, frame in zip(timestamps, frames):
-        try:
-            stamp = float(ts)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("case contains invalid frame timestamp") from exc
-        if stamp >= trigger_at:
-            timed.append((stamp, frame))
+    try:
+        timestamps = [float(ts) for ts in raw_timestamps]
+    except (TypeError, ValueError) as exc:
+        raise ValueError("case contains invalid frame timestamp") from exc
+    if timestamps != sorted(timestamps):
+        raise ValueError("case frameTimestamps are not monotonic")
+
+    jpgs = sorted(case_dir.glob("*.jpg"))
+    frames: list[ReviewFrame] = []
+    if jpgs:
+        if len(jpgs) != len(timestamps):
+            raise ValueError("JPEG count does not match exact frameTimestamps provenance")
+        frames = [
+            ReviewFrame(ts, str(path), "jpeg", path.name)
+            for ts, path in zip(timestamps, jpgs)
+        ]
+    else:
+        # HardCaseRecorder's intended steady-state "replace" mode deletes numbered JPEGs
+        # only after a complete MCAP episode re-reads with the full image count. Read that
+        # verified replacement directly instead of making the sidecar depend on a legacy
+        # duplicate copy of the pixels.
+        episode_path = case_dir / "episode.mcap"
+        if not episode_path.is_file():
+            raise ValueError("case has neither numbered JPEGs nor episode.mcap")
+        from .episode import read_frames, verify
+
+        seen = verify(str(episode_path))
+        if not seen or not seen.get("complete"):
+            raise ValueError("episode.mcap is unreadable or incomplete")
+        if int((seen.get("topics") or {}).get("/camera/image", 0)) != len(timestamps):
+            raise ValueError("episode image count does not match exact frameTimestamps provenance")
+        decoded = list(read_frames(str(episode_path)) or [])
+        if len(decoded) != len(timestamps):
+            raise ValueError("episode frames could not be decoded completely")
+        for index, (expected, row) in enumerate(zip(timestamps, decoded)):
+            actual, image, _frame_meta = row
+            # Both clocks were written from the same source timestamp. A material mismatch
+            # is corruption/skew, not permission to pair an image with a different instant.
+            if abs(float(actual) - expected) > 0.001:
+                raise ValueError(
+                    f"episode timestamp mismatch at frame {index}: "
+                    f"case={expected:.6f} episode={float(actual):.6f}"
+                )
+            frames.append(
+                ReviewFrame(expected, image, "mcap", f"episode:{index:04d}")
+            )
+
+    timed = [frame for frame in frames if frame.at >= trigger_at]
     if not timed:
         raise ValueError("case has no post-trigger frames")
     return meta, timed
 
-
 def _sample_frames(
-    timed: Sequence[tuple[float, Path]], *, every_seconds: float
-) -> list[tuple[float, Path]]:
+    timed: Sequence[ReviewFrame], *, every_seconds: float
+) -> list[ReviewFrame]:
     if every_seconds <= 0:
         return list(timed)
-    out: list[tuple[float, Path]] = []
+    out: list[ReviewFrame] = []
     next_at: Optional[float] = None
-    for ts, path in timed:
-        if next_at is None or ts >= next_at:
-            out.append((ts, path))
-            next_at = ts + every_seconds
-    if timed and out and out[-1][0] != timed[-1][0]:
+    for frame in timed:
+        if next_at is None or frame.at >= next_at:
+            out.append(frame)
+            next_at = frame.at + every_seconds
+    if timed and out and out[-1].at != timed[-1].at:
         # Include resolution evidence at the end even when it falls just before the next
         # cadence tick. This is still bounded: at most one extra inference per case.
         out.append(timed[-1])
     return out
-
 
 def analyze_case(
     case_dir: str | Path,
@@ -293,16 +348,16 @@ def analyze_case(
     written = False
     analyzed = 0
     try:
-        for ts, frame_path in sampled:
-            cues = list(analyzer.detect(str(frame_path)))
+        for frame in sampled:
+            cues = list(analyzer.detect(frame.source))
             analyzed += 1
             assessment = scorer.observe(
                 track_id=track_id,
                 vehicle_box=vehicle_box,
-                stationary_seconds=base_stationary + max(0.0, ts - trigger_at),
+                stationary_seconds=base_stationary + max(0.0, frame.at - trigger_at),
                 in_bay=False,
                 cues=cues,
-                at=ts,
+                at=frame.at,
             )
             last = assessment
             if ledger.note(
@@ -314,6 +369,7 @@ def analyze_case(
                     "trackId": track_id,
                     "triggerAt": trigger_at,
                     "timingSource": "exact_case_json",
+                    "frameSource": frame.source_kind,
                 },
             ):
                 written = True
@@ -348,6 +404,7 @@ def analyze_case(
             "trackId": track_id,
             "vehicleBox": list(vehicle_box),
             "camera": camera,
+            "frameSource": sampled[0].source_kind,
         },
     )
     return result
