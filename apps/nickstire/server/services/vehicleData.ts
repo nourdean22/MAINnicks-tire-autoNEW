@@ -6,8 +6,8 @@
  */
 import {
   _clearVinDecodeCache,
-  decodeVin as decodeCanonicalVin,
-  normalizeVin,
+  decodeVinForLookup as decodeCanonicalVin,
+  normalizeVinForLookup,
 } from "./vinDecode";
 
 const RECALLS_BASE = "https://api.nhtsa.gov/recalls/recallsByVehicle";
@@ -76,7 +76,7 @@ export interface VehicleDataError {
  * The network request and vPIC mapping are canonical in vinDecode.ts.
  */
 export async function decodeVin(vinRaw: string): Promise<VinDecodeResult | VehicleDataError> {
-  const vin = normalizeVin(vinRaw);
+  const vin = normalizeVinForLookup(vinRaw);
   if (!vin) {
     return { ok: false, error: "invalid VIN format", source: SOURCE_LABEL };
   }

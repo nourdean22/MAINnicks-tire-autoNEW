@@ -28,10 +28,17 @@ export interface VinDecodeResult {
 
 const cache = new Map<string, VinDecodeResult | null>();
 
-export function normalizeVin(raw: string | null | undefined): string | null {
+export function normalizeVinForLookup(raw: string | null | undefined): string | null {
   const value = (raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  // Full VIN only; I/O/Q are forbidden by ISO 3779.
-  return /^[A-HJ-NPR-Z0-9]{17}$/.test(value) ? value : null;
+  // vPIC's admin lookup historically accepts partial VINs down to 11 chars.
+  // I/O/Q remain forbidden by ISO 3779.
+  return /^[A-HJ-NPR-Z0-9]{11,17}$/.test(value) ? value : null;
+}
+
+export function normalizeVin(raw: string | null | undefined): string | null {
+  const value = normalizeVinForLookup(raw);
+  // Enrichment/backfill stays strict: stored-vehicle decode requires a full VIN.
+  return value?.length === 17 ? value : null;
 }
 
 function cleanField(row: Record<string, string>, key: string): string | null {
@@ -70,12 +77,10 @@ function mapVpicRow(vin: string, row: Record<string, string>): VinDecodeResult {
   };
 }
 
-export async function decodeVin(
-  rawVin: string | null | undefined,
-  fetchImpl: typeof fetch = fetch,
+async function decodeNormalizedVin(
+  vin: string,
+  fetchImpl: typeof fetch,
 ): Promise<VinDecodeResult | null> {
-  const vin = normalizeVin(rawVin);
-  if (!vin) return null;
   if (cache.has(vin)) return cache.get(vin) ?? null;
 
   try {
@@ -103,6 +108,23 @@ export async function decodeVin(
     });
     return null;
   }
+}
+
+export async function decodeVin(
+  rawVin: string | null | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<VinDecodeResult | null> {
+  const vin = normalizeVin(rawVin);
+  return vin ? decodeNormalizedVin(vin, fetchImpl) : null;
+}
+
+/** Existing admin route compatibility: vPIC accepts partial 11-17 character VIN lookups. */
+export async function decodeVinForLookup(
+  rawVin: string | null | undefined,
+  fetchImpl: typeof fetch = fetch,
+): Promise<VinDecodeResult | null> {
+  const vin = normalizeVinForLookup(rawVin);
+  return vin ? decodeNormalizedVin(vin, fetchImpl) : null;
 }
 
 export function _clearVinDecodeCache(): void {

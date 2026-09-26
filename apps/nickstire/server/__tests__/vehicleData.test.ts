@@ -55,10 +55,25 @@ describe("vehicleData VIN compatibility adapter", () => {
     }
   });
 
-  it("rejects partial or malformed VINs locally without a request", async () => {
+  it("preserves the admin route's historical partial-VIN lookup contract", async () => {
+    const fn = stubFetch({
+      Results: [{ ErrorCode: "0", ModelYear: "2003", Make: "HONDA", Model: "Accord" }],
+    });
+    const result = await decodeVin("1HGCM82633A");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.vin).toBe("1HGCM82633A");
+      expect(result.make).toBe("HONDA");
+      expect(result.model).toBe("Accord");
+    }
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(String(fn.mock.calls[0]?.[0])).toContain("DecodeVinValues/1HGCM82633A");
+  });
+
+  it("still rejects malformed VINs locally without a request", async () => {
     const fn = stubFetch({});
     expect((await decodeVin("nope!")).ok).toBe(false);
-    expect((await decodeVin("1HGCM82633A")).ok).toBe(false);
+    expect((await decodeVin("1HGCM82633IO")).ok).toBe(false);
     expect(fn).not.toHaveBeenCalled();
   });
 
