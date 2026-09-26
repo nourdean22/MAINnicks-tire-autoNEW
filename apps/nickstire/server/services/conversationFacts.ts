@@ -28,6 +28,11 @@ export type TranscriptSegment = {
   start: number;
   end: number;
   text: string;
+  /**
+   * Diarization grouping label only (for example SPEAKER_00).
+   * It is NOT a person's identity and must never be promoted to one downstream.
+   */
+  speaker?: string;
 };
 
 /** Not exported: nothing outside this module names a kind; `FactKind` below is the API. */
