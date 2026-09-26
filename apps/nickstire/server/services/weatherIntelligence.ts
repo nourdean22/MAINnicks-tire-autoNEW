@@ -336,5 +336,3 @@ export async function checkWeatherTriggers(): Promise<{ triggered: string[]; det
 
   return { triggered, details: `${details}. ${triggered.length} triggers fired.` };
 }
-
-[executed on device: NattyNour (fb18de09-5ec0-444d-bcdd-33f7e867ac82)]
