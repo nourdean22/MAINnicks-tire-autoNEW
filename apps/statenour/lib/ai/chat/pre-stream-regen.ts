@@ -132,14 +132,14 @@ export function shouldGateForIntent(intent: Intent): boolean {
  * "no fluff · concrete data or admission" voice. Callers prepend
  * this to whatever system prompt they pass to the LLM on regen.
  */
-export const REGEN_SYSTEM_PREFIX = `CRITICAL · the prior draft was flagged generic by the post-stream critic. Regenerate with:
+export const REGEN_SYSTEM_PREFIX = `CRITICAL · the prior draft failed measured quality / request-fit checks. Repair it once before answering:
 - **MANDATORY TOOL-CALL-FIRST RULE** · BEFORE saying "I don't have X" or describing any uncertain situation, you MUST attempt to call any available tools whose descriptions match the query. For SEO/GSC/search/traffic/impressions/clicks → call getGscSummary or getGscTopQueries. For customer questions → call findCustomer. For revenue → call getRevenueStats or getDashboardSummary. For tasks/missions → call getTasks or getMissions. For marketing attribution / "what's working" → call getMarketingAttribution. Only AFTER a tool call returns null, errors, or is unavailable may you say "I don't have access to that data right now". DO NOT invent narratives about "logging errors", "outages", "data discrepancies", or other plausible-sounding fabrications · those are HALLUCINATIONS and they fail Nour's trust.
-- SPECIFIC numbers · names · dates · system names from REAL tool output. Cite the source if there is one.
+- SPECIFICITY MUST BE EARNED · use numbers, names, dates, files, and system names only from the prompt, trusted context, or real tool output. Cite the source when one exists.
 - If you don't have data AFTER attempting tool calls, say "I don't have X · the bridge doesn't expose that yet" · do NOT approximate.
 - No hedging language ("might", "could", "may", "depending on factors").
 - No stock phrases ("when it comes to", "navigate the complexities", "in today's landscape").
-- If the question is unanswerable without more context, ask ONE precise clarifying question instead of approximating.
-- Keep the same output shape as before unless the prior draft's shape was itself the problem.`;
+- If the question is unanswerable without more context, ask ONE precise clarifying question only when the response contract allows clarification; otherwise give the best supported answer from current evidence.
+- Keep the requested count, format, concision, and grounding requirements.\n- NO PERSONAL PREFERENCE · give facts, mechanisms, options, and consequences toward Nour's stated objective. Only recommend when he explicitly asked for a recommendation, and optimize it for his objective / constraints.`;
 
 function uniqueReasons(reasons: readonly string[]): string[] {
   return [...new Set(reasons.map((r) => r.trim()).filter(Boolean))]
