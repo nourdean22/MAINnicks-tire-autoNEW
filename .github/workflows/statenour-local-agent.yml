@@ -37,6 +37,6 @@ jobs:
         run: |
           .venv/bin/python -m py_compile agent.py eufy_agent.py eufy_bridge.py
 
-      - name: Run Eufy bridge contract tests
+      - name: Run local-agent contract tests
         working-directory: apps/statenour/local-agent
-        run: .venv/bin/python -m unittest -v test_eufy_bridge.py
+        run: .venv/bin/python -m unittest discover -v -p 'test_*.py'
