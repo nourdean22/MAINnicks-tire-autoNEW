@@ -115,7 +115,7 @@ export function isConsentHoldEnforced(mode = getConsentLedgerMode()): boolean {
   return mode === "enforce_holds" || mode === "enforce_grants";
 }
 
-export function normalizeConsentSubject(type: ConsentSubjectType, value: string): string | null {
+function normalizeConsentSubject(type: ConsentSubjectType, value: string): string | null {
   if (type === "phone") {
     const normalized = normalizePhone(value);
     if (!normalized) return null;
@@ -131,7 +131,7 @@ const clip = (value: string | null | undefined, max: number): string | null => {
   return trimmed ? trimmed.slice(0, max) : null;
 };
 
-export function prepareConsentEvent(
+function prepareConsentEvent(
   input: ConsentEventInput,
 ): { ok: true; event: ConsentEventInput & { subjectKey: string } } | { ok: false; reason: string } {
   const subjectKey = normalizeConsentSubject(input.subjectType, input.subjectKey);
@@ -176,7 +176,7 @@ const ACTION_RANK: Record<ConsentAction, number> = {
   revoke: 3,
 };
 
-export function deriveContactState(events: ConsentEventRow[]): DerivedContactState {
+function deriveContactState(events: ConsentEventRow[]): DerivedContactState {
   const sorted = [...events].sort((a, b) => {
     const timeDiff = new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime();
     if (timeDiff !== 0) return timeDiff;
@@ -213,7 +213,7 @@ export function deriveContactState(events: ConsentEventRow[]): DerivedContactSta
   return state;
 }
 
-export function buildConsentLedgerSnapshot(events: ConsentEventRow[]): ConsentLedgerSnapshot {
+function buildConsentLedgerSnapshot(events: ConsentEventRow[]): ConsentLedgerSnapshot {
   const byPhone = new Map<string, ConsentEventRow[]>();
   for (const event of events) {
     if (event.subjectType !== "phone") continue;
@@ -334,10 +334,4 @@ export async function loadConsentLedgerSnapshot(
     }
     return { ok: false, reason: describeDbError(err) };
   }
-}
-
-export function __resetConsentLedgerCacheForTests(): void {
-  snapshotCache = null;
-  snapshotCacheLoadedAt = 0;
-  missingTableLogged = false;
 }

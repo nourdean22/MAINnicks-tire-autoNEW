@@ -8,12 +8,9 @@ vi.mock("../lib/db-helper", () => ({
 }));
 
 import {
-  __resetConsentLedgerCacheForTests,
-  buildConsentLedgerSnapshot,
-  deriveContactState,
+  appendConsentEvent,
   getConsentLedgerMode,
   loadConsentLedgerSnapshot,
-  prepareConsentEvent,
   type ConsentEventRow,
 } from "./consentLedger";
 
@@ -31,10 +28,33 @@ const event = (overrides: Partial<ConsentEventRow>): ConsentEventRow => ({
   ...overrides,
 });
 
-beforeEach(() => {
-  process.env.CONSENT_LEDGER_MODE = "shadow";
+async function invalidateCacheThroughPublicWrite(): Promise<void> {
   executeImpl = async () => [[]];
-  __resetConsentLedgerCacheForTests();
+  const result = await appendConsentEvent({
+    subjectType: "phone",
+    subjectKey: "2165550198",
+    scope: "sms_informational",
+    action: "grant",
+    source: "test_cache_reset",
+    method: "api",
+    evidenceRef: "test:cache-reset",
+    actor: "system:test",
+  });
+  expect(result.status).toBe("written");
+}
+
+async function project(events: ConsentEventRow[]) {
+  executeImpl = async () => [events];
+  const result = await loadConsentLedgerSnapshot("shadow");
+  expect(result.ok).toBe(true);
+  if (!result.ok) throw new Error(result.reason);
+  expect(result.available).toBe(true);
+  return result.snapshot;
+}
+
+beforeEach(async () => {
+  process.env.CONSENT_LEDGER_MODE = "shadow";
+  await invalidateCacheThroughPublicWrite();
 });
 
 afterEach(() => {
@@ -42,43 +62,44 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("deriveContactState", () => {
-  it("STOP then later START restores all scopes", () => {
-    const state = deriveContactState([
-      event({ id: 1, action: "revoke", occurredAt: "2026-09-26T12:00:00Z" }),
-      event({ id: 2, action: "grant", occurredAt: "2026-09-26T12:01:00Z" }),
+describe("consent state projection through the public snapshot API", () => {
+  it("STOP then later START restores all scopes", async () => {
+    const snapshot = await project([
+      event({ id: 1, subjectKey: "+1 (216) 555-0100", action: "revoke", occurredAt: "2026-09-26T12:00:00Z" }),
+      event({ id: 2, subjectKey: "+1 (216) 555-0100", action: "grant", occurredAt: "2026-09-26T12:01:00Z" }),
     ]);
-    expect(state.revokedScopes.size).toBe(0);
+    expect(snapshot.revokedSmsPhones.has("2165550100")).toBe(false);
+    expect(snapshot.grantsByPhone.get("2165550100")?.has("sms_marketing")).toBe(true);
   });
 
-  it("a hold clears only after a later release", () => {
-    expect(deriveContactState([event({ action: "hold" })]).held).toBe(true);
-    expect(deriveContactState([
+  it("a hold clears only after a later release", async () => {
+    const snapshot = await project([
       event({ id: 1, action: "hold" }),
       event({ id: 2, action: "release", occurredAt: "2026-09-26T12:01:00Z" }),
-    ]).held).toBe(false);
+    ]);
+    expect(snapshot.heldPhones.has("2165550100")).toBe(false);
   });
 
-  it("a later revoke wins over a hold", () => {
-    const state = deriveContactState([
+  it("a later revoke wins over a hold", async () => {
+    const snapshot = await project([
       event({ id: 1, action: "hold" }),
       event({ id: 2, action: "revoke", occurredAt: "2026-09-26T12:01:00Z" }),
     ]);
-    expect(state.held).toBe(false);
-    expect(state.revokedScopes.has("sms_marketing")).toBe(true);
+    expect(snapshot.heldPhones.has("2165550100")).toBe(false);
+    expect(snapshot.revokedSmsPhones.has("2165550100")).toBe(true);
   });
 
-  it("revoke wins a same-instant tie against grant", () => {
+  it("revoke wins a same-instant tie against grant", async () => {
     const at = "2026-09-26T12:00:00.000Z";
-    const state = deriveContactState([
+    const snapshot = await project([
       event({ id: 9, action: "grant", occurredAt: at }),
       event({ id: 2, action: "revoke", occurredAt: at }),
     ]);
-    expect(state.revokedScopes.has("sms_marketing")).toBe(true);
+    expect(snapshot.revokedSmsPhones.has("2165550100")).toBe(true);
   });
 
-  it("voice-only revocation does not become an SMS revocation", () => {
-    const snapshot = buildConsentLedgerSnapshot([
+  it("voice-only revocation does not become an SMS revocation", async () => {
+    const snapshot = await project([
       event({ action: "revoke", scope: "voice_ai_marketing" }),
     ]);
     expect(snapshot.revokedSmsPhones.size).toBe(0);
@@ -93,8 +114,21 @@ describe("rollout contract", () => {
     expect(getConsentLedgerMode("garbage")).toBe("off");
   });
 
-  it("normalizes phone keys and truncates evidence before SQL", () => {
-    const prepared = prepareConsentEvent({
+  it("normalizes phone keys and truncates evidence before SQL", async () => {
+    let values: unknown[] = [];
+    executeImpl = async (statement) => {
+      const chunks = (statement as { queryChunks?: Array<Record<string, unknown>> }).queryChunks ?? [];
+      values = chunks.flatMap((chunk) => {
+        if (typeof chunk === "string" || typeof chunk === "number" || typeof chunk === "boolean") return [chunk];
+        if (chunk && typeof chunk === "object" && "value" in chunk && !Array.isArray(chunk.value)) {
+          return [chunk.value];
+        }
+        return [];
+      });
+      return [[]];
+    };
+
+    const result = await appendConsentEvent({
       subjectType: "phone",
       subjectKey: "+1 (216) 555-0199",
       scope: "sms_informational",
@@ -106,12 +140,12 @@ describe("rollout contract", () => {
       userAgent: "u".repeat(500),
       actor: "system:booking",
     });
-    expect(prepared.ok).toBe(true);
-    if (!prepared.ok) return;
-    expect(prepared.event.subjectKey).toBe("2165550199");
-    expect(prepared.event.evidenceRef).toHaveLength(191);
-    expect(prepared.event.evidenceExcerpt).toHaveLength(160);
-    expect(prepared.event.userAgent).toHaveLength(300);
+
+    expect(result.status).toBe("written");
+    expect(values).toContain("2165550199");
+    expect(values).toContain("x".repeat(191));
+    expect(values).toContain("y".repeat(160));
+    expect(values).toContain("u".repeat(300));
   });
 
   it("shadow tolerates only a genuinely missing table", async () => {
