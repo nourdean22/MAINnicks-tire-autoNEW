@@ -49,6 +49,11 @@ device on the shop's LAN and scan for cameras on port 554.
 
 ## Eufy bridge, office motion events, and PTZ
 
+Security boundary: Eufy credentials/session material is machine-local. Never commit
+`eufy-ws-config.json`, `eufy-ws-config.local.json`, or `eufy-data/`. If a legacy
+bridge needs JSON credentials, copy `eufy-ws-config.example.json` to an ignored local
+file and fill it only on the machine running the bridge.
+
 StateNour can use the current `mega-yfue/ha-eufy-sdk-bridge` as the **single authenticated Eufy
 session** for live device state, semantic camera events, and capability-gated PTZ. When
 `EUFY_BRIDGE_URL` is configured, `eufy_agent.py` does not start a second Eufy cloud login. This
