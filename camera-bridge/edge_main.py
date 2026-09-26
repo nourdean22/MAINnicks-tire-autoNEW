@@ -674,6 +674,10 @@ class EdgeLoop:
                 log.exception("vision step error")
                 out = {"emissions": [], "suppressed": "vision error"}
 
+            # The recorder got the pixels before vision gates. Now that this frame has
+            # actually been reasoned over, attach the canonical track snapshot to that same
+            # buffered frame before any trigger can arm a service-review clip.
+            self._annotate_hard_case_vision(frame, out)
             self._note_hard_cases(frame, out)
             self._note_trajectory(frame, out)
             self._note_deaths(frame, out)
@@ -1178,6 +1182,36 @@ class EdgeLoop:
         except Exception:  # noqa: BLE001
             log.exception("hard-case observe failed; the corpus loses a frame, not the lot")
 
+    def _annotate_hard_case_vision(self, frame, out: Dict[str, object]) -> None:
+        """Join post-vision canonical track facts to the pre-vision buffered pixels.
+
+        A suppressed frame is deliberately left without a snapshot: the tracker did not
+        observe the lot on that frame, so copying its previous box forward would turn
+        absence of observation into evidence.
+        """
+        if self.hard_cases is None or out.get("suppressed") is not None:
+            return
+        try:
+            tracks = getattr(getattr(self.vision, "tracks", None), "tracks", {}) or {}
+            snapshots = {}
+            for track in tracks.values():
+                track_id = int(getattr(track, "track_id", -1))
+                if track_id < 0:
+                    continue
+                snapshots[str(track_id)] = {
+                    "trackId": track_id,
+                    "box": [round(float(v), 3) for v in getattr(track, "box", ())],
+                    "zones": list(getattr(track, "zones", None) or []),
+                    "evidence": str(getattr(track, "evidence", "unknown")),
+                    "misses": int(getattr(track, "misses", 0) or 0),
+                    "stationarySeconds": round(float(track.stationary_for(frame.ts)), 3),
+                }
+            if not self.hard_cases.annotate(frame.ts, {"visionTracks": snapshots}):
+                self.pipeline.metrics.inc("edge_hard_case_annotation_miss_total")
+        except Exception:  # noqa: BLE001 - corpus metadata must never take the lot down
+            self.pipeline.metrics.inc("edge_hard_case_annotation_errors_total")
+            log.exception("hard-case vision annotation failed; frame kept without track provenance")
+
     def _note_hard_cases(self, frame, out: Dict[str, object]) -> None:
         """Arm a clip for anything the system just told us it was unsure about.
 
@@ -1301,9 +1335,14 @@ class EdgeLoop:
                     self._service_review_attempted[track_id] = ts
                     if self.hard_cases.trigger("NO_BAY_ACTIVITY_REVIEW", ts, {
                         "trackId": track_id,
+                        # Snapshot the canonical track box AT THE REVIEW TRIGGER. The
+                        # offline service sidecar needs an anchor for "near this vehicle";
+                        # without it, a jack beside another car can support the wrong one.
+                        "vehicleBox": [round(float(v), 3) for v in track.box],
                         "stationarySeconds": round(stationary, 3),
                         "zones": sorted(zones),
                         "bayNames": sorted(bay_names),
+                        "camera": self.camera,
                         "evidence": "arrival",
                         "meaning": "review ambiguity only; NOT proof of outside service",
                     }):

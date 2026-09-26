@@ -1,0 +1,8 @@
+# Optional OFFLINE outside-service review worker only.
+# Do NOT add these to camera-bridge/requirements.txt: the live edge must not acquire a
+# heavyweight ML dependency because the shadow reviewer exists.
+#
+# Install the correct PyTorch build for this machine first using the official selector:
+# https://pytorch.org/get-started/locally/
+transformers>=4.57,<5
+Pillow>=10,<13
