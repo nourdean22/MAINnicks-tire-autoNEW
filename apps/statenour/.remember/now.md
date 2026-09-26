@@ -1,6 +1,48 @@
 # Session ledger — statenour
 
-**Updated: 2026-09-23** (Session F · instrument health + operator-repair flywheel · W16c close-out by the cloud session · Session E below)
+**Updated: 2026-09-26** (Nick operator runtime + one-shot quality repair; current repo-agent runtime #2681)
+
+
+## 2026-09-25/26 — Nick operator runtime + one-shot self-repair
+
+**CURRENT REPO / DEPLOY TRUTH** · repo `main` advanced to #2681 `36961a342` after this wave, but
+`statenour-web` is intentionally still the #2680 app build because #2681 touched only Agent OS files and
+Railway marked its StateNour deployment SKIPPED. Live app receipt: #2680 squash
+`2b021632bf2806c95e7e275ba56b7c64117ba8b6` → Railway deployment
+`99ab4bda-931f-4dce-ba0d-807b91b8d9ec` SUCCESS. Fresh post-merge push CI on that exact commit passed
+StateNour affected verify, authenticated e2e, Agent Policy, Adoption gates, Lighthouse, Secret Scanning, and
+deploy drift.
+
+**WHAT SHIPPED** · #2673 `2b0783ea` made the Prompt V2 chat kernel solution/principle-first, proactive,
+truth-seeking, useful-creative, finish-and-verify oriented, and operator-deferential without yes-manning.
+#2680 closes the defect found in production where a critic could say `REGEN_CANDIDATE` after the answer was
+already effectively accepted, or the regen path could throw away a partially better second draft because it
+wasn't perfectly clean. `pre-stream-regen.ts` now evaluates both candidates with the critic + response contract,
+does exactly one targeted repair containing the measured failure reasons, and ships the better candidate using:
+cleaner → lower severity → higher overall → higher specificity. Gated intents: factual, decision, creative,
+instructional, procedural, analytical. Casual/emotional/reflective remain flow-first. The second answer may win
+while still imperfect; a worse answer never wins.
+
+**OPERATOR CONTRACT** · facts/mechanisms/options/consequences toward Nour's stated objective, not the model's
+own preference/values/taste. Seek disconfirming evidence; distinguish FACT / INFERENCE / UNKNOWN; correct a
+conflicting premise once with evidence. Give a recommendation when Nour explicitly asks for one, optimized for
+his objective + constraints. Existing mutation confirmation, fencing, injection surfacing, and execution
+safeguards remain.
+
+**WHY #2680 WAS NECESSARY (PRE-REPAIR PROD SAMPLE)** · 27 completed assistant turns on the #2673 deployment:
+critic avg 91.3/100; 12 perfect 100s; reply-gate clean 21/27; median 167 words. Yet evidence-shadow verdicts were
+14 pass / 9 repair / 4 block and critic regen candidates could still reach the user unchanged. This proves the
+detector was seeing real defects; it did NOT prove the separate evidence gate was ready for enforcement.
+
+**NEXT PROOF — DO NOT SKIP** · after enough real weak drafts occur on #2680, read
+`verified_regen_path` / `chat.pre_stream_regen` and compare attempt rate, `selectionReason`, first-vs-regen
+severity + critic deltas, `regenFired`, latency/cost, and which text actually shipped. Implementation/tests/deploy
+are PROVEN; real production repair win-rate is NOT YET PROVEN. Evidence-gate promotion remains a separate
+calibration decision.
+
+**CONCURRENCY TRAP** · sibling sessions are active. Before any edit/merge, refresh `main`, open PRs, and
+overlapping files. A squash-merged feature branch will look diverged afterward; verify the squash commit on
+`main` rather than treating branch divergence as lost work.
 
 ## W16c (2026-09-22/23) — the receipt layer, the review sweep, the edge-vector drain, the lexical lane · 21 MERGED
 
