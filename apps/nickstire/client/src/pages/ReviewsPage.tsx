@@ -509,7 +509,7 @@ export default function ReviewsPage() {
                 <button
                   onClick={() => {
                     setStarFilter(null);
-                    setShowAllRatings((value) => !value);
+                    setShowAllRatings(true);
                   }}
                   className={`px-2.5 py-1 rounded-full text-xs transition-all ${
                     showAllRatings && starFilter === null
