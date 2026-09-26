@@ -196,7 +196,49 @@ export default function ServicesOverview() {
                 You don't pay until you say yes.
               </span>
             </p>
-            <div className="mt-8 flex flex-wrap gap-4">
+
+            <div className="mt-7">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-foreground/50">
+                  Jump straight to a service
+                </span>
+                <Link
+                  href="/diagnose"
+                  onClick={() =>
+                    trackServicesAction("hero_quick_paths", "describe_problem", "/diagnose")
+                  }
+                  className="text-xs font-bold text-primary hover:underline"
+                >
+                  Not sure? Describe the problem
+                </Link>
+              </div>
+              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {QUICK_PATHS.map((path) => (
+                  <Link
+                    key={path.href}
+                    href={path.href}
+                    onClick={() =>
+                      trackServicesAction(
+                        "hero_quick_paths",
+                        "open_path",
+                        path.href,
+                        path.title,
+                      )
+                    }
+                    className="shrink-0 rounded-full border border-border/40 bg-card/55 px-4 py-2.5 text-left transition-colors hover:border-primary/50 hover:bg-card"
+                  >
+                    <span className="block font-heading text-xs font-extrabold text-foreground">
+                      {path.title}
+                    </span>
+                    <span className="mt-0.5 block text-[10px] text-foreground/45">
+                      {path.detail}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-4">
               <a
                 href={BUSINESS.phone.href}
                 onClick={() => trackPhoneClick("services-hero")}
@@ -411,7 +453,7 @@ export default function ServicesOverview() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {SERVICES_LIST.map((service) => (
               <Link
                 key={service.slug}
@@ -424,36 +466,20 @@ export default function ServicesOverview() {
                     service.title,
                   )
                 }
-                className="group block rounded-xl border border-border/50 p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-card/50"
+                className="group flex min-h-[132px] flex-col rounded-xl border border-border/40 bg-card/20 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-card/50"
               >
-                <div className="mb-4 flex items-center gap-4">
-                  <div className="text-primary">{service.icon}</div>
-                  <h3 className="font-heading text-2xl font-black tracking-wide text-foreground transition-colors group-hover:text-primary">
+                <div className="flex items-center gap-3">
+                  <div className="shrink-0 scale-75 text-primary">{service.icon}</div>
+                  <h3 className="font-heading text-lg font-black tracking-wide text-foreground transition-colors group-hover:text-primary">
                     {service.title}
                   </h3>
                 </div>
-                <p className="mb-4 leading-relaxed text-foreground/70">
+                <p className="mt-2 line-clamp-2 text-sm leading-snug text-foreground/60">
                   {service.shortDesc}
                 </p>
-                <div className="space-y-2">
-                  <span className="text-xs uppercase tracking-wider text-foreground/50">
-                    Problems we fix
-                  </span>
-                  <ul className="space-y-1">
-                    {service.problems.map((problem) => (
-                      <li
-                        key={problem}
-                        className="flex items-center gap-2 text-sm text-foreground/60"
-                      >
-                        <ChevronRight className="h-3 w-3 flex-shrink-0 text-primary" />
-                        {problem}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="mt-6 flex items-center gap-2 text-sm font-medium text-primary">
+                <div className="mt-auto flex items-center gap-1 pt-3 text-xs font-bold text-primary">
                   See service
-                  <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
                 </div>
               </Link>
             ))}
