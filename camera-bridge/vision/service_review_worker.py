@@ -70,6 +70,7 @@ class ReviewFrame:
     source: str | np.ndarray
     source_kind: str
     label: str
+    track: Optional[dict]
 
 
 class CueAnalyzer(Protocol):
@@ -260,14 +261,57 @@ def _load_case(case_dir: Path) -> tuple[dict, list[ReviewFrame]]:
     if timestamps != sorted(timestamps):
         raise ValueError("case frameTimestamps are not monotonic")
 
+    raw_observations = meta.get("serviceTrackObservations")
+    if not isinstance(raw_observations, list) or len(raw_observations) != len(timestamps):
+        raise ValueError("case lacks per-frame canonical serviceTrackObservations provenance")
+    target_id = int(context["trackId"])
+    track_rows: list[Optional[dict]] = []
+    for index, (expected, row) in enumerate(zip(timestamps, raw_observations)):
+        if not isinstance(row, dict):
+            raise ValueError(f"invalid serviceTrackObservations row {index}")
+        try:
+            observed_at = float(row["at"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"invalid serviceTrackObservations timestamp at row {index}") from exc
+        if abs(observed_at - expected) > 0.001:
+            raise ValueError(f"service track timestamp mismatch at row {index}")
+        track = row.get("track")
+        if track is None:
+            track_rows.append(None)
+            continue
+        if not isinstance(track, dict):
+            raise ValueError(f"invalid service track snapshot at row {index}")
+        try:
+            if int(track["trackId"]) != target_id:
+                raise ValueError(f"service track id mismatch at row {index}")
+            box_values = [float(v) for v in track["box"]]
+            if len(box_values) != 4:
+                raise ValueError
+            stationary = float(track["stationarySeconds"])
+            misses = int(track["misses"])
+            zones = track["zones"]
+            evidence = str(track["evidence"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"invalid service track snapshot at row {index}") from exc
+        if not isinstance(zones, list):
+            raise ValueError(f"invalid service track zones at row {index}")
+        track_rows.append({
+            "trackId": target_id,
+            "box": box_values,
+            "stationarySeconds": max(0.0, stationary),
+            "misses": misses,
+            "zones": [str(z) for z in zones],
+            "evidence": evidence,
+        })
+
     jpgs = sorted(case_dir.glob("*.jpg"))
     frames: list[ReviewFrame] = []
     if jpgs:
         if len(jpgs) != len(timestamps):
             raise ValueError("JPEG count does not match exact frameTimestamps provenance")
         frames = [
-            ReviewFrame(ts, str(path), "jpeg", path.name)
-            for ts, path in zip(timestamps, jpgs)
+            ReviewFrame(ts, str(path), "jpeg", path.name, track)
+            for ts, path, track in zip(timestamps, jpgs, track_rows)
         ]
     else:
         # HardCaseRecorder's intended steady-state "replace" mode deletes numbered JPEGs
@@ -297,7 +341,7 @@ def _load_case(case_dir: Path) -> tuple[dict, list[ReviewFrame]]:
                     f"case={expected:.6f} episode={float(actual):.6f}"
                 )
             frames.append(
-                ReviewFrame(expected, image, "mcap", f"episode:{index:04d}")
+                ReviewFrame(expected, image, "mcap", f"episode:{index:04d}", track_rows[index])
             )
 
     timed = [frame for frame in frames if frame.at >= trigger_at]
@@ -353,13 +397,52 @@ def analyze_case(
     written = False
     analyzed = 0
     try:
+        bay_names = {str(name) for name in (context.get("bayNames") or [])}
         for frame in sampled:
+            track = frame.track
+            if track is None:
+                # Missing target observation breaks the temporal evidence run. The trigger
+                # box is used only as a required shape argument to RESET the scorer; it does
+                # not support proximity or a candidate.
+                last = scorer.observe(
+                    track_id=track_id,
+                    vehicle_box=vehicle_box,
+                    stationary_seconds=0.0,
+                    in_bay=True,
+                    cues=[],
+                    at=frame.at,
+                )
+                continue
+
+            current_box = tuple(float(v) for v in track["box"])
+            stationary = float(track["stationarySeconds"])
+            zones = {str(z) for z in track["zones"]}
+            in_bay = bool(zones & bay_names)
+            canonical_eligible = (
+                track["evidence"] == "arrival"
+                and int(track["misses"]) == 0
+                and not in_bay
+                and stationary >= scorer.min_stationary_seconds
+            )
+            if not canonical_eligible:
+                # Reset before spending inference. A moved/unseen/bay vehicle must not carry
+                # person/tool hits from an earlier outside stationary interval.
+                last = scorer.observe(
+                    track_id=track_id,
+                    vehicle_box=current_box,
+                    stationary_seconds=stationary,
+                    in_bay=(in_bay or track["evidence"] != "arrival" or int(track["misses"]) != 0),
+                    cues=[],
+                    at=frame.at,
+                )
+                continue
+
             cues = list(analyzer.detect(frame.source))
             analyzed += 1
             assessment = scorer.observe(
                 track_id=track_id,
-                vehicle_box=vehicle_box,
-                stationary_seconds=base_stationary + max(0.0, frame.at - trigger_at),
+                vehicle_box=current_box,
+                stationary_seconds=stationary,
                 in_bay=False,
                 cues=cues,
                 at=frame.at,
@@ -374,6 +457,7 @@ def analyze_case(
                     "trackId": track_id,
                     "triggerAt": trigger_at,
                     "timingSource": "exact_case_json",
+                    "trackSource": "per_frame_canonical_snapshot",
                     "frameSource": frame.source_kind,
                 },
             ):
@@ -410,6 +494,7 @@ def analyze_case(
             "vehicleBox": list(vehicle_box),
             "camera": camera,
             "frameSource": sampled[0].source_kind,
+            "trackSource": "per_frame_canonical_snapshot",
         },
     )
     return result
@@ -448,7 +533,10 @@ def scan_cases(
         if receipt.is_file() and not force:
             try:
                 prior = json.loads(receipt.read_text(encoding="utf-8"))
-                if prior.get("analyzer") == getattr(analyzer, "name", None):
+                if (
+                    prior.get("status") == "ok"
+                    and prior.get("analyzer") == getattr(analyzer, "name", None)
+                ):
                     stats.cases_skipped_existing += 1
                     continue
             except Exception:
