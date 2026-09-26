@@ -171,7 +171,8 @@ async function chatPostInner(req: Request) {
   // commands / brain-dumps / decisions / /save create a titled conversation +
   // user row + BrainMemory/Decision rows (self-review blocker #1). Falling
   // through routes the turn to the model pipeline, which is private-safe.
-  if (!privateMode) {
+  // Compiler turns are prompt-only: interceptors can execute or persist before tool pruning.
+  if (!privateMode && !researchCompilerMode) {
     const interceptorTimer = stageTracker.start("interceptors");
     const { runInterceptors } = await import("@/lib/ai/chat/interceptors");
     const interceptResult = await runInterceptors({
@@ -1012,7 +1013,7 @@ ${priorsBlock}`;
   // VERBATIM to ./alternate-paths.ts. Returns a Response when an
   // alternate path handled the turn; null falls through to the
   // untouched streamText path below. Flags off = zero change.
-  {
+  if (!researchCompilerMode) {
     const { runAlternatePaths } = await import("./alternate-paths");
     const altResponse = await runAlternatePaths({
       persistBase,
