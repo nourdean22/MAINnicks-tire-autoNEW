@@ -353,23 +353,6 @@ def _load_case(case_dir: Path) -> tuple[dict, list[ReviewFrame]]:
         raise ValueError("case has no post-trigger frames")
     return meta, timed
 
-def _sample_frames(
-    timed: Sequence[ReviewFrame], *, every_seconds: float
-) -> list[ReviewFrame]:
-    if every_seconds <= 0:
-        return list(timed)
-    out: list[ReviewFrame] = []
-    next_at: Optional[float] = None
-    for frame in timed:
-        if next_at is None or frame.at >= next_at:
-            out.append(frame)
-            next_at = frame.at + every_seconds
-    if timed and out and out[-1].at != timed[-1].at:
-        # Include resolution evidence at the end even when it falls just before the next
-        # cadence tick. This is still bounded: at most one extra inference per case.
-        out.append(timed[-1])
-    return out
-
 def analyze_case(
     case_dir: str | Path,
     *,
@@ -395,14 +378,15 @@ def analyze_case(
     trigger_at = float(meta["at"])
     camera = str(context.get("camera") or "unknown")
     scorer = scorer or OutsideServiceShadow()
-    sampled = _sample_frames(timed, every_seconds=every_seconds)
 
     last = None
     written = False
     analyzed = 0
     try:
         bay_names = {str(name) for name in (context.get("bayNames") or [])}
-        for frame in sampled:
+        next_inference_at: Optional[float] = None
+        last_inferred_at: Optional[float] = None
+        for index, frame in enumerate(timed):
             track = frame.track
             if track is None:
                 # Missing target observation breaks the temporal evidence run. The trigger
@@ -416,6 +400,7 @@ def analyze_case(
                     cues=[],
                     at=frame.at,
                 )
+                next_inference_at = None
                 continue
 
             current_box = tuple(float(v) for v in track["box"])
@@ -429,8 +414,9 @@ def analyze_case(
                 and stationary >= scorer.min_stationary_seconds
             )
             if not canonical_eligible:
-                # Reset before spending inference. A moved/unseen/bay vehicle must not carry
-                # person/tool hits from an earlier outside stationary interval.
+                # Evaluate/reset geometry on EVERY canonical frame even though the heavy
+                # model is cadence-limited. This prevents a one-frame bay entry or movement
+                # from being invisible between two inference samples.
                 last = scorer.observe(
                     track_id=track_id,
                     vehicle_box=current_box,
@@ -439,10 +425,25 @@ def analyze_case(
                     cues=[],
                     at=frame.at,
                 )
+                next_inference_at = None
+                continue
+
+            is_last_frame = index == len(timed) - 1
+            due = (
+                every_seconds <= 0
+                or next_inference_at is None
+                or frame.at >= next_inference_at
+                or (is_last_frame and last_inferred_at != frame.at)
+            )
+            if not due:
+                # Geometry was checked above. Do not feed an artificial "no cue" to the
+                # temporal scorer just because we intentionally skipped expensive inference.
                 continue
 
             cues = list(analyzer.detect(frame.source))
             analyzed += 1
+            last_inferred_at = frame.at
+            next_inference_at = frame.at + max(0.0, every_seconds)
             assessment = scorer.observe(
                 track_id=track_id,
                 vehicle_box=current_box,
@@ -497,7 +498,7 @@ def analyze_case(
             "trackId": track_id,
             "vehicleBox": list(vehicle_box),
             "camera": camera,
-            "frameSource": sampled[0].source_kind,
+            "frameSource": timed[0].source_kind,
             "trackSource": "per_frame_canonical_snapshot",
         },
     )
