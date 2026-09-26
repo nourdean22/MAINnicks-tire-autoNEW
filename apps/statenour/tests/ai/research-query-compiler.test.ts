@@ -17,8 +17,11 @@ describe("research query compiler", () => {
   it("detects natural prompt-writing asks but never hijacks an actual research request", () => {
     expect(detectResearchCompilerMode("write me a deep research prompt about camera intelligence")).toBe("general");
     expect(detectResearchCompilerMode("make a research query for the best CRM approach")).toBe("general");
+    expect(detectResearchCompilerMode("deep research prompt for camera intelligence")).toBe("general");
     expect(detectResearchCompilerMode("do deep research on camera intelligence")).toBeNull();
     expect(detectResearchCompilerMode("search the web for the latest camera models")).toBeNull();
+    expect(detectResearchCompilerMode("Research query performance for PostgreSQL")).toBeNull();
+    expect(detectResearchCompilerMode("research query planner behavior for PostgreSQL")).toBeNull();
   });
 
   it("strips only the explicit compiler prefix", () => {
