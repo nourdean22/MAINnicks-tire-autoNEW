@@ -32,6 +32,7 @@ const VOICE_AND_STOP = "2165550162";
 let prefRows: Array<{ phone: string; keyword: string | null }> = [];
 let customerRows: Array<{ phone: string }> = [];
 let executed: string[] = [];
+let persistedRows: Array<{ row: Record<string, unknown>; set: Record<string, unknown> }> = [];
 
 // Routed on the TABLE, not on the selected columns: the same stub must serve
 // main's query shape (phone only) and this branch's (phone + keyword), or the
@@ -47,6 +48,13 @@ vi.mock("./db", () => ({
       executed.push(JSON.stringify(q?.queryChunks ?? q));
       return [[]];
     },
+    insert: () => ({
+      values: (row: Record<string, unknown>) => ({
+        onDuplicateKeyUpdate: async (update: { set: Record<string, unknown> }) => {
+          persistedRows.push({ row, set: update.set });
+        },
+      }),
+    }),
   }),
 }));
 
@@ -59,6 +67,7 @@ beforeEach(() => {
   prefRows = [];
   customerRows = [];
   executed = [];
+  persistedRows = [];
   process.env.TWILIO_ACCOUNT_SID = "AC_test";
   process.env.TWILIO_AUTH_TOKEN = "tok_test";
   process.env.TWILIO_PHONE_NUMBER = "+12165550100";
@@ -122,6 +131,23 @@ describe("sendSms honours the voice opt-out's scope", () => {
     const { sendSms } = await import("./sms");
     const res = await sendSms(`+1${VOICE_ONLY}`, "Your verification code is 123456.", { messageClass: "customer_confirmation" });
     expect(res.error).toMatch(/opted out/i);
+  });
+});
+
+describe("markPhoneFullyOptedOut", () => {
+  it("persists an all-contact opt-out without the VOICE marker and reports durability", async () => {
+    const { markPhoneFullyOptedOut } = await import("./sms");
+    expect(await markPhoneFullyOptedOut("+1 (216) 555-0161")).toBe(true);
+    expect(persistedRows).toHaveLength(1);
+    expect(persistedRows[0]!.row).toMatchObject({
+      phone: VOICE_ONLY,
+      optedOut: true,
+      optOutKeyword: null,
+    });
+    expect(persistedRows[0]!.set).toMatchObject({
+      optedOut: true,
+      optOutKeyword: null,
+    });
   });
 });
 
