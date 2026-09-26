@@ -122,12 +122,18 @@ describe("placeVapiOutboundCall · the body every lane sends", () => {
   it.each(LANES)("%s · the do-not-call tool records and ENDS the call, and the instruction is in the prompt", async (lane) => {
     const o = await dial(lane);
     const dnc = o.model.tools.find((t) => (t.function as { name?: string } | undefined)?.name === DO_NOT_CALL_TOOL_NAME) as
-      | { messages: Array<{ type: string; endCallAfterSpokenEnabled?: boolean }> }
+      | { messages: Array<{ type: string; content?: string; endCallAfterSpokenEnabled?: boolean }> }
       | undefined;
     expect(dnc, "recordDoNotCall must be offered on every outbound call").toBeDefined();
     // Both outcomes hang up — ending the call never depends on the model.
     expect(dnc!.messages.find((m) => m.type === "request-complete")?.endCallAfterSpokenEnabled).toBe(true);
     expect(dnc!.messages.find((m) => m.type === "request-failed")?.endCallAfterSpokenEnabled).toBe(true);
+    // Vapi's request-complete/request-failed transport messages cannot truthfully
+    // claim a durable suppression; the webhook result may still be retryable.
+    for (const message of dnc!.messages) {
+      expect(message.content ?? "").toMatch(/ending the call/i);
+      expect(message.content ?? "").not.toMatch(/taken .*off|won't call again|will not call again/i);
+    }
     const system = o.model.messages[0]!.content;
     expect(system.startsWith("LANE PROMPT")).toBe(true);
     expect(system).toContain(`call ${DO_NOT_CALL_TOOL_NAME} IMMEDIATELY`);
@@ -230,6 +236,17 @@ describe("isSpokenOptOut · the transcript safety net", () => {
     "call me back tomorrow",
     "I'll stop in on Saturday",
   ])("does NOT suppress on %j", (u) => expect(isSpokenOptOut(u)).toBe(false));
+
+  it.each([
+    "Don't stop calling me.",
+    "Never stop calling me.",
+    "I do not want you to stop texting me.",
+    "Do not opt me out.",
+    "Don't unsubscribe me.",
+  ])("does NOT invert negated opt-out language: %j", (u) => {
+    expect(spokenOptOutScope(u)).toBeNull();
+    expect(isSpokenOptOut(u)).toBe(false);
+  });
 
   it("reads only the CUSTOMER's lines — the opener itself says \"stop calling\"", () => {
     const opener = `Hi Pat, this is ${SPOKEN_BUSINESS_NAME} calling. If you'd rather we not call, just say "stop calling" at any time.`;

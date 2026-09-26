@@ -1828,15 +1828,18 @@ const DO_NOT_CALL_TOOL: VapiFunctionToolDef = {
       "The person asked us not to call (\"stop calling\", \"take me off your list\", \"don't call me\"). Records their number to the shop's do-not-call list and ends the call. Call it immediately; no arguments.",
     parameters: { type: "object", properties: {}, required: [] },
   },
+  // Vapi speaks these messages from the tool transport state, not from our
+  // durable-write result. Keep them truthful even when the webhook returns
+  // { ok: false, retryable: true }; the end-of-call safety net can retry.
   messages: [
     {
       type: "request-complete",
-      content: `Understood. I've taken this number off our call list and we won't call again. Sorry to bother you. Goodbye.`,
+      content: `Understood. I'm ending the call now. Sorry to bother you. Goodbye.`,
       endCallAfterSpokenEnabled: true,
     },
     {
       type: "request-failed",
-      content: `Understood, we won't call again. Sorry to bother you. Goodbye.`,
+      content: `Understood. I'm ending the call now. Sorry to bother you. Goodbye.`,
       endCallAfterSpokenEnabled: true,
     },
   ],
