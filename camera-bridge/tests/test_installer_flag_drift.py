@@ -157,8 +157,8 @@ class InstallerFlagDriftTest(unittest.TestCase):
         makes the drift test above pass unconditionally. These five are the capabilities
         that were live, tested, and unreachable this morning.
         """
-        for flag in ("--scene-atlas", "--hard-cases", "--shadow-ledger",
-                     "--relocate-seconds", "--replay"):
+        for flag in ("--scene-atlas", "--hard-cases", "--service-review-seconds",
+                     "--shadow-ledger", "--relocate-seconds", "--replay"):
             self.assertIn(flag, self.reachable, f"{flag} is not on the wrapper line")
 
     def test_the_installers_own_DryRun_does_not_leak_into_the_wrapper(self):
