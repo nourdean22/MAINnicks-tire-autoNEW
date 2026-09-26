@@ -509,6 +509,19 @@ export default function ReviewsPage() {
                 <button
                   onClick={() => {
                     setStarFilter(null);
+                    setShowAllRatings(false);
+                  }}
+                  className={`px-2.5 py-1 rounded-full text-xs transition-all ${
+                    !showAllRatings && starFilter === null
+                      ? "bg-[#FDB913] text-black font-medium"
+                      : "bg-white/5 text-foreground/40 hover:bg-white/10 border border-white/10"
+                  }`}
+                >
+                  Featured 4–5★
+                </button>
+                <button
+                  onClick={() => {
+                    setStarFilter(null);
                     setShowAllRatings(true);
                   }}
                   className={`px-2.5 py-1 rounded-full text-xs transition-all ${
