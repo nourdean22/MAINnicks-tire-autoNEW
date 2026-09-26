@@ -57,8 +57,10 @@ separate: different application/runtime boundaries, domains, data ownership, and
 
 ### Follow-up measurement
 Implementation and deploy are proven. Real-world repair effectiveness is not yet: measure post-#2680
-`verified_regen_path` / `chat.pre_stream_regen` attempt rate, winner reason, first-vs-regen quality deltas,
-latency/cost, and actual repaired-text ship rate before calling the quality loop production-proven.
+`verified_regen_path` using the fields it actually emits — attempt/fired/better flags, winner reason, first/regen
+overall and severity, and intent — before calling the quality loop production-proven. The richer
+`formatRegenTelemetry()` / `chat.pre_stream_regen` path is not wired to persistence as of this release, so it
+cannot yet support specificity or latency/cost claims.
 
 ---
 
