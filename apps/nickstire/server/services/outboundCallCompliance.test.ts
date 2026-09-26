@@ -27,6 +27,7 @@ import {
   DO_NOT_CALL_TOOL_NAME,
   isSalesLane,
   isSpokenOptOut,
+  spokenOptOutScope,
   SPOKEN_BUSINESS_NAME,
   type OutboundLane,
 } from "./outboundCallCompliance";
@@ -204,6 +205,23 @@ describe("isSpokenOptOut · the transcript safety net", () => {
     "Remove my number",
     "I want to opt out",
   ])("catches %j", (u) => expect(isSpokenOptOut(u)).toBe(true));
+
+  it.each([
+    "Please stop texting me.",
+    "Don't contact me again.",
+    "Unsubscribe me.",
+    "I want to opt out",
+    "Take me off your list",
+    "Remove my number",
+  ])("classifies broad %j as all-contact", (u) => expect(spokenOptOutScope(u)).toBe("all"));
+
+  it.each([
+    "Please stop calling me.",
+    "stop calling",
+    "take me off the call list please",
+    "Put me on your do not call list",
+    "Don't call me again",
+  ])("classifies call-scoped %j as voice-only", (u) => expect(spokenOptOutScope(u)).toBe("voice"));
 
   it.each([
     "Stop, stop — who is this?",

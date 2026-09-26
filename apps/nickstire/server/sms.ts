@@ -297,12 +297,12 @@ async function ensureOptOutCache(): Promise<OptOutIndex> {
  * everywhere. Best-effort fire-and-forget: if the table is missing (schema
  * drift) the catch degrades to the prior in-memory-only behavior.
  */
-async function persistOptOutPreference(phone10: string, optedOut: boolean): Promise<void> {
+async function persistOptOutPreference(phone10: string, optedOut: boolean): Promise<boolean> {
   try {
     const { getDb } = await import("./db");
     const { smsPreferences } = await import("../drizzle/schema");
     const db = await getDb();
-    if (!db) return;
+    if (!db) return false;
     // A full opt-out clears the voice-only marker (Q-45): a STOP after a
     // spoken "stop calling" widens the opt-out to every text.
     const stamp = optedOut ? { optedOutAt: new Date(), optOutKeyword: null } : { optedInAt: new Date() };
@@ -310,26 +310,36 @@ async function persistOptOutPreference(phone10: string, optedOut: boolean): Prom
       .insert(smsPreferences)
       .values({ phone: phone10, optedOut, ...stamp })
       .onDuplicateKeyUpdate({ set: { optedOut, ...stamp } });
+    return true;
   } catch (err) {
     log.warn("sms_preferences persist failed — opt-out is in-memory only", {
       error: err instanceof Error ? err.message : String(err),
     });
+    return false;
   }
 }
 
 /**
- * Mark a phone as opted out — call this from any code path that sets
- * smsOptOut=1 in the customers table. Updates the cache immediately so
- * the very next sendSms() call respects the opt-out (TCPA requirement) AND
- * persists durably to sms_preferences (survives the cache rebuild / restart).
+ * Awaitable FULL-contact opt-out. Updates this process immediately, then
+ * reports whether sms_preferences made the decision durable across restarts.
+ * Use this for spoken requests whose scope includes texting/all contact.
  */
-export function markPhoneOptedOut(phone: string): void {
+export async function markPhoneFullyOptedOut(phone: string): Promise<boolean> {
   const norm = (phone || "").replace(/\D/g, "").slice(-10);
-  if (norm.length !== 10) return;
+  if (norm.length !== 10) return false;
   if (!optOutCache) optOutCache = new Set();
   optOutCache.add(norm);
   voiceOnlyCache?.delete(norm);
-  void persistOptOutPreference(norm, true);
+  return persistOptOutPreference(norm, true);
+}
+
+/**
+ * Mark a phone as opted out — synchronous compatibility wrapper. The cache is
+ * updated before markPhoneFullyOptedOut reaches its first await, so the next
+ * send is still blocked immediately.
+ */
+export function markPhoneOptedOut(phone: string): void {
+  void markPhoneFullyOptedOut(phone);
 }
 
 /**

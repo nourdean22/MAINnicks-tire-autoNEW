@@ -21,7 +21,7 @@ import { timingSafeEqual } from "node:crypto";
 import { createLogger } from "../../lib/logger";
 import { isDuplicateKeyError } from "../../lib/dbErrors";
 import { toolCallLogFields } from "../../lib/vapiToolCallLog";
-import { customerUtterances, DO_NOT_CALL_TOOL_NAME, isSpokenOptOut } from "../../services/outboundCallCompliance";
+import { customerUtterances, DO_NOT_CALL_TOOL_NAME, isSpokenOptOut, spokenOptOutScope, type SpokenOptOutScope } from "../../services/outboundCallCompliance";
 
 const log = createLogger("webhooks:vapi");
 const router = Router();
@@ -199,7 +199,8 @@ async function recordDoNotCallRequest(
   customerNumber: string | undefined,
   source: "tool" | "transcript",
   callId?: string,
-): Promise<{ recorded: boolean; persisted: boolean }> {
+  scope: SpokenOptOutScope = "voice",
+): Promise<{ recorded: boolean; persisted: boolean; reason?: "invalid_number" | "persistence" }> {
   const digits = (customerNumber ?? "").replace(/\D/g, "").slice(-10);
   if (digits.length !== 10) {
     log.error("do-not-call request with no usable customer number — NOT recorded", {
@@ -207,18 +208,39 @@ async function recordDoNotCallRequest(
       source,
       errorId: "VAPI_DNC_NO_NUMBER",
     });
-    return { recorded: false, persisted: false };
+    return { recorded: false, persisted: false, reason: "invalid_number" };
   }
-  const { markPhoneVoiceOptedOut } = await import("../../sms");
-  const persisted = await markPhoneVoiceOptedOut(digits);
+
+  const { markPhoneFullyOptedOut, markPhoneVoiceOptedOut } = await import("../../sms");
+  const persisted =
+    scope === "all"
+      ? await markPhoneFullyOptedOut(digits)
+      : await markPhoneVoiceOptedOut(digits);
+
+  if (!persisted) {
+    log.error("do-not-call request could not be persisted — caller remains suppressed only in this process", {
+      callId,
+      source,
+      scope,
+      last4: digits.slice(-4),
+      errorId: "VAPI_DNC_PERSIST_FAILED",
+    });
+    return { recorded: false, persisted: false, reason: "persistence" };
+  }
+
   try {
     const { logSmsOptOut } = await import("../../services/complianceLog");
-    await logSmsOptOut({ phone: digits, via: "voice", keyword: source === "tool" ? "VOICE_TOOL" : "VOICE_TRANSCRIPT" });
+    await logSmsOptOut({
+      phone: digits,
+      via: "voice",
+      keyword: source === "tool" ? "VOICE_TOOL" : scope === "all" ? "VOICE_TRANSCRIPT_FULL" : "VOICE_TRANSCRIPT",
+    });
   } catch {
     /* the ledger row is evidence, not the suppression — never fail the request on it */
   }
-  log.info("do-not-call request recorded", { callId, source, last4: digits.slice(-4), persisted });
-  return { recorded: true, persisted };
+
+  log.info("do-not-call request recorded", { callId, source, scope, last4: digits.slice(-4), persisted: true });
+  return { recorded: true, persisted: true };
 }
 
 // ─── Tool call dispatcher ──────────────────────────────
@@ -265,8 +287,13 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, custom
   // which only this layer has. Vapi speaks the tool's own request-complete
   // message and hangs up, so the result text is for the transcript only.
   if (call.function.name === DO_NOT_CALL_TOOL_NAME) {
-    const r = await recordDoNotCallRequest(customerNumber, "tool", phoneCallId);
-    return { toolCallId: call.id, result: JSON.stringify({ ok: r.recorded, endCall: true }) };
+    const r = await recordDoNotCallRequest(customerNumber, "tool", phoneCallId, "voice");
+    const result = r.recorded
+      ? { ok: true, endCall: true }
+      : r.reason === "persistence"
+        ? { ok: false, endCall: true, retryable: true }
+        : { ok: false, endCall: true };
+    return { toolCallId: call.id, result: JSON.stringify(result) };
   }
 
   try {
@@ -425,6 +452,27 @@ type VapiWebhookMessage = {
   transcript?: string;
 };
 
+/**
+ * Compliance-critical subset of end-of-call handling. This runs BEFORE the
+ * webhook 200 so Vapi can retry if a transcript-only do-not-call request
+ * cannot be made durable. Noncritical analytics remain detached below.
+ */
+async function persistTranscriptDoNotCallBeforeAck(event: VapiWebhookMessage): Promise<void> {
+  const call = event.call as { id?: string; type?: string; customer?: { number?: string } } | undefined;
+  if (call?.type !== "outboundPhoneCall") return;
+
+  const utterance = customerUtterances(event as never).find(isSpokenOptOut);
+  if (!utterance) return;
+
+  const scope = spokenOptOutScope(utterance);
+  if (!scope) return;
+
+  const r = await recordDoNotCallRequest(call.customer?.number, "transcript", call.id, scope);
+  if (!r.persisted) {
+    throw new Error(`do-not-call persistence failed (${r.reason ?? "unknown"})`);
+  }
+}
+
 // ─── Post-call processing (detached · runs AFTER the webhook ack) ──────
 //
 // speed-to-ack (2026-07-04) · the end-of-call branch used to do ALL of
@@ -439,29 +487,8 @@ async function processCallEndReport(
   event: VapiWebhookMessage,
   cleanEndedReason: string | null,
 ): Promise<void> {
-  // Q-45 · the safety net behind the recordDoNotCall tool: an OUTBOUND call
-  // on which the customer said "stop calling" (or similar) is recorded even
-  // if the model never called the tool. Customer lines only — the opener
-  // itself says "stop calling". Skipped when the number is already
-  // suppressed (the tool fired, or a retry of this report), so the ledger
-  // gets one row, not one per delivery.
-  try {
-    const call = event.call as { id?: string; type?: string; customer?: { number?: string } } | undefined;
-    if (call?.type === "outboundPhoneCall" && customerUtterances(event as never).some(isSpokenOptOut)) {
-      const { loadSuppressionIndex } = await import("../../sms");
-      const index = await loadSuppressionIndex();
-      const last10 = (call.customer?.number ?? "").replace(/\D/g, "").slice(-10);
-      if (!(index.ok && index.phones.has(last10))) {
-        await recordDoNotCallRequest(call.customer?.number, "transcript", call.id);
-      }
-    }
-  } catch (dncErr) {
-    log.error("[vapi webhook] spoken do-not-call check FAILED", {
-      error: dncErr instanceof Error ? dncErr.message : String(dncErr),
-      errorId: "VAPI_DNC_TRANSCRIPT_CHECK_FAILED",
-    });
-  }
-
+  // Q-45 do-not-call persistence is handled synchronously before the webhook
+  // acknowledgement. Everything below remains best-effort/detached.
   // wave-125 — persist a vapi_call_logs row so calls that didn't
   // explicitly trigger a callback/booking still appear in the
   // unified intake feed. Operator can review "today's voice
@@ -1140,8 +1167,21 @@ router.post("/vapi", async (req: Request, res: Response) => {
           callId: event.call?.id,
           reason: cleanEndedReason,
         });
-        // speed-to-ack · ack BEFORE the persist/dispatch work — see
-        // processCallEndReport above. Nothing past this line may touch res.
+        // Q-45: do-not-call is the one compliance write that MUST be durable
+        // before acknowledgement. If it fails, return non-2xx so Vapi can
+        // retry the webhook. All noncritical post-call work stays detached.
+        try {
+          await persistTranscriptDoNotCallBeforeAck(event);
+        } catch (dncErr) {
+          log.error("[vapi webhook] do-not-call persistence failed before ack", {
+            callId: event.call?.id,
+            error: dncErr instanceof Error ? dncErr.message : String(dncErr),
+            errorId: "VAPI_DNC_PREACK_FAILED",
+          });
+          res.status(503).json({ error: "Do-not-call persistence failed; retry webhook" });
+          return;
+        }
+
         res.json({ ack: true });
         void processCallEndReport(event, cleanEndedReason).catch((err) => {
           log.warn("[vapi webhook] detached post-call processing failed", {
