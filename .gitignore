@@ -23,6 +23,10 @@ apps/**/graphify-out/
 packages/**/graphify-out/
 
 # Environment variables
+# Eufy local auth/session material must never be committed.
+apps/statenour/local-agent/eufy-ws-config.json
+apps/statenour/local-agent/eufy-ws-config.local.json
+apps/statenour/local-agent/eufy-data/
 .env
 .env.*
 !.env.example
