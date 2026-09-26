@@ -1,0 +1,104 @@
+{
+ "@context": [
+  "https://geojson.org/geojson-ld/geojson-context.jsonld",
+  {
+   "@version": "1.1",
+   "wx": "https://api.weather.gov/ontology#",
+   "@vocab": "https://api.weather.gov/ontology#"
+  }
+ ],
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.660c8cf507935c789bec6a390909caaff76cb86c.002.1",
+   "type": "Feature",
+   "geometry": null,
+   "properties": {
+    "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.660c8cf507935c789bec6a390909caaff76cb86c.002.1",
+    "@type": "wx:Alert",
+    "id": "urn:oid:2.49.0.1.840.0.660c8cf507935c789bec6a390909caaff76cb86c.002.1",
+    "areaDesc": "Lorain; Cuyahoga",
+    "geocode": {
+     "SAME": [
+      "039093",
+      "039035"
+     ],
+     "UGC": [
+      "OHZ010",
+      "OHZ011"
+     ]
+    },
+    "affectedZones": [
+     "https://api.weather.gov/zones/forecast/OHZ010",
+     "https://api.weather.gov/zones/forecast/OHZ011"
+    ],
+    "references": [
+     {
+      "@id": "https://api.weather.gov/alerts/urn:oid:2.49.0.1.840.0.ddc6dd5c91d398dae1f290919a3965da25ae9375.002.1",
+      "identifier": "urn:oid:2.49.0.1.840.0.ddc6dd5c91d398dae1f290919a3965da25ae9375.002.1",
+      "sender": "w-nws.webmaster@noaa.gov",
+      "sent": "2026-09-23T04:00:00-04:00"
+     }
+    ],
+    "sent": "2026-09-23T09:24:00-04:00",
+    "effective": "2026-09-23T09:24:00-04:00",
+    "onset": "2026-09-23T09:24:00-04:00",
+    "expires": "2026-09-23T16:00:00-04:00",
+    "ends": "2026-09-23T16:00:00-04:00",
+    "status": "Actual",
+    "messageType": "Update",
+    "category": "Met",
+    "severity": "Moderate",
+    "certainty": "Likely",
+    "urgency": "Expected",
+    "event": "Beach Hazards Statement",
+    "sender": "w-nws.webmaster@noaa.gov",
+    "senderName": "NWS Cleveland OH",
+    "headline": "Beach Hazards Statement issued September 23 at 9:24AM EDT until September 23 at 4:00PM EDT by NWS Cleveland OH",
+    "description": "* WHAT...High risk of rip currents.\n\n* WHERE...Lorain and Cuyahoga Counties.\n\n* WHEN...Until 4 PM EDT this afternoon.\n\n* IMPACTS...Wind and wave action will cause currents on the\nlakeshore. Swimmers should not enter the water. Currents can\ncarry swimmers away from shore through a sand bar and along\nstructures extending out into the lake.",
+    "instruction": "Remain out of the water to avoid hazardous swimming conditions.",
+    "response": "Avoid",
+    "note": null,
+    "parameters": {
+     "AWIPSidentifier": [
+      "CFWCLE"
+     ],
+     "WMOidentifier": [
+      "WHUS41 KCLE 231324"
+     ],
+     "NWSheadline": [
+      "BEACH HAZARDS STATEMENT REMAINS IN EFFECT UNTIL 4 PM EDT THIS AFTERNOON"
+     ],
+     "BLOCKCHANNEL": [
+      "EAS",
+      "NWEM",
+      "CMAS"
+     ],
+     "VTEC": [
+      "/O.CON.KCLE.BH.S.0016.000000T0000Z-260923T2000Z/"
+     ],
+     "eventEndingTime": [
+      "2026-09-23T16:00:00-04:00"
+     ],
+     "expiredReferences": [
+      "w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.4c6141dab3be81d162eb175a1a2ad8cb5b8b436d.002.1,2026-09-22T23:02:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.e2167e59046e8de1f5ea9c0b269a830904c2e3fc.001.1,2026-09-22T21:15:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.99f9c6e11efd032becc441ce251c14d9551527f2.001.1,2026-09-22T13:27:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.549bb77dba487e44f3d10cca4c96e7a9f6287033.001.1,2026-09-22T09:26:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.d273f5ca28b97792bc43fd8dd9538e3ddacbb2d8.001.1,2026-09-22T03:43:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.4933ea7afbbcfecaec76fcbab45a049f0b47f315.001.1,2026-09-21T21:21:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.c02a9e98961f842f34d288348de9eb1829d0e0c1.001.1,2026-09-21T15:37:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.7cf883c631b3bc909ce73c70eeea6ad7b51f4879.001.1,2026-09-21T09:26:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.df0aee21f4b8613d624d692546030db06a10ccac.001.1,2026-09-21T03:57:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.3bc365b4f4bde5514ad79b7da3b66c85c0e1a0f5.002.1,2026-09-20T21:55:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.8cd046b47df41ba56e0d0fe442b97ae5cc648bf2.002.1,2026-09-20T21:25:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.ffc76db560da72daf7cb277df301e39b93ee585d.001.1,2026-09-20T15:40:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.2f6a0bda5918a583a5ebba608ce3b2de52edf856.001.1,2026-09-20T09:28:00-04:00 w-nws.webmaster@noaa.gov,urn:oid:2.49.0.1.840.0.b3091ffa211efe595bff3ef90ed67325ff7fcee5.001.1,2026-09-20T03:42:00-04:00"
+     ]
+    },
+    "scope": "Public",
+    "code": "IPAWSv1.0",
+    "language": "en-US",
+    "web": "http://www.weather.gov",
+    "eventCode": {
+     "SAME": [
+      "NWS"
+     ],
+     "NationalWeatherService": [
+      "BHS"
+     ]
+    }
+   }
+  }
+ ],
+ "title": "Current watches, warnings, and advisories for 41.5525 N, 81.5572 W",
+ "updated": "2026-09-23T15:23:15+00:00"
+}
