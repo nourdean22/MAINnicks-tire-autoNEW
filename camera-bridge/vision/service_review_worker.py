@@ -136,7 +136,8 @@ class GroundingDinoAnalyzer:
             if frame.ndim != 3 or frame.shape[2] < 3:
                 raise ValueError("episode frame is not a 3-channel image")
             # vision.episode.read_frames returns OpenCV BGR. Grounding-DINO consumes RGB.
-            image = self._Image.fromarray(frame[:, :, :3][:, :, ::-1]).convert("RGB")
+            rgb = np.ascontiguousarray(frame[:, :, :3][:, :, ::-1])
+            image = self._Image.fromarray(rgb).convert("RGB")
         labels = [list(PROMPTS)]
         inputs = self.processor(images=image, text=labels, return_tensors="pt")
         moved = {}
