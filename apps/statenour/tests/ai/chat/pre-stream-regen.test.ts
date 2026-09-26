@@ -103,8 +103,8 @@ describe("pre-stream-regen · orchestration", () => {
 
   it("ships a measurably better regen even when it still has a minor critic flag", async () => {
     const BETTER_BUT_STILL_FLAGGED =
-      "The bottleneck is follow-up. Call the pending customers first, confirm the appointment, " +
-      "and use the same reminder step on every booking before changing price or adding another channel.";
+      "The first move is follow-up. Contact the people who have not answered, confirm the appointment, " +
+      "and use the same reminder step before changing price or adding another channel.";
     const generateOnce = vi.fn().mockResolvedValue(VAGUE_REPLY);
     const regenOnce = vi.fn().mockResolvedValue(BETTER_BUT_STILL_FLAGGED);
 
