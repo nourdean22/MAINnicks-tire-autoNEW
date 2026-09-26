@@ -182,6 +182,7 @@ def test_capture_posts_existing_evidence_payload_without_raw_audio_upload(tmp_pa
         capture_fn=fake_capture,
         transcribe_fn=fake_transcribe,
         post_fn=fake_post,
+        clock=lambda: MONDAY_10AM,
     )
 
     assert result.status == "ok"
