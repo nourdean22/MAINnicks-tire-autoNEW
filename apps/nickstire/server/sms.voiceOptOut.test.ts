@@ -23,6 +23,32 @@ import { getTableName } from "drizzle-orm";
 
 vi.unmock("../sms");
 
+const ledgerState = vi.hoisted(() => ({
+  revokedSmsPhones: new Set<string>(),
+  heldPhones: new Set<string>(),
+  grantsByPhone: new Map<string, Set<string>>(),
+}));
+
+vi.mock("./services/consentLedger", () => ({
+  getConsentLedgerMode: (raw = process.env.CONSENT_LEDGER_MODE) => {
+    const value = (raw ?? "off").trim().toLowerCase();
+    return value === "shadow" || value === "enforce_holds" || value === "enforce_grants" ? value : "off";
+  },
+  isConsentHoldEnforced: (mode = process.env.CONSENT_LEDGER_MODE) =>
+    mode === "enforce_holds" || mode === "enforce_grants",
+  loadConsentLedgerSnapshot: vi.fn(async (mode = process.env.CONSENT_LEDGER_MODE ?? "off") => ({
+    ok: true as const,
+    available: mode !== "off",
+    stale: false,
+    snapshot: {
+      revokedSmsPhones: new Set(ledgerState.revokedSmsPhones),
+      heldPhones: new Set(ledgerState.heldPhones),
+      grantsByPhone: new Map(ledgerState.grantsByPhone),
+      eventCount: ledgerState.revokedSmsPhones.size + ledgerState.heldPhones.size,
+    },
+  })),
+}));
+
 const mockTwilioCreate = vi.fn().mockResolvedValue({ sid: "SM_voice_optout" });
 vi.mock("twilio", () => ({ default: () => ({ messages: { create: mockTwilioCreate } }) }));
 
@@ -58,7 +84,7 @@ vi.mock("./db", () => ({
   }),
 }));
 
-const ENV_KEYS = ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER", "SMS_KILL_SWITCH"] as const;
+const ENV_KEYS = ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER", "SMS_KILL_SWITCH", "CONSENT_LEDGER_MODE"] as const;
 const ORIG: Record<string, string | undefined> = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
 
 beforeEach(() => {
@@ -68,10 +94,14 @@ beforeEach(() => {
   customerRows = [];
   executed = [];
   persistedRows = [];
+  ledgerState.revokedSmsPhones.clear();
+  ledgerState.heldPhones.clear();
+  ledgerState.grantsByPhone.clear();
   process.env.TWILIO_ACCOUNT_SID = "AC_test";
   process.env.TWILIO_AUTH_TOKEN = "tok_test";
   process.env.TWILIO_PHONE_NUMBER = "+12165550100";
   delete process.env.SMS_KILL_SWITCH;
+  delete process.env.CONSENT_LEDGER_MODE;
 });
 
 afterEach(() => {
@@ -104,6 +134,45 @@ describe("the suppression index", () => {
     if (!idx.ok) throw new Error(idx.reason);
     expect(idx.phones.has(VOICE_ONLY)).toBe(true);
     expect(idx.voiceOnly.size).toBe(0);
+  });
+
+  it("Q43 ledger revocations are a real suppression source when rollout is enabled", async () => {
+    process.env.CONSENT_LEDGER_MODE = "shadow";
+    ledgerState.revokedSmsPhones.add(VOICE_ONLY);
+
+    const { loadSuppressionIndex } = await import("./sms");
+    const idx = await loadSuppressionIndex();
+    if (!idx.ok) throw new Error(idx.reason);
+
+    expect(prefRows).toEqual([]);
+    expect(customerRows).toEqual([]);
+    expect(idx.phones.has(VOICE_ONLY)).toBe(true);
+    expect(idx.voiceOnly.has(VOICE_ONLY)).toBe(false);
+  });
+
+  it("Q43 ledger holds become a real suppression source at enforce_holds", async () => {
+    process.env.CONSENT_LEDGER_MODE = "enforce_holds";
+    ledgerState.heldPhones.add(VOICE_ONLY);
+
+    const { loadSuppressionIndex } = await import("./sms");
+    const idx = await loadSuppressionIndex();
+    if (!idx.ok) throw new Error(idx.reason);
+
+    expect(idx.phones.has(VOICE_ONLY)).toBe(true);
+    expect(idx.voiceOnly.has(VOICE_ONLY)).toBe(false);
+  });
+
+  it("message-history STOP suppression is released by a later START-family inbound", async () => {
+    const { loadSuppressionIndex } = await import("./sms");
+    const idx = await loadSuppressionIndex();
+    if (!idx.ok) throw new Error(idx.reason);
+
+    const sqlText = executed.join("\n");
+    expect(sqlText).toContain("NOT EXISTS");
+    expect(sqlText).toContain("START");
+    expect(sqlText).toContain("UNSTOP");
+    expect(sqlText).toContain("YES");
+    expect(sqlText).toContain("mi.createdAt > m.createdAt");
   });
 });
 

@@ -97,6 +97,7 @@ describe("handleInboundResponse — an inbound is NEVER dropped, even with no DB
       phone: "+12165550100",
       body: "how much for an oil change?",
       conversationId: 42,
+      idempotencyKey: "resp:SM9",
     });
   });
 });

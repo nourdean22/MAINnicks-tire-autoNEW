@@ -136,6 +136,7 @@ describe("answerResponseObligation — the claim guard is what prevents a second
       phone: INPUT.phone,
       body: INPUT.body,
       conversationId: INPUT.conversationId,
+      idempotencyKey: "resp:SM-abc",
     });
   });
 });
