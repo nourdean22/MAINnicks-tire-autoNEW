@@ -344,10 +344,14 @@ def _poll_bridge_devices() -> list | None:
         if devices:
             log.info("Eufy bridge: %d devices (live)", len(devices))
             return devices
-        log.warning("Eufy bridge returned no usable devices; using known registry")
+        raise RuntimeError("Eufy bridge returned no usable devices")
     except Exception as exc:
-        log.warning("Eufy bridge unavailable (%s); using known registry", exc)
-    return []
+        # Fail closed. Returning the static registry here would cause the
+        # sync route to stamp lastSeenAt=now and make an unreachable camera
+        # look freshly observed. Static discovery is only a legacy fallback
+        # when NO bridge has been configured.
+        log.error("Eufy bridge unavailable: %s", exc)
+        raise
 
 
 # ─── Main Sync Function ──────────────────────────────────────────────────
@@ -364,7 +368,7 @@ def poll_eufy_devices():
     # a second cloud login that could invalidate the bridge session.
     bridge_devices = _poll_bridge_devices()
     if bridge_devices is not None:
-        return bridge_devices or KNOWN_DEVICES
+        return bridge_devices
 
     # Legacy path for installations that have no bridge configured.
     token = _load_token()
