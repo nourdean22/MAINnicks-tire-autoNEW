@@ -1301,9 +1301,14 @@ class EdgeLoop:
                     self._service_review_attempted[track_id] = ts
                     if self.hard_cases.trigger("NO_BAY_ACTIVITY_REVIEW", ts, {
                         "trackId": track_id,
+                        # Snapshot the canonical track box AT THE REVIEW TRIGGER. The
+                        # offline service sidecar needs an anchor for "near this vehicle";
+                        # without it, a jack beside another car can support the wrong one.
+                        "vehicleBox": [round(float(v), 3) for v in track.box],
                         "stationarySeconds": round(stationary, 3),
                         "zones": sorted(zones),
                         "bayNames": sorted(bay_names),
+                        "camera": self.camera,
                         "evidence": "arrival",
                         "meaning": "review ambiguity only; NOT proof of outside service",
                     }):
