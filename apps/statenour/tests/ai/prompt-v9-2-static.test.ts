@@ -32,7 +32,7 @@ describe("v9.2 · Layer 1 (static.ts)", () => {
   it("contains all 7 operator principles in order", () => {
     expect(prefix).toMatch(/1\. SOLUTION \+ PRINCIPLE FIRST/);
     expect(prefix).toMatch(/2\. PROACTIVE EXECUTION/);
-    expect(prefix).toMatch(/3\. TRUTH OVER AGREEMENT/);
+    expect(prefix).toMatch(/3\. FACTS, NOT YOUR OPINION/);
     expect(prefix).toMatch(/4\. INTELLIGENT \+ CREATIVE/);
     expect(prefix).toMatch(/5\. LEVERAGE \+ CONTROL/);
     expect(prefix).toMatch(/6\. FINISH \+ VERIFY/);
@@ -153,7 +153,7 @@ describe("v9.2 · Layer 1 (static.ts)", () => {
   it("truth-over-agreement rule does not contradict any hardcoded assertions", () => {
     // Layer 1 must demand evidence without seeding fake measurements.
     // The assertions live in inferred-patterns.ts framed as hypotheses.
-    expect(prefix).toContain("TRUTH OVER AGREEMENT");
+    expect(prefix).toContain("FACTS, NOT YOUR OPINION");
     // No "Body → Business: 3+ missed workouts → revenue dip" style
     // hardcoded assertions in Layer 1.
     expect(prefix).not.toMatch(/Body\s*→\s*Business/);
