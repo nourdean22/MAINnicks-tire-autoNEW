@@ -1,5 +1,58 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-25/26 · Nick runtime doctrine + quality loop closes the detect-without-repair gap
+>
+> **Outcome:** the operator asked for bdnick.info chat to be solution/principle-first, proactive, intelligent/creative,
+> maximally truth-seeking, subordinate to his objective, and not an unsolicited-opinion engine. The first wave (#2673)
+> changed the live Prompt V2 behavior kernel. A production audit then found a structural defect: the critic/reply gate could
+> correctly identify a weak answer after it had already been streamed, while the buffered regen path could discard an
+> improved second draft merely because it was not completely clean. #2680 repairs that architecture.
+>
+> - **#2673 `2b0783ea58f04d9adc3456d5b1447cf46431ff35` · operator runtime kernel** — live Prompt V2 now leads with
+>   solution + governing principle; recovers context and uses tools/data proactively; looks for disconfirming evidence;
+>   separates FACT / INFERENCE / UNKNOWN; uses creative/non-obvious angles only when they change the move; continues to
+>   verification rather than equating code/tool execution with completion; and keeps Nour's objective/final decision
+>   authoritative without sycophancy. Mutation confirmations, fencing, and injection safeguards were unchanged.
+> - **Production audit of #2673 before the repair** — 27 completed assistant turns on deployment
+>   `dbbb070f-a505-4255-a8dc-2b4a31d24235` (2026-09-25 15:05Z → 2026-09-26 12:17Z): critic average
+>   **91.3/100**; 12/27 scored 100; 21/27 reply-gate clean; median response 167 words. The quality system nevertheless
+>   still exposed the exact defect the operator objected to: critic regen candidates could ship unchanged, and the evidence
+>   shadow on the same cohort returned 14 `pass`, 9 `repair`, 4 `block`. This was evidence for a repair loop,
+>   not evidence to promote the separate evidence gate.
+> - **#2680 `2b021632bf2806c95e7e275ba56b7c64117ba8b6` · one-shot repair before ship** —
+>   `lib/ai/chat/pre-stream-regen.ts` now creates a `CandidateAssessment` from `critiqueOutput` plus
+>   `runReplyGateWithContract` when turn/contract context exists. Gated intents:
+>   factual, decision, creative, instructional, procedural, analytical. A failing first candidate receives exactly one
+>   targeted repair prompt containing its measured reasons. The selector compares the same quality function across both
+>   candidates: clean beats flagged; otherwise lower severity, then higher overall critic score, then higher specificity.
+>   Crucially, a second draft does **not** need to become perfect to replace a known-worse first draft. If it is worse, it
+>   never wins. `alternate-paths.ts` passes `userPrompt`, `turnSignal`, and `responseContract` into the lane, so
+>   response-contract failures (count/shape/concision/repo-grounding/clarification rules) can trigger the same repair.
+> - **Operator preference boundary in #2680** — the static kernel now says **FACTS, NOT YOUR OPINION**: seek
+>   disconfirming evidence; separate FACT / INFERENCE / UNKNOWN; give mechanisms/options/consequences toward Nour's stated
+>   objective; do not substitute the model's preference; correct a conflicting premise once with evidence; recommend only
+>   when asked and optimize for Nour's objective/constraints. The behavior directive repeats that Nour owns objective,
+>   preferences, values, and final decision.
+> - **Review/test closure** — Codex caught that an early no-opinion rewrite had accidentally removed three truth-seeking
+>   phrases pinned by `prompt-v9-2-static.test.ts`. The final head restored all of them and the existing
+>   "clearly and ONCE" persona invariant rather than weakening the tests. Completion Authority was rerun after resolving
+>   the review thread. The squash commit contains nine files: runtime selector/wiring, prompt/directive changes, deterministic
+>   regen tests, prompt/persona tests, and the no-unsolicited-opinion eval corpus.
+> - **Post-merge proof** — operator squash-merged #2680 at **2026-09-26 13:16:28Z**. Fresh push workflows on exact commit
+>   `2b021632...` all passed: StateNour affected verify, authenticated e2e, Agent Policy, Adoption gates, Lighthouse,
+>   deploy-drift, and Secret Scanning. Railway deployment
+>   `99ab4bda-931f-4dce-ba0d-807b91b8d9ec` reached **SUCCESS** at 13:21Z on the same commit and replaced the prior
+>   StateNour deployment.
+> - **#2681 `36961a34204aeae4bea8eecaa6a95c1ac502ec2e` · repo-agent memory/runtime intelligence** landed later.
+>   It updates `NOUR-COMMAND.md`, adds `docs/agent-os/NOUR-RUNTIME-KERNEL.md`, and wires/tests
+>   `scripts/agent-os/intelligence-context.mjs`. It touched no `apps/statenour/**` files, so Railway correctly marked
+>   the StateNour deploy **SKIPPED**. Current repo HEAD can therefore be newer than the live app SHA without deploy drift.
+>
+> **Still owed / do not overclaim:** implementation, tests, merge, and deploy are proven. The next production proof is
+> the post-#2680 distribution of `verified_regen_path` / `chat.pre_stream_regen`: attempted rate, winner reason,
+> first-vs-regen severity/critic deltas, and how often the repaired candidate actually ships. Do not call that win rate
+> proven until real weak drafts exercise the lane. The evidence gate remains a separate shadow-calibration decision.
+>
 > ## 2026-09-22/23 · W16c · the receipt layer, the review sweep, the edge-vector drain, the lexical lane · 21 ships
 >
 > Third batch of Session F, the evening of 09-22 UTC. Every ship was measured on production first and re-measured before merge; one re-measurement refuted the ship's own premise and the fix landed before the merge. A sweep of the day's merged PRs found 18 Codex threads nobody had answered; all 18 are answered, 14 fixed in the follow-ups below. The operator's "merge all" merged the queue back-to-back (23:04-23:05Z), "apply the vectors too" authorised the drain, and "re run it, reindex too and the registration" authorised the benchmark re-run, the REINDEX and the ledger entries. Prod at the close of the first pass: `4531bee53`; the close-out addendum below (cloud session, 01:30-02:30Z 09-23) took the wave to `053b8ff91`. Clock erratum: the first receipts of the night were stamped "2026-09-23 0X:XXZ" from memory; GitHub's server timestamps put every one of them between 20:50Z and 23:40Z on 2026-09-22, and the PR comments, the ledger and agent memory were corrected in place.
