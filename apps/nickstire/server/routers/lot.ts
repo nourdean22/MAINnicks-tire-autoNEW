@@ -54,6 +54,7 @@ import {
 import { EXPECTED_CAMERAS } from "../../shared/cameras";
 import { isDuplicateKeyError } from "../lib/dbErrors";
 import { createLogger } from "../lib/logger";
+import { jsonArray, transcriptCoverage } from "../lib/conversationQuality";
 
 const log = createLogger("routers:lot");
 
@@ -345,6 +346,75 @@ async function finalizeSettledVerdicts(
 }
 
 export const lotRouter = router({
+  /**
+   * Counter conversations — operational summaries only.
+   *
+   * Privacy/truth boundary:
+   * - raw audio is never returned here
+   * - full transcripts are never returned here
+   * - candidate visit/work-order links stay explicitly confidence-scored
+   * - self-test rows are hidden by default so commissioning does not look like customers
+   *
+   * Coverage is recomputed from timed transcript intervals rather than trusting a stored
+   * scalar. Overlapping diarizer windows count once, and NULL means "cannot know" rather
+   * than a reassuring zero.
+   */
+  conversations: adminProcedure
+    .input(z.object({
+      limit: z.number().int().min(1).max(100).default(25),
+      includeSelftest: z.boolean().default(false),
+    }).optional())
+    .query(async ({ input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+
+      const limit = input?.limit ?? 25;
+      const includeSelftest = input?.includeSelftest ?? false;
+      try {
+        const where = includeSelftest ? sql`1 = 1` : sql`source <> 'selftest'`;
+        const rows = rowsOf(await d.execute(sql`
+          SELECT episodeId, source,
+                 ROUND(UNIX_TIMESTAMP(startedAt) * 1000) AS startedAtMs,
+                 durationSeconds, meanVolumeDb,
+                 transcriptStatus, transcriptError, transcript,
+                 sttEngine, sttLatencyMs, speakerCount,
+                 facts, summary,
+                 vehicleVisitId, workOrderId, linkConfidence
+            FROM conversation_episodes
+           WHERE ${where}
+           ORDER BY COALESCE(startedAt, createdAt) DESC
+           LIMIT ${limit}
+        `));
+
+        return {
+          ok: true as const,
+          conversations: rows.map((r) => ({
+            episodeId: String(r.episodeId),
+            source: String(r.source),
+            startedAtMs: numOrNull(r.startedAtMs),
+            durationSeconds: numOrNull(r.durationSeconds),
+            meanVolumeDb: numOrNull(r.meanVolumeDb),
+            transcriptStatus: String(r.transcriptStatus ?? "PENDING"),
+            transcriptError: r.transcriptError == null ? null : String(r.transcriptError),
+            sttEngine: r.sttEngine == null ? null : String(r.sttEngine),
+            sttLatencyMs: numOrNull(r.sttLatencyMs),
+            speakerCount: numOrNull(r.speakerCount),
+            coverage: transcriptCoverage(r.transcript, r.durationSeconds),
+            factCount: jsonArray(r.facts).length,
+            summary: r.summary == null ? null : String(r.summary),
+            candidateVehicleVisitId: r.vehicleVisitId == null ? null : String(r.vehicleVisitId),
+            candidateWorkOrderId: r.workOrderId == null ? null : String(r.workOrderId),
+            linkConfidence: numOrNull(r.linkConfidence),
+          })),
+        };
+      } catch (err) {
+        return {
+          ok: false as const,
+          reason: err instanceof Error ? err.message : "conversation read failed",
+        };
+      }
+    }),
+
   /**
    * The counter card: what is on the lot right now.
    *

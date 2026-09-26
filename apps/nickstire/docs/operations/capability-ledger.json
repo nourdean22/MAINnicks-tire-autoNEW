@@ -2507,6 +2507,41 @@
       "deferredScope": [
         "ShopDriver listTicketSessions line-item ingestion pending operator decision and a captured after-hours response."
       ]
+    },
+    {
+      "capabilityId": "counter-conversation-cockpit",
+      "name": "Counter conversation episodes are shown to operators as evidence-backed summaries with transcript-quality and candidate-link uncertainty",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "PR #2686 exact branch: lot.conversations + LotSection counter-conversation panel + diarization-compatible ingest. This records the post-merge code shape only; it is not a deployment or live-camera receipt.",
+        "tests": [
+          "server/lib/conversationQuality.test.ts: JSON boundary, interval-union coverage, unknown-vs-zero coverage, clip clamping",
+          "server/routes/conversationRoutes.test.ts: existing coverage/failure gates plus speaker grouping reaches the fact extractor and speakerCount returns without identity semantics; exact-head CI is acceptance authority"
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "No signed-in production Admin > Lot walkthrough has been performed for the new panel. Visual/live promotion is withheld until the merged build is deployed and an operator inspects the real surface.",
+          "source": "PR #2686 completion evidence"
+        },
+        {
+          "severity": "P2",
+          "description": "Diarization metadata is contract-ready but no live WhisperX/pyannote producer has been commissioned on the shop capture runtime. speakerCount and speaker labels may remain NULL/absent until that happens.",
+          "source": "2026-09-26 camera workstream"
+        }
+      ],
+      "deferredScope": [
+        "raw audio and full transcript display in the admin cockpit (intentionally excluded)",
+        "speaker identity inference",
+        "automatic vehicle-visit or work-order binding",
+        "outside-service visual classification"
+      ],
+      "lastVerifiedAt": "2026-09-26",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {

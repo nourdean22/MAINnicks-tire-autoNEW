@@ -43,6 +43,8 @@ const segmentSchema = z.object({
   start: z.number(),
   end: z.number(),
   text: z.string(),
+  // Grouping label from diarization, never a human identity.
+  speaker: z.string().max(64).optional(),
 });
 
 const episodeSchema = z.object({
@@ -58,6 +60,8 @@ const episodeSchema = z.object({
   segments: z.array(segmentSchema).default([]),
   sttEngine: z.string().max(32).nullish(),
   sttLatencyMs: z.number().int().nullish(),
+  /** Distinct diarized speakers. NULL means diarization was not attempted. */
+  speakerCount: z.number().int().min(0).nullish(),
   /**
    * Set by the producer when TRANSCRIPTION ITSELF failed: the model crashed, the audio was
    * unreadable, the binary was missing. Without it a producer whose transcriber died posts
@@ -90,7 +94,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
     const e = parsed.data;
 
     const segments: TranscriptSegment[] = e.segments.map((s) => ({
-      index: s.index, start: s.start, end: s.end, text: s.text,
+      index: s.index, start: s.start, end: s.end, text: s.text, speaker: s.speaker,
     }));
 
     // Extraction runs BEFORE the write so the row lands complete. A two-step write would
@@ -122,13 +126,14 @@ export function registerConversationEpisodeRoute(app: Express): void {
         INSERT INTO conversation_episodes
           (episodeId, source, startedAt, durationSeconds, audioRef, meanVolumeDb,
            transcriptStatus, transcriptError, transcript, sttEngine, sttLatencyMs,
-           facts, summary)
+           speakerCount, facts, summary)
         VALUES (
           ${e.episodeId}, ${e.source},
           ${e.startedAt ? new Date(typeof e.startedAt === "number" ? e.startedAt * 1000 : e.startedAt) : null},
           ${e.durationSeconds ?? null}, ${e.audioRef ?? null}, ${e.meanVolumeDb ?? null},
           ${status}, ${storedError}, ${JSON.stringify(segments)},
           ${e.sttEngine ?? null}, ${e.sttLatencyMs ?? null},
+          ${e.speakerCount ?? null},
           ${JSON.stringify(extracted.facts)}, ${extracted.summary}
         )
         ON DUPLICATE KEY UPDATE
@@ -139,6 +144,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
           summary          = VALUES(summary),
           sttEngine        = VALUES(sttEngine),
           sttLatencyMs     = VALUES(sttLatencyMs),
+          speakerCount     = VALUES(speakerCount),
           meanVolumeDb     = COALESCE(VALUES(meanVolumeDb), meanVolumeDb),
           audioRef         = VALUES(audioRef)
       `);
@@ -160,6 +166,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
       dropped: extracted.dropped,
       coverage: e.totalSeconds > 0 ? Number((e.coveredSeconds / e.totalSeconds).toFixed(3)) : null,
       engine: extracted.engine,
+      speakerCount: e.speakerCount ?? null,
     });
   });
 }

@@ -33,7 +33,7 @@
  * of a database timestamp. It is applied only while an interval is open: a departed
  * car's stay is a fact, and a fact that grows while you watch it is a bug.
  *
- * Data: trpc.lot.now + trpc.lot.visits + trpc.lot.health, polled every 15s.
+ * Data: trpc.lot.now + trpc.lot.visits + trpc.lot.health + trpc.lot.conversations, polled every 15s.
  */
 import { useEffect, useState } from "react";
 
@@ -54,6 +54,7 @@ import {
   ShieldQuestion,
   HelpCircle,
   Hourglass,
+  MessageSquare,
 } from "lucide-react";
 
 const POLL_MS = 15_000;
@@ -151,6 +152,25 @@ type VisitRow = {
   waitMinutes: number | null;
   bayMinutes: number | null;
   open: boolean;
+};
+
+type ConversationRow = {
+  episodeId: string;
+  source: string;
+  startedAtMs: number | null;
+  durationSeconds: number | null;
+  meanVolumeDb: number | null;
+  transcriptStatus: string;
+  transcriptError: string | null;
+  sttEngine: string | null;
+  sttLatencyMs: number | null;
+  speakerCount: number | null;
+  coverage: number | null;
+  factCount: number;
+  summary: string | null;
+  candidateVehicleVisitId: string | null;
+  candidateWorkOrderId: string | null;
+  linkConfidence: number | null;
 };
 
 type CameraFacets = {
@@ -400,22 +420,31 @@ function CameraCard({ c }: { c: CameraHealth }) {
 
 type Stage = { label: string; tone: string };
 
-/** Where a vehicle is, derived from its timestamps rather than the raw state string. */
+/**
+ * Where a vehicle is, derived only from timestamps the camera actually observed.
+ *
+ * A non-bay car is deliberately NOT called "waiting": Nick's does tire changes, plugs
+ * and other jack work wherever necessary outside. Geometry can prove "no bay observed";
+ * it cannot prove whether the car is queueing or being serviced where it stands.
+ */
 function stageOf(v: VisitRow): Stage {
   if (v.bayEnteredAt && !v.bayExitedAt) {
     return {
-      label: v.bay ? `In ${v.bay}` : "In a bay",
+      label: v.bay ? `Inside service · ${v.bay}` : "Inside service",
       tone: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
     };
   }
   if (v.bayExitedAt && !v.departedAt) {
     return {
-      label: "Done, not left",
+      label: "Pulled out · still here",
       tone: "bg-amber-500/15 text-amber-300 border-amber-500/30",
     };
   }
   if (v.departedAt) {
-    return { label: "Left", tone: "bg-foreground/10 text-foreground/55 border-foreground/20" };
+    return {
+      label: v.bayEnteredAt ? "Left after inside service" : "Left · no bay observed",
+      tone: "bg-foreground/10 text-foreground/55 border-foreground/20",
+    };
   }
   if (v.preexisting) {
     return {
@@ -423,7 +452,10 @@ function stageOf(v: VisitRow): Stage {
       tone: "bg-foreground/10 text-foreground/60 border-foreground/20",
     };
   }
-  return { label: "Waiting", tone: "bg-sky-500/15 text-sky-300 border-sky-500/30" };
+  return {
+    label: "On lot · no bay observed",
+    tone: "bg-sky-500/15 text-sky-300 border-sky-500/30",
+  };
 }
 
 /**
@@ -642,6 +674,124 @@ function FloorCard({ v, fetchedAt, now }: { v: VisitRow; fetchedAt: number; now:
   );
 }
 
+type ConversationQueryData =
+  | { ok: true; conversations: ConversationRow[] }
+  | { ok: false; reason: string };
+
+function ConversationPanel({
+  query,
+}: {
+  query: ReturnType<typeof trpc.lot.conversations.useQuery>;
+}) {
+  // tRPC's decorated hook proxy widens ReturnType<useQuery>["data"] to {} at this
+  // component boundary. Re-narrow ONLY the procedure payload here; the server still owns
+  // runtime validation and every branch below preserves failed/unknown vs empty.
+  const data = query.data as ConversationQueryData | undefined;
+  const rows: ConversationRow[] =
+    data?.ok === true ? data.conversations : [];
+
+  return (
+    <Panel
+      title="Counter conversations"
+      icon={<MessageSquare className="w-4 h-4" />}
+      subtitle="Operational summaries only — raw audio and full transcripts stay off this screen; self-tests are hidden"
+    >
+      {query.isError ? (
+        <Unknown what="Counter conversations" reason={query.error?.message} />
+      ) : query.isPending ? (
+        <Loading what="counter conversations" />
+      ) : !data ? (
+        <Unknown what="Counter conversations" />
+      ) : data.ok === false ? (
+        <Unknown what="Counter conversations" reason={data.reason} />
+      ) : rows.length === 0 ? (
+        <div className="text-[13px] text-foreground/60">
+          No customer conversation episodes recorded yet. Self-test episodes are hidden.
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {rows.map((row) => {
+            const status = row.transcriptStatus.toUpperCase();
+            const statusTone =
+              status === "DONE"
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                : status === "FAILED"
+                  ? "border-red-500/30 bg-red-500/10 text-red-300"
+                  : status === "SKIPPED"
+                    ? "border-foreground/20 bg-foreground/5 text-foreground/60"
+                    : "border-amber-500/30 bg-amber-500/10 text-amber-300";
+            const coverage =
+              row.coverage === null ? "coverage unknown" : `${Math.round(row.coverage * 100)}% covered`;
+            const duration =
+              row.durationSeconds === null
+                ? "duration unknown"
+                : row.durationSeconds < 60
+                  ? `${Math.round(row.durationSeconds)}s clip`
+                  : `${(row.durationSeconds / 60).toFixed(1)}m clip`;
+
+            return (
+              <div key={row.episodeId} className="rounded-lg border border-foreground/10 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[12px] text-foreground/45">
+                      {row.startedAtMs === null
+                        ? "time unknown"
+                        : stamp(new Date(row.startedAtMs).toISOString())}
+                      {" · "}
+                      {row.source}
+                    </div>
+                    <div className="mt-1 text-[13px] text-foreground/85">
+                      {row.summary ?? (status === "SKIPPED"
+                        ? "No speech was transcribed in this clip."
+                        : "No evidence-backed summary available.")}
+                    </div>
+                  </div>
+                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusTone}`}>
+                    {status.toLowerCase()}
+                  </span>
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/50 tabular-nums">
+                  <span>{coverage}</span>
+                  <span>{row.factCount} fact{row.factCount === 1 ? "" : "s"}</span>
+                  <span>{duration}</span>
+                  {row.speakerCount !== null && (
+                    <span>{row.speakerCount} speaker group{row.speakerCount === 1 ? "" : "s"}</span>
+                  )}
+                  {row.meanVolumeDb !== null && <span>{row.meanVolumeDb.toFixed(1)} dBFS</span>}
+                  {row.sttEngine && <span>{row.sttEngine}</span>}
+                  {row.sttLatencyMs !== null && <span>STT {row.sttLatencyMs}ms</span>}
+                </div>
+
+                {(row.candidateVehicleVisitId || row.candidateWorkOrderId) && (
+                  <div className="mt-2 text-[11px] text-amber-300/80">
+                    Candidate link
+                    {row.candidateVehicleVisitId ? ` · visit ${row.candidateVehicleVisitId}` : ""}
+                    {row.candidateWorkOrderId ? ` · work order ${row.candidateWorkOrderId}` : ""}
+                    {row.linkConfidence === null
+                      ? " · confidence unknown"
+                      : ` · ${Math.round(row.linkConfidence * 100)}% confidence`}
+                    {" · not identity-confirmed"}
+                  </div>
+                )}
+
+                {row.transcriptError && (
+                  <div className="mt-2 text-[11px] text-red-300/90">
+                    Capture/transcription error: {row.transcriptError}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <div className="text-[11px] text-foreground/35">
+            Speaker labels group voices only; they do not identify people. Candidate visit/work-order links remain unconfirmed.
+          </div>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 export default function LotSection() {
   // Commissioning / replay rows are excluded from every counter and hidden from the
   // list by default; they are never deleted, so the operator can opt in to see them.
@@ -653,6 +803,10 @@ export default function LotSection() {
     { refetchInterval: POLL_MS },
   );
   const health = trpc.lot.health.useQuery(undefined, { refetchInterval: POLL_MS });
+  const conversations = trpc.lot.conversations.useQuery(
+    { limit: 25, includeSelftest: false },
+    { refetchInterval: POLL_MS },
+  );
   // Hooks stay above every conditional return — `pnpm run lint:hooks` fails a hook
   // called after an early return, and this component has many conditional branches.
   const tick = useTick(TICK_MS);
@@ -760,7 +914,7 @@ export default function LotSection() {
               trendLabel="pulled in · bays 1 and 3"
             />
             <StatCard
-              label="Done, not left"
+              label="Pulled out, still here"
               value={n.counts.postService}
               icon={<LogOut className="w-4 h-4" />}
               color={n.counts.postService > 0 ? "text-amber-400" : "text-foreground"}
@@ -854,11 +1008,11 @@ export default function LotSection() {
                 trendLabel="occupancy, never an arrival"
               />
               <StatCard
-                label="Waiting, already parked"
+                label="No bay observed, already parked"
                 value={n.counts.preexistingWaiting}
                 icon={<Clock className="w-4 h-4" />}
                 color="text-foreground/60"
-                trendLabel="excluded from Waiting above"
+                trendLabel="may be parked, queued, or outside service"
               />
             </MetricGrid>
           </Panel>
@@ -916,6 +1070,8 @@ export default function LotSection() {
           </Panel>
         </>
       ) : null}
+
+      <ConversationPanel query={conversations} />
 
       <Panel title="Cameras" icon={<Camera className="w-4 h-4" />}
              subtitle="Producer heartbeats — infrastructure health, independent of whether any car has arrived">
