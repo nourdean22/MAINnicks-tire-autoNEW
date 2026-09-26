@@ -11,7 +11,6 @@ import {
   ChevronRight,
   CircleDot,
   ClipboardCheck,
-  Clock,
   Droplets,
   Gauge,
   Phone,
