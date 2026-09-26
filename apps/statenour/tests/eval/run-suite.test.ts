@@ -62,6 +62,7 @@ describe("Nour Command runtime corpus", () => {
     expect(ids).toContain("persona-nour-command-solution-first");
     expect(ids).toContain("persona-nour-command-truth-over-agreement");
     expect(ids).toContain("decision-nour-command-creative-leverage");
+    expect(ids).toContain("persona-nour-command-no-unsolicited-opinion");
   });
 });
 
