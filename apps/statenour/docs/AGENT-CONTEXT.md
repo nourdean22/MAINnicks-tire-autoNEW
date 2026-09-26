@@ -45,8 +45,8 @@ Do not infer deploy drift merely because repo HEAD is newer than the app SHA.
 | Retired Item | What to Use Instead |
 |---|---|
 | Vercel | Railway only |
-| `codex/ollama-local` branch | `main` only |
-| `statenour-master` branch | `main` only |
+| Retired local-model feature/deploy branch aliases | `main` only |
+| Retired standalone StateNour mirror branch aliases | `main` only |
 | `nourdean22/statenour-os` repo | This monorepo only |
 | `C:\Users\[LOCAL_USER]\NOUR-OS` (or other local variants) | `[REPO_ROOT]` |
 | `scripts/pre-push-check.sh` (deleted) | repo-root `lefthook.yml` pre-push |
