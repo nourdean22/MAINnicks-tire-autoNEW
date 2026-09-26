@@ -199,6 +199,29 @@ def schedule_allows(
     )
 
 
+def active_window_remaining_seconds(
+    schedule: dict[int, tuple[ActiveWindow, ...]],
+    *,
+    at: float,
+    timezone_name: str,
+) -> float:
+    """Seconds until the end of the currently-active local schedule window."""
+    if not schedule:
+        return 0.0
+    local = datetime.fromtimestamp(float(at), tz=ZoneInfo(timezone_name))
+    minute = local.hour * 60 + local.minute
+    for window in schedule.get(local.weekday(), ()):
+        if window.start_minute <= minute < window.end_minute:
+            end_local = local.replace(
+                hour=window.end_minute // 60,
+                minute=window.end_minute % 60,
+                second=0,
+                microsecond=0,
+            )
+            return max(0.0, (end_local - local).total_seconds())
+    return 0.0
+
+
 def _false_marker(value: Any) -> bool:
     if value is False or value == 0:
         return True
@@ -290,6 +313,7 @@ def run_capture_once(
     capture_fn: Optional[Callable[..., list[Any]]] = None,
     transcribe_fn: Optional[Callable[..., Any]] = None,
     post_fn: Optional[Callable[..., dict[str, Any]]] = None,
+    clock: Callable[[], float] = time.time,
 ) -> CaptureResult:
     from . import officeaudio, officepost
 
@@ -301,11 +325,26 @@ def run_capture_once(
     if config.silence_db is not None:
         kwargs["silence_db"] = config.silence_db
 
+    capture_seconds = float(config.seconds)
+    if config.capture_mode:
+        remaining = active_window_remaining_seconds(
+            config.schedule,
+            at=clock(),
+            timezone_name=config.timezone_name,
+        )
+        if remaining <= 0:
+            return CaptureResult(
+                "capture_blocked",
+                "outside configured active hours at capture start",
+                _trigger_payload(trigger),
+            )
+        capture_seconds = min(capture_seconds, remaining)
+
     try:
         segments = capture_fn(
             config.source_url,
             config.out_dir,
-            config.seconds,
+            capture_seconds,
             source=config.source_name,
             **kwargs,
         )
@@ -348,7 +387,13 @@ def run_capture_once(
         if config.dry_run:
             continue
 
-        result = post_fn(payload, endpoint=config.endpoint)
+        try:
+            result = post_fn(payload, endpoint=config.endpoint)
+        except Exception as exc:  # noqa: BLE001
+            failed += 1
+            errors.append(f"post: {type(exc).__name__}: {exc}"[:300])
+            continue
+
         if result.get("posted"):
             posted += 1
         else:
@@ -454,17 +499,43 @@ class OfficeWakeDaemon:
 
                 self.last_capture_started_at = now
                 self.ledger.note("capture_started", {"trigger": _trigger_payload(trigger)})
-                result = await asyncio.to_thread(self.runner, self.config, trigger)
+                try:
+                    result = await asyncio.to_thread(self.runner, self.config, trigger)
+                except Exception as exc:  # noqa: BLE001
+                    result = CaptureResult(
+                        "runner_failed",
+                        f"{type(exc).__name__}: {exc}"[:500],
+                        _trigger_payload(trigger),
+                        episodes_failed=1,
+                    )
                 self.ledger.note("capture_finished", asdict(result))
-                removed = await asyncio.to_thread(
-                    prune_audio,
-                    self.config.out_dir,
-                    retention_hours=self.config.retention_hours,
-                )
-                if removed:
-                    self.ledger.note("retention_prune", {"filesRemoved": removed})
             finally:
                 self.queue.task_done()
+
+
+async def retention_worker(
+    config: OfficeWakeConfig,
+    ledger: ReceiptLedger,
+    *,
+    interval_seconds: float = 3600.0,
+) -> None:
+    """Prune raw local artifacts at startup and periodically, independent of captures."""
+    interval = max(0.01, float(interval_seconds))
+    while True:
+        try:
+            removed = await asyncio.to_thread(
+                prune_audio,
+                config.out_dir,
+                retention_hours=config.retention_hours,
+            )
+            if removed:
+                ledger.note("retention_prune", {"filesRemoved": removed})
+        except Exception as exc:  # noqa: BLE001
+            ledger.note(
+                "retention_error",
+                {"error": f"{type(exc).__name__}: {exc}"[:500]},
+            )
+        await asyncio.sleep(interval)
 
 
 async def listen_forever(
@@ -478,6 +549,9 @@ async def listen_forever(
         raise OfficeWakeError("install requirements-office-wake.txt first") from exc
 
     worker_task = asyncio.create_task(daemon.worker())
+    retention_task = asyncio.create_task(
+        retention_worker(daemon.config, daemon.ledger)
+    )
     seen = 0
     delay = 2.0
     try:
@@ -523,10 +597,12 @@ async def listen_forever(
                 delay = min(60.0, delay * 2)
     finally:
         worker_task.cancel()
-        try:
-            await worker_task
-        except asyncio.CancelledError:
-            pass
+        retention_task.cancel()
+        for task in (worker_task, retention_task):
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 def _env_true(name: str) -> bool:
