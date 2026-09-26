@@ -42,9 +42,18 @@ SYNC_KEY = os.getenv("STATENOUR_SYNC_KEY", "")
 BRIDGE_URL = os.getenv("EUFY_BRIDGE_URL", "").strip()
 CONTROL_ENABLED = os.getenv("EUFY_CONTROL_ENABLED", "0") == "1"
 EVENTS_ENABLED = os.getenv("EUFY_EVENTS_ENABLED", "1") == "1"
+OFFICE_CAMERA_SERIAL = os.getenv(
+    "EUFY_OFFICE_CAMERA_SERIAL",
+    "T8410P522517180B",
+).strip()
+_EVENT_FILTER_RAW = os.getenv("EUFY_EVENT_DEVICE_SNS")
 _EVENT_FILTER = {
     value.strip()
-    for value in os.getenv("EUFY_EVENT_DEVICE_SNS", "").split(",")
+    for value in (
+        _EVENT_FILTER_RAW
+        if _EVENT_FILTER_RAW is not None
+        else OFFICE_CAMERA_SERIAL
+    ).split(",")
     if value.strip()
 }
 
