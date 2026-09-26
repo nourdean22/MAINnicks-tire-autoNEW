@@ -141,73 +141,141 @@ export const REGEN_SYSTEM_PREFIX = `CRITICAL · the prior draft was flagged gene
 - If the question is unanswerable without more context, ask ONE precise clarifying question instead of approximating.
 - Keep the same output shape as before unless the prior draft's shape was itself the problem.`;
 
+function uniqueReasons(reasons: readonly string[]): string[] {
+  return [...new Set(reasons.map((r) => r.trim()).filter(Boolean))]
+    .filter((r) => !/waived/i.test(r))
+    .slice(0, 8);
+}
+
+function normalizedSeverity(
+  critic: CriticScore,
+  gate: ContractGateDecision | null,
+): number {
+  // A critic axis can fire at a decent composite score. Preserve that as a
+  // real failure instead of translating 76/100 into severity 24 and losing it.
+  const criticFloor = critic.shouldRegen ? Math.max(50, 100 - critic.overall) : 0;
+  return Math.max(criticFloor, gate?.severity ?? 0);
+}
+
+export function assessRegenCandidate(
+  text: string,
+  args: Pick<
+    PreStreamRegenArgs,
+    "shape" | "userPrompt" | "turnSignal" | "responseContract"
+  >,
+): CandidateAssessment {
+  const critic = critiqueOutput(text, args.shape, { userPrompt: args.userPrompt });
+  const gate =
+    args.turnSignal && args.responseContract && args.userPrompt
+      ? runReplyGateWithContract(
+          text,
+          args.userPrompt,
+          critic,
+          args.turnSignal,
+          args.responseContract,
+        )
+      : null;
+  return {
+    critic,
+    gate,
+    severity: normalizedSeverity(critic, gate),
+    needsRepair: critic.shouldRegen || Boolean(gate?.shouldRegen),
+    reasons: uniqueReasons([...critic.reasons, ...(gate?.reasons ?? [])]),
+  };
+}
+
+export function buildTargetedRegenPrefix(
+  assessment: CandidateAssessment,
+): string {
+  if (assessment.reasons.length === 0) return REGEN_SYSTEM_PREFIX;
+  const failures = assessment.reasons.map((r) => "- " + r).join("\n");
+  return [
+    REGEN_SYSTEM_PREFIX,
+    "",
+    "MEASURED FAILURES IN THE PRIOR DRAFT:",
+    failures,
+    "",
+    "Fix THESE failures specifically. Do not add unsupported facts just to satisfy a score.",
+  ].join("\n");
+}
+
+function compareCandidates(
+  regen: CandidateAssessment,
+  first: CandidateAssessment,
+): PreStreamRegenResult["selectionReason"] | null {
+  if (regen.needsRepair !== first.needsRepair) {
+    return regen.needsRepair ? null : "cleaner";
+  }
+  if (regen.severity !== first.severity) {
+    return regen.severity < first.severity ? "lower-severity" : null;
+  }
+  if (regen.critic.overall !== first.critic.overall) {
+    return regen.critic.overall > first.critic.overall ? "higher-overall" : null;
+  }
+  if (regen.critic.specificity !== first.critic.specificity) {
+    return regen.critic.specificity > first.critic.specificity ? "higher-specificity" : null;
+  }
+  return null;
+}
+
 /**
- * Run the first generation · score it · if it fails the critic AND
- * the intent is regen-gated, run one regeneration · return the
- * winner (regen ONLY wins if it scores higher than the first attempt
- * AND its shouldRegen is false; otherwise we ship the first attempt
- * because two bad replies don't make a good one).
- *
- * Pure orchestration · no LLM calls inside this function · the
- * caller supplies both generation functions.
+ * Run one draft, assess it, and if necessary run exactly one targeted repair.
+ * The repair wins whenever the same deterministic quality function says it is
+ * better. It does NOT need to become perfect to replace a known-worse draft.
  */
 export async function maybePreStreamRegen(
   args: PreStreamRegenArgs,
 ): Promise<PreStreamRegenResult> {
   const totalStart = Date.now();
-
   const firstStart = Date.now();
   const firstAttempt = await args.generateOnce();
   const firstMs = Date.now() - firstStart;
-  const firstScore = critiqueOutput(firstAttempt, args.shape, { userPrompt: args.userPrompt });
+  const firstAssessment = assessRegenCandidate(firstAttempt, args);
+  const firstScore = firstAssessment.critic;
 
-  // Fast path · first attempt passed the critic OR intent isn't gated.
-  if (!firstScore.shouldRegen || !shouldGateForIntent(args.intent)) {
+  if (!shouldGateForIntent(args.intent)) {
     return {
-      text: firstAttempt,
-      regenFired: false,
-      firstScore,
-      regenScore: null,
-      durationMs: {
-        first: firstMs,
-        regen: null,
-        total: Date.now() - totalStart,
-      },
+      text: firstAttempt, regenFired: false, firstScore, regenScore: null,
+      firstAssessment, regenAssessment: null, selectionReason: "intent-not-gated",
+      durationMs: { first: firstMs, regen: null, total: Date.now() - totalStart },
       regenWasBetter: null,
     };
   }
 
-  // Regen path · first attempt failed AND intent is gated.
+  if (!firstAssessment.needsRepair) {
+    return {
+      text: firstAttempt, regenFired: false, firstScore, regenScore: null,
+      firstAssessment, regenAssessment: null, selectionReason: "first-passed",
+      durationMs: { first: firstMs, regen: null, total: Date.now() - totalStart },
+      regenWasBetter: null,
+    };
+  }
+
   const regenStart = Date.now();
   const regenAttempt = await args.regenOnce({
     firstAttempt,
     firstScore,
-    suggestedSystemPrefix: REGEN_SYSTEM_PREFIX,
+    firstAssessment,
+    suggestedSystemPrefix: buildTargetedRegenPrefix(firstAssessment),
   });
   const regenMs = Date.now() - regenStart;
-  const regenScore = critiqueOutput(regenAttempt, args.shape, { userPrompt: args.userPrompt });
-
-  // Regen wins only if it is BOTH cleaner AND scores higher than the
-  // first attempt. Two bad replies don't make a good one · ship the
-  // less-bad one to avoid spending latency for no quality gain.
-  const regenIsCleaner = !regenScore.shouldRegen;
-  const regenScoresHigher = regenScore.overall > firstScore.overall;
-  const regenWasBetter = regenIsCleaner && regenScoresHigher;
+  const regenAssessment = assessRegenCandidate(regenAttempt, args);
+  const regenScore = regenAssessment.critic;
+  const improvement = compareCandidates(regenAssessment, firstAssessment);
+  const regenWasBetter = improvement !== null;
 
   return {
     text: regenWasBetter ? regenAttempt : firstAttempt,
     regenFired: regenWasBetter,
     firstScore,
     regenScore,
-    durationMs: {
-      first: firstMs,
-      regen: regenMs,
-      total: Date.now() - totalStart,
-    },
+    firstAssessment,
+    regenAssessment,
+    selectionReason: improvement ?? "first-kept",
+    durationMs: { first: firstMs, regen: regenMs, total: Date.now() - totalStart },
     regenWasBetter,
   };
 }
-
 /**
  * Build the telemetry record for a SystemMetric write. Caller decides
  * whether to write it · we just format consistently so dashboards can
@@ -234,10 +302,17 @@ export function formatRegenTelemetry(
       regenAttempted: result.regenScore !== null,
       regenFired: result.regenFired,
       regenWasBetter: result.regenWasBetter,
+      selectionReason: result.selectionReason,
       firstSpec: result.firstScore.specificity,
       firstOverall: result.firstScore.overall,
+      firstSeverity: result.firstAssessment.severity,
+      firstNeedsRepair: result.firstAssessment.needsRepair,
+      firstReasons: result.firstAssessment.reasons,
       regenSpec: result.regenScore?.specificity ?? null,
       regenOverall: result.regenScore?.overall ?? null,
+      regenSeverity: result.regenAssessment?.severity ?? null,
+      regenNeedsRepair: result.regenAssessment?.needsRepair ?? null,
+      regenReasons: result.regenAssessment?.reasons ?? [],
       firstShouldRegen: result.firstScore.shouldRegen,
       regenShouldRegen: result.regenScore?.shouldRegen ?? null,
       durationMs: result.durationMs.total,
