@@ -186,6 +186,7 @@ export default function ReviewsPage() {
 
   const [serviceFilter, setServiceFilter] = useState<ServiceType>("All");
   const [starFilter, setStarFilter] = useState<number | null>(null);
+  const [showAllRatings, setShowAllRatings] = useState(false);
   const [recencyFilter, setRecencyFilter] = useState<RecencyOption>("Most Recent");
   const [sortBy, setSortBy] = useState<SortOption>("Most Recent");
 
@@ -232,9 +233,13 @@ export default function ReviewsPage() {
       reviews = reviews.filter((r) => detectServiceType(r.text) === serviceFilter);
     }
 
-    // Star filter
+    // Default public view keeps the strongest recent social proof up front.
+    // Low-star reviews remain one tap away via "All ratings" or an explicit
+    // 1/2/3-star filter; they are not deleted or hidden from the dataset.
     if (starFilter !== null) {
       reviews = reviews.filter((r) => r.rating === starFilter);
+    } else if (!showAllRatings) {
+      reviews = reviews.filter((r) => r.rating >= 4);
     }
 
     // Recency filter (approximate from relativeTime string)
@@ -253,14 +258,17 @@ export default function ReviewsPage() {
       });
     }
 
-    // Sort
+    // Sort. Google is asked for newest first server-side, but sorting by the
+    // returned timestamp here prevents a provider-ordering regression from
+    // putting an older review on top.
     if (sortBy === "Highest Rated") {
-      reviews.sort((a, b) => b.rating - a.rating || b.text.length - a.text.length);
+      reviews.sort((a, b) => b.rating - a.rating || b.time - a.time || b.text.length - a.text.length);
+    } else {
+      reviews.sort((a, b) => b.time - a.time);
     }
-    // "Most Recent" is the default API order
 
     return reviews;
-  }, [reviewData, serviceFilter, starFilter, recencyFilter, sortBy]);
+  }, [reviewData, serviceFilter, starFilter, showAllRatings, recencyFilter, sortBy]);
 
   // JSON-LD schema
   const reviewSchema = {
@@ -373,7 +381,7 @@ export default function ReviewsPage() {
                 <span className="text-[#FDB913]">Cleveland Drivers</span>
               </h1>
               <p className="mt-4 text-foreground/50 text-lg font-heading tracking-wide uppercase">
-                {totalCount.toLocaleString()}+ reviews | {avgRating} average | unfiltered Google data
+                {totalCount.toLocaleString()}+ reviews | {avgRating} average | live Google data
               </p>
             </FadeIn>
           </div>
@@ -498,10 +506,26 @@ export default function ReviewsPage() {
               {/* Star filter */}
               <div className="flex items-center gap-1.5">
                 <span className="text-[12px] text-foreground/40 mr-1">Stars:</span>
+                <button
+                  onClick={() => {
+                    setStarFilter(null);
+                    setShowAllRatings((value) => !value);
+                  }}
+                  className={`px-2.5 py-1 rounded-full text-xs transition-all ${
+                    showAllRatings && starFilter === null
+                      ? "bg-[#FDB913] text-black font-medium"
+                      : "bg-white/5 text-foreground/40 hover:bg-white/10 border border-white/10"
+                  }`}
+                >
+                  All ratings
+                </button>
                 {[5, 4, 3, 2, 1].map((s) => (
                   <button
                     key={s}
-                    onClick={() => setStarFilter(starFilter === s ? null : s)}
+                    onClick={() => {
+                      setStarFilter(starFilter === s ? null : s);
+                      setShowAllRatings(starFilter === s ? false : true);
+                    }}
                     className={`flex items-center gap-0.5 px-2.5 py-1 rounded-full text-xs transition-all ${
                       starFilter === s
                         ? "bg-[#FDB913] text-black font-medium"
@@ -555,11 +579,12 @@ export default function ReviewsPage() {
             <div className="mb-6 flex items-center justify-between">
               <p className="text-sm text-foreground/50">
                 {isLoading ? "Loading reviews..." : `${filteredReviews.length} reviews`}
-                {(serviceFilter !== "All" || starFilter !== null || recencyFilter !== "Most Recent") && (
+                {(serviceFilter !== "All" || starFilter !== null || showAllRatings || recencyFilter !== "Most Recent") && (
                   <button
                     onClick={() => {
                       setServiceFilter("All");
                       setStarFilter(null);
+                      setShowAllRatings(false);
                       setRecencyFilter("Most Recent");
                     }}
                     className="ml-3 text-[#FDB913] text-xs hover:underline"
