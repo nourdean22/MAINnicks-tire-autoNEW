@@ -77,7 +77,6 @@ apps/statenour/public/manifest-mobile.json
 .syncpackrc.json
 apps/statenour/.claude/launch.json
 apps/statenour/cowork-plugin.json
-apps/statenour/local-agent/eufy-ws-config.json
 
 # --- Plugin descriptors (last30days-skill/mcp/manifest.json DOES produce nodes) ---
 last30days-skill/.claude-plugin/*.json
