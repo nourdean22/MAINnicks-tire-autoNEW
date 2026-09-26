@@ -3175,5 +3175,3 @@ export async function runTierJobByName(jobName: string): Promise<{ status: strin
   const allNames = tiers.flatMap(t => t.jobs.map(j => j.name));
   return { status: "not_found", details: `Job "${jobName}" not found. Available: ${allNames.join(", ")}` };
 }
-
-[executed on device: NattyNour (fb18de09-5ec0-444d-bcdd-33f7e867ac82)]
