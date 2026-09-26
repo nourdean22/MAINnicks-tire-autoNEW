@@ -18,6 +18,19 @@ name: Prerender refresh
 # allow GitHub Actions IPs.
 
 on:
+  push:
+    branches: [main]
+    paths:
+      # Public source changed: refresh crawler HTML immediately instead of
+      # waiting for Monday. The refresh commit only touches prerendered/ and
+      # the thin-page baseline, neither of which is in this path set, so it
+      # cannot recursively trigger itself.
+      - "apps/nickstire/client/src/pages/**"
+      - "apps/nickstire/client/src/components/**"
+      - "apps/nickstire/client/src/App.tsx"
+      - "apps/nickstire/shared/**"
+      - "apps/nickstire/server/google-reviews.ts"
+      - ".github/workflows/prerender-refresh.yml"
   schedule:
     - cron: "0 8 * * 1"        # Mondays, 08:00 UTC
   workflow_dispatch: {}          # manual "Run workflow" button
