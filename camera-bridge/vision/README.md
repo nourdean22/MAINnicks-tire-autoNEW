@@ -163,3 +163,40 @@ licence separately, because they are not the same question:
 - **D-FINE pretrained weights** are **not** vendored: the distributed-weights licence
   (Objects365-derived) was unresolved as of 2026-08-19. Repository licence is not weight
   licence, which is why this list separates the two.
+
+
+## Outside-service recognition: shadow evidence before authority
+
+Nick's can legitimately service a vehicle outside the indoor bays (for example tire, plug, or
+jack work). The deterministic geometry layer can prove that a vehicle arrived, entered a
+calibrated bay, exited it, or departed. It **cannot** infer that a stationary no-bay vehicle is
+"waiting" or "being serviced" from geometry alone.
+
+The first production-safe layer therefore does two separate things:
+
+1. **NO_BAY_ACTIVITY_REVIEW** — when a confirmed arrival has remained *observably stationary*
+   outside every calibrated bay for `--service-review-seconds` (30s default), the existing
+   bounded hard-case recorder saves one pre/post clip. This label means only "ambiguous and
+   worth review." It intentionally gathers both waiting/parking negatives and real outside-
+   service positives.
+2. **OutsideServiceShadow** — `vision/service_shadow.py` accepts auxiliary cues from an
+   open-vocabulary detector or video reasoner and emits `OUTSIDE_SERVICE_CANDIDATE` only
+   after all of these persist around the same vehicle: no bay, stationary dwell, nearby
+   person/technician, nearby mechanical cue, and temporal repetition.
+
+The returned `evidence_support` is a deterministic sorting score, **not a probability**.
+`ServiceEvidenceLedger` writes candidate metadata as `authority=shadow_only`. Neither the
+shadow scorer nor its ledger imports or mutates VisitTracker/BayLatch/shop state.
+
+This split is deliberate: local hard-case clips become the test set that a future Grounded
+SAM 2 / video-MLLM sidecar must pass. A model earns authority from measured precision on
+Nick's actual camera/weather/work patterns; installing a newer model does not grant it truth.
+
+Operational corpus sampling can be disabled with:
+
+```text
+--service-review-seconds 0
+```
+
+or tuned with `EDGE_SERVICE_REVIEW_SECONDS`. This changes only when a review clip is sampled,
+not any customer/visit/service classification.
