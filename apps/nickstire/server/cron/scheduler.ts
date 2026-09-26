@@ -20,6 +20,7 @@
 
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
+import { DECLINED_RECOVERY_WINDOW_DAYS } from "@shared/const";
 import { acquireCronLock, releaseCronLock, jobTimeoutMs, beginCronDrain, isCronDraining, trackCronRun } from "./index";
 import { claimStartupPass, describeStartup, readLastRunAgeMs, startupAllowanceMs, type StartupClaim } from "./tierStartup";
 import { createWallClockRunner, isWallClockTier, startWallClockLoop } from "./wallClockTiers";
@@ -2213,6 +2214,32 @@ function buildTiers(): void {
         handler: async () => {
           const { processWarrantyAlerts } = await import("./jobs/warrantyAlerts");
           return processWarrantyAlerts();
+        },
+      },
+      {
+        /*
+         * Q-37 · the estimate -> invoice matcher, on a schedule. It used to run
+         * only inside runEstimateMirror(), i.e. only after a demand-driven ALG
+         * probe logged in AND fetched estimates — so an auth failure or an empty
+         * fetch left already-mirrored invoices unmatched, and the next job reads
+         * "unmatched" as "declined". The match is local (alg_estimates x
+         * invoices); it makes no ALG call and contacts no one.
+         *
+         * ORDER MATTERS: tier jobs run sequentially, and this sits immediately
+         * BEFORE alg-declined-work-recovery so every send decision sees that
+         * day's matches. Pinned by estimateInvoiceMatch.test.ts.
+         */
+        name: "estimate-invoice-match",
+        handler: async () => {
+          const { backfillMatches } = await import("../services/shopDriverEstimateSync");
+          const r = await backfillMatches({ sinceDays: DECLINED_RECOVERY_WINDOW_DAYS });
+          if (r.scanned === 0) {
+            return { recordsProcessed: 0, details: `no unmatched estimates in the last ${DECLINED_RECOVERY_WINDOW_DAYS}d` };
+          }
+          return {
+            recordsProcessed: r.matched,
+            details: `matched ${r.matched} of ${r.scanned} unmatched · ambiguous ${r.ambiguous} · no phone ${r.skippedNoPhone}`,
+          };
         },
       },
       {
