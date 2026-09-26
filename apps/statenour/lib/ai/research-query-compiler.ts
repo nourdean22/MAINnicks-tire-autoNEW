@@ -16,7 +16,7 @@ const GENERAL_PREFIX = /^\s*(?:drq\s*:|\/drq\b)/i;
 
 const NATURAL_COMPILER_PATTERNS = [
   /\b(?:write|make|build|create|rewrite|turn|convert|improve|upgrade)\b[\s\S]{0,80}\b(?:deep[- ]?research|research)\b[\s\S]{0,50}\b(?:prompt|query|brief)\b/i,
-  /\b(?:deep[- ]?research|research)\b[\s\S]{0,50}\b(?:prompt|query|brief)\b[\s\S]{0,80}\b(?:for|from|about|out of)\b/i,
+  /\b(?:deep[- ]?research|research)\s+(?:prompt|brief)\b[\s\S]{0,80}\b(?:for|from|about|out of)\b/i,
 ];
 
 export function detectResearchCompilerMode(
