@@ -2,9 +2,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mocks for third-party integrations
 const mockSendSms = vi.fn().mockResolvedValue({ success: true, sid: "SM_test_123" });
+const mockMarkPhoneFullyOptedOut = vi.fn().mockResolvedValue(true);
+const mockMarkPhoneOptedIn = vi.fn();
+const mockLoadSuppressionIndex = vi.fn().mockResolvedValue({ ok: true, phones: new Set<string>() });
 vi.mock("../sms", () => ({
   sendSms: (...args: any[]) => mockSendSms(...args),
   withOptOut: (body: string) => body,
+  markPhoneFullyOptedOut: (...args: any[]) => mockMarkPhoneFullyOptedOut(...args),
+  markPhoneOptedIn: (...args: any[]) => mockMarkPhoneOptedIn(...args),
+  loadSuppressionIndex: (...args: any[]) => mockLoadSuppressionIndex(...args),
+}));
+
+const mockLogSmsOptOut = vi.fn().mockResolvedValue(undefined);
+const mockLogSmsOptIn = vi.fn().mockResolvedValue(undefined);
+vi.mock("../services/complianceLog", () => ({
+  logSmsOptOut: (...args: any[]) => mockLogSmsOptOut(...args),
+  logSmsOptIn: (...args: any[]) => mockLogSmsOptIn(...args),
 }));
 
 const mockDraftSmsReply = vi.fn().mockResolvedValue({ ok: true, draft: "Hi! Used tires are $60 installed.", source: "fallback-claude", latencyMs: 100 });
@@ -27,6 +40,7 @@ const mockInsertId = { id: 42 };
 
 let mockRolloutGlobalMode: string | undefined = undefined;
 let mockRolloutEventMode: string | undefined = undefined;
+let mockDbAvailable = true;
 let mockResolvedValues: any[] = [];
 let mockTableResponses: Record<string, any> = {};
 
@@ -129,8 +143,8 @@ const mockDb = {
 };
 
 vi.mock("../db", () => ({
-  getDbTyped: () => Promise.resolve(mockDb),
-  getDb: () => Promise.resolve(mockDb),
+  getDbTyped: () => Promise.resolve(mockDbAvailable ? mockDb : null),
+  getDb: () => Promise.resolve(mockDbAvailable ? mockDb : null),
 }));
 
 const mockNotifyOwner = vi.fn().mockResolvedValue(true);
@@ -168,6 +182,7 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     mockDb._appSecretKvQueryCount = 0;
     mockRolloutGlobalMode = undefined;
     mockRolloutEventMode = undefined;
+    mockDbAvailable = true;
     mockResolvedValues = [];
     mockTableResponses = {
       customers: [{ id: 1, firstName: "John", smsOptOut: 0 }],
@@ -832,6 +847,46 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     expect(res.status).toBe("sent");
     expect(res.variantKey).toBe("legacy");
     expect(mockSendSms).toHaveBeenCalledWith("+12165550032", "Legacy message body here", expect.objectContaining({ variantKey: "legacy" }));
+  });
+
+  it("Q43 safety: legacy passthrough cannot bypass a plain-English revocation", async () => {
+    mockRolloutGlobalMode = "legacy_passthrough";
+
+    const res = await orchestrateSms({
+      type: "inbound_sms",
+      phone: "2165550137",
+      body: "please stop texting me",
+      conversationId: 137,
+      idempotencyKey: "resp:q43-legacy-stop",
+    });
+
+    expect(res.variantKey).toBe("legacy");
+    expect(mockMarkPhoneFullyOptedOut).toHaveBeenCalledWith("+12165550137");
+    expect(mockLogSmsOptOut).toHaveBeenCalledWith(expect.objectContaining({
+      phone: "+12165550137",
+      ledgerScope: "all",
+      ledgerMethod: "sms_reply",
+      evidenceRef: "sms:resp:q43-legacy-stop",
+    }));
+  });
+
+  it("Q43 safety: no database cannot bypass a plain-English revocation", async () => {
+    mockDbAvailable = false;
+
+    const res = await orchestrateSms({
+      type: "inbound_sms",
+      phone: "2165550138",
+      body: "do not contact me",
+      conversationId: 138,
+      idempotencyKey: "resp:q43-nodb-stop",
+    });
+
+    expect(res.variantKey).toBe("legacy");
+    expect(mockMarkPhoneFullyOptedOut).toHaveBeenCalledWith("+12165550138");
+    expect(mockLogSmsOptOut).toHaveBeenCalledWith(expect.objectContaining({
+      phone: "+12165550138",
+      evidenceRef: "sms:resp:q43-nodb-stop",
+    }));
   });
 
   // 33. Variant experiment assignment

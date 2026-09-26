@@ -98,11 +98,20 @@ export async function logSmsOptIn(params: {
 }): Promise<void> {
   const normalized = normalizePhone(params.phone);
   if (!normalized) return;
-  // Write-through so a consent given SECONDS ago is honored by the next
-  // marketing send instead of waiting out the index TTL. Without this, a
-  // customer who just ticked the box on the booking form could be refused
-  // a message they explicitly asked for, for up to five minutes.
-  consentCache?.add(normalized.slice(-10));
+  const ledgerMode = getConsentLedgerMode();
+  const ledgerScope =
+    params.ledgerScope ?? (params.source.startsWith("start_keyword:") ? "all" : "sms_informational");
+
+  // The cache means two different things across rollout modes:
+  // - off: legacy audit_log opt-in evidence, where every recorded opt-in was
+  //   historically treated as marketing-capable;
+  // - ledger enabled: ONLY derived sms_marketing grants.
+  //
+  // Never write an informational grant into the derived marketing cache. In
+  // ledger modes we invalidate after the durable evidence attempt so the next
+  // send reloads the scope-aware projection; that fails safe if persistence did
+  // not succeed. In off mode preserve the existing immediate legacy behavior.
+  if (ledgerMode === "off") consentCache?.add(normalized.slice(-10));
   await insert({
     actor: normalized,
     action: ACT_SMS_OPT_IN,
@@ -119,7 +128,7 @@ export async function logSmsOptIn(params: {
     await appendConsentEvent({
       subjectType: "phone",
       subjectKey: normalized,
-      scope: params.ledgerScope ?? (params.source.startsWith("start_keyword:") ? "all" : "sms_informational"),
+      scope: ledgerScope,
       action: "grant",
       source: params.source,
       method: params.ledgerMethod ?? (params.source.startsWith("start_keyword:") ? "sms_reply" : "web_submit_implicit"),
@@ -128,6 +137,10 @@ export async function logSmsOptIn(params: {
       userAgent: params.userAgent,
       actor: `system:${params.source.slice(0, 80)}`,
     });
+  }
+  if (ledgerMode !== "off") {
+    consentCache = null;
+    consentCacheLoadedAt = 0;
   }
 }
 

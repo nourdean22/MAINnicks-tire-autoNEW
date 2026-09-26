@@ -18,18 +18,26 @@ describe("Q-43 consent ledger production wiring", () => {
     expect(sms).toMatch(/NOT EXISTS[\s\S]*START','UNSTOP','YES'[\s\S]*mi\.createdAt > m\.createdAt/);
   });
 
-  it("handles explicit inbound consent before customer suppression context with stable evidence identity", () => {
+  it("handles explicit inbound consent before rollout and suppression gates with stable evidence identity", () => {
     const orchestrator = read("services/smsOrchestrator.ts");
     const responseJobs = read("services/smsResponseJobs.ts");
     const consentBlock = orchestrator.indexOf("Q-43: resolve explicit consent changes BEFORE suppression/context gates");
+    const rolloutGate = orchestrator.indexOf("// ─── 0. Check Rollout Controls & Modes ───");
     const contextLoad = orchestrator.indexOf("ctx = await loadCustomerContext(normalizedPhone)");
     expect(consentBlock).toBeGreaterThan(-1);
+    expect(rolloutGate).toBeGreaterThan(consentBlock);
     expect(contextLoad).toBeGreaterThan(consentBlock);
     expect(orchestrator).toContain('ledgerScope: "all"');
     expect(orchestrator).toContain('ledgerMethod: "sms_reply"');
     expect(orchestrator).toContain("event.idempotencyKey");
     expect(responseJobs).toContain("idempotencyKey: responseIdempotencyKey(input)");
     expect(responseJobs).toContain("idempotencyKey: `sms_response_job:${job.id}`");
+  });
+
+  it("keeps the marketing consent cache purpose-scoped once ledger rollout is enabled", () => {
+    const compliance = read("services/complianceLog.ts");
+    expect(compliance).toContain('if (ledgerMode === "off") consentCache?.add(normalized.slice(-10))');
+    expect(compliance).toMatch(/if \(ledgerMode !== "off"\) \{[\s\S]*consentCache = null;[\s\S]*consentCacheLoadedAt = 0;/);
   });
 
   it("attaches stable Vapi evidence and preserves Q-45 scope", () => {

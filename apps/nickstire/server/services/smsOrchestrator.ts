@@ -712,6 +712,91 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
     }
   }
 
+  // Q-43 safety invariant: explicit inbound STOP/START is processed BEFORE
+  // every rollout/legacy exit. Rollout controls decide what automation sends;
+  // they must never decide whether a customer's revocation is honored.
+  // Q-43: resolve explicit consent changes BEFORE suppression/context gates.
+  // A freshly persisted STOP can itself make loadCustomerContext report this
+  // number as opted out, so waiting until the parser below would skip the
+  // compliance event. Likewise START must clear suppression before the early
+  // "already opted out" return. This block is deliberately deterministic and
+  // idempotent; the ledger's subject/source/evidence unique key collapses a
+  // retry of the same orchestration.
+  if (event.type === "inbound_sms") {
+    const keyword = event.body.trim().toUpperCase().replace(/\s+/g, " ");
+    const parsedConsent = parseSmsResponse(event.body);
+    const evidenceRef = event.idempotencyKey
+      ? `sms:${event.idempotencyKey}`
+      : orchestrationId
+        ? `sms_orchestration:${orchestrationId}`
+        : `sms_conversation:${event.conversationId}:${Date.now()}`;
+
+    if (parsedConsent.intent === "unsubscribe" || parsedConsent.autoAction === "unsubscribe-customer") {
+      try {
+        const { markPhoneFullyOptedOut } = await import("../sms");
+        const persisted = await markPhoneFullyOptedOut(normalizedPhone);
+        if (!persisted) {
+          log.error("[smsOrchestrator] explicit opt-out was cached but durable preference write failed", {
+            customerPhoneSuffix: normalizedPhone.slice(-4),
+            errorId: "SMS_OPT_OUT_PERSIST_FAILED",
+          });
+        }
+        if (db && phone10.length === 10) {
+          await db.update(customers).set({ smsOptOut: 1 }).where(like(customers.phone, `%${phone10}`));
+        }
+        const { logSmsOptOut } = await import("./complianceLog");
+        await logSmsOptOut({
+          phone: normalizedPhone,
+          via: "keyword",
+          keyword: event.body,
+          evidenceRef,
+          ledgerScope: "all",
+          ledgerMethod: "sms_reply",
+        });
+      } catch (err) {
+        // The in-process suppression write happens before its first await;
+        // never let evidence persistence make the inbound reply disappear.
+        log.error("[smsOrchestrator] explicit opt-out evidence write failed", {
+          customerPhoneSuffix: normalizedPhone.slice(-4),
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    } else if ((SMS_OPT_IN_KEYWORDS as readonly string[]).includes(keyword)) {
+      let shouldOptIn = keyword !== "YES";
+      if (keyword === "YES") {
+        try {
+          const { loadSuppressionIndex } = await import("../sms");
+          const index = await loadSuppressionIndex();
+          shouldOptIn = index.ok && index.phones.has(phone10);
+        } catch {
+          shouldOptIn = false;
+        }
+      }
+      if (shouldOptIn) {
+        try {
+          const { markPhoneOptedIn } = await import("../sms");
+          markPhoneOptedIn(normalizedPhone);
+          if (db && phone10.length === 10) {
+            await db.update(customers).set({ smsOptOut: 0 }).where(like(customers.phone, `%${phone10}`));
+          }
+          const { logSmsOptIn } = await import("./complianceLog");
+          await logSmsOptIn({
+            phone: normalizedPhone,
+            source: `start_keyword:${keyword}`,
+            evidenceRef,
+            ledgerScope: "all",
+            ledgerMethod: "sms_reply",
+          });
+        } catch (err) {
+          log.error("[smsOrchestrator] explicit opt-in evidence write failed", {
+            customerPhoneSuffix: normalizedPhone.slice(-4),
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
+  }
+
   // ─── 0. Check Rollout Controls & Modes ───
   const rolloutMode = await getRolloutMode(event.type);
 
@@ -855,88 +940,6 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
   // ─── Start standard Orchestrator Logic ───
   let ctx: CustomerContext = { phone: normalizedPhone };
   try {
-    // Q-43: resolve explicit consent changes BEFORE suppression/context gates.
-    // A freshly persisted STOP can itself make loadCustomerContext report this
-    // number as opted out, so waiting until the parser below would skip the
-    // compliance event. Likewise START must clear suppression before the early
-    // "already opted out" return. This block is deliberately deterministic and
-    // idempotent; the ledger's subject/source/evidence unique key collapses a
-    // retry of the same orchestration.
-    if (event.type === "inbound_sms") {
-      const keyword = event.body.trim().toUpperCase().replace(/\s+/g, " ");
-      const parsedConsent = parseSmsResponse(event.body);
-      const evidenceRef = event.idempotencyKey
-        ? `sms:${event.idempotencyKey}`
-        : orchestrationId
-          ? `sms_orchestration:${orchestrationId}`
-          : `sms_conversation:${event.conversationId}:${Date.now()}`;
-
-      if (parsedConsent.intent === "unsubscribe" || parsedConsent.autoAction === "unsubscribe-customer") {
-        try {
-          const { markPhoneFullyOptedOut } = await import("../sms");
-          const persisted = await markPhoneFullyOptedOut(normalizedPhone);
-          if (!persisted) {
-            log.error("[smsOrchestrator] explicit opt-out was cached but durable preference write failed", {
-              customerPhoneSuffix: normalizedPhone.slice(-4),
-              errorId: "SMS_OPT_OUT_PERSIST_FAILED",
-            });
-          }
-          if (db && phone10.length === 10) {
-            await db.update(customers).set({ smsOptOut: 1 }).where(like(customers.phone, `%${phone10}`));
-          }
-          const { logSmsOptOut } = await import("./complianceLog");
-          await logSmsOptOut({
-            phone: normalizedPhone,
-            via: "keyword",
-            keyword: event.body,
-            evidenceRef,
-            ledgerScope: "all",
-            ledgerMethod: "sms_reply",
-          });
-        } catch (err) {
-          // The in-process suppression write happens before its first await;
-          // never let evidence persistence make the inbound reply disappear.
-          log.error("[smsOrchestrator] explicit opt-out evidence write failed", {
-            customerPhoneSuffix: normalizedPhone.slice(-4),
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      } else if ((SMS_OPT_IN_KEYWORDS as readonly string[]).includes(keyword)) {
-        let shouldOptIn = keyword !== "YES";
-        if (keyword === "YES") {
-          try {
-            const { loadSuppressionIndex } = await import("../sms");
-            const index = await loadSuppressionIndex();
-            shouldOptIn = index.ok && index.phones.has(phone10);
-          } catch {
-            shouldOptIn = false;
-          }
-        }
-        if (shouldOptIn) {
-          try {
-            const { markPhoneOptedIn } = await import("../sms");
-            markPhoneOptedIn(normalizedPhone);
-            if (db && phone10.length === 10) {
-              await db.update(customers).set({ smsOptOut: 0 }).where(like(customers.phone, `%${phone10}`));
-            }
-            const { logSmsOptIn } = await import("./complianceLog");
-            await logSmsOptIn({
-              phone: normalizedPhone,
-              source: `start_keyword:${keyword}`,
-              evidenceRef,
-              ledgerScope: "all",
-              ledgerMethod: "sms_reply",
-            });
-          } catch (err) {
-            log.error("[smsOrchestrator] explicit opt-in evidence write failed", {
-              customerPhoneSuffix: normalizedPhone.slice(-4),
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
-      }
-    }
-
     ctx = await loadCustomerContext(normalizedPhone);
     
     // Assign Journey ID
