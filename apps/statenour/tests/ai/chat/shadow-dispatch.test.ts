@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => {
     runMarketingDirector: vi.fn(),
     streamWithFallback: vi.fn(),
     buildChatResponse: vi.fn(),
+    runInterceptors: vi.fn(),
+    runAlternatePaths: vi.fn(),
     prisma: {
       systemMetric: mockPrismaModel,
       aiGeneration: mockPrismaModel,
@@ -119,6 +121,9 @@ vi.mock("@/app/api/ai/chat/finalize-system-prompt", () => ({
 vi.mock("@/app/api/ai/chat/build-model-messages", () => ({
   buildModelMessages: vi.fn().mockResolvedValue([]),
 }));
+vi.mock("@/app/api/ai/chat/alternate-paths", () => ({
+  runAlternatePaths: mocks.runAlternatePaths,
+}));
 
 // Mock all internal chatPostInner dependencies to avoid network/DB/LLM execution
 vi.mock("@/lib/ai/tool-embeddings", () => ({
@@ -176,7 +181,7 @@ vi.mock("@/lib/ai/business-knowledge", () => ({
   detectContentIntent: vi.fn().mockReturnValue(false),
 }));
 vi.mock("@/lib/ai/chat/interceptors", () => ({
-  runInterceptors: vi.fn().mockResolvedValue({ kind: "unhandled" }),
+  runInterceptors: mocks.runInterceptors,
 }));
 vi.mock("@/lib/services/chat/persist-user-turn", () => ({
   persistUserTurn: vi.fn().mockResolvedValue("conv-123"),
@@ -214,6 +219,8 @@ describe("POST /api/ai/chat dispatcher shadow mode", () => {
     mocks.requireSession.mockResolvedValue({});
     mocks.checkAiRateLimit.mockReturnValue(null);
     mocks.assertWithinBudget.mockResolvedValue({ ok: true });
+    mocks.runInterceptors.mockResolvedValue({ kind: "unhandled" });
+    mocks.runAlternatePaths.mockResolvedValue(null);
     
     mocks.runGate.mockResolvedValue({
       kind: "pass",
@@ -286,6 +293,28 @@ describe("POST /api/ai/chat dispatcher shadow mode", () => {
     expect(await response.text()).toBe("general path response");
 
     // Prove no real provider function or network request executes
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps explicit DRQ compiler turns out of action interceptors and alternate execution lanes", async () => {
+    mocks.runGate.mockResolvedValue({
+      kind: "pass",
+      body: {},
+      messages: [{ role: "user", content: "DRQ: create a logo research prompt comparing approaches" }],
+      conversationId: "conv-123",
+      userContent: "DRQ: create a logo research prompt comparing approaches",
+      personality: "master",
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/ai/chat", { method: "POST" }),
+    );
+
+    expect(mocks.runInterceptors).not.toHaveBeenCalled();
+    expect(mocks.runAlternatePaths).not.toHaveBeenCalled();
+    expect(mocks.runMarketingDirector).not.toHaveBeenCalled();
+    expect(mocks.streamWithFallback).toHaveBeenCalled();
+    expect(await response.text()).toBe("general path response");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

@@ -27,6 +27,7 @@ import type { detectQueryShape } from "@/lib/ai/query-shape";
 import type { getAiConfig } from "@/lib/settings/ai-config";
 import type { detectActionIntent } from "@/lib/ai/chat/action-intent-detector";
 import type { logger as rootLogger } from "@/lib/logger";
+import type { ResearchCompilerMode } from "@/lib/ai/research-query-compiler";
 
 type Logger = ReturnType<typeof rootLogger.withSurface>;
 
@@ -89,6 +90,8 @@ export async function prepareTools(args: {
   finalSystemPromptLength: number;
   /** WP-14 · read-mode hard enforcement strips mutating tools LAST. */
   actionPermission?: string;
+  /** Prompt-compilation turns must be structurally unable to research or act. */
+  researchCompilerMode?: ResearchCompilerMode | null;
   /** Current turn identity for selection and recovery telemetry. */
   traceId?: string;
   conversationId?: string;
@@ -105,6 +108,7 @@ export async function prepareTools(args: {
     queryShape,
     finalSystemPromptLength,
     actionPermission,
+    researchCompilerMode = null,
     traceId,
     conversationId,
     log,
@@ -144,19 +148,21 @@ export async function prepareTools(args: {
     .join("\n")
     .slice(-1500);
 
-  let prunedTools = (await pruneTools(
-    mode,
-    nourTools as unknown as Record<string, unknown>,
-    userContent,
-    userEmbedding,
-    { conversationTail, turnId: traceId, conversationId }
-  )) as typeof nourTools;
+  let prunedTools = researchCompilerMode
+    ? ({} as typeof nourTools)
+    : (await pruneTools(
+        mode,
+        nourTools as unknown as Record<string, unknown>,
+        userContent,
+        userEmbedding,
+        { conversationTail, turnId: traceId, conversationId }
+      )) as typeof nourTools;
 
   // Apply the AI config's tool blocklist (#13). Tools in
   // ai_config.disabledTools are NEVER loaded regardless of mode —
   // used for disabling broken or unused tools without editing
   // nourTools.
-  if (aiConfig?.disabledTools && aiConfig.disabledTools.length > 0) {
+  if (!researchCompilerMode && aiConfig?.disabledTools && aiConfig.disabledTools.length > 0) {
     const filtered = { ...prunedTools } as Record<string, unknown>;
     for (const blocked of aiConfig.disabledTools) {
       delete filtered[blocked];
@@ -167,7 +173,7 @@ export async function prepareTools(args: {
   // have dropped them (quick mode, for example). Record the policy reason
   // even when the pruner happened to include the tool already: provenance is
   // about why the runtime guaranteed availability, not which branch assigned it.
-  if (aiConfig?.alwaysOnTools && aiConfig.alwaysOnTools.length > 0) {
+  if (!researchCompilerMode && aiConfig?.alwaysOnTools && aiConfig.alwaysOnTools.length > 0) {
     const forced = { ...prunedTools } as Record<string, unknown>;
     const all = nourTools as unknown as Record<string, unknown>;
     for (const name of aiConfig.alwaysOnTools) {
@@ -183,7 +189,7 @@ export async function prepareTools(args: {
   // that was a heuristic patch, this is the recovery path). searchTools
   // finds pruned-out tools; invokeTool runs READ-SAFE ones only, so no
   // approval/mutation gate is bypassed. Respects the operator blocklist.
-  {
+  if (!researchCompilerMode) {
     const all = nourTools as unknown as Record<string, unknown>;
     const disabled = new Set(aiConfig?.disabledTools ?? []);
     const forced = { ...prunedTools } as Record<string, unknown>;
@@ -204,7 +210,7 @@ export async function prepareTools(args: {
   // Respects the disabledTools blocklist above (never re-add a tool the
   // operator deliberately disabled). expectedTool may be a "toolA|toolB"
   // alternation (action-claim-detector), so split on "|".
-  if (actionIntent?.expectedTool) {
+  if (!researchCompilerMode && actionIntent?.expectedTool) {
     const all = nourTools as unknown as Record<string, unknown>;
     const disabled = new Set(aiConfig?.disabledTools ?? []);
     const forced = { ...prunedTools } as Record<string, unknown>;
@@ -218,7 +224,7 @@ export async function prepareTools(args: {
   }
   // 2026-07-15 · same coherence guarantee for the web-search force: the
   // step-0 toolChoice can only fire if the tool is in the set.
-  if (webSearchIntent) {
+  if (!researchCompilerMode && webSearchIntent) {
     const all = nourTools as unknown as Record<string, unknown>;
     const disabled = new Set(aiConfig?.disabledTools ?? []);
     const forced = { ...prunedTools } as Record<string, unknown>;
@@ -237,7 +243,7 @@ export async function prepareTools(args: {
   // mutating tool behind it. Fail-closed via the capability registry
   // (no catalog entry ⇒ stripped). The stripped list is logged — a
   // read-mode turn should say what it refused, not silently shrink.
-  if (actionPermission === "read") {
+  if (!researchCompilerMode && actionPermission === "read") {
     const { stripMutatingTools } = await import("@/lib/ai/capability-registry");
     const result = stripMutatingTools(prunedTools as Record<string, unknown>);
     prunedTools = result.tools as unknown as typeof nourTools;
@@ -251,7 +257,7 @@ export async function prepareTools(args: {
 
   // The wrapper is installed after every strip/force, so it reports only a
   // recovery capability actually handed to this model turn.
-  prunedTools = instrumentRecoveryTools(prunedTools, traceId);
+  if (!researchCompilerMode) prunedTools = instrumentRecoveryTools(prunedTools, traceId);
 
   const capabilityPlan = buildCapabilityPlan({
     registered: Object.keys(nourTools),
@@ -364,14 +370,17 @@ export async function prepareTools(args: {
   // lane are flat-rate, so the ceiling costs nothing; query-shape still clamps
   // casual and yes/no turns to 80-150, so short questions stay short and fast.
   const modeDefaultTokens = mode === "deep" ? 10000 : 6000;
-  const maxOutputTokens = queryShape.tokenBudget > 0
-    ? queryShape.tokenBudget
-    : modeDefaultTokens;
+  const maxOutputTokens = researchCompilerMode
+    ? 8000
+    : queryShape.tokenBudget > 0
+      ? queryShape.tokenBudget
+      : modeDefaultTokens;
   log.info("query_shape", {
     shape: queryShape.shape,
     maxOutputTokens,
     modeDefaultTokens,
-    toolFirst: queryShape.needsTool ? queryShape.factualHints : null,
+    toolFirst: researchCompilerMode ? null : (queryShape.needsTool ? queryShape.factualHints : null),
+    researchCompilerMode,
   });
 
   return { prunedTools, maxOutputTokens, capabilityPlan };
