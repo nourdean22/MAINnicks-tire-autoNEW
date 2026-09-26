@@ -24,6 +24,7 @@ def _track(track_id=1, *, stationary=45.0, zones=None, evidence="arrival", misse
         evidence=evidence,
         misses=misses,
         zones=list(zones or ["front_lot"]),
+        box=(100.0, 100.0, 300.0, 260.0),
         stationary_for=lambda _now: stationary,
     )
 
@@ -36,6 +37,7 @@ def _loop(track, recorder=None, *, threshold=30.0):
         bays=SimpleNamespace(bays={"bay1": object(), "bay2": object()}),
     )
     loop._last_layout_epoch = None
+    loop.camera = "shopsign"
     loop.service_review_seconds = threshold
     loop._service_review_armed = set()
     loop._service_review_attempted = {}
@@ -59,6 +61,8 @@ def test_arrived_stationary_vehicle_outside_bays_arms_one_review_clip():
     assert reason == "NO_BAY_ACTIVITY_REVIEW"
     assert context["trackId"] == 1
     assert context["stationarySeconds"] == 45.0
+    assert context["vehicleBox"] == [100.0, 100.0, 300.0, 260.0]
+    assert context["camera"] == "shopsign"
     assert "NOT proof" in context["meaning"]
 
 
