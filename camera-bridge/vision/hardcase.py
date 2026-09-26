@@ -214,6 +214,27 @@ class HardCaseRecorder:
         while len(self._buffer) > self.max_buffer_frames:
             self._buffer.popleft()
 
+    def annotate(self, ts: float, patch: Optional[dict] = None) -> bool:
+        """Attach post-vision provenance to a frame already in the rolling window.
+
+        EdgeLoop intentionally buffers pixels BEFORE vision gates so a rejected frame is not
+        lost. Some evidence (canonical track boxes/zones) only exists AFTER vision runs.
+        Updating the buffered metadata joins those two moments without buffering the image
+        twice. A miss is returned to the caller; nothing is invented.
+        """
+        if not patch:
+            return True
+        for index in range(len(self._buffer) - 1, -1, -1):
+            stored_ts, image, meta = self._buffer[index]
+            if stored_ts == ts:
+                merged = dict(meta)
+                merged.update(dict(patch))
+                self._buffer[index] = (stored_ts, image, merged)
+                return True
+            if stored_ts < ts:
+                break
+        return False
+
     def trigger(self, reason: str, at: float, context: Optional[dict] = None) -> bool:
         """Arm a clip around `at`. Returns whether it was armed.
 
@@ -320,6 +341,19 @@ class HardCaseRecorder:
                 "frameTimestamps": [round(float(ts), 6) for ts, _img, _meta in frames],
                 "context": pending.context,
             }
+            if pending.reason == "NO_BAY_ACTIVITY_REVIEW":
+                target_id = str((pending.context or {}).get("trackId", ""))
+                meta["serviceTrackObservations"] = [
+                    {
+                        "at": round(float(ts), 6),
+                        # None is evidence too: this frame did not have a trustworthy
+                        # canonical observation of the target track after vision ran.
+                        "track": dict(
+                            (((fmeta or {}).get("visionTracks") or {}).get(target_id) or {})
+                        ) or None,
+                    }
+                    for ts, _image, fmeta in frames
+                ]
             if episode is not None:
                 episode.note("/hardcase/trigger", pending.at,
                              {"reason": pending.reason, "context": pending.context})
