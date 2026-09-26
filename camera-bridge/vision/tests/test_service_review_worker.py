@@ -3,6 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
+import pytest
+
+from vision.hardcase import HardCaseRecorder
 from vision.service_review_worker import (
     analyze_case,
     scan_cases,
@@ -23,8 +27,8 @@ class _Analyzer:
         self.fail_at = fail_at
         self.calls = []
 
-    def detect(self, image_path):
-        self.calls.append(Path(image_path).name)
+    def detect(self, image):
+        self.calls.append(Path(image).name if isinstance(image, str) else "<array>")
         if self.fail_at is not None and len(self.calls) == self.fail_at:
             raise RuntimeError("synthetic analyzer failure")
         return list(self.cues)
@@ -161,3 +165,50 @@ def test_batch_is_idempotent_per_analyzer_unless_forced(tmp_path):
     assert first.cases_processed == 1
     assert second.cases_skipped_existing == 1
     assert len(analyzer.calls) == calls_after_first
+
+def test_replace_mode_mcap_is_reviewable_after_numbered_jpegs_are_deleted(tmp_path):
+    pytest.importorskip("mcap")
+    rec = HardCaseRecorder(
+        directory=str(tmp_path),
+        before_seconds=8.0,
+        after_seconds=10.0,
+        episodes="replace",
+    )
+    timestamps = [995.0, 999.0, 1000.0, 1003.0, 1007.0, 1010.0]
+    for index, ts in enumerate(timestamps):
+        image = np.full((48, 64, 3), index * 20, dtype=np.uint8)
+        rec.observe(ts, image, {"window_verified": True})
+    assert rec.trigger(
+        "NO_BAY_ACTIVITY_REVIEW",
+        1000.0,
+        {
+            "trackId": 7,
+            "vehicleBox": VEHICLE,
+            "stationarySeconds": 45.0,
+            "zones": ["front_lot"],
+            "bayNames": ["bay1", "bay2"],
+            "camera": "shopsign",
+            "evidence": "arrival",
+        },
+    )
+    paths = rec.flush_all(1020.0)
+    assert len(paths) == 1
+    case_dir = Path(paths[0])
+    assert (case_dir / "episode.mcap").is_file()
+    assert not list(case_dir.glob("*.jpg")), "replace mode did not delete verified duplicate JPEGs"
+
+    analyzer = _Analyzer([PERSON, JACK])
+    result = analyze_case(
+        case_dir,
+        analyzer=analyzer,
+        ledger=ServiceEvidenceLedger(str(tmp_path / "service-evidence.jsonl")),
+        every_seconds=3.0,
+    )
+
+    assert result.status == "ok"
+    assert result.state == "OUTSIDE_SERVICE_CANDIDATE"
+    assert result.candidate_written
+    assert analyzer.calls == ["<array>", "<array>", "<array>", "<array>"]
+    receipt = json.loads((case_dir / "service-review.json").read_text(encoding="utf-8"))
+    assert receipt["frameSource"] == "mcap"
+
