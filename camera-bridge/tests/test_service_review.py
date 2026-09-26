@@ -9,6 +9,11 @@ class _Recorder:
     def __init__(self, accept=True):
         self.accept = accept
         self.fired = []
+        self.annotations = []
+
+    def annotate(self, at, patch=None):
+        self.annotations.append((at, patch or {}))
+        return True
 
     def trigger(self, reason, at, context=None):
         self.fired.append((reason, at, context or {}))
@@ -97,3 +102,34 @@ def test_global_cooldown_rejection_retries_later_without_spamming_each_frame():
     loop._note_hard_cases(_frame(1060.0), {})
 
     assert [x[1] for x in rec.fired] == [1000.0, 1060.0]
+
+def test_post_vision_annotation_carries_current_track_truth_to_buffer():
+    rec = _Recorder()
+    track = _track()
+    loop = _loop(track, rec)
+
+    loop._annotate_hard_case_vision(_frame(1000.0), {"suppressed": None})
+
+    assert len(rec.annotations) == 1
+    at, patch = rec.annotations[0]
+    assert at == 1000.0
+    snap = patch["visionTracks"]["1"]
+    assert snap["trackId"] == 1
+    assert snap["box"] == [100.0, 100.0, 300.0, 260.0]
+    assert snap["zones"] == ["front_lot"]
+    assert snap["evidence"] == "arrival"
+    assert snap["misses"] == 0
+    assert snap["stationarySeconds"] == 45.0
+
+
+def test_suppressed_frame_gets_no_canonical_track_snapshot():
+    rec = _Recorder()
+    loop = _loop(_track(), rec)
+
+    loop._annotate_hard_case_vision(
+        _frame(1000.0),
+        {"suppressed": "no motion: detector skipped, tracks held"},
+    )
+
+    assert rec.annotations == []
+
