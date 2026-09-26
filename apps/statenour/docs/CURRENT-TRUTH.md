@@ -36,10 +36,14 @@
 - **#2681 is cross-agent memory, not a StateNour app deploy.** It adds/updates `NOUR-COMMAND.md`,
   `docs/agent-os/NOUR-RUNTIME-KERNEL.md`, the intelligence-context hook, and its tests so coding agents inherit the same
   outcome/truth/completion posture. It does not change bdnick.info runtime code.
-- **Still owed:** read post-#2680 `verified_regen_path` / `chat.pre_stream_regen` telemetry after enough real weak drafts
-  exist. The implementation and deployment are proven; the production *repair win rate* is not yet. Evidence-gate enforcement
-  also remains a separate question: its shadow cohort was not a promote signal on 2026-09-23, so do not conflate the new
-  quality repair selector with promoting the evidence gate itself.
+- **Still owed:** read post-#2680 `verified_regen_path` logs after enough real weak drafts exist. This is the
+  live proof source today: it emits `regenFired`, `regenAttempted`, `regenWasBetter`, `selectionReason`,
+  `firstOverall`, `firstSeverity`, `regenOverall`, `regenSeverity`, and `intent`. The helper
+  `formatRegenTelemetry()` can construct a richer `chat.pre_stream_regen` metric, but **has no live caller** as of
+  2026-09-26; do not query it or claim specificity/latency deltas from production until it is actually persisted.
+  Implementation and deployment are proven; the production *repair win rate* is not yet. Evidence-gate enforcement remains
+  a separate question: its shadow cohort was not a promote signal on 2026-09-23, so do not conflate the new quality repair
+  selector with promoting the evidence gate itself.
 
 ## Since 2026-09-17 — W12, and the things that cost a session time to learn
 
