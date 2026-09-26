@@ -248,6 +248,15 @@ describe("isSpokenOptOut · the transcript safety net", () => {
     expect(isSpokenOptOut(u)).toBe(false);
   });
 
+  it.each([
+    ["Don't stop calling me, but please stop texting me.", "all"],
+    ["Don't stop texting me, but please stop calling me.", "voice"],
+    ["Please stop texting me, but don't stop calling me.", "all"],
+  ] as const)("keeps evaluating actionable clauses in mixed intent: %j", (u, scope) => {
+    expect(spokenOptOutScope(u)).toBe(scope);
+    expect(isSpokenOptOut(u)).toBe(true);
+  });
+
   it("reads only the CUSTOMER's lines — the opener itself says \"stop calling\"", () => {
     const opener = `Hi Pat, this is ${SPOKEN_BUSINESS_NAME} calling. If you'd rather we not call, just say "stop calling" at any time.`;
     expect(customerUtterances({ artifact: { messages: [{ role: "bot", message: opener }, { role: "user", message: "yeah good" }] } })).toEqual([
