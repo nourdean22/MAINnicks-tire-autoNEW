@@ -111,12 +111,13 @@ export interface PreStreamRegenResult {
  * Intents that benefit from pre-stream regen. The trade-off: regen
  * adds ~1-2s latency on the first attempt's failure path. Worth it
  * for intents where specifics matter (factual = "what's true",
- * decision = "what should I do"). NOT worth it for emotional /
- * casual where the operator cares more about flow than precision.
+ * decision = "what should I do", creative = "make this good"). NOT worth it
+ * for emotional / casual / reflective turns where flow matters more than a hidden second pass.
  */
 const REGEN_GATED_INTENTS: ReadonlySet<Intent> = new Set([
   "factual",
   "decision",
+  "creative",
   "instructional",
   "procedural",
   "analytical",
