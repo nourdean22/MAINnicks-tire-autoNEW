@@ -1406,9 +1406,11 @@ export type InsertKpiSnapshot = typeof kpiSnapshots.$inferInsert;
  * hits ShopDriver's /api/Estimate/listEstimates endpoint. Shop-protection
  * aware: only syncs when admin is active (runIfAdminActive wrapper).
  *
- * matchedInvoiceId is set during sync when we find an invoice for the
- * same customer within ±10% of the estimated amount and within 30d of
- * the estimate date.
+ * matchedInvoiceId is set by backfillMatches() when exactly one invoice for
+ * the same phone falls within MATCH_AMOUNT_TOLERANCE and MATCH_WINDOW_DAYS of
+ * the estimate (shopDriverEstimateSync.ts). It runs after each ALG estimate
+ * sync and daily as the `estimate-invoice-match` tier job (Q-37). No match is
+ * an INFERRED decline; an observed one is in declined_work_captures.
  */
 export const algEstimates = mysqlTable("alg_estimates", {
   id: int("id").autoincrement().primaryKey(),
@@ -1501,6 +1503,36 @@ export const algEstimates = mysqlTable("alg_estimates", {
 
 export type AlgEstimate = typeof algEstimates.$inferSelect;
 export type InsertAlgEstimate = typeof algEstimates.$inferInsert;
+
+// ─── DECLINED WORK · COUNTER CAPTURES (Q-37, migration 0132) ──
+/**
+ * A person at the counter recorded that the customer declined this estimate.
+ * The only OBSERVED decline for an ALG estimate; everything else is inferred from
+ * "no matching invoice" (shared/declineProvenance.ts).
+ *
+ * A separate table, not columns on alg_estimates, on purpose: drizzle's MySQL
+ * insert names EVERY column in the table definition (mysql-core/dialect.js
+ * buildInsertQuery), so a new alg_estimates column would break the estimate
+ * mirror's insert for the whole window between deploy and the hand-applied DDL.
+ * A missing table here degrades to "not enabled" (services/declineCaptures.ts).
+ *
+ * One row per estimate (unique key) — the capture is a claim, so a second tap or
+ * a second device loses the insert and reads the winner back.
+ */
+export const declinedWorkCaptures = mysqlTable("declined_work_captures", {
+  id: int("id").autoincrement().primaryKey(),
+  estimateId: int("estimate_id").notNull(),
+  /** What was quoted, snapshotted at capture (the estimate's service description). */
+  declinedItem: varchar("declined_item", { length: 500 }),
+  /** "counter" today. VARCHAR, not ENUM: an out-of-enum write loses the row on TiDB. */
+  source: varchar("source", { length: 32 }).default("counter").notNull(),
+  capturedBy: varchar("captured_by", { length: 255 }),
+  capturedAt: timestamp("captured_at").defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("uq_declined_capture_estimate").on(t.estimateId),
+]);
+
+export type DeclinedWorkCapture = typeof declinedWorkCaptures.$inferSelect;
 
 // ─── CUSTOMER PORTAL SESSIONS ──────────────────────────
 /**

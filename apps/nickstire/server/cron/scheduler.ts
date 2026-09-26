@@ -20,6 +20,7 @@
 
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
+import { DECLINED_RECOVERY_WINDOW_DAYS } from "@shared/const";
 import { acquireCronLock, releaseCronLock, jobTimeoutMs, beginCronDrain, isCronDraining, trackCronRun } from "./index";
 import { claimStartupPass, describeStartup, readLastRunAgeMs, startupAllowanceMs, type StartupClaim } from "./tierStartup";
 import { createWallClockRunner, isWallClockTier, startWallClockLoop } from "./wallClockTiers";
@@ -86,6 +87,13 @@ export interface TieredJob {
    * switches whose consumer compares against "true".
    */
   requiresFlag?: string | string[];
+  /**
+   * Jobs that must have COMPLETED SUCCESSFULLY earlier in this same tier pass.
+   * A throw, timeout, lock/env/flag skip, shutdown break, or disabled dependency
+   * never satisfies this gate. Use this for customer-action jobs whose safety
+   * depends on a preceding local reconciliation.
+   */
+  requiresSuccessfulJobs?: string[];
   /** Skip if disabled */
   enabled?: boolean;
   /**
@@ -372,6 +380,7 @@ export async function runTier(tier: Tier): Promise<void> {
   const start = Date.now();
   let completed = 0;
   let skipped = 0;
+  const successfulJobs = new Set<string>();
 
   for (const job of tier.jobs) {
     // Q-10 · SIGTERM landed mid-pass: the job in flight finishes (the
@@ -407,6 +416,22 @@ export async function runTier(tier: Tier): Promise<void> {
     if (flagSkip) {
       skipped++;
       logTierJob(job.name, "skipped", 0, 0, flagSkip).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
+      continue;
+    }
+
+    // Q-37 review hardening: ordering alone is not a dependency. runTier()
+    // deliberately continues after a job throws or times out, so a customer
+    // action must explicitly require the reconciliation that makes it safe.
+    const missingSuccessfulJobs = (job.requiresSuccessfulJobs ?? []).filter((name) => !successfulJobs.has(name));
+    if (missingSuccessfulJobs.length > 0) {
+      skipped++;
+      logTierJob(
+        job.name,
+        "skipped",
+        0,
+        0,
+        `requiresSuccessfulJobs:${missingSuccessfulJobs.join("|")} (dependency did not complete successfully this pass)`,
+      ).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
       continue;
     }
 
@@ -466,6 +491,7 @@ export async function runTier(tier: Tier): Promise<void> {
         }),
       ]) as { recordsProcessed?: number; details?: string };
       completed++;
+      successfulJobs.add(job.name);
       const dur = Date.now() - jobStart;
       if (dur > 5000) {
         log.info(`[${tier.name}] ${job.name}: ${dur}ms`);
@@ -2216,7 +2242,36 @@ function buildTiers(): void {
         },
       },
       {
+        /*
+         * Q-37 · the estimate -> invoice matcher, on a schedule. It used to run
+         * only inside runEstimateMirror(), i.e. only after a demand-driven ALG
+         * probe logged in AND fetched estimates — so an auth failure or an empty
+         * fetch left already-mirrored invoices unmatched, and the next job reads
+         * "unmatched" as "declined". The match is local (alg_estimates x
+         * invoices); it makes no ALG call and contacts no one.
+         *
+         * ORDER MATTERS: tier jobs run sequentially, and this sits immediately
+         * BEFORE alg-declined-work-recovery so every send decision sees that
+         * day's matches. Pinned by estimateInvoiceMatch.test.ts.
+         */
+        name: "estimate-invoice-match",
+        handler: async () => {
+          const { backfillMatches } = await import("../services/shopDriverEstimateSync");
+          const r = await backfillMatches({ sinceDays: DECLINED_RECOVERY_WINDOW_DAYS });
+          if (r.scanned === 0) {
+            return { recordsProcessed: 0, details: `no unmatched estimates in the last ${DECLINED_RECOVERY_WINDOW_DAYS}d` };
+          }
+          return {
+            recordsProcessed: r.matched,
+            details: `matched ${r.matched} of ${r.scanned} unmatched · ambiguous ${r.ambiguous} · no phone ${r.skippedNoPhone}`,
+          };
+        },
+      },
+      {
         name: "alg-declined-work-recovery", // NEW: ALG-sourced walk-in estimates SMS follow-ups
+        // Fail closed: this customer-send lane cannot run unless the local
+        // estimate->invoice reconciliation actually succeeded in THIS pass.
+        requiresSuccessfulJobs: ["estimate-invoice-match"],
         handler: async () => {
           const { runDeclinedWorkRecovery } = await import("./jobs/declinedWorkRecovery");
           // wave-148 · operator chose 50/day to drain the ~$321K declined
