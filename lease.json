@@ -1,0 +1,14 @@
+{
+  "$schema": "agent-os/lease-v1",
+  "branch": "nickstire/q43-consent-ledger-current-20260926",
+  "status": "active",
+  "sessionKind": "bridge",
+  "sessionId": "manual-20312-1790440980760",
+  "worktree": "C:\\Users\\nourd\\NOURCITY\\.worktrees\\q43-consent-ledger-current",
+  "claimedBy": "chatgpt-q43",
+  "claimedAt": "2026-09-26T16:43:02.299Z",
+  "expiresAt": "2026-09-27T04:43:02.299Z",
+  "releasedAt": null,
+  "releaseReason": null,
+  "priorLeaseSha": null
+}
