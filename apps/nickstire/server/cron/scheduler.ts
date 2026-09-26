@@ -2339,17 +2339,15 @@ function buildTiers(): void {
       {
         name: "competitor-monitor",
         requiresEnv: ["GOOGLE_PLACES_API_KEY", "GOOGLE_MAPS_API_KEY"],
-        // wave-181.x · Tier S · enabled now that competitor_snapshots
-        // table persists baselines across pod restarts. Without
-        // persistence the in-memory diff reset on every restart and
-        // change detection never fired (which is why this was off).
+        // Q-48: keep only the Google place_id registry current. Ratings/review
+        // counts are read on demand and are not persisted as a historical baseline.
         enabled: true,
         handler: async () => {
           const { runCompetitorMonitorCycle } = await import("../services/competitorMonitor");
           const result = await runCompetitorMonitorCycle();
           return {
-            recordsProcessed: result.fetched,
-            details: `${result.fetched} competitors · ${result.changes} changes · ${result.alertsFired} alerts fired`,
+            recordsProcessed: result.known,
+            details: `${result.known} competitor place_ids known · ${result.newlyResolved} newly resolved · ${result.unresolved} unresolved`,
           };
         },
       },

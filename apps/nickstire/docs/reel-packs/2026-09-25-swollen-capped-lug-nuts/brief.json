@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-swollen-capped-lug-nuts",
+  "title": "How a 19 mm Lug Nut Stops Fitting a 19 mm Socket",
+  "topic": "Two-piece capped lug nuts can swell or deform so the original socket no longer fits",
+  "mechanicTruth": "Some factory lug nuts use a two-piece capped design; deformation or corrosion beneath the outer cap can increase the outside dimension enough that the original-size socket no longer fits correctly, even though the thread size itself did not change.",
+  "campaignKeyword": "CLUNK",
+  "hookText": "19 MM LUG",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Dorman capped-lug guidance + GM service bulletin on capped lug-nut swelling",
+      "kind": "proof",
+      "supports": "Some factory lug nuts use a two-piece capped design; deformation or corrosion beneath the outer cap can increase the outside dimension enough that the original-size socket no longer fits correctly, even though the thread size itself did not change."
+    }
+  ],
+  "videoPrompt": "Real two-piece capped lug beside the correct socket, followed by a simple steel-core and outer-cap cutaway.",
+  "modelRecommendation": "Real object demo only; synthetic footage would weaken believability.",
+  "creditEfficiencyNote": "0 credits. Save strange wheel hardware as a reusable content library.",
+  "distribution": "organic_first",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "19 MM LUG",
+      "narration": "Some factory lug nuts have a thin decorative cap over the steel nut.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "19 MM SOCKET",
+      "narration": "If that cap deforms or corrosion develops underneath, the outside can swell enough that the original socket no longer fits.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "WHY DOESN'T IT FIT?",
+      "narration": "The thread size did not grow.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "TWO-PIECE CAP CAN DEFORM",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "THREAD SIZE DID NOT GROW",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "Some factory lug nuts have a thin decorative cap over the steel nut. If that cap deforms or corrosion develops underneath, the outside can swell enough that the original socket no longer fits. The thread size did not grow.",
+  "selectedCaption": "Yes, a lug nut can stop fitting the socket size that originally fit it. On some two-piece capped designs, the outer shell can deform or swell.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from wheel-stud and torque-wrench packs: this is two-piece capped lug-nut swelling."
+}

@@ -1,0 +1,52 @@
+{
+  "id": "decision-nour-command-creative-leverage",
+  "name": "Nour Command · creative leverage without filler",
+  "description": "A nearby competitor undercuts entry tire price. Nick should avoid reflexive price matching and find a materially different lever tied to the stated advantages, while remaining concrete and outcome-focused.",
+  "category": "decision",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "A competitor five minutes away is $10 cheaper on the entry tire. What's the smartest response?"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Assume the competitor is genuinely $10 cheaper on the entry tire.",
+    "Nick's has faster install capacity and stronger review proof.",
+    "Do not invent inventory, conversion rates, or competitor weaknesses."
+  ],
+  "judgeCriteria": [
+    {
+      "id": "direct-answer",
+      "description": "Leads with a clear response strategy rather than a brainstorm dump.",
+      "weight": 2
+    },
+    {
+      "id": "creative-different-lever",
+      "description": "Uses a materially different lever than blanket price matching, tied to speed, proof, packaging, or reduced customer risk.",
+      "weight": 3
+    },
+    {
+      "id": "mechanism",
+      "description": "Explains why the lever can beat a $10 price gap in customer decision terms, not with vague branding language.",
+      "weight": 2
+    },
+    {
+      "id": "truth-bounded",
+      "description": "Uses only the supplied facts and does not invent inventory, conversion rates, or competitor defects.",
+      "weight": 2
+    },
+    {
+      "id": "concrete-next-move",
+      "description": "Ends with one concrete test or offer Nour can implement and measure.",
+      "weight": 2
+    }
+  ],
+  "expectedBehavior": "Recommend competing on a higher-value mechanism such as faster guaranteed installation plus proof, explain why it can outweigh a $10 gap, and propose one measurable test without inventing facts.",
+  "tags": [
+    "nour-command",
+    "creativity",
+    "decision-quality"
+  ]
+}

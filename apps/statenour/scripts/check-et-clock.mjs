@@ -62,7 +62,6 @@ const ALLOW = [
   { path: "lib/utils/datetime.ts", reason: "the helper itself — it is what everything else must call" },
   { path: "scripts/check-et-clock.mjs", reason: "this gate quotes the patterns it forbids" },
   { path: "lib/ai/runtime/approval-gate.ts", reason: "setHours(+24) is a DURATION, not a wall-clock reading" },
-  { path: "lib/inngest/functions/audit-todays-leads.ts", reason: "setHours(+24) expiry offset, not a wall clock" },
   { path: "lib/tools/guardian.ts", reason: "setHours(+N) expiry offset, not a wall clock" },
   { path: "lib/logger.ts", reason: "log line timestamps are machine-facing and deliberately UTC" },
   { path: "lib/hooks/use-commander-greeting.ts", reason: "React hook — runs in the BROWSER via useEffect, so getHours() is the operator's own local time, which is what a greeting should use" },

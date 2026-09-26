@@ -1467,16 +1467,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/server/services/vendorHealth.ts",
-      "symbol": "startContinuousMonitoring",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/services/vendorHealth.ts",
-      "symbol": "stopContinuousMonitoring",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/server/services/promiseRisk.ts",
       "symbol": "getAtRiskJobs",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
@@ -3014,16 +3004,6 @@
     {
       "file": "apps/nickstire/server/services/sms-scheduler.ts",
       "symbol": "schedulePostServiceReminders",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/services/sms-scheduler.ts",
-      "symbol": "startSmsScheduler",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/services/sms-scheduler.ts",
-      "symbol": "stopSmsScheduler",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {

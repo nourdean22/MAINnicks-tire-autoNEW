@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "reel-rotation-evening-import": {
+      "ref": "Operator-approved 2026-09-25 import: 33 recent evening-batch concepts reconciled against the live 99-pack rotation; 23 distinct packs appended without reordering, 10 semantic duplicates mapped to existing rotating packs in EVENING-IMPORT-2026-09-25.json. reelPackRotationCoverage.test.ts ratchet raised from 99 to 122 so every added pack must remain builder-loadable and preflight-clean."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability state is promoted by this PR. It adds operator-approved Reel content packs and appends them to the existing approved rotation; runtime capability state, deployment truth, and live production verification are unchanged. The 122-pack preflight ratchet is CI evidence for content enqueueability, not a capability-ledger promotion."
+    }
+  }
+}

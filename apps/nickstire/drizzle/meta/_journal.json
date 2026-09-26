@@ -1002,6 +1002,20 @@
       "when": 1789301000000,
       "tag": "0129_candidates_recruiting_funnel",
       "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "5",
+      "when": 1789301100000,
+      "tag": "0130_tire_registrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "5",
+      "when": 1789301200000,
+      "tag": "0131_places_content_purge",
+      "breakpoints": true
     }
   ]
 }

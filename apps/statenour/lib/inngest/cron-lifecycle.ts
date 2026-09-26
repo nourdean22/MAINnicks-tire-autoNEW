@@ -251,6 +251,10 @@ export function deriveResultCount(output: unknown): number | null {
  * were exactly that. Only a stale row with NO terminal sibling is presumed
  * `interrupted`.
  *
+ * Both writes re-check `status: started` (#2525): the read above and the
+ * update below are not atomic, and a run that settles in between must keep
+ * its real outcome - cron-control counts `interrupted` as a hard failure.
+ *
  * `interrupted` is a presumption: `settleCronRun` still accepts an exact-run-id
  * terminal event for such a row and overrides it, so a retry that lands after
  * the ceiling keeps its real outcome. Never throws - a failed sweep must not
@@ -289,7 +293,7 @@ async function reconcileInterruptedRuns(prisma: PrismaLike): Promise<void> {
     const orphans = stale.filter((r) => !isDuplicate(r)).map((r) => r.id);
     if (duplicates.length > 0) {
       await prisma.cronJobLog.updateMany({
-        where: { id: { in: duplicates } },
+        where: { id: { in: duplicates }, status: CRON_STATUS.started },
         data: {
           status: CRON_STATUS.duplicate,
           error:
@@ -300,7 +304,7 @@ async function reconcileInterruptedRuns(prisma: PrismaLike): Promise<void> {
     }
     if (orphans.length > 0) {
       await prisma.cronJobLog.updateMany({
-        where: { id: { in: orphans } },
+        where: { id: { in: orphans }, status: CRON_STATUS.started },
         data: {
           status: CRON_STATUS.interrupted,
           error:

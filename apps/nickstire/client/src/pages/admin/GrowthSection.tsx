@@ -753,9 +753,9 @@ function CompetitorsTab() {
           {WEEKLY_CHECK_FIELDS.map((f) => <li key={f}>{f}</li>)}
         </ul>
         <p className="text-[10px] text-foreground/40 mt-2">
-          The daily server poller also snapshots competitor counts into the database
-          (competitor_snapshots) and alerts via Telegram on big moves — a trend chart from
-          those snapshots is the documented next step.
+          The server keeps each competitor's Google place ID only. Google's terms do not
+          allow storing their ratings or review counts, so there is no automatic trend or
+          alert — log the weekly fields here by hand.
         </p>
       </Panel>
     </div>

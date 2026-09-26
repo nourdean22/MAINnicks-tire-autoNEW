@@ -756,6 +756,37 @@ describe("cron lifecycle · one run, one row — parallel-step requests (2026-09
     expect(sweeps).toEqual(["scan", "duplicate:1", "interrupted:2"]);
   });
 
+  // #2525 · the sweep reads stale `started` rows, then writes by id. A run that
+  // settles in that gap must keep its real outcome: `interrupted` counts as a
+  // hard failure in cron-control, so overwriting a success is a false alarm.
+  it("RACE — a row that settles between the sweep's read and its write keeps its real outcome", async () => {
+    const { prisma, rows } = makeStore();
+    const m = 60_000;
+    rows.push({ id: "late-ok", jobName: "outbox-drain", runId: "run-late", status: "started", createdAt: new Date(Date.now() - 300 * m) });
+    rows.push({ id: "dup-late", jobName: "mega-fanout-evening", runId: "run-d", status: "started", createdAt: new Date(Date.now() - 300 * m) });
+    rows.push({ id: "dup-ok", jobName: "mega-fanout-evening", runId: "run-d", status: "success", createdAt: new Date(Date.now() - 299 * m) });
+    rows.push({ id: "dead", jobName: "goal-pruner", runId: "run-dead", status: "started", createdAt: new Date(Date.now() - 300 * m) });
+    const findMany = prisma.cronJobLog.findMany;
+    let reads = 0;
+    prisma.cronJobLog.findMany = async (args) => {
+      const out = await findMany(args);
+      // Right after the stale scan, two runs settle on their own.
+      if (++reads === 1) {
+        rows.find((r) => r.id === "late-ok")!.status = "success";
+        rows.find((r) => r.id === "dup-late")!.status = "partial";
+      }
+      return out;
+    };
+    const { CronLifecycleMiddleware, CRON_STATUS } = await loadMiddleware(prisma);
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    await mw.onRunStart({ ctx: { runId: "now" }, fn: cronFn("approval-sweeper") });
+    const by = (id: string) => rows.find((r) => r.id === id)!;
+    expect(by("late-ok").status).toBe("success");
+    expect(by("late-ok").error).toBeUndefined();
+    expect(by("dup-late").status).toBe("partial");
+    expect(by("dead").status).toBe(CRON_STATUS.interrupted); // the guard does not stop the real sweep
+  });
+
   it("`duplicate` is in the vocabulary and in neither positive list", async () => {
     const { CRON_STATUS, TERMINAL_OK_STATUSES } = await loadMiddleware(makeStore().prisma);
     expect(CRON_STATUS.duplicate).toBe("duplicate");

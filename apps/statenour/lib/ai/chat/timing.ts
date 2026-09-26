@@ -106,6 +106,11 @@ export function formatStageLog(
 ): string {
   const parts: string[] = [];
   for (const [name, rep] of Object.entries(summary.stages)) {
+    // A stage marked skipped via meta() never ran; its 0 ms is not a timing.
+    if (rep.meta?.skipped) {
+      parts.push(`${name}=skipped`);
+      continue;
+    }
     const cache = rep.cacheHit === true ? "(cache)" : "";
     parts.push(`${name}=${rep.ms}${cache}`);
   }

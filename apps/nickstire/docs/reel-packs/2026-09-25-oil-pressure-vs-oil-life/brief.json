@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-oil-pressure-vs-oil-life",
+  "title": "The Red Oil Can Is Not an Oil-Change Reminder",
+  "topic": "Oil-pressure warning and oil-life reminder are different signals",
+  "mechanicTruth": "An engine oil-pressure warning indicates a possible lubrication-pressure problem, while an oil-life or maintenance reminder estimates service timing; a normal oil level does not by itself prove normal oil pressure.",
+  "campaignKeyword": "CLUNK",
+  "hookText": "RED OIL CAN",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "2026 Hyundai owner guidance",
+      "kind": "proof",
+      "supports": "An engine oil-pressure warning indicates a possible lubrication-pressure problem, while an oil-life or maintenance reminder estimates service timing; a normal oil level does not by itself prove normal oil pressure."
+    }
+  ],
+  "videoPrompt": "Blank cluster plus deterministic warning icon and a simple oil-pan, pump and gallery cutaway; real service evidence remains real.",
+  "modelRecommendation": "Real cluster and engine-service footage plus deterministic graphics.",
+  "creditEfficiencyNote": "0 credits. Reuse one blank cluster master for many warning-light lessons.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "RED OIL CAN",
+      "narration": "The red oil-can warning is not your oil-change reminder.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "OIL LIFE != OIL PRESSURE",
+      "narration": "It can indicate a lubrication-pressure problem.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "PRESSURE PROTECTS THE ENGINE",
+      "narration": "Low level is one possible cause, but a normal level does not prove normal pressure.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "LEVEL CAN BE NORMAL",
+      "narration": "Stop safely and diagnose the cause.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "STOP SAFELY -> DIAGNOSE",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "The red oil-can warning is not your oil-change reminder. It can indicate a lubrication-pressure problem. Low level is one possible cause, but a normal level does not prove normal pressure. Stop safely and diagnose the cause.",
+  "selectedCaption": "Oil-life reminders and oil-pressure warnings are different signals. A persistent oil-pressure warning deserves diagnosis, not a routine change-it-later interpretation.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from oil-pressure-light-flicker-idle: this teaches the oil-pressure-versus-oil-life distinction."
+}

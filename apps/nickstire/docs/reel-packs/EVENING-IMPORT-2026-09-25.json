@@ -1,0 +1,77 @@
+{
+  "date": "2026-09-25",
+  "baseMain": "d2cf2842f4ce44f710c82a9d36a52880df6cd24c",
+  "operatorIntent": "Put every distinct concept from the recent Nick's Tire faceless evening batches into the live approved-pack rotation without semantic duplicates.",
+  "census": {
+    "sourceConcepts": 33,
+    "added": 23,
+    "alreadyCovered": 10
+  },
+  "added": [
+    "2026-09-25-oil-overfill-not-extra-protection",
+    "2026-09-25-ev-regen-brake-corrosion",
+    "2026-09-25-alignment-green-loose-parts",
+    "2026-09-25-balancer-zero-still-vibrates",
+    "2026-09-25-ohio-used-tire-whole-inspection",
+    "2026-09-25-impact-gun-vs-torque-wrench",
+    "2026-09-25-xl-means-extra-load",
+    "2026-09-25-oil-pressure-vs-oil-life",
+    "2026-09-25-rotor-surface-rust-overnight",
+    "2026-09-25-coolant-level-vs-freeze-protection",
+    "2026-09-25-starting-circuit-voltage-drop",
+    "2026-09-25-puncture-repair-zone",
+    "2026-09-25-two-new-tires-rear-axle",
+    "2026-09-25-tpms-flash-vs-steady",
+    "2026-09-25-tire-age-dot-date-code",
+    "2026-09-25-sidewall-max-psi-vs-placard",
+    "2026-09-25-directional-tire-rotation-arrow",
+    "2026-09-25-run-flat-limited-mobility",
+    "2026-09-25-battery-light-charging-system",
+    "2026-09-25-inner-outer-brake-pad-wear",
+    "2026-09-25-driven-flat-hidden-internal-damage",
+    "2026-09-25-epdm-belt-wear-no-cracks",
+    "2026-09-25-swollen-capped-lug-nuts"
+  ],
+  "alreadyCovered": [
+    {
+      "concept": "Cold weather lowers all four tire pressures",
+      "slug": "2026-08-18-cold-weather-tire-light"
+    },
+    {
+      "concept": "Slow leak at bead or rim corrosion",
+      "slug": "2026-08-20-slow-leak-soap-test"
+    },
+    {
+      "concept": "AWD one replacement tire / tread matching",
+      "slug": "2026-08-20-awd-one-new-tire"
+    },
+    {
+      "concept": "Brake fluid absorbs moisture",
+      "slug": "2026-08-18-brake-fluid-moisture-test"
+    },
+    {
+      "concept": "Flashing versus steady check-engine light",
+      "slug": "2026-08-26-check-engine-flashing-vs-steady"
+    },
+    {
+      "concept": "Cleared codes / E-Check readiness monitors",
+      "slug": "2026-08-20-echeck-readiness-monitors"
+    },
+    {
+      "concept": "Hidden inner-edge / uneven tire wear",
+      "slug": "2026-08-18-uneven-tire-wear-patterns"
+    },
+    {
+      "concept": "Sidewall bubble / bulge",
+      "slug": "2026-08-17-sidewall-bulge"
+    },
+    {
+      "concept": "Car pulls only while braking",
+      "slug": "2026-08-17-why-car-pulls"
+    },
+    {
+      "concept": "ABS warning versus red brake-warning context",
+      "slug": "2026-08-21-abs-light-wheel-speed-sensor"
+    }
+  ]
+}

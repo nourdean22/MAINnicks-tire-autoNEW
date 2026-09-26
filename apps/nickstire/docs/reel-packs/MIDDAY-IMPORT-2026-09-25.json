@@ -1,0 +1,42 @@
+{
+  "date": "2026-09-25",
+  "baseMain": "3909f7c5b543b1389fb5571645d12cd481fefd78",
+  "operatorIntent": "Reconcile the recent Nick's Tire faceless midday Reel ideas against current main after the evening import, keep only distinct lessons, wire them into the approved rotation, and preserve the pre-spend quality gates.",
+  "census": {
+    "sourceConcepts": 27,
+    "added": 11,
+    "alreadyCovered": 16
+  },
+  "added": [
+    "2026-09-06-nitrogen-vs-air-tire-fill",
+    "2026-08-27-foggy-windshield-recirculate-trick",
+    "2026-09-25-locking-lug-roadside-tool",
+    "2026-09-25-lug-nut-seat-shape-fit",
+    "2026-09-25-hidden-inner-lip-wheel-bend",
+    "2026-09-25-utqg-treadwear-not-mileage",
+    "2026-09-25-strut-misting-vs-leak",
+    "2026-09-25-run-flat-can-look-normal",
+    "2026-09-25-wheel-fitment-beyond-bolt-pattern",
+    "2026-09-25-sidewall-indent-vs-bulge",
+    "2026-09-25-ms-vs-3pmsf"
+  ],
+  "alreadyCovered": [
+    { "concept": "Hot wheel / brake drag", "slug": "2026-08-20-caliper-sticking-hot-wheel" },
+    { "concept": "Wheel-weight / highway vibration", "slug": "2026-08-17-balance-vs-alignment" },
+    { "concept": "Legal tread versus wet-weather margin", "slug": "2026-08-17-tread-depth-rain-vs-snow" },
+    { "concept": "Cold-morning TPMS pressure behavior", "slug": "2026-08-18-cold-weather-tire-light" },
+    { "concept": "One damaged tire on AWD", "slug": "2026-08-20-awd-one-new-tire" },
+    { "concept": "Light rotor surface rust after moisture", "slug": "2026-09-25-rotor-surface-rust-overnight" },
+    { "concept": "Oil-life reminder versus oil level / pressure", "slug": "2026-09-25-oil-pressure-vs-oil-life" },
+    { "concept": "ABS warning versus normal braking context", "slug": "2026-08-21-abs-light-wheel-speed-sensor" },
+    { "concept": "XL means Extra Load", "slug": "2026-09-25-xl-means-extra-load" },
+    { "concept": "TPMS flash-then-solid versus steady", "slug": "2026-09-25-tpms-flash-vs-steady" },
+    { "concept": "Slow leak at bead / rim corrosion", "slug": "2026-08-20-slow-leak-soap-test" },
+    { "concept": "Puncture repair zone", "slug": "2026-09-25-puncture-repair-zone" },
+    { "concept": "Impact gun versus measured final torque", "slug": "2026-09-25-impact-gun-vs-torque-wrench" },
+    { "concept": "Two new tires on the rear axle", "slug": "2026-09-25-two-new-tires-rear-axle" },
+    { "concept": "Battery light means charging-system diagnosis", "slug": "2026-09-25-battery-light-charging-system" },
+    { "concept": "Directional versus asymmetric mounting orientation", "slug": "2026-09-25-directional-tire-rotation-arrow" }
+  ],
+  "boundary": "These are reviewed production inputs. Rotation reachability and pre-spend preflight do not prove a rendered Reel, social publish, production DB/env mutation, ad action, or post-merge deployment."
+}

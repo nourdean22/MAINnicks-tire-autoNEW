@@ -48,11 +48,27 @@ const nextConfig: NextConfig = {
   env: {
     BUILD_TIME,
   },
+  // 2026-09-23 · Q-35 · deploy skew. Next's own mechanism (installed docs:
+  // node_modules/next/dist/docs/01-app/02-guides/self-hosting.md, "Version
+  // skew"): assets carry `?dpl=<id>`, and a client whose build differs from
+  // the server's is hard-navigated instead of fed mismatched RSC payloads.
+  // The Dockerfile passes RAILWAY_GIT_COMMIT_SHA in as a build ARG; unset
+  // (local, CI) this stays undefined and Next behaves as before.
+  deploymentId: process.env.RAILWAY_GIT_COMMIT_SHA || undefined,
   outputFileTracingIncludes: {
     "/api/ai/chat": [
       "lib/ai/last30days/**/*",
       "lib/ai/moneyprinter/**/*",
     ],
+    // 2026-09-23 · Q-35 (Sentry JAVASCRIPT-REACT-11). @nour/social-assets
+    // reads its TTFs with fs at module load, from `dist/fonts` beside its
+    // compiled render.js. The tracer cannot see an fs path built from
+    // import.meta.url, and the Dockerfile ships ONLY .next/standalone, so the
+    // image had no fonts and render-asset threw "Fonts missing from bundle
+    // directory: /app/packages/social-assets/dist/fonts". The tracing root is
+    // the monorepo root, so this glob lands at exactly that path.
+    // tests/repo/social-assets-fonts-traced.test.ts pins it.
+    "/api/content/render-asset": ["../../packages/social-assets/dist/fonts/*"],
   },
 
   // 2026-07-25 · ignoreBuildErrors REMOVED (audit P0). The Apr 28

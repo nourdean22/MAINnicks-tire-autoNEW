@@ -19,6 +19,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { prepareAgentChildEnv } from "./gitLocalEnv.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..", "..");
@@ -45,7 +46,8 @@ function run(label, argv) {
   // memoryHook.test.mjs's unrelated "nothing operator-facing goes to stderr"
   // canary the first time this line was added without it — caught by running the
   // FULL suite, not just the new tests, before trusting this change.
-  const env = process.env.HTTPS_PROXY ? { ...process.env, NODE_USE_ENV_PROXY: "1", NODE_NO_WARNINGS: "1" } : process.env;
+  const baseEnv = prepareAgentChildEnv(process.env);
+  const env = baseEnv.HTTPS_PROXY ? { ...baseEnv, NODE_USE_ENV_PROXY: "1", NODE_NO_WARNINGS: "1" } : baseEnv;
   const r = spawnSync(process.execPath, argv, { cwd: ROOT, stdio: "inherit", env });
   if (r.error) {
     console.error(`\n[agent-os] could not run ${label}: ${r.error.message}`);

@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeLocalMarker, readLocalMarker, clearLocalMarker, markerPath } from "./local-lease-marker.mjs";
@@ -61,7 +61,7 @@ test("readLocalMarker: a corrupt marker file reads as null, never throws", (t) =
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   writeLocalMarker(dir, { branch: "main" });
   const p = markerPath(dir);
-  execSync(`echo 'not json{{{' > ${JSON.stringify(p)}`, { shell: "/bin/sh" });
+  writeFileSync(p, "not json{{{\n", "utf8");
   assert.equal(readLocalMarker(dir), null);
   assert.ok(existsSync(p), "the corrupt file itself is untouched, just not trusted as valid");
 });

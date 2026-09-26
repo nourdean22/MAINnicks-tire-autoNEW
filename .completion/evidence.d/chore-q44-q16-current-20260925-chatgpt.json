@@ -1,0 +1,10 @@
+{
+    "evidence":  {
+                     "capability-ledger-updated":  {
+                                                       "deferred":  "No capability state moves in Q-44/Q-16. This rebuild changes retired Claude defaults/gates, vision model resolution, and Sonnet 5 cost accounting only. Local proof on current-main rebuild: Nick retired/default tests 6/6, StateNour pricing/vision/retired-model tests 22/22, Nick typecheck:raw exit 0, StateNour typecheck:raw exit 0. Advance no capability ledger row from these code/test receipts alone."
+                                                   },
+                     "source-citation":  {
+                                             "ref":  "Official Anthropic Claude Platform pricing, Sonnet 5 migration, and model-deprecation docs re-read 2026-09-25: Sonnet 5 remains $2/$10 per MTok, active not sooner than 2027-06-30; Sonnet 4/Opus 4/Opus 4.1 ids in the checked-in retired list are retired; Sonnet 5 adaptive thinking is default and non-default sampling parameters can return 400."
+                                         }
+                 }
+}

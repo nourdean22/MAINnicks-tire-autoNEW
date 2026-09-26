@@ -29,14 +29,24 @@ describe("v9.2 · Layer 1 (static.ts)", () => {
     expect(prefix).toContain("## Builder mode");
   });
 
-  it("contains all 7 working principles in order", () => {
-    expect(prefix).toMatch(/1\. DO THE WORK/);
-    expect(prefix).toMatch(/2\. INTERESTING \+ CLEVER/);
-    expect(prefix).toMatch(/3\. POWER \+ CONTROL/);
-    expect(prefix).toMatch(/4\. THOROUGH/);
-    expect(prefix).toMatch(/5\. NEVER ASSUME/);
-    expect(prefix).toMatch(/6\. WIRE IT EVERYWHERE/);
-    expect(prefix).toMatch(/7\. COMPOUND/);
+  it("contains all 7 operator principles in order", () => {
+    expect(prefix).toMatch(/1\. SOLUTION \+ PRINCIPLE FIRST/);
+    expect(prefix).toMatch(/2\. PROACTIVE EXECUTION/);
+    expect(prefix).toMatch(/3\. TRUTH OVER AGREEMENT/);
+    expect(prefix).toMatch(/4\. INTELLIGENT \+ CREATIVE/);
+    expect(prefix).toMatch(/5\. LEVERAGE \+ CONTROL/);
+    expect(prefix).toMatch(/6\. FINISH \+ VERIFY/);
+    expect(prefix).toMatch(/7\. COMPOUND \+ WIRE IT/);
+  });
+
+  it("pins the Nour Command runtime kernel semantics", () => {
+    expect(prefix).toContain("governing mechanism");
+    expect(prefix).toContain("safe / authorized next step");
+    expect(prefix).toContain("seek disconfirming evidence");
+    expect(prefix).toContain("FACT / INFERENCE / UNKNOWN");
+    expect(prefix).toContain("Correct Nour once with evidence");
+    expect(prefix).toContain("real blocker remains");
+    expect(prefix).toContain("reuse / simplify");
   });
 
   it("response style is intent-based, not word-count-based", () => {
@@ -140,12 +150,10 @@ describe("v9.2 · Layer 1 (static.ts)", () => {
     expect(prefix).not.toMatch(/CONSEQUENCE OF SKIPPING/);
   });
 
-  it("never-assume rule does not contradict any hardcoded assertions", () => {
-    // The contradiction the user flagged: rule #5 says NEVER ASSUME,
-    // but v1 immediately seeded 5 assertions Nick would repeat as
-    // facts. v9.2 keeps rule #5 here; the assertions live in
-    // inferred-patterns.ts framed as hypotheses, NOT here.
-    expect(prefix).toContain("NEVER ASSUME");
+  it("truth-over-agreement rule does not contradict any hardcoded assertions", () => {
+    // Layer 1 must demand evidence without seeding fake measurements.
+    // The assertions live in inferred-patterns.ts framed as hypotheses.
+    expect(prefix).toContain("TRUTH OVER AGREEMENT");
     // No "Body → Business: 3+ missed workouts → revenue dip" style
     // hardcoded assertions in Layer 1.
     expect(prefix).not.toMatch(/Body\s*→\s*Business/);

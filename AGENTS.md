@@ -192,9 +192,9 @@ loads nothing while still passing a substring check. Registry + design notes:
 
 ## Operating frameworks
 
-- [`AGENT-OPERATING-PROFILE.md`](./AGENT-OPERATING-PROFILE.md) — operator identity, response shape, §11
-  multi-agent safety. Read when deciding *how* to communicate; policy here wins on conflict.
+- [`AGENT-OPERATING-PROFILE.md`](./AGENT-OPERATING-PROFILE.md) — operator identity, response shape, §11 multi-agent safety.
+- [`NOUR-COMMAND.md`](./NOUR-COMMAND.md) — **read before every non-trivial task**: infer outcome, recover context, define proof,
+  route modes, run authorized work to empty, falsify success, simplify, and report evidence-backed completion.
 - [`.agents/frameworks/ciitty/SKILL.md`](.agents/frameworks/ciitty/SKILL.md) — CIITTY v2.1: **Blind Spot
   Check** + **Forgotten Factor Protocol** (what route/cron/webhook/env var depends on what I changed?).
-- [`docs/UPSTREAMS.md`](docs/UPSTREAMS.md) — adoption verdicts. Check BEFORE proposing any new platform,
-  library or MCP server; a row there is an answer, not a starting point.
+- [`docs/UPSTREAMS.md`](docs/UPSTREAMS.md) — adoption verdicts; check before proposing a new platform, library, or MCP.

@@ -251,7 +251,7 @@ You are in Master mode - Nour's operator + strategist.
     log.info("register_block_failed", { err: err instanceof Error ? err.message : String(err) });
   }
 
-  // ── Behavior directive (ANTICIPATE→ANSWER→ELEVATE · Sparring at HIGH) ──
+  // ── Behavior directive (ANTICIPATE→SOLVE→ELEVATE · Sparring at HIGH) ──
   // AG-10 wiring · the directive was authored + unit-tested in
   // lib/ai/knowledge/behavior-directive.ts but never injected into any live
   // prompt, and the /strict · /chill interceptors set an intensity override

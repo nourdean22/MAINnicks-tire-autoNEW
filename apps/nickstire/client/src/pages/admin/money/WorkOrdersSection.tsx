@@ -13,6 +13,7 @@ type AdminDashboardStats = RouterOutputs["adminDashboard"]["stats"];
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import { SkeletonTable, SkeletonPanel } from "@/components/admin/AdminSkeletons";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import TireRegistrationPanel from "./TireRegistrationPanel";
 import {
   Wrench, Clock, AlertTriangle, User, ChevronRight, Plus, RefreshCw,
   Package, Truck, CheckCircle2, XCircle, Timer, Phone, MapPin,
@@ -512,6 +513,9 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
               </div>
             </div>
           )}
+
+          {/* Tire DOT codes + 49 CFR 574.8 registration (Q-47) */}
+          <TireRegistrationPanel workOrderId={wo.id} />
 
           {/* Transitions / History */}
           {wo.transitions?.length > 0 && (

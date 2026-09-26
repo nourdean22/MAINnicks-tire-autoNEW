@@ -93,3 +93,23 @@ describe("buildChatResponse · SSE header contract", () => {
     }
   });
 });
+
+// #2588 · a fixed-mode turn never calls the classifier, so the intent.classified
+// event must say it was skipped rather than present the turn's labels as a result.
+describe("buildChatResponse · intent.classified honesty", () => {
+  const eventData = (body: string) => {
+    const m = body.match(/event: intent\.classified\ndata: (.*)\n/);
+    return m ? JSON.parse(m[1]) : null;
+  };
+
+  it("with no classification the event is marked skipped", async () => {
+    const ev = eventData(await drain(buildChatResponse(makeInput({ mode: "deep" as BuildChatResponseInput["mode"] }))));
+    expect(ev).toMatchObject({ skipped: true, mode: "operator" });
+  });
+
+  it("a real classification passes through with no skipped flag", async () => {
+    const classification = { intent: "general_chat", mode: "engineer" as const, model: "m", provider: "p", targets: ["code"] };
+    const ev = eventData(await drain(buildChatResponse(makeInput({ classification }))));
+    expect(ev).toEqual(classification);
+  });
+});

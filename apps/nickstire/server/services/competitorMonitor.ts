@@ -1,13 +1,13 @@
 /**
- * Competitor Monitor — Tracks competitor ratings and review counts
- * Uses Google Places API to fetch competitor data on a schedule.
- * Alerts when competitors gain/lose significant reviews.
+ * Competitor Monitor — competitor place_id registry + on-demand ratings.
+ * Stores place_ids only; ratings and review counts are read live from the
+ * Google Places API when asked for and never persisted (Q-48, 2026-09-23 —
+ * see the registry note above resolveCompetitorPlaceIds).
  *
  * Requires: GOOGLE_PLACES_API_KEY env var
  */
 
 import { createLogger } from "../lib/logger";
-import { alertSystem } from "./telegram";
 
 const log = createLogger("competitor-monitor");
 
@@ -214,81 +214,125 @@ async function fetchPlaceDetails(
 }
 
 /**
- * Persist a snapshot batch to competitor_snapshots so change detection
- * survives pod restarts (wave-181.x · Tier S). Fail-open · DB unavailable
- * just means we lose this one snapshot · won't crash the cron.
+ * competitor_snapshots is a PLACE-ID REGISTRY since 2026-09-23 (Q-48).
+ *
+ * It used to hold one row per competitor per day with Google's rating and
+ * review count (source "google_places"), and the daily cycle diffed today
+ * against yesterday to fire threshold alerts. Google Maps Platform Terms
+ * forbid that: "Customer will not cache Google Maps Content except as
+ * expressly permitted under the Maps Service Specific Terms"
+ * (cloud.google.com/maps-platform/terms), and those Service Specific Terms
+ * permit caching place_id ("Google ID Caching") and, for the Places API, only
+ * latitude/longitude for 30 days (section 14.3). Ratings and counts have no
+ * carve-out. The operator approved dropping the rating-history trend and the
+ * change alerts that depended on it (issue #2614).
+ *
+ * Rows written now carry competitor_name + place_id and source "place_id"
+ * only; rating/review_count are left to their column defaults (0) and MUST
+ * NOT be read as data. Ratings are read on demand (fetchCompetitorSnapshot)
+ * and never written anywhere.
+ *
+ * A stored place_id is durable across restarts. If a query locked onto the
+ * wrong store, delete that competitor's source="place_id" row and the next
+ * run re-resolves it.
  */
-async function persistSnapshots(snapshots: CompetitorData[]): Promise<void> {
-  if (snapshots.length === 0) return;
+const PLACE_ID_SOURCE = "place_id";
+
+/** Seed resolvedPlaceIds from the registry so a restart does not re-pay the text search. */
+async function loadKnownPlaceIds(): Promise<void> {
+  try {
+    const { getDb } = await import("../db");
+    const { competitorSnapshots } = await import("../../drizzle/schema");
+    const { desc, eq } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return;
+    const rows = await d
+      .select({ name: competitorSnapshots.competitorName, placeId: competitorSnapshots.placeId })
+      .from(competitorSnapshots)
+      .where(eq(competitorSnapshots.source, PLACE_ID_SOURCE))
+      .orderBy(desc(competitorSnapshots.capturedAt));
+    for (const r of rows) {
+      const c = COMPETITORS.find((x) => x.name === r.name);
+      if (!c || !r.placeId || resolvedPlaceIds[c.searchQuery]) continue; // newest row wins
+      if (NICKS_PLACE_ID && r.placeId === NICKS_PLACE_ID) continue;
+      resolvedPlaceIds[c.searchQuery] = r.placeId;
+    }
+  } catch (err) {
+    log.warn("loadKnownPlaceIds failed (non-fatal)", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/** Store newly resolved place_ids. place_id ONLY — never rating or review count. */
+async function persistPlaceIds(entries: Array<{ name: string; placeId: string }>): Promise<void> {
+  if (entries.length === 0) return;
   try {
     const { getDb } = await import("../db");
     const { competitorSnapshots } = await import("../../drizzle/schema");
     const d = await getDb();
     if (!d) return;
+    const now = new Date();
     await d.insert(competitorSnapshots).values(
-      snapshots.map((s) => ({
-        competitorName: s.name,
-        placeId: s.placeId,
-        rating: String(s.rating ?? 0),
-        reviewCount: s.reviewCount,
-        source: "google_places",
-        capturedAt: s.fetchedAt,
+      entries.map((e) => ({
+        competitorName: e.name,
+        placeId: e.placeId,
+        source: PLACE_ID_SOURCE,
+        capturedAt: now,
       })),
     );
   } catch (err) {
-    log.warn("persistSnapshots failed (non-fatal)", {
+    log.warn("persistPlaceIds failed (non-fatal)", {
       err: err instanceof Error ? err.message : String(err),
     });
   }
 }
 
 /**
- * Pull the most-recent snapshot per competitor from DB (older than now
- * by at least 1 hour) so the cron has a real baseline to compare
- * against. Returns empty array on DB error or first-ever run.
+ * Resolve every competitor's place_id: registry first, then text search for
+ * the rest. Newly resolved ids are stored. A query that resolves to OUR OWN
+ * listing is dropped: measured 2026-09-23, "Midas (Euclid Ave)" had resolved
+ * to Nick's place_id for 45 snapshots (why Google matches that query to us is
+ * not known), filing Nick's 1,715 reviews under a competitor's name.
  */
-async function loadPreviousSnapshots(): Promise<CompetitorData[]> {
-  try {
-    const { getDb } = await import("../db");
-    const { sql } = await import("drizzle-orm");
-    const d = await getDb();
-    if (!d) return [];
-    // Pull the most-recent row per place_id older than 1h ago. Indexed
-    // (place_id, captured_at DESC) so this is O(N_competitors), not a
-    // full-table scan.
-    const rows = await d.execute(sql`
-      SELECT cs.competitor_name, cs.place_id, cs.rating, cs.review_count, cs.captured_at
-      FROM competitor_snapshots cs
-      INNER JOIN (
-        SELECT place_id, MAX(captured_at) AS max_at
-        FROM competitor_snapshots
-        WHERE captured_at < DATE_SUB(NOW(), INTERVAL 1 HOUR)
-        GROUP BY place_id
-      ) latest ON cs.place_id = latest.place_id AND cs.captured_at = latest.max_at
-    `);
-    const dataRows = (Array.isArray(rows) && Array.isArray(rows[0]) ? rows[0] : rows) as Array<{
-      competitor_name: string;
-      place_id: string;
-      rating: string | number;
-      review_count: number;
-      captured_at: Date | string;
-    }>;
-    return dataRows.map((r) => ({
-      name: r.competitor_name,
-      placeId: r.place_id,
-      rating: typeof r.rating === "string" ? parseFloat(r.rating) : r.rating,
-      reviewCount: r.review_count,
-      fetchedAt: new Date(r.captured_at),
-    }));
-  } catch (err) {
-    log.warn("loadPreviousSnapshots failed (non-fatal)", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return [];
+async function resolveCompetitorPlaceIds(): Promise<{
+  resolved: Array<{ name: string; placeId: string }>;
+  newlyResolved: number;
+  unresolved: number;
+}> {
+  await loadKnownPlaceIds();
+  const resolved: Array<{ name: string; placeId: string }> = [];
+  const fresh: Array<{ name: string; placeId: string }> = [];
+  let unresolved = 0;
+
+  for (const c of COMPETITORS) {
+    let placeId = c.placeId || resolvedPlaceIds[c.searchQuery] || "";
+    const known = !!placeId;
+    if (!placeId) placeId = (await findPlaceFromText(c.searchQuery)) || "";
+    if (!placeId) {
+      log.warn("Could not resolve Place ID for competitor", { name: c.name, query: c.searchQuery });
+      unresolved++;
+      continue;
+    }
+    if (NICKS_PLACE_ID && placeId === NICKS_PLACE_ID) {
+      log.warn("Competitor query resolved to Nick's own listing — skipped", { name: c.name, query: c.searchQuery });
+      delete resolvedPlaceIds[c.searchQuery];
+      unresolved++;
+      continue;
+    }
+    resolved.push({ name: c.name, placeId });
+    if (!known) fresh.push({ name: c.name, placeId });
   }
+
+  await persistPlaceIds(fresh);
+  return { resolved, newlyResolved: fresh.length, unresolved };
 }
 
-/** Fetch all competitor data (call from cron) */
+/**
+ * ON-DEMAND read of live ratings for Nick's + every competitor. Returns the
+ * data to the caller and writes NONE of it: no rating, count or review text is
+ * persisted or logged here (Q-48). Only newly resolved place_ids are stored.
+ */
 export async function fetchCompetitorSnapshot(): Promise<CompetitorData[]> {
   if (!API_KEY) {
     log.debug("GOOGLE_PLACES_API_KEY not configured, skipping competitor monitor");
@@ -298,7 +342,6 @@ export async function fetchCompetitorSnapshot(): Promise<CompetitorData[]> {
   const results: CompetitorData[] = [];
   const now = new Date();
 
-  // Fetch Nick's own data first
   if (NICKS_PLACE_ID) {
     const own = await fetchPlaceDetails(NICKS_PLACE_ID);
     if (own) {
@@ -312,31 +355,13 @@ export async function fetchCompetitorSnapshot(): Promise<CompetitorData[]> {
     }
   }
 
-  // Fetch competitors — resolve Place IDs via text search if not already cached
-  for (const c of COMPETITORS) {
-    let placeId = c.placeId || resolvedPlaceIds[c.searchQuery];
-    if (!placeId) {
-      placeId = await findPlaceFromText(c.searchQuery) || "";
-    }
-    if (!placeId) {
-      log.warn("Could not resolve Place ID for competitor", { name: c.name, query: c.searchQuery });
-      continue;
-    }
-    // A query can resolve to OUR OWN listing: measured 2026-09-23, "Midas
-    // (Euclid Ave)" had resolved to Nick's place_id for 45 snapshots (why
-    // Google matches that query to us is not known), filing Nick's 1,715
-    // reviews under a competitor's name in competitor_snapshots. Never store
-    // ourselves as a competitor.
-    if (NICKS_PLACE_ID && placeId === NICKS_PLACE_ID) {
-      log.warn("Competitor query resolved to Nick's own listing — skipped", { name: c.name, query: c.searchQuery });
-      continue;
-    }
-
-    const data = await fetchPlaceDetails(placeId);
+  const { resolved } = await resolveCompetitorPlaceIds();
+  for (const c of resolved) {
+    const data = await fetchPlaceDetails(c.placeId);
     if (data) {
       results.push({
         name: c.name,
-        placeId,
+        placeId: c.placeId,
         rating: data.rating,
         reviewCount: data.reviewCount,
         fetchedAt: now,
@@ -344,7 +369,7 @@ export async function fetchCompetitorSnapshot(): Promise<CompetitorData[]> {
     }
   }
 
-  log.info("Competitor snapshot fetched", {
+  log.info("Competitor snapshot fetched (on demand, not stored)", {
     count: results.length,
     timestamp: now.toISOString(),
   });
@@ -353,142 +378,28 @@ export async function fetchCompetitorSnapshot(): Promise<CompetitorData[]> {
 }
 
 /**
- * Full cycle · wave-181.x · Tier S. Run by the cron tier-4 daily job.
- *   1 · load last persisted snapshot per competitor from DB
- *   2 · fetch fresh data from Google Places
- *   3 · persist the new batch
- *   4 · diff vs the persisted baseline · alert on meaningful drift
+ * Daily cron cycle. Since Q-48 (2026-09-23) this ONLY keeps the place_id
+ * registry current — it fetches no ratings, so it stores none and alerts on
+ * none. The rating-history trend and the >=10-review / >=0.2-star threshold
+ * alerts were removed with the stored history they diffed against.
  *
- * Returns { fetched, changes } for the cron caller to log.
- *
- * On a first-ever run · loadPreviousSnapshots returns [] · detectChanges
- * yields 0 changes · normal · the next run has a baseline.
- *
- * Fail-open at every step · the cron MUST NOT crash if Google rate-
- * limits, DB hiccups, or one competitor goes off-grid.
+ * Throws when nothing resolved AND Google returned an auth-class status, so a
+ * dead key is a FAILED cron_log row rather than a healthy-looking zero.
  */
 export async function runCompetitorMonitorCycle(): Promise<{
-  fetched: number;
-  changes: number;
-  alerted: boolean;
-  alertsFired: number;
+  known: number;
+  newlyResolved: number;
+  unresolved: number;
 }> {
+  if (!API_KEY) return { known: 0, newlyResolved: 0, unresolved: COMPETITORS.length };
   lastDenialStatus = null;
-  const previous = await loadPreviousSnapshots();
-  const current = await fetchCompetitorSnapshot();
-  if (current.length === 0) {
-    // 2026-08-11 · zero results + an auth-class API status is a dead key,
-    // not a quiet market: throw so cron_log records a FAILED run with the
-    // reason, instead of weeks of healthy-looking zeros.
-    if (lastDenialStatus) {
-      throw new Error(
-        `Places API ${lastDenialStatus} — key is configured but rejected; fix the GCP key/API restriction (operator). No competitor rows fetched.`,
-      );
-    }
-    return { fetched: 0, changes: 0, alerted: false, alertsFired: 0 };
+  const { resolved, newlyResolved, unresolved } = await resolveCompetitorPlaceIds();
+  if (resolved.length === 0 && lastDenialStatus) {
+    throw new Error(
+      `Places API ${lastDenialStatus} — key is configured but rejected; fix the GCP key/API restriction (operator). No competitor place_id resolved.`,
+    );
   }
-  await persistSnapshots(current);
-  const changes = detectChanges(previous, current);
-  const alertsFired = await fireThresholdAlerts(changes);
-  return { fetched: current.length, changes: changes.length, alerted: alertsFired > 0, alertsFired };
-}
-
-/** Stable per-day dedup key for one competitor x metric breach. */
-export function buildAlertKey(change: { placeId: string; metric: string }): string {
-  // cron_alerts_fired.alert_key is VARCHAR(100); "cmp:" + placeId (~27) +
-  // ":" + metric stays well under it.
-  return `cmp:${change.placeId}:${change.metric}`.slice(0, 100);
-}
-
-/**
- * Decision-forcing alert layer (2026-08-11). Fires ONE Telegram per run
- * containing only the breaches that won today's cron_alerts_fired claim —
- * so a breach alerts once per day across restarts and pods, and there is
- * deliberately NO digest mode: no breach, no message. Gated by the
- * competitor_threshold_alerts flag (snapshots persist regardless), which
- * carries the 30-day kill clause in its description.
- */
-async function fireThresholdAlerts(
-  changes: ReturnType<typeof detectChanges>,
-): Promise<number> {
-  if (changes.length === 0) return 0;
-  try {
-    const { isEnabled } = await import("./featureFlags");
-    if (!(await isEnabled("competitor_threshold_alerts"))) return 0;
-  } catch {
-    return 0; // flag unreadable → fail closed for alerts, data still persisted
-  }
-
-  const claimed: typeof changes = [];
-  try {
-    const { getDb } = await import("../db");
-    const { sql } = await import("drizzle-orm");
-    const d = await getDb();
-    if (!d) return 0; // no DB → no dedup possible → don't risk daily spam
-    for (const change of changes) {
-      const [claimResult] = await d.execute(sql`
-        INSERT IGNORE INTO cron_alerts_fired (alert_key, fired_for, fired_at, payload)
-        VALUES (${buildAlertKey(change)}, CURDATE(), NOW(), ${JSON.stringify({ name: change.name, change: change.change })})
-      `);
-      const affected = (claimResult as { affectedRows?: number })?.affectedRows ?? 0;
-      if (affected === 1) claimed.push(change);
-    }
-  } catch (err) {
-    log.warn("[competitorMonitor] alert dedup claim failed — skipping alerts this run", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return 0;
-  }
-
-  if (claimed.length === 0) return 0;
-  const summary = claimed.map((c) => `${c.name}: ${c.change}`).join("\n");
-  await alertSystem("Competitor threshold breach", summary).catch((e) => {
-    log.warn("[services/competitorMonitor] alert send failed:", e);
-  });
-  return claimed.length;
-}
-
-/**
- * Compare two snapshots and detect significant changes. PURE as of
- * 2026-08-11 — the Telegram side-effect moved to fireThresholdAlerts
- * (flag-gated + deduped per day via cron_alerts_fired); before that this
- * re-alerted on every run a diff persisted and duplicated across pods.
- */
-export function detectChanges(
-  previous: CompetitorData[],
-  current: CompetitorData[]
-): Array<{ name: string; placeId: string; metric: "reviews" | "rating"; change: string; severity: "info" | "warning" }> {
-  const changes: Array<{ name: string; placeId: string; metric: "reviews" | "rating"; change: string; severity: "info" | "warning" }> = [];
-
-  for (const curr of current) {
-    const prev = previous.find((p) => p.placeId === curr.placeId);
-    if (!prev) continue;
-
-    const reviewDiff = curr.reviewCount - prev.reviewCount;
-    const ratingDiff = curr.rating - prev.rating;
-
-    if (reviewDiff >= 10) {
-      changes.push({
-        name: curr.name,
-        placeId: curr.placeId,
-        metric: "reviews",
-        change: `+${reviewDiff} reviews (${prev.reviewCount} → ${curr.reviewCount})`,
-        severity: "warning",
-      });
-    }
-
-    if (Math.abs(ratingDiff) >= 0.2) {
-      changes.push({
-        name: curr.name,
-        placeId: curr.placeId,
-        metric: "rating",
-        change: `Rating ${ratingDiff > 0 ? "up" : "down"} ${prev.rating} → ${curr.rating}`,
-        severity: ratingDiff > 0 ? "info" : "warning",
-      });
-    }
-  }
-
-  return changes;
+  return { known: resolved.length, newlyResolved, unresolved };
 }
 
 /** Build a competitive position report */

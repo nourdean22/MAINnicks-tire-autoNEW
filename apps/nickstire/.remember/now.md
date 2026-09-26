@@ -1,5 +1,25 @@
 # Session ledger - nickstire
 
+**Updated: 2026-09-25 12:08Z** (Midday Reel reconciliation PR #2656 merged to `main` at `55d5d5fa2`: 27 source concepts -> 11 distinct additions + 16 already-covered; 133/133 preflight-clean; all required PR gates green. Prior header preserved below.)
+
+## 2026-09-25 · Midday Reel reconciliation — #2656 merged; 133/133 preflight-clean
+
+**State.** The midday Reel batches were re-audited *after* #2655's evening import landed, rather than merging the stale branch blindly. **27 source concepts = 11 distinct lessons appended + 16 semantic duplicates already represented** by the live rotation. The machine-readable map is `docs/reel-packs/MIDDAY-IMPORT-2026-09-25.json`; the narrative audit is `docs/reel-packs/2026-09-25-midday-idea-rotation-audit.md`. Two older reviewed packs (nitrogen-vs-air and foggy-windshield A/C) are normalized and made reachable instead of cloned. Existing entries remain in place; the 11 additions are append-only because the durable cursor is an array index.
+
+**Gate receipt.** Running the real production builder plus `runReelPreflight` over the resulting rotation returned **133 checked / 0 failures** locally, and PR #2656 then passed the full required GitHub gate set before squash merge: **CI · turbo-affected verify, Completion Authority, Secret Scanning, Adoption gates, Agent policy, and Admin completion diagnostic all succeeded** (Evaluator separation was skipped by design). The first reconciliation exposed one real content blocker in the new UTQG pack: the Reel safety bank rejects “warranty” and “guarantee” wording. The copy was recast as manufacturer tread-life coverage / mileage promise without weakening the safety rule. `server/reelPackRotationCoverage.test.ts` ratchets the floor from 122 to **133**. Merge receipt: `55d5d5fa21fb912c49b450e665c00f74df9c8b83`, 2026-09-25T12:08:44Z.
+
+**Boundary.** This records reviewed, rotation-reachable, pre-spend-clean production inputs. It does **not** claim a Higgsfield render, Instagram/Facebook publish, production DB/env mutation, ad action, or post-merge Railway deployment receipt.
+
+**Updated: 2026-09-25 11:21Z** (Reel rotation expansion #2655 merged to `main` at `f5f621379`; 122/122 approved packs clear the pre-spend preflight. Prior header preserved below.)
+
+## 2026-09-25 · Reel rotation expansion — #2655 merged; 122/122 preflight-clean
+
+**State.** PR #2655 merged at `f5f6213799d167b40c1285cfc20c45215e082163`. The recent evening-batch ideas were reconciled against the live approved Reel rotation before editing: **33 source concepts = 23 distinct new packs + 10 concepts already covered by existing rotating packs**. The 23 new slugs were appended after the prior 99 entries; no existing entry was reordered, so the persisted array-index cursor was not silently repointed. The audit map is `docs/reel-packs/EVENING-IMPORT-2026-09-25.json`.
+
+**Gate receipt.** `server/reelPackRotationCoverage.test.ts` now ratchets the production preflight floor to **122**. The first CI pass correctly failed at 99/122: every new pack inherited the same generic beat visual containing the phrase `generated readout`, which tripped the existing `no-in-frame-text` hard gate. The visual was recast as a wordless physical distinction in all 23 packs; the floor was **not** lowered. Final PR CI was green, including the affected check/lint/test/build sweep (**7 successful / 7 total Turbo tasks**), Completion Authority, Agent policy, Adoption gates, Admin diagnostic/typecheck, and Secret Scanning.
+
+**Boundary.** This proves repository wiring and pre-spend enqueueability for the 122 approved packs. It does **not** claim a live Higgsfield render, Instagram/Facebook publish, production DB write, env change, ad launch, or post-merge Railway deployment receipt for this batch. Those require their own live evidence.
+
 **Updated: 2026-09-23 13:20Z** (customer-corpus wave: #2569 #2571 #2575 #2579 #2580 #2581 #2582 #2584 #2587 merged and deployed on `958b89ef7`; config pushed 13:12Z. Prior header preserved below.)
 
 ## 2026-09-23 · Customer-corpus wave — merged, deployed, config pushed

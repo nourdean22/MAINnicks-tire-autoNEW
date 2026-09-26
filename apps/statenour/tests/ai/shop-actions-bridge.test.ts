@@ -9,7 +9,8 @@
  * Those nine handlers were DELETED — five named procedures that do not exist in
  * nickstire at all, four behind an adminProcedure a Bearer token can never
  * satisfy. What survives is the client itself, still imported directly by the
- * Telegram webhook and the audit-todays-leads job, so these pins moved onto the
+ * Telegram webhook (the audit-todays-leads job was a second importer until
+ * Q-35 deleted it), so these pins moved onto the
  * client rather than being deleted along with the handlers.
  *
  * These are about the FAILURE CONTRACT, not about the bridge working. nickstire's

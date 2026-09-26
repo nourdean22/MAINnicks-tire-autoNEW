@@ -45,6 +45,7 @@ const CHECKER = join(HERE, "check-adapters.mjs");
  */
 const FIXTURE_FILES = [
   "AGENTS.md",
+  "NOUR-COMMAND.md",
   "CLAUDE.md",
   "GEMINI.md",
   "CLAUDE-OPERATING-PROFILE.md",
@@ -160,6 +161,48 @@ canary(
 );
 
 canary(
+  "root AGENTS.md must route non-trivial work through Nour Command",
+  "AGENTS.md",
+  (s) => s.replace(/NOUR-COMMAND\.md/g, "NOUR-COMMAND-REMOVED.md"),
+  "must route non-trivial work through Nour Command",
+);
+
+canary(
+  "root CLAUDE.md must IMPORT Nour Command, not merely mention it",
+  "CLAUDE.md",
+  (s) => s.replace(/^@NOUR-COMMAND\.md$/m, "see [NOUR-COMMAND.md](./NOUR-COMMAND.md)"),
+  "must IMPORT Nour Command",
+);
+
+canary(
+  "root GEMINI.md must import Nour Command through memport",
+  "GEMINI.md",
+  (s) => s.replace(/^@NOUR-COMMAND\.md$/m, "see NOUR-COMMAND.md"),
+  "must import Nour Command via memport",
+);
+
+canary(
+  "Copilot always-loaded instructions must route through Nour Command",
+  ".github/copilot-instructions.md",
+  (s) => s.replace(/NOUR-COMMAND\.md/g, "NOUR-COMMAND-REMOVED.md"),
+  "must route through Nour Command",
+);
+
+canary(
+  "Cursor always-on repo rule must route through Nour Command",
+  ".cursor/rules/repo-core.mdc",
+  (s) => s.replace(/NOUR-COMMAND\.md/g, "NOUR-COMMAND-REMOVED.md"),
+  "always-on Cursor rule must route through Nour Command",
+);
+
+canary(
+  "Antigravity adapter must route through Nour Command",
+  ".antigravityrules",
+  (s) => s.replace(/NOUR-COMMAND\.md/g, "NOUR-COMMAND-REMOVED.md"),
+  "must route through Nour Command",
+);
+
+canary(
   "the relocated profile must still contain its moved sections",
   "CLAUDE-OPERATING-PROFILE.md",
   (s) => s.replace(/^SKILL DISCOVERY$/m, "SKILL DISCOVERY REMOVED-FOR-TEST"),
@@ -208,6 +251,18 @@ test("fires: a required canonical file cannot simply vanish", () => {
     rmSync(join(root, "GEMINI.md"), { force: true });
     const { code, out } = runChecker(root);
     assert.notEqual(code, 0, "checker PASSED with GEMINI.md deleted — requireFile is inert");
+    assert.ok(out.includes("MISSING"), `expected a MISSING denial, got:\n${out}`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("fires: the canonical Nour Command framework cannot vanish", () => {
+  const root = makeFixture();
+  try {
+    rmSync(join(root, "NOUR-COMMAND.md"), { force: true });
+    const { code, out } = runChecker(root);
+    assert.notEqual(code, 0, "checker PASSED with NOUR-COMMAND.md deleted");
     assert.ok(out.includes("MISSING"), `expected a MISSING denial, got:\n${out}`);
   } finally {
     rmSync(root, { recursive: true, force: true });

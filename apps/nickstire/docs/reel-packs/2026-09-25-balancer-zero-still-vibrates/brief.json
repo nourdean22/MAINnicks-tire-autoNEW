@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-balancer-zero-still-vibrates",
+  "title": "Balancer Says Zero and the Car Still Vibrates",
+  "topic": "A zero mass-balance result does not eliminate every tire and wheel vibration source",
+  "mechanicTruth": "Mass balancing corrects uneven rotating mass, but runout, tire uniformity or road-force variation, bent-wheel conditions, bead seating, and other faults can still create vibration.",
+  "campaignKeyword": "VIBRATION",
+  "hookText": "BALANCE = ZERO",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Hunter Road Force documentation",
+      "kind": "proof",
+      "supports": "Mass balancing corrects uneven rotating mass, but runout, tire uniformity or road-force variation, bent-wheel conditions, bead seating, and other faults can still create vibration."
+    }
+  ],
+  "videoPrompt": "Real balancer footage plus a deterministic loaded-tire or runout diagram; keep all measurements real.",
+  "modelRecommendation": "Real balancer footage first; one short geometry-sensitive hero only if it materially helps.",
+  "creditEfficiencyNote": "Target 0 credits. One usable hero at most; avoid reroll spirals.",
+  "distribution": "organic_first",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "BALANCE = ZERO",
+      "narration": "A zero balance result answers one vibration question: rotating mass.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "WHY DOES IT STILL SHAKE?",
+      "narration": "Runout, tire uniformity, wheel condition, bead seating, or another problem can still make the car shake.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "BALANCE FIXES MASS",
+      "narration": "Diagnose the source instead of repeating the same balance.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "OTHER VIBRATION SOURCES EXIST",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "DIAGNOSE WHAT IS ACTUALLY MOVING",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "A zero balance result answers one vibration question: rotating mass. Runout, tire uniformity, wheel condition, bead seating, or another problem can still make the car shake. Diagnose the source instead of repeating the same balance.",
+  "selectedCaption": "Balanced twice and it still shakes? A zero mass-balance result does not eliminate every tire and wheel vibration source. Nick's can inspect what is actually oscillating.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from generic highway steering vibration: this explains why a clean mass-balance result does not close the diagnostic tree."
+}

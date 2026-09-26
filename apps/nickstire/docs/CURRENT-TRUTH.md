@@ -1,11 +1,31 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** `main` `54e7d5958` on 2026-09-10 (recruiting + honest-reads arc: #2266 #2268 #2272 #2274 #2276 #2277 #2278 #2279 #2281 #2282 merged and deployed; NO migration applied — every change is code or CI). Prior line: `main` `425aff57c` on 2026-09-09 (camera/Lot arc: #2234 #2241 #2236 #2238 #2244 merged and deployed; migration 0119 applied to prod — see "Lot / vehicle visits" below). Prior line: `1a64afd4d` on 2026-09-08 (five merged PRs, all deployed: #2182 release closure, #2187 security, #2190 shop strip + ticket, #2192 Haiku restore, #2194 toast gate; 2026-09-07 public-site serving contract, PR #2173; prior lines: 2026-08-13 ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; 2026-08-07 self-improvement arc, PRs #1382–#1421)  
+**Verified against:** `main` `55d5d5fa2` on 2026-09-25 (PR #2656 merged at 12:08:44Z; 133 approved rotation entries; local production preflight 133/133; all required PR gates green; no live render/publish/deploy claim for this batch). Prior line: `main` `f5f621379` on 2026-09-25 (#2655, 122 approved packs, full PR CI green, no live render/publish/deploy claim for that batch). Prior line: `main` `54e7d5958` on 2026-09-10 (recruiting + honest-reads arc: #2266 #2268 #2272 #2274 #2276 #2277 #2278 #2279 #2281 #2282 merged and deployed; NO migration applied — every change is code or CI). Prior line: `main` `425aff57c` on 2026-09-09 (camera/Lot arc: #2234 #2241 #2236 #2238 #2244 merged and deployed; migration 0119 applied to prod — see "Lot / vehicle visits" below). Prior line: `1a64afd4d` on 2026-09-08 (five merged PRs, all deployed: #2182 release closure, #2187 security, #2190 shop strip + ticket, #2192 Haiku restore, #2194 toast gate; 2026-09-07 public-site serving contract, PR #2173; prior lines: 2026-08-13 ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; 2026-08-07 self-improvement arc, PRs #1382–#1421)
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
+
+## Midday Reel reconciliation (2026-09-25, PR #2656 merged): 133 approved packs
+
+The recent midday Reel batches were reconciled against **current** `main` after #2655's evening import, rather than merging the stale 121-pack branch. The census is **27 source concepts = 11 distinct additions + 16 semantic duplicates already covered**. The machine-readable map is `docs/reel-packs/MIDDAY-IMPORT-2026-09-25.json`; the narrative audit is `docs/reel-packs/2026-09-25-midday-idea-rotation-audit.md`.
+
+The 11 distinct slugs are appended after the 122-pack rotation; no earlier entry is reordered because `reel_approved_pack_rotation_index` is a persisted array index. Two pre-existing reviewed packs (nitrogen-vs-air and foggy-windshield A/C) are normalized and made reachable rather than duplicated. `server/reelPackRotationCoverage.test.ts` raises the ratchet to `PREFLIGHT_PASSING_FLOOR = 133`.
+
+The deterministic production builder + `runReelPreflight` sweep returned **133 checked / 0 failures** locally. PR #2656 then passed **CI · turbo-affected verify, Completion Authority, Secret Scanning, Adoption gates, Agent policy, and Admin completion diagnostic** before squash merge at `55d5d5fa21fb912c49b450e665c00f74df9c8b83` (Evaluator separation skipped by design). During reconciliation the UTQG draft correctly tripped existing safety rules because its social copy used “warranty” / “guarantee”; the mechanic truth was preserved while the wording became manufacturer tread-life coverage / mileage promise. The gate was not weakened.
+
+**Evidence boundary:** 133/133 preflight-clean proves repository reachability and pre-spend enqueueability only. It does **not** prove a live Higgsfield render, Instagram/Facebook publish, production DB/env mutation, ad action, or Railway deployment receipt.
+
+## Reel rotation expansion (2026-09-25, PR #2655): 122 approved packs
+
+The approved Reel-pack queue on `main` now contains **122** append-only entries. The 2026-09-25 operator batch reconciled **33** candidate lessons against the live rotation before adding anything: **23 distinct packs were added; 10 semantic duplicates were mapped to packs already rotating**. The machine-readable reconciliation is `docs/reel-packs/EVENING-IMPORT-2026-09-25.json`.
+
+The cursor contract did not change: `reel_approved_pack_rotation_index` is an array index, so the 23 additions were appended after the previous 99 and no existing slug was reordered. `server/reelPackRotationCoverage.test.ts` now sets `PREFLIGHT_PASSING_FLOOR = 122`; CI requires every rotating pack to remain builder-loadable and clear `runReelPreflight` before paid generation.
+
+The gate caught a real defect before merge. All 23 imported packs initially used one shared visual phrase containing `generated readout`, so the `no-in-frame-text` hard gate rejected them and CI measured **99/122**. The briefs were fixed to describe the physical distinction through shape/position/surface/motion, the ratchet stayed at 122, and the final #2655 affected pipeline passed (**7/7 Turbo tasks**) along with Completion Authority, Agent policy, Adoption gates, Admin diagnostic/typecheck, and Secret Scanning.
+
+**Evidence boundary:** this is merged repository truth at `f5f6213799d167b40c1285cfc20c45215e082163`. It proves rotation reachability + pre-spend preflight for the 122 packs. It does **not** prove a live render, social publish, production DB/env mutation, paid-ad action, or post-merge deployment for this batch.
 
 ## Customer-corpus wave (2026-09-23): what changed in live behaviour
 
