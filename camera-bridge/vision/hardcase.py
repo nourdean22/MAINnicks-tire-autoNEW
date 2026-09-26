@@ -225,11 +225,12 @@ class HardCaseRecorder:
         if not patch:
             return True
         for index in range(len(self._buffer) - 1, -1, -1):
-            stored_ts, image, meta = self._buffer[index]
+            stored_ts, _image, meta = self._buffer[index]
             if stored_ts == ts:
-                merged = dict(meta)
-                merged.update(dict(patch))
-                self._buffer[index] = (stored_ts, image, merged)
+                # The tuple is immutable; its metadata dict is intentionally not. Mutating
+                # it preserves the exact buffered image object and avoids replacing deque
+                # entries just to join provenance produced later in the same frame.
+                meta.update(dict(patch))
                 return True
             if stored_ts < ts:
                 break
@@ -287,7 +288,7 @@ class HardCaseRecorder:
             pending.until = now
         return self.flush_ready(now)
 
-    def _window(self, pending: _Pending) -> List[Tuple[float, np.ndarray]]:
+    def _window(self, pending: _Pending) -> List[Tuple[float, np.ndarray, dict]]:
         lo, hi = pending.at - self.before_seconds, pending.until
         return [(ts, img, meta) for ts, img, meta in self._buffer if lo <= ts <= hi]
 
