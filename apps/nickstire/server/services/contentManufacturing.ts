@@ -14,7 +14,9 @@ import {
 } from "../../drizzle/schema";
 import { invokeLLM } from "../_core/llm";
 import { createLogger } from "../lib/logger";
-import { checkWeatherTriggers } from "./weatherIntelligence";
+// evaluateWeatherTriggers, never checkWeatherTriggers: drafting content must
+// not fire operator alerts or customer weather SMS (the cron handler does).
+import { evaluateWeatherTriggers } from "./weatherIntelligence";
 import { applyCreativeSkills } from "./skillRouter";
 import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
 
@@ -138,7 +140,7 @@ export async function explodeTopic(
   // B. Query weather triggers
   let weatherDetails = "Normal Cleveland weather";
   try {
-    const weather = await checkWeatherTriggers();
+    const weather = await evaluateWeatherTriggers();
     weatherDetails = weather.details;
   } catch (e) {
     log.warn("Weather check failed during explodeTopic:", e);
@@ -636,7 +638,7 @@ export async function generateScoredDraft(
   // Gather current weather state for weather trigger check
   let weatherCond = "";
   try {
-    const weather = await checkWeatherTriggers();
+    const weather = await evaluateWeatherTriggers();
     if (weather.triggered.length > 0) {
       weatherCond = weather.triggered[0];
     }
@@ -1698,3 +1700,5 @@ export async function attributeRevenueToSocial(): Promise<{ itemsProcessed: numb
   log.info(`attributeRevenueToSocial finished: itemsProcessed=${itemsProcessed} bookingsAttributed=${bookingsAttributed}`);
   return { itemsProcessed, bookingsAttributed };
 }
+
+[executed on device: NattyNour (fb18de09-5ec0-444d-bcdd-33f7e867ac82)]
