@@ -12,7 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { alertSystem, isEnabled, getDb, sendSms } = vi.hoisted(() => ({
-  alertSystem: vi.fn((_title: string, _detail: string) => Promise.resolve()),
+  alertSystem: vi.fn((_title: string, _detail: string) => Promise.resolve(true)),
   isEnabled: vi.fn(async (_key: string) => true),
   getDb: vi.fn(async () => null),
   sendSms: vi.fn(),
@@ -142,6 +142,18 @@ describe("checkWeatherTriggers (cron handler)", () => {
     await checkWeatherTriggers();
     await checkWeatherTriggers();
     expect(alertSystem).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries the operator alert after a failed delivery, then throttles only after success", async () => {
+    freezeTonight();
+    alertSystem.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await checkWeatherTriggers();
+    await checkWeatherTriggers();
+    expect(alertSystem).toHaveBeenCalledTimes(2);
+
+    await checkWeatherTriggers();
+    expect(alertSystem).toHaveBeenCalledTimes(2);
   });
 
   it("THROWS when the NWS read fails, from both entry points", async () => {
