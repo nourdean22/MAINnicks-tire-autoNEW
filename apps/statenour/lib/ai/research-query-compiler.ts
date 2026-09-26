@@ -77,6 +77,9 @@ Require active attempts to falsify attractive conclusions. Separate FACT, SOURCE
 CURRENT-STATE FIRST:
 For an existing business, system, codebase, workflow, website, campaign or product, require inspection of the real current state before prescribing changes. Prefer live behavior/receipts, current configuration/data, authoritative current code, active work, tests/CI/deployments/logs, analytics/telemetry, then current docs and historical plans. Search for reusable infrastructure, hidden capabilities, APIs, integrations, data and existing components before proposing another system.
 
+REUSE BEFORE REBUILD:
+Before recommending a new service, agent, model, database, queue, integration or workflow, require a search for the incumbent path and explain whether to strengthen, wire, consolidate, replace or delete it. New architecture must justify what it replaces, what measurable gap it closes, and why the carrying cost is worth it.
+
 OPTION SEARCH:
 When alternatives exist, deliberately examine the obvious answer, strongest alternative, newest credible approach, practical/high-ROI approach, low-cost/open-source route, best-in-class route, and relevant hybrid/custom approaches. Compare only dimensions that actually affect the objective: effectiveness, quality, reliability, cost, time-to-value, implementation burden, maintainability, lock-in, automation, scale, security/privacy, reversibility and failure modes.
 
