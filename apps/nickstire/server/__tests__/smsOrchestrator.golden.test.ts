@@ -3,12 +3,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mocks for third-party integrations
 const mockSendSms = vi.fn().mockResolvedValue({ success: true, sid: "SM_test_123" });
 const mockMarkPhoneFullyOptedOut = vi.fn().mockResolvedValue(true);
+const mockMarkPhoneOptedOut = vi.fn();
 const mockMarkPhoneOptedIn = vi.fn();
 const mockLoadSuppressionIndex = vi.fn().mockResolvedValue({ ok: true, phones: new Set<string>() });
 vi.mock("../sms", () => ({
   sendSms: (...args: any[]) => mockSendSms(...args),
   withOptOut: (body: string) => body,
   markPhoneFullyOptedOut: (...args: any[]) => mockMarkPhoneFullyOptedOut(...args),
+  markPhoneOptedOut: (...args: any[]) => mockMarkPhoneOptedOut(...args),
   markPhoneOptedIn: (...args: any[]) => mockMarkPhoneOptedIn(...args),
   loadSuppressionIndex: (...args: any[]) => mockLoadSuppressionIndex(...args),
 }));
