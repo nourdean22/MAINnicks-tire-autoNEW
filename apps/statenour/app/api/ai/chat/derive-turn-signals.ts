@@ -24,6 +24,7 @@ import type { ChatMode } from "@/lib/ai/chat-mode";
 import type { TaskType } from "@/lib/ai/provider";
 import type { createStageTracker } from "@/lib/ai/chat/timing";
 import type { logger as rootLogger } from "@/lib/logger";
+import type { ResearchCompilerMode } from "@/lib/ai/research-query-compiler";
 
 type Logger = ReturnType<typeof rootLogger.withSurface>;
 type StageTracker = ReturnType<typeof createStageTracker>;
@@ -49,6 +50,7 @@ export interface TurnSignals {
   webSearchIntent: boolean;
   /** Weaker sibling: recency-phrased ask → search tools INCLUDED, never forced. */
   webSearchRecency: boolean;
+  researchCompilerMode: ResearchCompilerMode | null;
 }
 
 export async function deriveTurnSignals(args: {
@@ -60,6 +62,7 @@ export async function deriveTurnSignals(args: {
   traceId: string;
   stageTracker: StageTracker;
   log: Logger;
+  researchCompilerMode?: ResearchCompilerMode | null;
 }): Promise<TurnSignals> {
   const {
     userContent,
@@ -70,6 +73,7 @@ export async function deriveTurnSignals(args: {
     traceId,
     stageTracker,
     log,
+    researchCompilerMode = null,
   } = args;
 
   // ═══ PERF: Chat mode detection (with overrides) ═══
@@ -87,7 +91,7 @@ export async function deriveTurnSignals(args: {
   // memory.recalled) and is labelled `skipped` by buildChatResponse. The
   // classify stage is marked skipped rather than timed, so chat_pipeline_stages
   // reads `classify=skipped`, never a 0 ms stage that looks like a fast call.
-  const fixedMode = modeOverride || aiConfig?.defaultMode;
+  const fixedMode = researchCompilerMode ? "deep" : (modeOverride || aiConfig?.defaultMode);
   let classification: Classification | undefined;
   let mode: ChatMode;
   if (fixedMode) {
@@ -198,13 +202,15 @@ export async function deriveTurnSignals(args: {
       })
     : false;
   const domainRoute = detectDomain(userContent, { hasImageAttachments });
-  const finalTaskType = (taskTypeOverride
-    ? taskTypeForMode
-    : domainRoute.domain !== "general"
-      ? domainRoute.taskType
-      : taskTypeForMode) as TaskType;
+  const finalTaskType = (researchCompilerMode
+    ? "deep"
+    : taskTypeOverride
+      ? taskTypeForMode
+      : domainRoute.domain !== "general"
+        ? domainRoute.taskType
+        : taskTypeForMode) as TaskType;
   const finalPreferLargeContext =
-    contentMode || domainRoute.preferLargeContext;
+    Boolean(researchCompilerMode) || contentMode || domainRoute.preferLargeContext;
   log.info("domain_route", {
     label: domainRoute.label,
     taskType: finalTaskType,
@@ -219,6 +225,7 @@ export async function deriveTurnSignals(args: {
   // Route python-execute intent through Anthropic to guarantee the
   // tool actually fires.
   const pythonExecuteIntent =
+    !researchCompilerMode &&
     /\b(run|execute|invoke)\s+(?:this\s+)?python\b|\bpython\s+(?:to\s+|and\s+)?(?:compute|calculate|run|execute)\b|\buse\s+(?:the\s+)?runPython\b|\brun\s+(?:this\s+)?code\b/i.test(
       userContent,
     );
@@ -233,7 +240,7 @@ export async function deriveTurnSignals(args: {
   // routes to the lane that actually fires the tool. Detected ONCE
   // and reused for both the provider force and toolChoice.
   // Degrades safely: if Ollama is unavailable, getModel falls through.
-  const actionIntent = pythonExecuteIntent
+  const actionIntent = researchCompilerMode || pythonExecuteIntent
     ? null
     : (() => {
         try {
@@ -256,6 +263,7 @@ export async function deriveTurnSignals(args: {
   // stays tight (explicit phrasings only) so ordinary questions keep
   // toolChoice auto.
   const webSearchIntent =
+    !researchCompilerMode &&
     !pythonExecuteIntent &&
     /\b(search (the )?(web|internet|net|online)|google (it|for|me|this|that)|web ?search|look (it |this |that |them )?up online|(find|pull|get) (me )?(the )?(latest|current|live|breaking|newest|hottest) .{0,40}\b(online|on the web|from the web|news|trends?)\b)\b/i.test(
       userContent,
@@ -272,6 +280,7 @@ export async function deriveTurnSignals(args: {
   // toolChoice forcing stays on the tight explicit regex above, exactly
   // per its "detection stays tight" design note.
   const webSearchRecency =
+    !researchCompilerMode &&
     !pythonExecuteIntent &&
     !webSearchIntent &&
     /\b(right now|trending|what'?s (hot|new|popular)|(top|best)[- ]rated|(latest|newest|current|breaking) (news|movies?|shows?|series|releases?|trends?|prices?|models?)|this (week|month))\b/i.test(
@@ -292,5 +301,6 @@ export async function deriveTurnSignals(args: {
     actionIntent,
     webSearchIntent,
     webSearchRecency,
+    researchCompilerMode,
   };
 }

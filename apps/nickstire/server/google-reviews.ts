@@ -174,6 +174,10 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
       {
         place_id: placeId,
         fields: "name,rating,user_ratings_total,reviews,formatted_address,formatted_phone_number,website,opening_hours,geometry",
+        // Legacy Place Details defaults to "most_relevant". The public reviews
+        // page promises recency, so request newest explicitly and still sort
+        // client-side by the returned Unix timestamp as a defensive fallback.
+        reviews_sort: "newest",
       }
     );
 

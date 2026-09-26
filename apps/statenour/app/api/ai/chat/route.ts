@@ -144,6 +144,15 @@ async function chatPostInner(req: Request) {
   const { detectContentIntent: _detectContentIntent } = await import("@/lib/ai/business-knowledge");
   const contentMode = _detectContentIntent(userContent);
 
+  // Research Query Compiler: explicit pre-research mode. Detect before
+  // interceptors/specialists so /drq and /nickdrq stay on the main context-rich
+  // chat path and are never mistaken for an action/research request.
+  const {
+    detectResearchCompilerMode,
+    buildResearchCompilerDirective,
+  } = await import("@/lib/ai/research-query-compiler");
+  const researchCompilerMode = detectResearchCompilerMode(userContent);
+
   // ═══ NL INTERCEPTOR FAST PATH ═══
   //
   // Three deterministic intents bypass the entire model pipeline:
@@ -162,7 +171,8 @@ async function chatPostInner(req: Request) {
   // commands / brain-dumps / decisions / /save create a titled conversation +
   // user row + BrainMemory/Decision rows (self-review blocker #1). Falling
   // through routes the turn to the model pipeline, which is private-safe.
-  if (!privateMode) {
+  // Compiler turns are prompt-only: interceptors can execute or persist before tool pruning.
+  if (!privateMode && !researchCompilerMode) {
     const interceptorTimer = stageTracker.start("interceptors");
     const { runInterceptors } = await import("@/lib/ai/chat/interceptors");
     const interceptResult = await runInterceptors({
@@ -186,7 +196,7 @@ async function chatPostInner(req: Request) {
   // Private Lab: skip specialist routing entirely — it records
   // content-derived route metrics (self-review #7) and its
   // buildFastStream persists the reply.
-  if (!privateMode) {
+  if (!privateMode && !researchCompilerMode) {
     const { runSpecialistRouting } = await import("./specialist-routing");
     const specialist = await runSpecialistRouting({
       messages: messages as unknown as Array<Record<string, unknown>>,
@@ -330,6 +340,7 @@ async function chatPostInner(req: Request) {
     traceId: __traceId,
     stageTracker,
     log,
+    researchCompilerMode,
   });
   // t0 anchors the prompt_built buildMs log metric. It previously sat
   // between the classify call and the pure derivations; the ~2-5ms of
@@ -836,7 +847,7 @@ ${priorsBlock}`;
   // content-feedback step swallows its own errors; anything else
   // throwing lands in this route's catch → 500, as before.
   const { augmentFinalPrompt } = await import("./augment-final-prompt");
-  const finalSystemPrompt = await augmentFinalPrompt({
+  let finalSystemPrompt = await augmentFinalPrompt({
     systemPrompt,
     provider,
     greeneSummary,
@@ -846,6 +857,18 @@ ${priorsBlock}`;
     turnSignal,
     log,
   });
+
+  // Append LAST, after every generic persona/shape/business addendum. This makes
+  // prompt-compilation the controlling contract for this turn while preserving
+  // all recovered context above it. The model receives zero tools downstream.
+  if (researchCompilerMode) {
+    finalSystemPrompt += `\n\n${buildResearchCompilerDirective(researchCompilerMode)}`;
+    log.info("research_query_compiler", {
+      mode: researchCompilerMode,
+      tools: 0,
+      outputContract: "prompt-only",
+    });
+  }
 
   // 2026-08-12 · Context Manifest (VNext) — log-only: record exactly what
   // the model saw this turn (sections on the trimmer's own `\n## `
@@ -895,6 +918,7 @@ ${priorsBlock}`;
     finalSystemPromptLength: finalSystemPrompt.length,
     // WP-14 · read-mode hard enforcement (strips mutating tools LAST)
     actionPermission,
+    researchCompilerMode,
     traceId: __traceId,
     conversationId: convId,
     log,
@@ -989,7 +1013,7 @@ ${priorsBlock}`;
   // VERBATIM to ./alternate-paths.ts. Returns a Response when an
   // alternate path handled the turn; null falls through to the
   // untouched streamText path below. Flags off = zero change.
-  {
+  if (!researchCompilerMode) {
     const { runAlternatePaths } = await import("./alternate-paths");
     const altResponse = await runAlternatePaths({
       persistBase,

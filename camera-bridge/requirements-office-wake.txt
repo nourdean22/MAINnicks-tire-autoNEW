@@ -1,0 +1,3 @@
+# Optional dependencies for vision.officewake. Kept out of the canonical camera runtime.
+websockets>=12.0
+tzdata; sys_platform == "win32"

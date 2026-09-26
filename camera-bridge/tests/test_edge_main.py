@@ -572,7 +572,7 @@ def _args(**over):
         stall_exit_seconds=180.0, scene_atlas=None, scene=None,
         adjudicator_model=None, adjudicator_device=None,
         hard_cases=None, hard_case_max_gb=2.0, hard_case_episodes="both", trajectories=None,
-        shadow_ledger=None,
+        service_review_seconds=30.0, shadow_ledger=None,
         relocate_seconds=120.0,
         challenger_model=None,
         replay=False,

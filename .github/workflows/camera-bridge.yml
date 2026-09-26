@@ -61,7 +61,7 @@ jobs:
           # numpy is the only module-level third-party import across vision/ and
           # visitd/; opencv is installed headless because the evidence writer reaches
           # for cv2 lazily and we want that path exercised rather than swallowed.
-          pip install "numpy>=2.0" "opencv-python-headless>=4.10" "pytest>=8.0" pytest-subtests
+          pip install "numpy>=2.0" "opencv-python-headless>=4.10" "pytest>=8.0" pytest-subtests "mcap>=1.4.0"
 
       - name: Run the suites
         # One command covers BOTH trees only because camera-bridge/conftest.py puts

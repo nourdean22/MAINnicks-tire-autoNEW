@@ -34,7 +34,7 @@ import { Link } from "wouter";
 import BookingForm from "@/components/BookingForm";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, trackPhoneClick, trackEvent } from "@/components/SEO";
-import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Disc, Activity, Wrench, Zap, AlertTriangle, Snowflake, KeyRound, MessageCircle } from "lucide-react";
+import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Disc, Activity, Wrench, Zap, AlertTriangle, Snowflake, KeyRound, MessageCircle, Droplets } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
@@ -116,6 +116,17 @@ function IntentRouter({ personalization }: { personalization: HeroPersonalizatio
   const track = useConversionTracking();
   return (
     <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl motion-safe:animate-[fadeInUp_0.6s_ease-out_0.6s_both]">
+      <Link
+        href="/oil-change"
+        onClick={() => trackEvent("oil_change_cta_click", { source: "hero-router-quick" })}
+        className="sm:col-span-2 justify-self-start inline-flex min-h-11 items-center gap-2 rounded-full border border-nick-yellow/40 bg-black/60 px-3.5 py-2 text-xs font-bold text-[#F5F5F5] backdrop-blur-md transition-all hover:border-nick-yellow hover:bg-black/75 active:scale-[0.98]"
+        aria-label="Need an oil change? Walk in today"
+      >
+        <Droplets className="h-4 w-4 text-nick-yellow" />
+        <span>Need an oil change?</span>
+        <span className="text-[#A0A0A0]">Walk in today</span>
+        <ArrowRight className="h-3.5 w-3.5 text-nick-yellow" />
+      </Link>
       {brakesLead ? (
         <PrimaryLane
           href="/brakes"

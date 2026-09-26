@@ -80,6 +80,8 @@ param(
     [int]$Channel = -1,
     [string]$HardCases = "",
     [double]$HardCaseMaxGb = 2.0,
+    # Corpus sampling dwell only. This does NOT alter visit/service truth.
+    [double]$ServiceReviewSeconds = 30.0,
     [ValidateSet("", "off", "both", "replace")]
     [string]$HardCaseEpisodes = "",
     [string]$Trajectories = "",
@@ -288,6 +290,7 @@ $channelArg    = if ($Channel -ge 0) { " --channel $Channel" } else { '' }
 $episodeArg    = _Arg '--hard-case-episodes' $HardCaseEpisodes
 $trajArg       = _Arg '--trajectories' $Trajectories
 $hardCaseArg   = if ($HardCases) { (_Arg '--hard-cases' $HardCases) + " --hard-case-max-gb $HardCaseMaxGb" + $episodeArg } else { '' }
+$serviceReviewArg = " --service-review-seconds $ServiceReviewSeconds"
 $relocateArg   = " --relocate-seconds $RelocateSeconds"
 $shadowArg     = (_Arg '--shadow-ledger' $ShadowLedger) + (_Arg '--challenger-model' $ChallengerModel)
 $adjArg        = (_Arg '--adjudicator-model' $AdjudicatorModel) + (_Arg '--adjudicator-device' $AdjudicatorDevice)
@@ -322,7 +325,7 @@ cd /d "$pctRoot"
 $secretLine
 echo. >> "$pctLog"
 echo ==== edge start %DATE% %TIME% ==== >> "$pctLog"
-"$pctPython" edge_main.py --config "$pctConfig" --camera "$Camera"$calArg$modelArg$sceneArg$channelArg$hardCaseArg$relocateArg$shadowArg$adjArg$evidenceArg$ledgerArg$replayArg$trajArg$captureArg$modeArg$drainArg$persistArg$dryRunArg$logLevelArg$extraArg --fps $Fps --heartbeat-seconds $HeartbeatSeconds --stall-exit-seconds $StallExitSeconds >> "$pctLog" 2>&1
+"$pctPython" edge_main.py --config "$pctConfig" --camera "$Camera"$calArg$modelArg$sceneArg$channelArg$hardCaseArg$serviceReviewArg$relocateArg$shadowArg$adjArg$evidenceArg$ledgerArg$replayArg$trajArg$captureArg$modeArg$drainArg$persistArg$dryRunArg$logLevelArg$extraArg --fps $Fps --heartbeat-seconds $HeartbeatSeconds --stall-exit-seconds $StallExitSeconds >> "$pctLog" 2>&1
 set RC=%ERRORLEVEL%
 echo ==== edge exit %RC% %DATE% %TIME% ==== >> "$pctLog"
 exit /b %RC%

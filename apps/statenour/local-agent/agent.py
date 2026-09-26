@@ -118,6 +118,20 @@ def run_eufy():
     log.info("Eufy: %d devices synced", count)
     return count
 
+def run_eufy_commands():
+    from eufy_bridge import process_pending_commands
+    count = process_pending_commands()
+    if count:
+        log.info("Eufy: %d queued commands processed", count)
+    return count
+
+def start_eufy_events():
+    from eufy_bridge import start_event_thread
+    thread = start_event_thread()
+    if thread:
+        log.info("Eufy semantic event listener started")
+    return thread
+
 def run_v380():
     from v380_agent import sync_v380_devices
     count = sync_v380_devices()
@@ -186,6 +200,17 @@ def main():
     log.info("=" * 50)
 
     health_update(status="running")
+
+    # The event listener is a daemon thread and is intentionally separate from
+    # periodic device polling. Motion/person/PTZ notifications arrive promptly
+    # without continuously pulling video or waiting for the 2-minute Eufy poll.
+    if not args.once and not args.tuya_only and not args.no_eufy:
+        try:
+            start_eufy_events()
+        except Exception as e:
+            # Polling remains useful even if the event stream cannot start.
+            log.warning("Eufy event listener failed to start: %s", e)
+
     cycle = 0
 
     while not _shutdown:
@@ -209,6 +234,14 @@ def main():
         # Commands every 3rd cycle
         if cycle % 3 == 0:
             with_retry(run_tuya_commands, "Tuya Commands")
+
+        # Eufy controls are checked every local-agent cycle for low latency.
+        # eufy_bridge.poll_commands fails closed and DOES NOT claim queue rows
+        # until bridge auth + the explicit control feature flag are ready.
+        if not args.tuya_only and not args.no_eufy:
+            ok, _ = with_retry(run_eufy_commands, "Eufy Commands", max_retries=0)
+            if not ok:
+                errors += 1
 
         # Ring
         if not args.tuya_only and not args.no_ring and (cycle % RING_POLL_MULTIPLIER == 0 or args.once):
