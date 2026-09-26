@@ -121,9 +121,28 @@ const SPOKEN_OPT_OUT_PATTERNS: RegExp[] = [
   /\bopt\s*(?:me\s+)?out\b/,
 ];
 
+const FULL_CONTACT_OPT_OUT_PATTERNS: RegExp[] = [
+  /\bstop\s+(?:contacting|texting|messaging)\b/,
+  /\b(?:do\s*n[o']?t|don'?t|never|quit|no\s+more)\s+(?:contact|contacting|text|texting|message|messaging)\s+(?:me|us|this\s+number|here|again)\b/,
+  /\b(?:take|remove)\s+(?:me|my\s+(?:phone\s+)?number|this\s+number)\s+(?:off|from)\s+(?:of\s+)?(?:your|the)\s+(?:(?:contact|mailing|text|message)\s+)?list\b/,
+  /\bremove\s+(?:me|my\s+(?:phone\s+)?number|this\s+number)\b/,
+  /\bunsubscribe\b/,
+  /\bopt\s*(?:me\s+)?out\b/,
+];
+
+export type SpokenOptOutScope = "voice" | "all";
+
+const normalizeSpokenOptOut = (utterance: string) =>
+  utterance.toLowerCase().replace(/[’`]/g, "'").replace(/\s+/g, " ");
+
+export function spokenOptOutScope(utterance: string): SpokenOptOutScope | null {
+  const t = normalizeSpokenOptOut(utterance);
+  if (!SPOKEN_OPT_OUT_PATTERNS.some((re) => re.test(t))) return null;
+  return FULL_CONTACT_OPT_OUT_PATTERNS.some((re) => re.test(t)) ? "all" : "voice";
+}
+
 export function isSpokenOptOut(utterance: string): boolean {
-  const t = utterance.toLowerCase().replace(/[’`]/g, "'").replace(/\s+/g, " ");
-  return SPOKEN_OPT_OUT_PATTERNS.some((re) => re.test(t));
+  return spokenOptOutScope(utterance) !== null;
 }
 
 /**
