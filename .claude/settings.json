@@ -13,6 +13,11 @@
           },
           {
             "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/intelligence-context.mjs\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR}/scripts/agent-os/check-memory-index.mjs\" --quiet",
             "timeout": 10
           },
