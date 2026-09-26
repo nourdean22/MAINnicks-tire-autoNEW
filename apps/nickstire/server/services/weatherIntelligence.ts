@@ -1,7 +1,7 @@
 /**
- * Weather Intelligence â€” Triggers marketing campaigns based on Cleveland weather.
+ * Weather Intelligence — Triggers marketing campaigns based on Cleveland weather.
  * Reads the National Weather Service 7-day forecast and active alerts
- * (lib/nwsWeather.ts â€” public-domain data, no key) and detects freeze, heavy
+ * (lib/nwsWeather.ts — public-domain data, no key) and detects freeze, heavy
  * rain, snow, heat, pothole season and salt-season end days ahead, not only
  * when the condition is already here. Alerts the operator with a GBP post
  * draft for review.
@@ -30,11 +30,11 @@ interface WeatherTrigger {
 }
 
 export interface WeatherData {
-  /** Highest forecast temperature over the forecast window (Â°F). */
+  /** Highest forecast temperature over the forecast window (°F). */
   tempMax: number;
-  /** Lowest forecast temperature over the forecast window (Â°F). */
+  /** Lowest forecast temperature over the forecast window (°F). */
   tempMin: number;
-  /** First forecast period at or below 32Â°F, or an active NWS freeze alert. */
+  /** First forecast period at or below 32°F, or an active NWS freeze alert. */
   freezeAt: Date | null;
   /** Heavy rain in the next 48h (named in the forecast, >=80% rain chance, or a flood alert). */
   heavyRain: boolean;
@@ -62,14 +62,14 @@ const TRIGGERS: WeatherTrigger[] = [
     id: "heavy_rain",
     name: "Heavy Rain",
     check: (d) => d.heavyRain,
-    gbpDraft: "Heavy rain in Cleveland today. Worn tires = hydroplaning risk. Free tread depth check â€” drive in anytime. Stay safe out there! (216) 862-0005",
+    gbpDraft: "Heavy rain in Cleveland today. Worn tires = hydroplaning risk. Free tread depth check — drive in anytime. Stay safe out there! (216) 862-0005",
   },
   {
     id: "snow_forecast",
     name: "Snow Forecast",
     // Operator alert + GBP draft only: no SMS template exists for this id.
     check: (d) => d.snowExpected,
-    gbpDraft: "Snow is in the Cleveland forecast. Check your tread and wiper blades before it lands. Free tread depth check â€” drive in anytime. (216) 862-0005",
+    gbpDraft: "Snow is in the Cleveland forecast. Check your tread and wiper blades before it lands. Free tread depth check — drive in anytime. (216) 862-0005",
   },
   {
     id: "pothole_season",
@@ -81,18 +81,18 @@ const TRIGGERS: WeatherTrigger[] = [
     id: "extreme_heat",
     name: "Extreme Heat",
     check: (d) => d.tempMax >= 92 || d.heatAlert,
-    gbpDraft: "Extreme heat today! Is your AC blowing cold? We do full AC diagnostics and recharges. Keep your family cool â€” book now: nickstire.org/booking",
+    gbpDraft: "Extreme heat today! Is your AC blowing cold? We do full AC diagnostics and recharges. Keep your family cool — book now: nickstire.org/booking",
   },
   {
     id: "salt_season_end",
     name: "Salt Season End",
     check: (d) => d.month === 4 && d.tempMin > 40,
-    gbpDraft: "Salt season is over. Protect your undercarriage from rust damage. We offer undercarriage inspections â€” catch corrosion early. (216) 862-0005",
+    gbpDraft: "Salt season is over. Protect your undercarriage from rust damage. We offer undercarriage inspections — catch corrosion early. (216) 862-0005",
   },
 ];
 
 const HOUR = 60 * 60 * 1000;
-// Freeze Watch/Warning, Hard Freeze â€” not a Frost Advisory (33-36Â°F is not a freeze).
+// Freeze Watch/Warning, Hard Freeze — not a Frost Advisory (33-36°F is not a freeze).
 const FREEZE_ALERT = /freeze/i;
 const WINTER_ALERT = /winter storm|winter weather|lake effect snow|blizzard|ice storm/i;
 const HEAT_ALERT = /heat/i;
@@ -134,7 +134,7 @@ const IMMINENT_HOURS = 24;
 
 /**
  * PURE: forecast periods + active alerts -> weather data, the triggers the
- * whole forecast fires (operator alerts, drafts, planners â€” days ahead), the
+ * whole forecast fires (operator alerts, drafts, planners — days ahead), the
  * subset that is IMMINENT (next 24h; the only triggers customer SMS may use,
  * because the SMS copy says "today"/"alert"), and an operator summary.
  */
@@ -152,7 +152,7 @@ export function evaluateForecast(
   const nearData = deriveWeatherData(nearPeriods, nearAlerts, now);
   const imminent = TRIGGERS.filter((t) => t.check(nearData)).map((t) => t.id);
 
-  const parts = [`NWS 7-day ${data.tempMin}-${data.tempMax}Â°F, now ${data.description}`];
+  const parts = [`NWS 7-day ${data.tempMin}-${data.tempMax}°F, now ${data.description}`];
   if (data.freezeAt) {
     const day = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric" }).format(data.freezeAt);
     parts.push(`freeze ${day} (${describeFreezeTiming(data.freezeAt)})`);
@@ -169,10 +169,10 @@ async function readForecast(): Promise<{ periods: NwsPeriod[]; alerts: NwsAlert[
 /** SMS messages for each weather trigger type */
 const WEATHER_SMS_TEMPLATES: Record<string, string> = {
   first_freeze: "Hi {name}, first freeze alert! Free battery test at Nick's. Don't get stranded. Drop off anytime. (216) 862-0005",
-  heavy_rain: "Hi {name}, heavy rain today in Cleveland. Worn tires = danger. Free tread depth check â€” drop by anytime. (216) 862-0005",
-  pothole_season: "Hi {name}, pothole season is here in Cleveland. Free alignment check at Nick's â€” just drop off. (216) 862-0005",
-  extreme_heat: "Hi {name}, extreme heat alert! Is your AC blowing cold? Free AC check at Nick's â€” drop off anytime. (216) 862-0005",
-  salt_season_end: "Hi {name}, salt season is over â€” time to check for rust damage. Free undercarriage inspection at Nick's. (216) 862-0005",
+  heavy_rain: "Hi {name}, heavy rain today in Cleveland. Worn tires = danger. Free tread depth check — drop by anytime. (216) 862-0005",
+  pothole_season: "Hi {name}, pothole season is here in Cleveland. Free alignment check at Nick's — just drop off. (216) 862-0005",
+  extreme_heat: "Hi {name}, extreme heat alert! Is your AC blowing cold? Free AC check at Nick's — drop off anytime. (216) 862-0005",
+  salt_season_end: "Hi {name}, salt season is over — time to check for rust damage. Free undercarriage inspection at Nick's. (216) 862-0005",
 };
 
 /**
@@ -226,7 +226,7 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
     for (const c of targets) {
       if (!c.phone) continue;
 
-      // Per-customer cooldown â€” skip anyone already texted for THIS
+      // Per-customer cooldown — skip anyone already texted for THIS
       // weather trigger in the last 30 days. Without it, sendWeatherSms
       // re-texts the same lapsed customers on every run a weather
       // condition persists (rain for hours -> 'heavy_rain' fires each run).
@@ -249,7 +249,7 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
         const result = await sendSms(c.phone, msg, { via: "shop", skipPersist: true, variantKey });
         // Log with the weather variantKey so the cooldown above sees this
         // send on the next run and the admin SMS tile counts it.
-        // wave-2026-06 (telemetry dedup) â€” a QUEUED send already has ONE tiered
+        // wave-2026-06 (telemetry dedup) — a QUEUED send already has ONE tiered
         // row from queueForLater (now carries variantKey); logging here too
         // would double-count it as an untagged twin. Only log the online path.
         if (!result.queued) {
@@ -276,7 +276,7 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
 }
 
 /**
- * PURE weather evaluation â€” fetch + classify, ZERO side effects (no alerts,
+ * PURE weather evaluation — fetch + classify, ZERO side effects (no alerts,
  * no SMS). This is the ONLY weather entry point observational surfaces
  * (shadow planner, dashboards, content drafting) may use: #824 review found
  * the Control tab's shadow plan could fire live customer SMS through
@@ -312,11 +312,15 @@ export async function checkWeatherTriggers(): Promise<{ triggered: string[]; det
     log.info(`Weather trigger fired: ${trigger.name}`, { data });
     const last = lastAlertAt.get(id);
     if (last === undefined || Date.now() - last >= ALERT_REPEAT_MS) {
-      lastAlertAt.set(id, Date.now());
-      alertSystem(
+      const delivered = await alertSystem(
         `Weather: ${trigger.name}`,
         `${trigger.gbpDraft.slice(0, 200)}\n\n${details}`
-      ).catch((e) => { log.warn("[services/weatherIntelligence] fire-and-forget failed:", e); });
+      );
+      if (delivered) {
+        lastAlertAt.set(id, Date.now());
+      } else {
+        log.warn("[services/weatherIntelligence] operator weather alert was not delivered; throttle remains open", { triggerId: id });
+      }
     }
 
     // A forecast days out drafts and alerts; only an imminent one may text.
