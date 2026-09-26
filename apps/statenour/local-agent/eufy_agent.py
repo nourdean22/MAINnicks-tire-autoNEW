@@ -33,6 +33,7 @@ API_URL = os.getenv("STATENOUR_API_URL", "https://bdnick.info")
 SYNC_KEY = os.getenv("STATENOUR_SYNC_KEY", "")
 EUFY_EMAIL = os.getenv("EUFY_EMAIL", "")
 EUFY_PASSWORD = os.getenv("EUFY_PASSWORD", "")
+EUFY_BRIDGE_URL = os.getenv("EUFY_BRIDGE_URL", "").strip()
 
 EUFY_API_BASE = "https://security-app.eufylife.com"
 TOKEN_FILE = Path(__file__).parent / "eufy-data" / "token.json"
@@ -287,6 +288,72 @@ def _infer_eufy_location(name: str) -> str:
     return "home"
 
 
+# ─── Bridge-backed device sync ───────────────────────────────────────────
+
+def _normalize_bridge_devices(bridge_devices: list) -> list:
+    """Convert current mega-yfue bridge device summaries to StateNour shape."""
+    devices = []
+    for dev in bridge_devices:
+        if not isinstance(dev, dict) or dev.get("error"):
+            continue
+        serial = str(dev.get("sn") or "").strip()
+        if not serial:
+            continue
+
+        capabilities = dev.get("capabilities") if isinstance(dev.get("capabilities"), list) else []
+        state = dev.get("state") if isinstance(dev.get("state"), dict) else {}
+        codec = str(dev.get("codec") or "").lower()
+        is_camera = codec == "camera" or "camera" in capabilities or "video" in capabilities
+
+        devices.append({
+            "platformDeviceId": f"eufy-{serial}",
+            "name": dev.get("name") or dev.get("modelName") or "Eufy Device",
+            "platform": "EUFY",
+            "deviceType": "CAMERA" if is_camera else "OTHER",
+            "location": _infer_eufy_location(str(dev.get("name") or dev.get("modelName") or "")),
+            "status": "ONLINE",
+            "currentState": {
+                **state,
+                "streaming": bool(dev.get("streaming", False)),
+            },
+            "metadata": {
+                "model": dev.get("model") or dev.get("modelName"),
+                "modelName": dev.get("modelName"),
+                "serial": serial,
+                "capabilities": capabilities,
+                "stream": dev.get("stream"),
+                "controlPlane": "mega-yfue-bridge",
+            },
+        })
+    return devices
+
+
+def _poll_bridge_devices() -> list | None:
+    """
+    Prefer the single authenticated bridge session when configured.
+
+    IMPORTANT: do not fall through to direct Eufy cloud login when a bridge URL
+    exists. Eufy allows effectively one active account session; an independent
+    login here can kick the PTZ/event bridge into re-auth.
+    """
+    if not EUFY_BRIDGE_URL:
+        return None
+    try:
+        from eufy_bridge import list_devices
+        devices = _normalize_bridge_devices(list_devices())
+        if devices:
+            log.info("Eufy bridge: %d devices (live)", len(devices))
+            return devices
+        raise RuntimeError("Eufy bridge returned no usable devices")
+    except Exception as exc:
+        # Fail closed. Returning the static registry here would cause the
+        # sync route to stamp lastSeenAt=now and make an unreachable camera
+        # look freshly observed. Static discovery is only a legacy fallback
+        # when NO bridge has been configured.
+        log.error("Eufy bridge unavailable: %s", exc)
+        raise
+
+
 # ─── Main Sync Function ──────────────────────────────────────────────────
 
 def poll_eufy_devices():
@@ -296,7 +363,14 @@ def poll_eufy_devices():
     2. Try fresh login (may fail on captcha)
     3. Fall back to known device registry
     """
-    # Try cached token first
+    # If the bridge is configured it is the ONLY authenticated Eufy session.
+    # Empty bridge result means temporary failure: use the static registry, not
+    # a second cloud login that could invalidate the bridge session.
+    bridge_devices = _poll_bridge_devices()
+    if bridge_devices is not None:
+        return bridge_devices
+
+    # Legacy path for installations that have no bridge configured.
     token = _load_token()
     if token:
         api_data = _eufy_get_devices(token)
