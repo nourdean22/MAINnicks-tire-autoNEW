@@ -150,8 +150,8 @@ describe("the suppression index", () => {
     expect(idx.voiceOnly.has(VOICE_ONLY)).toBe(false);
   });
 
-  it("Q43 ledger holds are a real suppression source when rollout is enabled", async () => {
-    process.env.CONSENT_LEDGER_MODE = "shadow";
+  it("Q43 ledger holds become a real suppression source at enforce_holds", async () => {
+    process.env.CONSENT_LEDGER_MODE = "enforce_holds";
     ledgerState.heldPhones.add(VOICE_ONLY);
 
     const { loadSuppressionIndex } = await import("./sms");
