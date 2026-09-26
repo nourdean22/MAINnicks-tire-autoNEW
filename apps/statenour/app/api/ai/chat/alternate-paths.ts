@@ -425,6 +425,8 @@ export async function runAlternatePaths(args: {
           >[0]["intent"],
           shape: turnSignal.outputShape,
           userPrompt: userContent,
+          turnSignal,
+          responseContract: persistBase.responseContract ?? null,
           generateOnce: () => genOnce(finalSystemPrompt, turnSignal.temperature),
           regenOnce: ({ suggestedSystemPrefix }) =>
             genOnce(
@@ -435,6 +437,13 @@ export async function runAlternatePaths(args: {
         winner = regen.text;
         log.info("verified_regen_path", {
           regenFired: regen.regenFired,
+          regenAttempted: regen.regenScore !== null,
+          regenWasBetter: regen.regenWasBetter,
+          selectionReason: regen.selectionReason,
+          firstOverall: regen.firstScore.overall,
+          firstSeverity: regen.firstAssessment.severity,
+          regenOverall: regen.regenScore?.overall ?? null,
+          regenSeverity: regen.regenAssessment?.severity ?? null,
           intent: turnSignal.intent,
         });
       } else if (selfConsistencyOn) {
