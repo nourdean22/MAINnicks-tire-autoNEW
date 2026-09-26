@@ -193,4 +193,23 @@ describe("prepareTools surfacing telemetry", () => {
     expect(markSearchToolsFired).toHaveBeenCalledWith("trace-1", "sleep data");
     expect(markInvokeToolFired).toHaveBeenCalledWith("trace-1", "getHabitStreaks");
   });
+  it("offers zero tools and ignores query-shape clamps in research compiler mode", async () => {
+    const result = await prepareTools(
+      args({
+        researchCompilerMode: "general",
+        webSearchIntent: true,
+        actionIntent: { intent: "create task", expectedTool: "toolC" } as never,
+        queryShape: { shape: "yesno", tokenBudget: 80, needsTool: true, factualHints: ["web"] } as never,
+        traceId: "trace-drq",
+      }),
+    );
+    await vi.waitFor(() => expect(recordMetricStrict).toHaveBeenCalledTimes(1));
+    const [, value, opts] = recordMetricStrict.mock.calls[0];
+    expect(Object.keys(result.prunedTools)).toEqual([]);
+    expect(result.maxOutputTokens).toBe(8000);
+    expect(value).toBe(0);
+    expect(opts.tags.tools).toEqual([]);
+    expect(result.capabilityPlan.surfacedCount).toBe(0);
+  });
+
 });
