@@ -9,9 +9,9 @@ which lives in the `nourdean22/MAINnicks-tire-autoNEW` monorepo at
 > setup — that is history, not current truth. See
 > [`../CURRENT-TRUTH.md`](../CURRENT-TRUTH.md) for what's live.
 
-The project sits alongside the business repo `nickstire` but is intentionally
-separate: different stack (Next.js vs Express), different deploy target
-(Vercel vs Railway), different security surface (personal vs business ops).
+The project sits alongside the business app `nickstire` in the same monorepo but is intentionally
+separate: different application/runtime boundaries, domains, data ownership, and security surfaces
+(personal/owner intelligence vs business operations). Both deploy through their own Railway services.
 
 ---
 
