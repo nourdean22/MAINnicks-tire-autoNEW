@@ -314,6 +314,10 @@ class HardCaseRecorder:
                 "firstFrameAt": frames[0][0],
                 "lastFrameAt": frames[-1][0],
                 "frames": len(frames),
+                # Preserve the observation clock exactly. An offline temporal reasoner
+                # must not invent evenly-spaced timestamps from frame numbers: capture can
+                # stall, gate, or jitter, and evidence persistence is measured in seconds.
+                "frameTimestamps": [round(float(ts), 6) for ts, _img, _meta in frames],
                 "context": pending.context,
             }
             if episode is not None:
