@@ -98,11 +98,15 @@ export const todaysBriefProcedures = {
         const waCount = Number(wa[0]?.count || 0);
         const waTotal = Math.round(Number(wa[0]?.total || 0) / 100);
         if (waCount >= 3 && waTotal >= 500) {
+          // Q-37 · an unmatched estimate is an INFERRED decline unless the
+          // counter captured it; the brief says which share is which.
+          const { countCounterConfirmedUnmatched, describeConfirmedShare } = await import("../../../services/declineCaptures");
+          const share = describeConfirmedShare(waCount, await countCounterConfirmedUnmatched(sixtyDaysAgo));
           briefs.push({
             id: "walkaway",
             variant: "primary",
             icon: "dollar",
-            message: `Walked-away estimates from last 60 days. SMS recovery cron targets these (currently DRY-RUN — set env flag).`,
+            message: `Unmatched estimates from last 60 days (no matching invoice)${share}. SMS recovery cron targets these (currently DRY-RUN — set env flag).`,
             metric: `$${waTotal.toLocaleString()} on the table`,
             cta: { label: "Open Declined Work", section: "declinedEstimates" },
             score: 80 + Math.min(20, Math.round(waTotal / 100)),
