@@ -230,6 +230,26 @@ py -3.12 -m venv .venv-service-review
   --ledger ".\data\hard-cases\service-evidence.jsonl"
 ```
 
+Once that isolated environment passes a manual one-shot, install the unattended shadow
+consumer separately from the live edge producer:
+
+```powershell
+powershell -File scripts/install-service-review-worker.ps1 \
+  -PythonPath ".\.venv-service-review\Scripts\python.exe" \
+  -CasesDir ".\data\hard-cases"
+
+Start-ScheduledTask -TaskName "NickOutsideServiceReview"
+powershell -File scripts/doctor-service-review-worker.ps1 \
+  -PythonPath ".\.venv-service-review\Scripts\python.exe"
+```
+
+The scheduled worker is intentionally a batch sidecar, not another camera daemon. It runs
+every 15 minutes by default, refuses intervals below five minutes, uses
+`MultipleInstances=IgnoreNew`, and never passes `--force`. A failed or slow review run
+therefore cannot block or restart the live vehicle-truth producer. The doctor reports task
+state, overlap protection, ML-environment readiness, pending review clips, case-local errors,
+and whether every durable candidate row still says `authority=shadow_only`.
+
 Outputs:
 - each processed clip gets `service-review.json` with the analyzer identity and shadow result;
 - a clip that accumulates sufficient person + mechanical + temporal evidence adds one row to
