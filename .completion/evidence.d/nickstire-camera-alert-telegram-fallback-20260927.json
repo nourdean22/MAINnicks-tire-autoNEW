@@ -8,6 +8,9 @@
     },
     "live-promotion-boundary": {
       "deferred": "This PR does not claim a Telegram camera alert has been delivered in production. After deployment, a real degraded/recovery transition must show Telegram acceptance (or verified Resend email) before the capability ledger can record external alert delivery as live-verified."
+    },
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=camera-role-aware-health: records the 2026-09-27 18:16Z real alert trigger and failed external delivery, the #2715 Telegram fallback contract/tests, and retains the P2 boundary that provider-accepted owner delivery remains unproven until a post-deploy receipt."
     }
   }
 }
