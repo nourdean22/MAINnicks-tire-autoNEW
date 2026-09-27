@@ -8,7 +8,11 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { ApprovedProductionPackSnapshot } from "../../shared/episodeContract";
-import { reelStructureFingerprint } from "../../shared/reelStructureFingerprint";
+import {
+  assessReelStructureNovelty,
+  reelStructureFingerprint,
+  type ReelStructureFingerprint,
+} from "../../shared/reelStructureFingerprint";
 import { resolvePacksDir } from "./reelPackRegistry";
 import { MOTION_LENSES, REEL_ARCHETYPES } from "../../client/src/lib/facelessReelStudio";
 import type { MotionLens, ReelArchetype } from "../../client/src/lib/facelessReelStudio";
@@ -337,6 +341,7 @@ export function buildBriefFromApprovedProductionPack(
   pack: ApprovedReelPack,
   snapshot: ApprovedProductionPackSnapshot,
   briefId: string,
+  skipStructureNovelty = false,
 ): Record<string, unknown> | null {
   const source = snapshot.parsed;
   const rawBeats = Array.isArray(source.storyboardBeats)
@@ -384,6 +389,51 @@ export function buildBriefFromApprovedProductionPack(
     ctaType: isReelAskShape(source.ask) ? source.ask.kind : null,
     loopIdea: packLoopIdea || null,
   });
+
+  // Compare the candidate against a bounded window of REAL reviewed pack
+  // structures. This is diagnostic metadata, not a publish gate: the audit
+  // proved topic diversity can coexist with nearly identical production
+  // grammar, but outcome data is not yet strong enough to let this score decide
+  // what publishes. The recursive builder call explicitly skips novelty so this
+  // stays finite and evaluates the same normalized brief shape production uses.
+  let productionGrammarNovelty: {
+    similarity: number;
+    isProductionTwin: boolean;
+    collisions: string[];
+    nearestSignature: string | null;
+    comparisonWindow: number;
+  } | null = null;
+  if (!skipStructureNovelty) {
+    const packIndex = APPROVED_REEL_PACK_SLUGS.indexOf(pack.slug);
+    const start = Math.max(0, packIndex - 12);
+    const priors: ReelStructureFingerprint[] = [];
+
+    for (let index = start; index < packIndex; index += 1) {
+      const priorSlug = APPROVED_REEL_PACK_SLUGS[index];
+      const priorSnapshot = loadApprovedProductionPack(priorSlug);
+      if (!priorSnapshot) continue;
+      const priorBrief = buildBriefFromApprovedProductionPack(
+        { slug: priorSlug, topic: topicFromSlug(priorSlug) },
+        priorSnapshot,
+        `novelty-prior-${priorSlug}`,
+        true,
+      );
+      const priorFingerprint = priorBrief?.productionGrammarFingerprint;
+      if (priorFingerprint && typeof priorFingerprint === "object") {
+        priors.push(priorFingerprint as ReelStructureFingerprint);
+      }
+    }
+
+    const verdict = assessReelStructureNovelty(productionGrammarFingerprint, priors);
+    productionGrammarNovelty = {
+      similarity: verdict.similarity,
+      isProductionTwin: verdict.isProductionTwin,
+      collisions: verdict.collisions,
+      nearestSignature: verdict.nearest?.signature ?? null,
+      comparisonWindow: priors.length,
+    };
+  }
+
   return {
     id: briefId,
     // THE PACK LANE HAD NO ASK AT ALL.
@@ -458,6 +508,7 @@ export function buildBriefFromApprovedProductionPack(
     winningConceptId: packLoopIdea ? briefId : null,
     storyboardBeats,
     productionGrammarFingerprint,
+    ...(productionGrammarNovelty ? { productionGrammarNovelty } : {}),
     promptPack: [],
     higgsfieldPromptPack: [],
     ffmpegAssemblyNotes: stringValue(source.ffmpegAssemblyNotes),

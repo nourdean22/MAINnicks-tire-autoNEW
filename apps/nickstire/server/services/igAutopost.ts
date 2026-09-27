@@ -41,43 +41,8 @@ import { createLogger } from "../lib/logger";
 import { db } from "../lib/db-helper";
 import { igAutopostLog, algEstimates, smsConversations, smsMessages, specials } from "../../drizzle/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
-import { invokeLLM } from "../_core/llm";
+import { invokeLLMForPosting, invokeStructuredPosting, parseJsonObject } from "./igPostingLlm";
 
-/**
- * The IG lane's LLM calls, made survivable. 10/10 runs failed across
- * 2026-08-16..18 with exactly two shapes: "The operation was aborted due to
- * timeout" (the calls passed NO timeoutMs, so a slow in-service completion hit
- * the 30s default) and "LLM returned no caption content" (a 200 whose content
- * was empty under load). Meanwhile every call here defaulted to priority 2 -
- * BACKGROUND class on the three-slot Ollama scheduler - so live posting queued
- * behind benchmarks at busy ticks. Identical calls succeed standalone, which is
- * the in-service-contention signature, not a prompt problem.
- *
- * timeoutMs 120s matches the reel-brief call's measured need (long completions
- * run 30-90s). priority 1 matches the precedent dailyReelPost's judge already
- * set for live content lanes. ONE retry, only on a thrown transport error or an
- * empty completion - both strictly pre-submit, so the worst case is one extra
- * text call, never a duplicate post.
- */
-/** Exported for tests - the retry contract below is behavioral, not a scan. */
-export async function invokeLLMForPosting(params: Parameters<typeof invokeLLM>[0]): ReturnType<typeof invokeLLM> {
-  const withGuards = { timeoutMs: 120_000, priority: 1 as const, ...params };
-  const attempt = async () => {
-    const res = await invokeLLM(withGuards);
-    const content = res.choices?.[0]?.message?.content;
-    if (typeof content !== "string" || !content.trim()) {
-      throw new Error("LLM returned no caption content");
-    }
-    return res;
-  };
-  try {
-    return await attempt();
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    log.warn("IG posting LLM call failed once - retrying", { err: msg.slice(0, 120) });
-    return attempt();
-  }
-}
 import { isEnabled } from "./featureFlags";
 import { ensureHiggsfieldBinary } from "./higgsfieldBinary";
 import { shadowJudgeGate } from "./igJudgeGate";
@@ -724,86 +689,6 @@ const GEN_SCHEMA = {
     additionalProperties: false,
   },
 } as const;
-
-/**
- * Parse a JSON object out of an LLM text response. Venice's llama-3.3-70b
- * rejects response_format (json_object AND json_schema both 400 "not supported
- * by this model"), so we instruct JSON in the prompt and parse defensively
- * here: strip an optional markdown code fence, then isolate the outermost
- * {...} before JSON.parse so leading/trailing prose can't break it.
- */
-/** Exported for tests: the truncation paths below are the ones that reached
- *  prod, and they are unreachable through runIgAutopost without a live LLM. */
-export function parseJsonObject<T>(raw: string): T {
-  let s = raw.trim();
-  const fence = s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fence) s = fence[1].trim();
-  // NOTE: no "strip an unclosed fence" branch here on purpose. The first draft
-  // of this fix added one, and a mutation test proved it dead — removing the
-  // line changed no behaviour, because the brace isolation below already
-  // recovers the object whenever one closed, and when none closed the
-  // truncation branch fires first either way. A line that looks protective and
-  // is provably unreachable is exactly what this file has been bitten by.
-  const first = s.indexOf("{");
-  const last = s.lastIndexOf("}");
-  if (first >= 0 && last > first) {
-    s = s.slice(first, last + 1);
-  } else if (first >= 0) {
-    // An opening brace with no closing one is truncation, full stop. Say that,
-    // because "Unterminated string in JSON at position 830" sent the last
-    // investigation looking for a quoting bug that does not exist. gemini-2.5-flash
-    // spends a large and variable share of its budget on internal "thinking"
-    // before emitting output, so this recurs whenever a prompt grows.
-    throw new Error(
-      `LLM response truncated before the JSON object closed (${raw.length} chars received) — raise max_tokens for this call`,
-    );
-  }
-  try {
-    return JSON.parse(s) as T;
-  } catch (err) {
-    // Never surface a bare parser message. The operator sees this string in
-    // ig_autopost_log.error, and "Unexpected token" tells them nothing about
-    // which call failed or what to do next.
-    throw new Error(
-      `LLM response was not valid JSON (${raw.length} chars received): ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-}
-
-/**
- * Structured posting calls need one retry at the PARSE boundary too. The
- * transport wrapper above cannot see a response that arrived successfully but
- * ended mid-JSON; that exact shape failed the live morning IG run on
- * 2026-09-27. Retry only before any image generation/publish side effect.
- */
-export async function invokeStructuredPosting<T>(
-  params: Parameters<typeof invokeLLM>[0],
-  label: string,
-): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const res = await invokeLLMForPosting(params);
-    const content = res.choices?.[0]?.message?.content;
-    if (typeof content !== "string" || !content.trim()) {
-      lastError = new Error(`${label}: LLM returned no structured content`);
-    } else {
-      try {
-        return parseJsonObject<T>(content);
-      } catch (err) {
-        lastError = err;
-      }
-    }
-
-    if (attempt < 2) {
-      log.warn("IG posting structured output invalid - retrying before side effects", {
-        label,
-        err: lastError instanceof Error ? lastError.message.slice(0, 180) : String(lastError).slice(0, 180),
-      });
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error(`${label}: structured output failed`);
-}
 
 /**
  * Phase 6 (feed-wide): turn a post into a 2-line branded-poster headline + sub

@@ -146,7 +146,7 @@ export interface ReelStructureNoveltyVerdict {
   nearest?: ReelStructureFingerprint;
 }
 
-export function compareReelStructures(
+function compareReelStructures(
   candidate: ReelStructureFingerprint,
   prior: ReelStructureFingerprint,
 ): ReelStructureNoveltyVerdict {

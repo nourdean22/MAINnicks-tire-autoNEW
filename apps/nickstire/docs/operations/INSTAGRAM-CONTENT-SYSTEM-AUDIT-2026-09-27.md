@@ -151,7 +151,7 @@ Fingerprint dimensions include:
 
 Instagram Studio evidence upload now registers usable first-party shop imagery in the existing media registry with `rightsStatus = real_shop`.
 
-The media registry can list reusable real-shop images instead of requiring every future creative run to rediscover or re-upload the same evidence.
+Usable uploads are now registered in the existing media registry with `rightsStatus = real_shop`, so the evidence is durably identifiable and reusable. A dedicated retrieval/browser UX is intentionally **not** claimed in this slice; exposing those assets inside Create remains a next-wave item.
 
 This supports a content strategy of real repair/shop evidence first, with AI used where it adds explanatory/creative value rather than pretending synthetic imagery is customer evidence.
 

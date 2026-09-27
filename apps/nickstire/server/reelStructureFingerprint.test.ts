@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   assessReelStructureNovelty,
-  compareReelStructures,
   reelStructureFingerprint,
 } from "../shared/reelStructureFingerprint";
+import { buildApprovedPackBriefForTest } from "./services/approvedReelPackRotation";
 
 const templated = () => reelStructureFingerprint({
   beats: [
@@ -21,7 +21,7 @@ describe("reel production-grammar fingerprint", () => {
   it("flags a production twin even when the mechanic topic would be completely different", () => {
     const a = templated();
     const b = templated();
-    const verdict = compareReelStructures(a, b);
+    const verdict = assessReelStructureNovelty(a, [b]);
     expect(verdict.isProductionTwin).toBe(true);
     expect(verdict.similarity).toBeGreaterThanOrEqual(0.95);
     expect(verdict.collisions).toContain("visual_sequence");
@@ -39,7 +39,7 @@ describe("reel production-grammar fingerprint", () => {
       ctaType: "save",
       loopIdea: null,
     });
-    const verdict = compareReelStructures(a, b);
+    const verdict = assessReelStructureNovelty(a, [b]);
     expect(verdict.isProductionTwin).toBe(false);
     expect(verdict.similarity).toBeLessThan(0.82);
   });
@@ -57,5 +57,21 @@ describe("reel production-grammar fingerprint", () => {
     const verdict = assessReelStructureNovelty(candidate, [novel, templated()]);
     expect(verdict.isProductionTwin).toBe(true);
     expect(verdict.nearest?.signature).toBe(candidate.signature);
+  });
+
+  it("wires the novelty verdict into a real approved-pack production brief", () => {
+    const brief = buildApprovedPackBriefForTest("2026-09-25-xl-means-extra-load");
+    expect(brief).not.toBeNull();
+    const novelty = brief?.productionGrammarNovelty as {
+      similarity?: number;
+      isProductionTwin?: boolean;
+      collisions?: string[];
+      comparisonWindow?: number;
+    };
+    expect(novelty.comparisonWindow).toBeGreaterThan(0);
+    expect(novelty.similarity).toBeGreaterThanOrEqual(0);
+    expect(novelty.similarity).toBeLessThanOrEqual(1);
+    expect(typeof novelty.isProductionTwin).toBe("boolean");
+    expect(Array.isArray(novelty.collisions)).toBe(true);
   });
 });

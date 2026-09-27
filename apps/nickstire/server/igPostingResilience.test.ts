@@ -26,7 +26,7 @@ describe("invokeLLMForPosting retries once and only once", () => {
   const good = { choices: [{ message: { content: '{"ok":true}' } }] };
   const empty = { choices: [{ message: { content: "   " } }] };
 
-  const load = async () => (await import("./services/igAutopost")).invokeLLMForPosting;
+  const load = async () => (await import("./services/igPostingLlm")).invokeLLMForPosting;
 
   it("an empty completion is retried, and the second answer is returned", async () => {
     const calls: unknown[] = [];
@@ -91,7 +91,7 @@ describe("structured posting retries malformed JSON before any side effect", () 
     vi.resetModules();
   });
 
-  const loadStructured = async () => (await import("./services/igAutopost")).invokeStructuredPosting;
+  const loadStructured = async () => (await import("./services/igPostingLlm")).invokeStructuredPosting;
 
   it("retries a non-empty truncated JSON response at the parse boundary", async () => {
     const calls: unknown[] = [];
@@ -128,10 +128,11 @@ describe("structured posting retries malformed JSON before any side effect", () 
 describe("every posting-lane LLM call carries the guards", () => {
   it("igAutopost has no bare invokeLLM call left", () => {
     const src = read("server/services/igAutopost.ts");
-    // The wrapper itself is the single permitted caller.
-    const bare = src.match(/await invokeLLM\(/g) ?? [];
-    expect(bare).toHaveLength(1);
-    expect(src.match(/invokeLLMForPosting\(/g)!.length).toBeGreaterThanOrEqual(4); // def + 3 sites
+    const resilience = read("server/services/igPostingLlm.ts");
+    expect(src.match(/await invokeLLM\(/g) ?? []).toHaveLength(0);
+    expect(resilience.match(/await invokeLLM\(/g) ?? []).toHaveLength(1);
+    expect(src.match(/invokeLLMForPosting\(/g)!.length).toBeGreaterThanOrEqual(2);
+    expect(src).toContain("invokeStructuredPosting<");
   });
 
   it("the caption generator wires the existing JSON schema into the call", () => {
