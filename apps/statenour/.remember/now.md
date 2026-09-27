@@ -1,5 +1,13 @@
 # Session ledger — statenour
 
+**Updated: 2026-09-27 afternoon ET** (recovery closeout; #2712 merged; 0 open PRs)
+
+## 2026-09-27 · recovery closeout
+
+**Final repo checkpoint for this thread.** `main` = `93f0f66ca285600831ca50df87fb79f0497e3ed2` after #2712 squash-merged. The two P1 threads that had blocked Completion Authority were outdated against the current head: hardcoded Resend token copies were already removed, and discoverable behavioral coverage existed in `test_resend_smoke.py`. Both threads were formally resolved; Completion Authority reran green. Final #2712 head `bc02816e00fed586c5a7195b65a3dd5e8a800646` had green E2E, affected CI, Secret Scanning, local-agent, Adoption, Admin, Agent Policy, and Completion Authority.
+
+**Open PRs after merge: 0.** Durable context-loss recovery artifact: `docs/00-current-truth/session-recovery-2026-09-27.md`. If visible chat truncates again, reconstruct from GitHub/repo/live receipts first.
+
 **Updated: 2026-09-27 afternoon ET** (session-trail recovery; current repo state re-derived from GitHub after visible chat context loss)
 
 ## 2026-09-27 · recovery snapshot after chat/context loss
