@@ -14,12 +14,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import numpy as np
+
+# The script is normally launched by StateNour using an absolute path from another
+# working directory. Put camera-bridge itself on sys.path; never depend on caller cwd.
+CAMERA_BRIDGE_ROOT = Path(__file__).resolve().parents[1]
+if str(CAMERA_BRIDGE_ROOT) not in sys.path:
+    sys.path.insert(0, str(CAMERA_BRIDGE_ROOT))
 
 from vision.homepose import HomePoseError, verify_home_pose, write_receipt
 
@@ -111,6 +118,10 @@ def main(argv: list[str] | None = None) -> int:
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--current", help="already-captured current JPEG/PNG")
     source.add_argument("--rtsp-url", help="live RTSP URL (prefer loopback go2rtc)")
+    source.add_argument(
+        "--rtsp-env",
+        help="environment variable holding the live RTSP URL; preferred for credentialed URLs",
+    )
     parser.add_argument("--receipt", required=True)
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--capture-timeout-seconds", type=float, default=12.0)
@@ -120,15 +131,21 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         reference = _read_image(args.reference)
-        current = (
-            _read_image(args.current)
-            if args.current
-            else _capture_rtsp(
-                args.rtsp_url,
+        if args.current:
+            current = _read_image(args.current)
+        else:
+            media_url = args.rtsp_url
+            if args.rtsp_env:
+                media_url = os.environ.get(args.rtsp_env, "").strip()
+                if not media_url:
+                    raise HomePoseError(
+                        f"RTSP environment variable {args.rtsp_env!r} is empty"
+                    )
+            current = _capture_rtsp(
+                media_url,
                 ffmpeg=args.ffmpeg,
                 timeout_seconds=args.capture_timeout_seconds,
             )
-        )
         receipt = verify_home_pose(
             reference,
             current,
