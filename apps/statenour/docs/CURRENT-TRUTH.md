@@ -5,6 +5,15 @@
 > code win. Last verified **2026-09-27**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
 
+## 2026-09-27 afternoon — recovery after lost visible session trail
+
+- **The visible chat was incomplete; GitHub/repo receipts are authoritative.** A recovery sweep on 2026-09-27 reconstructed work that had disappeared from the UI-visible conversation. Durable handoff: `docs/00-current-truth/session-recovery-2026-09-27.md`.
+- **Snapshot source `main`: `a01abc97eb6ee4bd5c9f8519f48d49c3fb2545e3`**, the squash merge of #2711 (`feat · instagram · unify publish truth and creative quality`).
+- **Fourteen PRs after #2696 are confirmed merged:** #2697, #2698, #2699, #2700, #2701, #2702, #2703, #2704, #2705, #2706, #2707, #2708, #2710, and #2711. #2709 closed without merge.
+- **The earlier “0 open PRs” closeout is historical, not current.** At this recovery snapshot the only open PR is #2712 (`fix · security · remove legacy Resend token from source`), head `bc02816e00fed586c5a7195b65a3dd5e8a800646`.
+- **#2712 build/test/security lanes are green; Completion Authority is red at the review gate.** Two unresolved P1 threads remain in GitHub: the first says remove every remaining hardcoded token copy (a follow-up on the PR says the current head fixed those copies, but the thread remained unresolved); the second requests behavioral coverage for the smoke-test guards because the hyphenated `test-resend.py` is not discovered by the workflow's `test_*.py` unittest pattern. Do not merge #2712 until the review state is reconciled and Completion Authority is green on the current head.
+- **Recovery rule:** when transcript/context looks truncated, re-query current `main`, open PRs, review threads, CI, and live deployment receipts before trusting an old memory line or visible chat excerpt.
+
 ## Since 2026-09-26/27 — repo reconciliation and dependency patch
 
 - **Repo dependency patch #2696 is merged, but deploy truth is separate.** Repository `main` contains Next 16.3.6 and the aligned Next tooling patch plus the refreshed dev-minor set. The reviewed head passed StateNour `check`, lint with zero errors, a production build, 935/935 test files (9,748/9,748 tests), Linux affected CI, and authenticated E2E. This proves repository/build compatibility; it does **not** prove `statenour-web` is serving that dependency patch. Use `/api/version` plus Railway deployment ancestry before claiming it live.

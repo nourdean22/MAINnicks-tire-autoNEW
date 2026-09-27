@@ -1,5 +1,15 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-27 afternoon · session-trail recovery and durable handoff
+>
+> **Trigger:** the UI-visible ChatGPT conversation lost a substantial portion of the execution trail even though the repository had advanced much further. The session was reconstructed from GitHub/repo receipts instead of guessing from the remaining transcript.
+>
+> **Recovered repo truth:** source `main` at recovery was `a01abc97eb6ee4bd5c9f8519f48d49c3fb2545e3` (#2711). After #2696, the later merged sequence includes #2697/#2698/#2699/#2700/#2701/#2702/#2703/#2704/#2705/#2706/#2707/#2708/#2710/#2711; #2709 closed unmerged. #2662 is closed as superseded by #2696.
+>
+> **Current live repo edge:** #2712 is the only open PR at this snapshot. Its CI, StateNour E2E, Secret Scanning, local-agent, Adoption, Admin, and Agent Policy runs are green. Completion Authority fails only at the review gate because two P1 threads remain unresolved: remove all remaining hardcoded token copies (current-head follow-up says the code fix is present, thread still unresolved) and add behavioral smoke-test-guard coverage (`test-resend.py` is not discovered by `test_*.py`). Merge only after the review state is reconciled and Completion Authority is green.
+>
+> **Durable recovery artifact:** `docs/00-current-truth/session-recovery-2026-09-27.md`. Future sessions should read it together with `.remember/now.md`, CURRENT-TRUTH, and live GitHub state whenever transcript continuity looks suspect.
+>
 > ## 2026-09-25/26 · Nick runtime doctrine + quality loop closes the detect-without-repair gap
 >
 > **Outcome:** the operator asked for bdnick.info chat to be solution/principle-first, proactive, intelligent/creative,
