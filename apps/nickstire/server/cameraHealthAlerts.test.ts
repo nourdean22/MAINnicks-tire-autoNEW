@@ -5,6 +5,7 @@ import {
   cameraAlertDecision,
   cameraAlertShopDay,
   deliverWithConfirmedNotification,
+  externalNotificationDelivery,
   formatCameraHealthAlert,
 } from "./services/cameraHealthAlertPolicy";
 
@@ -107,9 +108,44 @@ describe("camera health alert policy", () => {
 });
 
 describe("camera health alert delivery truth", () => {
-  it("uses the Cleveland shop day even after UTC has rolled over", () => {
-    expect(cameraAlertShopDay(new Date("2026-09-27T02:00:00Z"))).toBe("2026-09-26");
-    expect(cameraAlertShopDay(new Date("2026-09-27T14:00:00Z"))).toBe("2026-09-27");
+  it("uses the Cleveland shop day across summer, winter and DST boundaries", () => {
+    vi.useFakeTimers();
+    try {
+      // Summer (UTC-4): 02:00Z is still the prior Cleveland evening.
+      vi.setSystemTime(new Date("2026-09-27T02:00:00Z"));
+      expect(cameraAlertShopDay()).toBe("2026-09-26");
+
+      // Winter (UTC-5): 04:30Z is still the prior Cleveland day.
+      vi.setSystemTime(new Date("2026-01-15T04:30:00Z"));
+      expect(cameraAlertShopDay()).toBe("2026-01-14");
+      vi.setSystemTime(new Date("2026-01-15T05:30:00Z"));
+      expect(cameraAlertShopDay()).toBe("2026-01-15");
+
+      // Spring DST transition day: midnight is still based on IANA shop time,
+      // not a fixed UTC offset.
+      vi.setSystemTime(new Date("2026-03-08T04:30:00Z"));
+      expect(cameraAlertShopDay()).toBe("2026-03-07");
+      vi.setSystemTime(new Date("2026-03-08T05:30:00Z"));
+      expect(cameraAlertShopDay()).toBe("2026-03-08");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not count the core logger fallback as external owner delivery", () => {
+    expect(
+      externalNotificationDelivery(
+        { emailSent: false, pushSent: true },
+        false,
+      ),
+    ).toEqual({ emailAccepted: false, webhookAccepted: false });
+
+    expect(
+      externalNotificationDelivery(
+        { emailSent: false, pushSent: true },
+        true,
+      ),
+    ).toEqual({ emailAccepted: false, webhookAccepted: true });
   });
 
   it("releases the daily claim and throws when no delivery surface accepts the alert", async () => {
@@ -120,7 +156,7 @@ describe("camera health alert delivery truth", () => {
         camera: "sign",
         state: "CAMERA_OFFLINE",
         alert: { title: "Camera degraded", message: "offline" },
-        notify: async () => ({ emailSent: false, pushSent: false }),
+        notify: async () => ({ emailAccepted: false, webhookAccepted: false }),
         releaseClaim: async () => {
           await execute("release");
         },
@@ -137,7 +173,7 @@ describe("camera health alert delivery truth", () => {
       camera: "sign",
       state: "CAMERA_OFFLINE",
       alert: { title: "Camera degraded", message: "offline" },
-      notify: async () => ({ emailSent: true, pushSent: false }),
+      notify: async () => ({ emailAccepted: true, webhookAccepted: false }),
       releaseClaim: async () => {
         await execute("release");
       },
