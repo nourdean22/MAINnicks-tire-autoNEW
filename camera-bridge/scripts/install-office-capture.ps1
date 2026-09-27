@@ -19,9 +19,11 @@
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-  # RTSP URL for the office camera. Its credentials are part of the URL, so it is treated as a
-  # secret: stored in the machine environment, never written into the task's command line.
+  # Audio source spec. For rtsp this is the camera URL. For dshow this is the exact
+  # Windows microphone name (or an audio=<device> DirectShow spec).
   [Parameter(Mandatory = $true)][string]$SourceUrl,
+
+  [ValidateSet("rtsp", "dshow")][string]$SourceKind = "rtsp",
 
   # The shared ingest secret. Read it from Railway rather than typing it from memory:
   #   railway run -s MAINnicks-tire-auto -- printenv CAMERA_INGEST_KEY
