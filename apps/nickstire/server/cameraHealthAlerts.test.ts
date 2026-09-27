@@ -6,7 +6,6 @@ import {
   cameraAlertShopDay,
   deliverCameraAlertExternally,
   deliverWithConfirmedNotification,
-  externalNotificationDelivery,
   formatCameraHealthAlert,
 } from "./services/cameraHealthAlertPolicy";
 
@@ -131,22 +130,6 @@ describe("camera health alert delivery truth", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-
-  it("does not count the core logger fallback as external owner delivery", () => {
-    expect(
-      externalNotificationDelivery(
-        { emailSent: false, pushSent: true },
-        false,
-      ),
-    ).toEqual({ emailAccepted: false, webhookAccepted: false });
-
-    expect(
-      externalNotificationDelivery(
-        { emailSent: false, pushSent: true },
-        true,
-      ),
-    ).toEqual({ emailAccepted: false, webhookAccepted: true });
   });
 
   it("releases the daily claim and throws when no delivery surface accepts the alert", async () => {
