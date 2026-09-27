@@ -20,6 +20,7 @@ import sys
 import json
 import logging
 import hashlib
+import subprocess
 import time
 import uuid
 from datetime import datetime, timezone
@@ -48,6 +49,10 @@ NICKS_CAMERA_INGEST_KEY = os.getenv("NICKS_CAMERA_INGEST_KEY", "").strip()
 NICKS_OFFICE_CAMERA_ID = os.getenv("NICKS_OFFICE_CAMERA_ID", "office").strip() or "office"
 EUFY_HOME_POSE_RECEIPT = os.getenv("EUFY_HOME_POSE_RECEIPT", "").strip()
 EUFY_HOME_REFERENCE_SHA256 = os.getenv("EUFY_HOME_REFERENCE_SHA256", "").strip().lower()
+EUFY_HOME_VERIFY_PYTHON = os.getenv("EUFY_HOME_VERIFY_PYTHON", "").strip()
+EUFY_HOME_VERIFY_SCRIPT = os.getenv("EUFY_HOME_VERIFY_SCRIPT", "").strip()
+EUFY_HOME_REFERENCE = os.getenv("EUFY_HOME_REFERENCE", "").strip()
+EUFY_HOME_MEDIA_URL = os.getenv("EUFY_HOME_MEDIA_URL", "").strip()
 try:
     EUFY_HOME_POSE_MAX_AGE_SECONDS = max(
         1.0,
@@ -55,8 +60,23 @@ try:
     )
 except ValueError:
     EUFY_HOME_POSE_MAX_AGE_SECONDS = 300.0
+try:
+    EUFY_HOME_VERIFY_TIMEOUT_SECONDS = max(
+        5.0,
+        float(os.getenv("EUFY_HOME_VERIFY_TIMEOUT_SECONDS", "25")),
+    )
+except ValueError:
+    EUFY_HOME_VERIFY_TIMEOUT_SECONDS = 25.0
+try:
+    EUFY_HOME_VERIFY_COOLDOWN_SECONDS = max(
+        10.0,
+        float(os.getenv("EUFY_HOME_VERIFY_COOLDOWN_SECONDS", "60")),
+    )
+except ValueError:
+    EUFY_HOME_VERIFY_COOLDOWN_SECONDS = 60.0
 _OFFICE_PRODUCER_INSTANCE_ID = uuid.uuid4().hex
 _office_heartbeat_seq = 0
+_last_home_verify_monotonic = 0.0
 
 EUFY_API_BASE = "https://security-app.eufylife.com"
 TOKEN_FILE = Path(__file__).parent / "eufy-data" / "token.json"
@@ -454,6 +474,87 @@ def load_home_pose_receipt(
     return verdict
 
 
+def maybe_verify_home_pose(runtime_health: dict) -> bool | None:
+    """Run the heavy visual verifier only when absolute home is currently unknown.
+
+    The StateNour agent stays dependency-light: image capture/OpenCV run in the configured
+    camera-bridge Python process. A non-zero verifier infrastructure exit never mutates
+    health; a valid home/away receipt is re-read through the same serial/hash/time gates.
+    """
+    global _last_home_verify_monotonic
+
+    current = load_home_pose_receipt(
+        last_ptz_notify_at=runtime_health.get("lastPtzNotifyAt"),
+    )
+    if current is not None:
+        return current
+    if runtime_health.get("ptzHomeOk") is not None:
+        return runtime_health.get("ptzHomeOk")
+    if not runtime_health.get("lastPtzNotifyAt"):
+        return None
+    if runtime_health.get("mediaPlaneOk") is False:
+        return None
+
+    required = (
+        EUFY_HOME_VERIFY_PYTHON,
+        EUFY_HOME_VERIFY_SCRIPT,
+        EUFY_HOME_REFERENCE,
+        EUFY_HOME_MEDIA_URL,
+        EUFY_HOME_POSE_RECEIPT,
+        EUFY_HOME_REFERENCE_SHA256,
+    )
+    if not all(required):
+        return None
+
+    now_mono = time.monotonic()
+    if (
+        _last_home_verify_monotonic > 0
+        and now_mono - _last_home_verify_monotonic < EUFY_HOME_VERIFY_COOLDOWN_SECONDS
+    ):
+        return None
+    _last_home_verify_monotonic = now_mono
+
+    args = [
+        EUFY_HOME_VERIFY_PYTHON,
+        EUFY_HOME_VERIFY_SCRIPT,
+        "--serial",
+        EUFY_OFFICE_CAMERA_SERIAL,
+        "--reference",
+        EUFY_HOME_REFERENCE,
+        "--rtsp-url",
+        EUFY_HOME_MEDIA_URL,
+        "--receipt",
+        EUFY_HOME_POSE_RECEIPT,
+    ]
+    try:
+        proc = subprocess.run(
+            args,
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            timeout=EUFY_HOME_VERIFY_TIMEOUT_SECONDS,
+            text=True,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        log.warning("office home-pose verifier unavailable: %s", exc)
+        return None
+
+    if proc.returncode not in (0, 1):
+        detail = (proc.stderr or "").strip()
+        if len(detail) > 240:
+            detail = detail[-240:]
+        log.warning(
+            "office home-pose verifier could not decide (exit=%s)%s",
+            proc.returncode,
+            f": {detail}" if detail else "",
+        )
+        return None
+
+    return load_home_pose_receipt(
+        last_ptz_notify_at=runtime_health.get("lastPtzNotifyAt"),
+    )
+
+
 def build_office_camera_heartbeat(
     *,
     auth_ok: bool,
@@ -517,9 +618,7 @@ def sync_office_camera_heartbeat() -> int:
         # a real H264 byte read is positive proof. The probe self-throttles.
         probe_office_media_health()
     runtime = runtime_health_snapshot(auth_ok=auth_ok)
-    visual_home = load_home_pose_receipt(
-        last_ptz_notify_at=runtime.get("lastPtzNotifyAt"),
-    )
+    visual_home = maybe_verify_home_pose(runtime)
     if visual_home is not None:
         runtime["ptzHomeOk"] = visual_home
     payload = build_office_camera_heartbeat(
