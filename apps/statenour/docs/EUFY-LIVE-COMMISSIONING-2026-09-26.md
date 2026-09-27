@@ -164,6 +164,15 @@ NattyNour now has a scoped office-health observer:
 
 This observer is useful operational truth, but it is not the final control host.
 
+
+Persistent production row receipt after the observer had advanced:
+- office `heartbeatSeq=7`, `mode=SHADOW`, `sourceConnected=1`;
+- `authPlaneOk=1`, `eventPlaneOk=1`, `mediaPlaneOk=0`;
+- `controlPlaneOk=NULL`, `ptzHomeOk=NULL`;
+- all four proof timestamps were still NULL, including `lastEventProofAt`: the bridge WebSocket is connected, but a real office motion/person event has not yet been observed;
+- fixed `sign` was independently at `heartbeatSeq=1651`, `mode=PRODUCTION`.
+
+
 ### Remaining office-camera boundary
 
 The office T8410 still needs its bridge/media worker moved onto the shop-side Windows host
