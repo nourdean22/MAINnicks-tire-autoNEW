@@ -106,12 +106,24 @@ describe("camera health lattice — fixed geometry", () => {
     expect(dl.reason).toContain("2 dead-lettered");
   });
 
+  it("the real producer empty-outbox representation is proven healthy", () => {
+    const v = deriveCameraState(healthy({
+      outboxDepth: 0,
+      oldestOutboxAgeSeconds: null,
+      deadLetterDepth: 0,
+    }));
+    expect(v.state).toBe("HEALTHY");
+    expect(v.facets.cloud).toBe("ok");
+  });
+
   it("partial cloud telemetry stays UNVERIFIED instead of becoming healthy", () => {
     for (const over of [
       { outboxDepth: 0, oldestOutboxAgeSeconds: null, deadLetterDepth: null },
       { outboxDepth: null, oldestOutboxAgeSeconds: 0, deadLetterDepth: null },
       { outboxDepth: 0, oldestOutboxAgeSeconds: 0, deadLetterDepth: null },
       { outboxDepth: null, oldestOutboxAgeSeconds: null, deadLetterDepth: 0 },
+      // A non-empty queue without its oldest age is not complete delivery proof.
+      { outboxDepth: 1, oldestOutboxAgeSeconds: null, deadLetterDepth: 0 },
     ]) {
       const v = deriveCameraState(healthy(over));
       expect(v.state).toBe("UNVERIFIED_CAPABILITIES");
