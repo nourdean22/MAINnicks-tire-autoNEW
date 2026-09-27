@@ -47,6 +47,7 @@ class EufyShopRuntimeInstallerTests(unittest.TestCase):
     def test_event_wake_is_live_but_audio_capture_stays_off(self):
         self.assertIn("StateNour-Eufy-OfficeWake", SOURCE)
         self.assertIn("-m vision.officewake", SOURCE)
+        self.assertIn("-r $OfficeWakeRequirements", SOURCE)
         self.assertNotIn("OFFICE_INTERACTION_CAPTURE_ENABLED", SOURCE)
         self.assertNotIn("--capture", SOURCE)
 
