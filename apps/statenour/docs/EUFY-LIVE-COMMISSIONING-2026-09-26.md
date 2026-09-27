@@ -125,3 +125,57 @@ Those gates were not configured. They were not bypassed.
 | Office camera PTZ | BLOCKED — P2P UNREACHABLE |
 | Office camera media | BLOCKED — P2P UNREACHABLE |
 | Office audio transcription/summaries | NOT ENABLED — POLICY/MEDIA GATES UNMET |
+
+
+## Production activation update — 2026-09-27
+
+The role-aware camera health layer is now deployed beyond the 2026-09-26 commissioning state.
+
+### Nick's / TiDB production
+
+- Main commit: `c6db7bd35baf3da90572f067c87993220cc6ce2f`.
+- Railway deployments for MAINnicks-tire-auto and statenour-web reached terminal `SUCCESS`.
+- Migration `0134_camera_interaction_health` was applied with a scoped runner to production TiDB only.
+- Exact migration hash:
+  `108091f416b2b91e279ad9cbde3e781864d8a343a35410271b81ac55806686ab`.
+- All nine nullable transport-proof columns were independently re-read from INFORMATION_SCHEMA and the migration ledger row was verified.
+- Reconciliation classifies 0134 as `RECORDED_AND_MATCHED`.
+- The broader migration ledger still has unrelated pre-existing 0127-0133 drift; none of that was changed as part of this camera activation.
+
+### Live role-separation proof
+
+Production camera heartbeat logs proved the new health lattice with real writes:
+
+1. fixed `sign` producer continued posting `HEALTHY` every ~30 seconds;
+2. office heartbeat posted `AUTH_DEGRADED` while the local Eufy bridge was down;
+3. the persisted bridge was restarted and reported `auth=ok`, `pushConnected=true`, `sessionLost=false`;
+4. the next office heartbeat transitioned `AUTH_DEGRADED -> MEDIA_DEGRADED`.
+
+That is end-to-end evidence that an office/PTZ transport fault no longer contaminates fixed vehicle truth.
+
+### NattyNour interim observer
+
+NattyNour now has a scoped office-health observer:
+- secrets are DPAPI-protected under the current Windows user; plaintext user-environment copies were cleared;
+- `StateNour-Eufy-OfficeHealth` is a restart-capable scheduled task and is running;
+- `StateNour-Eufy-Bridge` is registered for logon persistence;
+- the observer connects the semantic-event WebSocket and posts a production camera heartbeat every 30 seconds;
+- `EUFY_CONTROL_ENABLED=0` on NattyNour, intentionally: this host must not claim PTZ commands while it is off the office camera's LAN.
+
+This observer is useful operational truth, but it is not the final control host.
+
+### Remaining office-camera boundary
+
+The office T8410 still needs its bridge/media worker moved onto the shop-side Windows host
+`DESKTOP-VBAHM60` (or an explicitly engineered subnet route). That peer is online on the
+tailnet and exposes RDP/SMB, but it is not advertising the camera's `192.168.0.0/24` subnet
+and NattyNour does not have authenticated remote-admin access to it.
+
+Do not promote office PTZ/media/home to LIVE until the shop-side host produces:
+- real office motion/person receipt,
+- successful media byte read,
+- bounded PTZ command,
+- unsolicited `ptzNotify`,
+- visual/SceneLock confirmation of the calibrated home view.
+
+Audio capture remains behind the existing explicit policy/notice gate and verified media source.
