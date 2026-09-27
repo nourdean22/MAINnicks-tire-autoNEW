@@ -35,6 +35,7 @@ import re
 import subprocess
 import time
 import uuid
+import wave
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -128,6 +129,23 @@ def measure_level(path: str, binary: Optional[str] = None) -> tuple[Optional[flo
     return (found.get("mean"), found.get("max"))
 
 
+def _wav_duration(path: str) -> float:
+    """Return the duration actually written to a PCM WAV.
+
+    A finite file can end before the requested capture window. Coverage must use what
+    ffmpeg really captured, never the requested ceiling, or good transcripts look gappy.
+    """
+    try:
+        with wave.open(path, "rb") as handle:
+            rate = handle.getframerate()
+            frames = handle.getnframes()
+    except (OSError, wave.Error) as exc:
+        raise RuntimeError(f"captured WAV is unreadable: {path}") from exc
+    if rate <= 0 or frames <= 0:
+        raise RuntimeError(f"captured WAV has no measurable duration: {path}")
+    return frames / float(rate)
+
+
 def _input_args(source_url: str, input_format: str = "auto") -> List[str]:
     """Build ffmpeg input arguments without pretending every source is RTSP.
 
@@ -187,7 +205,8 @@ def capture_window(
             f"{(proc.stderr or '').strip()[-400:]}"
         )
 
-    spans = _speech_spans(ff, raw, silence_db, silence_gap_s, float(seconds))
+    captured_seconds = _wav_duration(raw)
+    spans = _speech_spans(ff, raw, silence_db, silence_gap_s, captured_seconds)
     segments: List[AudioSegment] = []
     for start, end in spans:
         dur = end - start
