@@ -144,15 +144,20 @@ Write-Host "  [ok] audio dir $OutDir"
 
 # Secrets go to the MACHINE environment, not the task's command line: a scheduled task's
 # arguments are readable by any user via schtasks /query /v.
-if ($PSCmdlet.ShouldProcess("machine environment", "set CAMERA_INGEST_KEY and NICK_OFFICE_RTSP")) {
+if ($PSCmdlet.ShouldProcess("machine environment", "set office summary source and ingest key")) {
   [Environment]::SetEnvironmentVariable("CAMERA_INGEST_KEY", $IngestKey, "Machine")
-  [Environment]::SetEnvironmentVariable("NICK_OFFICE_RTSP", $SourceUrl, "Machine")
+  [Environment]::SetEnvironmentVariable("NICK_OFFICE_AUDIO_SOURCE", $SourceUrl, "Machine")
+  [Environment]::SetEnvironmentVariable("NICK_OFFICE_AUDIO_INPUT_FORMAT", $SourceKind, "Machine")
+  if ($SourceKind -eq "rtsp") {
+    [Environment]::SetEnvironmentVariable("NICK_OFFICE_RTSP", $SourceUrl, "Machine")
+  }
 }
-Write-Host "  [ok] CAMERA_INGEST_KEY + NICK_OFFICE_RTSP stored (machine scope, not echoed)"
+Write-Host "  [ok] office audio source + CAMERA_INGEST_KEY stored (machine scope, not echoed)"
 
 $argList = @(
   "`"$loop`"",
-  "--source-url", "`"%NICK_OFFICE_RTSP%`"",
+  "--source-url", "`"%NICK_OFFICE_AUDIO_SOURCE%`"",
+  "--input-format", "`"%NICK_OFFICE_AUDIO_INPUT_FORMAT%`"",
   "--out-dir", "`"$OutDir`"",
   "--seconds", $WindowSeconds,
   "--open", $OpenAt,
