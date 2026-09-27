@@ -75,13 +75,6 @@ async function releaseAlertClaim(
   `);
 }
 
-export function notificationDelivered(result: {
-  emailSent: boolean;
-  pushSent: boolean;
-}): boolean {
-  return result.emailSent || result.pushSent;
-}
-
 async function deliverClaimedAlert(input: {
   db: NonNullable<Awaited<ReturnType<typeof import("../db")["getDb"]>>>;
   camera: string;
