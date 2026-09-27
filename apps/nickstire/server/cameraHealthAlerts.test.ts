@@ -124,7 +124,6 @@ describe("camera health alert delivery truth", () => {
 
   it("releases the daily claim and throws when no delivery surface accepts the alert", async () => {
     const execute = vi.fn().mockResolvedValue([{ affectedRows: 1 }]);
-    const db = { execute } as any;
 
     await expect(
       deliverWithConfirmedNotification({
@@ -143,7 +142,6 @@ describe("camera health alert delivery truth", () => {
 
   it("keeps the claim when at least one delivery surface accepts the alert", async () => {
     const execute = vi.fn();
-    const db = { execute } as any;
 
     await deliverWithConfirmedNotification({
       camera: "sign",
@@ -163,6 +161,10 @@ describe("camera health alert wiring", () => {
   const root = path.resolve(__dirname, "..");
   const service = fs.readFileSync(
     path.join(__dirname, "services", "cameraHealthAlerts.ts"),
+    "utf8",
+  );
+  const policy = fs.readFileSync(
+    path.join(__dirname, "services", "cameraHealthAlertPolicy.ts"),
     "utf8",
   );
   const scheduler = fs.readFileSync(
@@ -185,8 +187,10 @@ describe("camera health alert wiring", () => {
     expect(service).toContain("affectedRows");
     expect(service).toContain("camera_health:");
     expect(service).toContain("DELETE FROM cron_alerts_fired");
-    expect(service).toContain("notificationDelivered(delivery)");
-    expect(service).toContain("throw new Error");
+    expect(service).toContain("deliverWithConfirmedNotification");
+    expect(policy).toContain("notificationDelivered(delivery)");
+    expect(policy).toContain("releaseClaim");
+    expect(policy).toContain("throw new Error");
     expect(service).not.toContain("notification_messages");
   });
 
