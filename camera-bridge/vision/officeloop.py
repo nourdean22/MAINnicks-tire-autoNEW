@@ -22,6 +22,7 @@ after hours), the loop shortens the final capture to land exactly on the boundar
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass
@@ -213,8 +214,18 @@ def main(argv: List[str]) -> int:
     import argparse
 
     ap = argparse.ArgumentParser(description="office capture on shop hours")
-    ap.add_argument("--source-url", required=True)
-    ap.add_argument("--input-format", choices=("auto", "rtsp", "dshow", "generic"), default="auto")
+    ap.add_argument(
+        "--source-url",
+        default=os.environ.get("NICK_OFFICE_AUDIO_SOURCE")
+        or os.environ.get("NICK_OFFICE_RTSP")
+        or "",
+        help="audio source; defaults to NICK_OFFICE_AUDIO_SOURCE (legacy NICK_OFFICE_RTSP fallback)",
+    )
+    ap.add_argument(
+        "--input-format",
+        choices=("auto", "rtsp", "dshow", "generic"),
+        default=os.environ.get("NICK_OFFICE_AUDIO_INPUT_FORMAT", "auto").strip().lower(),
+    )
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--seconds", type=float, default=300.0)
     ap.add_argument("--source", default="eufy-office")
@@ -228,6 +239,10 @@ def main(argv: List[str]) -> int:
     ap.add_argument("--once", action="store_true",
                     help="run a single cycle and exit (for a smoke test)")
     args = ap.parse_args(argv)
+    if not args.source_url:
+        ap.error("--source-url or NICK_OFFICE_AUDIO_SOURCE is required")
+    if args.input_format not in {"auto", "rtsp", "dshow", "generic"}:
+        ap.error("NICK_OFFICE_AUDIO_INPUT_FORMAT must be auto, rtsp, dshow, or generic")
 
     return run_forever(
         args.source_url, args.out_dir, seconds=args.seconds, source=args.source,
