@@ -198,6 +198,23 @@ class EufyBridgeTests(unittest.TestCase):
         # until a visual/SceneLock verifier confirms the returned frame.
         self.assertIsNone(eufy_bridge.runtime_health_snapshot()["ptzHomeOk"])
 
+    def test_uncorrelated_motor_receipt_invalidates_old_home_truth(self):
+        eufy_bridge.mark_ptz_home_pose_verified(True)
+        self.assertTrue(eufy_bridge.runtime_health_snapshot()["ptzHomeOk"])
+
+        # Simulates a PTZ move initiated from the Eufy app or another controller.
+        eufy_bridge._record_bridge_event(
+            {"event": "ptzNotify", "deviceSn": OFFICE}
+        )
+
+        health = eufy_bridge.runtime_health_snapshot()
+        self.assertTrue(health["controlPlaneOk"])
+        self.assertIsNone(
+            health["ptzHomeOk"],
+            "an uncorrelated motor receipt must invalidate an old absolute-home claim",
+        )
+        self.assertIsNotNone(health["lastPtzNotifyAt"])
+
     def test_home_preset_receipt_never_claims_absolute_home_without_visual_proof(self):
         def request_with_receipt(_payload):
             eufy_bridge._record_bridge_event(
