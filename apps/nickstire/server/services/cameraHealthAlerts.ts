@@ -23,8 +23,8 @@ import { EXPECTED_CAMERAS } from "../../shared/cameras";
 import {
   cameraAlertDecision,
   cameraAlertShopDay,
+  deliverCameraAlertExternally,
   deliverWithConfirmedNotification,
-  externalNotificationDelivery,
   formatCameraHealthAlert,
   type CameraHealthState as HealthState,
 } from "./cameraHealthAlertPolicy";
@@ -83,18 +83,21 @@ async function deliverClaimedAlert(input: {
   shopDay: string;
   alert: { title: string; message: string };
 }): Promise<void> {
-  const { notifySystemAlert } = await import("../email-notify");
+  const [{ notifySystemAlert }, { sendTelegram }] = await Promise.all([
+    import("../email-notify"),
+    import("./telegram"),
+  ]);
   await deliverWithConfirmedNotification({
     camera: input.camera,
     state: input.state,
     alert: input.alert,
-    notify: async (alert) => {
-      const delivery = await notifySystemAlert(alert);
-      return externalNotificationDelivery(
-        delivery,
-        Boolean(process.env.NOTIFICATION_WEBHOOK_URL),
-      );
-    },
+    notify: (alert) =>
+      deliverCameraAlertExternally({
+        alert,
+        notifySystem: notifySystemAlert,
+        webhookConfigured: Boolean(process.env.NOTIFICATION_WEBHOOK_URL),
+        sendTelegram,
+      }),
     releaseClaim: () =>
       releaseAlertClaim(input.db, input.camera, input.state, input.shopDay),
   });
