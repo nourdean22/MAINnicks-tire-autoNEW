@@ -1246,6 +1246,14 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       return { recordsProcessed: 0, details: `publish already claimed by another run (job ${job.id})` };
     }
 
+    {
+      const { advanceContentRunByReelJobId, RUN_STAGE } = await import("../../services/contentRun");
+      await advanceContentRunByReelJobId(job.id, {
+        stage: RUN_STAGE.publishing,
+        evidence: { at: new Date().toISOString(), what: "Instagram publish claimed" },
+      });
+    }
+
     log.info(`Attempting to publish assembled reel job ${job.id} (mp4Url: ${videoUrl})`);
 
     // Durable attempt record BEFORE the irreversible call. The CAS claim above
@@ -1260,6 +1268,12 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     if (!attemptId) {
       await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      const { advanceContentRunByReelJobId, RUN_STAGE } = await import("../../services/contentRun");
+      await advanceContentRunByReelJobId(job.id, {
+        stage: RUN_STAGE.held,
+        failureReason: "publish-attempt ledger unavailable",
+        evidence: { at: new Date().toISOString(), what: "Publish held before Meta because the attempt ledger was unavailable" },
+      });
       log.error(`daily reel: could not record a publish attempt for job ${job.id} — HOLDING rather than publishing unrecorded`);
       return { recordsProcessed: 0, details: "held: publish-attempt ledger unavailable; index not advanced" };
     }
@@ -1295,6 +1309,15 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       await d.update(reelJobs)
         .set({ status: "publish_ambiguous", queueState: queueStateForReelStatus("publish_ambiguous"), error: `publish threw: ${msg.slice(0, 300)}` })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      {
+        const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("../../services/contentRun");
+        await advanceContentRunByReelJobId(job.id, {
+          stage: RUN_STAGE.held,
+          operationalState: OPERATIONAL_STATE.ambiguous,
+          failureReason: msg.slice(0, 1000),
+          evidence: { at: new Date().toISOString(), what: "Instagram publish threw after dispatch may have occurred" },
+        });
+      }
       log.error(`daily reel: publish THREW — job ${job.id} parked publish_ambiguous; verify on Instagram before retrying`, { err: msg });
       throw pubErr;
     }
@@ -1325,6 +1348,15 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
           error: String(ig?.error ?? "media_publish dispatched, no response — may be LIVE").slice(0, 500),
         })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      {
+        const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("../../services/contentRun");
+        await advanceContentRunByReelJobId(job.id, {
+          stage: RUN_STAGE.held,
+          operationalState: OPERATIONAL_STATE.ambiguous,
+          failureReason: String(ig?.error ?? "ambiguous Instagram dispatch").slice(0, 1000),
+          evidence: { at: new Date().toISOString(), what: "Instagram media_publish returned ambiguous" },
+        });
+      }
       log.error(`Reel autopost publish AMBIGUOUS for job ${job.id} — parked, NOT retried`, { error: ig?.error });
       return {
         recordsProcessed: 0,
@@ -1340,6 +1372,15 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       // claim is safe to release for a later retry.
       await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      {
+        const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("../../services/contentRun");
+        await advanceContentRunByReelJobId(job.id, {
+          stage: RUN_STAGE.held,
+          operationalState: OPERATIONAL_STATE.failed,
+          failureReason: String(ig?.error ?? "Instagram publish failed").slice(0, 1000),
+          evidence: { at: new Date().toISOString(), what: "Instagram explicitly rejected the publish attempt" },
+        });
+      }
       log.error(`Reel autopost publish failed for job ${job.id}`, { error: ig?.error });
       // Throw, not return: a returned run is recorded `completed` and the cron
       // observer never sees it. The job row is already restored above.
@@ -1351,6 +1392,56 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // the "HELD awaiting approval ..." explanation in that column, and leaving
     // it on a successfully posted reel would describe a live post as blocked.
     await d.update(reelJobs).set({ status: "posted", queueState: queueStateForReelStatus("posted"), igPostId: ig.postId, error: null }).where(eq(reelJobs.id, job.id));
+
+    // The Reel job is the delivery authority, but social_content_inventory is
+    // what Queue/creative-memory/metric-sync learn from. Keep that mirror in the
+    // same confirmed-live transition so a posted Reel cannot remain
+    // "review_ready" forever. Failure here must NEVER turn a successful Meta
+    // publish into a retry (duplicate-post risk); the recurring self-heal repairs
+    // it later.
+    try {
+      const { markReelInventoryPublished } = await import("../../services/reelInventoryLink");
+      const mirror = await markReelInventoryPublished(d, {
+        briefId: job.briefId,
+        publishedAt: new Date(),
+        mp4Url: videoUrl,
+        caption,
+        brief: parseReelJobPayload(job.payload),
+      });
+      log.info("confirmed Reel publication mirrored to social inventory", {
+        jobId: job.id,
+        inventoryId: job.briefId,
+        mirror,
+      });
+    } catch (inventoryErr) {
+      log.error("Reel is LIVE but social inventory mirror could not be updated; self-heal will retry", {
+        jobId: job.id,
+        inventoryId: job.briefId,
+        err: inventoryErr instanceof Error ? inventoryErr.message.slice(0, 240) : String(inventoryErr).slice(0, 240),
+      });
+    }
+
+    {
+      const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("../../services/contentRun");
+      let proof: string | null = ig.postId ? `instagram-media:${ig.postId}` : null;
+      if (ig.postId) {
+        try {
+          const { getInstagramPermalink } = await import("../../services/metaSocial");
+          proof = (await getInstagramPermalink(ig.postId)) || proof;
+        } catch { /* media id remains durable publish proof */ }
+      }
+      await advanceContentRunByReelJobId(job.id, {
+        stage: RUN_STAGE.done,
+        operationalState: proof ? OPERATIONAL_STATE.published : OPERATIONAL_STATE.attempted,
+        failureReason: null,
+        evidence: {
+          at: new Date().toISOString(),
+          what: proof ? "Instagram publish confirmed" : "Instagram publish returned success without a durable media id",
+          proof,
+        },
+      });
+    }
+
     // Experiment traceability: if this job was assigned to an experiment at
     // enqueue, stamp the published media id + time — the verdict horizon
     // cannot be derived without them. The post is already live; a failed

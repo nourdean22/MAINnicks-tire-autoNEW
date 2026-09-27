@@ -303,8 +303,8 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: "publish"
           setDraft(null);
           setRowVersion(null);
           setSavedAt(null);
-          toast.success("Sent to review queue", { description: "Approve, schedule, or publish from Publish." });
-        }, "Staged — find it in Publish.");
+          toast.success("Sent to review queue", { description: "Approve, schedule, or publish from Queue." });
+        }, "Staged — find it in Queue.");
       },
     });
   };

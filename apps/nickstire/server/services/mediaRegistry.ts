@@ -18,7 +18,7 @@
  * storagePut output is runtime delivery. A provider URL is never permanence.
  */
 import { createHash, randomUUID } from "crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { mediaAssets, type MediaAsset } from "../../drizzle/schema";
 import type { DB } from "../db";
 import { createLogger } from "../lib/logger";
@@ -237,6 +237,50 @@ export async function getCurrent(database: DB, logicalKey: string): Promise<Medi
 
 export async function findByChecksum(database: DB, checksumSha256: string): Promise<MediaAsset[]> {
   return database.select().from(mediaAssets).where(eq(mediaAssets.checksumSha256, checksumSha256)).limit(20);
+}
+
+/** Recent reusable first-party shop imagery for evidence-first content creation. */
+export async function listReusableRealShopImages(database: DB, limit = 18): Promise<Array<{
+  id: string;
+  url: string;
+  assetType: string;
+  createdAt: Date;
+  originalFilename: string | null;
+}>> {
+  const rows = await database
+    .select({
+      id: mediaAssets.id,
+      runtimeUrl: mediaAssets.runtimeUrl,
+      assetType: mediaAssets.assetType,
+      createdAt: mediaAssets.createdAt,
+      generationParamsJson: mediaAssets.generationParamsJson,
+    })
+    .from(mediaAssets)
+    .where(and(
+      eq(mediaAssets.isCurrent, 1),
+      eq(mediaAssets.format, "image"),
+      eq(mediaAssets.rightsStatus, "real_shop"),
+      eq(mediaAssets.reuseAllowed, 1),
+      isNotNull(mediaAssets.runtimeUrl),
+    ))
+    .orderBy(desc(mediaAssets.createdAt))
+    .limit(Math.max(1, Math.min(50, limit)));
+
+  return rows.flatMap((row) => {
+    if (!row.runtimeUrl) return [];
+    let originalFilename: string | null = null;
+    try {
+      const parsed = row.generationParamsJson ? JSON.parse(row.generationParamsJson) as Record<string, unknown> : {};
+      originalFilename = typeof parsed.originalFilename === "string" ? parsed.originalFilename : null;
+    } catch { /* metadata is optional */ }
+    return [{
+      id: row.id,
+      url: row.runtimeUrl,
+      assetType: row.assetType,
+      createdAt: row.createdAt,
+      originalFilename,
+    }];
+  });
 }
 
 /**

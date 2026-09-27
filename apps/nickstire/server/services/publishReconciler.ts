@@ -234,6 +234,24 @@ export async function applyReconciliation(args: {
     if (affectedRowCount(res) !== 1) {
       return { ok: false, detail: `${noun} is no longer in a reconcilable state — refresh and look again.` };
     }
+
+    // Reconciliation is just as authoritative as the ordinary success path:
+    // once Instagram proves the Reel is live, repair the universal inventory
+    // mirror too. Never fail the reconciliation because the mirror write failed
+    // — that would reopen the duplicate-publish risk this service exists to
+    // eliminate. The metrics loop has a self-heal for the mirror.
+    if (!isScheduled) {
+      try {
+        const { markReelInventoryPublishedByJobId } = await import("./reelInventoryLink");
+        await markReelInventoryPublishedByJobId(d, args.jobId, new Date());
+      } catch (inventoryErr) {
+        log.error("reconciled Reel is LIVE but social inventory mirror update failed", {
+          jobId: args.jobId,
+          err: inventoryErr instanceof Error ? inventoryErr.message.slice(0, 240) : String(inventoryErr).slice(0, 240),
+        });
+      }
+    }
+
     await recordPublishOutcome(args.attemptId, OUTCOME.confirmed, {
       igPostId: args.igPostId ?? null,
       error: args.operatorNote ? `reconciled by operator: ${args.operatorNote}` : "reconciled: confirmed live",

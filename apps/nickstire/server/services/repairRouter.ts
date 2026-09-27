@@ -40,6 +40,8 @@ const CODE_ROUTES: Record<RenderedDefectCode, { method: RepairMethod; unit: Repa
   ENVIRONMENT_DRIFT:      { method: "regenerate", unit: "generated_beat", paid: true },
   MALFORMED_GEOMETRY:     { method: "regenerate", unit: "generated_beat", paid: true },
   GENERATED_TEXT_ARTIFACT:{ method: "regenerate", unit: "generated_beat", paid: true },
+  BEAT_SEMANTIC_MISMATCH: { method: "regenerate", unit: "generated_beat", paid: true },
+  MECHANICAL_MISREPRESENTATION: { method: "regenerate", unit: "generated_beat", paid: true },
   HUMAN_PRESENT:          { method: "regenerate", unit: "generated_beat", paid: true },
   // Same route as HUMAN_PRESENT — a drawn body cannot be regraded or recut
   // away, the beat has to be generated again. Kept as its own code because the

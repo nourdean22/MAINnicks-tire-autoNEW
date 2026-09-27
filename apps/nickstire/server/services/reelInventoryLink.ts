@@ -9,8 +9,8 @@
  * because "publish through the normal gates" pointed at an empty gate.
  * Same defect class as ROS-020/ROS-045: an unchecked affectedRows write.
  */
-import { eq } from "drizzle-orm";
-import { socialContentInventory } from "../../drizzle/schema";
+import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { reelJobs, socialContentInventory } from "../../drizzle/schema";
 import { affectedRowCount } from "../lib/db-affected";
 import type { getDb } from "../db";
 
@@ -100,4 +100,161 @@ export async function ensureReelDraftForJob(
     version: 1,
   });
   return "created";
+}
+
+/**
+ * Mirror CONFIRMED publication truth from the Reel authority into the universal
+ * social inventory. The external Meta receipt/reel_jobs row remains the source
+ * of truth; this mirror exists so Queue, creative memory, metric sync, and
+ * learning do not keep describing a live Reel as "review_ready".
+ *
+ * Idempotent and repair-friendly: if the inventory row somehow never existed,
+ * create it directly as published rather than manufacturing an intermediate
+ * review state for media that is already live.
+ */
+export async function markReelInventoryPublished(
+  d: DB,
+  args: {
+    briefId: string;
+    publishedAt?: Date | null;
+    mp4Url?: string | null;
+    caption?: string | null;
+    brief?: unknown;
+  },
+): Promise<"updated" | "created"> {
+  const publishedAt = args.publishedAt ?? new Date();
+  const patch = {
+    status: "published",
+    publishedAt,
+    errorMessage: null,
+    ...(args.mp4Url ? { assetPaths: [args.mp4Url] } : {}),
+    updatedAt: new Date(),
+  };
+
+  const updated = await d
+    .update(socialContentInventory)
+    .set(patch)
+    .where(eq(socialContentInventory.id, args.briefId));
+  if (affectedRowCount(updated) > 0) return "updated";
+
+  const brief = args.brief ?? {};
+  await d.insert(socialContentInventory).values({
+    id: args.briefId,
+    platform: "instagram",
+    contentType: "reel",
+    topic: (briefString(brief, "topic") ?? `Reel ${args.briefId}`).slice(0, 128),
+    seriesName: "reel_pipeline",
+    hookCategory: "reel",
+    hookText: args.caption?.trim() || briefString(brief, "selectedCaption") || briefString(brief, "topic") || "",
+    bodyText: "",
+    visualStyle: "reel",
+    persona: "nick",
+    status: "published",
+    publishedAt,
+    assetPaths: args.mp4Url ? [args.mp4Url] : [],
+    briefJson: inventoryBriefJson(brief),
+    version: 1,
+  });
+  return "created";
+}
+
+function parseStoredBrief(payload: string | null): unknown {
+  if (!payload) return {};
+  try {
+    return JSON.parse(payload) as unknown;
+  } catch {
+    return {};
+  }
+}
+
+/** Repair one confirmed-live Reel mirror by durable job id. */
+export async function markReelInventoryPublishedByJobId(
+  d: DB,
+  reelJobId: number,
+  publishedAt?: Date | null,
+): Promise<boolean> {
+  const [job] = await d
+    .select({
+      briefId: reelJobs.briefId,
+      payload: reelJobs.payload,
+      mp4Url: reelJobs.mp4Url,
+      caption: reelJobs.caption,
+      publicationScheduledAt: reelJobs.publicationScheduledAt,
+      updatedAt: reelJobs.updatedAt,
+      igPostId: reelJobs.igPostId,
+      status: reelJobs.status,
+    })
+    .from(reelJobs)
+    .where(eq(reelJobs.id, reelJobId))
+    .limit(1);
+
+  if (!job?.igPostId || !["posted", "published"].includes(job.status)) return false;
+
+  await markReelInventoryPublished(d, {
+    briefId: job.briefId,
+    publishedAt: publishedAt ?? job.publicationScheduledAt ?? job.updatedAt ?? new Date(),
+    mp4Url: job.mp4Url,
+    caption: job.caption,
+    brief: parseStoredBrief(job.payload),
+  });
+  return true;
+}
+
+/**
+ * Self-heal historical/future split-brain publication state.
+ *
+ * A live Reel is proven by BOTH a terminal live reel_jobs status and a durable
+ * Instagram media id. We never promote from captions, filenames, or guesses.
+ * This lets the recurring metrics loop repair old rows safely while the direct
+ * publish path keeps new rows correct immediately.
+ */
+export async function reconcilePublishedReelInventoryTruth(
+  d: DB,
+  limit = 250,
+): Promise<{ examined: number; repaired: number; created: number }> {
+  const jobs = await d
+    .select({
+      id: reelJobs.id,
+      briefId: reelJobs.briefId,
+      payload: reelJobs.payload,
+      mp4Url: reelJobs.mp4Url,
+      caption: reelJobs.caption,
+      publicationScheduledAt: reelJobs.publicationScheduledAt,
+      updatedAt: reelJobs.updatedAt,
+    })
+    .from(reelJobs)
+    .where(and(
+      inArray(reelJobs.status, ["posted", "published"]),
+      isNotNull(reelJobs.igPostId),
+    ))
+    .orderBy(desc(reelJobs.id))
+    .limit(Math.max(1, Math.min(1000, limit)));
+
+  let repaired = 0;
+  let created = 0;
+
+  for (const job of jobs) {
+    const [inventory] = await d
+      .select({
+        status: socialContentInventory.status,
+        publishedAt: socialContentInventory.publishedAt,
+      })
+      .from(socialContentInventory)
+      .where(eq(socialContentInventory.id, job.briefId))
+      .limit(1);
+
+    if (inventory?.status === "published" && inventory.publishedAt) continue;
+
+    const outcome = await markReelInventoryPublished(d, {
+      briefId: job.briefId,
+      publishedAt: job.publicationScheduledAt ?? job.updatedAt ?? new Date(),
+      mp4Url: job.mp4Url,
+      caption: job.caption,
+      brief: parseStoredBrief(job.payload),
+    });
+    repaired += 1;
+    if (outcome === "created") created += 1;
+  }
+
+  return { examined: jobs.length, repaired, created };
 }

@@ -124,7 +124,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
       setIngestSource(""); setIngestTopic(""); setIngestCaption("");
       setIngestOpen(false);
       toast.success(`Ingested as ${r.inventoryId}`, {
-        description: `${(r.bytes / 1_000_000).toFixed(1)} MB · reel job ${r.reelJobId}. It is a DRAFT — approve and publish it in Publish → Reels.`,
+        description: `${(r.bytes / 1_000_000).toFixed(1)} MB · reel job ${r.reelJobId}. It is a DRAFT — approve and publish it in Queue → Reels.`,
       });
       attention.refetch();
     },
@@ -151,7 +151,7 @@ export default function ActionCenter({ onPublishStaged }: { onPublishStaged?: ()
         return;
       }
       toast.success(r.outcome === "staged" ? "Staged for publish" : "Already in the queue", {
-        description: "Approve and publish it in Publish → Reels (opening now).",
+        description: "Approve and publish it in Queue → Reels (opening now).",
       });
       const url = new URL(window.location.href);
       url.searchParams.set("igpub", "reels");

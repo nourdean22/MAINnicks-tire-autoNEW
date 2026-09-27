@@ -771,6 +771,41 @@ export function parseJsonObject<T>(raw: string): T {
 }
 
 /**
+ * Structured posting calls need one retry at the PARSE boundary too. The
+ * transport wrapper above cannot see a response that arrived successfully but
+ * ended mid-JSON; that exact shape failed the live morning IG run on
+ * 2026-09-27. Retry only before any image generation/publish side effect.
+ */
+export async function invokeStructuredPosting<T>(
+  params: Parameters<typeof invokeLLM>[0],
+  label: string,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const res = await invokeLLMForPosting(params);
+    const content = res.choices?.[0]?.message?.content;
+    if (typeof content !== "string" || !content.trim()) {
+      lastError = new Error(`${label}: LLM returned no structured content`);
+    } else {
+      try {
+        return parseJsonObject<T>(content);
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (attempt < 2) {
+      log.warn("IG posting structured output invalid - retrying before side effects", {
+        label,
+        err: lastError instanceof Error ? lastError.message.slice(0, 180) : String(lastError).slice(0, 180),
+      });
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`${label}: structured output failed`);
+}
+
+/**
  * Phase 6 (feed-wide): turn a post into a 2-line branded-poster headline + sub
  * for the adRender "garage poster" layout. Claim-safe (no prices except the
  * exact phrase "free check", no guarantees/superlatives — sell the visit).
@@ -813,7 +848,7 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype, cu
     cta: pick(DIALS.cta),
   };
 
-  const res = await invokeLLMForPosting({
+  const parsed = await invokeStructuredPosting<{ caption: string; hashtags: string[]; imagePrompt: string; conceptKey: string }>({
     messages: [
       { role: "system", content: buildGenSystemPrompt() },
       { role: "user", content: buildGenUserPrompt(brief, dials, customConcept) },
@@ -822,16 +857,10 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype, cu
     // "thinking" BEFORE emitting output. With the full system+brief prompt,
     // 1200 truncated the caption JSON mid-object ("```json {" -> JSON.parse
     // failure). 4096 leaves ample headroom for thinking + the completed JSON.
+    // The schema was already defined above but this call did not use it.
     max_tokens: 4096,
-  });
-
-  const content = res.choices?.[0]?.message?.content;
-  if (!content || typeof content !== "string") {
-    throw new Error("LLM returned no caption content");
-  }
-  const parsed = parseJsonObject<{
-    caption: string; hashtags: string[]; imagePrompt: string; conceptKey: string;
-  }>(content);
+    outputSchema: GEN_SCHEMA,
+  }, "generatePost");
 
   const { hashtags, dropped } = normalizeHashtags(parsed.hashtags);
   if (dropped.length) {

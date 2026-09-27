@@ -27,9 +27,9 @@ export type IgView =
 export const IG_PRIMARY_VIEWS: Array<{ key: IgView; label: string }> = [
   { key: "today", label: "Today" },
   { key: "create", label: "Create" },
-  { key: "publish", label: "Publish" },
+  { key: "publish", label: "Queue" },
   { key: "community", label: "Community" },
-  { key: "insights", label: "Insights" },
+  { key: "insights", label: "Learn" },
 ];
 
 export const IG_SECONDARY_VIEWS: Array<{ key: IgView; label: string }> = [

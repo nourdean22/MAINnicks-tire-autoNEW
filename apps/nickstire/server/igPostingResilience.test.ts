@@ -84,6 +84,47 @@ describe("invokeLLMForPosting retries once and only once", () => {
   });
 });
 
+describe("structured posting retries malformed JSON before any side effect", () => {
+  beforeEach(() => vi.resetModules());
+  afterEach(() => {
+    vi.doUnmock("./_core/llm");
+    vi.resetModules();
+  });
+
+  const loadStructured = async () => (await import("./services/igAutopost")).invokeStructuredPosting;
+
+  it("retries a non-empty truncated JSON response at the parse boundary", async () => {
+    const calls: unknown[] = [];
+    vi.doMock("./_core/llm", () => ({
+      invokeLLM: async (p: unknown) => {
+        calls.push(p);
+        return calls.length === 1
+          ? { choices: [{ message: { content: '{"caption":"cut' } }] }
+          : { choices: [{ message: { content: '{"caption":"ok","hashtags":[],"imagePrompt":"x","conceptKey":"y"}' } }] };
+      },
+    }));
+
+    const fn = await loadStructured();
+    const parsed = await fn<{ caption: string }>({ messages: [] } as never, "test");
+    expect(parsed.caption).toBe("ok");
+    expect(calls).toHaveLength(2);
+  });
+
+  it("stops after two malformed structured responses", async () => {
+    let calls = 0;
+    vi.doMock("./_core/llm", () => ({
+      invokeLLM: async () => {
+        calls += 1;
+        return { choices: [{ message: { content: '{"caption":"still cut' } }] };
+      },
+    }));
+
+    const fn = await loadStructured();
+    await expect(fn({ messages: [] } as never, "test")).rejects.toThrow(/truncated/i);
+    expect(calls).toBe(2);
+  });
+});
+
 describe("every posting-lane LLM call carries the guards", () => {
   it("igAutopost has no bare invokeLLM call left", () => {
     const src = read("server/services/igAutopost.ts");
@@ -91,6 +132,15 @@ describe("every posting-lane LLM call carries the guards", () => {
     const bare = src.match(/await invokeLLM\(/g) ?? [];
     expect(bare).toHaveLength(1);
     expect(src.match(/invokeLLMForPosting\(/g)!.length).toBeGreaterThanOrEqual(4); // def + 3 sites
+  });
+
+  it("the caption generator wires the existing JSON schema into the call", () => {
+    const src = read("server/services/igAutopost.ts");
+    const start = src.indexOf("async function generatePost(");
+    const end = src.indexOf("// IMAGE", start);
+    const body = src.slice(start, end);
+    expect(body).toContain("invokeStructuredPosting");
+    expect(body).toContain("outputSchema: GEN_SCHEMA");
   });
 
   it("the daily brief call is a live lane, not background", () => {

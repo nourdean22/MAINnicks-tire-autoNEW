@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { ApprovedProductionPackSnapshot } from "../../shared/episodeContract";
+import { reelStructureFingerprint } from "../../shared/reelStructureFingerprint";
 import { resolvePacksDir } from "./reelPackRegistry";
 import { MOTION_LENSES, REEL_ARCHETYPES } from "../../client/src/lib/facelessReelStudio";
 import type { MotionLens, ReelArchetype } from "../../client/src/lib/facelessReelStudio";
@@ -378,6 +379,11 @@ export function buildBriefFromApprovedProductionPack(
   const hasProofSource = sourceNotes.some((note) =>
     Boolean(note && typeof note === "object" && (note as Record<string, unknown>).kind === "proof"),
   );
+  const productionGrammarFingerprint = reelStructureFingerprint({
+    beats: storyboardBeats,
+    ctaType: isReelAskShape(source.ask) ? source.ask.kind : null,
+    loopIdea: packLoopIdea || null,
+  });
   return {
     id: briefId,
     // THE PACK LANE HAD NO ASK AT ALL.
@@ -451,6 +457,7 @@ export function buildBriefFromApprovedProductionPack(
       : [],
     winningConceptId: packLoopIdea ? briefId : null,
     storyboardBeats,
+    productionGrammarFingerprint,
     promptPack: [],
     higgsfieldPromptPack: [],
     ffmpegAssemblyNotes: stringValue(source.ffmpegAssemblyNotes),

@@ -52,6 +52,21 @@ describe("clampVerdict", () => {
     expect(v.framesEvaluated).toBe(7);
   });
 
+  it("semantic or mechanical misinformation is always a blocking repair", () => {
+    for (const code of ["BEAT_SEMANTIC_MISMATCH", "MECHANICAL_MISREPRESENTATION"] as const) {
+      const verdict = clampVerdict(
+        {
+          decision: "approve",
+          findings: [{ beatNumber: 2, code, description: "visible teaching mismatch", preserve: [], change: ["regenerate the beat truthfully"] }],
+        },
+        5,
+        "vision",
+      );
+      expect(verdict.decision).toBe("repair");
+      expect(verdict.findings[0].severity).toBe("block");
+    }
+  });
+
   it("clean output approves; warn-only output may approve", () => {
     expect(clampVerdict({ decision: "approve", findings: [] }, 5, "vision").decision).toBe("approve");
     const warnOnly = clampVerdict(
@@ -192,6 +207,9 @@ describe("evaluateRenderedReel (mocked vision seam)", () => {
     expect(spy).toHaveBeenCalledTimes(1);
     const call = spy.mock.calls[0][0];
     expect(call.messages[0].content).toContain("APPROVED VISUAL WORLD");
+    expect(call.messages[0].content).toContain("BEAT_SEMANTIC_MISMATCH");
+    expect(call.messages[0].content).toContain("MECHANICAL_MISREPRESENTATION");
+    expect(call.messages[0].content).toContain("belts/hoses and the frame shows a spare tire");
     const userParts = call.messages[1].content;
     expect(userParts.some((p: { type: string }) => p.type === "image_url")).toBe(true);
     expect(verdict.decision).toBe("repair");
