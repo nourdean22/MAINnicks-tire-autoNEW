@@ -78,6 +78,21 @@ _OFFICE_PRODUCER_INSTANCE_ID = uuid.uuid4().hex
 _office_heartbeat_seq = 0
 _last_home_verify_monotonic = 0.0
 
+# camera_runtime fields authored by THIS producer rather than the fixed camera-bridge
+# producer. Kept as a literal tuple so the cross-app heartbeat contract can inspect the
+# real producer without importing StateNour's optional smart-home dependencies.
+INTERACTION_HEARTBEAT_FIELDS = (
+    "authPlaneOk",
+    "eventPlaneOk",
+    "controlPlaneOk",
+    "mediaPlaneOk",
+    "ptzHomeOk",
+    "lastEventProofAt",
+    "lastControlProofAt",
+    "lastMediaProofAt",
+    "lastPtzNotifyAt",
+)
+
 EUFY_API_BASE = "https://security-app.eufylife.com"
 TOKEN_FILE = Path(__file__).parent / "eufy-data" / "token.json"
 
@@ -580,20 +595,11 @@ def build_office_camera_heartbeat(
         "sourceGeneration": EUFY_OFFICE_CAMERA_SERIAL,
         "sourceConnected": auth_ok,
         "detectorName": "eufy-semantic-events",
-        "authPlaneOk": auth_ok,
     }
 
-    for key in (
-        "eventPlaneOk",
-        "controlPlaneOk",
-        "mediaPlaneOk",
-        "ptzHomeOk",
-        "lastEventProofAt",
-        "lastControlProofAt",
-        "lastMediaProofAt",
-        "lastPtzNotifyAt",
-    ):
-        value = runtime_health.get(key)
+    interaction_values = {"authPlaneOk": auth_ok, **runtime_health}
+    for key in INTERACTION_HEARTBEAT_FIELDS:
+        value = interaction_values.get(key)
         if value is not None:
             payload[key] = value
     return payload
