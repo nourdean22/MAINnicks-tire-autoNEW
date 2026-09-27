@@ -32,6 +32,20 @@ const row = (id: number, phone: string, email: string) => ({
   segment: "lapsed",
 });
 
+describe("emailCampaigns · recipient validation", () => {
+  it("normalizes only safe whitespace/domain casing and refuses ambiguous repairs", async () => {
+    const { normalizeCampaignRecipientEmail } = await import("./services/emailCampaigns");
+
+    expect(normalizeCampaignRecipientEmail("  Name.Tag+shop@EXAMPLE.COM  ")).toBe("Name.Tag+shop@example.com");
+    expect(normalizeCampaignRecipientEmail('PEYTONJLEE29@GMAIL.COM"')).toBeNull();
+    expect(normalizeCampaignRecipientEmail("Name <person@example.com>")).toBeNull();
+    expect(normalizeCampaignRecipientEmail("double@@example.com")).toBeNull();
+    expect(normalizeCampaignRecipientEmail("missing-domain-dot@example")).toBeNull();
+    expect(normalizeCampaignRecipientEmail(".leading@example.com")).toBeNull();
+    expect(normalizeCampaignRecipientEmail("trailing.@example.com")).toBeNull();
+  });
+});
+
 describe("emailCampaigns · a suppressed recipient never reaches the sender", () => {
   /** Every address the stubbed transport was asked to send to. */
   const sentTo: string[] = [];
@@ -99,6 +113,32 @@ describe("emailCampaigns · a suppressed recipient never reaches the sender", ()
     // that never got past its own feature flag or template lookup.
     expect(sentTo).toEqual(["clean@example.com"]);
     expect(r.recordsProcessed).toBe(1);
+  });
+
+  it("BREAKS: malformed CRM emails never reach Resend or starve clean recipients", async () => {
+    stubTransport();
+    const malformed = Array.from(
+      { length: 15 },
+      (_, i) => row(200 + i, CLEAN_PHONE, `bad${i}@example.com"`),
+    );
+    const clean = [
+      row(1, CLEAN_PHONE, "first@example.com"),
+      row(2, CLEAN_PHONE, "second@example.com"),
+      row(3, CLEAN_PHONE, "third@example.com"),
+    ];
+    arm([...malformed, ...clean], {
+      ok: true, phones: new Set<string>(), carrierBlocked: new Set<string>(), stale: false,
+    });
+
+    const r = await run();
+
+    expect(sentTo.sort()).toEqual([
+      "first@example.com",
+      "second@example.com",
+      "third@example.com",
+    ]);
+    expect(r.recordsProcessed).toBe(3);
+    expect(r.details).toMatch(/15 invalid email skipped/);
   });
 
   it("BREAKS: a phone known only to the shared index is never emailed", async () => {
