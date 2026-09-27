@@ -210,3 +210,56 @@ describe("conversation facts — coverage gates confidence, level barely does", 
     expect(await at(81)).toBe(1);
   });
 });
+
+
+describe("conversation summaries — evidence-backed only", () => {
+  it("builds the stored summary from facts that survived provenance validation", async () => {
+    replyWith({
+      facts: [
+        { kind: "CUSTOMER_CONCERN", value: "front right tire keeps losing air", evidenceSegment: 0, confidence: 0.95 },
+        { kind: "QUOTE", value: "$35 patch", evidenceSegment: 1, confidence: 0.95 },
+      ],
+    });
+    const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 14, totalSeconds: 14 });
+    expect(r.summary).toBe("Concern: front right tire keeps losing air. Quote: $35 patch.");
+  });
+
+  it("ignores free-form model summary prose entirely", async () => {
+    replyWith({
+      facts: [],
+      summary: "Customer approved four new tires and will return tomorrow.",
+    });
+    const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 14, totalSeconds: 14 });
+    expect(r.facts).toHaveLength(0);
+    expect(r.summary).toBeNull();
+  });
+
+  it("a gappy transcript cannot produce a summary even when the model tries", async () => {
+    replyWith({
+      facts: [
+        { kind: "PROMISE", value: "ready in thirty minutes", evidenceSegment: 2, confidence: 0.99 },
+      ],
+      summary: "The vehicle will definitely be ready in thirty minutes.",
+    });
+    const r = await extractConversationFacts(SEGMENTS, {
+      coveredSeconds: 37.4,
+      totalSeconds: 90,
+    });
+    expect(r.facts).toHaveLength(0);
+    expect(r.summary).toBeNull();
+  });
+
+  it("summary ordering is operational rather than model-dependent", async () => {
+    replyWith({
+      facts: [
+        { kind: "FOLLOW_UP", value: "call when ready", evidenceSegment: 2, confidence: 0.95 },
+        { kind: "VEHICLE_DETAIL", value: "205/55R16", evidenceSegment: 2, confidence: 0.95 },
+        { kind: "REQUESTED_WORK", value: "patch front right tire", evidenceSegment: 0, confidence: 0.95 },
+      ],
+    });
+    const r = await extractConversationFacts(SEGMENTS, { coveredSeconds: 14, totalSeconds: 14 });
+    expect(r.summary).toBe(
+      "Requested: patch front right tire. Vehicle: 205/55R16. Follow-up: call when ready.",
+    );
+  });
+});
