@@ -115,7 +115,7 @@ describe("camera health lattice — fixed geometry", () => {
     expect(deriveCameraState(posed).state).toBe("DEGRADED_VISION");
   });
 
-  it("unknown fixed dimensions stay unknown rather than reading as fine", () => {
+  it("unknown fixed dimensions are UNVERIFIED_CAPABILITIES, never healthy", () => {
     const v = deriveCameraState(healthy({
       sourceConnected: null,
       frameOk: null,
@@ -125,6 +125,7 @@ describe("camera health lattice — fixed geometry", () => {
       oldestOutboxAgeSeconds: null,
       deadLetterDepth: null,
     }));
+    expect(v.state).toBe("UNVERIFIED_CAPABILITIES");
     expect(v.facets).toEqual({
       ...fixedFacets,
       source: "unknown",
@@ -132,6 +133,18 @@ describe("camera health lattice — fixed geometry", () => {
       pose: "unknown",
       cloud: "unknown",
     });
+  });
+
+  it.each([
+    ["sourceConnected", null],
+    ["frameOk", null],
+    ["poseOk", null],
+    ["outboxDepth", null],
+  ] as const)("missing fixed-camera proof %s blocks HEALTHY", (field, value) => {
+    const over: Partial<RuntimeSnapshot> = { [field]: value };
+    if (field === "frameOk") over.lastHealthyFrameAtEpoch = null;
+    if (field === "outboxDepth") over.oldestOutboxAgeSeconds = null;
+    expect(deriveCameraState(healthy(over)).state).toBe("UNVERIFIED_CAPABILITIES");
   });
 
   it("PTZ transport failures do not demote the fixed vehicle-truth camera", () => {
