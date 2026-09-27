@@ -207,37 +207,33 @@ class SceneLock:
         # pixels, which is the unit thresholds, logs and operators all think in.
         self._ref_scale = (source_width / float(g.shape[1])) if g.shape[1] else 1.0
 
-    def _shift_px(self, g: np.ndarray) -> Optional[float]:
-        """How far `g` has moved from the reference, in source pixels.
+    def _registration(self, g: np.ndarray) -> tuple[Optional[float], Optional[float]]:
+        """Return (source-pixel shift, phase-correlation response).
 
-        WHY REGISTRATION AND NOT A PIXEL DIFFERENCE. The old gate asked "what fraction of
-        pixels differ from the reference by more than 25 grey levels?" and refused the pose
-        past 30%. On an outdoor lot that measure is dominated by everything EXCEPT the thing
-        it is trying to detect: over one real afternoon the sun went behind cloud, shadows
-        swept the building facade, every parked car turned over and the bay doors opened,
-        and the reading climbed from 0.00 to 0.45 and stayed there -- while the camera had
-        not moved at all (registration: 0.63px). `may_create_visits` is
-        `(not moving) and pose_ok`, so the guard against minting visits from a moved camera
-        instead stopped ANY visit being minted, for hours, with the view perfectly fine.
-
-        Phase correlation separates the two exactly. Measured on that same footage:
-        the unchanged view reads 0.63px while real pans of 3-80px are recovered to within
-        0.4px; a DIFFERENT lens reads 90px (shop-ptz) and 245px (shop-right), and pure noise
-        reads 173px -- so this refuses a foreign scene on its own and needs no second gate
-        bolted on to cover it.
-
-        None when there is nothing to compare against, never 0.0: "no reference" and "has
-        not moved" are different claims and only one of them is evidence.
+        Fixed-camera SceneLock historically needed only displacement. Absolute PTZ-home
+        verification needs the response as well: OpenCV still returns a displacement for
+        unrelated images, and treating that number as a match without confidence would turn
+        an accidental near-zero shift into false home evidence.
         """
         if self._ref is None or self._win is None or self._ref.shape != g.shape:
-            return None
+            return None, None
         try:
             import cv2
 
-            (dx, dy), _response = cv2.phaseCorrelate(self._ref * self._win, g * self._win)
+            (dx, dy), response = cv2.phaseCorrelate(self._ref * self._win, g * self._win)
         except Exception:  # noqa: BLE001 - the pose gate must never take the lot down
-            return None
-        return float((dx * dx + dy * dy) ** 0.5) * self._ref_scale
+            return None, None
+        shift = float((dx * dx + dy * dy) ** 0.5) * self._ref_scale
+        return shift, float(response)
+
+    def _shift_px(self, g: np.ndarray) -> Optional[float]:
+        """How far `g` has moved from the reference, in source pixels.
+
+        This compatibility wrapper preserves the fixed-camera contract. Stronger callers
+        that need registration confidence must use `_registration()`.
+        """
+        shift, _response = self._registration(g)
+        return shift
 
     def update(self, image: Optional[np.ndarray]) -> SceneState:
         if image is None:

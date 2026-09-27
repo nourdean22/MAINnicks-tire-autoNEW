@@ -93,6 +93,26 @@ class EufyBridgeTests(unittest.TestCase):
         self.assertEqual(result["presetId"], 3)
         self.assertFalse(result["verified"])
 
+    def test_unconfigured_home_preset_keeps_absolute_pose_unknown(self):
+        cmd = {
+            "command": "ptz_preset",
+            "params": {"id": 3},
+            "device": {"platformDeviceId": f"eufy-{OFFICE}"},
+        }
+        with patch.object(eufy_bridge, "HOME_PRESET_ID", None), patch.object(
+            eufy_bridge,
+            "_ptz_action",
+            return_value={"ok": True, "result": None},
+        ) as action:
+            eufy_bridge.execute_command(cmd)
+
+        action.assert_called_once_with(
+            OFFICE,
+            "preset.goto",
+            [3],
+            target_home=None,
+        )
+
     def test_event_filter_is_camera_scoped(self):
         with patch.object(eufy_bridge, "_EVENT_FILTER", {"OFFICE"}):
             self.assertTrue(
@@ -197,6 +217,23 @@ class EufyBridgeTests(unittest.TestCase):
         # Motor receipt proves control, not absolute pose. Home remains unverified
         # until a visual/SceneLock verifier confirms the returned frame.
         self.assertIsNone(eufy_bridge.runtime_health_snapshot()["ptzHomeOk"])
+
+    def test_uncorrelated_motor_receipt_invalidates_old_home_truth(self):
+        eufy_bridge.mark_ptz_home_pose_verified(True)
+        self.assertTrue(eufy_bridge.runtime_health_snapshot()["ptzHomeOk"])
+
+        # Simulates a PTZ move initiated from the Eufy app or another controller.
+        eufy_bridge._record_bridge_event(
+            {"event": "ptzNotify", "deviceSn": OFFICE}
+        )
+
+        health = eufy_bridge.runtime_health_snapshot()
+        self.assertTrue(health["controlPlaneOk"])
+        self.assertIsNone(
+            health["ptzHomeOk"],
+            "an uncorrelated motor receipt must invalidate an old absolute-home claim",
+        )
+        self.assertIsNotNone(health["lastPtzNotifyAt"])
 
     def test_home_preset_receipt_never_claims_absolute_home_without_visual_proof(self):
         def request_with_receipt(_payload):

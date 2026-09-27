@@ -190,17 +190,21 @@ def _record_bridge_event(event: dict[str, Any]) -> None:
             if pending and pending.get("serial") == serial:
                 target_home = pending.get("targetHome")
                 if target_home is False:
-                    # A confirmed directional move proves we are no longer on the
-                    # calibrated home view.
+                    # A confirmed directional / known-non-home move proves we are no longer
+                    # on the calibrated home view.
                     _RUNTIME_HEALTH["ptzHomeOk"] = False
-                elif target_home is True:
-                    # preset.goto(home) + ptzNotify proves the CONTROL path only.
-                    # The SDK exposes no authoritative absolute PTZ position, so the
-                    # returned view stays unknown until a visual/SceneLock verifier
-                    # explicitly proves it matches the calibrated home reference.
+                else:
+                    # preset.goto(home) proves only the CONTROL path. An unclassified preset
+                    # (HOME_PRESET_ID not configured) is also absolute-pose UNKNOWN, never
+                    # "away" by assumption. Visual verification must establish true/false.
                     _RUNTIME_HEALTH["ptzHomeOk"] = None
                 _PENDING_PTZ = None
                 release_receipt = True
+            else:
+                # A motor receipt we did not initiate may be an operator/app move.
+                # It invalidates any prior absolute-home claim immediately. We do NOT
+                # guess "away": the visual verifier will re-establish true/false.
+                _RUNTIME_HEALTH["ptzHomeOk"] = None
 
     if release_receipt:
         _PTZ_RECEIPT_EVENT.set()
@@ -487,11 +491,16 @@ def execute_command(command: dict[str, Any]) -> dict[str, Any]:
             raise EufyBridgeError("ptz_preset requires integer params.id") from exc
         if preset_id < 0:
             raise EufyBridgeError("ptz_preset params.id must be non-negative")
+        target_home = (
+            None
+            if HOME_PRESET_ID is None
+            else preset_id == HOME_PRESET_ID
+        )
         reply = _ptz_action(
             serial,
             "preset.goto",
             [preset_id],
-            target_home=(HOME_PRESET_ID is not None and preset_id == HOME_PRESET_ID),
+            target_home=target_home,
         )
         return {
             "ptzCommand": "sent",
