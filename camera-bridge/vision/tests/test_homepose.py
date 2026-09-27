@@ -78,16 +78,16 @@ def test_foreground_change_does_not_fake_camera_motion():
     assert receipt.changedFraction < receipt.maxChangedFraction
 
 
-def test_unrelated_scene_is_refused():
+def test_unrelated_scene_is_refused_as_untrustworthy_registration():
     ref = _scene()
     current = np.full_like(ref, 240)
-    receipt = verify_home_pose(ref, current, serial="OFFICE")
-    assert receipt.isHome is False
+    with pytest.raises(HomePoseError, match="confidence too low"):
+        verify_home_pose(ref, current, serial="OFFICE")
 
 
 def test_missing_registration_is_unknown_not_home():
     ref = _scene()
-    with patch.object(SceneLock, "_shift_px", return_value=None):
+    with patch.object(SceneLock, "_registration", return_value=(None, None)):
         with pytest.raises(HomePoseError, match="registration unavailable"):
             verify_home_pose(ref, ref.copy(), serial="OFFICE")
 
