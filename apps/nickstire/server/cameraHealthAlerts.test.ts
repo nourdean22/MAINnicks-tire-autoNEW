@@ -5,6 +5,7 @@ import {
   cameraAlertDecision,
   formatCameraHealthAlert,
   isCameraPagingState,
+  notificationDelivered,
 } from "./services/cameraHealthAlerts";
 
 describe("camera health alert policy", () => {
@@ -106,6 +107,15 @@ describe("camera health alert policy", () => {
   });
 });
 
+describe("camera health alert delivery truth", () => {
+  it("requires at least one confirmed delivery surface", () => {
+    expect(notificationDelivered({ emailSent: true, pushSent: false })).toBe(true);
+    expect(notificationDelivered({ emailSent: false, pushSent: true })).toBe(true);
+    expect(notificationDelivered({ emailSent: true, pushSent: true })).toBe(true);
+    expect(notificationDelivered({ emailSent: false, pushSent: false })).toBe(false);
+  });
+});
+
 describe("camera health alert wiring", () => {
   const root = path.resolve(__dirname, "..");
   const service = fs.readFileSync(
@@ -127,10 +137,13 @@ describe("camera health alert wiring", () => {
     expect(cameras).toMatch(/camera: "office"[\s\S]*?commissioned: false/);
   });
 
-  it("uses the durable, multi-pod-safe alert claim rail", () => {
+  it("uses the durable claim rail but releases an unconfirmed delivery for retry", () => {
     expect(service).toContain("INSERT IGNORE INTO cron_alerts_fired");
     expect(service).toContain("affectedRows");
     expect(service).toContain("camera_health:");
+    expect(service).toContain("DELETE FROM cron_alerts_fired");
+    expect(service).toContain("notificationDelivered(delivery)");
+    expect(service).toContain("throw new Error");
     expect(service).not.toContain("notification_messages");
   });
 
