@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   cameraAlertDecision,
   cameraAlertShopDay,
+  deliverCameraAlertExternally,
   deliverWithConfirmedNotification,
-  externalNotificationDelivery,
   formatCameraHealthAlert,
 } from "./services/cameraHealthAlertPolicy";
 
@@ -132,22 +132,6 @@ describe("camera health alert delivery truth", () => {
     }
   });
 
-  it("does not count the core logger fallback as external owner delivery", () => {
-    expect(
-      externalNotificationDelivery(
-        { emailSent: false, pushSent: true },
-        false,
-      ),
-    ).toEqual({ emailAccepted: false, webhookAccepted: false });
-
-    expect(
-      externalNotificationDelivery(
-        { emailSent: false, pushSent: true },
-        true,
-      ),
-    ).toEqual({ emailAccepted: false, webhookAccepted: true });
-  });
-
   it("releases the daily claim and throws when no delivery surface accepts the alert", async () => {
     const execute = vi.fn().mockResolvedValue([{ affectedRows: 1 }]);
 
@@ -156,7 +140,11 @@ describe("camera health alert delivery truth", () => {
         camera: "sign",
         state: "CAMERA_OFFLINE",
         alert: { title: "Camera degraded", message: "offline" },
-        notify: async () => ({ emailAccepted: false, webhookAccepted: false }),
+        notify: async () => ({
+          emailAccepted: false,
+          webhookAccepted: false,
+          telegramAccepted: false,
+        }),
         releaseClaim: async () => {
           await execute("release");
         },
@@ -173,13 +161,117 @@ describe("camera health alert delivery truth", () => {
       camera: "sign",
       state: "CAMERA_OFFLINE",
       alert: { title: "Camera degraded", message: "offline" },
-      notify: async () => ({ emailAccepted: true, webhookAccepted: false }),
+      notify: async () => ({
+        emailAccepted: true,
+        webhookAccepted: false,
+        telegramAccepted: false,
+      }),
       releaseClaim: async () => {
         await execute("release");
       },
     });
 
     expect(execute).not.toHaveBeenCalled();
+  });
+
+
+  it("uses Telegram only when email/webhook produced no external delivery", async () => {
+    const notifySystem = vi.fn().mockResolvedValue({
+      emailSent: false,
+      pushSent: true, // logger-only fallback when webhookConfigured=false
+    });
+    const sendTelegram = vi.fn().mockResolvedValue(true);
+
+    const delivery = await deliverCameraAlertExternally({
+      alert: { title: "Camera degraded", message: "media down" },
+      notifySystem,
+      webhookConfigured: false,
+      sendTelegram,
+    });
+
+    expect(delivery).toEqual({
+      emailAccepted: false,
+      webhookAccepted: false,
+      telegramAccepted: true,
+    });
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
+    expect(sendTelegram.mock.calls[0]?.[0]).toContain("Camera degraded");
+  });
+
+  it("does not double-page Telegram when email was already accepted", async () => {
+    const sendTelegram = vi.fn().mockResolvedValue(true);
+    const delivery = await deliverCameraAlertExternally({
+      alert: { title: "Camera degraded", message: "offline" },
+      notifySystem: vi.fn().mockResolvedValue({
+        emailSent: true,
+        pushSent: false,
+      }),
+      webhookConfigured: false,
+      sendTelegram,
+    });
+
+    expect(delivery).toEqual({
+      emailAccepted: true,
+      webhookAccepted: false,
+      telegramAccepted: false,
+    });
+    expect(sendTelegram).not.toHaveBeenCalled();
+  });
+
+  it("a Telegram exception remains an undelivered page instead of fake success", async () => {
+    const delivery = await deliverCameraAlertExternally({
+      alert: { title: "Camera degraded", message: "offline" },
+      notifySystem: vi.fn().mockResolvedValue({
+        emailSent: false,
+        pushSent: false,
+      }),
+      webhookConfigured: false,
+      sendTelegram: vi.fn().mockRejectedValue(new Error("provider down")),
+    });
+
+    expect(delivery).toEqual({
+      emailAccepted: false,
+      webhookAccepted: false,
+      telegramAccepted: false,
+    });
+  });
+
+
+  it("still falls back to Telegram when the primary notification rail throws", async () => {
+    const sendTelegram = vi.fn().mockResolvedValue(true);
+    const delivery = await deliverCameraAlertExternally({
+      alert: { title: "Camera degraded", message: "primary rail threw" },
+      notifySystem: vi.fn().mockRejectedValue(new Error("primary down")),
+      webhookConfigured: false,
+      sendTelegram,
+    });
+
+    expect(delivery).toEqual({
+      emailAccepted: false,
+      webhookAccepted: false,
+      telegramAccepted: true,
+    });
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
+  });
+
+  it("escapes camera text before sending through Telegram HTML parse mode", async () => {
+    const sendTelegram = vi.fn().mockResolvedValue(true);
+    await deliverCameraAlertExternally({
+      alert: {
+        title: "Camera <degraded> & offline",
+        message: "control < media & home > unknown",
+      },
+      notifySystem: vi.fn().mockResolvedValue({
+        emailSent: false,
+        pushSent: false,
+      }),
+      webhookConfigured: false,
+      sendTelegram,
+    });
+
+    const text = String(sendTelegram.mock.calls[0]?.[0] ?? "");
+    expect(text).toContain("Camera &lt;degraded&gt; &amp; offline");
+    expect(text).toContain("control &lt; media &amp; home &gt; unknown");
   });
 });
 
@@ -222,7 +314,10 @@ describe("camera health alert wiring", () => {
 
   it("routes through the proven system notification surface", () => {
     expect(service).toContain('import("../email-notify")');
+    expect(service).toContain('import("./telegram")');
     expect(service).toContain("notifySystemAlert");
+    expect(service).toContain("sendTelegram");
+    expect(service).toContain("deliverCameraAlertExternally");
   });
 
   it("is actually on the five-minute heartbeat tier", () => {
