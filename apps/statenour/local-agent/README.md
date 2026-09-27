@@ -59,6 +59,25 @@ session** for live device state, semantic camera events, and capability-gated PT
 `EUFY_BRIDGE_URL` is configured, `eufy_agent.py` does not start a second Eufy cloud login. This
 avoids the two clients kicking each other into re-auth.
 
+### Bridge v0.3.0 runtime overlay
+
+Live commissioning on 2026-09-26 proved that upstream bridge v0.3.0 advertises the SDK's
+`ptz` capability but does not include `dev.ptz()` in its WebSocket `device.action` router.
+It also generates go2rtc listeners on all interfaces. Apply the reviewed, version-pinned overlay
+before enabling StateNour PTZ control:
+
+```bash
+python eufy_bridge_overlay.py --bridge-root /path/to/ha-eufy-sdk-bridge-0.3.0 --apply
+python eufy_bridge_overlay.py --bridge-root /path/to/ha-eufy-sdk-bridge-0.3.0 --check
+```
+
+The overlay fails closed on an unknown bridge version or source drift. For the reviewed v0.3.0
+source it exposes direct PTZ actions plus the narrow `preset.goto` namespace and binds go2rtc
+API/RTSP/WebRTC to `127.0.0.1`. It does not make an unreachable camera reachable.
+
+The live Windows commissioning used go2rtc v1.9.14 win64 with SHA-256
+`dd4167d75cb04abe618855b7c71f8658bd009f60c1a71835d134d2c11c939907`.
+
 Recommended local configuration:
 
 ```env
