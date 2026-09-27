@@ -431,9 +431,13 @@ def sync_office_camera_heartbeat() -> int:
     if not NICKS_CAMERA_HEARTBEAT_URL or not NICKS_CAMERA_INGEST_KEY:
         return 0
 
-    from eufy_bridge import bridge_ready, runtime_health_snapshot
+    from eufy_bridge import bridge_ready, probe_office_media_health, runtime_health_snapshot
 
     auth_ok, _reason = bridge_ready()
+    if auth_ok:
+        # Bounded/throttled real media open. A 5xx/P2P timeout is negative evidence;
+        # a real H264 byte read is positive proof. The probe self-throttles.
+        probe_office_media_health()
     runtime = runtime_health_snapshot(auth_ok=auth_ok)
     payload = build_office_camera_heartbeat(
         auth_ok=auth_ok,
