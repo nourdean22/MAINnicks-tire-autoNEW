@@ -137,6 +137,98 @@ function Wait-Bridge([int]$TimeoutSeconds = 90) {
   throw "Eufy bridge did not become healthy before timeout."
 }
 
+function Invoke-BridgeWs([string]$VenvPython, [hashtable]$Payload) {
+  # Payload (including 2FA/captcha answers) travels over stdin. It never appears in the
+  # process command line, scheduled-task definition, runtime JSON, or receipt logs.
+  $pythonCode = @'
+import asyncio, json, sys, uuid
+import websockets
+
+payload = json.load(sys.stdin)
+payload["id"] = payload.get("id") or uuid.uuid4().hex
+
+async def main():
+    async with websockets.connect(
+        "ws://127.0.0.1:3000/ws",
+        open_timeout=10,
+        close_timeout=2,
+        ping_interval=None,
+        max_size=2 * 1024 * 1024,
+    ) as ws:
+        await ws.send(json.dumps(payload))
+        while True:
+            reply = json.loads(await asyncio.wait_for(ws.recv(), timeout=12))
+            if str(reply.get("id", "")) == str(payload["id"]):
+                print(json.dumps(reply))
+                return
+
+asyncio.run(main())
+'@
+  $json = $Payload | ConvertTo-Json -Compress -Depth 8
+  $raw = $json | & $VenvPython -c $pythonCode
+  if ($LASTEXITCODE -ne 0) { throw "Bridge WebSocket command failed." }
+  try {
+    return ($raw | Select-Object -Last 1) | ConvertFrom-Json
+  } catch {
+    throw "Bridge returned invalid JSON to installer auth client."
+  }
+}
+
+function Complete-BridgeAuth([string]$VenvPython, [int]$MaxChallenges = 5) {
+  $attempts = 0
+  $deadline = (Get-Date).AddMinutes(5)
+
+  while ((Get-Date) -lt $deadline) {
+    $reply = Invoke-BridgeWs $VenvPython @{ cmd = "auth.status" }
+    if (-not $reply.ok) { throw "auth.status failed: $($reply.error)" }
+    $auth = $reply.auth
+    $state = if ($auth -and $auth.state) { [string]$auth.state } else { "unknown" }
+
+    if ($state -eq "ok") { return $auth }
+
+    if ($state -in @("pending", "reauth")) {
+      Start-Sleep -Seconds 2
+      continue
+    }
+
+    if ($state -eq "require_2fa") {
+      if (++$attempts -gt $MaxChallenges) { throw "Too many Eufy 2FA attempts." }
+      $code = Read-Host "Enter the Eufy 2FA code sent to the account"
+      if ([string]::IsNullOrWhiteSpace($code)) { throw "Eufy 2FA code may not be empty." }
+      $submit = Invoke-BridgeWs $VenvPython @{ cmd = "auth.submit"; code = $code.Trim() }
+      $code = $null
+      if (-not $submit.ok) { throw "Eufy 2FA submission failed: $($submit.error)" }
+      continue
+    }
+
+    if ($state -eq "require_captcha") {
+      if (++$attempts -gt $MaxChallenges) { throw "Too many Eufy captcha attempts." }
+      $image = [string]$auth.image
+      if ([string]::IsNullOrWhiteSpace($image) -or $image -notmatch "^data:image/[^;]+;base64,(.+)$") {
+        throw "Eufy requested captcha but did not provide a decodable image."
+      }
+
+      $captchaPath = Join-Path $env:TEMP "statenour-eufy-captcha.png"
+      try {
+        [IO.File]::WriteAllBytes($captchaPath, [Convert]::FromBase64String($matches[1]))
+        Start-Process $captchaPath
+        $answer = Read-Host "Enter the text shown in the Eufy captcha image"
+        if ([string]::IsNullOrWhiteSpace($answer)) { throw "Eufy captcha answer may not be empty." }
+        $submit = Invoke-BridgeWs $VenvPython @{ cmd = "auth.submit"; captcha = $answer.Trim() }
+        $answer = $null
+        if (-not $submit.ok) { throw "Eufy captcha submission failed: $($submit.error)" }
+      } finally {
+        Remove-Item -LiteralPath $captchaPath -Force -ErrorAction SilentlyContinue
+      }
+      continue
+    }
+
+    throw "Unsupported Eufy auth state: $state"
+  }
+
+  throw "Eufy bridge authentication did not reach ok within 5 minutes."
+}
+
 function Get-OfficeDevice([string]$VenvPython, [string]$LocalAgentDir) {
   $old = $env:EUFY_BRIDGE_URL
   $env:EUFY_BRIDGE_URL = $BridgeUrl
@@ -351,14 +443,15 @@ Install-Task "StateNour-Eufy-OfficeWake" $wakeWrapper
 Stop-ScheduledTask -TaskName "StateNour-Eufy-Bridge" -ErrorAction SilentlyContinue
 Start-ScheduledTask -TaskName "StateNour-Eufy-Bridge"
 
-Write-Step "Waiting for authenticated bridge"
-$health = Wait-Bridge 120
-$authState = $null
-if ($health.auth -and $health.auth.state) { $authState = [string]$health.auth.state }
-elseif ($health.authState) { $authState = [string]$health.authState }
-if ($authState -and $authState -ne "ok") {
-  throw "Bridge is running but auth state is $authState"
+Write-Step "Waiting for bridge process"
+[void](Wait-Bridge 120)
+
+Write-Step "Completing Eufy authentication if challenged"
+$auth = Complete-BridgeAuth $venvPython
+if (-not $auth -or [string]$auth.state -ne "ok") {
+  throw "Bridge authentication did not reach ok."
 }
+Write-Host "Eufy bridge authentication verified." -ForegroundColor Green
 
 Write-Step "Verifying office camera identity and PTZ capability"
 $office = Get-OfficeDevice $venvPython $LocalAgentDir
