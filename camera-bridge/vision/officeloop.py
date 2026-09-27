@@ -121,6 +121,7 @@ def capture_seconds(state: WindowState, requested: float,
 def run_forever(source_url: str, out_dir: str, *, seconds: float = 300.0,
                 source: str = "eufy-office", transcriber: str = "whisper-cli",
                 model: Optional[str] = None, endpoint: Optional[str] = None,
+                input_format: str = "auto",
                 open_at: dtime = DEFAULT_OPEN, close_at: dtime = DEFAULT_CLOSE,
                 tz: str = SHOP_TZ, silence_db: Optional[float] = None,
                 max_cycles: Optional[int] = None, sleeper=time.sleep) -> int:
@@ -151,7 +152,14 @@ def run_forever(source_url: str, out_dir: str, *, seconds: float = 300.0,
 
         kw = {} if silence_db is None else {"silence_db": silence_db}
         try:
-            segs = capture_window(source_url, out_dir, dur, source=source, **kw)
+            segs = capture_window(
+                source_url,
+                out_dir,
+                dur,
+                source=source,
+                input_format=input_format,
+                **kw,
+            )
         except FfmpegMissing as exc:
             # Unrecoverable and operator-fixable. Spinning on it would hide it.
             _log({"event": "ffmpeg_missing", "detail": str(exc)})
@@ -206,6 +214,7 @@ def main(argv: List[str]) -> int:
 
     ap = argparse.ArgumentParser(description="office capture on shop hours")
     ap.add_argument("--source-url", required=True)
+    ap.add_argument("--input-format", choices=("auto", "rtsp", "dshow", "generic"), default="auto")
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--seconds", type=float, default=300.0)
     ap.add_argument("--source", default="eufy-office")
@@ -224,7 +233,8 @@ def main(argv: List[str]) -> int:
         args.source_url, args.out_dir, seconds=args.seconds, source=args.source,
         transcriber=args.transcriber, model=args.model, endpoint=args.endpoint,
         open_at=_parse_hhmm(args.open_at), close_at=_parse_hhmm(args.close_at),
-        tz=args.tz, silence_db=args.silence_db, max_cycles=1 if args.once else None,
+        tz=args.tz, silence_db=args.silence_db, input_format=args.input_format,
+        max_cycles=1 if args.once else None,
     )
 
 
