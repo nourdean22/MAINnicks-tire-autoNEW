@@ -43,6 +43,15 @@ class EufyShopRuntimeInstallerTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, runtime_block)
 
+    def test_first_run_auth_handles_2fa_and_captcha_without_cli_secrets(self):
+        self.assertIn('cmd = "auth.status"', SOURCE)
+        self.assertIn('cmd = "auth.submit"; code = $code.Trim()', SOURCE)
+        self.assertIn('cmd = "auth.submit"; captcha = $answer.Trim()', SOURCE)
+        self.assertIn("Payload (including 2FA/captcha answers) travels over stdin", SOURCE)
+        self.assertIn("Remove-Item -LiteralPath $captchaPath", SOURCE)
+        self.assertNotIn('ArgumentList $code', SOURCE)
+        self.assertNotIn('ArgumentList $answer', SOURCE)
+
     def test_control_fails_closed_until_explicitly_enabled(self):
         self.assertIn("controlEnabled = $false", SOURCE)
         self.assertIn("if ($EnableControl)", SOURCE)
