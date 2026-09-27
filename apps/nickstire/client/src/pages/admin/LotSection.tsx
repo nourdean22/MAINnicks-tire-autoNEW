@@ -762,6 +762,18 @@ function ConversationPanel({
                 : row.durationSeconds < 60
                   ? `${Math.round(row.durationSeconds)}s clip`
                   : `${(row.durationSeconds / 60).toFixed(1)}m clip`;
+            const summaryText = row.summary
+              ?? (status === "SKIPPED"
+                ? "No speech was transcribed in this clip."
+                : status === "FAILED"
+                  ? "Summary unavailable — capture, transcription, or extraction failed."
+                  : row.coverage === null
+                    ? "Summary withheld — transcript coverage is unknown."
+                    : row.coverage < 0.65
+                      ? `Summary withheld — transcript coverage ${Math.round(row.coverage * 100)}% is below the 65% evidence threshold.`
+                      : row.factCount === 0
+                        ? "No evidence-backed actionable facts were found."
+                        : "Summary withheld — validated evidence is incomplete.");
 
             return (
               <div key={row.episodeId} className="rounded-lg border border-foreground/10 p-3">
@@ -775,9 +787,7 @@ function ConversationPanel({
                       {row.source}
                     </div>
                     <div className="mt-1 text-[13px] text-foreground/85">
-                      {row.summary ?? (status === "SKIPPED"
-                        ? "No speech was transcribed in this clip."
-                        : "No evidence-backed summary available.")}
+                      {summaryText}
                     </div>
                   </div>
                   <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusTone}`}>
