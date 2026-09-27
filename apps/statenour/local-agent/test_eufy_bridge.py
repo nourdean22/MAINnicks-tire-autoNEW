@@ -194,6 +194,34 @@ class EufyBridgeTests(unittest.TestCase):
                 target_home=True,
             )
 
+        # Motor receipt proves control, not absolute pose. Home remains unverified
+        # until a visual/SceneLock verifier confirms the returned frame.
+        self.assertIsNone(eufy_bridge.runtime_health_snapshot()["ptzHomeOk"])
+
+    def test_home_preset_receipt_never_claims_absolute_home_without_visual_proof(self):
+        def request_with_receipt(_payload):
+            eufy_bridge._record_bridge_event(
+                {"event": "ptzNotify", "deviceSn": OFFICE}
+            )
+            return {"ok": True, "result": None}
+
+        with patch.object(eufy_bridge, "_require_ptz"), patch.object(
+            eufy_bridge,
+            "request",
+            side_effect=request_with_receipt,
+        ):
+            eufy_bridge._ptz_action(
+                OFFICE,
+                "preset.goto",
+                [3],
+                target_home=True,
+            )
+
+        health = eufy_bridge.runtime_health_snapshot()
+        self.assertTrue(health["controlPlaneOk"])
+        self.assertIsNone(health["ptzHomeOk"])
+
+        eufy_bridge.mark_ptz_home_pose_verified(True)
         self.assertTrue(eufy_bridge.runtime_health_snapshot()["ptzHomeOk"])
 
     def test_missing_ptz_receipt_marks_office_control_down_and_home_unknown(self):
