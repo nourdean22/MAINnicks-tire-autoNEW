@@ -108,17 +108,29 @@ install a whisper.cpp build and put whisper-cli on PATH, e.g.
 }
 Write-Host "  [ok] transcriber $Transcriber"
 
-# --- 7. the camera --------------------------------------------------------------
-Write-Host "  [..] probing the camera for an AUDIO stream (5s)" -ForegroundColor Yellow
-$probe = & ffprobe -v error -select_streams a -show_entries stream=codec_name,sample_rate `
-                   -of default=nw=1 -rtsp_transport tcp -i $SourceUrl -t 1 2>&1
-if ($LASTEXITCODE -ne 0 -or -not $probe) {
-  Fail "no audio stream from the camera" @"
-check the RTSP URL and that NAS(RTSP) is enabled in the Eufy app.
-  ffprobe said: $probe
-"@
+# --- 7. the audio source --------------------------------------------------------
+if ($SourceKind -eq "rtsp") {
+  Write-Host "  [..] probing RTSP for an AUDIO stream" -ForegroundColor Yellow
+  $probe = & ffprobe -v error -select_streams a -show_entries stream=codec_name,sample_rate `
+                     -of default=nw=1 -rtsp_transport tcp -i $SourceUrl -t 1 2>&1
+  if ($LASTEXITCODE -ne 0 -or -not $probe) {
+    Fail "no audio stream from RTSP source" "check the URL and that NAS(RTSP) is enabled on the camera"
+  }
+  Write-Host "  [ok] RTSP audio: $($probe -join ' ')"
+} else {
+  $dshowSpec = if ($SourceUrl.ToLower().StartsWith("audio=")) { $SourceUrl } else { "audio=$SourceUrl" }
+  $probeFile = Join-Path $env:TEMP "nick-office-mic-probe.wav"
+  Remove-Item -LiteralPath $probeFile -Force -ErrorAction SilentlyContinue
+  Write-Host "  [..] probing DirectShow microphone for 5s" -ForegroundColor Yellow
+  $probe = & ffmpeg -hide_banner -f dshow -i $dshowSpec -vn -acodec pcm_s16le -ar 16000 -ac 1 -t 5 -y $probeFile 2>&1
+  $probeInfo = Get-Item -LiteralPath $probeFile -ErrorAction SilentlyContinue
+  if ($LASTEXITCODE -ne 0 -or -not $probeInfo -or $probeInfo.Length -lt 1024) {
+    Remove-Item -LiteralPath $probeFile -Force -ErrorAction SilentlyContinue
+    Fail "DirectShow microphone did not produce audio" "run ffmpeg -list_devices true -f dshow -i dummy and pass the exact microphone name"
+  }
+  Remove-Item -LiteralPath $probeFile -Force -ErrorAction SilentlyContinue
+  Write-Host "  [ok] DirectShow microphone produced PCM audio"
 }
-Write-Host "  [ok] camera audio: $($probe -join ' ')"
 
 Write-Host ""
 Write-Host "=== Applying ===" -ForegroundColor Cyan
