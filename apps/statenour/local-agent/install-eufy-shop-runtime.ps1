@@ -59,15 +59,38 @@ function Ensure-Command([string]$Name, [string]$WingetId) {
 function Resolve-Python {
   $py = Get-Command py.exe -ErrorAction SilentlyContinue
   if ($py) {
-    & $py.Source -3.12 -c "import sys; print(sys.executable)" *> $null
-    if ($LASTEXITCODE -eq 0) {
-      return (& $py.Source -3.12 -c "import sys; print(sys.executable)").Trim()
+    $resolved = (& $py.Source -3.12 -c "import sys; print(sys.executable)" 2>$null | Select-Object -Last 1)
+    if ($LASTEXITCODE -eq 0 -and $resolved -and (Test-Path $resolved.Trim())) {
+      return $resolved.Trim()
     }
   }
+
   $python = Get-Command python.exe -ErrorAction SilentlyContinue
-  if ($python) { return $python.Source }
-  [void](Ensure-Command "python.exe" "Python.Python.3.12")
-  return (Get-Command python.exe).Source
+  if ($python) {
+    $resolved = (& $python.Source -c "import sys; print(sys.executable)" 2>$null | Select-Object -Last 1)
+    if ($LASTEXITCODE -eq 0 -and $resolved -and (Test-Path $resolved.Trim())) {
+      return $resolved.Trim()
+    }
+  }
+
+  if (-not $InstallPrerequisites) {
+    throw "A working Python interpreter is required. The Windows Store python.exe alias does not count."
+  }
+  $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+  if (-not $winget) { throw "Python is missing and winget is unavailable." }
+  Write-Step "Installing prerequisite Python.Python.3.12"
+  & $winget.Source install --id Python.Python.3.12 -e --silent --accept-source-agreements --accept-package-agreements
+  if ($LASTEXITCODE -ne 0) { throw "winget failed installing Python.Python.3.12" }
+  Refresh-Path
+
+  $py = Get-Command py.exe -ErrorAction SilentlyContinue
+  if ($py) {
+    $resolved = (& $py.Source -3.12 -c "import sys; print(sys.executable)" 2>$null | Select-Object -Last 1)
+    if ($LASTEXITCODE -eq 0 -and $resolved -and (Test-Path $resolved.Trim())) {
+      return $resolved.Trim()
+    }
+  }
+  throw "Python 3.12 installation completed but no working interpreter could be resolved."
 }
 
 function Save-DpapiSecret([string]$Name, [string]$Label, [switch]$PlainPrompt) {
