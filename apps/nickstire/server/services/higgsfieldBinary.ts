@@ -4,7 +4,7 @@ import os from "os";
 import { execFileSync } from "child_process";
 
 /** Pinned to apps/nickstire/package.json's `@higgsfield/cli`. A test enforces it. */
-export const HIGGSFIELD_CLI_VERSION = "0.2.3";
+export const HIGGSFIELD_CLI_VERSION = "1.1.26";
 import { createRequire } from "module";
 import { createLogger } from "../lib/logger";
 
@@ -41,8 +41,11 @@ export async function ensureHiggsfieldBinary(): Promise<string> {
     // Package not resolved or other error
   }
 
-  // 2. Check if the binary is already cached in the temp directory
-  const tempDir = os.tmpdir();
+  // 2. Check if this EXACT CLI version is already cached in temp.
+  // The old cache lived at an unversioned /tmp/hf path, so bumping the package
+  // pin could still silently reuse an obsolete binary forever. Versioning the
+  // directory makes the cache identity match the dependency/runtime contract.
+  const tempDir = path.join(os.tmpdir(), `higgsfield-cli-${HIGGSFIELD_CLI_VERSION}`);
   const tempBinPath = path.join(tempDir, binName);
   if (fs.existsSync(tempBinPath)) {
     log.info(`Found Higgsfield CLI binary cached in temp: ${tempBinPath}`);
@@ -72,6 +75,7 @@ export async function ensureHiggsfieldBinary(): Promise<string> {
 
   const tarball = `hf_${version}_${platform}_${arch}.tar.gz`;
   const downloadUrl = `https://github.com/higgsfield-ai/cli/releases/download/v${version}/${tarball}`;
+  fs.mkdirSync(tempDir, { recursive: true });
   const tarballPath = path.join(tempDir, tarball);
 
   log.info(`Higgsfield CLI binary is missing. Downloading from ${downloadUrl}...`);

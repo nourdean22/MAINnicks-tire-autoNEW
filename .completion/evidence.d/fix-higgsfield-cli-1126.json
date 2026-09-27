@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=higgsfield-keepalive: refreshed 2026-09-27 with the measured native 0.2.3 incompatibility, direct native 1.1.26 vendor-auth proof (Ultra, 98.5 credits), workspace requirement, focused 138/138 test evidence, rebased 37/37 critical tests + typecheck, and an explicit pending-deploy boundary. Operational state is lowered to unit_verified until a post-deploy production keepalive receipt succeeds."
+    }
+  }
+}
