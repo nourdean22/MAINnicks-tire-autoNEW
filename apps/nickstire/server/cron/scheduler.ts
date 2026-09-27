@@ -599,6 +599,17 @@ function buildTiers(): void {
         },
       },
       {
+        // Camera truth is operational infrastructure: a quiet lot must not hide a dead
+        // producer, and a PTZ bridge can be auth-healthy while control/media are broken.
+        // This job reads the role-aware camera_runtime lattice every heartbeat pass and
+        // uses durable cron_alerts_fired claims before owner notifications.
+        name: "camera-health-alerts",
+        handler: async () => {
+          const { runCameraHealthAlerts } = await import("../services/cameraHealthAlerts");
+          return runCameraHealthAlerts();
+        },
+      },
+      {
         // 2026-08-23 · WIRED. This job existed only in registerAllJobs()
         // (cron/index.ts) and in no tier, so it had never run: production
         // cron_log held ZERO rows for `campaign-resume` while control jobs in

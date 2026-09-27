@@ -99,11 +99,53 @@ describe("camera health lattice — fixed geometry", () => {
   });
 
   it("a queue that is not draining is CLOUD_BACKLOG; dead letters outrank a plain backlog", () => {
-    expect(deriveCameraState(healthy({ oldestOutboxAgeSeconds: HEALTH_THRESHOLDS.backlogWarnSeconds + 1 })).state).toBe("CLOUD_BACKLOG");
+    const backlog = deriveCameraState(healthy({
+      outboxDepth: 1,
+      oldestOutboxAgeSeconds: HEALTH_THRESHOLDS.backlogWarnSeconds + 1,
+      deadLetterDepth: 0,
+    }));
+    expect(backlog.state).toBe("CLOUD_BACKLOG");
+    expect(backlog.facets.cloud).toBe("backlog");
+
     const dl = deriveCameraState(healthy({ deadLetterDepth: 2 }));
     expect(dl.state).toBe("CLOUD_BACKLOG");
     expect(dl.facets.cloud).toBe("dead_letters");
     expect(dl.reason).toContain("2 dead-lettered");
+  });
+
+  it("zero queued events do not become backlog because of a stale leftover age value", () => {
+    const v = deriveCameraState(healthy({
+      outboxDepth: 0,
+      oldestOutboxAgeSeconds: HEALTH_THRESHOLDS.backlogWarnSeconds + 1,
+      deadLetterDepth: 0,
+    }));
+    expect(v.state).toBe("HEALTHY");
+    expect(v.facets.cloud).toBe("ok");
+  });
+
+  it("the real producer empty-outbox representation is proven healthy", () => {
+    const v = deriveCameraState(healthy({
+      outboxDepth: 0,
+      oldestOutboxAgeSeconds: null,
+      deadLetterDepth: 0,
+    }));
+    expect(v.state).toBe("HEALTHY");
+    expect(v.facets.cloud).toBe("ok");
+  });
+
+  it("partial cloud telemetry stays UNVERIFIED instead of becoming healthy", () => {
+    for (const over of [
+      { outboxDepth: 0, oldestOutboxAgeSeconds: null, deadLetterDepth: null },
+      { outboxDepth: null, oldestOutboxAgeSeconds: 0, deadLetterDepth: null },
+      { outboxDepth: 0, oldestOutboxAgeSeconds: 0, deadLetterDepth: null },
+      { outboxDepth: null, oldestOutboxAgeSeconds: null, deadLetterDepth: 0 },
+      // A non-empty queue without its oldest age is not complete delivery proof.
+      { outboxDepth: 1, oldestOutboxAgeSeconds: null, deadLetterDepth: 0 },
+    ]) {
+      const v = deriveCameraState(healthy(over));
+      expect(v.state).toBe("UNVERIFIED_CAPABILITIES");
+      expect(v.facets.cloud).toBe("unknown");
+    }
   });
 
   it("precedence is fixed: camera-offline beats calibration beats vision beats cloud", () => {
@@ -115,7 +157,7 @@ describe("camera health lattice — fixed geometry", () => {
     expect(deriveCameraState(posed).state).toBe("DEGRADED_VISION");
   });
 
-  it("unknown fixed dimensions stay unknown rather than reading as fine", () => {
+  it("unknown fixed dimensions are UNVERIFIED_CAPABILITIES, never healthy", () => {
     const v = deriveCameraState(healthy({
       sourceConnected: null,
       frameOk: null,
@@ -125,6 +167,7 @@ describe("camera health lattice — fixed geometry", () => {
       oldestOutboxAgeSeconds: null,
       deadLetterDepth: null,
     }));
+    expect(v.state).toBe("UNVERIFIED_CAPABILITIES");
     expect(v.facets).toEqual({
       ...fixedFacets,
       source: "unknown",
@@ -132,6 +175,18 @@ describe("camera health lattice — fixed geometry", () => {
       pose: "unknown",
       cloud: "unknown",
     });
+  });
+
+  it.each([
+    ["sourceConnected", null],
+    ["frameOk", null],
+    ["poseOk", null],
+    ["outboxDepth", null],
+  ] as const)("missing fixed-camera proof %s blocks HEALTHY", (field, value) => {
+    const over: Partial<RuntimeSnapshot> = { [field]: value };
+    if (field === "frameOk") over.lastHealthyFrameAtEpoch = null;
+    if (field === "outboxDepth") over.oldestOutboxAgeSeconds = null;
+    expect(deriveCameraState(healthy(over)).state).toBe("UNVERIFIED_CAPABILITIES");
   });
 
   it("PTZ transport failures do not demote the fixed vehicle-truth camera", () => {

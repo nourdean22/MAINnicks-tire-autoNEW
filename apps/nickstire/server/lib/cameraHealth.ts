@@ -137,9 +137,21 @@ export function deriveCameraState(
     age === null ? "stale" : age > T.offlineAfterSeconds ? "offline" : age > T.staleAfterSeconds ? "stale" : "alive";
 
   let cloud: HealthFacets["cloud"] = "unknown";
+  // Real producer semantics: an EMPTY outbox has no oldest row, so
+  // oldestOutboxAgeSeconds=null is the correct/healthy representation when depth=0.
+  // For a NON-empty queue, age must be measured before delivery health is proven.
+  const queueProofComplete =
+    r.outboxDepth !== null &&
+    r.deadLetterDepth !== null &&
+    (r.outboxDepth === 0 || r.oldestOutboxAgeSeconds !== null);
   if (r.deadLetterDepth !== null && r.deadLetterDepth > 0) cloud = "dead_letters";
-  else if (r.oldestOutboxAgeSeconds !== null && r.oldestOutboxAgeSeconds > T.backlogWarnSeconds) cloud = "backlog";
-  else if (r.outboxDepth !== null || r.oldestOutboxAgeSeconds !== null) cloud = "ok";
+  else if (
+    r.outboxDepth !== null &&
+    r.outboxDepth > 0 &&
+    r.oldestOutboxAgeSeconds !== null &&
+    r.oldestOutboxAgeSeconds > T.backlogWarnSeconds
+  ) cloud = "backlog";
+  else if (queueProofComplete) cloud = "ok";
 
   if (profile === "interaction_ptz") {
     const facets: HealthFacets = {
@@ -270,6 +282,24 @@ export function deriveCameraState(
         : `oldest unsent event is ${r.oldestOutboxAgeSeconds}s old`,
     };
   }
+
+  // A fresh heartbeat is not proof that a fixed camera is healthy. Vehicle-truth
+  // authority requires positive evidence for source, frames, pose/calibration and
+  // delivery. Missing telemetry stays visibly unverified instead of silently
+  // becoming HEALTHY (which could also emit a false recovery).
+  if (
+    source === "unknown" ||
+    frames === "unknown" ||
+    pose === "unknown" ||
+    cloud === "unknown"
+  ) {
+    return {
+      state: "UNVERIFIED_CAPABILITIES",
+      facets,
+      reason: "one or more required fixed-camera health facets have not been proven yet",
+    };
+  }
+
   return {
     state: "HEALTHY",
     facets,
