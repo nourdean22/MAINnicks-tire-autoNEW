@@ -1,5 +1,17 @@
 # Session ledger - nickstire
 
+**Updated: 2026-09-27 afternoon ET** (cross-session recovery after visible chat trail loss; current GitHub truth captured)
+
+## 2026-09-27 · durable recovery handoff
+
+**Source of truth.** The visible chat omitted substantial completed work, so current state was reconstructed from GitHub instead. Recovery document: `docs/00-current-truth/session-recovery-2026-09-27.md`.
+
+**Current repository checkpoint.** `main` = `a01abc97eb6ee4bd5c9f8519f48d49c3fb2545e3` (#2711, Instagram publish-truth/creative-quality merge). After #2696, merged work also includes camera/Eufy/health/runtime/docs/test waves #2697, #2698, #2699, #2700, #2701, #2702, #2703, #2704, #2705, #2706, #2707, #2708, and #2710. #2709 closed without merge. The earlier "0 open PRs" reconciliation line is now historical.
+
+**Only open PR at snapshot: #2712 · security · remove legacy Resend token from source.** Head `bc02816e00fed586c5a7195b65a3dd5e8a800646`. All substantive code/test/security lanes were green; Completion Authority failed the review gate because two P1 threads remained unresolved. One thread's requested token-copy cleanup is claimed fixed on current head but not resolved in GitHub; the other still requests behavioral coverage for the smoke-test guards because `test-resend.py` is not picked up by `test_*.py` discovery. Do not merge around that gate.
+
+**Rule for the next session.** If transcript continuity looks wrong, ignore the apparent chat stopping point and reconstruct from current main, open PRs, review threads, checks, deploy receipts, CURRENT-TRUTH, RECONCILIATION, and this ledger.
+
 **Updated: 2026-09-25 12:08Z** (Midday Reel reconciliation PR #2656 merged to `main` at `55d5d5fa2`: 27 source concepts -> 11 distinct additions + 16 already-covered; 133/133 preflight-clean; all required PR gates green. Prior header preserved below.)
 
 ## 2026-09-25 · Midday Reel reconciliation — #2656 merged; 133/133 preflight-clean
