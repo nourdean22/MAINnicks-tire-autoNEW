@@ -52,7 +52,7 @@ export function personalizeEmail(template: string, data: Record<string, string>)
  * different person's address. The validator is deliberately conservative for
  * a marketing lane: quoted local-parts and address-display syntax are refused.
  */
-export function normalizeCampaignRecipientEmail(value: unknown): string | null {
+function normalizeCampaignRecipientEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const email = value.trim();
   if (!email || email.length > 254 || /[\s<>",():;\[\]\\]/.test(email)) return null;
