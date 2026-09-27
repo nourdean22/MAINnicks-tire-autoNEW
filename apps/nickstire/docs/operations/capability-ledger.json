@@ -914,35 +914,34 @@
       "owner": "system",
       "lastVerifiedAt": "2026-09-27",
       "verificationExpiresAt": "2026-10-25",
-      "deferredScope": [
-        "Promote back to live_verified only after the 1.1.26 runtime is deployed and a production higgsfield-session-keepalive row records a successful refresh."
-      ],
+      "deferredScope": [],
       "capabilityId": "higgsfield-keepalive",
       "name": "Higgsfield session keepalive (15-min refresh)",
       "codeState": "merged",
-      "operationalState": "unit_verified",
+      "operationalState": "live_verified",
       "exposure": "internal",
       "evidence": {
-        "codeCommit": "fix/higgsfield-cli-1126 pending merge/deploy: pin CLI/runtime to 1.1.26, version-scope the native-binary cache, and document the workspace contract",
+        "codeCommit": "PR #2717 merged as 4d6488623e08f682ccdf5a283d501b9c9c24525c; current production/main c4ba4cf4c4712897f7180ceadf476147ef4b2e97 contains that commit.",
         "tests": [
           "server/higgsfieldBinaryVersion.test.ts: exact package/runtime pin, version-scoped native cache, HIGGSFIELD_WORKSPACE_ID documentation, and railway-injected DATABASE_URL recovery contract",
           "9 focused Higgsfield test files: 138/138 passed on 2026-09-27",
           "rebased critical keepalive/session tests: 37/37 passed; TypeScript typecheck exit 0 on 2026-09-27"
         ],
-        "deploymentId": "PENDING — production still runs the pre-1.1.26 compatibility contract until this PR deploys",
+        "deploymentId": "Railway production 8da18453-ca7c-4795-a548-b6b65c64f901 (commit c4ba4cf4c4712897f7180ceadf476147ef4b2e97), SUCCESS; contains merged Higgsfield runtime fix 4d6488623e08f682ccdf5a283d501b9c9c24525c.",
         "liveRuns": [
-          "HISTORICAL LIVE PROOF 2026-09-08 (PR #2212, main 994358cf1): keepalive completed with 'session refreshed, 2092 credits' after promotion.",
-          "END-TO-END HISTORICAL PROOF 2026-08-18: refreshed CLI session generated reel job 1650001, passed rendered QA after authorized repair, and published IG 18105354986172908.",
-          "PRE-DEPLOY FAILURE PROOF 2026-09-27: after a successful current OAuth login, the server's pinned native hf 0.2.3 still returned 'Session expired', proving the production runtime binary was incompatible with the current auth session rather than the fresh token being bad.",
+          "LIVE VERIFIED 2026-09-27: production keepalive refreshed the session successfully at 19:53:26Z, 20:07:56Z, 20:22:56Z, 20:37:56Z, and 20:52:56Z; the latest run recorded records_processed=1 and 'session refreshed, 98.5 credits'.",
+          "CURRENT LINUX RUNTIME PROOF 2026-09-27 19:53:25Z: current production downloaded https://github.com/higgsfield-ai/cli/releases/download/v1.1.26/hf_1.1.26_linux_amd64.tar.gz, extracted to /tmp/higgsfield-cli-1.1.26, and prepared /tmp/higgsfield-cli-1.1.26/hf successfully.",
+          "REEL PREFLIGHT RECOVERY PROOF 2026-09-27: reel-pipeline failed at 19:30:35 with 'higgsfield session dead'; post-fix runs completed at 19:53:31, 20:07:59, 20:23:00, 20:38:07, and 20:53:00 with no Higgsfield preflight failure; the latest recorded 'no reel jobs to process'.",
+          "QUEUE HEALTH PROOF 2026-09-27: publication continued one Reel per day through Sep 27; 17 assembled MP4-backed jobs remain and content reservations extend through Oct 7, so 'no reel jobs to process' is a healthy generation-idle state rather than queue starvation.",
           "CURRENT VENDOR AUTH PROOF 2026-09-27: native hf 1.1.26 invoked directly with HIGGSFIELD_CREDENTIALS_PATH plus HIGGSFIELD_WORKSPACE_ID authenticated as nourdean22@gmail.com and returned 'ultra plan, 98.5 credits'.",
           "CURRENT GENERATION CONTRACT PROOF 2026-09-27: higgsfield model get seedance1_5 still accepts prompt, 9:16, duration 4/8/12, 1080p, and start_image; existing generate create --wait --json arguments remain supported."
         ]
       },
       "blockers": [
         {
-          "severity": "P1",
-          "description": "PENDING DEPLOYMENT: production keepalive remains on the obsolete pre-1.1.26 runtime until this compatibility PR merges and Railway deploys it. Fresh credentials are already stored in app_secret_kv and HIGGSFIELD_WORKSPACE_ID is configured for production. Do not claim live recovery until a post-deploy keepalive receipt succeeds.",
-          "source": "2026-09-27 live compatibility audit"
+          "severity": "P2",
+          "description": "A fully revoked Higgsfield refresh token still requires an operator OAuth login; the keepalive can refresh a valid session but cannot resurrect a revoked credential. The recovery runbook now documents the current CLI/workspace flow.",
+          "source": "2026-09-27 live recovery verification"
         }
       ]
     },

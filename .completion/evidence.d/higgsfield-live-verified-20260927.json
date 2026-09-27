@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=higgsfield-keepalive: promoted from unit_verified to live_verified on 2026-09-27 after Railway production 8da18453 (current main c4ba4cf4) proved the merged 1.1.26 runtime live. Evidence includes: production keepalive refreshed successfully at 19:53:26Z, 20:07:56Z, 20:22:56Z, 20:37:56Z, and 20:52:56Z with 98.5 credits; current Linux downloader fetched and prepared hf_1.1.26_linux_amd64 under /tmp/higgsfield-cli-1.1.26; reel-pipeline recovered from the 19:30:35 Higgsfield preflight failure to repeated completed runs through 20:53:00Z; publication remained daily with 17 assembled MP4 jobs and intended publication dates through Oct 7. Residual P2 remains: full refresh-token revocation still requires operator OAuth login."
+    }
+  }
+}
