@@ -2542,6 +2542,57 @@
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "camera-role-aware-health",
+      "name": "Role-aware camera health separates fixed vehicle truth from office PTZ transport proof",
+      "owner": "operator",
+      "evidence": {
+        "codeCommit": "c6db7bd35baf3da90572f067c87993220cc6ce2f (#2697): explicit vehicle_truth/fixed_geometry vs interaction_ptz roles; role-specific health lattice; nullable transport proof persistence; Admin > Lot authority/facet/proof-age read model; StateNour office heartbeat and Eufy proof tracker.",
+        "tests": [
+          "apps/nickstire/server/lib/cameraHealth.test.ts: fixed-vs-interaction requirements; false/null/not-required separation; unknown planes never green",
+          "apps/nickstire/server/routes/cameraVisitsRoutes.test.ts: nullable transport proofs parse durably and false remains measured failure under the monotonic heartbeat writer",
+          "apps/nickstire/server/lotCardFieldDrift.test.ts: every transport proof returned by lot.health reaches the camera card",
+          "apps/statenour/local-agent/test_eufy_bridge.py + test_eufy_agent.py: command ack is not physical proof; ptzNotify receipt semantics; media failure/expiry; camera scoping; office heartbeat compilation"
+        ],
+        "deploymentId": "Railway production: MAINnicks-tire-auto deployment e2a78309-ea08-4cc9-a4ba-8443be5baa4b and statenour-web deployment 3be02ff8-cbd4-441c-b5f7-374ddcd201b4 reached terminal SUCCESS on merged camera-health code.",
+        "liveRuns": [
+          "2026-09-27 production heartbeat: fixed sign camera continued HEALTHY at ~30s cadence while office first posted AUTH_DEGRADED with its bridge down, proving role separation.",
+          "After the persisted Eufy bridge recovered auth=ok / pushConnected=true / sessionLost=false, office transitioned AUTH_DEGRADED -> MEDIA_DEGRADED instead of falsely going green.",
+          "Persistent NattyNour observer advanced one stable office producer sequence through at least seq 15 while remaining MEDIA_DEGRADED; it deliberately runs with EUFY_CONTROL_ENABLED=0 on the wrong LAN.",
+          "Production camera_runtime readback: office mode=SHADOW, sourceConnected=1, authPlaneOk=1, eventPlaneOk=1, mediaPlaneOk=0, controlPlaneOk=NULL, ptzHomeOk=NULL; lastEventProofAt/lastControlProofAt/lastMediaProofAt/lastPtzNotifyAt all NULL at read time. Fixed sign remained independent in PRODUCTION."
+        ],
+        "databaseAssertions": [
+          "Migration 0134 hash 108091f416b2b91e279ad9cbde3e781864d8a343a35410271b81ac55806686ab applied via scoped production DB guard; INFORMATION_SCHEMA re-read verified five nullable tinyint(1) transport flags + four nullable timestamp proof fields; __drizzle_migrations recorded created_at=1789301500000; strict reconciliation reports 0134 RECORDED_AND_MATCHED."
+        ]
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Office T8410 P2P control/media is still not physically proven. NattyNour can authenticate and receive push state but is off the camera LAN; final bridge/control/media host must run on the shop-side Windows peer DESKTOP-VBAHM60 (or an explicitly engineered subnet route).",
+          "source": "2026-09-27 live office heartbeat + prior StationUnreachableError/P2P timeout receipts"
+        },
+        {
+          "severity": "P2",
+          "description": "No real office motion/person event has yet produced lastEventProofAt; eventPlaneOk proves the semantic WebSocket connection, not that a qualifying office event has occurred.",
+          "source": "2026-09-27 production camera_runtime readback"
+        },
+        {
+          "severity": "P2",
+          "description": "No signed-in visual Admin > Lot walkthrough has yet confirmed the rendered role/facet/proof-age presentation.",
+          "source": "post-merge activation evidence"
+        }
+      ],
+      "deferredScope": [
+        "office-camera physical PTZ + ptzNotify + visual/SceneLock home proof",
+        "office-camera live media/audio proof on the shop-side host",
+        "signed-in visual Admin > Lot walkthrough"
+      ],
+      "lastVerifiedAt": "2026-09-27",
+      "verificationExpiresAt": "2026-10-27",
+      "codeState": "merged",
+      "operationalState": "live_verified",
+      "exposure": "internal"
     }
   ],
   "axes": {
