@@ -1,5 +1,13 @@
 # Session ledger - nickstire
 
+**Updated: 2026-09-27 afternoon ET** (cross-session recovery closed; #2712 merged; 0 open PRs)
+
+## 2026-09-27 · recovery closeout
+
+**Final repo checkpoint.** `main` = `93f0f66ca285600831ca50df87fb79f0497e3ed2`. #2712 (legacy Resend-token remediation + smoke-test guard coverage) merged only after its two outdated P1 review threads were formally resolved and Completion Authority reran green. Final reviewed head `bc02816e00fed586c5a7195b65a3dd5e8a800646` had green StateNour E2E, affected CI, Secret Scanning, local-agent, Adoption, Admin, Agent Policy, and Completion Authority.
+
+**Open PRs after merge: 0.** Recovery document: `docs/00-current-truth/session-recovery-2026-09-27.md`. If the UI-visible conversation loses history again, reconstruct from current `main`, PR/review/check state, deploy receipts, and the truth/memory ledgers rather than from the apparent stopping point in chat.
+
 **Updated: 2026-09-27 afternoon ET** (cross-session recovery after visible chat trail loss; current GitHub truth captured)
 
 ## 2026-09-27 · durable recovery handoff

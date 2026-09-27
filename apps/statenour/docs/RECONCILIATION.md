@@ -1,5 +1,13 @@
 # Reconciliation · statenour-os
 
+> ## 2026-09-27 afternoon · recovery closeout
+>
+> **Final repo state for this recovery thread:** #2712 merged as `93f0f66ca285600831ca50df87fb79f0497e3ed2`; open PR count returned to **0**.
+>
+> The two P1 review threads that blocked Completion Authority were both outdated against the current PR head. The current head had already removed the remaining hardcoded Resend token copies and added discoverable behavioral coverage via `resend_smoke.py` + `test_resend_smoke.py`. Both threads were formally resolved, Completion Authority reran green, and every substantive #2712 lane was green before squash merge.
+>
+> The recovery snapshot at `docs/00-current-truth/session-recovery-2026-09-27.md` now carries the finalization note. Earlier lines that describe #2712 as open are historical snapshots only.
+>
 > ## 2026-09-27 afternoon · session-trail recovery and durable handoff
 >
 > **Trigger:** the UI-visible ChatGPT conversation lost a substantial portion of the execution trail even though the repository had advanced much further. The session was reconstructed from GitHub/repo receipts instead of guessing from the remaining transcript.

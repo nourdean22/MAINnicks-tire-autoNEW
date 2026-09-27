@@ -1,5 +1,14 @@
 # Session recovery snapshot — 2026-09-27
 
+## Finalized recovery state — 2026-09-27
+
+- Recovery closeout `main`: `93f0f66ca285600831ca50df87fb79f0497e3ed2`.
+- **#2712 merged cleanly** as that commit after both outdated P1 review threads were formally resolved and Completion Authority was rerun successfully.
+- #2712's final reviewed head `bc02816e00fed586c5a7195b65a3dd5e8a800646` had green StateNour E2E, affected CI, Secret Scanning, local-agent, Adoption, Admin, Agent Policy, and Completion Authority.
+- **Open PR count after merge: 0.**
+- The earlier section below describing #2712 as an open blocker is preserved as historical reconstruction context; this finalization block supersedes it for current repo state.
+- Repository merge truth still does not prove Railway/live deployment truth. Verify deploy ancestry and live version endpoints separately.
+
 > Purpose: durable handoff after the visible ChatGPT execution trail became incomplete. This file is a recovery aid, not a substitute for live verification. Re-query GitHub, current `main`, CI, production, and the database before acting on anything time-sensitive.
 
 ## Ground truth at this snapshot

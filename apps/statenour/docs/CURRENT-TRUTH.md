@@ -1,5 +1,13 @@
 # CURRENT-TRUTH.md — Statenour
 
+## 2026-09-27 afternoon — recovery closeout after #2712
+
+- **Recovery handoff is now closed on repo truth.** `main` reached `93f0f66ca285600831ca50df87fb79f0497e3ed2` after #2712 (`fix · security · remove legacy Resend token from source`) squash-merged.
+- #2712's two P1 review threads were both outdated because the current head already contained the fixes: the remaining hardcoded Resend token copies were removed from `get-dns-records.py`, and the smoke probe was factored into `resend_smoke.py` with discoverable `test_resend_smoke.py` behavioral coverage. The threads were formally resolved and Completion Authority reran **green**.
+- Final #2712 reviewed head `bc02816e00fed586c5a7195b65a3dd5e8a800646`: StateNour E2E, affected CI, Secret Scanning, local-agent, Adoption, Admin, Agent Policy, and Completion Authority all passed.
+- **Open PR count after #2712 merge: 0.**
+- Durable recovery artifact remains `docs/00-current-truth/session-recovery-2026-09-27.md`. Treat the earlier #2712-open notes below as historical snapshots, not current instructions.
+
 > **The one-screen answer to "where am I and what's real?"** If any other doc
 > contradicts this file as a *present-tense instruction*, this file and live
 > code win. Last verified **2026-09-27**. When in doubt, **verify in code, git,
