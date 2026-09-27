@@ -46,9 +46,23 @@ if (!parsed?.access_token || !parsed?.refresh_token) {
 console.log(`\nlocal creds  len=${raw.length} sha256:${h(raw)} mtime=${mtime.toISOString()}`);
 console.log(`  keys: ${Object.keys(parsed).join(", ")}`);
 
-const url = readFileSync("C:/Users/nourd/NOURCITY/apps/nickstire/.env", "utf8")
-  .split(/\r?\n/).find((l) => l.startsWith("DATABASE_URL="))
-  ?.slice("DATABASE_URL=".length).trim().replace(/^["']|["']$/g, "");
+let url = process.env.DATABASE_URL?.trim();
+if (!url) {
+  // Optional local fallback for an operator checkout. The documented production
+  // path is railway run, which injects DATABASE_URL without writing a secret
+  // .env file to disk.
+  try {
+    url = readFileSync(path.join(process.cwd(), ".env"), "utf8")
+      .split(/\r?\n/).find((l) => l.startsWith("DATABASE_URL="))
+      ?.slice("DATABASE_URL=".length).trim().replace(/^["']|["']$/g, "");
+  } catch {
+    // handled below with an explicit operator action
+  }
+}
+if (!url) {
+  console.error("DATABASE_URL unavailable — run this helper through railway run -s MAINnicks-tire-auto -- ... or provide a local .env");
+  process.exit(1);
+}
 
 const conn = await mysql.createConnection({ uri: url, ssl: { rejectUnauthorized: true } });
 // AGE IS COMPUTED SERVER-SIDE, deliberately. mysql2 parses DATETIME in the

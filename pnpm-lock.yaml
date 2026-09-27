@@ -338,8 +338,8 @@ importers:
         specifier: ^0.1.1
         version: 0.1.1(vite@7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.48.0)(tsx@4.23.15)(yaml@2.9.0))
       '@higgsfield/cli':
-        specifier: 0.2.3
-        version: 0.2.3
+        specifier: 1.1.26
+        version: 1.1.26
       '@playwright/test':
         specifier: 1.63.0
         version: 1.63.0
@@ -2548,8 +2548,8 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  '@higgsfield/cli@0.2.3':
-    resolution: {integrity: sha512-3Yjgf42+i+bSTdJMjrLi4EFqAzRIoPXQZMoY4mQldrDbgOZYSYrSYRZQbQwbuwzeB7x4+IJeQYd/5dOBKs3FnA==}
+  '@higgsfield/cli@1.1.26':
+    resolution: {integrity: sha512-3UyTfHziz7DhoAw8UFowqliVMiRySiK9xpVvA6F/17XQdecEASxKY/qwoA/L2ZTlvXKgBQqSO3rRLS2/w35QzA==}
     engines: {node: '>=14'}
     cpu: [x64, arm64]
     os: [darwin, linux, win32]
@@ -13888,7 +13888,7 @@ snapshots:
       protobufjs: 8.6.4
       yargs: 17.7.2
 
-  '@higgsfield/cli@0.2.3': {}
+  '@higgsfield/cli@1.1.26': {}
 
   '@hono/node-server@2.0.6(hono@4.12.27)':
     dependencies:
