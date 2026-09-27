@@ -20,6 +20,56 @@ function updatedDb() {
   return { d: d as any, getPatch: () => patch };
 }
 
+function pagedRepairDb(
+  pages: Array<Array<{
+    id: number;
+    briefId: string;
+    payload: string;
+    mp4Url: string;
+    caption: string;
+    publicationScheduledAt: Date;
+    updatedAt: Date;
+  }>>,
+  failUpdateCalls = new Set<number>(),
+) {
+  let pageCall = 0;
+  let updateCall = 0;
+  const d: any = {
+    select: () => ({
+      from: () => ({
+        leftJoin: () => ({
+          where: () => ({
+            orderBy: () => ({
+              limit: async () => pages[pageCall++] ?? [],
+            }),
+          }),
+        }),
+      }),
+    }),
+    update: () => ({
+      set: () => ({
+        where: async () => {
+          updateCall += 1;
+          if (failUpdateCalls.has(updateCall)) throw new Error("poison row");
+          return [{ affectedRows: 1 }];
+        },
+      }),
+    }),
+    insert: () => ({ values: async () => undefined }),
+  };
+  return { d, getPageCalls: () => pageCall, getUpdateCalls: () => updateCall };
+}
+
+const liveJob = (id: number) => ({
+  id,
+  briefId: `autopost-${id}`,
+  payload: JSON.stringify({ topic: `topic-${id}` }),
+  mp4Url: `https://cdn.example/${id}.mp4`,
+  caption: `caption-${id}`,
+  publicationScheduledAt: new Date(`2026-09-${String(20 + id).padStart(2, "0")}T13:00:00.000Z`),
+  updatedAt: new Date(`2026-09-${String(20 + id).padStart(2, "0")}T13:01:00.000Z`),
+});
+
 describe("confirmed Reel publication mirrors into universal inventory", () => {
   it("marks an existing inventory row published without inventing a second row", async () => {
     const { d, getPatch } = updatedDb();
@@ -42,59 +92,45 @@ describe("confirmed Reel publication mirrors into universal inventory", () => {
     });
   });
 
-  it("self-heals only a Reel proven live by terminal status + durable IG id", async () => {
-    const publishStarted = new Date("2026-09-26T13:00:00.000Z");
-    const jobs = [{
-      id: 42,
-      briefId: "autopost-2026-09-26",
-      payload: JSON.stringify({ topic: "tread depth" }),
-      mp4Url: "https://cdn.example/live.mp4",
-      caption: "LEGAL IS NOT SAFE",
-      publicationScheduledAt: publishStarted,
-      updatedAt: new Date("2026-09-26T13:01:00.000Z"),
-    }];
+  it("pages through the whole mismatched backlog instead of rereading only the newest batch", async () => {
+    const { d, getPageCalls } = pagedRepairDb([
+      [liveJob(1), liveJob(2)],
+      [liveJob(3)],
+    ]);
 
-    let selectCall = 0;
-    let patch: Record<string, unknown> | null = null;
-    const d: any = {
-      select: () => {
-        selectCall += 1;
-        if (selectCall === 1) {
-          return {
-            from: () => ({
-              where: () => ({
-                orderBy: () => ({ limit: async () => jobs }),
-              }),
-            }),
-          };
-        }
-        return {
-          from: () => ({
-            where: () => ({ limit: async () => [{ status: "review_ready", publishedAt: null }] }),
-          }),
-        };
-      },
-      update: () => ({
-        set: (p: Record<string, unknown>) => {
-          patch = p;
-          return { where: async () => [{ affectedRows: 1 }] };
-        },
-      }),
-      insert: () => ({ values: async () => undefined }),
-    };
+    const result = await reconcilePublishedReelInventoryTruth(d, 2);
+    expect(result).toEqual({ examined: 3, repaired: 3, created: 0, failed: 0 });
+    expect(getPageCalls()).toBe(2);
+  });
 
-    const result = await reconcilePublishedReelInventoryTruth(d, 50);
-    expect(result).toEqual({ examined: 1, repaired: 1, created: 0 });
-    expect(patch).toMatchObject({ status: "published", publishedAt: publishStarted });
+  it("isolates one poisoned historical row and still repairs later live Reels", async () => {
+    const { d, getUpdateCalls } = pagedRepairDb([
+      [liveJob(1), liveJob(2), liveJob(3)],
+      [],
+    ], new Set([1]));
+
+    const result = await reconcilePublishedReelInventoryTruth(d, 3);
+    expect(result).toEqual({ examined: 3, repaired: 2, created: 0, failed: 1 });
+    expect(getUpdateCalls()).toBe(3);
   });
 });
 
 describe("authoritative publish paths keep the mirror wired", () => {
   const root = path.resolve(__dirname);
 
+  it("ordinary autonomous Reel publish records a durable attempt before best-effort run observability", () => {
+    const src = fs.readFileSync(path.join(root, "cron/jobs/dailyReelPost.ts"), "utf8");
+    const claim = src.indexOf('status: "publishing"');
+    const attempt = src.indexOf("const attemptId = await recordPublishAttempt", claim);
+    const runAdvance = src.indexOf("advanceContentRunByReelJobId", attempt);
+    expect(claim).toBeGreaterThan(0);
+    expect(attempt).toBeGreaterThan(claim);
+    expect(runAdvance).toBeGreaterThan(attempt);
+  });
+
   it("ordinary autonomous Reel publish mirrors confirmed-live truth without reopening the external publish", () => {
     const src = fs.readFileSync(path.join(root, "cron/jobs/dailyReelPost.ts"), "utf8");
-    const posted = src.indexOf("status: \"posted\"");
+    const posted = src.indexOf('status: "posted"');
     const mirror = src.indexOf("markReelInventoryPublished");
     const failSoftReceipt = src.indexOf("self-heal will retry", mirror);
     const downstreamAdvance = src.indexOf("advanceContentRunByReelJobId", mirror);
@@ -104,9 +140,14 @@ describe("authoritative publish paths keep the mirror wired", () => {
     expect(downstreamAdvance).toBeGreaterThan(failSoftReceipt);
   });
 
-  it("ambiguous→confirmed reconciliation mirrors the same truth", () => {
+  it("ambiguous→confirmed reconciliation preserves original dispatch time and closes the content run", () => {
     const src = fs.readFileSync(path.join(root, "services/publishReconciler.ts"), "utf8");
-    expect(src).toContain("markReelInventoryPublishedByJobId");
+    expect(src).toContain("markReelInventoryPublishedByJobId(d, args.jobId);");
+    expect(src).not.toContain("markReelInventoryPublishedByJobId(d, args.jobId, new Date())");
+    expect(src).toContain("OPERATIONAL_STATE.published");
+    expect(src).toContain("Ambiguous Instagram publish reconciled as live");
+    expect(src).toContain("OPERATIONAL_STATE.failed");
+    expect(src).toContain("released for retry");
   });
 
   it("metric sync self-heals historical split-brain before selecting published rows", () => {
@@ -117,13 +158,11 @@ describe("authoritative publish paths keep the mirror wired", () => {
     expect(publishedSelect).toBeGreaterThan(repair);
   });
 
-  it("uses exact Reel media identity before legacy caption matching", () => {
+  it("never falls back to caption matching once a durable Reel media id exists", () => {
     const src = fs.readFileSync(path.join(root, "services/contentManufacturing.ts"), "utf8");
-    const exactMap = src.indexOf("reelPostIdByBrief");
-    const exactLookup = src.indexOf("analyticsByPostId.get(exactReelPostId)");
-    const captionFallback = src.indexOf("analyticsPosts.find", exactLookup);
-    expect(exactMap).toBeGreaterThan(0);
-    expect(exactLookup).toBeGreaterThan(exactMap);
-    expect(captionFallback).toBeGreaterThan(exactLookup);
+    expect(src).toContain("const matchingPost = exactReelPostId");
+    expect(src).toContain("? exactReelPost");
+    expect(src).toContain(": analyticsPosts.find");
+    expect(src).not.toContain("exactReelPost ?? analyticsPosts.find");
   });
 });

@@ -1513,8 +1513,8 @@ export async function syncSocialMetrics(): Promise<{ matched: number; updated: n
   try {
     const { reconcilePublishedReelInventoryTruth } = await import("./reelInventoryLink");
     const repaired = await reconcilePublishedReelInventoryTruth(db);
-    if (repaired.repaired > 0) {
-      log.warn("repaired Reel publication truth before social metric sync", repaired);
+    if (repaired.repaired > 0 || repaired.failed > 0) {
+      log.warn("reconciled Reel publication truth before social metric sync", repaired);
     }
   } catch (err) {
     // Metric collection should still run for already-healthy rows even if the
@@ -1569,7 +1569,12 @@ export async function syncSocialMetrics(): Promise<{ matched: number; updated: n
       ? analyticsByPostId.get(exactReelPostId)
       : undefined;
 
-    const matchingPost = exactReelPost ?? analyticsPosts.find((post) => {
+    // A durable Reel media id is authoritative. If ingestion has not produced
+    // that exact analytics row yet, metrics are PENDING — never borrow an older
+    // post merely because its caption happens to collide.
+    const matchingPost = exactReelPostId
+      ? exactReelPost
+      : analyticsPosts.find((post) => {
       if (!post.caption) return false;
       const cleanCaption = cleanText(post.caption);
 

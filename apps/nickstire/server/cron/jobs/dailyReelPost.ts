@@ -1246,17 +1246,11 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       return { recordsProcessed: 0, details: `publish already claimed by another run (job ${job.id})` };
     }
 
-    {
-      const { advanceContentRunByReelJobId, RUN_STAGE } = await import("../../services/contentRun");
-      await advanceContentRunByReelJobId(job.id, {
-        stage: RUN_STAGE.publishing,
-        evidence: { at: new Date().toISOString(), what: "Instagram publish claimed" },
-      });
-    }
-
     log.info(`Attempting to publish assembled reel job ${job.id} (mp4Url: ${videoUrl})`);
 
-    // Durable attempt record BEFORE the irreversible call. The CAS claim above
+    // Durable attempt record BEFORE any non-essential awaited work and BEFORE
+    // the irreversible Meta call. If the process dies after the claim but
+    // before this receipt exists, stale-job recovery has nothing to reconcile.
     // stops two runners racing, but it does not survive a process death: killed
     // between Meta accepting and the DB update, nothing would record that an
     // attempt happened at all. Refusing to publish unrecorded is the point — an
@@ -1276,6 +1270,17 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       });
       log.error(`daily reel: could not record a publish attempt for job ${job.id} — HOLDING rather than publishing unrecorded`);
       return { recordsProcessed: 0, details: "held: publish-attempt ledger unavailable; index not advanced" };
+    }
+
+    // Best-effort observability only AFTER the durable attempt exists. A slow or
+    // unavailable content-run mirror must never open a crash window where the
+    // Reel is claimed but has no attempt id for reconciliation.
+    {
+      const { advanceContentRunByReelJobId, RUN_STAGE } = await import("../../services/contentRun");
+      await advanceContentRunByReelJobId(job.id, {
+        stage: RUN_STAGE.publishing,
+        evidence: { at: new Date().toISOString(), what: "Instagram publish claimed; durable attempt recorded" },
+      });
     }
 
     let outcome;

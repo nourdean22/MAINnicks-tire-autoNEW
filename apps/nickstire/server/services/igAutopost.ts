@@ -42,6 +42,7 @@ import { db } from "../lib/db-helper";
 import { igAutopostLog, algEstimates, smsConversations, smsMessages, specials } from "../../drizzle/schema";
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { invokeLLMForPosting, invokeStructuredPosting, parseJsonObject } from "./igPostingLlm";
+export { parseJsonObject };
 
 import { isEnabled } from "./featureFlags";
 import { ensureHiggsfieldBinary } from "./higgsfieldBinary";

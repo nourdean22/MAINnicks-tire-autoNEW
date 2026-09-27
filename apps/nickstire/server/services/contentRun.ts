@@ -326,12 +326,28 @@ export async function ensureContentRunForReelJob(args: {
       .limit(1);
     if (existing?.id) return existing.id;
 
-    const runId = args.runId || await createContentRun({
-      requestSource: args.source === "cron" ? "cron" : "operator",
-      requestedTopic: args.topic ?? null,
-      requestedFormat: "reel",
-    });
-    if (!runId) return null;
+    // No linked parent exists yet. For the normal Reel path, derive the parent
+    // primary key from the durable Reel job id so two overlapping enqueue
+    // requests race on the SAME key rather than creating two random parents.
+    // The PK upsert is the atomic claim; no schema migration is required.
+    const runId = args.runId || `run_reel_${args.reelJobId}`;
+    if (!args.runId) {
+      await d.insert(contentRuns).values({
+        id: runId,
+        requestSource: args.source === "cron" ? "cron" : "operator",
+        requestedTopic: args.topic ?? null,
+        requestedFormat: "reel",
+        reelJobId: args.reelJobId,
+        stage: RUN_STAGE.requested,
+        implementationState: IMPLEMENTATION_STATE.pending,
+        operationalState: OPERATIONAL_STATE.unproven,
+        evidenceJson: JSON.stringify([{ at: new Date().toISOString(), what: "run requested" }]),
+      }).onDuplicateKeyUpdate({
+        // Deliberately minimal: the loser of the race must not overwrite the
+        // winner's accumulated stage/evidence; it only reasserts the same link.
+        set: { reelJobId: args.reelJobId },
+      });
+    }
 
     const linked = await advanceContentRun(runId, {
       stage: RUN_STAGE.planning,

@@ -3,6 +3,50 @@ import { createLogger } from "../lib/logger";
 
 const log = createLogger("services:ig-posting-llm");
 
+type PostingParams = Parameters<typeof invokeLLM>[0];
+
+function providerSafePostingParams(params: PostingParams): PostingParams {
+  const requested = params.model ?? "";
+  const isGemini =
+    process.env.AI_FORCE_GEMINI === "true" ||
+    requested.startsWith("gemini-") ||
+    requested.startsWith("google/");
+  const ollamaNames = ["glm-5", "qwen3", "deepseek-v3", "deepseek-v4", "kimi", "minimax", "mistral-large", "gpt-oss"];
+  const isOllama =
+    process.env.AI_FORCE_OLLAMA === "true" ||
+    (!!requested && ollamaNames.some((name) => requested.includes(name)));
+  const openAiBase = (process.env.OPENAI_BASE_URL || "").toLowerCase();
+  const isVenice = openAiBase.includes("venice.ai") && !isOllama && !isGemini;
+  if (!isVenice) return params;
+
+  const schema = params.outputSchema ?? params.output_schema;
+  const explicit = params.responseFormat ?? params.response_format;
+  const jsonSchema = schema?.schema ?? (explicit?.type === "json_schema" ? explicit.json_schema?.schema : undefined);
+
+  // Venice's configured OpenAI-compatible llama lane rejects json_schema and
+  // json_object response_format variants. Keep the contract in-conversation
+  // instead of sending a request shape the provider rejects with HTTP 400.
+  const {
+    outputSchema: _outputSchema,
+    output_schema: _output_schema,
+    responseFormat: _responseFormat,
+    response_format: _response_format,
+    ...rest
+  } = params;
+
+  const contract = jsonSchema
+    ? "OUTPUT CONTRACT: reply with exactly ONE JSON object that validates against this JSON Schema. Use the exact property names/types; no markdown or prose:\n" + JSON.stringify(jsonSchema)
+    : explicit
+      ? "OUTPUT CONTRACT: reply with exactly ONE valid JSON object. No markdown fences or prose."
+      : null;
+
+  if (!contract) return rest as PostingParams;
+  return {
+    ...rest,
+    messages: [...params.messages, { role: "system", content: contract }],
+  } as PostingParams;
+}
+
 /**
  * Live IG posting LLM calls get foreground priority, a 120s timeout, and one
  * transport/empty-output retry. The retry is strictly pre-publish.
@@ -10,7 +54,7 @@ const log = createLogger("services:ig-posting-llm");
 export async function invokeLLMForPosting(
   params: Parameters<typeof invokeLLM>[0],
 ): ReturnType<typeof invokeLLM> {
-  const withGuards = { timeoutMs: 120_000, priority: 1 as const, ...params };
+  const withGuards = providerSafePostingParams({ timeoutMs: 120_000, priority: 1 as const, ...params });
   const attempt = async () => {
     const res = await invokeLLM(withGuards);
     const content = res.choices?.[0]?.message?.content;

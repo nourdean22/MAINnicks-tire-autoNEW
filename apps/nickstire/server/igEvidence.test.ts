@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pickSubjectImage, STUDIO_ASSET_PREFIX } from "./services/instagramStudio";
+import { sliceBlock } from "./testUtils/sourceBlock";
 
 describe("evidence photos vs rendered cards", () => {
   it("an ig-evidence URL is a valid subject — the upload prefix must never collide with the renderer's", () => {
@@ -35,9 +36,18 @@ describe("evidence photos vs rendered cards", () => {
 describe("upload wiring pins", () => {
   it("uploadEvidencePhoto stores under ig-evidence/ (backtick template anchor — comments can't match it)", () => {
     const src = readFileSync(resolve(process.cwd(), "server/routers/instagramStudio.ts"), "utf8");
-    const proc = src.slice(src.indexOf("uploadEvidencePhoto:"));
+    const proc = sliceBlock(src, "uploadEvidencePhoto:", "\n  generate:", { label: "instagramStudio.uploadEvidencePhoto" });
     expect(proc).toContain("`ig-evidence/");
-    expect(proc.slice(0, proc.indexOf("generate:"))).not.toContain("`instagram-studio/");
+    expect(proc).not.toContain("`instagram-studio/");
+  });
+
+  it("registry identity is bounded independently of a 255-char operator filename", () => {
+    const src = readFileSync(resolve(process.cwd(), "server/routers/instagramStudio.ts"), "utf8");
+    const proc = sliceBlock(src, "uploadEvidencePhoto:", "\n  generate:", { label: "instagramStudio.uploadEvidencePhoto" });
+    expect(proc).toContain("const registryKey = `ig-evidence/${capturedAt}-${suffix}-${randomUUID()}`");
+    expect(proc).toContain("logicalKey: registryKey");
+    expect(proc).toContain("originalFilename: safeFilename");
+    expect(proc).not.toContain("logicalKey: key");
   });
 
   it("generate refuses rendered-card URLs as evidence at the input boundary", () => {

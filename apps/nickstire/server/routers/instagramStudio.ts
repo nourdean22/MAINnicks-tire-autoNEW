@@ -290,7 +290,12 @@ export const instagramStudioRouter = router({
       const buffer = Buffer.from(input.base64, "base64");
       const safeFilename = input.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
       const suffix = randomInt(100000, 999999).toString();
-      const key = `ig-evidence/${Date.now()}-${suffix}-${safeFilename}`;
+      const capturedAt = Date.now();
+      const key = `ig-evidence/${capturedAt}-${suffix}-${safeFilename}`;
+      // Registry identity is deliberately independent of the human filename:
+      // media_assets.logical_key is varchar(191), while accepted upload names
+      // may be 255 chars. Keep the original name in metadata, not in the key.
+      const registryKey = `ig-evidence/${capturedAt}-${suffix}-${randomUUID()}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
 
       // Build the real-media memory while the bytes are in hand. This was a
@@ -304,7 +309,7 @@ export const instagramStudioRouter = router({
         if (database) {
           const { registerProducedAsset } = await import("../services/mediaRegistry");
           await registerProducedAsset(database, buffer, {
-            logicalKey: key,
+            logicalKey: registryKey,
             assetType: "instagram_evidence_photo",
             format: "image",
             mimeType: input.mimeType,
