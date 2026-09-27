@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
+import json
+import tempfile
 import unittest
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import eufy_agent
@@ -86,6 +89,76 @@ class EufyAgentTests(unittest.TestCase):
         self.assertEqual(payload["lastEventProofAt"], "2026-09-26T23:54:00+00:00")
         self.assertNotIn("lastControlProofAt", payload)
         self.assertEqual(payload["sourceGeneration"], eufy_agent.EUFY_OFFICE_CAMERA_SERIAL)
+
+    def test_visual_home_receipt_must_be_fresh_and_newer_than_motor_receipt(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "home.json"
+            path.write_text(json.dumps({
+                "serial": eufy_agent.EUFY_OFFICE_CAMERA_SERIAL,
+                "verifiedAt": "2026-09-27T10:00:30+00:00",
+                "isHome": True,
+                "verifierVersion": "office-home-pose-v1",
+            }), encoding="utf-8")
+
+            with patch.object(eufy_agent, "EUFY_HOME_POSE_RECEIPT", str(path)), patch.object(
+                eufy_agent,
+                "EUFY_HOME_POSE_MAX_AGE_SECONDS",
+                300.0,
+            ):
+                current = datetime(2026, 9, 27, 10, 1, tzinfo=timezone.utc)
+                self.assertTrue(eufy_agent.load_home_pose_receipt(
+                    last_ptz_notify_at="2026-09-27T10:00:20+00:00",
+                    now=current,
+                ))
+                # A later physical camera move invalidates the old home image immediately.
+                self.assertIsNone(eufy_agent.load_home_pose_receipt(
+                    last_ptz_notify_at="2026-09-27T10:00:40+00:00",
+                    now=current,
+                ))
+                # Time alone also expires the proof.
+                self.assertIsNone(eufy_agent.load_home_pose_receipt(
+                    last_ptz_notify_at=None,
+                    now=datetime(2026, 9, 27, 10, 10, tzinfo=timezone.utc),
+                ))
+
+    def test_visual_away_receipt_is_preserved_as_false(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "home.json"
+            path.write_text(json.dumps({
+                "serial": eufy_agent.EUFY_OFFICE_CAMERA_SERIAL,
+                "verifiedAt": "2026-09-27T10:00:30Z",
+                "isHome": False,
+                "verifierVersion": "office-home-pose-v1",
+            }), encoding="utf-8")
+            with patch.object(eufy_agent, "EUFY_HOME_POSE_RECEIPT", str(path)):
+                verdict = eufy_agent.load_home_pose_receipt(
+                    last_ptz_notify_at="2026-09-27T10:00:20Z",
+                    now=datetime(2026, 9, 27, 10, 1, tzinfo=timezone.utc),
+                )
+        self.assertIs(verdict, False)
+
+    def test_visual_home_receipt_rejects_wrong_camera_and_unknown_verifier(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "home.json"
+            base = {
+                "serial": "SOME-OTHER-CAMERA",
+                "verifiedAt": "2026-09-27T10:00:30+00:00",
+                "isHome": True,
+                "verifierVersion": "office-home-pose-v1",
+            }
+            path.write_text(json.dumps(base), encoding="utf-8")
+            with patch.object(eufy_agent, "EUFY_HOME_POSE_RECEIPT", str(path)):
+                self.assertIsNone(eufy_agent.load_home_pose_receipt(
+                    last_ptz_notify_at=None,
+                    now=datetime(2026, 9, 27, 10, 1, tzinfo=timezone.utc),
+                ))
+                base["serial"] = eufy_agent.EUFY_OFFICE_CAMERA_SERIAL
+                base["verifierVersion"] = "mystery-verifier"
+                path.write_text(json.dumps(base), encoding="utf-8")
+                self.assertIsNone(eufy_agent.load_home_pose_receipt(
+                    last_ptz_notify_at=None,
+                    now=datetime(2026, 9, 27, 10, 1, tzinfo=timezone.utc),
+                ))
 
     def test_office_heartbeat_is_inert_until_separate_nicks_credentials_exist(self):
         with patch.object(eufy_agent, "NICKS_CAMERA_HEARTBEAT_URL", ""), patch.object(
