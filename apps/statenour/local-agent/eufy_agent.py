@@ -47,6 +47,7 @@ NICKS_CAMERA_HEARTBEAT_URL = os.getenv("NICKS_CAMERA_HEARTBEAT_URL", "").strip()
 NICKS_CAMERA_INGEST_KEY = os.getenv("NICKS_CAMERA_INGEST_KEY", "").strip()
 NICKS_OFFICE_CAMERA_ID = os.getenv("NICKS_OFFICE_CAMERA_ID", "office").strip() or "office"
 EUFY_HOME_POSE_RECEIPT = os.getenv("EUFY_HOME_POSE_RECEIPT", "").strip()
+EUFY_HOME_REFERENCE_SHA256 = os.getenv("EUFY_HOME_REFERENCE_SHA256", "").strip().lower()
 try:
     EUFY_HOME_POSE_MAX_AGE_SECONDS = max(
         1.0,
@@ -422,7 +423,15 @@ def load_home_pose_receipt(
         return None
     if str(payload.get("serial") or "").strip() != EUFY_OFFICE_CAMERA_SERIAL:
         return None
-    if not str(payload.get("verifierVersion") or "").startswith("office-home-pose-v"):
+    if str(payload.get("verifierVersion") or "") != "office-home-pose-v1":
+        return None
+    # Home truth is meaningful only relative to the exact approved reference image.
+    # Empty config intentionally disables promotion rather than trusting any local file.
+    reference_hash = str(payload.get("referenceSha256") or "").strip().lower()
+    if (
+        len(EUFY_HOME_REFERENCE_SHA256) != 64
+        or reference_hash != EUFY_HOME_REFERENCE_SHA256
+    ):
         return None
     verdict = payload.get("isHome")
     if not isinstance(verdict, bool):
