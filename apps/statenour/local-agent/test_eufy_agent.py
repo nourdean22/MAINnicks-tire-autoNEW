@@ -195,6 +195,124 @@ class EufyAgentTests(unittest.TestCase):
                     now=datetime(2026, 9, 27, 10, 1, tzinfo=timezone.utc),
                 ))
 
+    def test_home_verifier_runs_only_for_unknown_home_after_ptz_receipt(self):
+        completed = Mock(returncode=0, stderr="")
+        with patch.object(
+            eufy_agent,
+            "load_home_pose_receipt",
+            side_effect=[None, True],
+        ) as load_receipt, patch.object(
+            eufy_agent,
+            "EUFY_HOME_VERIFY_PYTHON",
+            r"C:\camera-venv\python.exe",
+        ), patch.object(
+            eufy_agent,
+            "EUFY_HOME_VERIFY_SCRIPT",
+            r"C:\repo\camera-bridge\scripts\verify_home_pose.py",
+        ), patch.object(
+            eufy_agent,
+            "EUFY_HOME_REFERENCE",
+            r"C:\camera\office-home.png",
+        ), patch.object(
+            eufy_agent,
+            "EUFY_HOME_MEDIA_URL",
+            "rtsp://127.0.0.1:8554/office",
+        ), patch.object(
+            eufy_agent,
+            "EUFY_HOME_POSE_RECEIPT",
+            r"C:\camera\office-home-receipt.json",
+        ), patch.object(
+            eufy_agent,
+            "EUFY_HOME_REFERENCE_SHA256",
+            "f" * 64,
+        ), patch.object(
+            eufy_agent,
+            "_last_home_verify_monotonic",
+            0.0,
+        ), patch.object(
+            eufy_agent.subprocess,
+            "run",
+            return_value=completed,
+        ) as run:
+            verdict = eufy_agent.maybe_verify_home_pose({
+                "mediaPlaneOk": True,
+                "ptzHomeOk": None,
+                "lastPtzNotifyAt": "2026-09-27T10:00:20+00:00",
+            })
+
+        self.assertTrue(verdict)
+        self.assertEqual(load_receipt.call_count, 2)
+        args = run.call_args.args[0]
+        self.assertIn("--rtsp-env", args)
+        self.assertIn("EUFY_HOME_MEDIA_URL", args)
+        self.assertNotIn(
+            "rtsp://127.0.0.1:8554/office",
+            args,
+            "media URL belongs in inherited environment, not process command line",
+        )
+
+    def test_home_verifier_does_not_run_without_motor_receipt_or_when_media_is_down(self):
+        with patch.object(eufy_agent, "load_home_pose_receipt", return_value=None), patch.object(
+            eufy_agent.subprocess,
+            "run",
+        ) as run:
+            self.assertIsNone(eufy_agent.maybe_verify_home_pose({
+                "mediaPlaneOk": True,
+                "ptzHomeOk": None,
+                "lastPtzNotifyAt": None,
+            }))
+            self.assertIsNone(eufy_agent.maybe_verify_home_pose({
+                "mediaPlaneOk": False,
+                "ptzHomeOk": None,
+                "lastPtzNotifyAt": "2026-09-27T10:00:20+00:00",
+            }))
+        run.assert_not_called()
+
+    def test_home_verifier_infrastructure_failure_does_not_invent_away(self):
+        completed = Mock(returncode=2, stderr="capture timeout")
+        with patch.object(
+            eufy_agent,
+            "load_home_pose_receipt",
+            return_value=None,
+        ), patch.object(
+            eufy_agent,
+            "EUFY_HOME_VERIFY_PYTHON",
+            "python",
+        ), patch.object(
+            eufy_agent,
+            "EUFY_HOME_VERIFY_SCRIPT",
+            "verify_home_pose.py",
+        ), patch.object(
+            eufy_agent,
+            "EUFY_HOME_REFERENCE",
+            "home.png",
+        ), patch.object(
+            eufy_agent,
+            "EUFY_HOME_MEDIA_URL",
+            "rtsp://127.0.0.1:8554/office",
+        ), patch.object(
+            eufy_agent,
+            "EUFY_HOME_POSE_RECEIPT",
+            "receipt.json",
+        ), patch.object(
+            eufy_agent,
+            "EUFY_HOME_REFERENCE_SHA256",
+            "f" * 64,
+        ), patch.object(
+            eufy_agent,
+            "_last_home_verify_monotonic",
+            0.0,
+        ), patch.object(
+            eufy_agent.subprocess,
+            "run",
+            return_value=completed,
+        ):
+            self.assertIsNone(eufy_agent.maybe_verify_home_pose({
+                "mediaPlaneOk": True,
+                "ptzHomeOk": None,
+                "lastPtzNotifyAt": "2026-09-27T10:00:20+00:00",
+            }))
+
     def test_office_heartbeat_is_inert_until_separate_nicks_credentials_exist(self):
         with patch.object(eufy_agent, "NICKS_CAMERA_HEARTBEAT_URL", ""), patch.object(
             eufy_agent,
