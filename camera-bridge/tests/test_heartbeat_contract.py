@@ -23,6 +23,7 @@ import re
 import sys
 from datetime import datetime, timezone
 import tempfile
+import types
 import unittest
 from types import SimpleNamespace
 
@@ -84,7 +85,14 @@ def producer_heartbeat_keys():
 
 
 def load_eufy_agent_module():
-    """Load the REAL StateNour producer without copying its field list into this test."""
+    """Load the REAL StateNour producer in Camera Bridge's intentionally minimal CI.
+
+    The contract needs to EXECUTE build_office_camera_heartbeat, not merely grep its source,
+    but Camera Bridge CI deliberately does not install StateNour's smart-home/network
+    dependencies. Stub only the two import-time modules the pure builder never touches;
+    restore sys.modules immediately after import so this test cannot mask dependency use in
+    any other test or production path.
+    """
     if not os.path.exists(EUFY_AGENT):
         return None
     local_agent_dir = os.path.dirname(EUFY_AGENT)
@@ -93,8 +101,22 @@ def load_eufy_agent_module():
     spec = importlib.util.spec_from_file_location("heartbeat_contract_eufy_agent", EUFY_AGENT)
     if spec is None or spec.loader is None:
         raise AssertionError("could not load StateNour Eufy producer module")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+
+    previous = {name: sys.modules.get(name) for name in ("requests", "dotenv")}
+    requests_stub = types.ModuleType("requests")
+    dotenv_stub = types.ModuleType("dotenv")
+    dotenv_stub.load_dotenv = lambda *_args, **_kwargs: None
+    sys.modules["requests"] = requests_stub
+    sys.modules["dotenv"] = dotenv_stub
+    try:
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        for name, prior in previous.items():
+            if prior is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = prior
     return module
 
 
