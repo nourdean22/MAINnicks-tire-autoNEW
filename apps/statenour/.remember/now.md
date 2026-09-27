@@ -1,7 +1,15 @@
 # Session ledger — statenour
 
-**Updated: 2026-09-26** (Nick operator runtime + one-shot quality repair; current repo-agent runtime #2681)
+**Updated: 2026-09-27** (portfolio run-to-empty reconciliation; dependency refresh #2696 merged; stale worktrees classified)
 
+
+## 2026-09-27 — portfolio reconciliation / stale-worktree trap
+
+**REPO TRUTH AT SNAPSHOT** · `main` reached `72083648c` on the weekly prerender refresh; the last substantive code commit beneath it is #2697 `c6db7bd35`. #2696 dependency refresh is merged as `6704ca49b63dbaa0997c57efb689e4b618e4f19a`; the actual squash patch is stable-patch-id identical to reviewed head `301392c325c0c0b34e7ef68c6d4bef9ccdd37ea0` and changed exactly 10 dependency/lock files. #2662 is closed as superseded. CI/build proof on the reviewed SHA was green, including affected CI + authenticated StateNour E2E; fresh Agent Policy source-citation + canaries also passed after the PR body was corrected. **Do not infer Railway/live runtime from this repo receipt.**
+
+**RUN-TO-EMPTY RESULT** · Q49 (#2684), Q37, Q35, Nour runtime, and Q51 were reconciled against current `main`, not branch ancestry. Q49's dirty predecessor would restore a dead batch VIN API and break partial admin VIN lookup; Q37's dirty review branch would restore the obsolete OpenWeather env gate; Q35's complete touched-file tree is already identical to `main`; `8f0de2f4d` is patch-equivalent to `main`; Q51's dirty review branch removes newer scheduler ordering and regresses weather alert-delivery throttling. Treat those old worktrees as historical evidence, not TODOs.
+
+**CONCURRENCY / OWNERSHIP** · newly-created camera/Eufy, office-wake, Q12 receiver, migration-0134, conversation-cockpit and similar worktrees are separate active workstreams unless explicitly handed off. No blind cleanup, reset, cherry-pick, or merge. `git branch --no-merged` is not a backlog list in this repo; use current tree equivalence, PR history, tests and production receipts.
 
 ## 2026-09-25/26 — Nick operator runtime + one-shot self-repair
 

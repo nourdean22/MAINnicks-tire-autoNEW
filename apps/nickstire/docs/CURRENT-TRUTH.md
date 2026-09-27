@@ -1,11 +1,25 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** `main` `55d5d5fa2` on 2026-09-25 (PR #2656 merged at 12:08:44Z; 133 approved rotation entries; local production preflight 133/133; all required PR gates green; no live render/publish/deploy claim for this batch). Prior line: `main` `f5f621379` on 2026-09-25 (#2655, 122 approved packs, full PR CI green, no live render/publish/deploy claim for that batch). Prior line: `main` `54e7d5958` on 2026-09-10 (recruiting + honest-reads arc: #2266 #2268 #2272 #2274 #2276 #2277 #2278 #2279 #2281 #2282 merged and deployed; NO migration applied — every change is code or CI). Prior line: `main` `425aff57c` on 2026-09-09 (camera/Lot arc: #2234 #2241 #2236 #2238 #2244 merged and deployed; migration 0119 applied to prod — see "Lot / vehicle visits" below). Prior line: `1a64afd4d` on 2026-09-08 (five merged PRs, all deployed: #2182 release closure, #2187 security, #2190 shop strip + ticket, #2192 Haiku restore, #2194 toast gate; 2026-09-07 public-site serving contract, PR #2173; prior lines: 2026-08-13 ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; 2026-08-07 self-improvement arc, PRs #1382–#1421)
+**Verified against:** repository `main` `72083648c` on 2026-09-27 (weekly prerender refresh; last substantive code commit beneath it is #2697 `c6db7bd35`). This header proves current repository ancestry/tree only; production/deploy claims remain scoped to the receipt-bearing sections below. Prior verified content baseline: `55d5d5fa2` on 2026-09-25 (#2656).
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
+
+## Portfolio reconciliation (2026-09-26/27) — stale branches are not backlog
+
+A run-to-empty reconciliation was performed against current `main`, PR history, tests, and concrete tree equivalence — not branch names.
+
+- **Dependency refresh is merged as #2696**: reviewed head `301392c325c0c0b34e7ef68c6d4bef9ccdd37ea0`, squash `6704ca49b63dbaa0997c57efb689e4b618e4f19a`. The merge changed exactly the intended 10 dependency/lock files and has the same stable patch-id as the reviewed branch (`8001fef75e4a6176a37a47ea5f1a088dbd54788b`). The reviewed head passed real pre-push affected build 12/12, StateNour 9,748/9,748 tests, Linux affected CI, authenticated StateNour E2E, Docker/adoption/completion/admin/secret gates, and a fresh Agent Policy run after adding the required source/date citation. Stale Dependabot #2662 is closed as superseded. Repo dependency truth includes Next 16.3.6, Turbo manifest `^2.11.3` (lock resolved 2.11.4), Lefthook 2.1.14, tsx 4.23.15, Drizzle Kit 0.31.11, and aligned Next tooling. **No production deploy claim is made here.**
+- **Q43 consent ledger is merged as #2694** (`1bb19803c4d6107a61d3e39d135ef35d82a0631a`) and **Q45 spoken opt-out truth is merged as #2683** (`78fcd528adcffb4ca32191636794e5b720aab4ad`).
+- **Q49 VIN consolidation is merged as #2684** (`4e75f1750523bee658eec08f1a6a9a7ba51c5ac4`). The old dirty Q49 worktree is a rejected predecessor: it reintroduces an unconsumed vPIC batch API and removes the historical 11–17-character admin partial-VIN lookup #2684 deliberately preserved. Do not resurrect it.
+- **Q37 review work is already on `main`.** The surviving dirty review worktree would restore the obsolete `OPENWEATHER_API_KEY` scheduler gate and contains only stale/garbled ShopDriver edits around matcher logic already present on `main`. Do not merge it.
+- **Q35 Sentry/noise work is already on `main` byte-for-byte** across every file touched by its two old commits, including deploy-skew recovery, social-assets font tracing, duplicate lead-audit retirement, and the import-graph cron/tRPC guard. Its apparent branch uniqueness is squash-history noise.
+- **Nour runtime commit `8f0de2f4d` is patch-equivalent to `main`** and its five files match current `main`; it is not unfinished work.
+- **Q51 weather review is superseded by current keyless-NWS truth.** Its dirty worktree would delete newer scheduler dependency ordering, corrupt text encoding, and throttle operator alerts before delivery instead of after successful delivery. Do not merge it.
+
+**Concurrency boundary:** camera/Eufy, Q12 receiver, migration-0134, office-wake, conversation-cockpit and other newly-created worktrees belong to separate active workstreams unless their owning session explicitly hands them off. Do not infer backlog status from `git branch --no-merged`; squash merges and dirty historical worktrees make that signal unsafe.
 
 ## Midday Reel reconciliation (2026-09-25, PR #2656 merged): 133 approved packs
 

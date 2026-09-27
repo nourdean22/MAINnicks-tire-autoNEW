@@ -2,8 +2,15 @@
 
 > **The one-screen answer to "where am I and what's real?"** If any other doc
 > contradicts this file as a *present-tense instruction*, this file and live
-> code win. Last verified **2026-09-26**. When in doubt, **verify in code, git,
+> code win. Last verified **2026-09-27**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
+
+## Since 2026-09-26/27 — repo reconciliation and dependency patch
+
+- **Repo dependency patch #2696 is merged, but deploy truth is separate.** Repository `main` contains Next 16.3.6 and the aligned Next tooling patch plus the refreshed dev-minor set. The reviewed head passed StateNour `check`, lint with zero errors, a production build, 935/935 test files (9,748/9,748 tests), Linux affected CI, and authenticated E2E. This proves repository/build compatibility; it does **not** prove `statenour-web` is serving that dependency patch. Use `/api/version` plus Railway deployment ancestry before claiming it live.
+- **Q35 is not pending.** Current `main` exactly matches the old Q35 branch for deploy-skew recovery, standalone social-assets font tracing, expected `lead.list` denial cleanup, retirement of the duplicate audit cron, and the strengthened `no-cron-calls-nickstire-trpc` import-graph guard.
+- **Agent/runtime memory #2681 remains repo-only runtime guidance unless app code changes.** Commit `8f0de2f4d` is patch-equivalent to `main`; its `NOUR-COMMAND.md`, runtime-kernel doc, intelligence-context hook/test and Claude settings are already absorbed.
+- **Historical dirty worktrees are not authoritative.** The 2026-09-26/27 portfolio sweep proved the old Q49/Q37/Q51 worktrees contain superseded or regressive variants. Compare concrete tree/patch state to current `main` before reviving one.
 
 ## Since 2026-09-25/26 — Nick operator runtime + one-shot quality repair
 
