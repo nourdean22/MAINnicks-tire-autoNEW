@@ -76,5 +76,14 @@ class EufyShopRuntimeInstallerTests(unittest.TestCase):
         self.assertIn("force=True", SOURCE)
 
 
+    def test_click_launcher_only_elevates_the_reviewed_installer(self):
+        launcher = SCRIPT.with_suffix(".cmd").read_text(encoding="utf-8")
+        self.assertIn("install-eufy-shop-runtime.ps1", launcher)
+        self.assertIn("Start-Process powershell.exe -Verb RunAs", launcher)
+        self.assertIn("-InstallPrerequisites", launcher)
+        for forbidden in ("EUFY_PASSWORD", "STATENOUR_SYNC_KEY", "NICKS_CAMERA_INGEST_KEY"):
+            self.assertNotIn(forbidden, launcher)
+
+
 if __name__ == "__main__":
     unittest.main()
