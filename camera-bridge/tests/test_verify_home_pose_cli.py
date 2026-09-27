@@ -28,23 +28,29 @@ def _scene() -> np.ndarray:
     return image
 
 
-def test_ffmpeg_error_never_leaks_rtsp_credentials(monkeypatch):
+def test_live_capture_error_redacts_rtsp_credentials_and_uses_no_child_process(monkeypatch):
     raw = "rtsp://private-user:private-pass@127.0.0.1:8554/office"
-    fake = SimpleNamespace(
-        returncode=1,
-        stdout=b"",
-        stderr=f"could not open {raw}\nretry {raw}".encode(),
-    )
-    monkeypatch.setattr(_cli.subprocess, "run", lambda *args, **kwargs: fake)
+
+    class FakeCapture:
+        def isOpened(self):
+            return False
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(cv2, "VideoCapture", lambda *args, **kwargs: FakeCapture())
 
     with pytest.raises(_cli.HomePoseError) as caught:
-        _cli._capture_rtsp(raw, ffmpeg="ffmpeg", timeout_seconds=1)
+        _cli._capture_rtsp(raw, timeout_seconds=1)
 
     text = str(caught.value)
     assert "private-user" not in text
     assert "private-pass" not in text
     assert "rtsp://127.0.0.1:8554/office" in text
-
+    # The live capture implementation is in-process OpenCV; there is no ffmpeg child argv
+    # in which credentialed URLs can appear.
+    import inspect
+    assert "subprocess" not in inspect.getsource(_cli._capture_rtsp)
 
 def test_cli_runs_from_an_unrelated_working_directory(tmp_path: Path):
     ref = tmp_path / "home.png"
