@@ -225,8 +225,8 @@ if (-not (Test-Path (Join-Path $venv "Scripts\python.exe"))) {
 }
 $venvPython = Join-Path $venv "Scripts\python.exe"
 & $venvPython -m pip install --disable-pip-version-check --upgrade pip
-& $venvPython -m pip install --disable-pip-version-check "requests>=2.31.0" "python-dotenv>=1.0.0" "websockets>=12.0"
-if ($LASTEXITCODE -ne 0) { throw "Eufy-only Python dependency install failed" }
+& $venvPython -m pip install --disable-pip-version-check "requests>=2.31.0" "python-dotenv>=1.0.0" -r $OfficeWakeRequirements
+if ($LASTEXITCODE -ne 0) { throw "Eufy-only / office-wake Python dependency install failed" }
 
 Write-Step "Capturing machine-local secrets with Windows DPAPI"
 [void](Save-DpapiSecret "eufy-email" "Eufy account email" -PlainPrompt)
