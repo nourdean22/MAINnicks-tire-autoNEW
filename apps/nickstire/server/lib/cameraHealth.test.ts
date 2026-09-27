@@ -99,11 +99,28 @@ describe("camera health lattice — fixed geometry", () => {
   });
 
   it("a queue that is not draining is CLOUD_BACKLOG; dead letters outrank a plain backlog", () => {
-    expect(deriveCameraState(healthy({ oldestOutboxAgeSeconds: HEALTH_THRESHOLDS.backlogWarnSeconds + 1 })).state).toBe("CLOUD_BACKLOG");
+    const backlog = deriveCameraState(healthy({
+      outboxDepth: 1,
+      oldestOutboxAgeSeconds: HEALTH_THRESHOLDS.backlogWarnSeconds + 1,
+      deadLetterDepth: 0,
+    }));
+    expect(backlog.state).toBe("CLOUD_BACKLOG");
+    expect(backlog.facets.cloud).toBe("backlog");
+
     const dl = deriveCameraState(healthy({ deadLetterDepth: 2 }));
     expect(dl.state).toBe("CLOUD_BACKLOG");
     expect(dl.facets.cloud).toBe("dead_letters");
     expect(dl.reason).toContain("2 dead-lettered");
+  });
+
+  it("zero queued events do not become backlog because of a stale leftover age value", () => {
+    const v = deriveCameraState(healthy({
+      outboxDepth: 0,
+      oldestOutboxAgeSeconds: HEALTH_THRESHOLDS.backlogWarnSeconds + 1,
+      deadLetterDepth: 0,
+    }));
+    expect(v.state).toBe("HEALTHY");
+    expect(v.facets.cloud).toBe("ok");
   });
 
   it("the real producer empty-outbox representation is proven healthy", () => {
