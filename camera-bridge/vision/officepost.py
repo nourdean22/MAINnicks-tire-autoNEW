@@ -234,6 +234,7 @@ def main(argv: List[str]) -> int:
 
     ap = argparse.ArgumentParser(description="capture -> transcribe -> post one office window")
     ap.add_argument("--source-url", required=True)
+    ap.add_argument("--input-format", choices=("auto", "rtsp", "dshow", "generic"), default="auto")
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--seconds", type=float, default=300.0)
     ap.add_argument("--source", default="eufy-office")
@@ -249,8 +250,14 @@ def main(argv: List[str]) -> int:
     if args.silence_db is not None:
         kw["silence_db"] = args.silence_db
     try:
-        segs = capture_window(args.source_url, args.out_dir, args.seconds,
-                              source=args.source, **kw)
+        segs = capture_window(
+            args.source_url,
+            args.out_dir,
+            args.seconds,
+            source=args.source,
+            input_format=args.input_format,
+            **kw,
+        )
     except FfmpegMissing as exc:
         print(json.dumps({"error": "ffmpeg_missing", "detail": str(exc)}))
         return 3
