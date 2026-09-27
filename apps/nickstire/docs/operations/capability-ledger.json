@@ -914,37 +914,31 @@
       "owner": "system",
       "lastVerifiedAt": "2026-09-27",
       "verificationExpiresAt": "2026-10-25",
-      "deferredScope": [
-        "Promote back to live_verified only after the 1.1.26 runtime is deployed and a production higgsfield-session-keepalive row records a successful refresh."
-      ],
+      "deferredScope": [],
       "capabilityId": "higgsfield-keepalive",
       "name": "Higgsfield session keepalive (15-min refresh)",
       "codeState": "merged",
-      "operationalState": "unit_verified",
+      "operationalState": "live_verified",
       "exposure": "internal",
       "evidence": {
-        "codeCommit": "fix/higgsfield-cli-1126 pending merge/deploy: pin CLI/runtime to 1.1.26, version-scope the native-binary cache, and document the workspace contract",
+        "codeCommit": "PR #2717 merged to main as 4d6488623e08f682ccdf5a283d501b9c9c24525c: CLI/runtime 1.1.26, version-scoped native cache, workspace contract, and credential recovery hardening",
         "tests": [
           "server/higgsfieldBinaryVersion.test.ts: exact package/runtime pin, version-scoped native cache, HIGGSFIELD_WORKSPACE_ID documentation, and railway-injected DATABASE_URL recovery contract",
           "9 focused Higgsfield test files: 138/138 passed on 2026-09-27",
           "rebased critical keepalive/session tests: 37/37 passed; TypeScript typecheck exit 0 on 2026-09-27"
         ],
-        "deploymentId": "PENDING — production still runs the pre-1.1.26 compatibility contract until this PR deploys",
+        "deploymentId": "Railway a37c0df7-1143-4c7e-9bc5-4420ba0eb8c3 SUCCESS for main 4d6488623e08f682ccdf5a283d501b9c9c24525c at 2026-09-27T19:38:30Z",
         "liveRuns": [
           "HISTORICAL LIVE PROOF 2026-09-08 (PR #2212, main 994358cf1): keepalive completed with 'session refreshed, 2092 credits' after promotion.",
           "END-TO-END HISTORICAL PROOF 2026-08-18: refreshed CLI session generated reel job 1650001, passed rendered QA after authorized repair, and published IG 18105354986172908.",
           "PRE-DEPLOY FAILURE PROOF 2026-09-27: after a successful current OAuth login, the server's pinned native hf 0.2.3 still returned 'Session expired', proving the production runtime binary was incompatible with the current auth session rather than the fresh token being bad.",
           "CURRENT VENDOR AUTH PROOF 2026-09-27: native hf 1.1.26 invoked directly with HIGGSFIELD_CREDENTIALS_PATH plus HIGGSFIELD_WORKSPACE_ID authenticated as nourdean22@gmail.com and returned 'ultra plan, 98.5 credits'.",
-          "CURRENT GENERATION CONTRACT PROOF 2026-09-27: higgsfield model get seedance1_5 still accepts prompt, 9:16, duration 4/8/12, 1080p, and start_image; existing generate create --wait --json arguments remain supported."
+          "CURRENT GENERATION CONTRACT PROOF 2026-09-27: higgsfield model get seedance1_5 still accepts prompt, 9:16, duration 4/8/12, 1080p, and start_image; existing generate create --wait --json arguments remain supported.",
+          "POST-DEPLOY LIVE PROOF 2026-09-27: production keepalive completed at 2026-09-27T19:53:26Z, 20:07:56Z, and 20:22:56Z with records_processed=1 and details='session refreshed, 98.5 credits'; probe-higgsfield-session-health reports session healthy=true and reason='keepalive refreshed the session'.",
+          "REEL PREFLIGHT RECOVERY 2026-09-27: reel-pipeline failed at 2026-09-27T19:30:35Z on 'higgsfield session dead', then completed at 19:53:31Z, 20:07:59Z, and 20:23:00Z with no Higgsfield preflight error; latest details='no reel jobs to process'."
         ]
       },
-      "blockers": [
-        {
-          "severity": "P1",
-          "description": "PENDING DEPLOYMENT: production keepalive remains on the obsolete pre-1.1.26 runtime until this compatibility PR merges and Railway deploys it. Fresh credentials are already stored in app_secret_kv and HIGGSFIELD_WORKSPACE_ID is configured for production. Do not claim live recovery until a post-deploy keepalive receipt succeeds.",
-          "source": "2026-09-27 live compatibility audit"
-        }
-      ]
+      "blockers": []
     },
     {
       "owner": "operator",
