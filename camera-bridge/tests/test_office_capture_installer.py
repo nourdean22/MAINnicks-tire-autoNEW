@@ -95,8 +95,9 @@ def test_installer_supports_rtsp_and_windows_counter_mic():
     assert '$SourceKind = $SourceKind.ToLowerInvariant()' in text
     assert "NICK_OFFICE_AUDIO_SOURCE" in text
     assert "NICK_OFFICE_AUDIO_INPUT_FORMAT" in text
-    assert '"--input-format"' in text
     assert '"--source", $episodeSource' in text
+    assert "--source-url" not in text[text.index("$argList = @("):text.index("$action =", text.index("$argList = @("))]
+    assert "--input-format" not in text[text.index("$argList = @("):text.index("$action =", text.index("$argList = @("))]
     assert '"counter-mic"' in text
 
 
