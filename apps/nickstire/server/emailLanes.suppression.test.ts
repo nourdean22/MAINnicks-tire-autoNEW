@@ -32,20 +32,6 @@ const row = (id: number, phone: string, email: string) => ({
   segment: "lapsed",
 });
 
-describe("emailCampaigns · recipient validation", () => {
-  it("normalizes only safe whitespace/domain casing and refuses ambiguous repairs", async () => {
-    const { normalizeCampaignRecipientEmail } = await import("./services/emailCampaigns");
-
-    expect(normalizeCampaignRecipientEmail("  Name.Tag+shop@EXAMPLE.COM  ")).toBe("Name.Tag+shop@example.com");
-    expect(normalizeCampaignRecipientEmail('PEYTONJLEE29@GMAIL.COM"')).toBeNull();
-    expect(normalizeCampaignRecipientEmail("Name <person@example.com>")).toBeNull();
-    expect(normalizeCampaignRecipientEmail("double@@example.com")).toBeNull();
-    expect(normalizeCampaignRecipientEmail("missing-domain-dot@example")).toBeNull();
-    expect(normalizeCampaignRecipientEmail(".leading@example.com")).toBeNull();
-    expect(normalizeCampaignRecipientEmail("trailing.@example.com")).toBeNull();
-  });
-});
-
 describe("emailCampaigns · a suppressed recipient never reaches the sender", () => {
   /** Every address the stubbed transport was asked to send to. */
   const sentTo: string[] = [];
@@ -113,6 +99,27 @@ describe("emailCampaigns · a suppressed recipient never reaches the sender", ()
     // that never got past its own feature flag or template lookup.
     expect(sentTo).toEqual(["clean@example.com"]);
     expect(r.recordsProcessed).toBe(1);
+  });
+
+  it("normalizes only safe whitespace/domain casing and refuses ambiguous recipient syntax", async () => {
+    stubTransport();
+    arm([
+      row(1, CLEAN_PHONE, "  Name.Tag+shop@EXAMPLE.COM  "),
+      row(2, CLEAN_PHONE, 'badquote@example.com"'),
+      row(3, CLEAN_PHONE, "Name <person@example.com>"),
+      row(4, CLEAN_PHONE, "double@@example.com"),
+      row(5, CLEAN_PHONE, "missing-domain-dot@example"),
+      row(6, CLEAN_PHONE, ".leading@example.com"),
+      row(7, CLEAN_PHONE, "trailing.@example.com"),
+    ], {
+      ok: true, phones: new Set<string>(), carrierBlocked: new Set<string>(), stale: false,
+    });
+
+    const r = await run();
+
+    expect(sentTo).toEqual(["Name.Tag+shop@example.com"]);
+    expect(r.recordsProcessed).toBe(1);
+    expect(r.details).toMatch(/6 invalid email skipped/);
   });
 
   it("BREAKS: malformed CRM emails never reach Resend or starve clean recipients", async () => {
