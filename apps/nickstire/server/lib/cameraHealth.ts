@@ -270,6 +270,24 @@ export function deriveCameraState(
         : `oldest unsent event is ${r.oldestOutboxAgeSeconds}s old`,
     };
   }
+
+  // A fresh heartbeat is not proof that a fixed camera is healthy. Vehicle-truth
+  // authority requires positive evidence for source, frames, pose/calibration and
+  // delivery. Missing telemetry stays visibly unverified instead of silently
+  // becoming HEALTHY (which could also emit a false recovery).
+  if (
+    source === "unknown" ||
+    frames === "unknown" ||
+    pose === "unknown" ||
+    cloud === "unknown"
+  ) {
+    return {
+      state: "UNVERIFIED_CAPABILITIES",
+      facets,
+      reason: "one or more required fixed-camera health facets have not been proven yet",
+    };
+  }
+
   return {
     state: "HEALTHY",
     facets,
