@@ -31,6 +31,7 @@ import edge_main                                                       # noqa: E
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROUTE = os.path.join(REPO, "..", "apps", "nickstire", "server", "routes",
                      "cameraVisitsRoutes.ts")
+EUFY_AGENT = os.path.join(REPO, "..", "apps", "statenour", "local-agent", "eufy_agent.py")
 
 # Columns the producer is NOT expected to send, each with the reason. An entry here is a
 # decision, and `test_no_exemption_has_gone_STALE` keeps it from becoming a place to hide a
@@ -80,6 +81,36 @@ def producer_heartbeat_keys():
     return body
 
 
+def interaction_heartbeat_keys():
+    """Fields authored by StateNour's Eufy interaction-camera producer.
+
+    Do not import that module here: the camera runtime intentionally does not install
+    Ring/Tuya/websocket smart-home dependencies. Read the REAL producer's literal ownership
+    tuple instead, and prove below that production iterates that tuple when building payloads.
+    """
+    if not os.path.exists(EUFY_AGENT):
+        return set()
+    with open(EUFY_AGENT, encoding="utf-8") as fh:
+        src = fh.read()
+    match = re.search(
+        r"INTERACTION_HEARTBEAT_FIELDS\s*=\s*\((.*?)\)",
+        src,
+        re.S,
+    )
+    if not match:
+        raise AssertionError(
+            "StateNour Eufy heartbeat field ownership tuple is missing; the cross-producer "
+            "camera_runtime contract can no longer prove who writes interaction fields."
+        )
+    fields = set(re.findall(r'"([A-Za-z0-9_]+)"', match.group(1)))
+    if "for key in INTERACTION_HEARTBEAT_FIELDS" not in src:
+        raise AssertionError(
+            "INTERACTION_HEARTBEAT_FIELDS exists but build_office_camera_heartbeat no longer "
+            "iterates it; a declarative list that production ignores is not a producer."
+        )
+    return fields
+
+
 class HeartbeatContractTest(unittest.TestCase):
 
     def setUp(self):
@@ -87,10 +118,12 @@ class HeartbeatContractTest(unittest.TestCase):
             self.skipTest("nickstire is not checked out beside camera-bridge")
         self.columns = route_heartbeat_columns()
         self.body = producer_heartbeat_keys()
+        self.interaction = interaction_heartbeat_keys()
 
     def test_EVERY_stored_column_has_a_producer(self):
+        authored = set(self.body) | set(self.interaction)
         orphans = sorted(c for c in self.columns
-                         if c not in self.body and c not in NOT_SENT_BY_DESIGN)
+                         if c not in authored and c not in NOT_SENT_BY_DESIGN)
         self.assertEqual(
             orphans, [],
             f"the shop stores {orphans} and no producer sends them, so those cards can only "
@@ -103,7 +136,10 @@ class HeartbeatContractTest(unittest.TestCase):
         than no list."""
         gone = sorted(c for c in NOT_SENT_BY_DESIGN if c not in self.columns)
         self.assertEqual(gone, [], f"{gone} are exempted but are not stored columns any more")
-        wired = sorted(c for c in NOT_SENT_BY_DESIGN if c in self.body)
+        wired = sorted(
+            c for c in NOT_SENT_BY_DESIGN
+            if c in self.body or c in self.interaction
+        )
         self.assertEqual(
             wired, [],
             f"{wired} are listed as having no producer, but the heartbeat sends them. "
@@ -113,11 +149,26 @@ class HeartbeatContractTest(unittest.TestCase):
         """The other direction. A key the route does not store is parsed and discarded, so
         the producer pays to compute and send something nobody will ever read -- and it
         looks, from the producer side, exactly like a field that works."""
-        ignored = sorted(k for k in self.body if k not in self.columns)
+        ignored = sorted(
+            k for k in (set(self.body) | set(self.interaction))
+            if k not in self.columns
+        )
         self.assertEqual(
             ignored, [],
             f"the heartbeat sends {ignored}, which the shop does not store. Either add the "
             f"column or stop sending it -- it is silently dropped on arrival today.")
+
+    def test_interaction_fields_have_a_REAL_external_producer_contract(self):
+        expected = {
+            "authPlaneOk", "eventPlaneOk", "controlPlaneOk", "mediaPlaneOk", "ptzHomeOk",
+            "lastEventProofAt", "lastControlProofAt", "lastMediaProofAt", "lastPtzNotifyAt",
+        }
+        self.assertEqual(
+            self.interaction,
+            expected,
+            "interaction camera heartbeat ownership changed; update producer + consumer "
+            "contract together rather than exempting blank fields",
+        )
 
     def test_the_gate_can_actually_SEE_the_columns(self):
         """The positive control. A parse that returned [] would make every assertion above
