@@ -11,6 +11,7 @@
 - **Q35 is not pending.** Current `main` exactly matches the old Q35 branch for deploy-skew recovery, standalone social-assets font tracing, expected `lead.list` denial cleanup, retirement of the duplicate audit cron, and the strengthened `no-cron-calls-nickstire-trpc` import-graph guard.
 - **Agent/runtime memory #2681 remains repo-only runtime guidance unless app code changes.** Commit `8f0de2f4d` is patch-equivalent to `main`; its `NOUR-COMMAND.md`, runtime-kernel doc, intelligence-context hook/test and Claude settings are already absorbed.
 - **Historical dirty worktrees are not authoritative.** The 2026-09-26/27 portfolio sweep proved the old Q49/Q37/Q51 worktrees contain superseded or regressive variants. Compare concrete tree/patch state to current `main` before reviving one.
+- **Reconciliation closeout is complete.** A follow-up check on 2026-09-27 found 0 open PRs. Three clean redundant local worktrees (`deps-dev-minor-current`, `nour-intelligence-runtime-20260926`, `portfolio-truth-20260927`) were removed; dirty historical Q35/Q37/Q49/Q51 worktrees were intentionally preserved instead of force-deleted; camera/Eufy/Q12 worktrees remain separate active-session property. The reconciled **code** backlog is exhausted. Remaining issue #2628 items are operator/vendor/infrastructure actions, not missing code.
 
 ## Since 2026-09-25/26 — Nick operator runtime + one-shot quality repair
 

@@ -1,6 +1,6 @@
 # Session ledger — statenour
 
-**Updated: 2026-09-27** (portfolio run-to-empty reconciliation; dependency refresh #2696 merged; stale worktrees classified)
+**Updated: 2026-09-27** (portfolio reconciliation closed; 0 open PRs; safe redundant-worktree cleanup completed; operator-only remainder kept separate)
 
 
 ## 2026-09-27 — portfolio reconciliation / stale-worktree trap
@@ -10,6 +10,8 @@
 **RUN-TO-EMPTY RESULT** · Q49 (#2684), Q37, Q35, Nour runtime, and Q51 were reconciled against current `main`, not branch ancestry. Q49's dirty predecessor would restore a dead batch VIN API and break partial admin VIN lookup; Q37's dirty review branch would restore the obsolete OpenWeather env gate; Q35's complete touched-file tree is already identical to `main`; `8f0de2f4d` is patch-equivalent to `main`; Q51's dirty review branch removes newer scheduler ordering and regresses weather alert-delivery throttling. Treat those old worktrees as historical evidence, not TODOs.
 
 **CONCURRENCY / OWNERSHIP** · newly-created camera/Eufy, office-wake, Q12 receiver, migration-0134, conversation-cockpit and similar worktrees are separate active workstreams unless explicitly handed off. No blind cleanup, reset, cherry-pick, or merge. `git branch --no-merged` is not a backlog list in this repo; use current tree equivalence, PR history, tests and production receipts.
+
+**CLOSEOUT RECEIPT** · follow-up GitHub check: **0 open PRs**. Safe local cleanup removed `deps-dev-minor-current`, `nour-intelligence-runtime-20260926`, and `portfolio-truth-20260927` plus their obsolete local branches. Dirty Q35/Q37/Q49/Q51 predecessors were deliberately preserved because they contain uncommitted/divergent historical evidence; they are not backlog. Camera/Eufy/Q12 worktrees remain untouched under sibling-session ownership. **Reconciled code backlog = exhausted.** Remaining issue #2628 work is operator/vendor/infrastructure configuration and decisions, not unfinished code.
 
 ## 2026-09-25/26 — Nick operator runtime + one-shot self-repair
 
