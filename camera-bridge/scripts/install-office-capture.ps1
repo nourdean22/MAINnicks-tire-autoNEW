@@ -36,16 +36,78 @@ param(
   [string]$OpenAt  = "08:00",
   [string]$CloseAt = "18:00",
   [string]$TaskName = "NickOfficeCapture",
+  # DirectShow must run as the actual logged-in shop user, not an elevation account.
+  [string]$DesktopUser = "",
+  # Run only the source probe. Used by CI canaries and safe operator diagnostics.
+  [switch]$ProbeOnly,
   # Where this repo's camera-bridge lives on the shop PC.
   [string]$BridgeDir = "C:\NOURCITY\camera-bridge"
 )
 
 $ErrorActionPreference = "Stop"
+$SourceKind = $SourceKind.ToLowerInvariant()
 
 function Fail([string]$what, [string]$fix) {
   Write-Host "BLOCKED: $what" -ForegroundColor Red
   Write-Host "  fix:   $fix" -ForegroundColor Yellow
   exit 1
+}
+
+function Test-AudioSource {
+  if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+    Fail "ffmpeg is not on PATH" "winget install Gyan.FFmpeg  (then reopen PowerShell)"
+  }
+
+  if ($SourceKind -eq "rtsp") {
+    if (-not (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
+      Fail "ffprobe is not on PATH" "install ffmpeg/ffprobe and reopen PowerShell"
+    }
+    Write-Host "  [..] probing RTSP for an AUDIO stream" -ForegroundColor Yellow
+    $probe = & ffprobe -v error -select_streams a -show_entries stream=codec_name,sample_rate `
+                       -of default=nw=1 -rtsp_transport tcp -i $SourceUrl -t 1 2>&1
+    if ($LASTEXITCODE -ne 0 -or -not $probe) {
+      Fail "no audio stream from RTSP source" "check the URL and that NAS(RTSP) is enabled on the camera"
+    }
+    Write-Host "  [ok] RTSP audio: $($probe -join ' ')"
+    return
+  }
+
+  if ($WhatIfPreference) {
+    Write-Host "  [whatif] would record and level-check DirectShow microphone; no probe file created"
+    return
+  }
+
+  $dshowSpec = if ($SourceUrl.ToLowerInvariant().StartsWith("audio=")) { $SourceUrl } else { "audio=$SourceUrl" }
+  $probeFile = Join-Path $env:TEMP ("nick-office-mic-probe-" + [guid]::NewGuid().ToString("N") + ".wav")
+  try {
+    Write-Host "  [..] probing DirectShow microphone for 5s" -ForegroundColor Yellow
+    $capture = & ffmpeg -hide_banner -f dshow -i $dshowSpec -vn -acodec pcm_s16le -ar 16000 -ac 1 -t 5 -y $probeFile 2>&1
+    $captureRc = $LASTEXITCODE
+    $probeInfo = Get-Item -LiteralPath $probeFile -ErrorAction SilentlyContinue
+    if ($captureRc -ne 0 -or -not $probeInfo -or $probeInfo.Length -lt 1024) {
+      Fail "DirectShow microphone did not produce audio" "run ffmpeg -list_devices true -f dshow -i dummy and pass the exact microphone name"
+    }
+
+    $level = & ffmpeg -hide_banner -i $probeFile -af volumedetect -f null NUL 2>&1
+    $levelRc = $LASTEXITCODE
+    $match = [regex]::Match(($level -join "`n"), 'mean_volume:\s*(-?\d+(?:\.\d+)?) dB')
+    if ($levelRc -ne 0 -or -not $match.Success) {
+      Fail "DirectShow microphone level could not be measured" "verify the selected microphone produces decodable PCM audio"
+    }
+    $meanDb = [double]::Parse($match.Groups[1].Value, [Globalization.CultureInfo]::InvariantCulture)
+    if ($meanDb -le -70.0) {
+      Fail "DirectShow microphone is effectively silent ($meanDb dBFS mean)" "unmute/connect the microphone, speak near it, then rerun the installer"
+    }
+    Write-Host "  [ok] DirectShow microphone signal measured at $meanDb dBFS mean"
+  }
+  finally {
+    Remove-Item -LiteralPath $probeFile -Force -ErrorAction SilentlyContinue
+  }
+}
+
+if ($ProbeOnly) {
+  Test-AudioSource
+  exit 0
 }
 
 Write-Host "=== Preflight (nothing is changed until every check passes) ===" -ForegroundColor Cyan
@@ -109,28 +171,7 @@ install a whisper.cpp build and put whisper-cli on PATH, e.g.
 Write-Host "  [ok] transcriber $Transcriber"
 
 # --- 7. the audio source --------------------------------------------------------
-if ($SourceKind -eq "rtsp") {
-  Write-Host "  [..] probing RTSP for an AUDIO stream" -ForegroundColor Yellow
-  $probe = & ffprobe -v error -select_streams a -show_entries stream=codec_name,sample_rate `
-                     -of default=nw=1 -rtsp_transport tcp -i $SourceUrl -t 1 2>&1
-  if ($LASTEXITCODE -ne 0 -or -not $probe) {
-    Fail "no audio stream from RTSP source" "check the URL and that NAS(RTSP) is enabled on the camera"
-  }
-  Write-Host "  [ok] RTSP audio: $($probe -join ' ')"
-} else {
-  $dshowSpec = if ($SourceUrl.ToLower().StartsWith("audio=")) { $SourceUrl } else { "audio=$SourceUrl" }
-  $probeFile = Join-Path $env:TEMP "nick-office-mic-probe.wav"
-  Remove-Item -LiteralPath $probeFile -Force -ErrorAction SilentlyContinue
-  Write-Host "  [..] probing DirectShow microphone for 5s" -ForegroundColor Yellow
-  $probe = & ffmpeg -hide_banner -f dshow -i $dshowSpec -vn -acodec pcm_s16le -ar 16000 -ac 1 -t 5 -y $probeFile 2>&1
-  $probeInfo = Get-Item -LiteralPath $probeFile -ErrorAction SilentlyContinue
-  if ($LASTEXITCODE -ne 0 -or -not $probeInfo -or $probeInfo.Length -lt 1024) {
-    Remove-Item -LiteralPath $probeFile -Force -ErrorAction SilentlyContinue
-    Fail "DirectShow microphone did not produce audio" "run ffmpeg -list_devices true -f dshow -i dummy and pass the exact microphone name"
-  }
-  Remove-Item -LiteralPath $probeFile -Force -ErrorAction SilentlyContinue
-  Write-Host "  [ok] DirectShow microphone produced PCM audio"
-}
+Test-AudioSource
 
 Write-Host ""
 Write-Host "=== Applying ===" -ForegroundColor Cyan
@@ -150,14 +191,19 @@ if ($PSCmdlet.ShouldProcess("machine environment", "set office summary source an
   [Environment]::SetEnvironmentVariable("NICK_OFFICE_AUDIO_INPUT_FORMAT", $SourceKind, "Machine")
   if ($SourceKind -eq "rtsp") {
     [Environment]::SetEnvironmentVariable("NICK_OFFICE_RTSP", $SourceUrl, "Machine")
+  } else {
+    # Migrating to a local mic must not leave old camera credentials readable in machine env.
+    [Environment]::SetEnvironmentVariable("NICK_OFFICE_RTSP", $null, "Machine")
   }
 }
 Write-Host "  [ok] office audio source + CAMERA_INGEST_KEY stored (machine scope, not echoed)"
 
+$episodeSource = if ($SourceKind -eq "dshow") { "counter-mic" } else { "eufy-office" }
 $argList = @(
   "`"$loop`"",
   "--source-url", "`"%NICK_OFFICE_AUDIO_SOURCE%`"",
   "--input-format", "`"%NICK_OFFICE_AUDIO_INPUT_FORMAT%`"",
+  "--source", $episodeSource,
   "--out-dir", "`"$OutDir`"",
   "--seconds", $WindowSeconds,
   "--open", $OpenAt,
@@ -168,10 +214,15 @@ if ($WhisperModel) { $argList += @("--model", "`"$WhisperModel`"") }
 
 $action = New-ScheduledTaskAction -Execute $py.Source -Argument ($argList -join " ") -WorkingDirectory (Join-Path $BridgeDir "vision")
 if ($SourceKind -eq "dshow") {
-  # DirectShow audio devices belong to the logged-in Windows desktop. Register the task
-  # under the current operator account so the scheduled run sees the same mic that passed
-  # preflight above.
-  $runAs = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+  # DirectShow audio devices belong to the logged-in Windows desktop. An elevated installer
+  # may be running as a DIFFERENT admin account, so bind to the actual interactive shop user.
+  $runAs = $DesktopUser
+  if (-not $runAs) {
+    $runAs = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
+  }
+  if (-not $runAs) {
+    Fail "could not determine the interactive desktop user" "rerun with -DesktopUser DOMAIN\user"
+  }
   $trigger = New-ScheduledTaskTrigger -AtLogOn -User $runAs
   $principal = New-ScheduledTaskPrincipal -UserId $runAs -LogonType Interactive -RunLevel Highest
 } else {
@@ -203,8 +254,8 @@ Write-Host "  window:  $WindowSeconds s per capture"
 Write-Host ""
 Write-Host "Verify it end to end with ONE window, right now:" -ForegroundColor Cyan
 Write-Host "  cd `"$(Join-Path $BridgeDir 'vision')`""
-Write-Host "  python officepost.py --source-url `$env:NICK_OFFICE_AUDIO_SOURCE --input-format `$env:NICK_OFFICE_AUDIO_INPUT_FORMAT --out-dir `"$OutDir`" --seconds 60"
+Write-Host "  python officepost.py --source-url `$env:NICK_OFFICE_AUDIO_SOURCE --input-format `$env:NICK_OFFICE_AUDIO_INPUT_FORMAT --out-dir `"$OutDir`" --seconds 60 --dry-run"
 Write-Host ""
-Write-Host "Drop --dry-run to actually post. A real post replies with transcriptStatus and coverage;"
+Write-Host "Only after reviewing the dry-run output, remove --dry-run for an explicitly authorized post. A real post replies with transcriptStatus and coverage;"
 Write-Host "coverage below 0.65 means the server stored the episode but refused to extract facts"
 Write-Host "from it, which is the gate working, not a failure."
