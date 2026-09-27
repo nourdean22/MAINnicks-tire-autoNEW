@@ -126,6 +126,7 @@ def test_a_missing_ffmpeg_raises_a_NAMED_error_not_a_bare_oserror(monkeypatch):
 def test_short_bursts_are_discarded_as_noise(monkeypatch, tmp_path):
     """A door slam is not an interaction. Two seconds of anything is noise with a timestamp."""
     monkeypatch.setattr("vision.officeaudio._ffmpeg", lambda b=None: "ffmpeg")
+    monkeypatch.setattr("vision.officeaudio._wav_duration", lambda _path: 60.0)
     monkeypatch.setattr("vision.officeaudio._speech_spans",
                         lambda *a, **k: [(0.0, 2.0), (10.0, 40.0)])
     monkeypatch.setattr("vision.officeaudio.measure_level", lambda *a, **k: (-30.0, -5.0))
