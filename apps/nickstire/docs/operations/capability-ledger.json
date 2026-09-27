@@ -927,15 +927,15 @@
           "9 focused Higgsfield test files: 138/138 passed on 2026-09-27",
           "rebased critical keepalive/session tests: 37/37 passed; TypeScript typecheck exit 0 on 2026-09-27"
         ],
-        "deploymentId": "Railway a37c0df7-1143-4c7e-9bc5-4420ba0eb8c3 — SUCCESS on main 4d6488623e08f682ccdf5a283d501b9c9c24525c",
+        "deploymentId": "Railway 8da18453-ca7c-4795-a548-b6b65c64f901 — SUCCESS on main c4ba4cf4c4712897f7180ceadf476147ef4b2e97; GitHub compare from Higgsfield fix 4d6488623e08f682ccdf5a283d501b9c9c24525c to active production is ahead_by=1, behind_by=0, so current production contains PR #2717.",
         "liveRuns": [
           "HISTORICAL LIVE PROOF 2026-09-08 (PR #2212, main 994358cf1): keepalive completed with 'session refreshed, 2092 credits' after promotion.",
           "END-TO-END HISTORICAL PROOF 2026-08-18: refreshed CLI session generated reel job 1650001, passed rendered QA after authorized repair, and published IG 18105354986172908.",
           "PRE-DEPLOY FAILURE PROOF 2026-09-27: after a successful current OAuth login, the server's pinned native hf 0.2.3 still returned 'Session expired', proving the production runtime binary was incompatible with the current auth session rather than the fresh token being bad.",
           "CURRENT VENDOR AUTH PROOF 2026-09-27: native hf 1.1.26 invoked directly with HIGGSFIELD_CREDENTIALS_PATH plus HIGGSFIELD_WORKSPACE_ID authenticated as nourdean22@gmail.com and returned 'ultra plan, 98.5 credits'.",
           "CURRENT GENERATION CONTRACT PROOF 2026-09-27: higgsfield model get seedance1_5 still accepts prompt, 9:16, duration 4/8/12, 1080p, and start_image; existing generate create --wait --json arguments remain supported.",
-          "POST-DEPLOY LIVE PROOF 2026-09-27: Railway deployment a37c0df7-1143-4c7e-9bc5-4420ba0eb8c3 reached SUCCESS on main 4d6488623e08f682ccdf5a283d501b9c9c24525c; the first guaranteed post-deploy pulse wrote a higgsfield-session-keepalive receipt at 19:53:26Z with healthy=true and reason 'keepalive refreshed the session'.",
-          "DOWNSTREAM REEL-LANE PROOF 2026-09-27: the subsequent reel-pipeline health read no longer reported 'preflight: higgsfield session dead'; its latest detail was 'no reel jobs to process', so the generator-session blocker is cleared and the lane is simply idle."
+          "ACTIVE-DEPLOYMENT LIVE PROOF 2026-09-27: current Railway deployment 8da18453-ca7c-4795-a548-b6b65c64f901 runs main c4ba4cf4c4712897f7180ceadf476147ef4b2e97, which GitHub compare proves is one commit ahead of and contains Higgsfield fix 4d6488623e08f682ccdf5a283d501b9c9c24525c. After that replacement deployment was live, higgsfield-session-keepalive completed with records_processed=1 and details 'session refreshed, 98.5 credits'; the later application health probe at 20:07:56Z again reported session healthy=true with reason 'keepalive refreshed the session'.",
+          "DOWNSTREAM REEL-LANE PROOF 2026-09-27: after the healthy keepalive, reel-pipeline completed with records_processed=0 and details 'no reel jobs to process' instead of the prior 'preflight: higgsfield session dead' failure. A later pulse repeated the same healthy sequence: keepalive completed with 'session refreshed, 98.5 credits' and reel-pipeline completed idle, proving the preflight blocker is cleared rather than transiently skipped."
         ]
       },
       "blockers": [
