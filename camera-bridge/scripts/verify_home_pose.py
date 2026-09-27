@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -40,6 +41,18 @@ def _redacted_url(raw: str) -> str:
         return urlunsplit((parts.scheme, host, parts.path, "", ""))
     except Exception:
         return "<media-url>"
+
+
+def _redact_media_text(text: str, raw_url: str = "") -> str:
+    cleaned = str(text or "")
+    if raw_url:
+        cleaned = cleaned.replace(raw_url, _redacted_url(raw_url))
+    # Defense-in-depth for ffmpeg variants that normalize/reprint the URL differently.
+    return re.sub(
+        r"(?i)(rtsps?://)([^@\\s/]+)@",
+        r"\\1***@",
+        cleaned,
+    )
 
 
 def _decode(data: bytes):
@@ -99,7 +112,10 @@ def _capture_rtsp(url: str, *, ffmpeg: str, timeout_seconds: float):
         raise HomePoseError(f"ffmpeg could not start: {exc}") from exc
 
     if proc.returncode != 0 or not proc.stdout:
-        detail = proc.stderr.decode("utf-8", errors="replace").strip()
+        detail = _redact_media_text(
+            proc.stderr.decode("utf-8", errors="replace").strip(),
+            url,
+        )
         if len(detail) > 300:
             detail = detail[-300:]
         raise HomePoseError(
@@ -155,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         write_receipt(args.receipt, receipt)
     except (HomePoseError, OSError, ValueError) as exc:
-        print(json.dumps({"ok": False, "error": str(exc)}))
+        print(json.dumps({"ok": False, "error": str(exc)}), file=sys.stderr)
         return 2
 
     print(json.dumps({"ok": True, **receipt.__dict__}, sort_keys=True))
