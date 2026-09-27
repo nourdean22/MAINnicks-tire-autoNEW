@@ -6,7 +6,7 @@ export type CameraHealthVerdict = ReturnType<typeof deriveCameraState>;
 
 const NON_PAGING_STATES = new Set<CameraHealthState>(["HEALTHY", "STALE"]);
 
-export function isCameraPagingState(state: CameraHealthState): boolean {
+function isCameraPagingState(state: CameraHealthState): boolean {
   return !NON_PAGING_STATES.has(state);
 }
 
@@ -26,7 +26,7 @@ export function cameraAlertShopDay(now: Date = new Date()): string {
   return now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 }
 
-export function notificationDelivered(result: {
+function notificationDelivered(result: {
   emailSent: boolean;
   pushSent: boolean;
 }): boolean {
