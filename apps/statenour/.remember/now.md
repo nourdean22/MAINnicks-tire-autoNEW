@@ -1,5 +1,17 @@
 # Session ledger — statenour
 
+**Updated: 2026-09-27 afternoon ET** (session-trail recovery; current repo state re-derived from GitHub after visible chat context loss)
+
+## 2026-09-27 · recovery snapshot after chat/context loss
+
+**Why this exists.** The visible conversation stopped showing a large portion of completed work. Do not use the remaining transcript as a progress ledger. The recovery sweep re-derived truth from GitHub and wrote `docs/00-current-truth/session-recovery-2026-09-27.md`.
+
+**Repo truth at recovery.** `main` = `a01abc97eb6ee4bd5c9f8519f48d49c3fb2545e3` (#2711). Fourteen later PRs after #2696 are confirmed merged: #2697, #2698, #2699, #2700, #2701, #2702, #2703, #2704, #2705, #2706, #2707, #2708, #2710, #2711. #2709 closed unmerged. #2662 remains closed/superseded.
+
+**Only open PR at the snapshot: #2712.** Head `bc02816e00fed586c5a7195b65a3dd5e8a800646`. E2E, affected CI, Secret Scanning, local-agent, Adoption, Admin, and Agent Policy are green. Completion Authority is red only because the review gate sees two unresolved P1 threads: (1) remove all remaining hardcoded Resend-token copies — PR follow-up says the current head fixed the remaining copies, but the thread was still unresolved; (2) add behavioral coverage for the smoke-test guards because `test-resend.py` is not discovered by the workflow's `test_*.py` pattern. Do not merge until review state + Completion Authority are green.
+
+**Recovery procedure.** If context disappears again: read both app `.remember/now.md` files + CURRENT-TRUTH + RECONCILIATION + the recovery snapshot, then query current main/open PRs/review threads/workflow runs. Treat old worktrees and branch ancestry as hints only after squash merges.
+
 **Updated: 2026-09-27** (portfolio reconciliation closed; 0 open PRs; safe redundant-worktree cleanup completed; operator-only remainder kept separate)
 
 
