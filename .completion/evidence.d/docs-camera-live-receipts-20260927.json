@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "ref": "LIVE 2026-09-27: migration 0134_camera_interaction_health was applied through a scoped production-only runner against TiDB gateway01.us-east-1.prod.aws.tidbcloud.com / database nickstire. Preflight proved camera_runtime + __drizzle_migrations existed, all nine 0134 columns were absent, and hash 108091f416b2b91e279ad9cbde3e781864d8a343a35410271b81ac55806686ab was unrecorded. The runner executed only the nine additive ADD COLUMN IF NOT EXISTS statements, then independently verified all five BOOLEANs as nullable tinyint(1), all four proof times as nullable timestamp, and recorded created_at=1789301500000. Final receipt: problems=[], recorded=true, columnCount=9. Strict reconciliation classifies 0134 RECORDED_AND_MATCHED; unrelated older migration drift was not changed."
+    },
+    "operator-walkthrough": {
+      "deferred": "Backend/runtime proof is live, but the signed-in visual Admin > Lot walkthrough remains operator-pending. Production readback showed the office producer advancing on one stable instance with mode=SHADOW, sourceConnected=1, authPlaneOk=1, eventPlaneOk=1, mediaPlaneOk=0, controlPlaneOk=NULL, ptzHomeOk=NULL, and no lastEventProofAt yet; the fixed sign producer remained independent in PRODUCTION/HEALTHY. This proves role separation and honest partial health, but not rendered UI appearance, a real office motion/person receipt, office PTZ movement, or home-view proof."
+    }
+  }
+}
