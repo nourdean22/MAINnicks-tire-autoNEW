@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "Shop-side commissioning is intentionally still pending: after the Eufy-only runtime is moved onto the office camera LAN and T8410P522517180B media is live, approve one immutable home reference, pin its decoded-pixel SHA-256, prove an away view returns exit 1, return via the configured home preset, require a fresh ptzNotify, then prove the post-move live frame returns exit 0 and Nick's office camera heartbeat promotes ptzHomeOk=true. Current NattyNour production remains MEDIA_DEGRADED, so this PR makes no live office-home claim."
+    }
+  }
+}
