@@ -36,6 +36,10 @@ SYNC_KEY = os.getenv("STATENOUR_SYNC_KEY", "")
 EUFY_EMAIL = os.getenv("EUFY_EMAIL", "")
 EUFY_PASSWORD = os.getenv("EUFY_PASSWORD", "")
 EUFY_BRIDGE_URL = os.getenv("EUFY_BRIDGE_URL", "").strip()
+EUFY_OFFICE_CAMERA_SERIAL = os.getenv(
+    "EUFY_OFFICE_CAMERA_SERIAL",
+    "T8410P522517180B",
+).strip()
 
 # Optional cross-app operational heartbeat. Deliberately requires a SEPARATE Nick's
 # ingest key instead of reusing STATENOUR_SYNC_KEY.
@@ -394,7 +398,7 @@ def build_office_camera_heartbeat(
         "observedAtEdge": at.isoformat(),
         "mode": "SHADOW",
         "sourceType": "eufy_sdk_bridge",
-        "sourceGeneration": "T8410P522517180B",
+        "sourceGeneration": EUFY_OFFICE_CAMERA_SERIAL,
         "sourceConnected": auth_ok,
         "detectorName": "eufy-semantic-events",
         "authPlaneOk": auth_ok,
