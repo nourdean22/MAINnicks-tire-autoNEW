@@ -32,7 +32,12 @@ function sqlParams(q: unknown): unknown[] {
     .filter((c) => !isStringChunk(c))
     .map((c) => (c && typeof c === "object" && "value" in (c as object) ? (c as { value: unknown }).value : c));
 }
-const tick = () => new Promise((r) => setTimeout(r, 5));
+async function waitForLedgerCalls(expected: number) {
+  await vi.waitFor(
+    () => expect(execute).toHaveBeenCalledTimes(expected),
+    { timeout: 1500, interval: 10 },
+  );
+}
 const baseRecord = (messages: Array<{ role: string; content: string }>, lane?: string | null) => ({
   model: "deepseek-v4-pro",
   params: { messages } as never,
@@ -71,7 +76,7 @@ describe("llm_calls lane attribution", () => {
   it("a [lane:x] label on the first system message wins over the captured caller", async () => {
     const { recordLlmCall } = await import("./services/llmLedger");
     recordLlmCall(baseRecord([{ role: "system", content: "[lane:review_reply] You are Nick." }], "somecaller"));
-    await tick(); await tick();
+    await waitForLedgerCalls(1);
     expect(execute).toHaveBeenCalledTimes(1);
     expect(sqlParams(execute.mock.calls[0][0])[2]).toBe("review_reply");
   });
@@ -79,20 +84,20 @@ describe("llm_calls lane attribution", () => {
   it("with no label, the wrapper-captured caller name is the lane", async () => {
     const { recordLlmCall } = await import("./services/llmLedger");
     recordLlmCall(baseRecord([{ role: "system", content: "You are Nick." }], "critiquesocialdraft"));
-    await tick(); await tick();
+    await waitForLedgerCalls(1);
     expect(sqlParams(execute.mock.calls[0][0])[2]).toBe("critiquesocialdraft");
   });
 
   it("no label and no caller → unlabeled, never a guess; and the ledger is inert when the flag is unset", async () => {
     const { recordLlmCall } = await import("./services/llmLedger");
     recordLlmCall(baseRecord([{ role: "system", content: "You are Nick." }], null));
-    await tick(); await tick();
+    await waitForLedgerCalls(1);
     expect(sqlParams(execute.mock.calls[0][0])[2]).toBe("unlabeled");
 
     execute.mockClear();
     vi.stubEnv("LLM_LEDGER_ENABLED", "");
     recordLlmCall(baseRecord([{ role: "system", content: "You are Nick." }], "anything"));
-    await tick(); await tick();
+    await new Promise((resolve) => setTimeout(resolve, 25));
     expect(execute).not.toHaveBeenCalled();
   });
 });
