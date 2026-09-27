@@ -1,10 +1,10 @@
 {
   "evidence": {
     "migration-evidence": {
-      "ref": "LIVE 2026-09-27: migration 0134_camera_interaction_health was applied through a scoped production-only runner against TiDB host gateway01.us-east-1.prod.aws.tidbcloud.com / database nickstire. Preflight proved camera_runtime + __drizzle_migrations existed, all nine 0134 columns were absent, and hash 108091f416b2b91e279ad9cbde3e781864d8a343a35410271b81ac55806686ab was unrecorded. The runner executed only the nine additive ADD COLUMN IF NOT EXISTS statements, then independently verified all five BOOLEANs as nullable tinyint(1), all four proof times as nullable timestamp, and recorded created_at=1789301500000. Final receipt: problems=[], recorded=true, columnCount=9. Reconciliation reports 0134 RECORDED_AND_MATCHED; unrelated older migrations still have pre-existing drift and were not touched."
+      "deferred": "operator-pending: apps/nickstire/drizzle/0134_camera_interaction_health.sql is additive and idempotent on TiDB via ADD COLUMN IF NOT EXISTS, and the Drizzle schema/journal are aligned to migration 0134 / idx 147. This PR intentionally does not run production DDL. After merge, apply 0134 through the scoped production DB guard, verify the nine nullable camera_runtime columns through INFORMATION_SCHEMA/read-only schema evidence, then record the live application receipt."
     },
     "operator-walkthrough": {
-      "deferred": "Backend/runtime proof is live but the signed-in visual Admin > Lot walkthrough remains operator-pending. Production readback on 2026-09-27 showed office producer seq=7, mode=SHADOW, sourceConnected=1, authPlaneOk=1, eventPlaneOk=1, mediaPlaneOk=0, controlPlaneOk=NULL, ptzHomeOk=NULL, and no lastEventProofAt yet; fixed sign was seq=1651 / PRODUCTION and remained healthy. This proves role separation and honest partial health, but not rendered UI appearance, real office motion/person receipt, PTZ motion, or home-view proof."
+      "deferred": "After deployment and migration 0134, operator opens Admin > Lot and verifies the camera cards show authority roles plus role-specific facets. The fixed sign camera must not require PTZ facets; the office camera must show auth/events/control/media/home as unknown, degraded, or proven with proof ages. No live office-camera commissioning claim is made by this PR; physical motion/person, media, PTZ notify, and home-view proof remain operator-pending on the shop-side host."
     }
   }
 }
