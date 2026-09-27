@@ -67,6 +67,7 @@ python C:\path\to\camera-bridge\scripts\verify_home_pose.py `
 The automatic one-shot launcher stays inert unless every value below exists:
 
 ```text
+EUFY_OFFICE_HOME_PRESET=<Eufy preset id for the approved home view>
 EUFY_HOME_VERIFY_PYTHON=<python from camera-bridge runtime>
 EUFY_HOME_VERIFY_SCRIPT=<...\camera-bridge\scripts\verify_home_pose.py>
 EUFY_HOME_REFERENCE=<operator-approved home image>
@@ -81,10 +82,19 @@ Optional controls:
 EUFY_HOME_POSE_MAX_AGE_SECONDS=300
 EUFY_HOME_VERIFY_TIMEOUT_SECONDS=25
 EUFY_HOME_VERIFY_COOLDOWN_SECONDS=60
+EUFY_HOME_MAX_SHIFT_PX=6.0
+EUFY_HOME_MIN_CORRELATION_RESPONSE=0.20
+EUFY_HOME_MAX_CHANGED_FRACTION=0.65
 ```
 
 The reference SHA is the verifier's decoded-pixel SHA-256, not a filename or trust-by-path
 shortcut. If the configured SHA is absent or different, StateNour refuses the receipt.
+
+The home preset ID is also required for the automatic return-home flow. Without it, a preset
+motor receipt is deliberately treated as absolute-pose UNKNOWN rather than guessing home/away.
+The three visual thresholds are consumer-pinned policy: StateNour checks the receipt's
+thresholds, recomputes the home verdict from the measured shift/correlation/change values,
+and rejects receipts produced under looser thresholds.
 
 ## Commissioning the approved reference
 
