@@ -20,6 +20,7 @@ import { sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { deriveCameraState } from "../lib/cameraHealth";
 import { EXPECTED_CAMERAS } from "../../shared/cameras";
+import { BUSINESS } from "../../shared/business";
 
 const log = createLogger("camera-health-alerts");
 
@@ -41,6 +42,11 @@ function boolOrNull(value: unknown): boolean | null {
 
 function alertKey(camera: string, state: HealthState): string {
   return `camera_health:${camera}:${state}`;
+}
+
+/** Explicit Cleveland shop date. Never derive daily claims from DB/session timezone. */
+export function cameraAlertShopDay(now: Date = new Date()): string {
+  return now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 }
 
 export function isCameraPagingState(state: HealthState): boolean {
@@ -99,13 +105,14 @@ async function claimAlert(
   db: Awaited<ReturnType<typeof import("../db")["getDb"]>>,
   camera: string,
   state: HealthState,
+  shopDay: string,
   payload: Record<string, unknown>,
 ): Promise<boolean> {
   if (!db) return false;
   const key = alertKey(camera, state);
   const [claim] = await db.execute(sql`
     INSERT IGNORE INTO cron_alerts_fired (alert_key, fired_for, fired_at, payload)
-    VALUES (${key}, CURDATE(), NOW(), ${JSON.stringify(payload)})
+    VALUES (${key}, ${shopDay}, NOW(), ${JSON.stringify(payload)})
   `);
   return ((claim as { affectedRows?: number })?.affectedRows ?? 0) === 1;
 }
@@ -114,12 +121,13 @@ async function releaseAlertClaim(
   db: NonNullable<Awaited<ReturnType<typeof import("../db")["getDb"]>>>,
   camera: string,
   state: HealthState,
+  shopDay: string,
 ): Promise<void> {
   const key = alertKey(camera, state);
   await db.execute(sql`
     DELETE FROM cron_alerts_fired
      WHERE alert_key = ${key}
-       AND fired_for = CURDATE()
+       AND fired_for = ${shopDay}
   `);
 }
 
@@ -130,20 +138,28 @@ export function notificationDelivered(result: {
   return result.emailSent || result.pushSent;
 }
 
-async function deliverClaimedAlert(input: {
+export async function deliverClaimedAlert(input: {
   db: NonNullable<Awaited<ReturnType<typeof import("../db")["getDb"]>>>;
   camera: string;
   state: HealthState;
+  shopDay: string;
   alert: { title: string; message: string };
+  notify?: (alert: { title: string; message: string }) => Promise<{
+    emailSent: boolean;
+    pushSent: boolean;
+  }>;
 }): Promise<void> {
-  const { notifySystemAlert } = await import("../email-notify");
-  const delivery = await notifySystemAlert(input.alert);
+  const notify = input.notify ?? (async (alert) => {
+    const { notifySystemAlert } = await import("../email-notify");
+    return notifySystemAlert(alert);
+  });
+  const delivery = await notify(input.alert);
   if (notificationDelivered(delivery)) return;
 
   // Claim-before-send gives us multi-pod at-most-one attempts. If ALL configured
   // delivery surfaces fail/skip, release only this camera/state/day claim so the
   // next heartbeat can retry instead of turning a failed send into a day-long mute.
-  await releaseAlertClaim(input.db, input.camera, input.state);
+  await releaseAlertClaim(input.db, input.camera, input.state, input.shopDay);
   throw new Error(
     `camera-health-alerts: no delivery surface accepted ${input.camera}/${input.state}`,
   );
@@ -173,6 +189,7 @@ export async function runCameraHealthAlerts(): Promise<{
   const db = await getDb();
   if (!db) throw new Error("camera-health-alerts: database unavailable");
 
+  const shopDay = cameraAlertShopDay();
   const commissioned = EXPECTED_CAMERAS.filter((camera) => camera.commissioned);
   if (commissioned.length === 0) {
     return { recordsProcessed: 0, details: "no commissioned cameras" };
@@ -242,7 +259,7 @@ export async function runCameraHealthAlerts(): Promise<{
     const decision = cameraAlertDecision(verdict.state, latest);
     if (!decision.notify) continue;
 
-    const claimed = await claimAlert(db, expected.camera, verdict.state, {
+    const claimed = await claimAlert(db, expected.camera, verdict.state, shopDay, {
       camera: expected.camera,
       role: expected.role,
       state: verdict.state,
@@ -255,6 +272,7 @@ export async function runCameraHealthAlerts(): Promise<{
       db,
       camera: expected.camera,
       state: verdict.state,
+      shopDay,
       alert: formatCameraHealthAlert({
         camera: expected.camera,
         label: expected.label,
