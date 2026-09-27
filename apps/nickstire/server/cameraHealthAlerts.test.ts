@@ -4,11 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   cameraAlertDecision,
   cameraAlertShopDay,
-  deliverClaimedAlert,
+  deliverWithConfirmedNotification,
   formatCameraHealthAlert,
   isCameraPagingState,
   notificationDelivered,
-} from "./services/cameraHealthAlerts";
+} from "./services/cameraHealthAlertPolicy";
 
 describe("camera health alert policy", () => {
   it("does not page transient STALE or an ordinary healthy camera", () => {
@@ -127,13 +127,14 @@ describe("camera health alert delivery truth", () => {
     const db = { execute } as any;
 
     await expect(
-      deliverClaimedAlert({
-        db,
+      deliverWithConfirmedNotification({
         camera: "sign",
         state: "CAMERA_OFFLINE",
-        shopDay: "2026-09-27",
         alert: { title: "Camera degraded", message: "offline" },
         notify: async () => ({ emailSent: false, pushSent: false }),
+        releaseClaim: async () => {
+          await execute("release");
+        },
       }),
     ).rejects.toThrow("no delivery surface accepted");
 
@@ -144,13 +145,14 @@ describe("camera health alert delivery truth", () => {
     const execute = vi.fn();
     const db = { execute } as any;
 
-    await deliverClaimedAlert({
-      db,
+    await deliverWithConfirmedNotification({
       camera: "sign",
       state: "CAMERA_OFFLINE",
-      shopDay: "2026-09-27",
       alert: { title: "Camera degraded", message: "offline" },
       notify: async () => ({ emailSent: true, pushSent: false }),
+      releaseClaim: async () => {
+        await execute("release");
+      },
     });
 
     expect(execute).not.toHaveBeenCalled();
