@@ -120,10 +120,12 @@ def test_installer_keeps_source_secret_out_of_task_arguments_and_clears_legacy_r
     arg_end = text.index("$action =", arg_start)
     args = text[arg_start:arg_end]
 
-    assert "%NICK_OFFICE_AUDIO_SOURCE%" in args
-    assert "%NICK_OFFICE_AUDIO_INPUT_FORMAT%" in args
+    assert "%NICK_OFFICE_AUDIO_SOURCE%" not in args
+    assert "%NICK_OFFICE_AUDIO_INPUT_FORMAT%" not in args
     assert "$SourceUrl" not in args
     assert "$IngestKey" not in args
+    assert "--source-url" not in args
+    assert "--input-format" not in args
     assert 'SetEnvironmentVariable("NICK_OFFICE_RTSP", $null, "Machine")' in text
 
 
@@ -145,6 +147,7 @@ def test_dshow_probe_behavior_rejects_effective_silence(tmp_path):
     assert result.returncode != 0
     assert "effectively silent" in (result.stdout + result.stderr)
     assert marker.exists()
+    assert not list(tmp_path.glob("nick-office-mic-probe-*.wav"))
 
 
 def test_dshow_probe_is_inert_under_whatif(tmp_path):
