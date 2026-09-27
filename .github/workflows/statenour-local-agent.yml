@@ -32,10 +32,10 @@ jobs:
           python3 -m venv .venv
           .venv/bin/python -m pip install --disable-pip-version-check --quiet             'requests>=2.31.0' 'python-dotenv>=1.0.0' 'websockets>=12.0'
 
-      - name: Syntax-check local-agent modules
+      - name: Syntax-check local-agent Python
         working-directory: apps/statenour/local-agent
         run: |
-          .venv/bin/python -m py_compile agent.py eufy_agent.py eufy_bridge.py
+          .venv/bin/python -m compileall -q .
 
       - name: Run local-agent contract tests
         working-directory: apps/statenour/local-agent
