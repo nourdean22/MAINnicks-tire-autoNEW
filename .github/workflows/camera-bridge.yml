@@ -58,11 +58,12 @@ jobs:
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          # Camera Bridge itself is intentionally light, but the cross-app heartbeat
-          # contract imports the REAL StateNour Eufy producer so interface drift cannot
-          # hide behind a copied fixture. Install only that producer's module-level deps.
-          # OpenCV stays headless because the home-pose verifier exercises cv2 in CI.
-          pip install "numpy>=2.0" "opencv-python-headless>=4.10" "pytest>=8.0" pytest-subtests "mcap>=1.4.0" "requests>=2.31" "python-dotenv>=1.0"
+          # numpy is the only module-level third-party import across vision/ and
+          # visitd/; opencv is installed headless because the evidence writer reaches
+          # for cv2 lazily and we want that path exercised rather than swallowed.
+          # Cross-app heartbeat tests execute StateNour's pure producer builder with
+          # tightly-scoped import stubs, so Camera Bridge CI keeps its own dependency set.
+          pip install "numpy>=2.0" "opencv-python-headless>=4.10" "pytest>=8.0" pytest-subtests "mcap>=1.4.0"
 
       - name: Run the suites
         # One command covers BOTH trees only because camera-bridge/conftest.py puts
