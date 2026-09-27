@@ -47,6 +47,26 @@ V380 uses P2P cloud relay. For direct RTSP streams, place a
 device on the shop's LAN and scan for cameras on port 554.
 
 
+## Scoped Eufy-only daemon
+
+For a shop-side camera host that should run the Eufy bridge/event/control/health lane without
+polling Tuya, Ring, or V380, use:
+
+```powershell
+python agent.py --eufy-only
+```
+
+This mode still:
+- starts the Eufy semantic-event listener;
+- checks the Eufy command queue every local-agent cycle, but only claims commands when
+  `EUFY_CONTROL_ENABLED=1` and bridge auth is healthy;
+- posts the role-aware Nick's office-camera heartbeat every cycle when the separate
+  `NICKS_CAMERA_HEARTBEAT_URL` + `NICKS_CAMERA_INGEST_KEY` are configured;
+- polls Eufy device inventory on the normal slower cadence.
+
+It deliberately does **not** run Tuya, Ring, V380, or their command paths. On a host that is
+not on the office camera LAN, keep `EUFY_CONTROL_ENABLED=0` so it cannot consume PTZ work.
+
 ## Eufy bridge, office motion events, and PTZ
 
 Security boundary: Eufy credentials/session material is machine-local. Never commit
