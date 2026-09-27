@@ -406,3 +406,75 @@ describe("camera visit ingest — the episode trail cannot be erased", () => {
     expect(sql).not.toContain("COALESCE(VALUES(`state`)");
   });
 });
+
+
+describe("camera heartbeat — interaction transport proofs (0134)", () => {
+  const base = {
+    camera: "office",
+    producerInstanceId: "eufy-agent-1",
+    heartbeatSeq: 1,
+    observedAtEdge: "2026-09-26T23:55:00Z",
+    mode: "SHADOW" as const,
+  };
+
+  it("an older producer that sends none of the new fields still parses", () => {
+    const hb = parseHeartbeat(base);
+    expect(hb.success).toBe(true);
+    if (hb.success) {
+      expect(hb.data.authPlaneOk ?? null).toBeNull();
+      expect(hb.data.mediaPlaneOk ?? null).toBeNull();
+      expect(hb.data.lastPtzNotifyAt ?? null).toBeNull();
+    }
+  });
+
+  it("false is a measured failure and survives parsing as false", () => {
+    const hb = parseHeartbeat({
+      ...base,
+      heartbeatSeq: 2,
+      authPlaneOk: true,
+      eventPlaneOk: true,
+      controlPlaneOk: false,
+      mediaPlaneOk: false,
+      ptzHomeOk: false,
+    });
+    expect(hb.success).toBe(true);
+    if (hb.success) {
+      expect(hb.data.controlPlaneOk).toBe(false);
+      expect(hb.data.mediaPlaneOk).toBe(false);
+      expect(hb.data.ptzHomeOk).toBe(false);
+    }
+  });
+
+  it("proof timestamps are parsed and every field reaches the guarded write", () => {
+    const hb = parseHeartbeat({
+      ...base,
+      heartbeatSeq: 3,
+      lastEventProofAt: "2026-09-26T23:54:00Z",
+      lastControlProofAt: "2026-09-26T23:54:10Z",
+      lastMediaProofAt: "2026-09-26T23:54:20Z",
+      lastPtzNotifyAt: "2026-09-26T23:54:30Z",
+    });
+    expect(hb.success).toBe(true);
+    if (hb.success) {
+      expect(hb.data.lastEventProofAt).toBeInstanceOf(Date);
+      expect(hb.data.lastPtzNotifyAt).toBeInstanceOf(Date);
+    }
+
+    for (const field of [
+      "authPlaneOk",
+      "eventPlaneOk",
+      "controlPlaneOk",
+      "mediaPlaneOk",
+      "ptzHomeOk",
+      "lastEventProofAt",
+      "lastControlProofAt",
+      "lastMediaProofAt",
+      "lastPtzNotifyAt",
+    ]) {
+      expect(HEARTBEAT_COLUMNS, `${field} must be named by the durable heartbeat writer`).toContain(field);
+      expect(HEARTBEAT_GUARDED_SET, `${field} must be protected from replay rollback`).toContain(
+        `\`${field}\` = IF(${HEARTBEAT_ACCEPT}, VALUES(\`${field}\`), \`${field}\`)`,
+      );
+    }
+  });
+});
