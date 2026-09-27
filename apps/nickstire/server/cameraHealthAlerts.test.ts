@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   cameraAlertDecision,
+  cameraAlertShopDay,
+  deliverClaimedAlert,
   formatCameraHealthAlert,
   isCameraPagingState,
   notificationDelivered,
@@ -113,6 +115,45 @@ describe("camera health alert delivery truth", () => {
     expect(notificationDelivered({ emailSent: false, pushSent: true })).toBe(true);
     expect(notificationDelivered({ emailSent: true, pushSent: true })).toBe(true);
     expect(notificationDelivered({ emailSent: false, pushSent: false })).toBe(false);
+  });
+
+  it("uses the Cleveland shop day even after UTC has rolled over", () => {
+    expect(cameraAlertShopDay(new Date("2026-09-27T02:00:00Z"))).toBe("2026-09-26");
+    expect(cameraAlertShopDay(new Date("2026-09-27T14:00:00Z"))).toBe("2026-09-27");
+  });
+
+  it("releases the daily claim and throws when no delivery surface accepts the alert", async () => {
+    const execute = vi.fn().mockResolvedValue([{ affectedRows: 1 }]);
+    const db = { execute } as any;
+
+    await expect(
+      deliverClaimedAlert({
+        db,
+        camera: "sign",
+        state: "CAMERA_OFFLINE",
+        shopDay: "2026-09-27",
+        alert: { title: "Camera degraded", message: "offline" },
+        notify: async () => ({ emailSent: false, pushSent: false }),
+      }),
+    ).rejects.toThrow("no delivery surface accepted");
+
+    expect(execute).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the claim when at least one delivery surface accepts the alert", async () => {
+    const execute = vi.fn();
+    const db = { execute } as any;
+
+    await deliverClaimedAlert({
+      db,
+      camera: "sign",
+      state: "CAMERA_OFFLINE",
+      shopDay: "2026-09-27",
+      alert: { title: "Camera degraded", message: "offline" },
+      notify: async () => ({ emailSent: true, pushSent: false }),
+    });
+
+    expect(execute).not.toHaveBeenCalled();
   });
 });
 
