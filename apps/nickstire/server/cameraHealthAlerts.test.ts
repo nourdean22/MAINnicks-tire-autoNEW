@@ -252,6 +252,44 @@ describe("camera health alert delivery truth", () => {
       telegramAccepted: false,
     });
   });
+
+
+  it("still falls back to Telegram when the primary notification rail throws", async () => {
+    const sendTelegram = vi.fn().mockResolvedValue(true);
+    const delivery = await deliverCameraAlertExternally({
+      alert: { title: "Camera degraded", message: "primary rail threw" },
+      notifySystem: vi.fn().mockRejectedValue(new Error("primary down")),
+      webhookConfigured: false,
+      sendTelegram,
+    });
+
+    expect(delivery).toEqual({
+      emailAccepted: false,
+      webhookAccepted: false,
+      telegramAccepted: true,
+    });
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
+  });
+
+  it("escapes camera text before sending through Telegram HTML parse mode", async () => {
+    const sendTelegram = vi.fn().mockResolvedValue(true);
+    await deliverCameraAlertExternally({
+      alert: {
+        title: "Camera <degraded> & offline",
+        message: "control < media & home > unknown",
+      },
+      notifySystem: vi.fn().mockResolvedValue({
+        emailSent: false,
+        pushSent: false,
+      }),
+      webhookConfigured: false,
+      sendTelegram,
+    });
+
+    const text = String(sendTelegram.mock.calls[0]?.[0] ?? "");
+    expect(text).toContain("Camera &lt;degraded&gt; &amp; offline");
+    expect(text).toContain("control &lt; media &amp; home &gt; unknown");
+  });
 });
 
 describe("camera health alert wiring", () => {
