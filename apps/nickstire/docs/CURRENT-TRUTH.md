@@ -21,6 +21,8 @@ A run-to-empty reconciliation was performed against current `main`, PR history, 
 
 **Concurrency boundary:** camera/Eufy, Q12 receiver, migration-0134, office-wake, conversation-cockpit and other newly-created worktrees belong to separate active workstreams unless their owning session explicitly hands them off. Do not infer backlog status from `git branch --no-merged`; squash merges and dirty historical worktrees make that signal unsafe.
 
+**Closeout receipt (2026-09-27):** after the reconciliation entry above, GitHub was rechecked with **0 open PRs**. The clean redundant worktrees `deps-dev-minor-current`, `nour-intelligence-runtime-20260926`, and `portfolio-truth-20260927` were removed locally and their obsolete local branches deleted. Dirty Q35/Q37/Q49/Q51 predecessor worktrees were deliberately preserved rather than force-deleted because they contain uncommitted or divergent historical evidence. Camera/Eufy/Q12 worktrees remain owned by separate active sessions. **The reconciled code backlog is exhausted; issue #2628 remains the source of operator/vendor/infrastructure actions and must not be misreported as unfinished code.**
+
 ## Midday Reel reconciliation (2026-09-25, PR #2656 merged): 133 approved packs
 
 The recent midday Reel batches were reconciled against **current** `main` after #2655's evening import, rather than merging the stale 121-pack branch. The census is **27 source concepts = 11 distinct additions + 16 semantic duplicates already covered**. The machine-readable map is `docs/reel-packs/MIDDAY-IMPORT-2026-09-25.json`; the narrative audit is `docs/reel-packs/2026-09-25-midday-idea-rotation-audit.md`.
