@@ -93,6 +93,26 @@ class EufyBridgeTests(unittest.TestCase):
         self.assertEqual(result["presetId"], 3)
         self.assertFalse(result["verified"])
 
+    def test_unconfigured_home_preset_keeps_absolute_pose_unknown(self):
+        cmd = {
+            "command": "ptz_preset",
+            "params": {"id": 3},
+            "device": {"platformDeviceId": f"eufy-{OFFICE}"},
+        }
+        with patch.object(eufy_bridge, "HOME_PRESET_ID", None), patch.object(
+            eufy_bridge,
+            "_ptz_action",
+            return_value={"ok": True, "result": None},
+        ) as action:
+            eufy_bridge.execute_command(cmd)
+
+        action.assert_called_once_with(
+            OFFICE,
+            "preset.goto",
+            [3],
+            target_home=None,
+        )
+
     def test_event_filter_is_camera_scoped(self):
         with patch.object(eufy_bridge, "_EVENT_FILTER", {"OFFICE"}):
             self.assertTrue(
