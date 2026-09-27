@@ -136,3 +136,35 @@ Run the focused local contract tests from this directory:
 ```bash
 python -m unittest test_eufy_bridge.py
 ```
+
+## Shop-side Windows bootstrap
+
+The office T8410's P2P/media path must run on the shop-side LAN host, not on a remote
+observer behind another NAT/subnet. On the intended Windows host, run an elevated
+PowerShell from this repo:
+
+    .\install-eufy-shop-runtime.ps1 -InstallPrerequisites
+
+The first run:
+- pins bridge v0.3.0 to reviewed commit `f00dd987...`;
+- downloads go2rtc v1.9.14 and verifies the official release ZIP SHA-256;
+- applies + verifies the fail-closed PTZ/loopback overlay;
+- creates a minimal Eufy-only Python environment;
+- stores Eufy + StateNour/Nick's keys with Windows DPAPI under the current user;
+- registers restart-capable bridge, Eufy-agent, and live event-only office-wake tasks;
+- proves bridge auth, the exact office serial, PTZ capability, and a real media-byte probe;
+- leaves the PTZ command queue **disabled by default**.
+
+After reviewing the first live receipts, enable the command lane:
+
+    .\install-eufy-shop-runtime.ps1 -EnableControl
+
+For a bounded physical PTZ commissioning cycle, supply the already-approved Eufy home
+preset. The command path waits for real `ptzNotify` receipts:
+
+    .\install-eufy-shop-runtime.ps1 -EnableControl -CommissionPtz -HomePresetId 3
+
+That proves the motor/control path only. Absolute home is still UNKNOWN until the
+camera-bridge visual home verifier validates a post-receipt frame against the approved
+reference image. The installer never enables office audio capture or bypasses the existing
+recording-policy/media-quality gates.
