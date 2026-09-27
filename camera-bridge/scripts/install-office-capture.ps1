@@ -201,8 +201,8 @@ Write-Host "  [ok] office audio source + CAMERA_INGEST_KEY stored (machine scope
 $episodeSource = if ($SourceKind -eq "dshow") { "counter-mic" } else { "eufy-office" }
 $argList = @(
   "`"$loop`"",
-  "--source-url", "`"%NICK_OFFICE_AUDIO_SOURCE%`"",
-  "--input-format", "`"%NICK_OFFICE_AUDIO_INPUT_FORMAT%`"",
+  # officeloop reads NICK_OFFICE_AUDIO_SOURCE / INPUT_FORMAT from its process environment.
+  # Do not rely on cmd.exe-style %VAR% expansion: Task Scheduler launches Python directly.
   "--source", $episodeSource,
   "--out-dir", "`"$OutDir`"",
   "--seconds", $WindowSeconds,
