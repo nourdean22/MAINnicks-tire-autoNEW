@@ -2570,14 +2570,15 @@
       "name": "Role-aware camera health separates fixed vehicle truth from office PTZ transport proof",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "c6db7bd35baf3da90572f067c87993220cc6ce2f (#2697): explicit vehicle_truth/fixed_geometry vs interaction_ptz roles; role-specific health lattice; nullable transport proof persistence; Admin > Lot authority/facet/proof-age read model; StateNour office heartbeat and Eufy proof tracker. PR #2705 candidate adds a 5-minute owner-alert extension over the same lattice: commissioned cameras only, durable once-per-camera/state/day cron_alerts_fired claims, notifySystemAlert delivery, and recovery-after-degradation semantics. PR #2715 candidate hardens external paging after a real production failure: email/webhook are attempted first, then the existing immediate Telegram provider is used only when no primary surface accepted delivery; daily claims remain retryable when every external rail fails.",
+        "codeCommit": "c6db7bd35baf3da90572f067c87993220cc6ce2f (#2697): explicit vehicle_truth/fixed_geometry vs interaction_ptz roles; role-specific health lattice; nullable transport proof persistence; Admin > Lot authority/facet/proof-age read model; StateNour office heartbeat and Eufy proof tracker. PR #2705 candidate adds a 5-minute owner-alert extension over the same lattice: commissioned cameras only, durable once-per-camera/state/day cron_alerts_fired claims, notifySystemAlert delivery, and recovery-after-degradation semantics. PR #2715 candidate hardens external paging after a real production failure: email/webhook are attempted first, then the existing immediate Telegram provider is used only when no primary surface accepted delivery; daily claims remain retryable when every external rail fails. PR #2720 candidate adds an operator-only staged camera-health alert delivery self-test that exercises the same external email/webhook→Telegram rail without mutating camera state or synthesizing an outage.",
         "tests": [
           "apps/nickstire/server/lib/cameraHealth.test.ts: fixed-vs-interaction requirements; false/null/not-required separation; unknown planes never green",
           "apps/nickstire/server/routes/cameraVisitsRoutes.test.ts: nullable transport proofs parse durably and false remains measured failure under the monotonic heartbeat writer",
           "apps/nickstire/server/lotCardFieldDrift.test.ts: every transport proof returned by lot.health reaches the camera card",
           "apps/statenour/local-agent/test_eufy_bridge.py + test_eufy_agent.py: command ack is not physical proof; ptzNotify receipt semantics; media failure/expiry; camera scoping; office heartbeat compilation",
           "apps/nickstire/server/cameraHealthAlerts.test.ts (#2705): actionable-vs-transient paging policy, recovery only after prior degradation, operator copy, commissioned-camera filter, durable cron_alerts_fired claim rail, notifySystemAlert routing, and heartbeat-tier wiring",
-          "apps/nickstire/server/cameraHealthAlerts.test.ts (#2715): real external-delivery semantics — logger-only push is not delivery; failed email/webhook falls back to Telegram; successful primary delivery suppresses duplicate Telegram; Telegram failure/throw remains unconfirmed so the durable claim is released."
+          "apps/nickstire/server/cameraHealthAlerts.test.ts (#2715): real external-delivery semantics — logger-only push is not delivery; failed email/webhook falls back to Telegram; successful primary delivery suppresses duplicate Telegram; Telegram failure/throw remains unconfirmed so the durable claim is released.",
+          "apps/nickstire/server/cameraHealthAlerts.test.ts (#2720): live self-test rail is fail-closed when no external provider accepts delivery, Telegram fallback is exercised only after primary rejection, accepted email suppresses duplicate Telegram, and source wiring pins enabled:false + MANUAL_TRIGGER_STAGED + legacy registry + admin-gated reachability."
         ],
         "deploymentId": "Railway production: MAINnicks-tire-auto deployment e2a78309-ea08-4cc9-a4ba-8443be5baa4b and statenour-web deployment 3be02ff8-cbd4-441c-b5f7-374ddcd201b4 reached terminal SUCCESS on merged camera-health code.",
         "liveRuns": [
@@ -2609,8 +2610,8 @@
         },
         {
           "severity": "P2",
-          "description": "A real production degradation alert fired on 2026-09-27, but external owner delivery is still not proven: Resend rejected nickstire.org as unverified and the logger-only push correctly did not count. PR #2715 adds the already-configured Telegram sender as a fallback after unaccepted email/webhook, with no double-page when primary delivery succeeds. Keep this blocker until a post-deploy degradation/recovery has a provider-accepted Telegram, verified Resend email, or real webhook receipt.",
-          "source": "2026-09-27 18:16Z Railway production alert receipt + PR #2715 delivery tests"
+          "description": "External owner delivery is still not fully proven for a REAL production degradation. PR #2715 added Telegram fallback after the observed Resend failure; PR #2720 adds a manual live-provider self-test so provider acceptance can be proven without manufacturing a camera outage. Clear the provider-rail portion after a post-deploy self-test receives an accepted external provider receipt; keep real degradation/recovery paging as a separate live proof until observed.",
+          "source": "2026-09-27 production alert failure + PR #2715 + PR #2720 candidate"
         }
       ],
       "deferredScope": [
