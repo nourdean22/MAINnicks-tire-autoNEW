@@ -92,10 +92,16 @@ describe("confirmed Reel publication mirrors into universal inventory", () => {
 describe("authoritative publish paths keep the mirror wired", () => {
   const root = path.resolve(__dirname);
 
-  it("ordinary autonomous Reel publish mirrors confirmed-live truth", () => {
+  it("ordinary autonomous Reel publish mirrors confirmed-live truth without reopening the external publish", () => {
     const src = fs.readFileSync(path.join(root, "cron/jobs/dailyReelPost.ts"), "utf8");
-    expect(src).toContain("markReelInventoryPublished");
-    expect(src.indexOf("status: \"posted\"")).toBeLessThan(src.indexOf("markReelInventoryPublished"));
+    const posted = src.indexOf("status: \"posted\"");
+    const mirror = src.indexOf("markReelInventoryPublished");
+    const failSoftReceipt = src.indexOf("self-heal will retry", mirror);
+    const downstreamAdvance = src.indexOf("advanceContentRunByReelJobId", mirror);
+
+    expect(mirror).toBeGreaterThan(posted);
+    expect(failSoftReceipt).toBeGreaterThan(mirror);
+    expect(downstreamAdvance).toBeGreaterThan(failSoftReceipt);
   });
 
   it("ambiguous→confirmed reconciliation mirrors the same truth", () => {

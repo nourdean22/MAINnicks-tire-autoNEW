@@ -1,0 +1,16 @@
+{
+  "evidence": {
+    "render-spend-trajectory": {
+      "deferred": "PR #2711 touches reelPipeline.ts only to attach the existing content_run lineage to Reel creation/stage transitions. It does not change provider selection, reservation amount, generation policy, paid/free fallback, or spend persistence. Running a paid/provider spend trajectory would exercise unchanged code and add external cost without evidence value for this diff. Existing Reel autonomy/integration tests plus the full Nick's suite and production build are green."
+    },
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/reelInventoryPublicationTruth.test.ts + apps/nickstire/server/cron/jobs/dailyReelPost.ts: normal external publish failures retain the existing fail-closed behavior. The new mirror executes only AFTER reel_jobs is durably marked posted from a successful Meta receipt; its failure is deliberately caught so a bookkeeping error cannot turn a confirmed-live external post into a duplicate retry. The recurring self-heal requires terminal posted/published status + durable igPostId before repairing inventory truth."
+    },
+    "operator-walkthrough": {
+      "deferred": "Authenticated Instagram-admin pixel walkthrough is intentionally not claimed: the audit environment had no reliable logged-in admin browser surface, and the 2026-09-27 audit records that boundary explicitly. The UI change is limited to semantic labels Publish->Queue and Insights->Learn with route keys/state machines unchanged; the homepage Instagram bridge is build/typecheck verified. Perform the exact mobile/desktop operator walkthrough after deployment, when the real authenticated surface is available."
+    },
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=reel-outcome-learning: refreshed 2026-09-27 with current read-only production metric evidence, the measured universal-inventory split-brain blocker, PR #2711 exact-id/self-heal test evidence, and an explicit pending-deploy boundary. Operational state remains unit_verified; no live promotion is claimed."
+    }
+  }
+}
