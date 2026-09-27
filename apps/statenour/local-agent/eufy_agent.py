@@ -541,6 +541,16 @@ def maybe_verify_home_pose(runtime_health: dict) -> bool | None:
         "--receipt",
         EUFY_HOME_POSE_RECEIPT,
     ]
+    child_env = {
+        key: value
+        for key, value in os.environ.items()
+        if key.upper() in {
+            "PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "TEMP", "TMP",
+            "LOCALAPPDATA", "APPDATA", "USERPROFILE",
+        }
+    }
+    child_env["EUFY_HOME_MEDIA_URL"] = EUFY_HOME_MEDIA_URL
+
     try:
         proc = subprocess.run(
             args,
@@ -549,6 +559,7 @@ def maybe_verify_home_pose(runtime_health: dict) -> bool | None:
             stderr=subprocess.PIPE,
             timeout=EUFY_HOME_VERIFY_TIMEOUT_SECONDS,
             text=True,
+            env=child_env,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         log.warning("office home-pose verifier unavailable: %s", exc)
