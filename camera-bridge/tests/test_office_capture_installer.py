@@ -3,10 +3,10 @@ from __future__ import annotations
 import os
 import shutil
 import stat
+import sys
 import subprocess
 from pathlib import Path
 
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "scripts" / "install-office-capture.ps1"
@@ -23,10 +23,9 @@ def _pwsh() -> str:
 
 
 def _fake_ffmpeg(tmp_path: Path) -> Path:
-    fake = tmp_path / "ffmpeg"
-    fake.write_text(
-        """#!/usr/bin/env python3
-import os
+    helper = tmp_path / "fake_ffmpeg.py"
+    helper.write_text(
+        """import os
 import sys
 from pathlib import Path
 
@@ -47,7 +46,20 @@ raise SystemExit(0)
 """,
         encoding="utf-8",
     )
-    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+
+    if os.name == "nt":
+        fake = tmp_path / "ffmpeg.cmd"
+        fake.write_text(
+            f'@echo off\r\n"{sys.executable}" "{helper}" %*\r\n',
+            encoding="utf-8",
+        )
+    else:
+        fake = tmp_path / "ffmpeg"
+        fake.write_text(
+            f'#!/bin/sh\nexec "{sys.executable}" "{helper}" "$@"\n',
+            encoding="utf-8",
+        )
+        fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
     return fake
 
 
