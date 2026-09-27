@@ -8,6 +8,12 @@ SOURCE = SCRIPT.read_text(encoding="utf-8")
 
 
 class EufyShopRuntimeInstallerTests(unittest.TestCase):
+    def test_python_resolution_requires_a_real_interpreter(self):
+        self.assertIn("sys.executable", SOURCE)
+        self.assertIn("Test-Path $resolved.Trim()", SOURCE)
+        self.assertIn("Windows Store python.exe alias does not count", SOURCE)
+        self.assertIn("Python.Python.3.12", SOURCE)
+
     def test_pins_reviewed_bridge_and_go2rtc_asset(self):
         self.assertIn(
             'f00dd987a7b86d1b5fd91731fcdb179513c88ac4',
