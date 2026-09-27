@@ -24,6 +24,7 @@ import {
   cameraAlertDecision,
   cameraAlertShopDay,
   deliverWithConfirmedNotification,
+  externalNotificationDelivery,
   formatCameraHealthAlert,
   type CameraHealthState as HealthState,
 } from "./cameraHealthAlertPolicy";
@@ -87,7 +88,13 @@ async function deliverClaimedAlert(input: {
     camera: input.camera,
     state: input.state,
     alert: input.alert,
-    notify: notifySystemAlert,
+    notify: async (alert) => {
+      const delivery = await notifySystemAlert(alert);
+      return externalNotificationDelivery(
+        delivery,
+        Boolean(process.env.NOTIFICATION_WEBHOOK_URL),
+      );
+    },
     releaseClaim: () =>
       releaseAlertClaim(input.db, input.camera, input.state, input.shopDay),
   });
