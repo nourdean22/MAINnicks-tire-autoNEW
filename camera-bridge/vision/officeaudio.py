@@ -128,6 +128,26 @@ def measure_level(path: str, binary: Optional[str] = None) -> tuple[Optional[flo
     return (found.get("mean"), found.get("max"))
 
 
+def _input_args(source_url: str, input_format: str = "auto") -> List[str]:
+    """Build ffmpeg input arguments without pretending every source is RTSP.
+
+    `auto` preserves the legacy behavior for rtsp:// URLs and otherwise lets ffmpeg
+    auto-detect files/URLs. Windows DirectShow capture is explicit because device names
+    are not URLs and must be opened with `-f dshow`.
+    """
+    kind = (input_format or "auto").strip().lower()
+    if kind == "auto":
+        kind = "rtsp" if source_url.lower().startswith(("rtsp://", "rtsps://")) else "generic"
+    if kind == "rtsp":
+        return ["-rtsp_transport", "tcp", "-i", source_url]
+    if kind == "dshow":
+        spec = source_url if source_url.lower().startswith("audio=") else f"audio={source_url}"
+        return ["-f", "dshow", "-i", spec]
+    if kind == "generic":
+        return ["-i", source_url]
+    raise ValueError(f"unsupported input_format {input_format!r}; expected auto, rtsp, dshow, or generic")
+
+
 def capture_window(
     source_url: str,
     out_dir: str,
@@ -137,6 +157,7 @@ def capture_window(
     silence_db: float = DEFAULT_SILENCE_DB,
     silence_gap_s: float = DEFAULT_SILENCE_GAP_S,
     min_segment_s: float = MIN_SEGMENT_S,
+    input_format: str = "auto",
 ) -> List[AudioSegment]:
     """Record `seconds` of audio, split it on silence, return the speech segments.
 
@@ -153,7 +174,7 @@ def capture_window(
     # 16 kHz mono PCM: matches what the camera already provides, and what whisper-family
     # models expect. Resampling a 16 kHz source upward would invent detail it does not have.
     proc = subprocess.run(
-        [ff, "-hide_banner", "-rtsp_transport", "tcp", "-i", source_url,
+        [ff, "-hide_banner", *_input_args(source_url, input_format),
          "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
          "-t", str(float(seconds)), "-y", raw],
         capture_output=True, text=True, timeout=float(seconds) + 120,
@@ -254,6 +275,7 @@ def calibrate(
     seconds_each: float = 10.0,
     spacing_s: float = 0.0,
     binary: Optional[str] = None,
+    input_format: str = "auto",
 ) -> Calibration:
     """Measure the room over time, then propose a silence threshold from what was heard.
 
@@ -279,7 +301,7 @@ def calibrate(
         probe = os.path.join(out_dir, f"calib-{i}.wav")
         try:
             subprocess.run(
-                [ff, "-hide_banner", "-rtsp_transport", "tcp", "-i", source_url,
+                [ff, "-hide_banner", *_input_args(source_url, input_format),
                  "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
                  "-t", str(float(seconds_each)), "-y", probe],
                 capture_output=True, text=True, timeout=float(seconds_each) + 90,
@@ -332,7 +354,8 @@ def calibrate(
 def main(argv: List[str]) -> int:
     import argparse
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--source-url", required=True, help="RTSP URL or capture device")
+    ap.add_argument("--source-url", required=True, help="audio source spec: RTSP URL, dshow device name, file, or URL")
+    ap.add_argument("--input-format", choices=("auto", "rtsp", "dshow", "generic"), default="auto")
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--seconds", type=float, default=300.0)
     ap.add_argument("--source", default="eufy-office")
@@ -351,7 +374,7 @@ def main(argv: List[str]) -> int:
         try:
             cal = calibrate(args.source_url, args.out_dir, samples=args.calib_samples,
                             seconds_each=args.calib_seconds, spacing_s=args.calib_spacing,
-                            binary=args.ffmpeg)
+                            binary=args.ffmpeg, input_format=args.input_format)
         except FfmpegMissing as exc:
             print(json.dumps({"error": "ffmpeg_missing", "detail": str(exc)}))
             return 3
@@ -365,6 +388,7 @@ def main(argv: List[str]) -> int:
         segs = capture_window(
             args.source_url, args.out_dir, args.seconds, source=args.source,
             binary=args.ffmpeg, silence_db=args.silence_db, silence_gap_s=args.silence_gap,
+            input_format=args.input_format,
         )
     except FfmpegMissing as exc:
         print(json.dumps({"error": "ffmpeg_missing", "detail": str(exc)}))
