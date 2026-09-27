@@ -8,6 +8,7 @@ import {
   deliverWithConfirmedNotification,
   formatCameraHealthAlert,
 } from "./services/cameraHealthAlertPolicy";
+import { runCameraHealthAlertSelfTest } from "./services/cameraHealthAlerts";
 
 describe("camera health alert policy", () => {
   it("does not page transient STALE or an ordinary healthy camera", () => {
@@ -104,6 +105,55 @@ describe("camera health alert policy", () => {
     });
     expect(recovered.title).toContain("Camera recovered");
     expect(recovered.message).toContain("HEALTHY again");
+  });
+});
+
+describe("camera health alert self-test", () => {
+  it("uses the real fallback rail and reports the provider that accepted delivery", async () => {
+    const sendTelegram = vi.fn().mockResolvedValue(true);
+    const result = await runCameraHealthAlertSelfTest({
+      notifySystem: vi.fn().mockResolvedValue({
+        emailSent: false,
+        pushSent: false,
+      }),
+      sendTelegram,
+      webhookConfigured: false,
+    });
+
+    expect(result.recordsProcessed).toBe(1);
+    expect(result.details).toContain("telegram");
+    expect(sendTelegram).toHaveBeenCalledTimes(1);
+    expect(String(sendTelegram.mock.calls[0]?.[0] ?? "")).toContain(
+      "Camera alert delivery test",
+    );
+  });
+
+  it("fails loudly when no external provider accepts the live test", async () => {
+    await expect(
+      runCameraHealthAlertSelfTest({
+        notifySystem: vi.fn().mockResolvedValue({
+          emailSent: false,
+          pushSent: false,
+        }),
+        sendTelegram: vi.fn().mockResolvedValue(false),
+        webhookConfigured: false,
+      }),
+    ).rejects.toThrow("no external delivery surface accepted");
+  });
+
+  it("does not double-page Telegram when email accepts the self-test", async () => {
+    const sendTelegram = vi.fn().mockResolvedValue(true);
+    const result = await runCameraHealthAlertSelfTest({
+      notifySystem: vi.fn().mockResolvedValue({
+        emailSent: true,
+        pushSent: false,
+      }),
+      sendTelegram,
+      webhookConfigured: false,
+    });
+
+    expect(result.details).toContain("email");
+    expect(sendTelegram).not.toHaveBeenCalled();
   });
 });
 
@@ -293,6 +343,18 @@ describe("camera health alert wiring", () => {
     path.join(root, "shared", "cameras.ts"),
     "utf8",
   );
+  const registryTierMap = fs.readFileSync(
+    path.join(__dirname, "cron", "registry-tier-map.ts"),
+    "utf8",
+  );
+  const cronIndex = fs.readFileSync(
+    path.join(__dirname, "cron", "index.ts"),
+    "utf8",
+  );
+  const adminRoutes = fs.readFileSync(
+    path.join(__dirname, "routes", "adminRoutes.ts"),
+    "utf8",
+  );
 
   it("pages commissioned cameras only", () => {
     expect(service).toContain("EXPECTED_CAMERAS.filter((camera) => camera.commissioned)");
@@ -328,5 +390,15 @@ describe("camera health alert wiring", () => {
     const heartbeat = scheduler.slice(heartbeatStart, pulseStart);
     expect(heartbeat).toContain('name: "camera-health-alerts"');
     expect(heartbeat).toContain('import("../services/cameraHealthAlerts")');
+  });
+
+  it("keeps the provider self-test manual-only but reachable through the staged control plane", () => {
+    const selfTest = scheduler.indexOf('name: "camera-health-alert-selftest"');
+    expect(selfTest).toBeGreaterThanOrEqual(0);
+    expect(scheduler.slice(selfTest, selfTest + 300)).toContain("enabled: false");
+    expect(registryTierMap).toContain('name: "camera-health-alert-selftest"');
+    expect(cronIndex).toContain('registerJob("camera-health-alert-selftest"');
+    expect(adminRoutes).toContain('app.post("/api/admin/run-staged-cron"');
+    expect(adminRoutes).toContain("MANUAL_TRIGGER_STAGED");
   });
 });
