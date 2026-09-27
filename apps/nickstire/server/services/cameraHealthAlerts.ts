@@ -110,6 +110,45 @@ async function claimAlert(
   return ((claim as { affectedRows?: number })?.affectedRows ?? 0) === 1;
 }
 
+async function releaseAlertClaim(
+  db: NonNullable<Awaited<ReturnType<typeof import("../db")["getDb"]>>>,
+  camera: string,
+  state: HealthState,
+): Promise<void> {
+  const key = alertKey(camera, state);
+  await db.execute(sql`
+    DELETE FROM cron_alerts_fired
+     WHERE alert_key = ${key}
+       AND fired_for = CURDATE()
+  `);
+}
+
+export function notificationDelivered(result: {
+  emailSent: boolean;
+  pushSent: boolean;
+}): boolean {
+  return result.emailSent || result.pushSent;
+}
+
+async function deliverClaimedAlert(input: {
+  db: NonNullable<Awaited<ReturnType<typeof import("../db")["getDb"]>>>;
+  camera: string;
+  state: HealthState;
+  alert: { title: string; message: string };
+}): Promise<void> {
+  const { notifySystemAlert } = await import("../email-notify");
+  const delivery = await notifySystemAlert(input.alert);
+  if (notificationDelivered(delivery)) return;
+
+  // Claim-before-send gives us multi-pod at-most-one attempts. If ALL configured
+  // delivery surfaces fail/skip, release only this camera/state/day claim so the
+  // next heartbeat can retry instead of turning a failed send into a day-long mute.
+  await releaseAlertClaim(input.db, input.camera, input.state);
+  throw new Error(
+    `camera-health-alerts: no delivery surface accepted ${input.camera}/${input.state}`,
+  );
+}
+
 async function latestCameraAlertKey(
   db: NonNullable<Awaited<ReturnType<typeof import("../db")["getDb"]>>>,
   camera: string,
@@ -212,16 +251,18 @@ export async function runCameraHealthAlerts(): Promise<{
     });
     if (!claimed) continue;
 
-    const { notifySystemAlert } = await import("../email-notify");
-    await notifySystemAlert(
-      formatCameraHealthAlert({
+    await deliverClaimedAlert({
+      db,
+      camera: expected.camera,
+      state: verdict.state,
+      alert: formatCameraHealthAlert({
         camera: expected.camera,
         label: expected.label,
         role: expected.role,
         verdict,
         recovery: decision.recovery,
       }),
-    );
+    });
     sent++;
     if (decision.recovery) {
       log.info("camera health recovery fired", {
