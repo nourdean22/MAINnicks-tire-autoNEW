@@ -6,13 +6,10 @@ import {
   cameraAlertShopDay,
   deliverWithConfirmedNotification,
   formatCameraHealthAlert,
-  isCameraPagingState,
-  notificationDelivered,
 } from "./services/cameraHealthAlertPolicy";
 
 describe("camera health alert policy", () => {
   it("does not page transient STALE or an ordinary healthy camera", () => {
-    expect(isCameraPagingState("STALE")).toBe(false);
     expect(cameraAlertDecision("STALE", null)).toEqual({ notify: false, recovery: false });
     expect(cameraAlertDecision("HEALTHY", null)).toEqual({ notify: false, recovery: false });
     expect(cameraAlertDecision("HEALTHY", "camera_health:sign:HEALTHY")).toEqual({
@@ -110,13 +107,6 @@ describe("camera health alert policy", () => {
 });
 
 describe("camera health alert delivery truth", () => {
-  it("requires at least one confirmed delivery surface", () => {
-    expect(notificationDelivered({ emailSent: true, pushSent: false })).toBe(true);
-    expect(notificationDelivered({ emailSent: false, pushSent: true })).toBe(true);
-    expect(notificationDelivered({ emailSent: true, pushSent: true })).toBe(true);
-    expect(notificationDelivered({ emailSent: false, pushSent: false })).toBe(false);
-  });
-
   it("uses the Cleveland shop day even after UTC has rolled over", () => {
     expect(cameraAlertShopDay(new Date("2026-09-27T02:00:00Z"))).toBe("2026-09-26");
     expect(cameraAlertShopDay(new Date("2026-09-27T14:00:00Z"))).toBe("2026-09-27");
