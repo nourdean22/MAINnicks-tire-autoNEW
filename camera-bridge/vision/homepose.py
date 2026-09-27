@@ -26,20 +26,23 @@ import numpy as np
 
 from .scenelock import SceneLock, gray_small
 
-VERIFIER_VERSION = "office-home-pose-v1"
+VERIFIER_VERSION = "office-home-pose-v2"
 
 
 @dataclass(frozen=True)
 class HomePoseReceipt:
     serial: str
+    evidenceAt: str
     verifiedAt: str
     isHome: bool
     verifierVersion: str
     referenceSha256: str
     currentSha256: str
-    poseShiftPx: Optional[float]
+    poseShiftPx: float
+    correlationResponse: float
     changedFraction: float
     maxShiftPx: float
+    minCorrelationResponse: float
     maxChangedFraction: float
 
 
@@ -58,7 +61,9 @@ def verify_home_pose(
     *,
     serial: str,
     max_shift_px: float = 6.0,
+    min_correlation_response: float = 0.20,
     max_changed_fraction: float = 0.65,
+    evidence_at: Optional[datetime] = None,
     verified_at: Optional[datetime] = None,
 ) -> HomePoseReceipt:
     """Compare one current frame to a trusted home reference.
@@ -81,8 +86,14 @@ def verify_home_pose(
         raise HomePoseError("camera serial is required")
     if max_shift_px <= 0:
         raise HomePoseError("max_shift_px must be positive")
+    if not (0.0 < min_correlation_response <= 1.0):
+        raise HomePoseError("min_correlation_response must be in (0, 1]")
     if not (0.0 <= max_changed_fraction <= 1.0):
         raise HomePoseError("max_changed_fraction must be between 0 and 1")
+
+    evidence = evidence_at or datetime.now(timezone.utc)
+    if evidence.tzinfo is None:
+        evidence = evidence.replace(tzinfo=timezone.utc)
 
     lock = SceneLock(
         auto_reference=False,
@@ -99,32 +110,45 @@ def verify_home_pose(
     diff = np.abs(cur_small - ref_small)
     changed = float((diff > lock.pixel_delta).mean())
 
-    # Deliberately call the registration primitive used by SceneLock. Unlike the normal
-    # fixed-camera gate, home verification REQUIRES a positive registration measurement.
-    shift = lock._shift_px(cur_small)  # noqa: SLF001 - shared measured primitive by design
-    if shift is None or not np.isfinite(shift):
+    # Absolute home needs BOTH displacement and confidence. phaseCorrelate returns a
+    # displacement even for unrelated frames, so finite/near-zero shift alone is not proof.
+    shift, response = lock._registration(cur_small)  # noqa: SLF001 - shared measured primitive
+    if (
+        shift is None
+        or response is None
+        or not np.isfinite(shift)
+        or not np.isfinite(response)
+    ):
         raise HomePoseError(
             "visual registration unavailable; refusing to infer PTZ home from pixel similarity"
+        )
+    if response < float(min_correlation_response):
+        raise HomePoseError(
+            f"visual registration confidence too low ({response:.4f} < "
+            f"{min_correlation_response:.4f})"
         )
 
     is_home = bool(
         shift <= float(max_shift_px)
         and changed <= float(max_changed_fraction)
     )
-    at = verified_at or datetime.now(timezone.utc)
-    if at.tzinfo is None:
-        at = at.replace(tzinfo=timezone.utc)
+    verified = verified_at or datetime.now(timezone.utc)
+    if verified.tzinfo is None:
+        verified = verified.replace(tzinfo=timezone.utc)
 
     return HomePoseReceipt(
         serial=serial,
-        verifiedAt=at.astimezone(timezone.utc).isoformat(),
+        evidenceAt=evidence.astimezone(timezone.utc).isoformat(),
+        verifiedAt=verified.astimezone(timezone.utc).isoformat(),
         isHome=is_home,
         verifierVersion=VERIFIER_VERSION,
         referenceSha256=_image_sha256(reference),
         currentSha256=_image_sha256(current),
         poseShiftPx=round(float(shift), 4),
+        correlationResponse=round(float(response), 6),
         changedFraction=round(changed, 6),
         maxShiftPx=float(max_shift_px),
+        minCorrelationResponse=float(min_correlation_response),
         maxChangedFraction=float(max_changed_fraction),
     )
 
