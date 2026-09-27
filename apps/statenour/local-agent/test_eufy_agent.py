@@ -248,8 +248,15 @@ class EufyAgentTests(unittest.TestCase):
         self.assertNotIn(
             "rtsp://127.0.0.1:8554/office",
             args,
-            "media URL belongs in inherited environment, not process command line",
+            "media URL belongs in child environment, not process command line",
         )
+        child_env = run.call_args.kwargs["env"]
+        self.assertEqual(
+            child_env["EUFY_HOME_MEDIA_URL"],
+            "rtsp://127.0.0.1:8554/office",
+        )
+        self.assertNotIn("NICKS_CAMERA_INGEST_KEY", child_env)
+        self.assertNotIn("EUFY_PASSWORD", child_env)
 
     def test_home_verifier_does_not_run_without_motor_receipt_or_when_media_is_down(self):
         with patch.object(eufy_agent, "load_home_pose_receipt", return_value=None), patch.object(
