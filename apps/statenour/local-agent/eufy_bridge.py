@@ -201,6 +201,11 @@ def _record_bridge_event(event: dict[str, Any]) -> None:
                     _RUNTIME_HEALTH["ptzHomeOk"] = None
                 _PENDING_PTZ = None
                 release_receipt = True
+            else:
+                # A motor receipt we did not initiate may be an operator/app move.
+                # It invalidates any prior absolute-home claim immediately. We do NOT
+                # guess "away": the visual verifier will re-establish true/false.
+                _RUNTIME_HEALTH["ptzHomeOk"] = None
 
     if release_receipt:
         _PTZ_RECEIPT_EVENT.set()
