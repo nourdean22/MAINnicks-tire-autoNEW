@@ -119,11 +119,16 @@ class EufyAgentTests(unittest.TestCase):
             "bridge_ready",
             return_value=(True, "auth=ok"),
         ), patch.object(
+            eufy_bridge,
+            "probe_office_media_health",
+            return_value=False,
+        ) as media_probe, patch.object(
             eufy_agent.requests,
             "post",
             return_value=response,
         ) as post:
             self.assertEqual(eufy_agent.sync_office_camera_heartbeat(), 1)
+            media_probe.assert_called_once_with()
 
         sent = post.call_args.kwargs["json"]
         self.assertTrue(sent["authPlaneOk"])
