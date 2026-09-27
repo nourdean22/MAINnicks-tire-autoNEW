@@ -26,10 +26,16 @@ export function cameraAlertShopDay(now: Date = new Date()): string {
   return now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 }
 
+export type CameraAlertDelivery = {
+  emailAccepted: boolean;
+  webhookAccepted: boolean;
+  telegramAccepted: boolean;
+};
+
 export function externalNotificationDelivery(
   result: { emailSent: boolean; pushSent: boolean },
   webhookConfigured: boolean,
-): { emailAccepted: boolean; webhookAccepted: boolean } {
+): Omit<CameraAlertDelivery, "telegramAccepted"> {
   return {
     emailAccepted: result.emailSent,
     // notifyOwner historically returns true for a console-log-only fallback.
@@ -39,11 +45,41 @@ export function externalNotificationDelivery(
   };
 }
 
-function notificationDelivered(result: {
-  emailAccepted: boolean;
-  webhookAccepted: boolean;
-}): boolean {
-  return result.emailAccepted || result.webhookAccepted;
+export async function deliverCameraAlertExternally(input: {
+  alert: { title: string; message: string };
+  notifySystem: (alert: { title: string; message: string }) => Promise<{
+    emailSent: boolean;
+    pushSent: boolean;
+  }>;
+  webhookConfigured: boolean;
+  sendTelegram: (text: string) => Promise<boolean>;
+}): Promise<CameraAlertDelivery> {
+  const primary = externalNotificationDelivery(
+    await input.notifySystem(input.alert),
+    input.webhookConfigured,
+  );
+
+  // Email or a real webhook already reached the owner. Do not double-page Telegram.
+  if (primary.emailAccepted || primary.webhookAccepted) {
+    return { ...primary, telegramAccepted: false };
+  }
+
+  // Telegram is an existing immediate external rail with its own circuit breaker.
+  // Only its boolean provider acceptance counts; logs/attempts never do.
+  let telegramAccepted = false;
+  try {
+    telegramAccepted = await input.sendTelegram(
+      `🚨 ${input.alert.title}\n\n${input.alert.message}`,
+    );
+  } catch {
+    telegramAccepted = false;
+  }
+
+  return { ...primary, telegramAccepted };
+}
+
+function notificationDelivered(result: CameraAlertDelivery): boolean {
+  return result.emailAccepted || result.webhookAccepted || result.telegramAccepted;
 }
 
 export function formatCameraHealthAlert(input: {
@@ -85,10 +121,7 @@ export async function deliverWithConfirmedNotification(input: {
   camera: string;
   state: CameraHealthState;
   alert: { title: string; message: string };
-  notify: (alert: { title: string; message: string }) => Promise<{
-    emailAccepted: boolean;
-    webhookAccepted: boolean;
-  }>;
+  notify: (alert: { title: string; message: string }) => Promise<CameraAlertDelivery>;
   releaseClaim: () => Promise<void>;
 }): Promise<void> {
   const delivery = await input.notify(input.alert);
