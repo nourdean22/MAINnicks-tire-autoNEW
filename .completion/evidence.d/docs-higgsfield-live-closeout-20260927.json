@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=higgsfield-keepalive: promoted to live_verified only after Railway deployment a37c0df7 / main 4d648862 succeeded and the production scheduler wrote higgsfield-session-keepalive completed at 2026-09-27T19:53:26Z with 'session refreshed, 98.5 credits'. The same pulse wrote reel-pipeline completed at 19:53:31Z with 'no reel jobs to process', replacing the prior session-dead preflight failure without claiming a job or spending credits. Remaining full-revocation browser-login dependency is retained as P2."
+    }
+  }
+}
