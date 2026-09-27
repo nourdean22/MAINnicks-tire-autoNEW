@@ -505,6 +505,13 @@ export function registerAllJobs(): void {
     return runTierJobHandlerUnlocked("higgsfield-session-keepalive");
   });
 
+  registerJob("camera-health-alert-selftest", 5 * 60 * 1000, async () => {
+    // Unscheduled lookup only. /api/admin/run-staged-cron owns the cross-dyno lock
+    // and cron_log receipt; the tier copy is held behind enabled:false forever.
+    const { runTierJobHandlerUnlocked } = await import("./scheduler");
+    return runTierJobHandlerUnlocked("camera-health-alert-selftest");
+  });
+
   registerJob("campaign-resume", 5 * 60 * 1000, async () => {
     const { resumeStuckCampaigns } = await import("../routers/campaigns");
     return resumeStuckCampaigns();

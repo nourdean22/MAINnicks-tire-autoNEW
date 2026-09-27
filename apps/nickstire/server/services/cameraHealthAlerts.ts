@@ -103,6 +103,53 @@ async function deliverClaimedAlert(input: {
   });
 }
 
+export async function runCameraHealthAlertSelfTest(input?: {
+  notifySystem?: (alert: { title: string; message: string }) => Promise<{
+    emailSent: boolean;
+    pushSent: boolean;
+  }>;
+  sendTelegram?: (text: string) => Promise<boolean>;
+  webhookConfigured?: boolean;
+}): Promise<{ recordsProcessed: number; details: string }> {
+  const notifySystem =
+    input?.notifySystem ??
+    (await import("../email-notify")).notifySystemAlert;
+  const sendTelegram =
+    input?.sendTelegram ??
+    (await import("./telegram")).sendTelegram;
+
+  const alert = {
+    title: "Camera alert delivery test — Nick's Tire",
+    message:
+      "✅ Live camera-health notification self-test.\n\n" +
+      "No camera state was changed and no outage was synthesized. " +
+      "This message proves the external owner-delivery rail accepted a real notification.",
+  };
+
+  const delivery = await deliverCameraAlertExternally({
+    alert,
+    notifySystem,
+    webhookConfigured:
+      input?.webhookConfigured ?? Boolean(process.env.NOTIFICATION_WEBHOOK_URL),
+    sendTelegram,
+  });
+
+  const accepted = [
+    delivery.emailAccepted ? "email" : null,
+    delivery.webhookAccepted ? "webhook" : null,
+    delivery.telegramAccepted ? "telegram" : null,
+  ].filter(Boolean) as string[];
+
+  if (accepted.length === 0) {
+    throw new Error("camera-health-alert-selftest: no external delivery surface accepted the test");
+  }
+
+  return {
+    recordsProcessed: 1,
+    details: `camera alert self-test externally accepted by ${accepted.join(", ")}`,
+  };
+}
+
 async function latestCameraAlertKey(
   db: NonNullable<Awaited<ReturnType<typeof import("../db")["getDb"]>>>,
   camera: string,

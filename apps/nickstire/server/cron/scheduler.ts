@@ -610,6 +610,17 @@ function buildTiers(): void {
         },
       },
       {
+        // Real provider delivery test, held OFF the scheduler permanently. It does not
+        // alter camera_runtime or synthesize a camera outage; it only exercises the same
+        // email/webhook -> Telegram fallback used by real camera-health pages.
+        name: "camera-health-alert-selftest",
+        enabled: false,
+        handler: async () => {
+          const { runCameraHealthAlertSelfTest } = await import("../services/cameraHealthAlerts");
+          return runCameraHealthAlertSelfTest();
+        },
+      },
+      {
         // 2026-08-23 · WIRED. This job existed only in registerAllJobs()
         // (cron/index.ts) and in no tier, so it had never run: production
         // cron_log held ZERO rows for `campaign-resume` while control jobs in
