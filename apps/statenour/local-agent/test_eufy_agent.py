@@ -98,9 +98,14 @@ class EufyAgentTests(unittest.TestCase):
                 "verifiedAt": "2026-09-27T10:00:30+00:00",
                 "isHome": True,
                 "verifierVersion": "office-home-pose-v1",
+                "referenceSha256": "a" * 64,
             }), encoding="utf-8")
 
             with patch.object(eufy_agent, "EUFY_HOME_POSE_RECEIPT", str(path)), patch.object(
+                eufy_agent,
+                "EUFY_HOME_REFERENCE_SHA256",
+                "a" * 64,
+            ), patch.object(
                 eufy_agent,
                 "EUFY_HOME_POSE_MAX_AGE_SECONDS",
                 300.0,
@@ -129,8 +134,13 @@ class EufyAgentTests(unittest.TestCase):
                 "verifiedAt": "2026-09-27T10:00:30Z",
                 "isHome": False,
                 "verifierVersion": "office-home-pose-v1",
+                "referenceSha256": "b" * 64,
             }), encoding="utf-8")
-            with patch.object(eufy_agent, "EUFY_HOME_POSE_RECEIPT", str(path)):
+            with patch.object(eufy_agent, "EUFY_HOME_POSE_RECEIPT", str(path)), patch.object(
+                eufy_agent,
+                "EUFY_HOME_REFERENCE_SHA256",
+                "b" * 64,
+            ):
                 verdict = eufy_agent.load_home_pose_receipt(
                     last_ptz_notify_at="2026-09-27T10:00:20Z",
                     now=datetime(2026, 9, 27, 10, 1, tzinfo=timezone.utc),
@@ -145,9 +155,14 @@ class EufyAgentTests(unittest.TestCase):
                 "verifiedAt": "2026-09-27T10:00:30+00:00",
                 "isHome": True,
                 "verifierVersion": "office-home-pose-v1",
+                "referenceSha256": "c" * 64,
             }
             path.write_text(json.dumps(base), encoding="utf-8")
-            with patch.object(eufy_agent, "EUFY_HOME_POSE_RECEIPT", str(path)):
+            with patch.object(eufy_agent, "EUFY_HOME_POSE_RECEIPT", str(path)), patch.object(
+                eufy_agent,
+                "EUFY_HOME_REFERENCE_SHA256",
+                "c" * 64,
+            ):
                 self.assertIsNone(eufy_agent.load_home_pose_receipt(
                     last_ptz_notify_at=None,
                     now=datetime(2026, 9, 27, 10, 1, tzinfo=timezone.utc),
@@ -155,6 +170,26 @@ class EufyAgentTests(unittest.TestCase):
                 base["serial"] = eufy_agent.EUFY_OFFICE_CAMERA_SERIAL
                 base["verifierVersion"] = "mystery-verifier"
                 path.write_text(json.dumps(base), encoding="utf-8")
+                self.assertIsNone(eufy_agent.load_home_pose_receipt(
+                    last_ptz_notify_at=None,
+                    now=datetime(2026, 9, 27, 10, 1, tzinfo=timezone.utc),
+                ))
+
+    def test_visual_home_receipt_rejects_wrong_reference_hash(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "home.json"
+            path.write_text(json.dumps({
+                "serial": eufy_agent.EUFY_OFFICE_CAMERA_SERIAL,
+                "verifiedAt": "2026-09-27T10:00:30+00:00",
+                "isHome": True,
+                "verifierVersion": "office-home-pose-v1",
+                "referenceSha256": "d" * 64,
+            }), encoding="utf-8")
+            with patch.object(eufy_agent, "EUFY_HOME_POSE_RECEIPT", str(path)), patch.object(
+                eufy_agent,
+                "EUFY_HOME_REFERENCE_SHA256",
+                "e" * 64,
+            ):
                 self.assertIsNone(eufy_agent.load_home_pose_receipt(
                     last_ptz_notify_at=None,
                     now=datetime(2026, 9, 27, 10, 1, tzinfo=timezone.utc),
