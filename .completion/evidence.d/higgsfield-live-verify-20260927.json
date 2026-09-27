@@ -1,7 +1,7 @@
 {
   "evidence": {
     "capability-ledger-updated": {
-      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=higgsfield-keepalive: promoted back to live_verified on 2026-09-27 only after Railway a37c0df7 deployed main 4d648862 successfully, production keepalive completed three times (19:53:26Z, 20:07:56Z, 20:22:56Z) with 'session refreshed, 98.5 credits', and reel-pipeline recovered from the 19:30:35Z dead-session failure to completed runs at 19:53:31Z, 20:07:59Z, and 20:23:00Z."
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=higgsfield-keepalive: live_verified on 2026-09-27 after three post-deploy keepalive successes (19:53:26Z, 20:07:56Z, 20:22:56Z) at 98.5 credits, three successful reel-pipeline runs after the 19:30:35Z dead-session failure, current production containment on c4ba4cf4, a later durable healthy receipt at 21:07:56Z, a 23-completed/0-skipped pulse, and an explicit no-spend Reel preflight PASS."
     }
   }
 }
