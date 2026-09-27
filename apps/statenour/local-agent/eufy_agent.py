@@ -521,8 +521,8 @@ def maybe_verify_home_pose(runtime_health: dict) -> bool | None:
         EUFY_OFFICE_CAMERA_SERIAL,
         "--reference",
         EUFY_HOME_REFERENCE,
-        "--rtsp-url",
-        EUFY_HOME_MEDIA_URL,
+        "--rtsp-env",
+        "EUFY_HOME_MEDIA_URL",
         "--receipt",
         EUFY_HOME_POSE_RECEIPT,
     ]
