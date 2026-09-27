@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=higgsfield-keepalive: promoted to live_verified after Railway deployment a37c0df7-1143-4c7e-9bc5-4420ba0eb8c3 reached SUCCESS on main 4d6488623e08f682ccdf5a283d501b9c9c24525c; cron_log at 2026-09-27T19:53:26Z completed with 'session refreshed, 98.5 credits'; the independent health probe returned session healthy=true / 'keepalive refreshed the session'; the next reel-pipeline row at 19:53:31Z completed with 'no reel jobs to process'."
+    }
+  }
+}
