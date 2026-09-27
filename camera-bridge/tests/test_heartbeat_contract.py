@@ -17,9 +17,11 @@ producer's real heartbeat body carries, and fails on any column with no producer
 """
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 import sys
+from datetime import datetime, timezone
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -81,34 +83,43 @@ def producer_heartbeat_keys():
     return body
 
 
-def interaction_heartbeat_keys():
-    """Fields authored by StateNour's Eufy interaction-camera producer.
-
-    Do not import that module here: the camera runtime intentionally does not install
-    Ring/Tuya/websocket smart-home dependencies. Read the REAL producer's literal ownership
-    tuple instead, and prove below that production iterates that tuple when building payloads.
-    """
+def load_eufy_agent_module():
+    """Load the REAL StateNour producer without copying its field list into this test."""
     if not os.path.exists(EUFY_AGENT):
+        return None
+    local_agent_dir = os.path.dirname(EUFY_AGENT)
+    if local_agent_dir not in sys.path:
+        sys.path.insert(0, local_agent_dir)
+    spec = importlib.util.spec_from_file_location("heartbeat_contract_eufy_agent", EUFY_AGENT)
+    if spec is None or spec.loader is None:
+        raise AssertionError("could not load StateNour Eufy producer module")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def interaction_heartbeat_keys(module=None):
+    """Keys emitted by the REAL build_office_camera_heartbeat function."""
+    module = module or load_eufy_agent_module()
+    if module is None:
         return set()
-    with open(EUFY_AGENT, encoding="utf-8") as fh:
-        src = fh.read()
-    match = re.search(
-        r"INTERACTION_HEARTBEAT_FIELDS\s*=\s*\((.*?)\)",
-        src,
-        re.S,
+    runtime = {
+        "eventPlaneOk": True,
+        "controlPlaneOk": False,
+        "mediaPlaneOk": True,
+        "ptzHomeOk": False,
+        "lastEventProofAt": "2026-09-27T10:00:01+00:00",
+        "lastControlProofAt": "2026-09-27T10:00:02+00:00",
+        "lastMediaProofAt": "2026-09-27T10:00:03+00:00",
+        "lastPtzNotifyAt": "2026-09-27T10:00:04+00:00",
+    }
+    payload = module.build_office_camera_heartbeat(
+        auth_ok=True,
+        runtime_health=runtime,
+        seq=1,
+        observed_at=datetime(2026, 9, 27, 10, 0, tzinfo=timezone.utc),
     )
-    if not match:
-        raise AssertionError(
-            "StateNour Eufy heartbeat field ownership tuple is missing; the cross-producer "
-            "camera_runtime contract can no longer prove who writes interaction fields."
-        )
-    fields = set(re.findall(r'"([A-Za-z0-9_]+)"', match.group(1)))
-    if "for key in INTERACTION_HEARTBEAT_FIELDS" not in src:
-        raise AssertionError(
-            "INTERACTION_HEARTBEAT_FIELDS exists but build_office_camera_heartbeat no longer "
-            "iterates it; a declarative list that production ignores is not a producer."
-        )
-    return fields
+    return set(payload)
 
 
 class HeartbeatContractTest(unittest.TestCase):
@@ -163,11 +174,33 @@ class HeartbeatContractTest(unittest.TestCase):
             "authPlaneOk", "eventPlaneOk", "controlPlaneOk", "mediaPlaneOk", "ptzHomeOk",
             "lastEventProofAt", "lastControlProofAt", "lastMediaProofAt", "lastPtzNotifyAt",
         }
-        self.assertEqual(
-            self.interaction,
-            expected,
-            "interaction camera heartbeat ownership changed; update producer + consumer "
-            "contract together rather than exempting blank fields",
+        self.assertTrue(
+            expected.issubset(self.interaction),
+            f"real StateNour heartbeat builder omitted {sorted(expected - self.interaction)}",
+        )
+
+    def test_interaction_gate_detects_a_mutated_producer_that_drops_one_field(self):
+        module = load_eufy_agent_module()
+        if module is None:
+            self.skipTest("statenour local agent is not checked out beside camera-bridge")
+        original = module.INTERACTION_HEARTBEAT_FIELDS
+        try:
+            module.INTERACTION_HEARTBEAT_FIELDS = tuple(
+                key for key in original if key != "mediaPlaneOk"
+            )
+            mutated = interaction_heartbeat_keys(module)
+        finally:
+            module.INTERACTION_HEARTBEAT_FIELDS = original
+
+        authored = set(self.body) | set(mutated)
+        orphans = sorted(
+            field for field in self.columns
+            if field not in authored and field not in NOT_SENT_BY_DESIGN
+        )
+        self.assertIn(
+            "mediaPlaneOk",
+            orphans,
+            "mutation canary failed: dropping a real interaction field must break the contract",
         )
 
     def test_the_gate_can_actually_SEE_the_columns(self):
