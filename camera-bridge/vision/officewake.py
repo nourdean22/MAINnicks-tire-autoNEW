@@ -105,7 +105,7 @@ class OfficeWakeConfig:
         if not self.policy_acknowledged:
             blockers.append("OFFICE_AUDIO_POLICY_ACK is not 1")
         if not self.source_url:
-            blockers.append("OFFICE_MEDIA_URL is not configured")
+            blockers.append("office audio source is not configured")
         if not self.schedule:
             blockers.append("OFFICE_ACTIVE_SCHEDULE_JSON is empty")
         if not self.dry_run and not self.ingest_key_present:
