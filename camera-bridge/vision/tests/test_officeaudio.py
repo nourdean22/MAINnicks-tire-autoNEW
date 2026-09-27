@@ -233,6 +233,7 @@ def test_unknown_input_format_fails_loudly():
 
 def test_capture_window_threads_dshow_input_args_to_ffmpeg(monkeypatch, tmp_path):
     monkeypatch.setattr("vision.officeaudio._ffmpeg", lambda b=None: "ffmpeg")
+    monkeypatch.setattr("vision.officeaudio._wav_duration", lambda _path: 5.0)
     monkeypatch.setattr("vision.officeaudio._speech_spans", lambda *a, **k: [])
 
     seen = {}
@@ -250,3 +251,26 @@ def test_capture_window_threads_dshow_input_args_to_ffmpeg(monkeypatch, tmp_path
     assert cmd[cmd.index("-f") + 1] == "dshow"
     assert cmd[cmd.index("-i") + 1] == "audio=USB Counter Mic"
     assert "-rtsp_transport" not in cmd
+
+
+def test_finite_generic_input_uses_actual_wav_duration_not_requested_ceiling(monkeypatch, tmp_path):
+    monkeypatch.setattr("vision.officeaudio._ffmpeg", lambda b=None: "ffmpeg")
+    monkeypatch.setattr("vision.officeaudio._wav_duration", lambda _path: 10.0)
+
+    seen = {}
+
+    def fake_spans(_ff, _raw, _silence_db, _gap, duration):
+        seen["duration"] = duration
+        return []
+
+    def fake_run(cmd, *a, **k):
+        if "-y" in cmd:
+            target = cmd[cmd.index("-y") + 1]
+            Path(target).write_bytes(b"RIFF" + b"0" * 5000)
+        return _Ran(rc=0)
+
+    monkeypatch.setattr("vision.officeaudio._speech_spans", fake_spans)
+    monkeypatch.setattr("vision.officeaudio.subprocess.run", fake_run)
+
+    capture_window("short-input.wav", str(tmp_path), 300.0, input_format="generic")
+    assert seen["duration"] == 10.0
