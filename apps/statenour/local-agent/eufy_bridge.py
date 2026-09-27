@@ -463,21 +463,24 @@ async def _listen_once() -> None:
     ) as ws:
         log.info("Eufy event stream connected")
         _mark_runtime(eventPlaneOk=True)
-        async for raw in ws:
-            event = json.loads(raw)
-            if not isinstance(event, dict) or not _should_forward_event(event):
-                continue
-            _record_bridge_event(event)
-            try:
-                await asyncio.to_thread(_forward_event, event)
-                log.info(
-                    "Eufy event: %s device=%s",
-                    event.get("event"),
-                    event.get("deviceSn") or "?",
-                )
-            except Exception as exc:
-                # Do not kill the local event stream because the cloud sync had a bad minute.
-                log.warning("Eufy event forward failed: %s", exc)
+        try:
+            async for raw in ws:
+                event = json.loads(raw)
+                if not isinstance(event, dict) or not _should_forward_event(event):
+                    continue
+                _record_bridge_event(event)
+                try:
+                    await asyncio.to_thread(_forward_event, event)
+                    log.info(
+                        "Eufy event: %s device=%s",
+                        event.get("event"),
+                        event.get("deviceSn") or "?",
+                    )
+                except Exception as exc:
+                    # Do not kill the local event stream because the cloud sync had a bad minute.
+                    log.warning("Eufy event forward failed: %s", exc)
+        finally:
+            _mark_runtime(eventPlaneOk=False)
 
 
 def run_event_listener_forever() -> None:
