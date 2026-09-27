@@ -32,7 +32,7 @@ export type CameraAlertDelivery = {
   telegramAccepted: boolean;
 };
 
-export function externalNotificationDelivery(
+function externalNotificationDelivery(
   result: { emailSent: boolean; pushSent: boolean },
   webhookConfigured: boolean,
 ): Omit<CameraAlertDelivery, "telegramAccepted"> {
