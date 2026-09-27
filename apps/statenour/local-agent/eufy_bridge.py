@@ -68,6 +68,93 @@ FORWARDED_EVENTS = frozenset({
 })
 
 
+_HOME_PRESET_RAW = os.getenv("EUFY_OFFICE_HOME_PRESET", "").strip()
+try:
+    HOME_PRESET_ID = int(_HOME_PRESET_RAW) if _HOME_PRESET_RAW else None
+except ValueError:
+    HOME_PRESET_ID = None
+    log.warning("EUFY_OFFICE_HOME_PRESET is not an integer; home proof disabled")
+
+_RUNTIME_LOCK = threading.Lock()
+_RUNTIME_HEALTH: dict[str, Any] = {
+    "eventPlaneOk": None,
+    "controlPlaneOk": None,
+    "mediaPlaneOk": None,
+    "ptzHomeOk": None,
+    "lastEventProofAt": None,
+    "lastControlProofAt": None,
+    "lastMediaProofAt": None,
+    "lastPtzNotifyAt": None,
+}
+_PENDING_HOME_TARGET: bool | None = None
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _mark_runtime(**changes: Any) -> None:
+    with _RUNTIME_LOCK:
+        _RUNTIME_HEALTH.update(changes)
+
+
+def _set_pending_home_target(target_is_home: bool) -> None:
+    global _PENDING_HOME_TARGET
+    with _RUNTIME_LOCK:
+        _PENDING_HOME_TARGET = target_is_home
+
+
+def _record_bridge_event(event: dict[str, Any]) -> None:
+    """Record bridge-local proof BEFORE any cloud forwarding attempt."""
+    global _PENDING_HOME_TARGET
+    now = _now_iso()
+    name = str(event.get("event") or "")
+    changes: dict[str, Any] = {"eventPlaneOk": True}
+
+    if name in {"motion", "personDetected", "vehicleDetected", "soundDetected"}:
+        changes["lastEventProofAt"] = now
+    elif name == "streamState" and bool(event.get("active")):
+        # active:true proves real media opened. active:false only means nobody is
+        # consuming it; it is NOT a media failure.
+        changes["mediaPlaneOk"] = True
+        changes["lastMediaProofAt"] = now
+    elif name == "ptzNotify":
+        # This is the physical/P2P receipt. A device.action ack alone never sets this.
+        changes["controlPlaneOk"] = True
+        changes["lastControlProofAt"] = now
+        changes["lastPtzNotifyAt"] = now
+        with _RUNTIME_LOCK:
+            if _PENDING_HOME_TARGET is not None:
+                changes["ptzHomeOk"] = _PENDING_HOME_TARGET
+                _PENDING_HOME_TARGET = None
+
+    _mark_runtime(**changes)
+
+
+def runtime_health_snapshot(*, auth_ok: bool | None = None) -> dict[str, Any]:
+    with _RUNTIME_LOCK:
+        snapshot = dict(_RUNTIME_HEALTH)
+    snapshot["authPlaneOk"] = auth_ok
+    return snapshot
+
+
+def _reset_runtime_health_for_test() -> None:
+    """Test-only reset; production never calls this."""
+    global _PENDING_HOME_TARGET
+    with _RUNTIME_LOCK:
+        _RUNTIME_HEALTH.update({
+            "eventPlaneOk": None,
+            "controlPlaneOk": None,
+            "mediaPlaneOk": None,
+            "ptzHomeOk": None,
+            "lastEventProofAt": None,
+            "lastControlProofAt": None,
+            "lastMediaProofAt": None,
+            "lastPtzNotifyAt": None,
+        })
+        _PENDING_HOME_TARGET = None
+
+
 class EufyBridgeError(RuntimeError):
     """Bridge is unavailable, unauthenticated, or rejected a capability action."""
 
@@ -169,7 +256,12 @@ def _ptz_action(serial: str, action: str, args: list[Any] | None = None) -> dict
     }
     if args:
         payload["args"] = args
-    return request(payload)
+    try:
+        return request(payload)
+    except Exception:
+        # A measured P2P/control failure is different from "never commissioned".
+        _mark_runtime(controlPlaneOk=False)
+        raise
 
 
 def execute_command(command: dict[str, Any]) -> dict[str, Any]:
@@ -197,6 +289,7 @@ def execute_command(command: dict[str, Any]) -> dict[str, Any]:
     if name.startswith("ptz_") and name.removeprefix("ptz_") in PTZ_DIRECTIONS:
         direction = name.removeprefix("ptz_")
         reply = _ptz_action(serial, direction)
+        _set_pending_home_target(False)
         return {
             "ptzCommand": "sent",
             "direction": direction,
@@ -211,6 +304,7 @@ def execute_command(command: dict[str, Any]) -> dict[str, Any]:
                 f"invalid PTZ direction {direction!r}; expected one of {sorted(PTZ_DIRECTIONS)}"
             )
         reply = _ptz_action(serial, direction)
+        _set_pending_home_target(False)
         return {
             "ptzCommand": "sent",
             "direction": direction,
@@ -226,6 +320,7 @@ def execute_command(command: dict[str, Any]) -> dict[str, Any]:
         if preset_id < 0:
             raise EufyBridgeError("ptz_preset params.id must be non-negative")
         reply = _ptz_action(serial, "preset.goto", [preset_id])
+        _set_pending_home_target(HOME_PRESET_ID is not None and preset_id == HOME_PRESET_ID)
         return {
             "ptzCommand": "sent",
             "presetId": preset_id,
@@ -367,10 +462,12 @@ async def _listen_once() -> None:
         max_size=2 * 1024 * 1024,
     ) as ws:
         log.info("Eufy event stream connected")
+        _mark_runtime(eventPlaneOk=True)
         async for raw in ws:
             event = json.loads(raw)
             if not isinstance(event, dict) or not _should_forward_event(event):
                 continue
+            _record_bridge_event(event)
             try:
                 await asyncio.to_thread(_forward_event, event)
                 log.info(
@@ -392,6 +489,7 @@ def run_event_listener_forever() -> None:
             asyncio.run(_listen_once())
             delay = 2.0
         except Exception as exc:
+            _mark_runtime(eventPlaneOk=False)
             log.warning("Eufy event stream disconnected: %s; retrying in %.0fs", exc, delay)
             time.sleep(delay)
             delay = min(60.0, delay * 2)
