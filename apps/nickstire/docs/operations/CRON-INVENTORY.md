@@ -15,19 +15,20 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 
 | Tier | Interval | Jobs (scheduled / staged) |
 |---|---|---|
-| heartbeat | every 5m | 4 / 1 |
+| heartbeat | every 5m | 4 / 2 |
 | pulse | every 15m | 23 / 0 |
 | hourly | every 2h | 35 / 1 |
 | daily | every 1d | 52 / 0 |
 | briefings | every 12h | 6 / 0 |
 
-**Total: 122 tiered jobs (120 scheduled automatically, 2 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 123 tiered jobs (120 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
 | Job | Business hours only | Once per shop day | Scheduled | Purpose |
 |---|---|---|---|---|
 | `alg-mirror-health` | yes | no | yes | — |
+| `camera-health-alert-selftest` | no | no | no | — |
 | `camera-health-alerts` | no | no | yes | — |
 | `campaign-resume` | no | no | **STAGED — HTTP trigger only** | — |
 | `data-accuracy-check` | no | no | yes | — |
