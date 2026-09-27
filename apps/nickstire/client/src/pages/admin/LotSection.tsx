@@ -179,12 +179,19 @@ type CameraFacets = {
   frames: string;
   pose: string;
   calibration: string;
+  auth: string;
+  events: string;
+  control: string;
+  media: string;
+  home: string;
   cloud: string;
 };
 
 type CameraHealth = {
   camera: string;
   label: string;
+  role: string;
+  healthProfile: "fixed_geometry" | "interaction_ptz";
   commissioned: boolean;
   registered: boolean;
   state: string;
@@ -197,6 +204,7 @@ type CameraHealth = {
   producer: { instanceId: string; version: string | null; gitSha: string | null; heartbeatSeq: number } | null;
   source: { type: string | null; generation: string | null; fps: number | null; restores: number | null } | null;
   vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; inferenceAgeSeconds: number | null; poseDelta: number | null; calibrationVersion: string | null; relocateFailures: number | null; preexistingCrossed: number | null; arrivalsAfterStitch: number | null; stitchedTotal: number | null; stitchRefusedAmbiguous: number | null } | null;
+  transport: { eventProofAgeSeconds: number | null; controlProofAgeSeconds: number | null; mediaProofAgeSeconds: number | null; ptzNotifyAgeSeconds: number | null } | null;
   cloud: { outboxDepth: number | null; oldestOutboxAgeSeconds: number | null; deadLetterDepth: number | null; cloudAckAgeSeconds: number | null; diskFreeBytes: number | null } | null;
   /** Null when no health event was recorded for this camera today -- which is NOT the same
    *  as a steady day, and must not render as one. */
@@ -218,12 +226,18 @@ function stateTone(state: string, commissioned: boolean): string {
     case "HEALTHY":
       return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
     case "STALE":
+    case "UNVERIFIED_CAPABILITIES":
+    case "PTZ_HOME_INVALID":
     case "CALIBRATION_INVALID":
     case "DEGRADED_VISION":
     case "CLOUD_BACKLOG":
       return "border-amber-500/40 bg-amber-500/10 text-amber-300";
     case "PRODUCER_OFFLINE":
     case "CAMERA_OFFLINE":
+    case "AUTH_DEGRADED":
+    case "EVENTS_DEGRADED":
+    case "CONTROL_DEGRADED":
+    case "MEDIA_DEGRADED":
       return "border-red-500/40 bg-red-500/10 text-red-300";
     default:
       // NEVER_INGESTED: a fault for a commissioned camera, an expectation for a planned one.
@@ -236,7 +250,7 @@ function stateTone(state: string, commissioned: boolean): string {
 /** One dimension of the lattice. `good` values read calm; the rest read as attention. */
 function facetTone(value: string): string {
   if (["alive", "connected", "fresh", "ok", "valid"].includes(value)) return "text-emerald-400/80";
-  if (value === "unknown" || value === "never") return "text-foreground/35";
+  if (value === "unknown" || value === "never" || value === "not_required") return "text-foreground/35";
   return "text-amber-400";
 }
 
@@ -248,8 +262,13 @@ function CameraCard({ c }: { c: CameraHealth }) {
     ["frames", c.facets.frames],
     ["pose", c.facets.pose],
     ["calibration", c.facets.calibration],
+    ["auth", c.facets.auth],
+    ["events", c.facets.events],
+    ["control", c.facets.control],
+    ["media", c.facets.media],
+    ["home", c.facets.home],
     ["cloud", c.facets.cloud],
-  ];
+  ].filter(([, value]) => value !== "not_required") as Array<[string, string]>;
   /**
    * Everything except `producer` is the producer's own last SELF-REPORT, and it is only a
    * statement about NOW while the producer is still alive. `deriveCameraState` computes
@@ -270,6 +289,9 @@ function CameraCard({ c }: { c: CameraHealth }) {
           <div className="text-[13px] font-semibold truncate">{c.label}</div>
           <div className="text-[12px] text-foreground/50 truncate">
             {c.camera}
+            <span className="ml-2 rounded border border-foreground/15 px-1 py-px text-[10px] uppercase tracking-wide text-foreground/45">
+              {c.role.replace(/_/g, " ")}
+            </span>
             {c.mode && c.mode !== "PRODUCTION" && (
               <span className="ml-2 rounded border border-sky-500/40 bg-sky-500/10 px-1 py-px text-[10px] uppercase tracking-wide text-sky-300">
                 {c.mode.toLowerCase()}
@@ -389,6 +411,18 @@ function CameraCard({ c }: { c: CameraHealth }) {
               <span className="text-amber-400" title="Cars the census called already-there that the entry portal then watched drive in. Their arrivals were never counted.">
                 missed arrivals {c.vision.preexistingCrossed}
               </span>
+            )}
+            {typeof c.transport?.eventProofAgeSeconds === "number" && (
+              <span>event proof {formatAgo(c.transport.eventProofAgeSeconds)} ago</span>
+            )}
+            {typeof c.transport?.controlProofAgeSeconds === "number" && (
+              <span>control proof {formatAgo(c.transport.controlProofAgeSeconds)} ago</span>
+            )}
+            {typeof c.transport?.mediaProofAgeSeconds === "number" && (
+              <span>media proof {formatAgo(c.transport.mediaProofAgeSeconds)} ago</span>
+            )}
+            {typeof c.transport?.ptzNotifyAgeSeconds === "number" && (
+              <span>PTZ receipt {formatAgo(c.transport.ptzNotifyAgeSeconds)} ago</span>
             )}
             {c.cloud && c.cloud.outboxDepth !== null && <span>outbox {c.cloud.outboxDepth}</span>}
             {c.source && c.source.restores !== null && c.source.restores > 0 && (

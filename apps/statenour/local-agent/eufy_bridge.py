@@ -68,6 +68,237 @@ FORWARDED_EVENTS = frozenset({
 })
 
 
+_HOME_PRESET_RAW = os.getenv("EUFY_OFFICE_HOME_PRESET", "").strip()
+try:
+    HOME_PRESET_ID = int(_HOME_PRESET_RAW) if _HOME_PRESET_RAW else None
+except ValueError:
+    HOME_PRESET_ID = None
+    log.warning("EUFY_OFFICE_HOME_PRESET is not an integer; home proof disabled")
+
+_RUNTIME_LOCK = threading.Lock()
+_PTZ_COMMAND_LOCK = threading.Lock()
+_PTZ_RECEIPT_EVENT = threading.Event()
+_RUNTIME_HEALTH: dict[str, Any] = {
+    "eventPlaneOk": None,
+    "controlPlaneOk": None,
+    "mediaPlaneOk": None,
+    "ptzHomeOk": None,
+    "lastEventProofAt": None,
+    "lastControlProofAt": None,
+    "lastMediaProofAt": None,
+    "lastPtzNotifyAt": None,
+}
+_PENDING_PTZ: dict[str, Any] | None = None
+_LAST_MEDIA_PROBE_MONOTONIC = 0.0
+
+PTZ_RECEIPT_TIMEOUT_SECONDS = max(
+    3.0,
+    float(os.getenv("EUFY_PTZ_RECEIPT_TIMEOUT_SECONDS", "20")),
+)
+MEDIA_PROBE_INTERVAL_SECONDS = max(
+    15.0,
+    float(os.getenv("EUFY_MEDIA_PROBE_INTERVAL_SECONDS", "120")),
+)
+MEDIA_PROOF_TTL_SECONDS = max(
+    MEDIA_PROBE_INTERVAL_SECONDS,
+    float(os.getenv("EUFY_MEDIA_PROOF_TTL_SECONDS", "180")),
+)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _is_office(serial: str) -> bool:
+    return serial.strip() == OFFICE_CAMERA_SERIAL
+
+
+def _mark_runtime(**changes: Any) -> None:
+    with _RUNTIME_LOCK:
+        _RUNTIME_HEALTH.update(changes)
+
+
+def _parse_iso(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _expire_media_proof() -> None:
+    """A once-good media path does not stay green forever without fresh proof."""
+    with _RUNTIME_LOCK:
+        if _RUNTIME_HEALTH.get("mediaPlaneOk") is not True:
+            return
+        proven_at = _parse_iso(_RUNTIME_HEALTH.get("lastMediaProofAt"))
+        if proven_at is None:
+            _RUNTIME_HEALTH["mediaPlaneOk"] = None
+            return
+        age = (datetime.now(timezone.utc) - proven_at).total_seconds()
+        if age > MEDIA_PROOF_TTL_SECONDS:
+            _RUNTIME_HEALTH["mediaPlaneOk"] = None
+
+
+def _arm_ptz_receipt(serial: str, target_home: bool | None) -> None:
+    global _PENDING_PTZ
+    with _RUNTIME_LOCK:
+        _PTZ_RECEIPT_EVENT.clear()
+        _PENDING_PTZ = {
+            "serial": serial,
+            "targetHome": target_home,
+            "armedAt": time.monotonic(),
+        }
+
+
+def _clear_ptz_receipt(serial: str) -> None:
+    global _PENDING_PTZ
+    with _RUNTIME_LOCK:
+        if _PENDING_PTZ and _PENDING_PTZ.get("serial") == serial:
+            _PENDING_PTZ = None
+        _PTZ_RECEIPT_EVENT.clear()
+
+
+def _record_bridge_event(event: dict[str, Any]) -> None:
+    """Record OFFICE-camera proof BEFORE any cloud forwarding attempt."""
+    global _PENDING_PTZ
+    serial = str(event.get("deviceSn") or event.get("sn") or "")
+    if not _is_office(serial):
+        return
+
+    now = _now_iso()
+    name = str(event.get("event") or "")
+    release_receipt = False
+    with _RUNTIME_LOCK:
+        _RUNTIME_HEALTH["eventPlaneOk"] = True
+
+        if name in {"motion", "personDetected", "vehicleDetected", "soundDetected"}:
+            _RUNTIME_HEALTH["lastEventProofAt"] = now
+        elif name == "streamState" and bool(event.get("active")):
+            # active:true proves real media opened. active:false only means nobody is
+            # consuming it; it is NOT a media failure.
+            _RUNTIME_HEALTH["mediaPlaneOk"] = True
+            _RUNTIME_HEALTH["lastMediaProofAt"] = now
+        elif name == "ptzNotify":
+            # A physical receipt from the office camera proves the P2P/control path.
+            _RUNTIME_HEALTH["controlPlaneOk"] = True
+            _RUNTIME_HEALTH["lastControlProofAt"] = now
+            _RUNTIME_HEALTH["lastPtzNotifyAt"] = now
+
+            pending = _PENDING_PTZ
+            if pending and pending.get("serial") == serial:
+                target_home = pending.get("targetHome")
+                if target_home is False:
+                    # A confirmed directional move proves we are no longer on the
+                    # calibrated home view.
+                    _RUNTIME_HEALTH["ptzHomeOk"] = False
+                elif target_home is True:
+                    # preset.goto(home) + ptzNotify proves the CONTROL path only.
+                    # The SDK exposes no authoritative absolute PTZ position, so the
+                    # returned view stays unknown until a visual/SceneLock verifier
+                    # explicitly proves it matches the calibrated home reference.
+                    _RUNTIME_HEALTH["ptzHomeOk"] = None
+                _PENDING_PTZ = None
+                release_receipt = True
+
+    if release_receipt:
+        _PTZ_RECEIPT_EVENT.set()
+
+
+def mark_ptz_home_pose_verified(is_home: bool) -> None:
+    """
+    Accept HOME truth only from a visual/SceneLock verifier.
+
+    A PTZ motor receipt is intentionally insufficient: the upstream SDK exposes movement
+    notifications but no authoritative absolute position member for this camera family.
+    """
+    _mark_runtime(ptzHomeOk=bool(is_home))
+
+
+def _bridge_http_base() -> str:
+    raw = BRIDGE_URL.strip()
+    if raw.startswith("ws://"):
+        raw = "http://" + raw[5:]
+    elif raw.startswith("wss://"):
+        raw = "https://" + raw[6:]
+    if raw.endswith("/ws"):
+        raw = raw[:-3]
+    return raw.rstrip("/")
+
+
+def probe_office_media_health(*, force: bool = False) -> bool | None:
+    """
+    Read real bytes from /stream/<office> on a bounded cadence.
+
+    HTTP/P2P open failure is measured MEDIA_DEGRADED evidence. A successful H264 byte
+    read is positive proof. Closing our short probe normally emits streamState(false),
+    which intentionally does not demote media.
+    """
+    global _LAST_MEDIA_PROBE_MONOTONIC
+    if not BRIDGE_URL:
+        return None
+
+    now_mono = time.monotonic()
+    with _RUNTIME_LOCK:
+        if (
+            not force
+            and _LAST_MEDIA_PROBE_MONOTONIC > 0
+            and now_mono - _LAST_MEDIA_PROBE_MONOTONIC < MEDIA_PROBE_INTERVAL_SECONDS
+        ):
+            return _RUNTIME_HEALTH.get("mediaPlaneOk")
+        _LAST_MEDIA_PROBE_MONOTONIC = now_mono
+
+    url = f"{_bridge_http_base()}/stream/{OFFICE_CAMERA_SERIAL}"
+    try:
+        with requests.get(
+            url,
+            stream=True,
+            timeout=(5, min(20.0, MEDIA_PROBE_INTERVAL_SECONDS)),
+        ) as resp:
+            if resp.status_code >= 400:
+                _mark_runtime(mediaPlaneOk=False)
+                return False
+            chunk = next(resp.iter_content(chunk_size=2048), b"")
+            if not chunk:
+                _mark_runtime(mediaPlaneOk=False)
+                return False
+    except Exception as exc:
+        log.warning("Eufy office media probe failed: %s", exc)
+        _mark_runtime(mediaPlaneOk=False)
+        return False
+
+    _mark_runtime(mediaPlaneOk=True, lastMediaProofAt=_now_iso())
+    return True
+
+
+def runtime_health_snapshot(*, auth_ok: bool | None = None) -> dict[str, Any]:
+    _expire_media_proof()
+    with _RUNTIME_LOCK:
+        snapshot = dict(_RUNTIME_HEALTH)
+    snapshot["authPlaneOk"] = auth_ok
+    return snapshot
+
+
+def _reset_runtime_health_for_test() -> None:
+    """Test-only reset; production never calls this."""
+    global _PENDING_PTZ, _LAST_MEDIA_PROBE_MONOTONIC
+    with _RUNTIME_LOCK:
+        _RUNTIME_HEALTH.update({
+            "eventPlaneOk": None,
+            "controlPlaneOk": None,
+            "mediaPlaneOk": None,
+            "ptzHomeOk": None,
+            "lastEventProofAt": None,
+            "lastControlProofAt": None,
+            "lastMediaProofAt": None,
+            "lastPtzNotifyAt": None,
+        })
+        _PENDING_PTZ = None
+        _LAST_MEDIA_PROBE_MONOTONIC = 0.0
+        _PTZ_RECEIPT_EVENT.clear()
+
+
 class EufyBridgeError(RuntimeError):
     """Bridge is unavailable, unauthenticated, or rejected a capability action."""
 
@@ -160,7 +391,13 @@ def _require_ptz(serial: str) -> dict[str, Any]:
     return device
 
 
-def _ptz_action(serial: str, action: str, args: list[Any] | None = None) -> dict[str, Any]:
+def _ptz_action(
+    serial: str,
+    action: str,
+    args: list[Any] | None = None,
+    *,
+    target_home: bool | None = None,
+) -> dict[str, Any]:
     _require_ptz(serial)
     payload: dict[str, Any] = {
         "cmd": "device.action",
@@ -169,7 +406,32 @@ def _ptz_action(serial: str, action: str, args: list[Any] | None = None) -> dict
     }
     if args:
         payload["args"] = args
-    return request(payload)
+
+    # Other Eufy devices keep the bridge's normal fire-and-forget semantics and can
+    # NEVER mutate the office-camera health snapshot.
+    if not _is_office(serial):
+        return request(payload)
+
+    # Exactly one office PTZ command may be in flight. Arm the receipt BEFORE sending,
+    # so an early ptzNotify cannot race the post-request bookkeeping.
+    with _PTZ_COMMAND_LOCK:
+        _arm_ptz_receipt(serial, target_home)
+        try:
+            reply = request(payload)
+        except Exception:
+            _clear_ptz_receipt(serial)
+            _mark_runtime(controlPlaneOk=False, ptzHomeOk=None)
+            raise
+
+        if not _PTZ_RECEIPT_EVENT.wait(timeout=PTZ_RECEIPT_TIMEOUT_SECONDS):
+            _clear_ptz_receipt(serial)
+            _mark_runtime(controlPlaneOk=False, ptzHomeOk=None)
+            raise EufyBridgeError(
+                f"PTZ command acknowledged but no ptzNotify arrived within "
+                f"{PTZ_RECEIPT_TIMEOUT_SECONDS:.0f}s"
+            )
+        _PTZ_RECEIPT_EVENT.clear()
+        return reply
 
 
 def execute_command(command: dict[str, Any]) -> dict[str, Any]:
@@ -196,7 +458,7 @@ def execute_command(command: dict[str, Any]) -> dict[str, Any]:
 
     if name.startswith("ptz_") and name.removeprefix("ptz_") in PTZ_DIRECTIONS:
         direction = name.removeprefix("ptz_")
-        reply = _ptz_action(serial, direction)
+        reply = _ptz_action(serial, direction, target_home=False)
         return {
             "ptzCommand": "sent",
             "direction": direction,
@@ -210,7 +472,7 @@ def execute_command(command: dict[str, Any]) -> dict[str, Any]:
             raise EufyBridgeError(
                 f"invalid PTZ direction {direction!r}; expected one of {sorted(PTZ_DIRECTIONS)}"
             )
-        reply = _ptz_action(serial, direction)
+        reply = _ptz_action(serial, direction, target_home=False)
         return {
             "ptzCommand": "sent",
             "direction": direction,
@@ -225,7 +487,12 @@ def execute_command(command: dict[str, Any]) -> dict[str, Any]:
             raise EufyBridgeError("ptz_preset requires integer params.id") from exc
         if preset_id < 0:
             raise EufyBridgeError("ptz_preset params.id must be non-negative")
-        reply = _ptz_action(serial, "preset.goto", [preset_id])
+        reply = _ptz_action(
+            serial,
+            "preset.goto",
+            [preset_id],
+            target_home=(HOME_PRESET_ID is not None and preset_id == HOME_PRESET_ID),
+        )
         return {
             "ptzCommand": "sent",
             "presetId": preset_id,
@@ -367,20 +634,25 @@ async def _listen_once() -> None:
         max_size=2 * 1024 * 1024,
     ) as ws:
         log.info("Eufy event stream connected")
-        async for raw in ws:
-            event = json.loads(raw)
-            if not isinstance(event, dict) or not _should_forward_event(event):
-                continue
-            try:
-                await asyncio.to_thread(_forward_event, event)
-                log.info(
-                    "Eufy event: %s device=%s",
-                    event.get("event"),
-                    event.get("deviceSn") or "?",
-                )
-            except Exception as exc:
-                # Do not kill the local event stream because the cloud sync had a bad minute.
-                log.warning("Eufy event forward failed: %s", exc)
+        _mark_runtime(eventPlaneOk=True)
+        try:
+            async for raw in ws:
+                event = json.loads(raw)
+                if not isinstance(event, dict) or not _should_forward_event(event):
+                    continue
+                _record_bridge_event(event)
+                try:
+                    await asyncio.to_thread(_forward_event, event)
+                    log.info(
+                        "Eufy event: %s device=%s",
+                        event.get("event"),
+                        event.get("deviceSn") or "?",
+                    )
+                except Exception as exc:
+                    # Do not kill the local event stream because the cloud sync had a bad minute.
+                    log.warning("Eufy event forward failed: %s", exc)
+        finally:
+            _mark_runtime(eventPlaneOk=False)
 
 
 def run_event_listener_forever() -> None:
@@ -392,6 +664,7 @@ def run_event_listener_forever() -> None:
             asyncio.run(_listen_once())
             delay = 2.0
         except Exception as exc:
+            _mark_runtime(eventPlaneOk=False)
             log.warning("Eufy event stream disconnected: %s; retrying in %.0fs", exc, delay)
             time.sleep(delay)
             delay = min(60.0, delay * 2)

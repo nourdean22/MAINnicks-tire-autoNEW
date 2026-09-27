@@ -4763,6 +4763,19 @@ export const cameraRuntime = mysqlTable("camera_runtime", {
   frameOk: boolean("frameOk"),
   poseOk: boolean("poseOk"),
   poseDelta: float("poseDelta"),
+  /**
+   * Interaction/PTZ transport proofs (0134). NULL means not measured, never success.
+   * Fixed-geometry producers may omit all of these forever.
+   */
+  authPlaneOk: boolean("authPlaneOk"),
+  eventPlaneOk: boolean("eventPlaneOk"),
+  controlPlaneOk: boolean("controlPlaneOk"),
+  mediaPlaneOk: boolean("mediaPlaneOk"),
+  ptzHomeOk: boolean("ptzHomeOk"),
+  lastEventProofAt: timestamp("lastEventProofAt"),
+  lastControlProofAt: timestamp("lastControlProofAt"),
+  lastMediaProofAt: timestamp("lastMediaProofAt"),
+  lastPtzNotifyAt: timestamp("lastPtzNotifyAt"),
   calibrationVersion: varchar("calibrationVersion", { length: 32 }),
   detectorName: varchar("detectorName", { length: 128 }),
   modelSha256: varchar("modelSha256", { length: 64 }),

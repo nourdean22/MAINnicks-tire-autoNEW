@@ -96,3 +96,43 @@ describe("every vision field the router returns reaches the card", () => {
     expect(card).toContain("vision.inferenceAgeSeconds");
   });
 });
+
+/** The keys of the object literal `lot.health` returns as a camera's transport block. */
+function transportFieldsReturned(): string[] {
+  const src = fs.readFileSync(ROUTER, "utf8");
+  const start = src.indexOf("          transport: r");
+  const end = src.indexOf("          cloud: r", start);
+  expect(start, "the transport block moved or vanished").toBeGreaterThanOrEqual(0);
+  expect(end, "the transport block has no closing boundary").toBeGreaterThan(start);
+  const block = src.slice(start, end);
+  return [...block.matchAll(/^\s{16}([A-Za-z0-9_]+):\s/gm)].map((m) => m[1]);
+}
+
+describe("every interaction transport field reaches the camera card", () => {
+  it("finds a transport block worth checking", () => {
+    const fields = transportFieldsReturned();
+    expect(fields.length).toBeGreaterThanOrEqual(4);
+    expect(fields).toContain("eventProofAgeSeconds");
+    expect(fields).toContain("controlProofAgeSeconds");
+    expect(fields).toContain("mediaProofAgeSeconds");
+    expect(fields).toContain("ptzNotifyAgeSeconds");
+  });
+
+  it("the card renders every returned transport proof age", () => {
+    const card = fs.readFileSync(CARD, "utf8");
+    const missing = transportFieldsReturned().filter(
+      (field) =>
+        !card.includes(`transport.${field}`) &&
+        !card.includes(`transport?.${field}`),
+    );
+    expect(
+      missing,
+      `lot.health returns transport fields ${JSON.stringify(missing)} that the camera card drops`,
+    ).toEqual([]);
+  });
+
+  it("the authority role reaches the screen", () => {
+    const card = fs.readFileSync(CARD, "utf8");
+    expect(card).toContain("c.role");
+  });
+});

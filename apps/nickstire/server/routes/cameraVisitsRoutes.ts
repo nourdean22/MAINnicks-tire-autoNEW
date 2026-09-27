@@ -42,6 +42,7 @@ import { sql } from "drizzle-orm";
 
 import { maskPlate, normalizePlate, PLATE_MATCH_CLASSES } from "../lib/plate";
 import { deriveStateAtIngest } from "../lib/cameraHealth";
+import { cameraHealthProfileFor } from "../../shared/cameras";
 
 /** Timing-safe, matching the sibling bridge routes. */
 function safeCompare(a: string, b: string): boolean {
@@ -356,6 +357,16 @@ const heartbeatSchema = z.object({
   frameOk: z.boolean().nullish(),
   poseOk: z.boolean().nullish(),
   poseDelta: z.number().nullish(),
+  // Interaction/PTZ planes. NULL/omitted = not proven, not success.
+  authPlaneOk: z.boolean().nullish(),
+  eventPlaneOk: z.boolean().nullish(),
+  controlPlaneOk: z.boolean().nullish(),
+  mediaPlaneOk: z.boolean().nullish(),
+  ptzHomeOk: z.boolean().nullish(),
+  lastEventProofAt: tsField,
+  lastControlProofAt: tsField,
+  lastMediaProofAt: tsField,
+  lastPtzNotifyAt: tsField,
   calibrationVersion: z.string().max(32).nullish(),
   detectorName: z.string().max(128).nullish(),
   modelSha256: z.string().max(64).nullish(),
@@ -389,6 +400,8 @@ export const HEARTBEAT_COLUMNS = [
   "camera", "producerInstanceId", "producerVersion", "gitSha", "heartbeatSeq", "observedAtEdge",
   "mode", "commissioningRunId", "sourceType", "sourceGeneration", "sourceConnected",
   "lastFrameAt", "lastHealthyFrameAt", "captureFps", "frameOk", "poseOk", "poseDelta",
+  "authPlaneOk", "eventPlaneOk", "controlPlaneOk", "mediaPlaneOk", "ptzHomeOk",
+  "lastEventProofAt", "lastControlProofAt", "lastMediaProofAt", "lastPtzNotifyAt",
   "calibrationVersion", "detectorName", "modelSha256", "lastInferenceAt", "inferenceP95Ms",
   "openVisits", "outboxDepth", "oldestOutboxAgeSeconds", "deadLetterDepth", "lastCloudAckAt",
   "diskFreeBytes", "restores", "relocateFailures", "preexistingCrossed", "state",
@@ -520,10 +533,15 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       frameOk: b.frameOk ?? null,
       poseOk: b.poseOk ?? null,
       calibrationVersion: b.calibrationVersion ?? null,
+      authPlaneOk: b.authPlaneOk ?? null,
+      eventPlaneOk: b.eventPlaneOk ?? null,
+      controlPlaneOk: b.controlPlaneOk ?? null,
+      mediaPlaneOk: b.mediaPlaneOk ?? null,
+      ptzHomeOk: b.ptzHomeOk ?? null,
       outboxDepth: b.outboxDepth ?? null,
       oldestOutboxAgeSeconds: b.oldestOutboxAgeSeconds ?? null,
       deadLetterDepth: b.deadLetterDepth ?? null,
-    });
+    }, cameraHealthProfileFor(b.camera));
 
     const values: Record<(typeof HEARTBEAT_COLUMNS)[number], unknown> = {
       camera: b.camera,
@@ -543,6 +561,15 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       frameOk: b.frameOk == null ? null : b.frameOk ? 1 : 0,
       poseOk: b.poseOk == null ? null : b.poseOk ? 1 : 0,
       poseDelta: b.poseDelta ?? null,
+      authPlaneOk: b.authPlaneOk == null ? null : b.authPlaneOk ? 1 : 0,
+      eventPlaneOk: b.eventPlaneOk == null ? null : b.eventPlaneOk ? 1 : 0,
+      controlPlaneOk: b.controlPlaneOk == null ? null : b.controlPlaneOk ? 1 : 0,
+      mediaPlaneOk: b.mediaPlaneOk == null ? null : b.mediaPlaneOk ? 1 : 0,
+      ptzHomeOk: b.ptzHomeOk == null ? null : b.ptzHomeOk ? 1 : 0,
+      lastEventProofAt: b.lastEventProofAt ?? null,
+      lastControlProofAt: b.lastControlProofAt ?? null,
+      lastMediaProofAt: b.lastMediaProofAt ?? null,
+      lastPtzNotifyAt: b.lastPtzNotifyAt ?? null,
       calibrationVersion: b.calibrationVersion ?? null,
       detectorName: b.detectorName ?? null,
       modelSha256: b.modelSha256 ?? null,

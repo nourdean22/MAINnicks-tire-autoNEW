@@ -1030,6 +1030,13 @@
       "when": 1789301400000,
       "tag": "0133_contact_consent_events",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "5",
+      "when": 1789301500000,
+      "tag": "0134_camera_interaction_health",
+      "breakpoints": true
     }
   ]
 }

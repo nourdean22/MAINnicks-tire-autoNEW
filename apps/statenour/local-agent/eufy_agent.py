@@ -21,6 +21,8 @@ import json
 import logging
 import hashlib
 import time
+import uuid
+from datetime import datetime, timezone
 import requests
 from pathlib import Path
 from dotenv import load_dotenv
@@ -34,6 +36,18 @@ SYNC_KEY = os.getenv("STATENOUR_SYNC_KEY", "")
 EUFY_EMAIL = os.getenv("EUFY_EMAIL", "")
 EUFY_PASSWORD = os.getenv("EUFY_PASSWORD", "")
 EUFY_BRIDGE_URL = os.getenv("EUFY_BRIDGE_URL", "").strip()
+EUFY_OFFICE_CAMERA_SERIAL = os.getenv(
+    "EUFY_OFFICE_CAMERA_SERIAL",
+    "T8410P522517180B",
+).strip()
+
+# Optional cross-app operational heartbeat. Deliberately requires a SEPARATE Nick's
+# ingest key instead of reusing STATENOUR_SYNC_KEY.
+NICKS_CAMERA_HEARTBEAT_URL = os.getenv("NICKS_CAMERA_HEARTBEAT_URL", "").strip()
+NICKS_CAMERA_INGEST_KEY = os.getenv("NICKS_CAMERA_INGEST_KEY", "").strip()
+NICKS_OFFICE_CAMERA_ID = os.getenv("NICKS_OFFICE_CAMERA_ID", "office").strip() or "office"
+_OFFICE_PRODUCER_INSTANCE_ID = uuid.uuid4().hex
+_office_heartbeat_seq = 0
 
 EUFY_API_BASE = "https://security-app.eufylife.com"
 TOKEN_FILE = Path(__file__).parent / "eufy-data" / "token.json"
@@ -352,6 +366,99 @@ def _poll_bridge_devices() -> list | None:
         # when NO bridge has been configured.
         log.error("Eufy bridge unavailable: %s", exc)
         raise
+
+
+# ─── Nick's operational heartbeat ────────────────────────────────────────
+
+def _next_office_heartbeat_seq() -> int:
+    global _office_heartbeat_seq
+    _office_heartbeat_seq += 1
+    return _office_heartbeat_seq
+
+
+def build_office_camera_heartbeat(
+    *,
+    auth_ok: bool,
+    runtime_health: dict,
+    seq: int,
+    observed_at: datetime | None = None,
+) -> dict:
+    """
+    Compile one Nick's camera-runtime heartbeat.
+
+    Missing transport values stay omitted/null. False stays false. The Nick's health
+    lattice decides whether the interaction camera is degraded or merely unverified.
+    """
+    at = observed_at or datetime.now(timezone.utc)
+    payload = {
+        "camera": NICKS_OFFICE_CAMERA_ID,
+        "producerInstanceId": _OFFICE_PRODUCER_INSTANCE_ID,
+        "producerVersion": "statenour.eufy_agent",
+        "heartbeatSeq": seq,
+        "observedAtEdge": at.isoformat(),
+        "mode": "SHADOW",
+        "sourceType": "eufy_sdk_bridge",
+        "sourceGeneration": EUFY_OFFICE_CAMERA_SERIAL,
+        "sourceConnected": auth_ok,
+        "detectorName": "eufy-semantic-events",
+        "authPlaneOk": auth_ok,
+    }
+
+    for key in (
+        "eventPlaneOk",
+        "controlPlaneOk",
+        "mediaPlaneOk",
+        "ptzHomeOk",
+        "lastEventProofAt",
+        "lastControlProofAt",
+        "lastMediaProofAt",
+        "lastPtzNotifyAt",
+    ):
+        value = runtime_health.get(key)
+        if value is not None:
+            payload[key] = value
+    return payload
+
+
+def sync_office_camera_heartbeat() -> int:
+    """
+    Send one role-aware office camera heartbeat to Nick's.
+
+    This is intentionally independent of the slower full Eufy device sync so Nick's
+    30/60/120-second health SLO sees the local agent every cycle. It is inert until BOTH
+    URL and key are configured, and a failed Nick's write never changes Eufy device state.
+    """
+    if not NICKS_CAMERA_HEARTBEAT_URL or not NICKS_CAMERA_INGEST_KEY:
+        return 0
+
+    from eufy_bridge import bridge_ready, probe_office_media_health, runtime_health_snapshot
+
+    auth_ok, _reason = bridge_ready()
+    if auth_ok:
+        # Bounded/throttled real media open. A 5xx/P2P timeout is negative evidence;
+        # a real H264 byte read is positive proof. The probe self-throttles.
+        probe_office_media_health()
+    runtime = runtime_health_snapshot(auth_ok=auth_ok)
+    payload = build_office_camera_heartbeat(
+        auth_ok=auth_ok,
+        runtime_health=runtime,
+        seq=_next_office_heartbeat_seq(),
+    )
+    resp = requests.post(
+        NICKS_CAMERA_HEARTBEAT_URL,
+        json=payload,
+        headers={
+            "x-sync-key": NICKS_CAMERA_INGEST_KEY,
+            "Content-Type": "application/json",
+        },
+        timeout=10,
+    )
+    if resp.status_code >= 400:
+        raise RuntimeError(
+            f"Nick's office camera heartbeat failed ({resp.status_code}): {resp.text[:200]}"
+        )
+    log.debug("Nick's office camera heartbeat accepted: %s", resp.text[:120])
+    return 1
 
 
 # ─── Main Sync Function ──────────────────────────────────────────────────
