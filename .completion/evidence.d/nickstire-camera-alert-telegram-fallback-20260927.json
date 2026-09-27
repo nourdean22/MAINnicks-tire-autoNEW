@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "production-failure-receipt": {
+      "ref": "Railway production 2026-09-27 18:16Z: real sign camera HEALTHY -> CLOUD_BACKLOG transition invoked camera-health-alerts; Resend rejected both attempts because nickstire.org was unverified; notifyOwner's log-only fallback did not count as external delivery; camera-health-alerts released the daily claim and threw 'no delivery surface accepted sign/CLOUD_BACKLOG', preserving retryability."
+    },
+    "telegram-fallback-contract": {
+      "ref": "apps/nickstire/server/services/cameraHealthAlertPolicy.ts + cameraHealthAlerts.test.ts: primary email/webhook acceptance short-circuits Telegram; when primary delivery is unconfirmed, existing services/telegram.sendTelegram is attempted; only a true provider acceptance retains the daily claim; false/throw leaves delivery unconfirmed so the claim is released and retried."
+    },
+    "live-promotion-boundary": {
+      "deferred": "This PR does not claim a Telegram camera alert has been delivered in production. After deployment, a real degraded/recovery transition must show Telegram acceptance (or verified Resend email) before the capability ledger can record external alert delivery as live-verified."
+    }
+  }
+}
