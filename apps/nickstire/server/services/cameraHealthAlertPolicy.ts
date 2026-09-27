@@ -45,6 +45,13 @@ export function externalNotificationDelivery(
   };
 }
 
+function escapeTelegramHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export async function deliverCameraAlertExternally(input: {
   alert: { title: string; message: string };
   notifySystem: (alert: { title: string; message: string }) => Promise<{
@@ -54,10 +61,16 @@ export async function deliverCameraAlertExternally(input: {
   webhookConfigured: boolean;
   sendTelegram: (text: string) => Promise<boolean>;
 }): Promise<CameraAlertDelivery> {
-  const primary = externalNotificationDelivery(
-    await input.notifySystem(input.alert),
-    input.webhookConfigured,
-  );
+  let primary = { emailAccepted: false, webhookAccepted: false };
+  try {
+    primary = externalNotificationDelivery(
+      await input.notifySystem(input.alert),
+      input.webhookConfigured,
+    );
+  } catch {
+    // A broken primary rail must not prevent the independent Telegram fallback.
+    primary = { emailAccepted: false, webhookAccepted: false };
+  }
 
   // Email or a real webhook already reached the owner. Do not double-page Telegram.
   if (primary.emailAccepted || primary.webhookAccepted) {
@@ -65,11 +78,12 @@ export async function deliverCameraAlertExternally(input: {
   }
 
   // Telegram is an existing immediate external rail with its own circuit breaker.
+  // sendTelegram uses HTML parse mode, so escape dynamic camera text first.
   // Only its boolean provider acceptance counts; logs/attempts never do.
   let telegramAccepted = false;
   try {
     telegramAccepted = await input.sendTelegram(
-      `🚨 ${input.alert.title}\n\n${input.alert.message}`,
+      `🚨 ${escapeTelegramHtml(input.alert.title)}\n\n${escapeTelegramHtml(input.alert.message)}`,
     );
   } catch {
     telegramAccepted = false;
