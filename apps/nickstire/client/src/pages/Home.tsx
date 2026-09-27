@@ -34,7 +34,7 @@ import { Link } from "wouter";
 import BookingForm from "@/components/BookingForm";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, trackPhoneClick, trackEvent } from "@/components/SEO";
-import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Disc, Activity, Wrench, Zap, AlertTriangle, Snowflake, KeyRound, MessageCircle, Droplets } from "lucide-react";
+import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Disc, Activity, Wrench, Zap, AlertTriangle, Snowflake, KeyRound, MessageCircle, Droplets, Instagram } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
@@ -569,6 +569,107 @@ function Reviews({ reviewData }: { reviewData: HomeReviewData }) {
   );
 }
 
+// ─── INSTAGRAM — native social proof, no third-party embed script ─────────────
+//
+// The public router already serves the Graph-synced cache used by admin. Use
+// that first-party data here instead of loading instagram.com/embed.js on the
+// homepage. That keeps the page fast, lets the cards inherit Nick's visual
+// system, and degrades to a simple profile link when the cache is unavailable.
+function InstagramProof() {
+  const postsQuery = trpc.instagram.posts.useQuery({ limit: 3 }, {
+    staleTime: 30 * 60 * 1000,
+    retry: 1,
+  });
+  const accountQuery = trpc.instagram.account.useQuery(undefined, {
+    staleTime: 30 * 60 * 1000,
+    retry: 1,
+  });
+  const posts = postsQuery.data ?? [];
+  const username = accountQuery.data?.username || "nicks_tire_euclid";
+  const profileUrl = `https://www.instagram.com/${username}/`;
+
+  return (
+    <section className="bg-background py-20 lg:py-28 border-t border-border/30" aria-labelledby="instagram-proof-heading">
+      <div className="container">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between mb-9">
+          <div>
+            <div className="text-nick-yellow text-[10px] font-mono uppercase tracking-widest mb-2">
+              From the shop floor
+            </div>
+            <h2 id="instagram-proof-heading" className="font-heading text-3xl sm:text-4xl lg:text-5xl font-black text-foreground uppercase tracking-tight">
+              See what Nick&apos;s is working on.
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm sm:text-base text-foreground/55">
+              Tire lessons, real shop problems, and the odd Cleveland-road reality check.
+            </p>
+          </div>
+          <a
+            href={profileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => trackEvent("instagram_profile_click", { source: "home-social-proof" })}
+            className="inline-flex min-h-11 items-center gap-2 self-start rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:border-nick-yellow/60 hover:text-nick-yellow"
+          >
+            <Instagram className="h-4 w-4" />
+            @{username}
+            <ArrowRight className="h-4 w-4" />
+          </a>
+        </div>
+
+        {posts.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {posts.map((post) => {
+              const image = post.thumbnailUrl || post.mediaUrl;
+              return (
+                <a
+                  key={post.id}
+                  href={post.link || profileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => trackEvent("instagram_post_click", { source: "home-social-proof", post_id: post.id })}
+                  className="group relative overflow-hidden rounded-2xl border border-border bg-[#0A0A0A] aspect-square"
+                  aria-label="Open this Nick's Tire & Auto Instagram post"
+                >
+                  {image ? (
+                    <img
+                      src={image}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_30%_20%,rgba(253,185,19,0.14),transparent_45%),#0A0A0A]">
+                      <Instagram className="h-10 w-10 text-nick-yellow/70" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
+                  <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 p-4">
+                    <span className="line-clamp-2 text-xs font-medium leading-relaxed text-white/90">
+                      {post.caption?.trim() || "Open on Instagram"}
+                    </span>
+                    <Instagram className="h-4 w-4 shrink-0 text-nick-yellow" />
+                  </div>
+                </a>
+              );
+            })}
+          </div>
+        ) : (
+          <a
+            href={profileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-h-28 items-center justify-between gap-4 rounded-2xl border border-dashed border-border px-6 py-5 text-sm text-foreground/65 hover:border-nick-yellow/50"
+          >
+            <span>Latest posts are loading from Instagram. The profile is always available directly.</span>
+            <ArrowRight className="h-4 w-4 shrink-0 text-nick-yellow" />
+          </a>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ─── CONTACT — split with booking form (no financing banner) ─────
 function Contact() {
   return (
@@ -883,6 +984,7 @@ export default function Home() {
       <RiseInView className="parallax-rise"><TriageGrid /></RiseInView>
       <RiseInView className="parallax-rise"><Services /></RiseInView>
       <RiseInView className="parallax-rise"><Reviews reviewData={reviewData} /></RiseInView>
+      <RiseInView className="parallax-rise"><InstagramProof /></RiseInView>
       {/* ── DROP-OFF + UBER-OUT — id="dropoff" is the hero router target ── */}
       <section id="dropoff" className="bg-[oklch(0.055_0.004_260)] py-14 border-t border-border/30 halftone-light">
         <div className="container">

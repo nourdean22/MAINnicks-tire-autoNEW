@@ -234,10 +234,45 @@ export async function applyReconciliation(args: {
     if (affectedRowCount(res) !== 1) {
       return { ok: false, detail: `${noun} is no longer in a reconcilable state — refresh and look again.` };
     }
+
+    // Reconciliation is just as authoritative as the ordinary success path:
+    // once Instagram proves the Reel is live, repair the universal inventory
+    // mirror too. Never fail the reconciliation because the mirror write failed
+    // — that would reopen the duplicate-publish risk this service exists to
+    // eliminate. The metrics loop has a self-heal for the mirror.
+    if (!isScheduled) {
+      try {
+        const { markReelInventoryPublishedByJobId } = await import("./reelInventoryLink");
+        // Omit an override timestamp: the helper preserves the original
+        // publicationScheduledAt/dispatch time recorded when the job was claimed.
+        await markReelInventoryPublishedByJobId(d, args.jobId);
+      } catch (inventoryErr) {
+        log.error("reconciled Reel is LIVE but social inventory mirror update failed", {
+          jobId: args.jobId,
+          err: inventoryErr instanceof Error ? inventoryErr.message.slice(0, 240) : String(inventoryErr).slice(0, 240),
+        });
+      }
+    }
+
     await recordPublishOutcome(args.attemptId, OUTCOME.confirmed, {
       igPostId: args.igPostId ?? null,
       error: args.operatorNote ? `reconciled by operator: ${args.operatorNote}` : "reconciled: confirmed live",
     });
+
+    if (!isScheduled) {
+      const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("./contentRun");
+      await advanceContentRunByReelJobId(args.jobId, {
+        stage: RUN_STAGE.done,
+        operationalState: OPERATIONAL_STATE.published,
+        failureReason: null,
+        evidence: {
+          at: new Date().toISOString(),
+          what: "Ambiguous Instagram publish reconciled as live",
+          proof: `instagram-media:${args.igPostId}`,
+        },
+      });
+    }
+
     log.warn("ambiguous publish reconciled as LIVE", { kind: args.kind ?? "reel_job", id: args.jobId, igPostId: args.igPostId });
     return { ok: true, detail: "Marked as published. This will not be retried." };
   }
@@ -251,6 +286,20 @@ export async function applyReconciliation(args: {
   await recordPublishOutcome(args.attemptId, OUTCOME.failed, {
     error: args.operatorNote ? `reconciled by operator: ${args.operatorNote}` : "reconciled: never reached Instagram",
   });
+
+  if (!isScheduled) {
+    const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("./contentRun");
+    await advanceContentRunByReelJobId(args.jobId, {
+      stage: RUN_STAGE.held,
+      operationalState: OPERATIONAL_STATE.failed,
+      failureReason: "reconciled: did not reach Instagram — safe to retry",
+      evidence: {
+        at: new Date().toISOString(),
+        what: "Ambiguous Instagram publish reconciled as not published; Reel released for retry",
+      },
+    });
+  }
+
   log.warn("ambiguous publish reconciled as NOT published — released for retry", { kind: args.kind ?? "reel_job", id: args.jobId });
   return {
     ok: true,

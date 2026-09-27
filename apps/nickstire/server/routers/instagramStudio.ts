@@ -290,8 +290,41 @@ export const instagramStudioRouter = router({
       const buffer = Buffer.from(input.base64, "base64");
       const safeFilename = input.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
       const suffix = randomInt(100000, 999999).toString();
-      const key = `ig-evidence/${Date.now()}-${suffix}-${safeFilename}`;
+      const capturedAt = Date.now();
+      const key = `ig-evidence/${capturedAt}-${suffix}-${safeFilename}`;
+      // Registry identity is deliberately independent of the human filename:
+      // media_assets.logical_key is varchar(191), while accepted upload names
+      // may be 255 chars. Keep the original name in metadata, not in the key.
+      const registryKey = `ig-evidence/${capturedAt}-${suffix}-${randomUUID()}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
+
+      // Build the real-media memory while the bytes are in hand. This was a
+      // BUILT-UNWIRED gap: evidence uploads already existed, and the canonical
+      // media registry already stores provenance/rights, but the two never met.
+      // Registration is tolerant by design and must never make a successful
+      // operator upload fail.
+      try {
+        const { getDb } = await import("../db");
+        const database = await getDb();
+        if (database) {
+          const { registerProducedAsset } = await import("../services/mediaRegistry");
+          await registerProducedAsset(database, buffer, {
+            logicalKey: registryKey,
+            assetType: "instagram_evidence_photo",
+            format: "image",
+            mimeType: input.mimeType,
+            runtimeUrl: url,
+            provider: "operator_upload",
+            providerModel: null,
+            providerRequestId: null,
+            originalProviderUrl: null,
+            gdriveSyncState: "pending",
+            generationParams: { originalFilename: safeFilename, source: "instagram_studio_evidence" },
+            rightsStatus: "real_shop",
+          });
+        }
+      } catch { /* upload succeeded; registry observability may degrade */ }
+
       return { url };
     }),
 

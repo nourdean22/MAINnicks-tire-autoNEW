@@ -267,6 +267,8 @@ export interface ReelJobBrief {
   voiceoverScript?: string;
   /** campaign lineage — the creative_genomes row this brief descends from */
   genomeId?: string | null;
+  /** durable parent for the whole make→publish journey; optional for legacy callers */
+  contentRunId?: string | null;
   /** operator-approved visual world; its locked invariants MUST survive into
    *  the prompt pack rebuilt here (the #814 P1: briefClean dropped this) */
   visualWorld?: {
@@ -504,6 +506,18 @@ export async function enqueueReelJob(
       jobId: existingBeforeReservation.id,
       idempotencyKey,
     });
+    // Repair lineage for legacy/deduped jobs too. This is deliberately
+    // best-effort: a missing observability parent must never make an existing
+    // durable Reel job fail enqueue.
+    try {
+      const { ensureContentRunForReelJob } = await import("./contentRun");
+      await ensureContentRunForReelJob({
+        reelJobId: Number(existingBeforeReservation.id),
+        source,
+        topic: brief.topic ?? null,
+        runId: brief.contentRunId ?? null,
+      });
+    } catch { /* lineage degraded; durable Reel row remains authoritative */ }
     return { jobId: Number(existingBeforeReservation.id) };
   }
 
@@ -685,6 +699,32 @@ export async function enqueueReelJob(
       (res as unknown as Array<{ insertId?: number }>)?.[0]?.insertId ??
       0,
   );
+
+  // Universal lineage: every durable Reel job gets the same content_run parent
+  // the static Studio path already uses. This is OBSERVABILITY, not a gate —
+  // failure here stays loud but cannot invalidate a job that already exists.
+  if (jobId > 0) {
+    try {
+      const { ensureContentRunForReelJob } = await import("./contentRun");
+      const runId = await ensureContentRunForReelJob({
+        reelJobId: jobId,
+        source,
+        topic: brief.topic ?? null,
+        runId: brief.contentRunId ?? null,
+      });
+      if (runId && brief.contentRunId !== runId) {
+        brief.contentRunId = runId;
+        const { eq } = await import("drizzle-orm");
+        await d.update(reelJobs).set({ payload: JSON.stringify(brief) }).where(eq(reelJobs.id, jobId));
+      }
+    } catch (err) {
+      log.warn("reel job queued but content-run lineage could not be persisted", {
+        jobId,
+        err: err instanceof Error ? err.message.slice(0, 180) : String(err),
+      });
+    }
+  }
+
   // Reserve the render budget in the ledger (idempotent on the job id).
   // Settled at assets_ready with clips × per-clip estimate; failed jobs keep
   // the conservative reservation as their spend record.
@@ -856,6 +896,14 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
     .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "queued")));
   const affectedRows = (claimRes[0] as unknown as { affectedRows?: number })?.affectedRows ?? 0;
   if (affectedRows !== 1) return { processed: false }; // another worker claimed it
+
+  {
+    const { advanceContentRunByReelJobId, RUN_STAGE } = await import("./contentRun");
+    await advanceContentRunByReelJobId(job.id, {
+      stage: RUN_STAGE.generating,
+      evidence: { at: new Date().toISOString(), what: "Reel generation claimed" },
+    });
+  }
 
   // Hoisted above the try so the outer catch (job-level terminal-failure
   // fallback, below) knows which provider was actually in flight — without
@@ -1303,6 +1351,18 @@ export async function processNextReelJob(scopeJobId?: number): Promise<{
       needsRegen: routedToNeedsRegen,
     });
     if (nextStatus === "failed" || nextStatus === "needs_regen") {
+      {
+        const { advanceContentRunByReelJobId, RUN_STAGE, IMPLEMENTATION_STATE } = await import("./contentRun");
+        await advanceContentRunByReelJobId(job.id, {
+          stage: nextStatus === "needs_regen" ? RUN_STAGE.held : RUN_STAGE.failed,
+          implementationState: IMPLEMENTATION_STATE.failed,
+          failureReason: msg.slice(0, 1000),
+          evidence: {
+            at: new Date().toISOString(),
+            what: nextStatus === "needs_regen" ? "Reel generation requires regeneration" : "Reel generation failed",
+          },
+        });
+      }
       // Terminal failure: keep the conservative reservation as the spend
       // record (clips may have partially generated and burned credits).
       try {
@@ -1363,6 +1423,14 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "assets_ready")));
   const affectedRows = (claimRes[0] as unknown as { affectedRows?: number })?.affectedRows ?? 0;
   if (affectedRows !== 1) return { processed: false }; // another worker claimed it
+
+  {
+    const { advanceContentRunByReelJobId, RUN_STAGE } = await import("./contentRun");
+    await advanceContentRunByReelJobId(job.id, {
+      stage: RUN_STAGE.assembling,
+      evidence: { at: new Date().toISOString(), what: "Reel assembly claimed" },
+    });
+  }
 
   try {
     // The stored payload is the full client ReelBrief (storyboardBeats carry
@@ -1460,6 +1528,30 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
       if (linkOutcome === "created") {
         log.info("reel draft CREATED for gate (briefId had no inventory row)", { jobId: job.id, briefId: job.briefId });
       }
+
+      const { advanceContentRunByReelJobId, RUN_STAGE, IMPLEMENTATION_STATE } = await import("./contentRun");
+      await advanceContentRunByReelJobId(job.id, {
+        stage: RUN_STAGE.awaiting_approval,
+        implementationState: IMPLEMENTATION_STATE.built,
+        inventoryId: job.briefId,
+        evidence: {
+          at: new Date().toISOString(),
+          what: "Reel assembled and staged in the canonical review queue",
+          proof: mp4Url,
+        },
+      });
+    } else {
+      const { advanceContentRunByReelJobId, RUN_STAGE, IMPLEMENTATION_STATE } = await import("./contentRun");
+      await advanceContentRunByReelJobId(job.id, {
+        stage: RUN_STAGE.held,
+        implementationState: IMPLEMENTATION_STATE.built,
+        failureReason: "assembled Reel has no publish-gate inventory identity",
+        evidence: {
+          at: new Date().toISOString(),
+          what: "Reel assembled but cannot enter the canonical review queue",
+          proof: mp4Url,
+        },
+      });
     }
 
     log.info("reel job assembled", { jobId: job.id, mp4Url, durationSec });
@@ -1469,7 +1561,16 @@ export async function processNextAssemblyJob(scopeJobId?: number): Promise<{
     // Retry assembly (back to assets_ready, NOT queued — clips are already gen'd).
     const nextStatus = attempt >= MAX_ATTEMPTS ? "failed" : "assets_ready";
     await d.update(reelJobs).set({ status: nextStatus, queueState: queueStateForReelStatus(nextStatus), error: msg.slice(0, 1000) }).where(eq(reelJobs.id, job.id));
-    if (nextStatus === "failed") await releaseFailedJobReservation(job.payload, job.id);
+    if (nextStatus === "failed") {
+      await releaseFailedJobReservation(job.payload, job.id);
+      const { advanceContentRunByReelJobId, RUN_STAGE, IMPLEMENTATION_STATE } = await import("./contentRun");
+      await advanceContentRunByReelJobId(job.id, {
+        stage: RUN_STAGE.failed,
+        implementationState: IMPLEMENTATION_STATE.failed,
+        failureReason: msg.slice(0, 1000),
+        evidence: { at: new Date().toISOString(), what: "Reel assembly failed after exhausting retries" },
+      });
+    }
     log.warn("reel assembly failed", { jobId: job.id, attempt, nextStatus, error: msg });
     return { processed: true, jobId: job.id, status: nextStatus, error: msg };
   }
