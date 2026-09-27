@@ -189,13 +189,31 @@ def _record_bridge_event(event: dict[str, Any]) -> None:
             pending = _PENDING_PTZ
             if pending and pending.get("serial") == serial:
                 target_home = pending.get("targetHome")
-                if target_home is not None:
-                    _RUNTIME_HEALTH["ptzHomeOk"] = bool(target_home)
+                if target_home is False:
+                    # A confirmed directional move proves we are no longer on the
+                    # calibrated home view.
+                    _RUNTIME_HEALTH["ptzHomeOk"] = False
+                elif target_home is True:
+                    # preset.goto(home) + ptzNotify proves the CONTROL path only.
+                    # The SDK exposes no authoritative absolute PTZ position, so the
+                    # returned view stays unknown until a visual/SceneLock verifier
+                    # explicitly proves it matches the calibrated home reference.
+                    _RUNTIME_HEALTH["ptzHomeOk"] = None
                 _PENDING_PTZ = None
                 release_receipt = True
 
     if release_receipt:
         _PTZ_RECEIPT_EVENT.set()
+
+
+def mark_ptz_home_pose_verified(is_home: bool) -> None:
+    """
+    Accept HOME truth only from a visual/SceneLock verifier.
+
+    A PTZ motor receipt is intentionally insufficient: the upstream SDK exposes movement
+    notifications but no authoritative absolute position member for this camera family.
+    """
+    _mark_runtime(ptzHomeOk=bool(is_home))
 
 
 def _bridge_http_base() -> str:
