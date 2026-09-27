@@ -137,9 +137,13 @@ export function deriveCameraState(
     age === null ? "stale" : age > T.offlineAfterSeconds ? "offline" : age > T.staleAfterSeconds ? "stale" : "alive";
 
   let cloud: HealthFacets["cloud"] = "unknown";
+  const cloudProofComplete =
+    r.outboxDepth !== null &&
+    r.oldestOutboxAgeSeconds !== null &&
+    r.deadLetterDepth !== null;
   if (r.deadLetterDepth !== null && r.deadLetterDepth > 0) cloud = "dead_letters";
   else if (r.oldestOutboxAgeSeconds !== null && r.oldestOutboxAgeSeconds > T.backlogWarnSeconds) cloud = "backlog";
-  else if (r.outboxDepth !== null || r.oldestOutboxAgeSeconds !== null) cloud = "ok";
+  else if (cloudProofComplete) cloud = "ok";
 
   if (profile === "interaction_ptz") {
     const facets: HealthFacets = {
