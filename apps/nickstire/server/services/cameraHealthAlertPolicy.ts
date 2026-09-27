@@ -26,11 +26,24 @@ export function cameraAlertShopDay(now: Date = new Date()): string {
   return now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
 }
 
+export function externalNotificationDelivery(
+  result: { emailSent: boolean; pushSent: boolean },
+  webhookConfigured: boolean,
+): { emailAccepted: boolean; webhookAccepted: boolean } {
+  return {
+    emailAccepted: result.emailSent,
+    // notifyOwner historically returns true for a console-log-only fallback.
+    // That is observability, not owner delivery. Count push only when an actual
+    // webhook endpoint exists and the notification layer reports success.
+    webhookAccepted: webhookConfigured && result.pushSent,
+  };
+}
+
 function notificationDelivered(result: {
-  emailSent: boolean;
-  pushSent: boolean;
+  emailAccepted: boolean;
+  webhookAccepted: boolean;
 }): boolean {
-  return result.emailSent || result.pushSent;
+  return result.emailAccepted || result.webhookAccepted;
 }
 
 export function formatCameraHealthAlert(input: {
@@ -73,8 +86,8 @@ export async function deliverWithConfirmedNotification(input: {
   state: CameraHealthState;
   alert: { title: string; message: string };
   notify: (alert: { title: string; message: string }) => Promise<{
-    emailSent: boolean;
-    pushSent: boolean;
+    emailAccepted: boolean;
+    webhookAccepted: boolean;
   }>;
   releaseClaim: () => Promise<void>;
 }): Promise<void> {
