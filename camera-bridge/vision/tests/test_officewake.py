@@ -44,6 +44,7 @@ def config(**overrides):
         capture_enabled=False,
         policy_acknowledged=False,
         source_url="",
+        input_format="auto",
         out_dir="data/office",
         source_name="eufy-office",
         seconds=30.0,
@@ -119,7 +120,7 @@ def test_capture_path_fails_closed_until_policy_media_and_enablement_exist():
     assert decision.action == "drop"
     assert "OFFICE_INTERACTION_CAPTURE_ENABLED" in decision.reason
     assert "OFFICE_AUDIO_POLICY_ACK" in decision.reason
-    assert "OFFICE_MEDIA_URL" in decision.reason
+    assert "audio source" in decision.reason
 
     allowed = config(
         capture_mode=True,
@@ -134,6 +135,33 @@ def test_capture_path_fails_closed_until_policy_media_and_enablement_exist():
         at=MONDAY_10AM,
     )
     assert decision.action == "capture"
+
+
+def test_event_wake_passes_local_mic_input_format_to_capture(tmp_path):
+    seen = {}
+
+    def fake_capture(source_url, out_dir, seconds, **kwargs):
+        seen["source_url"] = source_url
+        seen["input_format"] = kwargs.get("input_format")
+        return []
+
+    cfg = config(
+        capture_mode=True,
+        capture_enabled=True,
+        policy_acknowledged=True,
+        source_url="USB Counter Mic",
+        input_format="dshow",
+        out_dir=str(tmp_path),
+    )
+    result = run_capture_once(
+        cfg,
+        Trigger(MONDAY_10AM, "personDetected", OFFICE),
+        capture_fn=fake_capture,
+        clock=lambda: MONDAY_10AM,
+    )
+
+    assert result.status == "no_segments"
+    assert seen == {"source_url": "USB Counter Mic", "input_format": "dshow"}
 
 
 def test_capture_posts_existing_evidence_payload_without_raw_audio_upload(tmp_path):

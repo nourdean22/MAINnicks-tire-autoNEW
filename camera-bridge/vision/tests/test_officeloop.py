@@ -17,7 +17,7 @@ import pytest  # noqa: E402
 
 from vision.officeloop import (  # noqa: E402
     DEFAULT_CLOSE, DEFAULT_OPEN, MAX_SLEEP_S, TimezoneDataMissing, WindowState, _backoff,
-    _zone, capture_seconds, window_state,
+    _zone, capture_seconds, main, window_state,
 )
 
 ET = ZoneInfo("America/New_York")
@@ -154,3 +154,47 @@ def test_there_is_NO_silent_fallback_to_a_fixed_offset(monkeypatch):
     monkeypatch.setattr("vision.officeloop.ZoneInfo", boom)
     with pytest.raises(TimezoneDataMissing):
         _zone()
+
+
+def test_main_reads_source_and_format_from_environment(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run_forever(source_url, out_dir, **kwargs):
+        seen["source_url"] = source_url
+        seen["out_dir"] = out_dir
+        seen["input_format"] = kwargs["input_format"]
+        seen["source"] = kwargs["source"]
+        return 0
+
+    monkeypatch.setenv("NICK_OFFICE_AUDIO_SOURCE", "audio=USB Counter Mic")
+    monkeypatch.setenv("NICK_OFFICE_AUDIO_INPUT_FORMAT", "dshow")
+    monkeypatch.setattr("vision.officeloop.run_forever", fake_run_forever)
+
+    rc = main([
+        "--out-dir", str(tmp_path),
+        "--source", "counter-mic",
+        "--once",
+    ])
+
+    assert rc == 0
+    assert seen == {
+        "source_url": "audio=USB Counter Mic",
+        "out_dir": str(tmp_path),
+        "input_format": "dshow",
+        "source": "counter-mic",
+    }
+
+
+def test_main_prefers_generic_audio_source_over_legacy_rtsp(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_run_forever(source_url, out_dir, **kwargs):
+        seen["source_url"] = source_url
+        return 0
+
+    monkeypatch.setenv("NICK_OFFICE_AUDIO_SOURCE", "audio=Counter Mic")
+    monkeypatch.setenv("NICK_OFFICE_RTSP", "rtsp://stale-camera")
+    monkeypatch.setattr("vision.officeloop.run_forever", fake_run_forever)
+
+    assert main(["--out-dir", str(tmp_path), "--once"]) == 0
+    assert seen["source_url"] == "audio=Counter Mic"

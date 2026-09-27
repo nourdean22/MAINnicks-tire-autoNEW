@@ -296,21 +296,34 @@ recording.
 
 ### Install it
 
-One command, once, as Administrator. Read the key on this machine so it never travels:
+**Summary-first rule:** Admin does not need a live camera player. The evidence source only needs
+to produce intelligible counter audio. Eufy RTSP is one source; a dedicated Windows counter mic
+is another, and is the preferred fallback when camera P2P/video is unreliable.
+
+Read the ingest key on the shop machine so it never travels.
+
+RTSP source:
 
 ```powershell
 railway run -s MAINnicks-tire-auto -- printenv CAMERA_INGEST_KEY
 cd C:\NOURCITY\camera-bridge\scripts
-.\install-office-capture.ps1 -SourceUrl "rtsp://<user>:<pass>@192.168.0.167/live0" -IngestKey "<paste>"
+.\install-office-capture.ps1 -SourceKind rtsp -SourceUrl "rtsp://<verified-audio-source>" -IngestKey "<paste>"
 ```
 
-It verifies every prerequisite BEFORE changing anything -- Administrator, Python >= 3.9,
-`tzdata`, `ffmpeg`, the whisper binary, and a live `ffprobe` proving the camera really carries
-an audio stream -- and names the fix for each. `-WhatIf` shows the changes without making them.
+Dedicated Windows counter mic:
 
-The ingest key and the RTSP URL go into the MACHINE environment, not the task's arguments: a
-scheduled task's command line is readable by any user via `schtasks /query /v`, and the camera
-credentials are inside that URL.
+```powershell
+ffmpeg -list_devices true -f dshow -i dummy
+.\install-office-capture.ps1 -SourceKind dshow -SourceUrl "<exact microphone name>" -IngestKey "<paste>"
+```
+
+The installer verifies every prerequisite BEFORE changing anything. RTSP is probed for a real
+audio stream. DirectShow is proved by recording a real five-second PCM file from the exact
+device name. A local microphone is registered under the interactive shop user at logon because
+Windows audio devices are desktop-session resources; RTSP remains a boot/SYSTEM task.
+
+The ingest key and source are stored in machine environment variables, never in task arguments.
+`-WhatIf` still shows the changes without making one.
 
 ### Hours
 
@@ -349,18 +362,18 @@ a threshold edit.
 
 ```powershell
 cd C:\NOURCITY\camera-bridge\vision
-python officepost.py --source-url $env:NICK_OFFICE_RTSP --out-dir C:\nick-office-audio --seconds 60 --dry-run
+python officepost.py --source-url $env:NICK_OFFICE_AUDIO_SOURCE --input-format $env:NICK_OFFICE_AUDIO_INPUT_FORMAT --out-dir C:\nick-office-audio --seconds 60
 ```
 
-`--dry-run` transcribes and prints the payload without posting. Drop it to post for real; the
-reply carries `transcriptStatus`, `coverage` and `dropped`.
+That command posts for real. The reply carries `transcriptStatus`, `coverage` and `dropped`.
+Coverage below 0.65 is an evidence-quality refusal, not permission to invent a summary.
 
 **Calibrate the silence threshold from the real room** rather than trusting the default, and do
 it during a BUSY stretch -- a calibration run in a quiet hour derives its threshold from room
 tone, and the capture then splits on nothing:
 
 ```powershell
-python officeaudio.py --source-url $env:NICK_OFFICE_RTSP --out-dir C:\nick-office-audio --calibrate --calib-samples 12 --calib-spacing 60
+python officeaudio.py --source-url $env:NICK_OFFICE_AUDIO_SOURCE --input-format $env:NICK_OFFICE_AUDIO_INPUT_FORMAT --out-dir C:\nick-office-audio --calibrate --calib-samples 12 --calib-spacing 60
 ```
 
 It exits 5 and proposes nothing when the samples are too few or too flat to separate speech

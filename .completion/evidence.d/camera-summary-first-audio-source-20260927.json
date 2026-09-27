@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "counter-conversation-cockpit is updated in apps/nickstire/docs/operations/capability-ledger.json without promoting operational state: PR #2704 adds source-agnostic office audio capture and evidence-backed summary synthesis; focused office tests passed 66/66 and the full camera-bridge suite passed 737 with 2 skipped and 112 subtests. Live audio commissioning remains blocked/pending, so the capability stays unit_verified."
+    },
+    "operator-walkthrough": {
+      "deferred": "Post-deploy operator-pending: open signed-in Admin > Lot with real conversation rows and verify summaries appear only when evidence-backed; low transcript coverage explicitly says Summary withheld with the measured coverage and 65% evidence threshold; failed capture/transcription/extraction is named as unavailable; no raw audio/full transcript or live video player is exposed."
+    }
+  }
+}

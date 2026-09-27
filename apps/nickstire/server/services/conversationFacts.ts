@@ -48,6 +48,54 @@ const FACT_KINDS = [
 ] as const;
 export type FactKind = (typeof FACT_KINDS)[number];
 
+
+const SUMMARY_LABELS: Record<FactKind, string> = {
+  CUSTOMER_CONCERN: "Concern",
+  REQUESTED_WORK: "Requested",
+  QUOTE: "Quote",
+  PROMISE: "Promised",
+  APPROVAL: "Approved",
+  DECLINE: "Declined",
+  FOLLOW_UP: "Follow-up",
+  VEHICLE_DETAIL: "Vehicle",
+};
+
+const SUMMARY_ORDER: readonly FactKind[] = [
+  "CUSTOMER_CONCERN",
+  "REQUESTED_WORK",
+  "VEHICLE_DETAIL",
+  "QUOTE",
+  "PROMISE",
+  "APPROVAL",
+  "DECLINE",
+  "FOLLOW_UP",
+];
+
+/**
+ * Build the operator summary ONLY from facts that already survived provenance/confidence gates.
+ *
+ * This deliberately refuses free-form model prose. A model can cite valid evidence for one
+ * fact and then smuggle an uncited guess into prose. Synthesizing from accepted facts means
+ * every statement inherits evidence the server has already verified.
+ */
+function evidenceBackedSummary(facts: ConversationFact[]): string | null {
+  if (!facts.length) return null;
+
+  const grouped = new Map<FactKind, string[]>();
+  for (const fact of [...facts].sort((a, b) => a.evidenceSegment - b.evidenceSegment)) {
+    const values = grouped.get(fact.kind) ?? [];
+    const normalized = fact.value.trim();
+    if (normalized && !values.includes(normalized)) values.push(normalized);
+    grouped.set(fact.kind, values);
+  }
+
+  const parts = SUMMARY_ORDER.flatMap((kind) => {
+    const values = grouped.get(kind) ?? [];
+    return values.length ? [SUMMARY_LABELS[kind] + ": " + values.join("; ")] : [];
+  });
+  return parts.length ? parts.join(". ") + "." : null;
+}
+
 export type ConversationFact = {
   kind: FactKind;
   /** What was said, in the extractor's words — short, specific, no interpretation. */
@@ -136,7 +184,8 @@ RULES, in order of importance:
    single most damaging thing you can do.
 4. Confidence is about the TRANSCRIPT, not your writing. If the words are ambiguous or the
    segment looks garbled, score low. Do not round up.
-5. A summary is optional. Omit it rather than padding.
+5. Do not add uncited prose. The server builds the operator summary later from facts that
+   survive provenance and confidence validation.
 
 Fact kinds: CUSTOMER_CONCERN (what is wrong), REQUESTED_WORK (what they asked for), QUOTE (a
 price discussed), PROMISE (a commitment about time or outcome), APPROVAL (customer agreed),
@@ -167,7 +216,6 @@ const OUTPUT_SCHEMA: JsonSchema = {
         required: ["kind", "value", "evidenceSegment", "confidence"],
       },
     },
-    summary: { type: "string" },
   },
   required: ["facts"],
   },
@@ -240,7 +288,7 @@ export async function extractConversationFacts(
   }
 
   const latencyMs = Date.now() - started;
-  const parsed = (raw ?? {}) as { facts?: unknown[]; summary?: unknown };
+  const parsed = (raw ?? {}) as { facts?: unknown[] };
   const byIndex = new Map(segments.map((s) => [s.index, s]));
   const quiet = typeof opts.meanVolumeDb === "number" && opts.meanVolumeDb < LOW_LEVEL_DB;
 
@@ -292,9 +340,7 @@ export async function extractConversationFacts(
     });
   }
 
-  const summary = typeof parsed.summary === "string" && parsed.summary.trim()
-    ? parsed.summary.trim()
-    : null;
+  const summary = evidenceBackedSummary(facts);
 
   return { facts, summary, dropped, engine, latencyMs, ok: true, error: null };
 }

@@ -19,9 +19,11 @@
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-  # RTSP URL for the office camera. Its credentials are part of the URL, so it is treated as a
-  # secret: stored in the machine environment, never written into the task's command line.
+  # Audio source spec. For rtsp this is the camera URL. For dshow this is the exact
+  # Windows microphone name (or an audio=<device> DirectShow spec).
   [Parameter(Mandatory = $true)][string]$SourceUrl,
+
+  [ValidateSet("rtsp", "dshow")][string]$SourceKind = "rtsp",
 
   # The shared ingest secret. Read it from Railway rather than typing it from memory:
   #   railway run -s MAINnicks-tire-auto -- printenv CAMERA_INGEST_KEY
@@ -34,16 +36,78 @@ param(
   [string]$OpenAt  = "08:00",
   [string]$CloseAt = "18:00",
   [string]$TaskName = "NickOfficeCapture",
+  # DirectShow must run as the actual logged-in shop user, not an elevation account.
+  [string]$DesktopUser = "",
+  # Run only the source probe. Used by CI canaries and safe operator diagnostics.
+  [switch]$ProbeOnly,
   # Where this repo's camera-bridge lives on the shop PC.
   [string]$BridgeDir = "C:\NOURCITY\camera-bridge"
 )
 
 $ErrorActionPreference = "Stop"
+$SourceKind = $SourceKind.ToLowerInvariant()
 
 function Fail([string]$what, [string]$fix) {
   Write-Host "BLOCKED: $what" -ForegroundColor Red
   Write-Host "  fix:   $fix" -ForegroundColor Yellow
   exit 1
+}
+
+function Test-AudioSource {
+  if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+    Fail "ffmpeg is not on PATH" "winget install Gyan.FFmpeg  (then reopen PowerShell)"
+  }
+
+  if ($SourceKind -eq "rtsp") {
+    if (-not (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
+      Fail "ffprobe is not on PATH" "install ffmpeg/ffprobe and reopen PowerShell"
+    }
+    Write-Host "  [..] probing RTSP for an AUDIO stream" -ForegroundColor Yellow
+    $probe = & ffprobe -v error -select_streams a -show_entries stream=codec_name,sample_rate `
+                       -of default=nw=1 -rtsp_transport tcp -i $SourceUrl -t 1 2>&1
+    if ($LASTEXITCODE -ne 0 -or -not $probe) {
+      Fail "no audio stream from RTSP source" "check the URL and that NAS(RTSP) is enabled on the camera"
+    }
+    Write-Host "  [ok] RTSP audio: $($probe -join ' ')"
+    return
+  }
+
+  if ($WhatIfPreference) {
+    Write-Host "  [whatif] would record and level-check DirectShow microphone; no probe file created"
+    return
+  }
+
+  $dshowSpec = if ($SourceUrl.ToLowerInvariant().StartsWith("audio=")) { $SourceUrl } else { "audio=$SourceUrl" }
+  $probeFile = Join-Path $env:TEMP ("nick-office-mic-probe-" + [guid]::NewGuid().ToString("N") + ".wav")
+  try {
+    Write-Host "  [..] probing DirectShow microphone for 5s" -ForegroundColor Yellow
+    $capture = & ffmpeg -hide_banner -f dshow -i $dshowSpec -vn -acodec pcm_s16le -ar 16000 -ac 1 -t 5 -y $probeFile 2>&1
+    $captureRc = $LASTEXITCODE
+    $probeInfo = Get-Item -LiteralPath $probeFile -ErrorAction SilentlyContinue
+    if ($captureRc -ne 0 -or -not $probeInfo -or $probeInfo.Length -lt 1024) {
+      Fail "DirectShow microphone did not produce audio" "run ffmpeg -list_devices true -f dshow -i dummy and pass the exact microphone name"
+    }
+
+    $level = & ffmpeg -hide_banner -i $probeFile -af volumedetect -f null NUL 2>&1
+    $levelRc = $LASTEXITCODE
+    $match = [regex]::Match(($level -join "`n"), 'mean_volume:\s*(-?\d+(?:\.\d+)?) dB')
+    if ($levelRc -ne 0 -or -not $match.Success) {
+      Fail "DirectShow microphone level could not be measured" "verify the selected microphone produces decodable PCM audio"
+    }
+    $meanDb = [double]::Parse($match.Groups[1].Value, [Globalization.CultureInfo]::InvariantCulture)
+    if ($meanDb -le -70.0) {
+      Fail "DirectShow microphone is effectively silent ($meanDb dBFS mean)" "unmute/connect the microphone, speak near it, then rerun the installer"
+    }
+    Write-Host "  [ok] DirectShow microphone signal measured at $meanDb dBFS mean"
+  }
+  finally {
+    Remove-Item -LiteralPath $probeFile -Force -ErrorAction SilentlyContinue
+  }
+}
+
+if ($ProbeOnly) {
+  Test-AudioSource
+  exit 0
 }
 
 Write-Host "=== Preflight (nothing is changed until every check passes) ===" -ForegroundColor Cyan
@@ -106,17 +170,8 @@ install a whisper.cpp build and put whisper-cli on PATH, e.g.
 }
 Write-Host "  [ok] transcriber $Transcriber"
 
-# --- 7. the camera --------------------------------------------------------------
-Write-Host "  [..] probing the camera for an AUDIO stream (5s)" -ForegroundColor Yellow
-$probe = & ffprobe -v error -select_streams a -show_entries stream=codec_name,sample_rate `
-                   -of default=nw=1 -rtsp_transport tcp -i $SourceUrl -t 1 2>&1
-if ($LASTEXITCODE -ne 0 -or -not $probe) {
-  Fail "no audio stream from the camera" @"
-check the RTSP URL and that NAS(RTSP) is enabled in the Eufy app.
-  ffprobe said: $probe
-"@
-}
-Write-Host "  [ok] camera audio: $($probe -join ' ')"
+# --- 7. the audio source --------------------------------------------------------
+Test-AudioSource
 
 Write-Host ""
 Write-Host "=== Applying ===" -ForegroundColor Cyan
@@ -130,15 +185,25 @@ Write-Host "  [ok] audio dir $OutDir"
 
 # Secrets go to the MACHINE environment, not the task's command line: a scheduled task's
 # arguments are readable by any user via schtasks /query /v.
-if ($PSCmdlet.ShouldProcess("machine environment", "set CAMERA_INGEST_KEY and NICK_OFFICE_RTSP")) {
+if ($PSCmdlet.ShouldProcess("machine environment", "set office summary source and ingest key")) {
   [Environment]::SetEnvironmentVariable("CAMERA_INGEST_KEY", $IngestKey, "Machine")
-  [Environment]::SetEnvironmentVariable("NICK_OFFICE_RTSP", $SourceUrl, "Machine")
+  [Environment]::SetEnvironmentVariable("NICK_OFFICE_AUDIO_SOURCE", $SourceUrl, "Machine")
+  [Environment]::SetEnvironmentVariable("NICK_OFFICE_AUDIO_INPUT_FORMAT", $SourceKind, "Machine")
+  if ($SourceKind -eq "rtsp") {
+    [Environment]::SetEnvironmentVariable("NICK_OFFICE_RTSP", $SourceUrl, "Machine")
+  } else {
+    # Migrating to a local mic must not leave old camera credentials readable in machine env.
+    [Environment]::SetEnvironmentVariable("NICK_OFFICE_RTSP", $null, "Machine")
+  }
 }
-Write-Host "  [ok] CAMERA_INGEST_KEY + NICK_OFFICE_RTSP stored (machine scope, not echoed)"
+Write-Host "  [ok] office audio source + CAMERA_INGEST_KEY stored (machine scope, not echoed)"
 
+$episodeSource = if ($SourceKind -eq "dshow") { "counter-mic" } else { "eufy-office" }
 $argList = @(
   "`"$loop`"",
-  "--source-url", "`"%NICK_OFFICE_RTSP%`"",
+  # officeloop reads NICK_OFFICE_AUDIO_SOURCE / INPUT_FORMAT from its process environment.
+  # Do not rely on cmd.exe-style %VAR% expansion: Task Scheduler launches Python directly.
+  "--source", $episodeSource,
   "--out-dir", "`"$OutDir`"",
   "--seconds", $WindowSeconds,
   "--open", $OpenAt,
@@ -147,9 +212,23 @@ $argList = @(
 )
 if ($WhisperModel) { $argList += @("--model", "`"$WhisperModel`"") }
 
-$action    = New-ScheduledTaskAction -Execute $py.Source -Argument ($argList -join " ") -WorkingDirectory (Join-Path $BridgeDir "vision")
-$trigger   = New-ScheduledTaskTrigger -AtStartup
-$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+$action = New-ScheduledTaskAction -Execute $py.Source -Argument ($argList -join " ") -WorkingDirectory (Join-Path $BridgeDir "vision")
+if ($SourceKind -eq "dshow") {
+  # DirectShow audio devices belong to the logged-in Windows desktop. An elevated installer
+  # may be running as a DIFFERENT admin account, so bind to the actual interactive shop user.
+  $runAs = $DesktopUser
+  if (-not $runAs) {
+    $runAs = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
+  }
+  if (-not $runAs) {
+    Fail "could not determine the interactive desktop user" "rerun with -DesktopUser DOMAIN\user"
+  }
+  $trigger = New-ScheduledTaskTrigger -AtLogOn -User $runAs
+  $principal = New-ScheduledTaskPrincipal -UserId $runAs -LogonType Interactive -RunLevel Highest
+} else {
+  $trigger = New-ScheduledTaskTrigger -AtStartup
+  $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+}
 # RestartCount/Interval: the loop is long-lived, so a crash must bring it back the same day.
 # ExecutionTimeLimit 0 = never kill it; the loop decides its own hours.
 $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
@@ -168,14 +247,15 @@ if ($PSCmdlet.ShouldProcess($TaskName, "register scheduled task")) {
 
 Write-Host ""
 Write-Host "=== Done ===" -ForegroundColor Green
-Write-Host "  task:    $TaskName (at boot, SYSTEM, auto-restart)"
+$taskMode = if ($SourceKind -eq "dshow") { "at logon, interactive user, auto-restart" } else { "at boot, SYSTEM, auto-restart" }
+Write-Host "  task:    $TaskName ($taskMode)"
 Write-Host "  hours:   $OpenAt-$CloseAt America/New_York, every day"
 Write-Host "  window:  $WindowSeconds s per capture"
 Write-Host ""
 Write-Host "Verify it end to end with ONE window, right now:" -ForegroundColor Cyan
 Write-Host "  cd `"$(Join-Path $BridgeDir 'vision')`""
-Write-Host "  python officepost.py --source-url `$env:NICK_OFFICE_RTSP --out-dir `"$OutDir`" --seconds 60 --dry-run"
+Write-Host "  python officepost.py --source-url `$env:NICK_OFFICE_AUDIO_SOURCE --input-format `$env:NICK_OFFICE_AUDIO_INPUT_FORMAT --out-dir `"$OutDir`" --seconds 60 --dry-run"
 Write-Host ""
-Write-Host "Drop --dry-run to actually post. A real post replies with transcriptStatus and coverage;"
+Write-Host "Only after reviewing the dry-run output, remove --dry-run for an explicitly authorized post. A real post replies with transcriptStatus and coverage;"
 Write-Host "coverage below 0.65 means the server stored the episode but refused to extract facts"
 Write-Host "from it, which is the gate working, not a failure."
