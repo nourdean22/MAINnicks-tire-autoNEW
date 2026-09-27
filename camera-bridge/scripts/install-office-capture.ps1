@@ -166,9 +166,18 @@ $argList = @(
 )
 if ($WhisperModel) { $argList += @("--model", "`"$WhisperModel`"") }
 
-$action    = New-ScheduledTaskAction -Execute $py.Source -Argument ($argList -join " ") -WorkingDirectory (Join-Path $BridgeDir "vision")
-$trigger   = New-ScheduledTaskTrigger -AtStartup
-$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+$action = New-ScheduledTaskAction -Execute $py.Source -Argument ($argList -join " ") -WorkingDirectory (Join-Path $BridgeDir "vision")
+if ($SourceKind -eq "dshow") {
+  # DirectShow audio devices belong to the logged-in Windows desktop. Register the task
+  # under the current operator account so the scheduled run sees the same mic that passed
+  # preflight above.
+  $runAs = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+  $trigger = New-ScheduledTaskTrigger -AtLogOn -User $runAs
+  $principal = New-ScheduledTaskPrincipal -UserId $runAs -LogonType Interactive -RunLevel Highest
+} else {
+  $trigger = New-ScheduledTaskTrigger -AtStartup
+  $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+}
 # RestartCount/Interval: the loop is long-lived, so a crash must bring it back the same day.
 # ExecutionTimeLimit 0 = never kill it; the loop decides its own hours.
 $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
@@ -187,13 +196,14 @@ if ($PSCmdlet.ShouldProcess($TaskName, "register scheduled task")) {
 
 Write-Host ""
 Write-Host "=== Done ===" -ForegroundColor Green
-Write-Host "  task:    $TaskName (at boot, SYSTEM, auto-restart)"
+$taskMode = if ($SourceKind -eq "dshow") { "at logon, interactive user, auto-restart" } else { "at boot, SYSTEM, auto-restart" }
+Write-Host "  task:    $TaskName ($taskMode)"
 Write-Host "  hours:   $OpenAt-$CloseAt America/New_York, every day"
 Write-Host "  window:  $WindowSeconds s per capture"
 Write-Host ""
 Write-Host "Verify it end to end with ONE window, right now:" -ForegroundColor Cyan
 Write-Host "  cd `"$(Join-Path $BridgeDir 'vision')`""
-Write-Host "  python officepost.py --source-url `$env:NICK_OFFICE_RTSP --out-dir `"$OutDir`" --seconds 60 --dry-run"
+Write-Host "  python officepost.py --source-url `$env:NICK_OFFICE_AUDIO_SOURCE --input-format `$env:NICK_OFFICE_AUDIO_INPUT_FORMAT --out-dir `"$OutDir`" --seconds 60"
 Write-Host ""
 Write-Host "Drop --dry-run to actually post. A real post replies with transcriptStatus and coverage;"
 Write-Host "coverage below 0.65 means the server stored the episode but refused to extract facts"
