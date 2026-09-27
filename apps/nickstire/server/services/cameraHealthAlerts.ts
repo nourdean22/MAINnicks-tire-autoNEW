@@ -47,6 +47,19 @@ export function isCameraPagingState(state: HealthState): boolean {
   return !NON_PAGING_STATES.has(state);
 }
 
+export function cameraAlertDecision(
+  state: HealthState,
+  latestAlertKey: string | null,
+): { notify: boolean; recovery: boolean } {
+  if (state === "HEALTHY") {
+    return {
+      notify: Boolean(latestAlertKey && !latestAlertKey.endsWith(":HEALTHY")),
+      recovery: Boolean(latestAlertKey && !latestAlertKey.endsWith(":HEALTHY")),
+    };
+  }
+  return { notify: isCameraPagingState(state), recovery: false };
+}
+
 export function formatCameraHealthAlert(input: {
   camera: string;
   label: string;
@@ -187,42 +200,15 @@ export async function runCameraHealthAlerts(): Promise<{
     observed.push(`${expected.camera}=${verdict.state}`);
 
     const latest = await latestCameraAlertKey(db, expected.camera);
-    const latestWasHealthy = latest?.endsWith(":HEALTHY") === true;
-
-    if (verdict.state === "HEALTHY") {
-      // A green camera with no prior degraded alert is normal, not a recovery.
-      if (!latest || latestWasHealthy) continue;
-      const claimed = await claimAlert(db, expected.camera, "HEALTHY", {
-        camera: expected.camera,
-        role: expected.role,
-        state: verdict.state,
-        reason: verdict.reason,
-        recovery: true,
-      });
-      if (!claimed) continue;
-
-      const { notifySystemAlert } = await import("../email-notify");
-      await notifySystemAlert(
-        formatCameraHealthAlert({
-          camera: expected.camera,
-          label: expected.label,
-          role: expected.role,
-          verdict,
-          recovery: true,
-        }),
-      );
-      sent++;
-      continue;
-    }
-
-    if (!isCameraPagingState(verdict.state)) continue;
+    const decision = cameraAlertDecision(verdict.state, latest);
+    if (!decision.notify) continue;
 
     const claimed = await claimAlert(db, expected.camera, verdict.state, {
       camera: expected.camera,
       role: expected.role,
       state: verdict.state,
       reason: verdict.reason,
-      recovery: false,
+      recovery: decision.recovery,
     });
     if (!claimed) continue;
 
@@ -233,15 +219,22 @@ export async function runCameraHealthAlerts(): Promise<{
         label: expected.label,
         role: expected.role,
         verdict,
-        recovery: false,
+        recovery: decision.recovery,
       }),
     );
     sent++;
-    log.warn("camera health alert fired", {
-      camera: expected.camera,
-      state: verdict.state,
-      reason: verdict.reason,
-    });
+    if (decision.recovery) {
+      log.info("camera health recovery fired", {
+        camera: expected.camera,
+        state: verdict.state,
+      });
+    } else {
+      log.warn("camera health alert fired", {
+        camera: expected.camera,
+        state: verdict.state,
+        reason: verdict.reason,
+      });
+    }
   }
 
   return {
