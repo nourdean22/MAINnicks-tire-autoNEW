@@ -28,7 +28,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | Job | Business hours only | Once per shop day | Scheduled | Purpose |
 |---|---|---|---|---|
 | `alg-mirror-health` | yes | no | yes | — |
-| `camera-health-alert-selftest` | no | no | no | — |
+| `camera-health-alert-selftest` | no | no | **STAGED — HTTP trigger only** | — |
 | `camera-health-alerts` | no | no | yes | — |
 | `campaign-resume` | no | no | **STAGED — HTTP trigger only** | — |
 | `data-accuracy-check` | no | no | yes | — |
