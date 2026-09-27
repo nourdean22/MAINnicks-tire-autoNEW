@@ -137,13 +137,21 @@ export function deriveCameraState(
     age === null ? "stale" : age > T.offlineAfterSeconds ? "offline" : age > T.staleAfterSeconds ? "stale" : "alive";
 
   let cloud: HealthFacets["cloud"] = "unknown";
-  const cloudProofComplete =
+  // Real producer semantics: an EMPTY outbox has no oldest row, so
+  // oldestOutboxAgeSeconds=null is the correct/healthy representation when depth=0.
+  // For a NON-empty queue, age must be measured before delivery health is proven.
+  const queueProofComplete =
     r.outboxDepth !== null &&
-    r.oldestOutboxAgeSeconds !== null &&
-    r.deadLetterDepth !== null;
+    r.deadLetterDepth !== null &&
+    (r.outboxDepth === 0 || r.oldestOutboxAgeSeconds !== null);
   if (r.deadLetterDepth !== null && r.deadLetterDepth > 0) cloud = "dead_letters";
-  else if (r.oldestOutboxAgeSeconds !== null && r.oldestOutboxAgeSeconds > T.backlogWarnSeconds) cloud = "backlog";
-  else if (cloudProofComplete) cloud = "ok";
+  else if (
+    r.outboxDepth !== null &&
+    r.outboxDepth > 0 &&
+    r.oldestOutboxAgeSeconds !== null &&
+    r.oldestOutboxAgeSeconds > T.backlogWarnSeconds
+  ) cloud = "backlog";
+  else if (queueProofComplete) cloud = "ok";
 
   if (profile === "interaction_ptz") {
     const facets: HealthFacets = {
