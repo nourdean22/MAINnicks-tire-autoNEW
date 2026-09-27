@@ -18,7 +18,11 @@
  *
  * This script keeps the same contract the workflow already relied on
  * (prod-only dependencies, --audit-level threshold, non-zero exit to block)
- * but targets the bulk advisory endpoint, which is live:
+ * but targets the bulk advisory endpoint. Transient 429/5xx/network failures get
+ * a bounded retry budget; exhausted uncertainty still exits non-zero. This prevents a brief
+ * registry outage from being indistinguishable from a real critical advisory without ever
+ * turning an unknown audit into green.
+ *
  *
  *   POST /-/npm/v1/security/advisories/bulk   {"name": ["1.2.3", ...]}
  *   -> {"name": [{id, url, title, severity, vulnerable_versions, cwe, cvss}]}
@@ -33,6 +37,7 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { fetchJsonWithRetry } from "./lib/advisory-fetch.mjs";
 
 const BULK_ENDPOINT = "https://registry.npmjs.org/-/npm/v1/security/advisories/bulk";
 const SEVERITY_ORDER = ["info", "low", "moderate", "high", "critical"];
@@ -100,18 +105,25 @@ async function queryBulk(chunk) {
   const body = {};
   for (const [name, versions] of chunk) body[name] = [...versions];
 
-  const res = await fetch(BULK_ENDPOINT, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    throw new Error(
-      `bulk advisory endpoint responded ${res.status}: ${(await res.text()).slice(0, 300)}`
-    );
-  }
-  return res.json();
+  return fetchJsonWithRetry(
+    BULK_ENDPOINT,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    {
+      maxAttempts: 4,
+      baseDelayMs: 750,
+      maxDelayMs: 5000,
+      onRetry: ({ attempt, maxAttempts, delayMs, error }) => {
+        console.warn(
+          `advisory endpoint transient failure ${attempt}/${maxAttempts}; ` +
+          `retrying in ${delayMs}ms: ${error?.message ?? error}`,
+        );
+      },
+    },
+  );
 }
 
 function chunked(entries, size) {
