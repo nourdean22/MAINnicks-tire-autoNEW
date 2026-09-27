@@ -20,14 +20,15 @@ import { sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { deriveCameraState } from "../lib/cameraHealth";
 import { EXPECTED_CAMERAS } from "../../shared/cameras";
-import { BUSINESS } from "../../shared/business";
+import {
+  cameraAlertDecision,
+  cameraAlertShopDay,
+  deliverWithConfirmedNotification,
+  formatCameraHealthAlert,
+  type CameraHealthState as HealthState,
+} from "./cameraHealthAlertPolicy";
 
 const log = createLogger("camera-health-alerts");
-
-type HealthState = ReturnType<typeof deriveCameraState>["state"];
-type HealthVerdict = ReturnType<typeof deriveCameraState>;
-
-const NON_PAGING_STATES = new Set<HealthState>(["HEALTHY", "STALE"]);
 
 function numberOrNull(value: unknown): number | null {
   if (value === null || value === undefined) return null;
@@ -42,63 +43,6 @@ function boolOrNull(value: unknown): boolean | null {
 
 function alertKey(camera: string, state: HealthState): string {
   return `camera_health:${camera}:${state}`;
-}
-
-/** Explicit Cleveland shop date. Never derive daily claims from DB/session timezone. */
-export function cameraAlertShopDay(now: Date = new Date()): string {
-  return now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
-}
-
-export function isCameraPagingState(state: HealthState): boolean {
-  return !NON_PAGING_STATES.has(state);
-}
-
-export function cameraAlertDecision(
-  state: HealthState,
-  latestAlertKey: string | null,
-): { notify: boolean; recovery: boolean } {
-  if (state === "HEALTHY") {
-    return {
-      notify: Boolean(latestAlertKey && !latestAlertKey.endsWith(":HEALTHY")),
-      recovery: Boolean(latestAlertKey && !latestAlertKey.endsWith(":HEALTHY")),
-    };
-  }
-  return { notify: isCameraPagingState(state), recovery: false };
-}
-
-export function formatCameraHealthAlert(input: {
-  camera: string;
-  label: string;
-  role: string;
-  verdict: HealthVerdict;
-  recovery: boolean;
-}): { title: string; message: string } {
-  const { label, role, verdict, recovery } = input;
-  const facetSummary = Object.entries(verdict.facets)
-    .filter(([, value]) => value !== "not_required")
-    .map(([key, value]) => `${key}=${value}`)
-    .join(" · ");
-
-  if (recovery) {
-    return {
-      title: `Camera recovered — ${label}`,
-      message:
-        `✅ ${label} is HEALTHY again.\n\n` +
-        `Authority: ${role.replace(/_/g, " ")}\n` +
-        `Proof: ${facetSummary}\n\n` +
-        `Review: Admin → Lot / Cameras.`,
-    };
-  }
-
-  return {
-    title: `Camera degraded — ${label}`,
-    message:
-      `🔴 ${label} entered ${verdict.state}.\n\n` +
-      `Authority: ${role.replace(/_/g, " ")}\n` +
-      `Reason: ${verdict.reason}\n` +
-      `Proof: ${facetSummary}\n\n` +
-      `Review: Admin → Lot / Cameras.`,
-  };
 }
 
 async function claimAlert(
@@ -138,31 +82,22 @@ export function notificationDelivered(result: {
   return result.emailSent || result.pushSent;
 }
 
-export async function deliverClaimedAlert(input: {
+async function deliverClaimedAlert(input: {
   db: NonNullable<Awaited<ReturnType<typeof import("../db")["getDb"]>>>;
   camera: string;
   state: HealthState;
   shopDay: string;
   alert: { title: string; message: string };
-  notify?: (alert: { title: string; message: string }) => Promise<{
-    emailSent: boolean;
-    pushSent: boolean;
-  }>;
 }): Promise<void> {
-  const notify = input.notify ?? (async (alert) => {
-    const { notifySystemAlert } = await import("../email-notify");
-    return notifySystemAlert(alert);
+  const { notifySystemAlert } = await import("../email-notify");
+  await deliverWithConfirmedNotification({
+    camera: input.camera,
+    state: input.state,
+    alert: input.alert,
+    notify: notifySystemAlert,
+    releaseClaim: () =>
+      releaseAlertClaim(input.db, input.camera, input.state, input.shopDay),
   });
-  const delivery = await notify(input.alert);
-  if (notificationDelivered(delivery)) return;
-
-  // Claim-before-send gives us multi-pod at-most-one attempts. If ALL configured
-  // delivery surfaces fail/skip, release only this camera/state/day claim so the
-  // next heartbeat can retry instead of turning a failed send into a day-long mute.
-  await releaseAlertClaim(input.db, input.camera, input.state, input.shopDay);
-  throw new Error(
-    `camera-health-alerts: no delivery surface accepted ${input.camera}/${input.state}`,
-  );
 }
 
 async function latestCameraAlertKey(
