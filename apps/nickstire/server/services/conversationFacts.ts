@@ -78,7 +78,7 @@ const SUMMARY_ORDER: readonly FactKind[] = [
  * fact and then smuggle an uncited guess into prose. Synthesizing from accepted facts means
  * every statement inherits evidence the server has already verified.
  */
-export function evidenceBackedSummary(facts: ConversationFact[]): string | null {
+function evidenceBackedSummary(facts: ConversationFact[]): string | null {
   if (!facts.length) return null;
 
   const grouped = new Map<FactKind, string[]>();
