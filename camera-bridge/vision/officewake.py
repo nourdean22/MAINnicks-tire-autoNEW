@@ -79,6 +79,7 @@ class OfficeWakeConfig:
     capture_enabled: bool
     policy_acknowledged: bool
     source_url: str
+    input_format: str
     out_dir: str
     source_name: str
     seconds: float
@@ -346,6 +347,7 @@ def run_capture_once(
             config.out_dir,
             capture_seconds,
             source=config.source_name,
+            input_format=config.input_format,
             **kwargs,
         )
     except Exception as exc:  # noqa: BLE001
@@ -624,6 +626,7 @@ def config_from_args(args: argparse.Namespace) -> OfficeWakeConfig:
         capture_enabled=_env_true("OFFICE_INTERACTION_CAPTURE_ENABLED"),
         policy_acknowledged=_env_true("OFFICE_AUDIO_POLICY_ACK"),
         source_url=str(args.source_url or "").strip(),
+        input_format=str(args.input_format or "auto").strip(),
         out_dir=str(args.out_dir),
         source_name=str(args.source),
         seconds=max(10.0, float(args.seconds)),
@@ -656,7 +659,15 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="enable capture path; default is event-only commissioning",
     )
     parser.add_argument("--max-events", type=int, default=0)
-    parser.add_argument("--source-url", default=os.environ.get("OFFICE_MEDIA_URL", ""))
+    parser.add_argument(
+        "--source-url",
+        default=os.environ.get("OFFICE_AUDIO_SOURCE") or os.environ.get("OFFICE_MEDIA_URL", ""),
+    )
+    parser.add_argument(
+        "--input-format",
+        choices=("auto", "rtsp", "dshow", "generic"),
+        default=os.environ.get("OFFICE_AUDIO_INPUT_FORMAT", "auto"),
+    )
     parser.add_argument("--out-dir", default=os.environ.get("OFFICE_INTERACTION_DIR", "data/office"))
     parser.add_argument("--ledger", default=os.environ.get("OFFICE_WAKE_LEDGER", ""))
     parser.add_argument("--source", default="eufy-office")
