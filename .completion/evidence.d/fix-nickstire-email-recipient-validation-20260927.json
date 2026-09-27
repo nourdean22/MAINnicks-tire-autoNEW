@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=outbound-consent-one-index: PR #2718 records the 2026-09-27 fail-closed recipient validation before batching/transport and the isolated behavioral proof that 15 malformed CRM rows cannot starve 3 valid recipients."
+    }
+  }
+}
