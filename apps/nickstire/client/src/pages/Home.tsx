@@ -619,7 +619,8 @@ function InstagramProof() {
         {posts.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {posts.map((post) => {
-              const image = post.thumbnailUrl || post.mediaUrl;
+              const video = post.type === "VIDEO" ? post.mediaUrl : undefined;
+              const image = post.thumbnailUrl || (post.type !== "VIDEO" ? post.mediaUrl : undefined);
               return (
                 <a
                   key={post.id}
@@ -630,7 +631,17 @@ function InstagramProof() {
                   className="group relative overflow-hidden rounded-2xl border border-border bg-[#0A0A0A] aspect-square"
                   aria-label="Open this Nick's Tire & Auto Instagram post"
                 >
-                  {image ? (
+                  {video ? (
+                    <video
+                      src={video}
+                      poster={post.thumbnailUrl}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      aria-hidden="true"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                  ) : image ? (
                     <img
                       src={image}
                       alt=""
