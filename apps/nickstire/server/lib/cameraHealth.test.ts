@@ -106,6 +106,19 @@ describe("camera health lattice — fixed geometry", () => {
     expect(dl.reason).toContain("2 dead-lettered");
   });
 
+  it("partial cloud telemetry stays UNVERIFIED instead of becoming healthy", () => {
+    for (const over of [
+      { outboxDepth: 0, oldestOutboxAgeSeconds: null, deadLetterDepth: null },
+      { outboxDepth: null, oldestOutboxAgeSeconds: 0, deadLetterDepth: null },
+      { outboxDepth: 0, oldestOutboxAgeSeconds: 0, deadLetterDepth: null },
+      { outboxDepth: null, oldestOutboxAgeSeconds: null, deadLetterDepth: 0 },
+    ]) {
+      const v = deriveCameraState(healthy(over));
+      expect(v.state).toBe("UNVERIFIED_CAPABILITIES");
+      expect(v.facets.cloud).toBe("unknown");
+    }
+  });
+
   it("precedence is fixed: camera-offline beats calibration beats vision beats cloud", () => {
     const all = healthy({ sourceConnected: false, poseOk: false, frameOk: false, deadLetterDepth: 1 });
     expect(deriveCameraState(all).state).toBe("CAMERA_OFFLINE");
