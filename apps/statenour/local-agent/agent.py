@@ -125,6 +125,10 @@ def run_eufy_commands():
         log.info("Eufy: %d queued commands processed", count)
     return count
 
+def run_eufy_office_health():
+    from eufy_agent import sync_office_camera_heartbeat
+    return sync_office_camera_heartbeat()
+
 def start_eufy_events():
     from eufy_bridge import start_event_thread
     thread = start_event_thread()
@@ -240,6 +244,13 @@ def main():
         # until bridge auth + the explicit control feature flag are ready.
         if not args.tuya_only and not args.no_eufy:
             ok, _ = with_retry(run_eufy_commands, "Eufy Commands", max_retries=0)
+            if not ok:
+                errors += 1
+
+            # Role-aware Nick's health heartbeat runs EVERY 30s local-agent cycle. The full
+            # Eufy inventory poll is intentionally slower, but using that cadence here
+            # would make a healthy office producer stale/offline by construction.
+            ok, _ = with_retry(run_eufy_office_health, "Eufy Office Health", max_retries=0)
             if not ok:
                 errors += 1
 
