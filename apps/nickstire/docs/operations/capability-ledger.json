@@ -914,37 +914,32 @@
       "owner": "system",
       "lastVerifiedAt": "2026-09-27",
       "verificationExpiresAt": "2026-10-25",
-      "deferredScope": [
-        "Promote back to live_verified only after the 1.1.26 runtime is deployed and a production higgsfield-session-keepalive row records a successful refresh."
-      ],
+      "deferredScope": [],
       "capabilityId": "higgsfield-keepalive",
       "name": "Higgsfield session keepalive (15-min refresh)",
       "codeState": "merged",
-      "operationalState": "unit_verified",
+      "operationalState": "live_verified",
       "exposure": "internal",
       "evidence": {
-        "codeCommit": "fix/higgsfield-cli-1126 pending merge/deploy: pin CLI/runtime to 1.1.26, version-scope the native-binary cache, and document the workspace contract",
+        "codeCommit": "4d6488623e08f682ccdf5a283d501b9c9c24525c (PR #2717): Higgsfield CLI/runtime 1.1.26, version-scoped native cache, current workspace contract, and repaired credential-sync helper",
         "tests": [
           "server/higgsfieldBinaryVersion.test.ts: exact package/runtime pin, version-scoped native cache, HIGGSFIELD_WORKSPACE_ID documentation, and railway-injected DATABASE_URL recovery contract",
           "9 focused Higgsfield test files: 138/138 passed on 2026-09-27",
-          "rebased critical keepalive/session tests: 37/37 passed; TypeScript typecheck exit 0 on 2026-09-27"
+          "rebased critical keepalive/session tests: 37/37 passed; TypeScript typecheck exit 0 on 2026-09-27",
+          "PR #2717 GitHub matrix: e2e, node, security, typecheck, Knip, adapter canaries, Completion Authority, source citation, and gitleaks all green before merge"
         ],
-        "deploymentId": "PENDING — production still runs the pre-1.1.26 compatibility contract until this PR deploys",
+        "deploymentId": "Railway production 8da18453-ca7c-4795-a548-b6b65c64f901 @ c4ba4cf4c4712897f7180ceadf476147ef4b2e97; commit 4d6488623 is an ancestor and the active container includes the fix",
         "liveRuns": [
           "HISTORICAL LIVE PROOF 2026-09-08 (PR #2212, main 994358cf1): keepalive completed with 'session refreshed, 2092 credits' after promotion.",
           "END-TO-END HISTORICAL PROOF 2026-08-18: refreshed CLI session generated reel job 1650001, passed rendered QA after authorized repair, and published IG 18105354986172908.",
           "PRE-DEPLOY FAILURE PROOF 2026-09-27: after a successful current OAuth login, the server's pinned native hf 0.2.3 still returned 'Session expired', proving the production runtime binary was incompatible with the current auth session rather than the fresh token being bad.",
           "CURRENT VENDOR AUTH PROOF 2026-09-27: native hf 1.1.26 invoked directly with HIGGSFIELD_CREDENTIALS_PATH plus HIGGSFIELD_WORKSPACE_ID authenticated as nourdean22@gmail.com and returned 'ultra plan, 98.5 credits'.",
+          "LIVE KEEPALIVE PROOF 2026-09-27: production probe read credentials present=true, session healthy=true, reason='keepalive refreshed the session', last run 2026-09-27T20:52:56Z.",
+          "LIVE REEL-PIPELINE PROOF 2026-09-27: reel-pipeline changed from failed at 19:30:35 ET with 'preflight: higgsfield session dead' to completed runs beginning 19:53:31 ET; latest measured 20:53:00 ET completed with 'no reel jobs to process'.",
           "CURRENT GENERATION CONTRACT PROOF 2026-09-27: higgsfield model get seedance1_5 still accepts prompt, 9:16, duration 4/8/12, 1080p, and start_image; existing generate create --wait --json arguments remain supported."
         ]
       },
-      "blockers": [
-        {
-          "severity": "P1",
-          "description": "PENDING DEPLOYMENT: production keepalive remains on the obsolete pre-1.1.26 runtime until this compatibility PR merges and Railway deploys it. Fresh credentials are already stored in app_secret_kv and HIGGSFIELD_WORKSPACE_ID is configured for production. Do not claim live recovery until a post-deploy keepalive receipt succeeds.",
-          "source": "2026-09-27 live compatibility audit"
-        }
-      ]
+      "blockers": []
     },
     {
       "owner": "operator",
@@ -1580,7 +1575,7 @@
       "blockers": [
         {
           "severity": "P1",
-          "description": "GENERATION IS BLOCKED ON VENDOR CREDITS, measured live 2026-08-18 (not merely unproven, which is what this said before running it). With the corrected request shape the API answers HTTP 403 {\"detail\":\"not_enough_credits\"} - so the request clears validation AND auth and reaches the credit check, which is as far as it can get. OPERATOR ACTION: DoP credits must be available to the API key's account at platform.higgsfield.ai; a web-app subscription is not evidence of API credit. Failure is PRE-submit, so nothing is spent on each attempt. SECOND BLOCKER FOUND AND REMOVED 2026-09-07 (#2170 review P1): credits were NOT the only thing standing in this lane's way. processNextReelJob aborted before claiming a job whenever REEL_VIDEO_PROVIDER was higgsfield and higgsfieldSessionHealth() reported the CLI session dead - which it does in prod - even though higgsfieldStudio PREFERS this key-based lane whenever getHiggsfieldApiCredentials() resolves. So in the exact configuration this capability exists to provide (keys present, browser session expired) generation still refused to start, and the abort reason named a session the render was never going to use. Funding the account would have unblocked NOTHING until this was fixed. The session probe is now conditional and gates the SESSION lane only. This does NOT advance the state: the P1 above stands, the lane is still unfunded, and no live API generation has been observed. It removes a blocker that would have survived paying.",
+          "description": "GENERATION IS BLOCKED ON VENDOR CREDITS, measured live 2026-08-18 (not merely unproven, which is what this said before running it). With the corrected request shape the API answers HTTP 403 {\"detail\":\"not_enough_credits\"} - so the request clears validation AND auth and reaches the credit check, which is as far as it can get. OPERATOR ACTION: DoP credits must be available to the API key's account at platform.higgsfield.ai; a web-app subscription is not evidence of API credit. Failure is PRE-submit, so nothing is spent on each attempt. SECOND BLOCKER FOUND AND REMOVED 2026-09-07 (#2170 review P1): credits were NOT the only thing standing in this lane's way. processNextReelJob aborted before claiming a job whenever REEL_VIDEO_PROVIDER was higgsfield and higgsfieldSessionHealth() reported the CLI session dead - which it did in production before the 2026-09-27 CLI/session recovery - even though higgsfieldStudio PREFERS this key-based lane whenever getHiggsfieldApiCredentials() resolves. So in the exact configuration this capability exists to provide (keys present, browser session expired) generation still refused to start, and the abort reason named a session the render was never going to use. Funding the account would have unblocked NOTHING until this was fixed. The session probe is now conditional and gates the SESSION lane only. This does NOT advance the state: the P1 above stands, the lane is still unfunded, and no live API generation has been observed. It removes a blocker that would have survived paying.",
           "source": "PR #1654"
         },
         {
@@ -1636,7 +1631,7 @@
       "blockers": [
         {
           "severity": "P2",
-          "description": "NEVER EXERCISED AGAINST THE LIVE API. No reel has published with is_ai_generated set, so Meta's acceptance of the parameter is documented but not observed. Blocked behind the operator-authorized first publish; the dry run halts before the Instagram call by design. Separately, the Higgsfield session is dead (refresh token revoked), so no new generated reel can reach the publish path until the operator re-authenticates."
+          "description": "NEVER EXERCISED AGAINST THE LIVE API. No reel has published with is_ai_generated set, so Meta's acceptance of the parameter is documented but not observed. Blocked behind the operator-authorized first publish; the dry run halts before the Instagram call by design. Higgsfield session liveness is no longer a blocker: production keepalive was re-verified healthy on 2026-09-27."
         }
       ],
       "deferredScope": [

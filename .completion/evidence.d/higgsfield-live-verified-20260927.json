@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=higgsfield-keepalive: promoted to live_verified on 2026-09-27 after production probe reported credentials present=true, session healthy=true, reason='keepalive refreshed the session', last run 2026-09-27T20:52:56Z. Read-only Reel pipeline probe then showed the pre-recovery 19:30:35 ET 'preflight: higgsfield session dead' failure followed by completed runs from 19:53:31 ET through 20:53:00 ET ('no reel jobs to process'). Current production c4ba4cf4 contains merge 4d6488623."
+    }
+  }
+}
