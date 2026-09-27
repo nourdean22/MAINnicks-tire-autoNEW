@@ -46,6 +46,14 @@ EUFY_OFFICE_CAMERA_SERIAL = os.getenv(
 NICKS_CAMERA_HEARTBEAT_URL = os.getenv("NICKS_CAMERA_HEARTBEAT_URL", "").strip()
 NICKS_CAMERA_INGEST_KEY = os.getenv("NICKS_CAMERA_INGEST_KEY", "").strip()
 NICKS_OFFICE_CAMERA_ID = os.getenv("NICKS_OFFICE_CAMERA_ID", "office").strip() or "office"
+EUFY_HOME_POSE_RECEIPT = os.getenv("EUFY_HOME_POSE_RECEIPT", "").strip()
+try:
+    EUFY_HOME_POSE_MAX_AGE_SECONDS = max(
+        1.0,
+        float(os.getenv("EUFY_HOME_POSE_MAX_AGE_SECONDS", "300")),
+    )
+except ValueError:
+    EUFY_HOME_POSE_MAX_AGE_SECONDS = 300.0
 _OFFICE_PRODUCER_INSTANCE_ID = uuid.uuid4().hex
 _office_heartbeat_seq = 0
 
@@ -376,6 +384,67 @@ def _next_office_heartbeat_seq() -> int:
     return _office_heartbeat_seq
 
 
+def _parse_utc_timestamp(value) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    raw = value.strip()
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def load_home_pose_receipt(
+    *,
+    last_ptz_notify_at: str | None,
+    now: datetime | None = None,
+) -> bool | None:
+    """Return a fresh visual home verdict, or None when no current proof exists.
+
+    The receipt is produced by camera-bridge's SceneLock-based verifier. It is accepted
+    only for the configured office serial, within the TTL, and AFTER the latest ptzNotify.
+    That last comparison is load-bearing: an old home=true image must become irrelevant
+    the instant the camera physically moves again.
+    """
+    if not EUFY_HOME_POSE_RECEIPT:
+        return None
+    path = Path(EUFY_HOME_POSE_RECEIPT)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if str(payload.get("serial") or "").strip() != EUFY_OFFICE_CAMERA_SERIAL:
+        return None
+    if not str(payload.get("verifierVersion") or "").startswith("office-home-pose-v"):
+        return None
+    verdict = payload.get("isHome")
+    if not isinstance(verdict, bool):
+        return None
+
+    verified = _parse_utc_timestamp(payload.get("verifiedAt"))
+    if verified is None:
+        return None
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    current = current.astimezone(timezone.utc)
+    age = (current - verified).total_seconds()
+    if age < -5.0 or age > EUFY_HOME_POSE_MAX_AGE_SECONDS:
+        return None
+
+    notified = _parse_utc_timestamp(last_ptz_notify_at)
+    if notified is not None and verified < notified:
+        return None
+    return verdict
+
+
 def build_office_camera_heartbeat(
     *,
     auth_ok: bool,
@@ -439,6 +508,11 @@ def sync_office_camera_heartbeat() -> int:
         # a real H264 byte read is positive proof. The probe self-throttles.
         probe_office_media_health()
     runtime = runtime_health_snapshot(auth_ok=auth_ok)
+    visual_home = load_home_pose_receipt(
+        last_ptz_notify_at=runtime.get("lastPtzNotifyAt"),
+    )
+    if visual_home is not None:
+        runtime["ptzHomeOk"] = visual_home
     payload = build_office_camera_heartbeat(
         auth_ok=auth_ok,
         runtime_health=runtime,
