@@ -17,6 +17,7 @@ const p = (id: string, timesUsed = 0): RotatablePattern => ({
 const rows = (patternId: string, n: number, saveRate: number) =>
   Array.from({ length: n }, (_, i) => ({
     patternId,
+    themes: [],
     reach: 1000,
     saved: Math.round(1000 * saveRate),
     shares: Math.round(1000 * saveRate / 2),
@@ -37,7 +38,7 @@ describe("rankPatternsByDistribution", () => {
 
   it("does not fabricate zeroes for missing Instagram metrics", () => {
     const ranked = rankPatternsByDistribution([
-      { patternId: "unknown", reach: null, saved: null, shares: null, skipRate: null },
+      { patternId: "unknown", themes: [], reach: null, saved: null, shares: null, skipRate: null },
     ]);
     expect(ranked).toEqual([]);
   });
