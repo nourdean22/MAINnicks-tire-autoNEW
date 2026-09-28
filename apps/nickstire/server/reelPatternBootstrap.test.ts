@@ -21,7 +21,7 @@ function fakeDb(existingIds: string[]) {
 }
 
 describe("ensureHouseReelPatterns", () => {
-  it("does not write when the operator lab already contains any pattern", async () => {
+  it("does not write after observing a non-empty operator lab", async () => {
     const f = fakeDb(["rp_operator_real_reference"]);
     const result = await ensureHouseReelPatterns(f.database);
 
