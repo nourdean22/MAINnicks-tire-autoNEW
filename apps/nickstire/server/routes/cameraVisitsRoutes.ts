@@ -43,6 +43,11 @@ import { sql } from "drizzle-orm";
 import { maskPlate, normalizePlate, PLATE_MATCH_CLASSES } from "../lib/plate";
 import { deriveStateAtIngest } from "../lib/cameraHealth";
 import { cameraHealthProfileFor } from "../../shared/cameras";
+import {
+  shouldBlockHeartbeatTakeover,
+  shouldBlockVisitOutsideAuthority,
+  type CameraAuthoritySnapshot,
+} from "./cameraAuthority";
 
 /** Timing-safe, matching the sibling bridge routes. */
 function safeCompare(a: string, b: string): boolean {
@@ -218,71 +223,6 @@ export const GUARDED_SET = COLUMNS.filter(
   })
   .join(", ");
 
-
-export const SIGN_RTSP_AUTHORITY_FRESH_MS = 90_000;
-
-type CameraAuthoritySnapshot = {
-  sourceType?: unknown;
-  calibrationVersion?: unknown;
-  receivedAt?: unknown;
-  state?: unknown;
-};
-
-type HeartbeatAuthorityCandidate = {
-  camera?: unknown;
-  sourceType?: unknown;
-};
-
-type VisitAuthorityCandidate = {
-  camera?: unknown;
-  dataClass?: unknown;
-  calibrationVersion?: unknown;
-};
-
-function authorityReceivedAtMs(v: unknown): number | null {
-  if (v instanceof Date) return v.getTime();
-  if (typeof v === "number" && Number.isFinite(v)) return v > 1_000_000_000_000 ? v : v * 1000;
-  if (typeof v === "string" && v.trim()) {
-    const ms = Date.parse(v);
-    return Number.isFinite(ms) ? ms : null;
-  }
-  return null;
-}
-
-export function isFreshHealthyRtspAuthority(
-  current: CameraAuthoritySnapshot | null | undefined,
-  nowMs = Date.now(),
-): boolean {
-  if (!current || String(current.sourceType ?? "").toLowerCase() !== "rtsp") return false;
-  if (String(current.state ?? "") !== "HEALTHY") return false;
-  const receivedAtMs = authorityReceivedAtMs(current.receivedAt);
-  if (receivedAtMs == null) return false;
-  const age = nowMs - receivedAtMs;
-  return age >= 0 && age <= SIGN_RTSP_AUTHORITY_FRESH_MS;
-}
-
-export function shouldBlockHeartbeatTakeover(
-  current: CameraAuthoritySnapshot | null | undefined,
-  incoming: HeartbeatAuthorityCandidate,
-  nowMs = Date.now(),
-): boolean {
-  if (String(incoming.camera ?? "") !== "sign") return false;
-  if (!isFreshHealthyRtspAuthority(current, nowMs)) return false;
-  return String(incoming.sourceType ?? "").toLowerCase() !== "rtsp";
-}
-
-export function shouldBlockVisitOutsideAuthority(
-  current: CameraAuthoritySnapshot | null | undefined,
-  incoming: VisitAuthorityCandidate,
-  nowMs = Date.now(),
-): boolean {
-  if (String(incoming.camera ?? "") !== "sign") return false;
-  if (String(incoming.dataClass ?? "PRODUCTION") !== "PRODUCTION") return false;
-  if (!isFreshHealthyRtspAuthority(current, nowMs)) return false;
-  const activeCalibration = String(current?.calibrationVersion ?? "");
-  if (!activeCalibration) return false;
-  return String(incoming.calibrationVersion ?? "") !== activeCalibration;
-}
 
 export function registerCameraVisitsRoute(app: Express): void {
   app.post("/api/camera/visits", async (req: Request, res: Response) => {
