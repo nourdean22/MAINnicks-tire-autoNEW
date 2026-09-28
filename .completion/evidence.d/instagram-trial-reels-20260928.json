@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=reel-outcome-learning records #2733 as merged, the Trial Reel MANUAL-publish candidate, its behavioral/wiring tests, and explicit branch/live-metric/account-eligibility boundaries."
+    },
+    "operator-walkthrough": {
+      "deferred": "The Queue UI now exposes a separate Publish as Trial action, but no authenticated production browser receipt is claimed. Current Desktop Commander access on NattyNour is terminal/filesystem only, not visual signed-in browser automation. Run tests/e2e/instagram-admin.spec.ts plus a real signed-in Queue -> Publish as Trial walkthrough after deployment."
+    }
+  }
+}
