@@ -31,9 +31,9 @@ export interface ScoredPattern {
   basis: Array<"saves" | "shares" | "retention">;
 }
 
-export const MIN_POSTS_PER_PATTERN = 3;
-export const MIN_TOTAL_MEASURED_PATTERN_POSTS = 12;
-export const EXPLORATION_EVERY_N_SELECTIONS = 4;
+const MIN_POSTS_PER_PATTERN = 3;
+const MIN_TOTAL_MEASURED_PATTERN_POSTS = 12;
+const EXPLORATION_EVERY_N_SELECTIONS = 4;
 
 export function rankPatternsByDistribution(rows: PatternPerformanceRow[]): ScoredPattern[] {
   const acc = new Map<string, { total: number; posts: number; basis: Set<string> }>();
