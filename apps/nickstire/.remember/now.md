@@ -10,6 +10,8 @@
 
 **Original-plan infrastructure receipts.** The public Redis TCP proxy is removed; Redis remains private/internal pending the separate 2FA-gated deletion of the service/volume/REDIS_URL. Nick's negated Railway watch paths are live, preventing docs-only changes from triggering avoidable Nick deploys. Q-41 Vapi confirmation calls were live-verified without `mapLink`. Durable operator-plan status is in `docs/research/2026-09-28-original-plan-reconciliation.md`; do not collapse its remaining dashboard/vendor/decision items into “code backlog.”
 
+**NicksMax receipt.** Hostname rename/reboot is complete: active hostname is `nicksmax` and Windows reports no CBS/WU/PendingFileRename reboot flags. Consumer ESU is still unenrolled, and the V380 `ACTIVE-WORK.md` guard still exists; do not reboot or touch the camera stack until its owning session clears that guard.
+
 **Updated: 2026-09-27 late ET** (Instagram Admin consolidation recovered on isolated NattyNour worktree; single PR/merge still pending)
 
 ## 2026-09-27 · Instagram Admin consolidation handoff
