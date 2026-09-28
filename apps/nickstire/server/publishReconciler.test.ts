@@ -98,7 +98,20 @@ describe("cannot check", () => {
     const r = await reconcileAttempt({ attemptId: "a", attemptedAt: ATTEMPT, expectedCaption: "x" });
     expect(r.status).toBe("cannot_check");
     expect(r.status).not.toBe("resolved_not_published");
+    expect(r).toMatchObject({ reason: "meta_unavailable" });
     expect(r.detail).toMatch(/token expired/);
+  });
+
+  it("marks a full newer page as permanently exhausted history, not a retry-safe miss", async () => {
+    mediaResult = {
+      ok: true,
+      posts: Array.from({ length: 25 }, (_, i) => post({
+        id: `ig_${i}`,
+        posted: new Date(ATTEMPT.getTime() + (180 + i) * 60_000).toISOString(),
+      })),
+    };
+    const r = await reconcileAttempt({ attemptId: "a", attemptedAt: ATTEMPT, expectedCaption: "x" });
+    expect(r).toMatchObject({ status: "cannot_check", reason: "history_window_exhausted" });
   });
 
   it("skips posts with an unparseable timestamp rather than guessing", async () => {
