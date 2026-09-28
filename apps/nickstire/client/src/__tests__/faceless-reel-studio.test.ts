@@ -658,6 +658,15 @@ describe("persisted ReelBrief runtime shape", () => {
   it("accepts current briefs and rejects legacy partial rows without throwing", () => {
     expect(isScorableReelBrief(sample())).toBe(true);
 
+    const queued = structuredClone(sample()) as any;
+    // contentAdmin.enqueueReelJob's persisted briefClean intentionally omits
+    // these authoring-only fields. The Queue scorer must accept that canonical
+    // serialized shape instead of relabeling every newly queued Reel as 0/block.
+    for (const key of ["driverConfusion", "clevelandAngle", "usefulAbsurdity", "avoidedForRepetition", "assetPlan"]) {
+      delete queued[key];
+    }
+    expect(isScorableReelBrief(queued)).toBe(true);
+
     const legacy = {
       topic: "legacy reel",
       selectedCaption: "old caption",

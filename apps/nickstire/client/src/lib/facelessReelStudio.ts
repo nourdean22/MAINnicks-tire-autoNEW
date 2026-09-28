@@ -1060,20 +1060,14 @@ export function isScorableReelBrief(value: unknown): value is ReelBrief {
     Array.isArray(brief.captionHooks) &&
     Array.isArray(brief.concepts) &&
     Array.isArray(brief.sourceNotes) &&
-    Array.isArray(brief.hashtags) &&
     typeof brief.topic === "string" &&
     typeof brief.mechanicTruth === "string" &&
-    typeof brief.driverConfusion === "string" &&
-    typeof brief.clevelandAngle === "string" &&
     typeof brief.campaignKeyword === "string" &&
     typeof brief.archetype === "string" &&
     typeof brief.motionLens === "string" &&
     typeof brief.objectCharacter === "string" &&
-    typeof brief.usefulAbsurdity === "string" &&
     typeof brief.voiceoverScript === "string" &&
-    typeof brief.selectedCaption === "string" &&
-    typeof brief.avoidedForRepetition === "string" &&
-    typeof brief.assetPlan === "string"
+    typeof brief.selectedCaption === "string"
   );
 }
 
