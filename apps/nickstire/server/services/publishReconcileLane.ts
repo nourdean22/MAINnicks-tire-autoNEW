@@ -127,6 +127,11 @@ export async function reconcileAmbiguousPublishes(
       if (permanentlyNeedsOperator) {
         await recordPublishOutcome(attempt.attemptId, OUTCOME.operatorRequired, {
           error: `auto-reconcile handed to operator: ${verdict.detail}`.slice(0, 500),
+          platformResults: {
+            detail: verdict.detail,
+            candidates: verdict.status === "needs_operator" ? verdict.candidates : [],
+            handoffReason: verdict.status === "cannot_check" ? verdict.reason : verdict.status,
+          },
         });
         out.leftForOperator.push({ jobId: attempt.jobId, why: verdict.status });
         log.warn("ambiguous publish handed to human resolution", {
