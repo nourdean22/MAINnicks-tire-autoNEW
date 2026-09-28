@@ -313,3 +313,39 @@ It does **not** prove:
 - the final post-reboot NICKSMAX hostname/persistence receipt
 
 Those require their own evidence after the sibling session finishes and the controlled reboot occurs.
+
+## 2026-09-28 superseding update — NicksMax is now the authoritative `sign` camera host
+
+The camera-session guard and the earlier "do not use NicksMax for continuous vision" rule are superseded for the specific fixed `sign` camera lane. The measured workload is intentionally bounded and has been proven on this hardware.
+
+### Final architecture
+
+```text
+SHOPSIGN V380 cloud/P2P
+  -> local V380Decoder relay on NicksMax
+  -> rtsp://127.0.0.1:8554/live (three-lens 1920x3240 stack)
+  -> FFmpeg middle-lens crop + scale, 640x360 @ 4 fps
+  -> loopback MediaMTX rtsp://127.0.0.1:8555/sign
+  -> camera-bridge edge_main.py + OpenVINO vehicle-detection-0200
+  -> Nick camera heartbeat/visit ingest
+```
+
+### Verified receipts
+
+- Production camera row: `camera=sign`, `sourceType=rtsp`, `state=HEALTHY`.
+- Active calibration: `sha256:67f719cc875d`.
+- Current detector: `DetectorCouncil` / OpenVINO `vehicle-detection-0200`.
+- The direct producer publishes fresh `lastFrameAt` / `lastHealthyFrameAt` timestamps.
+- V380 desktop GUI was force-closed while ports 8554/8555/9095 remained live; subsequent Railway heartbeats continued HEALTHY. The production lane therefore no longer depends on the V380 GUI or another PC.
+- The production edge was force-killed as a recovery test. The NicksMax supervisor loop recreated a new producer instance automatically and the live DB returned to HEALTHY.
+- Retired WGC tasks remain disabled: `V380Watchdog`, `NickEdgeProducer`, `NickEdgeProducerRight`, `NickEdgeSignCandidate`.
+- Exactly one current-user supervisor loop is installed as `NicksMaxCameraSupervisorUser`; it starts at NicksMax logon and runs the hardened supervisor every 30 seconds.
+- Disk headroom after cleanup: about 2.53 GB free. The required .NET 10 runtime, FFmpeg/ffprobe essentials, MediaMTX, V380Decoder binary, model, calibration, ledgers and hard-case corpus remain intact.
+
+### Authority boundary
+
+NicksMax is authoritative only for the bounded `sign` camera edge role. Railway remains the cloud application / database / scheduler authority. NicksMax is still not a Docker, local-LLM, Frigate, or general-purpose production worker host.
+
+### Remaining operator-only workstation item
+
+Consumer Windows 10 ESU enrollment remains separate from camera authority. The camera lane is operational without the V380 GUI, but a cold boot still requires the NicksMax Windows user session before the current-user supervisor task can run; creating a pre-login SYSTEM task requires an elevated local action not available to the non-elevated remote shell.
