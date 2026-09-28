@@ -1,10 +1,10 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-28** (Instagram Admin production closeout verified through live #2737 runtime; repo main #2739)
+**Updated: 2026-09-28** (Instagram Admin production closeout merged + deployed through #2741)
 
 ## 2026-09-28 · Instagram Admin production closeout
 
-**Repository/runtime split is intentional.** GitHub `main` is `c385a6f48f37d2c81daf60c2f42dfbac1138c55e` (#2739). Nick production is exact `e68f4ed4f0bd61d84968a1d6b1aa3845727213e2` (#2737), Railway deployment `46e62cbf-7983-45a3-9387-3a74c183b6ad` SUCCESS. #2739 is camera-only and correctly SKIPPED the Nick service. Do not mistake newer repo main for a missing Nick deploy.
+**Repository/runtime receipt.** GitHub `main` and Nick production now match at #2741 merge `45a5c02690e7193f05ce0da822fb59d2ebc899ca`. Railway deployment `c7b4b57c-799a-4042-9539-42d6571674d6` reached SUCCESS at 2026-09-28 15:54:52Z and the new container reached `server:ready`, schema guard green, 123-job scheduler active. Earlier camera-only #2739/#2740 changes correctly SKIPPED Nick until this Instagram runtime change required a deploy.
 
 **Pattern Lab.** Production seeded the empty lab with exactly four explicitly unmeasured house hypotheses at 13:49:47Z. The first live start-only canary selected `rp_house_forensic_macro`; a second independently selected `rp_house_myth_reality`. The first was correctly stopped before enqueue by `REPEAT_CTA`; the second hit the 120s LLM-generation timeout before enqueue. Bootstrap + rotation selection are LIVE VERIFIED. Persisted `structurePatternId -> reel_job -> IG media -> metrics` still needs the first successful post-bootstrap enqueue; do not infer it from the selector logs.
 
@@ -14,7 +14,7 @@
 
 **Authenticated Admin walkthrough.** Real signed-in production traffic exercised the Instagram Today/Create/Queue/Community/Learn/Strategy backing procedures: pipeline health, creation brief, Studio list/diagnostics/board, evidence options, real-shop media, active slate, live feed, analytics, performance report, structure hypotheses, profile merchandising and judge calibration. One real defect surfaced: historical incomplete Reel briefs could throw `undefined.map` while Queue computed a quality score. The router caught it and failed closed, but logs were noisy.
 
-**Closeout fix.** Branch `instagram-admin-prod-closeout-20260928` adds a runtime `ReelBrief` shape guard before Queue scoring, preserving fail-closed score 0 for legacy rows without throwing. NattyNour verification: 76/76 focused tests, `tsc --noEmit` exit 0, production build exit 0. Local execution stayed on NattyNour; NicksMax/camera/V380 was untouched.
+**Closeout fix.** #2741 merged and deployed the runtime `ReelBrief` shape guard before Queue scoring, preserving fail-closed score 0 for genuinely incomplete legacy rows while accepting the canonical queued-Reel persistence shape. Codex's P2 on that canonical shape was fixed before merge. Final GitHub gates were green: affected CI, Completion Authority, Admin diagnostic/typecheck, Adoption, Agent Policy and Secret Scanning. NattyNour focused verification remained 76/76. No post-#2741 authenticated `getAllDrafts` call has occurred yet, so disappearance of the old `undefined.map` warning is deployed + test-proven but not separately live-call-receipted. NicksMax/camera/V380 remained untouched.
 
 **Remaining evidence boundaries, not hidden backlog:** first successful post-bootstrap Reel enqueue carrying `structurePatternId`; natural scheduled static-slot success; Trial 24h metric entry; profile bio/pin/Highlight mutations remain explicit Instagram-side operator actions.
 
