@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, SIGN_RTSP_AUTHORITY_FRESH_MS, activeRunField, isFreshHealthyRtspAuthority, parseHeartbeat, plateTextToStore, shouldBlockHeartbeatTakeover, shouldBlockVisitOutsideAuthority } from "./cameraVisitsRoutes";
+import { COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore } from "./cameraVisitsRoutes";
+import { shouldBlockHeartbeatTakeover, shouldBlockVisitOutsideAuthority } from "./cameraAuthority";
 
 describe("camera visit ingest — plate durability", () => {
   it("stores plate text ONLY when the read is CONFIRMED", () => {
@@ -122,12 +123,6 @@ describe("camera authority fencing — fresh RTSP sign producer", () => {
     state: "HEALTHY",
   };
 
-  it("recognizes only a fresh healthy RTSP row as authoritative", () => {
-    expect(isFreshHealthyRtspAuthority(current, now)).toBe(true);
-    expect(isFreshHealthyRtspAuthority({ ...current, state: "DEGRADED_VISION" }, now)).toBe(false);
-    expect(isFreshHealthyRtspAuthority({ ...current, receivedAt: new Date(now - SIGN_RTSP_AUTHORITY_FRESH_MS - 1) }, now)).toBe(false);
-  });
-
   it("blocks legacy WGC/window heartbeat takeover while RTSP is fresh, but not RTSP restart", () => {
     expect(shouldBlockHeartbeatTakeover(current, { camera: "sign", sourceType: "wgc" }, now)).toBe(true);
     expect(shouldBlockHeartbeatTakeover(current, { camera: "sign", sourceType: "window" }, now)).toBe(true);
@@ -136,7 +131,7 @@ describe("camera authority fencing — fresh RTSP sign producer", () => {
   });
 
   it("allows legacy fallback once RTSP authority is stale or degraded", () => {
-    const stale = { ...current, receivedAt: new Date(now - SIGN_RTSP_AUTHORITY_FRESH_MS - 1) };
+    const stale = { ...current, receivedAt: new Date(now - 90_001) };
     expect(shouldBlockHeartbeatTakeover(stale, { camera: "sign", sourceType: "wgc" }, now)).toBe(false);
     expect(shouldBlockHeartbeatTakeover({ ...current, state: "DEGRADED_VISION" }, { camera: "sign", sourceType: "wgc" }, now)).toBe(false);
   });
