@@ -62,12 +62,11 @@ export async function prepareCleanReelBrief(
   // is intentionally steering," which real history should not override.
   const recent = await getRecentReelSignals();
 
-  // Pattern Lab, connected. `social_reel_patterns` captured operator-judged
-  // structure since migration 0107 and nothing outside the admin CRUD screen
-  // ever read it — patterns went in and never came out. Selection is by
-  // rotation, not ranking, because no pattern -> outcome link exists yet; the
-  // recording below is what creates it. A null hint leaves the brief exactly as
-  // it was before this existed.
+  // Pattern Lab, connected. The lab may contain operator-captured references
+  // or explicitly UNMEASURED Nick's house hypotheses when production started
+  // empty. Selection rotates until a measured cohort matures, then uses the
+  // outcome learner as a prior while retaining exploration. A null hint still
+  // leaves the brief exactly as it was before Pattern Lab existed.
   const { pickStructureHint, recordStructureUse } = await import("./reelStructurePrior");
   // No hook-type exclusion: RecentReelSignals tracks topics/keywords/archetypes/
   // lenses/characters, not hook shape, and inventing a field here would mean
