@@ -36,6 +36,10 @@ export const OUTCOME = {
   confirmed: "CONFIRMED",
   failed: "FAILED",
   ambiguous: "AMBIGUOUS",
+  /** Automation has exhausted the evidence it can safely obtain. This does NOT
+   * resolve the attempt; it only prevents the background reconciler from
+   * repeatedly spending Graph calls on a question that now requires a person. */
+  operatorRequired: "OPERATOR_REQUIRED",
 } as const;
 export type PublishOutcome = (typeof OUTCOME)[keyof typeof OUTCOME];
 
@@ -76,6 +80,9 @@ export interface PublishTarget {
   inventoryId?: string | null;
   platforms: string[];
   mediaUrl?: string | null;
+  /** Exact caption dispatched with the publish. Persist it BEFORE the call so
+   * reconciliation can prove identity instead of relying on timing alone. */
+  caption?: string | null;
 }
 
 /**
@@ -109,6 +116,7 @@ export async function recordPublishAttempt(target: PublishTarget): Promise<strin
         inventoryId: target.inventoryId ?? null,
         platforms: target.platforms,
         mediaUrl: (target.mediaUrl ?? "").slice(0, 500),
+        caption: target.caption == null ? null : String(target.caption).slice(0, 2200),
         requestedAt: new Date().toISOString(),
       }).slice(0, 60_000),
       campaignId: target.inventoryId ?? null,
@@ -192,6 +200,10 @@ export interface UnreconciledAttempt {
   scheduledPostId: number | null;
   inventoryId: string | null;
   platforms: string[];
+  /** Exact caption captured before dispatch; null on legacy attempts. */
+  expectedCaption: string | null;
+  /** Durable handoff: still unresolved, but automation must stop re-checking it. */
+  operatorRequired: boolean;
   ageMinutes: number;
 }
 
@@ -255,11 +267,16 @@ export async function findUnreconciledAttempts(olderThanMinutes = 15): Promise<U
       .filter((o: { decision: string | null }) => RESOLVING_OUTCOMES.has(String(o.decision ?? "")))
       .map((o: { codes: string }) => o.codes),
   );
+  const operatorRequired = new Set(
+    outcomes
+      .filter((o: { decision: string | null }) => String(o.decision ?? "") === OUTCOME.operatorRequired)
+      .map((o: { codes: string }) => o.codes),
+  );
 
   const open: UnreconciledAttempt[] = [];
   for (const a of attempts) {
     if (settled.has(a.id)) continue;
-    let ctx: { kind?: string; jobId?: number | null; scheduledPostId?: number | null; inventoryId?: string | null; platforms?: string[] } = {};
+    let ctx: { kind?: string; jobId?: number | null; scheduledPostId?: number | null; inventoryId?: string | null; platforms?: string[]; caption?: string | null } = {};
     try { ctx = JSON.parse(a.contextJson ?? "{}"); } catch { /* keep the row: an unreadable context is still an open attempt */ }
     const occurredAt = new Date(a.occurredAt);
     open.push({
@@ -272,6 +289,8 @@ export async function findUnreconciledAttempts(olderThanMinutes = 15): Promise<U
       scheduledPostId: ctx.scheduledPostId ?? null,
       inventoryId: ctx.inventoryId ?? null,
       platforms: Array.isArray(ctx.platforms) ? ctx.platforms : [],
+      expectedCaption: typeof ctx.caption === "string" ? ctx.caption : null,
+      operatorRequired: operatorRequired.has(a.id),
       ageMinutes: Math.round((Date.now() - occurredAt.getTime()) / 60_000),
     });
   }
