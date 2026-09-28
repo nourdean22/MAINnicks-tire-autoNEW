@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from unittest.mock import patch
+import threading
+import time
 
 import numpy as np
 import pytest
@@ -48,17 +50,57 @@ def test_rtsp_refuses_wgc_only_aiming_flags():
 
 
 def test_native_rtsp_frames_are_window_verified():
-    image = np.zeros((8, 8, 3), dtype=np.uint8)
+    source = RtspSource("rtsp://127.0.0.1/live")
+    source._latest = source_frame = __import__("vision.frame", fromlist=["Frame"]).Frame(
+        seq=7,
+        ts=1.0,
+        source="rtsp",
+        image=np.zeros((8, 8, 3), dtype=np.uint8),
+        meta={"window_verified": True},
+    )
+    source._cap = object()
+
+    frame = source.read()
+    assert frame is source_frame
+    assert frame.meta["window_verified"] is True
+
+
+def test_rtsp_background_reader_drains_when_consumer_is_slow():
+    images = [
+        np.full((4, 4, 3), fill_value=i, dtype=np.uint8)
+        for i in range(1, 6)
+    ]
 
     class _Cap:
+        def __init__(self):
+            self.index = 0
+            self.released = False
+
         def read(self):
-            return True, image
+            if self.index < len(images):
+                image = images[self.index]
+                self.index += 1
+                return True, image
+            time.sleep(0.005)
+            return False, None
 
         def release(self):
-            pass
+            self.released = True
 
     source = RtspSource("rtsp://127.0.0.1/live")
-    source._cap = _Cap()
+    source._cap = cap = _Cap()
+    source._reader = threading.Thread(target=source._reader_loop, daemon=True)
+    source._reader.start()
+
+    deadline = time.time() + 1.0
+    while cap.index < len(images) and time.time() < deadline:
+        time.sleep(0.005)
+
     frame = source.read()
+    source.close()
+
+    assert cap.index == len(images)
     assert frame is not None
+    assert int(frame.image[0, 0, 0]) == 5
     assert frame.meta["window_verified"] is True
+    assert cap.released is True
