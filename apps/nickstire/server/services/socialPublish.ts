@@ -191,12 +191,13 @@ export async function publishToSocial(input: PublishInput): Promise<PublishOutco
   // a static post.
   if (input.trialReel) {
     const isInstagramOnly = input.platforms.length === 1 && input.platforms[0] === "instagram";
-    if (!isInstagramOnly || !input.videoUrl || input.isStory) {
+    const hasCompetingMedia = Boolean(input.imageUrl || (input.imageUrls && input.imageUrls.length > 0));
+    if (!isInstagramOnly || !input.videoUrl || hasCompetingMedia || input.isStory) {
       return {
         results: input.platforms.map((platform) => ({
           platform,
           success: false,
-          error: "Trial Reel mode requires one Instagram Reel video and cannot cross-post.",
+          error: "Trial Reel mode requires exactly one Instagram Reel video and cannot cross-post or carry static/carousel media.",
         })),
       };
     }

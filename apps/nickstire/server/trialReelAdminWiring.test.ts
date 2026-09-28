@@ -18,6 +18,8 @@ describe("Trial Reel operator wiring", () => {
     expect(block).toContain("Trial Reels are Instagram-only");
     expect(block).toContain('draft.contentType !== "reel"');
     expect(block).toContain("persistTrialPublishReceipt");
+    expect(block).toContain("input.imageUrl = undefined");
+    expect(block).toContain("input.imageUrls = undefined");
     expect(block).toContain("resolvedReelJobId = authorization.reelJobId");
     expect(block).toContain("attachPublishedMediaForReelJob");
     expect(block).toContain("await attachExperimentMediaReceipt(igPostId ?? null)");
@@ -27,6 +29,9 @@ describe("Trial Reel operator wiring", () => {
   it("offers a separate explicit Trial action without changing normal Publish", () => {
     expect(QUEUE).toContain("Publish as Trial");
     expect(QUEUE).toContain('trialReel: { graduationStrategy: "MANUAL" }');
+    expect(QUEUE).toContain("asTrial: Boolean(vars.trialReel)");
+    expect(QUEUE).toContain("retryAsTrial");
+    expect(QUEUE).toContain('trialReel: { graduationStrategy: "MANUAL" as const }');
     expect(QUEUE).toContain("Yes — publish now");
     expect(QUEUE).toContain("Graduation stays manual");
   });

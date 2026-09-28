@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "publish-boundary-test": {
+      "ref": "apps/nickstire/server/trialReelWiring.test.ts + server/metaSocial.shareToFeed.test.ts: focused repair run passed 12/12 before #2732 reconciliation; this rebased diff preserves the same code/test changes and fresh GitHub affected CI reruns from current main. Trial mode rejects mixed Reel+carousel payloads before any Meta write; normal Reel behavior and MANUAL trial_params/share_to_feed=false remain pinned. instagramAdmin also clears client imageUrl/imageUrls after resolving approved server-authoritative Reel video."
+    },
+    "operator-walkthrough": {
+      "deferred": "The operator-visible change is the Queue rendered-QA override path preserving the original Publish as Trial choice. Authenticated production walkthrough is intentionally deferred until #2735 merges and deploys; no pre-deploy browser receipt is claimed."
+    },
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=reel-outcome-learning preserves #2732 merged Auto-Brain truth, records #2734 deployment, the two post-merge Trial semantics defects, #2735 repair scope, focused tests/typecheck, and the still-open live Trial eligibility/publish boundary."
+    }
+  }
+}
