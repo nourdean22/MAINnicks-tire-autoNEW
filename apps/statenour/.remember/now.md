@@ -14,6 +14,16 @@
 
 **Scope correction.** The earlier “reconciled code backlog = exhausted” statement applied to the stale-branch portfolio reconciliation only. It did **not** mean the broader §15 operator/infrastructure plan was complete. Durable slice ledger: `docs/research/2026-09-28-original-plan-reconciliation.md`.
 
+## 2026-09-28 · Ollama liveness + worker freshness closeout
+
+**What the cron found.** #2726 did not change the Ollama liveness route/resolver/registration. A real production call to `/api/cron/ollama-model-liveness` proved the cron was functioning and correctly flagged only the fast lane: chat `minimax-m3` 200, fast `deepseek-v4-flash:0731` **410 retired**, vision `gemma4:31b` 200. Recent `CronJobLog` failures were meaningful outage receipts, not cron breakage; no `cron_control` override row exists, so the job is enabled by default.
+
+**Repair.** Live strict-JSON classify/extract/summary bake-off on the production Ollama account selected `glm-5.3-flash` (6/6 valid JSON, ~1.1 s avg, zero length stops) over `deepseek-v4.1-flash` (5/6 valid JSON, one length stop), `minimax-m3` (~2.5 s) and `glm-5.2`. Railway web fast pin is now `glm-5.3-flash`.
+
+**Hard post-repair receipt.** Exact deployed cron route: chat `minimax-m3` alive/200, fast `glm-5.3-flash` alive/200, vision `gemma4:31b` alive/200, overall `data.ok=true`. Production DB latest liveness row = 2026-09-28T03:22:51.032Z, `success`, no error, 649 ms. `/api/system/heartbeat` simultaneously returned HTTP 200 with worker `fresh`, age 8 minutes.
+
+**Worker boundary.** `apps/worker/src` has zero AI/model-call sites; it is only an HTTP forwarding scheduler. Its old `OLLAMA_MODEL=deepseek-v3.1:671b` was unused config debris, not a hidden worker AI outage; the worker env was aligned to `minimax-m3` for hygiene. Durable receipt: `docs/00-current-truth/ollama-liveness-repair-2026-09-28.md`.
+
 **Updated: 2026-09-27 21:17 ET** (final connection-hardening closeout merged as #2721)
 
 ## 2026-09-27 · final connection-hardening merge receipt

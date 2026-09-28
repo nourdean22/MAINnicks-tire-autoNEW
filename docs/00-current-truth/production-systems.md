@@ -68,13 +68,17 @@ System errors, database failures, and bridge authentication failures write to
 *   Sentry is configured with `NEXT_PUBLIC_SENTRY_DSN` (client) and `SENTRY_DSN` (server/edge).
 *   Default PII capture is disabled and performance tracing is disabled by default.
 
-### 3. AI Provider Health
-LLM provider health is read on demand. No cron polls it (the hourly `provider-ping` cron was deleted on 2026-05-28):
-*   Route: `/api/system/provider-health`, a snapshot of `getProviderHealth()` (per-provider availability, cooldown, recent errors) cached for 30 s.
-*   The route only reports. Failover between providers happens in the AI call path (`lib/ai/stream-with-fallback.ts`), not here.
+### 3. AI Provider / Model Health
+General provider health and Ollama model liveness are separate surfaces:
+
+*   **Provider snapshot:** `/api/system/provider-health` reads `getProviderHealth()` on demand (availability, cooldown, recent errors), cached for 30 s. The old hourly `provider-ping` cron was deleted on 2026-05-28. Failover between providers happens in the AI call path (`lib/ai/stream-with-fallback.ts`), not in this route.
+*   **Ollama resolved-model liveness:** `/api/cron/ollama-model-liveness` is a real cron endpoint, folded into the mega morning fan-out by `apps/statenour/config/crons.ts`. It resolves the same chat / fast / vision model IDs that StateNour web would use, sends live Ollama requests, writes `CronJobLog`, and alerts on failure; HTTP 410 is treated as model retirement rather than a retryable outage.
+*   **2026-09-28 live receipt:** the cron correctly detected the retired fast model `deepseek-v4-flash:0731` (410) while chat `minimax-m3` and vision `gemma4:31b` were alive. After a live fast-lane bake-off, Railway was repinned to `glm-5.3-flash`; the exact deployed route then returned all three lanes alive/200 and `data.ok=true`. See `ollama-liveness-repair-2026-09-28.md`.
+*   **Worker boundary:** `apps/worker/src` has no AI/model-call sites; it is an HTTP forwarding scheduler. Worker freshness is observed through persisted receipts surfaced by `/api/system/heartbeat`, not by duplicating Ollama liveness in the worker.
 
 ---
 
 ## 📚 Related Current-Truth Docs
 
+*   **[Ollama liveness repair + worker freshness receipt (2026-09-28)](./ollama-liveness-repair-2026-09-28.md)** — exact model-retirement detection, replacement bake-off, Railway pins, final live cron receipt, and the worker/non-AI boundary.
 *   **[Antigravity Capability Arc (2026-07)](./antigravity-capabilities-2026-07.md)** — operator runbook for the 26-packet wave: new Telegram commands (/remind, tool-capable /ask, instant /qa), specialist shadow routing, nickstire time-clock ledger, self-improving content/persona loops, skill-registry maintenance.

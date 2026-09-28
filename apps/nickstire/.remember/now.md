@@ -12,6 +12,14 @@
 
 **NicksMax receipt.** Hostname rename/reboot is complete: active hostname is `nicksmax` and Windows reports no CBS/WU/PendingFileRename reboot flags. Consumer ESU is still unenrolled, and the V380 `ACTIVE-WORK.md` guard still exists; do not reboot or touch the camera stack until its owning session clears that guard.
 
+## 2026-09-28 · Instagram Admin / static autopost live verification
+
+**Live Admin receipt.** Meta live probe is healthy. Active-slate service: 133 approved candidates, full-library cursor 32, 12 recommended packs, 23 current demand candidates; no finite slate silently enabled. Structure lane: 42 measured samples → 12 correlation-only hypotheses. Shadow judge: 27 judged / 10 would-block / 92.59% downstream coverage / hard gate still false because current outcomes do not support promotion. Profile merchandising returns 4 pin candidates, 12 cover-review items and 5 Highlight plans. Real-shop reusable media is honestly 0 under the strict first-party eligibility predicate; no unrelated asset was relabeled.
+
+**Actual Reel runtime.** Sep 27 daily Reel publish exists: job `1950017`, status `posted`, Instagram post id `18435703312179867`. Reel autopost/generation/publish flags are enabled and the provider is Higgsfield.
+
+**Static lane defect + hotfix.** During post-merge verification, old static `ig-autopost` failures were traced to DeepSeek/Ollama structured generations repeatedly consuming exactly 4096 completion tokens before returning truncated/empty JSON. #2727 raises only that pre-side-effect generator call to 8192 and preserves the DeepSeek generator / gpt-oss independent judge split plus global routing. Targeted posting suite 36/36, TypeScript, build, lints, Completion Authority, affected monorepo pre-push and GitHub CI all passed. Hotfix is deployed. The next real static slot has not happened yet, so final recurrence-proof remains pending rather than being falsely labeled green.
+
 **Updated: 2026-09-27 late ET** (Instagram Admin consolidation recovered on isolated NattyNour worktree; single PR/merge still pending)
 
 ## 2026-09-27 · Instagram Admin consolidation handoff

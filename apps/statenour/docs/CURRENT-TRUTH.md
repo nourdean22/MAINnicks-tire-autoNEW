@@ -9,6 +9,15 @@
 - **Worker freshness definition:** fresh through 1 hour (four missed 15-minute ticks), stale afterward, public probe failure => `unknown`; internal fleet truth preserves the difference between “no receipt ever” and “DB probe failed.” The production lookup uses an index-only scan and measured ~0.076 ms warm.
 - **Durable plan ledger:** `docs/research/2026-09-28-original-plan-reconciliation.md`. The old “code backlog exhausted” sentence below is historical scope for stale worktree reconciliation, not a claim that the broader operator/infrastructure plan is finished.
 
+## 2026-09-28 — Ollama liveness repaired on the real web AI runtime
+
+- **Neither #2727 nor #2726 changed the Ollama liveness implementation.** The deployed `/api/cron/ollama-model-liveness` route, model resolver, cron manifest, Inngest registration and cron-control service were unchanged.
+- **The cron was healthy and exposed a real retired model.** A live authenticated route call resolved chat=`minimax-m3` (200), fast=`deepseek-v4-flash:0731` (**410 retired**), vision=`gemma4:31b` (200). Production `CronJobLog` already contained repeated failures on Sep 25–27; the missing `cron_control` row means the kill switch leaves this job enabled by default.
+- **Fast-lane replacement was measured, not guessed.** A live Ollama bake-off on strict JSON classify/extract/summary tasks put `glm-5.3-flash` at 6/6 valid JSON, ~1.1 s average and zero length stops. `deepseek-v4.1-flash` was 5/6 with one length stop; `minimax-m3` was 6/6 but ~2.5 s; `glm-5.2` was slower / less reliable in this run. Railway `OLLAMA_FAST_MODEL` is now `glm-5.3-flash`.
+- **Final live liveness receipt:** chat `minimax-m3` 200/alive (648 ms), fast `glm-5.3-flash` 200/alive (365 ms), vision `gemma4:31b` 200/alive (368 ms); route envelope `data.ok=true`. Latest production liveness row: 2026-09-28T03:22:51.032Z, `status=success`, no error, 649 ms.
+- **Worker boundary:** `apps/worker/src` has zero AI/model-call sites; it is a pure HTTP forwarding scheduler. A stale worker-only `OLLAMA_MODEL=deepseek-v3.1:671b` pin was unused configuration debris, not a second serving outage. It was aligned to `minimax-m3` for hygiene. Worker health remains the #2726 persisted-freshness contract, not a duplicate Ollama probe.
+- Durable receipt: `docs/00-current-truth/ollama-liveness-repair-2026-09-28.md`.
+
 ## 2026-09-27 afternoon — recovery closeout after #2712
 
 - **Recovery handoff is now closed on repo truth.** `main` reached `93f0f66ca285600831ca50df87fb79f0497e3ed2` after #2712 (`fix · security · remove legacy Resend token from source`) squash-merged.
@@ -19,7 +28,7 @@
 
 > **The one-screen answer to "where am I and what's real?"** If any other doc
 > contradicts this file as a *present-tense instruction*, this file and live
-> code win. Last verified **2026-09-27**. When in doubt, **verify in code, git,
+> code win. Last verified **2026-09-28**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
 
 ## 2026-09-27 afternoon — recovery after lost visible session trail
