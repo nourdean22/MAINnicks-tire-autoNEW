@@ -51,6 +51,9 @@ export interface ReelJobPayloadView {
   clevelandAngle?: string;
   campaignKeyword?: string;
   motionLens?: string;
+  /** Pattern Lab structure used to generate this Reel. Persisted specifically
+   * so published outcomes can be joined back to the structure policy. */
+  structurePatternId?: string;
   /** Diagnostic production-grammar metadata stamped by approved-pack intake. */
   productionGrammarFingerprint?: ReelStructureFingerprint;
   productionGrammarNovelty?: {
