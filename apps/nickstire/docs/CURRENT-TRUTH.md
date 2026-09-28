@@ -1,11 +1,19 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** repository `main` `72083648c` on 2026-09-27 (weekly prerender refresh; last substantive code commit beneath it is #2697 `c6db7bd35`). This header proves current repository ancestry/tree only; production/deploy claims remain scoped to the receipt-bearing sections below. Prior verified content baseline: `55d5d5fa2` on 2026-09-25 (#2656).
+**Verified against:** repository `main` `c4ba4cf4c4712897f7180ceadf476147ef4b2e97` on 2026-09-27 (#2718). This header proves current repository ancestry/tree only; production/deploy claims remain scoped to the receipt-bearing sections below. Prior verified content baseline: `55d5d5fa2` on 2026-09-25 (#2656).
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
+
+## Higgsfield runtime recovery + live canary (2026-09-27)
+
+PR #2717 (`4d6488623e08f682ccdf5a283d501b9c9c24525c`) moved the CLI/runtime from the obsolete 0.2.3 contract to 1.1.26, version-scoped its native cache, and wired the current workspace contract. Production then changed from `Session expired` / `higgsfield session dead` to successful keepalive and Reel-pipeline pulses.
+
+The recovery is now proven across a process boundary, not just inside one dyno. A read-only mysql2 probe showed the durable `app_secret_kv` Higgsfield credential row already existed before a later Railway process startup (reported row `updated_at` 22:44:08Z; process registration logged 23:39:20Z). A subsequent keepalive from the fresh process completed with `session refreshed, 13.5 credits`, proving the restarted service recovered usable persisted credentials. Full refresh-token revocation still cannot be bootstrapped by cron and requires an operator browser login.
+
+Live canary Reel job `1950002` then generated five Higgsfield clips. The pipeline recorded both generation and repair as `assets_ready`, then failed closed at render QA because the caption ask (`send this`) disagreed with the end-card ask (`profile`). **No social publish is claimed.** The canary was paid work: the observed Higgsfield balance fell from 98.5 credits to 13.5 credits during the generation/repair sequence, so do not repeat this canary merely to re-prove liveness.
 
 ## Portfolio reconciliation (2026-09-26/27) — stale branches are not backlog
 
@@ -516,20 +524,8 @@ Automation success is valid only when the final system of record confirms the ac
   `contentManufacturing` also enqueues with `source: "cron"` but publishes
   elsewhere. The date comes from the briefId, not `updatedAt` (`onUpdateNow`,
   drifts) or `createdAt` (enqueue, not publish).
-- **Higgsfield now has a KEY-BASED lane that never expires (shipped 2026-08-17),
-  and the CLI-session lane went dead for four days first.** Probed prod
-  (read-only, operator-authorized): keepalive **332 completed** (08-10 08:47 ->
-  08-13 18:07), then **372 CONSECUTIVE failures** (08-13 18:11 -> 08-17), every
-  one `Session expired. Hint: Run: hf auth login`; cadence stayed perfect the
-  whole time (largest gap 15.4 min), so the token was simply revoked, not
-  starved or raced. Nobody noticed because `socialDeliveryIssues` computed
-  `generatorConfigured` as `!!credentialsJson` - a PRESENCE check.
-  `higgsfieldSessionHealth()` existed for exactly this since the 2026-07-31
-  incident and was never wired in. Fixed: a dead session is now a
-  `generator_session_expired` BLOCKER (#1628). The keepalive also now clears its
-  in-process credential cache on failure, so a re-login lands within 15 minutes
-  instead of requiring a redeploy.
-- **`server/services/higgsfieldApiClient.ts`** talks to Higgsfield's OFFICIAL
+- **The 2026-08-17 four-day CLI-session outage is historical; the session lane is live again as of 2026-09-27.** The old incident measured **332 completed** keepalives followed by **372 consecutive `Session expired` failures**, which is why `higgsfieldSessionHealth()` became a real blocker instead of a presence check. PR #2717 later updated the runtime to CLI 1.1.26. The current proof is stronger than one successful call: a fresh Railway process started after the durable credential row had been written, and its later keepalive still completed with `session refreshed`. Live canary job `1950002` then generated five Higgsfield clips and failed later at render QA on a CTA mismatch, with no publish. Full token revocation still needs an operator browser login.
+- **The separate key-based API lane remains a distinct fallback and is not the proof for the 2026-09-27 recovery.** `server/services/higgsfieldApiClient.ts` talks to Higgsfield's official
   REST API directly (no new npm dependency - `pnpm install` is policy-blocked in
   harness worktrees): `Authorization: Key <HIGGSFIELD_API_KEY_ID>:<HIGGSFIELD_API_KEY_SECRET>`
   against `https://platform.higgsfield.ai`, submit to the DoP image-to-video

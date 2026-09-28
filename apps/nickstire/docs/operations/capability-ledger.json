@@ -913,36 +913,39 @@
     {
       "owner": "system",
       "lastVerifiedAt": "2026-09-27",
-      "verificationExpiresAt": "2026-10-25",
-      "deferredScope": [
-        "Promote back to live_verified only after the 1.1.26 runtime is deployed and a production higgsfield-session-keepalive row records a successful refresh."
-      ],
+      "verificationExpiresAt": "2026-10-18",
+      "deferredScope": [],
       "capabilityId": "higgsfield-keepalive",
       "name": "Higgsfield session keepalive (15-min refresh)",
       "codeState": "merged",
-      "operationalState": "unit_verified",
+      "operationalState": "live_verified",
       "exposure": "internal",
       "evidence": {
-        "codeCommit": "fix/higgsfield-cli-1126 pending merge/deploy: pin CLI/runtime to 1.1.26, version-scope the native-binary cache, and document the workspace contract",
+        "codeCommit": "4d6488623e08f682ccdf5a283d501b9c9c24525c (PR #2717): Higgsfield CLI/runtime pinned to 1.1.26, native cache version-scoped, workspace contract documented",
         "tests": [
           "server/higgsfieldBinaryVersion.test.ts: exact package/runtime pin, version-scoped native cache, HIGGSFIELD_WORKSPACE_ID documentation, and railway-injected DATABASE_URL recovery contract",
           "9 focused Higgsfield test files: 138/138 passed on 2026-09-27",
-          "rebased critical keepalive/session tests: 37/37 passed; TypeScript typecheck exit 0 on 2026-09-27"
+          "rebased critical keepalive/session tests: 37/37 passed; TypeScript typecheck exit 0 on 2026-09-27",
+          "PR #2717 GitHub matrix fully green including e2e, node affected sweep, security, typecheck, Knip, adapter canaries, Completion Authority, and source citation"
         ],
-        "deploymentId": "PENDING — production still runs the pre-1.1.26 compatibility contract until this PR deploys",
+        "deploymentId": "Railway a37c0df7-1143-4c7e-9bc5-4420ba0eb8c3 · main 4d6488623e08f682ccdf5a283d501b9c9c24525c · SUCCESS",
         "liveRuns": [
           "HISTORICAL LIVE PROOF 2026-09-08 (PR #2212, main 994358cf1): keepalive completed with 'session refreshed, 2092 credits' after promotion.",
           "END-TO-END HISTORICAL PROOF 2026-08-18: refreshed CLI session generated reel job 1650001, passed rendered QA after authorized repair, and published IG 18105354986172908.",
-          "PRE-DEPLOY FAILURE PROOF 2026-09-27: after a successful current OAuth login, the server's pinned native hf 0.2.3 still returned 'Session expired', proving the production runtime binary was incompatible with the current auth session rather than the fresh token being bad.",
-          "CURRENT VENDOR AUTH PROOF 2026-09-27: native hf 1.1.26 invoked directly with HIGGSFIELD_CREDENTIALS_PATH plus HIGGSFIELD_WORKSPACE_ID authenticated as nourdean22@gmail.com and returned 'ultra plan, 98.5 credits'.",
-          "CURRENT GENERATION CONTRACT PROOF 2026-09-27: higgsfield model get seedance1_5 still accepts prompt, 9:16, duration 4/8/12, 1080p, and start_image; existing generate create --wait --json arguments remain supported."
+          "PRE-DEPLOY FAILURE PROOF 2026-09-27: after a successful current OAuth login, the server's pinned native hf 0.2.3 still returned 'Session expired', proving the runtime binary was incompatible with the fresh auth session.",
+          "VENDOR AUTH PROOF 2026-09-27: native hf 1.1.26 with HIGGSFIELD_CREDENTIALS_PATH plus HIGGSFIELD_WORKSPACE_ID authenticated as nourdean22@gmail.com and returned 'ultra plan, 98.5 credits'.",
+          "LIVE PRODUCTION RECOVERY 2026-09-27T19:53:26Z on Railway deployment a37c0df7 / main 4d648862: higgsfield-session-keepalive status=completed, records_processed=1, details='session refreshed, 98.5 credits'. The prior 2026-09-27T19:30:31Z run was failed with Session expired.",
+          "DOWNSTREAM LIVE PROOF 2026-09-27T19:53:31Z: reel-pipeline status=completed, records_processed=0, details='no reel jobs to process'. The prior 19:30:35Z run failed at preflight with 'higgsfield session dead', so the generation gate cleared in the same post-deploy pulse without claiming a job or spending credits.",
+          "DURABLE CROSS-PROCESS PROOF 2026-09-27: a read-only mysql2 probe showed the durable app_secret_kv credential row already existed before a fresh Railway process startup (reported row updated_at 22:44:08Z; process registration logged 23:39:20Z). A later keepalive from that fresh process completed with details='session refreshed, 13.5 credits', proving the restarted service recovered usable persisted credentials rather than relying only on in-memory state.",
+          "LIVE GENERATION CANARY 2026-09-27: reel job 1950002 generated five Higgsfield clips and the pipeline recorded generation/repair assets_ready. It then failed closed at render QA because the caption ask ('send this') disagreed with the end-card ask ('profile'); no social publish is claimed.",
+          "CURRENT GENERATION CONTRACT PROOF 2026-09-27: seedance1_5 still accepts prompt, 9:16, duration 4/8/12, 1080p, and start_image; generate create --wait --json remains supported."
         ]
       },
       "blockers": [
         {
-          "severity": "P1",
-          "description": "PENDING DEPLOYMENT: production keepalive remains on the obsolete pre-1.1.26 runtime until this compatibility PR merges and Railway deploys it. Fresh credentials are already stored in app_secret_kv and HIGGSFIELD_WORKSPACE_ID is configured for production. Do not claim live recovery until a post-deploy keepalive receipt succeeds.",
-          "source": "2026-09-27 live compatibility audit"
+          "severity": "P2",
+          "description": "Keepalive maintains and rotates an already-valid session but cannot bootstrap a fully revoked refresh token; operator browser login remains the recovery path after full revocation.",
+          "source": "2026-09-27 live recovery closeout"
         }
       ]
     },
