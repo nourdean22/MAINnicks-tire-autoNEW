@@ -44,7 +44,7 @@ export type ReconcileResult =
   | { status: "resolved_published"; igPostId: string; permalink: string; detail: string }
   | { status: "resolved_not_published"; detail: string }
   | { status: "needs_operator"; candidates: ReconcileCandidate[]; detail: string }
-  | { status: "cannot_check"; detail: string };
+  | { status: "cannot_check"; reason: "meta_unavailable" | "history_window_exhausted"; detail: string };
 
 /** Compare captions ignoring whitespace/case — Meta normalises some whitespace. */
 function captionMatches(a: string, b: string): boolean {
@@ -73,7 +73,7 @@ export async function reconcileAttempt(args: {
   const media = await fetchInstagramMedia(RECONCILE_PAGE_SIZE);
   if (!media.ok) {
     // Not knowing is a legitimate outcome and must not look like "not published".
-    return { status: "cannot_check", detail: `Could not read the Instagram account: ${media.error}` };
+    return { status: "cannot_check", reason: "meta_unavailable", detail: `Could not read the Instagram account: ${media.error}` };
   }
 
   const attemptMs = args.attemptedAt.getTime();
@@ -160,6 +160,7 @@ export async function reconcileAttempt(args: {
     if (windowTruncated) {
       return {
         status: "cannot_check",
+        reason: "history_window_exhausted",
         detail:
           `Every one of the ${media.posts.length} most recent posts is NEWER than this attempt, so the ` +
           `attempt's own post would have fallen off the end of the page we can see. This is UNKNOWN, ` +
