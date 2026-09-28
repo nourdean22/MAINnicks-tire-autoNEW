@@ -1,5 +1,17 @@
 # Session ledger - nickstire
 
+**Updated: 2026-09-28** (Instagram Admin + original-plan infrastructure receipts reconciled through #2726)
+
+## 2026-09-28 · current Nick repo/deploy truth
+
+**Repo truth.** `main` = `18db7de13af5fe0f6f4f2fb62456e371db3dd698`; zero open PRs immediately after the #2724/#2725/#2726 wave. The prior “Instagram Admin consolidation still pending” handoff is historical: #2723 merged as `785a43b8564cd30ad377da294039dbb4c6cd3341`, then #2727 merged the static-caption budget fix as `904f82bdaebeaa5bf3fefc0c00149c21bf76fa91`.
+
+**Nick production truth.** Latest Nick deployment `87d12fb1-951c-4a77-95c3-086869736a65` is SUCCESS on exact commit `904f82bdaebeaa5bf3fefc0c00149c21bf76fa91` (#2727), so production ancestry includes the #2723 Instagram Admin consolidation. #2725/#2726 correctly SKIPPED Nick because they are StateNour-only.
+
+**Original-plan infrastructure receipts.** The public Redis TCP proxy is removed; Redis remains private/internal pending the separate 2FA-gated deletion of the service/volume/REDIS_URL. Nick's negated Railway watch paths are live, preventing docs-only changes from triggering avoidable Nick deploys. Q-41 Vapi confirmation calls were live-verified without `mapLink`. Durable operator-plan status is in `docs/research/2026-09-28-original-plan-reconciliation.md`; do not collapse its remaining dashboard/vendor/decision items into “code backlog.”
+
+**NicksMax receipt.** Hostname rename/reboot is complete: active hostname is `nicksmax` and Windows reports no CBS/WU/PendingFileRename reboot flags. Consumer ESU is still unenrolled, and the V380 `ACTIVE-WORK.md` guard still exists; do not reboot or touch the camera stack until its owning session clears that guard.
+
 **Updated: 2026-09-27 late ET** (Instagram Admin consolidation recovered on isolated NattyNour worktree; single PR/merge still pending)
 
 ## 2026-09-27 · Instagram Admin consolidation handoff

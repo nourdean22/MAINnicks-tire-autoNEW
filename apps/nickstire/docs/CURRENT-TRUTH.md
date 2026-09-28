@@ -1,15 +1,24 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** repository `main` `8421383d823f293d2595de5adb354de48530a32d` on 2026-09-27 (#2722, documentation/memory receipt). Nick production's source-code deployment remains `a3b3555e43e755f0a90b12fc6962be2340e21503` (#2720); repository ancestry and deployment truth are intentionally recorded separately. The Instagram Admin consolidation described below is still an unmerged branch candidate until its own merge receipt exists. Prior verified content baseline: `55d5d5fa2` on 2026-09-25 (#2656).
+**Verified against:** repository `main` `18db7de13af5fe0f6f4f2fb62456e371db3dd698` on 2026-09-28 (#2726). Nick production is serving exact commit `904f82bdaebeaa5bf3fefc0c00149c21bf76fa91` (#2727) via deployment `87d12fb1-951c-4a77-95c3-086869736a65` SUCCESS; repository ancestry and deployment truth remain intentionally separate. The Instagram Admin consolidation is merged (#2723) and included in that live Nick ancestry.
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
-## Instagram Admin consolidation candidate (2026-09-27) — branch verified, not yet merged
+## Original-plan infrastructure reconciliation (2026-09-28)
 
-The recovered Instagram Audit workstream was reconciled past the Higgsfield closeout into the operator/admin layer. The branch `nickstire/instagram-admin-finish-20260927` adds one Strategy surface plus supporting server contracts instead of building a parallel content system.
+- Durable 24-slice ledger: `../../../docs/research/2026-09-28-original-plan-reconciliation.md`.
+- Live Nick/worker watch-path negations are applied; docs-only changes should no longer trigger broad Nick/worker deploys.
+- Redis public TCP 6379 exposure is removed. Redis itself remains private/internal until the Railway dashboard 2FA deletion of service + volume + StateNour `REDIS_URL`.
+- Worker is east4/private-only and StateNour observability no longer depends on a public worker URL.
+- `pg_stat_statements` v1.11 is enabled on Neon and has already produced actionable StateNour performance evidence.
+- Remaining §15 items are explicitly operator/dashboard/vendor/decision gates; do not relabel them as unfinished Nick code.
+
+## Instagram Admin consolidation (2026-09-27/28) — merged and in live Nick ancestry
+
+The recovered Instagram Audit workstream was reconciled past the Higgsfield closeout into the operator/admin layer and merged as #2723 (`785a43b8564cd30ad377da294039dbb4c6cd3341`). Nick production later deployed #2727 (`904f82bdaebeaa5bf3fefc0c00149c21bf76fa91`), whose ancestry includes #2723. The implementation adds one Strategy surface plus supporting server contracts instead of building a parallel content system.
 
 - **Active Reel slate:** an ordered production overlay over the 133 approved packs with an independent durable cursor. Enabling, consuming, exhausting, clearing, or re-saving the slate does not move the canonical full-library cursor. Jobs persist source-pool provenance plus the active-slate definition revision so a mid-render enable/clear/reorder cannot advance the wrong queue. Legacy jobs remain full-library jobs.
 - **Creative-fatigue + demand evidence:** existing production-grammar fingerprints, novelty collisions, and the existing live topic miner are surfaced as transparent ranking inputs. No fake virality score or automatic publish promotion was added.
@@ -20,7 +29,7 @@ The recovered Instagram Audit workstream was reconciled past the Higgsfield clos
 
 **Local verification on the final code tree before PR:** full Vitest suite passed after the TiDB latest-row ordering fix and procedure-census regeneration; TypeScript, production build, source/SQL/hooks/brand/PII/cron lints, orphan gate (0 NEW), CURDATE, route registry, prerender and semantic-prerender checks passed. The live read-only migration reconciliation still reports six pre-existing blocking migration states (0127-0130, 0132, 0133); this branch changes no schema/migration files and does not claim that unrelated production drift is repaired.
 
-**Evidence boundary:** BUILT + WIRED + TESTED in branch. Do not call this live/deployed until the single consolidation PR merges and a post-deploy authenticated production check confirms the real admin session/data path.
+**Evidence boundary:** repository merge + deployment ancestry are proven. This does not by itself prove every authenticated Instagram Admin control was manually exercised against the live Meta account after deployment; keep external Meta mutations and live-login UI receipts separate.
 
 ## Connection hardening closeout (2026-09-27/28)
 

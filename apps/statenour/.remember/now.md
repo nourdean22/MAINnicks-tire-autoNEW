@@ -1,5 +1,19 @@
 # Session ledger — statenour
 
+**Updated: 2026-09-28** (original-plan execution reconciled through #2726; zero open PRs at this receipt)
+
+## 2026-09-28 · original-plan infrastructure + observability closeout
+
+**Repo truth.** `main` = `18db7de13af5fe0f6f4f2fb62456e371db3dd698` (#2726). PR #2724 merged the evidence-backed 24-slice ledger and Railway source-of-truth hardening. PR #2725 merged the Obsidian rollup performance fix. PR #2726 merged the private-worker observability repair. GitHub was rechecked after those merges: **0 open PRs**.
+
+**Live infrastructure receipts.** StateNour worker is SUCCESS on exact #2726 commit `18db7de13`, in `us-east4-eqdc4a`, with no public Railway domain and private web target `http://statenour-web.railway.internal:8080`. Nick + worker negated watch-path rules are live. Redis still exists internally, but its public TCP proxy is removed; full service/volume/REDIS_URL retirement remains blocked by Railway dashboard 2FA. Wait-for-CI remains a Railway dashboard toggle; project webhook creation remains open because the existing hidden token cannot be interpolated by the API without revealing/rotating it.
+
+**Neon receipt.** `pg_stat_statements` v1.11 was rehearsed on a temporary branch, explicitly approved, applied to production, and verified. It immediately exposed the default Obsidian rollup as a high-volume reader. #2725 now keeps the same newest-100/category contract but fetches full payloads for only **3,632** current rows instead of all **36,042** eligible rows (~89.9% fewer full-row payloads). The complete individual export and archive backup paths remain unchanged. StateNour web SUCCESS on #2725 is deployment `bdfe33a5-0a80-48e0-b992-b9662ae42079`.
+
+**#2726 live boundary.** Worker deployment `aa4db42e-5b0e-4611-a461-2338d3d7f12c` and StateNour web deployment `f14abc77-e0cb-4e90-915a-250a21bdee0a` are both SUCCESS on exact #2726 commit `18db7de13af5fe0f6f4f2fb62456e371db3dd698`. A live NicksMax probe of `https://bdnick.info/api/system/heartbeat` returned `status: ok`, DB latency 5 ms, and `worker.status: fresh` with age 12 minutes. The worker-freshness lookup itself was production-benchmarked at ~0.076 ms warm via the existing `cron_job_logs_jobName_status_createdAt_idx`.
+
+**Scope correction.** The earlier “reconciled code backlog = exhausted” statement applied to the stale-branch portfolio reconciliation only. It did **not** mean the broader §15 operator/infrastructure plan was complete. Durable slice ledger: `docs/research/2026-09-28-original-plan-reconciliation.md`.
+
 **Updated: 2026-09-27 21:17 ET** (final connection-hardening closeout merged as #2721)
 
 ## 2026-09-27 · final connection-hardening merge receipt
