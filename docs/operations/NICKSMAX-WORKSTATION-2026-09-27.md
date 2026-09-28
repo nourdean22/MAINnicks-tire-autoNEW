@@ -313,3 +313,19 @@ It does **not** prove:
 - the final post-reboot NICKSMAX hostname/persistence receipt
 
 Those require their own evidence after the sibling session finishes and the controlled reboot occurs.
+
+
+## 2026-09-28 camera-role promotion
+
+The 2026-09-27 workstation decision remains valid for general compute, but the camera role
+changed materially the next day. NicksMax is now the production edge for Nick's `sign`
+camera through a measured direct V380 cloud/P2P -> local RTSP chain. This is a deliberate
+lightweight edge exception, not permission to turn NicksMax into a second general scheduler,
+Docker, local-LLM or Frigate host.
+
+The earlier V380 sibling-session guard is closed for this workstream: the direct camera path
+no longer requires the V380 desktop GUI. A SYSTEM-owned scheduled supervisor has a successful
+`ServiceAccount / Highest / Running` receipt, while a literal physical cold-reboot or
+power-loss proof remains a distinct unperformed test.
+
+See `docs/operations/NICKSMAX-CAMERA-HOST-2026-09-28.md`.
