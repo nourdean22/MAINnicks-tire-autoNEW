@@ -406,11 +406,11 @@ export const instagramAdminRouter = router({
   }),
 
   /**
-   * Trial-reel tracking (Wave C′): Instagram's Trial Reels show a post to
-   * non-followers first; the operator reads the 24h numbers in the IG app and
-   * records them HERE so the winner/archive decision leaves a durable trail.
-   * Manual entry by design — no Graph surface for trial metrics is wired, and
-   * a hand-entered number labeled as such beats a fabricated integration.
+   * Trial-reel outcome tracking (Wave C′): Trial publishing itself can now
+   * use Meta's trial_params from the Queue. The 24h Trial-specific outcome
+   * numbers remain manual because no trustworthy Trial-metric ingestion is
+   * wired into our Graph reader yet. Hand-entered numbers stay explicitly
+   * labeled rather than being fabricated from ordinary Reel insights.
    * Rides briefJson (zero DDL); CAS on version; fail-closed on unreadable
    * driver results (the `?? 1` class).
    */
@@ -1645,10 +1645,25 @@ Keep it under 200 characters.`;
        * NOT the platform mechanism.
        */
       isAiGenerated: z.boolean().optional(),
+      /**
+       * Explicit operator-only Trial Reel publish. We intentionally expose
+       * MANUAL graduation only: broad distribution remains a second operator
+       * decision instead of an opaque Meta auto-promotion.
+       */
+      trialReel: z.object({ graduationStrategy: z.literal("MANUAL") }).strict().optional(),
     }))
     .mutation(async ({ input }) => {
       const database = await db();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      if (input.trialReel) {
+        if (!input.inventoryId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Trial Reel publishing requires an approved Reel inventory item." });
+        }
+        if (input.platforms.length !== 1 || input.platforms[0] !== "instagram") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Trial Reels are Instagram-only and cannot be cross-posted." });
+        }
+      }
       
       let publishCaption = input.caption;
       let publishVideoUrl = input.videoUrl;
@@ -1687,6 +1702,9 @@ Keep it under 200 characters.`;
                     ? "This draft is already published. Re-publishing would duplicate the live post."
                     : "This draft is partially published — one platform is already live. Re-publishing would duplicate it; resolve the failed platform manually.",
             });
+          }
+          if (input.trialReel && draft.contentType !== "reel") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Trial Reel mode is valid only for an approved Reel draft." });
           }
           if (draft.contentType === "reel") {
             if (draft.status !== "ready") {
@@ -1842,7 +1860,9 @@ Keep it under 200 characters.`;
               proof: proof ?? null,
               what: status === "published_partial"
                 ? `published to some platforms only: ${errorMessage ?? "partial"}`
-                : "published to Instagram",
+                : input.trialReel
+                  ? "published as Instagram Trial Reel (MANUAL graduation)"
+                  : "published to Instagram",
             });
           } catch (err) {
             log.warn("publish succeeded but the content run could not be closed", {
@@ -1850,6 +1870,57 @@ Keep it under 200 characters.`;
               err: err instanceof Error ? err.message.slice(0, 200) : String(err),
             });
           }
+        }
+      };
+
+      const persistTrialPublishReceipt = async (postId?: string | null) => {
+        if (!input.trialReel || !input.inventoryId) return;
+        try {
+          const { socialContentInventory } = await import("../../drizzle/schema");
+          const { eq, and } = await import("drizzle-orm");
+          const rows = await database
+            .select({ briefJson: socialContentInventory.briefJson, version: socialContentInventory.version })
+            .from(socialContentInventory)
+            .where(eq(socialContentInventory.id, input.inventoryId))
+            .limit(1);
+          if (!rows.length) return;
+
+          let parsed: Record<string, unknown> = {};
+          try { parsed = rows[0].briefJson ? JSON.parse(rows[0].briefJson) : {}; } catch { parsed = {}; }
+          const prior = (parsed.trial ?? {}) as Record<string, unknown>;
+          const next = {
+            ...parsed,
+            trial: {
+              ...prior,
+              postedAsTrial: true,
+              graduationStrategy: input.trialReel.graduationStrategy,
+              publishedAt: new Date().toISOString(),
+              postId: postId ?? null,
+            },
+          };
+          // Version is an optimistic guard only; publishing metadata does not
+          // mutate the approved creative version. If a human records 24h
+          // metrics concurrently and bumps version, refuse to overwrite them.
+          const result = await database.update(socialContentInventory)
+            .set({ briefJson: JSON.stringify(next), updatedAt: new Date() })
+            .where(and(
+              eq(socialContentInventory.id, input.inventoryId),
+              eq(socialContentInventory.version, rows[0].version),
+            ));
+          if (affectedRowCount(result) !== 1) {
+            log.warn("Trial Reel published but trial receipt lost a concurrent metadata race", {
+              inventoryId: input.inventoryId,
+              postId: postId ?? null,
+            });
+          }
+        } catch (err) {
+          // External publish is already live. Never turn bookkeeping failure
+          // into a user-visible publish failure that could invite a duplicate.
+          log.warn("Trial Reel published but trial receipt persistence failed", {
+            inventoryId: input.inventoryId,
+            postId: postId ?? null,
+            err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+          });
         }
       };
 
@@ -2017,8 +2088,9 @@ Keep it under 200 characters.`;
       }
 
       await setInventoryStatus("published", undefined, igPostId ?? null);
+      await persistTrialPublishReceipt(igPostId ?? null);
 
-      return { success: true, results, postId: igPostId };
+      return { success: true, results, postId: igPostId, publishedAsTrial: Boolean(input.trialReel) };
     }),
 
   /**
