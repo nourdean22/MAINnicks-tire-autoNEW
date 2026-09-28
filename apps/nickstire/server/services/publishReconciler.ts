@@ -46,16 +46,23 @@ export type ReconcileResult =
   | { status: "needs_operator"; candidates: ReconcileCandidate[]; detail: string }
   | { status: "cannot_check"; reason: "meta_unavailable" | "history_window_exhausted"; detail: string };
 
-/** Compare captions ignoring whitespace/case — Meta normalises some whitespace. */
-function captionMatches(a: string, b: string): boolean {
-  const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
-  const x = norm(a), y = norm(b);
+/** Normalize only transformations Meta may apply without changing identity. */
+function normalizeCaption(s: string): string {
+  return s.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** Unattended closure requires the FULL normalized caption. A prefix is useful
+ * operator evidence, never proof: template-style openings can legitimately
+ * collide across two different posts. */
+function exactCaptionMatches(a: string, b: string): boolean {
+  const x = normalizeCaption(a), y = normalizeCaption(b);
+  return Boolean(x && y && x === y);
+}
+
+function captionPrefixMatches(a: string, b: string): boolean {
+  const x = normalizeCaption(a), y = normalizeCaption(b);
   if (!x || !y) return false;
-  if (x === y) return true;
-  // A published caption can be truncated or have the CTA appended; compare the
-  // opening, which is the part the compiler fixes.
-  const head = (s: string) => s.slice(0, 60);
-  return head(x) === head(y);
+  return x.slice(0, 60) === y.slice(0, 60);
 }
 
 /**
@@ -87,12 +94,15 @@ export async function reconcileAttempt(args: {
     // before the attempt cannot be this attempt.
     if (deltaMin < -2 || deltaMin > MATCH_WINDOW_MINUTES) continue;
 
-    const capMatch = args.expectedCaption ? captionMatches(args.expectedCaption, post.caption) : false;
-    const reasoning = capMatch
-      ? `Caption matches and it was posted ${deltaMin} minute(s) after the attempt.`
-      : args.expectedCaption
-        ? `Posted ${deltaMin} minute(s) after the attempt, but the caption differs.`
-        : `Posted ${deltaMin} minute(s) after the attempt. No caption was recorded for the attempt, so this is timing evidence only.`;
+    const exactMatch = args.expectedCaption ? exactCaptionMatches(args.expectedCaption, post.caption) : false;
+    const prefixMatch = !exactMatch && args.expectedCaption ? captionPrefixMatches(args.expectedCaption, post.caption) : false;
+    const reasoning = exactMatch
+      ? `Full normalized caption matches and it was posted ${deltaMin} minute(s) after the attempt.`
+      : prefixMatch
+        ? `Caption opening matches, but the full caption differs. This is operator evidence only.`
+        : args.expectedCaption
+          ? `Posted ${deltaMin} minute(s) after the attempt, but the caption differs.`
+          : `Posted ${deltaMin} minute(s) after the attempt. No caption was recorded for the attempt, so this is timing evidence only.`;
 
     candidates.push({
       igPostId: post.id,
@@ -101,7 +111,7 @@ export async function reconcileAttempt(args: {
       postedAt: post.posted,
       minutesFromAttempt: deltaMin,
       reasoning,
-      confident: capMatch,
+      confident: exactMatch,
     });
   }
 
