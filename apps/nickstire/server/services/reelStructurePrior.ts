@@ -8,12 +8,10 @@
  * generation, and RECORD that it was used.
  *
  * The recording is the point as much as the picking. `timesUsed`/`lastUsedAt`
- * existed from the start and were never incremented, and there is no
- * pattern -> outcome link anywhere, so nothing could ever learn which captured
- * structure actually worked. Stamping the pattern id onto the brief — which
- * lands in `reel_jobs.payload` — creates the join that a later pass can run
- * against ig_metric_snapshots. Until then this rotates rather than pretending
- * to rank.
+ * drive fair exploration, while `structurePatternId` stamped into
+ * `reel_jobs.payload` now joins published jobs to `ig_metric_snapshots`.
+ * The learner stays on rotation until its active cohort is mature, then uses
+ * measured distribution as a prior while preserving deterministic exploration.
  *
  * Degrades to null, never throws: a missing structure hint must reduce the
  * brief to what it was yesterday, not fail the run.
