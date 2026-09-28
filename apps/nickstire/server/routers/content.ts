@@ -567,7 +567,7 @@ export const contentAdminRouter = router({
       avoidRecent: z.array(z.string().max(200)).max(12).optional(),
       generateGenome: z.boolean().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { assertAllowed } = await import("../services/autonomyControl");
       await assertAllowed({ type: "generate_campaign" }).catch((err: unknown) => {
         if (err instanceof Error && err.message.startsWith("Blocked by autonomy policy")) {
@@ -575,19 +575,55 @@ export const contentAdminRouter = router({
         }
         return undefined; // policy infra failure — default posture allows
       });
-      const { runConceptTournament } = await import("../services/conceptTournament");
-      const { generateGenome, ...tournamentInput } = input;
-      const result = await runConceptTournament(tournamentInput, { generateGenome });
-      if (!result.genome) return { ...result, seeds: null };
-      const { genomeToReelSeed, genomeToCarouselSeed, genomeToPhotoSeed } = await import("../../client/src/lib/creativeGenome");
-      return {
-        ...result,
-        seeds: {
-          reel: genomeToReelSeed(result.genome),
-          carousel: genomeToCarouselSeed(result.genome),
-          photo: genomeToPhotoSeed(result.genome),
-        },
-      };
+      const { createContentRun, advanceContentRun, RUN_STAGE } = await import("../services/contentRun");
+      const contentRunId = await createContentRun({
+        requestedBy: ctx.user?.email ?? null,
+        requestSource: "operator",
+        requestedTopic: input.campaignAsk,
+        requestedFormat: null,
+      });
+      if (!contentRunId) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not create the canonical content run; campaign generation refused rather than escaping lineage." });
+      }
+      await advanceContentRun(contentRunId, {
+        stage: RUN_STAGE.planning,
+        objective: input.objective ?? null,
+        evidence: { at: new Date().toISOString(), what: "concept tournament started" },
+      });
+      try {
+        const { runConceptTournament } = await import("../services/conceptTournament");
+        const { generateGenome, ...tournamentInput } = input;
+        const result = await runConceptTournament(tournamentInput, { generateGenome });
+        await advanceContentRun(contentRunId, {
+          stage: RUN_STAGE.planning,
+          thesis: result.winner?.title ?? null,
+          evidence: {
+            at: new Date().toISOString(),
+            what: result.genomeId
+              ? `concept tournament completed; genome persisted as ${result.genomeId}`
+              : "concept tournament completed",
+            proof: result.genomeId ?? null,
+          },
+        });
+        if (!result.genome) return { ...result, contentRunId, seeds: null };
+        const { genomeToReelSeed, genomeToCarouselSeed, genomeToPhotoSeed } = await import("../../client/src/lib/creativeGenome");
+        return {
+          ...result,
+          contentRunId,
+          seeds: {
+            reel: genomeToReelSeed(result.genome),
+            carousel: genomeToCarouselSeed(result.genome),
+            photo: genomeToPhotoSeed(result.genome),
+          },
+        };
+      } catch (err) {
+        await advanceContentRun(contentRunId, {
+          stage: RUN_STAGE.failed,
+          failureReason: err instanceof Error ? err.message.slice(0, 1000) : String(err).slice(0, 1000),
+          evidence: { at: new Date().toISOString(), what: "concept tournament failed" },
+        });
+        throw err;
+      }
     }),
 
   /** Content experiment registry (0108) — operator start surface.
