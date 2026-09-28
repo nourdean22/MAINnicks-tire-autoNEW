@@ -52,13 +52,14 @@ async function measuredPatternOutcomes(): Promise<PatternPerformanceRow[]> {
       .orderBy(desc(reelJobs.updatedAt))
       .limit(500);
 
-    const lineage = jobs.flatMap((job) => {
+    const lineage: Array<{ patternId: string; postId: string }> = [];
+    for (const job of jobs as Array<{ payload: string | null; postId: string | null }>) {
       const patternId = parseReelJobPayload(job.payload).structurePatternId;
-      return patternId && job.postId ? [{ patternId, postId: job.postId }] : [];
-    });
+      if (patternId && job.postId) lineage.push({ patternId, postId: job.postId });
+    }
     if (!lineage.length) return [];
 
-    const postIds = [...new Set(lineage.map((x) => x.postId))].slice(0, 500);
+    const postIds: string[] = Array.from(new Set(lineage.map((x) => x.postId))).slice(0, 500);
     const snaps = await database
       .select({
         postId: igMetricSnapshots.postId,
@@ -78,10 +79,11 @@ async function measuredPatternOutcomes(): Promise<PatternPerformanceRow[]> {
     const newest = new Map<string, typeof snaps[number]>();
     for (const snap of snaps) if (!newest.has(snap.postId)) newest.set(snap.postId, snap);
 
-    return lineage.flatMap(({ patternId, postId }) => {
+    const measured: PatternPerformanceRow[] = [];
+    for (const { patternId, postId } of lineage) {
       const m = newest.get(postId);
-      if (!m) return [];
-      return [{
+      if (!m) continue;
+      measured.push({
         patternId,
         reach: m.reach,
         saved: m.saved,
@@ -89,8 +91,9 @@ async function measuredPatternOutcomes(): Promise<PatternPerformanceRow[]> {
         views: m.views,
         avgWatchTimeMs: m.avgWatchTimeMs,
         skipRate: m.skipRate == null ? null : Number(m.skipRate),
-      }];
-    });
+      });
+    }
+    return measured;
   } catch (err) {
     log.warn("pattern outcome evidence unavailable; rotation remains active", {
       err: err instanceof Error ? err.message : String(err),
