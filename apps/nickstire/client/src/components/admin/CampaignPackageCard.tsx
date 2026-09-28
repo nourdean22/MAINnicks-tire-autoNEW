@@ -82,8 +82,8 @@ export default function CampaignPackageCard() {
     onSuccess: () => toast.success("Carousel saved to Draft Board", { description: "Open the Drafts tab to render slides and publish." }),
     onError: (e) => toast.error("Draft save failed", { description: e.message }),
   });
-  const draftAndSaveCarousel = async (genome: unknown) => {
-    const res = await carouselDraft.mutateAsync({ genome });
+  const draftAndSaveCarousel = async (genome: unknown, contentRunId?: string) => {
+    const res = await carouselDraft.mutateAsync({ genome, contentRunId });
     await saveCarousel.mutateAsync({ id: res.brief.id, topic: res.brief.topic, brief: res.brief });
   };
   const result = tournament.data;
@@ -202,7 +202,7 @@ export default function CampaignPackageCard() {
                     disabled={reelDraft.isPending}
                     onClick={() => {
                       enqueue.reset();
-                      reelDraft.mutate({ genome: result.genome });
+                      reelDraft.mutate({ genome: result.genome, contentRunId: result.contentRunId });
                     }}
                   >
                     {reelDraft.isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
@@ -247,6 +247,7 @@ export default function CampaignPackageCard() {
                             sourceType: "manual" as const,
                             sourceOrigin: "campaign_package",
                             genomeId: result.genomeId ?? null,
+                            contentRunId: result.contentRunId,
                           },
                         });
                       }}
@@ -273,7 +274,7 @@ export default function CampaignPackageCard() {
                     size="sm"
                     variant="outline"
                     disabled={carouselDraft.isPending || saveCarousel.isPending}
-                    onClick={() => void draftAndSaveCarousel(result.genome)}
+                    onClick={() => void draftAndSaveCarousel(result.genome, result.contentRunId)}
                   >
                     {carouselDraft.isPending || saveCarousel.isPending ? (
                       <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
