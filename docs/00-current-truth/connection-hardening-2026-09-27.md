@@ -54,3 +54,21 @@ No connected DNS-management authority for Global Domain Group is available in th
 ## Concurrency / cleanup boundary
 
 Do not reboot NicksMax, kill V380, change camera startup, or delete camera/Eufy worktrees while the active camera-session guard exists. Other isolated active worktrees (including the Reel CTA contract work) are not reconciliation backlog and must not be reset or merged blindly.
+
+## 2026-09-28 · NicksMax direct-cloud camera cutover — LIVE + VERIFIED
+
+The `sign` camera authority has moved from the earlier GUI/WGC path to NicksMax's direct V380 cloud/P2P RTSP lane.
+
+Verified production receipts:
+- `camera_runtime.sign.sourceType = rtsp`
+- calibration `sha256:67f719cc875d`
+- live state `HEALTHY`
+- fresh frame and healthy-frame timestamps
+- production heartbeats continued HEALTHY with the V380 desktop application closed
+- force-killing the production edge caused the supervisor to create a new producer instance automatically; the replacement returned HEALTHY
+- the legacy `right` producer remains retired
+- old NicksMax WGC producer/watchdog tasks remain disabled
+
+The current local chain is V380 cloud/P2P -> local three-lens RTSP relay -> middle fixed-lens crop -> loopback MediaMTX -> OpenVINO edge producer. This removes the dependency on NattyNour, the shop PC, and the V380 desktop GUI for the commissioned `sign` lane.
+
+The one remaining host-level limitation is pre-login boot recovery: the hardened supervisor is a current-user logon task because the remote shell is not elevated enough to register a SYSTEM startup task. This does not affect normal continuous operation or crash recovery after login.
