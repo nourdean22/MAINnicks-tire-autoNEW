@@ -1,5 +1,21 @@
 # CURRENT-TRUTH.md — Statenour
 
+
+## NicksMax camera edge authority (2026-09-28)
+
+Nick's `sign` camera is now produced on NicksMax through a direct V380 cloud/P2P -> local
+RTSP lane. The closeout producer is `nicksmax-sign-rtsp-v1`, calibration
+`sha256:67f719cc875d`, with a HEALTHY runtime receipt. A real visit reached
+`CONFIRMED_ARRIVAL` and StateNour ingestion returned HTTP 200. The Nick shop mirror also
+reported one delivered event with empty durable queues.
+
+This removes the V380 desktop GUI from the production dependency chain. Supervisor startup
+is gated on a real decoded RTSP frame and a SYSTEM-owned scheduled supervisor was receipted
+as running. A literal cold power-cycle remains a separate unperformed proof.
+
+Durable architecture/receipt:
+`docs/operations/NICKSMAX-CAMERA-HOST-2026-09-28.md`.
+
 ## 2026-09-28 — original-plan infrastructure + private-worker observability
 
 - **Repository current truth:** `main` = `18db7de13af5fe0f6f4f2fb62456e371db3dd698` (#2726); GitHub showed **0 open PRs** immediately after the #2724/#2725/#2726 wave.
