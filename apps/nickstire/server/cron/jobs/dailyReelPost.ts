@@ -1315,7 +1315,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // unrecorded publish is the ambiguity this exists to remove.
     const { recordPublishAttempt, recordPublishOutcome, OUTCOME } = await import("../../services/publishAttemptLedger");
     const attemptId = await recordPublishAttempt({
-      jobId: job.id, platforms: ["instagram"], mediaUrl: videoUrl,
+      jobId: job.id, platforms: ["instagram"], mediaUrl: videoUrl, caption,
     });
     if (!attemptId) {
       await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null })

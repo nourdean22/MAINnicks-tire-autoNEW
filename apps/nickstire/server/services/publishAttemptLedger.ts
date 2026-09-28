@@ -36,6 +36,10 @@ export const OUTCOME = {
   confirmed: "CONFIRMED",
   failed: "FAILED",
   ambiguous: "AMBIGUOUS",
+  /** Automation has exhausted the evidence it can safely obtain. This does NOT
+   * resolve the attempt; it only prevents the background reconciler from
+   * repeatedly spending Graph calls on a question that now requires a person. */
+  operatorRequired: "OPERATOR_REQUIRED",
 } as const;
 export type PublishOutcome = (typeof OUTCOME)[keyof typeof OUTCOME];
 
@@ -76,6 +80,9 @@ export interface PublishTarget {
   inventoryId?: string | null;
   platforms: string[];
   mediaUrl?: string | null;
+  /** Exact caption dispatched with the publish. Persist it BEFORE the call so
+   * reconciliation can prove identity instead of relying on timing alone. */
+  caption?: string | null;
 }
 
 /**
@@ -109,6 +116,7 @@ export async function recordPublishAttempt(target: PublishTarget): Promise<strin
         inventoryId: target.inventoryId ?? null,
         platforms: target.platforms,
         mediaUrl: (target.mediaUrl ?? "").slice(0, 500),
+        caption: target.caption == null ? null : String(target.caption).slice(0, 2200),
         requestedAt: new Date().toISOString(),
       }).slice(0, 60_000),
       campaignId: target.inventoryId ?? null,
@@ -192,6 +200,14 @@ export interface UnreconciledAttempt {
   scheduledPostId: number | null;
   inventoryId: string | null;
   platforms: string[];
+  /** Exact caption captured before dispatch; null on legacy attempts. */
+  expectedCaption: string | null;
+  /** Durable handoff: still unresolved, but automation must stop re-checking it. */
+  operatorRequired: boolean;
+  /** Candidate evidence frozen at handoff time so Action Center can still resolve
+   * safely after the posts fall off Meta's recent-media page. */
+  handoffCandidates: unknown[];
+  handoffDetail: string | null;
   ageMinutes: number;
 }
 
@@ -206,7 +222,7 @@ export async function findUnreconciledAttempts(olderThanMinutes = 15): Promise<U
   const d = await getDb();
   if (!d) return [];
   const { autonomyAuditEvents } = await import("../../drizzle/schema");
-  const { eq, lt, and, desc } = await import("drizzle-orm");
+  const { eq, lt, and, desc, inArray } = await import("drizzle-orm");
 
   const cutoff = new Date(Date.now() - olderThanMinutes * 60_000);
   const attempts = await d
@@ -245,21 +261,51 @@ export async function findUnreconciledAttempts(olderThanMinutes = 15): Promise<U
    * failure direction of "open too long" is a visible nag; the failure direction
    * of "closed too early" is a post that may be live and is on no screen.
    */
+  const attemptIds = attempts.map((a: { id: string }) => a.id);
   const outcomes = await d
-    .select({ codes: autonomyAuditEvents.reasoningCodes, decision: autonomyAuditEvents.decision })
+    .select({
+      codes: autonomyAuditEvents.reasoningCodes,
+      decision: autonomyAuditEvents.decision,
+      contextJson: autonomyAuditEvents.contextJson,
+      occurredAt: autonomyAuditEvents.occurredAt,
+    })
     .from(autonomyAuditEvents)
-    .where(eq(autonomyAuditEvents.actionType, OUTCOME_ACTION))
-    .limit(2000);
+    .where(and(
+      eq(autonomyAuditEvents.actionType, OUTCOME_ACTION),
+      inArray(autonomyAuditEvents.reasoningCodes, attemptIds),
+    ))
+    .orderBy(desc(autonomyAuditEvents.occurredAt))
+    .limit(Math.max(200, attemptIds.length * 10));
   const settled = new Set(
     outcomes
       .filter((o: { decision: string | null }) => RESOLVING_OUTCOMES.has(String(o.decision ?? "")))
       .map((o: { codes: string }) => o.codes),
   );
+  const operatorRequiredRows = outcomes.filter(
+    (o: { decision: string | null }) => String(o.decision ?? "") === OUTCOME.operatorRequired,
+  );
+  const operatorRequired = new Set(operatorRequiredRows.map((o: { codes: string }) => o.codes));
+  const handoffByAttempt = new Map<string, { candidates: unknown[]; detail: string | null }>();
+  for (const row of operatorRequiredRows) {
+    if (handoffByAttempt.has(row.codes)) continue; // newest first
+    try {
+      const ctx = JSON.parse(row.contextJson ?? "{}") as {
+        error?: string | null;
+        platformResults?: { candidates?: unknown[]; detail?: string | null } | null;
+      };
+      handoffByAttempt.set(row.codes, {
+        candidates: Array.isArray(ctx.platformResults?.candidates) ? ctx.platformResults!.candidates! : [],
+        detail: ctx.platformResults?.detail ?? ctx.error ?? null,
+      });
+    } catch {
+      handoffByAttempt.set(row.codes, { candidates: [], detail: null });
+    }
+  }
 
   const open: UnreconciledAttempt[] = [];
   for (const a of attempts) {
     if (settled.has(a.id)) continue;
-    let ctx: { kind?: string; jobId?: number | null; scheduledPostId?: number | null; inventoryId?: string | null; platforms?: string[] } = {};
+    let ctx: { kind?: string; jobId?: number | null; scheduledPostId?: number | null; inventoryId?: string | null; platforms?: string[]; caption?: string | null } = {};
     try { ctx = JSON.parse(a.contextJson ?? "{}"); } catch { /* keep the row: an unreadable context is still an open attempt */ }
     const occurredAt = new Date(a.occurredAt);
     open.push({
@@ -272,6 +318,10 @@ export async function findUnreconciledAttempts(olderThanMinutes = 15): Promise<U
       scheduledPostId: ctx.scheduledPostId ?? null,
       inventoryId: ctx.inventoryId ?? null,
       platforms: Array.isArray(ctx.platforms) ? ctx.platforms : [],
+      expectedCaption: typeof ctx.caption === "string" ? ctx.caption : null,
+      operatorRequired: operatorRequired.has(a.id),
+      handoffCandidates: handoffByAttempt.get(a.id)?.candidates ?? [],
+      handoffDetail: handoffByAttempt.get(a.id)?.detail ?? null,
       ageMinutes: Math.round((Date.now() - occurredAt.getTime()) / 60_000),
     });
   }

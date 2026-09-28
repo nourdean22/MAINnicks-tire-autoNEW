@@ -317,7 +317,7 @@ export function registerAdminRoutes(app: Express): void {
         // Same durable attempt record as the cron and Queue doors — the canary
         // publishes to the same live account, so a crash here is just as ambiguous.
         const { recordPublishAttempt, recordPublishOutcome, OUTCOME } = await import("../services/publishAttemptLedger");
-        const attemptId = await recordPublishAttempt({ jobId, platforms: ["instagram"], mediaUrl: job.mp4Url });
+        const attemptId = await recordPublishAttempt({ jobId, platforms: ["instagram"], mediaUrl: job.mp4Url, caption: job.caption || "" });
         if (!attemptId) {
           await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null })
             .where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "publishing")));

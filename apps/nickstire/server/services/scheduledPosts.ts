@@ -134,6 +134,7 @@ export async function runScheduledPosts(): Promise<{ recordsProcessed: number; d
         scheduledPostId: row.id,
         platforms: row.platforms,
         mediaUrl: row.videoUrl ?? row.imageUrl ?? null,
+        caption: row.caption,
       });
       if (!attemptId) {
         await database.update(scheduledPosts).set({ status: STATUS.pending })
