@@ -168,13 +168,18 @@ describe("every posting-lane LLM call carries the guards", () => {
     expect(src).toContain("invokeStructuredPosting<");
   });
 
-  it("the caption generator wires the existing JSON schema into the call", () => {
+  it("the caption generator wires the schema and the measured DeepSeek output budget", () => {
     const src = read("server/services/igAutopost.ts");
     const start = src.indexOf("async function generatePost(");
     const end = src.indexOf("// IMAGE", start);
     const body = src.slice(start, end);
     expect(body).toContain("invokeStructuredPosting");
     expect(body).toContain("outputSchema: GEN_SCHEMA");
+    // Live failed runs on 2026-09-25..27 repeatedly consumed exactly 4096
+    // completion tokens before returning empty/truncated JSON. Keep the fix
+    // local to generation instead of changing the whole estate's model route.
+    expect(body).toContain("max_tokens: 8192");
+    expect(body).not.toContain("max_tokens: 4096");
   });
 
   it("the daily brief call is a live lane, not background", () => {

@@ -739,12 +739,18 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype, cu
       { role: "system", content: buildGenSystemPrompt() },
       { role: "user", content: buildGenUserPrompt(brief, dials, customConcept) },
     ],
-    // gemini-2.5-flash spends a large, variable share of tokens on internal
-    // "thinking" BEFORE emitting output. With the full system+brief prompt,
-    // 1200 truncated the caption JSON mid-object ("```json {" -> JSON.parse
-    // failure). 4096 leaves ample headroom for thinking + the completed JSON.
-    // The schema was already defined above but this call did not use it.
-    max_tokens: 4096,
+    // This live posting lane is currently force-routed to Ollama/DeepSeek.
+    // Production llm_calls from 2026-09-25..27 show the failed caption
+    // generations repeatedly consuming EXACTLY 4096 completion tokens before
+    // returning empty or truncated JSON, while successful attempts finish
+    // below that ceiling and other DeepSeek lanes safely emit >8k tokens.
+    // That is an output-budget failure, not a transport/provider outage.
+    //
+    // Preserve the existing DeepSeek generator -> gpt-oss independent-judge
+    // split: do not globally change AI_FORCE_OLLAMA or pin the generator to
+    // its judge. The larger budget is scoped only to this pre-side-effect
+    // structured generation call.
+    max_tokens: 8192,
     outputSchema: GEN_SCHEMA,
   }, "generatePost");
 

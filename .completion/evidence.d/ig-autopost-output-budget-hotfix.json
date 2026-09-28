@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=content-governor updated 2026-09-27 with real ig_autopost_log slot receipts, llm_calls evidence showing repeated completionTokens=4096 on failed DeepSeek structured generation, the scoped 8192-token hotfix, and an explicit pending-deploy blocker. docs/operations/REALITY-LEDGER.md regenerated and check-capability-ledger.mjs passes."
+    }
+  }
+}
