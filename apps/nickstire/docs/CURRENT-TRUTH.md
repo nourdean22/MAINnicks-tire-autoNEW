@@ -1,13 +1,15 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** repository `main` `128eb207a4f01b9da5bfbbb330733262357e421f` at this closeout branch base on 2026-09-27 (#2719, docs-only). This closeout PR is also docs-only and will advance repository HEAD again when merged. Nick production's source-code deployment remains `a3b3555e43e755f0a90b12fc6962be2340e21503` (#2720); repository ancestry and deployment truth are intentionally recorded separately. Prior verified content baseline: `55d5d5fa2` on 2026-09-25 (#2656).
+**Verified against:** repository `main` `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` on 2026-09-27 (#2721, documentation/memory closeout). Nick production's source-code deployment remains `a3b3555e43e755f0a90b12fc6962be2340e21503` (#2720); repository ancestry and deployment truth are intentionally recorded separately. Prior verified content baseline: `55d5d5fa2` on 2026-09-25 (#2656).
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
 ## Connection hardening closeout (2026-09-27/28)
+
+**Final merge receipt:** #2721 squash-merged as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` after affected CI, authenticated StateNour E2E, Completion Authority, Adoption, Agent Policy, Admin, Secret Scanning, and security all passed. Its four earlier review findings were fixed and resolved. #2721 changed documentation/memory only; it does **not** claim a newer Nick production deployment than #2720.
 
 Durable receipt: [`../../../docs/00-current-truth/connection-hardening-2026-09-27.md`](../../../docs/00-current-truth/connection-hardening-2026-09-27.md).
 
