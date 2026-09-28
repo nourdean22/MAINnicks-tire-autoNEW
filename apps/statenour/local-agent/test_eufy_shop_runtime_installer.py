@@ -52,6 +52,9 @@ class EufyShopRuntimeInstallerTests(unittest.TestCase):
         self.assertNotIn('ArgumentList $code', SOURCE)
         self.assertNotIn('ArgumentList $answer', SOURCE)
 
+    def test_office_heartbeat_is_production_by_default(self):
+        self.assertIn('heartbeatMode = "PRODUCTION"', SOURCE)
+        self.assertIn("NICKS_OFFICE_CAMERA_MODE", SOURCE)
     def test_control_fails_closed_until_explicitly_enabled(self):
         self.assertIn("controlEnabled = $false", SOURCE)
         self.assertIn("if ($EnableControl)", SOURCE)

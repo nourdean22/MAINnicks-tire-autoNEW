@@ -48,6 +48,13 @@ EUFY_OFFICE_CAMERA_SERIAL = os.getenv(
 NICKS_CAMERA_HEARTBEAT_URL = os.getenv("NICKS_CAMERA_HEARTBEAT_URL", "").strip()
 NICKS_CAMERA_INGEST_KEY = os.getenv("NICKS_CAMERA_INGEST_KEY", "").strip()
 NICKS_OFFICE_CAMERA_ID = os.getenv("NICKS_OFFICE_CAMERA_ID", "office").strip() or "office"
+NICKS_OFFICE_CAMERA_MODE = (
+    os.getenv("NICKS_OFFICE_CAMERA_MODE", "PRODUCTION").strip().upper() or "PRODUCTION"
+)
+if NICKS_OFFICE_CAMERA_MODE not in {"PRODUCTION", "SHADOW", "COMMISSIONING"}:
+    raise RuntimeError(
+        "NICKS_OFFICE_CAMERA_MODE must be PRODUCTION, SHADOW, or COMMISSIONING"
+    )
 EUFY_HOME_POSE_RECEIPT = os.getenv("EUFY_HOME_POSE_RECEIPT", "").strip()
 EUFY_HOME_REFERENCE_SHA256 = os.getenv("EUFY_HOME_REFERENCE_SHA256", "").strip().lower()
 EUFY_HOME_VERIFY_PYTHON = os.getenv("EUFY_HOME_VERIFY_PYTHON", "").strip()
@@ -720,7 +727,7 @@ def build_office_camera_heartbeat(
         "producerVersion": "statenour.eufy_agent",
         "heartbeatSeq": seq,
         "observedAtEdge": at.isoformat(),
-        "mode": "SHADOW",
+        "mode": NICKS_OFFICE_CAMERA_MODE,
         "sourceType": "eufy_sdk_bridge",
         "sourceGeneration": EUFY_OFFICE_CAMERA_SERIAL,
         "sourceConnected": auth_ok,

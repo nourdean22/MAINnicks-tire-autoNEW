@@ -1,4 +1,4 @@
-# Connection hardening closeout — 2026-09-27
+# Connection hardening closeout Ã¢â‚¬â€ 2026-09-27
 
 > Re-verify live systems before acting. This is a dated receipt, not a permanent assumption.
 
@@ -16,13 +16,13 @@ PR #2721 squash-merged to `main` as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` a
 - The `sign` fixed-geometry camera is current and healthy.
 - NattyNour's Eufy bridge and office-health daemon are running under the watchdog.
 - Tailscale reaches the shop PC. Tests from both NattyNour and NicksMax initially used DERP, then established direct peer paths; this is normal fallback/NAT traversal, not an outage.
-- The stale `right` camera row is legacy runtime residue, not current expected topology. `shared/cameras.ts` commissions only `sign`; `inside` and `office` remain intentionally uncommissioned.
+- The stale camera row is legacy runtime residue, not current expected topology. shared/cameras.ts now commissions sign and office; only inside remains intentionally uncommissioned.
 
-## Deliberately incomplete — operator/external gates
+## Deliberately incomplete Ã¢â‚¬â€ operator/external gates
 
 ### Office Eufy commissioning
 
-Production currently shows `office` as fresh `SHADOW / MEDIA_DEGRADED`: authentication is proven and the semantic-event WebSocket is connected, but no real office motion/person event has yet produced `lastEventProofAt`. Control, media, PTZ-notify, and calibrated-home proof are also incomplete. This is expected before shop-LAN commissioning.
+Office is now commissioned and the NicksMax producer emits PRODUCTION heartbeats. Production currently derives MEDIA_DEGRADED: the bridge is authenticated and the semantic-event lane is connected, but the Office T8410C reports hubStatus=false and its live P2P stream times out. The same NicksMax bridge successfully reads video bytes from the same-model Kitchen T8410C, so this is not a host-wide media failure. Keep Office operational and surface the degradation until a real Office media-byte probe succeeds; control, PTZ-notify, and calibrated-home proof remain separate.
 The current shop-side bootstrap bundle was already delivered to the shop PC. Completion requires local elevation and locally entered Eufy / StateNour / camera-ingest credentials. Do not move those secrets through chat.
 
 Before commissioning, require all of these physical receipts: a real office motion/person event, successful media byte read, bounded PTZ command, unsolicited `ptzNotify`, and visual/SceneLock confirmation of the calibrated home view.

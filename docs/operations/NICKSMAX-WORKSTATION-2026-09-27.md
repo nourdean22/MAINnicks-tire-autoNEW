@@ -40,6 +40,7 @@ A separate ~63 GB APFS/macOS partition remains present. A ~9.3 GB hidden Basic D
 - run lightweight Windows-only utilities when explicitly needed
 - provide SSH + Remote Desktop Commander recovery/admin paths
 - run the lightweight production `sign` camera edge lane under the Session-0 supervisor
+- run the commissioned Office Eufy bridge/agent/health lane with its non-conflicting local media ports
 - serve as a future landing point for selected archives **when external storage is attached and verified**
 
 ### NicksMax SHOULD NOT do
@@ -255,6 +256,25 @@ Evidence boundary: a full Windows reboot after the SYSTEM-supervisor cutover was
 
 Storage note: C: had about 2.53 GB free (6.3%) at camera closeout. Camera logs/DBs were small; active worktrees were the largest obvious reclaim candidates and were deliberately left untouched.
 
+## Office Eufy production authority - 2026-09-28
+
+NicksMax also owns the commissioned Office Eufy interaction/health lane.
+
+Verified runtime:
+- Eufy bridge HTTP/WS: `127.0.0.1:3000`
+- go2rtc API: `127.0.0.1:1984`
+- Eufy RTSP: `127.0.0.1:8654`
+- Eufy WebRTC: `127.0.0.1:8655`
+- V380 sign ports remain `8554/8555`, so the two camera stacks do not collide
+- scheduled tasks: `StateNour-Eufy-Bridge-NicksMax`, `StateNour-Eufy-Agent-NicksMax`, `StateNour-Eufy-Watchdog-NicksMax`
+- NicksMax uses a distinct Eufy bridge client identity (`BRIDGE_OPENUDID`)
+- bridge auth is `ok`; 6 Eufy devices and 3 camera streams are enumerated
+- Office serial `T8410P522517180B` is a T8410C and reports video, RTSP, PTZ and audio capabilities
+- Nick production accepted durable Office heartbeats from seq=1 through at least seq=14
+
+Office is deliberately **PRODUCTION + commissioned**, but current health is **MEDIA_DEGRADED**. Direct Office `/stream` probes fail with Eufy `P2P connect timeout`, and the device reports `hubStatus=false`. A same-host comparison against the same-model Kitchen T8410C returned HTTP 200 and 2048 real video bytes in about 4.3 seconds. Therefore the residual fault is Office-device/account/P2P-specific rather than a NicksMax bridge/network failure.
+
+Do not demote Office back to SHADOW to make the dashboard look green. Recovery requires a successful Office media-byte probe and the resulting Admin health transition. Control/PTZ/home evidence remains separately measured.
 ## Windows 10 ESU — why it is required
 
 Windows 10 normal support ended on **2025-10-14**. Microsoft no longer provides ordinary Windows 10 security updates to unenrolled consumer devices after that date.

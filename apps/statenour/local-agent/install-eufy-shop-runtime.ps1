@@ -353,6 +353,7 @@ $runtimePath = Join-Path $StateRoot "shop-runtime.json"
 $runtime = [ordered]@{
   officeSerial = $OfficeSerial
   heartbeatUrl = $NickHeartbeatUrl
+  heartbeatMode = "PRODUCTION"
   controlEnabled = $false
   homePresetId = if ($HomePresetId.HasValue) { $HomePresetId.Value } else { $null }
   bridgeCommit = $BridgeCommit
@@ -411,6 +412,7 @@ $env:EUFY_EVENTS_ENABLED = "1"
 $env:EUFY_OFFICE_CAMERA_SERIAL = [string]$cfg.officeSerial
 $env:EUFY_EVENT_DEVICE_SNS = [string]$cfg.officeSerial
 $env:NICKS_CAMERA_HEARTBEAT_URL = [string]$cfg.heartbeatUrl
+$env:NICKS_OFFICE_CAMERA_MODE = if ($cfg.heartbeatMode) { [string]$cfg.heartbeatMode } else { "PRODUCTION" }
 $env:NICKS_CAMERA_INGEST_KEY = Read-DpapiSecret "nicks-camera-ingest-key"
 if ($null -ne $cfg.homePresetId) { $env:EUFY_OFFICE_HOME_PRESET = [string]$cfg.homePresetId }
 Set-Location "__LOCAL_AGENT_DIR__"

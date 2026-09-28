@@ -5,7 +5,7 @@
 NicksMax is Nour's older Intel MacBook Air running Windows 10 (MacBookAir7,2 class, i5-5350U, 8 GB RAM, ~40 GB BOOTCAMP C:). It is a lean always-on edge/admin/recovery node.
 
 Authority boundary:
-- NicksMax is authoritative only for the bounded Nick's `sign` camera edge.
+- NicksMax is authoritative for the bounded Nick's `sign` camera edge and the commissioned Office Eufy interaction/health lane.
 - Railway remains authority for the cloud application, database, schedulers, and general production orchestration.
 - NicksMax is still not a Docker/WSL-heavy, local-LLM, Frigate, or general production-worker host.
 
@@ -42,3 +42,21 @@ Authority boundary:
 - Preserve the active calibration and camera ledgers unless a measured recommissioning replaces them.
 - Do not delete active worktrees merely for disk cleanup; reconcile ownership first.
 - GitHub `origin/main` and live production evidence outrank stale local notes.
+
+## Office Eufy production role - 2026-09-28
+
+LIVE VERIFIED:
+- The Office Eufy camera (`T8410P522517180B`, T8410C) is **commissioned and PRODUCTION**, not SHADOW.
+- NicksMax is the intended Office Eufy runtime host. NattyNour's `StateNour-Eufy-OfficeHealth` task was disabled during the authority correction; do not reintroduce it as the Office heartbeat authority.
+- NicksMax runs `StateNour-Eufy-Bridge-NicksMax`, `StateNour-Eufy-Agent-NicksMax`, and `StateNour-Eufy-Watchdog-NicksMax`.
+- Local Eufy bridge HTTP/WS is `127.0.0.1:3000`; go2rtc is isolated from the V380 sign stack on API `1984`, RTSP `8654`, WebRTC `8655`. V380 keeps `8554/8555`.
+- NicksMax has its own Eufy bridge identity (`BRIDGE_OPENUDID`) so another SDK install on the same Eufy account cannot share the default client identity.
+- The Eufy bridge authenticates successfully, enumerates 6 devices / 3 camera streams, and confirms Office capabilities including video, RTSP, PTZ and audio.
+- Railway/Nick Admin accepted the durable NicksMax Office producer continuously from `office seq=1` at 23:27:07Z through at least `seq=14` at 23:35:23Z.
+
+Health boundary:
+- Office is production/commissioned but currently **MEDIA_DEGRADED**, not SHADOW.
+- Forced Office media probes fail because the Eufy SDK reports `P2P connect timeout for T8410P522517180B`; Office state reports `hubStatus=false`.
+- This is Office-device-specific: the same NicksMax bridge read 2048 real bytes from the same-model Kitchen T8410C stream with HTTP 200 in ~4.3s while Office returned 503/P2P backoff.
+- Therefore do not demote Office to SHADOW to hide the fault. Keep the producer operational and let the interaction health lattice report the measured degradation until the Office device/account/P2P condition is repaired.
+- A later repair is complete only when a real Office media-byte probe succeeds and Admin transitions out of MEDIA_DEGRADED; control/PTZ/home proofs remain separately truth-bearing.

@@ -43,11 +43,11 @@ export const EXPECTED_CAMERAS = [
     role: "interaction_ptz",
     healthProfile: "interaction_ptz" as CameraHealthProfile,
     /**
-     * Device identity + bridge plumbing exist, but this is intentionally NOT promoted to a
-     * commissioned camera until the bridge is running on the shop-side LAN and auth/events,
-     * P2P control, media and a calibrated home pose have all been physically proven.
+     * Office is an operational production camera. Commissioning controls whether the
+     * camera participates in operator health/alerting; the interaction health lattice
+     * still reports missing auth/event/control/media/home proofs as degraded or unverified.
      */
-    commissioned: false,
+    commissioned: true,
   },
 ] as const;
 
