@@ -758,6 +758,12 @@ export async function postInstagramReel(params: {
   /** Fallback cover: ms into the reel to grab the cover frame. Default 0 = the centered Anton hook first frame. */
   thumbOffsetMs?: number;
   /**
+   * Publish as an Instagram Trial Reel. We intentionally support MANUAL
+   * graduation only in Nick's operator lane: SS_PERFORMANCE would let Meta
+   * widen distribution without a separate operator decision.
+   */
+  trialReel?: { graduationStrategy: "MANUAL" };
+  /**
    * Meta's OWN self-disclosure field for AI usage. Verified against
    * developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-user/media/
    * on 2026-08-28: `is_ai_generated`, boolean, "An optional parameter to provide
@@ -806,7 +812,16 @@ export async function postInstagramReel(params: {
         //
         // Set at container creation and NOT editable afterward, so this cannot
         // retro-fix already-published reels.
-        share_to_feed: true,
+        //
+        // Trial Reels are intentionally NOT shared to the normal feed. Meta
+        // shows them to non-followers first; MANUAL graduation keeps the later
+        // broad-distribution decision with the operator.
+        ...(params.trialReel
+          ? {
+              trial_params: { graduation_strategy: params.trialReel.graduationStrategy },
+              share_to_feed: false,
+            }
+          : { share_to_feed: true }),
         // Location tag — the ONLY tappable per-post field Meta's media endpoint
         // offers (verified 2026-08-29 against its parameter reference: there is
         // no link/url/cta parameter at all), and this shop's problem is local
