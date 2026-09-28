@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=reel-outcome-learning records the universal content_run root candidate for Tournament/Genome/Directors, focused trajectory test, and branch-only verification boundary."
+    },
+    "operator-walkthrough": {
+      "deferred": "Authenticated production Instagram Admin walkthrough remains operator/browser evidence and is not fabricated by this code change. This PR adds source/trajectory coverage only; a signed-in deployed Campaign Package -> Director -> Queue/Draft Board walkthrough is still required after merge."
+    }
+  }
+}
