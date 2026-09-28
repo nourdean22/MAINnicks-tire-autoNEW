@@ -105,4 +105,30 @@ describe("postInstagramReel — share_to_feed", () => {
     expect(container?.thumb_offset).toBeUndefined();
     expect(container?.share_to_feed).toBe(true);
   });
+
+  it("publishes an explicit Trial Reel with MANUAL graduation and no normal-feed share", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    stubFetchCapturing(bodies);
+
+    await postInstagramReel({
+      videoUrl: "https://example.com/trial.mp4",
+      caption: "trial caption",
+      trialReel: { graduationStrategy: "MANUAL" },
+    });
+
+    const container = bodies.find((b) => b.media_type === "REELS");
+    expect(container?.trial_params).toEqual({ graduation_strategy: "MANUAL" });
+    expect(container?.share_to_feed).toBe(false);
+  });
+
+  it("ordinary Reels never acquire trial_params by default", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    stubFetchCapturing(bodies);
+
+    await postInstagramReel({ videoUrl: "https://example.com/regular.mp4", caption: "regular" });
+
+    const container = bodies.find((b) => b.media_type === "REELS");
+    expect(container?.trial_params).toBeUndefined();
+    expect(container?.share_to_feed).toBe(true);
+  });
 });

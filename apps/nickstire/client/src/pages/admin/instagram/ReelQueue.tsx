@@ -116,8 +116,14 @@ export default function ReelQueue() {
   const { data: drafts, isLoading, isError, error, refetch } = trpc.instagramAdmin.getAllDrafts.useQuery();
 
   const publishDraft = trpc.instagramAdmin.publishPost.useMutation({
-    onSuccess: () => {
-      toast.success("Published Successfully!");
+    onSuccess: (_data, vars) => {
+      if (vars.trialReel) {
+        toast.success("Trial Reel published", {
+          description: "Instagram will test it with non-followers first. Graduation stays manual.",
+        });
+      } else {
+        toast.success("Published Successfully!");
+      }
       refetch();
     },
     onError: (err, vars) => {
@@ -295,10 +301,35 @@ export default function ReelQueue() {
           <div className="mt-3 space-y-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
             <div className="text-sm font-semibold">Publish this {draft.format} to Instagram now?</div>
             <p className="text-xs text-muted-foreground">The media above and this final caption go live exactly as shown{draft.format === "reel" ? " (the server re-verifies the approved reel bytes before posting)" : ""}:</p>
+            {draft.format === "reel" && (
+              <p className="text-xs text-muted-foreground">
+                Trial mode tests this Reel with non-followers first, does not share it to the normal feed initially, and uses MANUAL graduation only.
+              </p>
+            )}
             <div className="max-h-32 overflow-y-auto whitespace-pre-wrap rounded border bg-background/60 p-2 text-xs leading-5">{draft.publishCaption ?? captionWithHashtags(draft) ?? "(no caption)"}</div>
             {draft.publishCaptionError && <p className="text-xs text-red-400">This cannot publish yet: {draft.publishCaptionError}</p>}
             <div className="flex justify-end gap-2">
               <Button size="sm" variant="ghost" onClick={() => setConfirmPublishId(null)}>Cancel</Button>
+              {draft.format === "reel" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={publishDraft.isPending || Boolean(draft.publishCaptionError)}
+                  onClick={() => {
+                    setConfirmPublishId(null);
+                    publishDraft.mutate({
+                      inventoryId: draft.id,
+                      platforms: ["instagram"],
+                      caption: draft.publishCaption ?? captionWithHashtags(draft),
+                      videoUrl: draft.assetPack?.videoUrl || undefined,
+                      trialReel: { graduationStrategy: "MANUAL" },
+                    });
+                  }}
+                >
+                  {publishDraft.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  Publish as Trial
+                </Button>
+              )}
               <Button size="sm" disabled={publishDraft.isPending || Boolean(draft.publishCaptionError)} onClick={() => {
                 setConfirmPublishId(null);
                 publishDraft.mutate({
@@ -748,9 +779,9 @@ export default function ReelQueue() {
                       <li>· Trust before selling?</li>
                     </ul>
                   </div>
-                  {/* Trial-reel tracking (manual by design): read the 24h
-                      numbers in the IG app, record them here so the
-                      winner/archive decision leaves a durable trail. */}
+                  {/* Trial publishing is wired through Meta trial_params.
+                      Trial-specific 24h metrics remain manual until a verified
+                      Graph ingestion surface is wired. */}
                   <div className="rounded border bg-muted/10 p-2 space-y-2">
                     <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Trial result · 24h (manual)</p>
                     <div className="grid grid-cols-2 gap-2">
