@@ -17,11 +17,17 @@
  * Degrades to null, never throws: a missing structure hint must reduce the
  * brief to what it was yesterday, not fail the run.
  */
-import { desc } from "drizzle-orm";
+import { desc, inArray, isNotNull } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 import { db } from "../lib/db-helper";
-import { socialReelPatterns } from "../../drizzle/schema";
-import { selectRotationPattern, type RotatablePattern } from "@shared/reelStructureRotation";
+import { igMetricSnapshots, reelJobs, socialReelPatterns } from "../../drizzle/schema";
+import { type RotatablePattern } from "@shared/reelStructureRotation";
+import { parseReelJobPayload } from "@shared/reelJobPayload";
+import {
+  rankPatternsByDistribution,
+  selectLearnedPattern,
+  type PatternPerformanceRow,
+} from "@shared/reelStructureLearning";
 
 const log = createLogger("reel-structure-prior");
 
@@ -32,6 +38,71 @@ export interface StructureHint {
   loopType: string;
   /** The full ReelPattern JSON as captured, for the generator to read. */
   pattern: unknown;
+}
+
+async function measuredPatternOutcomes(): Promise<PatternPerformanceRow[]> {
+  try {
+    const database = await db();
+    if (!database) return [];
+
+    const jobs = await database
+      .select({ payload: reelJobs.payload, postId: reelJobs.igPostId })
+      .from(reelJobs)
+      .where(andPublished())
+      .orderBy(desc(reelJobs.updatedAt))
+      .limit(500);
+
+    const lineage = jobs.flatMap((job) => {
+      const patternId = parseReelJobPayload(job.payload).structurePatternId;
+      return patternId && job.postId ? [{ patternId, postId: job.postId }] : [];
+    });
+    if (!lineage.length) return [];
+
+    const postIds = [...new Set(lineage.map((x) => x.postId))].slice(0, 500);
+    const snaps = await database
+      .select({
+        postId: igMetricSnapshots.postId,
+        reach: igMetricSnapshots.reach,
+        saved: igMetricSnapshots.saved,
+        shares: igMetricSnapshots.shares,
+        views: igMetricSnapshots.views,
+        avgWatchTimeMs: igMetricSnapshots.avgWatchTimeMs,
+        skipRate: igMetricSnapshots.skipRate,
+        capturedAt: igMetricSnapshots.capturedAt,
+      })
+      .from(igMetricSnapshots)
+      .where(inArray(igMetricSnapshots.postId, postIds))
+      .orderBy(desc(igMetricSnapshots.capturedAt))
+      .limit(2500);
+
+    const newest = new Map<string, typeof snaps[number]>();
+    for (const snap of snaps) if (!newest.has(snap.postId)) newest.set(snap.postId, snap);
+
+    return lineage.flatMap(({ patternId, postId }) => {
+      const m = newest.get(postId);
+      if (!m) return [];
+      return [{
+        patternId,
+        reach: m.reach,
+        saved: m.saved,
+        shares: m.shares,
+        views: m.views,
+        avgWatchTimeMs: m.avgWatchTimeMs,
+        skipRate: m.skipRate == null ? null : Number(m.skipRate),
+      }];
+    });
+  } catch (err) {
+    log.warn("pattern outcome evidence unavailable; rotation remains active", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+}
+
+/** Keep the TiDB predicate in one helper so a future status vocabulary change
+ * does not silently make the learning query disagree with the publisher. */
+function andPublished() {
+  return isNotNull(reelJobs.igPostId);
 }
 
 /**
@@ -67,8 +138,16 @@ export async function pickStructureHint(
       lastUsedAt: r.lastUsedAt ?? null,
     }));
 
-    const chosen = selectRotationPattern(rotatable, opts);
+    const scored = rankPatternsByDistribution(await measuredPatternOutcomes());
+    const decision = selectLearnedPattern(rotatable, scored, opts);
+    const chosen = decision.pattern;
     if (!chosen) return null;
+    log.info("pattern selected", {
+      patternId: chosen.id,
+      mode: decision.mode,
+      measuredPatterns: scored.length,
+      measuredPosts: scored.reduce((sum, row) => sum + row.posts, 0),
+    });
 
     const row = rows.find((r) => r.id === chosen.id);
     let pattern: unknown = null;
