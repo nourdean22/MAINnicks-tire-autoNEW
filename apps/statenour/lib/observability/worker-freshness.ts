@@ -18,25 +18,37 @@ export interface WorkerFreshness {
  * This is persisted evidence, so external monitors can observe the worker
  * without reopening a public worker HTTP domain.
  */
+export async function getLatestWorkerSuccessAt(
+  db: PrismaLike = defaultPrisma,
+): Promise<Date | null> {
+  const row = await db.cronJobLog.findFirst({
+    where: { jobName: WORKER_HEARTBEAT_JOB, status: "success" },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
+  return row?.createdAt ?? null;
+}
+
 export async function getWorkerFreshness(
   db: PrismaLike = defaultPrisma,
   nowMs = Date.now(),
 ): Promise<WorkerFreshness> {
   try {
-    const row = await db.cronJobLog.findFirst({
-      where: { jobName: WORKER_HEARTBEAT_JOB, status: "success" },
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true },
-    });
-    if (!row) return { status: "unknown", ageMinutes: null, lastSuccessAt: null };
+    const lastSuccessAt = await getLatestWorkerSuccessAt(db);
+    if (!lastSuccessAt) {
+      return { status: "unknown", ageMinutes: null, lastSuccessAt: null };
+    }
 
-    const ageMs = Math.max(0, nowMs - row.createdAt.getTime());
+    const ageMs = Math.max(0, nowMs - lastSuccessAt.getTime());
     return {
       status: ageMs <= WORKER_FRESHNESS_MS ? "fresh" : "stale",
       ageMinutes: Math.round(ageMs / 60_000),
-      lastSuccessAt: row.createdAt,
+      lastSuccessAt,
     };
   } catch {
+    // Public heartbeat fails closed to "unknown"; callers that need to
+    // distinguish "never produced" from "probe failed" should call
+    // getLatestWorkerSuccessAt directly and let the DB error propagate.
     return { status: "unknown", ageMinutes: null, lastSuccessAt: null };
   }
 }
