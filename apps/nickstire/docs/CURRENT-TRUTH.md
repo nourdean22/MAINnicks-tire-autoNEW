@@ -60,6 +60,17 @@ NicksMax now owns the lightweight production `sign` camera-processing lane. This
 
 Durable local-node receipt: [`../../../docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md`](../../../docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md).
 
+## NicksMax Office Eufy production authority (2026-09-28) - LIVE VERIFIED
+
+Office Eufy is operational production on NicksMax; it must not be represented as SHADOW or intentionally uncommissioned.
+
+- **Registry / producer contract:** `shared/cameras.ts` commissions `office`, and the Eufy heartbeat defaults to `mode=PRODUCTION` through `NICKS_OFFICE_CAMERA_MODE`.
+- **NicksMax runtime:** `StateNour-Eufy-Bridge-NicksMax`, `StateNour-Eufy-Agent-NicksMax`, and `StateNour-Eufy-Watchdog-NicksMax` are the intended local tasks. NattyNour's OfficeHealth producer was disabled during the authority correction.
+- **Port isolation:** Eufy bridge HTTP/WS `127.0.0.1:3000`, go2rtc API `1984`, RTSP `8654`, WebRTC `8655`; the V380 sign lane retains `8554/8555`.
+- **Identity isolation:** NicksMax uses its own Eufy bridge `BRIDGE_OPENUDID` rather than sharing the account-derived default identity with another SDK install.
+- **Live receipts:** the NicksMax producer posted accepted Office heartbeats from `seq=1` at 23:27:07Z through at least `seq=14` at 23:35:23Z.
+- **Health truth:** Office is currently `MEDIA_DEGRADED`, not SHADOW. The bridge authenticates and enumerates the camera with video/RTSP/PTZ/audio capabilities, but live Office media returns P2P timeout and Office reports `hubStatus=false`. A same-host control comparison read 2048 bytes from the same-model Kitchen T8410C with HTTP 200 in about 4.3 seconds, proving the NicksMax bridge/network/media stack itself works.
+- **Do not hide the fault:** keep Office commissioned/PRODUCTION and let the health lattice surface the real degradation. Media recovery is proven only by a successful Office media-byte probe plus an Admin transition out of `MEDIA_DEGRADED`.
 ## Connection hardening closeout (2026-09-27/28)
 
 **Final merge receipt:** #2721 squash-merged as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` after affected CI, authenticated StateNour E2E, Completion Authority, Adoption, Agent Policy, Admin, Secret Scanning, and security all passed. Its four earlier review findings were fixed and resolved. #2721 changed documentation/memory only; it does **not** claim a newer Nick production deployment than #2720.
@@ -70,7 +81,7 @@ Durable receipt: [`../../../docs/00-current-truth/connection-hardening-2026-09-2
 - TiDB/database/schema/self-healing are healthy and no longer the incident blocker.
 - Tailscale shop connectivity works; initial DERP fallback followed by a direct peer path is normal NAT traversal, not an outage.
 - Camera-health detection, durable claim/retry behavior, and persisted sign degradation/recovery state transitions are proven. Provider-accepted **real production degradation plus recovery owner delivery is not yet proven** and remains open.
-- Office remains intentionally uncommissioned: auth and semantic-event WebSocket connectivity are proven, but `lastEventProofAt` is still null and real event/control/media/PTZ-notify/home proofs remain open.
+- Office is now commissioned and emits `PRODUCTION` heartbeats from NicksMax. The current derived state is `MEDIA_DEGRADED`, not SHADOW: auth/device discovery are proven, but the Office T8410C reports `hubStatus=false` and its P2P live stream times out. The same NicksMax bridge streams the same-model Kitchen T8410C successfully, isolating the fault to the Office device/account/P2P path. Control/PTZ/home proofs remain separately truth-bearing.
 - NicksMax camera authority is now live on the direct Session-0 RTSP/OpenVINO path with the V380 GUI absent and locked-screen heartbeats proven. The earlier camera-session reboot guard is superseded; only the post-cutover cold-boot persistence receipt and separate consumer ESU enrollment remain open.
 - Resend domain verification is failed until the required records are added at the authoritative Global Domain Group DNS provider.
 
