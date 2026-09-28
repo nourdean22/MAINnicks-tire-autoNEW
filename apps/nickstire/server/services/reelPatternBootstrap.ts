@@ -22,8 +22,10 @@ export interface HousePatternBootstrapResult {
  * - Seeds say "house hypothesis · unmeasured" in their sourceLabel; they are
  *   candidates for the outcome learner, never represented as observed winners.
  */
-export async function ensureHouseReelPatterns(): Promise<HousePatternBootstrapResult> {
-  const database = await db();
+export async function ensureHouseReelPatterns(
+  databaseOverride?: Awaited<ReturnType<typeof db>>,
+): Promise<HousePatternBootstrapResult> {
+  const database = databaseOverride ?? await db();
   if (!database) return { seeded: false, inserted: 0, reason: "database_unavailable" };
 
   const existing = await database
