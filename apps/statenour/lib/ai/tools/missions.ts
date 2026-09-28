@@ -28,6 +28,11 @@ import { prisma } from "@/lib/prisma";
 import { createTaskAndEnrich } from "@/lib/services/tasks";
 import { isUserProject } from "@/lib/services/mission-helpers";
 import { logError } from "@/lib/utils/error-log";
+import {
+  DurableMissionStepSchema,
+  getLatestMissionExecution,
+  queueDurableMissionExecution,
+} from "@/lib/missions/durable-execution";
 
 // The legends live in ONE module — six copies of the string is why the
 // 2026-09-03 fix reached only one of six call sites. See task-field-legends.ts.
@@ -101,7 +106,7 @@ export const missionsTools = {
           return { status: "no_data_found", message: "No mission matched." };
         }
 
-        const [counts, openTasks] = await Promise.all([
+        const [counts, openTasks, latestExecution] = await Promise.all([
           prisma.task.groupBy({
             by: ["status"],
             where: { missionId: mission.id, deletedAt: null },
@@ -113,6 +118,7 @@ export const missionsTools = {
             orderBy: { updatedAt: "desc" },
             take: 5,
           }),
+          getLatestMissionExecution(mission.id),
         ]);
 
         let total = 0;
@@ -148,6 +154,7 @@ export const missionsTools = {
           },
           deadline: mission.deadline?.toISOString() ?? null,
           deadlineState,
+          durableExecution: latestExecution,
           nextActions: openTasks.map((t) => ({
             title: t.title,
             nextPhysicalAction: t.nextPhysicalAction,
@@ -262,6 +269,29 @@ export const missionsTools = {
       } catch (err) {
         logError("ai.tools.missions", err as Error, { fn: "updateMissionStatus" });
         throw new Error("Mission status update failed");
+      }
+    },
+  }),
+
+  queueMissionExecution: tool({
+    description:
+      "Queue bounded durable background execution for an existing ACTIVE mission. V1 supports checkpoint and deep-research steps only; it survives chat closure/redeploys through Inngest, records progress to the Reality Ledger, and NEVER marks the mission complete automatically.",
+    inputSchema: z.object({
+      missionId: z.string(),
+      objective: z.string().min(5).max(1000),
+      steps: z.array(DurableMissionStepSchema).min(1).max(12),
+    }),
+    execute: async ({ missionId, objective, steps }) => {
+      try {
+        return await queueDurableMissionExecution({
+          missionId,
+          objective,
+          steps,
+          requestedBy: "nick",
+        });
+      } catch (err) {
+        logError("ai.tools.missions", err as Error, { fn: "queueMissionExecution" });
+        throw new Error("Durable mission execution could not be queued");
       }
     },
   }),
