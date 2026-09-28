@@ -43,6 +43,7 @@ import { sql } from "drizzle-orm";
 import { maskPlate, normalizePlate, PLATE_MATCH_CLASSES } from "../lib/plate";
 import { deriveStateAtIngest } from "../lib/cameraHealth";
 import { cameraHealthProfileFor } from "../../shared/cameras";
+import { cameraAuthorityCalibrationAllowed, requiredCalibrationVersion } from "../lib/cameraAuthority";
 
 /** Timing-safe, matching the sibling bridge routes. */
 function safeCompare(a: string, b: string): boolean {
@@ -52,39 +53,6 @@ function safeCompare(a: string, b: string): boolean {
   } catch {
     return false;
   }
-}
-
-/**
- * Optional production-authority fence for the fixed `sign` camera.
- *
- * A camera heartbeat row is keyed only by camera name, and a new producer instance is
- * intentionally accepted even when its sequence restarts. That is correct for a restart
- * on ONE host, but during a host migration two live producers would otherwise alternate
- * ownership forever. Visits would also be accepted from both.
- *
- * When CAMERA_SIGN_REQUIRED_CALIBRATION_VERSION is set, only the sign producer carrying
- * that exact calibration version may write visits or heartbeats. Other cameras are
- * unaffected. Unset means today's behavior, so this can be armed only for the migration
- * and later retained as a durable authority fence.
- */
-export function cameraAuthorityCalibrationAllowed(
-  camera: string,
-  calibrationVersion: string | null | undefined,
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): boolean {
-  if (camera !== "sign") return true;
-  const required = String(env.CAMERA_SIGN_REQUIRED_CALIBRATION_VERSION ?? "").trim();
-  if (!required) return true;
-  return calibrationVersion === required;
-}
-
-function requiredCalibrationVersion(
-  camera: string,
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): string | null {
-  if (camera !== "sign") return null;
-  const required = String(env.CAMERA_SIGN_REQUIRED_CALIBRATION_VERSION ?? "").trim();
-  return required || null;
 }
 
 const PLATE_STATUS = ["NONE", "UNREADABLE", "CANDIDATE", "CONFIRMED", "AMBIGUOUS"] as const;
