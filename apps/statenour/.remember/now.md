@@ -22,7 +22,7 @@
 
 **Hard post-repair receipt.** Exact deployed cron route: chat `minimax-m3` alive/200, fast `glm-5.3-flash` alive/200, vision `gemma4:31b` alive/200, overall `data.ok=true`. Production DB latest liveness row = 2026-09-28T03:22:51.032Z, `success`, no error, 649 ms. `/api/system/heartbeat` simultaneously returned HTTP 200 with worker `fresh`, age 8 minutes.
 
-**Worker boundary.** `apps/worker/src` has zero AI/model-call sites; it is only an HTTP forwarding scheduler. Its old `OLLAMA_MODEL=deepseek-v3.1:671b` was unused config debris, not a hidden worker AI outage; the worker env was aligned to `minimax-m3` for hygiene. Durable receipt: `docs/00-current-truth/ollama-liveness-repair-2026-09-28.md`.
+**Worker boundary.** `apps/worker/src` has zero AI/model-call sites. It forwards cron HTTP calls to StateNour web and also runs the in-process `processVideoRenders()` Remotion render/upload loop. Its old `OLLAMA_MODEL=deepseek-v3.1:671b` was unused AI config debris, not a hidden worker model-serving outage; the worker env was aligned to `minimax-m3` for hygiene. Durable receipt: `docs/00-current-truth/ollama-liveness-repair-2026-09-28.md`.
 
 **Updated: 2026-09-27 21:17 ET** (final connection-hardening closeout merged as #2721)
 

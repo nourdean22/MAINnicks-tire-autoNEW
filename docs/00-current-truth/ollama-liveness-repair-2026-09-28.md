@@ -57,7 +57,7 @@ Applied through Railway production configuration:
 - `statenour-web`: `OLLAMA_FAST_MODEL=glm-5.3-flash`
 - `statenour-worker`: `OLLAMA_FAST_MODEL=glm-5.3-flash`
 
-A subsequent environment read found `statenour-worker` still carried the historical retired chat pin `OLLAMA_MODEL=deepseek-v3.1:671b`. Source inspection confirmed `apps/worker/src` has **zero AI/model-call sites**: it is a pure HTTP forwarding scheduler, so this stale pin was configuration debris rather than an active worker AI outage. It was nevertheless aligned to `minimax-m3` for hygiene.
+A subsequent environment read found `statenour-worker` still carried the historical retired chat pin `OLLAMA_MODEL=deepseek-v3.1:671b`. Source inspection confirmed `apps/worker/src` has **zero AI/model-call sites**. The service forwards cron HTTP calls to StateNour web and also runs the in-process `processVideoRenders()` Remotion render/upload loop, so the stale Ollama pin was unused AI configuration debris rather than an active worker model-serving outage. It was nevertheless aligned to `minimax-m3` for hygiene.
 
 Final observed env on both services:
 
@@ -100,8 +100,10 @@ There are two distinct health surfaces:
    - writes `CronJobLog`
    - alerts on non-200, with 410 treated as permanent retirement
 
-2. **Private forwarding worker**
+2. **Private worker**
    - no AI SDK / Ollama call sites
+   - forwards cron HTTP calls to StateNour web
+   - also runs the in-process `processVideoRenders()` Remotion render/upload loop
    - monitored through persisted worker-freshness receipts surfaced by `/api/system/heartbeat`
    - model env vars on the worker are not proof of an AI lane
 
