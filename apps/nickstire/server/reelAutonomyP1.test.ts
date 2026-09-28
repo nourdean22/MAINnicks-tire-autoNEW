@@ -82,45 +82,17 @@ describe("reservations nothing will settle are released", () => {
 });
 
 describe("an ambiguous publish resolves itself", () => {
-  it("the lane reuses the operator's reconciler and writer, inventing no verdict", () => {
-    expect(LANE).toContain("reconcileAttempt");
-    expect(LANE).toContain("applyReconciliation");
-    expect(LANE).toContain("findUnreconciledAttempts");
-  });
-
-  it("it auto-applies only the two EVIDENCED verdicts", () => {
-    expect(LANE).toContain('verdict.status === "resolved_published"');
-    expect(LANE).toContain('verdict.status === "resolved_not_published"');
-    // Judgement and no-evidence stay with a human.
-    expect(LANE).toContain("leftForOperator");
-    expect(LANE).not.toMatch(/decision:\s*"published"[\s\S]{0,200}needs_operator/);
-  });
-
-  it("it touches reel jobs only — a scheduled post has its own closure path", () => {
-    expect(LANE).toContain('a.kind === "reel_job"');
-  });
-
-  it("passes the durable attempted caption into the matcher", () => {
-    expect(LANE).toContain("expectedCaption: attempt.expectedCaption");
-  });
-
-  it("hands permanent ambiguity to a human ONCE but retries transient Meta failures", () => {
-    expect(LANE).toContain("!a.operatorRequired");
-    expect(LANE).toContain("OUTCOME.operatorRequired");
-    expect(LANE).toContain('verdict.reason === "history_window_exhausted"');
-    expect(LANE).toContain('why: "retry_later"');
-  });
-
-  it("it is bounded per run and ignores attempts that may still be settling", () => {
-    expect(LANE).toContain("RECONCILE_MAX_PER_RUN");
-    expect(LANE).toContain("RECONCILE_MIN_AGE_MINUTES");
-    expect(LANE).toContain("slice(0, maxPerRun)");
-  });
-
-  it("the pulse calls it, and a failure cannot take the pulse down", () => {
+  it("the scheduler invokes the bounded recovery lane without letting its failure take the pulse down", () => {
     expect(SCHED).toContain("reconcileAmbiguousPublishes()");
     const call = SCHED.slice(SCHED.indexOf("reconcileAmbiguousPublishes()"));
     expect(call.slice(0, 400)).toContain(".catch(");
+  });
+
+  it("lane decision semantics are covered behaviorally, not by source-string matching", () => {
+    // publishReconcileLane.test.ts executes permanent handoff, transient retry,
+    // already-handed-off suppression, candidate persistence, and evidenced
+    // published application. This file only pins scheduler wiring.
+    expect(LANE).toContain("export async function reconcileAmbiguousPublishes");
   });
 });
 
