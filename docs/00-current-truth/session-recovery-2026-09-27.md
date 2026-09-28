@@ -1,5 +1,9 @@
 # Session recovery snapshot — 2026-09-27
 
+## Final connection-hardening merge receipt
+
+PR #2721 squash-merged to `main` as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` on 2026-09-27 after its corrected head passed affected CI, authenticated StateNour E2E, Completion Authority, Adoption, Agent Policy, Admin, Secret Scanning, and security. All four earlier review findings were corrected and resolved. This merge changed docs/memory only; production source-code truth remains #2720 unless a later deploy receipt proves otherwise. The remaining camera/ESU/Resend items below are external or operator gates, not hidden code backlog.
+
 ## Evening hardening addendum
 
 The core connection-status incident is closed and live-verified through the #2720 production source-code deployment. Residual operator/external gates and the no-reboot concurrency boundary are recorded in `docs/00-current-truth/connection-hardening-2026-09-27.md`. Do not reopen TiDB, normal Tailscale DERP fallback, or the legacy `right` camera row as backlog without fresh contrary evidence. **Do keep two camera proofs open:** real office motion/person + control/media/home commissioning, and provider-accepted real degradation/recovery owner delivery.

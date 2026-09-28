@@ -2,9 +2,13 @@
 
 > Re-verify live systems before acting. This is a dated receipt, not a permanent assumption.
 
+## Final merge receipt
+
+PR #2721 squash-merged to `main` as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` after the corrected closeout passed affected CI, authenticated StateNour E2E, Completion Authority, Adoption gates, Agent Policy, Admin diagnostic, Secret Scanning, and security. The four earlier review findings were fixed and formally resolved. #2721 is documentation/memory-only, so Nick production deployment truth remains #2720 (`a3b3555e43e755f0a90b12fc6962be2340e21503`) unless a later deployment receipt supersedes it.
+
 ## Closed and verified
 
-- Nick production's source-code deployment is `a3b3555e43e755f0a90b12fc6962be2340e21503` (#2720). Repository `main` was already later at `128eb207a4f01b9da5bfbbb330733262357e421f` (#2719, docs-only) when this closeout branch was based, and #2721 is also docs-only. Do not use the deployed parent as the current repository HEAD.
+- Nick production's source-code deployment is `a3b3555e43e755f0a90b12fc6962be2340e21503` (#2720). Repository `main` was already later at `128eb207a4f01b9da5bfbbb330733262357e421f` (#2719, docs-only) when this closeout branch was based, and #2721 later merged docs/memory-only as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d`. Do not use the deployed parent as the current repository HEAD.
 - Nick's production health endpoint is healthy; database, critical schema, and self-healing checks are up.
 - TiDB quota/connectivity is no longer the blocking incident.
 - Camera-health state evaluation, durable claim, retry, and recovery-state logic are live. A real `sign=DEGRADED_VISION` transition and later `sign=HEALTHY` recovery were persisted. This proves state transitions, not that a real degradation/recovery pair reached the owner externally.

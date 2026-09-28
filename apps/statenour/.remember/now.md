@@ -1,5 +1,11 @@
 # Session ledger — statenour
 
+**Updated: 2026-09-27 21:17 ET** (final connection-hardening closeout merged as #2721)
+
+## 2026-09-27 · final connection-hardening merge receipt
+
+**Final receipt.** PR #2721 squash-merged to `main` as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` after the corrected head passed affected CI, authenticated StateNour E2E, Completion Authority, Adoption gates, Agent Policy, Admin diagnostic, Secret Scanning, and security checks. The four earlier review findings were fixed and formally resolved before merge. This was documentation/memory-only; it does not imply a new Nick production deploy beyond #2720. Remaining work is intentionally external/operator-gated: office Eufy real-event/control/media/PTZ/home commissioning, provider-accepted real degradation + recovery owner delivery, NicksMax guarded reboot + consumer ESU enrollment, and Resend DNS verification. Durable receipt: `docs/00-current-truth/connection-hardening-2026-09-27.md`.
+
 **Updated: 2026-09-27 evening ET** (connection hardening truth persisted; production verified through #2720)
 
 ## 2026-09-27 · connection hardening closeout
