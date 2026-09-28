@@ -1663,6 +1663,12 @@ Keep it under 200 characters.`;
         if (input.platforms.length !== 1 || input.platforms[0] !== "instagram") {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Trial Reels are Instagram-only and cannot be cross-posted." });
         }
+        if (input.imageUrl || (input.imageUrls && input.imageUrls.length > 0) || input.isStory) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Trial Reel publishing accepts only the approved Reel video; static, carousel, and Story media are not allowed.",
+          });
+        }
       }
       
       let publishCaption = input.caption;
