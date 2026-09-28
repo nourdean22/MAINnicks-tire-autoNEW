@@ -166,6 +166,11 @@ describe("camera producer authority — priority and visit fencing", () => {
     expect(cameraProducerAuthority.producerPriority("legacy")).toBe(99);
   });
 
+  it("expires local business-write authority BEFORE backend takeover becomes legal", () => {
+    expect(cameraProducerAuthority.leaseSeconds).toBeGreaterThan(0);
+    expect(cameraProducerAuthority.leaseSeconds).toBeLessThan(cameraProducerAuthority.staleSeconds);
+  });
+
   it("lets the shop PC preempt a fresh standby immediately", () => {
     expect(cameraProducerAuthority.heartbeatAuthorityAccepted({
       incomingId: "p1-shop-new", incomingSeq: 1,

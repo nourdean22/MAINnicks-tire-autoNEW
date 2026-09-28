@@ -239,91 +239,105 @@ export function registerCameraVisitsRoute(app: Express): void {
     const d = await getDbTyped();
     if (!d) return res.status(503).json({ error: "database unavailable" });
 
-    // One elected producer may write business rows for a camera. The heartbeat route
-    // elects atomically; visits only verify that election. This makes a network partition
-    // fail closed instead of letting two PCs double-count the same car.
+    // Authority and visit writes share ONE transaction. SELECT ... FOR UPDATE locks each
+    // camera_runtime owner row until every visit in the batch is written, so a heartbeat
+    // takeover cannot slip between "authorized" and INSERT and create split-brain rows.
     const providedProducer = (req.headers["x-camera-producer"] as string | undefined) || undefined;
-    for (const camera of new Set(parsed.data.visits.map((v) => v.camera))) {
-      const runtimeRows = await d.execute(sql`
-        SELECT producerInstanceId,
-               TIMESTAMPDIFF(SECOND, receivedAt, NOW()) AS ageSeconds
-        FROM camera_runtime WHERE camera = ${camera} LIMIT 1
-      `);
-      const runtimeList = (Array.isArray(runtimeRows) ? runtimeRows[0] : runtimeRows) as
-        unknown as Array<Record<string, unknown>> | undefined;
-      const row = Array.isArray(runtimeList) && runtimeList.length ? runtimeList[0] : null;
-      const current = row ? {
-        producerInstanceId: String(row.producerInstanceId),
-        ageSeconds: Math.max(0, Number(row.ageSeconds ?? 0)),
-      } : null;
-      if (!cameraProducerAuthority.visitProducerAuthorized(providedProducer, current)) {
-        return res.status(409).json({
-          error: "producer standby",
-          camera,
-          authoritative: false,
-        });
-      }
-    }
-
     type Outcome = "applied" | "stale" | "failed";
     const results: Array<{ visitId: string; outcome: Outcome; reason?: string }> = [];
+    let standbyCamera: string | null = null;
 
-    for (const v of parsed.data.visits) {
-      const values: Record<string, unknown> = {
-        visitId: v.visitId,
-        camera: v.camera,
-        state: v.state,
-        seq: v.seq,
-        arrivedAt: v.arrivedAt ?? null,
-        waitStartedAt: v.waitStartedAt ?? null,
-        bayEnteredAt: v.bayEnteredAt ?? null,
-        bayExitedAt: v.bayExitedAt ?? null,
-        departedAt: v.departedAt ?? null,
-        bay: v.bay ?? null,
-        plateText: plateTextToStore(v.plateStatus, v.plateText),
-        plateStatus: v.plateStatus,
-        customerMatch: v.customerMatch,
-        // Only an EXACT match may carry a customer id into the read model.
-        customerId: v.customerMatch === "EXACT" ? (v.customerId ?? null) : null,
-        preexisting: v.preexisting ? 1 : 0,
-        entryEvidence: v.entryEvidence ?? null,
-        episodeId: v.episodeId ?? null,
-        continuesVisitId: v.continuesVisitId ?? null,
-        memberTrackIds: v.memberTrackIds ? JSON.stringify(v.memberTrackIds) : null,
-        estimatedFields: v.estimatedFields ? JSON.stringify(v.estimatedFields) : null,
-        evidenceRef: v.evidenceRef ?? null,
-        sourceGeneration: v.sourceGeneration ?? null,
-        cameraPose: v.cameraPose ?? null,
-        detectorName: v.detectorName ?? null,
-        calibrationVersion: v.calibrationVersion ?? null,
-        dataClass: v.dataClass,
-        commissioningRunId: v.commissioningRunId ?? null,
-      };
+    try {
+      await d.transaction(async (tx) => {
+        // Lock in deterministic order so a future multi-camera batch cannot deadlock
+        // against another request that names the same cameras in the opposite order.
+        for (const camera of [...new Set(parsed.data.visits.map((v) => v.camera))].sort()) {
+          const runtimeRows = await tx.execute(sql`
+            SELECT producerInstanceId,
+                   TIMESTAMPDIFF(SECOND, receivedAt, NOW()) AS ageSeconds
+            FROM camera_runtime
+            WHERE camera = ${camera}
+            LIMIT 1
+            FOR UPDATE
+          `);
+          const runtimeList = (Array.isArray(runtimeRows) ? runtimeRows[0] : runtimeRows) as
+            unknown as Array<Record<string, unknown>> | undefined;
+          const row = Array.isArray(runtimeList) && runtimeList.length ? runtimeList[0] : null;
+          const current = row ? {
+            producerInstanceId: String(row.producerInstanceId),
+            ageSeconds: Math.max(0, Number(row.ageSeconds ?? 0)),
+          } : null;
+          if (!cameraProducerAuthority.visitProducerAuthorized(providedProducer, current)) {
+            standbyCamera = camera;
+            return;
+          }
+        }
+        if (standbyCamera) return;
 
-      try {
-        const placeholders = COLUMNS.map((c) => sql`${values[c]}`);
-        const result = await d.execute(sql`
-          INSERT INTO vehicle_visits (${sql.raw(COLUMNS.map((c) => `\`${c}\``).join(", "))})
-          VALUES (${sql.join(placeholders, sql`, `)})
-          ON DUPLICATE KEY UPDATE ${sql.raw(GUARDED_SET)}
-        `);
-        // mysql2 affectedRows: 1 = inserted, 2 = updated, 0 = matched but nothing changed.
-        // A guarded no-op (stale delivery) and an identical re-delivery both land on 0,
-        // which is the correct outcome for each: the row already reflects the newer state.
-        const info = (Array.isArray(result) ? result[0] : result) as { affectedRows?: number } | undefined;
-        const affected = Number(info?.affectedRows ?? 0);
-        results.push({
-          visitId: v.visitId,
-          outcome: affected === 0 ? "stale" : "applied",
-          ...(affected === 0 ? { reason: `seq ${v.seq} not newer than the stored row` } : {}),
-        });
-      } catch (err) {
-        results.push({
-          visitId: v.visitId,
-          outcome: "failed",
-          reason: err instanceof Error ? err.message : "write failed",
-        });
-      }
+        for (const v of parsed.data.visits) {
+          const values: Record<string, unknown> = {
+            visitId: v.visitId,
+            camera: v.camera,
+            state: v.state,
+            seq: v.seq,
+            arrivedAt: v.arrivedAt ?? null,
+            waitStartedAt: v.waitStartedAt ?? null,
+            bayEnteredAt: v.bayEnteredAt ?? null,
+            bayExitedAt: v.bayExitedAt ?? null,
+            departedAt: v.departedAt ?? null,
+            bay: v.bay ?? null,
+            plateText: plateTextToStore(v.plateStatus, v.plateText),
+            plateStatus: v.plateStatus,
+            customerMatch: v.customerMatch,
+            customerId: v.customerMatch === "EXACT" ? (v.customerId ?? null) : null,
+            preexisting: v.preexisting ? 1 : 0,
+            entryEvidence: v.entryEvidence ?? null,
+            episodeId: v.episodeId ?? null,
+            continuesVisitId: v.continuesVisitId ?? null,
+            memberTrackIds: v.memberTrackIds ? JSON.stringify(v.memberTrackIds) : null,
+            estimatedFields: v.estimatedFields ? JSON.stringify(v.estimatedFields) : null,
+            evidenceRef: v.evidenceRef ?? null,
+            sourceGeneration: v.sourceGeneration ?? null,
+            cameraPose: v.cameraPose ?? null,
+            detectorName: v.detectorName ?? null,
+            calibrationVersion: v.calibrationVersion ?? null,
+            dataClass: v.dataClass,
+            commissioningRunId: v.commissioningRunId ?? null,
+          };
+          try {
+            const placeholders = COLUMNS.map((c) => sql`${values[c]}`);
+            const result = await tx.execute(sql`
+              INSERT INTO vehicle_visits (${sql.raw(COLUMNS.map((c) => `\`${c}\``).join(", "))})
+              VALUES (${sql.join(placeholders, sql`, `)})
+              ON DUPLICATE KEY UPDATE ${sql.raw(GUARDED_SET)}
+            `);
+            const info = (Array.isArray(result) ? result[0] : result) as { affectedRows?: number } | undefined;
+            const affected = Number(info?.affectedRows ?? 0);
+            results.push({
+              visitId: v.visitId,
+              outcome: affected === 0 ? "stale" : "applied",
+              ...(affected === 0 ? { reason: `seq ${v.seq} not newer than the stored row` } : {}),
+            });
+          } catch (err) {
+            results.push({
+              visitId: v.visitId,
+              outcome: "failed",
+              reason: err instanceof Error ? err.message : "write failed",
+            });
+          }
+        }
+      });
+    } catch (err) {
+      return res.status(500).json({
+        error: err instanceof Error ? err.message : "camera visit transaction failed",
+      });
+    }
+    if (standbyCamera) {
+      return res.status(409).json({
+        error: "producer standby",
+        camera: standbyCamera,
+        authoritative: false,
+      });
     }
 
     const applied = results.filter((r) => r.outcome === "applied").length;
@@ -743,6 +757,7 @@ export function registerCameraHeartbeatRoute(app: Express): void {
         accepted,
         authoritative,
         authorityProducer,
+        authorityLeaseSeconds: cameraProducerAuthority.leaseSeconds,
         state: verdict.state,
         facets: verdict.facets,
         reason: verdict.reason,

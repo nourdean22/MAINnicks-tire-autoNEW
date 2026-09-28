@@ -34,6 +34,9 @@ function visitProducerAuthorized(
 
 export const cameraProducerAuthority = {
   staleSeconds: CAMERA_AUTHORITY_STALE_SECONDS,
+  // Local producers stop business writes before the server will permit takeover.
+  // This absorbs heartbeat RTT / scheduler jitter so authority windows never overlap.
+  leaseSeconds: CAMERA_AUTHORITY_STALE_SECONDS - 15,
   producerPriority,
   heartbeatAuthorityAccepted,
   visitProducerAuthorized,

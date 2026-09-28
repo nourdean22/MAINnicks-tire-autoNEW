@@ -318,8 +318,8 @@ class Pipeline:
         block every other car on the lot -- it stays queued with its attempt count climbing, which
         is what surfaces as a stuck backlog in the admin.
         """
-        result = {"sent": 0, "rejected": 0, "unreachable": 0}
-        if not self.shop.enabled or self.shop.authoritative is False:
+        result = {"sent": 0, "rejected": 0, "unreachable": 0, "stale_authority": 0}
+        if not self.shop.enabled:
             return result
         try:
             batch = self.ledger.shop_outbox_batch(limit)
@@ -334,7 +334,9 @@ class Pipeline:
                 outcome = "unreachable"
             result[outcome] = result.get(outcome, 0) + 1
             try:
-                if outcome == "sent":
+                if outcome in {"sent", "stale_authority"}:
+                    # A row from an expired authority epoch is intentionally discarded:
+                    # replaying it after another producer took over can double-count cars.
                     self.ledger.shop_outbox_ack(str(item["visit_id"]), int(item["seq"]))
                 else:
                     self.ledger.shop_outbox_fail(str(item["visit_id"]), outcome)

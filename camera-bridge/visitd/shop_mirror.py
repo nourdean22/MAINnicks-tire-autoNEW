@@ -70,14 +70,13 @@ class ShopMirror:
     ) -> None:
         self.url = url
         self.producer_instance_id = producer_instance_id
-        # Priority-bearing edge ids are p1-shop / p2-nicksmax / p3-nattynour.
-        # Primary may buffer during a WAN outage; standbys fail closed until the shop
-        # heartbeat explicitly grants authority. Legacy ids preserve the old behaviour.
-        self.authoritative: Optional[bool] = (
-            True if str(producer_instance_id or "").startswith("p1-")
-            else False if str(producer_instance_id or "").startswith(("p2-", "p3-"))
-            else None
-        )
+        # Priority-bearing producers are lease-managed PER CAMERA. None is trusted merely
+        # because it is p1: the shop must grant a fresh lease first. Legacy producers keep
+        # the pre-failover behaviour.
+        self._lease_managed = str(producer_instance_id or "").startswith(("p1-", "p2-", "p3-"))
+        self._authority_until: Dict[str, float] = {}
+        self._authority_epoch: Dict[str, str] = {}
+        self._authority_serial = 0
         #: When a delivery to the shop last SUCCEEDED. None until one has.
         self.last_ack_at: Optional[float] = None
         self._key = sync_key
@@ -134,6 +133,41 @@ class ShopMirror:
             headers["x-camera-producer"] = str(self.producer_instance_id)
         return headers
 
+    def authority_epoch(self, camera: str, now: Optional[float] = None) -> Optional[str]:
+        """Current authority epoch for one camera; legacy producers are always allowed."""
+        if not self._lease_managed:
+            return "legacy"
+        at = time.time() if now is None else float(now)
+        if self._authority_until.get(camera, 0.0) <= at:
+            return None
+        return self._authority_epoch.get(camera)
+
+    def is_authoritative(self, camera: str, now: Optional[float] = None) -> bool:
+        return self.authority_epoch(camera, now) is not None
+
+    def revoke_authority(self, camera: str) -> None:
+        if self._lease_managed:
+            self._authority_until.pop(camera, None)
+            self._authority_epoch.pop(camera, None)
+
+    def _apply_authority_reply(self, camera: str, payload: Dict[str, object]) -> Tuple[bool, bool]:
+        before = self.is_authoritative(camera)
+        granted = payload.get("authoritative")
+        if not self._lease_managed or not isinstance(granted, bool):
+            return before, self.is_authoritative(camera)
+        if granted:
+            lease = max(1.0, float(payload.get("authorityLeaseSeconds") or 75.0))
+            if not before:
+                self._authority_serial += 1
+                self._authority_epoch[camera] = (
+                    f"{self.producer_instance_id}:{camera}:{self._authority_serial}"
+                )
+            self._authority_until[camera] = time.time() + lease
+        else:
+            self._authority_until.pop(camera, None)
+            self._authority_epoch.pop(camera, None)
+        return before, self.is_authoritative(camera)
+
     def _is_bay(self, camera: str, zone: Optional[str]) -> bool:
         return bool(zone) and zone in self.bay_zones.get(camera, frozenset())
 
@@ -153,7 +187,9 @@ class ShopMirror:
                     self._visits.pop(next(iter(self._visits)), None)
                 row = {
                     "visitId": visit_id,
-                    "camera": camera_name or emission.camera,
+                    # Canonical camera key, never the display label. Authority is
+                    # elected per camera key and the server registry uses the same key.
+                    "camera": emission.camera,
                     "state": emission.state,
                     "seq": int(emission.seq),
                     "arrivedAt": None,
@@ -279,12 +315,14 @@ class ShopMirror:
                 payload = _json.loads(text) if isinstance(text, (str, bytes)) else text
             except Exception:
                 payload = None
-            if isinstance(payload, dict) and isinstance(payload.get("authoritative"), bool):
-                previous = self.authoritative
-                self.authoritative = bool(payload["authoritative"])
-                if previous != self.authoritative:
-                    log.warning("shop producer authority changed producer=%s authoritative=%s",
-                                self.producer_instance_id, self.authoritative)
+            if isinstance(payload, dict):
+                camera = str(body.get("camera") or "")
+                before, after = self._apply_authority_reply(camera, payload)
+                if before != after:
+                    log.warning(
+                        "shop producer authority changed producer=%s camera=%s authoritative=%s",
+                        self.producer_instance_id, camera, after,
+                    )
             self.apply_active_run(payload if isinstance(payload, dict) else text)
             return True
         self.heartbeats_failed += 1
@@ -379,10 +417,14 @@ class ShopMirror:
         impossible. Returns None when the mirror is unconfigured, so an unconfigured deployment
         queues nothing rather than filling a table nobody drains.
         """
-        if not self.enabled or self.authoritative is False:
+        camera = str(emission.camera)
+        epoch = self.authority_epoch(camera)
+        if not self.enabled or epoch is None:
             self.skipped += 1
             return None
         row = self.row_for(emission, camera_name, provenance)
+        if self._lease_managed:
+            row["_authorityEpoch"] = epoch
         if emission.state in TERMINAL_STATES:
             # The merged row is now materialised in the ledger tuple, so the in-memory
             # accumulator is free -- and MUST be freed here rather than after delivery,
@@ -393,7 +435,7 @@ class ShopMirror:
         return (emission.visit_id, int(emission.seq), str(self.url), row)
 
     def deliver(self, item: Dict[str, object]) -> str:
-        """POST one queued row. Returns 'sent' | 'rejected' | 'unreachable'. NEVER raises.
+        """POST one queued row. Returns sent | rejected | unreachable | stale_authority. NEVER raises.
 
         The two failure kinds are kept apart deliberately: 'unreachable' is a WAN/DNS problem that
         will clear on its own, while 'rejected' is a contract or credential problem that will not,
@@ -402,6 +444,14 @@ class ShopMirror:
         if not self.enabled:
             self.skipped += 1
             return "rejected"
+        payload = dict(item["payload"])
+        camera = str(payload.get("camera") or "")
+        if self._lease_managed:
+            current_epoch = self.authority_epoch(camera)
+            queued_epoch = payload.pop("_authorityEpoch", None)
+            if current_epoch is None or queued_epoch != current_epoch:
+                self.skipped += 1
+                return "stale_authority"
         try:
             transport = self.transport
             if transport is None:
@@ -411,7 +461,7 @@ class ShopMirror:
             status, text = transport(
                 "POST",
                 str(item["url"]),
-                {"visits": [item["payload"]]},
+                {"visits": [payload]},
                 self._headers(),
                 self.timeout_seconds,
             )

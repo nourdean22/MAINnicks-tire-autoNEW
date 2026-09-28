@@ -600,6 +600,10 @@ class EdgeLoop:
         self.generation = source_generation(source)
         #: How many times the lane or the restore count changed under us.
         self.generation_breaks = 0
+        # If authority-boundary invalidation fails, do not renew the server lease until
+        # a later local retry succeeds. Otherwise this broken producer can block failover
+        # forever by refreshing a lease it refuses to use.
+        self.authority_recovery_blocked = False
 
     # ------------------------------------------------------------------ one pass
     def step(self) -> Dict[str, object]:
@@ -845,8 +849,18 @@ class EdgeLoop:
         """Compose and post one heartbeat. False when no shop is configured."""
         if not self.pipeline.shop.enabled:
             return False
-        authority_before = self.pipeline.shop.authoritative
         heartbeat_now = self.clock() if now is None else now
+        if self.authority_recovery_blocked:
+            try:
+                self.vision.reset_authority_epoch(heartbeat_now)
+                self.pipeline.ledger.discard_camera_state(self.camera)
+                self.authority_recovery_blocked = False
+                log.warning("authority-boundary reset recovered locally; heartbeat renewal may resume")
+            except Exception:
+                self.pipeline.metrics.inc("edge_authority_promotion_errors_total")
+                log.exception("authority-boundary reset still failing; NOT renewing server lease")
+                return False
+        authority_before = self.pipeline.shop.is_authoritative(self.camera)
         self.heartbeat_seq += 1
         # Empty dict, not None: a vision layer without a stitcher then reports NOTHING for
         # each counter (`.get` -> None) rather than a fabricated 0, which is the same
@@ -886,25 +900,26 @@ class EdgeLoop:
             stitch_refused_ambiguous=stitch_counts.get("refused_ambiguous"),
         )
         ok = self.pipeline.shop.heartbeat(body)
-        if authority_before is False and self.pipeline.shop.authoritative is True:
-            # Promotion is a source-of-truth discontinuity even though the pixels did not
-            # change. Tracks accumulated while this box was standby must not become customer
-            # arrivals merely because the cloud lease changed hands.
+        authority_after = self.pipeline.shop.is_authoritative(self.camera)
+        if not authority_before and authority_after:
+            # Promotion is a hard evidence boundary. Standby-era tracks and open visits
+            # cannot be allowed to become authoritative later with their original times.
             try:
-                self.vision.tracks.mark_degraded()
-                self.vision.census.note_reconnect(heartbeat_now)
+                reset = self.vision.reset_authority_epoch(heartbeat_now)
+                durable = self.pipeline.ledger.discard_camera_state(self.camera)
                 self.pipeline.metrics.inc("edge_authority_promotions_total")
                 log.warning(
-                    "producer promoted to shop authority: degrading standby tracks and "
-                    "re-arming the preexisting census before business writes resume"
+                    "producer promoted to shop authority: discarded standby state "
+                    "tracks=%s visits=%s durable=%s", reset.get("tracks"), reset.get("visits"), durable,
                 )
             except Exception:
-                # Fail closed. The backend may have elected this producer, but if we cannot
-                # invalidate standby-era paths we refuse to mirror visits until a later
-                # heartbeat retries the promotion boundary successfully.
-                self.pipeline.shop.authoritative = False
+                # The server has already granted a lease. Revoke it LOCALLY and block
+                # future heartbeat renewal until the reset succeeds, so a lower-priority
+                # producer can take over once this lease expires.
+                self.pipeline.shop.revoke_authority(self.camera)
+                self.authority_recovery_blocked = True
                 self.pipeline.metrics.inc("edge_authority_promotion_errors_total")
-                log.exception("authority promotion invalidation FAILED; remaining standby")
+                log.exception("authority promotion reset FAILED; lease will NOT be renewed")
                 ok = False
         # The reply may have switched the mode either way; keep the loop's view in step so
         # the NEXT heartbeat reports it without waiting another round trip. Returning to

@@ -217,6 +217,20 @@ if ($SecretOnly -and -not $EncryptSecret) {
     throw "-SecretOnly needs a secret to install: add -SecretFromEnvironment, or -EncryptSecret to read .env.local."
 }
 
+# Preserve an already-installed role on reinstall. A fresh runtime install MUST name
+# its role, or this script would silently erase the failover priority contract.
+if (-not $Role -and (Test-Path $wrapper)) {
+    $roleMatch = Select-String -Path $wrapper -Pattern '^set "EDGE_ROLE=(shop|nicksmax|nattynour)"$' |
+        Select-Object -First 1
+    if ($roleMatch) {
+        $Role = $roleMatch.Matches[0].Groups[1].Value
+        Write-Host "Preserving installed producer role '$Role' from $wrapper." -ForegroundColor Green
+    }
+}
+if (-not $Role) {
+    throw "Producer role is required for runtime installation. Pass -Role shop, -Role nicksmax, or -Role nattynour."
+}
+
 # --- Preflight ---------------------------------------------------------------
 function Resolve-Python {
     if ($PythonPath) {

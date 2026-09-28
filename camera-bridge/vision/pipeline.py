@@ -161,6 +161,18 @@ class VisionPipeline:
                 {camera: CameraSpec(name=camera, arrival_zones=frozenset({arrival_zone}))},
             )
 
+    def reset_authority_epoch(self, now: float) -> dict:
+        """Erase standby-era tracking/visit state before this camera becomes authoritative."""
+        tracks = self.tracks.reset_authority_epoch()
+        visits = self.tracker.discard_camera_state(self.camera)
+        self.timings.clear()
+        self._track_visit.clear()
+        self._preexisting_crossed.clear()
+        self.stitch = EpisodeStitcher(camera=self.camera)
+        self.census.note_reconnect(now)
+        self._start_ts = None
+        return {"tracks": tracks, "visits": visits}
+
     # ---------------------------------------------------------------- visitd bridge
     def _emit(self, kind: str, track: Track, now: float, ended: bool = False) -> list:
         if kind == "new" and self.arrival_zone not in track.zones:

@@ -162,6 +162,30 @@ class Ledger:
 
     # ---- visits
 
+    def discard_camera_state(self, camera: str) -> int:
+        """Delete non-terminal durable visit state for one camera at an authority handoff."""
+        with self._lock:
+            sql_text = (
+                "SELECT DISTINCT v.visit_id FROM visits v "
+                "JOIN sightings s ON s.visit_id = v.visit_id "
+                "WHERE s.camera = ? AND v.state NOT IN (" + _TERMINAL_PLACEHOLDERS + ")"
+            )
+            rows = self._conn.execute(sql_text, (camera, *TERMINAL_STATES)).fetchall()
+            ids = [str(r["visit_id"]) for r in rows]
+            if not ids:
+                return 0
+            marks = ",".join("?" for _ in ids)
+            self._conn.execute("BEGIN")
+            try:
+                self._conn.execute(f"DELETE FROM visit_zone_intervals WHERE visit_id IN ({marks})", ids)
+                self._conn.execute(f"DELETE FROM sightings WHERE visit_id IN ({marks})", ids)
+                self._conn.execute(f"DELETE FROM visits WHERE visit_id IN ({marks})", ids)
+                self._conn.execute("COMMIT")
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
+        return len(ids)
+
     def save_visits(self, visits: Iterable[Visit]) -> None:
         """Upsert visits (plus their sightings and intervals) in one transaction."""
         with self._lock:
