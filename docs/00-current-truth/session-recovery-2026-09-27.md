@@ -2,7 +2,7 @@
 
 ## Evening hardening addendum
 
-The connection-status incident is closed and live-verified through #2720. Residual operator/external gates and the no-reboot concurrency boundary are recorded in `docs/00-current-truth/connection-hardening-2026-09-27.md`. Do not reopen TiDB, Tailscale DERP fallback, the legacy `right` camera row, or already-merged camera alert work as backlog without fresh contrary evidence.
+The core connection-status incident is closed and live-verified through the #2720 production source-code deployment. Residual operator/external gates and the no-reboot concurrency boundary are recorded in `docs/00-current-truth/connection-hardening-2026-09-27.md`. Do not reopen TiDB, normal Tailscale DERP fallback, or the legacy `right` camera row as backlog without fresh contrary evidence. **Do keep two camera proofs open:** real office motion/person + control/media/home commissioning, and provider-accepted real degradation/recovery owner delivery.
 
 ## Finalized recovery state — 2026-09-27
 
