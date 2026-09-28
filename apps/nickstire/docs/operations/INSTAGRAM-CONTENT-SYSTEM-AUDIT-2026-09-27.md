@@ -227,3 +227,17 @@ The seven operator-control gaps above were reconciled against current code rathe
 - Reel shadow-judge outcome calibration: **BUILT + TESTED in branch; hard gate remains unsupported**
 - public Instagram homepage bridge: **BUILT + TESTED in prior branch, pending live receipt if not already deployed**
 - authenticated production pixel-level QA: **STILL UNVERIFIED until post-deploy logged-in pass**
+
+## 2026-09-28 production closeout
+
+The implementation audit above now has live receipts beyond merge/deploy status:
+
+- **Runtime:** Nick production is exact #2737 (`e68f4ed4f0bd61d84968a1d6b1aa3845727213e2`), Railway deployment `46e62cbf-7983-45a3-9387-3a74c183b6ad` SUCCESS. Repository `main` is newer at #2739, but that camera-only commit correctly SKIPPED the Nick service.
+- **Authenticated Admin:** a real signed-in production session exercised the backing procedures for Today, Create, Queue, Community, Learn and Strategy. Pipeline health, creation brief, Studio diagnostics/board, evidence options, real-shop media, active slate, live feed, analytics, performance reporting, profile merchandising, judge calibration and structure hypotheses all executed against live data.
+- **Pattern Lab:** the empty table bootstrapped exactly four unmeasured house hypotheses. Production selected `rp_house_forensic_macro` and, on a second independent start-only canary, `rp_house_myth_reality` in rotation mode. Neither canary reached enqueue (first: `REPEAT_CTA`; second: LLM request timeout), so persisted `structurePatternId -> reel_job` lineage remains unproven and is not inferred from the selector receipt.
+- **Trial Reel:** an expired approval was first refused; a later eligible approval published `autopost-2026-09-29` as Trial Instagram media `18448893436192927`. Production persisted `postedAsTrial=true`, `graduationStrategy=MANUAL`, the same post id, and experiment attachment for Reel job `1920015`.
+- **Static caption repair:** a guarded manual one-off generated three complete candidates that all reached the independent judge without reproducing the old 4096-token truncation / empty-caption signature. Scores were 0.58, 0.60 and 0.41; the run correctly aborted for quality/compliance defects and published nothing. This verifies the repaired generation boundary under live conditions, not a successful natural scheduled-slot publish.
+- **Production defect found during walkthrough:** Queue quality scoring can encounter legacy/incomplete `brief_json`; the old scorer dereferenced a missing array and logged `undefined.map`. The closeout branch adds an explicit runtime `ReelBrief` shape guard and fails those rows closed to score 0 without throwing. NattyNour verification: 76/76 focused tests, TypeScript exit 0, production build exit 0.
+
+Remaining evidence is narrow and explicit: first successful post-bootstrap Reel enqueue carrying `structurePatternId`; a natural scheduled static-slot success; Trial 24h metric entry; and Instagram-side bio/pin/Highlight mutations remain operator-gated.
+
