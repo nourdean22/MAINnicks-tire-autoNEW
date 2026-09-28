@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, activeRunField, cameraAuthorityCalibrationAllowed, parseHeartbeat, plateTextToStore } from "./cameraVisitsRoutes";
+import { COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore } from "./cameraVisitsRoutes";
+import { cameraAuthorityCalibrationAllowed } from "../lib/cameraAuthority";
 
 describe("camera sign authority calibration fence", () => {
   const required = { CAMERA_SIGN_REQUIRED_CALIBRATION_VERSION: "sha256:nicksmax1234" };
