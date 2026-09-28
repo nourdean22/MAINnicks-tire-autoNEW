@@ -85,6 +85,7 @@ async function measuredPatternOutcomes(): Promise<PatternPerformanceRow[]> {
       if (!m) continue;
       measured.push({
         patternId,
+        themes: [],
         reach: m.reach,
         saved: m.saved,
         shares: m.shares,
