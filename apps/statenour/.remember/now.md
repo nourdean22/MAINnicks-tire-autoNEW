@@ -1,3 +1,19 @@
+## 2026-09-28 · NicksMax camera production authority
+
+NicksMax now owns Nick's `sign` production edge through direct V380 cloud/P2P -> local RTSP,
+not V380 desktop/WGC. Current contract: producer `nicksmax-sign-rtsp-v1`, source
+`rtsp://127.0.0.1:8555/sign`, calibration `sha256:67f719cc875d`, closeout state HEALTHY.
+A real visit reached `CONFIRMED_ARRIVAL`; StateNour returned HTTP 200 and the shop mirror
+reports one delivered event with empty durable queues.
+
+The supervisor requires one decoded RTSP frame before production start and throttles starts
+after a measured recovery race. A SYSTEM-owned scheduled supervisor was receipted as
+`SYSTEM / ServiceAccount / Highest / Running`, so supervision does not depend on the
+interactive Windows user. A literal cold power-cycle remains a separate unperformed proof.
+The external V380 cloud decoder is local-only/unlicensed and is not vendored.
+
+Durable receipt: `docs/operations/NICKSMAX-CAMERA-HOST-2026-09-28.md`.
+
 # Session ledger — statenour
 
 **Updated: 2026-09-28** (original-plan execution reconciled through #2726; zero open PRs at this receipt)
