@@ -9,26 +9,27 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { sliceBlock } from "./testUtils/sourceBlock";
 
 const ROUTER = readFileSync(path.join(__dirname, "routers", "content.ts"), "utf8");
 const CARD = readFileSync(path.join(__dirname, "..", "client", "src", "components", "admin", "CampaignPackageCard.tsx"), "utf8");
 
 describe("content_run is the Campaign Package root", () => {
   it("tournament and direct genome generation create a run before creative work", () => {
-    const tournament = ROUTER.slice(ROUTER.indexOf("runConceptTournament: adminProcedure"), ROUTER.indexOf("startContentExperiment:"));
+    const tournament = sliceBlock(ROUTER, "runConceptTournament: adminProcedure", "startContentExperiment:", { label: "content.runConceptTournament" });
     expect(tournament).toContain("createContentRun");
     expect(tournament).toContain("contentRunId");
     expect(tournament).toContain("campaign generation refused rather than escaping lineage");
 
-    const genome = ROUTER.slice(ROUTER.indexOf("generateCampaignGenome: dbAdminProcedure"), ROUTER.indexOf("saveCarouselDraft:"));
+    const genome = sliceBlock(ROUTER, "generateCampaignGenome: dbAdminProcedure", "saveCarouselDraft:", { label: "content.generateCampaignGenome" });
     expect(genome).toContain("createContentRun");
     expect(genome).toContain("genomeId: saved?.id ?? null");
     expect(genome).toContain("contentRunId");
   });
 
   it("both Genome Directors accept and return the same root", () => {
-    const reel = ROUTER.slice(ROUTER.indexOf("draftReelFromGenome: adminProcedure"), ROUTER.indexOf("draftCarouselFromGenome:"));
-    const carousel = ROUTER.slice(ROUTER.indexOf("draftCarouselFromGenome: adminProcedure"), ROUTER.indexOf("generateCampaignGenome:"));
+    const reel = sliceBlock(ROUTER, "draftReelFromGenome: adminProcedure", "draftCarouselFromGenome:", { label: "content.draftReelFromGenome" });
+    const carousel = sliceBlock(ROUTER, "draftCarouselFromGenome: adminProcedure", "generateCampaignGenome:", { label: "content.draftCarouselFromGenome" });
     for (const src of [reel, carousel]) {
       expect(src).toContain("contentRunId: z.string().max(64).optional()");
       expect(src).toContain("input.contentRunId ?? await createContentRun");
@@ -37,7 +38,7 @@ describe("content_run is the Campaign Package root", () => {
   });
 
   it("reel enqueue cannot strip contentRunId at either zod or whitelist boundary", () => {
-    const enqueue = ROUTER.slice(ROUTER.indexOf("enqueueReelJob: adminProcedure"), ROUTER.indexOf("getReelJob:"));
+    const enqueue = sliceBlock(ROUTER, "enqueueReelJob: adminProcedure", "getReelJob:", { label: "content.enqueueReelJob" });
     expect(enqueue).toContain("contentRunId: z.string().max(64).nullable().optional()");
     expect(enqueue).toContain("contentRunId: (brief as any).contentRunId ?? null");
   });
@@ -49,7 +50,7 @@ describe("content_run is the Campaign Package root", () => {
   });
 
   it("carousel persistence advances the same run to a durable built draft", () => {
-    const save = ROUTER.slice(ROUTER.indexOf("saveCarouselDraft: adminProcedure"), ROUTER.indexOf("allReelDrafts:"));
+    const save = sliceBlock(ROUTER, "saveCarouselDraft: adminProcedure", "allReelDrafts:", { label: "content.saveCarouselDraft" });
     expect(save).toContain("RUN_STAGE.awaiting_approval");
     expect(save).toContain("IMPLEMENTATION_STATE.built");
     expect(save).toContain("carousel draft");
