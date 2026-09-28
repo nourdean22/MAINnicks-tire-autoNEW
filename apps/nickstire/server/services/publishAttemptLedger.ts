@@ -261,7 +261,7 @@ export async function findUnreconciledAttempts(olderThanMinutes = 15): Promise<U
    * failure direction of "open too long" is a visible nag; the failure direction
    * of "closed too early" is a post that may be live and is on no screen.
    */
-  const attemptIds = attempts.map((a) => a.id);
+  const attemptIds = attempts.map((a: { id: string }) => a.id);
   const outcomes = await d
     .select({
       codes: autonomyAuditEvents.reasoningCodes,
