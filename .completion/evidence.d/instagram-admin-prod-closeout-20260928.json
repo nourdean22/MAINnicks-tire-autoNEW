@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "visual-world-trajectory": {
+      "deferred": "This PR touches client/src/lib/facelessReelStudio.ts only to add isScorableReelBrief(), a runtime persisted-shape guard used by the Admin Queue before calculateReelQualityScore(). It does not change visualWorld, prompt compilation, continuity invariants, provider payloads, or persisted-prompt trajectory semantics. The production defect observed 2026-09-28 was a legacy brief missing scorer arrays; current-brief acceptance and legacy rejection are covered by client/src/__tests__/faceless-reel-studio.test.ts. A new provider/prompt trajectory run would exercise unchanged code and is therefore not claimed as evidence for this diff."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability operational state is promoted by the legacy ReelBrief scoring guard. The runtime fix changes only how historical incomplete Queue rows are classified: unscorable -> fail-closed score 0 instead of throwing before the existing catch. Production closeout receipts are reconciled in CURRENT-TRUTH.md, INSTAGRAM-CONTENT-SYSTEM-AUDIT-2026-09-27.md, .remember/now.md, and the generated REALITY-LEDGER.md; docs/operations/capability-ledger.json itself requires no state transition for this narrow defect."
+    }
+  }
+}
