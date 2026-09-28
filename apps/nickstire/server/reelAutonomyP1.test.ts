@@ -100,6 +100,17 @@ describe("an ambiguous publish resolves itself", () => {
     expect(LANE).toContain('a.kind === "reel_job"');
   });
 
+  it("passes the durable attempted caption into the matcher", () => {
+    expect(LANE).toContain("expectedCaption: attempt.expectedCaption");
+  });
+
+  it("hands permanent ambiguity to a human ONCE but retries transient Meta failures", () => {
+    expect(LANE).toContain("!a.operatorRequired");
+    expect(LANE).toContain("OUTCOME.operatorRequired");
+    expect(LANE).toContain('verdict.reason === "history_window_exhausted"');
+    expect(LANE).toContain('why: "retry_later"');
+  });
+
   it("it is bounded per run and ignores attempts that may still be settling", () => {
     expect(LANE).toContain("RECONCILE_MAX_PER_RUN");
     expect(LANE).toContain("RECONCILE_MIN_AGE_MINUTES");
