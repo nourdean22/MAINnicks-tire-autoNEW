@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=reel-outcome-learning records #2734's successful Railway deployment, #2732's merged/building boundary, and the Trial single-video media-shape hardening candidate."
+    },
+    "publish-boundary-test": {
+      "ref": "apps/nickstire/server/trialReelWiring.test.ts behaviorally proves Trial mode refuses video+carousel and video+static-image payloads before Meta, in addition to the existing Story/cross-post refusals. apps/nickstire/server/trialReelAdminWiring.test.ts pins the same invariant at the admin boundary."
+    },
+    "operator-walkthrough": {
+      "deferred": "No live Trial publish is performed by this hardening PR. Account eligibility and the first authenticated Queue -> Publish as Trial receipt remain separate operator/browser verification."
+    }
+  }
+}
