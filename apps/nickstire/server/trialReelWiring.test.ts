@@ -70,6 +70,44 @@ describe("Trial Reel publish wiring", () => {
     expect(postInstagramReelMock).not.toHaveBeenCalled();
   });
 
+  it("fails closed before Meta when Trial mode includes carousel media alongside the video", async () => {
+    const out = await publishToSocial({
+      platforms: ["instagram"],
+      videoUrl: VIDEO,
+      imageUrls: [
+        "https://nickstire.org/generated/reels/frame-a.jpg",
+        "https://nickstire.org/generated/reels/frame-b.jpg",
+      ],
+      caption: CAPTION,
+      actor: "operator",
+      trialReel: { graduationStrategy: "MANUAL" },
+    });
+
+    expect(out.results[0]).toMatchObject({
+      platform: "instagram",
+      success: false,
+    });
+    expect(out.results[0]?.error).toMatch(/exactly one Instagram Reel video/i);
+    expect(postInstagramReelMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before Meta when Trial mode includes a static image alongside the video", async () => {
+    const out = await publishToSocial({
+      platforms: ["instagram"],
+      videoUrl: VIDEO,
+      imageUrl: "https://nickstire.org/generated/reels/poster.jpg",
+      caption: CAPTION,
+      actor: "operator",
+      trialReel: { graduationStrategy: "MANUAL" },
+    });
+
+    expect(out.results[0]).toMatchObject({
+      platform: "instagram",
+      success: false,
+    });
+    expect(postInstagramReelMock).not.toHaveBeenCalled();
+  });
+
   it("leaves the ordinary Reel path unchanged when trial mode is omitted", async () => {
     await publishToSocial({
       platforms: ["instagram"],
