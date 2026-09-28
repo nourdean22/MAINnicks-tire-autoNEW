@@ -35,6 +35,7 @@ import {
   validateNoExternalSideEffects,
   scoreReelConcept,
   calculateReelQualityScore,
+  isScorableReelBrief,
   runSafetyChecks,
   buildHiggsfieldReelPromptPack,
   buildReelContinuityBlock,
@@ -650,6 +651,28 @@ describe("builders", () => {
     expect(r.topicRepeated).toBe(true);
     expect(r.keywordRepeated).toBe(sample().campaignKeyword === "PRESSURE");
     expect(r.archetypeRepeated).toBe(false);
+  });
+});
+
+describe("persisted ReelBrief runtime shape", () => {
+  it("accepts current briefs and rejects legacy partial rows without throwing", () => {
+    expect(isScorableReelBrief(sample())).toBe(true);
+
+    const legacy = {
+      topic: "legacy reel",
+      selectedCaption: "old caption",
+    };
+    expect(isScorableReelBrief(legacy)).toBe(false);
+  });
+
+  it("rejects a current-looking brief when a scorer array is missing", () => {
+    const partial = structuredClone(sample()) as any;
+    delete partial.storyboardBeats;
+    expect(isScorableReelBrief(partial)).toBe(false);
+
+    partial.storyboardBeats = structuredClone(sample().storyboardBeats);
+    delete partial.concepts;
+    expect(isScorableReelBrief(partial)).toBe(false);
   });
 });
 
