@@ -46,8 +46,8 @@ const log = createLogger("services:reelBriefGen");
 
 export interface GenerateReelBriefInput {
   /**
-   * A captured structure from Pattern Lab (social_reel_patterns), selected by
-   * rotation in reelStructurePrior. Structure only — hook shape, pacing, loop
+   * A structure from Pattern Lab (social_reel_patterns), selected by the
+   * evidence-aware rotation policy in reelStructurePrior. Structure only — hook shape, pacing, loop
    * mechanics — never content: the whole point of the table is that it stores
    * HOW a reference reel was built, not what it said.
    */
