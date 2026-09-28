@@ -1,5 +1,34 @@
 import { describe, it, expect } from "vitest";
-import { COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore } from "./cameraVisitsRoutes";
+import { COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, activeRunField, cameraAuthorityCalibrationAllowed, parseHeartbeat, plateTextToStore } from "./cameraVisitsRoutes";
+
+describe("camera sign authority calibration fence", () => {
+  const required = { CAMERA_SIGN_REQUIRED_CALIBRATION_VERSION: "sha256:nicksmax1234" };
+
+  it("is opt-in: an unset or blank fence preserves existing behavior", () => {
+    expect(cameraAuthorityCalibrationAllowed("sign", null, {})).toBe(true);
+    expect(cameraAuthorityCalibrationAllowed("sign", "old", {
+      CAMERA_SIGN_REQUIRED_CALIBRATION_VERSION: "   ",
+    })).toBe(true);
+  });
+
+  it("accepts only the exact required sign calibration when armed", () => {
+    expect(cameraAuthorityCalibrationAllowed("sign", "sha256:nicksmax1234", required)).toBe(true);
+    expect(cameraAuthorityCalibrationAllowed("sign", "sha256:oldproducer", required)).toBe(false);
+    expect(cameraAuthorityCalibrationAllowed("sign", null, required)).toBe(false);
+  });
+
+  it("does not fence unrelated cameras", () => {
+    expect(cameraAuthorityCalibrationAllowed("inside", "sha256:anything", required)).toBe(true);
+    expect(cameraAuthorityCalibrationAllowed("office", null, required)).toBe(true);
+  });
+
+  it("trims operator whitespace from the required version, not the producer value", () => {
+    expect(cameraAuthorityCalibrationAllowed("sign", "sha256:nicksmax1234", {
+      CAMERA_SIGN_REQUIRED_CALIBRATION_VERSION: " sha256:nicksmax1234 ",
+    })).toBe(true);
+    expect(cameraAuthorityCalibrationAllowed("sign", " sha256:nicksmax1234 ", required)).toBe(false);
+  });
+});
 
 describe("camera visit ingest — plate durability", () => {
   it("stores plate text ONLY when the read is CONFIRMED", () => {
