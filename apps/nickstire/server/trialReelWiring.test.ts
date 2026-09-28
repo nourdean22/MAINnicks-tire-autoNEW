@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const postInstagramReelMock = vi.fn(async () => ({ success: true, postId: "ig-trial-1" }));
+const postInstagramCarouselMock = vi.fn(async () => ({ success: true, postId: "ig-carousel-1" }));
 const postToFacebookMock = vi.fn(async () => ({ success: true, postId: "fb-1" }));
 
 vi.mock("./services/metaSocial", async (importOriginal) => {
@@ -8,6 +9,7 @@ vi.mock("./services/metaSocial", async (importOriginal) => {
   return {
     ...real,
     postInstagramReel: (...a: unknown[]) => postInstagramReelMock(...a),
+    postInstagramCarousel: (...a: unknown[]) => postInstagramCarouselMock(...a),
     postToFacebook: (...a: unknown[]) => postToFacebookMock(...a),
   };
 });
@@ -68,6 +70,22 @@ describe("Trial Reel publish wiring", () => {
 
     expect(out.results[0]).toMatchObject({ platform: "instagram", success: false });
     expect(postInstagramReelMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed before Meta when Trial mode carries carousel media alongside the Reel", async () => {
+    const out = await publishToSocial({
+      platforms: ["instagram"],
+      videoUrl: VIDEO,
+      imageUrls: ["https://example.com/a.jpg", "https://example.com/b.jpg"],
+      caption: CAPTION,
+      actor: "operator",
+      trialReel: { graduationStrategy: "MANUAL" },
+    });
+
+    expect(out.results[0]).toMatchObject({ platform: "instagram", success: false });
+    expect(out.results[0]?.error).toMatch(/exactly one Instagram Reel video/);
+    expect(postInstagramReelMock).not.toHaveBeenCalled();
+    expect(postInstagramCarouselMock).not.toHaveBeenCalled();
   });
 
   it("leaves the ordinary Reel path unchanged when trial mode is omitted", async () => {
