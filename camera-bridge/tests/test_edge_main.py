@@ -565,7 +565,8 @@ def _cfg(raw=None):
 def _args(**over):
     defaults = dict(
         config="config.yaml", camera="lot", ledger=":memory:", source="window", hwnd=None,
-        window_title="V380", no_crop=True, calibration=None, model=None, device="AUTO",
+        source_url_env="CAMERA_SOURCE_URL", window_title="V380", no_crop=True,
+        calibration=None, model=None, device="AUTO",
         motion_gate=False, evidence=None, fps=4.0, seconds=0.0, mode=None,
         commissioning_run=None, heartbeat_seconds=30.0, drain_seconds=5.0,
         dry_run=True, log_level="WARNING", channel=None, persist_seconds=2.0,
@@ -923,6 +924,28 @@ class RestartClassificationWiringTest(unittest.TestCase):
                 os.unlink(path)
             except OSError:
                 pass
+
+
+
+class RtspEdgeWiringTest(unittest.TestCase):
+    """The durable runtime must read the source URL from the named environment variable."""
+
+    def test_build_edge_reads_the_named_environment_variable(self):
+        from unittest.mock import patch
+
+        fake_source = FakeSource(name="rtsp")
+        with patch.dict(os.environ, {"NICK_TEST_CAMERA_URL": "rtsp://127.0.0.1:8554/live"}), \
+             patch("vision.run_live.build_source", return_value=fake_source) as build:
+            pipeline, _vision, source, *_ = edge_main.build_edge(
+                _cfg(), _args(source="rtsp", source_url_env="NICK_TEST_CAMERA_URL"))
+            try:
+                self.assertIs(source, fake_source)
+                self.assertEqual(
+                    build.call_args.kwargs["source_url"],
+                    "rtsp://127.0.0.1:8554/live",
+                )
+            finally:
+                pipeline.ledger.close()
 
 
 class DoctorScriptTest(unittest.TestCase):
