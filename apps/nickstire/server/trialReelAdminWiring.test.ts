@@ -16,6 +16,7 @@ describe("Trial Reel operator wiring", () => {
     );
     expect(block).toContain('graduationStrategy: z.literal("MANUAL")');
     expect(block).toContain("Trial Reels are Instagram-only");
+    expect(block).toContain("static, carousel, and Story media are not allowed");
     expect(block).toContain('draft.contentType !== "reel"');
     expect(block).toContain("persistTrialPublishReceipt");
     expect(block).toContain("resolvedReelJobId = authorization.reelJobId");
