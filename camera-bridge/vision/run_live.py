@@ -33,7 +33,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from vision.capture import CaptureMux, V380WindowSource, WgcWindowSource  # noqa: E402
+from vision.capture import CaptureMux, RtspSource, V380WindowSource, WgcWindowSource  # noqa: E402
 from vision.detector import (  # noqa: E402
     DetectorCouncil, DetectorUnavailable, Mog2MotionDetector, OpenVinoVehicleDetector,
 )
@@ -460,7 +460,8 @@ def title_of(src) -> str:
 def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
                  channel: int | None = None, calibrated: bool = False,
                  scene_atlas: str | None = None, scene: str | None = None,
-                 canonical_size=None, declared_fixed: bool = False):
+                 canonical_size=None, declared_fixed: bool = False,
+                 source_url: str | None = None):
     # --channel and --scene-atlas are two answers to the same question and cannot both be
     # the answer. `--channel` finds a rectangle by MOTION; the atlas finds THE CAMERA by
     # APPEARANCE. Silently letting one win would make the producer's aim depend on argument
@@ -472,6 +473,23 @@ def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
             "only proves that a rectangle holds moving pixels. Use --channel only for a "
             "camera with no atlas entry yet."
         )
+    if kind == "rtsp":
+        if channel is not None:
+            raise ChannelNotFound(
+                "--channel is a V380/WGC pane selector; an RTSP URL already names one "
+                "stream. Point the URL at the intended camera instead."
+            )
+        if scene_atlas:
+            raise SceneNotLocated(
+                "--scene-atlas currently proves identity inside the V380/WGC window. "
+                "RTSP is already a single stream and has no atlas binding path yet."
+            )
+        if not source_url:
+            raise ValueError(
+                "--source rtsp needs a URL from the environment named by "
+                "--source-url-env (default CAMERA_SOURCE_URL)."
+            )
+        return _solo(RtspSource(source_url))
     if kind == "wgc":
         src = WgcWindowSource(
             window_hwnd=hwnd, window_title=title,
@@ -704,7 +722,10 @@ def main() -> int:
     ap.add_argument("--fps", type=float, default=4.0)
     ap.add_argument("--model", default=os.environ.get("VISION_OV_MODEL"))
     ap.add_argument("--device", default=os.environ.get("VISION_OV_DEVICE", "GPU"))
-    ap.add_argument("--source", choices=["wgc", "mss"], default="wgc")
+    ap.add_argument("--source", choices=["wgc", "mss", "rtsp"], default="wgc")
+    ap.add_argument("--source-url-env", default="CAMERA_SOURCE_URL",
+                    help="env var holding the RTSP/source URL. Keep credential-bearing URLs "
+                         "out of the process command line.")
     ap.add_argument("--window-title", default=os.environ.get("V380_WINDOW_TITLE", "V380"))
     ap.add_argument("--hwnd", type=int, default=None)
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window")
@@ -751,6 +772,8 @@ def main() -> int:
                           channel=args.channel, calibrated=bool(args.calibration),
                           declared_fixed=declared_fixed_lens(args.calibration),
                           scene_atlas=args.scene_atlas, scene=args.scene,
+                          source_url=(os.environ.get(args.source_url_env)
+                                      if args.source_url_env else None),
                           # ONLY the atlas path warps, so only it needs the canonical frame.
                           # Evaluating this unconditionally aborted every EXISTING calibrated
                           # producer -- ones using the documented lot/portal/bays format with no
