@@ -204,6 +204,10 @@ export interface UnreconciledAttempt {
   expectedCaption: string | null;
   /** Durable handoff: still unresolved, but automation must stop re-checking it. */
   operatorRequired: boolean;
+  /** Candidate evidence frozen at handoff time so Action Center can still resolve
+   * safely after the posts fall off Meta's recent-media page. */
+  handoffCandidates: unknown[];
+  handoffDetail: string | null;
   ageMinutes: number;
 }
 
@@ -218,7 +222,7 @@ export async function findUnreconciledAttempts(olderThanMinutes = 15): Promise<U
   const d = await getDb();
   if (!d) return [];
   const { autonomyAuditEvents } = await import("../../drizzle/schema");
-  const { eq, lt, and, desc } = await import("drizzle-orm");
+  const { eq, lt, and, desc, inArray } = await import("drizzle-orm");
 
   const cutoff = new Date(Date.now() - olderThanMinutes * 60_000);
   const attempts = await d
@@ -257,21 +261,46 @@ export async function findUnreconciledAttempts(olderThanMinutes = 15): Promise<U
    * failure direction of "open too long" is a visible nag; the failure direction
    * of "closed too early" is a post that may be live and is on no screen.
    */
+  const attemptIds = attempts.map((a) => a.id);
   const outcomes = await d
-    .select({ codes: autonomyAuditEvents.reasoningCodes, decision: autonomyAuditEvents.decision })
+    .select({
+      codes: autonomyAuditEvents.reasoningCodes,
+      decision: autonomyAuditEvents.decision,
+      contextJson: autonomyAuditEvents.contextJson,
+      occurredAt: autonomyAuditEvents.occurredAt,
+    })
     .from(autonomyAuditEvents)
-    .where(eq(autonomyAuditEvents.actionType, OUTCOME_ACTION))
-    .limit(2000);
+    .where(and(
+      eq(autonomyAuditEvents.actionType, OUTCOME_ACTION),
+      inArray(autonomyAuditEvents.reasoningCodes, attemptIds),
+    ))
+    .orderBy(desc(autonomyAuditEvents.occurredAt))
+    .limit(Math.max(200, attemptIds.length * 10));
   const settled = new Set(
     outcomes
       .filter((o: { decision: string | null }) => RESOLVING_OUTCOMES.has(String(o.decision ?? "")))
       .map((o: { codes: string }) => o.codes),
   );
-  const operatorRequired = new Set(
-    outcomes
-      .filter((o: { decision: string | null }) => String(o.decision ?? "") === OUTCOME.operatorRequired)
-      .map((o: { codes: string }) => o.codes),
+  const operatorRequiredRows = outcomes.filter(
+    (o: { decision: string | null }) => String(o.decision ?? "") === OUTCOME.operatorRequired,
   );
+  const operatorRequired = new Set(operatorRequiredRows.map((o: { codes: string }) => o.codes));
+  const handoffByAttempt = new Map<string, { candidates: unknown[]; detail: string | null }>();
+  for (const row of operatorRequiredRows) {
+    if (handoffByAttempt.has(row.codes)) continue; // newest first
+    try {
+      const ctx = JSON.parse(row.contextJson ?? "{}") as {
+        error?: string | null;
+        platformResults?: { candidates?: unknown[]; detail?: string | null } | null;
+      };
+      handoffByAttempt.set(row.codes, {
+        candidates: Array.isArray(ctx.platformResults?.candidates) ? ctx.platformResults!.candidates! : [],
+        detail: ctx.platformResults?.detail ?? ctx.error ?? null,
+      });
+    } catch {
+      handoffByAttempt.set(row.codes, { candidates: [], detail: null });
+    }
+  }
 
   const open: UnreconciledAttempt[] = [];
   for (const a of attempts) {
@@ -291,6 +320,8 @@ export async function findUnreconciledAttempts(olderThanMinutes = 15): Promise<U
       platforms: Array.isArray(ctx.platforms) ? ctx.platforms : [],
       expectedCaption: typeof ctx.caption === "string" ? ctx.caption : null,
       operatorRequired: operatorRequired.has(a.id),
+      handoffCandidates: handoffByAttempt.get(a.id)?.candidates ?? [],
+      handoffDetail: handoffByAttempt.get(a.id)?.detail ?? null,
       ageMinutes: Math.round((Date.now() - occurredAt.getTime()) / 60_000),
     });
   }
