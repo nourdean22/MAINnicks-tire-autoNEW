@@ -3109,17 +3109,31 @@ export const contentAdminRouter = router({
       const [attempt] = await d.select().from(autonomyAuditEvents).where(eq(autonomyAuditEvents.id, input.attemptId)).limit(1);
       if (!attempt) throw new TRPCError({ code: "NOT_FOUND", message: "That publish attempt is not in the ledger." });
 
-      let ctx: { jobId?: number | null } = {};
+      let ctx: { jobId?: number | null; caption?: string | null } = {};
       try { ctx = JSON.parse(attempt.contextJson ?? "{}"); } catch { /* timing-only match */ }
       const jobId = input.jobId ?? ctx.jobId ?? null;
 
-      // The caption is the strongest signal, so recover it from the job when we can.
-      let expectedCaption: string | null = null;
-      if (jobId) {
+      // The attempt row is authoritative: it stores what was actually dispatched,
+      // including scheduled posts that have no reelJobs row.
+      let expectedCaption: string | null = typeof ctx.caption === "string" ? ctx.caption : null;
+      if (!expectedCaption && jobId) {
         const [job] = await d.select().from(reelJobs).where(eq(reelJobs.id, Number(jobId))).limit(1);
         if (job?.payload) {
           try { expectedCaption = (JSON.parse(job.payload) as { selectedCaption?: string }).selectedCaption ?? null; } catch { /* fall back to timing */ }
         }
+      }
+
+      const { findUnreconciledAttempts } = await import("../services/publishAttemptLedger");
+      const open = await findUnreconciledAttempts(0);
+      const durable = open.find((a) => a.attemptId === input.attemptId);
+      if (durable?.operatorRequired) {
+        return {
+          status: "needs_operator" as const,
+          candidates: durable.handoffCandidates,
+          detail: durable.handoffDetail ?? "Automation exhausted safe evidence; use the preserved handoff evidence.",
+          jobId,
+          attemptId: input.attemptId,
+        };
       }
 
       const { reconcileAttempt } = await import("../services/publishReconciler");

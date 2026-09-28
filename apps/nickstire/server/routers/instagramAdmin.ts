@@ -1994,6 +1994,7 @@ Keep it under 200 characters.`;
         inventoryId: input.inventoryId ?? null,
         platforms: input.platforms ?? [],
         mediaUrl: publishVideoUrl ?? null,
+        caption: publishCaption,
       });
       if (!attemptId) {
         await setInventoryStatus(observedStatus ?? "ready");
