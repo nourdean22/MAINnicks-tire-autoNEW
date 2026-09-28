@@ -9,8 +9,9 @@
  * - one post is never a rule: a pattern needs >= MIN_POSTS_PER_PATTERN
  * - the learned policy does not turn on until at least two patterns are proven
  *   and the measured sample is large enough
- * - 1 in 4 selections remains exploration, deterministically, so new/under-
- *   sampled structures can still earn enough observations to challenge winners
+ * - 1 in 4 selections remains exploration, deterministically, even after every
+ *   structure is proven; under-sampled challengers get first claim on that slot
+ *   so the policy can learn both new entrants and later regime changes
  * - missing metrics stay UNKNOWN via scorePost(); they are never zero-filled
  *
  * This is observational ranking, not causality. It biases generation toward
@@ -91,7 +92,10 @@ export function selectLearnedPattern(
     .filter((x): x is { pattern: RotatablePattern; score: ScoredPattern } =>
       Boolean(x.score && x.score.posts >= MIN_POSTS_PER_PATTERN));
 
-  const totalMeasured = outcomes.reduce((sum, o) => sum + o.posts, 0);
+  const poolIds = new Set(pool.map((p) => p.id));
+  const totalMeasured = outcomes
+    .filter((o) => poolIds.has(o.patternId))
+    .reduce((sum, o) => sum + o.posts, 0);
   if (proven.length < 2 || totalMeasured < MIN_TOTAL_MEASURED_PATTERN_POSTS) {
     return { pattern: selectRotationPattern(patterns, opts), mode: "rotation", evidence: outcomes };
   }
@@ -99,9 +103,14 @@ export function selectLearnedPattern(
   const totalUses = pool.reduce((sum, p) => sum + Math.max(0, p.timesUsed), 0);
   const underSampled = pool.filter((p) => (scoreById.get(p.id)?.posts ?? 0) < MIN_POSTS_PER_PATTERN);
 
-  if (underSampled.length > 0 && totalUses % EXPLORATION_EVERY_N_SELECTIONS === 0) {
+  if (totalUses % EXPLORATION_EVERY_N_SELECTIONS === 0) {
+    // Exploration never disappears. New / weakly sampled structures get the
+    // exploration slot first; once every structure is proven, fair rotation
+    // still revisits alternatives so a historical winner cannot lock the policy
+    // forever after the audience or distribution regime changes.
+    const explorationPool = underSampled.length > 0 ? underSampled : pool;
     return {
-      pattern: selectRotationPattern(underSampled, opts),
+      pattern: selectRotationPattern(explorationPool, opts),
       mode: "learned_explore",
       evidence: outcomes,
     };
