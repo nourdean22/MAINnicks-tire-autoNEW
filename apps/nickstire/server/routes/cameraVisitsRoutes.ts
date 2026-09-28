@@ -54,6 +54,39 @@ function safeCompare(a: string, b: string): boolean {
   }
 }
 
+/**
+ * Optional production-authority fence for the fixed `sign` camera.
+ *
+ * A camera heartbeat row is keyed only by camera name, and a new producer instance is
+ * intentionally accepted even when its sequence restarts. That is correct for a restart
+ * on ONE host, but during a host migration two live producers would otherwise alternate
+ * ownership forever. Visits would also be accepted from both.
+ *
+ * When CAMERA_SIGN_REQUIRED_CALIBRATION_VERSION is set, only the sign producer carrying
+ * that exact calibration version may write visits or heartbeats. Other cameras are
+ * unaffected. Unset means today's behavior, so this can be armed only for the migration
+ * and later retained as a durable authority fence.
+ */
+export function cameraAuthorityCalibrationAllowed(
+  camera: string,
+  calibrationVersion: string | null | undefined,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  if (camera !== "sign") return true;
+  const required = String(env.CAMERA_SIGN_REQUIRED_CALIBRATION_VERSION ?? "").trim();
+  if (!required) return true;
+  return calibrationVersion === required;
+}
+
+function requiredCalibrationVersion(
+  camera: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string | null {
+  if (camera !== "sign") return null;
+  const required = String(env.CAMERA_SIGN_REQUIRED_CALIBRATION_VERSION ?? "").trim();
+  return required || null;
+}
+
 const PLATE_STATUS = ["NONE", "UNREADABLE", "CANDIDATE", "CONFIRMED", "AMBIGUOUS"] as const;
 const DATA_CLASSES = ["PRODUCTION", "COMMISSIONING", "REPLAY"] as const;
 const HEARTBEAT_MODES = ["PRODUCTION", "SHADOW", "COMMISSIONING"] as const;
@@ -232,6 +265,17 @@ export function registerCameraVisitsRoute(app: Express): void {
     const parsed = bodySchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: "invalid body", issues: parsed.error.issues.slice(0, 8) });
+    }
+
+    const fencedVisit = parsed.data.visits.find(
+      (v) => !cameraAuthorityCalibrationAllowed(v.camera, v.calibrationVersion),
+    );
+    if (fencedVisit) {
+      return res.status(409).json({
+        error: "camera authority calibration mismatch",
+        camera: fencedVisit.camera,
+        requiredCalibrationVersion: requiredCalibrationVersion(fencedVisit.camera),
+      });
     }
 
     const { getDbTyped } = await import("../db");
@@ -518,6 +562,14 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       return res.status(400).json({ error: "invalid body", issues: parsed.error.issues.slice(0, 8) });
     }
     const b = parsed.data;
+
+    if (!cameraAuthorityCalibrationAllowed(b.camera, b.calibrationVersion)) {
+      return res.status(409).json({
+        error: "camera authority calibration mismatch",
+        camera: b.camera,
+        requiredCalibrationVersion: requiredCalibrationVersion(b.camera),
+      });
+    }
 
     const { getDbTyped } = await import("../db");
     const d = await getDbTyped();
