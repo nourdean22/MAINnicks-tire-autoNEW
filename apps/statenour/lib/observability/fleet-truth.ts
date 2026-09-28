@@ -19,6 +19,7 @@ import { prisma } from "@/lib/prisma";
 // addition until merge. Types-only keeps runtime untouched either way.
 import type { CapabilityArtifact, ArtifactState } from "../../../../packages/utils/src/contracts";
 import { logger as rootLogger } from "@/lib/logger";
+import { getWorkerFreshness } from "@/lib/observability/worker-freshness";
 
 const log = rootLogger.withSurface("observability/fleet-truth");
 const HOUR_MS = 3_600_000;
@@ -77,12 +78,8 @@ export const STATENOUR_ARTIFACT_PROBES: ArtifactProbe[] = [
     capability: "brain-bus-drain",
     maxAgeH: 1,
     probe: async () => {
-      const r = await prisma.cronJobLog.findFirst({
-        where: { jobName: "brain-bus-drain", status: "success" },
-        orderBy: { createdAt: "desc" },
-        select: { createdAt: true },
-      });
-      return r?.createdAt ?? null;
+      const worker = await getWorkerFreshness();
+      return worker.lastSuccessAt;
     },
   },
 ];
