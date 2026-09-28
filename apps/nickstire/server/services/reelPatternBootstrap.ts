@@ -16,9 +16,11 @@ export interface HousePatternBootstrapResult {
  * Seed a completely empty Pattern Lab with original Nick's HOUSE HYPOTHESES.
  *
  * Safety / truth properties:
- * - NEVER runs when any pattern already exists. Operator capture wins.
- * - Stable IDs + a no-op duplicate-key update make concurrent first calls safe.
- * - Existing rows are never overwritten.
+ * - An observed non-empty lab is left untouched; normal operator capture wins.
+ * - Stable IDs + a no-op duplicate-key update make concurrent bootstrap calls safe.
+ * - Existing rows are never overwritten. If an operator inserts a DIFFERENT id
+ *   in the tiny interval after our empty read, the rows may coexist; the
+ *   bootstrap still cannot mutate or erase the operator row.
  * - Seeds say "house hypothesis · unmeasured" in their sourceLabel; they are
  *   candidates for the outcome learner, never represented as observed winners.
  */
