@@ -98,6 +98,36 @@ def test_preexisting_car_never_becomes_an_arrival():
 
 
 # --------------------------------------------------------------------- GATE 2
+def test_an_IMPOSSIBLE_iou_walk_cannot_mint_an_arrival():
+    """IoU continuity is not vehicle identity.
+
+    A track can remain IoU-matchable while the detector hands it from a moving vehicle to
+    a neighbouring parked one. Before the continuity guard, 20px every 250ms (80px/s)
+    preserved the entire outside->inside path and minted ENTERED_ZONE even though this
+    repo's measured same-camera physical ceiling is 45px/s.
+
+    Keep the track for occupancy, but reset its arrival-authoritative path whenever an
+    association violates that physical ceiling.
+    """
+    xs = [80.0, 100.0, 120.0, 140.0, 160.0, 180.0, 200.0, 220.0, 240.0]
+    boxes = [[]] + [[car_box(x)] for x in xs]
+    dets = [[]] + [[Detection(car_box(x), 0.9, "vehicle", "stub")] for x in xs]
+
+    pipe = make_pipeline(startup_grace=0.0)
+    for f, d in zip(frames(len(boxes), boxes, fps=4.0), dets):
+        pipe.step(f, detections=d)
+
+    summary = pipe.summary()
+    assert summary["arrivals"] == 0, (
+        "an 80px/s IoU association retained portal history and fabricated an arrival: "
+        f"{summary}"
+    )
+    track = next(iter(pipe.tracks.tracks.values()))
+    assert track.degraded is True, "the impossible association was not recorded as degraded"
+    assert len(track.path) < len(xs), "the impossible association never reset path evidence"
+
+
+# --------------------------------------------------------------------- matched positive control
 def test_real_arrival_crosses_the_portal_and_confirms():
     """A car that genuinely enters from outside must produce a real visit."""
     n_empty, n_move, n_park = 10, 7, 70

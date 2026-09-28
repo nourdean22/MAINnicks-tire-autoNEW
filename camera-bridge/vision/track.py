@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
 from .frame import Box, Detection, iou
+from .stitch import DEFAULT_MAX_SPEED_PX_S
 
 
 @dataclass
@@ -93,6 +94,7 @@ class TrackGraph:
         low_match_iou: float = 0.15,
         max_misses: int = 12,
         move_epsilon: float = 14.0,
+        path_max_speed_px_s: float = DEFAULT_MAX_SPEED_PX_S,
         parked_after: float = 25.0,
         parked_max_misses: int = 150,
     ) -> None:
@@ -101,6 +103,14 @@ class TrackGraph:
         self.low_match_iou = low_match_iou
         self.max_misses = max_misses
         self.move_epsilon = move_epsilon
+        #: Arrival evidence is a PATH claim, not merely an association claim. The matcher
+        #: is IoU-only, so two overlapping cars can hand one track id from the moving car
+        #: to a parked neighbour without ever "losing" the track. Measured same-camera lot
+        #: traffic is below the stitcher's 45 px/s continuity ceiling. If an IoU match
+        #: exceeds that physical ceiling, keep the track for occupancy but discard its
+        #: pre-jump path so samples from two vehicles can never be stitched into a portal
+        #: crossing. Conservative under-counting is cheaper than a fabricated customer.
+        self.path_max_speed_px_s = float(path_max_speed_px_s)
         #: A track that has held still this long is treated as PARKED, and parked cars
         #: do not leave without moving first.
         self.parked_after = parked_after
@@ -156,6 +166,7 @@ class TrackGraph:
 
         for t, d in matched + matched2:
             prev = t.ground_point
+            prev_seen = t.last_seen
             t.box = d.box
             t.score = d.score
             t.source = d.source
@@ -167,13 +178,32 @@ class TrackGraph:
             # input to EntryPortal -- accrued points from whatever ran instead.
             t.confirmable = confirmable
             new_pt = t.ground_point
-            if ((new_pt[0] - prev[0]) ** 2 + (new_pt[1] - prev[1]) ** 2) ** 0.5 > self.move_epsilon:
+            step_px = ((new_pt[0] - prev[0]) ** 2 + (new_pt[1] - prev[1]) ** 2) ** 0.5
+            if step_px > self.move_epsilon:
                 t.still_since = now
                 # The debt is cleared with the timestamp it was charged against. Leaving
                 # it would keep subtracting an old blind interval from a stillness that
                 # started after it, so a car that parked following a long pan could never
                 # accumulate enough observed stillness to be treated as parked.
                 t.blind_seconds = 0.0
+
+            # IoU continuity is not physical identity. Two nearby cars can overlap enough
+            # for the greedy matcher to hand a track from one to the other. If that handoff
+            # carries an outside sample from car A and an inside sample from parked car B,
+            # EntryPortal sees a perfect arrival that nobody made. The stitcher already
+            # carries the measured same-camera speed ceiling; apply the same physical law
+            # to each live association. A discontinuity does NOT kill occupancy or invent a
+            # new track -- it only invalidates the path evidence that would carry arrival
+            # authority across the jump.
+            dt = max(0.0, float(now) - float(prev_seen))
+            path_discontinuous = (
+                dt > 0.0
+                and self.path_max_speed_px_s > 0.0
+                and step_px / dt > self.path_max_speed_px_s
+            )
+            if path_discontinuous:
+                t.path.clear()
+                t.degraded = True
             t.path.append(new_pt)
 
         died: list[Track] = []
