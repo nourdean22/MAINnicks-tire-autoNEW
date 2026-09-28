@@ -869,12 +869,43 @@ export const contentAdminRouter = router({
    *  genome arrives inline (not by id) so this works before drizzle/0085 is
    *  applied and directly from a just-run tournament result. */
   draftReelFromGenome: adminProcedure
-    .input(z.object({ genome: z.unknown() }))
-    .mutation(async ({ input }) => {
+    .input(z.object({ genome: z.unknown(), contentRunId: z.string().max(64).optional() }))
+    .mutation(async ({ input, ctx }) => {
       const { creativeGenomeSchema } = await import("../../client/src/lib/creativeGenome");
       const genome = creativeGenomeSchema.parse(input.genome);
-      const { draftReelFromGenome } = await import("../services/reelDirector");
-      return draftReelFromGenome(genome);
+      const { createContentRun, advanceContentRun, RUN_STAGE } = await import("../services/contentRun");
+      const contentRunId = input.contentRunId ?? await createContentRun({
+        requestedBy: ctx.user?.email ?? null,
+        requestSource: "operator",
+        requestedTopic: genome.audienceMoment,
+        requestedFormat: "reel",
+      });
+      if (!contentRunId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not create the canonical content run." });
+      await advanceContentRun(contentRunId, {
+        stage: RUN_STAGE.generating,
+        chosenFormat: "reel",
+        formatReason: "Genome Reel Director",
+        objective: genome.objective,
+        thesis: genome.mechanicTruth,
+        evidence: { at: new Date().toISOString(), what: "Reel Director started from campaign genome" },
+      });
+      try {
+        const { draftReelFromGenome } = await import("../services/reelDirector");
+        const result = await draftReelFromGenome(genome);
+        (result.brief as unknown as { contentRunId?: string }).contentRunId = contentRunId;
+        await advanceContentRun(contentRunId, {
+          stage: RUN_STAGE.generating,
+          evidence: { at: new Date().toISOString(), what: "Reel Director produced a scored brief" },
+        });
+        return { ...result, contentRunId };
+      } catch (err) {
+        await advanceContentRun(contentRunId, {
+          stage: RUN_STAGE.failed,
+          failureReason: err instanceof Error ? err.message.slice(0, 1000) : String(err).slice(0, 1000),
+          evidence: { at: new Date().toISOString(), what: "Reel Director failed" },
+        });
+        throw err;
+      }
     }),
 
   /** Genome Wave 2: Carousel Director — one campaign genome -> a full
@@ -882,12 +913,43 @@ export const contentAdminRouter = router({
    *  the client chains the result into saveCarouselDraft (Draft Board), where
    *  the existing render + publish paths take over. */
   draftCarouselFromGenome: adminProcedure
-    .input(z.object({ genome: z.unknown() }))
-    .mutation(async ({ input }) => {
+    .input(z.object({ genome: z.unknown(), contentRunId: z.string().max(64).optional() }))
+    .mutation(async ({ input, ctx }) => {
       const { creativeGenomeSchema } = await import("../../client/src/lib/creativeGenome");
       const genome = creativeGenomeSchema.parse(input.genome);
-      const { draftCarouselFromGenome } = await import("../services/carouselDirector");
-      return draftCarouselFromGenome(genome);
+      const { createContentRun, advanceContentRun, RUN_STAGE } = await import("../services/contentRun");
+      const contentRunId = input.contentRunId ?? await createContentRun({
+        requestedBy: ctx.user?.email ?? null,
+        requestSource: "operator",
+        requestedTopic: genome.audienceMoment,
+        requestedFormat: "carousel",
+      });
+      if (!contentRunId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not create the canonical content run." });
+      await advanceContentRun(contentRunId, {
+        stage: RUN_STAGE.generating,
+        chosenFormat: "carousel",
+        formatReason: "Genome Carousel Director",
+        objective: genome.objective,
+        thesis: genome.mechanicTruth,
+        evidence: { at: new Date().toISOString(), what: "Carousel Director started from campaign genome" },
+      });
+      try {
+        const { draftCarouselFromGenome } = await import("../services/carouselDirector");
+        const result = await draftCarouselFromGenome(genome);
+        (result.brief as unknown as { contentRunId?: string }).contentRunId = contentRunId;
+        await advanceContentRun(contentRunId, {
+          stage: RUN_STAGE.generating,
+          evidence: { at: new Date().toISOString(), what: "Carousel Director produced a scored brief" },
+        });
+        return { ...result, contentRunId };
+      } catch (err) {
+        await advanceContentRun(contentRunId, {
+          stage: RUN_STAGE.failed,
+          failureReason: err instanceof Error ? err.message.slice(0, 1000) : String(err).slice(0, 1000),
+          evidence: { at: new Date().toISOString(), what: "Carousel Director failed" },
+        });
+        throw err;
+      }
     }),
 
   /** Genome Wave 1: generate ONE claim-safe campaign genome + the seeds that
@@ -898,21 +960,55 @@ export const contentAdminRouter = router({
       objective: z.string().max(32).optional(),
       proofHandles: z.array(z.string().max(200)).max(8).optional(),
     }))
-    .mutation(async ({ input }) => {
-      const { generateCampaignGenome } = await import("../services/genomeGen");
-      const { genomeToReelSeed, genomeToCarouselSeed, genomeToPhotoSeed } = await import("../../client/src/lib/creativeGenome");
-      const { genome, attempts } = await generateCampaignGenome(input);
-      const { saveGenome } = await import("../services/creativeMemory");
-      await saveGenome({ genome, campaignAsk: input.campaignAsk, source: "direct" });
-      return {
-        genome,
-        attempts,
-        seeds: {
-          reel: genomeToReelSeed(genome),
-          carousel: genomeToCarouselSeed(genome),
-          photo: genomeToPhotoSeed(genome),
-        },
-      };
+    .mutation(async ({ input, ctx }) => {
+      const { createContentRun, advanceContentRun, RUN_STAGE } = await import("../services/contentRun");
+      const contentRunId = await createContentRun({
+        requestedBy: ctx.user?.email ?? null,
+        requestSource: "operator",
+        requestedTopic: input.campaignAsk,
+        requestedFormat: null,
+      });
+      if (!contentRunId) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Could not create the canonical content run." });
+      await advanceContentRun(contentRunId, {
+        stage: RUN_STAGE.planning,
+        objective: input.objective ?? null,
+        evidence: { at: new Date().toISOString(), what: "direct campaign genome generation started" },
+      });
+      try {
+        const { generateCampaignGenome } = await import("../services/genomeGen");
+        const { genomeToReelSeed, genomeToCarouselSeed, genomeToPhotoSeed } = await import("../../client/src/lib/creativeGenome");
+        const { genome, attempts } = await generateCampaignGenome(input);
+        const { saveGenome } = await import("../services/creativeMemory");
+        const saved = await saveGenome({ genome, campaignAsk: input.campaignAsk, source: "direct" });
+        await advanceContentRun(contentRunId, {
+          stage: RUN_STAGE.planning,
+          objective: genome.objective,
+          thesis: genome.mechanicTruth,
+          evidence: {
+            at: new Date().toISOString(),
+            what: saved?.id ? `campaign genome persisted as ${saved.id}` : "campaign genome generated; persistence unavailable",
+            proof: saved?.id ?? null,
+          },
+        });
+        return {
+          genome,
+          genomeId: saved?.id ?? null,
+          contentRunId,
+          attempts,
+          seeds: {
+            reel: genomeToReelSeed(genome),
+            carousel: genomeToCarouselSeed(genome),
+            photo: genomeToPhotoSeed(genome),
+          },
+        };
+      } catch (err) {
+        await advanceContentRun(contentRunId, {
+          stage: RUN_STAGE.failed,
+          failureReason: err instanceof Error ? err.message.slice(0, 1000) : String(err).slice(0, 1000),
+          evidence: { at: new Date().toISOString(), what: "direct campaign genome generation failed" },
+        });
+        throw err;
+      }
     }),
 
   saveCarouselDraft: adminProcedure
