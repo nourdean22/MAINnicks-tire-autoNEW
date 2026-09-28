@@ -704,18 +704,20 @@ class WgcWindowSource(CaptureSource):
 
 
 class RtspSource(CaptureSource):
-    """Native RTSP via OpenCV/FFmpeg with a continuously-drained latest-frame buffer.
+    """Native RTSP with latest-frame buffering and in-process reconnect.
 
-    RTSP is a live transport, not a file. The detector can take longer than the source
-    frame interval, so reading RTSP synchronously inside the inference loop creates
-    backpressure: the server buffers packets until it eventually drops the slow reader.
-    A tiny background reader keeps the socket drained and replaces the pending frame;
-    inference always consumes the newest frame and naturally drops stale ones.
+    The background reader continuously drains the live stream, while inference consumes
+    only the newest frame. If the OpenCV RTSP handle dies, the reader reopens the same URL.
+    Each successful reopen bumps restores, which is already part of the edge capture
+    generation and therefore breaks tracks safely across a transport discontinuity.
     """
+
+    self_managed_reconnect = True
 
     def __init__(self, url: str, name: str = "rtsp") -> None:
         self.name = name
         self.url = url
+        self.restores = 0
         self._cap = None
         self._seq = 0
         self._latest: Optional[Frame] = None
@@ -723,11 +725,11 @@ class RtspSource(CaptureSource):
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._reader: Optional[threading.Thread] = None
+        self._read_failures_before_reconnect = 10
+        self._reconnect_delay = 0.25
 
-    def open(self) -> None:
+    def _open_capture(self):
         import cv2
-        if self._reader is not None and self._reader.is_alive():
-            return
         os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
         cap = cv2.VideoCapture(self.url)
         if not cap.isOpened():
@@ -737,19 +739,19 @@ class RtspSource(CaptureSource):
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         except Exception:
             pass
+        return cap
+
+    def open(self) -> None:
+        if self._reader is not None and self._reader.is_alive():
+            return
+        cap = self._open_capture()
+        ok, img = cap.read()
+        if not ok or img is None:
+            cap.release()
+            raise ConnectionError(f"RTSP opened but produced no frame: {self.url}")
         self._cap = cap
         self._stop.clear()
-
-        # Prime one frame synchronously. This preserves the old startup contract:
-        # a source is not considered open until it has actually produced pixels, and
-        # CaptureMux cannot prematurely fail over while the reader thread is warming up.
-        ok, img = cap.read()
-        if not ok:
-            cap.release()
-            self._cap = None
-            raise ConnectionError(f"RTSP opened but produced no frame: {self.url}")
         self._store(img)
-
         self._reader = threading.Thread(
             target=self._reader_loop,
             name=f"rtsp-reader:{self.name}",
@@ -759,7 +761,7 @@ class RtspSource(CaptureSource):
 
     def _store(self, img: np.ndarray) -> None:
         with self._lock:
-            frame = Frame(
+            self._latest = Frame(
                 seq=self._seq,
                 ts=time.time(),
                 source=self.name,
@@ -767,25 +769,77 @@ class RtspSource(CaptureSource):
                 meta={"window_verified": True},
             )
             self._seq += 1
-            self._latest = frame
+
+    def _drop_capture(self) -> None:
+        cap = self._cap
+        self._cap = None
+        if cap is not None:
+            try:
+                cap.release()
+            except Exception:
+                pass
+
+    def _reconnect(self) -> bool:
+        self._drop_capture()
+        with self._lock:
+            self._latest = None
+
+        while not self._stop.is_set():
+            cap = None
+            try:
+                cap = self._open_capture()
+                ok, img = cap.read()
+            except Exception:
+                ok, img = False, None
+
+            if ok and img is not None and not self._stop.is_set():
+                self._cap = cap
+                self.restores += 1
+                self._store(img)
+                return True
+
+            if cap is not None:
+                try:
+                    cap.release()
+                except Exception:
+                    pass
+            if self._stop.wait(self._reconnect_delay):
+                return False
+        return False
 
     def _reader_loop(self) -> None:
+        consecutive_failures = 0
         while not self._stop.is_set():
             cap = self._cap
             if cap is None:
-                return
+                if not self._reconnect():
+                    return
+                consecutive_failures = 0
+                continue
             try:
                 ok, img = cap.read()
             except Exception:
                 ok, img = False, None
+
             if not ok or img is None:
-                if self._stop.wait(0.02):
+                consecutive_failures += 1
+                if consecutive_failures >= self._read_failures_before_reconnect:
+                    if not self._reconnect():
+                        return
+                    consecutive_failures = 0
+                elif self._stop.wait(0.02):
                     return
                 continue
+
+            consecutive_failures = 0
             self._store(img)
 
     def read(self) -> Optional[Frame]:
-        if self._cap is None:
+        reader = self._reader
+        # A normal unopened source has neither a capture nor a reader. Tests and a few
+        # lab callers inject an already-open capture directly; do not discard it merely
+        # because no background thread was created by open().
+        if self._cap is None and (reader is None or not reader.is_alive()):
             self.open()
         with self._lock:
             frame = self._latest
@@ -796,16 +850,10 @@ class RtspSource(CaptureSource):
 
     def close(self) -> None:
         self._stop.set()
-        cap = self._cap
-        self._cap = None
-        if cap is not None:
-            try:
-                cap.release()
-            except Exception:
-                pass
+        self._drop_capture()
         reader = self._reader
         self._reader = None
-        if reader is not None and reader.is_alive():
+        if reader is not None and reader.is_alive() and reader is not threading.current_thread():
             reader.join(timeout=1.0)
         with self._lock:
             self._latest = None
@@ -839,6 +887,12 @@ class CaptureMux(CaptureSource):
                 self.fails = 0
                 return f
             self.fails += 1
+            # A single RTSP lane owns its reconnect lifecycle. A poll with no new frame
+            # must not permanently advance past the only source.
+            if (len(self.sources) == 1
+                    and getattr(src, "self_managed_reconnect", False)):
+                self.fails = min(self.fails, self.max_consecutive_fail)
+                return None
             if self.fails >= self.max_consecutive_fail:
                 self.index += 1
                 self.fails = 0
