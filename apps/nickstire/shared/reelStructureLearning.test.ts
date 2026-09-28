@@ -79,6 +79,27 @@ describe("selectLearnedPattern", () => {
     expect(decision.pattern?.id).toBe("new");
   });
 
+  it("keeps an exploration floor even after every active pattern is proven", () => {
+    const evidence = rankPatternsByDistribution([
+      ...rows("a", 6, 0.08),
+      ...rows("b", 6, 0.01),
+    ]);
+    const decision = selectLearnedPattern([p("a", 8), p("b", 4)], evidence);
+    expect(decision.mode).toBe("learned_explore");
+    expect(decision.pattern?.id).toBe("b");
+  });
+
+  it("does not let retired-pattern history satisfy the active-pool sample threshold", () => {
+    const evidence = rankPatternsByDistribution([
+      ...rows("a", 3, 0.08),
+      ...rows("b", 3, 0.01),
+      ...rows("retired", 20, 0.2),
+    ]);
+    const decision = selectLearnedPattern([p("a", 4), p("b", 1)], evidence);
+    expect(decision.mode).toBe("rotation");
+    expect(decision.pattern?.id).toBe("b");
+  });
+
   it("never violates a hook-type exclusion just because the top scorer won", () => {
     const evidence = rankPatternsByDistribution([
       ...rows("a", 6, 0.08),
