@@ -138,7 +138,7 @@ export async function pickStructureHint(
       // Seed only that empty state with original, explicitly UNMEASURED house
       // hypotheses so the rotation/outcome loop can begin collecting evidence.
       const { ensureHouseReelPatterns } = await import("./reelPatternBootstrap");
-      const bootstrap = await ensureHouseReelPatterns();
+      const bootstrap = await ensureHouseReelPatterns(database);
       if (bootstrap.seeded) {
         log.info("empty Pattern Lab bootstrapped before structure selection", {
           inserted: bootstrap.inserted,
