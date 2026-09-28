@@ -1636,6 +1636,8 @@ def build_edge(cfg: Config, args: argparse.Namespace):
                           calibrated=bool(args.calibration and os.path.exists(args.calibration)),
                           declared_fixed=declared_fixed_lens(args.calibration),
                           scene_atlas=args.scene_atlas, scene=args.scene,
+                          source_url=(os.environ.get(args.source_url_env)
+                                      if args.source_url_env else None),
                           canonical_size=(canonical_size_from(args.calibration)
                                           if args.scene_atlas else None))
 
@@ -1771,7 +1773,11 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--config", default="config.yaml", help="visitd config (cameras, backend, policy)")
     ap.add_argument("--camera", default="sign", help="which configured camera this producer IS")
     ap.add_argument("--ledger", default=None, help="override the SQLite ledger path (':memory:' for a throwaway)")
-    ap.add_argument("--source", default="wgc", help="capture lane: wgc | window")
+    ap.add_argument("--source", choices=["wgc", "window", "mss", "rtsp"], default="wgc",
+                    help="capture lane: wgc | window/mss | rtsp")
+    ap.add_argument("--source-url-env", default="CAMERA_SOURCE_URL",
+                    help="env var holding the RTSP/source URL. Keep credential-bearing URLs "
+                         "out of the scheduled-task command line.")
     ap.add_argument("--hwnd", type=int, default=None, help="explicit window handle (else resolved by title)")
     ap.add_argument("--window-title", default="V380", help="capture window title")
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window, not the measured pane")
