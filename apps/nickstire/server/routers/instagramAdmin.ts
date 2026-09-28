@@ -327,6 +327,67 @@ export const instagramAdminRouter = router({
     }),
 
   /**
+   * Editorial control plane for the approved Reel library. The recommended
+   * ordering is deliberately a transparent heuristic, never a virality score.
+   * Saving a slate resets only the slate's independent cursor atomically;
+   * the canonical approved-library cursor is preserved. Production's daily
+   * selector reads the same durable overlay.
+   */
+  getActiveSlate: adminProcedure.query(async () => {
+    const database = await db();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — active slate is unknown, not empty." });
+    const { buildActiveSlateStrategy } = await import("../services/instagramAdminStrategy");
+    return buildActiveSlateStrategy(database);
+  }),
+
+  saveActiveSlate: adminProcedure
+    .input(z.object({ slugs: z.array(z.string().min(1).max(191)).min(1).max(24) }))
+    .mutation(async ({ input, ctx }) => {
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — active slate was not changed." });
+      const { writeActiveReelSlate } = await import("../services/approvedReelPackRotation");
+      try {
+        return await writeActiveReelSlate(database, input.slugs, ctx.user.email ?? String(ctx.user.id));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.startsWith("active Reel slate ")) {
+          throw new TRPCError({ code: "BAD_REQUEST", message });
+        }
+        log.error("active Reel slate write failed", { error: message });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Active Reel slate could not be saved; no success is claimed." });
+      }
+    }),
+
+  clearActiveSlate: adminProcedure.mutation(async ({ ctx }) => {
+    const database = await db();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — active slate was not changed." });
+    const { clearActiveReelSlate } = await import("../services/approvedReelPackRotation");
+    return clearActiveReelSlate(database, ctx.user.email ?? String(ctx.user.id));
+  }),
+
+  /** Correlations promoted only to testable priors — never causal rules. */
+  getStructureHypotheses: adminProcedure.query(async () => {
+    const { buildStructureHypotheses } = await import("../services/instagramAdminStrategy");
+    return buildStructureHypotheses();
+  }),
+
+  /** Shadow-judge verdicts joined to downstream Reel outcomes and coverage. */
+  getReelJudgeCalibration: adminProcedure.query(async () => {
+    const database = await db();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — judge calibration is unknown." });
+    const { buildReelJudgeCalibration } = await import("../services/instagramAdminStrategy");
+    return buildReelJudgeCalibration(database);
+  }),
+
+  /** Measured pin candidates + a visual cover shelf; profile mutations stay manual. */
+  getProfileMerchandising: adminProcedure.query(async () => {
+    const database = await db();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — profile evidence is unknown." });
+    const { buildProfileMerchandising } = await import("../services/instagramAdminStrategy");
+    return buildProfileMerchandising(database);
+  }),
+
+  /**
    * Multilingual variant worklist (ScanFinish NT-015). NOT an automation —
    * verified before building: Meta's Reels AI translation is a Creator
    * Studio publish-time toggle with no Graph Content-Publishing API field,

@@ -408,6 +408,14 @@ async function loadAssetDigest(videoUrl: string): Promise<string | null> {
 
 /** One row of the autonomous publish queue, as an operator needs to see it. */
 export interface ReelPublishQueueEntry extends ReelPublishSubject {
+  /** Approved-pack provenance + diagnostic structure fatigue, never a gate. */
+  approvedPackSlug: string | null;
+  productionGrammarNovelty: {
+    similarity: number | null;
+    isProductionTwin: boolean;
+    collisions: string[];
+    nearestSignature: string | null;
+  } | null;
   /** Null when this job may publish; otherwise exactly why the cron holds it. */
   approvalProblem: ApprovalProblem | null;
   approvedBy: string | null;
@@ -442,6 +450,7 @@ export async function listReelPublishQueue(limit = 25): Promise<{
   const { reelJobs } = await import("../../drizzle/schema");
   const { eq, and, isNotNull, ne, desc } = await import("drizzle-orm");
   const { auditPublishBlock } = await import("@shared/reelClaimAudit");
+  const { parseReelJobPayload } = await import("@shared/reelJobPayload");
 
   const rows = await d
     .select()
@@ -466,12 +475,30 @@ export async function listReelPublishQueue(limit = 25): Promise<{
     const caption = row.caption ?? "";
     const videoUrl = row.mp4Url ?? "";
     const approval = await findLiveApproval(row.id);
+    const parsed = parseReelJobPayload(row.payload);
+    const noveltyRaw = parsed.productionGrammarNovelty;
+    const productionGrammarNovelty = noveltyRaw && typeof noveltyRaw === "object"
+      ? {
+          similarity: typeof (noveltyRaw as { similarity?: unknown }).similarity === "number"
+            ? (noveltyRaw as { similarity: number }).similarity
+            : null,
+          isProductionTwin: (noveltyRaw as { isProductionTwin?: unknown }).isProductionTwin === true,
+          collisions: Array.isArray((noveltyRaw as { collisions?: unknown }).collisions)
+            ? (noveltyRaw as { collisions: unknown[] }).collisions.filter((v): v is string => typeof v === "string").slice(0, 5)
+            : [],
+          nearestSignature: typeof (noveltyRaw as { nearestSignature?: unknown }).nearestSignature === "string"
+            ? (noveltyRaw as { nearestSignature: string }).nearestSignature
+            : null,
+        }
+      : null;
     entries.push({
       jobId: row.id,
       status: String(row.status),
       caption,
       captionSha: captionFingerprint(caption),
       videoUrl,
+      approvedPackSlug: parsed.approvedPackSlug ?? null,
+      productionGrammarNovelty,
       holdReason: row.error ?? null,
       approvalProblem: approvalProblem(
         { jobId: row.id, captionFingerprint: captionFingerprint(caption), videoUrl },
