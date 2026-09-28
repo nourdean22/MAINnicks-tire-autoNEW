@@ -2336,9 +2336,16 @@ Keep it under 200 characters.`;
           scoreObj = { gate: "block", overall: 0 };
         } else {
           try {
-            const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
-            const qRes = calculateReelQualityScore(parsedBrief, undefined, { recent: recentSignals });
-            scoreObj = { gate: qRes.passing ? "pass" : "block", overall: qRes.overall };
+            const { calculateReelQualityScore, isScorableReelBrief } = await import("../../client/src/lib/facelessReelStudio");
+            if (!isScorableReelBrief(parsedBrief)) {
+              // Historical rows predate the current ReelBrief shape. Treat
+              // those as unscorable/fail-closed instead of throwing on a
+              // missing array (observed in production 2026-09-28).
+              scoreObj = { gate: "block", overall: 0 };
+            } else {
+              const qRes = calculateReelQualityScore(parsedBrief, undefined, { recent: recentSignals });
+              scoreObj = { gate: qRes.passing ? "pass" : "block", overall: qRes.overall };
+            }
           } catch (e) {
             log.warn("failed to calculate reel score in getAllDrafts", e);
             scoreObj = { gate: "block", overall: 0 };

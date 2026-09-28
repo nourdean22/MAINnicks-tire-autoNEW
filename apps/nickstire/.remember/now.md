@@ -1,6 +1,22 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-28** (Instagram Admin + original-plan infrastructure receipts reconciled through #2726)
+**Updated: 2026-09-28** (Instagram Admin production closeout verified through live #2737 runtime; repo main #2739)
+
+## 2026-09-28 · Instagram Admin production closeout
+
+**Repository/runtime split is intentional.** GitHub `main` is `c385a6f48f37d2c81daf60c2f42dfbac1138c55e` (#2739). Nick production is exact `e68f4ed4f0bd61d84968a1d6b1aa3845727213e2` (#2737), Railway deployment `46e62cbf-7983-45a3-9387-3a74c183b6ad` SUCCESS. #2739 is camera-only and correctly SKIPPED the Nick service. Do not mistake newer repo main for a missing Nick deploy.
+
+**Pattern Lab.** Production seeded the empty lab with exactly four explicitly unmeasured house hypotheses at 13:49:47Z. The first live start-only canary selected `rp_house_forensic_macro`; a second independently selected `rp_house_myth_reality`. The first was correctly stopped before enqueue by `REPEAT_CTA`; the second hit the 120s LLM-generation timeout before enqueue. Bootstrap + rotation selection are LIVE VERIFIED. Persisted `structurePatternId -> reel_job -> IG media -> metrics` still needs the first successful post-bootstrap enqueue; do not infer it from the selector logs.
+
+**Trial Reel.** LIVE VERIFIED. The Admin publish path first refused an expired approval, then published eligible inventory `autopost-2026-09-29` as Trial media `18448893436192927` at 14:41:54Z. DB provenance: `postedAsTrial=true`, `graduationStrategy=MANUAL`, same post id; Reel job `1920015` also attached the media to the controlled-experiment loop. 24h Trial metrics remain manual-entry and automatic graduation remains intentionally absent.
+
+**Static autopost.** The #2727 caption-budget boundary survived a guarded live one-off: three generations all reached the independent judge (0.58 / 0.60 / 0.41), with none of the old exact-4096 truncation / empty-caption signature. The judge aborted the run for price-compliance, novelty and fabricated-stat defects, so no post was emitted. This is live recurrence evidence for caption generation, not a successful scheduled-slot publish receipt.
+
+**Authenticated Admin walkthrough.** Real signed-in production traffic exercised the Instagram Today/Create/Queue/Community/Learn/Strategy backing procedures: pipeline health, creation brief, Studio list/diagnostics/board, evidence options, real-shop media, active slate, live feed, analytics, performance report, structure hypotheses, profile merchandising and judge calibration. One real defect surfaced: historical incomplete Reel briefs could throw `undefined.map` while Queue computed a quality score. The router caught it and failed closed, but logs were noisy.
+
+**Closeout fix.** Branch `instagram-admin-prod-closeout-20260928` adds a runtime `ReelBrief` shape guard before Queue scoring, preserving fail-closed score 0 for legacy rows without throwing. NattyNour verification: 76/76 focused tests, `tsc --noEmit` exit 0, production build exit 0. Local execution stayed on NattyNour; NicksMax/camera/V380 was untouched.
+
+**Remaining evidence boundaries, not hidden backlog:** first successful post-bootstrap Reel enqueue carrying `structurePatternId`; natural scheduled static-slot success; Trial 24h metric entry; profile bio/pin/Highlight mutations remain explicit Instagram-side operator actions.
 
 ## 2026-09-28 · current Nick repo/deploy truth
 
