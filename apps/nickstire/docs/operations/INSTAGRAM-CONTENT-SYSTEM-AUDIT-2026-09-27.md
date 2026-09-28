@@ -245,8 +245,8 @@ Remaining evidence is narrow and explicit: first successful post-bootstrap Reel 
 
 This receipt supersedes older runtime-baseline lines above where they conflict.
 
-- **Repository + Nick runtime:** #2741 squash merge `45a5c02690e7193f05ce0da822fb59d2ebc899ca`.
+- **Repository + Nick runtime:** repository `main` is #2742 (`bc3726a8b6811133889044ad3616362dffc13f20`), whose docs-only change correctly SKIPPED Nick; the live Nick runtime remains exact #2741 squash merge `45a5c02690e7193f05ce0da822fb59d2ebc899ca`.
 - **Railway:** deployment `c7b4b57c-799a-4042-9539-42d6571674d6` reached **SUCCESS** at 15:54:52Z. Startup reached `server:ready`; schema guard reported all critical tables present; the tiered scheduler started with 123 jobs.
 - **Queue scoring repair:** deployed. #2741's final guard accepts the canonical `contentAdmin.enqueueReelJob` persisted shape and fails genuinely incomplete legacy briefs closed without dereferencing missing arrays. Codex's canonical-shape P2 was fixed before merge; 76/76 focused Reel tests and all final GitHub gates passed.
-- **Post-deploy evidence boundary:** no authenticated `instagramAdmin.getAllDrafts` request has hit the #2741 container yet. Therefore the repair is deployed + test/CI-proven, but absence of the historical `undefined.map` warning has not been independently demonstrated by a fresh live Queue request.
+- **Post-deploy Queue receipt:** LIVE VERIFIED. At 2026-09-28 16:48:08Z a real signed-in NattyNour browser session opened Publish -> Reels and the #2741 container logged first-calls for both `instagramAdmin.reelPublishQueue` and `instagramAdmin.getAllDrafts`. The historical `failed to calculate reel score in getAllDrafts` / `undefined.map` warning did not recur in the same production log window, closing the scorer repair beyond CI/test evidence.
 - **Still genuinely pending:** first successful post-bootstrap Reel enqueue carrying `structurePatternId`; a natural scheduled static-autopost success; Trial 24h metric entry; Instagram-side bio/pin/Highlight mutations; and any future judge hard-gate promotion, which remains unsupported until calibration warrants it.
