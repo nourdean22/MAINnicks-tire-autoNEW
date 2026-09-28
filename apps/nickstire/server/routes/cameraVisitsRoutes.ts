@@ -43,6 +43,10 @@ import { sql } from "drizzle-orm";
 import { maskPlate, normalizePlate, PLATE_MATCH_CLASSES } from "../lib/plate";
 import { deriveStateAtIngest } from "../lib/cameraHealth";
 import { cameraHealthProfileFor } from "../../shared/cameras";
+import {
+  CAMERA_AUTHORITY_STALE_SECONDS,
+  visitProducerAuthorized,
+} from "./cameraProducerAuthority";
 
 /** Timing-safe, matching the sibling bridge routes. */
 function safeCompare(a: string, b: string): boolean {
@@ -57,39 +61,6 @@ function safeCompare(a: string, b: string): boolean {
 const PLATE_STATUS = ["NONE", "UNREADABLE", "CANDIDATE", "CONFIRMED", "AMBIGUOUS"] as const;
 const DATA_CLASSES = ["PRODUCTION", "COMMISSIONING", "REPLAY"] as const;
 const HEARTBEAT_MODES = ["PRODUCTION", "SHADOW", "COMMISSIONING"] as const;
-
-/** Shop PC > NicksMax > NattyNour. Legacy opaque ids intentionally have no priority. */
-export const CAMERA_AUTHORITY_STALE_SECONDS = 90;
-export function producerPriority(id: string | null | undefined): number {
-  const m = /^p([123])-/.exec(String(id ?? ""));
-  return m ? Number(m[1]) : 99;
-}
-
-export function heartbeatAuthorityAccepted(input: {
-  incomingId: string;
-  incomingSeq: number;
-  storedId: string;
-  storedSeq: number;
-  storedAgeSeconds: number;
-}): boolean {
-  if (input.incomingId === input.storedId) return input.incomingSeq >= input.storedSeq;
-  return (
-    producerPriority(input.incomingId) <= producerPriority(input.storedId)
-    || input.storedAgeSeconds > CAMERA_AUTHORITY_STALE_SECONDS
-  );
-}
-
-export function visitProducerAuthorized(
-  provided: string | null | undefined,
-  current: { producerInstanceId: string; ageSeconds: number } | null,
-): boolean {
-  if (!current) return !provided; // rollout compatibility: legacy sender before first heartbeat
-  if (!provided) return producerPriority(current.producerInstanceId) === 99;
-  return (
-    provided === current.producerInstanceId
-    && current.ageSeconds <= CAMERA_AUTHORITY_STALE_SECONDS
-  );
-}
 
 /**
  * ISO-8601 or epoch seconds. `null` stays null — an unobserved time is NOT "now".

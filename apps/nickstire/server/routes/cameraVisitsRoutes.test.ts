@@ -1,9 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
-  CAMERA_AUTHORITY_STALE_SECONDS, COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT,
-  HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, activeRunField, heartbeatAuthorityAccepted,
-  parseHeartbeat, plateTextToStore, producerPriority, visitProducerAuthorized,
+  COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS,
+  HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore,
 } from "./cameraVisitsRoutes";
+import {
+  CAMERA_AUTHORITY_STALE_SECONDS,
+  heartbeatAuthorityAccepted,
+  producerPriority,
+  visitProducerAuthorized,
+} from "./cameraProducerAuthority";
 
 describe("camera visit ingest — plate durability", () => {
   it("stores plate text ONLY when the read is CONFIRMED", () => {
