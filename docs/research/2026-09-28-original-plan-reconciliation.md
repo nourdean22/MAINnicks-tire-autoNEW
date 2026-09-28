@@ -4,7 +4,7 @@
 
 - **#2724 merged:** `f59ed3d0ef4323b273c7464c33059c80fd8a5995`. This made the ledger + Railway source-of-truth hardening durable.
 - **#2725 merged:** `7fbeb855d5bc12a33e5592d09380ab081f86f6cb`. StateNour web deployment `bdfe33a5-0a80-48e0-b992-b9662ae42079` is SUCCESS on that exact commit. Current production cardinality: 36,042 eligible memories, 3,632 full rollup rows needed; the new two-phase reader avoids full-payload loading for ~89.9% of eligible rows while preserving individual/archive completeness.
-- **#2726 merged:** `18db7de13af5fe0f6f4f2fb62456e371db3dd698`. Worker deployment `aa4db42e-5b0e-4611-a461-2338d3d7f12c` is SUCCESS on that exact commit; StateNour web deployment `f14abc77-e0cb-4e90-915a-250a21bdee0a` was still BUILDING at this receipt. The worker remains private; deploy-drift/smoke now observe persisted worker-forward freshness instead of a public worker URL.
+- **#2726 merged + live-verified:** `18db7de13af5fe0f6f4f2fb62456e371db3dd698`. Worker deployment `aa4db42e-5b0e-4611-a461-2338d3d7f12c` and StateNour web deployment `f14abc77-e0cb-4e90-915a-250a21bdee0a` are both SUCCESS on that exact commit. The worker remains private; deploy-drift/smoke now observe persisted worker-forward freshness instead of a public worker URL. Live heartbeat receipt: web `status: ok`, DB latency 5 ms, worker `fresh`, age 12 minutes.
 - **GitHub open PR count after this wave:** 0.
 
 Scope: §15 "What only Nour can do" from `2026-09-23-estate-master-architecture.md`, reconciled against live Railway, Neon, GitHub, production logs, and current `origin/main`.
