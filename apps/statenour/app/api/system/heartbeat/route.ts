@@ -1,5 +1,6 @@
 import { apiHandler } from "@/lib/utils/http";
 import { checkDbConnection } from "@/lib/prisma";
+import { getWorkerFreshness } from "@/lib/observability/worker-freshness";
 
 /**
  * GET /api/system/heartbeat — Uptime monitor endpoint
@@ -7,7 +8,8 @@ import { checkDbConnection } from "@/lib/prisma";
  * Designed for external monitors (UptimeRobot, etc.)
  *
  * // public: external uptime monitors hit this without a session.
- * Returns only `{ status, db_latency_ms }` — no operator-private data.
+ * Returns only coarse liveness: web/db + private-worker freshness.
+ * No operator-private data, job inventory, secrets, or payloads.
  */
 export const GET = apiHandler(async () => {
   const db = await checkDbConnection();
@@ -19,5 +21,13 @@ export const GET = apiHandler(async () => {
     );
   }
 
-  return { status: "ok", db_latency_ms: db.latency_ms };
+  const worker = await getWorkerFreshness();
+  return {
+    status: "ok",
+    db_latency_ms: db.latency_ms,
+    worker: {
+      status: worker.status,
+      age_minutes: worker.ageMinutes,
+    },
+  };
 });
