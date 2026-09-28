@@ -7,6 +7,26 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+
+## NicksMax direct camera authority (2026-09-28)
+
+Camera `sign` production authority is now NicksMax's direct V380 cloud/P2P -> local RTSP
+pipeline. Latest closeout state was HEALTHY on `sourceType=rtsp`, producer
+`nicksmax-sign-rtsp-v1`, calibration `sha256:67f719cc875d`.
+
+A real visit reached `CONFIRMED_ARRIVAL`; StateNour returned HTTP 200 and the Nick shop
+mirror reports one successful delivery with empty durable shop/cloud queues. The V380 desktop
+GUI is no longer required. Retired WGC producers remain disabled.
+
+The supervisor is fail-closed: production starts only after a real frame decodes from the
+cropped RTSP stream, with a durable start throttle. A SYSTEM-owned scheduled supervisor was
+created and receipted as `SYSTEM / ServiceAccount / Highest / Running`, removing dependence
+on the interactive user session. A literal machine cold-reboot/power-loss test remains a
+separate unperformed proof.
+
+Full architecture, security boundary and receipts:
+[`docs/operations/NICKSMAX-CAMERA-HOST-2026-09-28.md`](../../../docs/operations/NICKSMAX-CAMERA-HOST-2026-09-28.md).
+
 ## Original-plan infrastructure reconciliation (2026-09-28)
 
 - Durable 24-slice ledger: `../../../docs/research/2026-09-28-original-plan-reconciliation.md`.
