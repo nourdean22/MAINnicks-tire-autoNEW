@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  EXPLORATION_EVERY_N_SELECTIONS,
-  MIN_POSTS_PER_PATTERN,
   rankPatternsByDistribution,
   selectLearnedPattern,
 } from "./reelStructureLearning";
@@ -48,8 +46,8 @@ describe("rankPatternsByDistribution", () => {
 describe("selectLearnedPattern", () => {
   it("stays on fair rotation before evidence is mature", () => {
     const evidence = rankPatternsByDistribution([
-      ...rows("a", MIN_POSTS_PER_PATTERN, 0.08),
-      ...rows("b", MIN_POSTS_PER_PATTERN, 0.01),
+      ...rows("a", 3, 0.08),
+      ...rows("b", 3, 0.01),
     ]);
     const decision = selectLearnedPattern([p("a", 4), p("b", 1)], evidence);
     expect(decision.mode).toBe("rotation");
@@ -74,7 +72,7 @@ describe("selectLearnedPattern", () => {
     ]);
     const patterns = [p("a", 8), p("b", 4), p("new", 0)];
     // totalUses=12 -> exploration turn when modulus is 4.
-    expect(12 % EXPLORATION_EVERY_N_SELECTIONS).toBe(0);
+    expect(12 % 4).toBe(0);
     const decision = selectLearnedPattern(patterns, evidence);
     expect(decision.mode).toBe("learned_explore");
     expect(decision.pattern?.id).toBe("new");
