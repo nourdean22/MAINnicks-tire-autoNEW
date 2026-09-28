@@ -83,12 +83,9 @@ different coordinate system.
 
 ## Recovery behavior
 
-The source copy of the production supervisor is now versioned at:
-
-- `camera-bridge/scripts/nicksmax/nicksmax-camera-supervisor.ps1`
-- `camera-bridge/scripts/nicksmax/nicksmax-camera-supervisor-loop.ps1`
-
-It owns one authority and keeps the retired WGC tasks disabled.
+The source copy of the production supervisor is versioned at
+`camera-bridge/scripts/nicksmax/nicksmax-camera-supervisor.ps1`. It owns one authority and
+keeps the retired WGC tasks disabled.
 
 A measured RTSP recovery exposed a race where open ports did not guarantee decodable frames.
 The supervisor was hardened to:
@@ -117,10 +114,13 @@ The SYSTEM task was created as a recurring one-minute task so it does not depend
 interactive `nourd` session. A non-admin query later returned Access Denied for that
 SYSTEM-owned task; that must not be misreported as task absence.
 
-The source installer/verifier are versioned at:
+The exact proven SYSTEM registration flow and its verifier are versioned at:
 
 - `camera-bridge/scripts/nicksmax/register-camera-system-task.ps1`
 - `camera-bridge/scripts/nicksmax/verify-camera-system-task.ps1`
+
+The installer recreates `NicksMaxCameraSupervisor` as a one-minute SYSTEM task using
+`schtasks.exe /RU SYSTEM /RL HIGHEST`, matching the successful production receipt.
 
 A literal full-machine power-cycle/cold-reboot test is still a distinct proof and was not
 performed during this cutover. SYSTEM scheduling and runtime self-heal were proven; do not
