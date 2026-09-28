@@ -26,6 +26,11 @@ export interface PublishInput {
    */
   isAiGenerated?: boolean;
   /**
+   * Instagram Trial Reel mode. MANUAL is deliberate: publishing a trial is an
+   * operator action; broad graduation remains a second human decision.
+   */
+  trialReel?: { graduationStrategy: "MANUAL" };
+  /**
    * Facebook-only link attachment. Present so callers that need it do not have
    * to reach around this choke point to `metaSocial.socialPost` — which is
    * exactly how `nickActions.socialPost` came to bypass the kill switch.
@@ -180,6 +185,23 @@ export async function publishToSocial(input: PublishInput): Promise<PublishOutco
   const { postToFacebook, postToInstagram, postInstagramReel, postInstagramCarousel, postInstagramStory } = await import("./metaSocial");
   const results: PublishOutcome["results"] = [];
 
+  // Trial Reels are an Instagram-Reel-only surface. Fail CLOSED at the shared
+  // publish choke point so a future caller cannot accidentally cross-post the
+  // experiment to Facebook, turn a Story into a "trial", or attach the flag to
+  // a static post.
+  if (input.trialReel) {
+    const isInstagramOnly = input.platforms.length === 1 && input.platforms[0] === "instagram";
+    if (!isInstagramOnly || !input.videoUrl || input.isStory) {
+      return {
+        results: input.platforms.map((platform) => ({
+          platform,
+          success: false,
+          error: "Trial Reel mode requires one Instagram Reel video and cannot cross-post.",
+        })),
+      };
+    }
+  }
+
   // Autonomy kill switches at THE publish choke point (fresh read, 2s cache):
   // global + publishing + per-platform. Defense-in-depth alongside the
   // existing claim-safety and REEL_PUBLISH_ENABLED gates below — the policy
@@ -256,6 +278,7 @@ export async function publishToSocial(input: PublishInput): Promise<PublishOutco
             videoUrl: input.videoUrl,
             caption: input.caption,
             isAiGenerated: input.isAiGenerated,
+            trialReel: input.trialReel,
           });
           results.push({ platform: "instagram", ...r });
         }
