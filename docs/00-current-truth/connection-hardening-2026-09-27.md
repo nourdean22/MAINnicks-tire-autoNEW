@@ -31,14 +31,19 @@ Before commissioning, require all of these physical receipts: a real office moti
 
 The production alert rail has proven detection, claim, retry, and recovery-state behavior. Resend rejected the observed real production page while the domain was unverified, and logger-only fallback correctly did not count as delivery. PR #2715 added Telegram fallback and #2720 added a manual provider self-test, but a provider-accepted **real production degradation alert plus its recovery delivery** has not yet been observed. Keep this open until that pair has external acceptance receipts.
 
-### NicksMax hostname / reboot / ESU
+### NicksMax camera authority / reboot / ESU
 
-**Updated receipt 2026-09-28:** the Windows rename/reboot portion is complete. The active hostname is now `nicksmax` (pending computer name `NICKSMAX`), and CBS, Windows Update, and PendingFileRename reboot flags are all clear.
+**Updated receipt 2026-09-28:** the earlier sibling-session camera guard is superseded. NicksMax now owns the lightweight production `sign` camera-processing lane.
 
-- The current ESU licensing-preparation package KB5126256 is installed.
-- Consumer ESU remains **not enrolled** (`ESUEnrollmentStatus` is empty; eligibility metadata is present).
-- `C:\Users\nourd\NicksMax\ACTIVE-WORK.md` still exists and says not to reboot or touch V380/camera startup while the sibling camera session is active. Treat the guard as authoritative until that owning session clears it, even though a reboot has already occurred since the older snapshot.
-- Remaining workstation action is the Microsoft-account / Windows Update consumer-ESU enrollment flow plus a post-enrollment receipt. No additional hostname reboot is currently required.
+- The V380 desktop GUI is not a production dependency and was absent during final verification.
+- The live path is native V380 cloud relay `:8554` -> FFmpeg SHOPSIGN crop -> MediaMTX `rtsp://127.0.0.1:8555/sign` -> production OpenVINO `edge_main.py` with `calib-nicksmax-sign-rtsp.json` (SHA256 `67F719CC875DEE8B0EFF9B246428CE9840530FB0921FA9BCC1FFB8803D502258`).
+- `NicksMaxCameraSupervisorUser` is disabled. The production supervisor and edge tree run in Windows Session 0; legacy WGC/V380-watchdog and shadow-candidate tasks remain disabled.
+- Self-heal is live-proven: the old Session-1 production tree was killed while the user supervisor was disabled; Session 0 recreated the production wrapper at 18:27:11 ET and Python/OpenVINO edge processes at 18:27:12 ET.
+- Railway accepted the restarted producer beginning at 22:27:38Z with `sign seq=1 accepted state=HEALTHY`, followed by seq=2 and seq=3 HEALTHY.
+- Locked-screen independence is live-proven: with Windows locked and the V380 GUI absent, Railway continued accepting HEALTHY heartbeats through at least seq=8 at 22:31:08Z.
+- Cold-boot persistence after the SYSTEM-supervisor cutover is **not yet live-proven**. The remote-control layer blocked restart/shutdown. A later controlled reboot must observe Session-0 startup plus fresh Railway camera heartbeats before login.
+- C: had about 2.53 GB free (6.3%) at closeout. Camera logs/DBs were small; active worktrees were deliberately not deleted.
+- Hostname/reboot servicing from the earlier workstation setup is complete. Consumer ESU remains **not enrolled**; that is a separate operator/account action.
 
 ### Resend sending-domain DNS
 
@@ -53,4 +58,4 @@ No connected DNS-management authority for Global Domain Group is available in th
 
 ## Concurrency / cleanup boundary
 
-Do not reboot NicksMax, kill V380, change camera startup, or delete camera/Eufy worktrees while the active camera-session guard exists. Other isolated active worktrees (including the Reel CTA contract work) are not reconciliation backlog and must not be reset or merged blindly.
+The camera sibling-session guard is closed for this workstream. Do not reintroduce the V380 GUI/WGC as a production dependency or re-enable the interactive camera supervisor while the Session-0 lane is healthy. A future reboot is allowed only when it will not disrupt other active sessions, and must be used to capture the still-missing cold-boot camera receipt. Other isolated active worktrees are not reconciliation backlog and must not be reset or merged blindly.

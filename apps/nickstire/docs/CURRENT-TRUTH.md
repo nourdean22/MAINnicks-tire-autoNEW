@@ -46,6 +46,20 @@ The recovered Instagram Audit workstream was reconciled past the Higgsfield clos
 
 **Evidence boundary:** Instagram Admin is **MERGED + DEPLOYED + POST-DEPLOY QUEUE LIVE-VERIFIED** through the #2741 runtime; later repository receipts through #2744 are docs-only. Trial Reel publish/provenance and Pattern Lab bootstrap/selection also have production receipts. The static generator live one-off did not reproduce the old truncation failure but was quality-aborted, so a natural scheduled successful static post remains pending. Trial 24h metrics and bio/pin/Highlight mutations remain explicit operator actions.
 
+## NicksMax camera production authority (2026-09-28) — LIVE VERIFIED
+
+NicksMax now owns the lightweight production `sign` camera-processing lane. This supersedes the earlier sibling-session/V380-GUI guard.
+
+- **Direct production path:** native V380 cloud relay on `:8554` -> FFmpeg SHOPSIGN middle-lens crop -> MediaMTX `rtsp://127.0.0.1:8555/sign` -> production OpenVINO `edge_main.py` using `calib-nicksmax-sign-rtsp.json` (SHA256 `67F719CC875DEE8B0EFF9B246428CE9840530FB0921FA9BCC1FFB8803D502258`).
+- **No GUI dependency:** the V380 desktop executable was absent during final verification. Legacy WGC/V380-watchdog and shadow-candidate tasks remain disabled.
+- **SYSTEM authority:** `NicksMaxCameraSupervisorUser` is disabled. The active supervisor and production camera process tree run in Windows Session 0.
+- **Self-heal receipt:** with the user supervisor disabled, the old Session-1 production edge tree was killed. Session 0 recreated the production wrapper at 18:27:11 ET and Python/OpenVINO edge processes at 18:27:12 ET; the local status log recorded `START authoritative RTSP sign producer` at 18:27:12 ET.
+- **Cloud/admin-backend receipt:** Railway `MAINnicks-tire-auto` accepted the restarted producer at 22:27:38Z as `sign seq=1 accepted state=HEALTHY`, followed by seq=2 and seq=3 HEALTHY. After Windows was locked, HEARTBEAT acceptance continued through at least seq=8 at 22:31:08Z.
+- **Evidence boundary:** GUI-free, Session-0, self-heal, and locked-screen operation are proven. A full Windows reboot after the SYSTEM-supervisor cutover is not yet live-proven because the remote-control layer blocked restart/shutdown. Do not promote `AtStartup` configuration into a cold-boot receipt until a later controlled reboot produces fresh Session-0 and Railway evidence.
+- **Storage warning:** C: had about 2.53 GB free (6.3%) at closeout. Camera logs/DBs were small; active worktrees were deliberately preserved rather than deleted.
+
+Durable local-node receipt: [`../../../docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md`](../../../docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md).
+
 ## Connection hardening closeout (2026-09-27/28)
 
 **Final merge receipt:** #2721 squash-merged as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` after affected CI, authenticated StateNour E2E, Completion Authority, Adoption, Agent Policy, Admin, Secret Scanning, and security all passed. Its four earlier review findings were fixed and resolved. #2721 changed documentation/memory only; it does **not** claim a newer Nick production deployment than #2720.
@@ -57,7 +71,7 @@ Durable receipt: [`../../../docs/00-current-truth/connection-hardening-2026-09-2
 - Tailscale shop connectivity works; initial DERP fallback followed by a direct peer path is normal NAT traversal, not an outage.
 - Camera-health detection, durable claim/retry behavior, and persisted sign degradation/recovery state transitions are proven. Provider-accepted **real production degradation plus recovery owner delivery is not yet proven** and remains open.
 - Office remains intentionally uncommissioned: auth and semantic-event WebSocket connectivity are proven, but `lastEventProofAt` is still null and real event/control/media/PTZ-notify/home proofs remain open.
-- NicksMax final hostname/reboot + consumer ESU completion is intentionally blocked while `ACTIVE-WORK.md` protects the sibling V380/camera session.
+- NicksMax camera authority is now live on the direct Session-0 RTSP/OpenVINO path with the V380 GUI absent and locked-screen heartbeats proven. The earlier camera-session reboot guard is superseded; only the post-cutover cold-boot persistence receipt and separate consumer ESU enrollment remain open.
 - Resend domain verification is failed until the required records are added at the authoritative Global Domain Group DNS provider.
 
 ## Higgsfield runtime recovery + live canary (2026-09-27)

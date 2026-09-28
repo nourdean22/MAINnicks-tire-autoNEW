@@ -39,7 +39,7 @@ A separate ~63 GB APFS/macOS partition remains present. A ~9.3 GB hidden Basic D
 - hold a tiny sparse/partial monorepo checkout
 - run lightweight Windows-only utilities when explicitly needed
 - provide SSH + Remote Desktop Commander recovery/admin paths
-- support V380/camera work owned by the separate camera session
+- run the lightweight production `sign` camera edge lane under the Session-0 supervisor
 - serve as a future landing point for selected archives **when external storage is attached and verified**
 
 ### NicksMax SHOULD NOT do
@@ -229,26 +229,31 @@ Checks include:
 - CompactOS enabled
 - SSH recovery service
 - exact pnpm 10.4.1 contract
-- V380 protected install / running state
+- NicksMax camera authority, process-session, and RTSP-path state
 
 At the latest workstation-only pass, all checks were green except the two ESU checks.
 
-## V380 / active sibling-session guard
+## Camera production authority — 2026-09-28 closeout
 
-A separate ChatGPT/Codex session is actively configuring camera work on this machine.
+The old sibling-session guard is closed. NicksMax now owns the lightweight production `sign` camera-processing lane.
 
-Verified:
-- V380 Pro 2.0.9 installed
-- executable: `C:\Program Files (x86)\V380\V380.exe`
-- V380 observed running
-- workstation setup did not add a V380 Run-key or scheduled task
-- workstation setup did not alter V380 camera/network configuration
+Final verified topology:
+- V380 desktop GUI is not a production dependency and was not running at closeout.
+- native V380 cloud relay listens on `0.0.0.0:8554`
+- FFmpeg reads `rtsp://127.0.0.1:8554/live`, crops the SHOPSIGN middle lens, scales to 640x360 at 4 fps, and publishes to MediaMTX
+- MediaMTX exposes `rtsp://127.0.0.1:8555/sign`
+- `edge_main.py` runs the production OpenVINO detector against that stream with `calib-nicksmax-sign-rtsp.json` (SHA256 `67F719CC875DEE8B0EFF9B246428CE9840530FB0921FA9BCC1FFB8803D502258`)
+- the interactive `NicksMaxCameraSupervisorUser` task is disabled
+- the production supervisor and restarted production edge tree run in Windows Session 0
+- legacy WGC/V380-watchdog and shadow-candidate tasks are disabled
 
-Local guard:
+Commissioning included an actual failure injection: the old Session-1 production edge tree was killed while the user supervisor was disabled. The Session-0 supervisor recreated the wrapper at 18:27:11 ET and the Python/OpenVINO producer at 18:27:12 ET. Railway then accepted the restarted producer as HEALTHY beginning with `sign seq=1` at 22:27:38Z.
 
-`C:\Users\nourd\NicksMax\ACTIVE-WORK.md`
+A Windows lock test also passed. With the desktop locked and no V380 GUI running, Railway accepted HEALTHY sign heartbeats through at least seq=8 (22:31:08Z). This proves GUI-free and locked-screen operation.
 
-**Do not reboot, kill V380, change its startup behavior, or perform camera-stack cleanup while the sibling camera session is active.**
+Evidence boundary: a full Windows reboot after the SYSTEM-supervisor cutover was not observed because the remote-control layer blocked restart/shutdown. Treat cold-boot persistence as configured but not yet live-proven. A later reboot receipt should verify Session-0 startup and fresh Railway heartbeats without logging into the desktop.
+
+Storage note: C: had about 2.53 GB free (6.3%) at camera closeout. Camera logs/DBs were small; active worktrees were the largest obvious reclaim candidates and were deliberately left untouched.
 
 ## Windows 10 ESU — why it is required
 
@@ -276,40 +281,25 @@ NicksMax state at the last check:
 
 Therefore the remaining ESU action is an operator/account step, not missing workstation code.
 
-## Deferred finish sequence
+## Remaining workstation finish sequence
 
-A sibling camera session is active, so reboot was deliberately withheld.
+The camera sibling-session block no longer prevents a future controlled reboot. The remaining workstation actions are:
+1. complete consumer Windows ESU enrollment through the Microsoft-account / Windows Update flow
+2. when no other active sessions would be disrupted, perform one controlled reboot
+3. after boot, verify Tailscale, Desktop Commander, the Session-0 camera supervisor, RTSP 8554/8555, and fresh production camera heartbeats before logging into or opening V380
 
-Safe command already staged:
-
-`finish-nicksmax`
-
-It:
-1. checks the active-work guard
-2. checks whether a Microsoft account is linked
-3. opens Windows account settings if needed
-4. invokes the official ESU eligibility path
-5. opens Windows Update
-6. runs the NicksMax doctor
-7. reports whether V380 and ChatGPT are active
-8. requires the literal confirmation `REBOOT` before restarting
-
-The reboot is needed to:
-- finalize the Windows hostname change from the old generated desktop name to **NICKSMAX**
-- clear pending Windows servicing / file-renames
-- prove Tailscale and Commander persistence after boot
-- run the staged post-reboot verifier
-
-Do not run that reboot while the sibling camera session still owns active work.
+The reboot is now a commissioning proof for persistence, not a prerequisite for the already-running camera lane. Do not call cold-boot persistence verified until that receipt exists.
 
 ## Source-of-truth boundary
 
-This document records verified workstation configuration and local receipts from 2026-09-27.
+This document records verified workstation configuration plus the 2026-09-28 NicksMax camera-authority closeout.
+
+It proves the current Session-0 camera path, self-heal after killing the interactive production tree, Railway HEALTHY heartbeat acceptance, and continued operation while Windows is locked with the V380 GUI absent.
 
 It does **not** prove:
-- any production Railway change
-- any camera/V380 configuration outcome owned by the sibling session
-- ESU enrollment completion
-- the final post-reboot NICKSMAX hostname/persistence receipt
+- a full cold boot after the SYSTEM-supervisor cutover
+- consumer ESU enrollment completion
+- unrelated Railway deployments or application changes beyond the observed camera-heartbeat receipts
+- that active worktrees are safe to delete
 
-Those require their own evidence after the sibling session finishes and the controlled reboot occurs.
+Reverify live process/session state and Railway camera heartbeats before changing the camera authority or deleting recovery artifacts.
