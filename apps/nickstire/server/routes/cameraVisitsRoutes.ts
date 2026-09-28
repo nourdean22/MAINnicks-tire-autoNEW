@@ -218,6 +218,72 @@ export const GUARDED_SET = COLUMNS.filter(
   })
   .join(", ");
 
+
+export const SIGN_RTSP_AUTHORITY_FRESH_MS = 90_000;
+
+type CameraAuthoritySnapshot = {
+  sourceType?: unknown;
+  calibrationVersion?: unknown;
+  receivedAt?: unknown;
+  state?: unknown;
+};
+
+type HeartbeatAuthorityCandidate = {
+  camera?: unknown;
+  sourceType?: unknown;
+};
+
+type VisitAuthorityCandidate = {
+  camera?: unknown;
+  dataClass?: unknown;
+  calibrationVersion?: unknown;
+};
+
+function authorityReceivedAtMs(v: unknown): number | null {
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === "number" && Number.isFinite(v)) return v > 1_000_000_000_000 ? v : v * 1000;
+  if (typeof v === "string" && v.trim()) {
+    const ms = Date.parse(v);
+    return Number.isFinite(ms) ? ms : null;
+  }
+  return null;
+}
+
+export function isFreshHealthyRtspAuthority(
+  current: CameraAuthoritySnapshot | null | undefined,
+  nowMs = Date.now(),
+): boolean {
+  if (!current || String(current.sourceType ?? "").toLowerCase() !== "rtsp") return false;
+  if (String(current.state ?? "") !== "HEALTHY") return false;
+  const receivedAtMs = authorityReceivedAtMs(current.receivedAt);
+  if (receivedAtMs == null) return false;
+  const age = nowMs - receivedAtMs;
+  return age >= 0 && age <= SIGN_RTSP_AUTHORITY_FRESH_MS;
+}
+
+export function shouldBlockHeartbeatTakeover(
+  current: CameraAuthoritySnapshot | null | undefined,
+  incoming: HeartbeatAuthorityCandidate,
+  nowMs = Date.now(),
+): boolean {
+  if (String(incoming.camera ?? "") !== "sign") return false;
+  if (!isFreshHealthyRtspAuthority(current, nowMs)) return false;
+  return String(incoming.sourceType ?? "").toLowerCase() !== "rtsp";
+}
+
+export function shouldBlockVisitOutsideAuthority(
+  current: CameraAuthoritySnapshot | null | undefined,
+  incoming: VisitAuthorityCandidate,
+  nowMs = Date.now(),
+): boolean {
+  if (String(incoming.camera ?? "") !== "sign") return false;
+  if (String(incoming.dataClass ?? "PRODUCTION") !== "PRODUCTION") return false;
+  if (!isFreshHealthyRtspAuthority(current, nowMs)) return false;
+  const activeCalibration = String(current?.calibrationVersion ?? "");
+  if (!activeCalibration) return false;
+  return String(incoming.calibrationVersion ?? "") !== activeCalibration;
+}
+
 export function registerCameraVisitsRoute(app: Express): void {
   app.post("/api/camera/visits", async (req: Request, res: Response) => {
     // Prefer a dedicated edge key. The StateNour bridge key remains a fallback so the
@@ -241,7 +307,37 @@ export function registerCameraVisitsRoute(app: Express): void {
     type Outcome = "applied" | "stale" | "failed";
     const results: Array<{ visitId: string; outcome: Outcome; reason?: string }> = [];
 
+    let signAuthority: CameraAuthoritySnapshot | null = null;
+    if (parsed.data.visits.some((v) => v.camera === "sign")) {
+      try {
+        const authorityRows = await d.execute(sql`
+          SELECT sourceType, calibrationVersion, receivedAt, state
+          FROM camera_runtime
+          WHERE camera = 'sign'
+          LIMIT 1
+        `);
+        const authorityList = (Array.isArray(authorityRows) ? authorityRows[0] : authorityRows) as
+          | Array<Record<string, unknown>>
+          | undefined;
+        signAuthority = Array.isArray(authorityList) && authorityList.length
+          ? authorityList[0] as CameraAuthoritySnapshot
+          : null;
+      } catch (err) {
+        return res.status(503).json({
+          error: err instanceof Error ? err.message : "camera authority unavailable",
+        });
+      }
+    }
+
     for (const v of parsed.data.visits) {
+      if (shouldBlockVisitOutsideAuthority(signAuthority, v)) {
+        results.push({
+          visitId: v.visitId,
+          outcome: "stale",
+          reason: "fresh RTSP authority owns sign; calibration does not match active producer",
+        });
+        continue;
+      }
       const values: Record<string, unknown> = {
         visitId: v.visitId,
         camera: v.camera,
@@ -595,10 +691,25 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       // between two heartbeats for one camera is benign: the guard orders the
       // rows, and the worst case is one duplicated transition line.
       const prevRows = await d.execute(sql`
-        SELECT state, producerInstanceId FROM camera_runtime WHERE camera = ${b.camera}
+        SELECT state, producerInstanceId, sourceType, calibrationVersion, receivedAt
+        FROM camera_runtime
+        WHERE camera = ${b.camera}
       `);
       const prevList = (Array.isArray(prevRows) ? prevRows[0] : prevRows) as unknown as Array<Record<string, unknown>> | undefined;
       const prev = Array.isArray(prevList) && prevList.length ? prevList[0] : null;
+
+      if (shouldBlockHeartbeatTakeover(prev as CameraAuthoritySnapshot | null, b)) {
+        console.info(
+          `[camera-heartbeat] ${b.camera} seq=${b.heartbeatSeq} fenced source=${b.sourceType ?? "-"} active=rtsp`,
+        );
+        return res.status(200).json({
+          accepted: false,
+          state: prev?.state ?? verdict.state,
+          facets: verdict.facets,
+          reason: "fresh healthy RTSP authority owns sign",
+          transition: null,
+        });
+      }
 
       const placeholders = HEARTBEAT_COLUMNS.map((c) => sql`${values[c]}`);
       const result = await d.execute(sql`
