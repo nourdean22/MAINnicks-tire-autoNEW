@@ -725,7 +725,7 @@ class RtspSource(CaptureSource):
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._reader: Optional[threading.Thread] = None
-        self._read_failures_before_reconnect = 3
+        self._read_failures_before_reconnect = 10
         self._reconnect_delay = 0.25
 
     def _open_capture(self):
@@ -836,7 +836,10 @@ class RtspSource(CaptureSource):
 
     def read(self) -> Optional[Frame]:
         reader = self._reader
-        if reader is None or not reader.is_alive():
+        # A normal unopened source has neither a capture nor a reader. Tests and a few
+        # lab callers inject an already-open capture directly; do not discard it merely
+        # because no background thread was created by open().
+        if self._cap is None and (reader is None or not reader.is_alive()):
             self.open()
         with self._lock:
             frame = self._latest
