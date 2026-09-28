@@ -62,3 +62,18 @@ Do not reboot NicksMax, kill V380, alter V380 startup/network configuration, or 
 - GitHub `origin/main` outranks its local checkout.
 - Do not copy CEO-laptop worktrees, secrets, browser profiles, `.env` files, Docker state, or large `node_modules` trees here.
 - Prefer sparse/partial clones and regenerate dependencies only when a real recovery task requires them.
+
+## 2026-09-28 · NicksMax camera role superseded
+
+The prior "NicksMax is not a continuous vision host" statement is superseded for one measured workload: NicksMax now runs the commissioned Nick's `sign` camera edge.
+
+Production truth:
+- direct V380 cloud/P2P relay on NicksMax, no V380 GUI dependency
+- three-lens relay cropped to the fixed side-lot/sign lens and republished on loopback RTSP
+- OpenVINO producer is live with `sourceType=rtsp`
+- calibration `sha256:67f719cc875d`
+- production state HEALTHY with fresh frame timestamps
+- producer crash/restart self-heal proven
+- legacy WGC/right producers remain disabled
+
+This does not make NicksMax a general compute authority. Railway still owns cloud app/database/schedulers; NicksMax's special authority is only the bounded `sign` camera edge. The current supervisor starts at NicksMax user logon; a true pre-login SYSTEM task remains an elevation-only host hardening item.
