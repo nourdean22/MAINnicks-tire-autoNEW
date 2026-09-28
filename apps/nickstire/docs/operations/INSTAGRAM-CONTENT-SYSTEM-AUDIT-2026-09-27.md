@@ -240,3 +240,13 @@ The implementation audit above now has live receipts beyond merge/deploy status:
 - **Production defect found during walkthrough:** Queue quality scoring can encounter legacy/incomplete `brief_json`; the old scorer dereferenced a missing array and logged `undefined.map`. The closeout branch adds an explicit runtime `ReelBrief` shape guard and fails those rows closed to score 0 without throwing. NattyNour verification: 76/76 focused tests, TypeScript exit 0, production build exit 0.
 
 Remaining evidence is narrow and explicit: first successful post-bootstrap Reel enqueue carrying `structurePatternId`; a natural scheduled static-slot success; Trial 24h metric entry; and Instagram-side bio/pin/Highlight mutations remain operator-gated.
+
+## 2026-09-28 post-#2741 deployment receipt
+
+This receipt supersedes older runtime-baseline lines above where they conflict.
+
+- **Repository + Nick runtime:** #2741 squash merge `45a5c02690e7193f05ce0da822fb59d2ebc899ca`.
+- **Railway:** deployment `c7b4b57c-799a-4042-9539-42d6571674d6` reached **SUCCESS** at 15:54:52Z. Startup reached `server:ready`; schema guard reported all critical tables present; the tiered scheduler started with 123 jobs.
+- **Queue scoring repair:** deployed. #2741's final guard accepts the canonical `contentAdmin.enqueueReelJob` persisted shape and fails genuinely incomplete legacy briefs closed without dereferencing missing arrays. Codex's canonical-shape P2 was fixed before merge; 76/76 focused Reel tests and all final GitHub gates passed.
+- **Post-deploy evidence boundary:** no authenticated `instagramAdmin.getAllDrafts` request has hit the #2741 container yet. Therefore the repair is deployed + test/CI-proven, but absence of the historical `undefined.map` warning has not been independently demonstrated by a fresh live Queue request.
+- **Still genuinely pending:** first successful post-bootstrap Reel enqueue carrying `structurePatternId`; a natural scheduled static-autopost success; Trial 24h metric entry; Instagram-side bio/pin/Highlight mutations; and any future judge hard-gate promotion, which remains unsupported until calibration warrants it.
