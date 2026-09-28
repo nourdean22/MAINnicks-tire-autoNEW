@@ -19,7 +19,7 @@ import { prisma } from "@/lib/prisma";
 // addition until merge. Types-only keeps runtime untouched either way.
 import type { CapabilityArtifact, ArtifactState } from "../../../../packages/utils/src/contracts";
 import { logger as rootLogger } from "@/lib/logger";
-import { getWorkerFreshness } from "@/lib/observability/worker-freshness";
+import { getLatestWorkerSuccessAt } from "@/lib/observability/worker-freshness";
 
 const log = rootLogger.withSurface("observability/fleet-truth");
 const HOUR_MS = 3_600_000;
@@ -77,10 +77,7 @@ export const STATENOUR_ARTIFACT_PROBES: ArtifactProbe[] = [
     // ticks before stale, so a single worker restart never flaps it.
     capability: "brain-bus-drain",
     maxAgeH: 1,
-    probe: async () => {
-      const worker = await getWorkerFreshness();
-      return worker.lastSuccessAt;
-    },
+    probe: () => getLatestWorkerSuccessAt(),
   },
 ];
 
