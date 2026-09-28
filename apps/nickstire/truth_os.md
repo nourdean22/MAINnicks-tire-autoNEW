@@ -505,11 +505,16 @@ should re-verify itself as syncs run. The operator's call on 2026-08-16 was to l
 rather than pause: volume is low and the band is now closed in code. Full receipts in
 `docs/ISSUE-REGISTRY.md` (ROS-093), which carries the superseded `=0` claim.
 
-**Prod pin changed 2026-08-08:** `REEL_VIDEO_PROVIDER=template_stock`
-(read-back verified). Higgsfield's session is revoked; nothing is blocked on it.
-The free lane now carries six camera moves and accepts real footage — but it
-COMPOSES video, it does not GENERATE it, and no footage source is wired yet
-(`camera-bridge` is outdoor front-lot ALPR with no bay angle).
+**Superseded 2026-09-27:** the 2026-08-08 `template_stock` pin and revoked-session
+statement below are historical, not current production truth. PR #2717 moved the
+Higgsfield CLI/runtime to 1.1.26 and production keepalives recovered. A durable
+credential row written before a fresh Railway process restart was subsequently
+used by that fresh process to complete another `session refreshed` keepalive,
+which proves cross-process recovery rather than a one-dyno false green. Live Reel
+canary 1950002 then generated five Higgsfield clips and failed closed later at
+render QA on a CTA mismatch; it was not published. Full refresh-token revocation
+still requires an operator browser login. Verify the live provider predicate
+instead of copying an old pin from prose.
 
 ## 2026-08-10 — the capability ledger can now say "we do not currently know"
 
