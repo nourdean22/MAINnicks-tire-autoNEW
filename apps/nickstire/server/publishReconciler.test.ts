@@ -36,13 +36,26 @@ describe("confident match", () => {
     expect(r.status).toBe("resolved_published");
   });
 
-  it("matches on the caption HEAD when a CTA was appended after publishing", async () => {
+  it("does NOT auto-close a prefix-only caption match", async () => {
     mediaResult = { ok: true, posts: [post({ caption: "Once the pad gets this thin you are one drive from metal on metal — DM BRAKES for a free check" })] };
     const r = await reconcileAttempt({
       attemptId: "a", attemptedAt: ATTEMPT,
       expectedCaption: "Once the pad gets this thin you are one drive from metal on metal",
     });
-    expect(r.status).toBe("resolved_published");
+    expect(r.status).toBe("needs_operator");
+    expect((r as any).candidates[0]).toMatchObject({ confident: false });
+    expect((r as any).candidates[0].reasoning).toMatch(/operator evidence only/i);
+  });
+
+  it("does NOT auto-close when two different captions share the same first 60 characters", async () => {
+    const shared = "This opening is intentionally identical for more than sixty characters so";
+    mediaResult = { ok: true, posts: [post({ caption: shared + " post B" })] };
+    const r = await reconcileAttempt({
+      attemptId: "a", attemptedAt: ATTEMPT,
+      expectedCaption: shared + " post A",
+    });
+    expect(r.status).toBe("needs_operator");
+    expect((r as any).candidates[0].confident).toBe(false);
   });
 });
 
