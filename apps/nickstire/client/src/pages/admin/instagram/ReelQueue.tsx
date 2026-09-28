@@ -54,7 +54,7 @@ export default function ReelQueue() {
   const [filter, setFilter] = useState<DraftStatus | "all">("all");
   const [showLegacyStatics, setShowLegacyStatics] = useState(false);
   /** Draft whose publish was refused by the quality gate, awaiting an operator decision. */
-  const [blockedDraft, setBlockedDraft] = useState<{ id: string; version: number; reason: string } | null>(null);
+  const [blockedDraft, setBlockedDraft] = useState<{ id: string; version: number; reason: string; asTrial: boolean } | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
   /** Two-tap reject (in-DOM — window.confirm is suppressed in the installed iOS PWA). */
   const [confirmRejectId, setConfirmRejectId] = useState<string | null>(null);
@@ -132,7 +132,15 @@ export default function ReelQueue() {
       const gateRefusal = /rendered-QA gate|quality decision|needs_review|needs_paid_repair|stale/i.test(err.message);
       if (gateRefusal && vars?.inventoryId) {
         const d = (drafts || []).find((x: any) => x.id === vars.inventoryId);
-        setBlockedDraft({ id: vars.inventoryId, version: d?.version ?? 0, reason: err.message });
+        setBlockedDraft({
+          id: vars.inventoryId,
+          version: d?.version ?? 0,
+          reason: err.message,
+          // Preserve the operator's original irreversible choice. Without this,
+          // accepting an advisory hold after "Publish as Trial" retried through
+          // the normal Reel path and silently lost MANUAL Trial semantics.
+          asTrial: Boolean(vars.trialReel),
+        });
         setOverrideReason("");
         return;
       }
@@ -154,7 +162,12 @@ export default function ReelQueue() {
   /** Record an operator override for ADVISORY findings, then retry the publish. */
   const createOverride = trpc.instagramAdmin.createQualityOverride.useMutation({
     onSuccess: (_d, vars) => {
-      toast.success("Override recorded", { description: "Findings accepted — retrying the publish." });
+      const retryAsTrial = blockedDraft?.id === vars.inventoryId && blockedDraft.asTrial;
+      toast.success("Override recorded", {
+        description: retryAsTrial
+          ? "Findings accepted — retrying the same MANUAL Trial publish."
+          : "Findings accepted — retrying the publish.",
+      });
       const d = (drafts || []).find((x: any) => x.id === vars.inventoryId);
       setBlockedDraft(null);
       if (d) {
@@ -164,6 +177,7 @@ export default function ReelQueue() {
           caption: d.publishCaption ?? captionWithHashtags(d),
           imageUrl: d.format !== "reel" ? (d.assetPack?.imageUrl || undefined) : undefined,
           videoUrl: d.format === "reel" ? (d.assetPack?.videoUrl || undefined) : undefined,
+          ...(retryAsTrial ? { trialReel: { graduationStrategy: "MANUAL" as const } } : {}),
         });
       }
     },
