@@ -399,6 +399,46 @@ class HeartbeatTest(unittest.TestCase):
                          {edge_main.PRODUCER_INSTANCE_ID})
 
 
+    def test_standby_promotion_degrades_tracks_and_rearms_census_before_writes(self):
+        class AuthorityRecorder(Recorder):
+            def __call__(self, method, url, payload, headers, timeout):
+                super().__call__(method, url, payload, headers, timeout)
+                return 200, '{"authoritative": true}'
+
+        pipeline = make_pipeline()
+        shop_enabled(pipeline, AuthorityRecorder())
+        pipeline.shop.authoritative = False
+        vision = FakeVision(pipeline.tracker)
+        vision.degraded = []
+        vision.reconnects = []
+        vision.tracks = SimpleNamespace(mark_degraded=lambda: vision.degraded.append(True))
+        vision.census = SimpleNamespace(note_reconnect=lambda ts: vision.reconnects.append(ts))
+        loop = _loop(pipeline, vision, FakeSource())
+
+        with self.assertLogs("edge", level="WARNING"):
+            self.assertTrue(loop.send_heartbeat(1234.0))
+        self.assertTrue(pipeline.shop.authoritative)
+        self.assertEqual(vision.degraded, [True])
+        self.assertEqual(vision.reconnects, [1234.0])
+
+    def test_failed_promotion_invalidation_fails_closed_back_to_standby(self):
+        class AuthorityRecorder(Recorder):
+            def __call__(self, method, url, payload, headers, timeout):
+                super().__call__(method, url, payload, headers, timeout)
+                return 200, '{"authoritative": true}'
+
+        pipeline = make_pipeline()
+        shop_enabled(pipeline, AuthorityRecorder())
+        pipeline.shop.authoritative = False
+        vision = FakeVision(pipeline.tracker)
+        vision.tracks = SimpleNamespace(mark_degraded=lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+        vision.census = SimpleNamespace(note_reconnect=lambda _ts: None)
+        loop = _loop(pipeline, vision, FakeSource())
+
+        with self.assertLogs("edge", level="ERROR"):
+            self.assertFalse(loop.send_heartbeat(1234.0))
+        self.assertFalse(pipeline.shop.authoritative)
+
 class TimersTest(unittest.TestCase):
     def test_the_heartbeat_and_drain_fire_on_THEIR_OWN_schedules_not_per_frame(self):
         """At 4 fps, a per-frame heartbeat would be 4 POSTs a second."""

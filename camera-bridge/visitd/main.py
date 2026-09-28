@@ -64,23 +64,25 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 class Pipeline:
     """Owns the tracker and turns emissions into ledger rows + outbox items."""
 
-    def __init__(self, cfg: Config, ledger: Ledger, cloud: CloudClient, metrics: MetricsRegistry) -> None:
+    def __init__(self, cfg: Config, ledger: Ledger, cloud: CloudClient, metrics: MetricsRegistry,
+                 producer_instance_id: Optional[str] = None) -> None:
         self.cfg = cfg
         self.ledger = ledger
         self.cloud = cloud
+        #: Identity of THIS process for the shop heartbeat's idempotency/authority key.
+        #: Edge producers pass a priority-bearing id; generic visitd keeps the legacy
+        #: opaque id so this change is backward compatible.
+        self.producer_instance_id = producer_instance_id or uuid.uuid4().hex[:16]
         # Best-effort mirror into the shop's read model. Never blocks the outbox.
         self.shop = ShopMirror(
             cfg.backend.shop_url,
             cfg.backend.shop_sync_key,
             timeout_seconds=cfg.backend.timeout_seconds,
             bay_zones={name: frozenset(cam.bay_zones) for name, cam in cfg.cameras.items()},
+            producer_instance_id=self.producer_instance_id,
         )
         self.metrics = metrics
         self.tracker = VisitTracker(cfg.policy, cfg.camera_specs())
-        #: Identity of THIS process for the shop heartbeat's idempotency key
-        #: (producerInstanceId, heartbeatSeq): a restart is a new instance, so the
-        #: cloud accepts its sequence starting again from zero.
-        self.producer_instance_id = uuid.uuid4().hex[:16]
         self.shop_heartbeat_seq = 0
         self.last_frame_time: Optional[float] = None
         self.wall_at_last_message: float = time.monotonic()
@@ -317,7 +319,7 @@ class Pipeline:
         is what surfaces as a stuck backlog in the admin.
         """
         result = {"sent": 0, "rejected": 0, "unreachable": 0}
-        if not self.shop.enabled:
+        if not self.shop.enabled or self.shop.authoritative is False:
             return result
         try:
             batch = self.ledger.shop_outbox_batch(limit)

@@ -58,6 +58,39 @@ const PLATE_STATUS = ["NONE", "UNREADABLE", "CANDIDATE", "CONFIRMED", "AMBIGUOUS
 const DATA_CLASSES = ["PRODUCTION", "COMMISSIONING", "REPLAY"] as const;
 const HEARTBEAT_MODES = ["PRODUCTION", "SHADOW", "COMMISSIONING"] as const;
 
+/** Shop PC > NicksMax > NattyNour. Legacy opaque ids intentionally have no priority. */
+export const CAMERA_AUTHORITY_STALE_SECONDS = 90;
+export function producerPriority(id: string | null | undefined): number {
+  const m = /^p([123])-/.exec(String(id ?? ""));
+  return m ? Number(m[1]) : 99;
+}
+
+export function heartbeatAuthorityAccepted(input: {
+  incomingId: string;
+  incomingSeq: number;
+  storedId: string;
+  storedSeq: number;
+  storedAgeSeconds: number;
+}): boolean {
+  if (input.incomingId === input.storedId) return input.incomingSeq >= input.storedSeq;
+  return (
+    producerPriority(input.incomingId) <= producerPriority(input.storedId)
+    || input.storedAgeSeconds > CAMERA_AUTHORITY_STALE_SECONDS
+  );
+}
+
+export function visitProducerAuthorized(
+  provided: string | null | undefined,
+  current: { producerInstanceId: string; ageSeconds: number } | null,
+): boolean {
+  if (!current) return !provided; // rollout compatibility: legacy sender before first heartbeat
+  if (!provided) return producerPriority(current.producerInstanceId) === 99;
+  return (
+    provided === current.producerInstanceId
+    && current.ageSeconds <= CAMERA_AUTHORITY_STALE_SECONDS
+  );
+}
+
 /**
  * ISO-8601 or epoch seconds. `null` stays null — an unobserved time is NOT "now".
  * A value that is present but unparseable REJECTS rather than degrading to null.
@@ -238,6 +271,32 @@ export function registerCameraVisitsRoute(app: Express): void {
     const d = await getDbTyped();
     if (!d) return res.status(503).json({ error: "database unavailable" });
 
+    // One elected producer may write business rows for a camera. The heartbeat route
+    // elects atomically; visits only verify that election. This makes a network partition
+    // fail closed instead of letting two PCs double-count the same car.
+    const providedProducer = (req.headers["x-camera-producer"] as string | undefined) || undefined;
+    for (const camera of new Set(parsed.data.visits.map((v) => v.camera))) {
+      const runtimeRows = await d.execute(sql`
+        SELECT producerInstanceId,
+               TIMESTAMPDIFF(SECOND, receivedAt, NOW()) AS ageSeconds
+        FROM camera_runtime WHERE camera = ${camera} LIMIT 1
+      `);
+      const runtimeList = (Array.isArray(runtimeRows) ? runtimeRows[0] : runtimeRows) as
+        unknown as Array<Record<string, unknown>> | undefined;
+      const row = Array.isArray(runtimeList) && runtimeList.length ? runtimeList[0] : null;
+      const current = row ? {
+        producerInstanceId: String(row.producerInstanceId),
+        ageSeconds: Math.max(0, Number(row.ageSeconds ?? 0)),
+      } : null;
+      if (!visitProducerAuthorized(providedProducer, current)) {
+        return res.status(409).json({
+          error: "producer standby",
+          camera,
+          authoritative: false,
+        });
+      }
+    }
+
     type Outcome = "applied" | "stale" | "failed";
     const results: Array<{ visitId: string; outcome: Outcome; reason?: string }> = [];
 
@@ -411,9 +470,18 @@ export const HEARTBEAT_COLUMNS = [
   "arrivalsAfterStitch", "stitchedTotal", "stitchRefusedAmbiguous",
 ] as const;
 
-/** A newer sequence from the same producer, or any sequence from a new producer instance. */
+/**
+ * Atomic authority + replay fence. A higher-priority machine may preempt immediately;
+ * a lower-priority machine may take over only after the current owner is stale. Same-role
+ * restarts may replace one another immediately, while one instance still needs monotonic seq.
+ */
+const incomingPrioritySql = "(CASE WHEN VALUES(`producerInstanceId`) LIKE 'p1-%' THEN 1 WHEN VALUES(`producerInstanceId`) LIKE 'p2-%' THEN 2 WHEN VALUES(`producerInstanceId`) LIKE 'p3-%' THEN 3 ELSE 99 END)";
+const storedPrioritySql = "(CASE WHEN `producerInstanceId` LIKE 'p1-%' THEN 1 WHEN `producerInstanceId` LIKE 'p2-%' THEN 2 WHEN `producerInstanceId` LIKE 'p3-%' THEN 3 ELSE 99 END)";
 export const HEARTBEAT_ACCEPT =
-  "(VALUES(`producerInstanceId`) <> `producerInstanceId` OR VALUES(`heartbeatSeq`) >= `heartbeatSeq`)";
+  "((VALUES(`producerInstanceId`) = `producerInstanceId` AND VALUES(`heartbeatSeq`) >= `heartbeatSeq`)"
+  + " OR (VALUES(`producerInstanceId`) <> `producerInstanceId` AND ("
+  + incomingPrioritySql + " <= " + storedPrioritySql
+  + " OR `receivedAt` < DATE_SUB(NOW(), INTERVAL " + CAMERA_AUTHORITY_STALE_SECONDS + " SECOND))))";
 
 /**
  * Columns that any guard READS. Every one of them has to be assigned after everything
@@ -448,16 +516,20 @@ const HEARTBEAT_READ_BY_GUARDS = ["state", "heartbeatSeq", "producerInstanceId"]
  *     so it compared the new state to itself. It never moved once. "How long has this
  *     camera been offline" was frozen at the row's creation time from the first release.
  *
- * THE DERIVATION. Assign in this order, so every guard reads pre-statement values:
- *   1. plain columns        nothing reads them, so they can go anywhere -- first is fine
- *   2. `stateSince`         reads `state`, so it must precede the `state` assignment
- *   3. `receivedAt`         reads nothing
- *   4. `state`              read by (2), so it comes after it
- *   5. `heartbeatSeq`       reads `producerInstanceId` and itself, both still original
- *   6. `producerInstanceId` reads itself (still original) and `heartbeatSeq` (now new).
- *                           Safe because the id half alone decides every restart, and on
- *                           a replay `heartbeatSeq` was NOT updated in step 5, so the
- *                           sequence half is still evaluated against the stored value.
+ * THE DERIVATION. Assign in this order, so every authority guard reads the OLD
+ * `receivedAt`, `state`, sequence and instance id:
+ *   1. plain columns        guarded by the complete pre-statement authority predicate
+ *   2. `stateSince`         reads old `state` and old `receivedAt`
+ *   3. `state`
+ *   4. `heartbeatSeq`
+ *   5. `producerInstanceId`
+ *   6. `receivedAt`         LAST. By then the owner/seq fields encode whether the claim
+ *                           was accepted, so a post-accept predicate can refresh liveness
+ *                           without re-reading the now-mutated stale-owner clock.
+ *
+ * Putting `receivedAt` earlier is a split-brain bug: a lower-priority takeover accepted
+ * because the owner was stale would refresh the clock halfway through the statement and
+ * make later assignments reject that same takeover.
  *
  * Checked case by case against `applyOnDuplicateKeyUpdate` in the test, which simulates
  * the left-to-right rule and runs THIS string: restart applies, replay is a no-op, a
@@ -467,15 +539,17 @@ export const HEARTBEAT_GUARDED_SET = (() => {
   const guard = (c: string) => `\`${c}\` = IF(${HEARTBEAT_ACCEPT}, VALUES(\`${c}\`), \`${c}\`)`;
   const readByGuards = new Set<string>(HEARTBEAT_READ_BY_GUARDS);
   const plain = HEARTBEAT_COLUMNS.filter((c) => c !== "camera" && !readByGuards.has(c));
+  const acceptedAfterDiscriminators =
+    "(VALUES(`producerInstanceId`) = `producerInstanceId` AND VALUES(`heartbeatSeq`) >= `heartbeatSeq`)";
   return [
     ...plain.map(guard),
     // Before `state`, or it compares the new state to itself and never fires.
     `\`stateSince\` = IF(${HEARTBEAT_ACCEPT} AND VALUES(\`state\`) <> \`state\`, NOW(), \`stateSince\`)`,
-    `\`receivedAt\` = IF(${HEARTBEAT_ACCEPT}, NOW(), \`receivedAt\`)`,
     guard("state"),
-    // The discriminators last, and in THIS order: see the derivation above.
     guard("heartbeatSeq"),
     guard("producerInstanceId"),
+    // LAST: every HEARTBEAT_ACCEPT above must still see the pre-statement liveness clock.
+    `\`receivedAt\` = IF(${acceptedAfterDiscriminators}, NOW(), \`receivedAt\`)`,
   ].join(", ");
 })();
 
@@ -608,6 +682,17 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       `);
       const info = (Array.isArray(result) ? result[0] : result) as { affectedRows?: number } | undefined;
       const accepted = Number(info?.affectedRows ?? 0) !== 0;
+      // Read back the elected owner. `affectedRows` can be zero for an identical heartbeat,
+      // but authority is a fact about the stored row, not about whether MySQL changed bytes.
+      const ownerRows = await d.execute(sql`
+        SELECT producerInstanceId FROM camera_runtime WHERE camera = ${b.camera} LIMIT 1
+      `);
+      const ownerList = (Array.isArray(ownerRows) ? ownerRows[0] : ownerRows) as
+        unknown as Array<Record<string, unknown>> | undefined;
+      const authorityProducer = Array.isArray(ownerList) && ownerList.length
+        ? String(ownerList[0].producerInstanceId)
+        : null;
+      const authoritative = authorityProducer === b.producerInstanceId;
 
       let transition: { from: string | null; to: string; reason: string } | null = null;
       if (accepted) {
@@ -682,11 +767,14 @@ export function registerCameraHeartbeatRoute(app: Express): void {
 
       console.info(
         `[camera-heartbeat] ${b.camera} seq=${b.heartbeatSeq} ${accepted ? "accepted" : "stale"} state=${verdict.state}` +
+        ` authoritative=${authoritative} owner=${authorityProducer ?? "-"}` +
         (transition ? ` transition=${transition.from ?? "-"}->${transition.to}` : "") +
         (activeRun ? ` activeRun=${activeRun.runId}` : ""),
       );
       return res.status(200).json({
         accepted,
+        authoritative,
+        authorityProducer,
         state: verdict.state,
         facets: verdict.facets,
         reason: verdict.reason,

@@ -68,6 +68,57 @@ class ShopMirrorTest(unittest.TestCase):
         self.assertEqual(row["arrivedAt"], iso_utc(1_700_000_000.0))
         self.assertFalse(row["preexisting"])
 
+    def test_priority_producer_header_is_sent_on_visits_and_heartbeats(self):
+        rec = Recorder()
+        m = ShopMirror(
+            "https://nickstire.org/api/camera/visits", "k",
+            transport=rec, producer_instance_id="p1-shop-abc",
+        )
+        queued = m.queue_row(emission())
+        visit_id, seq, url, row = queued
+        self.assertEqual(
+            m.deliver({"visit_id": visit_id, "seq": seq, "url": url, "payload": row}),
+            "sent",
+        )
+        m.heartbeat({"camera": "sign"})
+        self.assertEqual(rec.calls[0]["headers"]["x-camera-producer"], "p1-shop-abc")
+        self.assertEqual(rec.calls[1]["headers"]["x-camera-producer"], "p1-shop-abc")
+
+    def test_standby_does_not_queue_business_rows_until_elected(self):
+        m = ShopMirror(
+            "https://nickstire.org/api/camera/visits", "k",
+            transport=Recorder(), producer_instance_id="p2-nicksmax-abc",
+        )
+        self.assertFalse(m.authoritative)
+        self.assertIsNone(m.queue_row(emission()))
+        self.assertEqual(m.skipped, 1)
+
+    def test_heartbeat_reply_can_promote_and_demote_a_standby(self):
+        class AuthorityRecorder(Recorder):
+            def __init__(self):
+                super().__init__()
+                self.reply = '{"authoritative": true}'
+
+            def __call__(self, method, url, payload, headers, timeout):
+                super().__call__(method, url, payload, headers, timeout)
+                return 200, self.reply
+
+        rec = AuthorityRecorder()
+        m = ShopMirror(
+            "https://nickstire.org/api/camera/visits", "k",
+            transport=rec, producer_instance_id="p2-nicksmax-abc",
+        )
+        with self.assertLogs("visitd.shop", level="WARNING"):
+            self.assertTrue(m.heartbeat({"camera": "sign"}))
+        self.assertTrue(m.authoritative)
+        self.assertIsNotNone(m.queue_row(emission()))
+
+        rec.reply = '{"authoritative": false}'
+        with self.assertLogs("visitd.shop", level="WARNING"):
+            self.assertTrue(m.heartbeat({"camera": "sign"}))
+        self.assertFalse(m.authoritative)
+        self.assertIsNone(m.queue_row(emission(visit_id="v2")))
+
     def test_accumulates_across_emissions_so_a_replace_never_erases_history(self):
         """The ingest does a guarded FULL-COLUMN replace. Sending only what one emission
         knows would null out everything learned earlier, so the row is merged here."""
@@ -239,6 +290,16 @@ class PipelineIsolationTest(unittest.TestCase):
             p.process_message(events_topic, raw_fn("new", "o1", 1000.0, ["front_lot"]), 1000.0)
         self.assertEqual(p.ledger.outbox_depth(), 1, "the AUTHORITATIVE outbox still got its row")
         self.assertEqual(p.ledger.shop_outbox_depth(), 0)
+
+    def test_demoted_producer_does_not_drain_an_existing_shop_backlog(self):
+        rec = Recorder(status=200)
+        p, _raw_fn, _events_topic = self._pipeline(shop_transport=rec)
+        p.ledger.commit_step([], [], [("v1", 1, "u", {"visitId": "v1", "seq": 1})])
+        p.shop.authoritative = False
+
+        self.assertEqual(p.drain_shop(), {"sent": 0, "rejected": 0, "unreachable": 0})
+        self.assertEqual(rec.calls, [], "standby must not write business rows after demotion")
+        self.assertEqual(p.ledger.shop_outbox_depth(), 1, "queued truth stays local until authority returns")
 
     def test_the_mirror_is_off_unless_configured(self):
         from test_main import make_pipeline, raw, EVENTS

@@ -66,8 +66,18 @@ class ShopMirror:
         data_class: str = "PRODUCTION",
         commissioning_run_id: Optional[str] = None,
         provenance: Optional[Dict[str, Optional[str]]] = None,
+        producer_instance_id: Optional[str] = None,
     ) -> None:
         self.url = url
+        self.producer_instance_id = producer_instance_id
+        # Priority-bearing edge ids are p1-shop / p2-nicksmax / p3-nattynour.
+        # Primary may buffer during a WAN outage; standbys fail closed until the shop
+        # heartbeat explicitly grants authority. Legacy ids preserve the old behaviour.
+        self.authoritative: Optional[bool] = (
+            True if str(producer_instance_id or "").startswith("p1-")
+            else False if str(producer_instance_id or "").startswith(("p2-", "p3-"))
+            else None
+        )
         #: When a delivery to the shop last SUCCEEDED. None until one has.
         self.last_ack_at: Optional[float] = None
         self._key = sync_key
@@ -117,6 +127,12 @@ class ShopMirror:
     def enabled(self) -> bool:
         """Configured means a URL AND a key. A URL without a key would 401 every time."""
         return bool(self.url and self._key)
+
+    def _headers(self) -> Dict[str, str]:
+        headers = {"Content-Type": "application/json", "x-sync-key": str(self._key)}
+        if self.producer_instance_id:
+            headers["x-camera-producer"] = str(self.producer_instance_id)
+        return headers
 
     def _is_bay(self, camera: str, zone: Optional[str]) -> bool:
         return bool(zone) and zone in self.bay_zones.get(camera, frozenset())
@@ -250,9 +266,7 @@ class ShopMirror:
 
                 transport = requests_transport
             status, text = transport(
-                "POST", url, dict(body),
-                {"Content-Type": "application/json", "x-sync-key": str(self._key)},
-                self.timeout_seconds,
+                "POST", url, dict(body), self._headers(), self.timeout_seconds,
             )
         except Exception as exc:
             self.heartbeats_failed += 1
@@ -260,7 +274,18 @@ class ShopMirror:
             return False
         if 200 <= status < 300:
             self.heartbeats_sent += 1
-            self.apply_active_run(text)
+            try:
+                import json as _json
+                payload = _json.loads(text) if isinstance(text, (str, bytes)) else text
+            except Exception:
+                payload = None
+            if isinstance(payload, dict) and isinstance(payload.get("authoritative"), bool):
+                previous = self.authoritative
+                self.authoritative = bool(payload["authoritative"])
+                if previous != self.authoritative:
+                    log.warning("shop producer authority changed producer=%s authoritative=%s",
+                                self.producer_instance_id, self.authoritative)
+            self.apply_active_run(payload if isinstance(payload, dict) else text)
             return True
         self.heartbeats_failed += 1
         # 1200, not 120. A Zod rejection names the offending path and the values it
@@ -354,7 +379,7 @@ class ShopMirror:
         impossible. Returns None when the mirror is unconfigured, so an unconfigured deployment
         queues nothing rather than filling a table nobody drains.
         """
-        if not self.enabled:
+        if not self.enabled or self.authoritative is False:
             self.skipped += 1
             return None
         row = self.row_for(emission, camera_name, provenance)
@@ -387,7 +412,7 @@ class ShopMirror:
                 "POST",
                 str(item["url"]),
                 {"visits": [item["payload"]]},
-                {"Content-Type": "application/json", "x-sync-key": str(self._key)},
+                self._headers(),
                 self.timeout_seconds,
             )
         except Exception as exc:  # a shop outage must never touch the authoritative lane

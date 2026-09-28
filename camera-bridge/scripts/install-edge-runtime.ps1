@@ -66,6 +66,8 @@ param(
     [string]$Model = "",
     [string]$Device = "AUTO",
     [string]$Camera = "sign",
+    [ValidateSet("", "shop", "nicksmax", "nattynour")]
+    [string]$Role = "",
     [double]$Fps = 4.0,
     [double]$HeartbeatSeconds = 30.0,
     [double]$StallExitSeconds = 180.0,
@@ -311,6 +313,7 @@ $persistArg    = if ($PersistSeconds -ge 0) { " --persist-seconds $PersistSecond
 $dryRunArg     = if ($ProducerDryRun) { ' --dry-run' } else { '' }
 $logLevelArg   = _Arg '--log-level' $LogLevel
 $extraArg      = if ($ExtraArgs) { ' ' + $ExtraArgs } else { '' }
+$roleLine      = if ($Role) { 'set "EDGE_ROLE=' + $Role + '"' } else { 'set "EDGE_ROLE="' }
 
 # The secret is decrypted by a short inline PowerShell call and handed to the child as an
 # environment variable. It never appears on a command line (Task Manager shows those) and
@@ -322,6 +325,7 @@ $secretLine = if (Test-Path $secretFile) {
 $wrapperBody = @"
 @echo off
 setlocal
+$roleLine
 cd /d "$pctRoot"
 $secretLine
 echo. >> "$pctLog"

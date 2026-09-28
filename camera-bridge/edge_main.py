@@ -49,10 +49,21 @@ from visitd.metrics import REGISTRY, MetricsServer                # noqa: E402
 
 log = logging.getLogger("edge")
 
-#: Identity of THIS process, for the heartbeat's (producerInstanceId, heartbeatSeq)
-#: idempotency key. A restart is a new instance, so the cloud accepts a sequence that
-#: starts again from zero instead of treating it as a stale replay.
-PRODUCER_INSTANCE_ID = os.environ.get("EDGE_INSTANCE_ID") or os.urandom(8).hex()
+#: Priority-bearing identity of THIS process. The prefix is interpreted by the shop
+#: heartbeat route as the failover order; the random suffix still makes every restart a
+#: fresh heartbeat instance, so its sequence may safely restart at zero.
+#: Unknown/legacy roles keep the old opaque id and therefore receive no priority privilege.
+_EDGE_ROLE_PREFIX = {
+    "shop": "p1-shop",
+    "nicksmax": "p2-nicksmax",
+    "nattynour": "p3-nattynour",
+}
+_edge_role = os.environ.get("EDGE_ROLE", "").strip().lower()
+_edge_prefix = _EDGE_ROLE_PREFIX.get(_edge_role)
+PRODUCER_INSTANCE_ID = (
+    os.environ.get("EDGE_INSTANCE_ID")
+    or (f"{_edge_prefix}-{os.urandom(6).hex()}" if _edge_prefix else os.urandom(8).hex())
+)
 
 
 def _iso(ts: Optional[float]) -> Optional[str]:
@@ -834,6 +845,8 @@ class EdgeLoop:
         """Compose and post one heartbeat. False when no shop is configured."""
         if not self.pipeline.shop.enabled:
             return False
+        authority_before = self.pipeline.shop.authoritative
+        heartbeat_now = self.clock() if now is None else now
         self.heartbeat_seq += 1
         # Empty dict, not None: a vision layer without a stitcher then reports NOTHING for
         # each counter (`.get` -> None) rather than a fabricated 0, which is the same
@@ -842,7 +855,7 @@ class EdgeLoop:
         body = edge_heartbeat_body(
             camera=self.camera,
             seq=self.heartbeat_seq,
-            now=self.clock() if now is None else now,
+            now=heartbeat_now,
             mode=self.mode,
             source=self.source,
             vision=self.vision,
@@ -873,6 +886,26 @@ class EdgeLoop:
             stitch_refused_ambiguous=stitch_counts.get("refused_ambiguous"),
         )
         ok = self.pipeline.shop.heartbeat(body)
+        if authority_before is False and self.pipeline.shop.authoritative is True:
+            # Promotion is a source-of-truth discontinuity even though the pixels did not
+            # change. Tracks accumulated while this box was standby must not become customer
+            # arrivals merely because the cloud lease changed hands.
+            try:
+                self.vision.tracks.mark_degraded()
+                self.vision.census.note_reconnect(heartbeat_now)
+                self.pipeline.metrics.inc("edge_authority_promotions_total")
+                log.warning(
+                    "producer promoted to shop authority: degrading standby tracks and "
+                    "re-arming the preexisting census before business writes resume"
+                )
+            except Exception:
+                # Fail closed. The backend may have elected this producer, but if we cannot
+                # invalidate standby-era paths we refuse to mirror visits until a later
+                # heartbeat retries the promotion boundary successfully.
+                self.pipeline.shop.authoritative = False
+                self.pipeline.metrics.inc("edge_authority_promotion_errors_total")
+                log.exception("authority promotion invalidation FAILED; remaining standby")
+                ok = False
         # The reply may have switched the mode either way; keep the loop's view in step so
         # the NEXT heartbeat reports it without waiting another round trip. Returning to
         # `base_mode` is what lets the camera card's badge clear when a run ends.
@@ -1616,7 +1649,7 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         policy=cfg.policy,
     )
     cloud = CloudClient(cfg.backend, ledger, REGISTRY, dry_run=args.dry_run)
-    pipeline = Pipeline(cfg, ledger, cloud, REGISTRY)
+    pipeline = Pipeline(cfg, ledger, cloud, REGISTRY, producer_instance_id=PRODUCER_INSTANCE_ID)
 
     camera = args.camera
     if camera not in cfg.cameras:
@@ -2006,6 +2039,15 @@ def run_edge(args: argparse.Namespace) -> int:
     deadline = (time.time() + args.seconds) if args.seconds else None
     exit_code = 0
     try:
+        # Claim or confirm producer authority BEFORE the first frame can emit a visit.
+        # Primary can buffer locally if the shop is temporarily unreachable; standbys
+        # start fail-closed and only begin mirroring after the shop explicitly elects them.
+        try:
+            loop.send_heartbeat(time.time())
+            loop.next_heartbeat = time.time() + loop.heartbeat_seconds
+        except Exception:
+            pipeline.metrics.inc("edge_heartbeat_errors_total")
+            log.exception("startup heartbeat error")
         while not stop.is_set():
             if deadline is not None and time.time() >= deadline:
                 break
