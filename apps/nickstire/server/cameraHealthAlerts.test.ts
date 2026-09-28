@@ -359,7 +359,7 @@ describe("camera health alert wiring", () => {
   it("pages commissioned cameras only", () => {
     expect(service).toContain("EXPECTED_CAMERAS.filter((camera) => camera.commissioned)");
     expect(cameras).toContain('camera: "office"');
-    expect(cameras).toMatch(/camera: "office"[\s\S]*?commissioned: false/);
+    expect(cameras).toMatch(/camera: "office"[\s\S]*?commissioned: true/);
   });
 
   it("uses the durable claim rail but releases an unconfirmed delivery for retry", () => {

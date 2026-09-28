@@ -80,7 +80,7 @@ class EufyAgentTests(unittest.TestCase):
             observed_at=at,
         )
         self.assertEqual(payload["camera"], "office")
-        self.assertEqual(payload["mode"], "SHADOW")
+        self.assertEqual(payload["mode"], "PRODUCTION")
         self.assertEqual(payload["heartbeatSeq"], 7)
         self.assertTrue(payload["authPlaneOk"])
         self.assertTrue(payload["eventPlaneOk"])
