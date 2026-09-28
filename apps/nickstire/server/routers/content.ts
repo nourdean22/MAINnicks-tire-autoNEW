@@ -1036,6 +1036,21 @@ export const contentAdminRouter = router({
           });
         }
 
+        const contentRunId = typeof input.brief?.contentRunId === "string" ? input.brief.contentRunId : null;
+        if (contentRunId) {
+          const { advanceContentRun, RUN_STAGE, IMPLEMENTATION_STATE } = await import("../services/contentRun");
+          await advanceContentRun(contentRunId, {
+            stage: RUN_STAGE.awaiting_approval,
+            chosenFormat: "carousel",
+            implementationState: IMPLEMENTATION_STATE.built,
+            evidence: {
+              at: new Date().toISOString(),
+              what: `carousel draft ${input.id} persisted to the Draft Board`,
+              proof: input.id,
+            },
+          });
+        }
+
         // Dual-write/sync to sheet
         let sheetOk = false;
         try {
@@ -1901,6 +1916,7 @@ export const contentAdminRouter = router({
         // Campaign lineage: the creative_genomes row this brief was drafted
         // from, so a published reel traces back to its campaign.
         genomeId: z.string().max(64).nullable().optional(),
+        contentRunId: z.string().max(64).nullable().optional(),
         sourceId: z.string().optional(),
         sourceNotes: z.any().optional(),
         mechanicTruth: z.any().optional(),
@@ -2057,6 +2073,7 @@ export const contentAdminRouter = router({
         // omitting them here silently stripped genomeId (review P2) and the
         // hero-frame URL before inventory + reel_jobs persistence.
         genomeId: (brief as any).genomeId ?? null,
+        contentRunId: (brief as any).contentRunId ?? null,
         visualWorld: (brief as any).visualWorld,
         promptPack: (brief as any).promptPack,
         higgsfieldPromptPack: (brief as any).higgsfieldPromptPack,
