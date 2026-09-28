@@ -1,7 +1,7 @@
 {
   "evidence": {
     "capability-ledger-updated": {
-      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=reel-outcome-learning records the Pattern Lab outcome-join candidate, conservative activation threshold, deterministic exploration floor, focused tests, and explicit no-live-promotion boundary."
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=reel-outcome-learning records the Pattern Lab outcome join, active-pool-only activation threshold, continuous deterministic 1-in-4 exploration after maturity, focused tests, #2731/#2733 deployment receipts, and explicit no-live-promotion boundary for the learning policy."
     }
   }
 }
