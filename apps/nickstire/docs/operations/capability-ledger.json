@@ -340,18 +340,21 @@
       "name": "Cadence governor: creation reservations + publish-door assertion",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "milestone 5 (recovered onto completion-authority branch after stranding)",
+        "codeCommit": "milestone 5 (recovered onto completion-authority branch after stranding) 2026-09-27 hotfix candidate: igAutopost structured caption generation max_tokens 4096 -> 8192 only. It preserves the production DeepSeek generator / gpt-oss independent-judge split and does not alter AI_FORCE_OLLAMA or estate-wide model routing.",
         "tests": [
           "server/contentGovernor.test.ts (caps, spacing, repetition, publish door, stories bypass)",
           "server/autopostCadence.test.ts (5): igAutopost calls assertPublishCadence BEFORE the Meta dispatch, aborts on GovernorDenial, and rethrows any non-denial error rather than reporting success",
           "server/feedCapDoors.test.ts (10): ig_autopost_log counted as the fourth door; one unreadable door no longer zeroes the others",
           "server/voiceKernelParity.test.ts (24): igAutopost's generator banned-phrase line and critic voice rubric now RENDER from shared/voice.ts rather than being two hand-written lists in the same file that disagreed — the generator banned state-of-the-art/family-owned/world-class and the critic did not, so captions containing them scored full voice marks. The suite fails if either prompt regrows a local list, if the two stop banning the same set, or if a kernel rule can never fire. It also asserts the emitted critic rubric contains NO $-digit literal: the price line used to hardcode \"used tires from $60 installed\" (the fabricated floor ROS-058 removed as a reinfection vector) and now interpolates the BUSINESS SSOT, so the judge no longer scores the correct \"from $25 installed\" as 0.0 price-compliance while passing the drifted one. PROMPT_VERSION bumped 2026-06-20 -> 2026-07-27 so the resulting scoring shift stays attributable in igAutopostLog.",
-          "server/loopShapeContract.test.ts (31, +15): skip discrimination. cron_log.records_processed is `int DEFAULT 0` and the scheduler writes `recordsProcessed || 0`, so a DELIBERATE skip is stored as the integer 0 — indistinguishable from 'ran and produced nothing'. 17 job files return a skip-shaped `details` alongside that 0 (flag disabled, outside business hours, credential missing, not within a posting-slot window). classifyRun now resolves those to a silent `skipped` verdict, and the tests assert the discrimination cuts BOTH ways: the same loop at the same zero-streak WITHOUT a skip reason is still `dormant` and still actionable, and a failed run whose details mention a skip is still `failed`. ig_autopost is the loop most exposed, since its 'Skip — not within a posting-slot window' return fires on most ticks by design."
+          "server/loopShapeContract.test.ts (31, +15): skip discrimination. cron_log.records_processed is `int DEFAULT 0` and the scheduler writes `recordsProcessed || 0`, so a DELIBERATE skip is stored as the integer 0 — indistinguishable from 'ran and produced nothing'. 17 job files return a skip-shaped `details` alongside that 0 (flag disabled, outside business hours, credential missing, not within a posting-slot window). classifyRun now resolves those to a silent `skipped` verdict, and the tests assert the discrimination cuts BOTH ways: the same loop at the same zero-streak WITHOUT a skip reason is still `dormant` and still actionable, and a failed run whose details mention a skip is still `failed`. ig_autopost is the loop most exposed, since its 'Skip — not within a posting-slot window' return fires on most ticks by design.",
+          "server/igPostingResilience.test.ts (hotfix 2026-09-27): targeted posting/publish resilience suite 36/36 passed; generator source contract pins the measured structured-output budget at 8192 and refuses regression to the 4096 ceiling, while retry/schema guards remain intact."
         ],
         "deploymentId": "railway main auto-deploy (#817 merged)",
         "databaseAssertions": [
           "0086 APPLIED+VERIFIED on prod 2026-07-17 (operator-authorized): 4 tables with correct columns; policy v2 published and read back as GOVERNING; getEmergencyControlsFresh source=storage (fallback banner retired)",
-          "policy v8 published to prod 2026-07-27 (operator-authorized): maxFeedPostsPerDay 2->20, minimumFeedSpacingHours 3->0, verified by independent read. v7 was leftover cc2-verify \"temp\" state, never a business decision."
+          "policy v8 published to prod 2026-07-27 (operator-authorized): maxFeedPostsPerDay 2->20, minimumFeedSpacingHours 3->0, verified by independent read. v7 was leftover cc2-verify \"temp\" state, never a business decision.",
+          "2026-09-27 production ig_autopost_log read-back proves the static lane is live, not merely wired: 2026-09-26 morning and evening posted successfully (IG+FB IDs recorded); 2026-09-27 morning/evening failed before publish with truncated/empty LLM structured output.",
+          "2026-09-27 production llm_calls isolates the failure signature: failed caption-generation attempts on deepseek-v4-pro/Ollama repeatedly returned HTTP-success ledger rows with completionTokens=4096 exactly (for example ids 3510057, 3540020, 3540021), while successful posting generations finished below that ceiling and other DeepSeek lanes safely emitted >8k completion tokens. This supports a scoped output-budget fix rather than a global provider/model reroute."
         ]
       },
       "blockers": [
@@ -359,16 +362,21 @@
           "severity": "P2",
           "description": "no prod reservation exercised yet; consumption linkage deferred",
           "source": "design"
+        },
+        {
+          "severity": "P2",
+          "description": "Static ig-autopost output-budget hotfix is branch-verified but not yet deployed. Runtime failures are real and intermittent; do not call the lane fully reliable until a post-deploy slot or controlled live run completes without the 4096-token truncation/empty-output signature.",
+          "source": "2026-09-27 production ig_autopost_log + llm_calls read-back"
         }
       ],
       "deferredScope": [
         "reservation consumption linkage",
         "scheduling intelligence",
-        "autopost cadence is now ASSERTED but not runtime-verified — no cron tick observed",
         "voice/price prompt change is ASSERTED by test but NOT runtime-verified — no generation run was observed under the v3 prompts, so the real-world scoring shift (drafts with family-owned now failing voice; correct-price captions no longer failing) is predicted, not measured",
-        "loop shape contracts are still NOT wired to the cron observer — server/cron/observer.ts continues to react only to status='failed', so a job that reports `completed` while producing nothing remains invisible in production. The skip hazard is now handled in the module; the wiring itself is unshipped"
+        "loop shape contracts are still NOT wired to the cron observer — server/cron/observer.ts continues to react only to status='failed', so a job that reports `completed` while producing nothing remains invisible in production. The skip hazard is now handled in the module; the wiring itself is unshipped",
+        "static ig-autopost output-budget hotfix pending deployment/live receipt"
       ],
-      "lastVerifiedAt": "2026-07-28",
+      "lastVerifiedAt": "2026-09-27",
       "verificationExpiresAt": "2026-10-26",
       "codeState": "merged",
       "operationalState": "deployed",
