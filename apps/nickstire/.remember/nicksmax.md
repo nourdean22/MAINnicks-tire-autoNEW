@@ -30,3 +30,20 @@ NicksMax must not become:
 - a full mirror of the CEO laptop's worktrees, secrets, caches, or dependency trees
 
 Full receipt: `docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md`.
+
+## 2026-09-28 · superseding camera authority truth
+
+NicksMax now owns the commissioned Nick's `sign` camera edge in production. The old sibling-session guard and the earlier blanket prohibition on continuous camera inference are obsolete for this specific bounded lane.
+
+Current verified chain:
+- V380 cloud/P2P -> localhost 8554 three-lens stack
+- FFmpeg middle-lens crop -> MediaMTX `rtsp://127.0.0.1:8555/sign`
+- OpenVINO edge producer -> Nick camera ingest
+- calibration `sha256:67f719cc875d`
+- live `sourceType=rtsp`, `state=HEALTHY`
+
+V380 GUI independence is proven: V380 was closed and production heartbeats continued HEALTHY. Edge self-heal is also proven: the production Python process was killed and a new producer instance came back HEALTHY under the supervisor loop.
+
+Retired local tasks stay disabled: `V380Watchdog`, `NickEdgeProducer`, `NickEdgeProducerRight`, `NickEdgeSignCandidate`.
+
+Do not re-enable the old WGC tasks or create a second `sign` authority. The local supervisor task is `NicksMaxCameraSupervisorUser`. Railway remains cloud/scheduler/database authority; NicksMax is authoritative only for the bounded `sign` camera edge.
