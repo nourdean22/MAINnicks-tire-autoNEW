@@ -41,11 +41,20 @@ beforeEach(() => {
 
 describe("recordPublishAttempt", () => {
   it("writes an ATTEMPTED row and returns its id", async () => {
-    const id = await recordPublishAttempt({ jobId: 42, platforms: ["instagram"], mediaUrl: "https://cdn/x.mp4" });
+    const id = await recordPublishAttempt({
+      jobId: 42,
+      platforms: ["instagram"],
+      mediaUrl: "https://cdn/x.mp4",
+      caption: "Exact caption sent to Meta",
+    });
     expect(id).toMatch(/^pub_/);
     expect(inserted[0]).toMatchObject({ actionType: "publish_attempt", decision: "ATTEMPTED" });
     const ctx = JSON.parse(String(inserted[0].contextJson));
-    expect(ctx).toMatchObject({ jobId: 42, platforms: ["instagram"] });
+    expect(ctx).toMatchObject({
+      jobId: 42,
+      platforms: ["instagram"],
+      caption: "Exact caption sent to Meta",
+    });
     expect(ctx.requestedAt).toBeTruthy();
   });
 
@@ -116,6 +125,21 @@ describe("findUnreconciledAttempts", () => {
     const open = await findUnreconciledAttempts();
     expect(open).toHaveLength(1);
     expect(open[0].attemptId).toBe("pub_1");
+    expect(open[0].operatorRequired).toBe(false);
+  });
+
+  it("KEEPS OPERATOR_REQUIRED visible while marking it automation-ineligible", async () => {
+    rows = {
+      attempts: [attempt("pub_1", 30, { caption: "the exact attempted caption" })],
+      outcomes: [{ codes: "pub_1", decision: "OPERATOR_REQUIRED" }],
+    };
+    const open = await findUnreconciledAttempts();
+    expect(open).toHaveLength(1);
+    expect(open[0]).toMatchObject({
+      attemptId: "pub_1",
+      expectedCaption: "the exact attempted caption",
+      operatorRequired: true,
+    });
   });
 
   it("does not let the OPENING record close its own attempt", async () => {
