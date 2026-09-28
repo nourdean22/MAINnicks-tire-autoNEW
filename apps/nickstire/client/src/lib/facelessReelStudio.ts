@@ -1052,6 +1052,40 @@ export interface QualityScoreResult {
   hardGates: QualityHardGate[];
 }
 
+export function isScorableReelBrief(value: unknown): value is ReelBrief {
+  if (!value || typeof value !== "object") return false;
+  const brief = value as Partial<ReelBrief>;
+  return (
+    Array.isArray(brief.storyboardBeats) &&
+    Array.isArray(brief.captionHooks) &&
+    Array.isArray(brief.concepts) &&
+    Array.isArray(brief.sourceNotes) &&
+    Array.isArray(brief.hashtags) &&
+    typeof brief.topic === "string" &&
+    typeof brief.mechanicTruth === "string" &&
+    typeof brief.driverConfusion === "string" &&
+    typeof brief.clevelandAngle === "string" &&
+    typeof brief.campaignKeyword === "string" &&
+    typeof brief.archetype === "string" &&
+    typeof brief.motionLens === "string" &&
+    typeof brief.objectCharacter === "string" &&
+    typeof brief.usefulAbsurdity === "string" &&
+    typeof brief.voiceoverScript === "string" &&
+    typeof brief.selectedCaption === "string" &&
+    typeof brief.avoidedForRepetition === "string" &&
+    typeof brief.assetPlan === "string"
+  );
+}
+
+/**
+ * Runtime guard for persisted briefs.
+ *
+ * ReelBrief is a compile-time contract, but the Admin queue also reads
+ * historical rows written before the current shape existed. Never send a
+ * partial legacy object into the scorer and then rely on a catch after it
+ * dereferences missing arrays. Incomplete rows are unscorable/fail-closed
+ * at the queue surface; the publish gate remains independently strict.
+ */
 function allBriefText(brief: ReelBrief): { text: string; where: string }[] {
   return [
     ...brief.storyboardBeats.map((b) => ({ text: `${b.visual}\n${b.onScreenText}`, where: `beat ${b.beatNumber}` })),
