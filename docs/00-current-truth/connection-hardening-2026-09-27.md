@@ -31,14 +31,14 @@ Before commissioning, require all of these physical receipts: a real office moti
 
 The production alert rail has proven detection, claim, retry, and recovery-state behavior. Resend rejected the observed real production page while the domain was unverified, and logger-only fallback correctly did not count as delivery. PR #2715 added Telegram fallback and #2720 added a manual provider self-test, but a provider-accepted **real production degradation alert plus its recovery delivery** has not yet been observed. Keep this open until that pair has external acceptance receipts.
 
-### NicksMax final reboot + ESU
+### NicksMax hostname / reboot / ESU
 
-- Active hostname remains `DESKTOP-0MCRL1J`; pending hostname is already `NICKSMAX`.
-- Windows has CBS, Windows Update, and PendingFileRename reboot flags.
+**Updated receipt 2026-09-28:** the Windows rename/reboot portion is complete. The active hostname is now `nicksmax` (pending computer name `NICKSMAX`), and CBS, Windows Update, and PendingFileRename reboot flags are all clear.
+
 - The current ESU licensing-preparation package KB5126256 is installed.
-- The Windows profile has no linked Microsoft-account identity and consumer ESU is not yet enrolled.
-- `C:\Users\nourd\NicksMax\ACTIVE-WORK.md` explicitly blocks reboot while the sibling V380/camera session is active.
-- `finish-nicksmax` and the post-reboot verifier are already staged. After the camera guard is cleared: link/sign in the required Microsoft account, complete Windows Update's ESU enrollment flow, perform the controlled reboot, then verify hostname/Tailscale/Commander/SSH/ESU receipts.
+- Consumer ESU remains **not enrolled** (`ESUEnrollmentStatus` is empty; eligibility metadata is present).
+- `C:\Users\nourd\NicksMax\ACTIVE-WORK.md` still exists and says not to reboot or touch V380/camera startup while the sibling camera session is active. Treat the guard as authoritative until that owning session clears it, even though a reboot has already occurred since the older snapshot.
+- Remaining workstation action is the Microsoft-account / Windows Update consumer-ESU enrollment flow plus a post-enrollment receipt. No additional hostname reboot is currently required.
 
 ### Resend sending-domain DNS
 
