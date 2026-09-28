@@ -1767,6 +1767,13 @@ Keep it under 200 characters.`;
 
             publishCaption = approvedCaption;
             publishVideoUrl = approvedVideoUrl;
+            // Reel media is server-authoritative. Clear any client-supplied
+            // static/carousel fields before the shared publisher sees the
+            // request, otherwise a crafted payload with imageUrls + an approved
+            // Reel inventoryId can be routed through the carousel branch before
+            // the approved video branch.
+            input.imageUrl = undefined;
+            input.imageUrls = undefined;
           } else {
             // Non-reel drafts: media is SERVER-authoritative. The client used to
             // supply imageUrl(s) verbatim with no check against the row — the last
