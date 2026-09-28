@@ -5,9 +5,9 @@
 #
 # Tests:
 #   1. statenour-web /api/system/health returns 200 + JSON
-#   2. statenour-worker /health returns 200 + JSON with scheduler running
-#   3. worker /cron/mega manual call (with CRON_SECRET) returns 200
-#   4. Tail worker logs for in-process node-cron tick lines
+#   2. statenour-web heartbeat reports a fresh persisted private-worker receipt
+#   3. direct web brain-bus-drain cron call (with CRON_SECRET) returns 200
+#   4. same cron with a wrong secret returns 401
 #
 # Requires: .cron-secret.local in repo root (gitignored · contains hex secret)
 #
@@ -22,7 +22,7 @@ if [ -z "$SECRET" ]; then
 fi
 
 WEB_URL="https://statenour-web-production.up.railway.app"
-WORKER_URL="https://statenour-worker-production.up.railway.app"
+HEARTBEAT_URL="$WEB_URL/api/system/heartbeat"
 
 pass=0
 fail=0
@@ -36,31 +36,35 @@ WEB_CODE=$(echo "$WEB_RESP" | grep -oE "HTTP_STATUS:[0-9]+" | cut -d: -f2)
 echo "$WEB_RESP" | head -8
 if [ "$WEB_CODE" = "200" ]; then ok "statenour-web alive · 200"; else ko "statenour-web bad status: $WEB_CODE"; fi
 
-note "2 · statenour-worker /health"
-WRK_RESP=$(curl -sS -m 15 -w "\nHTTP_STATUS:%{http_code}" "$WORKER_URL/health" 2>&1 || echo "CURL_FAIL")
+note "2 · private worker freshness via public web heartbeat"
+WRK_RESP=$(curl -sS -m 15 -w "\nHTTP_STATUS:%{http_code}" "$HEARTBEAT_URL" 2>&1 || echo "CURL_FAIL")
 WRK_CODE=$(echo "$WRK_RESP" | grep -oE "HTTP_STATUS:[0-9]+" | cut -d: -f2)
+WRK_BODY=$(echo "$WRK_RESP" | sed '/HTTP_STATUS:/d')
 echo "$WRK_RESP" | head -8
-if [ "$WRK_CODE" = "200" ]; then ok "worker alive · 200"; else ko "worker bad status: $WRK_CODE"; fi
-
-note "3 · worker /cron/mega manual fire (auth-gated)"
-MEGA_RESP=$(curl -sS -m 30 -X POST -w "\nHTTP_STATUS:%{http_code}" \
-  -H "Authorization: Bearer $SECRET" \
-  -H "Content-Type: application/json" \
-  "$WORKER_URL/cron/mega" 2>&1 || echo "CURL_FAIL")
-MEGA_CODE=$(echo "$MEGA_RESP" | grep -oE "HTTP_STATUS:[0-9]+" | cut -d: -f2)
-echo "$MEGA_RESP" | head -8
-if [ "$MEGA_CODE" = "200" ] || [ "$MEGA_CODE" = "502" ]; then
-  ok "worker /cron/mega responded ($MEGA_CODE · 502 acceptable if web fan-out not yet wired)"
+if [ "$WRK_CODE" = "200" ] && echo "$WRK_BODY" | grep -Eq '"worker"[[:space:]]*:[[:space:]]*\{[^}]*"status"[[:space:]]*:[[:space:]]*"fresh"'; then
+  ok "private worker has a fresh persisted forward receipt"
 else
-  ko "worker /cron/mega bad status: $MEGA_CODE"
+  ko "private worker receipt stale/missing · web heartbeat status: $WRK_CODE"
 fi
 
-note "4 · worker /cron/mega with WRONG secret (must be 401)"
-BAD_RESP=$(curl -sS -m 15 -X POST -w "\nHTTP_STATUS:%{http_code}" \
+note "3 · direct web brain-bus-drain manual fire (auth-gated)"
+DRAIN_RESP=$(curl -sS -m 30 -X GET -w "\nHTTP_STATUS:%{http_code}" \
+  -H "Authorization: Bearer $SECRET" \
+  "$WEB_URL/api/cron/brain-bus-drain" 2>&1 || echo "CURL_FAIL")
+DRAIN_CODE=$(echo "$DRAIN_RESP" | grep -oE "HTTP_STATUS:[0-9]+" | cut -d: -f2)
+echo "$DRAIN_RESP" | head -8
+if [ "$DRAIN_CODE" = "200" ]; then
+  ok "web brain-bus-drain responded 200"
+else
+  ko "web brain-bus-drain bad status: $DRAIN_CODE"
+fi
+
+note "4 · web brain-bus-drain with WRONG secret (must be 401)"
+BAD_RESP=$(curl -sS -m 15 -X GET -w "\nHTTP_STATUS:%{http_code}" \
   -H "Authorization: Bearer not-the-real-secret" \
-  "$WORKER_URL/cron/mega" 2>&1 || echo "CURL_FAIL")
+  "$WEB_URL/api/cron/brain-bus-drain" 2>&1 || echo "CURL_FAIL")
 BAD_CODE=$(echo "$BAD_RESP" | grep -oE "HTTP_STATUS:[0-9]+" | cut -d: -f2)
-if [ "$BAD_CODE" = "401" ]; then ok "worker auth fail-closed working · 401"; else ko "worker auth NOT fail-closed: $BAD_CODE"; fi
+if [ "$BAD_CODE" = "401" ]; then ok "web cron auth fail-closed working · 401"; else ko "web cron auth NOT fail-closed: $BAD_CODE"; fi
 
 echo ""
 echo "===  RESULT · $pass passed · $fail failed  ==="
