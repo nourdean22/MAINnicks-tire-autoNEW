@@ -1,11 +1,23 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** repository `main` `c4ba4cf4c4712897f7180ceadf476147ef4b2e97` on 2026-09-27 (#2718). This header proves current repository ancestry/tree only; production/deploy claims remain scoped to the receipt-bearing sections below. Prior verified content baseline: `55d5d5fa2` on 2026-09-25 (#2656).
+**Verified against:** repository `main` `128eb207a4f01b9da5bfbbb330733262357e421f` at this closeout branch base on 2026-09-27 (#2719, docs-only). This closeout PR is also docs-only and will advance repository HEAD again when merged. Nick production's source-code deployment remains `a3b3555e43e755f0a90b12fc6962be2340e21503` (#2720); repository ancestry and deployment truth are intentionally recorded separately. Prior verified content baseline: `55d5d5fa2` on 2026-09-25 (#2656).
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
+
+## Connection hardening closeout (2026-09-27/28)
+
+Durable receipt: [`../../../docs/00-current-truth/connection-hardening-2026-09-27.md`](../../../docs/00-current-truth/connection-hardening-2026-09-27.md).
+
+- Nick production's source-code deployment is `a3b3555e43e755f0a90b12fc6962be2340e21503` (#2720); later repository commits at this checkpoint are documentation-only and must not be mistaken for the deployed app SHA.
+- TiDB/database/schema/self-healing are healthy and no longer the incident blocker.
+- Tailscale shop connectivity works; initial DERP fallback followed by a direct peer path is normal NAT traversal, not an outage.
+- Camera-health detection, durable claim/retry behavior, and persisted sign degradation/recovery state transitions are proven. Provider-accepted **real production degradation plus recovery owner delivery is not yet proven** and remains open.
+- Office remains intentionally uncommissioned: auth and semantic-event WebSocket connectivity are proven, but `lastEventProofAt` is still null and real event/control/media/PTZ-notify/home proofs remain open.
+- NicksMax final hostname/reboot + consumer ESU completion is intentionally blocked while `ACTIVE-WORK.md` protects the sibling V380/camera session.
+- Resend domain verification is failed until the required records are added at the authoritative Global Domain Group DNS provider.
 
 ## Higgsfield runtime recovery + live canary (2026-09-27)
 
