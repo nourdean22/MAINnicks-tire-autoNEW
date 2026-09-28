@@ -1678,6 +1678,11 @@ Keep it under 200 characters.`;
       // won. Captured in the reel integrity gate (where the current hashes are
       // known); consumed at the CAS below. Additive — no override = unchanged path.
       let pendingOverride: { inventoryId: string; assetVersion: number; currentContentHash: string; currentBriefHash: string } | null = null;
+      // Resolved by the SAME publish authority that checked rendered-QA. Carry
+      // this exact job id through to the success receipt so Queue/Trial posts
+      // enter the existing controlled-experiment measurement loop just like
+      // dailyReelPost does.
+      let resolvedReelJobId: number | null = null;
 
       if (input.inventoryId) {
         const { socialContentInventory, socialContentApprovals } = await import("../../drizzle/schema");
@@ -1758,6 +1763,7 @@ Keep it under 200 characters.`;
             // publish CAS below. An override still lets an operator ship over
             // ADVISORY findings; it never bypasses a hard gate.
             pendingOverride = authorization.overrideBinding;
+            resolvedReelJobId = authorization.reelJobId;
 
             publishCaption = approvedCaption;
             publishVideoUrl = approvedVideoUrl;
@@ -1870,6 +1876,22 @@ Keep it under 200 characters.`;
               err: err instanceof Error ? err.message.slice(0, 200) : String(err),
             });
           }
+        }
+      };
+
+      const attachExperimentMediaReceipt = async (postId?: string | null) => {
+        if (!postId || !resolvedReelJobId) return;
+        try {
+          const { attachPublishedMediaForReelJob } = await import("../services/contentExperimentStore");
+          await attachPublishedMediaForReelJob(resolvedReelJobId, postId, new Date());
+        } catch (err) {
+          // The Instagram post is already confirmed live. Experiment bookkeeping
+          // must never turn that success into an error that invites a duplicate.
+          log.warn("Queue Reel published but experiment media attachment failed", {
+            reelJobId: resolvedReelJobId,
+            postId,
+            err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+          });
         }
       };
 
@@ -2046,6 +2068,12 @@ Keep it under 200 characters.`;
         dispatchAmbiguous ? OUTCOME.ambiguous : succeeded.length === 0 ? OUTCOME.failed : OUTCOME.confirmed,
         { igPostId: igPostId ?? null, error: failureDetail || null, platformResults: results },
       );
+
+      // Attach as soon as Instagram has returned a confirmed media id, even if
+      // another requested platform failed later in this multi-platform call.
+      // The assignment store is idempotent (media_id IS NULL), so a retry cannot
+      // rewrite an experiment episode onto a different post.
+      await attachExperimentMediaReceipt(igPostId ?? null);
 
       if (dispatchAmbiguous) {
         const confirmedNote = succeeded.length
