@@ -729,7 +729,8 @@ class RtspSource(CaptureSource):
         ok, img = self._cap.read()
         if not ok:
             return None
-        f = Frame(seq=self._seq, ts=time.time(), source=self.name, image=img,\n                  meta={"window_verified": True})
+        f = Frame(seq=self._seq, ts=time.time(), source=self.name, image=img,
+                  meta={"window_verified": True})
         self._seq += 1
         return f
 
