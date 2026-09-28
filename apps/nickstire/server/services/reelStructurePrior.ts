@@ -1,18 +1,17 @@
 /**
  * Pattern Lab, finally connected to generation.
  *
- * `social_reel_patterns` has captured operator-judged short-form STRUCTURE
- * since migration 0107 and nothing ever read it outside the admin CRUD screen.
+ * `social_reel_patterns` stores short-form STRUCTURE: operator-captured
+ * references plus clearly labeled Nick's house hypotheses when the lab has
+ * never been populated. Nothing in this layer claims a hypothesis is a winner.
  * This is the read half: pick a pattern by rotation, hand it to brief
  * generation, and RECORD that it was used.
  *
  * The recording is the point as much as the picking. `timesUsed`/`lastUsedAt`
- * existed from the start and were never incremented, and there is no
- * pattern -> outcome link anywhere, so nothing could ever learn which captured
- * structure actually worked. Stamping the pattern id onto the brief — which
- * lands in `reel_jobs.payload` — creates the join that a later pass can run
- * against ig_metric_snapshots. Until then this rotates rather than pretending
- * to rank.
+ * drive fair exploration, while `structurePatternId` stamped into
+ * `reel_jobs.payload` now joins published jobs to `ig_metric_snapshots`.
+ * The learner stays on rotation until its active cohort is mature, then uses
+ * measured distribution as a prior while preserving deterministic exploration.
  *
  * Degrades to null, never throws: a missing structure hint must reduce the
  * brief to what it was yesterday, not fail the run.
@@ -126,11 +125,29 @@ export async function pickStructureHint(
       id: string; label: string; hookType: string; loopType: string;
       patternJson: string; timesUsed: number | null; lastUsedAt: Date | null;
     };
-    const rows = (await database
+    let rows = (await database
       .select()
       .from(socialReelPatterns)
       .orderBy(desc(socialReelPatterns.createdAt))
       .limit(100)) as PatternRow[];
+
+    if (rows.length === 0) {
+      // Production can honestly be empty because Pattern Lab capture is manual.
+      // Seed only that empty state with original, explicitly UNMEASURED house
+      // hypotheses so the rotation/outcome loop can begin collecting evidence.
+      const { ensureHouseReelPatterns } = await import("./reelPatternBootstrap");
+      const bootstrap = await ensureHouseReelPatterns(database);
+      if (bootstrap.seeded) {
+        log.info("empty Pattern Lab bootstrapped before structure selection", {
+          inserted: bootstrap.inserted,
+        });
+      }
+      rows = (await database
+        .select()
+        .from(socialReelPatterns)
+        .orderBy(desc(socialReelPatterns.createdAt))
+        .limit(100)) as PatternRow[];
+    }
     if (rows.length === 0) return null;
 
     const rotatable: RotatablePattern[] = rows.map((r) => ({
