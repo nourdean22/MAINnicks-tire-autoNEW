@@ -1,11 +1,26 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** repository `main` `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` on 2026-09-27 (#2721, documentation/memory closeout). Nick production's source-code deployment remains `a3b3555e43e755f0a90b12fc6962be2340e21503` (#2720); repository ancestry and deployment truth are intentionally recorded separately. Prior verified content baseline: `55d5d5fa2` on 2026-09-25 (#2656).
+**Verified against:** repository `main` `8421383d823f293d2595de5adb354de48530a32d` on 2026-09-27 (#2722, documentation/memory receipt). Nick production's source-code deployment remains `a3b3555e43e755f0a90b12fc6962be2340e21503` (#2720); repository ancestry and deployment truth are intentionally recorded separately. The Instagram Admin consolidation described below is still an unmerged branch candidate until its own merge receipt exists. Prior verified content baseline: `55d5d5fa2` on 2026-09-25 (#2656).
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
+
+## Instagram Admin consolidation candidate (2026-09-27) — branch verified, not yet merged
+
+The recovered Instagram Audit workstream was reconciled past the Higgsfield closeout into the operator/admin layer. The branch `nickstire/instagram-admin-finish-20260927` adds one Strategy surface plus supporting server contracts instead of building a parallel content system.
+
+- **Active Reel slate:** an ordered production overlay over the 133 approved packs with an independent durable cursor. Enabling, consuming, exhausting, clearing, or re-saving the slate does not move the canonical full-library cursor. Jobs persist source-pool provenance plus the active-slate definition revision so a mid-render enable/clear/reorder cannot advance the wrong queue. Legacy jobs remain full-library jobs.
+- **Creative-fatigue + demand evidence:** existing production-grammar fingerprints, novelty collisions, and the existing live topic miner are surfaced as transparent ranking inputs. No fake virality score or automatic publish promotion was added.
+- **Measured learning:** attention-microstructure comparisons become explicitly correlation-only structure hypotheses; shadow-judge verdicts are joined to append-only reach/save/share/skip snapshots. Both `posted` and reconciled `published` count as live. The UI always reports `hardGateSupported: false`; controlled validation is still required before any judge promotion.
+- **Profile merchandising:** measured pin candidates, recent Reel cover review, a BUSINESS-source-of-truth bio suggestion, and upload-ready black/yellow Highlight cover assets are exposed. Actual bio edits, pinning, Highlight ordering, and cover uploads remain explicit Instagram-side operator actions.
+- **Real-shop media:** Create can reuse only current, reuse-allowed, image-MIME, direct-runtime-URL `real_shop` assets. Drive viewer pages and non-image assets are not misrepresented as usable generation inputs; Strategy's reusable-media count uses the same predicate as Create.
+- **Visual QA:** deterministic authenticated-client fixtures were exercised in system Chrome at 1440x900 and 390x844. Strategy and Create rendered without horizontal overflow; primary tabs, slate controls, profile links/bio-copy, Highlight controls, and the real-shop picker were present. This proves client/runtime layout behavior, not a live production-login or Meta mutation receipt.
+
+**Local verification on the final code tree before PR:** full Vitest suite passed after the TiDB latest-row ordering fix and procedure-census regeneration; TypeScript, production build, source/SQL/hooks/brand/PII/cron lints, orphan gate (0 NEW), CURDATE, route registry, prerender and semantic-prerender checks passed. The live read-only migration reconciliation still reports six pre-existing blocking migration states (0127-0130, 0132, 0133); this branch changes no schema/migration files and does not claim that unrelated production drift is repaired.
+
+**Evidence boundary:** BUILT + WIRED + TESTED in branch. Do not call this live/deployed until the single consolidation PR merges and a post-deploy authenticated production check confirms the real admin session/data path.
 
 ## Connection hardening closeout (2026-09-27/28)
 

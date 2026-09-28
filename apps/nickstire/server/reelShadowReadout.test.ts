@@ -119,6 +119,11 @@ describe("realized exposure counts only reels that actually went live", () => {
     expect(s.wouldBlockAndPublished).toBe(1);
   });
 
+  it("treats both production terminal live spellings as published", () => {
+    expect(isPublished({ jobId: 1, status: "posted" })).toBe(true);
+    expect(isPublished({ jobId: 2, status: "published" })).toBe(true);
+  });
+
   it("publish_ambiguous is unknown — never counted live, never claimed dead", () => {
     // The reel lane parks a thrown publish as publish_ambiguous precisely
     // because Meta may have accepted it. Reporting that as "not posted" would

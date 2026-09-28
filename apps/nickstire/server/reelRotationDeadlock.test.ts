@@ -23,8 +23,11 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  ACTIVE_REEL_SLATE_CURSOR_KEY,
+  ACTIVE_REEL_SLATE_KEY,
   APPROVED_REEL_PACK_SLUGS,
   nextRotationIndexAfterRefusal,
+  resolveApprovedPackProgressTarget,
 } from "./services/approvedReelPackRotation";
 
 const PACK_0 = APPROVED_REEL_PACK_SLUGS[0];
@@ -65,6 +68,55 @@ describe("the decision — exercised, not inspected", () => {
   });
 });
 
+describe("queue provenance — mid-render Strategy changes cannot consume the wrong cursor", () => {
+  const revision = "2026-09-27T20:00:00.000Z";
+  const active = {
+    configured: true,
+    slugs: [PACK_1, PACK_0],
+    cursor: 0,
+    updatedAt: revision,
+    malformed: false,
+  };
+
+  it("advances the active-slate cursor only when the job carries the same slate revision", () => {
+    expect(resolveApprovedPackProgressTarget(PACK_1, 7, active, "active_slate", revision)).toEqual({
+      pool: "active_slate",
+      currentIndex: 0,
+      nextIndex: 1,
+      expectedSlug: PACK_1,
+    });
+    expect(resolveApprovedPackProgressTarget(PACK_1, 7, active, "active_slate", "older-revision")).toBeNull();
+  });
+
+  it("holds an active-slate job if the operator cleared the slate while it rendered", () => {
+    expect(resolveApprovedPackProgressTarget(
+      PACK_1,
+      7,
+      { configured: false, slugs: [], cursor: null, updatedAt: null, malformed: false },
+      "active_slate",
+      revision,
+    )).toBeNull();
+  });
+
+  it("a full-library job never consumes a newly enabled slate even when both point at the same slug", () => {
+    expect(resolveApprovedPackProgressTarget(PACK_1, 1, active, "full_approved_library", null)).toEqual({
+      pool: "full_approved_library",
+      currentIndex: 1,
+      nextIndex: 2,
+      expectedSlug: PACK_1,
+    });
+  });
+
+  it("legacy approved-pack jobs remain full-library jobs after the feature is enabled", () => {
+    expect(resolveApprovedPackProgressTarget(PACK_1, 1, active)).toEqual({
+      pool: "full_approved_library",
+      currentIndex: 1,
+      nextIndex: 2,
+      expectedSlug: PACK_1,
+    });
+  });
+});
+
 /**
  * The writer, against a fake database. This is what a source-matching test
  * could not do: prove the row is actually written, with the right value, and
@@ -73,12 +125,26 @@ describe("the decision — exercised, not inspected", () => {
 let dbAvailable = true;
 const writes: Array<{ values: Record<string, unknown>; update: Record<string, unknown> }> = [];
 let storedCursor: string | null = "1";
+let activeSlugs: string[] | null = null;
+let activeCursor: string | null = null;
+let activeRevision = "2026-09-27T20:00:00.000Z";
 
 const database = {
-  select: () => ({
+  select: (projection?: Record<string, unknown>) => ({
     from: () => ({
       where: () => ({
-        limit: async () => (storedCursor === null ? [] : [{ value: storedCursor }]),
+        limit: async () => {
+          // readActiveReelSlate projects the key; the full-library cursor read
+          // does not. Keep the two durable cursors independently observable.
+          if (projection && "key" in projection) {
+            if (!activeSlugs) return [];
+            return [
+              { key: ACTIVE_REEL_SLATE_KEY, value: JSON.stringify({ version: 1, slugs: activeSlugs }), updatedAt: new Date(activeRevision), updatedBy: "owner" },
+              ...(activeCursor === null ? [] : [{ key: ACTIVE_REEL_SLATE_CURSOR_KEY, value: activeCursor, updatedAt: new Date(activeRevision), updatedBy: "owner" }]),
+            ];
+          }
+          return storedCursor === null ? [] : [{ value: storedCursor }];
+        },
       }),
     }),
   }),
@@ -86,7 +152,8 @@ const database = {
     values: (values: Record<string, unknown>) => ({
       onDuplicateKeyUpdate: async ({ set }: { set: Record<string, unknown> }) => {
         writes.push({ values, update: set });
-        storedCursor = String(set.value);
+        if (values.key === ACTIVE_REEL_SLATE_CURSOR_KEY) activeCursor = String(set.value);
+        if (values.key === "reel_approved_pack_rotation_index") storedCursor = String(set.value);
       },
     }),
   }),
@@ -98,6 +165,9 @@ describe("the write — proven to persist", () => {
   beforeEach(() => {
     writes.length = 0;
     storedCursor = "1";
+    activeSlugs = null;
+    activeCursor = null;
+    activeRevision = "2026-09-27T20:00:00.000Z";
     dbAvailable = true;
   });
 
@@ -111,6 +181,61 @@ describe("the write — proven to persist", () => {
     expect(writes[0].values.key).toBe("reel_approved_pack_rotation_index");
     expect(writes[0].update.value).toBe("2");
     expect(storedCursor).toBe("2");
+  });
+
+  it("advances ONLY the active-slate cursor when the refused job came from the overlay", async () => {
+    storedCursor = "7";
+    activeSlugs = [PACK_1, PACK_0];
+    activeCursor = "0";
+    const { advanceRotationPastRefusedPack } = await import("./services/approvedReelPackRotation");
+    const result = await advanceRotationPastRefusedPack({
+      jobId: 42,
+      jobPackSlug: PACK_1,
+      jobPackPool: "active_slate",
+      jobSlateRevision: activeRevision,
+      reason: "terminal slate refusal",
+    });
+    expect(result).toBe(1);
+    expect(writes).toHaveLength(1);
+    expect(writes[0].values.key).toBe(ACTIVE_REEL_SLATE_CURSOR_KEY);
+    expect(activeCursor).toBe("1");
+    expect(storedCursor).toBe("7");
+  });
+
+  it("keeps a pre-slate full-library job on the full-library cursor after Strategy is enabled", async () => {
+    storedCursor = "1";
+    activeSlugs = [PACK_1, PACK_0];
+    activeCursor = "0";
+    const { advanceRotationPastRefusedPack } = await import("./services/approvedReelPackRotation");
+    const result = await advanceRotationPastRefusedPack({
+      jobId: 43,
+      jobPackSlug: PACK_1,
+      jobPackPool: "full_approved_library",
+      reason: "terminal legacy/full-library refusal",
+    });
+    expect(result).toBe(2);
+    expect(writes).toHaveLength(1);
+    expect(writes[0].values.key).toBe("reel_approved_pack_rotation_index");
+    expect(storedCursor).toBe("2");
+    expect(activeCursor).toBe("0");
+  });
+
+  it("writes NOTHING when an active-slate job belongs to an older slate revision", async () => {
+    storedCursor = "7";
+    activeSlugs = [PACK_1, PACK_0];
+    activeCursor = "0";
+    const { advanceRotationPastRefusedPack } = await import("./services/approvedReelPackRotation");
+    const result = await advanceRotationPastRefusedPack({
+      jobId: 44,
+      jobPackSlug: PACK_1,
+      jobPackPool: "active_slate",
+      jobSlateRevision: "2026-09-27T19:00:00.000Z",
+      reason: "stale slate refusal",
+    });
+    expect(result).toBeNull();
+    expect(writes).toHaveLength(0);
+    expect(storedCursor).toBe("7");
+    expect(activeCursor).toBe("0");
   });
 
   it("NEVER stamps reel_autopost_last_date — that would spend the day's post slot", async () => {

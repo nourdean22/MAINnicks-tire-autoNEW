@@ -7,10 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { trpc } from "@/lib/trpc";
 import { readStatus, unavailableCopy } from "@/lib/queryState";
 import { StatCard } from "../shared";
-import { writeCreateHandoff } from "./igViews";
+import { writeCreateHandoff, type IgView } from "./igViews";
 import { scoreFromAnalyticsRow } from "../../../../shared/reelScore";
 
-export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => void }) {
+export default function Learn({ onNavigate }: { onNavigate?: (tab: IgView) => void }) {
   const analytics = trpc.instagramAdmin.getAnalytics.useQuery();
   const report = trpc.instagramAdmin.getPerformanceReport.useQuery();
   const diagnostics = trpc.instagramStudio.diagnostics.useQuery();
@@ -333,7 +333,7 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
                     format: winner.postType === "carousel" ? "carousel" : "post",
                     objective: "engagement",
                   });
-                  onNavigate?.("studio");
+                  onNavigate?.("create");
                 }}><RefreshCw className="mr-2 h-4 w-4" /> Build a truthful sequel</Button>
               </div>
             ))}
@@ -415,6 +415,9 @@ export default function Learn({ onNavigate }: { onNavigate?: (tab: string) => vo
                   ));
                 })()
               )}
+              <Button className="mt-2 min-h-11 w-full" variant="outline" onClick={() => onNavigate?.("strategy")}>
+                Turn these signals into controlled tests
+              </Button>
             </CardContent>
           </Card>
 

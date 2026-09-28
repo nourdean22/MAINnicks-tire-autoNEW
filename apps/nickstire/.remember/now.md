@@ -1,5 +1,17 @@
 # Session ledger - nickstire
 
+**Updated: 2026-09-27 late ET** (Instagram Admin consolidation recovered on isolated NattyNour worktree; single PR/merge still pending)
+
+## 2026-09-27 · Instagram Admin consolidation handoff
+
+**Current branch truth.** `nickstire/instagram-admin-finish-20260927` is isolated at `C:/Users/nourd/Documents/Codex/instagram-admin-finish-20260927` on NattyNour and is based on current `origin/main` `8421383d823f293d2595de5adb354de48530a32d` (#2722). NicksMax is a separate active session; do not touch or overwrite its local worktree/state. Before any merge, refetch `origin/main` and reconcile whatever NicksMax lands.
+
+**What the branch closes.** The seven unfinished Instagram audit slices are now implemented together: durable active-slate ordering with its own cursor and mid-render source/revision provenance; production-grammar fatigue visibility; live-topic demand/timeliness tie-breaks; correlation-only structure hypotheses; shadow-judge/downstream outcome calibration; profile merchandising operator tools; and direct reusable `real_shop` image retrieval in Create. The Strategy surface is deliberately advisory/operator-facing; existing generation, QA, approval, and publish gates remain authoritative.
+
+**Verification.** Browser fixtures on system Chrome passed desktop/mobile layout with zero horizontal overflow. Targeted race/state suites passed, then the full Vitest suite passed after fixing one TiDB `id DESC` latest-row defect and regenerating the procedure census. TypeScript, build, source/SQL/hooks/brand/PII/cron/orphan/CURDATE/route/prerender gates are green; orphan gate reports 0 NEW after one accidental export was removed and only deliberate test-visible seams received reasoned baseline entries. Railway/TiDB migration reconciliation is **not green** because of pre-existing migration drift (blocking 0127-0130, 0132, 0133); this branch has no schema/migration changes and must not pretend to repair it.
+
+**Merge rule.** One consolidation PR, one merge only. Do not open or merge until the branch is refetched against current main and the final diff/CI/review gates are clean. After merge, replace this handoff with the actual merge SHA + post-deploy authenticated production receipt; until then this is BUILT/WIRED/TESTED, not LIVE.
+
 **Updated: 2026-09-27 21:17 ET** (final connection-hardening closeout merged as #2721)
 
 ## 2026-09-27 · final connection-hardening merge receipt

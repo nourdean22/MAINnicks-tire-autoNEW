@@ -5415,6 +5415,46 @@
       "file": "apps/nickstire/server/weather.ts",
       "symbol": "__resetWeatherCacheForTests",
       "reason": "Q-51 2026-09-23 · TEST-ONLY RESET of the 15-min weather cache for weather.nws.test.ts in the shared serial process."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "ACTIVE_REEL_SLATE_KEY",
+      "reason": "INTENTIONAL TEST-VISIBLE PERSISTENCE CONTRACT. Runtime read/write/clear paths in the same service use this exact durable shop_settings key; reelRotationDeadlock.test.ts imports it so the fake DB models the real overlay row instead of duplicating a string that could drift. The production consumer is live in this module, so this is not an unreachable capability."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "normalizeActiveReelSlateSlugs",
+      "reason": "INTENTIONAL TEST-VISIBLE VALIDATION CONTRACT. Runtime read/write paths call this normalizer before accepting an active slate; approvedReelPackRotation.test.ts imports it to pin unknown/duplicate/limit behavior directly. The helper is consumed by production in the same module and is not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "approvedReelPackAtFromPool",
+      "reason": "INTENTIONAL TEST-VISIBLE SELECTION CONTRACT. Production active-slate selection and race-safe cursor advancement call this helper in the same service; approvedReelPackRotation.test.ts imports it to assert exact ordered-pool boundaries without duplicating the selection algorithm."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "approvedReelPackAt",
+      "reason": "INTENTIONAL TEST-VISIBLE ROTATION CONTRACT. Production full-library selection and race-safe progress resolution call this helper in the same service; approvedReelPackRotation.test.ts imports it to pin exhaustion/invalid-index behavior so completed rotation cannot silently wrap."
+    },
+    {
+      "file": "apps/nickstire/server/services/instagramAdminStrategy.ts",
+      "symbol": "recommendedSlateOrder",
+      "reason": "INTENTIONAL TEST-VISIBLE STRATEGY CONTRACT. buildActiveSlateStrategy consumes this comparator in production; instagramAdminStrategy.test.ts imports it to pin the transparent ranking precedence (unpublished, grammar collision, live demand, novelty, measured saves/reach, recency) without asserting through database mocks."
+    },
+    {
+      "file": "apps/nickstire/server/services/instagramAdminStrategy.ts",
+      "symbol": "structureHypothesesFromComparisons",
+      "reason": "INTENTIONAL TEST-VISIBLE ANALYSIS CONTRACT. buildStructureHypotheses consumes this function in production; instagramAdminStrategy.test.ts imports it to guarantee only sufficient measured comparisons become explicitly non-causal priors and that ranking is magnitude-based."
+    },
+    {
+      "file": "apps/nickstire/server/services/instagramAdminStrategy.ts",
+      "symbol": "judgeOutcomeAlignment",
+      "reason": "INTENTIONAL TEST-VISIBLE CALIBRATION CONTRACT. buildReelJudgeCalibration consumes this function in production; instagramAdminStrategy.test.ts imports it to pin that observational cohort alignment can never itself promote the shadow judge to a hard gate."
+    },
+    {
+      "file": "apps/nickstire/server/services/instagramAdminStrategy.ts",
+      "symbol": "chooseProfileCandidates",
+      "reason": "INTENTIONAL TEST-VISIBLE MERCHANDISING CONTRACT. buildProfileMerchandising consumes this selector in production; instagramAdminStrategy.test.ts imports it to pin distinct discovery/save/share/retention candidate roles from measured outcomes without a duplicated ranking implementation."
     }
   ]
 }

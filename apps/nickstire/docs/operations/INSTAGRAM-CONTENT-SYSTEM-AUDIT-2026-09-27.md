@@ -151,7 +151,9 @@ Fingerprint dimensions include:
 
 Instagram Studio evidence upload now registers usable first-party shop imagery in the existing media registry with `rightsStatus = real_shop`.
 
-Usable uploads are now registered in the existing media registry with `rightsStatus = real_shop`, so the evidence is durably identifiable and reusable. A dedicated retrieval/browser UX is intentionally **not** claimed in this slice; exposing those assets inside Create remains a next-wave item.
+Usable uploads are registered in the existing media registry with `rightsStatus = real_shop`, so the evidence is durably identifiable and reusable.
+
+The consolidation branch now closes the retrieval half inside Create: the picker exposes only **current + reuse-allowed + image MIME + direct runtime URL** first-party assets. It deliberately does not substitute a Google Drive viewer page for a fetchable image URL, and the Strategy count uses the same eligibility predicate as the picker so the operator does not see a larger "reusable" count than Create can actually use.
 
 This supports a content strategy of real repair/shop evidence first, with AI used where it adds explanatory/creative value rather than pretending synthetic imagery is customer evidence.
 
@@ -190,19 +192,26 @@ Changed-path verification completed in the isolated branch:
 
 The full suite emitted expected test-path degradation/warning logs for unrelated mocked/unconfigured integrations; the process itself completed successfully.
 
-## Remaining highest-leverage next wave
+## 2026-09-27 consolidation closure — built in branch
 
-These are intentionally not disguised as already complete:
+The seven operator-control gaps above were reconciled against current code rather than implemented as parallel systems:
 
-1. **Active-slate editor** — rank the 133 approved packs instead of rotating all acceptable packs as peers.
-2. **Creative-entropy feedback** — surface production-grammar fatigue in Create/Queue without inventing a fake viral score.
-3. **Outcome-linked structure hypotheses** — let measured patterns influence candidate structures through experiments/priors, not unqualified causality.
-4. **Profile merchandising** — revisit pinned posts, Highlight structure/covers, bio conversion hierarchy, and Reel cover readability using actual performance evidence.
-5. **Real-media retrieval UX** — expose the growing `real_shop` media registry in Create.
-6. **Judge calibration** — compare shadow decisions with downstream skip/reach/save/share cohorts before any hard-gate promotion.
-7. **Authenticated admin visual QA** — source/build behavior is verified; exact authenticated production spacing/responsive interaction still needs a real logged-in browser pass after deployment.
+1. **Active slate** — a Strategy surface ranks approved packs transparently and can persist an ordered production overlay. The overlay has its **own durable cursor**; activating, advancing, exhausting, or clearing it does not reset or consume the canonical full-library cursor. Saving rejects unknown/duplicate/over-limit pack IDs instead of silently normalizing them.
+2. **Creative entropy** — approved-pack production-grammar fingerprints and novelty collisions are visible in Strategy, Create, and Queue. They are diagnostic signals only; normal generation/QA/approval/publish gates remain authoritative.
+3. **Outcome-linked structure hypotheses** — measured attention-microstructure comparisons become explicitly non-causal, testable priors with a controlled handoff back to Create.
+4. **Profile merchandising** — Strategy provides measured pin-candidate roles, recent Reel cover review, a BUSINESS-SSOT-derived suggested bio, and upload-ready black/yellow Highlight covers. Bio edits, pinning, Highlight ordering, and cover uploads remain explicit Instagram-side operator actions; no unsupported Graph control is claimed.
+5. **Real-media retrieval** — Create can reuse eligible `real_shop` images from the existing media registry rather than forcing another upload.
+6. **Judge calibration** — shadow verdicts are joined to downstream append-only reach/save/share/skip snapshots. Both terminal live status spellings (`posted` and reconciled `published`) count as published. The UI hard-codes no promotion verdict: `hardGateSupported` remains false and observational alignment is labelled descriptive, not causal.
+7. **Admin visual QA** — deterministic authenticated-client fixtures were exercised in system Chrome at 1440x900 and 390x844. Strategy rendered with 5 primary tabs, all expected controls, and **0 horizontal overflow** at both widths; Create rendered the real-shop media picker with **0 horizontal overflow**. The only fixture 404 was `/api/admin/events`, expected because Vite-only QA had no backend SSE server.
 
-## Truth labels after this slice
+### What is still genuinely open
+
+- **Merge / deploy receipt** for this consolidation branch.
+- **Authenticated production browser pass after deployment** against real live data/session. The deterministic fixture proves client layout/runtime behavior, not production auth, database values, or live Meta mutations.
+- **Instagram-side profile changes** (pins, bio, Highlights) remain human/operator actions by design.
+- **Judge hard-gate promotion** remains intentionally unapproved until controlled validation supports it.
+
+## Truth labels after the consolidation branch
 
 - Meta/IG publishing plumbing: **LIVE + VERIFIED**
 - Reel metric collection: **LIVE + VERIFIED**
@@ -210,6 +219,11 @@ These are intentionally not disguised as already complete:
 - Reel content-run lineage: **PARTIAL in production; WIRED + TESTED for new Reel flow in branch**
 - static IG autopost: **LIVE BUT RECENTLY UNRELIABLE; resilience repair TESTED, pending deployment verification**
 - content truth/claim QA: **BUILT + WIRED**
-- production-grammar diversity guard: **MISSING in production; BUILT + TESTED substrate in branch**
-- public Instagram homepage bridge: **BUILT + TESTED in branch, pending deployment**
-- authenticated admin pixel-level QA: **UNVERIFIED**
+- active-slate production overlay: **BUILT + WIRED + BEHAVIOR-TESTED in branch; pending merge/deploy**
+- production-grammar fatigue visibility: **BUILT + WIRED + TESTED in branch; diagnostic, not a gate**
+- outcome-linked structure priors: **BUILT + WIRED + TESTED in branch; correlation-only**
+- real-shop media retrieval in Create: **BUILT + WIRED + CLIENT-QA'D in branch; pending merge/deploy**
+- profile merchandising operator surface: **BUILT + CLIENT-QA'D in branch; Instagram-side mutations remain manual**
+- Reel shadow-judge outcome calibration: **BUILT + TESTED in branch; hard gate remains unsupported**
+- public Instagram homepage bridge: **BUILT + TESTED in prior branch, pending live receipt if not already deployed**
+- authenticated production pixel-level QA: **STILL UNVERIFIED until post-deploy logged-in pass**

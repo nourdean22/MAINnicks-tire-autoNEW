@@ -269,6 +269,18 @@ async function loadInventoryDraft(id: string) {
 
 export const instagramStudioRouter = router({
   /**
+   * Reusable first-party media already captured through Create. This is the
+   * missing retrieval half of the real-shop registry: read-only, rights-gated,
+   * and limited to current reusable assets.
+   */
+  listRealShopMedia: adminProcedure.query(async () => {
+    const database = await dbTyped();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — real-shop media is unknown, not empty." });
+    const { listReusableRealShopMedia } = await import("../services/instagramAdminStrategy");
+    return listReusableRealShopMedia(database);
+  }),
+
+  /**
    * Evidence-first Create (Wave B): phone photo → durable storage → a URL the
    * draft carries as its subject image. Mirrors services.uploadPhoto exactly
    * (same size cap, same mime allowlist, same filename hygiene). The key

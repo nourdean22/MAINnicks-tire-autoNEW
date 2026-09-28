@@ -244,6 +244,14 @@ export default function ReelQueue() {
             </div>
           )}
         </div>
+        {draft.conceptBrief?.productionGrammarNovelty && (
+          <div className="mb-2 flex flex-wrap gap-1">
+            {draft.conceptBrief.productionGrammarNovelty.isProductionTwin && <Badge variant="destructive">grammar twin</Badge>}
+            {typeof draft.conceptBrief.productionGrammarNovelty.similarity === "number" && (
+              <Badge variant="outline">grammar similarity {draft.conceptBrief.productionGrammarNovelty.similarity.toFixed(2)}</Badge>
+            )}
+          </div>
+        )}
         <CardTitle className="text-base line-clamp-2">
           {draft.conceptBrief?.sourceSummary || "Generated Draft"}
         </CardTitle>
@@ -468,7 +476,17 @@ export default function ReelQueue() {
                         ) : (
                           <Badge variant="secondary" className="gap-1"><ShieldAlert className="h-3 w-3" /> {entry.approvalProblem.code}</Badge>
                         )}
+                        {entry.approvedPackSlug && <Badge variant="outline">{entry.approvedPackSlug}</Badge>}
+                        {entry.productionGrammarNovelty?.isProductionTwin && <Badge variant="destructive">grammar twin</Badge>}
+                        {typeof entry.productionGrammarNovelty?.similarity === "number" && (
+                          <Badge variant="outline">grammar similarity {entry.productionGrammarNovelty.similarity.toFixed(2)}</Badge>
+                        )}
                       </div>
+                      {entry.productionGrammarNovelty?.collisions?.length > 0 && (
+                        <p className="text-xs text-amber-500">
+                          Structure overlap: {entry.productionGrammarNovelty.collisions.join(", ")}. Diagnostic only — approval still depends on the normal safety/quality gates.
+                        </p>
+                      )}
 
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">

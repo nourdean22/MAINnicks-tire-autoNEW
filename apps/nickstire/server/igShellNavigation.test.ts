@@ -26,7 +26,11 @@ describe("view vocabulary", () => {
     // purpose: it answers "is the machine ok, and what posts next", which is the
     // question asked before any of the others. Until it existed those answers
     // lived only in ad-hoc SQL run against production by hand.
-    expect(IG_SECONDARY_VIEWS.map((v) => v.key)).toEqual(["pipeline", "planning", "patterns", "actions", "control", "settings"]);
+    // "strategy" joined 2026-09-27 on purpose: it is the operator surface for
+    // active-slate ordering, creative-fatigue evidence, profile merchandising,
+    // and judge/outcome calibration. It stays secondary so the five daily jobs
+    // remain the primary navigation contract.
+    expect(IG_SECONDARY_VIEWS.map((v) => v.key)).toEqual(["pipeline", "planning", "patterns", "strategy", "actions", "control", "settings"]);
   });
 });
 
