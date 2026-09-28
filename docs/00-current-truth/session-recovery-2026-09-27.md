@@ -1,5 +1,9 @@
 # Session recovery snapshot — 2026-09-27
 
+## Evening hardening addendum
+
+The connection-status incident is closed and live-verified through #2720. Residual operator/external gates and the no-reboot concurrency boundary are recorded in `docs/00-current-truth/connection-hardening-2026-09-27.md`. Do not reopen TiDB, Tailscale DERP fallback, the legacy `right` camera row, or already-merged camera alert work as backlog without fresh contrary evidence.
+
 ## Finalized recovery state — 2026-09-27
 
 - Recovery closeout `main`: `93f0f66ca285600831ca50df87fb79f0497e3ed2`.

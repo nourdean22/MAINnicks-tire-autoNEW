@@ -1,5 +1,11 @@
 # Session ledger — statenour
 
+**Updated: 2026-09-27 evening ET** (connection hardening truth persisted; production verified through #2720)
+
+## 2026-09-27 · connection hardening closeout
+
+**Current truth.** Core reconciliation is closed: production is healthy on #2720, TiDB is no longer blocking, the sign-camera alert/recovery path is live, and Tailscale establishes direct shop-PC connectivity after normal DERP fallback. Remaining work is not hidden code backlog: office Eufy needs local shop-side commissioning; NicksMax needs Microsoft-account ESU enrollment plus its intentionally guarded reboot; Resend needs DNS records at the authoritative Global Domain Group provider. See `docs/00-current-truth/connection-hardening-2026-09-27.md` for receipts and boundaries.
+
 **Updated: 2026-09-27 afternoon ET** (recovery closeout; #2712 merged; 0 open PRs)
 
 ## 2026-09-27 · recovery closeout
