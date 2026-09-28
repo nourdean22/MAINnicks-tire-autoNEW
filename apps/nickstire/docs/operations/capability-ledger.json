@@ -349,12 +349,13 @@
           "server/loopShapeContract.test.ts (31, +15): skip discrimination. cron_log.records_processed is `int DEFAULT 0` and the scheduler writes `recordsProcessed || 0`, so a DELIBERATE skip is stored as the integer 0 — indistinguishable from 'ran and produced nothing'. 17 job files return a skip-shaped `details` alongside that 0 (flag disabled, outside business hours, credential missing, not within a posting-slot window). classifyRun now resolves those to a silent `skipped` verdict, and the tests assert the discrimination cuts BOTH ways: the same loop at the same zero-streak WITHOUT a skip reason is still `dormant` and still actionable, and a failed run whose details mention a skip is still `failed`. ig_autopost is the loop most exposed, since its 'Skip — not within a posting-slot window' return fires on most ticks by design.",
           "server/igPostingResilience.test.ts (hotfix 2026-09-27): targeted posting/publish resilience suite 36/36 passed; generator source contract pins the measured structured-output budget at 8192 and refuses regression to the 4096 ceiling, while retry/schema guards remain intact."
         ],
-        "deploymentId": "railway main auto-deploy (#817 merged)",
+        "deploymentId": "Railway deployment 87d12fb1-951c-4a77-95c3-086869736a65 · Nick app commit 904f82bdaebeaa5bf3fefc0c00149c21bf76fa91 (#2727)",
         "databaseAssertions": [
           "0086 APPLIED+VERIFIED on prod 2026-07-17 (operator-authorized): 4 tables with correct columns; policy v2 published and read back as GOVERNING; getEmergencyControlsFresh source=storage (fallback banner retired)",
           "policy v8 published to prod 2026-07-27 (operator-authorized): maxFeedPostsPerDay 2->20, minimumFeedSpacingHours 3->0, verified by independent read. v7 was leftover cc2-verify \"temp\" state, never a business decision.",
           "2026-09-27 production ig_autopost_log read-back proves the static lane is live, not merely wired: 2026-09-26 morning and evening posted successfully (IG+FB IDs recorded); 2026-09-27 morning/evening failed before publish with truncated/empty LLM structured output.",
-          "2026-09-27 production llm_calls isolates the failure signature: failed caption-generation attempts on deepseek-v4-pro/Ollama repeatedly returned HTTP-success ledger rows with completionTokens=4096 exactly (for example ids 3510057, 3540020, 3540021), while successful posting generations finished below that ceiling and other DeepSeek lanes safely emitted >8k completion tokens. This supports a scoped output-budget fix rather than a global provider/model reroute."
+          "2026-09-27 production llm_calls isolates the failure signature: failed caption-generation attempts on deepseek-v4-pro/Ollama repeatedly returned HTTP-success ledger rows with completionTokens=4096 exactly (for example ids 3510057, 3540020, 3540021), while successful posting generations finished below that ceiling and other DeepSeek lanes safely emitted >8k completion tokens. This supports a scoped output-budget fix rather than a global provider/model reroute.",
+          "2026-09-28 deployment receipt: #2727 squash-merged as 904f82bdaebeaa5bf3fefc0c00149c21bf76fa91 and Railway deployment 87d12fb1-951c-4a77-95c3-086869736a65 reached SUCCESS. Later #2725/#2726 StateNour-only commits were SKIPPED for the Nick service, so this remains the current Nick app deployment. The 8192-token static caption budget is therefore live in production code; the next real static slot has not yet occurred, so recurrence-proof is still pending."
         ]
       },
       "blockers": [
@@ -364,9 +365,9 @@
           "source": "design"
         },
         {
-          "severity": "P2",
-          "description": "Static ig-autopost output-budget hotfix is branch-verified but not yet deployed. Runtime failures are real and intermittent; do not call the lane fully reliable until a post-deploy slot or controlled live run completes without the 4096-token truncation/empty-output signature.",
-          "source": "2026-09-27 production ig_autopost_log + llm_calls read-back"
+          "severity": "P3",
+          "description": "Static ig-autopost output-budget hotfix is deployed, but no post-deploy static slot has occurred yet. Do not claim recurrence-proof until the next real slot completes without the old 4096-token truncation/empty-output signature.",
+          "source": "Railway deployment 87d12fb1-951c-4a77-95c3-086869736a65 + production ig_autopost_log/llm_calls"
         }
       ],
       "deferredScope": [
@@ -374,9 +375,9 @@
         "scheduling intelligence",
         "voice/price prompt change is ASSERTED by test but NOT runtime-verified — no generation run was observed under the v3 prompts, so the real-world scoring shift (drafts with family-owned now failing voice; correct-price captions no longer failing) is predicted, not measured",
         "loop shape contracts are still NOT wired to the cron observer — server/cron/observer.ts continues to react only to status='failed', so a job that reports `completed` while producing nothing remains invisible in production. The skip hazard is now handled in the module; the wiring itself is unshipped",
-        "static ig-autopost output-budget hotfix pending deployment/live receipt"
+        "static ig-autopost output-budget hotfix deployed; next real slot remains the recurrence-proof"
       ],
-      "lastVerifiedAt": "2026-09-27",
+      "lastVerifiedAt": "2026-09-28",
       "verificationExpiresAt": "2026-10-26",
       "codeState": "merged",
       "operationalState": "deployed",
@@ -1779,10 +1780,10 @@
       "capabilityId": "reel-topic-rotation",
       "name": "The daily reel's topic authority can move without a successful publish",
       "owner": "operator",
-      "operationalState": "unit_verified",
+      "operationalState": "deployed",
       "codeState": "merged",
       "exposure": "internal",
-      "lastVerifiedAt": "2026-09-27",
+      "lastVerifiedAt": "2026-09-28",
       "evidence": {
         "codeCommit": "2026-09-07: two independent stalls in the topic supply, both measured against production. (1) THE ROTATION DEADLOCK. setApprovedPackProgress was the only writer of reel_approved_pack_rotation_index and is called exclusively inside dailyReelPost's successful-publish branch, so the rotation advanced only when a reel reached Instagram. The cursor had been frozen at index 1 (2026-08-16-check-engine-light) since 2026-08-29; every day regenerated that topic, the result duplicated the previous attempt, originality refused it as a repost, nothing published, and the cursor stayed put. advancePastRefusedPack advances past a pack whose reel was TERMINALLY refused (repost / condemned script / claim-audit veto), at most once per pack via the same concurrency guard the success path uses, writing only the index and never the one-post-per-day date. It is a rotation, not a discard: the pack returns after the other 31, by which time the published corpus has moved. (2) THE MINER SUPPRESSION, which matters when the rotation exhausts and the miner becomes the authority. declined_work scores 34 — the highest in the table and the only source that is un-generic by construction — and ALL EIGHT of its candidates were being dropped, four of them falsely, because the source emits a per-category template and the word-overlap dedup compared the shared boilerplate. Dedup now compares subjects. A single-word specificity floor also stops a bare enum value becoming the topic: reel job 1830003's stored topic is literally 'Engine', and the miner's top-ranked candidate on 2026-09-07 was the literal string 'seasonal'. ROTATION EXPANDED 32 -> 99 the same day, on explicit operator instruction. Every added slug was gated through buildApprovedPackBriefForTest -> buildBriefFromApprovedProductionPack, the SAME builder production uses, plus the claim and originality gates against the live 144-item corpus. Of 164 packs carrying a brief.json: 99 clean, 1 repost (named in ROTATION_EXCLUDED with its reason), 0 condemned, 64 rejected by the builder itself. Slugs are APPENDED and never reordered because the cursor is an index into this array, and a test pins the first 32 in order. This length is only safe because of the terminal-refusal advance above: one bad pack jams a 99-entry rotation exactly as completely as a 32-entry one. 2026-09-27 Instagram Admin consolidation candidate: Strategy adds an operator-curated active-slate overlay over the approved-pack library with its own durable cursor. New jobs persist approvedPackPool plus active-slate definition revision; publish/refusal advancement resolves against that original source so a mid-render enable/clear/reorder or same-slate re-save cannot consume the wrong queue. The canonical full-library cursor is preserved when Strategy is enabled or cleared.",
         "tests": [
@@ -1793,21 +1794,18 @@
           "server/instagramAdminStrategy.test.ts: transparent slate ranking, correlation-only structure hypotheses, shadow-judge outcome alignment with hardGateSupported=false, and distinct profile merchandising candidate roles.",
           "tests/e2e/instagram-admin.spec.ts: authenticated admin visual-QA contract for Today/Create/Publish/Community/Insights/Strategy, five primary tabs, tap targets, horizontal-overflow refusal, screenshots, and first-party runtime/tRPC error capture; post-deploy live authenticated run remains required."
         ],
-        "verifiedAgainst": "Production read-only 2026-09-07. Cursor read from shopSettings: value '1' of 32 slugs -> 2026-08-16-check-engine-light, confirming the pack rotation and not the miner was the live authority. gatherTopicSignals reported no failed sources and 8 declined-work candidates from 60 rows (top: lower control arm), every one of which the miner then dropped. After the fix the same live run yields 19 candidates and dailyReelPost would pick 'the front hub or bearing' from declined_work at score 34, instead of the literal string 'seasonal'. 2026-09-27 branch verification: deterministic system-Chrome fixtures rendered Strategy/Create at 1440x900 and 390x844 with zero horizontal overflow; full Vitest suite, typecheck, build, route/prerender and source/SQL/hooks/brand/PII/cron/orphan/CURDATE gates passed. This is branch evidence, not a deployment receipt.",
-        "limits": "2026-09-27 current boundary: the active-slate/Strategy enhancement is BUILT + WIRED + TESTED in the consolidation branch but not yet deployed; authenticated production admin visual QA must run after merge/deploy. Higgsfield session recovery itself is live and cross-process verified (#2717/#2719), and canary 1950002 generated five clips but failed later render QA on a CTA mismatch, so no publish is claimed. The branch changes no schema/migration files; separate read-only reconciliation still reports pre-existing production migration drift (0127-0130, 0132, 0133)."
+        "verifiedAgainst": "Production read-only 2026-09-07. Cursor read from shopSettings: value '1' of 32 slugs -> 2026-08-16-check-engine-light, confirming the pack rotation and not the miner was the live authority. gatherTopicSignals reported no failed sources and 8 declined-work candidates from 60 rows (top: lower control arm), every one of which the miner then dropped. After the fix the same live run yields 19 candidates and dailyReelPost would pick 'the front hub or bearing' from declined_work at score 34, instead of the literal string 'seasonal'. 2026-09-27 branch verification: deterministic system-Chrome fixtures rendered Strategy/Create at 1440x900 and 390x844 with zero horizontal overflow; full Vitest suite, typecheck, build, route/prerender and source/SQL/hooks/brand/PII/cron/orphan/CURDATE gates passed. This is branch evidence, not a deployment receipt. 2026-09-28 post-merge production receipt: #2723 merged as 785a43b8564cd30ad377da294039dbb4c6cd3341 and deployed successfully. Live Strategy read-back returned 133 approved candidates, canonical full-library cursor 32, no active finite slate, 12 recommended slugs and 23 current demand candidates. Structure learning returned 42 measured samples -> 12 correlation-only hypotheses. Shadow judge returned 27 judged / 10 would-block / 92.59% downstream outcome coverage with hardGateSupported=false and outcome status not_supported_by_current_outcomes. A real Sep-27 daily Reel exists: job 1950017, status posted, igPostId 18435703312179867.",
+        "limits": "2026-09-28 current boundary: active-slate/Strategy is MERGED + DEPLOYED + LIVE SERVICE-VERIFIED. No finite slate is currently configured, by operator choice; production remains on the canonical 133-pack library. Strict reusable real_shop media count is 0 because no current first-party asset presently satisfies the direct-runtime image predicate. Profile bio/pin/Highlight mutations remain explicit operator actions. Separate TiDB migration drift (0127-0130, 0132, 0133) is unrelated to this capability.",
+        "deploymentId": "Railway deployment 87d12fb1-951c-4a77-95c3-086869736a65 · Nick app commit 904f82bdaebeaa5bf3fefc0c00149c21bf76fa91 (includes #2723 + #2727)"
       },
       "blockers": [
-        {
-          "severity": "P2",
-          "description": "Active-slate/Strategy enhancement is not live until the consolidation PR merges, deploys, and an authenticated production admin pass confirms the real session/data path. Deterministic client fixtures are not a production-auth receipt.",
-          "source": "Instagram Admin consolidation 2026-09-27"
-        },
         {
           "severity": "P3",
           "description": "Profile bio/pin/Highlight mutations remain explicit Instagram-side operator actions. The admin surface supplies measured candidates and assets but does not claim unsupported Graph API control.",
           "source": "Instagram Admin consolidation 2026-09-27"
         }
-      ]
+      ],
+      "verificationExpiresAt": "2026-10-28"
     },
     {
       "capabilityId": "shopstate-lot-band",

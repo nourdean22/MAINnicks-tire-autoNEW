@@ -1,7 +1,7 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** repository `main` `18db7de13af5fe0f6f4f2fb62456e371db3dd698` on 2026-09-28 (#2726). Nick production is serving exact commit `904f82bdaebeaa5bf3fefc0c00149c21bf76fa91` (#2727) via deployment `87d12fb1-951c-4a77-95c3-086869736a65` SUCCESS; repository ancestry and deployment truth remain intentionally separate. The Instagram Admin consolidation is merged (#2723) and included in that live Nick ancestry.
+**Verified against runtime code baseline:** `18db7de13af5fe0f6f4f2fb62456e371db3dd698` on 2026-09-28 (#2726). Nick production is serving exact commit `904f82bdaebeaa5bf3fefc0c00149c21bf76fa91` (#2727) via deployment `87d12fb1-951c-4a77-95c3-086869736a65` SUCCESS; later documentation-only commits may advance repository `main` without changing this runtime baseline. The Instagram Admin consolidation is merged (#2723) and included in that live Nick ancestry.
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
@@ -29,7 +29,18 @@ The recovered Instagram Audit workstream was reconciled past the Higgsfield clos
 
 **Local verification on the final code tree before PR:** full Vitest suite passed after the TiDB latest-row ordering fix and procedure-census regeneration; TypeScript, production build, source/SQL/hooks/brand/PII/cron lints, orphan gate (0 NEW), CURDATE, route registry, prerender and semantic-prerender checks passed. The live read-only migration reconciliation still reports six pre-existing blocking migration states (0127-0130, 0132, 0133); this branch changes no schema/migration files and does not claim that unrelated production drift is repaired.
 
-**Evidence boundary:** repository merge + deployment ancestry are proven. This does not by itself prove every authenticated Instagram Admin control was manually exercised against the live Meta account after deployment; keep external Meta mutations and live-login UI receipts separate.
+**Post-deploy production receipt:**
+- Meta configuration and live Graph probe are healthy: Facebook ready, Instagram ready, live probe `ok=true`.
+- Active-slate service is live/readable: no operator slate is currently configured, canonical full-library cursor = **32**, approved candidates = **133**, Strategy recommendations = **12**, current demand candidates = **23**.
+- Structure learning is live: **42** measured samples → **12** correlation-only hypotheses.
+- Shadow-judge calibration is live: **27** judged, **10** would-block, downstream coverage **92.59%**, current outcome status `not_supported_by_current_outcomes`, and `hardGateSupported=false`. The system correctly did **not** promote the judge automatically.
+- Profile merchandising service executes successfully with **4** measured pin candidates, **12** cover-review items and **5** Highlight plans. Current account-profile cache was empty on the fresh container while the Meta Graph probe itself was live; this is an ephemeral cache/data state, not a Strategy crash.
+- Strict reusable `real_shop` media count is currently **0**. The picker is live but production has no first-party asset satisfying `real_shop + current + reuseAllowed + image MIME + direct runtime URL`. No unrelated asset was relabeled merely to populate the UI.
+- The daily Reel lane is armed and has a real Sep 27 publish receipt: Reel job `1950017`, `igPostId=18435703312179867`, status `posted`.
+- The #2727 static-caption fix is deployed. The next real static slot has not happened yet, so slot-level recurrence-proof remains pending rather than falsely claimed fixed.
+- No active finite slate was silently enabled; production intentionally continues on the canonical 133-pack library. Bio/pin/Highlight mutations remain explicit Instagram-side operator actions.
+
+**Evidence boundary:** Instagram Admin is **MERGED + DEPLOYED + LIVE SERVICE-VERIFIED**. The static-caption hotfix is **DEPLOYED**, with the next real static slot still required for final recurrence-proof. Keep external Meta mutations and live-login UI receipts separate.
 
 ## Connection hardening closeout (2026-09-27/28)
 
