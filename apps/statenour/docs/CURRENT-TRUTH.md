@@ -1,5 +1,14 @@
 # CURRENT-TRUTH.md — Statenour
 
+## 2026-09-28 — original-plan infrastructure + private-worker observability
+
+- **Repository current truth:** `main` = `18db7de13af5fe0f6f4f2fb62456e371db3dd698` (#2726); GitHub showed **0 open PRs** immediately after the #2724/#2725/#2726 wave.
+- **#2724 closed the original-plan reconciliation gap, not every operator action.** It merged the 24-slice evidence ledger plus Railway IaC/source-of-truth hardening. Live receipts in that pass: worker moved to east4/private-only, Nick + worker negated watch paths applied, Redis public TCP proxy removed, and Neon `pg_stat_statements` v1.11 enabled. Redis service/volume deletion is still blocked on Railway dashboard 2FA; Wait-for-CI and sealed-secret status remain dashboard-only; the project deploy webhook is still absent.
+- **#2725 is merged and live on StateNour web.** Deployment `bdfe33a5-0a80-48e0-b992-b9662ae42079` is SUCCESS on exact commit `7fbeb855d5bc12a33e5592d09380ab081f86f6cb`. The default Obsidian rollup keeps newest-100/category semantics but avoids full-payload loading for 32,410 of the current 36,042 eligible BrainMemory rows; only 3,632 full rows are needed today. Individual mode and `export-brain-archive.ts` stay complete.
+- **#2726 is merged; worker is live, web was still building at this receipt.** Worker deployment `aa4db42e-5b0e-4611-a461-2338d3d7f12c` is SUCCESS on exact commit `18db7de13af5fe0f6f4f2fb62456e371db3dd698`. The worker remains private. Deploy-drift/smoke observation now derives from the persisted `brain-bus-drain` success receipt instead of a public worker URL. The StateNour web deployment `f14abc77-e0cb-4e90-915a-250a21bdee0a` was still BUILDING when this section was written; recheck it before claiming the new public heartbeat field is serving.
+- **Worker freshness definition:** fresh through 1 hour (four missed 15-minute ticks), stale afterward, public probe failure => `unknown`; internal fleet truth preserves the difference between “no receipt ever” and “DB probe failed.” The production lookup uses an index-only scan and measured ~0.076 ms warm.
+- **Durable plan ledger:** `docs/research/2026-09-28-original-plan-reconciliation.md`. The old “code backlog exhausted” sentence below is historical scope for stale worktree reconciliation, not a claim that the broader operator/infrastructure plan is finished.
+
 ## 2026-09-27 afternoon — recovery closeout after #2712
 
 - **Recovery handoff is now closed on repo truth.** `main` reached `93f0f66ca285600831ca50df87fb79f0497e3ed2` after #2712 (`fix · security · remove legacy Resend token from source`) squash-merged.
