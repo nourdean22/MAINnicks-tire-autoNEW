@@ -50,9 +50,9 @@ runtime → node 24 + dist/index.js + node-cron schedules
 REQUIRED (the process refuses to boot or silently no-ops without these):
 - `CRON_SECRET` · Bearer secret for `/cron/*`, compared with `timingSafeEqual`; **fail-closed** —
   the server refuses to start when it is empty
-- `STATENOUR_WEB_URL` · base URL every tick is forwarded to. In production it is the PUBLIC
-  `statenour-web-production.up.railway.app`, not the private network (worker boot log, read
-  2026-09-23, `docs/research/2026-09-23-estate-master-architecture.md` §1.1)
+- `STATENOUR_WEB_URL` · base URL every tick is forwarded to. Production uses Railway private
+  networking at `http://statenour-web.railway.internal:8080`; the worker itself has no public
+  domain. This keeps worker→web traffic off the public edge and colocates both services in east4.
 
 USED:
 - `PORT` · listener (default 8080) · `SERVICE_ROLE`
