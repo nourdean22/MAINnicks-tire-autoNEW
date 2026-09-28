@@ -240,4 +240,3 @@ The implementation audit above now has live receipts beyond merge/deploy status:
 - **Production defect found during walkthrough:** Queue quality scoring can encounter legacy/incomplete `brief_json`; the old scorer dereferenced a missing array and logged `undefined.map`. The closeout branch adds an explicit runtime `ReelBrief` shape guard and fails those rows closed to score 0 without throwing. NattyNour verification: 76/76 focused tests, TypeScript exit 0, production build exit 0.
 
 Remaining evidence is narrow and explicit: first successful post-bootstrap Reel enqueue carrying `structurePatternId`; a natural scheduled static-slot success; Trial 24h metric entry; and Instagram-side bio/pin/Highlight mutations remain operator-gated.
-
