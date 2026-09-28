@@ -43,10 +43,7 @@ import { sql } from "drizzle-orm";
 import { maskPlate, normalizePlate, PLATE_MATCH_CLASSES } from "../lib/plate";
 import { deriveStateAtIngest } from "../lib/cameraHealth";
 import { cameraHealthProfileFor } from "../../shared/cameras";
-import {
-  CAMERA_AUTHORITY_STALE_SECONDS,
-  visitProducerAuthorized,
-} from "./cameraProducerAuthority";
+import { cameraProducerAuthority } from "./cameraProducerAuthority";
 
 /** Timing-safe, matching the sibling bridge routes. */
 function safeCompare(a: string, b: string): boolean {
@@ -259,7 +256,7 @@ export function registerCameraVisitsRoute(app: Express): void {
         producerInstanceId: String(row.producerInstanceId),
         ageSeconds: Math.max(0, Number(row.ageSeconds ?? 0)),
       } : null;
-      if (!visitProducerAuthorized(providedProducer, current)) {
+      if (!cameraProducerAuthority.visitProducerAuthorized(providedProducer, current)) {
         return res.status(409).json({
           error: "producer standby",
           camera,
@@ -452,7 +449,7 @@ export const HEARTBEAT_ACCEPT =
   "((VALUES(`producerInstanceId`) = `producerInstanceId` AND VALUES(`heartbeatSeq`) >= `heartbeatSeq`)"
   + " OR (VALUES(`producerInstanceId`) <> `producerInstanceId` AND ("
   + incomingPrioritySql + " <= " + storedPrioritySql
-  + " OR `receivedAt` < DATE_SUB(NOW(), INTERVAL " + CAMERA_AUTHORITY_STALE_SECONDS + " SECOND))))";
+  + " OR `receivedAt` < DATE_SUB(NOW(), INTERVAL " + cameraProducerAuthority.staleSeconds + " SECOND))))";
 
 /**
  * Columns that any guard READS. Every one of them has to be assigned after everything

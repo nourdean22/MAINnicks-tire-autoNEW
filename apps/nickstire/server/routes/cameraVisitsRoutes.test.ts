@@ -3,12 +3,7 @@ import {
   COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS,
   HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore,
 } from "./cameraVisitsRoutes";
-import {
-  CAMERA_AUTHORITY_STALE_SECONDS,
-  heartbeatAuthorityAccepted,
-  producerPriority,
-  visitProducerAuthorized,
-} from "./cameraProducerAuthority";
+import { cameraProducerAuthority } from "./cameraProducerAuthority";
 
 describe("camera visit ingest — plate durability", () => {
   it("stores plate text ONLY when the read is CONFIRMED", () => {
@@ -139,7 +134,7 @@ describe("camera heartbeat ingest — idempotency key (producerInstanceId, heart
     expect(HEARTBEAT_ACCEPT).toContain("p1-%");
     expect(HEARTBEAT_ACCEPT).toContain("p2-%");
     expect(HEARTBEAT_ACCEPT).toContain("p3-%");
-    expect(HEARTBEAT_ACCEPT).toContain(`INTERVAL ${CAMERA_AUTHORITY_STALE_SECONDS} SECOND`);
+    expect(HEARTBEAT_ACCEPT).toContain(`INTERVAL ${cameraProducerAuthority.staleSeconds} SECOND`);
   });
 
   it("stateSince moves only on an ACCEPTED heartbeat whose state actually changed", () => {
@@ -165,40 +160,40 @@ describe("camera heartbeat ingest — idempotency key (producerInstanceId, heart
 
 describe("camera producer authority — priority and visit fencing", () => {
   it("orders the three machines shop PC -> NicksMax -> NattyNour", () => {
-    expect(producerPriority("p1-shop-abc")).toBe(1);
-    expect(producerPriority("p2-nicksmax-abc")).toBe(2);
-    expect(producerPriority("p3-nattynour-abc")).toBe(3);
-    expect(producerPriority("legacy")).toBe(99);
+    expect(cameraProducerAuthority.producerPriority("p1-shop-abc")).toBe(1);
+    expect(cameraProducerAuthority.producerPriority("p2-nicksmax-abc")).toBe(2);
+    expect(cameraProducerAuthority.producerPriority("p3-nattynour-abc")).toBe(3);
+    expect(cameraProducerAuthority.producerPriority("legacy")).toBe(99);
   });
 
   it("lets the shop PC preempt a fresh standby immediately", () => {
-    expect(heartbeatAuthorityAccepted({
+    expect(cameraProducerAuthority.heartbeatAuthorityAccepted({
       incomingId: "p1-shop-new", incomingSeq: 1,
       storedId: "p2-nicksmax-old", storedSeq: 99, storedAgeSeconds: 1,
     })).toBe(true);
   });
 
   it("blocks NicksMax while a fresh shop-PC owner is alive", () => {
-    expect(heartbeatAuthorityAccepted({
+    expect(cameraProducerAuthority.heartbeatAuthorityAccepted({
       incomingId: "p2-nicksmax-new", incomingSeq: 1,
       storedId: "p1-shop-live", storedSeq: 99, storedAgeSeconds: 1,
     })).toBe(false);
   });
 
   it("allows the next standby only after the current owner is stale", () => {
-    expect(heartbeatAuthorityAccepted({
+    expect(cameraProducerAuthority.heartbeatAuthorityAccepted({
       incomingId: "p2-nicksmax-new", incomingSeq: 1,
       storedId: "p1-shop-dead", storedSeq: 99,
-      storedAgeSeconds: CAMERA_AUTHORITY_STALE_SECONDS + 1,
+      storedAgeSeconds: cameraProducerAuthority.staleSeconds + 1,
     })).toBe(true);
   });
 
   it("visit writes require the elected live producer", () => {
     const current = { producerInstanceId: "p1-shop-live", ageSeconds: 10 };
-    expect(visitProducerAuthorized("p1-shop-live", current)).toBe(true);
-    expect(visitProducerAuthorized("p2-nicksmax-wait", current)).toBe(false);
-    expect(visitProducerAuthorized("p1-shop-live", {
-      ...current, ageSeconds: CAMERA_AUTHORITY_STALE_SECONDS + 1,
+    expect(cameraProducerAuthority.visitProducerAuthorized("p1-shop-live", current)).toBe(true);
+    expect(cameraProducerAuthority.visitProducerAuthorized("p2-nicksmax-wait", current)).toBe(false);
+    expect(cameraProducerAuthority.visitProducerAuthorized("p1-shop-live", {
+      ...current, ageSeconds: cameraProducerAuthority.staleSeconds + 1,
     })).toBe(false);
   });
 });
@@ -230,7 +225,7 @@ function applyOnDuplicateKeyUpdate(
     const st = withState.exec(pred);
     if (st) return evalPredicate(st[1]) && incoming[st[2]] !== row[st[2]];
     if (pred === HEARTBEAT_ACCEPT) {
-      return heartbeatAuthorityAccepted({
+      return cameraProducerAuthority.heartbeatAuthorityAccepted({
         incomingId: String(incoming.producerInstanceId),
         incomingSeq: Number(incoming.heartbeatSeq),
         storedId: String(row.producerInstanceId),
@@ -357,7 +352,7 @@ describe("camera heartbeat ingest — the guard must survive a producer RESTART"
       calibrationVersion: "cal-1",
       captureFps: 0,
       receivedAt: "old",
-      receivedAtAgeSeconds: CAMERA_AUTHORITY_STALE_SECONDS + 1,
+      receivedAtAgeSeconds: cameraProducerAuthority.staleSeconds + 1,
       stateSince: "old",
     };
     const standby = {

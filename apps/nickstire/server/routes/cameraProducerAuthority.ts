@@ -1,12 +1,12 @@
 /** Camera producer authority: shop PC -> NicksMax -> NattyNour. */
-export const CAMERA_AUTHORITY_STALE_SECONDS = 90;
+const CAMERA_AUTHORITY_STALE_SECONDS = 90;
 
-export function producerPriority(id: string | null | undefined): number {
+function producerPriority(id: string | null | undefined): number {
   const m = /^p([123])-/.exec(String(id ?? ""));
   return m ? Number(m[1]) : 99;
 }
 
-export function heartbeatAuthorityAccepted(input: {
+function heartbeatAuthorityAccepted(input: {
   incomingId: string;
   incomingSeq: number;
   storedId: string;
@@ -20,7 +20,7 @@ export function heartbeatAuthorityAccepted(input: {
   );
 }
 
-export function visitProducerAuthorized(
+function visitProducerAuthorized(
   provided: string | null | undefined,
   current: { producerInstanceId: string; ageSeconds: number } | null,
 ): boolean {
@@ -31,3 +31,10 @@ export function visitProducerAuthorized(
     && current.ageSeconds <= CAMERA_AUTHORITY_STALE_SECONDS
   );
 }
+
+export const cameraProducerAuthority = {
+  staleSeconds: CAMERA_AUTHORITY_STALE_SECONDS,
+  producerPriority,
+  heartbeatAuthorityAccepted,
+  visitProducerAuthorized,
+} as const;
