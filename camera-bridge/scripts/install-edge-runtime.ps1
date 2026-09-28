@@ -94,6 +94,7 @@ param(
     [string]$Ledger = "",
     [switch]$Replay,
     [string]$Source = "",
+    [string]$SourceUrlEnv = "",
     [string]$WindowTitle = "",
     [switch]$NoCrop,
     [string]$Mode = "",
@@ -298,7 +299,7 @@ $evidenceArg   = _Arg '--evidence' $Evidence
 $ledgerArg     = _Arg '--ledger' $Ledger
 $replayArg     = if ($Replay) { ' --replay' } else { '' }
 $noCropArg     = if ($NoCrop) { ' --no-crop' } else { '' }
-$captureArg    = (_Arg '--source' $Source) + (_Arg '--window-title' $WindowTitle) + $noCropArg
+$captureArg    = (_Arg '--source' $Source) + (_Arg '--source-url-env' $SourceUrlEnv) + (_Arg '--window-title' $WindowTitle) + $noCropArg
 $modeArg       = (_Arg '--mode' $Mode) + (_Arg '--commissioning-run' $CommissioningRun)
 # -1 is the "operator said nothing" sentinel; 0 is a real, meaningful value for both of
 # these (drain nothing / persist every frame), so an `if ($X)` truthiness test would
