@@ -5,6 +5,9 @@
     },
     "operator-walkthrough": {
       "deferred": "The Queue UI now exposes a separate Publish as Trial action, but no authenticated production browser receipt is claimed. Current Desktop Commander access on NattyNour is terminal/filesystem only, not visual signed-in browser automation. Run tests/e2e/instagram-admin.spec.ts plus a real signed-in Queue -> Publish as Trial walkthrough after deployment."
+    },
+    "publish-boundary-test": {
+      "ref": "apps/nickstire/server/trialReelWiring.test.ts behaviorally executes publishToSocial: MANUAL Trial mode reaches postInstagramReel; Instagram+Facebook Trial cross-post and Trial Story both fail closed before any Meta write; ordinary Reel publish leaves trialReel undefined. apps/nickstire/server/metaSocial.shareToFeed.test.ts executes postInstagramReel and asserts Trial containers carry trial_params.graduation_strategy=MANUAL + share_to_feed=false while ordinary Reels retain share_to_feed=true and no trial_params."
     }
   }
 }
