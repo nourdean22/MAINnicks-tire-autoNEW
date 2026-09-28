@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "server/publishAttemptLedger.test.ts + server/publishReconciler.test.ts + server/reelAutonomyP1.test.ts: ambiguous publish remains fail-closed; no evidence path authorizes a retry. Exact captions are persisted before dispatch for future identity matching. Permanent history-window exhaustion is handed to the operator without resolving the attempt; transient Meta/API unavailability remains retryable by automation."
+    },
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=reel-outcome-learning: records the #2731 publish-reconciliation provenance/handoff repair, focused tests, live log trigger, and the explicit post-deploy verification still required."
+    }
+  }
+}
