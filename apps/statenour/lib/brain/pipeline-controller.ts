@@ -23,6 +23,7 @@
 import { prisma } from "@/lib/prisma";
 import { readNickRevenue } from "@/lib/nickstire/revenue";
 import { brainMemory } from "@/lib/brain/memory-manager";
+import { admitMemory } from "@/lib/brain/memory-admission";
 import { connect } from "@/lib/brain/relational-graph";
 import { logger as rootLogger } from "@/lib/logger";
 import { recordError } from "@/lib/errors/record-error";
@@ -84,12 +85,12 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
       await brainMemory.remember(
         "insight",
         `lead_source_${source}_${today()}`,
-        `New lead from ${source}: ${event.data.name || "unknown"} — ${event.data.service || event.data.interest || "inquiry"}`,
+        `New lead from ${source}: ${event.data.name || "unknown"} — ${event.data.service || "inquiry"}`,
         "pipeline_analysis"
       );
 
       // Connect lead to relevant patterns
-      if (event.data.id ?? event.data.leadId) {
+      if (event.data.id) {
         await connect(
           { type: "memory", id: memKey },
           { type: "pattern", id: `lead_source_${source}` },
@@ -102,21 +103,20 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
     }
 
     case "review": {
-      // Track review sentiment. The bridge sends `reviewText`; `text` is the older name.
+      // Track review sentiment
       const rating = Number(event.data.rating || 0);
-      const reviewText = String(event.data.reviewText || event.data.text || "");
       if (rating >= 4) {
         await brainMemory.remember(
           "insight",
           `review_positive_${today()}`,
-          `Positive review (${rating}/5): ${reviewText.slice(0, 100)}`,
+          `Positive review (${rating}/5): ${String(event.data.text || "").slice(0, 100)}`,
           "pipeline_analysis"
         );
       } else if (rating > 0) {
         await brainMemory.remember(
           "business_alert",
           `review_negative_${today()}`,
-          `Low review (${rating}/5): ${reviewText.slice(0, 100)} — NEEDS RESPONSE`,
+          `Low review (${rating}/5): ${String(event.data.text || "").slice(0, 100)} — NEEDS RESPONSE`,
           "pipeline_analysis"
         );
       }
@@ -166,9 +166,7 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
 
   // 4. Cross-reference with existing data for deeper insights
   if (event.type === "lead" || event.type === "booking") {
-    // The bridge sends `customer` on lead/booking events; the name is only searched and
-    // hashed below, never stored.
-    const customerName = String(event.data.customer || event.data.name || event.data.customerName || "");
+    const customerName = String(event.data.name || event.data.customerName || "");
     if (customerName.length > 2) {
       // 2026-05-30 · three wiring bugs killed repeat-customer detection:
       // (1) handler reads `filters.term`, not `name` → it errored out every
@@ -300,6 +298,8 @@ Return empty arrays if nothing found. Be specific, not generic.`,
     const extracted = extractJsonObject<any>(result.content);
     if (!extracted.ok) return;
     const intel = extracted.value;
+    const conversationEvidenceRef =
+      `chat-turn:${today()}:${simpleHash(`${userMessage}\n${nickResponse}`).slice(0, 12)}`;
 
     // Store commitments · v11.1 strict gate — object-shape + must have
     // deadline OR non-self recipient. Chat-artifact pollution killed 29
@@ -365,15 +365,18 @@ Return empty arrays if nothing found. Be specific, not generic.`,
       typeof intel.emotionalSignals === "string" &&
       VALID_MOODS.has(intel.emotionalSignals.toLowerCase())
     ) {
-      await brainMemory.remember(
-        "emotional_state",
-        `mood_${today()}_${hourET()}`,
-        `Emotional state at ${hourET()}:00: ${intel.emotionalSignals.toLowerCase()}`,
-        "conversation_analysis",
+      await admitMemory({
+        category: "emotional_state",
+        key: `mood_${today()}_${hourET()}`,
+        content: `Emotional state at ${hourET()}:00: ${intel.emotionalSignals.toLowerCase()}`,
+        source: "conversation_analysis",
+        memoryKind: "derived",
+        extractionMethod: "llm_extract",
+        evidenceRefs: [conversationEvidenceRef],
         // The key embeds an hour, so it must say which clock — see
         // lib/brain/hour-frame.ts. Pre-#1809 rows have no marker and are UTC.
-        hourFrameMeta()
-      );
+        metadata: hourFrameMeta(),
+      });
     }
 
     // Store key insight
@@ -383,12 +386,15 @@ Return empty arrays if nothing found. Be specific, not generic.`,
     // via brainMemory.remember's upsert semantic.
     if (intel.keyInsight && typeof intel.keyInsight === "string" && intel.keyInsight.length > 10) {
       const norm = intel.keyInsight.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 80);
-      await brainMemory.remember(
-        "insight",
-        `conversation_insight_${today()}_${simpleHash(norm).slice(0, 8)}`,
-        intel.keyInsight,
-        "conversation_analysis"
-      );
+      await admitMemory({
+        category: "insight",
+        key: `conversation_insight_${today()}_${simpleHash(norm).slice(0, 8)}`,
+        content: intel.keyInsight,
+        source: "conversation_analysis",
+        memoryKind: "derived",
+        extractionMethod: "llm_extract",
+        evidenceRefs: [conversationEvidenceRef],
+      });
     }
   } catch (err) { 
     // parsing failed — non-critical

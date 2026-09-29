@@ -26,6 +26,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { admitMemory } from "@/lib/brain/memory-admission";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
 import { createHash } from "node:crypto";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -257,13 +258,16 @@ export async function harvestBeliefs(): Promise<{
           theme_tokens: belief.theme_tokens,
           updated_at: belief.updated_at,
         };
-        await prisma.brainMemory.update({
-          where: { category_key: { category: BRAIN_CATEGORIES.BELIEF_CANDIDATE, key } },
-          data: {
-            content: JSON.stringify(merged),
-            lastSeen: new Date(),
-            seenCount: { increment: 1 },
-          },
+        await admitMemory({
+          category: BRAIN_CATEGORIES.BELIEF_CANDIDATE,
+          key,
+          content: JSON.stringify(merged),
+          source: "belief_harvester",
+          memoryKind: "derived",
+          extractionMethod: "cron",
+          confidence: belief.confidence,
+          derivedFrom: belief.evidence_ids,
+          evidenceRefs: belief.evidence_ids.map((id) => `brain-memory:${id}`),
         });
         written++;
       } catch (err) {
@@ -271,14 +275,16 @@ export async function harvestBeliefs(): Promise<{
         logError("brain.belief-harvester", err, { fn: "harvestBeliefs", key, candidateId: existing.id }, "warn");
       }
     } else {
-      await prisma.brainMemory.create({
-        data: {
-          category: BRAIN_CATEGORIES.BELIEF_CANDIDATE,
-          key,
-          content: JSON.stringify(belief),
-          confidence: belief.confidence,
-          source: "belief_harvester",
-        },
+      await admitMemory({
+        category: BRAIN_CATEGORIES.BELIEF_CANDIDATE,
+        key,
+        content: JSON.stringify(belief),
+        source: "belief_harvester",
+        memoryKind: "derived",
+        extractionMethod: "cron",
+        confidence: belief.confidence,
+        derivedFrom: belief.evidence_ids,
+        evidenceRefs: belief.evidence_ids.map((id) => `brain-memory:${id}`),
       });
       written++;
       newOnes++;

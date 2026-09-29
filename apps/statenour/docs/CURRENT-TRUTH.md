@@ -1,5 +1,15 @@
 # CURRENT-TRUTH.md — Statenour
 
+
+## 2026-09-29 — live Railway topology supersedes older worker-region/domain notes
+
+- **Read-only Railway read-back:** production project `natural-appreciation` currently has exactly four services: `MAINnicks-tire-auto` (`a6234c8d-1ff4-478f-9085-654954b54e97`), `statenour-web` (`c68ce7f7-63b1-47bf-9e9e-2d7dfe717d4e`), `statenour-worker` (`5441c378-3bab-4bb7-958f-36961159f5fe`), and `Redis` (`ee90ba3b-7dc4-44da-b892-bc6152226b75`).
+- **Regions now:** Nick, StateNour web, and StateNour worker each run one replica in `us-east4-eqdc4a`; Redis alone remains one replica in `us-west2`. Any older section below saying the worker is still west2 is historical and superseded by this read-back.
+- **Worker is private:** live Railway lists no worker service/custom domains and no cron schedule. Worker-owned activity is its four node-cron HTTP forwards plus the in-process approved-video render loop; Q-36 removes the vestigial inbound `POST /cron/mega*` routes.
+- **Worker data boundary:** `apps/worker/src` has no DB client and does not read `DATABASE_URL`, `DIRECT_URL`, or `GITHUB_TOKEN`. It talks to StateNour web over authenticated HTTP. Cross-app Nick ↔ StateNour data continues through the explicit signed bridge endpoints, not through the worker.
+- **Still unverified here:** whether Inngest morning/evening mega fan-out is currently firing in production. `INNGEST_MEGA_V2` exists in Railway config but its value is redacted by the connector; obtain a `CronJobLog`/Inngest receipt before calling that cutover live.
+
+
 ## 2026-09-28 night — #2757 governance wave merge receipt
 
 - **Merged:** PR #2757 squash-merged to `main` as `3178a894ff1d39d402837b214d060ce7b61b3a55`.

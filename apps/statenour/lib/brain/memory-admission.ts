@@ -27,6 +27,7 @@ import { createHash } from "node:crypto";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { prisma } from "@/lib/prisma";
 import { evidenceClassForSource, type MemoryEvidenceClass } from "@/lib/brain/memory-commit-gateway";
+import { classifyTrustTier, type TrustTier } from "@/lib/brain/memory-trust";
 
 export type MemoryKind = "episodic" | "semantic" | "procedural" | "derived";
 export type ExtractionMethod = "explicit_save" | "operator_pin" | "llm_extract" | "cron" | "import" | "receipt" | "unknown";
@@ -39,6 +40,10 @@ export interface AdmissionInput {
   evidenceRefs?: string[];
   modelId?: string;
   content?: string;
+  effectiveFrom?: Date;
+  effectiveUntil?: Date;
+  /** Optional explicit origin tier when provenance cannot be derived from source/category alone. */
+  trustTier?: TrustTier;
   now?: Date;
 }
 
@@ -51,6 +56,8 @@ export interface AdmissionEnvelope {
   modelId?: string;
   contentHash?: string;
   admittedAt: string;
+  effectiveFrom?: string;
+  effectiveUntil?: string;
   /** A derived memory with no lineage cannot be invalidated when its source changes. */
   orphanDerived?: true;
 }
@@ -71,6 +78,8 @@ export function buildAdmissionEnvelope(input: AdmissionInput): AdmissionEnvelope
   };
   if (input.modelId) env.modelId = input.modelId;
   if (input.content) env.contentHash = contentHash(input.content);
+  if (input.effectiveFrom) env.effectiveFrom = input.effectiveFrom.toISOString();
+  if (input.effectiveUntil) env.effectiveUntil = input.effectiveUntil.toISOString();
   if (input.memoryKind === "derived" && derivedFrom.length === 0) env.orphanDerived = true;
   // A model-made synthesis is never stronger than an inference, whatever its source string says.
   if (input.memoryKind === "derived" && (env.evidenceClass === "operator_stated" || env.evidenceClass === "system_receipt" || env.evidenceClass === "direct_observation")) {
@@ -94,6 +103,8 @@ export interface AdmitMemoryInput extends AdmissionInput {
   /** Validity interval the as-of recall reads (validityWhere). */
   effectiveFrom?: Date;
   effectiveUntil?: Date;
+  /** Preserve a writer's existing confidence semantics while moving it behind admission. */
+  confidence?: number;
   metadata?: Record<string, unknown>;
 }
 
@@ -115,14 +126,29 @@ export async function admitMemory(input: AdmitMemoryInput): Promise<AdmitMemoryR
     ...(input.metadata ?? {}),
     admission: envelope,
   });
-  if (input.effectiveFrom || input.effectiveUntil) {
-    await prisma.brainMemory.update({
-      where: { id: row.id },
-      data: {
-        ...(input.effectiveFrom ? { validFrom: input.effectiveFrom } : {}),
-        ...(input.effectiveUntil ? { validUntil: input.effectiveUntil } : {}),
-      },
-    });
+
+  // Q-31: semantic admission must materialize provenance. A model-made
+  // synthesis is AGENT_INFERRED even when its source slug looks first-party
+  // (journal_brain, conversation_analysis, belief_harvester, distillation).
+  // External intake can force EXTERNAL_CONTENT after human review; operator
+  // writers continue to use their identity-first stampAdmission path.
+  const trustTier: TrustTier =
+    input.trustTier ??
+    (input.memoryKind === "derived" || input.extractionMethod === "llm_extract"
+      ? "AGENT_INFERRED"
+      : classifyTrustTier(input.source, undefined, input.category));
+
+  const patch: Record<string, unknown> = { trustTier };
+  if (input.effectiveFrom) patch.validFrom = input.effectiveFrom;
+  if (input.effectiveUntil) patch.validUntil = input.effectiveUntil;
+  if (typeof input.confidence === "number") {
+    patch.confidence = Math.max(0, Math.min(1, input.confidence));
   }
+
+  await prisma.brainMemory.update({
+    where: { id: row.id },
+    data: patch as never,
+  });
+
   return { id: row.id, evidenceClass: envelope.evidenceClass, memoryKind: envelope.memoryKind };
 }
