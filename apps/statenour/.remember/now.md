@@ -1201,3 +1201,12 @@ observations `<functionId>:<span>` and `/api/public/v2/observations` is a thin p
 - Additive schema remains **pending/operator-gated** at `prisma/migrations-pending/20260929123500_reality_event_envelope/migration.sql`. Do not claim production columns exist until operator apply + read-back.
 - The implementation reuses the existing bridge-receipt/idempotency transaction; no second event spine was introduced.
 - Recovery details and next steps: `docs/research/2026-09-29-carousel-q25-q27-checkpoint.md`. Active branch: `feat/nouros-carousel-q25-q27-20260929`. Re-anchor onto latest main before PR; main is moving.
+
+
+## 2026-09-29 · authoritative Q-31 recovery
+- Q-25 RealityEvent envelope is **MERGED** via #2784 (`bee3abc5...`); its production migration remains a separate operator-applied/read-back concern.
+- Hidden Q-31 work was recovered from GitHub onto `feat/nouros-resilience-q28-q32-current-20260929` without rewriting the sibling-owned source branch. Current recovered scope includes inferred-writer admission, Guardian quarantine for Drive/Calendar/Google Reviews, trust-tier materialization, a bitemporal kernel/test fixture, and pending migration `20260929150500_brain_memory_transaction_time`.
+- Truth correction: Q-31 is BUILT-IN-PART, not complete. `transaction_expired_at` is modeled but is not yet guaranteed to be written before every real supersession mutation. Complete that ordering + contradiction-shadow acceptance before promotion.
+- Post-#2790 migration rule also applies: every parked migration must be registered statement-for-statement in the operator-only apply endpoint or explicitly classified operator-only. Q-31 registration is still pending.
+- Q-32 Langfuse eval loop is next; reuse existing Langfuse, do not add a second eval platform.
+- Durable checkpoint: `docs/research/2026-09-29-resilience-wave-current-checkpoint.md`.
