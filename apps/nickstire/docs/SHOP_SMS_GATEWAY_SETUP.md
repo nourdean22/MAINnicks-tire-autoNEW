@@ -94,13 +94,13 @@ If the gateway needs full re-setup (lost device, factory reset, etc.):
 5. **Tap the OFFLINE banner at the bottom** → triggers cloud signup dialog
    → tap CONTINUE on SIGN UP. Username + password generate automatically.
 6. **HOME → Cloud server section** — copy:
-   - Username (e.g. `BY9G1A`)
-   - Password (e.g. `5lhjcnqp-caenp`)
+   - Username (e.g. `<gateway-username>`)
+   - Password (e.g. `<gateway-password>`)
 7. **Set them on Railway:**
    ```
    railway variables --service MAINnicks-tire-auto \
-     --set SHOP_SMS_GATEWAY_USERNAME=<copied-username> \
-     --set SHOP_SMS_GATEWAY_PASSWORD=<copied-password>
+     --set SHOP_SMS_GATEWAY_USERNAME='<gateway-username>' \
+     --set SHOP_SMS_GATEWAY_PASSWORD='<gateway-password>'
    ```
 8. **Generate a webhook signing secret** + paste into Settings → Webhooks…
    → Signing Key. Generate via:
@@ -112,7 +112,7 @@ If the gateway needs full re-setup (lost device, factory reset, etc.):
 10. **Register the 3 inbound webhooks** with the Capevace cloud (use the API,
     don't fight the UI — it's faster):
     ```bash
-    USER=BY9G1A; PASS=5lhjcnqp-caenp
+    USER='<gateway-username>' PASS='<gateway-password>'
     for event in sms:received sms:delivered sms:failed; do
       curl -u "$USER:$PASS" -X POST https://api.sms-gate.app/3rdparty/v1/webhooks \
         -H "Content-Type: application/json" \

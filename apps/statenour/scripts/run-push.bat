@@ -1,7 +1,7 @@
 @echo off
 cd /d C:\Users\nourd\NOUR-OS\apps\statenour-os
-set "DATABASE_URL=postgresql://neondb_owner:npg_PcSDw9NXCuE2@ep-quiet-wave-am320eo1-pooler.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-set "DIRECT_URL=postgresql://neondb_owner:npg_PcSDw9NXCuE2@ep-quiet-wave-am320eo1.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+if not defined DATABASE_URL (echo Set DATABASE_URL in this shell first. Never commit it. & exit /b 1)
+if not defined DIRECT_URL (echo Set DIRECT_URL in this shell first. Never commit it. & exit /b 1)
 echo DATABASE_URL set
 echo Running prisma db push...
 call npx prisma db push

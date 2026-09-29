@@ -29,7 +29,7 @@ describe("v10.0.529.4 · sanitizeError", () => {
 
   it("scrubs postgres:// connection strings", () => {
     const raw =
-      "Can't reach database: postgresql://neondb_owner:npg_PcSDw9NXCuE2@ep-quiet-wave.neon.tech/neondb";
+      "Can't reach database: postgresql://neondb_owner:not-a-real-password@ep-example.neon.tech/neondb";
     expect(sanitizeError(raw)).toBe(
       "Can't reach database: [redacted-db-url]",
     );
