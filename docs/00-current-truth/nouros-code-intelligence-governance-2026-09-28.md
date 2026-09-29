@@ -60,9 +60,9 @@ It now also looks for GRAPH_RECEIPT.json beside that exact selected report.
 
 Safety rule:
 
-- receipt source commit == selected report source commit -> receipt may be summarized;
+- receipt source commit == selected report source commit AND receipt SHA-256 == selected report SHA-256 -> receipt may be summarized;
 - missing receipt -> say governance receipt is unavailable;
-- mismatched receipt -> print RECEIPT MISMATCH and ignore it;
+- commit or report-hash mismatch -> print RECEIPT MISMATCH and ignore it;
 - malformed receipt -> print receipt-unreadable and keep the graph summary.
 
 The receipt never suppresses the existing graph briefing.
@@ -94,7 +94,7 @@ That is the important outcome: an old graph can no longer look authoritative mer
 - governance script self-test green.
 - existing graphify-necropsy.mjs --self-test green.
 - PowerShell parser accepts both graphify-obsidian-sync.ps1 and graphify-session-context.ps1.
-- repo contract tests: 4/4 green.
+- repo contract tests: 4/4 green; the session-start contract now pins both source-commit and report-SHA-256 matching.
 - live session-context execution exits 0 and prints the governed freshness line.
 - git diff --check green.
 
