@@ -10,7 +10,8 @@
  * and "JOB COMPLETE — $0", and anonymous website estimates arrived as JOB COMPLETE.
  */
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { sendTelegram, auditCreate, recordCoachEvent, processShopEvent } = vi.hoisted(() => ({
@@ -36,9 +37,10 @@ vi.mock("@/lib/prisma", () => ({
   resetQueryCount: vi.fn(),
   getQueryCount: vi.fn().mockReturnValue(0),
 }));
-vi.mock("@/lib/services/telegram", () => ({
+// Real escapeHtml: the alerts are HTML-mode, and the escaping is part of what is asserted.
+vi.mock("@/lib/services/telegram", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/telegram")>()),
   sendTelegram,
-  formatTelegramNotification: (t: string, b: string) => `${t}\n${b}`,
 }));
 vi.mock("@/lib/services/coach-events", () => ({ recordCoachEvent }));
 vi.mock("@/lib/db/brain-bus-emit", () => ({ emitDriftFired: vi.fn() }));
@@ -53,7 +55,7 @@ type Entry = {
   statenour: { webhookAlert: string[] | null; coachEvent: string[] | null; pipeline: string | null };
 };
 const fixture = JSON.parse(
-  readFileSync(join(process.cwd(), "..", "..", "config", "nickstire-bridge-events.json"), "utf8"),
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "config", "nickstire-bridge-events.json"), "utf8"),
 ) as { events: Entry[] };
 
 // The bridge's own envelope (nour-os-bridge.ts pushToCloud): { events: [NourOsEvent] }.
@@ -104,6 +106,28 @@ describe("webhooks/nickstire renders the fields the bridge actually sends", () =
     expect(text).toContain("JOB COMPLETE");
     expect(text).toContain("Test Customer");
     expect(text).not.toContain("$0");
+  });
+
+  // Telegram parses these as HTML: an unescaped `<` or `&` in customer text is a 400
+  // "can't parse entities" and the alert is dropped (reported as telegram_alert_failed).
+  it("customer-written text is HTML-escaped in every alert", async () => {
+    await post(webhookPOST, "/api/webhooks/nickstire", "nickstire:review", {
+      rating: 5, reviewText: "Fast and fair <3", customerName: "Test <Reviewer> & Co",
+    });
+    await post(webhookPOST, "/api/webhooks/nickstire", "nickstire:lead", {
+      leadId: 1, customer: "Test <b>Customer", phone: "2165550100", interest: "brakes & rotors",
+    });
+    await post(webhookPOST, "/api/webhooks/nickstire", "nickstire:emergency", {
+      name: "Test Customer", phone: "2165550104", description: "stuck at I-90 <exit 177>",
+    });
+    const [review, lead, emergency] = sendTelegram.mock.calls.map(c => String(c[0]));
+    expect(review).toContain("Fast and fair &lt;3");
+    expect(review).toContain("Test &lt;Reviewer&gt; &amp; Co");
+    expect(lead).toContain("NEW LEAD — Test &lt;b&gt;Customer</b>");
+    expect(lead).toContain("brakes &amp; rotors");
+    expect(emergency).toContain("stuck at I-90 &lt;exit 177&gt;");
+    // The alert's own markup survives: only data is escaped.
+    for (const t of [review, lead, emergency]) expect(t).toMatch(/<b>.*<\/b>/);
   });
 
   it("legacy field names still render (additive fallbacks, PROTECTED-CORE rule 8)", async () => {

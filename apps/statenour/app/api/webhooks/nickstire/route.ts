@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendTelegram } from "@/lib/services/telegram";
+import { sendTelegram, escapeHtml } from "@/lib/services/telegram";
 import { requireSyncAuth } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("webhooks/nickstire");
+
+// Every alert below is sent with parse_mode "HTML" and interpolates customer-written text
+// (names, review text, emergency descriptions). A stray `<` or `&` makes Telegram answer
+// 400 "can't parse entities" and the whole alert is dropped, so every data-derived slot
+// goes through h().
+const h = (v: unknown): string => escapeHtml(v == null ? "" : String(v));
 
 // v10.0.529.106 · Wave 58 · CRITICAL · pre-Wave-58 every sendTelegram
 // in this route swallowed failures with `.catch(() => {})` · meaning
@@ -116,11 +122,11 @@ export async function POST(req: Request) {
 
           const delivered = await notifyOrLog(
             () => sendTelegram(
-              `🔴 <b>NEW LEAD — ${name}</b>\n\n` +
-              `📞 ${phone}\n` +
-              `🚗 ${vehicle}\n` +
-              `🔧 ${problem}\n` +
-              (value ? `💰 Est: ${value}\n` : "") +
+              `🔴 <b>NEW LEAD — ${h(name)}</b>\n\n` +
+              `📞 ${h(phone)}\n` +
+              `🚗 ${h(vehicle)}\n` +
+              `🔧 ${h(problem)}\n` +
+              (value ? `💰 Est: ${h(value)}\n` : "") +
               `\n⏱ Response time starts NOW.\nCall within 15 min for max conversion.`,
             ),
             { eventType: type, isEmergency: false },
@@ -134,8 +140,8 @@ export async function POST(req: Request) {
           const delivered = await notifyOrLog(
             () => sendTelegram(
               `📞 <b>CALLBACK REQUEST</b>\n\n` +
-              `${data.customer || data.name || "Customer"} — ${data.phone || "no phone"}\n` +
-              `${data.reason || ""}\n\n` +
+              `${h(data.customer || data.name || "Customer")} — ${h(data.phone || "no phone")}\n` +
+              `${h(data.reason)}\n\n` +
               `Call back IMMEDIATELY.`,
             ),
             { eventType: type, isEmergency: false },
@@ -151,8 +157,8 @@ export async function POST(req: Request) {
           const delivered = await notifyOrLog(
             () => sendTelegram(
               `🚨 <b>EMERGENCY REQUEST</b>\n\n` +
-              `${data.name || "Customer"} — ${data.phone || "no phone"}\n` +
-              `${data.description || data.problem || ""}\n\n` +
+              `${h(data.name || "Customer")} — ${h(data.phone || "no phone")}\n` +
+              `${h(data.description || data.problem)}\n\n` +
               `After-hours emergency. Respond ASAP.`,
             ),
             { eventType: type, isEmergency: true },
@@ -172,8 +178,8 @@ export async function POST(req: Request) {
           const delivered = await notifyOrLog(
             () => sendTelegram(
               `✅ <b>JOB COMPLETE${amountLabel}</b>\n\n` +
-              `${data.customer || data.customerName || ""} — ${data.vehicle || ""}\n` +
-              `${data.service || data.services || ""}`,
+              `${h(data.customer || data.customerName)} — ${h(data.vehicle)}\n` +
+              `${h(data.service || data.services)}`,
             ),
             { eventType: type, isEmergency: false },
           );
@@ -186,9 +192,9 @@ export async function POST(req: Request) {
           const emoji = stars >= 4 ? "⭐" : stars >= 3 ? "😐" : "⚠️";
           const delivered = await notifyOrLog(
             () => sendTelegram(
-              `${emoji} <b>NEW REVIEW — ${stars}/5</b>\n\n` +
-              `${data.customerName || "Customer"}\n` +
-              `"${(data.reviewText || data.text || data.comment || "").slice(0, 200)}"\n\n` +
+              `${emoji} <b>NEW REVIEW — ${h(stars)}/5</b>\n\n` +
+              `${h(data.customerName || "Customer")}\n` +
+              `"${h(String(data.reviewText || data.text || data.comment || "").slice(0, 200))}"\n\n` +
               (stars < 4 ? `⚠️ NEGATIVE — draft response ASAP` : `Great review! Consider sharing on social.`),
             ),
             { eventType: type, isEmergency: false },

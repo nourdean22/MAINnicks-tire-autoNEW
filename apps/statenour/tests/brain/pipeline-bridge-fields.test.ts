@@ -5,7 +5,8 @@
  * a bridge event, and review insights read `text` while reviews carry `reviewText`.
  */
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { remember, queryNick, queryNickBatch, connect } = vi.hoisted(() => ({
@@ -28,7 +29,7 @@ import { processShopEvent } from "@/lib/brain/pipeline-controller";
 
 type Entry = { type: string; data: Record<string, unknown> };
 const events = (
-  JSON.parse(readFileSync(join(process.cwd(), "..", "..", "config", "nickstire-bridge-events.json"), "utf8")) as { events: Entry[] }
+  JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "config", "nickstire-bridge-events.json"), "utf8")) as { events: Entry[] }
 ).events;
 const fixtureData = (type: string) => events.find(e => e.type === type)!.data;
 
@@ -49,6 +50,8 @@ describe("processShopEvent on real bridge payloads", () => {
   it("lead: the bridge's leadId links the memory to its source pattern", async () => {
     await processShopEvent({ type: "lead", data: fixtureData("nickstire:lead") });
     expect(connect).toHaveBeenCalledTimes(1);
+    // The bridge carries the lead's interest, not `service`.
+    expect(remember.mock.calls.map(c => String(c[2]))).toContain("New lead from web: unknown — Wheel alignment");
   });
 
   it("review: the stored insight carries the bridge's `reviewText`", async () => {

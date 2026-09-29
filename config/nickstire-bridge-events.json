@@ -30,9 +30,9 @@
       "type": "nickstire:booking:complete",
       "adapter": "onBookingCompleted",
       "busTypes": ["booking_completed"],
-      "input": { "id": 9002, "name": "Test Customer", "service": "Tire rotation", "invoiceNumber": "INV-TEST-1", "totalAmount": 245 },
-      "data": { "bookingId": 9002, "customer": "Test Customer", "service": "Tire rotation", "invoiceNumber": "INV-TEST-1", "totalAmount": 245 },
-      "statenour": { "webhookAlert": ["JOB COMPLETE", "$245", "Test Customer", "Tire rotation"], "coachEvent": null, "pipeline": "booking" }
+      "input": { "id": 9002, "name": "Test Customer", "service": "Tire rotation" },
+      "data": { "bookingId": 9002, "customer": "Test Customer", "service": "Tire rotation", "invoiceNumber": null, "totalAmount": null },
+      "statenour": { "webhookAlert": ["JOB COMPLETE", "Test Customer", "Tire rotation"], "coachEvent": null, "pipeline": "booking" }
     },
     {
       "type": "nickstire:lead",

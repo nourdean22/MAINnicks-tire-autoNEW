@@ -84,7 +84,7 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
       await brainMemory.remember(
         "insight",
         `lead_source_${source}_${today()}`,
-        `New lead from ${source}: ${event.data.name || "unknown"} — ${event.data.service || "inquiry"}`,
+        `New lead from ${source}: ${event.data.name || "unknown"} — ${event.data.service || event.data.interest || "inquiry"}`,
         "pipeline_analysis"
       );
 

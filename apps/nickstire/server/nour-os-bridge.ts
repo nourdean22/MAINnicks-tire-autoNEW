@@ -557,7 +557,8 @@ export function onEstimateGenerated(details: {
   source: string;
   estimateLow?: number | null;
   estimateHigh?: number | null;
-  workOrderId?: number | null;
+  /** routers/estimates.ts passes the work order's id, a UUID string. */
+  workOrderId?: string | number | null;
   orderNumber?: string | null;
 }) {
   return dispatchEvent("nickstire:estimate", {
