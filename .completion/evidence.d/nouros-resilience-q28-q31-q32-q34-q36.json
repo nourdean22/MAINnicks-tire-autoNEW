@@ -15,6 +15,14 @@
     "cron-fail-closed": {
       "ref": "apps/nickstire/server/cron/alertPolicy.test.ts + apps/nickstire/server/cron/observer.ts",
       "deferred": "2026-09-29 PR #2794 exact diff: Q-28 changes cron-observer alert grouping/inhibition/resolution routing, not business-job swallow/rethrow semantics. The new alertPolicy.test.ts pins DB-root classification, grouping, quiet-hour deferral, resolved formatting, and incident-diff behavior; existing cronObserverSuppression.test.ts remains the persisted suppression/re-alert control. No catch/swallow path was added to non-operator cron jobs. Exact-head Turbo/PR CI is the remaining execution receipt."
+    },
+    "q31-failure-compensation": {
+      "ref": "apps/statenour/lib/brain/memory-manager.ts + apps/statenour/tests/brain/memory-bitemporal-runtime.test.ts",
+      "deferred": "PR #2794 branch evidence: prepared supersession failures restore transaction/effective verification state, remove the provisional snapshot, and return the existing canonical row instead of silently falling through to a legacy overwrite. Exact-head CI is still the remaining acceptance receipt."
+    },
+    "q32-independent-judge": {
+      "ref": "apps/statenour/lib/evals/q32-regression.ts + apps/statenour/lib/ai/judge-eval.ts + apps/statenour/tests/ai/judge-eval-family.test.ts",
+      "deferred": "PR #2794 branch evidence: model-family classification distinguishes hosted model family from hosting provider and rejects unknown-family labels; optional Langfuse experiment parser repaired. Live label volume/kappa remain empirical and unclaimed."
     }
   }
 }
