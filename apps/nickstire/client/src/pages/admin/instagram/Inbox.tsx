@@ -67,9 +67,14 @@ export function Inbox({ onNavigate }: InboxProps) {
 
   // Sync Feed mutation
   const syncFeed = trpc.instagramAdmin.syncFeed.useMutation({
-    onSuccess: () => {
+    onSuccess: (res) => {
       refetchFeed();
-      toast.success("Feed cache successfully updated from Meta!");
+      // Only a live Graph read writes analytics; any other source synced nothing.
+      if (res.source === "graph") {
+        toast.success("Feed cache successfully updated from Meta!");
+      } else {
+        toast.warning("Meta unavailable. Nothing was synced; analytics unchanged.");
+      }
     },
     onError: (err) => {
       toast.error("Failed to sync feed", { description: err.message });

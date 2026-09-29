@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "F10 (2026-09-29): Admin -> Instagram -> Inbox, Sync Feed button. Before: every sync toasted 'Feed cache successfully updated from Meta!' even when Graph was down and the run used the cache or DB stand-in fallback. After: a sync whose result.source is 'graph' shows the same success toast; any other source (cache/none) shows a warning 'Meta unavailable. Nothing was synced; analytics unchanged.' and the feed refetches as before. No layout change. Server behavior pinned by server/instagram-sync.test.ts (8 tests). Live click-through deferred to the operator: no admin session or Graph access from this cloud worker."
+    }
+  }
+}

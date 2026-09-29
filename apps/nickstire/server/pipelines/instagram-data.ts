@@ -106,6 +106,14 @@ const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
  *
  * After a successful Graph fetch the cache file is refreshed (best-effort) so
  * the cache readers — admin live feed, account header — heal for free.
+ *
+ * Metrics are written ONLY from live Graph data (F10, 2026-09-29). The fallback
+ * `getInstagramPosts` is either the file cache (a copy of an earlier Graph read)
+ * or, on a fresh container with no cache file, stand-in posts built from
+ * social_content_inventory with 0 likes/comments and inventory ids as post ids.
+ * Syncing those inserted fake analytics rows, appended copies to the snapshot
+ * history, and zeroed engagementRate/followerSnapshot on every tracked post.
+ * A non-Graph run now reports its source and writes nothing.
  */
 export async function syncInstagramPosts(): Promise<{
   processed: number;
@@ -132,12 +140,27 @@ export async function syncInstagramPosts(): Promise<{
       `[Instagram Pipeline] STARVED: Graph unavailable (${liveMedia.ok ? "" : liveMedia.error}) and the JSON cache is empty/absent — 0 posts to sync; analytics reads will be empty`,
     );
   }
-  if (source === "graph") {
-    const { writeInstagramCache } = await import("../instagram");
-    await writeInstagramCache(posts, account); // best-effort; logs on failure
+  if (source === "cache") {
+    log.error(
+      `[Instagram Pipeline] Graph unavailable (${liveMedia.ok ? "" : liveMedia.error}) — ${posts.length} fallback posts NOT synced: fallback rows are copies or stand-ins, not observations; analytics unchanged this run`,
+    );
+  }
+  if (source !== "graph") {
+    return { processed: 0, newPosts: 0, errors: 0, source, snapshotsWritten: 0, snapshotErrors: 0 };
   }
 
-  const followers = account?.followers || 0;
+  const { writeInstagramCache } = await import("../instagram");
+  await writeInstagramCache(posts, account); // best-effort; logs on failure
+
+  // Unknown is never zero: only a live profile read counts as a follower
+  // observation. Without one, engagementRate/followerSnapshot are left alone
+  // on tracked rows and new posts wait for a run that can compute a real rate.
+  const followers: number | null = liveAccount.ok && liveAccount.account.followers > 0 ? liveAccount.account.followers : null;
+  if (followers === null) {
+    log.error(
+      `[Instagram Pipeline] follower count unknown (${liveAccount.ok ? "profile reported 0" : liveAccount.error}) — engagement rates not refreshed and new posts deferred this run`,
+    );
+  }
 
   let newPosts = 0;
   let errors = 0;
@@ -157,9 +180,9 @@ export async function syncInstagramPosts(): Promise<{
 
       // Calculate engagement rate
       const totalEngagement = post.likes + post.comments;
-      const engagementRate = followers > 0
+      const engagementRate = followers !== null
         ? Math.round((totalEngagement / followers) * 10000) // Store as *10000
-        : 0;
+        : null;
 
       // Live Graph insights — real reach/saved/views/shares — but only while the
       // post is recent enough that its metrics still move; older posts skip the
@@ -206,7 +229,7 @@ export async function syncInstagramPosts(): Promise<{
             shares: metricCols.shares ?? null,
             avgWatchTimeMs: metricCols.avgWatchTimeMs ?? null,
             skipRate: metricCols.skipRate ?? null,
-            followerSnapshot: followers || null,
+            followerSnapshot: followers,
           });
           snapshotsWritten++;
         } catch (snapErr) {
@@ -225,16 +248,18 @@ export async function syncInstagramPosts(): Promise<{
           .set({
             likes: post.likes,
             comments: post.comments,
-            engagementRate,
-            followerSnapshot: followers,
+            ...(engagementRate !== null ? { engagementRate, followerSnapshot: followers } : {}),
             ...metricCols,
-            // Never clobber a known product type with null on a cache-source run.
+            // Never clobber a known product type with null when Graph omits it.
             ...(post.mediaProductType ? { mediaProductType: post.mediaProductType } : {}),
           })
           .where(eq(instagramAnalytics.id, existing[0].id));
         await writeSnapshot();
         continue;
       }
+
+      // engagementRate is NOT NULL: inserting now would store a fabricated 0.
+      if (engagementRate === null || followers === null) continue;
 
       // Parse posting time in ET (the business timezone) — getDay()/getHours() use
       // the server's UTC clock, which would shift the best-hour cadence (Phase 5.3
