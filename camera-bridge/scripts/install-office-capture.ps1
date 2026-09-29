@@ -147,7 +147,7 @@ if (-not $PythonPath) {
 }
 if (-not $PythonPath -or -not (Test-Path -LiteralPath $PythonPath)) { Fail "Python runtime not found" "create camera-bridge .venv or pass -PythonPath" }
 & $PythonPath -c "import zoneinfo, websockets; zoneinfo.ZoneInfo('America/New_York')" 2>$null
-if ($LASTEXITCODE -ne 0) { Fail "Python dependencies missing" "install vision/requirements-office-wake.txt into the selected Python" }
+if ($LASTEXITCODE -ne 0) { Fail "Python dependencies missing" "install requirements-office-wake.txt into the selected Python" }
 
 $transcriberPath = Resolve-Executable $Transcriber
 if (-not $transcriberPath) { Fail "transcriber '$Transcriber' is not runnable" "pass -Transcriber with the full whisper-cli.exe path" }
