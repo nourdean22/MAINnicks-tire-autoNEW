@@ -877,6 +877,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
             via: "shop",
             variantKey: "legacy",
             skipPersist: false,
+            sendNowOrDrop: event.type === "after_hours_capture",
           });
       if (sendResult.success) {
         // `uncertain` = attempted, deliberately NOT retried, never confirmed
@@ -888,6 +889,10 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
           : sendResult.uncertain
             ? "gateway_timeout_delivery_unconfirmed"
             : "sent_successfully";
+        sendResultJson = sendResult;
+      } else if ("notQueued" in sendResult && sendResult.notQueued) {
+        status = "skipped";
+        statusReason = "time_sensitive_not_queued";
         sendResultJson = sendResult;
       } else {
         status = "failed";
@@ -1730,6 +1735,10 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
             skipShortCooldown: event.type === "inbound_sms",
             variantKey: finalVariantKey,
             skipPersist: false,
+            // audit 2026-09-29: "we're closed right now" is true only when it
+            // is sent. Never park it for a sending window that can open after
+            // the shop does.
+            sendNowOrDrop: event.type === "after_hours_capture",
           });
 
       if (sendResult.success) {
@@ -1747,6 +1756,12 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
           const tomorrow8am = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 8, 0, 0);
           metadataJson.queuedUntil = tomorrow8am.toISOString();
         }
+        sendResultJson = sendResult;
+      } else if ("notQueued" in sendResult && sendResult.notQueued) {
+        // Dropped on purpose (sendNowOrDrop), not a transmission failure.
+        status = "skipped";
+        statusReason = "time_sensitive_not_queued";
+        noSendReason = "time_sensitive_not_queued";
         sendResultJson = sendResult;
       } else {
         status = "failed";

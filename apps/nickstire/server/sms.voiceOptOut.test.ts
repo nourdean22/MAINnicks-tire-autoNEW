@@ -195,6 +195,47 @@ describe("sendSms honours the voice opt-out's scope", () => {
     expect(res.error ?? "").not.toMatch(/opted out|cannot verify/i);
   });
 
+  // audit 2026-09-29 · a staff member answering the customer's own text in the
+  // SMS inbox is not the follow-up lane "stop calling" suppresses. Only that
+  // exact shape (human, follow-up class, replying to an inbound) gets through.
+  const staffReply = { messageClass: "customer_followup", humanInitiated: true, replyToCustomerInbound: true } as const;
+
+  it("a staff reply to the customer's own text passes the opt-out gate on a VOICE-only number", async () => {
+    const { sendSms } = await import("./sms");
+    const res = await sendSms(`+1${VOICE_ONLY}`, "Yes, we have that size. Come by today.", staffReply);
+    expect(res.error ?? "").not.toMatch(/opted out|cannot verify/i);
+  });
+
+  it.each([
+    ["a text STOP", "STOP"],
+    ["SMS+VOICE", "SMS+VOICE"],
+    ["a keyword-less opt-out", null],
+  ])("the same staff reply is REFUSED after %s", async (_label, keyword) => {
+    prefRows = [{ phone: VOICE_ONLY, keyword }];
+    const { sendSms } = await import("./sms");
+    const res = await sendSms(`+1${VOICE_ONLY}`, "Yes, we have that size. Come by today.", staffReply);
+    expect(res.error).toMatch(/opted out/i);
+    expect(mockTwilioCreate).not.toHaveBeenCalled();
+  });
+
+  it("the same staff reply is REFUSED when customers.smsOptOut is set too", async () => {
+    customerRows = [{ phone: VOICE_ONLY }];
+    const { sendSms } = await import("./sms");
+    const res = await sendSms(`+1${VOICE_ONLY}`, "Yes, we have that size. Come by today.", staffReply);
+    expect(res.error).toMatch(/opted out/i);
+  });
+
+  it.each([
+    ["marketing, even flagged as a reply", { ...staffReply, messageClass: "customer_marketing" }],
+    ["an automated follow-up flagged as a reply", { ...staffReply, humanInitiated: false }],
+    ["a human follow-up that is not a reply to an inbound", { ...staffReply, replyToCustomerInbound: false }],
+  ] as const)("VOICE-only still REFUSES %s", async (_label, opts) => {
+    const { sendSms } = await import("./sms");
+    const res = await sendSms(`+1${VOICE_ONLY}`, "Still thinking about those brakes?", opts);
+    expect(res.error).toMatch(/opted out/i);
+    expect(mockTwilioCreate).not.toHaveBeenCalled();
+  });
+
   it("customer_confirmation is still REFUSED once the same number also has a full opt-out", async () => {
     customerRows = [{ phone: VOICE_ONLY }];
     const { sendSms } = await import("./sms");

@@ -45,6 +45,42 @@ const log = createLogger("voiceAgent");
 const RECAP_OUT_STATUSES: ReadonlySet<string> = new Set(["sent", "delivered", "replied"]);
 const RECAP_HANDED_OFF_STATUSES: ReadonlySet<string> = new Set(["queued", "sending"]);
 
+const WEEK = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+
+/** "18:00" -> "6", "08:30" -> "8:30": a clock time as it is said aloud. */
+function spokenClock(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  const hour = h % 12 || 12;
+  return m ? `${hour}:${String(m).padStart(2, "0")}` : String(hour);
+}
+
+/**
+ * The shop's week read aloud from BUSINESS.hours.structured, the same source
+ * the site renders, e.g. "Monday through Saturday 8 to 6, Sunday 9 to 4".
+ * Consecutive days with the same hours are grouped; a day with no hours is
+ * skipped. Read at call time, so an hours change cannot leave Nick behind.
+ */
+function spokenWeeklyHours(): string {
+  const hours = BUSINESS.hours.structured as Record<string, string | undefined>;
+  const groups: Array<{ first: string; last: string; range: string }> = [];
+  let previous: string | undefined;
+  for (const day of WEEK) {
+    const range = hours[day];
+    const open = groups[groups.length - 1];
+    if (range && range === previous && open) open.last = day;
+    else if (range) groups.push({ first: day, last: day, range });
+    previous = range;
+  }
+  const name = (d: string) => d[0].toUpperCase() + d.slice(1);
+  return groups
+    .map(({ first, last, range }) => {
+      const [from, to] = range.split("-");
+      const days = first === last ? name(first) : `${name(first)} through ${name(last)}`;
+      return `${days} ${spokenClock(from)} to ${spokenClock(to)}`;
+    })
+    .join(", ");
+}
+
 /**
  * One shared import() of the orchestrator. Also what lets the concurrent
  * recap tests read their mock: vitest 3.2.7 resolves concurrent dynamic
@@ -527,9 +563,13 @@ export const voiceAgentRouter = router({
           sid: orchResult.id?.toString(),
           error: orchResult.status === "failed" ? orchResult.reason : undefined,
           degraded,
-          // Friendly verbal recap Nick should READ ALOUD when degraded
+          // Friendly verbal recap Nick should READ ALOUD when degraded.
+          // audit 2026-09-29: it used to open "Texts are temporarily down" for
+          // every degraded outcome, including a recap held as a draft, queued
+          // for the morning window, or timed out while the gateway may still
+          // deliver it. This opening is true in all of them.
           verbalRecap: degraded
-            ? "Texts are temporarily down — I'll just say it out loud: 17625 Euclid Avenue, Cleveland, 4 4 1 1 2. Phone is 2 1 6 8 6 2 0 0 0 5. We're first-come, first-served Monday through Saturday 8 to 6, Sunday 9 to 4."
+            ? `Just in case the text doesn't come through, here it is out loud: 17625 Euclid Avenue, Cleveland, 4 4 1 1 2. Phone is 2 1 6 8 6 2 0 0 0 5. We're first-come, first-served ${spokenWeeklyHours()}.`
             : undefined,
         };
       } catch (err) {
