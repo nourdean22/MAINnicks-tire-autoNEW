@@ -73,8 +73,36 @@ export function CockpitObservabilityView() {
   const recentRuns = stats?.recentRuns || [];
   const memoryDecay = stats?.memoryDecay || [];
   const promptVersions = stats?.promptVersions || [];
+  const systemHealth = stats?.systemHealth ?? { status: "unknown", degradedSources: [] };
+  const missions = stats?.missions ?? {
+    active: 0,
+    paused: 0,
+    complete: 0,
+    killed: 0,
+    recentReceipts: [],
+  };
+  const externalWorker = stats?.externalWorker ?? {
+    runnerFresh: false,
+    runnerNodeKey: null,
+    runnerLastHeartbeatAt: null,
+    lanes: {
+      codex: null,
+      "claude-code": null,
+      antigravity: null,
+      "local-qwen": null,
+    },
+  };
+  const latestEval = stats?.eval ?? null;
+  const workerRows = (
+    [
+      ["codex", "Codex"],
+      ["claude-code", "Claude Code"],
+      ["antigravity", "Antigravity"],
+      ["local-qwen", "Local Qwen"],
+    ] as const
+  ).map(([key, label]) => ({ key, label, state: externalWorker.lanes[key] }));
 
-  // Sort memory categories by frequency count descending
+  // Sort recent-memory attention categories by count descending
   const sortedMemoryCategories = [...memoryDecay].sort((a, b) => b.count - a.count);
   const maxCategoryCount = Math.max(...sortedMemoryCategories.map((c) => c.count), 1);
 
@@ -91,7 +119,7 @@ export function CockpitObservabilityView() {
             <span className="text-2xl font-bold tracking-tight text-white font-mono">
               {dollars(kpis.totalCostCents)}
             </span>
-            <p className="text-[9px] text-zinc-500 font-mono mt-0.5">Aggregate spend</p>
+            <p className="text-[9px] text-zinc-500 font-mono mt-0.5">Tracked spend · 7d</p>
           </div>
         </GlassCard>
 
@@ -119,7 +147,7 @@ export function CockpitObservabilityView() {
               {(kpis.avgDurationMs / 1000).toFixed(2)}
             </span>
             <span className="text-xs text-zinc-400 font-mono ml-0.5">s</span>
-            <p className="text-[9px] text-zinc-500 font-mono mt-0.5">Average turn duration</p>
+            <p className="text-[9px] text-zinc-500 font-mono mt-0.5">AI generation duration · 7d</p>
           </div>
         </GlassCard>
 
@@ -135,7 +163,7 @@ export function CockpitObservabilityView() {
               {kpis.averageFeedback >= 0 ? "+" : ""}
               {kpis.averageFeedback.toFixed(1)}
             </span>
-            <p className="text-[9px] text-zinc-500 font-mono mt-0.5">Score scale: -1 to +1</p>
+            <p className="text-[9px] text-zinc-500 font-mono mt-0.5">Chat feedback · 30d · -1 to +1</p>
           </div>
         </GlassCard>
 
@@ -159,7 +187,79 @@ export function CockpitObservabilityView() {
         </GlassCard>
       </div>
 
-      {/* Main Dashboard section: Memory decay + Recent Runs */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Panel className="border border-zinc-800/60 bg-zinc-900/4 p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">System Health</span>
+            <Activity className="h-3.5 w-3.5 text-sky-400" />
+          </div>
+          <div className={cn(
+            "mt-3 text-xl font-bold font-mono",
+            systemHealth.status === "healthy" ? "text-emerald-400" : "text-amber-400",
+          )}>
+            {systemHealth.status}
+          </div>
+          <p className="mt-1 text-[10px] text-zinc-500 font-mono">
+            {systemHealth.degradedSources.length === 0
+              ? "No measured degraded sources"
+              : `Degraded: ${systemHealth.degradedSources.join(", ")}`}
+          </p>
+        </Panel>
+
+        <Panel className="border border-zinc-800/60 bg-zinc-900/4 p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Missions</span>
+            <Layers className="h-3.5 w-3.5 text-gold" />
+          </div>
+          <div className="mt-3 flex items-end gap-3 font-mono">
+            <span className="text-2xl font-bold text-white">{missions.active}</span>
+            <span className="pb-0.5 text-[10px] text-zinc-500">active</span>
+          </div>
+          <p className="mt-1 text-[10px] text-zinc-500 font-mono">
+            {missions.paused} paused · {missions.complete} complete · {missions.recentReceipts.length} receipts / 7d
+          </p>
+        </Panel>
+
+        <Panel className="border border-zinc-800/60 bg-zinc-900/4 p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">External Workers</span>
+            <Brain className="h-3.5 w-3.5 text-violet-400" />
+          </div>
+          <div className="mt-3 space-y-1.5">
+            {workerRows.map(({ key, label, state }) => (
+              <div key={key} className="flex items-center justify-between gap-2 text-[10px] font-mono">
+                <span className="text-zinc-300">{label}</span>
+                <span className={cn(
+                  state?.health === "ready" ? "text-emerald-400" :
+                  state?.health === "degraded" ? "text-amber-400" : "text-zinc-500",
+                )}>
+                  {state ? `${state.health} / ${state.quota}` : "unknown"}
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[9px] text-zinc-600 font-mono">
+            Runner {externalWorker.runnerFresh ? "fresh" : "stale / absent"}
+          </p>
+        </Panel>
+
+        <Panel className="border border-zinc-800/60 bg-zinc-900/4 p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Latest Eval</span>
+            <ShieldAlert className="h-3.5 w-3.5 text-emerald-400" />
+          </div>
+          <div className="mt-3 text-xl font-bold font-mono text-white">
+            {latestEval ? `${Math.round(latestEval.passRate * 100)}%` : "—"}
+          </div>
+          <p className="mt-1 text-[10px] text-zinc-500 font-mono">
+            {latestEval
+              ? `${latestEval.passed}/${latestEval.totalRan} passed · ${new Date(latestEval.ranAt).toLocaleString()}`
+              : "No persisted eval result"}
+          </p>
+        </Panel>
+      </div>
+
+      {/* Main Dashboard section: Memory attention + Recent Runs */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
         {/* Left Side: Memory Decay / Hit Rate */}
         <Panel className="md:col-span-4 border border-zinc-800/60 bg-zinc-900/4 p-4 flex flex-col justify-between">
@@ -167,12 +267,12 @@ export function CockpitObservabilityView() {
             <div className="flex items-center space-x-2 border-b border-zinc-800/50 pb-2.5 mb-3.5">
               <Brain className="w-4 h-4 text-gold" />
               <h2 className="text-xs font-bold font-display uppercase tracking-wider text-zinc-100">
-                Memory Decay Visualizer
+                Memory Attention
               </h2>
             </div>
 
             <p className="text-[11px] text-zinc-400 leading-snug mb-4">
-              Breakdown of semantic memory hits by category over the last 7 days. Reflects recall frequency and context density.
+              Memories touched in the last 7 days, grouped by category. Bar weight uses their persisted lifetime seenCount — attention, not truth or 7-day hit count.
             </p>
 
             {sortedMemoryCategories.length === 0 ? (
@@ -187,7 +287,7 @@ export function CockpitObservabilityView() {
                     <div key={item.category} className="space-y-1">
                       <div className="flex justify-between text-[10px] font-mono">
                         <span className="text-zinc-300 font-medium">{item.category}</span>
-                        <span className="text-zinc-500">{item.count} hits</span>
+                        <span className="text-zinc-500">{item.count} attention</span>
                       </div>
                       <div className="h-2 w-full bg-zinc-950 rounded-full overflow-hidden border border-zinc-900">
                         <div
@@ -203,7 +303,7 @@ export function CockpitObservabilityView() {
           </div>
 
           <div className="mt-4 pt-3 border-t border-zinc-800/40 flex justify-between items-center text-[9px] text-zinc-500 font-mono">
-            <span>Aggregating last 7 days</span>
+            <span>Touched within last 7 days</span>
             <Link href="/brain" className="text-gold hover:underline flex items-center gap-0.5">
               Brain Hub <ChevronRight className="w-2.5 h-2.5" />
             </Link>
@@ -267,27 +367,19 @@ export function CockpitObservabilityView() {
                           "inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider font-mono",
                           run.status === "success" && "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
                           run.status === "errored" && "bg-rose-500/10 text-rose-400 border border-rose-500/20",
-                          run.status === "cancelled" && "bg-zinc-800 text-zinc-400 border border-zinc-700/30"
+                          run.status === "cancelled" && "bg-zinc-800 text-zinc-400 border border-zinc-700/30",
+                          run.status === "running" && "bg-sky-500/10 text-sky-400 border border-sky-500/20"
                         )}>
                           {run.status}
                         </span>
                       </td>
                       <td className="py-2.5 pl-2 text-right">
-                        {run.feedback ? (
-                          <div className="inline-flex items-center gap-1 justify-end">
-                            {run.feedback.score > 0 ? (
-                              <span title={run.feedback.note || "Thumbs up"}>
-                                <ThumbsUp className="w-3 h-3 text-emerald-400" />
-                              </span>
-                            ) : (
-                              <span title={run.feedback.note || "Thumbs down"}>
-                                <ThumbsDown className="w-3 h-3 text-rose-400" />
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-zinc-600 font-mono text-[9px]">—</span>
-                        )}
+                        <span
+                          className="text-zinc-600 font-mono text-[9px]"
+                          title="AgentTrace has no feedback-attribution writer"
+                        >
+                          —
+                        </span>
                       </td>
                     </tr>
                   ))}
@@ -349,17 +441,15 @@ export function CockpitObservabilityView() {
                       "{pv.systemPrompt}"
                     </td>
                     <td className="py-3 px-2 text-center font-mono text-zinc-300">
-                      {pv.totalRuns}
+                      {pv.usageAttributionAvailable && pv.totalRuns !== null ? pv.totalRuns : "—"}
                     </td>
                     <td className="py-3 px-2 text-center font-mono text-zinc-300">
-                      {pv.averageFeedback !== 0 ? (
-                        <span className={cn(pv.averageFeedback > 0 ? "text-emerald-400" : "text-rose-400")}>
-                          {pv.averageFeedback > 0 ? "+" : ""}
-                          {pv.averageFeedback.toFixed(2)}
-                        </span>
-                      ) : (
-                        <span className="text-zinc-600">—</span>
-                      )}
+                      <span
+                        className="text-zinc-600"
+                        title="No prompt-version run attribution writer exists yet"
+                      >
+                        —
+                      </span>
                     </td>
                     <td className="py-3 px-2 text-zinc-500 font-mono whitespace-nowrap">
                       {new Date(pv.createdAt).toLocaleDateString()}

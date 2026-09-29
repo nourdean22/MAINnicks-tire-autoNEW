@@ -1340,6 +1340,7 @@ export async function completeWorkItem(input: {
       data: {
         status: mappedStatus,
         completedAt: new Date(),
+        resultPayload: input.payload ? asJsonValue(input.payload) : undefined,
         errorCode: input.errorCode || undefined,
         errorMessage: input.errorMessage || undefined
       }

@@ -9,6 +9,7 @@
 | [statenour-current-truth](statenour-current-truth.md) | First thing — where Statenour runs, what's retired. |
 | [statenour-claude-code-session](statenour-claude-code-session.md) | Starting any editing session here. |
 | [statenour-migrations-and-deploys](statenour-migrations-and-deploys.md) | Any schema change, migration, or deploy. |
+| [external-worker-plane](external-worker-plane.md) | Installing, routing, debugging, or proving NattyNour subscription/local worker execution. |
 | [task-classifier-domain-missions](task-classifier-domain-missions.md) | Touching task classification / mission linkage / auto-learn. |
 | [stale-doc-cleanup](stale-doc-cleanup.md) | A doc asserts a retired fact as current; or before adding a doc. |
 | [action-honesty-and-receipts](action-honesty-and-receipts.md) | Chat finalization, tool results, anything Nick reports as done. |

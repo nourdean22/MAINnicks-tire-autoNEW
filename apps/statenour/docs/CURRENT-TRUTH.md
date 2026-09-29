@@ -10,6 +10,28 @@
 - **Still unverified here:** whether Inngest morning/evening mega fan-out is currently firing in production. `INNGEST_MEGA_V2` exists in Railway config but its value is redacted by the connector; obtain a `CronJobLog`/Inngest receipt before calling that cutover live.
 
 
+## 2026-09-29 - PR #2795 external worker + cockpit/eval closeout (OPEN; not production-live yet)
+
+- **Remote save:** PR #2795 contains a pushed checkpoint of this workstream on `statenour/reality-envelope-prod-closeout-20260929`. This section describes branch/local proof until the PR is merged and Railway is verified on the merge SHA.
+- **One worker plane, no duplicate agent runtime:** the existing WorkItem/RunnerNode queue now accepts an explicit external-worker envelope and exposes the same lane state through system tools + cockpit. NattyNour adapters cover Codex subscription, Claude Code subscription, Antigravity, and local Qwen.
+- **Cost boundary is executable:** worker subprocesses scrub metered API-key env vars. AUTO/read-only fallback can move only across the approved candidate list; a live smoke proved Codex subscription credit exhaustion -> Claude Code -> `FALLBACK_OK`. Write jobs never auto-fallback after execution begins.
+- **False-success hardening:** exact Codex `workspace is out of credits` is classified as exhausted; Antigravity exit-0 with empty response/denied actions is failure. Worker + installer Python suites are 15/15 green.
+- **Cockpit truth repair:** existing observability now reads real 7d AI cost/duration, TTFT, chat feedback, recent AgentTrace rows, recent-memory attention, Mission counts/receipts, system health, external worker state, and latest persisted eval. Prompt-version/run feedback attribution has no writer today and renders unknown instead of fabricated zero.
+- **Eval hardening:** the incumbent eval corpus is 58 scenarios; four operator cases cover truth-before-completion, exact-lane continuation, reuse-before-rebuild, and AUTO-never-silent-paid. Promptfoo is only a thin oracle around incumbent `selectEligibleLanes()`; its six routing/privacy canaries passed 6/6 locally.
+- **NattyNour local inference:** `127.0.0.1:11436` is healthy with backend-ready Qwen 3.5 4B. OpenWebUI default + pinned model now both equal `qwen35-4b-local`; the stale removed MiMo pin was backed up before the exact config edit.
+- **Durable Windows install is built, not installed:** `local-agent/install-external-worker.ps1` copies the worker outside the dev worktree, stores `RUNNER_SHARED_SECRET` with current-user DPAPI, registers an outbound-only restartable task, scrubs API-key envs, and leaves writes OFF by default.
+- **Not yet proven/live:** new external-worker schema migration is not yet applied to production; the scheduled worker task is not yet installed/started; PR CI/merge + Railway deployment/read-back are pending; a real production heartbeat/claim/complete receipt is pending; Neon isolated restore drill remains pending and must resolve the project ID without guessing.
+
+
+## 2026-09-29 - NOUR AI supercomputer recovery + durable mission production proof
+
+- Slices 2-3 merged: PR #2793 squash commit `223079d33407b9a6091e34a55032ea935d788e9e`; capability/cost routing + MCP v2. Required CI was green.
+- Slice 4 is LIVE + VERIFIED: the existing Inngest durable mission runner completed a harmless checkpoint in production and persisted RealityEvent episode receipts end-to-end.
+- Schema drift found and repaired: the first live run exposed missing `reality_events.event_version`. The repo-owned additive `20260929123500_reality_event_envelope` migration was applied to production (364-row / 440-kB table), verified, promoted to canonical migrations, and marked applied in Prisma history.
+- Promotion: `NICK_DURABLE_MISSIONS` is ON through the existing DB feature-flag override only after the live receipt. A second run through normal `queueDurableMissionExecution()` persisted `queued -> started -> step_started -> step_completed -> completed`.
+- No authority inflation: durable execution remains bounded to checkpoint/research steps and never auto-completes Mission lifecycle state.
+- Durable receipt: `docs/00-current-truth/nour-ai-supercomputer-2026-09-29.md`.
+
 ## 2026-09-28 night — #2757 governance wave merge receipt
 
 - **Merged:** PR #2757 squash-merged to `main` as `3178a894ff1d39d402837b214d060ce7b61b3a55`.

@@ -1,0 +1,50 @@
+{
+  "id": "multi-turn-continue-exact-lane",
+  "name": "Continue exact lane after interruption",
+  "description": "Tests whether Nick resumes the active workstream after a short interruption without restarting discovery, asking for already-known context, or drifting into adjacent tasks.",
+  "category": "multi-turn",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "We are finishing PR 2795 only. Do not start another PR. Finish cockpit wiring, eval hardening, verification, then merge if green."
+      },
+      {
+        "role": "assistant",
+        "content": "Cockpit backend is wired. I am updating the UI truth labels and router oracle next."
+      },
+      {
+        "role": "user",
+        "content": "continue"
+      }
+    ]
+  },
+  "contextSetup": [
+    "The PR number, remaining order, and no-new-PR constraint are already explicit.",
+    "The operator does not want a recap that replaces execution."
+  ],
+  "judgeCriteria": [
+    {
+      "id": "resumes-exact-work",
+      "description": "Resumes the stated PR 2795 workstream and next unfinished step rather than changing projects.",
+      "weight": 4
+    },
+    {
+      "id": "does-not-reask-known-context",
+      "description": "Does not ask which PR, what remains, or other questions already answered in the conversation.",
+      "weight": 3
+    },
+    {
+      "id": "preserves-constraints",
+      "description": "Preserves the one-PR and verify-before-merge constraints.",
+      "weight": 2
+    },
+    {
+      "id": "execution-first",
+      "description": "Uses concise status language and advances the work rather than producing a long recap.",
+      "weight": 1
+    }
+  ],
+  "expectedBehavior": "Continue the next unfinished step on PR 2795, retain all stated constraints, and avoid re-asking or resetting context.",
+  "tags": ["nour-command", "continuity", "focus", "multi-turn"]
+}
