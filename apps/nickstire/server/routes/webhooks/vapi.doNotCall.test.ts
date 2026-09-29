@@ -11,8 +11,10 @@
  *     into the existing opt-out store — never a number the model supplies;
  *   · an OUTBOUND end-of-call report whose CUSTOMER said "stop calling" records
  *     it even when the model never called the tool;
- *   · the assistant's own "say stop calling" line, an inbound call, and a number
- *     already suppressed do NOT record (the last keeps the ledger at one row).
+ *   · an INBOUND call records the same way (audit-2026-09-29 F4b: this file
+ *     used to pin the opposite), and the inbound tool does not end the call;
+ *   · the assistant's own "say stop calling" line and an inbound call with no
+ *     request do NOT record.
  *
  * Precedent for the harness: vapi.recapCallId.test.ts (node:http, dev-mode
  * signature, env restored). The store writer is spied, not run: its SQL is
@@ -175,6 +177,20 @@ describe("recordDoNotCall tool", () => {
   });
 });
 
+describe("recordDoNotCall on an INBOUND call (audit-2026-09-29 F4b)", () => {
+  it("records the caller's number and tells the model the call goes on", async () => {
+    const res = await postEvent({
+      type: "tool-calls",
+      call: { id: "call_dnc_in_1", type: "inboundPhoneCall", customer: { number: DIALLED } },
+      toolCalls: [{ id: "tci1", type: "function", function: { name: "recordDoNotCall", arguments: {} } }],
+    });
+    expect(res.status).toBe(200);
+    expect(h.marked).toEqual(["2165550142"]);
+    expect(JSON.parse(res.body.results![0]!.result)).toEqual({ ok: true, endCall: false });
+    expect(h.ledger).toHaveLength(1);
+  });
+});
+
 describe("end-of-call transcript check", () => {
   const report = (call: Record<string, unknown>, messages: Array<{ role: string; message: string }>) =>
     postEvent({ type: "end-of-call-report", endedReason: "customer-ended-call", call, artifact: { messages } });
@@ -247,12 +263,62 @@ describe("end-of-call transcript check", () => {
     expect(h.marked).toEqual([]);
   });
 
-  it("an INBOUND call is not this rule's business", async () => {
-    await report({ id: "call_eoc_3", type: "inboundPhoneCall", customer: { number: DIALLED } }, [
-      { role: "user", message: "stop calling me" },
+  // audit-2026-09-29 F4b · this case used to read "an INBOUND call is not this
+  // rule's business" and assert NOTHING was recorded — it pinned the defect.
+  // 47 CFR 64.1200(a)(10): revocation "by using any reasonable method"; saying
+  // it on a call the customer placed is one. Inverted, not deleted.
+  it("an INBOUND call where the caller said \"stop calling me\" IS recorded, before ack", async () => {
+    const res = await report({ id: "call_eoc_3", type: "inboundPhoneCall", customer: { number: DIALLED } }, [
+      { role: "bot", message: "Thanks for calling Nick's Tire and Auto, how can I help?" },
+      { role: "user", message: "Yeah, I keep getting calls from you guys. Quit calling me please." },
     ]);
+    expect(res.status).toBe(200);
+    expect(h.marked).toEqual(["2165550142"]);
+    expect(h.ledger).toEqual([{
+      phone: "2165550142",
+      via: "voice",
+      keyword: "VOICE_TRANSCRIPT",
+      evidenceRef: "vapi:call_eoc_3",
+      ledgerScope: "voice_ai_marketing",
+      ledgerMethod: "voice_call",
+    }]);
+  });
+
+  it("POSITIVE CONTROL: an INBOUND call with no do-not-call request records nothing", async () => {
+    const res = await report({ id: "call_eoc_in_ctrl", type: "inboundPhoneCall", customer: { number: DIALLED } }, [
+      { role: "user", message: "You guys never call me back! Can you remove me from the waitlist and book me Thursday?" },
+    ]);
+    expect(res.status).toBe(200);
     await settle();
     expect(h.marked).toEqual([]);
+    expect(h.fullMarked).toEqual([]);
+    expect(h.ledger).toEqual([]);
+  });
+
+  it("an INBOUND broad request (\"stop calling and texting me\") is persisted as all-contact", async () => {
+    const res = await report({ id: "call_eoc_in_all", type: "inboundPhoneCall", customer: { number: DIALLED } }, [
+      { role: "user", message: "stop calling me" },
+      { role: "user", message: "and stop texting me too" },
+    ]);
+    expect(res.status).toBe(200);
+    expect(h.fullMarked).toEqual(["2165550142"]);
+    expect(h.marked).toEqual([]);
+  });
+
+  it("an INBOUND request with no usable caller ID acks 200 (a retry cannot fix it) and records nothing", async () => {
+    const res = await report({ id: "call_eoc_anon", type: "inboundPhoneCall", customer: { number: "anonymous" } }, [
+      { role: "user", message: "stop calling me" },
+    ]);
+    expect(res.status).toBe(200);
+    expect(h.marked).toEqual([]);
+  });
+
+  it("an INBOUND request whose write fails still returns 503 so Vapi retries", async () => {
+    h.voicePersisted = false;
+    const res = await report({ id: "call_eoc_in_fail", type: "inboundPhoneCall", customer: { number: DIALLED } }, [
+      { role: "user", message: "take me off your call list" },
+    ]);
+    expect(res.status).toBe(503);
   });
 
   it("re-persists a transcript opt-out even when the in-memory suppression set already contains the number", async () => {
