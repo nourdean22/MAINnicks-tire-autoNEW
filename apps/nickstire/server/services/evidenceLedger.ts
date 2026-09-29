@@ -14,6 +14,7 @@
  * path returns false instead of throwing, and nothing waits longer than 5s.
  */
 import { createLogger } from "../lib/logger";
+import { IDEMPOTENCY_KEY_HEADER } from "./bridgeKeys";
 
 const log = createLogger("evidence-ledger");
 
@@ -68,16 +69,26 @@ function endpoint(): { url: string; key: string } | null {
   return { url: `${base}/api/sync/evidence`, key };
 }
 
-export async function postToEvidenceLedger(body: { events?: RealityEventInput[]; claims?: EvidenceClaimInput[] }): Promise<boolean> {
+/**
+ * `idempotencyKey` (ADR-0019, built with `bridgeKey`) names the fact this batch
+ * records. StateNour writes a keyed batch once; a repeat answers
+ * `{duplicate:true}` with 200, which counts as delivered here.
+ */
+export async function postToEvidenceLedger(
+  body: { events?: RealityEventInput[]; claims?: EvidenceClaimInput[] },
+  opts: { idempotencyKey?: string | null } = {},
+): Promise<boolean> {
   const ep = endpoint();
   if (!ep) {
     log.debug("evidence ledger not configured (STATENOUR_SYNC_URL / STATENOUR_SYNC_KEY) — skipped");
     return false;
   }
   try {
+    const headers: Record<string, string> = { "content-type": "application/json", "x-sync-key": ep.key };
+    if (opts.idempotencyKey) headers[IDEMPOTENCY_KEY_HEADER] = opts.idempotencyKey;
     const res = await fetch(ep.url, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-sync-key": ep.key },
+      headers,
       body: JSON.stringify({ ...body, sentAt: new Date().toISOString(), sender: "nickstire" }),
       signal: AbortSignal.timeout(5_000),
     });

@@ -2,15 +2,11 @@
  * Route-level canary for the #1487 rejection-audit wiring in
  * app/api/mcp/route.ts.
  *
- * The two sibling suites cover the layers BELOW the route:
- * rejection-audit.test.ts pins the auth-message -> reason classification
- * coupling and the audit line's hygiene; mcp-protocol.test.ts smokes
- * initialize / tools-list / tools-call through handleMcpMessage(). Neither
- * imports the route, so nothing proved that a refused POST actually reaches
- * auditBridgeRejection() - which is exactly the wiring #1487 added after a
- * measured probe showed 403s leaving ZERO trace. If someone refactors the
- * route's catch block and drops the audit call, every test stays green and
- * rejections go dark again. This file makes that regression red.
+ * The sibling suites cover the layers BELOW the route: rejection-audit
+ * pins failure classification and mcp-protocol pins the official SDK bridge.
+ * This file proves that a refused POST still reaches auditBridgeRejection()
+ * before protocol handling, while accepted legacy and modern MCP requests
+ * reach the single SDK-backed endpoint.
  *
  * End-to-end on purpose: we drive the exported POST/GET handlers and observe
  * the REAL audit sink (the structured console.log line), not a module mock -
@@ -26,9 +22,27 @@ const saved: Record<string, string | undefined> = {};
 function post(body: unknown, headers: Record<string, string> = {}) {
   return new Request("https://example.test/api/mcp", {
     method: "POST",
-    headers: { "content-type": "application/json", ...headers },
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+      ...headers,
+    },
     body: JSON.stringify(body),
   });
+}
+
+async function decodeMcpResponse(response: Response) {
+  const text = await response.text();
+  if (!text) return null;
+  if (response.headers.get("content-type")?.includes("text/event-stream")) {
+    const data = text
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .filter(Boolean);
+    return data.length ? JSON.parse(data[data.length - 1]!) : null;
+  }
+  return JSON.parse(text);
 }
 
 const INITIALIZE = {
@@ -107,12 +121,63 @@ describe("POST /api/mcp - rejections leave a trace (route-level, #1487)", () => 
     const res = await POST(post(INITIALIZE, { Authorization: `Bearer ${SECRET}` }));
     expect(res.status).toBe(200);
 
-    const body = await res.json();
+    const body = await decodeMcpResponse(res);
     expect(body.jsonrpc).toBe("2.0");
     expect(body.result?.serverInfo?.name).toBe("statenour-command");
     // The allow-canary: the audit must not fire on accepted calls, or the
     // sink drowns in noise and someone mutes it.
     expect(rejectionLines(spy)).toHaveLength(0);
+  });
+
+  it("serves modern server/discover on the same authenticated POST endpoint", async () => {
+    const version = "2026-07-28";
+    const res = await POST(post(
+      {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "server/discover",
+        params: {
+          _meta: {
+            "io.modelcontextprotocol/protocolVersion": version,
+            "io.modelcontextprotocol/clientCapabilities": {},
+          },
+        },
+      },
+      {
+        Authorization: `Bearer ${SECRET}`,
+        "MCP-Protocol-Version": version,
+        "Mcp-Method": "server/discover",
+      },
+    ));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.result?.supportedVersions).toContain(version);
+    expect(body.result?._meta?.["io.modelcontextprotocol/serverInfo"]?.name).toBe("statenour-command");
+  });
+
+  it("rejects a modern Mcp-Method/body mismatch", async () => {
+    const version = "2026-07-28";
+    const res = await POST(post(
+      {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/list",
+        params: {
+          _meta: {
+            "io.modelcontextprotocol/protocolVersion": version,
+            "io.modelcontextprotocol/clientCapabilities": {},
+          },
+        },
+      },
+      {
+        Authorization: `Bearer ${SECRET}`,
+        "MCP-Protocol-Version": version,
+        "Mcp-Method": "tools/call",
+      },
+    ));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error?.code).toBe(-32020);
   });
 
   it("GET stays 405 (the surface is POST-only Streamable HTTP)", () => {

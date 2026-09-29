@@ -1,127 +1,194 @@
 /**
- * MCP protocol contract for the shared agent-bridge (POST /api/mcp).
+ * MCP integration canaries for the StateNour agent bridge.
  *
- * Salvaged from the superseded standalone bridge (PR #487) and adapted
- * to the shipped agent-bridge (#493): exercises handleMcpMessage()
- * directly (the route is a thin auth + JSON shell) so it runs without
- * Next.js request plumbing. Assertions are about ENVELOPE shape +
- * protocol correctness, not live data.
- *
- * NOTE: the bridge is "full operational mode" (writes permitted), so the
- * read-only *safety* invariant is reframed: we don't assert every tool is
- * read-only (it isn't), we assert no write tool is ever MISLABELED
- * read-only to clients.
+ * The SDK owns JSON-RPC framing and protocol-era negotiation. These tests pin
+ * only StateNour's contract at that boundary: one endpoint for legacy + modern,
+ * scoped/deterministic tools, truthful annotations, and policy-safe calls.
  */
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  handleMcpMessage,
   MCP_SERVER_INFO,
-  MCP_PROTOCOL_VERSIONS,
-  RPC_ERROR,
+  handleAuthenticatedMcpRequest,
 } from "@/lib/agent-bridge/mcp-server";
 import { getBridgeSafeTools } from "@/lib/agent-bridge/tool-adapter";
 
-// tasks scope reaches the maximal surface — the widest a real token can.
-const TEST_IDENT = { clientId: "test", scope: "tasks" as const };
+const MODERN = "2026-07-28";
+const PROTOCOL_KEY = "io.modelcontextprotocol/protocolVersion";
+const CAPABILITIES_KEY = "io.modelcontextprotocol/clientCapabilities";
+const SERVER_INFO_KEY = "io.modelcontextprotocol/serverInfo";
+const TASKS = { clientId: "test-tasks", scope: "tasks" as const };
+const READ = { clientId: "test-read", scope: "read" as const };
 
-describe("agent-bridge mcp · protocol", () => {
-  it("initialize echoes a supported protocol version", async () => {
-    const res = await handleMcpMessage({
+function post(body: unknown, headers: Record<string, string> = {}) {
+  return new Request("https://example.test/api/mcp", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+}
+function modernBody(
+  id: number,
+  method: string,
+  params: Record<string, unknown> = {},
+) {
+  const priorMeta =
+    params._meta && typeof params._meta === "object"
+      ? (params._meta as Record<string, unknown>)
+      : {};
+  return {
+    jsonrpc: "2.0",
+    id,
+    method,
+    params: {
+      ...params,
+      _meta: {
+        ...priorMeta,
+        [PROTOCOL_KEY]: MODERN,
+        [CAPABILITIES_KEY]: {},
+      },
+    },
+  };
+}
+
+function modernHeaders(method: string, name?: string) {
+  return {
+    "MCP-Protocol-Version": MODERN,
+    "Mcp-Method": method,
+    ...(name ? { "Mcp-Name": name } : {}),
+  };
+}
+async function decodeMcpResponse(response: Response) {
+  const text = await response.text();
+  if (!text) return null;
+  if (response.headers.get("content-type")?.includes("text/event-stream")) {
+    const data = text
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .filter(Boolean);
+    return data.length ? JSON.parse(data[data.length - 1]!) : null;
+  }
+  return JSON.parse(text);
+}
+
+async function invoke(
+  body: unknown,
+  identity = TASKS,
+  headers: Record<string, string> = {},
+) {
+  const response = await handleAuthenticatedMcpRequest(post(body, headers), identity);
+  return { response, body: await decodeMcpResponse(response) };
+}
+
+describe("agent-bridge MCP · official v2 handler integration", () => {
+  it("serves legacy initialize on the same POST endpoint", async () => {
+    const { response, body } = await invoke({
       jsonrpc: "2.0",
       id: 1,
       method: "initialize",
-      params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "0" } },
-    }, TEST_IDENT);
-    expect(res?.error).toBeUndefined();
-    const r = res?.result as {
-      protocolVersion: string;
-      serverInfo: typeof MCP_SERVER_INFO;
-      capabilities: { tools: unknown };
-    };
-    expect(r.protocolVersion).toBe("2025-06-18");
-    expect(r.serverInfo.name).toBe("statenour-command");
-    expect(r.capabilities.tools).toBeDefined();
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "test", version: "1" },
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(body.result?.protocolVersion).toBe("2025-06-18");
+    expect(body.result?.serverInfo?.name).toBe(MCP_SERVER_INFO.name);
+    expect(body.result?.capabilities?.tools).toBeDefined();
+  });
+  it("serves 2026-07-28 server/discover with SDK metadata + cache hints", async () => {
+    const { response, body } = await invoke(
+      modernBody(2, "server/discover"),
+      TASKS,
+      modernHeaders("server/discover"),
+    );
+    expect(response.status).toBe(200);
+    expect(body.error).toBeUndefined();
+    expect(body.result?.supportedVersions).toContain(MODERN);
+    expect(body.result?.capabilities?.tools).toBeDefined();
+    expect(body.result?.ttlMs).toBe(60_000);
+    expect(body.result?.cacheScope).toBe("private");
+    expect(body.result?._meta?.[SERVER_INFO_KEY]?.name).toBe(MCP_SERVER_INFO.name);
   });
 
-  it("initialize falls back to the newest version for an unknown request", async () => {
-    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 2, method: "initialize", params: { protocolVersion: "1999-01-01" } }, TEST_IDENT);
-    expect((res?.result as { protocolVersion: string }).protocolVersion).toBe(MCP_PROTOCOL_VERSIONS[0]);
+  it("uses the SDK standard -32020 for modern header/body mismatch", async () => {
+    const { response, body } = await invoke(
+      modernBody(3, "tools/list"),
+      TASKS,
+      modernHeaders("tools/call"),
+    );
+    expect(response.status).toBe(400);
+    expect(body.error?.code).toBe(-32020);
   });
 
-  it("notifications (and id-less requests) produce no response — the 202 path", async () => {
-    expect(await handleMcpMessage({ jsonrpc: "2.0", method: "notifications/initialized" }, TEST_IDENT)).toBeNull();
-    expect(await handleMcpMessage({ jsonrpc: "2.0", method: "ping" }, TEST_IDENT)).toBeNull();
+  it("uses the SDK standard -32022 for an unsupported modern revision", async () => {
+    const body = modernBody(4, "server/discover");
+    body.params._meta[PROTOCOL_KEY] = "2099-01-01";
+    const { body: result } = await invoke(body, TASKS, {
+      "MCP-Protocol-Version": "2099-01-01",
+      "Mcp-Method": "server/discover",
+    });
+    expect(result.error?.code).toBe(-32022);
   });
-
-  it("ping returns an empty result", async () => {
-    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "ping" }, TEST_IDENT);
-    expect(res?.result).toEqual({});
-  });
-
-  it("rejects JSON-RPC batches", async () => {
-    const res = await handleMcpMessage([{ jsonrpc: "2.0", id: 1, method: "ping" }], TEST_IDENT);
-    expect(res?.error?.code).toBe(RPC_ERROR.INVALID_REQUEST);
-  });
-
-  it("rejects a non-object message", async () => {
-    const res = await handleMcpMessage("not-an-object", TEST_IDENT);
-    expect(res?.error?.code).toBe(RPC_ERROR.INVALID_REQUEST);
-  });
-
-  it("returns METHOD_NOT_FOUND for unknown methods", async () => {
-    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 4, method: "does/not/exist" }, TEST_IDENT);
-    expect(res?.error?.code).toBe(RPC_ERROR.METHOD_NOT_FOUND);
-  });
-
-  it("tools/list exposes object schemas + consistent per-tool annotations", async () => {
-    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 5, method: "tools/list" }, TEST_IDENT);
-    const tools = (res?.result as {
-      tools: Array<{ name: string; inputSchema: { type?: string }; annotations: { readOnlyHint: boolean; destructiveHint: boolean } }>;
-    }).tools;
-    expect(tools.length).toBe(getBridgeSafeTools("mcp").length);
+  it("returns a deterministic tasks-scoped tools list with truthful annotations", async () => {
+    const { body } = await invoke(
+      modernBody(5, "tools/list"),
+      TASKS,
+      modernHeaders("tools/list"),
+    );
+    const tools = body.result?.tools as Array<{
+      name: string;
+      inputSchema: { type?: string };
+      annotations: { readOnlyHint?: boolean; destructiveHint?: boolean };
+    }>;
+    expect(tools.length).toBe(getBridgeSafeTools("mcp", "tasks").length);
     expect(tools.length).toBeGreaterThan(0);
-    for (const t of tools) {
-      expect(t.inputSchema.type).toBe("object");
-      expect(typeof t.annotations.readOnlyHint).toBe("boolean");
-      // a tool is either read-only or destructive, never labeled both
-      expect(t.annotations.destructiveHint).toBe(!t.annotations.readOnlyHint);
+    expect(tools.map((tool) => tool.name)).toEqual(
+      [...tools.map((tool) => tool.name)].sort((a, b) => a.localeCompare(b)),
+    );
+    for (const tool of tools) {
+      expect(tool.inputSchema.type).toBe("object");
+      expect(typeof tool.annotations.readOnlyHint).toBe("boolean");
+      expect(tool.annotations.destructiveHint).toBe(!tool.annotations.readOnlyHint);
     }
   });
 
-  it("NEVER labels a side-effecting tool as read-only (full-operational safety)", async () => {
-    const safe = getBridgeSafeTools("mcp");
-    const res = await handleMcpMessage({ jsonrpc: "2.0", id: 6, method: "tools/list" }, TEST_IDENT);
-    const readOnlyByName = new Map(
-      (res?.result as { tools: Array<{ name: string; annotations: { readOnlyHint: boolean } }> }).tools.map(
-        (t) => [t.name, t.annotations.readOnlyHint] as const,
-      ),
+  it("narrows the advertised surface for a read-scoped identity", async () => {
+    const { body } = await invoke(
+      modernBody(6, "tools/list"),
+      READ,
+      modernHeaders("tools/list"),
     );
-    const leaked = safe.filter((t: any) => t.meta?.sideEffecting === true && readOnlyByName.get(t.name) === true);
-    expect(leaked.map((t: any) => t.name)).toEqual([]);
+    const names = (body.result?.tools as Array<{ name: string }>).map((tool) => tool.name);
+    expect(names).toEqual(getBridgeSafeTools("mcp", "read").map((tool) => tool.name).sort());
+    expect(names).not.toContain("create_task");
+  });
+  it("keeps unknown tools as protocol InvalidParams", async () => {
+    const name = "definitely_not_a_tool";
+    const { response, body } = await invoke(
+      modernBody(7, "tools/call", { name, arguments: {} }),
+      TASKS,
+      modernHeaders("tools/call", name),
+    );
+    expect(response.status).toBe(200);
+    expect(body.error?.code).toBe(-32602);
   });
 
-  it("tools/call on a read-only tool returns a JSON text envelope", async () => {
-    const readTool = getBridgeSafeTools("mcp").find((t: any) => t.meta?.sideEffecting !== true);
-    if (!readTool) return; // nothing read-only exposed in this env → skip
-    const res = await handleMcpMessage({
-      jsonrpc: "2.0",
-      id: 7,
-      method: "tools/call",
-      params: { name: readTool.name, arguments: {} },
-    }, TEST_IDENT);
-    expect(res?.error).toBeUndefined(); // tool failures are results, not protocol errors
-    const r = res?.result as { content: Array<{ type: string; text: string }>; isError?: boolean };
-    expect(r.content[0]?.type).toBe("text");
-    expect(typeof r.content[0]?.text).toBe("string");
-  });
-
-  it("tools/call on an unknown tool is INVALID_PARAMS", async () => {
-    const res = await handleMcpMessage({
-      jsonrpc: "2.0",
-      id: 8,
-      method: "tools/call",
-      params: { name: "definitely_not_a_tool", arguments: {} },
-    }, TEST_IDENT);
-    expect(res?.error?.code).toBe(RPC_ERROR.INVALID_PARAMS);
+  it("returns tool execution failures as tool results, not protocol failures", async () => {
+    const readTool = getBridgeSafeTools("mcp", "read")[0];
+    expect(readTool).toBeDefined();
+    const { body } = await invoke(
+      modernBody(8, "tools/call", { name: readTool.name, arguments: {} }),
+      READ,
+      modernHeaders("tools/call", readTool.name),
+    );
+    expect(body.error).toBeUndefined();
+    expect(body.result?.content?.[0]?.type).toBe("text");
+    expect(typeof body.result?.content?.[0]?.text).toBe("string");
   });
 });

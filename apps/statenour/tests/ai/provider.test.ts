@@ -55,6 +55,7 @@ describe("Gemini Provider Configuration and Fallbacks", () => {
     const gemini = status.providers.find((p) => p.name === "gemini");
     expect(gemini).toBeDefined();
     expect(gemini?.modelId).toBe("gemini-3.5-flash");
+    expect(gemini?.costClass).toBe("METERED_PAID");
   });
 
   it("respects GEMINI_MODEL env override", async () => {

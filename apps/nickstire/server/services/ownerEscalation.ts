@@ -14,6 +14,7 @@
  * the decision and where to make it, not the customer.
  */
 import { createLogger } from "../lib/logger";
+import { bridgeKey, IDEMPOTENCY_KEY_HEADER } from "./bridgeKeys";
 
 const log = createLogger("owner-escalation");
 
@@ -35,6 +36,14 @@ export interface OwnerEscalation {
   /** The nickstire mutation that consumes the decision — an escalation without one is a notification. */
   writeBack: string;
   priority?: "low" | "medium" | "high";
+  /**
+   * What the obligation is ABOUT (a draft id, a set of ids) — never a customer
+   * name or phone. With `trigger` it forms the idempotency key
+   * `v1:obligation.opened:<trigger>:<subjectId>` (ADR-0019 §4), so escalating
+   * the same subject again is the same obligation and StateNour opens one
+   * task, not one per call. Omitted, the post carries no key (legacy path).
+   */
+  subjectId?: string | number | { opaque: string };
 }
 
 function statenourTarget(): { url: string; key: string } | null {
@@ -75,9 +84,13 @@ export function escalateToOwner(e: OwnerEscalation, fetchImpl: typeof fetch = fe
     return;
   }
   const payload = buildOpenLoopPayload(e);
+  const headers: Record<string, string> = { "Content-Type": "application/json", "x-sync-key": target.key };
+  const key = e.subjectId === undefined ? null : bridgeKey("obligation.opened", e.trigger, e.subjectId);
+  if (key) headers[IDEMPOTENCY_KEY_HEADER] = key;
+  else log.info("escalation sent without an idempotency key", { trigger: e.trigger, hasSubject: e.subjectId !== undefined });
   void fetchImpl(`${target.url}/api/sync/nour-os`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-sync-key": target.key },
+    headers,
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(5000),
   })
