@@ -83,6 +83,9 @@ export interface Contradiction {
   days_apart: number;
   surfaced_at: string;          // ISO
   status?: ContradictionStatus; // default "unresolved"
+  /** Q-31: measurable detector output that must not page/ticker until promoted. */
+  shadow?: boolean;
+  detector?: string;
   resolution_note?: string | null;
   resolved_at?: string | null;
 }
@@ -98,13 +101,16 @@ export function buildContradictionKey(newId: string, oldId: string): string {
  * the one row. Throws on storage failure — the caller decides how loud.
  * Returns the row key, which is what the resolution panel deep-links on.
  */
-export async function surfaceNearDuplicate(input: {
+export async function surfaceContradictionPair(input: {
   newMemoryId: string;
   oldMemoryId: string;
   newContent: string;
   oldContent: string;
   similarity: number;
+  signal: Contradiction["signal"];
   oldCreatedAt?: Date | null;
+  shadow?: boolean;
+  detector?: string;
 }): Promise<string> {
   const key = buildContradictionKey(input.newMemoryId, input.oldMemoryId);
   const daysApart = input.oldCreatedAt
@@ -114,12 +120,14 @@ export async function surfaceNearDuplicate(input: {
     new_memory_id: input.newMemoryId,
     old_memory_id: input.oldMemoryId,
     similarity: input.similarity,
-    signal: "near_duplicate",
+    signal: input.signal,
     new_excerpt: input.newContent.slice(0, 180),
     old_excerpt: input.oldContent.slice(0, 180),
     days_apart: daysApart,
     surfaced_at: new Date().toISOString(),
     status: "unresolved",
+    ...(input.shadow ? { shadow: true } : {}),
+    ...(input.detector ? { detector: input.detector } : {}),
   };
   await prisma.brainMemory.upsert({
     where: { category_key: { category: BRAIN_CATEGORIES.CONTRADICTION, key } },
@@ -128,11 +136,34 @@ export async function surfaceNearDuplicate(input: {
       key,
       content: JSON.stringify(row),
       confidence: input.similarity,
-      source: "user_save_near_duplicate",
+      source: input.shadow ? "memory_admission_shadow" : "contradiction_surfacer",
     },
-    update: { content: JSON.stringify(row), lastSeen: new Date() },
+    update: {
+      content: JSON.stringify(row),
+      lastSeen: new Date(),
+      confidence: input.similarity,
+    },
   });
   return key;
+}
+
+/**
+ * Queue a near-duplicate pair for operator review, through the SAME storage
+ * contract as detected contradictions.
+ */
+export async function surfaceNearDuplicate(input: {
+  newMemoryId: string;
+  oldMemoryId: string;
+  newContent: string;
+  oldContent: string;
+  similarity: number;
+  oldCreatedAt?: Date | null;
+}): Promise<string> {
+  return surfaceContradictionPair({
+    ...input,
+    signal: "near_duplicate",
+    detector: "near_duplicate",
+  });
 }
 
 function containsAny(text: string, tokens: string[]): boolean {
@@ -151,7 +182,10 @@ function hasAntonymClash(a: string, b: string): boolean {
   return false;
 }
 
-function detectSignal(newText: string, oldText: string): Contradiction["signal"] | null {
+export function detectContradictionSignal(
+  newText: string,
+  oldText: string,
+): Contradiction["signal"] | null {
   const newHasNeg = containsAny(newText, NEGATION_TOKENS);
   const oldHasNeg = containsAny(oldText, NEGATION_TOKENS);
   const negationFlip = newHasNeg !== oldHasNeg; // xor
@@ -295,7 +329,7 @@ export async function surfaceContradictions(newBrainMemoryId: string): Promise<C
       if (parsed.excerpt) oldExcerpt = parsed.excerpt;
     } catch { /* raw */ }
 
-    const signal = detectSignal(newExcerpt, oldExcerpt);
+    const signal = detectContradictionSignal(newExcerpt, oldExcerpt);
     if (!signal) continue;
     gate.signal++;
 
@@ -381,7 +415,7 @@ export async function loadRecentContradictions(
     try {
       const parsed = JSON.parse(r.content) as Contradiction;
       const status = parsed.status ?? "unresolved";
-      if (!includeResolved && status !== "unresolved") continue;
+      if (!includeResolved && (status !== "unresolved" || parsed.shadow === true)) continue;
       out.push({ ...parsed, status, key: r.key, createdAt: r.createdAt.toISOString() });
     } catch {
       // skip · aggregated below — this sits on hot read paths (ticker,
