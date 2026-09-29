@@ -60,7 +60,7 @@
     "eval:memory": "tsx scripts/run-memory-evals.ts",
     "eval:recall": "tsx scripts/recall-eval.ts",
     "eval:live": "tsx tests/eval/run-suite.ts --live",
-    "eval:router-oracle": "npx --yes promptfoo@latest eval -c tests/eval/promptfoo/router-oracle.yaml --no-cache",
+    "eval:router-oracle": "pnpm dlx promptfoo@0.123.1 eval -c tests/eval/promptfoo/router-oracle.yaml --no-cache",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:install": "playwright install --with-deps chromium",
