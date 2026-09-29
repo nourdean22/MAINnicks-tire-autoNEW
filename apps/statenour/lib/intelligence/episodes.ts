@@ -18,6 +18,7 @@ export type EpisodeKind =
   | "tool"
   | "tool_gap"
   | "mission"
+  | "worker"
   | "content"
   | "experiment"
   | "business_outcome";

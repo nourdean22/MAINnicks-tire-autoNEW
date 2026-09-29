@@ -93,6 +93,8 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "getHabitStreaks",              category: "personal_read",  battle: true,  cost: "free" },
   { name: "getMasteryScores",             category: "personal_read",  battle: true,  cost: "free" },
   { name: "getMissions",                  category: "personal_read",  battle: true,  cost: "free" },
+  { name: "getExternalWorkerJob",         category: "personal_read",  battle: true,  cost: "free", riskClass: "low" },
+  { name: "getExternalWorkerLanes",       category: "personal_read",  battle: true,  cost: "free", riskClass: "low" },
   // WP-3 · missions thin-module coverage (2026-07-29). Reads are
   // battle-safe; the lifecycle mutation is personal_write so the
   // capability registry strips it in read mode and it needs a receipt.
@@ -152,6 +154,7 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "createCommitment",             category: "personal_write", cost: "free" },
   { name: "createMissionPlan",            category: "personal_write", cost: "free" },
   { name: "queueMissionExecution",        category: "personal_write", sideEffecting: true, cost: "medium", riskClass: "medium" },
+  { name: "queueExternalWorkerJob",       category: "personal_write", sideEffecting: true, cost: "free", riskClass: "medium" },
   { name: "updateMissionStatus",          category: "personal_write", cost: "free", riskClass: "medium" },
   { name: "createTask",                   category: "personal_write", cost: "free" },
   { name: "triggerBrief",                  category: "personal_write", cost: "cheap" },
