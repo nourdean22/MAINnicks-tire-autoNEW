@@ -22,6 +22,7 @@
 import { createLogger } from "../lib/logger";
 import { withTimeout } from "@nour/utils";
 import { NICK_SMS_SYSTEM_PROMPT } from "./nickSmsPersona";
+import { claudeThinkingOffParams } from "./claudeThinkingParams";
 import { buildWarrantyFactsPreambleLive } from "./businessFacts";
 
 const log = createLogger("nickgpt-client");
@@ -242,8 +243,10 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
           system: opts.systemPrompt,
           // Current Claude models reject non-default temperature (HTTP 400), and
           // Sonnet 5 thinks adaptively unless told not to — thinking would eat
-          // this 110-token budget and leave no draft. So: no temperature, no thinking.
-          thinking: { type: "disabled" },
+          // this 110-token budget and leave no draft. So: no temperature, and
+          // thinking off in whichever form this model accepts (Opus 5.5, Sonnet
+          // 5.5 and Fable 400 on `disabled`; see claudeThinkingParams.ts).
+          ...claudeThinkingOffParams(modelName),
           messages,
         }),
       });

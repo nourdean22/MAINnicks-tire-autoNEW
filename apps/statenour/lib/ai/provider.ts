@@ -47,7 +47,7 @@ import {
   type RuntimeProviderName,
   type TaskType,
 } from "@/config/ai-providers";
-import { claude5CompatMiddleware, isClaude5ThinkingModel } from "./claude5-compat";
+import { claudeCompatMiddlewareFor } from "./claude5-compat";
 
 export type { RuntimeProviderName, TaskType };
 
@@ -206,17 +206,15 @@ function createAnthropicModel(modelOverride?: string): LanguageModel {
   const modelId = modelOverride || resolveProviderModel("anthropic");
   const anthropic = createAnthropic({ apiKey: apiKey! });
   const model = anthropic(modelId);
-  // 2026-08-11 · Claude 5 frontier lane (fable/mythos/opus-5): these
-  // models reject sampling params (temperature/top_p/top_k → 400) and
-  // count always-on adaptive thinking against maxOutputTokens, so the
-  // compat middleware strips/floors at the ONE place every caller
-  // passes through — an ANTHROPIC_MODEL flip to a 5-family id is safe
-  // with zero call-site changes. claude-sonnet-5 (current default) is
-  // untouched. See lib/ai/claude5-compat.ts.
-  if (isClaude5ThinkingModel(modelId)) {
-    return wrapLanguageModel({ model, middleware: claude5CompatMiddleware });
-  }
-  return model;
+  // 2026-08-11 · Claude 4.7-and-later models reject sampling params
+  // (temperature/top_p/top_k → 400), and the 5 family counts default-on
+  // adaptive thinking against maxOutputTokens, so the compat middleware
+  // strips/floors at the ONE place every caller passes through — an
+  // ANTHROPIC_MODEL flip is safe with zero call-site changes. 2026-09-29
+  // (#2768): claude-sonnet-5, the default, is covered too.
+  // See lib/ai/claude5-compat.ts.
+  const compat = claudeCompatMiddlewareFor(modelId);
+  return compat ? wrapLanguageModel({ model, middleware: compat }) : model;
 }
 
 function createOpenAIModel(): LanguageModel {
