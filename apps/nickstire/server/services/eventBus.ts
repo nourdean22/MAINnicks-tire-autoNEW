@@ -538,6 +538,20 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
+  // 7b. Q-12 phase 1 (docs/adr/0019-idempotent-bridge-writes.md §9): record each event as
+  // a keyed status='shadow' bridge_outbox row. Sends nothing and replaces nothing; the two
+  // StateNour destinations above keep running. A no-op unless bridge_outbox_shadow is ON.
+  registerDestination({
+    name: "bridge-outbox-shadow",
+    enabled: true,
+    handles: "all",
+    softFail: true,
+    handler: async (event) => {
+      const { shadowEnqueue } = await import("./bridgeOutbox");
+      await shadowEnqueue(event);
+    },
+  });
+
   // 8. On-Duty Manager SMS — wave-105
   // Texts the manager whose number is currently configured as the VAPI
   // transferCall destination (i.e. whoever is on call duty). Pulls the

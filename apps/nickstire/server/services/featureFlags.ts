@@ -153,6 +153,9 @@ export const FLAG_DEFINITIONS = [
   // until their flag is on: control renders, no exposure is logged. Turning a
   // flag on is the decision to expose real customers to the variant.
   { key: "web_experiment_home_hero_subline_2026_09", description: "Web experiment home-hero-subline-2026-09 (hero primary-lane subline). ON = deterministic 50/50 by visitor id, exposures + conversions logged to customer_events, daily sequential verdict proposed via Telegram — never auto-applied." },
+  // ADR-0019 phase 1 (Q-12). Internal bookkeeping only: sends nothing, and the
+  // legacy StateNour senders run exactly as before whether it is ON or OFF.
+  { key: "bridge_outbox_shadow", description: "Record every bus event bound for StateNour as a status='shadow' row in bridge_outbox (migration 0137), keyed per ADR-0019. Never drained; used to prove the outbox is complete before cutover. OFF = nothing written." },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];

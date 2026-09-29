@@ -5152,3 +5152,35 @@ export const candidates = mysqlTable("candidates", {
 
 export type Candidate = typeof candidates.$inferSelect;
 export type InsertCandidate = typeof candidates.$inferInsert;
+
+/**
+ * bridge_outbox — ADR-0019 §5.1 (docs/adr/0019-idempotent-bridge-writes.md).
+ * One row per nickstire -> StateNour fact, unique on its idempotency key.
+ * Migration 0137 (operator-applied). Phase 1 writes only status='shadow' rows
+ * (server/services/bridgeOutbox.ts, flag bridge_outbox_shadow); nothing drains
+ * them yet. status is a VARCHAR on purpose (nickstire-tidb-ddl): pending |
+ * sending | delivered | dead | shadow.
+ */
+export const bridgeOutbox = mysqlTable("bridge_outbox", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  idempotencyKey: varchar("idempotency_key", { length: 190 }).notNull(),
+  eventType: varchar("event_type", { length: 80 }).notNull(),
+  route: varchar("route", { length: 64 }).notNull(),
+  payload: json("payload").notNull(),
+  occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+  status: varchar("status", { length: 32 }).default("pending").notNull(),
+  attempts: int("attempts").default(0).notNull(),
+  dueAt: timestamp("due_at", { fsp: 3 }).default(sql`CURRENT_TIMESTAMP(3)`).notNull(),
+  claimToken: varchar("claim_token", { length: 36 }),
+  claimedAt: timestamp("claimed_at", { fsp: 3 }),
+  lastHttpStatus: int("last_http_status"),
+  lastError: varchar("last_error", { length: 500 }),
+  deliveredAt: timestamp("delivered_at", { fsp: 3 }),
+  createdAt: timestamp("created_at", { fsp: 3 }).default(sql`CURRENT_TIMESTAMP(3)`).notNull(),
+}, (table) => [
+  uniqueIndex("uniq_bridge_outbox_key").on(table.idempotencyKey),
+  index("idx_bridge_outbox_status_due").on(table.status, table.dueAt),
+  index("idx_bridge_outbox_created").on(table.createdAt),
+]);
+
+export type BridgeOutboxRow = typeof bridgeOutbox.$inferSelect;

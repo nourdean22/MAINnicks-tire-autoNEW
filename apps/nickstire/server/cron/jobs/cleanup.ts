@@ -119,6 +119,29 @@ export async function cleanupOldData(): Promise<{ recordsProcessed: number; deta
     log.warn("cron_alerts_fired cleanup failed", { error: err instanceof Error ? err.message : String(err) });
   }
 
+  // Q-12 phase 1 · bridge_outbox shadow rows (ADR-0019 §5.5) are a comparison
+  // sample, never sent, and they copy the bus payload (names, phones). The
+  // phase-1 window is 7 days; keep 14, then drop them. Only status='shadow':
+  // a later phase's pending/dead rows are never pruned here.
+  try {
+    const { getDb } = await import("../../db");
+    const { sql } = await import("drizzle-orm");
+    const { isMissingTableError } = await import("../../lib/dbErrors");
+    const db = await getDb();
+    if (db) {
+      try {
+        const [result] = await db.execute(sql`
+          DELETE FROM bridge_outbox WHERE status = 'shadow' AND created_at < (NOW() - INTERVAL 14 DAY)
+        `);
+        cleaned += (result as { affectedRows?: number })?.affectedRows ?? 0;
+      } catch (err) {
+        if (!isMissingTableError(err)) throw err; // 0137 not applied yet: nothing to prune
+      }
+    }
+  } catch (err) {
+    log.warn("bridge_outbox shadow cleanup failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+
   log.info("Cleanup completed", { cleaned });
   return { recordsProcessed: cleaned, details: `Cleaned ${cleaned} stale entries` };
 }
