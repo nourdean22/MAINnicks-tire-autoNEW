@@ -30,6 +30,10 @@ export interface EpisodeInput {
   episodeId?: string;
   occurredAt?: Date;
   traceId?: string;
+  /** Cross-event lineage. Defaults to traceId, then missionId, then this episode id. */
+  correlationId?: string;
+  /** Stable id of the event/episode that directly caused this one, when known. */
+  causationId?: string;
   missionId?: string;
   conversationId?: string;
   actor?: string;
@@ -75,9 +79,18 @@ export function buildEpisodeEvent(input: EpisodeInput): RealityEventInput {
     objects.push({ type: "mission", id: input.missionId, role: "mission" });
   }
 
+  const occurredAt = (input.occurredAt ?? new Date()).toISOString();
+
   return {
     eventType: `episode.${dottedPart(input.kind)}.${dottedPart(input.phase)}`,
-    observedAt: (input.occurredAt ?? new Date()).toISOString(),
+    eventVersion: EPISODE_SCHEMA_VERSION,
+    occurredAt,
+    // observedAt stays populated for readers written before Q-25.
+    observedAt: occurredAt,
+    correlationId:
+      input.correlationId ?? input.traceId ?? input.missionId ?? episodeId,
+    causationId: input.causationId,
+    retentionClass: "learning",
     objects,
     source: {
       system: "statenour",
