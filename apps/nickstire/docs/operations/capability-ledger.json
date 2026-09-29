@@ -2684,15 +2684,14 @@
       "capabilityId": "reality-event-envelope-q25",
       "name": "Versioned RealityEvent registry + correlation/causation envelope",
       "owner": "system",
-      "codeState": "in_progress",
-      "operationalState": "unverified",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-carousel-q25-q27-current-20260929: StateNour RealityEvent registry, existing DomainEventEnvelope adapter/projection, Episode lineage, Nick evidence-ledger envelope support, additive pending migration.",
+        "codeCommit": "Merged #2784 as bee3abc5aa61a45702cd341adb3893b39ff0013c: StateNour RealityEvent registry, existing DomainEventEnvelope adapter/projection, Episode lineage, Nick evidence-ledger envelope support, additive pending migration.",
         "tests": [
-          "Branch tests added: apps/statenour/tests/events/reality-event-registry.test.ts",
-          "Branch tests extended: apps/statenour/tests/events/envelope-adapters.test.ts, apps/statenour/tests/api/sync-evidence.test.ts, apps/statenour/tests/intelligence/episodes.test.ts",
-          "Exact-head CI is still pending; no green status is claimed by this ledger row."
+          "apps/statenour/tests/events/reality-event-registry.test.ts; envelope-adapters, sync-evidence, and Episode lineage coverage.",
+          "PR #2784 exact-head required checks were green before squash merge, including Turbo affected verify, StateNour E2E, Completion Authority, Adoption Gates, Agent Policy, Secret Scanning, Docker context, and admin diagnostic."
         ],
         "liveRuns": []
       },
@@ -2700,14 +2699,10 @@
         {
           "severity": "P2",
           "description": "Operator must apply and read back the additive StateNour RealityEvent migration before any production code may rely on the new columns."
-        },
-        {
-          "severity": "P3",
-          "description": "Exact-head CI and post-deploy ingestion/projection observation are still pending."
         }
       ],
       "deferredScope": [
-        "Production migration apply/read-back.",
+        "Production migration apply/read-back through the operator-gated path.",
         "Production event ingestion/projection receipt after deploy."
       ],
       "lastVerifiedAt": "2026-09-29"
@@ -2716,21 +2711,21 @@
       "capabilityId": "business-data-contracts-q26",
       "name": "Business-table freshness + weekday-seasonal volume contracts",
       "owner": "system",
-      "codeState": "in_progress",
-      "operationalState": "unverified",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-carousel-q25-q27-current-20260929: shared/businessDataContracts.ts, MetricEnvelope freshness field, and data-accuracy-check wiring.",
+        "codeCommit": "Merged #2784 as bee3abc5aa61a45702cd341adb3893b39ff0013c: shared/businessDataContracts.ts, MetricEnvelope freshness field, and data-accuracy-check wiring.",
         "tests": [
-          "Branch tests added: apps/nickstire/shared/businessDataContracts.test.ts",
-          "Exact-head CI is still pending; no production cron observation is claimed."
+          "apps/nickstire/shared/businessDataContracts.test.ts pins freshness, shop-day semantics, weekday-seasonal z-scores, and legitimate zero-row behavior.",
+          "PR #2784 exact-head required checks were green before squash merge."
         ],
         "liveRuns": []
       },
       "blockers": [
         {
           "severity": "P3",
-          "description": "Thresholds have not yet been observed against production weekday history; exact-head CI and live data-accuracy-check observation are pending."
+          "description": "Thresholds have not yet been observed against production weekday history. Live data-accuracy-check observation is still pending."
         }
       ],
       "deferredScope": [
@@ -2743,14 +2738,14 @@
       "capabilityId": "customer-value-reference-ranking-q27",
       "name": "BG/NBD + Gamma-Gamma customer-value reference ranking",
       "owner": "system",
-      "codeState": "in_progress",
-      "operationalState": "unverified",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-carousel-q25-q27-current-20260929: pure BG/NBD/Gamma-Gamma kernel, CDNOW goldens, read-only customer ranking service, and admin read procedure.",
+        "codeCommit": "Merged #2784 as bee3abc5aa61a45702cd341adb3893b39ff0013c: pure BG/NBD/Gamma-Gamma kernel, CDNOW goldens, read-only customer ranking service, and admin read procedure.",
         "tests": [
-          "Branch tests added: apps/nickstire/shared/customerValueModel.test.ts and apps/nickstire/server/lib/customerValueRanking.test.ts",
-          "Exact-head CI is still pending. The model is explicitly external-cdnow-reference-not-shop-fitted."
+          "apps/nickstire/shared/customerValueModel.test.ts and server/lib/customerValueRanking.test.ts pin CDNOW goldens, cents/dollars handling, BG/NBD hypergeometric order, a=.793 acceptance, deterministic 13-week ranking, and no action path.",
+          "PR #2784 exact-head required checks were green before squash merge; the model remains explicitly external-cdnow-reference-not-shop-fitted."
         ],
         "liveRuns": []
       },
@@ -2778,7 +2773,7 @@
       "operationalState": "unverified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-resilience-q28-q34-q36-q31-q32-20260929: cron/alertPolicy.ts + observer.ts integration; no second monitoring dependency.",
+        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: cron/alertPolicy.ts + observer.ts integration; no second monitoring dependency.",
         "tests": [
           "server/cron/alertPolicy.test.ts pins grouping, quiet-time boundaries, DB-root threshold/classification, resolved formatting, and incident-diff behavior.",
           "Existing cronObserverSuppression.test.ts still pins persisted suppression and positive-control re-alert semantics.",
@@ -2806,7 +2801,7 @@
       "operationalState": "unverified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-resilience-q28-q34-q36-q31-q32-20260929: server/_core/processRole.ts + startup gating.",
+        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: server/_core/processRole.ts + startup gating.",
         "tests": [
           "server/_core/processRole.test.ts pins default=all, web=no background ownership, jobs/all own jobs, invalid values fail loudly.",
           "No Railway service split or PROCESS_ROLE production mutation is performed by this branch."
@@ -2833,7 +2828,7 @@
       "operationalState": "unverified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-resilience-q28-q34-q36-q31-q32-20260929: removes vestigial worker /cron/mega* routes and dead inbound secret comparator; keeps worker-owned forwarder + render loop.",
+        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: removes vestigial worker /cron/mega* routes and dead inbound secret comparator; keeps worker-owned forwarder + render loop.",
         "tests": [
           "apps/statenour/tests/repo/worker-hygiene.test.ts pins no mega endpoints, no worker reads of DATABASE_URL/DIRECT_URL/GITHUB_TOKEN, and the existing finite reel render timeout.",
           "Read-only Railway 2026-09-29: exactly four services; none is a cron job; worker has no cron schedule, no domains, one east4 replica. Exact-head CI still pending."
@@ -2849,6 +2844,71 @@
       "deferredScope": [
         "Do not delete live worker Railway variables in this code PR; env removal is operator-owned.",
         "Verify mega/mega-evening receipts before claiming Inngest cutover live."
+      ],
+      "lastVerifiedAt": "2026-09-29"
+    },
+    {
+      "capabilityId": "statenour-bitemporal-memory-q31",
+      "name": "StateNour memory admission, bitemporal truth, and contradiction shadow",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unverified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: inferred writers routed through admitMemory(), acceptance-authority repair, bitemporal effective/transaction semantics, memory-manager history freezing, atomic explicit contradiction supersession, and bounded shadow contradiction receipts.",
+        "tests": [
+          "memory-admission.test.ts, memory-bitemporal.test.ts, memory-bitemporal-runtime.test.ts, memory-transaction-time.test.ts, contradiction-resolution-supersedes.test.ts, supersession-recall.test.ts, memory-contradiction-shadow.test.ts, and the direct-writer ratchet cover the consolidated Q-31 mechanics.",
+          "Exact-head PR CI is not yet claimed for the consolidated branch."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Pending migration 20260929150500_brain_memory_transaction_time is operator-gated and must be applied/read back before production transaction-time columns are claimed."
+        },
+        {
+          "severity": "P3",
+          "description": "Shadow contradiction quality is empirical: >=20 reviewed pairs and >=0.7 precision are not yet measured; contradiction rows/precision must be proven before promotion."
+        }
+      ],
+      "deferredScope": [
+        "Do not auto-apply the transaction-time migration.",
+        "Do not treat shadow contradiction rows as live promoted contradictions until empirical precision evidence exists.",
+        "No second memory or supersession architecture; canonical replacement stays in memory-manager and explicit contradiction resolution stays row-locked in memory-transaction-time."
+      ],
+      "lastVerifiedAt": "2026-09-29"
+    },
+    {
+      "capabilityId": "statenour-langfuse-eval-loop-q32",
+      "name": "StateNour deterministic Langfuse annotation and regression-evaluation loop",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unverified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: metadata-only four-signal selector, single Langfuse annotation queue, thumbs-down/runtime queue wiring, cross-family judge enforcement, versioned de-identified recall corpus, PPI/kappa statistics, optional cloud experiment, and conditional CI action.",
+        "tests": [
+          "q32-regression.test.ts pins all four selector signals, no raw-text candidate export, actual-drop vs advisory-drop, A/A behavior, planted regression failure, human correction, PPI interval, and kappa.",
+          "judge-eval-family.test.ts, langfuse-annotation-queue.test.ts, and q32-recall-corpus-contract.test.ts pin cross-family judging, missing-config no-op, and one committed de-identified recall slice.",
+          "Exact-head PR CI is not yet claimed for the consolidated branch."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "The acceptance targets of >=50 labels in 30 days and Cohen's kappa >=0.6 on >=30 double-labeled items are UNMEASURED; code/tests cannot substitute for live labels."
+        },
+        {
+          "severity": "P3",
+          "description": "The optional cloud experiment remains disabled until the versioned Langfuse dataset and repository variables/credentials are created and read back."
+        }
+      ],
+      "deferredScope": [
+        "No Braintrust duplicate; Langfuse remains the incumbent evaluation/annotation system.",
+        "No production-quality or promotion claim from local deterministic tests alone.",
+        "Only actual below-threshold context drops count; advisory/over-budget receipts do not."
       ],
       "lastVerifiedAt": "2026-09-29"
     }
