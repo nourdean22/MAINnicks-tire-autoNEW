@@ -250,7 +250,7 @@ export async function syncInstagramPosts(): Promise<{
             comments: post.comments,
             ...(engagementRate !== null ? { engagementRate, followerSnapshot: followers } : {}),
             ...metricCols,
-            // Never clobber a known product type with null on a cache-source run.
+            // Never clobber a known product type with null when Graph omits it.
             ...(post.mediaProductType ? { mediaProductType: post.mediaProductType } : {}),
           })
           .where(eq(instagramAnalytics.id, existing[0].id));
