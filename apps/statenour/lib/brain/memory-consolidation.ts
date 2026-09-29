@@ -15,6 +15,7 @@ import { OPERATOR_SOURCE_NAMES } from "@/lib/brain/memory-commit-gateway";
 import { prisma } from "@/lib/prisma";
 import { recordError } from "@/lib/errors/record-error";
 import { brainMemory } from "./memory-manager";
+import { admitMemory } from "@/lib/brain/memory-admission";
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("memory-consolidation");
@@ -378,7 +379,7 @@ export async function distillKnowledge(): Promise<{ insights: number }> {
     where: { confidence: { gte: 0.5 }, createdAt: { gte: daysAgo(30) } },
     orderBy: { confidence: "desc" },
     take: 50,
-    select: { category: true, content: true, confidence: true },
+    select: { id: true, category: true, content: true, confidence: true },
   });
 
   if (recentMemories.length < 10) return { insights: 0 };
@@ -432,21 +433,21 @@ Max 3 insights.`,
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "_")
           .slice(0, 48);
-        await prisma.brainMemory.create({
-          data: {
-            // 2026-07-12 · clamp the LLM-chosen category — distillation
-            // writes free-text `insight` prose, so it must never land in a
-            // structured-payload category (same corruption vector as MERGE).
-            category:
-              CONSOLIDATION_EXCLUDE_CATEGORIES.includes(ins.category)
-                ? "wisdom"
-                : (ins.category || "wisdom"),
-            key: `distilled_${today()}_${insightFingerprint}_${stored}`,
-            content: ins.insight,
-            confidence: 0.9,
-            source: "distillation",
-            metadata: { evidence: ins.evidence, distilledOn: today() },
-          },
+        const category =
+          CONSOLIDATION_EXCLUDE_CATEGORIES.includes(ins.category)
+            ? "wisdom"
+            : (ins.category || "wisdom");
+        await admitMemory({
+          category,
+          key: `distilled_${today()}_${insightFingerprint}_${stored}`,
+          content: ins.insight,
+          source: "distillation",
+          memoryKind: "derived",
+          extractionMethod: "llm_extract",
+          confidence: 0.9,
+          derivedFrom: recentMemories.map((m) => m.id),
+          evidenceRefs: recentMemories.map((m) => `brain-memory:${m.id}`),
+          metadata: { evidence: ins.evidence, distilledOn: today() },
         });
         stored++;
       } catch {
