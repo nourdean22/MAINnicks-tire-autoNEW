@@ -1196,3 +1196,10 @@ declined rotation 2026-09-02, do NOT re-raise.
 **Traps:** two SDKs cannot both own OpenTelemetry by accident · Sentry's `tracesSampler` sees
 ROOT spans only · `lib/observability/sentry.ts` reaches the BROWSER bundle · Langfuse names
 observations `<functionId>:<span>` and `/api/public/v2/observations` is a thin projection.
+
+
+## 2026-09-29 · Q-25 + worker resilience checkpoint
+- **Q-25 RealityEvent:** PR #2784 remains open/mergeable. The latest correction restores the intended security ordering at the evidence door: after the generic envelope parses, recursive PII detection runs BEFORE family-specific RealityEvent payload validation. This preserves the aggregate-only refusal even when a payload is also missing required experiment fields.
+- **Worker Q-36:** branch `feat/nouros-resilience-q28-q34-q36-20260929` removes dead `POST /cron/mega` + `/cron/mega-evening` entry points and their dead inbound secret comparator. The worker still requires `CRON_SECRET` at boot because its four scheduler-owned forwards authenticate to StateNour web. A repo canary pins: no mega routes, no worker reads of `DATABASE_URL`/`DIRECT_URL`/`GITHUB_TOKEN`, and the existing 10-minute reel-engine wall-clock timeout.
+- **Live Railway read-back:** no Railway cron services/jobs exist; worker has no cron schedule, no domains, one east4 replica. Therefore the removed mega HTTP endpoints have no Railway platform caller. Actual Inngest mega execution is still UNVERIFIED until production `mega` / `mega-evening` receipts are read.
+- Durable details: `docs/research/2026-09-29-resilience-q28-q34-q36-checkpoint.md`.
