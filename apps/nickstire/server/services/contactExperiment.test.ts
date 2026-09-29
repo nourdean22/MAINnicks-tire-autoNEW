@@ -61,11 +61,13 @@ describe("contactExperiment", () => {
       flagKey: "contact_holdout_retention",
     });
     expect(contactLaneForVariant("winback")?.laneKey).toBe("winback");
-    expect(contactLaneForVariant("drip")?.laneKey).toBe("drip");
     expect(contactLaneForVariant("weather_first_freeze")?.laneKey).toBe("weather_first_freeze");
     expect(contactLaneForVariant("review_request")?.laneKey).toBe("review_request");
     expect(contactLaneForVariant("campaign:42")?.experimentId).toBe("contact:campaign:42:v1");
 
+    // drip pools every drip campaign (incl. declined-estimate follow-ups) under
+    // one key and its processor ignores the send outcome: not a lane.
+    expect(contactLaneForVariant("drip")).toBeNull();
     expect(contactLaneForVariant("declined_14")).toBeNull();
     expect(contactLaneForVariant("cross_sell")).toBeNull();
     expect(contactLaneForVariant("booking_confirmation")).toBeNull();
@@ -148,10 +150,84 @@ describe("contactExperiment", () => {
     });
   });
 
+  // The race test above cannot tell "returned the stored row" from "returned
+  // the local prediction" if the prediction is already treatment. These pick
+  // subjects whose PREDICTED arm differs from the STORED one, in both directions.
+  it.each([
+    ["control", "treatment"],
+    ["treatment", "control"],
+  ] as const)("a race where the prediction is %s but the stored row is %s returns the STORED arm", async (predicted, stored) => {
+    const experimentId = "contact:winback:v1";
+    let phone = "";
+    for (let i = 0; i < 100; i++) {
+      const candidate = `216555${String(100 + i).padStart(4, "0")}`;
+      if (contactArmForSubject(experimentId, candidate) === predicted) { phone = candidate; break; }
+    }
+    expect(phone).not.toBe("");
+    h.selectResponses.push([], [{ armId: stored }]);
+
+    const result = await resolveContactExperiment(phone, "winback");
+
+    expect(h.execute).toHaveBeenCalledTimes(1);
+    expect(result.armId).toBe(stored);
+    expect(result.measurable).toBe(true);
+  });
+
+  it("assigns every lane INDEPENDENTLY: both-control rate ≈ 15% × 15% for every real lane pair", () => {
+    // The real lane ids a customer can be in at once. The old x31 polynomial
+    // hash made each lane the same hash shifted by a constant: measured over
+    // 50k numbers, pairs ranged 0.00%-14.38% both-control against 2.25%.
+    const experimentIds = [
+      ...["d7", "d14", "d45", "d90", "d180", "d365"].map((t) => `contact:retention_${t}:v1`),
+      "contact:winback:v1",
+      "contact:review_request:v1",
+      "contact:weather_first_freeze:v1",
+      "contact:weather_snow_forecast:v1",
+      "contact:campaign:12:v1",
+      "contact:campaign:13:v1",
+    ];
+    const N = 20_000;
+    const controls = experimentIds.map((id) => {
+      const arr = new Uint8Array(N);
+      for (let i = 0; i < N; i++) {
+        arr[i] = contactArmForSubject(id, String(2_160_000_000 + i * 37)) === "control" ? 1 : 0;
+      }
+      return arr;
+    });
+    for (let a = 0; a < experimentIds.length; a++) {
+      for (let b = a + 1; b < experimentIds.length; b++) {
+        let both = 0;
+        for (let i = 0; i < N; i++) both += controls[a][i] & controls[b][i];
+        const pct = (both / N) * 100;
+        expect(pct, `${experimentIds[a]} x ${experimentIds[b]}`).toBeGreaterThan(2.25 - 0.6);
+        expect(pct, `${experimentIds[a]} x ${experimentIds[b]}`).toBeLessThan(2.25 + 0.6);
+      }
+    }
+  });
+
+  it("never logs the phone when the assignment query fails (the drizzle error carries bound params)", async () => {
+    // Shape of a real DrizzleQueryError: the message is the SQL AND its params.
+    const phone = "2165550188";
+    class DrizzleQueryError extends Error {}
+    h.execute.mockRejectedValue(new DrizzleQueryError(
+      `Failed query: INSERT IGNORE INTO contact_experiment_assignments (...) VALUES (?, ?, ?, ?, ?, ?)\nparams: contact:winback:v1,winback,${phone},control,v1,winback`,
+    ));
+    h.selectResponses.push([]);
+
+    const result = await resolveContactExperiment(`+1${phone}`, "winback");
+
+    expect(result.reason).toBe("assignment_error_send_normally");
+    expect(h.logError).toHaveBeenCalled();
+    const logged = JSON.stringify(h.logError.mock.calls);
+    expect(logged).toContain("DrizzleQueryError");
+    expect(logged).not.toContain(phone);
+    expect(logged).not.toContain(phone.slice(-7));
+  });
+
   it("fails open to treatment on assignment exceptions", async () => {
     h.getDbTyped.mockRejectedValue(new Error("db down"));
 
-    const result = await resolveContactExperiment("2165550104", "drip");
+    const result = await resolveContactExperiment("2165550104", "winback");
 
     expect(result).toMatchObject({
       measurable: false,

@@ -24,6 +24,7 @@ import { and, desc, eq, gte, sql, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { smsMessages, smsConversations } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
+import { describeDbError } from "../lib/dbErrors";
 import { createLogger } from "../lib/logger";
 import { PHONE_MATCH_KEY_SQL } from "../lib/phoneIdentity";
 import {
@@ -296,7 +297,7 @@ export const smsPerformanceRouter = router({
       windowDays: z.number().int().min(7).max(365).default(180),
       attributionWindowDays: z.number().int().min(1).max(90).default(30),
     }).optional())
-    .query(async ({ input }): Promise<LoopScoreboard & { error?: true; errorMessage?: string }> => {
+    .query(async ({ input }): Promise<LoopScoreboard & { error?: true; errorMessage?: string; holdoutError?: string | null }> => {
       const windowDays = input?.windowDays ?? 180;
       const attributionWindowDays = input?.attributionWindowDays ?? 30;
       const empty = (errorMessage: string) => ({
@@ -495,7 +496,8 @@ export const smsPerformanceRouter = router({
             holdoutByLane.set(current.laneKey, current);
           }
         } catch (err) {
-          holdoutReadError = err instanceof Error ? err.message : String(err);
+          // describeDbError, not err.message: the message is the SQL + params.
+          holdoutReadError = describeDbError(err);
           log.warn("Q-21 holdout economics unavailable; keeping observed board", {
             error: holdoutReadError,
           });
@@ -563,7 +565,10 @@ export const smsPerformanceRouter = router({
             `HOLDOUT MEASUREMENT UNAVAILABLE: ${holdoutReadError}. Observed revenue remains readable; causal lift is unknown, not zero.`,
           );
         }
-        return scoreboard;
+        // A failed holdout read must not render as "unmeasured" (a lane that
+        // simply has no experiment). The section reads this field and says
+        // "unavailable" instead; `limitations` alone was never rendered.
+        return { ...scoreboard, holdoutError: holdoutReadError ?? null };
       } catch (err) {
         log.error("recoveredRevenue failed", { error: err instanceof Error ? err.message : String(err) });
         return empty(err instanceof Error ? err.message : "Query failed");

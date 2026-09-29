@@ -144,7 +144,7 @@ export default function SmsPerformanceSection() {
             Net P&amp;L remains <span className="font-medium text-foreground/70">UNMEASURED</span> until
             real provider/carrier SMS cost is persisted; incremental gross lift is never relabeled as profit.
           </p>
-          {money && (
+          {money && !money.holdoutError && (
             <p className="text-[11px] leading-relaxed text-foreground/55">
               Holdout state: {money.causalMeasurement.observedHoldoutLanes} observed ·{" "}
               {money.causalMeasurement.collectingLanes} collecting ·{" "}
@@ -156,6 +156,12 @@ export default function SmsPerformanceSection() {
         {money?.error && (
           <div className="px-4 py-3 text-sm text-red-200 bg-red-500/10">
             Couldn't read revenue: {money.errorMessage ?? "unknown error"}. This is an outage, not a zero.
+          </div>
+        )}
+        {money?.holdoutError && (
+          <div className="px-4 py-3 text-sm text-amber-200 bg-amber-500/10">
+            Couldn't read holdout experiments ({money.holdoutError}). Causal lift is unknown, not
+            unmeasured — observed revenue below is still readable.
           </div>
         )}
 
@@ -224,6 +230,8 @@ export default function SmsPerformanceSection() {
                               assigned T{l.holdout.treatmentAssigned} / C{l.holdout.controlAssigned}
                             </div>
                           </div>
+                        ) : money.holdoutError ? (
+                          <span className="text-amber-400/80">unavailable</span>
                         ) : (
                           <span className="text-foreground/35">unmeasured</span>
                         )}
