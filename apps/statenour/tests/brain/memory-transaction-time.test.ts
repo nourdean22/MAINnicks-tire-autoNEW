@@ -40,7 +40,7 @@ beforeEach(() => {
   h.events.length = 0;
   vi.clearAllMocks();
   resetTransactionTimeColumnCache();
-  h.rootQuery.mockResolvedValue([{ n: 2 }]);
+  h.rootQuery.mockResolvedValue([{ count: 2 }]);
   h.rootExecute.mockResolvedValue(1);
   h.txQuery.mockImplementation(async () => {
     h.events.push("lock");
@@ -78,7 +78,7 @@ describe("Q-31 transaction-time write boundary", () => {
   });
 
   it("preserves the incumbent effective-time mutation before the pending columns are applied", async () => {
-    h.rootQuery.mockResolvedValue([{ n: 0 }]);
+    h.rootQuery.mockResolvedValue([{ count: 0 }]);
 
     const out = await supersedeMemoryVersion({
       losingMemoryId: "mem-old",
@@ -133,7 +133,7 @@ describe("Q-31 transaction-time write boundary", () => {
     );
 
     resetTransactionTimeColumnCache();
-    h.rootQuery.mockResolvedValue([{ n: 0 }]);
+    h.rootQuery.mockResolvedValue([{ count: 0 }]);
     h.rootExecute.mockClear();
     expect(await ensureMemoryTransactionStart("legacy")).toBe(false);
     expect(h.rootExecute).not.toHaveBeenCalled();
