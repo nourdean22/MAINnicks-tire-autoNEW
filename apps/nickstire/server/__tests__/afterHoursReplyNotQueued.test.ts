@@ -24,6 +24,10 @@ vi.mock("../services/smsControl", () => ({
   SMS_GLOBAL_PAUSE_FLAG: "sms_global_pause",
 }));
 
+// How many queued rows queueForLater has persisted. The drain holds a message
+// until that row's id is stamped back, so the control waits on this.
+let queuedRowsPersisted = 0;
+
 vi.mock("../db", () => ({
   getDb: async () => ({
     select: () => ({
@@ -31,7 +35,14 @@ vi.mock("../db", () => ({
         where: () => Object.assign(Promise.resolve([] as unknown[]), { limit: async () => [] }),
       }),
     }),
-    insert: () => ({ values: () => ({ $returningId: async () => [{ id: 777 }] }) }),
+    insert: () => ({
+      values: (row: { status?: string }) => ({
+        $returningId: async () => {
+          if (row?.status === "queued") queuedRowsPersisted++;
+          return [{ id: 777 }];
+        },
+      }),
+    }),
     update: () => ({ set: () => ({ where: async () => [{ affectedRows: 1 }] }) }),
     execute: async () => [[]],
   }),
@@ -63,22 +74,36 @@ const AFTER_HOURS = { messageClass: "customer_marketing", sendNowOrDrop: true } 
 const closedTextsSent = () =>
   mockTwilioCreate.mock.calls.filter(([arg]) => /closed right now/i.test(String((arg as { body?: string })?.body)));
 
+// vi.waitUntil polls on real timers, so the module imports inside the queue's
+// async work can finish; fake timers alone never wait for them.
+const REAL_WAIT = { timeout: 5_000, interval: 5 };
+
 /**
- * Run the real drain at 08:00 ET for five one-minute cycles. A queued row is
- * held until its DB id is stamped back, so it needs about three (measured).
+ * Run the real drain at 08:00 ET for five one-minute cycles, letting each cycle
+ * finish before the next minute. Advancing all five minutes at once raced the
+ * cycles' real async work: a cycle still running when the test ended sent its
+ * text during the NEXT test, and the control sometimes saw no send at all
+ * (failed 4 of 8 solo runs, 2026-09-29).
  */
 async function drainAtEightAm() {
-  const { startDelayedQueueProcessor, stopDelayedQueueProcessor } = await import("../sms");
+  const { startDelayedQueueProcessor, stopDelayedQueueProcessor, delayedQueueCyclesInFlight } = await import("../sms");
   vi.setSystemTime(WED_0800_ET);
   startDelayedQueueProcessor();
-  await vi.advanceTimersByTimeAsync(5 * 60_000);
-  stopDelayedQueueProcessor();
+  try {
+    for (let minute = 0; minute < 5; minute++) {
+      await vi.advanceTimersByTimeAsync(60_000);
+      await vi.waitUntil(() => delayedQueueCyclesInFlight().length === 0, REAL_WAIT);
+    }
+  } finally {
+    stopDelayedQueueProcessor();
+  }
 }
 
 beforeEach(() => {
   vi.resetModules();
   vi.useFakeTimers();
   pauseState = { paused: false, readable: true };
+  queuedRowsPersisted = 0;
   mockTwilioCreate.mockClear();
   delete process.env.SHOP_SMS_GATEWAY_USERNAME;
   delete process.env.SHOP_SMS_GATEWAY_PASSWORD;
@@ -118,6 +143,9 @@ describe("after-hours auto-reply · sent now or not at all", () => {
     const res = await sendSms(PHONE, AFTER_HOURS_BODY, { messageClass: "customer_marketing" });
     expect(res.queued).toBe(true);
     expect(mockTwilioCreate).not.toHaveBeenCalled();
+    // The drain holds the message until its row id is stamped back (queueForLater
+    // persists asynchronously). Wait for that before 08:00.
+    await vi.waitUntil(() => queuedRowsPersisted === 1, REAL_WAIT);
 
     await drainAtEightAm();
     expect(closedTextsSent()).toHaveLength(1);
