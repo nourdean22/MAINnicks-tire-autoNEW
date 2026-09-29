@@ -1,7 +1,7 @@
 # NourOS capability lifecycle / Toolsmith — current truth
 
 Date: 2026-09-28 ET
-Status: BUILT + LOCALLY VERIFIED on the follow-up branch based on merged Decision Plane main. Not merged, deployed, or production-proven at this receipt.
+Status: MERGED to `main` in PR #2757 as `3178a894ff1d39d402837b214d060ce7b61b3a55`. Production usage remains operator-gated; live capability-lifecycle events are still needed for production proof.
 
 ## Why this exists
 
@@ -61,4 +61,4 @@ No new auth surface was created.
 
 ## Not claimed
 
-This does not mean the system can autonomously manufacture or deploy tools. The implementation and activation boundaries remain external/explicit by design. Production proof remains pending until this stack is merged/deployed and real lifecycle events exist.
+This does not mean the system can autonomously manufacture or deploy tools. The implementation and activation boundaries remain external/explicit by design. Production proof remains pending until the merged code is deployed/exercised and real lifecycle events exist.
