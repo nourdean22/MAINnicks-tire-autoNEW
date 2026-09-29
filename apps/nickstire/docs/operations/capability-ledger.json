@@ -2858,7 +2858,7 @@
         "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: inferred writers routed through admitMemory(), acceptance-authority repair, bitemporal effective/transaction semantics, one shared transaction-column probe/cache, memory-manager history freezing with full compensating rollback/fail-closed replacement, atomic explicit contradiction supersession, and bounded shadow contradiction receipts.",
         "tests": [
           "memory-admission.test.ts, memory-bitemporal.test.ts, memory-bitemporal-runtime.test.ts, memory-transaction-time.test.ts, contradiction-resolution-supersedes.test.ts, supersession-recall.test.ts, memory-contradiction-shadow.test.ts, and the direct-writer ratchet cover the consolidated Q-31 mechanics.",
-          "memory-bitemporal-runtime.test.ts pins close-before-flip ordering plus compensation: failed prepared replacements restore transaction/effective verification state, remove the provisional snapshot, and do not fall through to a history-destroying legacy overwrite.",
+          "memory-bitemporal-runtime.test.ts pins close-before-flip ordering plus compensation: failed prepared replacements restore transaction/effective verification state, remove the provisional snapshot, do not fall through to a history-destroying legacy overwrite, and retry the new transaction-window state if the first post-replacement open fails.",
           "Exact-head PR CI is not yet claimed for the final consolidated branch."
         ],
         "liveRuns": []
