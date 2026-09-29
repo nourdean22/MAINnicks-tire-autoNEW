@@ -67,7 +67,7 @@ beforeEach(() => {
   h.send.mockResolvedValue({ ids: ["evt-1"] });
   h.findPii.mockReset();
   h.findPii.mockReturnValue(null);
-  process.env.NICK_DECISION_PLANE_SHADOW_SAMPLE_PCT = "100";
+  process.env.DECISION_PLANE_SHADOW_SAMPLE_PCT = "100";
 });
 
 describe("decision shadow scheduling", () => {

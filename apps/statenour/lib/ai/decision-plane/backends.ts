@@ -17,7 +17,7 @@ export interface DecisionBackendStatus {
 const SUPPORTED = new Set<DecisionBackendName>(["decider", "kev", "typesafe"]);
 
 function requestedNames(): DecisionBackendName[] {
-  const raw = process.env.NICK_DECISION_PLANE_SHADOW_BACKENDS ?? "";
+  const raw = process.env.DECISION_PLANE_SHADOW_BACKENDS ?? "";
   const names = raw
     .split(",")
     .map((value) => value.trim().toLowerCase())
@@ -83,7 +83,7 @@ export function getDecisionBackendStatuses(): DecisionBackendStatus[] {
         requested: false,
         configured: false,
         trust: "unknown",
-        reason: "not requested in NICK_DECISION_PLANE_SHADOW_BACKENDS",
+        reason: "not requested in DECISION_PLANE_SHADOW_BACKENDS",
       };
     }
 

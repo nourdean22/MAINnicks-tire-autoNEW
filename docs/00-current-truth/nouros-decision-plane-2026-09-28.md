@@ -35,12 +35,12 @@ This slice is deliberately **shadow/advisory only**. It does not alter chat rout
 The feature flag `NICK_DECISION_PLANE_SHADOW` defaults OFF.
 
 A shadow run also requires:
-- `NICK_DECISION_PLANE_SHADOW_BACKENDS` to name one or more supported candidate backends,
+- `DECISION_PLANE_SHADOW_BACKENDS` to name one or more supported candidate backends,
 - backend-specific endpoint/model credentials as applicable,
 - configured Inngest,
 - passing private/PII/sample gates.
 
-`NICK_DECISION_PLANE_ALLOW_EXTERNAL_STATE=1` is a separate explicit operator attestation required before a public candidate endpoint may receive raw decision state. Hosted TypeSafe-compatible use is therefore blocked by default even if an API key exists.
+`NICK_DECISION_PLANE_ALLOW_EXTERNAL_STATE=1` is a separate explicit operator attestation required before a public candidate endpoint may receive raw decision state. Hosted TypeSafe-compatible use is therefore blocked by default even if an API key exists. `DECISION_PLANE_SHADOW_SAMPLE_PCT` is a numeric sampling knob (default 10, clamped 0–100), not a feature switch; the `NICK_` prefix is intentionally reserved for actual switch-board entries.
 
 ## Verification receipt
 

@@ -68,7 +68,7 @@ function hashJson(value: unknown): string {
 }
 
 function samplePct(): number {
-  const raw = Number.parseFloat(process.env.NICK_DECISION_PLANE_SHADOW_SAMPLE_PCT ?? "10");
+  const raw = Number.parseFloat(process.env.DECISION_PLANE_SHADOW_SAMPLE_PCT ?? "10");
   if (!Number.isFinite(raw)) return 10;
   return Math.max(0, Math.min(100, raw));
 }

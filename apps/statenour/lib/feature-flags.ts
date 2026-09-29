@@ -298,6 +298,17 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     ownerDoc: "lib/ai/decision-plane/shadow.ts",
   },
   {
+    key: "NICK_DECISION_PLANE_ALLOW_EXTERNAL_STATE",
+    description:
+      "Explicit egress attestation for Decision Plane candidate backends. When set to exactly 1, raw decision state may be sent to a configured PUBLIC candidate endpoint; private-network endpoints do not need this attestation. This is a read-only mirror of the direct runtime env check so a stale database override can never weaken the boundary.",
+    status: "experimental",
+    onValue: "1",
+    defaultBehavior:
+      "OFF: public candidate endpoints are rejected before inference; only private Decision Plane endpoints can receive raw state.",
+    ownerDoc: "lib/ai/decision-plane/backends.ts",
+    readOnly: true,
+  },
+  {
     key: "NICK_DURABLE_MISSIONS",
     description:
       "Queues bounded multi-step mission execution onto the existing Inngest control plane. V1 supports checkpoint + deep-research steps only, records progress as RealityEvent episodes, survives chat/browser closure, and never auto-completes the Mission. OFF = mission planning remains synchronous/manual.",
