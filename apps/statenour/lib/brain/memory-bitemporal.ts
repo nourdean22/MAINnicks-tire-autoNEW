@@ -8,8 +8,6 @@
  * effective history today without pretending the system already knew it last
  * week.
  */
-import type { Prisma } from "@prisma/client";
-
 export interface BitemporalMemoryWindow {
   createdAt: Date;
   validFrom?: Date | null;
@@ -56,48 +54,13 @@ export function effectiveInvalidationAt(
   return incomingValidFrom;
 }
 
-export function effectiveTimeWhere(at: Date): Prisma.BrainMemoryWhereInput {
-  return {
-    AND: [
-      {
-        OR: [
-          { validFrom: { lte: at } },
-          { validFrom: null, createdAt: { lte: at } },
-        ],
-      },
-      { OR: [{ validUntil: null }, { validUntil: { gt: at } }] },
-    ],
-  };
-}
-
-export function transactionTimeWhere(at: Date): Prisma.BrainMemoryWhereInput {
-  return {
-    AND: [
-      {
-        OR: [
-          { transactionFromAt: { lte: at } },
-          { transactionFromAt: null, createdAt: { lte: at } },
-        ],
-      },
-      {
-        OR: [
-          { transactionExpiredAt: null },
-          { transactionExpiredAt: { gt: at } },
-        ],
-      },
-    ],
-  };
-}
-
-/** Use when a query truly needs both axes at once. */
-export function bitemporalWhere(
-  effectiveAt: Date,
-  believedAt: Date,
-): Prisma.BrainMemoryWhereInput {
-  return {
-    AND: [
-      effectiveTimeWhere(effectiveAt),
-      transactionTimeWhere(believedAt),
-    ],
-  };
-}
+/**
+ * The DB query side is intentionally not emitted through Prisma yet.
+ * The additive transaction-time DDL is still operator-gated and has not been
+ * applied to production, so generated Prisma fields would make every
+ * BrainMemory select depend on columns that do not exist yet.
+ *
+ * After the pending migration is applied/read back, a follow-up schema-sync
+ * commit can expose transaction_from_at / transaction_expired_at to Prisma and
+ * compose these pure predicates into DB queries without changing semantics.
+ */
