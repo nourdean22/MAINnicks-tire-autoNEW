@@ -31,6 +31,13 @@ describe("smsConversations.send · honest receipt", () => {
     expect(send).toMatch(/success: outcome === "sent" \|\| outcome === "queued"/);
     expect(send).not.toMatch(/status: result\.success \? "sent" : "failed"/);
   });
+  // audit 2026-09-29: the VOICE-only exemption in sendSms (behaviour-tested in
+  // sms.voiceOptOut.test.ts) keys on this flag; it must come from the thread's
+  // real inbound history, never a constant true.
+  it("marks the send a reply to the customer only when the thread has an inbound text", () => {
+    expect(send).toMatch(/replyToCustomerInbound: await conversationHasInbound\(conversation\.id\)/);
+    expect(send).not.toMatch(/replyToCustomerInbound: true/);
+  });
   it("tells the client when the reply was queued so it can say so", () => {
     expect(send).toMatch(/queued: outcome === "queued"/);
   });

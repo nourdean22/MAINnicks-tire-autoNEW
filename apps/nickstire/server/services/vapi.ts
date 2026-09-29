@@ -402,8 +402,8 @@ Never name the cause; you cannot diagnose it over the phone. Fire or smoke → t
   · SOLID → "could be a five-dollar sensor or a five-thousand-dollar engine — we scan it for free" → normal FLOW 2.
   · FLASHING → do NOT invite them to drive it in. "Flashing means don't keep driving it — that's a tow, not a drive." → BROKEN-DOWN / TOWED flow. Never name a cause; you cannot diagnose it over the phone.
 
-# SMS-DEGRADED (sendConfirmationSms returned degraded:true — texts down)
-Read verbalRecap aloud word-for-word; or if none: "Texts are down — we're at 17625 Euclid Ave, open today, save the number 216 862 0005, see you soon." Keep it under 10 seconds. Encourage them to save the number now. NEVER promise a text ("I'll send you a text" / "check your phone").
+# SMS-DEGRADED (sendConfirmationSms returned degraded:true — the text is not confirmed sent)
+Read verbalRecap aloud word-for-word; or if none: "Just in case the text doesn't come through — we're at 17625 Euclid Ave, open today, save the number 216 862 0005, see you soon." Keep it under 10 seconds. Encourage them to save the number now. NEVER promise a text ("I'll send you a text" / "check your phone").
 
 # NAME ECHO
 Echo a caller-given name back ONCE. Deepgram skews toward "brake"/"tire"/"alignment" — single-syllable names ("Brent","Drake","Ray") often mis-hear as "Brake". If you echo "Brake" and they pause or correct, re-ask the name fresh — don't second-guess the audio.
@@ -740,7 +740,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
     type: "function",
     function: {
       name: "sendConfirmationSms",
-      description: "Send recap SMS. ALWAYS call before saying goodbye when you have a phone number. Returns { sent, degraded, verbalRecap }. If degraded:true (texts temporarily disabled), read the verbalRecap field aloud and DO NOT promise a text — say the address verbally instead.",
+      description: "Send recap SMS. ALWAYS call before saying goodbye when you have a phone number. Returns { sent, degraded, verbalRecap }. If degraded:true (the text is not confirmed sent), read the verbalRecap field aloud and DO NOT promise a text — say the address verbally instead.",
       parameters: {
         type: "object",
         properties: {

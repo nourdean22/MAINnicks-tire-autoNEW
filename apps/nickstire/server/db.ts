@@ -2275,6 +2275,23 @@ export async function getConversationMessages(conversationId: number, limit = 10
     .orderBy(smsMessages.createdAt).limit(limit);
 }
 
+/**
+ * Has the customer ever texted into this thread? A read failure or a missing
+ * DB answers false, so a caller that relaxes a gate on "yes" fails closed.
+ */
+export async function conversationHasInbound(conversationId: number): Promise<boolean> {
+  try {
+    const db = await getDb();
+    if (!db) return false;
+    const rows = await db.select({ id: smsMessages.id }).from(smsMessages)
+      .where(and(eq(smsMessages.conversationId, conversationId), eq(smsMessages.direction, "inbound")))
+      .limit(1);
+    return rows.length > 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function markConversationRead(conversationId: number) {
   const db = await getDb();
   if (!db) return;

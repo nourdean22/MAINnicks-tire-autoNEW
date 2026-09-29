@@ -10,7 +10,7 @@ import { router, adminProcedure, dbAdminProcedure } from "../_core/trpc";
 import {
   getOrCreateConversation, addSmsMessage, getConversations,
   getConversationMessages, markConversationRead, getUnreadConversationCount,
-  getDbTyped
+  getDbTyped, conversationHasInbound
 } from "../db";
 import { sendSms } from "../sms";
 import { sanitizeText, sanitizePhone } from "../sanitize";
@@ -124,11 +124,14 @@ export const smsConversationsRouter = router({
         // its own sms_messages row; this router writes the conversation-linked
         // row below, and both existed before — every operator reply was stored
         // twice, once with the real status and once as "sent".
+        // audit 2026-09-29: a reply in a thread the customer texted into gets
+        // through a VOICE-only "stop calling" (never a full SMS opt-out).
         const result = await sendSms(normalized, cleanMessage, {
           via: "shop",
           humanInitiated: true,
           messageClass: "customer_followup",
           skipPersist: true,
+          replyToCustomerInbound: await conversationHasInbound(conversation.id),
         });
         const { smsOutcome } = await import("../lib/smsOutcome");
         const outcome = smsOutcome(result);
