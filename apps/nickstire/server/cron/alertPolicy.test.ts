@@ -72,11 +72,15 @@ describe("Q-28 Alertmanager-style cron policy", () => {
     expect(text).toContain("failure:reviews");
   });
 
-  it("names DB outage as the inhibiting root cause", () => {
-    const text = formatDatabaseDependencyAlert(new Error("ECONNREFUSED"));
-    expect(text).toContain("database unavailable");
-    expect(text).toContain("Downstream job-failure pages are inhibited");
-    expect(text).toContain("ECONNREFUSED");
+  it("names a DB dependency as the inhibiting root cause without overstating availability", () => {
+    const inferred = formatDatabaseDependencyAlert(new Error("ECONNREFUSED"));
+    expect(inferred).toContain("database dependency incident");
+    expect(inferred).toContain("Downstream job/shape pages are inhibited");
+    expect(inferred).toContain("ECONNREFUSED");
+
+    const readFailure = formatDatabaseDependencyAlert(new Error("ECONNREFUSED"), true);
+    expect(readFailure).toContain("database unavailable");
+    expect(readFailure).toContain("Observer error");
   });
 
   it("requires at least two distinct DB-shaped job failures before inhibiting downstream pages", () => {
