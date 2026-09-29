@@ -48,7 +48,7 @@ Then deliberately create motion/person activity in view of the office camera.
 Success for this rung is a local `wake_decision` receipt with:
 
 ```json
-{"action":"event_only","event":"personDetected","device_sn":"T8410P522517180B"}
+{"action":"event_only","event":"personDetected","device_sn":"T8410P5225154105"}
 ```
 
 A receipt proves only: bridge -> semantic event -> this process.

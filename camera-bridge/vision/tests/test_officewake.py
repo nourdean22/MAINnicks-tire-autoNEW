@@ -23,7 +23,7 @@ from vision.officewake import (
 )
 
 
-OFFICE = "T8410P522517180B"
+OFFICE = "T8410P5225154105"
 MONDAY_10AM = datetime(2026, 9, 28, 10, 0, tzinfo=ZoneInfo("America/New_York")).timestamp()
 
 

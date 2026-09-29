@@ -1,6 +1,8 @@
 # Eufy live commissioning receipt — 2026-09-26
 
-This is a live-state receipt, not a claim that every office-camera function is complete.
+This is a historical live-state receipt, not a claim that every office-camera function is complete.
+
+> **Identity correction — 2026-09-28:** the operational Office camera is **NICKS EUCLID** (`T8410P5225154105`). `Moes Euclid Office` (`T8410P522517180B`) is the old/legacy shared camera. References below that called Moes the Office camera describe the 2026-09-26 historical commissioning attempt and are superseded for current production. Current production defaults, media/event filters, PTZ/wake logic and new home-verification work must target `T8410P5225154105`.
 
 ## Runtime
 

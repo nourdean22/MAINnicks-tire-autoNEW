@@ -47,20 +47,21 @@ This proves the camera lane survives without the V380 GUI, without the interacti
 
 Workstation detail: `docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md`.
 
-## Office Eufy production role - 2026-09-28
+## Office Eufy production role - 2026-09-28 identity correction
 
 LIVE VERIFIED:
-- The Office Eufy camera (`T8410P522517180B`, T8410C) is **commissioned and PRODUCTION**, not SHADOW.
-- NicksMax is the intended Office Eufy runtime host. NattyNour's `StateNour-Eufy-OfficeHealth` task was disabled during the authority correction; do not reintroduce it as the Office heartbeat authority.
+- The operational Office Eufy camera is **NICKS EUCLID** (`T8410P5225154105`, T8410C). It is commissioned and `PRODUCTION`, not SHADOW.
+- `Moes Euclid Office` (`T8410P522517180B`) is the old/legacy shared camera. It may remain visible in the Eufy account, but it is not the production Office heartbeat, media, event, PTZ, wake, fallback-registry, or home-verifier target.
+- NicksMax is the Office Eufy runtime authority. NattyNour's old OfficeHealth producer remains disabled.
 - NicksMax runs `StateNour-Eufy-Bridge-NicksMax`, `StateNour-Eufy-Agent-NicksMax`, and `StateNour-Eufy-Watchdog-NicksMax`.
-- Local Eufy bridge HTTP/WS is `127.0.0.1:3000`; go2rtc is isolated from the V380 sign stack on API `1984`, RTSP `8654`, WebRTC `8655`. V380 keeps `8554/8555`.
-- NicksMax has its own Eufy bridge identity (`BRIDGE_OPENUDID`) so another SDK install on the same Eufy account cannot share the default client identity.
-- The Eufy bridge authenticates successfully, enumerates 6 devices / 3 camera streams, and confirms Office capabilities including video, RTSP, PTZ and audio.
-- Railway/Nick Admin accepted the durable NicksMax Office producer continuously from `office seq=1` at 23:27:07Z through at least `seq=14` at 23:35:23Z.
+- Eufy bridge HTTP/WS is `127.0.0.1:3000`; go2rtc uses API `1984`, RTSP `8654`, WebRTC `8655`. V380 sign keeps `8554/8555`.
+- The live bridge enumerates NICKS EUCLID with video, snapshot, motion, person detection, RTSP, PTZ, audio and arming capabilities.
+- After the NicksMax agent target was corrected to `T8410P5225154105`, the event stream received `streamState` for that serial and the first two agent cycles completed with 0 errors.
+- A forced NICKS EUCLID media probe read real media successfully: `mediaPlaneOk=true`, `lastMediaProofAt=2026-09-29T00:20:11.894521+00:00`.
+- Nick production accepted the corrected producer at 00:19:11Z as `office seq=1 state=UNVERIFIED_CAPABILITIES`, explicitly transitioning `MEDIA_DEGRADED -> UNVERIFIED_CAPABILITIES`; heartbeats continued through at least `seq=16` at 00:28:15Z.
 
 Health boundary:
-- Office is production/commissioned but currently **MEDIA_DEGRADED**, not SHADOW.
-- Forced Office media probes fail because the Eufy SDK reports `P2P connect timeout for T8410P522517180B`; Office state reports `hubStatus=false`.
-- This is Office-device-specific: the same NicksMax bridge read 2048 real bytes from the same-model Kitchen T8410C stream with HTTP 200 in ~4.3s while Office returned 503/P2P backoff.
-- Therefore do not demote Office to SHADOW to hide the fault. Keep the producer operational and let the interaction health lattice report the measured degradation until the Office device/account/P2P condition is repaired.
-- A later repair is complete only when a real Office media-byte probe succeeds and Admin transitions out of MEDIA_DEGRADED; control/PTZ/home proofs remain separately truth-bearing.
+- NICKS EUCLID media is healthy. The old Moes P2P timeout / `hubStatus=false` evidence is historical and must not be used to describe current Office health.
+- `UNVERIFIED_CAPABILITIES` is currently honest: fresh semantic-event proof, PTZ/control receipt, and calibrated-home proof are still unknown in the current producer process.
+- A `streamState` event proves media activity but is not a substitute for a real motion/person semantic-event receipt.
+- Do not reuse Moes home references, PTZ receipts, calibration artifacts, or P2P-failure evidence for NICKS EUCLID. Camera-specific proofs must be recommissioned against `T8410P5225154105`.

@@ -12,23 +12,35 @@ import eufy_bridge
 
 
 class EufyAgentTests(unittest.TestCase):
+    def test_production_office_identity_is_nicks_euclid(self):
+        self.assertEqual(eufy_agent.EUFY_OFFICE_CAMERA_SERIAL, "T8410P5225154105")
+        fallback = {
+            row["metadata"]["serial"]: row
+            for row in eufy_agent.KNOWN_DEVICES
+            if isinstance(row.get("metadata"), dict) and row["metadata"].get("serial")
+        }
+        office = fallback["T8410P5225154105"]
+        self.assertEqual(office["name"], "NICKS EUCLID")
+        self.assertEqual(office["location"], "office")
+        self.assertNotIn("T8410P522517180B", fallback)
+
     def test_bridge_device_normalization_preserves_capabilities(self):
         rows = eufy_agent._normalize_bridge_devices([
             {
-                "sn": "T8410P522517180B",
-                "name": "Moes Euclid Office",
+                "sn": "T8410P5225154105",
+                "name": "NICKS EUCLID",
                 "model": "T8410",
                 "modelName": "Indoor Cam Pan & Tilt",
                 "codec": "camera",
                 "capabilities": ["video", "motion", "ptz", "audio"],
                 "state": {"motion": True},
                 "streaming": False,
-                "stream": "/stream/T8410P522517180B",
+                "stream": "/stream/T8410P5225154105",
             }
         ])
         self.assertEqual(len(rows), 1)
         row = rows[0]
-        self.assertEqual(row["platformDeviceId"], "eufy-T8410P522517180B")
+        self.assertEqual(row["platformDeviceId"], "eufy-T8410P5225154105")
         self.assertEqual(row["status"], "ONLINE")
         self.assertIn("ptz", row["metadata"]["capabilities"])
         self.assertEqual(row["metadata"]["controlPlane"], "mega-yfue-bridge")
@@ -45,14 +57,14 @@ class EufyAgentTests(unittest.TestCase):
 
     def test_successful_bridge_sync_does_not_start_legacy_cloud_login(self):
         live = [{
-            "platformDeviceId": "eufy-T8410P522517180B",
+            "platformDeviceId": "eufy-T8410P5225154105",
             "name": "Office",
             "platform": "EUFY",
             "deviceType": "CAMERA",
             "location": "office",
             "status": "ONLINE",
             "currentState": {},
-            "metadata": {"serial": "T8410P522517180B"},
+            "metadata": {"serial": "T8410P5225154105"},
         }]
         with patch.object(
             eufy_agent,
