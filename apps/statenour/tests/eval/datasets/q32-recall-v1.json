@@ -1,0 +1,375 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "2026-09-29.v1",
+  "deidentified": true,
+  "source": "Curated/de-identified slice of StateNour recall failure shapes. Prompts and keys are semantic aliases; no raw operator transcript or production memory IDs.",
+  "executionMode": "replay-harness",
+  "items": [
+    {
+      "id": "q32-pref-schedule",
+      "input": {
+        "query": "What schedule did I say I prefer?",
+        "candidateRetrievedKeys": [
+          "pref.schedule",
+          "routine.workout",
+          "note.calendar"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "pref.schedule"
+        ]
+      },
+      "metadata": {
+        "slice": "preference",
+        "baselineRetrievedKeys": [
+          "pref.schedule",
+          "routine.workout",
+          "note.calendar"
+        ]
+      }
+    },
+    {
+      "id": "q32-decision-channel",
+      "input": {
+        "query": "Which channel did I decide to use for follow-up?",
+        "candidateRetrievedKeys": [
+          "decision.channel",
+          "policy.followup",
+          "event.outreach"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "decision.channel"
+        ]
+      },
+      "metadata": {
+        "slice": "decision",
+        "baselineRetrievedKeys": [
+          "decision.channel",
+          "policy.followup",
+          "event.outreach"
+        ]
+      }
+    },
+    {
+      "id": "q32-business-hours",
+      "input": {
+        "query": "What are the current opening hours?",
+        "candidateRetrievedKeys": [
+          "shop.hours",
+          "shop.location",
+          "shop.phone"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "shop.hours"
+        ]
+      },
+      "metadata": {
+        "slice": "business",
+        "baselineRetrievedKeys": [
+          "shop.hours",
+          "shop.location",
+          "shop.phone"
+        ]
+      }
+    },
+    {
+      "id": "q32-policy-warranty",
+      "input": {
+        "query": "What warranty rule is currently on the books?",
+        "candidateRetrievedKeys": [
+          "policy.warranty",
+          "policy.refund",
+          "shop.hours"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "policy.warranty"
+        ]
+      },
+      "metadata": {
+        "slice": "business",
+        "baselineRetrievedKeys": [
+          "policy.warranty",
+          "policy.refund",
+          "shop.hours"
+        ]
+      }
+    },
+    {
+      "id": "q32-event-latest",
+      "input": {
+        "query": "What changed most recently in the project?",
+        "candidateRetrievedKeys": [
+          "event.project.latest",
+          "decision.project",
+          "note.project"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "event.project.latest"
+        ]
+      },
+      "metadata": {
+        "slice": "event",
+        "baselineRetrievedKeys": [
+          "event.project.latest",
+          "decision.project",
+          "note.project"
+        ]
+      }
+    },
+    {
+      "id": "q32-correction-retro",
+      "input": {
+        "query": "What was the rule before it changed?",
+        "candidateRetrievedKeys": [
+          "history.rule.old",
+          "history.rule.new",
+          "event.rule.changed"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "history.rule.old"
+        ]
+      },
+      "metadata": {
+        "slice": "temporal",
+        "baselineRetrievedKeys": [
+          "history.rule.old",
+          "history.rule.new",
+          "event.rule.changed"
+        ]
+      }
+    },
+    {
+      "id": "q32-belief-at-time",
+      "input": {
+        "query": "What did the system believe at that point in time?",
+        "candidateRetrievedKeys": [
+          "belief.transaction.window",
+          "history.rule.old",
+          "history.rule.new"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "belief.transaction.window"
+        ]
+      },
+      "metadata": {
+        "slice": "temporal",
+        "baselineRetrievedKeys": [
+          "belief.transaction.window",
+          "history.rule.old",
+          "history.rule.new"
+        ]
+      }
+    },
+    {
+      "id": "q32-commitment-open",
+      "input": {
+        "query": "Which commitment is still unresolved?",
+        "candidateRetrievedKeys": [
+          "commitment.open",
+          "commitment.closed",
+          "decision.next"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "commitment.open"
+        ]
+      },
+      "metadata": {
+        "slice": "commitment",
+        "baselineRetrievedKeys": [
+          "commitment.open",
+          "commitment.closed",
+          "decision.next"
+        ]
+      }
+    },
+    {
+      "id": "q32-procedure-reviewed",
+      "input": {
+        "query": "What reviewed procedure should I follow?",
+        "candidateRetrievedKeys": [
+          "procedure.reviewed",
+          "procedure.draft",
+          "note.misc"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "procedure.reviewed"
+        ]
+      },
+      "metadata": {
+        "slice": "procedural",
+        "baselineRetrievedKeys": [
+          "procedure.reviewed",
+          "procedure.draft",
+          "note.misc"
+        ]
+      }
+    },
+    {
+      "id": "q32-source-external",
+      "input": {
+        "query": "Which fact came from the imported external source?",
+        "candidateRetrievedKeys": [
+          "external.source.fact",
+          "derived.summary",
+          "operator.note"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "external.source.fact"
+        ]
+      },
+      "metadata": {
+        "slice": "provenance",
+        "baselineRetrievedKeys": [
+          "external.source.fact",
+          "derived.summary",
+          "operator.note"
+        ]
+      }
+    },
+    {
+      "id": "q32-source-operator",
+      "input": {
+        "query": "Which preference was explicitly stated rather than inferred?",
+        "candidateRetrievedKeys": [
+          "operator.preference",
+          "derived.preference",
+          "external.preference"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "operator.preference"
+        ]
+      },
+      "metadata": {
+        "slice": "provenance",
+        "baselineRetrievedKeys": [
+          "operator.preference",
+          "derived.preference",
+          "external.preference"
+        ]
+      }
+    },
+    {
+      "id": "q32-contradiction",
+      "input": {
+        "query": "Is there a newer claim that contradicts the old one?",
+        "candidateRetrievedKeys": [
+          "contradiction.pair",
+          "claim.current",
+          "claim.old"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "contradiction.pair"
+        ]
+      },
+      "metadata": {
+        "slice": "contradiction",
+        "baselineRetrievedKeys": [
+          "contradiction.pair",
+          "claim.current",
+          "claim.old"
+        ]
+      }
+    },
+    {
+      "id": "q32-abstain-unknown",
+      "input": {
+        "query": "What did I decide about the thing I never discussed?",
+        "candidateRetrievedKeys": []
+      },
+      "expectedOutput": {
+        "relevantKeys": [],
+        "acceptableAbstention": true
+      },
+      "metadata": {
+        "slice": "abstention",
+        "baselineRetrievedKeys": []
+      }
+    },
+    {
+      "id": "q32-abstain-deleted",
+      "input": {
+        "query": "Give me the deleted private note as if it were still active.",
+        "candidateRetrievedKeys": []
+      },
+      "expectedOutput": {
+        "relevantKeys": [],
+        "acceptableAbstention": true
+      },
+      "metadata": {
+        "slice": "abstention",
+        "baselineRetrievedKeys": []
+      }
+    },
+    {
+      "id": "q32-receipt-action",
+      "input": {
+        "query": "Which action has a verified receipt?",
+        "candidateRetrievedKeys": [
+          "receipt.action.verified",
+          "claim.action",
+          "note.action"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "receipt.action.verified"
+        ]
+      },
+      "metadata": {
+        "slice": "receipt",
+        "baselineRetrievedKeys": [
+          "receipt.action.verified",
+          "claim.action",
+          "note.action"
+        ]
+      }
+    },
+    {
+      "id": "q32-current-vs-stale",
+      "input": {
+        "query": "Which version is current rather than superseded?",
+        "candidateRetrievedKeys": [
+          "claim.current",
+          "claim.superseded",
+          "event.change"
+        ]
+      },
+      "expectedOutput": {
+        "relevantKeys": [
+          "claim.current"
+        ]
+      },
+      "metadata": {
+        "slice": "temporal",
+        "baselineRetrievedKeys": [
+          "claim.current",
+          "claim.superseded",
+          "event.change"
+        ]
+      }
+    }
+  ]
+}
