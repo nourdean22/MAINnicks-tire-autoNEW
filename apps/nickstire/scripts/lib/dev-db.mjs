@@ -54,7 +54,11 @@ const NICKSTIRE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 // decision is still right); what changed is the error text below, which named
 // ONLY the truncation cause and so misdirected the diagnosis when the count
 // came in HIGH -- which is precisely when a human is supposed to look.
-export const EXPECTED_TABLE_COUNT = 145;
+// 2026-09-29: 145 -> 157. Looked, as instructed: push applied 157 and
+// `grep -c "= mysqlTable(" drizzle/schema.ts` reports 157 on origin/main
+// (a6b3984c). Drift on main again, not a branch addition; it blocked the
+// real-MySQL consent canary (server/__tests__/smsConsent.voiceDnc.mysql.test.ts).
+export const EXPECTED_TABLE_COUNT = 157;
 
 // The full column set drizzle expects for search_performance, but with the page
 // index as a PREFIX (page(768)) instead of the full varchar(1000) that blows

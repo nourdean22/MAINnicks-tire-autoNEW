@@ -30,6 +30,7 @@ import { SMS_OPT_IN_KEYWORDS } from "@shared/smsOptOutKeywords";
 import { createLogger } from "../lib/logger";
 import { notSentLogFields } from "../lib/smsNotSentLog";
 import { normalizePhone } from "../lib/phone";
+import { describeDbError } from "../lib/dbErrors";
 import { eq, and, desc, gte, sql, like, or, inArray } from "drizzle-orm";
 import { getTemplateVariant, assignVariantWithExperiment, REPLY_CONFIGS } from "./smsMessageCatalog";
 import { runNickgptPreflightGuard, PreflightResult } from "./nickgptPreflightGuard";
@@ -682,7 +683,9 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
         };
       }
     } catch (err) {
-      log.warn("Failed to check idempotency in db", err);
+      // The code only: a drizzle error's message carries the query params,
+      // and the idempotency key holds the customer's full number.
+      log.warn("Failed to check idempotency in db", { error: describeDbError(err) });
     }
   }
 
@@ -707,7 +710,7 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
         }).$returningId();
         orchestrationId = row?.id;
       } catch (err) {
-        log.warn("Failed to write received log to sms_orchestrations", err);
+        log.warn("Failed to write received log to sms_orchestrations", { error: describeDbError(err) });
       }
     }
   }
@@ -758,39 +761,45 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
         // never let evidence persistence make the inbound reply disappear.
         log.error("[smsOrchestrator] explicit opt-out evidence write failed", {
           customerPhoneSuffix: normalizedPhone.slice(-4),
-          error: err instanceof Error ? err.message : String(err),
+          error: describeDbError(err),
         });
       }
     } else if ((SMS_OPT_IN_KEYWORDS as readonly string[]).includes(keyword)) {
       let shouldOptIn = keyword !== "YES";
       if (keyword === "YES") {
+        // YES is an opt-in only for a number that is SMS-suppressed. A number
+        // whose ONLY suppression is a spoken do-not-call still receives
+        // customer-confirmation texts, so its YES is an answer to one of
+        // those, never consent to be called (audit-2026-09-29-F3).
         try {
           const { loadSuppressionIndex } = await import("../sms");
           const index = await loadSuppressionIndex();
-          shouldOptIn = index.ok && index.phones.has(phone10);
+          shouldOptIn = index.ok && index.phones.has(phone10) && !index.voiceOnly.has(phone10);
         } catch {
           shouldOptIn = false;
         }
       }
       if (shouldOptIn) {
         try {
+          // Restores texting only: a spoken do-not-call survives it.
           const { markPhoneOptedIn } = await import("../sms");
-          markPhoneOptedIn(normalizedPhone);
+          await markPhoneOptedIn(normalizedPhone);
           if (db && phone10.length === 10) {
             await db.update(customers).set({ smsOptOut: 0 }).where(like(customers.phone, `%${phone10}`));
           }
           const { logSmsOptIn } = await import("./complianceLog");
+          const { SMS_KEYWORD_GRANT_SCOPES } = await import("./consentLedger");
           await logSmsOptIn({
             phone: normalizedPhone,
             source: `start_keyword:${keyword}`,
             evidenceRef,
-            ledgerScope: "all",
+            ledgerScopes: SMS_KEYWORD_GRANT_SCOPES,
             ledgerMethod: "sms_reply",
           });
         } catch (err) {
           log.error("[smsOrchestrator] explicit opt-in evidence write failed", {
             customerPhoneSuffix: normalizedPhone.slice(-4),
-            error: err instanceof Error ? err.message : String(err),
+            error: describeDbError(err),
           });
         }
       }

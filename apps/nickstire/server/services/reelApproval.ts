@@ -19,6 +19,7 @@
  */
 import { createHash } from "node:crypto";
 import {
+  APPROVAL_BLOCK,
   approvalProblem,
   REEL_APPROVAL_TTL_HOURS,
   type ApprovalProblem,
@@ -76,6 +77,39 @@ export async function findLiveApproval(jobId: number): Promise<ReelApprovalRecor
   } catch {
     // Missing table, dead pool, driver error. All mean "cannot prove consent".
     return null;
+  }
+}
+
+/**
+ * Did a HUMAN withdraw this job's most recent approval? `findLiveApproval`
+ * cannot say: it skips revoked rows, so after a revocation the gate reports
+ * `no_approval_recorded` — and auto-approval, which approves exactly that code,
+ * re-approved the reel on the next tick. A revocation that auto-approval undoes
+ * is not a revocation.
+ *
+ * Only the NEWEST row counts (a later human approval supersedes an older no),
+ * and a supersede by the writer itself ("superseded by …") is not a human no.
+ * Returns the revoker, or null. A read failure returns "unreadable" so the
+ * caller fails closed — "cannot prove nobody said no" must not mean yes.
+ */
+async function humanRevocationOf(jobId: number): Promise<string | null> {
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return "unreadable";
+    const { reelPublishApprovals } = await import("../../drizzle/schema");
+    const { eq, desc } = await import("drizzle-orm");
+    const [row] = await d
+      .select({ revokedAt: reelPublishApprovals.revokedAt, revokedBy: reelPublishApprovals.revokedBy })
+      .from(reelPublishApprovals)
+      .where(eq(reelPublishApprovals.reelJobId, jobId))
+      .orderBy(desc(reelPublishApprovals.approvedAt))
+      .limit(1);
+    if (!row?.revokedAt) return null;
+    const by = String(row.revokedBy ?? "");
+    return by.startsWith("superseded by ") ? null : by || "unknown";
+  } catch {
+    return "unreadable";
   }
 }
 
@@ -423,6 +457,13 @@ export interface ReelPublishQueueEntry extends ReelPublishSubject {
   expiresAt: Date | string | null;
   /** Set when the claim audit permanently condemns this reel. Never approvable. */
   vetoReason: string | null;
+  /**
+   * Set when the reel's Queue inventory row forbids an autonomous publish:
+   * rejected by the operator, or already published / publishing / ambiguous
+   * through another door. "unreadable" when that could not be checked.
+   * Never auto-approvable.
+   */
+  inventoryHold: string | null;
 }
 
 /**
@@ -470,11 +511,26 @@ export async function listReelPublishQueue(limit = 25): Promise<{
     approvalsTableReadable = false;
   }
 
+  // Inventory holds, read once for the page. A failed read marks every row
+  // "unreadable" — fail closed: auto-approval must not act on an unchecked row.
+  let holdByBriefId = new Map<string, string>();
+  let holdsReadable = true;
+  try {
+    const { reelInventoryHolds } = await import("./reelInventoryLink");
+    holdByBriefId = await reelInventoryHolds(d, [...new Set(rows.map((r: typeof rows[number]) => r.briefId).filter(Boolean))] as string[]);
+  } catch {
+    holdsReadable = false;
+  }
+
   const entries: ReelPublishQueueEntry[] = [];
   for (const row of rows) {
     const caption = row.caption ?? "";
     const videoUrl = row.mp4Url ?? "";
     const approval = await findLiveApproval(row.id);
+    // findLiveApproval skips revoked rows, so a human's withdrawal would read as
+    // "no approval recorded" — the one code auto-approval approves. Report it as
+    // what it is.
+    const revokedBy = approval ? null : await humanRevocationOf(row.id);
     const parsed = parseReelJobPayload(row.payload);
     const noveltyRaw = parsed.productionGrammarNovelty;
     const productionGrammarNovelty = noveltyRaw && typeof noveltyRaw === "object"
@@ -500,14 +556,22 @@ export async function listReelPublishQueue(limit = 25): Promise<{
       approvedPackSlug: parsed.approvedPackSlug ?? null,
       productionGrammarNovelty,
       holdReason: row.error ?? null,
-      approvalProblem: approvalProblem(
-        { jobId: row.id, captionFingerprint: captionFingerprint(caption), videoUrl },
-        approval,
-      ),
+      approvalProblem: revokedBy
+        ? {
+            code: APPROVAL_BLOCK.revoked,
+            reason: revokedBy === "unreadable"
+              ? `could not read the approval history for reel job ${row.id}; treating it as withdrawn until it can be read.`
+              : `the approval for reel job ${row.id} was withdrawn by ${revokedBy}. A withdrawn yes is a no.`,
+          }
+        : approvalProblem(
+            { jobId: row.id, captionFingerprint: captionFingerprint(caption), videoUrl },
+            approval,
+          ),
       approvedBy: approval?.approvedBy ?? null,
       approvedAt: approval?.approvedAt ?? null,
       expiresAt: approval?.expiresAt ?? null,
       vetoReason: auditPublishBlock(row.id),
+      inventoryHold: holdsReadable ? (row.briefId ? holdByBriefId.get(row.briefId) ?? null : null) : "unreadable",
     });
   }
   return { entries, approvalsTableReadable };

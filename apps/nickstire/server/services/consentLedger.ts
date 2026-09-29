@@ -95,11 +95,17 @@ const AUTOMATED_SCOPES: ConsentScope[] = [
   "voice_ai_marketing",
   "email_marketing",
 ];
-const SMS_SCOPES = new Set<ConsentScope>([
+/**
+ * The scopes a customer's own SMS keyword (START, UNSTOP, YES) restores. Never
+ * a voice scope: design rule 4 grants a keyword only its own channel, so a
+ * spoken do-not-call survives a later START (audit-2026-09-29-F3).
+ */
+export const SMS_KEYWORD_GRANT_SCOPES: readonly ConsentScope[] = [
   "sms_conversational",
   "sms_informational",
   "sms_marketing",
-]);
+];
+const SMS_SCOPES = new Set<ConsentScope>(SMS_KEYWORD_GRANT_SCOPES);
 
 let snapshotCache: ConsentLedgerSnapshot | null = null;
 let snapshotCacheLoadedAt = 0;
