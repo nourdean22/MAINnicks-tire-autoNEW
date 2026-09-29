@@ -56,3 +56,26 @@ export function bridgeKey(eventType: string, ...parts: KeyPart[]): string | null
   const key = `v1:${eventType}:${encoded.join(":")}`;
   return key.length <= KEY_MAX ? key : `v1:h:${createHash("sha256").update(key).digest("hex")}`;
 }
+
+/**
+ * The subject of an `attribution_weak_matches` obligation: the SET of unruled
+ * call ids, order-free. Not the run id — the reconciliation re-runs every 2 h,
+ * and keying by run reopened a StateNour task per run for the same set.
+ */
+export function attributionObligationSubject(callIds: readonly number[]): { opaque: string } {
+  return { opaque: [...new Set(callIds)].sort((a, b) => a - b).join(",") };
+}
+
+/**
+ * One fact per (experiment, contract, status[, winning arm]). A daily re-post
+ * of an unchanged verdict dedupes; a new status, a re-registered contract or a
+ * winner that flips arms is a new fact and gets a new key.
+ */
+export function experimentVerdictKey(
+  experimentId: string,
+  contractHash: string,
+  verdict: { status: string; armId?: string },
+): string | null {
+  const arm = verdict.status === "winner" && verdict.armId ? [verdict.armId] : [];
+  return bridgeKey("experiment.verdict", experimentId, { opaque: contractHash }, verdict.status, ...arm);
+}
