@@ -105,6 +105,8 @@ export interface AdmitMemoryInput extends AdmissionInput {
   effectiveUntil?: Date;
   /** Preserve a writer's existing confidence semantics while moving it behind admission. */
   confidence?: number;
+  /** Preserve derived evidence-count semantics without bypassing admission. */
+  seenCount?: number;
   metadata?: Record<string, unknown>;
 }
 
@@ -171,6 +173,9 @@ export async function admitMemory(input: AdmitMemoryInput): Promise<AdmitMemoryR
     if (input.effectiveUntil) patch.validUntil = input.effectiveUntil;
     if (typeof input.confidence === "number") {
       patch.confidence = Math.max(0, Math.min(1, input.confidence));
+    }
+    if (typeof input.seenCount === "number" && Number.isFinite(input.seenCount)) {
+      patch.seenCount = Math.max(1, Math.trunc(input.seenCount));
     }
 
     await prisma.brainMemory.update({
