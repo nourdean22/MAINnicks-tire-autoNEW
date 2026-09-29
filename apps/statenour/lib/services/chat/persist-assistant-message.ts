@@ -554,6 +554,40 @@ export async function persistAssistantMessage(a: {
       { timeoutMs: 10_000, context: { conversationId: convId } }
     );
     createdAssistantId = createdAssistant?.id ?? null;
+
+    // Q-32 · deterministic annotation selection. This is deliberately
+    // fire-and-forget: evaluation infrastructure must never delay or break
+    // a user turn. Only REAL context drops count here; q32SelectionReasons
+    // ignores advisory over-budget/redundancy entries while ContextReceipt
+    // remains enforced=false.
+    if (createdAssistant?.id) {
+      void Promise.all([
+        import("@/lib/evals/q32-eval-loop"),
+        import("@/lib/observability/langfuse-annotation-queue"),
+      ])
+        .then(([{ q32SelectionReasons }, { enqueueLangfuseTraceForAnnotation }]) => {
+          const eg = (evidenceGate ?? {}) as { verdict?: unknown };
+          const reasons = q32SelectionReasons({
+            verifierBanner: isVerifierRewritten(cleanedText),
+            evidenceGateVerdict: eg.verdict,
+            contextReceipt: contextReceipt ?? null,
+          });
+          if (reasons.length === 0) return false;
+          log.info("q32_annotation_candidate", {
+            messageId: createdAssistant.id,
+            traceId,
+            reasons,
+          });
+          return enqueueLangfuseTraceForAnnotation(traceId);
+        })
+        .catch((err) => {
+          log.warn("q32_annotation_queue_dispatch_failed", {
+            messageId: createdAssistant.id,
+            error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+          });
+        });
+    }
+
     // v7.6 · Apr 29 · Bump conversation activity for assistant turn.
     prisma.chatConversation
       .update({
