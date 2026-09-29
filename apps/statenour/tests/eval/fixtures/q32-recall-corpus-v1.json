@@ -1,0 +1,238 @@
+{
+  "version": "q32-recall-v1-2026-09-29",
+  "deidentified": true,
+  "description": "Synthetic/de-identified recall regression slice. No real operator messages, names, addresses, account identifiers, or private source text.",
+  "cases": [
+    {
+      "id": "exact-platform",
+      "query": "Which platform currently hosts the personal OS?",
+      "relevantKeys": [
+        "deploy_platform_current"
+      ],
+      "forbiddenKeys": [
+        "deploy_platform_legacy"
+      ],
+      "kind": "exact_fact",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "exact-model",
+      "query": "Which model family currently powers the main chat lane?",
+      "relevantKeys": [
+        "chat_model_current"
+      ],
+      "forbiddenKeys": [
+        "chat_model_legacy"
+      ],
+      "kind": "exact_fact",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "pref-updates",
+      "query": "What update style does the operator prefer?",
+      "relevantKeys": [
+        "communication_preference"
+      ],
+      "forbiddenKeys": [],
+      "kind": "preference",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "pref-work",
+      "query": "How should technical progress be reported?",
+      "relevantKeys": [
+        "work_progress_preference"
+      ],
+      "forbiddenKeys": [],
+      "kind": "preference",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "temporal-platform",
+      "query": "What platform was used before the current deployment platform?",
+      "relevantKeys": [
+        "deploy_platform_current"
+      ],
+      "forbiddenKeys": [
+        "deploy_platform_legacy"
+      ],
+      "kind": "temporal",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "temporal-model",
+      "query": "What model was replaced by the current chat model?",
+      "relevantKeys": [
+        "chat_model_current"
+      ],
+      "forbiddenKeys": [
+        "chat_model_legacy"
+      ],
+      "kind": "temporal",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "update-worker",
+      "query": "Where does the background worker run now?",
+      "relevantKeys": [
+        "worker_region_current"
+      ],
+      "forbiddenKeys": [
+        "worker_region_stale"
+      ],
+      "kind": "knowledge_update",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "update-services",
+      "query": "How many production services exist in the current deployment?",
+      "relevantKeys": [
+        "service_census_current"
+      ],
+      "forbiddenKeys": [
+        "service_census_stale"
+      ],
+      "kind": "knowledge_update",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "contradiction-region",
+      "query": "Is the worker still in the old region?",
+      "relevantKeys": [
+        "worker_region_current"
+      ],
+      "forbiddenKeys": [
+        "worker_region_stale"
+      ],
+      "kind": "contradiction",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "contradiction-scheduler",
+      "query": "Does the worker still expose the retired mega scheduler endpoints?",
+      "relevantKeys": [
+        "worker_scheduler_current"
+      ],
+      "forbiddenKeys": [
+        "worker_mega_routes_legacy"
+      ],
+      "kind": "contradiction",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "abstain-flight",
+      "query": "What time is tomorrow's international flight?",
+      "relevantKeys": [],
+      "forbiddenKeys": [
+        "invented_flight_schedule"
+      ],
+      "kind": "abstention",
+      "provenance": "deidentified-q32",
+      "acceptableAbstention": true
+    },
+    {
+      "id": "abstain-medical",
+      "query": "What did the specialist conclude from the latest scan?",
+      "relevantKeys": [],
+      "forbiddenKeys": [
+        "invented_scan_result"
+      ],
+      "kind": "abstention",
+      "provenance": "deidentified-q32",
+      "acceptableAbstention": true
+    },
+    {
+      "id": "abstain-finance",
+      "query": "What was last month's return from the trading system?",
+      "relevantKeys": [],
+      "forbiddenKeys": [
+        "invented_trading_return"
+      ],
+      "kind": "abstention",
+      "provenance": "deidentified-q32",
+      "acceptableAbstention": true
+    },
+    {
+      "id": "abstain-meeting",
+      "query": "When is the investor meeting next week?",
+      "relevantKeys": [],
+      "forbiddenKeys": [
+        "invented_investor_meeting"
+      ],
+      "kind": "abstention",
+      "provenance": "deidentified-q32",
+      "acceptableAbstention": true
+    },
+    {
+      "id": "abstain-health",
+      "query": "What was the exact lab value from yesterday?",
+      "relevantKeys": [],
+      "forbiddenKeys": [
+        "invented_lab_value"
+      ],
+      "kind": "abstention",
+      "provenance": "deidentified-q32",
+      "acceptableAbstention": true
+    },
+    {
+      "id": "name-number-services",
+      "query": "What is the current production service count?",
+      "relevantKeys": [
+        "service_census_current"
+      ],
+      "forbiddenKeys": [
+        "service_census_stale"
+      ],
+      "kind": "name_number",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "name-number-role",
+      "query": "What values are supported by the process-role switch?",
+      "relevantKeys": [
+        "process_role_contract"
+      ],
+      "forbiddenKeys": [
+        "process_role_old_contract"
+      ],
+      "kind": "name_number",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "exact-queue",
+      "query": "Which evaluation platform owns the annotation queue?",
+      "relevantKeys": [
+        "eval_platform_langfuse"
+      ],
+      "forbiddenKeys": [
+        "eval_platform_braintrust_runtime"
+      ],
+      "kind": "exact_fact",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "update-memory",
+      "query": "Are transaction-time memory columns already live in production?",
+      "relevantKeys": [
+        "memory_transaction_migration_pending"
+      ],
+      "forbiddenKeys": [
+        "memory_transaction_migration_live"
+      ],
+      "kind": "knowledge_update",
+      "provenance": "deidentified-q32"
+    },
+    {
+      "id": "contradiction-merge",
+      "query": "Was the latest memory migration already applied?",
+      "relevantKeys": [
+        "memory_transaction_migration_pending"
+      ],
+      "forbiddenKeys": [
+        "memory_transaction_migration_live"
+      ],
+      "kind": "contradiction",
+      "provenance": "deidentified-q32"
+    }
+  ]
+}
