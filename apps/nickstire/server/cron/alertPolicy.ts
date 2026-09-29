@@ -105,3 +105,50 @@ export function formatDatabaseDependencyAlert(error: unknown): string {
     `Observer error: ${message}`
   );
 }
+
+
+const DB_DEPENDENCY_PATTERNS: readonly RegExp[] = [
+  /ECONNREFUSED/i,
+  /PROTOCOL_CONNECTION_LOST/i,
+  /too many connections/i,
+  /connection (?:refused|lost|closed|reset|timed? ?out)/i,
+  /connect ETIMEDOUT/i,
+  /database (?:is )?(?:down|unavailable|offline|timed? ?out)/i,
+  /mysql.*(?:connect|connection|pool)/i,
+  /tidb.*(?:connect|connection|unavailable|timeout)/i,
+  /no database host or connection string/i,
+];
+
+export function isDatabaseDependencyError(error: unknown): boolean {
+  const text =
+    error instanceof Error
+      ? `${error.name}: ${error.message}`
+      : String(error ?? "");
+  return DB_DEPENDENCY_PATTERNS.some((re) => re.test(text));
+}
+
+/**
+ * Inhibition needs stronger evidence than one SQL mistake. Two distinct jobs
+ * independently failing with connection-shaped errors is the minimum signal
+ * for treating database availability as the common root cause.
+ */
+export function hasDatabaseRootIncident(
+  failures: readonly Pick<FailureAlertItem, "jobName" | "latestError">[],
+): boolean {
+  const jobs = new Set(
+    failures
+      .filter((f) => isDatabaseDependencyError(f.latestError))
+      .map((f) => f.jobName),
+  );
+  return jobs.size >= 2;
+}
+
+export function resolvedIncidentKeys(
+  previouslyAlerted: Iterable<string>,
+  currentlyActive: Iterable<string>,
+): string[] {
+  const current = new Set(currentlyActive);
+  return [...new Set(previouslyAlerted)]
+    .filter((key) => !current.has(key))
+    .sort();
+}
