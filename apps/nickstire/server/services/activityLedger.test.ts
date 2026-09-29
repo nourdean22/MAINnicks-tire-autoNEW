@@ -18,6 +18,7 @@ import {
   maskEmail,
   maskPhone,
   sanitizeSnapshot,
+  scrubFreeText,
   withActivityLedger,
   type RecordActivityInput,
 } from "./activityLedger";
@@ -98,6 +99,70 @@ describe("PII masking", () => {
       symptom: "2015 Honda, quoted $450 for 225/65R17 tires",
     });
     expect((out as { symptom: string }).symptom).toBe("2015 Honda, quoted $450 for 225/65R17 tires");
+  });
+});
+
+// 2026-09-29 (review of #2782): the embedded-phone scrub read the digits of an
+// ISO date as a phone number, so "2026-09-29 17:30:00" landed in every ledger
+// row as "•••2917:30:00". Dates are shielded now. Guard-red-team: every phone
+// shape below must still be masked, and each verdict stays locked here.
+describe("PII masking · dates are not phone numbers", () => {
+  const DATES_KEPT = [
+    "2026-09-29",
+    "2026-09-29 17:30:00",
+    "2026-09-29T17:30:00.000Z",
+    "2026-09-29T17:30:00Z",
+    "2026-09-29T17:30:00-04:00",
+    "2026-09-29T17:30",
+    "decided 2026-09-29 17:30:00 by the owner",
+  ];
+  it.each(DATES_KEPT)("keeps %s intact", (text) => {
+    expect(scrubFreeText(text)).toBe(text);
+  });
+
+  // Outputs pinned from the real function before the change; every one is unchanged.
+  const PHONES_MASKED: Array<[string, string]> = [
+    ["call 216-555-0123 please", "call •••0123 please"],
+    ["call (216) 555-0123 please", "call (•••0123 please"],
+    ["call 216.555.0123 please", "call •••0123 please"],
+    ["call 2165550123 please", "call •••0123 please"],
+    ["call +1 216 555 0123 please", "call •••0123 please"],
+    ["call +1-216-555-0123 please", "call •••0123 please"],
+    ["call 555-0123 please", "call •••0123 please"],
+  ];
+  it.each(PHONES_MASKED)("still masks %s", (text, masked) => {
+    expect(scrubFreeText(text)).toBe(masked);
+  });
+
+  it("a phone written next to a date is masked, and the date is kept", () => {
+    // Before, the two merged into one masked run: "text •••2026-09-29".
+    expect(scrubFreeText("text 2165550123 2026-09-29")).toBe("text •••0123 2026-09-29");
+    expect(scrubFreeText("on 2026-09-29 2165550123")).toBe("on 2026-09-29 •••0123");
+    expect(scrubFreeText("5550123 2026-09-29T17:30:00Z")).toBe("•••0123 2026-09-29T17:30:00Z");
+  });
+
+  it("no real month and day, no shield: masked like any other run of digits", () => {
+    expect(scrubFreeText("ref 2026-13-45")).toBe("ref •••1345");
+    // Digits run on past the day, so it is not a date.
+    expect(scrubFreeText("2026-09-292165550123")).toBe("2026-•••0123");
+    // A year range is still masked. That loses readability, but it can never leak.
+    expect(scrubFreeText("fits 2015-2019 Civic")).toBe("fits •••2019 Civic");
+  });
+
+  it("text that already carries the shield's private-use marker is scrubbed the old way", () => {
+    expect(scrubFreeText(" 2026-09-29 2165550123")).toBe(" •••0929 •••0123");
+  });
+
+  it("CONSUMER: a timestamp in a ledger snapshot survives sanitizeSnapshot and parses back", () => {
+    const out = sanitizeSnapshot({
+      decidedAt: "2026-09-29 17:30:00",
+      note: "approved at 2026-09-29T17:30:00.000Z, call 216-555-0123",
+      customerPhone: "2165550123",
+    }) as Record<string, string>;
+    expect(out.decidedAt).toBe("2026-09-29 17:30:00");
+    expect(Date.parse(out.decidedAt.replace(" ", "T") + "Z")).toBe(Date.parse("2026-09-29T17:30:00Z"));
+    expect(out.note).toBe("approved at 2026-09-29T17:30:00.000Z, call •••0123");
+    expect(out.customerPhone).toBe("•••0123");
   });
 });
 

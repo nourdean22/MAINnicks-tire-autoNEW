@@ -11,6 +11,7 @@ import { randomUUID } from "crypto";
 import { eq, and, desc } from "drizzle-orm";
 
 import { db } from "../lib/db-helper";
+import { describeDbError } from "../lib/dbErrors";
 
 const log = createLogger("audit-trail");
 
@@ -160,9 +161,11 @@ export async function logAdminAction(data: {
 
     log.info(`${data.action} → ${data.entityType}#${data.entityId}: ${data.details}`);
   } catch (err) {
-    // Never let audit logging break the main flow
+    // Never let audit logging break the main flow. Log the error's classes and
+    // driver codes only: a drizzle query error's message carries every bound
+    // value, which here is the row itself (details, snapshots, customer notes).
     log.error("Audit trail write failed", {
-      error: err instanceof Error ? err.message : String(err),
+      error: describeDbError(err),
       action: data.action,
       entityType: data.entityType,
       entityId: data.entityId,
