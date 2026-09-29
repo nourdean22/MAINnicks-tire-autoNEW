@@ -6,8 +6,9 @@
 - **Zero authority change:** the incumbent StateNour router still owns production. `NICK_DECISION_PLANE_SHADOW` defaults OFF; the report hard-codes `promotionReady=false`.
 - **Privacy/egress boundary:** private-mode and obvious-PII turns never enqueue. Public backends require explicit `NICK_DECISION_PLANE_ALLOW_EXTERNAL_STATE=1`; an API key alone is insufficient.
 - **Honest comparison:** candidate decisions are compared only against incumbent-owned fields. `needsBackgroundMission` has no fabricated incumbent label. Incumbent agreement is not correctness or calibration.
-- **Verification:** 17/17 focused Decision Plane tests; changed-file ESLint; `git diff --check`. Full local TypeScript is withheld as a correctness signal because NattyNour exhausted machine RAM/pagefile during the repo-wide compiler sweep; GitHub CI is the authoritative full check after push.
-- **Not yet proven:** merge, deploy, live shadow receipts, real outcome labels, replay/regret evaluation, or any candidate promotion.
+- **Replay Lab now reuses the same Episode lineage:** operator-observed labels append as `episode.decision.outcome_observed` on the candidate `episodeId`; corrections stay append-only; unlabeled Episodes remain visible and unscored; the panel reports label coverage, Brier, log loss and categorical ECE. Existing `DecisionReplay`/`MasteryDecision` remain the human decision journal rather than being duplicated.
+- **Verification:** 22/22 focused Decision Plane + Replay Lab tests; changed-file ESLint; `git diff --check`. Full local TypeScript is withheld as a correctness signal because NattyNour exhausted machine RAM/pagefile during the repo-wide compiler sweep; GitHub CI is the authoritative full check after push.
+- **Not yet proven:** merge, deploy, live shadow receipts, representative real outcome labels, or any candidate promotion.
 - Durable receipt: `docs/00-current-truth/nouros-decision-plane-2026-09-28.md`.
 
 ## 2026-09-28 evening — NourOS intelligence foundation (branch/test truth, not production truth)

@@ -8,6 +8,11 @@ import {
 import { evaluateToolAction } from "@/lib/tools/tool-policy";
 import { buildToolGapReport } from "@/lib/observability/tool-gap-report";
 import { buildDecisionPlaneReport } from "@/lib/observability/decision-plane-report";
+import {
+  buildDecisionPlaneReplayReport,
+  recordDecisionPlaneOutcome,
+  RecordDecisionPlaneOutcomeSchema,
+} from "@/lib/ai/decision-plane/replay";
 
 const ToolActionRequestSchema = z.object({
   toolId: z.string(),
@@ -44,6 +49,14 @@ export const toolsProcedures = {
   decisionPlaneReport: operatorProcedure
     .input(z.object({ windowDays: z.number().int().min(1).max(90).default(30) }).optional())
     .query(async ({ input }) => buildDecisionPlaneReport(input?.windowDays ?? 30)),
+
+  decisionPlaneReplayReport: operatorProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(90).default(30) }).optional())
+    .query(async ({ input }) => buildDecisionPlaneReplayReport(input?.windowDays ?? 30)),
+
+  recordDecisionPlaneOutcome: operatorProcedure
+    .input(RecordDecisionPlaneOutcomeSchema)
+    .mutation(async ({ input }) => recordDecisionPlaneOutcome(input)),
 
   evaluateTool: operatorProcedure
     .input(ToolActionRequestSchema)

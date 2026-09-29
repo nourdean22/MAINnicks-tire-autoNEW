@@ -14,8 +14,12 @@ export function DecisionPlanePanel() {
     { windowDays: 30 },
     { staleTime: 60_000 },
   );
+  const replay = trpc.system.decisionPlaneReplayReport.useQuery(
+    { windowDays: 30 },
+    { staleTime: 60_000 },
+  );
 
-  if (report.isLoading) {
+  if (report.isLoading || replay.isLoading) {
     return (
       <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-4">
         <div className="h-20 animate-pulse rounded bg-white/[0.03]" />
@@ -23,7 +27,7 @@ export function DecisionPlanePanel() {
     );
   }
 
-  if (report.isError || !report.data) {
+  if (report.isError || replay.isError || !report.data || !replay.data) {
     return (
       <section className="rounded-lg border border-red-500/20 bg-red-500/[0.04] p-4 text-xs text-red-300">
         Decision Plane telemetry unavailable.
@@ -32,6 +36,7 @@ export function DecisionPlanePanel() {
   }
 
   const data = report.data;
+  const replayData = replay.data;
 
   return (
     <section
@@ -53,11 +58,13 @@ export function DecisionPlanePanel() {
         </span>
       </header>
 
-      <div className="grid grid-cols-2 gap-px bg-[var(--border-default)] md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-px bg-[var(--border-default)] md:grid-cols-6">
         {[
           ["Evaluated", data.evaluated],
           ["Failed", data.failed],
           ["Configured", data.backends.filter((backend) => backend.configured).length],
+          ["Labeled", replayData.labeledEpisodes],
+          ["Scored", replayData.scoredAnswers],
           ["Authority", "shadow only"],
         ].map(([label, value]) => (
           <div key={String(label)} className="bg-[var(--bg-raised)] px-4 py-3">
@@ -129,9 +136,52 @@ export function DecisionPlanePanel() {
           </div>
         )}
 
-        <p className="border-t border-[var(--border-default)] pt-3 text-[9px] leading-relaxed text-[var(--text-tertiary)]">
-          {data.caveat}
-        </p>
+        {replayData.rollups.length > 0 && (
+          <div className="overflow-x-auto border-t border-[var(--border-default)] pt-3">
+            <p className="mb-2 text-[8px] uppercase tracking-wider text-[var(--text-tertiary)]">
+              Replay Lab · explicit observed labels only
+            </p>
+            <table className="w-full text-left text-[10px]">
+              <thead className="text-[8px] uppercase tracking-wider text-[var(--text-tertiary)]">
+                <tr>
+                  <th className="pb-2 font-normal">Backend</th>
+                  <th className="pb-2 font-normal text-right">Coverage</th>
+                  <th className="pb-2 font-normal text-right">Scored</th>
+                  <th className="pb-2 font-normal text-right">Brier ↓</th>
+                  <th className="pb-2 font-normal text-right">Log loss ↓</th>
+                  <th className="pb-2 font-normal text-right">ECE ↓</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-default)]/50 font-mono">
+                {replayData.rollups.map((row) => (
+                  <tr key={row.backend}>
+                    <td className="py-2 text-white">{row.backend}</td>
+                    <td className="py-2 text-right text-[var(--text-secondary)]">
+                      {pct(row.labelCoverageRate)}
+                    </td>
+                    <td className="py-2 text-right text-[var(--text-secondary)]">
+                      {row.scoredAnswers}
+                    </td>
+                    <td className="py-2 text-right text-[var(--text-secondary)]">
+                      {row.meanBrier === null ? "unmeasured" : row.meanBrier.toFixed(3)}
+                    </td>
+                    <td className="py-2 text-right text-[var(--text-secondary)]">
+                      {row.meanLogLoss === null ? "unmeasured" : row.meanLogLoss.toFixed(3)}
+                    </td>
+                    <td className="py-2 text-right text-[var(--text-secondary)]">
+                      {row.categoricalEce === null ? "unmeasured" : row.categoricalEce.toFixed(3)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="space-y-1 border-t border-[var(--border-default)] pt-3 text-[9px] leading-relaxed text-[var(--text-tertiary)]">
+          <p>{data.caveat}</p>
+          <p>{replayData.caveat}</p>
+        </div>
       </div>
     </section>
   );

@@ -8,7 +8,7 @@
 
 **Safety boundary.** `NICK_DECISION_PLANE_SHADOW` defaults OFF. Private-mode and obvious-PII turns are rejected before enqueue. Public backends additionally require explicit `NICK_DECISION_PLANE_ALLOW_EXTERNAL_STATE=1`. Incumbent agreement is a regression baseline only; it is not correctness and can never set `promotionReady`.
 
-**Local receipt.** 17/17 focused Decision Plane tests green; changed-file ESLint + diff check green. Full local TypeScript is withheld as a correctness signal because NattyNour hit machine-level memory/paging exhaustion; GitHub CI is the authoritative full sweep after push. Durable receipt: `docs/00-current-truth/nouros-decision-plane-2026-09-28.md`.
+**Local receipt.** Decision Plane + Replay Lab now have 22/22 focused tests green; changed-file ESLint + diff check green. Replay reuses the same Episode lineage: explicit operator outcome labels append to the existing `episodeId`, unlabeled candidates stay unscored, and the panel reports label coverage/Brier/log-loss/ECE while `promotionReady` remains false. Full local TypeScript is withheld as a correctness signal because NattyNour hit machine-level memory/paging exhaustion; GitHub CI is the authoritative full sweep after push. Durable receipt: `docs/00-current-truth/nouros-decision-plane-2026-09-28.md`.
 
 **Updated: 2026-09-28 evening ET** (NourOS intelligence foundation built/tested; merge + production proof still pending)
 
