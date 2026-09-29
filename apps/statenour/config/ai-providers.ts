@@ -157,6 +157,21 @@ export const PROVIDER_COST_CLASS: Record<RuntimeProviderName, ProviderCostClass>
   openrouter: "metered",
 };
 
+/**
+ * Detailed NOUR routing cost vocabulary. This is observability metadata only:
+ * the incumbent two-class PROVIDER_COST_CLASS remains the live API firewall.
+ */
+export const PROVIDER_ROUTING_COST_CLASS = {
+  ollama: "EXISTING_INFRA",
+  gemini: "METERED_PAID",
+  openai: "METERED_PAID",
+  anthropic: "METERED_PAID",
+  openrouter: "METERED_PAID",
+} as const satisfies Record<RuntimeProviderName, string>;
+
+export type ProviderRoutingCostClass =
+  (typeof PROVIDER_ROUTING_COST_CLASS)[RuntimeProviderName];
+
 // 2026-07-12 · OLLAMA CLOUD FIRST for every task (operator directive). Ollama
 // Cloud (ollama.com) serves large, lightly-filtered models on a flat un-metered
 // key — no per-token spend cap to hang like Gemini did, and the least-restricted

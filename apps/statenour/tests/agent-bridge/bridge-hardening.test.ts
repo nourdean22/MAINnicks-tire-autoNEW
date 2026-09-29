@@ -17,7 +17,7 @@
  *   4. The surface pin excludes every protected op (drift protection).
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { handleMcpMessage } from "@/lib/agent-bridge/mcp-server";
+import { handleAuthenticatedMcpRequest } from "@/lib/agent-bridge/mcp-server";
 import {
   PROTECTED_OPS_TOOLS,
   BRIDGE_HARD_DENY,
@@ -156,7 +156,39 @@ describe("resolveBridgeToken · per-client scopes", () => {
 
 /* ── 3b · the refusal is AUDITED end to end (the operator's explicit ask) ── */
 
-describe("handleToolsCall · a refused call is audited with status 'denied'", () => {
+async function mcpToolCall(
+  identity: { clientId: string; scope: "read" | "tasks" },
+  name: string,
+  args: Record<string, unknown> = {},
+) {
+  const version = "2026-07-28";
+  const req = new Request("https://example.test/api/mcp", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "MCP-Protocol-Version": version,
+      "Mcp-Method": "tools/call",
+      "Mcp-Name": name,
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name,
+        arguments: args,
+        _meta: {
+          "io.modelcontextprotocol/protocolVersion": version,
+          "io.modelcontextprotocol/clientCapabilities": {},
+        },
+      },
+    }),
+  });
+  const response = await handleAuthenticatedMcpRequest(req, identity);
+  return response.json();
+}
+
+describe("MCP tool refusal · denied calls are audited", () => {
   const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
   afterEach(() => logSpy.mockClear());
 
@@ -167,12 +199,12 @@ describe("handleToolsCall · a refused call is audited with status 'denied'", ()
       .map((l) => JSON.parse(l));
 
   it("a read token calling a tasks-only write is refused AND a denied row is emitted", async () => {
-    const res = await handleMcpMessage(
-      { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "create_task", arguments: { title: "x" } } },
+    const res = await mcpToolCall(
       { clientId: "read-client", scope: "read" },
+      "create_task",
+      { title: "x" },
     );
-    // Protocol: a tool result error (not a protocol error), naming the scope refusal.
-    expect((res as any)?.error).toBeDefined();
+    expect((res as any)?.error?.code).toBe(-32602);
     // Audit: exactly one denied line for this tool, carrying the caller identity.
     const denied = auditLines().filter((a) => a.status === "denied" && a.toolName === "createTask");
     expect(denied.length, "the scope refusal must be audited").toBe(1);
@@ -181,20 +213,20 @@ describe("handleToolsCall · a refused call is audited with status 'denied'", ()
   });
 
   it("a protected op (runPython) is refused AND audited as denied, not silently unknown", async () => {
-    const res = await handleMcpMessage(
-      { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "run_python", arguments: {} } },
+    const res = await mcpToolCall(
       { clientId: "tasks-client", scope: "tasks" },
+      "run_python",
     );
-    expect((res as any)?.error).toBeDefined();
+    expect((res as any)?.error?.code).toBe(-32602);
     const denied = auditLines().filter((a) => a.status === "denied" && a.toolName === "runPython");
     expect(denied.length, "a HARD_DENY refusal must be audited, not returned as unknown").toBe(1);
     expect(denied[0].riskClass).toBe("critical"); // effective risk still recorded
   });
 
   it("POSITIVE CONTROL: a truly unknown tool is NOT audited as denied (nothing to deny)", async () => {
-    await handleMcpMessage(
-      { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "not_a_real_tool_xyz", arguments: {} } },
+    await mcpToolCall(
       { clientId: "tasks-client", scope: "tasks" },
+      "not_a_real_tool_xyz",
     );
     const denied = auditLines().filter((a) => a.status === "denied");
     expect(denied.length).toBe(0);
