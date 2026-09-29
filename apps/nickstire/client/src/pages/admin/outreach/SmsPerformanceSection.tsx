@@ -22,7 +22,7 @@ type RecentSend = NonNullable<RouterOutputs["smsPerformance"]["recentSends"]>[nu
 import { useState, useRef } from "react";
 import { BarChart3, MessageSquare, CheckCircle2, XCircle, DollarSign } from "lucide-react";
 import { PageHeader, LoadingState, EmptyState, formatDateTime } from "../shared";
-import { sendsPerInvoice } from "@shared/loopScoreboard";
+import { HOLDOUT_MIN_MATURED_PER_ARM, sendsPerInvoice } from "@shared/loopScoreboard";
 
 function pct(num: number, denom: number): string {
   if (denom === 0) return "—";
@@ -144,7 +144,12 @@ export default function SmsPerformanceSection() {
             Net P&amp;L remains <span className="font-medium text-foreground/70">UNMEASURED</span> until
             real provider/carrier SMS cost is persisted; incremental gross lift is never relabeled as profit.
           </p>
-          {money && (
+          {money?.holdoutPending && (
+            <p className="text-[11px] leading-relaxed text-foreground/55">
+              Holdout experiments are not set up yet (migration 0136 pending), so every lane is unmeasured.
+            </p>
+          )}
+          {money && !money.holdoutError && !money.holdoutPending && (
             <p className="text-[11px] leading-relaxed text-foreground/55">
               Holdout state: {money.causalMeasurement.observedHoldoutLanes} observed ·{" "}
               {money.causalMeasurement.collectingLanes} collecting ·{" "}
@@ -156,6 +161,12 @@ export default function SmsPerformanceSection() {
         {money?.error && (
           <div className="px-4 py-3 text-sm text-red-200 bg-red-500/10">
             Couldn't read revenue: {money.errorMessage ?? "unknown error"}. This is an outage, not a zero.
+          </div>
+        )}
+        {money?.holdoutError && (
+          <div className="px-4 py-3 text-sm text-amber-200 bg-amber-500/10">
+            Couldn't read holdout experiments ({money.holdoutError}). Causal lift is unknown, not
+            unmeasured — observed revenue below is still readable.
           </div>
         )}
 
@@ -223,7 +234,12 @@ export default function SmsPerformanceSection() {
                             <div className="text-[10px] text-foreground/45">
                               assigned T{l.holdout.treatmentAssigned} / C{l.holdout.controlAssigned}
                             </div>
+                            <div className="text-[10px] text-foreground/45">
+                              lift shows at {HOLDOUT_MIN_MATURED_PER_ARM} matured per arm
+                            </div>
                           </div>
+                        ) : money.holdoutError ? (
+                          <span className="text-amber-400/80">unavailable</span>
                         ) : (
                           <span className="text-foreground/35">unmeasured</span>
                         )}

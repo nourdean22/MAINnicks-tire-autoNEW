@@ -2,7 +2,7 @@
  * Nick AI Agent — Intelligence gathering, operator command, context loading.
  * Handles: operatorCommand, pullFromStatenour, runMigrations, importCustomerCSV, syncShopDriver
  */
-import { eq, gte, and, sql } from "drizzle-orm";
+import { eq, gte, and, sql, inArray } from "drizzle-orm";
 import { chatSessions, leads, bookings, invoices, customers, callbackRequests, reviewRequests } from "../../../drizzle/schema";
 import { invokeLLM } from "../../_core/llm";
 import type { Invoice } from "../../../drizzle/schema";
@@ -10,6 +10,20 @@ import { log, db } from "./utils";
 
 import { BUSINESS } from "@shared/business";
 import { countActionableLeads } from "@shared/leadSource";
+/**
+ * Review requests that actually went out since `since`. Only 'sent' and
+ * 'clicked' are contacts: 'pending'/'failed'/'skipped' never reached the
+ * customer, and a Q-21 'heldout' row is a deliberately withheld control.
+ * Counting every status told the operator "N requests sent" for rows that
+ * were never sent.
+ */
+export function reviewRequestsSentSinceQuery(d: NonNullable<Awaited<ReturnType<typeof db>>>, since: Date) {
+  return d.select({ count: sql<number>`count(*)`.mapWith(Number) }).from(reviewRequests).where(and(
+    gte(reviewRequests.createdAt, since),
+    inArray(reviewRequests.status, ["sent", "clicked"]),
+  ));
+}
+
 // ─── OPERATOR COMMAND (Admin-only Nick AI interface) ──────
 
 export async function handleOperatorCommand(input: {
@@ -43,7 +57,7 @@ export async function handleOperatorCommand(input: {
         d.select({ count: sql<number>`count(*)` }).from(customers).where(gte(customers.createdAt, monthAgo)),
         d.select({ count: sql<number>`count(*)` }).from(callbackRequests).where(eq(callbackRequests.status, "new")),
         d.select({ source: leads.source, callbackId: leads.callbackId }).from(leads).where(and(eq(leads.status, "new"), gte(leads.createdAt, weekAgo))),
-        d.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(gte(reviewRequests.createdAt, monthAgo)),
+        reviewRequestsSentSinceQuery(d, monthAgo),
         d.select({ count: sql<number>`count(*)` }).from(leads).where(gte(leads.createdAt, weekAgo)),
       ]);
 

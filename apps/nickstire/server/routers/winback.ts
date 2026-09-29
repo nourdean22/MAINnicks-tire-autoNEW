@@ -463,11 +463,11 @@ export const winbackRouter = router({
       // Get send stats per step
       const stats = await d.select({
         step: winbackSends.step,
-        total: sql<number>`count(*)`,
-        sent: sql<number>`sum(case when ${winbackSends.status} = 'sent' then 1 else 0 end)`,
-        heldOut: sql<number>`sum(case when ${winbackSends.status} = 'heldout' then 1 else 0 end)`,
-        failed: sql<number>`sum(case when ${winbackSends.status} = 'failed' then 1 else 0 end)`,
-        pending: sql<number>`sum(case when ${winbackSends.status} = 'pending' then 1 else 0 end)`,
+        total: sql<number>`count(*)`.mapWith(Number),
+        sent: sql<number>`sum(case when ${winbackSends.status} = 'sent' then 1 else 0 end)`.mapWith(Number),
+        heldOut: sql<number>`sum(case when ${winbackSends.status} = 'heldout' then 1 else 0 end)`.mapWith(Number),
+        failed: sql<number>`sum(case when ${winbackSends.status} = 'failed' then 1 else 0 end)`.mapWith(Number),
+        pending: sql<number>`sum(case when ${winbackSends.status} = 'pending' then 1 else 0 end)`.mapWith(Number),
       })
         .from(winbackSends)
         .where(eq(winbackSends.campaignId, input.id))

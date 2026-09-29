@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildHoldoutLift,
+  HOLDOUT_MIN_MATURED_PER_ARM,
   buildLoopScoreboard,
   sendsPerInvoice,
   type LoopRow,
@@ -134,13 +135,13 @@ describe("buildHoldoutLift", () => {
     const h = buildHoldoutLift({
       experimentId: "contact:retention_d90:v1",
       treatmentAssigned: 100,
-      controlAssigned: 20,
+      controlAssigned: 40,
       treatmentMatured: 80,
-      controlMatured: 16,
+      controlMatured: 32,
       treatmentPaidInvoices: 8,
-      controlPaidInvoices: 1,
+      controlPaidInvoices: 2,
       treatmentRevenueCents: 80_000,
-      controlRevenueCents: 8_000,
+      controlRevenueCents: 16_000,
     });
     expect(h.status).toBe("OBSERVED_HOLDOUT");
     expect(h.treatmentRevenuePerAssignedCents).toBe(1_000);
@@ -150,17 +151,43 @@ describe("buildHoldoutLift", () => {
     expect(h.netValueCents).toBeNull();
   });
 
+  it("stays COLLECTING while either arm is under the matured minimum — one lucky control is not a lift", () => {
+    const base = {
+      experimentId: "contact:winback:v1",
+      treatmentAssigned: 200,
+      controlAssigned: 40,
+      treatmentPaidInvoices: 20,
+      controlPaidInvoices: 0,
+      treatmentRevenueCents: 200_000,
+      controlRevenueCents: 0,
+    };
+    const thinControl = buildHoldoutLift({
+      ...base,
+      treatmentMatured: 200,
+      controlMatured: HOLDOUT_MIN_MATURED_PER_ARM - 1,
+    });
+    expect(thinControl.status).toBe("COLLECTING");
+    expect(thinControl.incrementalGrossRevenueCents).toBeNull();
+
+    const atMinimum = buildHoldoutLift({
+      ...base,
+      treatmentMatured: 200,
+      controlMatured: HOLDOUT_MIN_MATURED_PER_ARM,
+    });
+    expect(atMinimum.status).toBe("OBSERVED_HOLDOUT");
+  });
+
   it("preserves negative lift instead of flooring a losing lane at zero", () => {
     const h = buildHoldoutLift({
       experimentId: "contact:campaign:12:v1",
       treatmentAssigned: 40,
-      controlAssigned: 10,
+      controlAssigned: 40,
       treatmentMatured: 40,
-      controlMatured: 10,
+      controlMatured: 40,
       treatmentPaidInvoices: 1,
-      controlPaidInvoices: 1,
+      controlPaidInvoices: 4,
       treatmentRevenueCents: 10_000,
-      controlRevenueCents: 8_000,
+      controlRevenueCents: 32_000,
     });
     expect(h.incrementalGrossRevenuePerTreatmentCents).toBe(-550);
     expect(h.incrementalGrossRevenueCents).toBe(-22_000);
@@ -169,10 +196,10 @@ describe("buildHoldoutLift", () => {
   it("counts causal measurement states without turning cost into profit", () => {
     const observed = buildHoldoutLift({
       experimentId: "contact:retention_d7:v1",
-      treatmentAssigned: 20,
-      controlAssigned: 5,
-      treatmentMatured: 20,
-      controlMatured: 5,
+      treatmentAssigned: 40,
+      controlAssigned: 30,
+      treatmentMatured: 40,
+      controlMatured: 30,
       treatmentPaidInvoices: 2,
       controlPaidInvoices: 0,
       treatmentRevenueCents: 20_000,

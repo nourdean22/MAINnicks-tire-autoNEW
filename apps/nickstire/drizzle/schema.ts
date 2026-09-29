@@ -682,7 +682,7 @@ export const reviewRequests = mysqlTable("review_requests", {
   /** Service performed (for personalization) */
   service: varchar("service", { length: 100 }),
   /** Current status of the review request */
-  status: mysqlEnum("status", ["pending", "sent", "clicked", "heldout", "failed", "skipped"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "sent", "clicked", "failed", "skipped", "heldout"]).default("pending").notNull(),
   /** When the SMS should be sent (booking completion + delay) */
   scheduledAt: timestamp("scheduledAt").notNull(),
   /** When the SMS was actually sent */
@@ -1127,7 +1127,7 @@ export const winbackSends = mysqlTable("winback_sends", {
   personalizedBody: text("personalizedBody").notNull(),
   scheduledAt: timestamp("scheduledAt").notNull(),
   sentAt: timestamp("sentAt"),
-  status: mysqlEnum("status", ["pending", "sent", "heldout", "failed"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "sent", "failed", "heldout"]).default("pending").notNull(),
   twilioSid: varchar("twilioSid", { length: 100 }),
   errorMessage: text("errorMessage"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -1934,8 +1934,8 @@ export const smsCampaignSends = mysqlTable("sms_campaign_sends", {
   messageBody: text("messageBody").notNull(),
   /** Twilio message SID for tracking */
   twilioSid: varchar("twilioSid", { length: 100 }),
-  /** Status: pending, sent, heldout, failed */
-  status: mysqlEnum("status", ["pending", "sent", "heldout", "failed"]).default("pending").notNull(),
+  /** Status: pending, sent, failed, heldout (0136 appended heldout) */
+  status: mysqlEnum("status", ["pending", "sent", "failed", "heldout"]).default("pending").notNull(),
   /** Error message if failed */
   errorMessage: text("errorMessage"),
   /** When SMS was actually sent */
@@ -3945,7 +3945,7 @@ export const nickgptDrafts = mysqlTable("nickgpt_drafts", {
 export type NickgptDraft = typeof nickgptDrafts.$inferSelect;
 export type InsertNickgptDraft = typeof nickgptDrafts.$inferInsert;
 
-// ─── 0135: customer-contact holdout assignments ──────────────────────
+// ─── 0136: customer-contact holdout assignments ──────────────────────
 // Q-21. This table records NO-CONTACT control assignment. Do not overload
 // sms_orchestrations.isControl: that existing field describes copy/template
 // experiment control inside a message that may still be sent.

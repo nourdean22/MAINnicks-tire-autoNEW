@@ -15,10 +15,11 @@
  * - experiment version is part of the identity, so a future design change does
  *   not silently reassign a running cohort.
  */
+import { createHash } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { contactExperimentAssignments } from "../../drizzle/schema";
-import { assignByKey } from "../../shared/experimentKernel";
 import { getDbTyped } from "../db";
+import { describeDbError } from "../lib/dbErrors";
 import { createLogger } from "../lib/logger";
 import { normalizePhone } from "../lib/phone";
 import { isEnabled, type FlagKey } from "./featureFlags";
@@ -28,14 +29,9 @@ const log = createLogger("contact-experiment");
 export const CONTACT_HOLDOUT_VERSION = "v1";
 export const CONTACT_HOLDOUT_CONTROL_PCT = 15;
 
-/** 3 control buckets / 20 total = exactly 15%. Uses the canonical experiment hash. */
-const HOLDOUT_BUCKETS = [
-  "control", "control", "control",
-  "treatment", "treatment", "treatment", "treatment", "treatment",
-  "treatment", "treatment", "treatment", "treatment", "treatment",
-  "treatment", "treatment", "treatment", "treatment", "treatment",
-  "treatment", "treatment",
-] as const;
+/** 3 control buckets / 20 total = exactly 15%. */
+const HOLDOUT_BUCKET_COUNT = 20;
+const HOLDOUT_CONTROL_BUCKETS = 3;
 
 export type ContactExperimentArm = "control" | "treatment";
 
@@ -92,9 +88,10 @@ export function contactLaneForVariant(
   if (variantKey === "winback") {
     return lane("winback", variantKey, "contact_holdout_winback");
   }
-  if (variantKey === "drip") {
-    return lane("drip", variantKey, "contact_holdout_drip");
-  }
+  // "drip" is deliberately NOT a lane. One variantKey pools every drip
+  // campaign — including declined-estimate follow-ups, which must never be
+  // withheld here — and dripProcessor does not read the send outcome yet.
+  // Re-add only as `drip:<campaignId>` once both are fixed.
   if (/^weather_[a-z0-9_-]+$/i.test(variantKey)) {
     return lane(variantKey, variantKey, "contact_holdout_weather");
   }
@@ -116,11 +113,23 @@ function normalisedSubjectKey(phone: string): string | null {
   return digits.length === 10 ? digits : null;
 }
 
+/**
+ * sha256(experimentId:subjectKey), first 4 bytes mod 20; buckets 0-2 = control.
+ *
+ * NOT the shared kernel's assignByKey: that is a x31 polynomial hash, and with
+ * the phone AFTER the experiment id every lane's bucket is the same hash shifted
+ * by a per-lane constant. Arms were correlated across lanes — some lane pairs
+ * never shared a control, others shared ~97% of them. A cryptographic hash makes
+ * each lane an independent draw. Changing this reassigns every subject, which is
+ * safe only while no contact_experiment_assignments row exists (0136 unapplied).
+ */
 export function contactArmForSubject(
   experimentId: string,
   subjectKey: string,
 ): ContactExperimentArm {
-  return assignByKey(HOLDOUT_BUCKETS, `${experimentId}:${subjectKey}`) as ContactExperimentArm;
+  const digest = createHash("sha256").update(`${experimentId}:${subjectKey}`).digest();
+  const bucket = digest.readUInt32BE(0) % HOLDOUT_BUCKET_COUNT;
+  return bucket < HOLDOUT_CONTROL_BUCKETS ? "control" : "treatment";
 }
 
 /**
@@ -270,7 +279,9 @@ export async function resolveContactExperiment(
     log.error("Contact holdout assignment unavailable; sending normally", {
       experimentId: definition.experimentId,
       laneKey: definition.laneKey,
-      error: err instanceof Error ? err.message.slice(0, 240) : String(err).slice(0, 240),
+      // Never err.message: a drizzle query error carries the bound params,
+      // and the subject phone is one of them (PROTECTED-CORE rule 5).
+      error: describeDbError(err),
     });
     return {
       eligible: true,

@@ -97,6 +97,13 @@ export interface HoldoutLift {
 }
 
 /**
+ * Minimum MATURED assignments per arm before a lift is shown. Below it the lane
+ * reads COLLECTING. One matured control customer who happened to pay (or not)
+ * would otherwise print a confident red or green dollar figure that is pure noise.
+ */
+export const HOLDOUT_MIN_MATURED_PER_ARM = 30;
+
+/**
  * Pure holdout math. Revenue rates use only MATURED assignments so a customer
  * assigned yesterday is not compared with one that already had the full
  * attribution window to return.
@@ -124,7 +131,10 @@ export function buildHoldoutLift(
   };
   if (!input || (input.treatmentAssigned + input.controlAssigned) === 0) return empty;
 
-  if (input.treatmentMatured <= 0 || input.controlMatured <= 0) {
+  if (
+    input.treatmentMatured < HOLDOUT_MIN_MATURED_PER_ARM ||
+    input.controlMatured < HOLDOUT_MIN_MATURED_PER_ARM
+  ) {
     return { ...empty, status: "COLLECTING" };
   }
 
@@ -260,7 +270,7 @@ export function buildLoopScoreboard(
   const limitations = [
     "CORRELATION, NOT ATTRIBUTION: the Observed column counts customers who paid AFTER receiving a message, not because of it. Most would have returned anyway.",
     `Observed revenue is counted only for PAID invoices dated within ${opts.attributionWindowDays} days of the send.`,
-    "Holdout lift, when present, uses randomized NO-CONTACT assignment and only matured cohorts with the full attribution window. It is a causal experiment estimate, not a claim of statistical significance.",
+    `Holdout lift, when present, uses randomized NO-CONTACT assignment and only matured cohorts with the full attribution window, and is shown only once each arm has at least ${HOLDOUT_MIN_MATURED_PER_ARM} matured customers. It is a causal experiment estimate, not a claim of statistical significance.`,
     "NET P&L IS UNMEASURED: provider/carrier SMS cost is not persisted in this repo, so incremental gross revenue is never relabeled as profit.",
     "Cross-sell and declined-work have independent control designs and are not silently merged into the generic contact-holdout cohort.",
     "A customer reached by two loops in the window is counted for both — the observed totals are not a sum of distinct dollars.",
