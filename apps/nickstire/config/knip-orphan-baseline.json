@@ -2,6 +2,11 @@
   "$comment": "knip + script-invoker findings accepted at baseline. ANY NEW ENTRY IS A CI FAILURE — see scripts/knip-orphan-gate.mjs. Every entry needs a real reason; an accidental orphan has none to write.",
   "entries": [
     {
+      "file": "apps/nickstire/server/cron/jobs/declinedWorkRecovery.ts",
+      "symbol": "recoverySendsEnabled",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The send gate of the declined-work SMS lane: an explicit dryRun always wins over FEATURE_DECLINED_RECOVERY and skipDryRunGate (the CLI's --dry-run used to send whenever the env flag was 1). declinedWorkRecovery.manualLanes.test.ts imports it to pin that rule directly, because the only other route to it is runDeclinedWorkRecovery's database path. Its runtime consumer is runDeclinedWorkRecovery in the same module (the featureEnabled line), so the rule is live, not vacuous."
+    },
+    {
       "file": "apps/nickstire/client/src/components/fomoEntries.ts",
       "symbol": "MAX_ENTRY_AGE_MINUTES",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The staleness bound that stops the ticker rendering an old entry as current activity — the defect it closes shipped live as 'New 5-star review ... 1987h ago' (~83 days). fomo-entries.test.ts imports it to assert the boundary exactly (kept and dropped on either side of it); inlining the literal there would pin a number that no longer tracks the bound, which is the failure mode this repo already recorded as 'a pinned literal is not a count'. Its runtime consumer is resolveFomoEntries in the same module, so the rule is live, not vacuous."
