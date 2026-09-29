@@ -1,3 +1,4 @@
+import { withTimeout } from "@nour/utils";
 import { postTelegramText } from "@/lib/services/telegram-post";
 
 interface TelegramSendOptions {
@@ -30,7 +31,11 @@ export async function sendTelegramOpsAlert(text: string, options?: TelegramSendO
   try {
     // Model-written ops text often breaks Markdown (a lone `_` or `*`); the
     // helper resends it once as plain text instead of dropping the alert.
-    const { res: response } = await postTelegramText(TELEGRAM_BOT_TOKEN, "sendMessage", payload);
+    // The 3-second hard cap still covers both attempts.
+    const { res: response } = await withTimeout(
+      postTelegramText(TELEGRAM_BOT_TOKEN, "sendMessage", payload),
+      3000
+    );
 
     if (!response.ok) {
       console.error(`[telegram-ops] Failed to send alert. Status: ${response.status}`);
