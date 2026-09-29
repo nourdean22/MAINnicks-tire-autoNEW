@@ -1,0 +1,16 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "Q-26 changes data-accuracy-check only: it performs read-only data quality/freshness/volume checks and adds no customer send. Invoice-volume anomaly classification is explicitly suppressed when mirror freshness is error/unmeasured so a stale mirror cannot fabricate a business-volume alert. Q-27 is read-only ranking only and server/lib/customerValueRanking.test.ts statically forbids sendSms/sendOutreach/placeVapiOutboundCall/createCampaign/dispatchSms imports/calls. Exact-head CI remains the acceptance gate."
+    },
+    "capability-ledger-updated": {
+      "ref": "THIS DIFF adds three capability rows to apps/nickstire/docs/operations/capability-ledger.json — reality-event-envelope-q25, business-data-contracts-q26, customer-value-reference-ranking-q27 — all deliberately codeState=in_progress, operationalState=unverified, exposure=disabled. REALITY-LEDGER.md is regenerated from that canonical JSON; no live/deployed promotion is claimed."
+    },
+    "migration-evidence": {
+      "deferred": "operator-pending: Q-25 adds apps/statenour/prisma/migrations-pending/20260929123500_reality_event_envelope/migration.sql. It is additive and intentionally not applied by this branch. Production apply/read-back remains a protected operator step; code paths catch missing new RealityEvent columns until that step."
+    },
+    "operator-walkthrough": {
+      "deferred": "No new client/admin UI is added. Q-27 exposes a read-only admin procedure only; no production walkthrough is claimed before merge/deploy. If a future UI consumes the ranking, it must display rankingOnly=true and external-cdnow-reference-not-shop-fitted, never predicted revenue."
+    }
+  }
+}

@@ -1481,3 +1481,10 @@ External audit's "/brakes broken" (stale cache; renders fine live) and "duplicat
    sits at 528 over its 500 cap. scripts/maintenance/prune-superseded-memories.mjs (dry run first) takes it to
    185 and SKIPS sources with no rolling row yet (daily_score 75, shopdriver_mirror 43, intelligence_autopilot
    20, statenour_pull 10) because for those the snapshots are all Nick has. The DELETE is the operator's.
+
+
+## 2026-09-29 Carousel checkpoint · Q-21/Q-26/Q-27
+- **Q-21 MERGED:** `d192ccc95108a37faeddf4d38f5d5eccf2dae69c`. Final #2777 CI was green after reconciling #2778-era SMS/current-truth changes and preserving the current orphan baseline. Holdout flags stay OFF; provider/carrier cost stays UNMEASURED; migration remains operator-gated.
+- **Q-26 BUILT, not merged:** `shared/businessDataContracts.ts` + tests, `MetricEnvelope.freshness`, and `data-accuracy-check` wiring. Source freshness is separate from business volume; leads/callbacks are never called stale merely for having a quiet day. Invoice volume is suppressed when ShopDriver mirror freshness is not trustworthy.
+- **Q-27 BUILT IN PART, not merged:** BG/NBD + Gamma-Gamma pure kernel with CDNOW goldens and a read-only customer ranking service. Hard contract: `rankingOnly: true`; calibration is `external-cdnow-reference-not-shop-fitted`; never a send/revenue promise.
+- Recovery details and next steps: `docs/research/2026-09-29-carousel-q25-q27-checkpoint.md`. Active branch: `feat/nouros-carousel-q25-q27-20260929`. Re-anchor onto latest main before PR; main is moving.
