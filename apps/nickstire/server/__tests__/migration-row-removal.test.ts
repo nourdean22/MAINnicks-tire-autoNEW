@@ -74,7 +74,8 @@ function rowRemovingStatements(sql: string): string[] {
   const code = executableSql(sql);
   const hits = [
     ...code.matchAll(/\bDELETE\b(?!\s+(?:CASCADE|SET|RESTRICT|NO)\b)[^;]*/gi),
-    ...code.matchAll(/\bTRUNCATE\b[^;]*/gi),
+    // TRUNCATE(x, d) is MySQL's numeric function, not a table truncation.
+    ...code.matchAll(/\bTRUNCATE\b(?!\s*\()[^;]*/gi),
   ];
   return hits.map((m) => m[0].trim().slice(0, 80));
 }
@@ -106,6 +107,7 @@ describe("rowRemovingStatements (the scanner itself)", () => {
     expect(rowRemovingStatements("-- DELETE FROM t;\n/* TRUNCATE t; */\nSELECT 1;")).toEqual([]);
     expect(rowRemovingStatements("CREATE TABLE t (op ENUM('create','delete','truncate'));")).toEqual([]);
     expect(rowRemovingStatements("ALTER TABLE t ADD COLUMN deleted_at TIMESTAMP NULL;")).toEqual([]);
+    expect(rowRemovingStatements("UPDATE t SET price = TRUNCATE(price, 2);")).toEqual([]);
   });
 });
 
