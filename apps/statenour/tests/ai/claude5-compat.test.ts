@@ -4,8 +4,11 @@
  * The 5-family (fable/mythos/opus-5) rejects sampling params with HTTP
  * 400 and counts always-on thinking against maxOutputTokens. These pin
  * the two mechanisms that make an ANTHROPIC_MODEL flip safe:
- *   1. the model-id gate (sonnet-5 must NOT be touched — it is
- *      prod-verified WITH temperature),
+ *   1. the model-id gates. 2026-09-29 (#2768): sonnet-5 / 5-5 and opus-4-7 /
+ *      4-8 are covered too; Anthropic's model-deprecations page (read
+ *      2026-09-29) says non-default sampling "Returns a 400 error ... on
+ *      Claude 4.7 and later models", and the old "prod-verified WITH
+ *      temperature" exemption never had a receipt,
  *   2. the param sanitizer (strip sampling, floor the output budget,
  *      pass providerOptions — including effort — through untouched).
  */
@@ -15,6 +18,10 @@ import {
   isClaude5ThinkingModel,
   sanitizeClaude5Params,
   claude5CompatMiddleware,
+  claudeCompatMiddlewareFor,
+  claudeThinkingOffParams,
+  rejectsSamplingParams,
+  thinksByDefault,
   CLAUDE5_MIN_OUTPUT_TOKENS,
 } from "@/lib/ai/claude5-compat";
 
@@ -30,7 +37,7 @@ describe("isClaude5ThinkingModel", () => {
     expect(isClaude5ThinkingModel("  CLAUDE-FABLE-5  ")).toBe(true);
   });
 
-  it("does NOT match claude-sonnet-5 (current default — prod-verified with temperature)", () => {
+  it("does NOT match claude-sonnet-5 (effort-router frontier ids only; the compat middleware keys on rejectsSamplingParams)", () => {
     expect(isClaude5ThinkingModel("claude-sonnet-5")).toBe(false);
   });
 
@@ -103,5 +110,64 @@ describe("claude5CompatMiddleware", () => {
     } as never)) as Record<string, unknown>;
     expect("temperature" in out).toBe(false);
     expect(out.maxOutputTokens).toBe(CLAUDE5_MIN_OUTPUT_TOKENS);
+  });
+});
+
+describe("which models the compat middleware wraps (#2768)", () => {
+  const transform = async (modelId: string, params: Record<string, unknown>) => {
+    const mw = claudeCompatMiddlewareFor(modelId);
+    if (!mw) return undefined;
+    return (await mw.transformParams!({ type: "generate", params, model: {} } as never)) as Record<string, unknown>;
+  };
+
+  it.each(["claude-sonnet-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1", "claude-opus-5", "claude-mythos-5"])(
+    "%s: sampling stripped and the output floor applied (thinks by default)",
+    async (id) => {
+      expect(rejectsSamplingParams(id)).toBe(true);
+      expect(thinksByDefault(id)).toBe(true);
+      const out = await transform(id, { temperature: 0.4, topP: 0.9, topK: 5, maxOutputTokens: 300 });
+      expect(out).toBeDefined();
+      expect(out).not.toHaveProperty("temperature");
+      expect(out).not.toHaveProperty("topP");
+      expect(out).not.toHaveProperty("topK");
+      expect(out!.maxOutputTokens).toBe(CLAUDE5_MIN_OUTPUT_TOKENS);
+    },
+  );
+
+  it.each(["claude-opus-4-8", "claude-opus-4-7"])("%s: sampling stripped, maxOutputTokens untouched (no default thinking)", async (id) => {
+    expect(thinksByDefault(id)).toBe(false);
+    const out = await transform(id, { temperature: 0.4, maxOutputTokens: 300 });
+    expect(out).not.toHaveProperty("temperature");
+    expect(out!.maxOutputTokens).toBe(300);
+  });
+
+  it.each(["claude-sonnet-4-6", "claude-haiku-4-5", "claude-opus-4-6", "claude-opus-4-70", "gpt-4o", ""])(
+    "positive control: %s is not wrapped (it accepts sampling params)",
+    (id) => {
+      expect(claudeCompatMiddlewareFor(id)).toBeUndefined();
+    },
+  );
+});
+
+describe("claudeThinkingOffParams (raw Messages API callers)", () => {
+  it.each([
+    ["claude-sonnet-5", { thinking: { type: "disabled" } }],
+    ["claude-opus-5", { thinking: { type: "disabled" } }],
+    ["claude-opus-4-8", { thinking: { type: "disabled" } }],
+    ["claude-haiku-4-5-20251001", { thinking: { type: "disabled" } }],
+    ["claude-sonnet-4-5-latest", { thinking: { type: "disabled" } }],
+    ["claude-sonnet-5-5", { thinking: { type: "between_tools" } }],
+    ["claude-opus-5-5", { output_config: { effort: "low" } }],
+    ["claude-fable-5-1", { output_config: { effort: "low" } }],
+    ["claude-fable-5", { output_config: { effort: "low" } }],
+    ["claude-mythos-5-1", { output_config: { effort: "low" } }],
+    ["claude-mythos-5", { output_config: { effort: "low" } }],
+  ])("%s", (id, expected) => {
+    expect(claudeThinkingOffParams(id)).toEqual(expected);
+  });
+
+  it("positive control: an id no table names never gets `disabled` (it could 400)", () => {
+    expect(claudeThinkingOffParams("claude-opus-6")).toEqual({ output_config: { effort: "low" } });
+    expect(claudeThinkingOffParams("claude-sonnet-5-9")).toEqual({ output_config: { effort: "low" } });
   });
 });

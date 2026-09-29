@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No capability state changes in this diff (2026-09-29, branch statenour/claude-thinking-param-guard). The nickstire side adds server/services/claudeThinkingParams.ts and changes one request field in nickgpt-client.ts callClaudeFallback: thinking is now sent in the form the configured ANTHROPIC_MODEL accepts (disabled for claude-sonnet-5, the default, so the production request body is byte-identical; between_tools for claude-sonnet-5-5; omitted with effort low for Opus 5.5 / Fable / Mythos). No capability in apps/nickstire/docs/operations/capability-ledger.json names the SMS-draft Claude fallback, and nothing was promoted or demoted: the guard is latent until an operator changes ANTHROPIC_MODEL, and it was proven by test only, not by a live call (no paid API calls from this session). Receipts: server/nickgptClaudeFallback.test.ts 13/13 green, 6 of them red on main; mutants 'sonnet-5-5 gets disabled' (1 failed) and 'unknown ids get disabled' (5 failed) both killed; pnpm run verify exit 0 (776 test files, 9,781 tests passed, build ok)."
+    }
+  }
+}

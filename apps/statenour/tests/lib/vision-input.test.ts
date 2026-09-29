@@ -98,6 +98,35 @@ describe("aiChatWithVision", () => {
     expect(r.content).toBe("saw it");
   });
 
+  // 2026-09-29 · `thinking: disabled` is a 400 on Opus 5.5 / Sonnet 5.5 /
+  // Fable, so ANTHROPIC_VISION_MODEL set to one of them failed every call.
+  it.each([
+    ["claude-opus-5-5", { output_config: { effort: "low" } }],
+    ["claude-sonnet-5-5", { thinking: { type: "between_tools" } }],
+    ["claude-fable-5-1", { output_config: { effort: "low" } }],
+    ["claude-haiku-4-5", { thinking: { type: "disabled" } }],
+  ])("ANTHROPIC_VISION_MODEL=%s sends the thinking-off form it accepts", async (model, expected) => {
+    vi.resetModules();
+    vi.stubEnv("ANTHROPIC_VISION_MODEL", model);
+    try {
+      const { aiChatWithVision: fresh } = await import("@/lib/ai/vision-input");
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify({ content: [{ type: "text", text: "ok" }] }), { status: 200 }),
+      );
+      await fresh([{ role: "user", content: "x" }], { preferredProvider: "anthropic" });
+      const sent = JSON.parse(String(fetchSpy.mock.calls[0]?.[1]?.body));
+      expect(sent.model).toBe(model);
+      expect({ thinking: sent.thinking, output_config: sent.output_config }).toEqual({
+        thinking: undefined,
+        output_config: undefined,
+        ...expected,
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
   it("throws when all providers fail", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response("", { status: 500 }))

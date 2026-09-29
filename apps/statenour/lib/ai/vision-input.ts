@@ -24,6 +24,7 @@
 // Pure-data module (zero imports of its own) — safe to pull into this
 // otherwise dependency-free helper without dragging in the AI SDKs.
 import { PROVIDERS_REGISTRY } from "@/config/ai-providers";
+import { claudeThinkingOffParams } from "@/lib/ai/claude5-compat";
 
 // AiResponse isn't exported from provider.ts (it's internal there).
 // Inline a structurally-compatible type so callers can unify on shape.
@@ -206,8 +207,10 @@ async function callAnthropic(
     model: ANTHROPIC_VISION_MODEL,
     max_tokens: options.maxOutputTokens ?? 1024,
     // Sonnet 5 thinks adaptively by default and thinking shares max_tokens;
-    // Haiku 4.5 (the previous model here) never did. Keep the old behavior.
-    thinking: { type: "disabled" },
+    // Haiku 4.5 (the previous model here) never did. Keep the old behavior,
+    // in whichever form this model accepts: Opus 5.5, Sonnet 5.5 and Fable
+    // 400 on `disabled` (lib/ai/claude5-compat.ts).
+    ...claudeThinkingOffParams(ANTHROPIC_VISION_MODEL),
     system: sysText || undefined,
     messages: restParts.map((m) => ({
       role: m.role,

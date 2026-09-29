@@ -56,6 +56,45 @@ describe("draftSmsReply · Claude fallback request", () => {
     expect(res).toMatchObject({ ok: true, modelName: "claude-haiku-4-5" });
   });
 
+  // 2026-09-29 · `thinking: disabled` is a 400 on Opus 5.5, Sonnet 5.5 and
+  // Fable/Mythos (claude-api skill thinking table). The wire body must carry
+  // the form each model accepts, or an ANTHROPIC_MODEL flip kills the lane.
+  it.each([
+    ["claude-sonnet-5", { thinking: { type: "disabled" } }],
+    ["claude-opus-5", { thinking: { type: "disabled" } }],
+    ["claude-opus-4-8", { thinking: { type: "disabled" } }],
+    ["claude-haiku-4-5-20251001", { thinking: { type: "disabled" } }],
+    ["claude-sonnet-5-5", { thinking: { type: "between_tools" } }],
+    ["claude-opus-5-5", { output_config: { effort: "low" } }],
+    ["claude-fable-5-1", { output_config: { effort: "low" } }],
+    ["claude-fable-5", { output_config: { effort: "low" } }],
+    ["claude-mythos-5-1", { output_config: { effort: "low" } }],
+  ])("ANTHROPIC_MODEL=%s sends the thinking-off form it accepts", async (model, expected) => {
+    vi.stubEnv("ANTHROPIC_MODEL", model);
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ content: [{ type: "text", text: "ok" }] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await draftSmsReply({ inboundMessage: "hi" });
+    const body = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    expect(body.model).toBe(model);
+    expect(body).not.toHaveProperty("temperature");
+    const sent = { thinking: body.thinking, output_config: body.output_config };
+    expect(sent).toEqual({ thinking: undefined, output_config: undefined, ...expected });
+  });
+
+  it("positive control: an id no table names never gets `disabled` (it could 400)", async () => {
+    vi.stubEnv("ANTHROPIC_MODEL", "claude-opus-6");
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ content: [{ type: "text", text: "ok" }] }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await draftSmsReply({ inboundMessage: "hi" });
+    const body = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+    expect(body).not.toHaveProperty("thinking");
+    expect(body.output_config).toEqual({ effort: "low" });
+  });
+
   it("a non-OK Anthropic response yields no draft (the retired-model failure shape)", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response('{"type":"error"}', { status: 404 })));
     const res = await draftSmsReply({ inboundMessage: "hi" });
