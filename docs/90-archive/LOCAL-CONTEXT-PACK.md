@@ -206,35 +206,7 @@ C:\Users\nourd\NOURCITY\apps\statenour\start.bat   ← statenour launcher (cmd.e
 
 ---
 
-## 10. Saved Credentials & Remote Access (Euclid PC)
+## 10. Saved Credentials (removed 2026-09-29)
 
-### Active Credentials
-*   **Auto Labor Guide / ShopDriver Elite**:
-    *   Username: `moeseuclid`
-    *   Password: `Euclid17625!`
-*   **DK Tire B2B**:
-    *   Account: `70001887`
-    *   Password: `Moes17625$`
-*   **Ring / Eufy Cameras**:
-    *   Account: `nourdean22@gmail.com`
-    *   Password: `Jamie23358!`
-*   **Shop SMS Gateway**:
-    *   Username: `BY9G1A`
-    *   Password: `5lhjcnqp-caenp`
-*   **Shop V380 Cameras (RTSP/ONVIF)**:
-    *   Credentials: `admin/admin`
-
-### Chrome Remote Desktop (CRD) PIN
-*   **Plaintext PIN**: No plaintext record exists.
-*   **Connection / Reset**: If you cannot connect via the saved session on `NATTYNOUR`, you must physically access the Euclid computer at the shop, open the Chrome Remote Desktop Host interface, and click **"Change PIN"** to reset the 6-digit numeric PIN.
-*   **Windows Local Login Passwords to try**:
-    *   `Euclid17625!`
-    *   `Moes17625$`
-    *   `Moes17625!`
-    *   `moeseuclid`
-    *   `moeseuclid17625!`
-
----
-
-*Update after major env changes (new GPU, RAM, new Ollama version, MCP additions). Last: 2026-06-24.*
-
+This repository is public. Credentials never belong in it: keep them in a password manager.
+Everything this section used to list must be treated as exposed and rotated (see issue #2628).
