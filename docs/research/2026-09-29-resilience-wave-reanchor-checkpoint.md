@@ -65,3 +65,21 @@ Truth boundary:
 ## Status vocabulary
 
 BUILT != MERGED != LIVE != VERIFIED. Operator-gated migrations and live env changes remain pending unless explicit read-back proves otherwise.
+
+
+## 2026-09-29 concurrency update
+
+A sibling session landed Q-31 work on this branch before this checkpoint was written. Do not overwrite it. The commits include:
+- staged transaction-time migration `20260929150500_brain_memory_transaction_time`;
+- deploy-safe bitemporal query kernel + tests;
+- admission/trust-tier materialization;
+- admission wiring for journal, session distillation, belief harvesting, higher-order distillation;
+- quarantine intake for Calendar, Drive, and Google reviews;
+- external-memory intake and Drive accounting.
+
+These changes are BUILT ON BRANCH, not yet reviewed/merged/live. Review them against the Q-31 acceptance criteria before promotion.
+
+Current main advanced four commits after #2784. A merge-base comparison from `bee3abc5...` found exactly one overlapping source file between those main changes and this branch:
+- `apps/statenour/lib/brain/pipeline-controller.ts`
+
+All other current-main changes are disjoint. Do not force-rebase this active branch while sibling sessions may still own it. Reconcile the single overlap semantically on a final fresh branch immediately before opening the consolidated PR.
