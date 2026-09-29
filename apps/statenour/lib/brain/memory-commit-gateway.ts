@@ -251,6 +251,54 @@ export function nearDuplicateScore(a: string, b: string): number {
 
 const DUP_SUSPECT_THRESHOLD = 0.8;
 const DUP_SCAN_LIMIT = 50;
+const CONTRADICTION_SUSPECT_THRESHOLD = 0.55;
+
+const NEGATION_MARKERS = [
+  " not ", " never ", " no longer ", " don't ", " doesnt ", " doesn't ",
+  " won't ", " quit ", " stop ", " avoid ", " changed my mind ", " scratch that ",
+];
+
+const CONTRADICTION_ANTONYMS: ReadonlyArray<readonly [string, string]> = [
+  ["buy", "sell"],
+  ["hire", "fire"],
+  ["start", "stop"],
+  ["open", "close"],
+  ["add", "remove"],
+  ["keep", "drop"],
+  ["stay", "leave"],
+  ["commit", "abandon"],
+  ["expand", "contract"],
+  ["prefer", "avoid"],
+];
+
+function paddedNorm(s: string): string {
+  return ` ${norm(s).replace(/[^a-z0-9' ]+/g, " ")} `;
+}
+
+/**
+ * Conservative deterministic contradiction signal for the shadow lane.
+ * It deliberately does NOT adjudicate truth. It only identifies same-topic
+ * claims whose polarity/reversal shape deserves human review.
+ */
+export function contradictionSignal(
+  candidate: string,
+  prior: string,
+): "negation" | "antonym" | null {
+  const a = paddedNorm(candidate);
+  const b = paddedNorm(prior);
+  const aNeg = NEGATION_MARKERS.some((m) => a.includes(m));
+  const bNeg = NEGATION_MARKERS.some((m) => b.includes(m));
+  if (aNeg !== bNeg) return "negation";
+
+  for (const [x, y] of CONTRADICTION_ANTONYMS) {
+    const ax = a.includes(` ${x} `);
+    const ay = a.includes(` ${y} `);
+    const bx = b.includes(` ${x} `);
+    const by = b.includes(` ${y} `);
+    if ((ax && by) || (ay && bx)) return "antonym";
+  }
+  return null;
+}
 
 /**
  * For an `add` verdict, scan the category's recent rows (different key)
@@ -258,23 +306,47 @@ const DUP_SCAN_LIMIT = 50;
  * past the exact @@unique([category,key]) guard today — this measures
  * how often, in shadow, before any enforcement.
  */
-async function findDuplicateSuspect(
+async function findShadowSuspects(
   candidate: MemoryCandidate,
-): Promise<{ key: string; score: number } | null> {
+): Promise<{
+  duplicate: { key: string; score: number } | null;
+  contradiction: { key: string; score: number; signal: "negation" | "antonym" } | null;
+}> {
+  // Q-31: category + recency are both indexed on BrainMemory. This bounded
+  // query is the admission-time "index-constrained contradiction" lane:
+  // no cross-corpus vector sweep and no model call in the write path.
   const rows = await prisma.brainMemory.findMany({
-    where: { category: candidate.category, key: { not: candidate.key }, deletedAt: null },
-    orderBy: { createdAt: "desc" },
+    where: {
+      category: candidate.category,
+      key: { not: candidate.key },
+      deletedAt: null,
+      supersededById: null,
+    },
+    orderBy: { updatedAt: "desc" },
     take: DUP_SCAN_LIMIT,
     select: { key: true, content: true },
   });
-  let best: { key: string; score: number } | null = null;
+  let duplicate: { key: string; score: number } | null = null;
+  let contradiction: { key: string; score: number; signal: "negation" | "antonym" } | null = null;
   for (const r of rows) {
     const score = nearDuplicateScore(candidate.content.slice(0, 500), r.content.slice(0, 500));
-    if (score >= DUP_SUSPECT_THRESHOLD && (!best || score > best.score)) {
-      best = { key: r.key, score: Math.round(score * 100) / 100 };
+    if (score >= DUP_SUSPECT_THRESHOLD && (!duplicate || score > duplicate.score)) {
+      duplicate = { key: r.key, score: Math.round(score * 100) / 100 };
+    }
+    const signal = contradictionSignal(candidate.content.slice(0, 500), r.content.slice(0, 500));
+    if (
+      signal &&
+      score >= CONTRADICTION_SUSPECT_THRESHOLD &&
+      (!contradiction || score > contradiction.score)
+    ) {
+      contradiction = {
+        key: r.key,
+        score: Math.round(score * 100) / 100,
+        signal,
+      };
     }
   }
-  return best;
+  return { duplicate, contradiction };
 }
 
 const SHADOW_CATEGORY = "memory_gateway_shadow";
@@ -295,10 +367,12 @@ export async function shadowMemoryCommit(
     const verdict = evaluateMemoryCandidate(candidate, existing);
     // Wave-4: on would-be adds, measure the semantic-dupe rate the exact
     // unique guard can't see. Shadow-only — no write is ever blocked.
-    const dupSuspect =
+    const suspects =
       verdict.decision === "add"
-        ? await findDuplicateSuspect(candidate).catch(() => null)
-        : null;
+        ? await findShadowSuspects(candidate).catch(() => ({ duplicate: null, contradiction: null }))
+        : { duplicate: null, contradiction: null };
+    const dupSuspect = suspects.duplicate;
+    const contradictionSuspect = suspects.contradiction;
     const agrees =
       (legacyAction === "create" && verdict.decision === "add") ||
       (legacyAction === "reinforce" && verdict.decision === "reinforce");
@@ -320,6 +394,13 @@ export async function shadowMemoryCommit(
           memoryKey: candidate.key,
           source: candidate.source,
           ...(dupSuspect ? { dupSuspectKey: dupSuspect.key, dupScore: dupSuspect.score } : {}),
+          ...(contradictionSuspect
+            ? {
+                contradictionSuspectKey: contradictionSuspect.key,
+                contradictionScore: contradictionSuspect.score,
+                contradictionSignal: contradictionSuspect.signal,
+              }
+            : {}),
         }).slice(0, 1500),
         confidence: 0.1,
         source: "memory-commit-gateway",
@@ -329,6 +410,13 @@ export async function shadowMemoryCommit(
           agrees,
           decision: verdict.decision,
           dupSuspect: dupSuspect !== null,
+          contradictionSuspect: contradictionSuspect !== null,
+          ...(contradictionSuspect
+            ? {
+                contradictionSignal: contradictionSuspect.signal,
+                contradictionScore: contradictionSuspect.score,
+              }
+            : {}),
         } as never,
       },
     });
