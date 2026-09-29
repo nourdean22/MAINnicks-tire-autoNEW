@@ -357,6 +357,22 @@ const MIGRATIONS: Record<string, string[]> = {
     `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "outcome_rating" "OutcomeRating";`,
     `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "outcome_lesson" TEXT;`
   ],
+
+  // ADR-0019 phase 0b · the receiver's dedupe table for keyed nickstire writes.
+  // One new table + one index, nothing else touched. Full reasoning and the
+  // promote/resolve steps: prisma/migrations-pending/20260929090000_bridge_receipts/migration.sql
+  "20260929090000_bridge_receipts": [
+    `CREATE TABLE IF NOT EXISTS "bridge_receipts" (
+      "idempotency_key" VARCHAR(190) NOT NULL,
+      "route" VARCHAR(64) NOT NULL,
+      "result_ref" VARCHAR(120),
+      "first_seen_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "last_seen_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "seen_count" INTEGER NOT NULL DEFAULT 1,
+      CONSTRAINT "bridge_receipts_pkey" PRIMARY KEY ("idempotency_key")
+    );`,
+    `CREATE INDEX IF NOT EXISTS "bridge_receipts_first_seen_at_idx" ON "bridge_receipts"("first_seen_at");`
+  ],
 };
 
 export async function POST(req: Request) {
