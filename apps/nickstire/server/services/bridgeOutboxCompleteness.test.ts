@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   getDb: vi.fn<() => Promise<any>>(),
   rows: new Map<unknown, unknown[] | Error>(),
   selects: new Map<unknown, Record<string, unknown>>(),
+  wheres: new Map<unknown, unknown>(),
   execute: vi.fn(),
 }));
 
@@ -32,8 +33,9 @@ function fakeDb() {
     execute: h.execute,
     select: (fields: Record<string, unknown>) => ({
       from: (table: unknown) => ({
-        where: async () => {
+        where: async (cond: unknown) => {
           h.selects.set(table, fields);
+          h.wheres.set(table, cond);
           const r = h.rows.get(table);
           if (r instanceof Error) throw r;
           return r ?? [];
@@ -68,7 +70,7 @@ describe("completeness comparison", () => {
     h.getDb.mockResolvedValue(fakeDb());
   });
 
-  it("counts matched, missing (by source) and extra per UTC day", async () => {
+  it("counts matched, missing (by source) and extra per shop day", async () => {
     const lead = (id: number) => ({ key: `v1:lead.created:lead:${id}`, eventType: "lead.created" });
     const r = await family(
       leads,
@@ -181,10 +183,23 @@ describe("bridgeOutboxCompleteness", () => {
 
   it("buckets by the shop's day and bounds the window in SQL, never on driver-parsed JS dates", async () => {
     await bridgeOutboxCompleteness({ windowDays: 7 });
-    const text = (q: unknown) =>
-      (q as { queryChunks: unknown[] }).queryChunks
-        .map((c) => (c && typeof c === "object" && Array.isArray((c as { value?: unknown }).value) ? (c as { value: string[] }).value.join("") : typeof c === "number" ? String(c) : "?"))
-        .join("");
+    // Render a drizzle SQL object (nested SQL included): literal text kept, a
+    // column shown as "?", a bound number shown as its value.
+    const text = (q: unknown): string => {
+      if (q == null) return "";
+      if (typeof q === "number") return String(q);
+      if (typeof q !== "object") return "?";
+      const o = q as { queryChunks?: unknown[]; value?: unknown; getSQL?: () => unknown };
+      if (Array.isArray(o.queryChunks)) return o.queryChunks.map(text).join("");
+      if (Array.isArray(o.value)) return (o.value as string[]).join("");
+      return "?";
+    };
+    // The outbox read is bounded to the window; the business reads take one
+    // extra day of context (so an edge row is known, not an "extra").
+    expect(text(h.wheres.get(bridgeOutbox))).toMatch(/\? >= NOW\(\) - INTERVAL 7 DAY/);
+    for (const table of [leads, bookings, callbackRequests, emergencyRequests]) {
+      expect(text(h.wheres.get(table))).toMatch(/\? >= NOW\(\) - INTERVAL 8 DAY/);
+    }
     for (const table of [leads, bookings, callbackRequests, emergencyRequests]) {
       const fields = h.selects.get(table)!;
       expect(text(fields.day)).toMatch(/DATE_FORMAT\(CONVERT_TZ\(\?, '\+00:00', 'America\/New_York'\), '%Y-%m-%d'\)/);

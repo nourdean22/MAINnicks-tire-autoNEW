@@ -37,7 +37,8 @@ export const nourOsBridgeRouter = router({
 
   /**
    * Q-12 phase 1c · ADR-0019 §9 completeness: business rows (leads, bookings,
-   * callbacks, emergencies) against their bridge_outbox rows, per UTC day.
+   * callbacks, emergencies) against their bridge_outbox rows, per shop day
+   * (America/New_York).
    * Read-only, counts only. The same summary is logged by the cleanup job.
    */
   outboxCompleteness: adminProcedure
