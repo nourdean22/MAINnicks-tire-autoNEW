@@ -13,6 +13,13 @@ import {
   recordDecisionPlaneOutcome,
   RecordDecisionPlaneOutcomeSchema,
 } from "@/lib/ai/decision-plane/replay";
+import {
+  buildCapabilityLifecycleReport,
+  proposeCapability,
+  transitionCapabilityProposal,
+  CapabilityProposalSchema,
+  CapabilityTransitionSchema,
+} from "@/lib/tools/capability-lifecycle";
 
 const ToolActionRequestSchema = z.object({
   toolId: z.string(),
@@ -57,6 +64,18 @@ export const toolsProcedures = {
   recordDecisionPlaneOutcome: operatorProcedure
     .input(RecordDecisionPlaneOutcomeSchema)
     .mutation(async ({ input }) => recordDecisionPlaneOutcome(input)),
+
+  capabilityLifecycleReport: operatorProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(90).default(30) }).optional())
+    .query(async ({ input }) => buildCapabilityLifecycleReport(input?.windowDays ?? 30)),
+
+  proposeCapability: operatorProcedure
+    .input(CapabilityProposalSchema)
+    .mutation(async ({ input }) => proposeCapability(input)),
+
+  transitionCapabilityProposal: operatorProcedure
+    .input(CapabilityTransitionSchema)
+    .mutation(async ({ input }) => transitionCapabilityProposal(input)),
 
   evaluateTool: operatorProcedure
     .input(ToolActionRequestSchema)

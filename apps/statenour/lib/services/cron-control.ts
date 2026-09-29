@@ -19,6 +19,14 @@
 
 import { prisma } from "@/lib/prisma";
 import { CRONS } from "@/config/crons";
+import {
+  HARD_FAILURE_STATUSES,
+  isHardFailure,
+} from "@/lib/services/cron-status";
+export {
+  HARD_FAILURE_STATUSES,
+  isHardFailure,
+} from "@/lib/services/cron-status";
 import { ServiceError } from "@/lib/utils/service-error";
 
 const CATEGORY = "cron_control";
@@ -341,12 +349,6 @@ export type CronJobStats = {
  * lib/inngest/cron-lifecycle.ts: a new token is neither ok nor failed until a
  * human says which. `interrupted` (an age-settled dead run) IS a failure.
  */
-export const HARD_FAILURE_STATUSES: readonly string[] = ["failed", "interrupted"];
-
-export function isHardFailure(status: string): boolean {
-  return HARD_FAILURE_STATUSES.includes(status);
-}
-
 export type CronWindowTally = { success: number; partial: number; failed: number; totalMs: number };
 
 /**
