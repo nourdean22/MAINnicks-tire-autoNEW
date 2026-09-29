@@ -38,13 +38,26 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("mysql2/promise", () => ({ default: { createPool: () => ({ end: async () => {} }) } }));
+/** The literal SQL text of a drizzle `sql` template (params dropped). */
+function sqlText(q: unknown): string {
+  const chunks = (q as { queryChunks?: unknown[] }).queryChunks ?? [];
+  return chunks
+    .map((c) => (c && typeof c === "object" && Array.isArray((c as { value?: unknown }).value) ? (c as { value: string[] }).value.join("") : ""))
+    .join("");
+}
+
 vi.mock("drizzle-orm/mysql2", () => ({
   drizzle: () => ({
     // First execute() is the UPDATE; every later one is a SELECT of the item.
-    execute: async () => {
+    // A SELECT returns only the columns its SQL names, so dropping a column
+    // from the receipt query drops that field from the receipt.
+    execute: async (q: unknown) => {
       h.executed += 1;
       if (h.executed === 1) return [{ affectedRows: h.affected }, []];
-      return [h.row ? [h.row] : [], []];
+      if (!h.row) return [[], []];
+      const text = sqlText(q);
+      const row = Object.fromEntries(Object.entries(h.row).filter(([k]) => new RegExp(`\\b${k}\\b`).test(text)));
+      return [[row], []];
     },
   }),
 }));
@@ -70,7 +83,8 @@ const ITEM = {
   component: "Front brake pads",
   recommendedAction: "Replace front pads and resurface rotors",
   estimatedCost: 450,
-  decisionAt: "2026-09-29 13:30:00",
+  /** UNIX_TIMESTAMP(i.decisionAt) as mysql2 returns it. */
+  decidedAtEpoch: 1790688600,
 };
 
 const savedUrl = process.env.DATABASE_URL;
@@ -115,7 +129,7 @@ describe("decideInspectionItem receipt", () => {
       amountDollars: 450,
       amountShownDollars: 450,
       amountMatchesShown: true,
-      decidedAt: "2026-09-29 13:30:00",
+      decidedAtEpochMs: 1790688600000,
     });
   });
 
@@ -132,6 +146,13 @@ describe("decideInspectionItem receipt", () => {
     await decideInspectionItem({ token: TOKEN, itemId: 11, decision: "approved", shownCost: 380 });
 
     expect(h.recorded[0].after).toMatchObject({ amountDollars: 450, amountShownDollars: 380, amountMatchesShown: false });
+  });
+
+  it("treats a 0 price as no price shown, because the page shows none", async () => {
+    h.row = { ...ITEM, estimatedCost: 0 };
+    await decideInspectionItem({ token: TOKEN, itemId: 11, decision: "approved", shownCost: 0 });
+
+    expect(h.recorded[0].after).toMatchObject({ amountDollars: 0, amountShownDollars: null, amountMatchesShown: null });
   });
 
   it("says the match is unknown when the page did not send a price", async () => {
@@ -153,7 +174,15 @@ describe("decideInspectionItem receipt", () => {
     await settle();
 
     expect(h.telegram).toHaveLength(1);
-    expect(h.telegram[0]).toContain("($450)");
+    expect(h.telegram[0]).toContain("(~$450)");
     expect(h.telegram[0]).not.toContain("~$5)");
+    expect(h.telegram[0]).not.toContain("page showed");
+  });
+
+  it("warns the owner when the customer approved a different price than the row now holds", async () => {
+    await decideInspectionItem({ token: TOKEN, itemId: 11, decision: "approved", shownCost: 380 });
+    await settle();
+
+    expect(h.telegram[0]).toContain("Their page showed ~$380; the estimate now reads ~$450");
   });
 });

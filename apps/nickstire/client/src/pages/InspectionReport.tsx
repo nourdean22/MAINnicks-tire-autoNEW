@@ -67,7 +67,7 @@ export default function InspectionReport() {
   // shownCost: the price this page displayed, so the receipt can say what the
   // customer said yes to even if the shop edits the estimate later (Q-46).
   const decide = (item: { id: number; estimatedCost?: number | null }, decision: "approved" | "declined" | "question", note?: string) => {
-    const shownCost = typeof item.estimatedCost === "number" && item.estimatedCost >= 0 && item.estimatedCost <= 1_000_000 ? Math.round(item.estimatedCost) : undefined;
+    const shownCost = typeof item.estimatedCost === "number" && item.estimatedCost > 0 && item.estimatedCost <= 1_000_000 ? Math.round(item.estimatedCost) : undefined;
     decideItem.mutate({ token, itemId: item.id, decision, note: note || undefined, shownCost });
     setNoteFor(null);
     setNoteText("");

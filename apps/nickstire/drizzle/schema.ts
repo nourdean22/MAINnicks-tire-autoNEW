@@ -521,7 +521,8 @@ export const inspectionItems = mysqlTable("inspection_items", {
   photoUrl: varchar("photoUrl", { length: 1000 }),
   /** Recommended action */
   recommendedAction: text("recommendedAction"),
-  /** Estimated repair cost */
+  /** Estimated repair cost, in WHOLE DOLLARS (not cents): the admin types
+   *  "Est. $" and the customer page renders it unscaled. */
   estimatedCost: int("estimatedCost"),
   /** DVI customer decision (migration 0101): "approved" | "declined" |
    *  "question". NULL = no decision yet. The customer's words in
