@@ -10,8 +10,15 @@ describe("Q-32 judge model-family separation", () => {
     expect(modelFamily("google", "gemini-3-flash")).toBe("google");
   });
 
-  it("falls back to provider only when the model family is not recognizable", () => {
-    expect(modelFamily("custom-host", "mystery-model")).toBe("custom-host");
+  it("uses only a provider that itself names a real model family as fallback", () => {
+    expect(modelFamily("anthropic", "mystery-model")).toBe("anthropic");
+    expect(modelFamily("openai", "mystery-model")).toBe("openai");
+  });
+
+  it("does not mistake a hosting layer for a model family", () => {
+    expect(modelFamily("venice", "mystery-model")).toBe("unknown");
+    expect(modelFamily("ollama", "mystery-model")).toBe("unknown");
+    expect(modelFamily("custom-host", "mystery-model")).toBe("unknown");
   });
 
   it("returns unknown when neither lane is known", () => {
