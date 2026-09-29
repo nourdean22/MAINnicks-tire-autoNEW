@@ -28,6 +28,7 @@ import { brainMemory } from "@/lib/brain/memory-manager";
 import { prisma } from "@/lib/prisma";
 import { evidenceClassForSource, type MemoryEvidenceClass } from "@/lib/brain/memory-commit-gateway";
 import { classifyTrustTier, type TrustTier } from "@/lib/brain/memory-trust";
+import { ensureMemoryTransactionStart } from "@/lib/brain/memory-transaction-time";
 
 export type MemoryKind = "episodic" | "semantic" | "procedural" | "derived";
 export type ExtractionMethod = "explicit_save" | "operator_pin" | "llm_extract" | "cron" | "import" | "receipt" | "unknown";
@@ -149,6 +150,12 @@ export async function admitMemory(input: AdmitMemoryInput): Promise<AdmitMemoryR
     where: { id: row.id },
     data: patch as never,
   });
+
+  // Q-31 transaction time is additive and operator-gated. Before the pending
+  // migration exists this is a safe no-op; after apply it backfills only this
+  // admitted row's transaction start from created_at without inventing an
+  // earlier belief timestamp.
+  await ensureMemoryTransactionStart(row.id);
 
   return { id: row.id, evidenceClass: envelope.evidenceClass, memoryKind: envelope.memoryKind };
 }
