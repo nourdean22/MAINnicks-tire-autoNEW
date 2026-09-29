@@ -68,7 +68,8 @@ let optOutCacheLoadedAt = 0;
  * opt-out — no second list — told apart by this marker because its SCOPE is
  * narrower: it suppresses every AI-voice call and every marketing, recovery and
  * follow-up text, but not a `customer_confirmation` text the customer asked for
- * (a verification code, a status update on their own car). A text STOP, a
+ * (a verification code, a status update on their own car), nor a staff
+ * member's reply to the customer's own text. A text STOP, a
  * customers.smsOptOut flag or an inbound STOP body for the same phone still
  * wins and suppresses everything.
  */
@@ -1459,6 +1460,17 @@ export interface SmsResult {
    * the row as `sending`. Three parts of one system, two different truths.
    */
   uncertain?: boolean;
+  /**
+   * The caller passed sendNowOrDrop and the text could not go out now, so it was
+   * dropped instead of queued. Nothing was sent and nothing will be.
+   */
+  notQueued?: boolean;
+}
+
+/** sendNowOrDrop's refusal: a time-sensitive text is dropped, never parked. */
+function refuseToQueue(to: string, why: string): SmsResult {
+  log.info(`[sendSms] NOT QUEUED — time-sensitive text, ${why}`, { to: to.slice(-4) });
+  return { success: false, notQueued: true, error: `Time-sensitive text not queued (${why})` };
 }
 
 interface SendSmsOptions {
@@ -1472,6 +1484,20 @@ interface SendSmsOptions {
    * Automated callers must never set it.
    */
   humanInitiated?: boolean;
+  /**
+   * audit 2026-09-29 · the caller is replying in a thread where the customer has
+   * texted the shop. With humanInitiated and messageClass "customer_followup"
+   * it lets the reply through a VOICE-only opt-out (VOICE_OPT_OUT_KEYWORD);
+   * any full SMS opt-out still refuses it. Only smsConversations.send sets it.
+   */
+  replyToCustomerInbound?: boolean;
+  /**
+   * audit 2026-09-29 · the text is only true when it is sent (the after-hours
+   * "we're closed right now" reply). Where sendSms would park it in the delayed
+   * queue (quiet hours, global pause, shop gateway offline) it drops it and
+   * returns notQueued instead, because the queue can deliver it after opening.
+   */
+  sendNowOrDrop?: boolean;
   /**
    * wave-2026-06 — the caller writes the smsMessages row itself (via
    * logOutboundSms, with its variantKey). Skip persistOutboundShopSms so
@@ -2134,7 +2160,16 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       // Q-45 · a SPOKEN "stop calling" does not cover a text the customer asked
       // for (verification code, their own car's status). Only that class, and
       // only when nothing but the voice opt-out suppresses the number.
-      !(messageClass === "customer_confirmation" && index.voiceOnly?.has(last10))
+      !(messageClass === "customer_confirmation" && index.voiceOnly?.has(last10)) &&
+      // Nor does it cover a staff member answering the customer's own text in
+      // the SMS inbox (audit 2026-09-29). All three marks are required, so an
+      // automated follow-up or a marketing send stays refused.
+      !(
+        messageClass === "customer_followup" &&
+        opts?.humanInitiated &&
+        opts?.replyToCustomerInbound &&
+        index.voiceOnly?.has(last10)
+      )
     ) {
       smsStats.totalOptedOut++;
       log.info("[sendSms] not sent — recipient opted out (TCPA)", { to: last10.slice(-4), messageClass });
@@ -2211,6 +2246,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
   const bypassQuietHours = isInternal || messageClass === "customer_confirmation" || opts?._forceImmediate;
   
   if (!bypassQuietHours && !isWithinSendingHours()) {
+    if (opts?.sendNowOrDrop) return refuseToQueue(normalizedEarly, "outside sending hours (8AM-8PM ET)");
     log.info("[sendSms] QUEUED — outside sending hours (8AM-8PM ET)", {
       to: normalizedEarly.slice(-4),
       messageClass,
@@ -2249,6 +2285,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       (!pause.readable && messageClass === "customer_marketing");
     if (holdForPause) {
       smsStats.blockedByPause++;
+      if (opts?.sendNowOrDrop) return refuseToQueue(normalizedEarly, "global SMS pause");
       log.warn("[sendSms] QUEUED — global SMS pause", {
         to: normalizedEarly.slice(-4),
         messageClass,
@@ -2311,6 +2348,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     isShopGatewayConfigured() &&
     !(await isShopGatewayReachable())
   ) {
+    if (opts?.sendNowOrDrop) return refuseToQueue(normalizedEarly, "shop gateway (F25e) unreachable");
     log.warn("[sendSms] QUEUED — shop gateway (F25e) unreachable", {
       to: normalizedEarly.slice(-4),
       messageClass,

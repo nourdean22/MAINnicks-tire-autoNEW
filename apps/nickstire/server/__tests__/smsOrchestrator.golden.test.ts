@@ -669,6 +669,30 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     expect(res.status).toBe("queued");
   });
 
+  // audit 2026-09-29 · "we're closed right now" must never be parked for a
+  // sending window that can open after the shop does.
+  it("After-hours capture -> sent with sendNowOrDrop; a dropped text is skipped, not failed", async () => {
+    mockSendSms.mockResolvedValueOnce({ success: false, notQueued: true, error: "Time-sensitive text not queued (outside sending hours (8AM-8PM ET))" });
+
+    const res = await orchestrateSms({
+      type: "after_hours_capture",
+      phone: "2165550021",
+      name: "John",
+      captureType: "lead",
+    });
+
+    expect(mockSendSms).toHaveBeenCalledTimes(1);
+    expect(mockSendSms.mock.calls[0]![2]).toMatchObject({ sendNowOrDrop: true });
+    expect(res.status).toBe("skipped");
+    expect(res.statusReason).toBe("time_sensitive_not_queued");
+  });
+
+  it("CONTROL: other automated sends do not ask for sendNowOrDrop", async () => {
+    await orchestrateSms({ type: "manual_admin_reply", phone: "2165550022", message: "Here is your update." });
+    expect(mockSendSms).toHaveBeenCalledTimes(1);
+    expect(mockSendSms.mock.calls[0]![2]).toMatchObject({ sendNowOrDrop: false });
+  });
+
   // 18. Gateway timeout -> records failed/error send result
   it("Gateway timeout -> records failed transmission status", async () => {
     mockSendSms.mockResolvedValueOnce({ success: false, error: "Gateway Timeout" });
