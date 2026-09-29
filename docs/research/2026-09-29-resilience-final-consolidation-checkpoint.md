@@ -105,3 +105,19 @@ Next action: open one consolidated PR, run the expensive CI once, repair legitim
 - Q-31 now has one shared transaction-column availability probe/cache in `memory-bitemporal.ts`; `memory-transaction-time.ts` reuses it.
 - Q-31 prepared canonical replacements now have full compensation: transaction window, effective validity/verification state, and provisional snapshot are rolled back on failure. With supersession/history mode enabled, a failed history preparation/replacement returns the existing canonical row rather than silently falling through to a legacy overwrite.
 - `memory-bitemporal-runtime.test.ts` pins that fail-closed compensation contract.
+
+## POST-MERGE AUTHORITY — #2794 completed 2026-09-29
+This section supersedes the earlier pre-PR status lines above; those remain as an execution-history record.
+
+- Final PR: **#2794**
+- Final exact head: `79dbea91630f860f0a84bbd68b075df4a7697eea`
+- Exact-head required checks: **GREEN** — Turbo affected verify, StateNour E2E, Completion Authority, Adoption Gates, Agent Policy, Secret Scanning, Admin Diagnostic. Evaluator separation was correctly skipped by its path/ownership condition.
+- Guarded squash merge: **`48ac53827eb7f4f5754ee2a41fe74789c5c36c89`**, verified as current `main` immediately after merge.
+- Q-28 / Q-31 / Q-32 / Q-34 / Q-36 are therefore **MERGED + UNIT-VERIFIED**, not merely BUILT.
+- The merge does **not** prove production promotion:
+  - Q-31 transaction-time migration `20260929150500_brain_memory_transaction_time` remains operator-gated/unapplied by this workstream.
+  - Q-34 `PROCESS_ROLE` production split was not performed.
+  - Q-36 live mega morning/evening receipts remain unverified.
+  - Q-28 still needs a post-deploy observer receipt for Telegram grouping/recovery behavior.
+  - Q-32 >=50 live labels, >=30 double labels, kappa >=0.6, and cloud dataset read-back remain unmeasured.
+- Turbo's final red before green was truthfully repaired at the test-contract level: legacy memory-manager tests now model the pre-migration schema probe, and the near-duplicate test pins the canonical `contradiction_surfacer` owner plus `detector=near_duplicate`; production behavior was not weakened.
