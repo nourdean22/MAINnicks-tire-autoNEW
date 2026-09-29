@@ -127,7 +127,8 @@ export const FLAG_DEFINITIONS = [
   // ─── COMPETITIVE INTEL ────────────────────────────
   // competitor_threshold_alerts was retired 2026-09-23 (Q-48): the alerts
   // diffed stored Google ratings/review counts, which the Places terms do not
-  // allow storing. drizzle/0131_places_content_purge.sql deletes its row.
+  // allow storing. docs/operations/operator-sql/0131_places_content_purge.sql
+  // (operator-run, not a migration) deletes its row.
 
   // ─── CREATIVE SKILL PACKS ─────────────────────────
   { key: "skill_ad_creative_enabled", description: "Augments staging of Meta Ads with localized hook strategies" },

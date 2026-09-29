@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "ref": "2026-09-29 F7: drizzle/0131_places_content_purge.sql is now a no-op stub (SELECT 1): no schema change and nothing to apply, idempotent under scripts/db-migrate.ts and drizzle-kit migrate. The four DELETEs moved verbatim to docs/operations/operator-sql/0131_places_content_purge.sql, which no runner reads, and stay operator-pending on #2628. server/__tests__/migration-row-removal.test.ts: red on the unfixed tree (2 failed | 3 passed), green after (with migration-journal.test.ts: 2 files, 11 passed); mutants caught: a planted 9999 DELETE migration, and the original 0131 restored into drizzle/."
+    },
+    "capability-ledger-updated": {
+      "ref": "2026-09-29 F7: no capability behaviour changed, so no ledger state or evidence moves. The only server/services change in this diff is one comment in server/services/featureFlags.ts (the competitor_threshold_alerts note) re-pointed from drizzle/0131_places_content_purge.sql to docs/operations/operator-sql/0131_places_content_purge.sql; no code line in server/ or client/ changed."
+    }
+  }
+}
