@@ -83,3 +83,33 @@ Current main advanced four commits after #2784. A merge-base comparison from `be
 - `apps/statenour/lib/brain/pipeline-controller.ts`
 
 All other current-main changes are disjoint. Do not force-rebase this active branch while sibling sessions may still own it. Reconcile the single overlap semantically on a final fresh branch immediately before opening the consolidated PR.
+
+
+## Q-31 review + repair checkpoint
+
+Reviewed the sibling Q-31 implementation instead of overwriting it.
+
+Additional repairs on `feat/nouros-resilience-final-20260929`:
+- reconciled `pipeline-controller.ts` with current main so #2781 bridge fields (`interest`, `leadId`, `reviewText`) are preserved alongside Q-31 admission;
+- added deploy-safe transaction-time runtime helpers that probe `information_schema` and no-op before operator-applied DDL;
+- new BrainMemory rows open transaction windows only when the pending columns exist;
+- update/supersede closes the outgoing transaction window before content replacement, freezes the previous window onto the snapshot, reopens the canonical row only after the write succeeds, and compensates on failure;
+- effective validity clipping uses the incoming admitted effective time only when it overlaps the old interval;
+- fixed an admission-authority bug: a weaker candidate parked/rejected by the gateway no longer mutates the winning row's trust tier, effective interval, confidence, source, or admission metadata;
+- accepted machine-derived rows now materialize `AGENT_INFERRED` and run an index-constrained same-category contradiction shadow;
+- shadow contradiction rows reuse category=`contradiction` but carry `shadow=true` and are excluded from the normal live ticker until promotion;
+- one accepted write scans at most the newest 25 same-category rows and flags at most 3 conservative signal+topic-overlap pairs;
+- consolidated-wisdom promotion now routes through `admitMemory()` while preserving confidence and seen-count semantics;
+- direct-writer frozen allowlist shrank from 107 to 105 after `session-distiller.ts` and `memory-consolidation.ts` stopped direct create/upsert writes.
+
+Tests added/updated:
+- `tests/brain/memory-bitemporal-runtime.test.ts`
+- `tests/brain/memory-admission.test.ts`
+- `tests/brain/memory-contradiction-shadow.test.ts`
+- existing pure retro-dated correction fixture remains in `memory-bitemporal.test.ts`.
+
+Still operator-gated / not claimed:
+- migration `20260929150500_brain_memory_transaction_time` is NOT applied;
+- transaction-time columns are therefore not claimed live;
+- shadow precision target (>=20 reviewed pairs, >=0.7 precision) requires production observation after deploy;
+- no contradiction-shadow promotion is made in this branch.
