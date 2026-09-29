@@ -432,3 +432,8 @@ only what changes how you WORK is repeated here.
 - Q-31 pending migration `20260929150500_brain_memory_transaction_time` is operator-gated and **not applied** by this workstream.
 - Q-32 production evidence remains intentionally incomplete: live label count, double-label kappa, and cloud dataset read-back are UNMEASURED. The optional cloud experiment stays config-gated.
 - Durable implementation checkpoint: `docs/research/2026-09-29-resilience-final-consolidation-checkpoint.md`.
+
+## 2026-09-29 — final resilience hardening before #2794 acceptance
+- Q-32 independent judging is now fail-closed for unknown model families. Hosting providers are not accepted as model-family substitutes. The optional Langfuse experiment script parser defect was repaired, and the pinned experiment action was verified to supply its JS SDK and `dataset_version` input.
+- Q-31 transaction-column availability has one shared probe/cache. Prepared canonical replacements now compensate transaction time, effective validity/verification state, and provisional snapshot on failure; history mode does not fall through to a legacy overwrite after a failed prepared replacement.
+- These statements describe branch implementation only until exact-head CI and merge. No production Q-31 migration application or Q-32 empirical threshold is claimed.
