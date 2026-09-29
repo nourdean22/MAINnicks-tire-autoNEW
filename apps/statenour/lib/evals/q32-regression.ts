@@ -126,7 +126,23 @@ export function modelFamily(model: string | null | undefined): string {
   if (/deepseek/.test(raw)) return "deepseek";
   if (/glm|zhipu/.test(raw)) return "zhipu";
   if (/minimax/.test(raw)) return "minimax";
-  return raw.split(/[\/:]/, 1)[0] || "unknown";
+  return "unknown";
+}
+
+/** Q-32 single owner for runtime lane classification: model wins over host. */
+export function modelFamilyFromLane(
+  provider?: string | null,
+  model?: string | null,
+): string {
+  const byModel = modelFamily(model);
+  if (byModel !== "unknown") return byModel;
+  const p = (provider ?? "").trim().toLowerCase();
+  if (!p) return "unknown";
+  if (p === "anthropic") return "anthropic";
+  if (p === "openai") return "openai";
+  if (p === "google") return "google";
+  if (p === "meta") return "meta";
+  return p;
 }
 
 export function assertDifferentJudgeFamily(
