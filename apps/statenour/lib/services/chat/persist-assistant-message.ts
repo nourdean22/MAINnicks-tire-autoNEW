@@ -614,6 +614,8 @@ export async function persistAssistantMessage(a: {
             messageId: createdAssistant.id,
             userQuery: userContent.slice(0, 1000),
             assistantReply: cleanedText,
+            generatedByProvider: provider,
+            generatedByModel: modelId,
           }),
         )
         .catch((err) => {
