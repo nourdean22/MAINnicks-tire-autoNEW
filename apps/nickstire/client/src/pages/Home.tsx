@@ -511,13 +511,14 @@ const FALLBACK_REVIEWS = [
 
 function Reviews({ reviewData }: { reviewData: HomeReviewData }) {
   const { totalReviews, googleReviews } = reviewData;
-  // These three cards sit directly under a "five-star reviews" headline, but the
-  // Places API hands back the most RECENT reviews at ANY rating — so a fresh
-  // 1-star landed in the showcase and contradicted the heading above it. Keep
-  // only 5-star here and top up from FALLBACK_REVIEWS so the grid always fills.
-  // Same spirit as the rating >= 4 gate serviceReviews.forService/forCity apply.
-  // /reviews stays deliberately unfiltered ("unfiltered Google data" is printed
-  // on that page) and admin surfaces still see every rating.
+  // A three-card showcase of 5-star reviews under a headline that states the
+  // TOTAL Google review count (all ratings). The headline must never pair that
+  // count with "five-star": the total spans every rating, so "N+ five-star
+  // reviews" overstates (reviewClaimTruth.test.ts guards this). The Places API
+  // hands back the most RECENT reviews at ANY rating, so keep only 5-star cards
+  // here and top up from FALLBACK_REVIEWS so the grid always fills.
+  // /reviews defaults to 4-5 star reviews but says so next to its count and
+  // offers "All ratings" one tap away; admin surfaces still see every rating.
   const displayReviews = [
     ...(googleReviews ?? [])
       .filter(r => r.rating >= 5)
@@ -531,9 +532,9 @@ function Reviews({ reviewData }: { reviewData: HomeReviewData }) {
         <FadeIn>
           <div className="text-center mb-16">
             <h2 className="font-heading text-4xl lg:text-5xl font-bold text-foreground tracking-tight uppercase">
-              {totalReviews.toLocaleString()}+ five&#8209;star reviews.<sup className="text-primary text-xl">*</sup>
+              {totalReviews.toLocaleString()}+ Google reviews.<sup className="text-primary text-xl">*</sup>
             </h2>
-            <p className="mt-4 text-foreground/60 text-lg">Verified by Google. Written by real Cleveland drivers — bus drivers, nurses, Browns fans, the lady whose Civic survived 287,000 miles. No bots, no buyouts, no fake reviews.</p>
+            <p className="mt-4 text-foreground/60 text-lg">Posted on Google. Written by real Cleveland drivers — bus drivers, nurses, Browns fans, the lady whose Civic survived 287,000 miles. No bots, no buyouts, no fake reviews.</p>
             <p className="mt-3 text-foreground/50 text-sm italic">* Yes, all real. Google catches fakes faster than we do.</p>
           </div>
         </FadeIn>

@@ -108,7 +108,7 @@ describe("HomeV2 — subtract + comply doctrine lock", () => {
 
   it("trust renders once inline (hero chip) + one full unit (Reviews) — no TrustNumbers strip", async () => {
     await renderHome();
-    expect(screen.getByText(/five.?star reviews\./i)).toBeTruthy(); // Reviews heading
+    expect(screen.getByText(/\d[\d,]*\+ Google reviews\./i)).toBeTruthy(); // Reviews heading (total count, all ratings)
     // TrustNumbers strip's distinctive stat VALUES must be gone. (The
     // footer's "Payment Programs" nav link is navigation, not the strip.)
     expect(screen.queryByText("ON-SPOT")).toBeNull();
