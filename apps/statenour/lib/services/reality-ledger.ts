@@ -196,6 +196,21 @@ export async function recordEvidenceBatch(
       receipt.rejected.push({ kind: "event", index, error: issues(r.error) });
       return;
     }
+    // Security ordering is intentional: after the generic envelope shape is
+    // parseable, reject PII BEFORE family-specific payload validation. Otherwise
+    // an experiment payload such as { customer: { phone: ... } } can fail first
+    // on a missing business field and mask the stronger aggregate-only refusal.
+    const pii = findPii({
+      payload: r.data.payload ?? {},
+      objects: r.data.objects,
+      sourceUri: r.data.source.uri ?? "",
+      correlationId: r.data.correlationId ?? "",
+      causationId: r.data.causationId ?? "",
+    });
+    if (pii) {
+      receipt.rejected.push({ kind: "event", index, error: `${pii.path}: ${pii.reason} — the ledger is aggregate-only` });
+      return;
+    }
     const registration = validateRealityEventRegistration({
       eventType: r.data.eventType,
       eventVersion: r.data.eventVersion,
@@ -204,17 +219,6 @@ export async function recordEvidenceBatch(
     });
     if (!registration.ok) {
       receipt.rejected.push({ kind: "event", index, error: registration.error });
-      return;
-    }
-    const pii = findPii({
-      payload: registration.payload,
-      objects: r.data.objects,
-      sourceUri: r.data.source.uri ?? "",
-      correlationId: r.data.correlationId ?? "",
-      causationId: r.data.causationId ?? "",
-    });
-    if (pii) {
-      receipt.rejected.push({ kind: "event", index, error: `${pii.path}: ${pii.reason} — the ledger is aggregate-only` });
       return;
     }
     events.push({ index, data: r.data, registration });
