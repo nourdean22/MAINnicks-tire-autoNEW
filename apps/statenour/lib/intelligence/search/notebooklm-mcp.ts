@@ -1,5 +1,4 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import { Client, SSEClientTransport } from "@modelcontextprotocol/client";
 import { logger } from "@/lib/logger";
 
 const log = logger.withSurface("intelligence/search/notebooklm");
