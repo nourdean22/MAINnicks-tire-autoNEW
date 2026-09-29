@@ -273,6 +273,31 @@ Verified runtime:
 - Nick backend transitioned `MEDIA_DEGRADED -> UNVERIFIED_CAPABILITIES` at corrected Office seq=1
 
 Remaining proof is capability commissioning, not media recovery: wait for/produce a fresh semantic event, obtain a fresh PTZ/control receipt, and create a NICKS-EUCLID-specific visual-home reference before claiming those facets healthy. Never reuse old Moes calibration/home evidence for NICKS EUCLID.
+
+## Office Intelligence runtime - 2026-09-28/29
+
+NicksMax now also runs the bounded Office conversation-intelligence edge path for NICKS EUCLID.
+
+Verified:
+- reviewed Eufy bridge `/record/T8410P5225154105` route returns H.264 plus AAC 16 kHz mono without Chrome or a Windows microphone
+- Eufy port split remains 3000 / 1984 / 8654 / 8655; V380 remains 8554 / 8555
+- `StateNour-OfficeIntelligence-NicksMax` was commissioned as SYSTEM / AtStartup and is the only OfficeWake/capture/STT owner
+- the worker receipt advances continuously; current after-hours state is `OFF_HOURS`, `workerOk=true`, queue 0, failures 0, source `eufy-office`, STT `whisper-cli.exe`
+- the OfficeWake ledger confirms connection to the NICKS EUCLID semantic-event bridge
+- the live Eufy agent consumes that receipt and includes the worker facets in the authoritative `office` heartbeat payload
+- a real 15-second NICKS EUCLID audio capture produced a valid ~447 KB WAV; the room was quiet (~ -71.8 dBFS mean, -50.6 dBFS peak), so the -35 dB speech gate correctly emitted no episode
+- raw-audio retention is bounded by age (6h), size (256 MB), and free-disk floor (768 MB)
+
+Ownership:
+- Eufy runtime installer owns Bridge + Agent and disables legacy `StateNour-Eufy-OfficeWake` if present.
+- Office Intelligence installer owns event wake, bounded capture, local Whisper, posting, and status receipts.
+- `camera_runtime.office` remains the single cloud current-state authority; OfficeWake writes only a local receipt for the Eufy agent to fold into that heartbeat.
+
+Evidence boundary:
+- edge capture/STT/runtime commissioning is live-proven.
+- Admin/backend schema/UI changes are built/tested in the Office Intelligence branch but are not a production deploy receipt yet.
+- the first real in-hours customer conversation -> stored evidence-backed summary -> visible Admin card remains the final natural commissioning proof.
+
 ## Windows 10 ESU — why it is required
 
 Windows 10 normal support ended on **2025-10-14**. Microsoft no longer provides ordinary Windows 10 security updates to unenrolled consumer devices after that date.

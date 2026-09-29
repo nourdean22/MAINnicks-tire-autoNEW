@@ -72,6 +72,21 @@ The canonical production Office device is **NICKS EUCLID** (`T8410P5225154105`, 
 - **Backend receipt:** after correcting the target, `office seq=1` at 00:19:11Z transitioned `MEDIA_DEGRADED -> UNVERIFIED_CAPABILITIES`; continuous corrected heartbeats reached at least `seq=16` at 00:28:15Z.
 - **Current health truth:** media is no longer degraded. `UNVERIFIED_CAPABILITIES` remains until the current producer observes fresh semantic-event, control/PTZ and calibrated-home receipts.
 - **Legacy boundary:** old Moes P2P failures and any Moes home/calibration/PTZ evidence are camera-specific historical evidence and must not be transferred to NICKS EUCLID.
+
+## NicksMax Office Intelligence runtime (2026-09-28/29) - EDGE LIVE, ADMIN DEPLOY PENDING
+
+This extends the commissioned NICKS EUCLID Office lane; it does not create a second camera authority.
+
+- **Headless audio source is live-proven:** the reviewed Eufy bridge overlay exposes `http://127.0.0.1:3000/record/T8410P5225154105`; `ffprobe` read H.264 video plus AAC 16 kHz mono audio from that route. Chrome/Eufy web UI and the Windows microphone are not required.
+- **Port isolation remains intact:** Eufy uses bridge `3000`, go2rtc API `1984`, RTSP `8654`, WebRTC `8655`; V380 sign remains on `8554/8555`.
+- **Single worker authority:** `StateNour-OfficeIntelligence-NicksMax` is the sole Office interaction worker. It was commissioned elevated as a SYSTEM, AtStartup task. The generic Eufy installer now owns only Bridge + Agent and disables the legacy `StateNour-Eufy-OfficeWake` task if present.
+- **Live worker receipt:** `office-conversation-status.json` advances continuously and currently reports `conversationWorkerOk=true`, `conversationWorkerState=OFF_HOURS`, source `eufy-office`, host `NICKSMAX`, STT `whisper-cli.exe`, queue depth 0, failures today 0. The OfficeWake ledger records a successful connection to the NICKS EUCLID event bridge.
+- **Authoritative heartbeat integration is live locally:** the refreshed NicksMax Eufy agent folds the worker receipt into the existing `office` heartbeat rather than writing `camera_runtime` from a second producer. A local payload proof showed `producerInstanceId=p2-nicksmax-...`, `mode=PRODUCTION`, `sourceGeneration=T8410P5225154105`, plus the worker state/source/host/STT/queue/failure facets.
+- **Real-camera STT boundary:** a 15-second commissioning capture from the real NICKS EUCLID route produced a valid ~447 KB WAV. The room was actually quiet (about -71.8 dBFS mean / -50.6 dBFS peak), below the -35 dB speech threshold, so segmentation correctly produced zero conversation episodes. Do not relabel that as a transcription failure or invent a summary.
+- **Resource controls:** production uses event-triggered bounded capture, local Whisper, 6-hour raw-audio age retention, 256 MB raw-audio quota, and a 768 MB free-disk floor.
+- **Built/tested Admin path, not yet a deploy receipt:** this branch adds conversation-worker facets to the existing Office `camera_runtime` row, provenance fields on `conversation_episodes`, evidence-gated ingest, and a unified Admin -> Lot -> Office intelligence panel. Focused verification passed 76 Office tests, 38 Eufy tests, and 63 Nick/Admin tests; the later ownership cleanup also passed 12/12 Eufy installer tests.
+- **Remaining production receipt:** after the Nick backend/UI branch is merged and deployed, observe a real in-hours NICKS EUCLID person/motion event -> bounded camera-audio capture -> local STT -> evidence/coverage gate -> `/api/conversation-episodes` -> visible Admin summary. Until that happens, do not claim a real customer summary has appeared in production.
+
 ## Connection hardening closeout (2026-09-27/28)
 
 **Final merge receipt:** #2721 squash-merged as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` after affected CI, authenticated StateNour E2E, Completion Authority, Adoption, Agent Policy, Admin, Secret Scanning, and security all passed. Its four earlier review findings were fixed and resolved. #2721 changed documentation/memory only; it does **not** claim a newer Nick production deployment than #2720.
