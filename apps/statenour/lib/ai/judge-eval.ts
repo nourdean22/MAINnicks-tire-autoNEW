@@ -163,11 +163,16 @@ Score the reply. Output JSON only.`;
     // than silently boosting agreement/kappa with self-preference.
     const candidateFamily = modelFamily(args.generatedByProvider, args.generatedByModel);
     const judgeFamily = modelFamily(result.provider, result.model);
-    if (
-      candidateFamily !== "unknown" &&
-      judgeFamily !== "unknown" &&
-      candidateFamily === judgeFamily
-    ) {
+    if (candidateFamily === "unknown" || judgeFamily === "unknown") {
+      log.warn("judge_unknown_family_discarded", {
+        candidateFamily,
+        judgeFamily,
+        generatedBy: `${args.generatedByProvider ?? "?"}:${args.generatedByModel ?? "?"}`,
+        judgedBy,
+      });
+      return null;
+    }
+    if (candidateFamily === judgeFamily) {
       log.warn("judge_same_family_discarded", {
         candidateFamily,
         judgeFamily,
