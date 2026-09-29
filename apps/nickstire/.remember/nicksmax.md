@@ -71,10 +71,15 @@ LIVE ON NICKSMAX:
 - A real 15-second camera-audio commissioning run wrote a valid ~447 KB WAV but correctly produced zero episodes because the room was quiet (~ -71.8 dBFS mean, -50.6 dBFS peak; speech gate -35 dB).
 - Eufy remains on 3000/1984/8654/8655 and V380 remains on 8554/8555.
 
-BUILT/TESTED, NOT YET A PRODUCTION ADMIN RECEIPT:
-- Branch `feat/office-intelligence-20260929` adds the unified Admin -> Lot -> Office intelligence cockpit, conversation-worker facets on `camera_runtime.office`, episode provenance, and evidence-gated summary ingest.
-- Focused verification passed 76 Office tests, 38 Eufy tests, 63 Nick/Admin tests; latest duplicate-owner cleanup passed 12/12 Eufy installer tests.
-- Still required after deploy: one real in-hours person/motion -> bounded capture -> Whisper -> evidence/coverage -> conversation episode -> visible Admin summary. Do not claim a production customer summary before that receipt exists.
+CURRENT OFFICE-INTELLIGENCE TRUTH:
+- PR #2759 is deployed; the production conversation-ingest route and Admin Office-intelligence surface are live. The remaining receipt is an automatic real episode, not an Admin deployment.
+- The camera reports motion enabled and the bridge has live FCM/MQTT transport, but an in-hours raw event watch observed no `motion` / `personDetected` semantic events. Vendor push is therefore not sufficient as the sole wake source.
+- The live bridge launcher was fixed after `spawn ffmpeg ENOENT` showed its helper could not find ffmpeg. A real `/stream/T8410P5225154105` probe succeeded after restart. The durable Eufy installer is being fixed in `feat/office-audio-fallback-20260929` so recommissioning preserves that PATH.
+- The fallback branch adds short non-retained audio-energy probes as a secondary wake signal. Wake now requires both sustained mean + peak level, and the dedicated fallback cooldown starts only after an `audioActivity` capture finishes.
+- The installer now requires explicit `-AcknowledgeRecordingPolicy` and otherwise fails closed before mutation; it no longer self-sets policy approval. Issue #2628 still leaves counsel/recording-policy review open, so production fallback remains disabled.
+- Live dry-run canaries proved real office speech: canary 1 reached 0.991 transcript coverage; canary 2 reached 1.000 coverage. These prove the technical path only.
+- Focused Office verification is 64/64 green, including direct async fallback-worker coverage for active-capture skip, post-capture cooldown, and probe error -> DEGRADED.
+- The canaries were intentionally dry-run, so no production Admin episode was posted. Do not claim a real automatic summary until policy approval is resolved and an authorized production wake completes ingest and becomes visible in Admin.
 
 Health boundary:
 - NICKS EUCLID media is healthy. The old Moes P2P timeout / `hubStatus=false` evidence is historical and must not be used to describe current Office health.

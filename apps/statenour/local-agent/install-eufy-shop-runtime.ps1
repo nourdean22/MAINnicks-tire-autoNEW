@@ -8,6 +8,7 @@ param(
   [string]$Go2RtcApiListen = "127.0.0.1:1984",
   [string]$Go2RtcRtspListen = "127.0.0.1:8654",
   [string]$Go2RtcWebrtcListen = "127.0.0.1:8655",
+  [string]$FfmpegPath = "",
   [switch]$EnableControl,
   [switch]$CommissionPtz,
   [Nullable[int]]$HomePresetId = $null,
@@ -276,6 +277,22 @@ Write-Step "Resolving prerequisites"
 $node = Ensure-Command "node.exe" "OpenJS.NodeJS.LTS"
 $npm = Ensure-Command "npm.cmd" "OpenJS.NodeJS.LTS"
 $python = Resolve-Python
+if ($FfmpegPath) {
+  if (-not (Test-Path -LiteralPath $FfmpegPath -PathType Leaf)) {
+    throw "FfmpegPath does not exist: $FfmpegPath"
+  }
+  $ffmpeg = (Resolve-Path -LiteralPath $FfmpegPath).Path
+} else {
+  $ffmpegCommand = Get-Command ffmpeg.exe -ErrorAction SilentlyContinue
+  if ($ffmpegCommand) {
+    $ffmpeg = $ffmpegCommand.Source
+  } elseif ($InstallPrerequisites) {
+    $ffmpeg = Ensure-Command "ffmpeg.exe" "Gyan.FFmpeg"
+  } else {
+    throw "ffmpeg.exe is required for bridge live-picture/record helpers. Pass -FfmpegPath or re-run with -InstallPrerequisites."
+  }
+}
+$ffmpegDir = Split-Path -Parent $ffmpeg
 
 New-Item -ItemType Directory -Force -Path $StateRoot | Out-Null
 $downloadDir = Join-Path $StateRoot "downloads"
@@ -397,7 +414,7 @@ $env:GO2RTC_WEBRTC_LISTEN = "__GO2RTC_WEBRTC_LISTEN__"
 $env:BRIDGE_PREWARM = "1"
 $env:BRIDGE_EVENT_LOG = "1"
 $env:BRIDGE_DEBUG = "0"
-$env:PATH = "__BRIDGE_ROOT__;$env:PATH"
+$env:PATH = "__BRIDGE_ROOT__;__FFMPEG_DIR__;$env:PATH"
 New-Item -ItemType Directory -Force -Path (Join-Path $StateRoot "state") | Out-Null
 Set-Location "__BRIDGE_ROOT__"
 & "__NODE__" server.mjs
@@ -425,7 +442,7 @@ Set-Location "__LOCAL_AGENT_DIR__"
 & "__VENV_PYTHON__" agent.py --eufy-only
 '@
 
-$bridgeText = $bridgeTemplate.Replace("__STATE_ROOT__", $StateRoot).Replace("__SECRET_LOADER__", $secretLoader).Replace("__BRIDGE_ROOT__", $BridgeRoot).Replace("__NODE__", $node).Replace("__GO2RTC_API_LISTEN__", $Go2RtcApiListen).Replace("__GO2RTC_RTSP_LISTEN__", $Go2RtcRtspListen).Replace("__GO2RTC_WEBRTC_LISTEN__", $Go2RtcWebrtcListen)
+$bridgeText = $bridgeTemplate.Replace("__STATE_ROOT__", $StateRoot).Replace("__SECRET_LOADER__", $secretLoader).Replace("__BRIDGE_ROOT__", $BridgeRoot).Replace("__FFMPEG_DIR__", $ffmpegDir).Replace("__NODE__", $node).Replace("__GO2RTC_API_LISTEN__", $Go2RtcApiListen).Replace("__GO2RTC_RTSP_LISTEN__", $Go2RtcRtspListen).Replace("__GO2RTC_WEBRTC_LISTEN__", $Go2RtcWebrtcListen)
 $agentText = $agentTemplate.Replace("__STATE_ROOT__", $StateRoot).Replace("__SECRET_LOADER__", $secretLoader).Replace("__RUNTIME_PATH__", $runtimePath).Replace("__BRIDGE_URL__", $BridgeUrl).Replace("__LOCAL_AGENT_DIR__", $LocalAgentDir).Replace("__VENV_PYTHON__", $venvPython)
 
 Write-Utf8NoBom $bridgeWrapper $bridgeText
