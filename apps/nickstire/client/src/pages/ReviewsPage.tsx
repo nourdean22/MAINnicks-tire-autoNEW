@@ -187,6 +187,8 @@ export default function ReviewsPage() {
   const [serviceFilter, setServiceFilter] = useState<ServiceType>("All");
   const [starFilter, setStarFilter] = useState<number | null>(null);
   const [showAllRatings, setShowAllRatings] = useState(false);
+  // True exactly when filteredReviews drops 1-3 star reviews by default.
+  const featuredOnly = starFilter === null && !showAllRatings;
   const [recencyFilter, setRecencyFilter] = useState<RecencyOption>("Most Recent");
   const [sortBy, setSortBy] = useState<SortOption>("Most Recent");
 
@@ -381,8 +383,25 @@ export default function ReviewsPage() {
                 <span className="text-[#FDB913]">Cleveland Drivers</span>
               </h1>
               <p className="mt-4 text-foreground/50 text-lg font-heading tracking-wide uppercase">
-                {totalCount.toLocaleString()}+ reviews | {avgRating} average | live Google data
+                {totalCount.toLocaleString()}+ Google reviews | {avgRating} average across all ratings
               </p>
+              {/* The count above spans EVERY rating; the list below defaults to
+                  4-5 stars. Say so next to the count, with the way out one tap
+                  away — 16 CFR 465.7(b) forbids implying a rating-filtered list
+                  is most or all reviews, and the Places API policy requires a
+                  notice of how reviews are ordered and filtered. */}
+              {featuredOnly && (
+                <p data-testid="reviews-filter-disclosure" className="mt-2 text-sm text-foreground/60">
+                  Showing 4- and 5-star reviews only.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setShowAllRatings(true)}
+                    className="text-[#FDB913] underline underline-offset-2 hover:opacity-80"
+                  >
+                    Show all ratings
+                  </button>
+                </p>
+              )}
             </FadeIn>
           </div>
         </section>

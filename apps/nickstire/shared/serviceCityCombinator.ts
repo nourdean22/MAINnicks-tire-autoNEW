@@ -61,7 +61,7 @@ function generateIntro(service: string, city: string, driveMin: number, price: s
   const intros = [
     `Looking for ${service.toLowerCase()} near ${city}? Nick's Tire & Auto is just ${driveMin} minutes away at 17625 Euclid Ave. With 4.9 stars and 1,710+ Google reviews, we're the most trusted independent shop serving ${city} drivers. ${service} ${price} — walk-ins welcome 7 days a week.`,
     `${city} drivers choose Nick's Tire & Auto for reliable ${service.toLowerCase()} at fair prices. We're ${driveMin} minutes from ${city} on Euclid Ave, and our 4.9-star reputation means you're in good hands. ${service} ${price}. No appointment needed — call (216) 862-0005.`,
-    `Need ${service.toLowerCase()} in ${city}? Don't overpay at the dealer. Nick's Tire & Auto offers expert ${service.toLowerCase()} ${price}, backed by a labor warranty. We're only ${driveMin} minutes from ${city}. 1,710+ five-star reviews can't be wrong.`,
+    `Need ${service.toLowerCase()} in ${city}? Don't overpay at the dealer. Nick's Tire & Auto offers expert ${service.toLowerCase()} ${price}, backed by a labor warranty. We're only ${driveMin} minutes from ${city}. A 4.9-star average across 1,710+ Google reviews can't be wrong.`,
   ];
   // Deterministic selection based on combined slug
   const index = (service.length + city.length) % intros.length;
