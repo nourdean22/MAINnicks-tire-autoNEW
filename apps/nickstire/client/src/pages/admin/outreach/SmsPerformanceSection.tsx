@@ -22,7 +22,7 @@ type RecentSend = NonNullable<RouterOutputs["smsPerformance"]["recentSends"]>[nu
 import { useState, useRef } from "react";
 import { BarChart3, MessageSquare, CheckCircle2, XCircle, DollarSign } from "lucide-react";
 import { PageHeader, LoadingState, EmptyState, formatDateTime } from "../shared";
-import { sendsPerInvoice } from "@shared/loopScoreboard";
+import { HOLDOUT_MIN_MATURED_PER_ARM, sendsPerInvoice } from "@shared/loopScoreboard";
 
 function pct(num: number, denom: number): string {
   if (denom === 0) return "—";
@@ -228,6 +228,9 @@ export default function SmsPerformanceSection() {
                             <div className="text-amber-400/90">collecting</div>
                             <div className="text-[10px] text-foreground/45">
                               assigned T{l.holdout.treatmentAssigned} / C{l.holdout.controlAssigned}
+                            </div>
+                            <div className="text-[10px] text-foreground/45">
+                              lift shows at {HOLDOUT_MIN_MATURED_PER_ARM} matured per arm
                             </div>
                           </div>
                         ) : money.holdoutError ? (
