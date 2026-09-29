@@ -86,12 +86,16 @@ export function rankCustomerValueHistories(
       repeat.length === 0
         ? 0
         : repeat.reduce((sum, visit) => sum + visit.cents, 0) / repeat.length;
+    // CDNOW Gamma-Gamma monetary parameters are in dollars. Nick's invoice
+    // storage is integer cents, so convert into model units and convert the
+    // resulting value/score back to cents. Mixing the units would silently
+    // shrink the prior by 100x.
     const value = customerValueRankingScore({
       horizon: horizonWeeks,
       frequency,
       recency: recencyWeeks,
       T: ageWeeks,
-      monetaryValue: repeatAverageCents,
+      monetaryValue: repeatAverageCents / 100,
       bgnbd: options?.bgnbd,
       gammaGamma: options?.gammaGamma,
     });
@@ -104,8 +108,8 @@ export function rankCustomerValueHistories(
       repeatAverageCents,
       probabilityAlive: value.probabilityAlive,
       expectedPurchases13Weeks: value.expectedPurchases,
-      expectedAverageValueCents: value.expectedAverageValue,
-      rankingScoreCents: value.score,
+      expectedAverageValueCents: value.expectedAverageValue * 100,
+      rankingScoreCents: value.score * 100,
     });
   }
   return ranked.sort((a, b) =>
