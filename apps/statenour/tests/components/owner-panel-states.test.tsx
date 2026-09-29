@@ -29,6 +29,15 @@ const base: OwnerPanelInput = {
   expiredRequests: { count: 0, oldest: null },
   commitments: [],
   lanes: [],
+  outboxHealth: {
+    pending: 0,
+    processing: 0,
+    done24h: 0,
+    dead: 0,
+    oldestDeadAt: null,
+    lastDeadError: null,
+  },
+  actionAttempts: [],
   spend: { costCents: 500, calls: 10, unpricedCalls: 0 },
   tasksDone: 0,
 };
