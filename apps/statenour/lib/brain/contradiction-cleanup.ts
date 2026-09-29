@@ -3,10 +3,9 @@
  * explicit winner, soft-delete the SUPERSEDED (losing) BrainMemory row so
  * the stale belief leaves the recall pool. v-truth · 2026-06-03.
  *
- * The problem this closes: contradiction-surfacer.ts already deprecates the
- * losing memory by FLOORING its confidence to 0.1 (current_wins -> old loses,
- * old_wins -> new loses) — but a confidence-0.1 row is STILL recallable, so
- * Nick can confidently cite an outdated fact the operator already overruled.
+ * This is the single owner of losing-memory deprecation/supersession after an
+ * operator resolves a contradiction. The surfacer records the verdict and
+ * invalidates UI caches; this module applies the memory-history mutation.
  * Recall already filters `deletedAt: null` (see contextual-recall + every
  * brainMemory.findMany in lib/brain/**), so setting deletedAt is the precise,
  * reversible way to pull the loser out of the pool without destroying it.
@@ -31,6 +30,11 @@
 import { prisma } from "@/lib/prisma";
 import { getFlag } from "@/lib/feature-flags";
 import { logger as rootLogger } from "@/lib/logger";
+import { effectiveInvalidationAt } from "@/lib/brain/memory-bitemporal";
+import {
+  restoreMemoryAsCurrent,
+  supersedeMemoryVersion,
+} from "@/lib/brain/memory-transaction-time";
 
 const log = rootLogger.withSurface("brain/contradiction-cleanup");
 
@@ -44,8 +48,15 @@ export interface ContradictionCleanupResult {
   superseded: boolean;
   /** The BrainMemory.id that was soft-deleted, when cleaned. */
   losingMemoryId?: string;
-  /** Why nothing happened (flag_off · no_loser · already_deleted · error). */
-  skippedReason?: "flag_off" | "no_loser" | "already_deleted" | "error";
+  /** True only when Q-31 transaction-time columns existed and were stamped. */
+  transactionStamped?: boolean;
+  /** Why nothing happened. */
+  skippedReason?:
+    | "flag_off"
+    | "no_loser"
+    | "non_overlapping"
+    | "already_deleted"
+    | "error";
 }
 
 /**
@@ -75,59 +86,99 @@ export async function cleanupResolvedContradiction(
   const winningMemoryId =
     losingMemoryId === oldMemoryId ? newMemoryId : oldMemoryId;
 
-  // BDN-310 · bi-temporal supersession — the columns were applied to prod
-  // 2026-08-14 and had NO writer until this. An operator-resolved
-  // contradiction with an explicit winner IS a supersession event, so the
-  // loser gets `supersededById` (provenance: what replaced it) and
-  // `validUntil = now` (when it stopped being believed). Both recall lanes
-  // filter on these (memory-recall.ts + contextual-recall.ts), so this
-  // alone removes the stale belief from the pool — reversibly, with the
-  // row and its history intact. NOT flag-gated: this is metadata the
-  // operator's explicit verdict already authorized; only the harsher
-  // soft-delete below stays behind NICK_CONTRADICTION_CLEANUP.
+  // BDN-310 + Q-31 · one supersession owner.
+  //
+  // Effective time and transaction time are deliberately separate:
+  //   effective validUntil = when the winner became true;
+  //   transaction_expired_at = when StateNour learned/adjudicated the change.
+  //
+  // Graphiti-style guard: NEVER close the loser's effective interval unless
+  // the incoming winner actually begins inside that interval. A retro-dated,
+  // non-overlapping correction is historical context, not permission to
+  // corrupt another interval.
   let superseded = false;
+  let transactionStamped = false;
   try {
-    // Bi-temporal semantics per prior art (Zep/Graphiti, SQL:2011): the
-    // loser's validity ends when the WINNER's begins — not at whatever
-    // moment the operator happened to tap resolve. validFrom has no
-    // writer yet, so this degrades to NOW() until one exists.
-    const winner = await prisma.brainMemory.findUnique({
-      where: { id: winningMemoryId },
-      select: { validFrom: true, supersededById: true },
-    });
-    const invalidatedAt = winner?.validFrom ?? new Date();
-
-    if (winner?.supersededById === losingMemoryId) {
-      // Verdict flip: the row the operator just ruled CORRECT is itself
-      // superseded BY the row it now beats (an earlier resolution the
-      // other way). Without this, both rows end up superseded and the
-      // operator's ruled-correct belief stays buried forever. Clear the
-      // stamp narrowly — only when it points at this exact pair.
-      await prisma.brainMemory.update({
+    const transactionAt = new Date();
+    const [winner, loser] = await Promise.all([
+      prisma.brainMemory.findUnique({
         where: { id: winningMemoryId },
-        data: { supersededById: null, validUntil: null, lastVerifiedAt: new Date() },
-      });
-      log.info("contradiction_winner_unstranded", { status, winningMemoryId, losingMemoryId });
+        select: { validFrom: true, supersededById: true },
+      }),
+      prisma.brainMemory.findUnique({
+        where: { id: losingMemoryId },
+        select: { createdAt: true, validFrom: true, validUntil: true },
+      }),
+    ]);
+    if (!winner || !loser) {
+      throw new Error("winner or loser memory missing");
+    }
+
+    const winnerEffectiveStart = winner.validFrom ?? transactionAt;
+    const invalidatedAt = effectiveInvalidationAt(loser, winnerEffectiveStart);
+
+    if (winner.supersededById === losingMemoryId) {
+      // Verdict flip: reopen the row the operator just ruled correct. When
+      // transaction-time columns exist, restart that belief window BEFORE
+      // clearing its supersession pointer in the same transaction.
+      const restored = await restoreMemoryAsCurrent(
+        winningMemoryId,
+        losingMemoryId,
+        transactionAt,
+      );
+      transactionStamped = restored.transactionStamped;
+      if (restored.count > 0) {
+        log.info("contradiction_winner_unstranded", {
+          status,
+          winningMemoryId,
+          losingMemoryId,
+          transactionStamped,
+        });
+      }
     } else {
       // An operator adjudication is the strongest verification event the
-      // system ever sees — BDN-310 lastVerifiedAt's first writer.
+      // system sees. This is independent of whether the effective intervals
+      // overlap.
       await prisma.brainMemory.updateMany({
         where: { id: winningMemoryId, deletedAt: null },
-        data: { lastVerifiedAt: new Date() },
+        data: { lastVerifiedAt: transactionAt },
       });
     }
 
-    const stamped = await prisma.brainMemory.updateMany({
-      // Idempotent: never re-stamp an already-superseded row.
-      where: { id: losingMemoryId, supersededById: null, deletedAt: null },
-      data: { supersededById: winningMemoryId, validUntil: invalidatedAt },
+    if (!invalidatedAt) {
+      log.info("contradiction_non_overlapping_no_supersede", {
+        status,
+        losingMemoryId,
+        winningMemoryId,
+        winnerEffectiveStart: winnerEffectiveStart.toISOString(),
+      });
+      return {
+        cleaned: false,
+        superseded: false,
+        losingMemoryId,
+        transactionStamped,
+        skippedReason: "non_overlapping",
+      };
+    }
+
+    const stamped = await supersedeMemoryVersion({
+      losingMemoryId,
+      winningMemoryId,
+      effectiveUntil: invalidatedAt,
+      transactionAt,
+      deprecate: true,
     });
     superseded = stamped.count > 0;
+    transactionStamped =
+      transactionStamped || stamped.transactionStamped;
+
     if (superseded) {
       log.info("contradiction_loser_superseded", {
         status,
         losingMemoryId,
         winningMemoryId,
+        effectiveUntil: invalidatedAt.toISOString(),
+        transactionStamped,
       });
     }
   } catch (err) {
@@ -139,7 +190,13 @@ export async function cleanupResolvedContradiction(
 
   // Self-gate — off by default; the soft-delete below stays flag-gated.
   if (!getFlag("NICK_CONTRADICTION_CLEANUP")?.isOn) {
-    return { cleaned: false, superseded, losingMemoryId, skippedReason: "flag_off" };
+    return {
+      cleaned: false,
+      superseded,
+      losingMemoryId,
+      transactionStamped,
+      skippedReason: "flag_off",
+    };
   }
 
   try {
@@ -149,7 +206,13 @@ export async function cleanupResolvedContradiction(
       select: { id: true, deletedAt: true },
     });
     if (!existing || existing.deletedAt) {
-      return { cleaned: false, superseded, losingMemoryId, skippedReason: "already_deleted" };
+      return {
+        cleaned: false,
+        superseded,
+        losingMemoryId,
+        transactionStamped,
+        skippedReason: "already_deleted",
+      };
     }
 
     await prisma.brainMemory.update({
@@ -158,13 +221,19 @@ export async function cleanupResolvedContradiction(
     });
 
     log.info("contradiction_loser_soft_deleted", { status, losingMemoryId });
-    return { cleaned: true, superseded, losingMemoryId };
+    return { cleaned: true, superseded, losingMemoryId, transactionStamped };
   } catch (err) {
     // Never throw into the resolve path / a cron — log and move on.
     log.warn("contradiction_cleanup_failed", {
       losingMemoryId,
       err: err instanceof Error ? err.message : String(err),
     });
-    return { cleaned: false, superseded, losingMemoryId, skippedReason: "error" };
+    return {
+      cleaned: false,
+      superseded,
+      losingMemoryId,
+      transactionStamped,
+      skippedReason: "error",
+    };
   }
 }

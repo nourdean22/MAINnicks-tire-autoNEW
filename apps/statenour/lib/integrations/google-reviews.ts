@@ -21,6 +21,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { intakeExternalMemory } from "@/lib/brain/external-memory-intake";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("integrations/google-reviews");
@@ -61,7 +62,7 @@ function parseReview(content: string): StoredReview | null {
   }
 }
 
-export async function fetchAndStoreReviews(): Promise<{ fetched: number; newCount: number }> {
+export async function fetchAndStoreReviews(): Promise<{ fetched: number; newCount: number; quarantined: number }> {
   if (!PLACE_ID || !API_KEY) {
     throw new Error("GOOGLE_PLACE_ID and GOOGLE_PLACES_API_KEY must be set");
   }
@@ -81,6 +82,7 @@ export async function fetchAndStoreReviews(): Promise<{ fetched: number; newCoun
 
   const reviews: PlaceReview[] = data.result?.reviews ?? [];
   let newCount = 0;
+  let quarantined = 0;
 
   for (const review of reviews) {
     const key = reviewKey(review.author_name, review.time);
@@ -100,31 +102,34 @@ export async function fetchAndStoreReviews(): Promise<{ fetched: number; newCoun
       time: review.time,
       responded: false,
     };
-    // forensic-audit MEDIUM · only count a review as new if it actually
-    // persisted; the old code ran newCount++ even when the create was caught,
-    // overstating what was stored.
-    let persisted = true;
-    await prisma.brainMemory
-      .create({
-        data: {
-          category: "google_review",
-          key,
-          content: JSON.stringify(stored),
-          confidence: 1.0,
-          source: "integrations:google-places",
+    // External review text is third-party content. It must pass the same
+    // memory quarantine used by inbound Gmail/Drive/Calendar before it can
+    // enter recall. Count quarantine separately from an actual durable commit.
+    try {
+      const outcome = await intakeExternalMemory({
+        category: "google_review",
+        key,
+        content: JSON.stringify(stored),
+        source: "integrations:google-places",
+        sourceType: "google_reviews_ingest",
+        sourceUrl: `google-review://${encodeURIComponent(key)}`,
+        metadata: {
+          rating: review.rating,
+          reviewTime: review.time,
+          authorName: review.author_name,
         },
-      })
-      .catch((err) => {
-        persisted = false;
-        log.warn("review_persist_failed", {
-          key,
-          error: err instanceof Error ? err.message : String(err),
-        });
       });
-    if (persisted) newCount++;
+      if (outcome.outcome === "quarantined") quarantined++;
+      else newCount++;
+    } catch (err) {
+      log.warn("review_persist_failed", {
+        key,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
-  return { fetched: reviews.length, newCount };
+  return { fetched: reviews.length, newCount, quarantined };
 }
 
 /** Beyond this, the cache is old enough that quoting it as current is wrong. */

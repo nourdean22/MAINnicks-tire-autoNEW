@@ -1488,3 +1488,18 @@ External audit's "/brakes broken" (stale cache; renders fine live) and "duplicat
 - **Q-26 BUILT, not merged:** `shared/businessDataContracts.ts` + tests, `MetricEnvelope.freshness`, and `data-accuracy-check` wiring. Source freshness is separate from business volume; leads/callbacks are never called stale merely for having a quiet day. Invoice volume is suppressed when ShopDriver mirror freshness is not trustworthy.
 - **Q-27 BUILT IN PART, not merged:** BG/NBD + Gamma-Gamma pure kernel with CDNOW goldens and a read-only customer ranking service. Hard contract: `rankingOnly: true`; calibration is `external-cdnow-reference-not-shop-fitted`; never a send/revenue promise.
 - Recovery details and next steps: `docs/research/2026-09-29-carousel-q25-q27-checkpoint.md`. Active branch: `feat/nouros-carousel-q25-q27-20260929`. Re-anchor onto latest main before PR; main is moving.
+
+
+## 2026-09-29 · authoritative resilience-wave recovery
+- Q-25/Q-26/Q-27 are **MERGED** on main via #2784 at `bee3abc5aa61a45702cd341adb3893b39ff0013c`.
+- The hidden execution trail was recovered from GitHub, not reconstructed from chat. The active continuation branch is `feat/nouros-resilience-q28-q32-current-20260929`, re-anchored on then-current main `b81fd95d876e9cfc0c47d3df2b41f6a833213d8c` without force-updating sibling-owned branches.
+- Recovered BUILT scope: Q-28 grouped cron alerts + DB-root inhibition + resolved notices + quiet routing; Q-34 `PROCESS_ROLE=all|web|jobs` defaulting to `all`; Q-36 worker mega-route/env-boundary cleanup; substantial Q-31 admission/bitemporal/external-intake work.
+- Q-31 is **not yet complete**: transaction-time expiry still must be wired at the real supersession boundary before the supersession mutation, and its pending migration must be registered with the current operator apply/drift-guard mechanism. Migration is NOT applied.
+- Q-32 remains to be built on the existing Langfuse stack. No Braintrust duplicate.
+- Durable recovery checkpoint: `docs/research/2026-09-29-resilience-wave-current-checkpoint.md`.
+
+## 2026-09-29 · final resilience consolidation before PR
+- Dedicated branch: `feat/nouros-resilience-final-current-chatgpt-20260929`; current main through #2793 was reconciled at merge commit `80e031ac88d0b35443f1986e8dc05ad5faab97ae` after a zero-file-overlap census with #2789/#2793.
+- Q-28/Q-34/Q-36 are consolidated BUILT scope, not yet merged/live. Q-34 default remains `PROCESS_ROLE=all`; no Railway role split or env deletion occurred.
+- Capability truth corrected: already-merged Q-25/Q-26/Q-27 are now recorded as merged + unit-verified; no production migration/live promotion was invented.
+- Full checkpoint: `docs/research/2026-09-29-resilience-final-consolidation-checkpoint.md`.

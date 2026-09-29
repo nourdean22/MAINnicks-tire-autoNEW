@@ -9,10 +9,10 @@
 | Project | `natural-appreciation` |
 | Project ID | `d78487fa-24c7-412e-9d2c-1055d9f8db93` |
 | Service | `statenour-worker` |
-| Service ID | `e70db361-4a30-45e9-b869-327845817531` |
+| Service ID | `5441c378-3bab-4bb7-958f-36961159f5fe` |
 | Environment | `production` (`84f0d4b4-efcd-480f-a761-27589e0a095f`) |
-| Region | `us-west2` (`.railway/railway.ts:88`). The two web apps moved to `us-east4-eqdc4a` on 2026-09-23 (#2600); the worker did not |
-| Public URL | `statenour-worker-production.up.railway.app` (private API only · not user-facing) |
+| Region | `us-east4-eqdc4a` · 1 replica (live Railway read-back 2026-09-29) |
+| Public URL | none (live Railway domain list 2026-09-29 returned no service/custom domains) |
 | Build context | monorepo root |
 | Dockerfile | `apps/worker/Dockerfile` (`.railway/railway.ts:85`) |
 
@@ -60,9 +60,10 @@ USED:
 - `AWS_REGION`, `S3_BUCKET`, `CLOUDFRONT_DOMAIN`, `SITE_URL` · video-render upload path; with
   `S3_BUCKET` unset, renders fall back to local `data/generated/`
 
-NOT read by this service: `DATABASE_URL`, `NICKSTIRE_DATABASE_URL`, `OPENAI_API_KEY`,
-`VENICE_API_KEY`, `TELEGRAM_BOT_TOKEN`. They may still be set on the Railway service; the code
-ignores them.
+NOT read by this service: `DATABASE_URL`, `DIRECT_URL`, `GITHUB_TOKEN`,
+`NICKSTIRE_DATABASE_URL`, `OPENAI_API_KEY`, `VENICE_API_KEY`, `TELEGRAM_BOT_TOKEN`.
+Q-36 pins the first three high-risk absences in an executable repo test. They may still be set on
+the Railway service; removing live variables is an explicit operator infrastructure action.
 
 ## Cron jobs
 
@@ -77,7 +78,11 @@ Registered here in `src/scheduler.ts`:
 - `outbox-drain` · every 15m → GET `/api/cron/outbox-drain`
 - `inngest-liveness` · daily 13:00 UTC → GET `/api/cron/inngest-liveness`
 - `device-heartbeat-sentinel` · every 15m → GET `/api/cron/device-heartbeat-sentinel`
-- `POST /cron/mega` and `/cron/mega-evening` → `/api/cron/mega?slot=morning|evening`
+
+Q-36 removed the vestigial worker `POST /cron/mega*` routes. Live Railway read-back on
+2026-09-29 showed exactly four services (Nick's, StateNour web, StateNour worker, Redis), no cron
+services/jobs, and no cron schedule on the worker. Morning/evening mega fan-out is therefore not a
+worker HTTP-entry-point responsibility.
 
 Plus one job that runs **in-process** rather than forwarding: a 15-minute video-render loop (`*/2` until #1696) that
 polls `/api/sync/queue/render`, renders MP4 via `@nour/reel-engine` (Remotion), uploads through

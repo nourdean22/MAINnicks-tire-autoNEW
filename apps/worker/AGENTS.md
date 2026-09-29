@@ -23,15 +23,14 @@ Cross-cutting repo rules (branching, worktrees, Windows, verify gates): root
 An Express 4 + node-cron process on Railway's internal network. **Three source files** —
 `src/index.ts`, `src/scheduler.ts`, `src/storage.ts`. It does two things:
 
-1. **Forwards cron ticks** to statenour-web. It holds no business logic for those jobs: each tick is
-   an authenticated `GET ${STATENOUR_WEB_URL}/api/cron/<name>` with a `Bearer CRON_SECRET`, a 60s
-   timeout (`scheduler.ts:41` `FORWARD_TIMEOUT_MS = 60_000`) and a per-job overlap guard
-   (`scheduler.ts:50` `inFlightForwards`, checked at `:391` — a slow forward skips the next tick
-   instead of stacking). Registered in `scheduler.ts`: `brain-bus-drain` (`:136` `*/15 * * * *`),
-   `outbox-drain` (`:145` `*/15 * * * *`), `inngest-liveness` (`:158` `0 13 * * *`, daily 13:00 UTC),
-`device-heartbeat-sentinel` (`:167` `*/15 * * * *`, camera/bridge heartbeat silence, ADR-0017).
-   `POST /cron/mega` (`index.ts:168`) and `/cron/mega-evening` (`index.ts:174`) forward the
-   morning/evening mega fan-out.
+1. **Forwards the four worker-owned cron ticks** to statenour-web. It holds no business logic for
+   those jobs: each tick is an authenticated `GET ${STATENOUR_WEB_URL}/api/cron/<name>` with a
+   `Bearer CRON_SECRET`, a 60s timeout and a per-job overlap guard — a slow forward skips the next
+   tick instead of stacking. Registered in `scheduler.ts`: `brain-bus-drain`, `outbox-drain`,
+   `inngest-liveness`, and `device-heartbeat-sentinel`.
+   **There are no worker `POST /cron/mega*` entry points anymore.** Q-36 removed them after live
+   Railway inspection on 2026-09-29 showed zero Railway cron services/jobs in the project and no
+   cron schedule on the worker itself. Daily/weekly mega ownership lives in StateNour/Inngest.
 2. **Renders approved videos in-process — every 15 minutes** (`RENDER_SCHEDULE`, `scheduler.ts:179`;
    cron registered at `:423`, tick at `:426`):
    polls `/api/sync/queue/render` for approved drafts, renders MP4 locally via `renderReelVideo`
@@ -53,16 +52,18 @@ statenour's guards. If a job needs data, it belongs behind a statenour-web route
 `PORT` · `CRON_SECRET` · `SERVICE_ROLE` · `STATENOUR_WEB_URL` · `STATENOUR_SYNC_KEY` · `AWS_REGION` ·
 `S3_BUCKET` · `SITE_URL` · `CLOUDFRONT_DOMAIN`.
 
-`DATABASE_URL` and `NICKSTIRE_DATABASE_URL` are **not read anywhere in `src/`**. This section is
-canonical: if you change the env contract, change it here first, then `DEPLOY.md`.
+`DATABASE_URL`, `DIRECT_URL`, `GITHUB_TOKEN`, and `NICKSTIRE_DATABASE_URL` are **not read
+anywhere in `src/`**. Q-36 pins that absence in
+`apps/statenour/tests/repo/worker-hygiene.test.ts`. They may still exist in Railway; deleting live
+variables is an operator-owned infrastructure change, not something this code branch performs.
+This section is canonical: if you change the env contract, change it here first, then `DEPLOY.md`.
 
 ## Contracts you must not weaken
 
-- **`CRON_SECRET` is fail-closed.** `requireCronSecret` (`index.ts:53`) compares with
-  `timingSafeEqual` (imported at `index.ts:25`), and the process refuses to boot when the secret is
-  empty — `process.exit(1)` at `index.ts:48`, rationale at `:37-40` (an empty secret would compare
-  equal and bypass auth). Never add a dev bypass, never fall back to
-  string `===`.
+- **`CRON_SECRET` is fail-closed at boot.** The process refuses to start when it is empty because
+  every worker-owned forward authenticates to StateNour web with `Authorization: Bearer <CRON_SECRET>`.
+  The old inbound `/cron/mega*` auth middleware was deleted with those dead routes; do not restore an
+  inbound secret surface just to preserve an obsolete architecture.
 - **`/health` is a DUMB liveness / deploy gate — always 200 while the process serves.** It must never
   gate on scheduler state, the DB, or a downstream service (`index.ts`, `res.status(200)` is a
   literal). Railway probes this path (`.railway/railway.ts`, this service's `healthcheck`; it moved out of
@@ -123,12 +124,11 @@ exactly that in a receipt — an unqualified "verified" reads as a test pass tha
 
 ## Cron job registry
 
-The **live** catalog is `/system/crons` on statenour-web (tRPC `systemAutomation.cronDeck`, manifest-backed).
-`GET /api/settings/crons` is NOT: it parses the deleted `vercel.json` and returns only hard-coded mega rows
-(`PATCH` there still toggles a job, `POST /api/settings/crons/trigger` fires one). The manifest of record is
-`apps/statenour/config/crons.ts` (guarded by `pnpm check:crons`). This service only knows the four
-job names hard-coded in `scheduler.ts` plus the two mega slots. Operator surface for kill-switch and
-run-now: `/system/crons`.
+The **live** catalog is `/system/crons` on statenour-web (tRPC `systemAutomation.cronDeck`,
+manifest-backed). The manifest of record is `apps/statenour/config/crons.ts` (guarded by
+`pnpm check:crons`). This worker only knows the four job names hard-coded in `scheduler.ts`;
+morning/evening mega fan-out is not worker-owned. Operator surface for kill-switch and run-now:
+`/system/crons`.
 
 <!--
   2026-08-21: this section said `GET /api/cron/list` and `/system/cron-deck`. Neither exists —

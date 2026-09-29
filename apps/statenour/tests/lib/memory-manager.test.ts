@@ -42,10 +42,16 @@ const mocks = vi.hoisted(() => ({
   } as Record<string, string>,
   DEPRECATED_CATEGORY_MAP: { skills: "skill" } as Record<string, string>,
   gateWisdom: vi.fn(() => ({ pass: true })),
+  queryRawUnsafe: vi.fn(),
+  executeRawUnsafe: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { brainMemory: mocks.brainMemory },
+  prisma: {
+    brainMemory: mocks.brainMemory,
+    $queryRawUnsafe: mocks.queryRawUnsafe,
+    $executeRawUnsafe: mocks.executeRawUnsafe,
+  },
 }));
 vi.mock("@/lib/brain/embedding-utils", () => ({
   storeMemoryEmbedding: mocks.storeMemoryEmbedding,
@@ -65,6 +71,15 @@ vi.mock("@/lib/brain/wisdom-quality-gate", () => ({
 }));
 
 import { BrainMemoryManager } from "@/lib/brain/memory-manager";
+import { resetTransactionColumnProbeForTest } from "@/lib/brain/memory-bitemporal";
+
+beforeEach(() => {
+  resetTransactionColumnProbeForTest();
+  // This legacy lifecycle fixture models the current pre-Q-31-migration schema.
+  // The focused bitemporal tests cover the columns-present lane separately.
+  mocks.queryRawUnsafe.mockResolvedValue([{ count: 0 }]);
+  mocks.executeRawUnsafe.mockResolvedValue(0);
+});
 
 /**
  * The memory gateway (lib/brain/memory-manager.ts:131) fire-and-forgets a

@@ -19,7 +19,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { brainMemory } from "@/lib/brain/memory-manager";
+import { intakeExternalMemory } from "@/lib/brain/external-memory-intake";
 import {
   listRecentFiles,
   getFileMetadata,
@@ -52,6 +52,8 @@ export interface DriveIngestResult {
   probeFailed?: boolean;
   reason?: string;
   stored: number;
+  /** External documents waiting for operator review before BrainMemory commit. */
+  quarantined?: number;
   skippedCount: number;
   categoryCounts: Record<string, number>;
   errors: string[];
@@ -103,6 +105,7 @@ export async function runDriveIngest(
   }
 
   let stored = 0;
+  let quarantined = 0;
   let skippedCount = 0;
   const categoryCounts: Record<string, number> = {};
   const errors: string[] = [];
@@ -141,13 +144,26 @@ export async function runDriveIngest(
           viewUrl: meta.webViewLink,
         });
 
-        await brainMemory.remember(category, key, display, source, {
-          driveId: file.id,
-          title: file.title,
-          mimeType: file.mimeType,
-          viewUrl: meta.webViewLink,
-          modifiedTime: meta.modifiedTime,
+        const outcome = await intakeExternalMemory({
+          category,
+          key,
+          content: display,
+          source,
+          sourceType: "drive_ingest",
+          sourceUrl: `gdrive://${file.id}`,
+          metadata: {
+            driveId: file.id,
+            title: file.title,
+            mimeType: file.mimeType,
+            viewUrl: meta.webViewLink,
+            modifiedTime: meta.modifiedTime,
+          },
         });
+
+        if (outcome.outcome === "quarantined") {
+          quarantined++;
+          continue;
+        }
 
         stored++;
         categoryCounts[category] = (categoryCounts[category] || 0) + 1;
@@ -189,8 +205,8 @@ export async function runDriveIngest(
       data: {
         actor,
         eventType: "drive_docs_ingested",
-        detail: `Ingested ${stored} Drive docs (${skippedCount} skipped) via ${actor}`,
-        payload: { stored, skipped: skippedCount, categoryCounts, errors, durationMs },
+        detail: `Ingested ${stored} Drive docs · ${quarantined} quarantined (${skippedCount} skipped) via ${actor}`,
+        payload: { stored, quarantined, skipped: skippedCount, categoryCounts, errors, durationMs },
       },
     })
     .catch(() => {});
@@ -198,14 +214,17 @@ export async function runDriveIngest(
   return {
     ok: true,
     stored,
+    quarantined,
     skippedCount,
     categoryCounts,
     errors,
     durationMs,
     hint:
-      stored === 0
-        ? "No new files needed ingest — cold memory is already up to date."
-        : `${stored} docs now searchable via searchColdMemory tool.`,
+      quarantined > 0
+        ? `${quarantined} external docs are awaiting memory review before they can enter recall.`
+        : stored === 0
+          ? "No new files needed ingest — cold memory is already up to date."
+          : `${stored} docs now searchable via searchColdMemory tool.`,
   };
 }
 

@@ -24,6 +24,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { admitMemory } from "@/lib/brain/memory-admission";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
@@ -462,19 +463,17 @@ No preamble. Specific over generic. Blank beats fabricated: null the action if n
     evidenceTier: "INFERRED",
     confidence,
   });
-  await prisma.brainMemory
-    .upsert({
-      where: { category_key: { category: "journal_brain_take", key: `journal-take:${id}` } },
-      create: {
-        category: "journal_brain_take",
-        key: `journal-take:${id}`,
-        content: takeContent,
-        source: "journal_brain",
-        confidence: 1,
-      },
-      update: { content: takeContent },
-    })
-    .catch(() => {});
+  await admitMemory({
+    category: "journal_brain_take",
+    key: `journal-take:${id}`,
+    content: takeContent,
+    source: "journal_brain",
+    memoryKind: "derived",
+    extractionMethod: "llm_extract",
+    confidence: 1,
+    evidenceRefs: [`journal-entry:${id}`],
+    metadata: { evidenceTier: "INFERRED" },
+  }).catch(() => {});
 
   // WP-16 · 2026-07-28 · close the C7 loop (June-10 audit: "nextAction
   // display-only, never becomes actionable"). A generated nextAction now

@@ -1201,3 +1201,24 @@ observations `<functionId>:<span>` and `/api/public/v2/observations` is a thin p
 - Additive schema remains **pending/operator-gated** at `prisma/migrations-pending/20260929123500_reality_event_envelope/migration.sql`. Do not claim production columns exist until operator apply + read-back.
 - The implementation reuses the existing bridge-receipt/idempotency transaction; no second event spine was introduced.
 - Recovery details and next steps: `docs/research/2026-09-29-carousel-q25-q27-checkpoint.md`. Active branch: `feat/nouros-carousel-q25-q27-20260929`. Re-anchor onto latest main before PR; main is moving.
+
+
+## 2026-09-29 · authoritative Q-31 recovery
+- Q-25 RealityEvent envelope is **MERGED** via #2784 (`bee3abc5...`); its production migration remains a separate operator-applied/read-back concern.
+- Hidden Q-31 work was recovered from GitHub onto `feat/nouros-resilience-q28-q32-current-20260929` without rewriting the sibling-owned source branch. Current recovered scope includes inferred-writer admission, Guardian quarantine for Drive/Calendar/Google Reviews, trust-tier materialization, a bitemporal kernel/test fixture, and pending migration `20260929150500_brain_memory_transaction_time`.
+- Truth correction: Q-31 is BUILT-IN-PART, not complete. `transaction_expired_at` is modeled but is not yet guaranteed to be written before every real supersession mutation. Complete that ordering + contradiction-shadow acceptance before promotion.
+- Post-#2790 migration rule also applies: every parked migration must be registered statement-for-statement in the operator-only apply endpoint or explicitly classified operator-only. Q-31 registration is still pending.
+- Q-32 Langfuse eval loop is next; reuse existing Langfuse, do not add a second eval platform.
+- Durable checkpoint: `docs/research/2026-09-29-resilience-wave-current-checkpoint.md`.
+
+## 2026-09-29 · final Q-31/Q-32 consolidation before PR
+- Branch `feat/nouros-resilience-final-current-chatgpt-20260929` now combines deep Q-31 admission/history semantics with the row-locked explicit contradiction path; `cleanupResolvedContradiction()` is the single losing-memory mutation owner.
+- Q-31 transaction migration `20260929150500_brain_memory_transaction_time` is registered but NOT applied; production columns remain unclaimed.
+- Q-32 uses one deterministic `q32-regression.ts` owner + incumbent Langfuse queue/runtime/judge/optional experiment. The duplicate runtime selector import and fail-open unknown-family classifier were repaired during consolidation.
+- Empirical Q-32 targets (>=50 labels; kappa >=0.6 on >=30 double labels) remain UNMEASURED.
+- Full checkpoint: `docs/research/2026-09-29-resilience-final-consolidation-checkpoint.md`.
+
+## 2026-09-29 · Q-31/Q-32 hardening on final resilience PR
+- Q-32: experiment parser repaired; unknown model families are now rejected for independent judging; Venice/Ollama/custom hosts are not model families. The pinned Langfuse action owns its SDK install, so no extra app dependency was added.
+- Q-31: transaction-column probing is single-owner in `memory-bitemporal.ts`. Failed prepared supersessions restore transaction + effective verification state, delete the provisional snapshot, and do not silently fall through to a legacy history-destroying overwrite.
+- These are still branch truths until PR #2794 is exact-head green and merged. Production migration/application and empirical Q-32 acceptance remain separate.

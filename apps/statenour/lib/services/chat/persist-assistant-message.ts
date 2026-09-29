@@ -554,6 +554,48 @@ export async function persistAssistantMessage(a: {
       { timeoutMs: 10_000, context: { conversationId: convId } }
     );
     createdAssistantId = createdAssistant?.id ?? null;
+
+    // Q-32 · deterministic metadata-only annotation selection. Fire-and-forget:
+    // evaluation infrastructure must never delay or break a user turn. The
+    // consolidated q32-regression selector is the single owner of signal
+    // semantics, including the distinction between advisory budget receipts
+    // and an ACTUAL below-threshold context drop.
+    if (createdAssistant?.id) {
+      void Promise.all([
+        import("@/lib/evals/q32-regression"),
+        import("@/lib/observability/langfuse-annotation-queue"),
+      ])
+        .then(([{ selectQ32Turn }, { enqueueLangfuseTraceForAnnotation }]) => {
+          const selection = selectQ32Turn({
+            id: createdAssistant.id,
+            createdAt: new Date(),
+            feedbackScore: null,
+            content: cleanedText,
+            model: modelId,
+            provider,
+            tokenUsage: {
+              traceId,
+              evidenceGate,
+              contextReceipt: contextReceipt ?? null,
+            },
+          });
+          if (!selection?.traceId) return false;
+          log.info("q32_annotation_candidate", {
+            messageId: selection.messageId,
+            traceId: selection.traceId,
+            signals: selection.signals,
+            datasetVersion: selection.datasetVersion,
+          });
+          return enqueueLangfuseTraceForAnnotation(selection.traceId);
+        })
+        .catch((err) => {
+          log.warn("q32_annotation_queue_dispatch_failed", {
+            messageId: createdAssistant.id,
+            error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+          });
+        });
+    }
+
     // v7.6 · Apr 29 · Bump conversation activity for assistant turn.
     prisma.chatConversation
       .update({
@@ -580,6 +622,8 @@ export async function persistAssistantMessage(a: {
             messageId: createdAssistant.id,
             userQuery: userContent.slice(0, 1000),
             assistantReply: cleanedText,
+            generatedByProvider: provider,
+            generatedByModel: modelId,
           }),
         )
         .catch((err) => {

@@ -15,6 +15,13 @@ import {
 } from "@/lib/brain/categories";
 import { gateWisdom } from "@/lib/brain/wisdom-quality-gate";
 import { computeExpiresAt } from "@/lib/brain/category-ttl";
+import {
+  closeTransactionWindowIfAvailable,
+  effectiveInvalidationAt,
+  openTransactionWindowIfAvailable,
+  restoreTransactionWindowIfAvailable,
+  stampHistoricalTransactionWindowIfAvailable,
+} from "@/lib/brain/memory-bitemporal";
 
 /**
  * 2026-08-18 · categories whose rows are one-shot RECORDS, exempt from
@@ -131,17 +138,47 @@ function validateAndCanonicalizeCategory(
  * honest state, not theater.
  */
 async function snapshotSupersededVersion(args: {
-  existing: { id: string; category: string; key: string; content: string; source: string; confidence: number; createdAt: Date };
+  existing: {
+    id: string;
+    category: string;
+    key: string;
+    content: string;
+    source: string;
+    confidence: number;
+    createdAt: Date;
+    validFrom?: Date | null;
+    validUntil?: Date | null;
+    lastVerifiedAt?: Date | null;
+  };
   newContent: string;
   newSource: string;
   reason: string;
-}): Promise<void> {
+  incomingValidFrom?: Date;
+}): Promise<{
+  replacementAt: Date;
+  snapshotId: string;
+  previousValidFrom: Date | null;
+  previousLastVerifiedAt: Date | null;
+  previousTransactionFromAt: Date | null;
+  transactionWindowClosed: boolean;
+} | null> {
+  let snapshotId: string | null = null;
+  let closed: Awaited<ReturnType<typeof closeTransactionWindowIfAvailable>> | null = null;
   try {
     const { BRAIN_CATEGORIES } = await import("@/lib/brain/categories");
     const now = new Date();
+    const incomingValidFrom = args.incomingValidFrom ?? now;
+    const invalidatedAt = effectiveInvalidationAt(
+      {
+        createdAt: args.existing.createdAt,
+        validFrom: args.existing.validFrom,
+        validUntil: args.existing.validUntil,
+      },
+      incomingValidFrom,
+    );
     const snapshotKey = `${args.existing.category}:${args.existing.key}@${now.toISOString()}`;
 
-    await prisma.brainMemory.create({
+    const snapshot = await prisma.brainMemory.create({
       data: {
         category: BRAIN_CATEGORIES.SUPERSEDED_SNAPSHOT,
         key: snapshotKey.slice(0, 500),
@@ -149,13 +186,11 @@ async function snapshotSupersededVersion(args: {
         source: args.existing.source,
         createdBy: "memory-supersession",
         confidence: args.existing.confidence,
-        // The window this claim was actually held.
-        validFrom: args.existing.createdAt,
-        validUntil: now,
-        // Forward pointer to the row that replaced it.
+        // Preserve the old effective interval. Clip it only when the incoming
+        // validity actually overlaps the old interval (Graphiti-style rule).
+        validFrom: args.existing.validFrom ?? args.existing.createdAt,
+        validUntil: invalidatedAt ?? args.existing.validUntil ?? null,
         supersededById: args.existing.id,
-        // Bounded growth: history decays on the standard long TTL rather
-        // than accumulating forever on a hot write path.
         expiresAt: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000),
         metadata: {
           supersededCategory: args.existing.category,
@@ -163,22 +198,114 @@ async function snapshotSupersededVersion(args: {
           replacedBySource: args.newSource,
           replacedByContent: args.newContent.slice(0, 500),
           reason: args.reason,
+          incomingValidFrom: incomingValidFrom.toISOString(),
+          effectiveIntervalClipped: invalidatedAt !== null,
         } as object,
       },
     });
 
-    // The canonical row's CURRENT version starts now.
+    snapshotId = snapshot.id;
+
+    // Q-31 transaction ordering is load-bearing: close the outgoing belief
+    // BEFORE the canonical row's content flips. These helpers are schema-gated
+    // through information_schema, so this remains deploy-safe until the
+    // operator applies the pending DDL.
+    closed = await closeTransactionWindowIfAvailable(args.existing.id, now);
+    if (closed.available) {
+      await stampHistoricalTransactionWindowIfAvailable(
+        snapshot.id,
+        closed.previousFromAt ?? args.existing.createdAt,
+        now,
+      );
+    }
+
+    // The canonical row's corrected effective version starts when the incoming
+    // fact says it became true, not necessarily when StateNour learned it.
     await prisma.brainMemory.update({
       where: { id: args.existing.id },
-      data: { validFrom: now, lastVerifiedAt: now },
+      data: { validFrom: incomingValidFrom, lastVerifiedAt: now },
     });
+
+    return {
+      snapshotId: snapshot.id,
+      replacementAt: now,
+      previousValidFrom: args.existing.validFrom ?? null,
+      previousLastVerifiedAt: args.existing.lastVerifiedAt ?? null,
+      previousTransactionFromAt: closed.previousFromAt,
+      transactionWindowClosed: closed.available,
+    };
   } catch (err) {
-    // History is a nice-to-have; it must never break the write path.
+    if (closed?.available) {
+      await restoreTransactionWindowIfAvailable(
+        args.existing.id,
+        closed.previousFromAt,
+      );
+    }
+    if (snapshotId) {
+      await prisma.brainMemory
+        .deleteMany({ where: { id: snapshotId } })
+        .catch(() => ({ count: 0 }));
+    }
     log.warn("memory_supersession_snapshot_failed", {
       category: args.existing.category,
       key: args.existing.key,
       error: err instanceof Error ? err.message : String(err),
     });
+    return null;
+  }
+}
+
+async function replaceCanonicalWithHistory<T>(args: {
+  snapshot: Awaited<ReturnType<typeof snapshotSupersededVersion>>;
+  memoryId: string;
+  write: () => Promise<T>;
+}): Promise<T> {
+  try {
+    const result = await args.write();
+    if (args.snapshot?.transactionWindowClosed) {
+      const opened = await openTransactionWindowIfAvailable(
+        args.memoryId,
+        args.snapshot.replacementAt,
+      );
+      if (!opened) {
+        // The content flip already succeeded. Do not throw into the rollback
+        // branch (which cannot unwrite content); instead retry the same desired
+        // transaction state through the compensating helper.
+        const recovered = await restoreTransactionWindowIfAvailable(
+          args.memoryId,
+          args.snapshot.replacementAt,
+        );
+        if (!recovered) {
+          log.error("memory_transaction_window_reopen_failed", {
+            memoryId: args.memoryId,
+            replacementAt: args.snapshot.replacementAt.toISOString(),
+          });
+        }
+      }
+    }
+    return result;
+  } catch (err) {
+    if (args.snapshot) {
+      if (args.snapshot.transactionWindowClosed) {
+        await restoreTransactionWindowIfAvailable(
+          args.memoryId,
+          args.snapshot.previousTransactionFromAt,
+        );
+      }
+      await prisma.brainMemory
+        .updateMany({
+          where: { id: args.memoryId },
+          data: {
+            validFrom: args.snapshot.previousValidFrom,
+            lastVerifiedAt: args.snapshot.previousLastVerifiedAt,
+          },
+        })
+        .catch(() => ({ count: 0 }));
+      await prisma.brainMemory
+        .deleteMany({ where: { id: args.snapshot.snapshotId } })
+        .catch(() => ({ count: 0 }));
+    }
+    throw err;
   }
 }
 
@@ -361,6 +488,17 @@ export class BrainMemoryManager {
       // shadow observation must never affect the real write path
     });
 
+    const admittedEffectiveFrom = (() => {
+      const admission =
+        metadata && typeof metadata.admission === "object" && metadata.admission
+          ? (metadata.admission as Record<string, unknown>)
+          : null;
+      const raw = typeof admission?.effectiveFrom === "string" ? admission.effectiveFrom : null;
+      if (!raw) return undefined;
+      const parsed = new Date(raw);
+      return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+    })();
+
     if (existing) {
       // 2026-08-11 · Phase-1 gateway graduation — LIVE by default, safe
       // subset ONLY: same-source repetition of the same claim is NOT
@@ -421,6 +559,41 @@ export class BrainMemoryManager {
                 source,
                 reason: verdict.reason,
               });
+              if (process.env.NICK_MEMORY_SUPERSESSION === "1") {
+                const snapshot = await snapshotSupersededVersion({
+                  existing: {
+                    id: existing.id,
+                    category: effectiveCategory,
+                    key,
+                    content: existing.content,
+                    source: existing.source,
+                    confidence: existing.confidence,
+                    createdAt: existing.createdAt,
+                    validFrom: existing.validFrom,
+                    validUntil: existing.validUntil,
+                    lastVerifiedAt: existing.lastVerifiedAt,
+                  },
+                  newContent: content,
+                  newSource: source,
+                  reason: verdict.reason,
+                  incomingValidFrom: admittedEffectiveFrom,
+                });
+                if (!snapshot) return existing;
+                try {
+                  return await replaceCanonicalWithHistory({
+                    snapshot,
+                    memoryId: existing.id,
+                    write: () => this.reinforce(existing.id, content, { bumpConfidence: false }),
+                  });
+                } catch (err) {
+                  log.warn("memory_supersession_replace_failed", {
+                    category: effectiveCategory,
+                    key,
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                  return existing;
+                }
+              }
               return this.reinforce(existing.id, content, { bumpConfidence: false });
             }
 
@@ -460,7 +633,7 @@ export class BrainMemoryManager {
               verdict.decision === "supersede" &&
               process.env.NICK_MEMORY_SUPERSESSION === "1"
             ) {
-              await snapshotSupersededVersion({
+              const snapshot = await snapshotSupersededVersion({
                 existing: {
                   id: existing.id,
                   category: effectiveCategory,
@@ -469,11 +642,30 @@ export class BrainMemoryManager {
                   source: existing.source,
                   confidence: existing.confidence,
                   createdAt: existing.createdAt,
+                  validFrom: existing.validFrom,
+                  validUntil: existing.validUntil,
+                  lastVerifiedAt: existing.lastVerifiedAt,
                 },
                 newContent: content,
                 newSource: source,
                 reason: verdict.reason,
+                incomingValidFrom: admittedEffectiveFrom,
               });
+              if (!snapshot) return existing;
+              try {
+                return await replaceCanonicalWithHistory({
+                  snapshot,
+                  memoryId: existing.id,
+                  write: () => this.reinforce(existing.id, content),
+                });
+              } catch (err) {
+                log.warn("memory_supersession_replace_failed", {
+                  category: effectiveCategory,
+                  key,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+                return existing;
+              }
             }
           }
         } catch (err) {
@@ -513,6 +705,8 @@ export class BrainMemoryManager {
         validFrom: new Date(),
       },
     });
+
+    await openTransactionWindowIfAvailable(created.id, created.createdAt);
 
     // Generate embedding async (non-blocking)
     storeMemoryEmbedding(created.id, `[${category}] ${key}: ${content}`).catch((err) => {
