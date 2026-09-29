@@ -164,9 +164,10 @@ not a flag.
 Never hand-edit `prerendered/`. **The command is `pnpm run regen` — NOT `pnpm run prerender`**,
 which writes to `dist/prerendered/` (`scripts/prerender.mjs:8`) and never touches the tracked tree,
 so it appears to succeed and changes nothing. The committed tree is refreshed by
-`.github/workflows/prerender-refresh.yml` (`cron: "0 8 * * 1"`, Mondays 08:00 UTC), which also has a
-`workflow_dispatch` button — prefer that over a local regen: it carries `GOOGLE_MAPS_API_KEY`, and a
-run without that key strips the live review cards from `/reviews`.
+`.github/workflows/prerender-refresh.yml` on its own: on every push to `main` that touches public
+client pages, components, `App.tsx`, `shared/` or `server/google-reviews.ts`, and Mondays 08:00 UTC.
+It also has a `workflow_dispatch` button — prefer that over a local regen: it carries
+`GOOGLE_MAPS_API_KEY`, and a run without that key strips the live review cards from `/reviews`.
 `prerender:check` and `prerender:semantic-check` gate it.
 
 ## 6 · Gotchas that have actually cost time

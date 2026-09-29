@@ -106,7 +106,7 @@ import { inFlightCronRuns, whenCronRunsSettled } from "../cron/index";
 import { validateTwilioRequest } from "../middleware/twilioValidation";
 import { resolveNickDeployIdentity, resolveConfiguredSurfaces } from "../lib/deployIdentity";
 import { withBatchRegex, blockBatchedLimits } from "./batchGuard";
-import { createGracefulShutdown, detachedWork, resolveShutdownGraceMs, trackHttpRequests, type DrainSource } from "./gracefulShutdown";
+import { createGracefulShutdown, detachedWork, resolveDrainCoverage, resolveShutdownGraceMs, trackHttpRequests, type DrainSource } from "./gracefulShutdown";
 
 const serverLog = createLogger("server");
 
@@ -354,7 +354,8 @@ async function startServer() {
   // is live?" — because uptime says the process restarted, not what it
   // restarted INTO. No secrets: SHA/branch/env plus booleans for which surfaces
   // are CONFIGURED (never their values, never whether they WORK; probes belong
-  // to /api/health).
+  // to /api/health). One deliberate exception, `drain`: two non-secret timing
+  // settings as numbers, because whether they fit together is the question.
   app.get("/api/version", (_req, res) => {
     // `build` is nested rather than spread: the identity carries its own
     // `status` (identified | unknown) and spreading it would silently overwrite
@@ -366,6 +367,8 @@ async function startServer() {
       startedAt: new Date(Date.now() - process.uptime() * 1000).toISOString(),
       build: resolveNickDeployIdentity(process.env),
       configured: resolveConfiguredSurfaces(process.env),
+      // Deploy config, not a secret: Railway's SIGTERM-to-SIGKILL window vs the drain budget.
+      drain: resolveDrainCoverage(process.env),
     });
   });
 
@@ -1423,6 +1426,15 @@ const shutdownOnSigterm = createGracefulShutdown({
 process.on("SIGTERM", () => {
   void shutdownOnSigterm();
 });
+
+// Say at boot, in the deploy log, when Railway will SIGKILL before the drain ends.
+// Railway deploys only: a local dev server has no drain window to check.
+{
+  const drain = resolveDrainCoverage(process.env);
+  if (process.env.RAILWAY_DEPLOYMENT_ID && !drain.covered) {
+    serverLog.warn(`[shutdown] drain window too short: ${drain.note}`);
+  }
+}
 
 startServer().catch((err) => {
   serverLog.fatal("Server failed to start", { error: err instanceof Error ? err.stack : String(err) });

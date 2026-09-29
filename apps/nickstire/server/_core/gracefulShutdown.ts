@@ -38,6 +38,46 @@ export function resolveShutdownGraceMs(raw: string | undefined): number {
   return Math.min(MAX_SHUTDOWN_GRACE_MS, Math.max(MIN_SHUTDOWN_GRACE_MS, n));
 }
 
+/** Headroom between the end of the grace budget and Railway's SIGKILL ("30 for the 25 s default"). */
+const DRAIN_EXIT_MARGIN_MS = 5_000;
+
+export interface DrainCoverage {
+  /** Railway's drain window, or null when unset or not a whole number (Railway then uses 0). */
+  railwayDrainingSeconds: number | null;
+  shutdownGraceMs: number;
+  /** True only when the window outlasts the grace budget by the exit margin. */
+  covered: boolean;
+  note: string;
+}
+
+/**
+ * Does Railway's drain window cover the grace budget above?
+ *
+ * RAILWAY_DEPLOYMENT_DRAINING_SECONDS is Railway's setting, not ours, but it is
+ * an ordinary service variable, so the process can read it. Nothing did: whether
+ * the drain ever got its time was an operator-only fact that no agent or probe
+ * could check (the 2026-09-28 audit saw the variable but not its value).
+ * /api/version reports this and boot warns when it is short. Unset or
+ * unreadable counts as Railway's default of 0, never as covered.
+ */
+export function resolveDrainCoverage(env: Record<string, string | undefined>): DrainCoverage {
+  const shutdownGraceMs = resolveShutdownGraceMs(env.NICKSTIRE_SHUTDOWN_GRACE_MS);
+  const raw = env.RAILWAY_DEPLOYMENT_DRAINING_SECONDS?.trim() ?? "";
+  const railwayDrainingSeconds = /^\d+$/.test(raw) ? Number(raw) : null;
+  const neededSeconds = Math.ceil((shutdownGraceMs + DRAIN_EXIT_MARGIN_MS) / 1000);
+  const covered = railwayDrainingSeconds !== null && railwayDrainingSeconds >= neededSeconds;
+  let note: string;
+  if (railwayDrainingSeconds === null) {
+    const state = raw ? "is not a whole number of seconds" : "is unset";
+    note = `RAILWAY_DEPLOYMENT_DRAINING_SECONDS ${state}, so Railway uses 0 and kills the process right after SIGTERM; the ${shutdownGraceMs} ms drain needs at least ${neededSeconds} s`;
+  } else if (covered) {
+    note = `Railway waits ${railwayDrainingSeconds} s after SIGTERM; the ${shutdownGraceMs} ms drain needs ${neededSeconds} s`;
+  } else {
+    note = `Railway waits only ${railwayDrainingSeconds} s after SIGTERM; the ${shutdownGraceMs} ms drain needs ${neededSeconds} s, so work still running then is killed`;
+  }
+  return { railwayDrainingSeconds, shutdownGraceMs, covered, note };
+}
+
 /** One kind of work the drain waits for. */
 export interface DrainSource {
   /** Stable label for the log line, e.g. "cron", "sms-queue", "http". */
