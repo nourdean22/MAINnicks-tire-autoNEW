@@ -1201,3 +1201,11 @@ observations `<functionId>:<span>` and `/api/public/v2/observations` is a thin p
 - Additive schema remains **pending/operator-gated** at `prisma/migrations-pending/20260929123500_reality_event_envelope/migration.sql`. Do not claim production columns exist until operator apply + read-back.
 - The implementation reuses the existing bridge-receipt/idempotency transaction; no second event spine was introduced.
 - Recovery details and next steps: `docs/research/2026-09-29-carousel-q25-q27-checkpoint.md`. Active branch: `feat/nouros-carousel-q25-q27-20260929`. Re-anchor onto latest main before PR; main is moving.
+
+
+## 2026-09-29 · consolidated resilience + memory truth checkpoint
+- **Q-25 MERGED:** RealityEvent registry/envelope work landed on `main` in #2784 / `bee3abc5aa61a45702cd341adb3893b39ff0013c`; pending migration remains operator-gated.
+- **Active consolidation branch:** `feat/nouros-resilience-q28-q34-q36-q31-q32-20260929`, freshly cut from post-#2784 `main`.
+- Q-36 live topology correction already carried over: Nick, StateNour web, and StateNour worker are one replica in `us-east4-eqdc4a`; worker is private/no cron schedule/no DB client. Older west2/public-domain worker notes are superseded present-tense truth, not deleted historical evidence.
+- Q-31 source census is underway on this branch: `admitMemory()` and the commit gateway already exist; the real remaining defects are direct inferred writers plus missing transaction-time expiry / shadow contradiction semantics.
+- Safety rule: GitHub/connectors only; no NattyNour/local worktree/process access while sibling sessions are active.
