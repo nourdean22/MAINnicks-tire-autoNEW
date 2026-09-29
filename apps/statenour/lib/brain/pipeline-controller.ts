@@ -89,7 +89,7 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
       );
 
       // Connect lead to relevant patterns
-      if (event.data.id) {
+      if (event.data.id ?? event.data.leadId) {
         await connect(
           { type: "memory", id: memKey },
           { type: "pattern", id: `lead_source_${source}` },
@@ -102,20 +102,21 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
     }
 
     case "review": {
-      // Track review sentiment
+      // Track review sentiment. The bridge sends `reviewText`; `text` is the older name.
       const rating = Number(event.data.rating || 0);
+      const reviewText = String(event.data.reviewText || event.data.text || "");
       if (rating >= 4) {
         await brainMemory.remember(
           "insight",
           `review_positive_${today()}`,
-          `Positive review (${rating}/5): ${String(event.data.text || "").slice(0, 100)}`,
+          `Positive review (${rating}/5): ${reviewText.slice(0, 100)}`,
           "pipeline_analysis"
         );
       } else if (rating > 0) {
         await brainMemory.remember(
           "business_alert",
           `review_negative_${today()}`,
-          `Low review (${rating}/5): ${String(event.data.text || "").slice(0, 100)} — NEEDS RESPONSE`,
+          `Low review (${rating}/5): ${reviewText.slice(0, 100)} — NEEDS RESPONSE`,
           "pipeline_analysis"
         );
       }
@@ -165,7 +166,9 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
 
   // 4. Cross-reference with existing data for deeper insights
   if (event.type === "lead" || event.type === "booking") {
-    const customerName = String(event.data.name || event.data.customerName || "");
+    // The bridge sends `customer` on lead/booking events; the name is only searched and
+    // hashed below, never stored.
+    const customerName = String(event.data.customer || event.data.name || event.data.customerName || "");
     if (customerName.length > 2) {
       // 2026-05-30 · three wiring bugs killed repeat-customer detection:
       // (1) handler reads `filters.term`, not `name` → it errored out every

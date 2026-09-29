@@ -1,0 +1,126 @@
+{
+  "$comment": [
+    "Golden contract for the nickstire -> StateNour event bridge (apps/nickstire/server/nour-os-bridge.ts).",
+    "Each entry: `adapter` is the on* function, `input` is what the real emitter hands it (the event-bus",
+    "payload for `busTypes`), `data` is the EXACT JSON the bridge POSTs as event.data. `statenour` is what",
+    "the receivers must do with that data: `webhookAlert` = strings the Telegram alert from",
+    "/api/webhooks/nickstire must contain (null = no alert); `coachEvent` = strings the drift-alert body from",
+    "/api/sync/events must contain (null = none); `pipeline` = the brain ShopEvent type (null = not piped).",
+    "Tests bound to this file: apps/nickstire/server/bridgeEventContract.test.ts and",
+    "apps/statenour/tests/api/nickstire-bridge-contract.test.ts. Rename a field on either side and one of",
+    "them goes red. All data is fake (555 numbers, Test Customer)."
+  ],
+  "notAdapterDriven": {
+    "nickstire:vendor_health": "dispatchVendorHealthSnapshot (computed snapshot, no on* adapter)",
+    "nickstire:vendor_degraded": "dispatchVendorHealthSnapshot state transition",
+    "nickstire:vendor_recovered": "dispatchVendorHealthSnapshot state transition",
+    "nickstire:shop_floor": "dispatchShopFloorSnapshot (computed snapshot)",
+    "nickstire:work_order": "declared in NourOsEventType, never dispatched"
+  },
+  "events": [
+    {
+      "type": "nickstire:booking",
+      "adapter": "onBookingCreated",
+      "busTypes": ["booking_created"],
+      "input": { "id": 9001, "name": "Test Customer", "phone": "2165550100", "service": "Brake inspection", "vehicle": "2015 Test Sedan", "urgency": "normal", "refCode": "TEST01" },
+      "data": { "bookingId": 9001, "customer": "Test Customer", "phone": "2165550100", "service": "Brake inspection", "vehicle": "2015 Test Sedan", "urgency": "normal", "refCode": "TEST01" },
+      "statenour": { "webhookAlert": null, "coachEvent": null, "pipeline": "booking" }
+    },
+    {
+      "type": "nickstire:booking:complete",
+      "adapter": "onBookingCompleted",
+      "busTypes": ["booking_completed"],
+      "input": { "id": 9002, "name": "Test Customer", "service": "Tire rotation", "invoiceNumber": "INV-TEST-1", "totalAmount": 245 },
+      "data": { "bookingId": 9002, "customer": "Test Customer", "service": "Tire rotation", "invoiceNumber": "INV-TEST-1", "totalAmount": 245 },
+      "statenour": { "webhookAlert": ["JOB COMPLETE", "$245", "Test Customer", "Tire rotation"], "coachEvent": null, "pipeline": "booking" }
+    },
+    {
+      "type": "nickstire:lead",
+      "adapter": "onLeadCaptured",
+      "busTypes": ["lead_captured"],
+      "input": { "id": 9003, "name": "Test Customer", "phone": "2165550101", "source": "web", "urgencyScore": 3, "interest": "Wheel alignment" },
+      "data": { "leadId": 9003, "customer": "Test Customer", "phone": "2165550101", "source": "web", "urgencyScore": 3, "interest": "Wheel alignment" },
+      "statenour": { "webhookAlert": ["NEW LEAD", "Test Customer", "2165550101", "Wheel alignment"], "coachEvent": null, "pipeline": "lead" }
+    },
+    {
+      "type": "nickstire:tire_order",
+      "adapter": "onTireOrderPlaced",
+      "busTypes": ["tire_order_placed"],
+      "input": { "orderNumber": "TO-TEST-1", "customerName": "Test Customer", "customerPhone": "2165550105", "tireBrand": "TestBrand", "tireModel": "All Season", "tireSize": "205/55R16", "quantity": 4, "totalAmount": 612, "uncommonSize": false },
+      "data": { "orderNumber": "TO-TEST-1", "customer": "Test Customer", "tire": "4x TestBrand All Season", "totalAmount": 612 },
+      "statenour": { "webhookAlert": null, "coachEvent": null, "pipeline": "invoice" }
+    },
+    {
+      "type": "nickstire:invoice",
+      "adapter": "onInvoiceCreated",
+      "busTypes": ["invoice_created"],
+      "input": { "invoiceNumber": "INV-TEST-2", "customerName": "Test Customer", "totalAmount": 389.99, "source": "booking" },
+      "data": { "invoiceNumber": "INV-TEST-2", "customer": "Test Customer", "totalAmount": 389.99, "source": "booking" },
+      "statenour": { "webhookAlert": ["JOB COMPLETE", "$390", "Test Customer"], "coachEvent": null, "pipeline": "invoice" }
+    },
+    {
+      "type": "nickstire:estimate",
+      "adapter": "onEstimateGenerated",
+      "busTypes": ["estimate_generated"],
+      "input": { "vehicle": "2012 Test Coupe", "symptom": "grinding when braking", "issueCount": 2, "source": "ai_labor_estimate", "estimateLow": 180, "estimateHigh": 320 },
+      "data": { "kind": null, "vehicle": "2012 Test Coupe", "symptom": "grinding when braking", "service": null, "issueCount": 2, "source": "ai_labor_estimate", "estimateLow": 180, "estimateHigh": 320, "workOrderId": null, "orderNumber": null },
+      "statenour": { "webhookAlert": null, "coachEvent": null, "pipeline": null }
+    },
+    {
+      "type": "nickstire:callback",
+      "adapter": "onCallbackRequested",
+      "busTypes": ["callback_requested"],
+      "input": { "name": "Test Customer", "phone": "2165550102", "reason": "Question about quote" },
+      "data": { "customer": "Test Customer", "phone": "2165550102", "reason": "Question about quote" },
+      "statenour": { "webhookAlert": ["CALLBACK REQUEST", "Test Customer", "2165550102", "Question about quote"], "coachEvent": ["Test Customer", "2165550102"], "pipeline": "lead" }
+    },
+    {
+      "type": "nickstire:review",
+      "adapter": "onReviewDetected",
+      "busTypes": ["review_detected"],
+      "input": { "rating": 2, "reviewText": "Waited too long for a simple job", "customerName": "Test Reviewer" },
+      "data": { "rating": 2, "reviewText": "Waited too long for a simple job", "customerName": "Test Reviewer" },
+      "statenour": { "webhookAlert": ["NEW REVIEW", "2/5", "Test Reviewer", "Waited too long for a simple job"], "coachEvent": ["Test Reviewer", "Waited too long for a simple job"], "pipeline": "review" }
+    },
+    {
+      "type": "nickstire:revenue",
+      "adapter": "onInvoicePaid",
+      "busTypes": ["invoice_paid"],
+      "input": { "invoiceNumber": "INV-TEST-3", "customerName": "Test Customer", "totalAmount": 250, "method": "card" },
+      "data": { "kind": "invoice_paid", "invoiceNumber": "INV-TEST-3", "customer": "Test Customer", "totalAmount": 250, "method": "card" },
+      "statenour": { "webhookAlert": null, "coachEvent": null, "pipeline": "invoice" }
+    },
+    {
+      "type": "nickstire:stage-change",
+      "adapter": "onStageChanged",
+      "busTypes": ["stage_changed"],
+      "input": { "bookingId": 9004, "phone": "2165550103", "stage": "in_progress", "refCode": "TEST02" },
+      "data": { "bookingId": 9004, "phone": "2165550103", "stage": "in_progress", "refCode": "TEST02" },
+      "statenour": { "webhookAlert": null, "coachEvent": null, "pipeline": "stage-change" }
+    },
+    {
+      "type": "nickstire:campaign-result",
+      "adapter": "onCampaignResult",
+      "busTypes": ["campaign_sent"],
+      "input": { "campaignId": 77, "sent": 10, "queued": 2, "failed": 1, "campaignType": "reminder" },
+      "data": { "campaignId": 77, "sent": 10, "failed": 1, "campaignType": "reminder" },
+      "statenour": { "webhookAlert": null, "coachEvent": null, "pipeline": "campaign" }
+    },
+    {
+      "type": "nickstire:emergency",
+      "adapter": "onEmergencyRequest",
+      "busTypes": ["emergency_request"],
+      "input": { "name": "Test Customer", "phone": "2165550104", "problem": "Flat tire on the highway", "urgency": "high" },
+      "data": { "name": "Test Customer", "phone": "2165550104", "description": "Flat tire on the highway", "urgency": "high" },
+      "statenour": { "webhookAlert": ["EMERGENCY REQUEST", "Test Customer", "2165550104", "Flat tire on the highway"], "coachEvent": null, "pipeline": "emergency" }
+    },
+    {
+      "type": "nickstire:work_order:status",
+      "adapter": "onWorkOrderStatusChange",
+      "busTypes": [],
+      "input": { "workOrderId": "WO-TEST-1", "orderNumber": "WO-1001", "fromStatus": "approved", "toStatus": "in_progress", "service": "Oil change" },
+      "data": { "workOrderId": "WO-TEST-1", "orderNumber": "WO-1001", "fromStatus": "approved", "toStatus": "in_progress", "service": "Oil change" },
+      "statenour": { "webhookAlert": null, "coachEvent": null, "pipeline": null }
+    }
+  ]
+}

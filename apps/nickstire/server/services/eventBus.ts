@@ -102,14 +102,14 @@ async function ensureInitialized(): Promise<void> {
         booking_completed: bridge.onBookingCompleted,
         tire_order_placed: bridge.onTireOrderPlaced,
         invoice_created: bridge.onInvoiceCreated,
-        invoice_paid: bridge.onRevenueMilestone,
-        payment_received: bridge.onRevenueMilestone,
-        estimate_generated: (data: any) => bridge.onInvoiceCreated({ ...data, type: "estimate" }),
+        invoice_paid: bridge.onInvoicePaid,
+        estimate_generated: bridge.onEstimateGenerated,
         emergency_request: bridge.onEmergencyRequest,
         review_detected: bridge.onReviewDetected,
         campaign_sent: bridge.onCampaignResult,
         stage_changed: bridge.onStageChanged,
-        social_posted: bridge.onCampaignResult,
+        // payment_received (no emitter today) and social_posted carry nothing a bridge
+        // adapter can use; their raw copy reaches StateNour via statenour-sync (#7).
       };
       const fn = typeMap[event.type];
       if (fn) fn(event.data);
@@ -471,21 +471,21 @@ async function ensureInitialized(): Promise<void> {
 
   // 7. Statenour real-time sync. Q-12 phase 0 (docs/adr/0019-idempotent-bridge-writes.md §9):
   // with "all", every type the "nour-os-bridge" (#1) also maps reached /api/sync/events twice.
-  // It now carries only (a) the 3 types the bridge does not map and (b) the types whose bridge
-  // adapter is mis-wired: it reads field names the emitters never send, so the bridge copy is
-  // an empty payload with a constant dedupe hash (distinct events within 5 min collapse) or
-  // drops the core field. Those keep today's double path until their adapter is fixed.
-  // eventBus.statenourOnce.test.ts drives the real bridge and pins both lists.
+  // It now carries only (a) the types the bridge does not map and (b) the types whose bridge
+  // adapter only fits SOME emitters: the others send no identity the adapter can use, so the
+  // bridge skips them and this direct copy is their only path. invoice_paid,
+  // estimate_generated and emergency_request left (b) when their adapters were fixed
+  // (config/nickstire-bridge-events.json pins them). eventBus.statenourOnce.test.ts drives
+  // the real bridge and pins both lists.
   registerDestination({
     name: "statenour-sync",
     enabled: true,
     handles: [
       // (a) not mapped by the bridge
-      "social_draft:sync", "mirror_synced", "data_refreshed",
-      // (b) mis-wired bridge adapters (onRevenueMilestone, onInvoiceCreated, onCampaignResult,
-      // onStageChanged, onEmergencyRequest read fields these emitters do not send)
-      "invoice_paid", "payment_received", "estimate_generated",
-      "campaign_sent", "social_posted", "stage_changed", "emergency_request",
+      "social_draft:sync", "mirror_synced", "data_refreshed", "payment_received", "social_posted",
+      // (b) onCampaignResult fits routers/campaigns.ts, not cross-sell per-customer sends;
+      // onStageChanged fits booking stages, not work-order / callback status changes
+      "campaign_sent", "stage_changed",
     ],
     softFail: true,
     handler: async (event) => {
@@ -496,8 +496,7 @@ async function ensureInitialized(): Promise<void> {
       try {
         // Map event types to statenour brain categories for richer processing
         const categoryMap: Record<string, string> = {
-          invoice_paid: "invoice", payment_received: "invoice", estimate_generated: "invoice",
-          emergency_request: "emergency",
+          payment_received: "invoice",
           campaign_sent: "campaign", social_posted: "campaign",
           stage_changed: "stage-change",
           mirror_synced: "sync", data_refreshed: "sync",

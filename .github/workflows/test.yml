@@ -72,6 +72,7 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
               - 'config/retired-claude-models.json'
+              - 'config/nickstire-bridge-events.json'
               - '.github/workflows/**'
             statenour:
               - 'apps/statenour/**'
@@ -81,6 +82,7 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
               - 'config/retired-claude-models.json'
+              - 'config/nickstire-bridge-events.json'
               - '.github/workflows/**'
             worker:
               - 'apps/worker/**'
@@ -102,6 +104,7 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
               - 'config/retired-claude-models.json'
+              - 'config/nickstire-bridge-events.json'
               - '.github/workflows/**'
             workflow:
               - '.github/workflows/**'

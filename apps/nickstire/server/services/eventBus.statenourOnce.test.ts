@@ -60,14 +60,17 @@ const FIXTURES: Record<BusinessEvent, (n: number) => Fixture> = {
 const BRIDGE_ONLY: BusinessEvent[] = [
   "lead_captured", "callback_requested", "booking_created", "booking_completed",
   "tire_order_placed", "invoice_created", "review_detected",
+  // adapters fixed against config/nickstire-bridge-events.json
+  "invoice_paid", "estimate_generated", "emergency_request",
 ];
-const SYNC_ONLY: BusinessEvent[] = ["social_draft:sync", "mirror_synced", "data_refreshed"];
-// Bridge adapter reads fields these emitters never send (onRevenueMilestone,
-// onInvoiceCreated for estimates, onCampaignResult, onStageChanged, onEmergencyRequest).
-const MISWIRED_BOTH: BusinessEvent[] = [
-  "invoice_paid", "payment_received", "estimate_generated",
-  "campaign_sent", "social_posted", "stage_changed", "emergency_request",
+const SYNC_ONLY: BusinessEvent[] = [
+  "social_draft:sync", "mirror_synced", "data_refreshed",
+  // carry nothing a bridge adapter can use, so the bridge does not map them
+  "payment_received", "social_posted",
 ];
+// The adapter fits some emitters of the type but not these fixtures' (cross-sell per-customer
+// sends; work-order stage changes), so the bridge skips them and the direct copy is kept.
+const MISWIRED_BOTH: BusinessEvent[] = ["campaign_sent", "stage_changed"];
 
 type Post = { via: "bridge" | "direct"; body: string };
 const posts: Post[] = [];
