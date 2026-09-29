@@ -12,41 +12,15 @@
  */
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
+import {
+  resetTransactionColumnProbeForTest,
+  transactionTimeColumnsAvailable,
+} from "@/lib/brain/memory-bitemporal";
 
 const log = rootLogger.withSurface("brain/memory-transaction-time");
-const CACHE_MS = 60_000;
-
-let cachedColumns: { available: boolean; checkedAt: number } | null = null;
-
-async function transactionColumnsAvailable(): Promise<boolean> {
-  const now = Date.now();
-  if (cachedColumns && now - cachedColumns.checkedAt < CACHE_MS) {
-    return cachedColumns.available;
-  }
-
-  try {
-    const rows = await prisma.$queryRawUnsafe<Array<{ n: number }>>(
-      `SELECT COUNT(*)::int AS n
-         FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = 'brain_memories'
-          AND column_name IN ('transaction_from_at', 'transaction_expired_at')`,
-    );
-    const available = Number(rows[0]?.n ?? 0) === 2;
-    cachedColumns = { available, checkedAt: now };
-    return available;
-  } catch (err) {
-    cachedColumns = { available: false, checkedAt: now };
-    log.warn("transaction_time_column_probe_failed", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return false;
-  }
-}
-
-/** Test-only cache reset; harmless in production and keeps column probes deterministic. */
+/** Test-only compatibility wrapper around the shared Q-31 schema probe. */
 export function resetTransactionTimeColumnCache(): void {
-  cachedColumns = null;
+  resetTransactionColumnProbeForTest();
 }
 
 /**
@@ -55,7 +29,7 @@ export function resetTransactionTimeColumnCache(): void {
  * time would rewrite history.
  */
 export async function ensureMemoryTransactionStart(memoryId: string): Promise<boolean> {
-  if (!(await transactionColumnsAvailable())) return false;
+  if (!(await transactionTimeColumnsAvailable())) return false;
   try {
     await prisma.$executeRawUnsafe(
       `UPDATE "brain_memories"
@@ -96,7 +70,7 @@ export async function supersedeMemoryVersion(
   input: SupersedeMemoryVersionInput,
 ): Promise<SupersedeMemoryVersionResult> {
   const transactionAt = input.transactionAt ?? new Date();
-  const hasTransactionColumns = await transactionColumnsAvailable();
+  const hasTransactionColumns = await transactionTimeColumnsAvailable();
 
   return prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRawUnsafe<Array<{ id: string }>>(
@@ -170,7 +144,7 @@ export async function restoreMemoryAsCurrent(
   expectedSupersededById: string,
   transactionAt = new Date(),
 ): Promise<RestoreCurrentMemoryResult> {
-  const hasTransactionColumns = await transactionColumnsAvailable();
+  const hasTransactionColumns = await transactionTimeColumnsAvailable();
 
   return prisma.$transaction(async (tx) => {
     const locked = await tx.$queryRawUnsafe<Array<{ id: string }>>(
