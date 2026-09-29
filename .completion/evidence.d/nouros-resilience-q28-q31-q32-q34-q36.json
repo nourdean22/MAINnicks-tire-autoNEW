@@ -1,0 +1,16 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-09-29 resilience consolidation: capability-ledger.json and generated REALITY-LEDGER.md were reconciled on feat/nouros-resilience-final-current-chatgpt-20260929. Q-25/Q-26/Q-27 are corrected to merged + unit_verified from already-green #2784. New Q-31/Q-32 rows remain in_progress/unverified/disabled until the consolidated PR exact-head CI runs; Q-28/Q-34/Q-36 remain in_progress/unverified/disabled. No production/live promotion is claimed."
+    },
+    "operator-gated-migrations": {
+      "deferred": "Q-31 migration 20260929150500_brain_memory_transaction_time is registered with the current apply-pending-migration discipline but is NOT applied by this branch. Production transaction-time columns must not be claimed without operator apply + read-back."
+    },
+    "production-boundaries": {
+      "deferred": "No Railway PROCESS_ROLE service split, no worker env deletion, no new Alertmanager/Braintrust service, and no claim of live mega fan-out or Q-32 empirical label/kappa acceptance. Those require separate deployment/operator/empirical receipts."
+    },
+    "consolidation-integrity": {
+      "deferred": "Historical source branches were not rewritten. The dedicated integration branch incorporated current main 223079d33407b9a6091e34a55032ea935d788e9e through merge commit 80e031ac88d0b35443f1986e8dc05ad5faab97ae after a zero-overlap census against intervening #2789/#2793 files. Exact-head PR CI is intentionally still pending at this evidence-writing point."
+    }
+  }
+}
