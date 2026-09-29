@@ -387,6 +387,34 @@ class VisitTracker:
         self._force_ended[reason] = self._force_ended.get(reason, 0) + ended
         return self._evaluate_all(at, estimated=True)
 
+    def discard_camera_state(self, camera: str) -> int:
+        """Discard open visit state belonging entirely to one camera.
+
+        Mixed-camera visits are refused rather than partially rewritten: an authority
+        handoff in one camera must never silently amputate a cross-camera stitched visit.
+        Edge producers use camera-scoped ledgers, so a mixed visit here is an invariant
+        violation and promotion should fail closed.
+        """
+        doomed: List[str] = []
+        for visit_id, visit in self._visits.items():
+            cameras = {s.camera for s in visit.sightings.values()}
+            if camera not in cameras:
+                continue
+            if cameras != {camera}:
+                raise RuntimeError(
+                    f"cannot discard camera {camera!r}: visit {visit_id} spans {sorted(cameras)}"
+                )
+            doomed.append(visit_id)
+        for visit_id in doomed:
+            visit = self._visits.pop(visit_id)
+            for sid in visit.sightings:
+                self._by_sighting.pop(sid, None)
+        self._closed = [
+            v for v in self._closed
+            if not any(s.camera == camera for s in v.sightings.values())
+        ]
+        return len(doomed)
+
     def handle_event(self, ev: FrigateEvent) -> List[Emission]:
         """Apply one frigate/events message and evaluate every timer at its frame time."""
         at = ev.time

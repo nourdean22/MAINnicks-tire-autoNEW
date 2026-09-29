@@ -43,6 +43,7 @@ import { sql } from "drizzle-orm";
 import { maskPlate, normalizePlate, PLATE_MATCH_CLASSES } from "../lib/plate";
 import { deriveStateAtIngest } from "../lib/cameraHealth";
 import { cameraHealthProfileFor } from "../../shared/cameras";
+import { cameraProducerAuthority } from "./cameraProducerAuthority";
 
 /** Timing-safe, matching the sibling bridge routes. */
 function safeCompare(a: string, b: string): boolean {
@@ -238,65 +239,105 @@ export function registerCameraVisitsRoute(app: Express): void {
     const d = await getDbTyped();
     if (!d) return res.status(503).json({ error: "database unavailable" });
 
+    // Authority and visit writes share ONE transaction. SELECT ... FOR UPDATE locks each
+    // camera_runtime owner row until every visit in the batch is written, so a heartbeat
+    // takeover cannot slip between "authorized" and INSERT and create split-brain rows.
+    const providedProducer = (req.headers["x-camera-producer"] as string | undefined) || undefined;
     type Outcome = "applied" | "stale" | "failed";
     const results: Array<{ visitId: string; outcome: Outcome; reason?: string }> = [];
+    let standbyCamera: string | null = null;
 
-    for (const v of parsed.data.visits) {
-      const values: Record<string, unknown> = {
-        visitId: v.visitId,
-        camera: v.camera,
-        state: v.state,
-        seq: v.seq,
-        arrivedAt: v.arrivedAt ?? null,
-        waitStartedAt: v.waitStartedAt ?? null,
-        bayEnteredAt: v.bayEnteredAt ?? null,
-        bayExitedAt: v.bayExitedAt ?? null,
-        departedAt: v.departedAt ?? null,
-        bay: v.bay ?? null,
-        plateText: plateTextToStore(v.plateStatus, v.plateText),
-        plateStatus: v.plateStatus,
-        customerMatch: v.customerMatch,
-        // Only an EXACT match may carry a customer id into the read model.
-        customerId: v.customerMatch === "EXACT" ? (v.customerId ?? null) : null,
-        preexisting: v.preexisting ? 1 : 0,
-        entryEvidence: v.entryEvidence ?? null,
-        episodeId: v.episodeId ?? null,
-        continuesVisitId: v.continuesVisitId ?? null,
-        memberTrackIds: v.memberTrackIds ? JSON.stringify(v.memberTrackIds) : null,
-        estimatedFields: v.estimatedFields ? JSON.stringify(v.estimatedFields) : null,
-        evidenceRef: v.evidenceRef ?? null,
-        sourceGeneration: v.sourceGeneration ?? null,
-        cameraPose: v.cameraPose ?? null,
-        detectorName: v.detectorName ?? null,
-        calibrationVersion: v.calibrationVersion ?? null,
-        dataClass: v.dataClass,
-        commissioningRunId: v.commissioningRunId ?? null,
-      };
+    try {
+      await d.transaction(async (tx) => {
+        // Lock in deterministic order so a future multi-camera batch cannot deadlock
+        // against another request that names the same cameras in the opposite order.
+        for (const camera of [...new Set(parsed.data.visits.map((v) => v.camera))].sort()) {
+          const runtimeRows = await tx.execute(sql`
+            SELECT producerInstanceId,
+                   TIMESTAMPDIFF(SECOND, receivedAt, NOW()) AS ageSeconds
+            FROM camera_runtime
+            WHERE camera = ${camera}
+            LIMIT 1
+            FOR UPDATE
+          `);
+          const runtimeList = (Array.isArray(runtimeRows) ? runtimeRows[0] : runtimeRows) as
+            unknown as Array<Record<string, unknown>> | undefined;
+          const row = Array.isArray(runtimeList) && runtimeList.length ? runtimeList[0] : null;
+          const current = row ? {
+            producerInstanceId: String(row.producerInstanceId),
+            ageSeconds: Math.max(0, Number(row.ageSeconds ?? 0)),
+          } : null;
+          if (!cameraProducerAuthority.visitProducerAuthorized(providedProducer, current)) {
+            standbyCamera = camera;
+            return;
+          }
+        }
+        if (standbyCamera) return;
 
-      try {
-        const placeholders = COLUMNS.map((c) => sql`${values[c]}`);
-        const result = await d.execute(sql`
-          INSERT INTO vehicle_visits (${sql.raw(COLUMNS.map((c) => `\`${c}\``).join(", "))})
-          VALUES (${sql.join(placeholders, sql`, `)})
-          ON DUPLICATE KEY UPDATE ${sql.raw(GUARDED_SET)}
-        `);
-        // mysql2 affectedRows: 1 = inserted, 2 = updated, 0 = matched but nothing changed.
-        // A guarded no-op (stale delivery) and an identical re-delivery both land on 0,
-        // which is the correct outcome for each: the row already reflects the newer state.
-        const info = (Array.isArray(result) ? result[0] : result) as { affectedRows?: number } | undefined;
-        const affected = Number(info?.affectedRows ?? 0);
-        results.push({
-          visitId: v.visitId,
-          outcome: affected === 0 ? "stale" : "applied",
-          ...(affected === 0 ? { reason: `seq ${v.seq} not newer than the stored row` } : {}),
-        });
-      } catch (err) {
-        results.push({
-          visitId: v.visitId,
-          outcome: "failed",
-          reason: err instanceof Error ? err.message : "write failed",
-        });
-      }
+        for (const v of parsed.data.visits) {
+          const values: Record<string, unknown> = {
+            visitId: v.visitId,
+            camera: v.camera,
+            state: v.state,
+            seq: v.seq,
+            arrivedAt: v.arrivedAt ?? null,
+            waitStartedAt: v.waitStartedAt ?? null,
+            bayEnteredAt: v.bayEnteredAt ?? null,
+            bayExitedAt: v.bayExitedAt ?? null,
+            departedAt: v.departedAt ?? null,
+            bay: v.bay ?? null,
+            plateText: plateTextToStore(v.plateStatus, v.plateText),
+            plateStatus: v.plateStatus,
+            customerMatch: v.customerMatch,
+            customerId: v.customerMatch === "EXACT" ? (v.customerId ?? null) : null,
+            preexisting: v.preexisting ? 1 : 0,
+            entryEvidence: v.entryEvidence ?? null,
+            episodeId: v.episodeId ?? null,
+            continuesVisitId: v.continuesVisitId ?? null,
+            memberTrackIds: v.memberTrackIds ? JSON.stringify(v.memberTrackIds) : null,
+            estimatedFields: v.estimatedFields ? JSON.stringify(v.estimatedFields) : null,
+            evidenceRef: v.evidenceRef ?? null,
+            sourceGeneration: v.sourceGeneration ?? null,
+            cameraPose: v.cameraPose ?? null,
+            detectorName: v.detectorName ?? null,
+            calibrationVersion: v.calibrationVersion ?? null,
+            dataClass: v.dataClass,
+            commissioningRunId: v.commissioningRunId ?? null,
+          };
+          try {
+            const placeholders = COLUMNS.map((c) => sql`${values[c]}`);
+            const result = await tx.execute(sql`
+              INSERT INTO vehicle_visits (${sql.raw(COLUMNS.map((c) => `\`${c}\``).join(", "))})
+              VALUES (${sql.join(placeholders, sql`, `)})
+              ON DUPLICATE KEY UPDATE ${sql.raw(GUARDED_SET)}
+            `);
+            const info = (Array.isArray(result) ? result[0] : result) as { affectedRows?: number } | undefined;
+            const affected = Number(info?.affectedRows ?? 0);
+            results.push({
+              visitId: v.visitId,
+              outcome: affected === 0 ? "stale" : "applied",
+              ...(affected === 0 ? { reason: `seq ${v.seq} not newer than the stored row` } : {}),
+            });
+          } catch (err) {
+            results.push({
+              visitId: v.visitId,
+              outcome: "failed",
+              reason: err instanceof Error ? err.message : "write failed",
+            });
+          }
+        }
+      });
+    } catch (err) {
+      return res.status(500).json({
+        error: err instanceof Error ? err.message : "camera visit transaction failed",
+      });
+    }
+    if (standbyCamera) {
+      return res.status(409).json({
+        error: "producer standby",
+        camera: standbyCamera,
+        authoritative: false,
+      });
     }
 
     const applied = results.filter((r) => r.outcome === "applied").length;
@@ -411,9 +452,18 @@ export const HEARTBEAT_COLUMNS = [
   "arrivalsAfterStitch", "stitchedTotal", "stitchRefusedAmbiguous",
 ] as const;
 
-/** A newer sequence from the same producer, or any sequence from a new producer instance. */
+/**
+ * Atomic authority + replay fence. A higher-priority machine may preempt immediately;
+ * a lower-priority machine may take over only after the current owner is stale. Same-role
+ * restarts may replace one another immediately, while one instance still needs monotonic seq.
+ */
+const incomingPrioritySql = "(CASE WHEN VALUES(`producerInstanceId`) LIKE 'p1-%' THEN 1 WHEN VALUES(`producerInstanceId`) LIKE 'p2-%' THEN 2 WHEN VALUES(`producerInstanceId`) LIKE 'p3-%' THEN 3 ELSE 99 END)";
+const storedPrioritySql = "(CASE WHEN `producerInstanceId` LIKE 'p1-%' THEN 1 WHEN `producerInstanceId` LIKE 'p2-%' THEN 2 WHEN `producerInstanceId` LIKE 'p3-%' THEN 3 ELSE 99 END)";
 export const HEARTBEAT_ACCEPT =
-  "(VALUES(`producerInstanceId`) <> `producerInstanceId` OR VALUES(`heartbeatSeq`) >= `heartbeatSeq`)";
+  "((VALUES(`producerInstanceId`) = `producerInstanceId` AND VALUES(`heartbeatSeq`) >= `heartbeatSeq`)"
+  + " OR (VALUES(`producerInstanceId`) <> `producerInstanceId` AND ("
+  + incomingPrioritySql + " <= " + storedPrioritySql
+  + " OR `receivedAt` < DATE_SUB(NOW(), INTERVAL " + cameraProducerAuthority.staleSeconds + " SECOND))))";
 
 /**
  * Columns that any guard READS. Every one of them has to be assigned after everything
@@ -448,16 +498,20 @@ const HEARTBEAT_READ_BY_GUARDS = ["state", "heartbeatSeq", "producerInstanceId"]
  *     so it compared the new state to itself. It never moved once. "How long has this
  *     camera been offline" was frozen at the row's creation time from the first release.
  *
- * THE DERIVATION. Assign in this order, so every guard reads pre-statement values:
- *   1. plain columns        nothing reads them, so they can go anywhere -- first is fine
- *   2. `stateSince`         reads `state`, so it must precede the `state` assignment
- *   3. `receivedAt`         reads nothing
- *   4. `state`              read by (2), so it comes after it
- *   5. `heartbeatSeq`       reads `producerInstanceId` and itself, both still original
- *   6. `producerInstanceId` reads itself (still original) and `heartbeatSeq` (now new).
- *                           Safe because the id half alone decides every restart, and on
- *                           a replay `heartbeatSeq` was NOT updated in step 5, so the
- *                           sequence half is still evaluated against the stored value.
+ * THE DERIVATION. Assign in this order, so every authority guard reads the OLD
+ * `receivedAt`, `state`, sequence and instance id:
+ *   1. plain columns        guarded by the complete pre-statement authority predicate
+ *   2. `stateSince`         reads old `state` and old `receivedAt`
+ *   3. `state`
+ *   4. `heartbeatSeq`
+ *   5. `producerInstanceId`
+ *   6. `receivedAt`         LAST. By then the owner/seq fields encode whether the claim
+ *                           was accepted, so a post-accept predicate can refresh liveness
+ *                           without re-reading the now-mutated stale-owner clock.
+ *
+ * Putting `receivedAt` earlier is a split-brain bug: a lower-priority takeover accepted
+ * because the owner was stale would refresh the clock halfway through the statement and
+ * make later assignments reject that same takeover.
  *
  * Checked case by case against `applyOnDuplicateKeyUpdate` in the test, which simulates
  * the left-to-right rule and runs THIS string: restart applies, replay is a no-op, a
@@ -467,15 +521,17 @@ export const HEARTBEAT_GUARDED_SET = (() => {
   const guard = (c: string) => `\`${c}\` = IF(${HEARTBEAT_ACCEPT}, VALUES(\`${c}\`), \`${c}\`)`;
   const readByGuards = new Set<string>(HEARTBEAT_READ_BY_GUARDS);
   const plain = HEARTBEAT_COLUMNS.filter((c) => c !== "camera" && !readByGuards.has(c));
+  const acceptedAfterDiscriminators =
+    "(VALUES(`producerInstanceId`) = `producerInstanceId` AND VALUES(`heartbeatSeq`) >= `heartbeatSeq`)";
   return [
     ...plain.map(guard),
     // Before `state`, or it compares the new state to itself and never fires.
     `\`stateSince\` = IF(${HEARTBEAT_ACCEPT} AND VALUES(\`state\`) <> \`state\`, NOW(), \`stateSince\`)`,
-    `\`receivedAt\` = IF(${HEARTBEAT_ACCEPT}, NOW(), \`receivedAt\`)`,
     guard("state"),
-    // The discriminators last, and in THIS order: see the derivation above.
     guard("heartbeatSeq"),
     guard("producerInstanceId"),
+    // LAST: every HEARTBEAT_ACCEPT above must still see the pre-statement liveness clock.
+    `\`receivedAt\` = IF(${acceptedAfterDiscriminators}, NOW(), \`receivedAt\`)`,
   ].join(", ");
 })();
 
@@ -608,6 +664,17 @@ export function registerCameraHeartbeatRoute(app: Express): void {
       `);
       const info = (Array.isArray(result) ? result[0] : result) as { affectedRows?: number } | undefined;
       const accepted = Number(info?.affectedRows ?? 0) !== 0;
+      // Read back the elected owner. `affectedRows` can be zero for an identical heartbeat,
+      // but authority is a fact about the stored row, not about whether MySQL changed bytes.
+      const ownerRows = await d.execute(sql`
+        SELECT producerInstanceId FROM camera_runtime WHERE camera = ${b.camera} LIMIT 1
+      `);
+      const ownerList = (Array.isArray(ownerRows) ? ownerRows[0] : ownerRows) as
+        unknown as Array<Record<string, unknown>> | undefined;
+      const authorityProducer = Array.isArray(ownerList) && ownerList.length
+        ? String(ownerList[0].producerInstanceId)
+        : null;
+      const authoritative = authorityProducer === b.producerInstanceId;
 
       let transition: { from: string | null; to: string; reason: string } | null = null;
       if (accepted) {
@@ -682,11 +749,15 @@ export function registerCameraHeartbeatRoute(app: Express): void {
 
       console.info(
         `[camera-heartbeat] ${b.camera} seq=${b.heartbeatSeq} ${accepted ? "accepted" : "stale"} state=${verdict.state}` +
+        ` authoritative=${authoritative} owner=${authorityProducer ?? "-"}` +
         (transition ? ` transition=${transition.from ?? "-"}->${transition.to}` : "") +
         (activeRun ? ` activeRun=${activeRun.runId}` : ""),
       );
       return res.status(200).json({
         accepted,
+        authoritative,
+        authorityProducer,
+        authorityLeaseSeconds: cameraProducerAuthority.leaseSeconds,
         state: verdict.state,
         facets: verdict.facets,
         reason: verdict.reason,
