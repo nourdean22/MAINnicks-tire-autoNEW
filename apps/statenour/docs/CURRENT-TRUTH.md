@@ -424,3 +424,11 @@ only what changes how you WORK is repeated here.
 - `lib/evals/` + `pnpm eval:memory` — the truth scoreboard that checks Nick remembers this file.
 - `lib/ai/receipts/action-receipt.ts` — the action-honesty receipt contract (`canClaimDone`).
 - `lib/knowledge/action-converter.ts` — knowledge→action suggestions (suggestion-only).
+
+## 2026-09-29 — resilience/Q-31/Q-32 consolidation (pre-PR truth)
+
+- Integration branch `feat/nouros-resilience-final-current-chatgpt-20260929` incorporates current main through `223079d33407b9a6091e34a55032ea935d788e9e` (#2793) via merge commit `80e031ac88d0b35443f1986e8dc05ad5faab97ae`; intervening #2789/#2793 had zero file overlap with the resilience diff.
+- Q-28 cron grouping/inhibition, Q-34 process ownership, Q-36 worker hygiene, deep Q-31 admission/bitemporal/history + atomic explicit contradiction resolution, and Q-32 Langfuse evaluation mechanics are BUILT on the branch. They are not called merged/deployed/live until the consolidated PR passes exact-head CI and is merged.
+- Q-31 pending migration `20260929150500_brain_memory_transaction_time` is operator-gated and **not applied** by this workstream.
+- Q-32 production evidence remains intentionally incomplete: live label count, double-label kappa, and cloud dataset read-back are UNMEASURED. The optional cloud experiment stays config-gated.
+- Durable implementation checkpoint: `docs/research/2026-09-29-resilience-final-consolidation-checkpoint.md`.
