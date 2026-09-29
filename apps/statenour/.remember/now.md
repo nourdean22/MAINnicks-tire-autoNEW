@@ -1,20 +1,22 @@
 # Session ledger — statenour
 
-**Updated: 2026-09-28 night ET** (Graphify code-intelligence governance on follow-up branch above Toolsmith + exception consolidation; not merged/live)
+**Updated: 2026-09-28 night ET** (Graphify code-intelligence governance merged in #2757; scheduled-run/operator proof still pending)
 
-## 2026-09-28 · governed code intelligence — follow-up branch truth
+## 2026-09-28 · governed code intelligence — merged repo truth
+
+**Merge receipt.** PR #2757 squash-merged to `main` as `3178a894ff1d39d402837b214d060ce7b61b3a55`. Final PR head `bed19035637dc2ba0bd1e9482c373403bce7db1d` passed Turbo affected verify, StateNour E2E, Completion Authority, Secret Scanning, Agent Policy, Adoption gates, and Admin completion diagnostic. The squash merge tree is byte-for-byte identical to the final PR-head tree.
 
 Graphify remains the canonical developer code-graph snapshot; no runtime graph DB and no bulk BrainMemory ingest were added. The existing scheduled sync now runs the existing propose-only importer-death necropsy when enough snapshots exist and writes a compact GRAPH_RECEIPT.json with source SHA, HEAD/origin-main freshness, node/edge/community shape, label provenance, architecture delta, report hash, Graphify version, and necropsy count. Session-start reads only the receipt beside the exact selected report and ignores mismatched receipts. Local proof on the current tracked graph exposed it honestly as 313 commits behind this branch and 308 behind locally observed origin/main. Verification: governance self-test green, necropsy self-test green, both PowerShell scripts parse, repo contract tests 4/4 green, session-context live execution green, diff check green. Durable receipt: docs/00-current-truth/nouros-code-intelligence-governance-2026-09-28.md.
 
-**Updated: 2026-09-28 night ET** (Owner Panel exception consolidation on follow-up branch above Toolsmith; not merged/live)
+**Updated: 2026-09-28 night ET** (Owner Panel exception consolidation merged in #2757; production exercise still pending)
 
-## 2026-09-28 · exception consolidation — follow-up branch truth
+## 2026-09-28 · exception consolidation — merged repo truth
 
 The existing Q-24 Owner Panel remains the one owner exception surface. It now also projects the canonical post-turn dead-letter queue plus generic ActionAttempt uncertainty/failure without creating another inbox: dead outbox rows roll up once; WAITING_APPROVAL joins decisions; UNKNOWN and recent FAILED surface as rose exceptions; EXECUTING older than 30 minutes surfaces amber; fresh execution stays quiet; deploy-alert attempts remain on the existing specialized path to prevent duplicates. Read failures remain UNKNOWN, never empty. The pure hard-failure vocabulary was split from DB-heavy cron-control into `lib/services/cron-status.ts` while cron-control re-exports the same API. Local receipt: 53/53 focused tests green; changed-file ESLint + diff check green. Durable receipt: `docs/00-current-truth/nouros-exception-consolidation-2026-09-28.md`.
 
-**Updated: 2026-09-28 night ET** (capability lifecycle / Toolsmith on follow-up branch above merged #2756; not merged or live)
+**Updated: 2026-09-28 night ET** (capability lifecycle / Toolsmith merged in #2757; production usage remains operator-gated)
 
-## 2026-09-28 · Toolsmith capability lifecycle — follow-up branch truth
+## 2026-09-28 · Toolsmith capability lifecycle — merged repo truth
 
 The existing Tool Registry, Tool Policy, Tool Gap telemetry and ActionAttempt receipts are now joined by an append-only capability lifecycle over RealityEvent. Gap classes route to incumbent repair vs new-capability investigation; Toolsmith has proposal/lifecycle authority only and cannot install/activate tools. Lifecycle is `PROPOSED → APPROVED → IMPLEMENTED_UNVERIFIED → VERIFIED → RETIRED`, with explicit implementation + verification references required before stronger claims. 11/11 focused lifecycle + Tool Gap tests green; changed-file ESLint + diff check green. Durable receipt: `docs/00-current-truth/nouros-capability-lifecycle-2026-09-28.md`.
 
