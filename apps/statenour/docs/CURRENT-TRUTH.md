@@ -10,6 +10,15 @@
 - **Still unverified here:** whether Inngest morning/evening mega fan-out is currently firing in production. `INNGEST_MEGA_V2` exists in Railway config but its value is redacted by the connector; obtain a `CronJobLog`/Inngest receipt before calling that cutover live.
 
 
+## 2026-09-29 - NOUR AI supercomputer recovery + durable mission production proof
+
+- Slices 2-3 merged: PR #2793 squash commit `223079d33407b9a6091e34a55032ea935d788e9e`; capability/cost routing + MCP v2. Required CI was green.
+- Slice 4 is LIVE + VERIFIED: the existing Inngest durable mission runner completed a harmless checkpoint in production and persisted RealityEvent episode receipts end-to-end.
+- Schema drift found and repaired: the first live run exposed missing `reality_events.event_version`. The repo-owned additive `20260929123500_reality_event_envelope` migration was applied to production (364-row / 440-kB table), verified, promoted to canonical migrations, and marked applied in Prisma history.
+- Promotion: `NICK_DURABLE_MISSIONS` is ON through the existing DB feature-flag override only after the live receipt. A second run through normal `queueDurableMissionExecution()` persisted `queued -> started -> step_started -> step_completed -> completed`.
+- No authority inflation: durable execution remains bounded to checkpoint/research steps and never auto-completes Mission lifecycle state.
+- Durable receipt: `docs/00-current-truth/nour-ai-supercomputer-2026-09-29.md`.
+
 ## 2026-09-28 night — #2757 governance wave merge receipt
 
 - **Merged:** PR #2757 squash-merged to `main` as `3178a894ff1d39d402837b214d060ce7b61b3a55`.

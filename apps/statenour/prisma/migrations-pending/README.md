@@ -4,24 +4,17 @@ Migrations parked here are NOT in the live `prisma/migrations/`
 directory · `prisma migrate deploy` will not apply them. Move
 them back when ready.
 
-## ⏳ 2026-09-29 — TWO PENDING
+## APPLIED 2026-09-29 - RealityEvent envelope
+
+`20260929123500_reality_event_envelope` was applied to production after a live durable-mission proof exposed the expected `event_version` schema drift. Production read-back verified all five columns, all three indexes, and zero NULL `occurred_at` rows. The migration is now canonical under `prisma/migrations/`, and production Prisma migration history records it applied.
+
+## ⏳ 2026-09-29 — ONE PENDING
 
 Every dir parked here must be registered in the guarded endpoint with its exact
 statements, or listed with a reason in the test's `OPERATOR_ONLY` map:
 `tests/api/apply-pending-migration.test.ts` fails otherwise. #2784 parked one
 its code already needed without registering it: production failed every
 reality-event read and write, and the one-request fix only existed after #2788.
-
-### `20260929123500_reality_event_envelope`
-
-Q-25's RealityEvent envelope (#2784). **Not applied, and the running code
-already needs it**: until it is applied, every `realityEvent` read and write
-fails with "column `event_version` does not exist". Five added columns, two
-backfills from existing rows, three indexes; no DROP. Apply with
-`POST /api/system/apply-pending-migration { name: "20260929123500_reality_event_envelope" }`
-(registered by #2788; re-running it is harmless). Then promote the dir to
-`prisma/migrations/` and run
-`prisma migrate resolve --applied 20260929123500_reality_event_envelope`.
 
 ### `20260929090000_bridge_receipts`
 
