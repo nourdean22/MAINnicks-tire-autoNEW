@@ -1503,3 +1503,8 @@ External audit's "/brakes broken" (stale cache; renders fine live) and "duplicat
 - Q-28/Q-34/Q-36 are consolidated BUILT scope, not yet merged/live. Q-34 default remains `PROCESS_ROLE=all`; no Railway role split or env deletion occurred.
 - Capability truth corrected: already-merged Q-25/Q-26/Q-27 are now recorded as merged + unit-verified; no production migration/live promotion was invented.
 - Full checkpoint: `docs/research/2026-09-29-resilience-final-consolidation-checkpoint.md`.
+
+## 2026-09-29 · #2794 resilience wave merged
+- #2794 exact head `79dbea91630f860f0a84bbd68b075df4a7697eea` passed the full required CI set and squash-merged to main as `48ac53827eb7f4f5754ee2a41fe74789c5c36c89`.
+- Q-28 cron observer resilience, Q-34 `PROCESS_ROLE=all|web|jobs`, and Q-36 worker hygiene are **merged + unit-verified** but remain exposure-disabled / not production-promoted.
+- Default process role remains `all`; no Railway service split or worker env deletion occurred. Q-28 still needs a post-deploy observer receipt; Q-36 still needs live mega morning/evening execution evidence.
