@@ -472,48 +472,13 @@ export async function resolveContradiction(
   const { invalidateNudgeCache } = await import("@/lib/brain/cross-system-nudge");
   invalidateNudgeCache();
 
-  // Deprecate whichever memory lost.
-  //
-  // 2026-09-07 · the loser is now SUPERSEDED, not merely demoted. Every
-  // recall lane (contextual-recall, cold-memory, the brain tools) filters
-  // `supersededById: null AND (validUntil IS NULL OR validUntil > now)`, so
-  // writing those two columns is what actually removes the losing statement
-  // from current answers; a confidence floor of 0.1 only made it lose ties.
-  // The row stays — dated questions and the review history still see it.
-  if (status === "current_wins") {
-    await prisma.brainMemory
-      .update({
-        where: { id: parsed.old_memory_id },
-        data: {
-          confidence: 0.1,
-          source: "deprecated_by_resolution",
-          lastSeen: new Date(),
-          supersededById: parsed.new_memory_id,
-          validUntil: new Date(),
-        },
-      })
-      .catch(() => {});
-  } else if (status === "old_wins") {
-    await prisma.brainMemory
-      .update({
-        where: { id: parsed.new_memory_id },
-        data: {
-          confidence: 0.1,
-          source: "deprecated_by_resolution",
-          lastSeen: new Date(),
-          supersededById: parsed.old_memory_id,
-          validUntil: new Date(),
-        },
-      })
-      .catch(() => {});
-  }
-
-  // Two layers ride this call (2026-08-19): the BDN-310 supersession stamp
-  // (supersededById + validUntil on the loser, lastVerifiedAt on the winner,
-  // verdict-flip un-strand) runs UNCONDITIONALLY on an explicit-loser status;
-  // the soft-delete stays behind NICK_CONTRADICTION_CLEANUP (default-OFF).
-  // Both layer on the confidence-floor above; graceful, no-ops for
-  // both_valid/dismissed (no loser).
+  // Losing-memory mutation has ONE owner: cleanupResolvedContradiction().
+  // It enforces effective-interval overlap and, once Q-31 transaction columns
+  // are applied, stamps transaction expiry before the supersession flip in the
+  // same database transaction. Do not re-introduce a direct update here.
+  // BDN-310/Q-31 supersession + winner verification run here for explicit
+  // loser statuses. The harsher soft-delete remains behind
+  // NICK_CONTRADICTION_CLEANUP (default-OFF); both_valid/dismissed no-op.
   const { cleanupResolvedContradiction } = await import(
     "@/lib/brain/contradiction-cleanup"
   );
