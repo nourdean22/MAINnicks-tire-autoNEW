@@ -58,6 +58,7 @@ export { researchOnDemand } from "./deep-research";
 // objective + Inngest checkpoints; v1 intentionally executes only safe
 // checkpoint/research steps and never mutates Mission lifecycle state.
 export { durableMissionExecution } from "./mission-execution";
+export { decisionPlaneShadow } from "./decision-plane-shadow";
 
 // AG-41 · execute Nick actions the moment /qa approves them (event:
 // nick-action/approved) · the daily 9am cron stays as backstop

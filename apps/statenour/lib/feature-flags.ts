@@ -288,6 +288,16 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     readOnly: true,
   },
   {
+    key: "NICK_DECISION_PLANE_SHADOW",
+    description:
+      "Samples turns into a durable background Decision Plane bake-off. Candidate System-One backends never control production; their distributions are written as Decision Episodes and compared to the incumbent only as a baseline. Requires explicit backend list/config. OFF means zero event enqueue and zero candidate inference.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior:
+      "OFF: current heuristic/router behavior remains the sole production path. Promotion requires local outcome calibration, replay, and an explicit authority change.",
+    ownerDoc: "lib/ai/decision-plane/shadow.ts",
+  },
+  {
     key: "NICK_DURABLE_MISSIONS",
     description:
       "Queues bounded multi-step mission execution onto the existing Inngest control plane. V1 supports checkpoint + deep-research steps only, records progress as RealityEvent episodes, survives chat/browser closure, and never auto-completes the Mission. OFF = mission planning remains synchronous/manual.",
