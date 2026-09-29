@@ -6,7 +6,12 @@ from unittest.mock import patch
 
 import eufy_bridge_overlay as overlay
 from eufy_bridge_overlay import (
+    GO2RTC_ENV_NEW,
+    GO2RTC_ENV_OLD,
     GO2RTC_PATH,
+    HTTP_PATH,
+    HTTP_ROUTE_NEW,
+    HTTP_ROUTE_OLD,
     REVIEWED_DIGESTS,
     ROUTER_NEW,
     ROUTER_OLD,
@@ -36,8 +41,11 @@ class EufyBridgeOverlayTests(unittest.TestCase):
 
         router = "const surfaces = getCapabilitySurfaces(dev);" if drift else ROUTER_OLD
         ws_original = router + "\n"
+        http_original = HTTP_ROUTE_OLD + "\n"
         go_original = (
-            "\n".join(
+            GO2RTC_ENV_OLD
+            + "\n"
+            + "\n".join(
                 (
                     '"api:"',
                     "'  listen: \":1984\"'",
@@ -50,6 +58,7 @@ class EufyBridgeOverlayTests(unittest.TestCase):
             + "\n"
         )
         (root / WS_PATH).write_text(ws_original, encoding="utf-8")
+        (root / HTTP_PATH).write_text(http_original, encoding="utf-8")
         (root / GO2RTC_PATH).write_text(go_original, encoding="utf-8")
 
         # Unit fixtures are deliberately tiny. Pin their COMPLETE original/patched
@@ -60,11 +69,17 @@ class EufyBridgeOverlayTests(unittest.TestCase):
             if not drift
             else ws_original
         )
-        go_patched = go_original
-        for old, new in overlay.LISTENER_REPLACEMENTS:
-            go_patched = go_patched.replace(old, new, 1)
+        http_patched = http_original.replace(HTTP_ROUTE_OLD, HTTP_ROUTE_NEW, 1)
+        go_patched = go_original.replace(GO2RTC_ENV_OLD, GO2RTC_ENV_NEW, 1)
+        for variants, new in overlay.LISTENER_REPLACEMENTS:
+            candidates = (variants,) if isinstance(variants, str) else variants
+            match = next(v for v in candidates if v in go_patched)
+            go_patched = go_patched.replace(match, new, 1)
         REVIEWED_DIGESTS[WS_PATH] = frozenset(
             {_canonical_digest(ws_original), _canonical_digest(ws_patched)}
+        )
+        REVIEWED_DIGESTS[HTTP_PATH] = frozenset(
+            {_canonical_digest(http_original), _canonical_digest(http_patched)}
         )
         REVIEWED_DIGESTS[GO2RTC_PATH] = frozenset(
             {_canonical_digest(go_original), _canonical_digest(go_patched)}
@@ -79,19 +94,30 @@ class EufyBridgeOverlayTests(unittest.TestCase):
         report = apply(root)
         self.assertEqual(
             set(report.changed_files),
-            {"src/ws-server.mjs", "go2rtc-config.mjs"},
+            {"src/ws-server.mjs", "src/http-routes.mjs", "go2rtc-config.mjs"},
         )
         ws = (root / WS_PATH).read_text(encoding="utf-8")
         self.assertIn(ROUTER_NEW, ws)
         self.assertIn('action === "preset.goto"', ws)
         self.assertIn('method = "goto"', ws)
 
-        go = (root / GO2RTC_PATH).read_text(encoding="utf-8")
-        for port in (1984, 8554, 8555):
-            self.assertIn(f"127.0.0.1:{port}", go)
-            self.assertNotIn(f'":{port}"', go)
+        http = (root / HTTP_PATH).read_text(encoding="utf-8")
+        self.assertIn(HTTP_ROUTE_NEW, http)
+        self.assertIn('kind === "record" && sn', http)
+        self.assertIn("recordFragments", http)
 
-        self.assertEqual(verify(root).ptz_router, "verified_with_preset_goto")
+        go = (root / GO2RTC_PATH).read_text(encoding="utf-8")
+        self.assertIn(GO2RTC_ENV_NEW, go)
+        self.assertIn("go2rtcApiListen", go)
+        self.assertIn("go2rtcRtspListen", go)
+        self.assertIn("go2rtcWebrtcListen", go)
+        self.assertNotIn("'  listen: \":8654\"'", go)
+        self.assertNotIn("'  listen: \":8655\"'", go)
+
+        verified = verify(root)
+        self.assertEqual(verified.ptz_router, "verified_with_preset_goto")
+        self.assertEqual(verified.record_route, "verified_fragmented_mp4")
+        self.assertEqual(verified.go2rtc_listeners, "loopback_runtime_configurable")
 
     def test_apply_is_idempotent(self):
         root = self.fixture()
@@ -99,6 +125,7 @@ class EufyBridgeOverlayTests(unittest.TestCase):
         report = apply(root)
         self.assertEqual(report.changed_files, ())
         self.assertEqual(report.ptz_router, "already_patched")
+        self.assertEqual(report.record_route, "already_patched")
         self.assertEqual(report.go2rtc_listeners, "already_patched")
 
     def test_unknown_bridge_version_fails_closed(self):
