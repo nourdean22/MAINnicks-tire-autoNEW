@@ -175,12 +175,21 @@ export async function runPhotoAssess(req: PhotoAssessRequest): Promise<PhotoAsse
     const draft = await draftSmsReply({
       inboundMessage: `Customer sent a photo. Mechanic analysis: ${vision.description}`,
     });
-    if (draft.ok && draft.draft && draft.source === "nickgpt-ollama") {
+    // F4a: this reply auto-sends, so adopt a draft only when the provider
+    // confirmed it finished AND it fits whole. A truncated / unknown-stop / too-long
+    // draft keeps the operator-vetted template — never sliced mid-sentence.
+    if (
+      draft.ok &&
+      draft.draft &&
+      draft.source === "nickgpt-ollama" &&
+      draft.completion === "complete" &&
+      draft.draft.length <= MAX_REPLY_CHARS
+    ) {
       // Only adopt the NickGPT draft if it came from the fine-tuned model.
       // Fallback Claude drafts are usable but the template is shorter +
       // operator-pre-vetted for SMS · prefer template unless we have
       // operator-voice signal.
-      replyText = draft.draft.slice(0, MAX_REPLY_CHARS);
+      replyText = draft.draft;
     }
   } catch (err) {
     log.warn("nickgpt draft skipped", { error: err instanceof Error ? err.message : String(err) });
