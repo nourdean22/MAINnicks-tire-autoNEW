@@ -11,7 +11,10 @@
 
 import { afterEach, describe, it, expect } from "vitest";
 import { isCostFirewallOn, filterByCostFirewall, type ProviderName } from "@/lib/ai/provider";
-import { PROVIDER_COST_CLASS } from "@/config/ai-providers";
+import {
+  PROVIDER_COST_CLASS,
+  PROVIDER_ROUTING_COST_CLASS,
+} from "@/config/ai-providers";
 
 const CHAIN: Array<{ name: ProviderName }> = [
   { name: "ollama" },
@@ -29,6 +32,14 @@ describe("PROVIDER_COST_CLASS", () => {
   it("classifies exactly one zero-incremental lane (the Ollama flat subscription)", () => {
     const zero = Object.entries(PROVIDER_COST_CLASS).filter(([, c]) => c === "zero_incremental");
     expect(zero).toEqual([["ollama", "zero_incremental"]]);
+  });
+
+  it("exposes the detailed NOUR cost class without changing firewall semantics", () => {
+    expect(PROVIDER_ROUTING_COST_CLASS.ollama).toBe("EXISTING_INFRA");
+    expect(PROVIDER_ROUTING_COST_CLASS.openai).toBe("METERED_PAID");
+    expect(PROVIDER_ROUTING_COST_CLASS.anthropic).toBe("METERED_PAID");
+    expect(PROVIDER_ROUTING_COST_CLASS.gemini).toBe("METERED_PAID");
+    expect(PROVIDER_ROUTING_COST_CLASS.openrouter).toBe("METERED_PAID");
   });
 });
 

@@ -44,6 +44,8 @@ import {
   PROVIDERS_REGISTRY,
   TASK_ROUTING_PREFERENCES,
   PROVIDER_COST_CLASS,
+  PROVIDER_ROUTING_COST_CLASS,
+  type ProviderRoutingCostClass,
   type RuntimeProviderName,
   type TaskType,
 } from "@/config/ai-providers";
@@ -1001,7 +1003,12 @@ export function getActiveProviderInfo(taskType: TaskType = "reason"): { provider
  */
 export function getProviderStatus(): {
   activeProvider: ProviderName | null;
-  providers: { name: ProviderName; available: boolean; modelId: string }[];
+  providers: {
+    name: ProviderName;
+    available: boolean;
+    modelId: string;
+    costClass: ProviderRoutingCostClass;
+  }[];
   veniceParams: typeof VENICE_PARAMS;
 } {
   let activeProvider: ProviderName | null = null;
@@ -1016,7 +1023,10 @@ export function getProviderStatus(): {
     .map((p) => {
       const available = p.available();
       if (available && !activeProvider) activeProvider = p.name;
-      return { name: p.name, available, modelId: p.modelId };
+      const costClass: ProviderRoutingCostClass = isRuntimeProvider(p.name)
+        ? PROVIDER_ROUTING_COST_CLASS[p.name]
+        : "METERED_PAID";
+      return { name: p.name, available, modelId: p.modelId, costClass };
     });
 
   return { activeProvider, providers, veniceParams: VENICE_PARAMS };
