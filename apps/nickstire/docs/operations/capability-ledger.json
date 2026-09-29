@@ -2769,24 +2769,19 @@
       "capabilityId": "cron-observer-alertmanager-q28",
       "name": "Cron observer grouped alerts, dependency inhibition, resolved notices, and quiet hours",
       "owner": "system",
-      "codeState": "in_progress",
-      "operationalState": "unverified",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: cron/alertPolicy.ts + observer.ts integration; no second monitoring dependency.",
+        "codeCommit": "Merged #2794 as 48ac53827eb7f4f5754ee2a41fe74789c5c36c89: cron/alertPolicy.ts + observer.ts integration; no second monitoring dependency.",
         "tests": [
           "server/cron/alertPolicy.test.ts pins grouping, quiet-time boundaries, DB-root threshold/classification, resolved formatting, and incident-diff behavior.",
           "Existing cronObserverSuppression.test.ts still pins persisted suppression and positive-control re-alert semantics.",
-          "Exact-head CI and production Telegram behavior are not yet claimed."
+          "PR #2794 exact head 79dbea91630f860f0a84bbd68b075df4a7697eea passed Turbo affected verify, StateNour E2E, Completion Authority, Adoption Gates, Agent Policy, Secret Scanning, and Admin Diagnostic before squash merge."
         ],
         "liveRuns": []
       },
-      "blockers": [
-        {
-          "severity": "P3",
-          "description": "Exact-head CI and a post-deploy observer run are still required before operational promotion."
-        }
-      ],
+      "blockers": [],
       "deferredScope": [
         "No new external Alertmanager service; pattern is implemented inside the incumbent observer.",
         "Production alert-volume comparison and recovery-notice receipt after deploy."
@@ -2797,14 +2792,15 @@
       "capabilityId": "nickstire-process-role-q34",
       "name": "Nick's process-role ownership switch (all|web|jobs)",
       "owner": "system",
-      "codeState": "in_progress",
-      "operationalState": "unverified",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: server/_core/processRole.ts + startup gating.",
+        "codeCommit": "Merged #2794 as 48ac53827eb7f4f5754ee2a41fe74789c5c36c89: server/_core/processRole.ts + startup gating.",
         "tests": [
           "server/_core/processRole.test.ts pins default=all, web=no background ownership, jobs/all own jobs, invalid values fail loudly.",
-          "No Railway service split or PROCESS_ROLE production mutation is performed by this branch."
+          "PR #2794 exact head 79dbea91630f860f0a84bbd68b075df4a7697eea passed the full required CI set before squash merge.",
+          "No Railway service split or PROCESS_ROLE production mutation was performed by #2794."
         ],
         "liveRuns": []
       },
@@ -2824,14 +2820,15 @@
       "capabilityId": "statenour-worker-hygiene-q36",
       "name": "StateNour worker ownership and secret-surface hygiene",
       "owner": "system",
-      "codeState": "in_progress",
-      "operationalState": "unverified",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: removes vestigial worker /cron/mega* routes and dead inbound secret comparator; keeps worker-owned forwarder + render loop.",
+        "codeCommit": "Merged #2794 as 48ac53827eb7f4f5754ee2a41fe74789c5c36c89: removes vestigial worker /cron/mega* routes and dead inbound secret comparator; keeps worker-owned forwarder + render loop.",
         "tests": [
           "apps/statenour/tests/repo/worker-hygiene.test.ts pins no mega endpoints, no worker reads of DATABASE_URL/DIRECT_URL/GITHUB_TOKEN, and the existing finite reel render timeout.",
-          "Read-only Railway 2026-09-29: exactly four services; none is a cron job; worker has no cron schedule, no domains, one east4 replica. Exact-head CI still pending."
+          "PR #2794 exact head 79dbea91630f860f0a84bbd68b075df4a7697eea passed Turbo affected verify, StateNour E2E, and the repository governance/security gates before squash merge.",
+          "Read-only Railway 2026-09-29 evidence remains topology-only; no live mega morning/evening receipt is claimed."
         ],
         "liveRuns": []
       },
@@ -2851,15 +2848,15 @@
       "capabilityId": "statenour-bitemporal-memory-q31",
       "name": "StateNour memory admission, bitemporal truth, and contradiction shadow",
       "owner": "system",
-      "codeState": "in_progress",
-      "operationalState": "unverified",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: inferred writers routed through admitMemory(), acceptance-authority repair, bitemporal effective/transaction semantics, one shared transaction-column probe/cache, memory-manager history freezing with full compensating rollback/fail-closed replacement, atomic explicit contradiction supersession, and bounded shadow contradiction receipts.",
+        "codeCommit": "Merged #2794 as 48ac53827eb7f4f5754ee2a41fe74789c5c36c89: inferred writers via admitMemory(), acceptance-authority repair, bitemporal effective/transaction semantics, shared transaction-column probe/cache, fail-closed replacement compensation, atomic explicit contradiction supersession, and bounded shadow receipts.",
         "tests": [
-          "memory-admission.test.ts, memory-bitemporal.test.ts, memory-bitemporal-runtime.test.ts, memory-transaction-time.test.ts, contradiction-resolution-supersedes.test.ts, supersession-recall.test.ts, memory-contradiction-shadow.test.ts, and the direct-writer ratchet cover the consolidated Q-31 mechanics.",
-          "memory-bitemporal-runtime.test.ts pins close-before-flip ordering plus compensation: failed prepared replacements restore transaction/effective verification state, remove the provisional snapshot, do not fall through to a history-destroying legacy overwrite, and retry the new transaction-window state if the first post-replacement open fails.",
-          "Exact-head PR CI is not yet claimed for the final consolidated branch."
+          "memory-admission.test.ts, memory-bitemporal.test.ts, memory-bitemporal-runtime.test.ts, memory-transaction-time.test.ts, contradiction-resolution-supersedes.test.ts, supersession-recall.test.ts, memory-contradiction-shadow.test.ts, and the direct-writer ratchet cover the Q-31 mechanics.",
+          "memory-bitemporal-runtime.test.ts pins close-before-flip ordering, rollback of transaction/effective verification state, provisional-snapshot cleanup, no legacy overwrite fallback, and post-replacement transaction-window recovery.",
+          "PR #2794 exact head 79dbea91630f860f0a84bbd68b075df4a7697eea passed the complete required CI set; squash merge is 48ac53827eb7f4f5754ee2a41fe74789c5c36c89."
         ],
         "liveRuns": []
       },
@@ -2884,16 +2881,16 @@
       "capabilityId": "statenour-langfuse-eval-loop-q32",
       "name": "StateNour deterministic Langfuse annotation and regression-evaluation loop",
       "owner": "system",
-      "codeState": "in_progress",
-      "operationalState": "unverified",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: metadata-only four-signal selector, single Langfuse annotation queue, thumbs-down/runtime queue wiring, fail-closed cross-family judge enforcement that distinguishes hosting layers from model families, versioned de-identified recall corpus, PPI/kappa statistics, and optional cloud experiment with conditional CI action.",
+        "codeCommit": "Merged #2794 as 48ac53827eb7f4f5754ee2a41fe74789c5c36c89: metadata-only four-signal selector, one Langfuse annotation queue, thumbs-down/runtime queue wiring, fail-closed cross-family judge enforcement, versioned de-identified recall corpus, PPI/kappa statistics, and optional cloud experiment.",
         "tests": [
           "q32-regression.test.ts pins all four selector signals, no raw-text candidate export, actual-drop vs advisory-drop, A/A behavior, planted regression failure, human correction, PPI interval, and kappa.",
-          "judge-eval-family.test.ts pins hosted-model family recognition, recognized-family provider fallback, and rejection of Venice/Ollama/custom hosts as model families; langfuse-annotation-queue.test.ts and q32-recall-corpus-contract.test.ts pin missing-config no-op and one committed de-identified recall slice.",
+          "judge-eval-family.test.ts pins hosted-model family recognition, recognized-family provider fallback, and rejection of Venice/Ollama/custom hosts as model families; langfuse-annotation-queue.test.ts and q32-recall-corpus-contract.test.ts pin missing-config no-op and the committed de-identified recall slice.",
           "The Q-32 experiment MJS parser defect was repaired; the pinned Langfuse action supplies @langfuse/client and supports dataset_version, so no duplicate app dependency is added.",
-          "Exact-head PR CI is not yet claimed for the final consolidated branch."
+          "PR #2794 exact head 79dbea91630f860f0a84bbd68b075df4a7697eea passed the complete required CI set; squash merge is 48ac53827eb7f4f5754ee2a41fe74789c5c36c89."
         ],
         "liveRuns": []
       },
