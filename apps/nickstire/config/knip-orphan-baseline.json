@@ -5469,7 +5469,7 @@
     {
       "file": "apps/nickstire/server/services/contactExperiment.ts",
       "symbol": "CONTACT_HOLDOUT_CONTROL_PCT",
-      "reason": "Q-21 INTENTIONAL TEST-VISIBLE CONTRACT. The runtime allocation is encoded by HOLDOUT_BUCKETS in the same module; contactExperiment.test.ts imports this declared percentage to assert the durable randomized control share stays at 15% instead of duplicating the policy literal. The production consumer is resolveContactExperiment -> contactArmForSubject in this same module, so this is a test seam, not an unwired capability."
+      "reason": "Q-21 INTENTIONAL TEST-VISIBLE CONTRACT. The runtime allocation is encoded by HOLDOUT_BUCKET_COUNT / HOLDOUT_CONTROL_BUCKETS (3 of 20, sha256-bucketed) in the same module; contactExperiment.test.ts imports this declared percentage to assert the durable randomized control share stays at 15% instead of duplicating the policy literal. The production consumer is resolveContactExperiment -> contactArmForSubject in this same module, so this is a test seam, not an unwired capability."
     },
     {
       "file": "apps/nickstire/server/services/contactExperiment.ts",

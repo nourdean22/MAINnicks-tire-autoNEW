@@ -22,6 +22,8 @@ const h = vi.hoisted(() => ({
   // null = run the REAL resolveContactExperiment; otherwise a fixed decision.
   decision: null as null | Record<string, unknown>,
   resolveCalls: [] as Array<[string, string | null | undefined]>,
+  // What the fake assignment table returns for a read (null = no row).
+  storedArm: null as null | "control" | "treatment",
 }));
 
 vi.mock("../services/featureFlags", () => ({
@@ -55,7 +57,9 @@ vi.mock("../services/smsControl", () => ({
 const dbHandle = {
   select: () => ({
     from: () => ({
-      where: () => Object.assign(Promise.resolve([] as unknown[]), { limit: async () => [] }),
+      where: () => Object.assign(Promise.resolve([] as unknown[]), {
+        limit: async () => (h.storedArm ? [{ armId: h.storedArm }] : []),
+      }),
     }),
   }),
   insert: () => ({ values: () => ({ $returningId: async () => [{ id: 777 }] }) }),
@@ -103,6 +107,7 @@ beforeEach(() => {
   h.flags = new Set();
   h.decision = null;
   h.resolveCalls = [];
+  h.storedArm = null;
   mockTwilioCreate.mockClear();
   fetchSpy.mockClear();
   vi.stubGlobal("fetch", fetchSpy);
@@ -141,8 +146,11 @@ describe("flags OFF · behaviour is unchanged", () => {
     expect(h.resolveCalls).toHaveLength(1);
   });
 
-  it("master ON but lane flag OFF still sends", async () => {
+  it("master ON but lane flag OFF still sends — even for a customer with a stored CONTROL row", async () => {
     h.flags = new Set(["contact_holdouts_enabled"]);
+    // Without this row the send would go out as "assignment not readable" and
+    // the test would pass for the wrong reason (orchestrator review of #2785).
+    h.storedArm = "control";
     const { sendSms } = await import("../sms");
     const res = await sendSms(CUSTOMER, "We miss you", { via: "twilio", variantKey: "winback" });
     expect(res.success).toBe(true);

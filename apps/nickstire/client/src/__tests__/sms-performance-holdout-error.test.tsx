@@ -49,6 +49,15 @@ describe("Money / Outcome board · holdout read failure", () => {
     expect(screen.queryByText(/Couldn't read holdout experiments/i)).toBeNull();
   });
 
+  it("0136 pending: says experiments are not set up and keeps 'unmeasured' — no outage banner", () => {
+    h.money = { ...board(), holdoutError: null, holdoutPending: true };
+    render(React.createElement(SmsPerformanceSection));
+    expect(screen.getByText(/not set up yet \(migration 0136 pending\)/i)).toBeTruthy();
+    expect(screen.getByText("unmeasured")).toBeTruthy();
+    expect(screen.queryByText(/Couldn't read holdout experiments/i)).toBeNull();
+    expect(screen.queryByText("unavailable")).toBeNull();
+  });
+
   it("a lane under the per-arm minimum reads 'collecting' and says when a lift will show", () => {
     const holdout = buildHoldoutLift({
       experimentId: "contact:winback:v1",

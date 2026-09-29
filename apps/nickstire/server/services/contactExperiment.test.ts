@@ -107,6 +107,49 @@ describe("contactExperiment", () => {
     expect(h.getDbTyped).not.toHaveBeenCalled();
   });
 
+  it("master ON + lane flag OFF sends normally even when a stored CONTROL row exists", async () => {
+    // The stored row is what would withhold the text if the lane check were
+    // skipped — so this fails the moment the lane flag stops gating.
+    h.isEnabled.mockImplementation(async (key) => key === "contact_holdouts_enabled");
+    h.selectResponses.push([{ armId: "control" }]);
+
+    const result = await resolveContactExperiment("2165550105", "winback");
+
+    expect(result).toMatchObject({
+      eligible: true,
+      armed: false,
+      measurable: false,
+      armId: null,
+      reason: "contact_holdout_winback_off",
+    });
+    expect(h.isEnabled).toHaveBeenCalledWith("contact_holdout_winback");
+    expect(h.getDbTyped).not.toHaveBeenCalled();
+    expect(h.execute).not.toHaveBeenCalled();
+  });
+
+  it("treats the subject as TREATMENT when neither read returns a row (never withholds an unrecorded control)", async () => {
+    // Pick a subject whose local prediction is CONTROL, so returning the
+    // prediction instead of failing open would withhold the text.
+    const experimentId = "contact:winback:v1";
+    let phone = "";
+    for (let i = 0; i < 100; i++) {
+      const candidate = `216555${String(200 + i).padStart(4, "0")}`;
+      if (contactArmForSubject(experimentId, candidate) === "control") { phone = candidate; break; }
+    }
+    expect(phone).not.toBe("");
+    h.selectResponses.push([], []);
+
+    const result = await resolveContactExperiment(phone, "winback");
+
+    expect(h.execute).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({
+      armed: true,
+      measurable: false,
+      armId: "treatment",
+      reason: "assignment_not_readable_send_normally",
+    });
+  });
+
   it("fails open to treatment when durable assignment storage is unavailable", async () => {
     h.getDbTyped.mockResolvedValue(null);
 

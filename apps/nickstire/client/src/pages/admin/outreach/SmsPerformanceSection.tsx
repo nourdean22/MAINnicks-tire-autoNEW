@@ -144,7 +144,12 @@ export default function SmsPerformanceSection() {
             Net P&amp;L remains <span className="font-medium text-foreground/70">UNMEASURED</span> until
             real provider/carrier SMS cost is persisted; incremental gross lift is never relabeled as profit.
           </p>
-          {money && !money.holdoutError && (
+          {money?.holdoutPending && (
+            <p className="text-[11px] leading-relaxed text-foreground/55">
+              Holdout experiments are not set up yet (migration 0136 pending), so every lane is unmeasured.
+            </p>
+          )}
+          {money && !money.holdoutError && !money.holdoutPending && (
             <p className="text-[11px] leading-relaxed text-foreground/55">
               Holdout state: {money.causalMeasurement.observedHoldoutLanes} observed ·{" "}
               {money.causalMeasurement.collectingLanes} collecting ·{" "}
