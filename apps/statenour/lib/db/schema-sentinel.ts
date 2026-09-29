@@ -409,6 +409,46 @@ export const EXPECTATIONS: SchemaExpectation[] = [
     matchByDefinition: true,
     reason: "GIN over the STORED content_tsv - a name-only match would accept the wrong index and the brain FTS lane would scan 57k rows",
   },
+  // 2026-09-29 · the RealityEvent envelope (#2784, migration
+  // 20260929123500_reality_event_envelope). The code shipped before the migration was
+  // applied, and every prisma.realityEvent read and write failed with `column "event_version"
+  // does not exist` from 15:33Z, while this sentinel reported no drift. Prisma selects every
+  // model column, so any one of these missing fails them all.
+  {
+    kind: "column_exists",
+    table: "reality_events",
+    column: "event_version",
+    nullable: false,
+    reason: "RealityEvent envelope - without it every realityEvent read and write fails",
+  },
+  {
+    kind: "column_exists",
+    table: "reality_events",
+    column: "occurred_at",
+    nullable: false,
+    reason: "RealityEvent envelope - without it every realityEvent read and write fails",
+  },
+  {
+    kind: "column_exists",
+    table: "reality_events",
+    column: "correlation_id",
+    nullable: true,
+    reason: "RealityEvent envelope - without it every realityEvent read and write fails",
+  },
+  {
+    kind: "column_exists",
+    table: "reality_events",
+    column: "causation_id",
+    nullable: true,
+    reason: "RealityEvent envelope - without it every realityEvent read and write fails",
+  },
+  {
+    kind: "column_exists",
+    table: "reality_events",
+    column: "retention_class",
+    nullable: false,
+    reason: "RealityEvent envelope - without it every realityEvent read and write fails",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────
