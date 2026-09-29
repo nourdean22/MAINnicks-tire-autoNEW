@@ -30,7 +30,10 @@ import {
   formatFailureAlertGroup,
   formatResolvedAlertGroup,
   formatShapeAlertGroup,
+  hasDatabaseRootIncident,
   isCronAlertQuietHours,
+  isDatabaseDependencyError,
+  resolvedIncidentKeys,
 } from "./alertPolicy";
 import {
   classifyRun,
@@ -440,72 +443,184 @@ export async function runLoopShapeCheck(): Promise<{ findings: LoopFinding[]; ju
 export async function runCronFailureObserver(): Promise<{ recordsProcessed: number; details: string }> {
   let alertsSent = 0;
   let alertsSkipped = 0;
+  let quietDeferred = 0;
+  const now = Date.now();
+  const rootKey = "root:database";
 
+  let failing: JobFailureSnapshot[];
   try {
-    const failing = await fetchFailingJobs();
-    const now = Date.now();
-
-    for (const f of failing) {
-      const lastAlert = await readLastAlertAt(f.jobName);
-      if (!shouldAlertNow(lastAlert, now, ALERT_SUPPRESS_MS)) {
-        alertsSkipped++;
-        continue;
-      }
-
-      const errorPreview = (f.latestError || "no error message logged").slice(0, 240);
-      const text =
-        `🚨 Cron failure: \`${f.jobName}\`\n` +
-        `${f.consecutiveFailures} consecutive failures over the last ${LOOKBACK_HOURS}h\n` +
-        `Latest error: ${errorPreview}\n` +
-        `Last failure: ${f.latestFailureAt.toISOString()}`;
-
-      const ok = await sendTelegramMessage(text, "critical");
-      if (ok) {
-        await writeLastAlertAt(f.jobName, now);
-        alertsSent++;
-        log.warn(`[cron-observer] alert sent for ${f.jobName} (${f.consecutiveFailures} failures)`);
-      } else {
-        log.error(`[cron-observer] failed to send Telegram alert for ${f.jobName}`);
-      }
-    }
-
-    // SHAPE PASS · isolated so a shape-query failure can never mask a
-    // failure-streak alert (and vice versa).
-    let shapeSummary = "shapes: unavailable";
-    try {
-      const { findings, judged, coverageGaps } = await runLoopShapeCheck();
-      let shapeAlerts = 0;
-      for (const f of findings) {
-        const key = `${f.loop}:${f.verdict}`;
-        const lastAlert = await readLastAlertAt(`shape:${key}`);
-        if (!shouldAlertNow(lastAlert, now, SHAPE_ALERT_SUPPRESS_MS)) continue;
-        const text =
-          `📉 Loop shape: \`${f.loop}\` → ${f.verdict}${f.ros ? ` (${f.ros})` : ""}\n` +
-          `${f.summary}\n` +
-          `First check: ${f.firstCheck.slice(0, 400)}`;
-        const ok = await sendTelegramMessage(text, "critical");
-        if (ok) {
-          await writeLastAlertAt(`shape:${key}`, now);
-          shapeAlerts++;
-          log.warn(`[cron-observer] shape alert sent for ${f.loop} (${f.verdict})`);
-        } else {
-          log.error(`[cron-observer] failed to send shape alert for ${f.loop}`);
-        }
-      }
-      // The verdict summary lands in this run's cron_log details row, so shape
-      // history is persisted for free by the scheduler's own bookkeeping.
-      shapeSummary = `shapes: ${findings.length} actionable of ${judged} judged (${findings.map((f) => `${f.loop}=${f.verdict}`).join(", ") || "all in-spec"}); alerts: ${shapeAlerts}; undeclared loops: ${coverageGaps.length}`;
-    } catch (shapeErr) {
-      shapeSummary = `shapes: ERROR ${shapeErr instanceof Error ? shapeErr.message : String(shapeErr)}`;
-      log.error("[cron-observer] loop shape pass failed:", shapeErr instanceof Error ? shapeErr.message : shapeErr);
-    }
-
-    return {
-      recordsProcessed: alertsSent,
-      details: `scanned: ${failing.length} failing jobs; alerts sent: ${alertsSent}; suppressed (recent): ${alertsSkipped}; ${shapeSummary}`,
-    };
+    failing = await fetchFailingJobs();
   } catch (err) {
+    // If the observer itself cannot read cron_log because the DB dependency is
+    // unavailable, there is nothing honest to say about child jobs. Alert the
+    // root cause once per suppression window, then rethrow so this cron run is
+    // itself recorded failed instead of manufacturing a green observer row.
+    if (isDatabaseDependencyError(err)) {
+      const last = await readLastAlertAt(rootKey);
+      if (shouldAlertNow(last, now, ALERT_SUPPRESS_MS)) {
+        const ok = await sendTelegramMessage(
+          formatDatabaseDependencyAlert(err, true).slice(0, 3900),
+          "critical",
+        );
+        if (ok) {
+          await writeLastAlertAt(rootKey, now);
+          await writeAlertActive(rootKey, true);
+          alertsSent++;
+        }
+      } else {
+        alertsSkipped++;
+      }
+    }
     log.error("[cron-observer] run failed:", err instanceof Error ? err.message : err);
     throw err;
   }
+
+  const previouslyAlerted = await readActiveAlertKeys();
+  const quiet = isCronAlertQuietHours(now, BUSINESS.timezone);
+
+  const failureKeys = failing.map((f) => `failure:${f.jobName}`);
+  let shapeFindings: LoopFinding[] = [];
+  let shapeSummary = "shapes: unavailable";
+  let dbRoot = hasDatabaseRootIncident(failing);
+  let dbRootEvidence: unknown = dbRoot
+    ? new Error(
+        `${failing.filter((f) => isDatabaseDependencyError(f.latestError)).length} distinct cron jobs have database-connection-shaped failures`,
+      )
+    : null;
+
+  // If a common DB dependency already explains the failure fan-out, do not
+  // spend another query producing derivative shape noise. Otherwise run the
+  // shape pass, and promote a DB-shaped shape-query failure to the root incident.
+  if (dbRoot) {
+    shapeSummary = "shapes: inhibited by database dependency incident";
+  } else {
+    try {
+      const shape = await runLoopShapeCheck();
+      shapeFindings = shape.findings;
+      shapeSummary =
+        `shapes: ${shape.findings.length} actionable of ${shape.judged} judged (` +
+        `${shape.findings.map((f) => `${f.loop}=${f.verdict}`).join(", ") || "all in-spec"}); ` +
+        `undeclared loops: ${shape.coverageGaps.length}`;
+    } catch (shapeErr) {
+      if (isDatabaseDependencyError(shapeErr)) {
+        dbRoot = true;
+        dbRootEvidence = shapeErr;
+        shapeSummary = "shapes: inhibited after database dependency failure";
+      } else {
+        shapeSummary = `shapes: ERROR ${shapeErr instanceof Error ? shapeErr.message : String(shapeErr)}`;
+        log.error(
+          "[cron-observer] loop shape pass failed:",
+          shapeErr instanceof Error ? shapeErr.message : shapeErr,
+        );
+      }
+    }
+  }
+
+  const shapeKeys = shapeFindings.map((f) => `shape:${f.loop}:${f.verdict}`);
+  const currentActive = new Set<string>([...failureKeys, ...shapeKeys]);
+  if (dbRoot) currentActive.add(rootKey);
+
+  if (dbRoot) {
+    // Alertmanager-style inhibition: one root page, no child-job/shape pages.
+    // Root incidents bypass quiet hours because sleeping through control-plane
+    // blindness is worse than an overnight page.
+    const last = await readLastAlertAt(rootKey);
+    if (shouldAlertNow(last, now, ALERT_SUPPRESS_MS)) {
+      const ok = await sendTelegramMessage(
+        formatDatabaseDependencyAlert(dbRootEvidence).slice(0, 3900),
+        "critical",
+      );
+      if (ok) {
+        await writeLastAlertAt(rootKey, now);
+        await writeAlertActive(rootKey, true);
+        alertsSent++;
+        log.warn("[cron-observer] database dependency root alert sent; child alerts inhibited");
+      }
+    } else {
+      alertsSkipped++;
+    }
+  } else if (quiet) {
+    // Quiet time is routing, not resolution. Do not mark anything alerted and
+    // do not clear previously-active incidents; a still-broken incident will
+    // page after quiet hours, while a prior alert that recovered will get its
+    // resolved notice once the operator is back in the normal window.
+    quietDeferred = failing.length + shapeFindings.length;
+  } else {
+    const dueFailures: JobFailureSnapshot[] = [];
+    const dueFailureKeys: string[] = [];
+    for (const f of failing) {
+      const key = `failure:${f.jobName}`;
+      const last = await readLastAlertAt(key);
+      if (shouldAlertNow(last, now, ALERT_SUPPRESS_MS)) {
+        dueFailures.push(f);
+        dueFailureKeys.push(key);
+      } else {
+        alertsSkipped++;
+      }
+    }
+
+    const dueShapes: LoopFinding[] = [];
+    const dueShapeKeys: string[] = [];
+    for (const finding of shapeFindings) {
+      const key = `shape:${finding.loop}:${finding.verdict}`;
+      const last = await readLastAlertAt(key);
+      if (shouldAlertNow(last, now, SHAPE_ALERT_SUPPRESS_MS)) {
+        dueShapes.push(finding);
+        dueShapeKeys.push(key);
+      } else {
+        alertsSkipped++;
+      }
+    }
+
+    if (dueFailures.length || dueShapes.length) {
+      const parts: string[] = [];
+      if (dueFailures.length) parts.push(formatFailureAlertGroup(dueFailures, LOOKBACK_HOURS));
+      if (dueShapes.length) parts.push(formatShapeAlertGroup(dueShapes));
+      const ok = await sendTelegramMessage(parts.join("\n\n").slice(0, 3900), "critical");
+      if (ok) {
+        for (const key of [...dueFailureKeys, ...dueShapeKeys]) {
+          await writeLastAlertAt(key, now);
+          await writeAlertActive(key, true);
+        }
+        alertsSent++;
+        log.warn(
+          `[cron-observer] grouped alert sent: failures=${dueFailures.length} shapes=${dueShapes.length}`,
+        );
+      } else {
+        log.error("[cron-observer] failed to send grouped Telegram alert");
+      }
+    }
+  }
+
+  // Resolved notices are derived only from incidents that were actually paged
+  // before. During a root DB incident child state is intentionally frozen so
+  // inhibition cannot masquerade as recovery. During quiet hours resolution is
+  // deferred by leaving the active bit in place until a later observer pass.
+  let resolvedSent = 0;
+  if (!dbRoot && !quiet) {
+    const resolved = resolvedIncidentKeys(previouslyAlerted, currentActive);
+    if (resolved.length) {
+      const ok = await sendTelegramMessage(
+        formatResolvedAlertGroup(resolved).slice(0, 3900),
+        "critical",
+      );
+      if (ok) {
+        for (const key of resolved) await writeAlertActive(key, false);
+        resolvedSent = resolved.length;
+        alertsSent++;
+        log.info(`[cron-observer] grouped resolved notice sent for ${resolved.length} incident(s)`);
+      } else {
+        log.error("[cron-observer] failed to send grouped resolved notice");
+      }
+    }
+  }
+
+  return {
+    recordsProcessed: alertsSent,
+    details:
+      `scanned: ${failing.length} failing jobs; telegram messages sent: ${alertsSent}; ` +
+      `suppressed (recent): ${alertsSkipped}; quiet-deferred: ${quietDeferred}; ` +
+      `resolved: ${resolvedSent}; root-db: ${dbRoot ? "yes" : "no"}; ${shapeSummary}`,
+  };
 }
+
