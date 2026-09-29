@@ -5,7 +5,7 @@
  * Now includes: cost estimation, daily budget tracking, per-feature analytics.
  */
 
-import { estimateCostUsd, usdToCents } from "@/lib/ai/pricing";
+import { estimateCostUsd, isClaudeModelId, usdToCents } from "@/lib/ai/pricing";
 import { prisma } from "@/lib/prisma";
 
 // Cost per 1M tokens (approximate, updated Apr 28 2026).
@@ -39,15 +39,12 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
   "gpt-5": { input: 5.0, output: 20.0 },
   "gpt-oss": { input: 0, output: 0 },
   // â”€â”€ Anthropic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // Sonnet 5: $2/$10 is the STANDARD price â€” "The previously scheduled increase to
-  // $3/$15 ... on September 1, 2026 will not occur." (platform.claude.com/docs/en/
-  // about-claude/pricing, read 2026-09-25). Pinned by tests/lib/ai/claude-pricing.test.ts.
-  "claude-sonnet-5": { input: 2.0, output: 10.0 }, // current Sonnet tier (anthropic fallback lane)
-  "claude-sonnet-4-5": { input: 3.0, output: 15.0 },
-  "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
+  // Current Claude models are priced per model in lib/ai/pricing.ts
+  // (CLAUDE_MODEL_RATES_PER_1M_TOKENS), never by substring here: the old
+  // "claude-opus-4" key priced Opus 4.5-4.8 at Opus 4's $15/$75. Only
+  // retired Claude 3.x ids stay, so historical AiGeneration rows keep a price.
   "claude-3-5-sonnet": { input: 3.0, output: 15.0 },
   "claude-haiku-3.5": { input: 0.80, output: 4.0 },
-  "claude-opus-4": { input: 15.0, output: 75.0 },
   // â”€â”€ Image models (Venice) â€” flat per-image, mapped to per-call estimate
   // Per-image is recorded on the prompt-tokens side as a synthetic "image
   // ticket" so the cost dashboard can compare image vs chat spend without
@@ -69,6 +66,12 @@ function MODEL_COSTS_HAS(model: string): boolean {
 }
 
 function estimateCostCents(model: string, promptTokens?: number, outputTokens?: number, provider?: string): number {
+  // A Claude id prices per model (lib/ai/pricing.ts), with the family rate
+  // as the flagged fallback. Retired Claude 3.x ids keep the table below.
+  if (isClaudeModelId(model) && !MODEL_COSTS_HAS(model)) {
+    const usd = estimateCostUsd("anthropic", promptTokens, outputTokens, model);
+    if (usd != null) return usdToCents(usd);
+  }
   // U6 Â· provider family rate first (the same table provider.ts prices with);
   // the model table below refines SKUs the family rate would misprice.
   if (provider) {
