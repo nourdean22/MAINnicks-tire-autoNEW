@@ -3746,26 +3746,38 @@ enum LedgerAuthor {
 }
 
 model RealityEvent {
-  id           String   @id @default(cuid())
-  /// Low-cardinality, dotted: experiment.verdict · proof.run · proof.episode_failed · shopstate.transition
-  eventType    String   @map("event_type") @db.VarChar(80)
-  observedAt   DateTime @map("observed_at")
+  id             String   @id @default(cuid())
+  /// Low-cardinality, registry-governed: experiment.verdict · proof.* · episode.* · darwin.*
+  eventType      String   @map("event_type") @db.VarChar(80)
+  /// Registry schema version. Existing rows backfill to v1.
+  eventVersion   Int      @default(1) @map("event_version")
+  /// When the source-domain event actually happened.
+  occurredAt     DateTime @default(now()) @map("occurred_at")
+  /// When this ledger observed/received it. Kept separately from occurredAt.
+  observedAt     DateTime @map("observed_at")
+  correlationId  String?  @map("correlation_id") @db.VarChar(160)
+  causationId    String?  @map("causation_id") @db.VarChar(160)
+  /// operational | evidence | learning | audit — assigned by the event registry.
+  retentionClass String   @default("operational") @map("retention_class") @db.VarChar(32)
   /// [{ type, id, role? }] — the objects this event belongs to (session, route, experiment, episode, vehicle_visit...)
-  objects      Json
-  sourceSystem String   @map("source_system") @db.VarChar(64)
-  sourceUri    String?  @map("source_uri") @db.VarChar(500)
-  experimentId String?  @map("experiment_id") @db.VarChar(120)
-  variantId    String?  @map("variant_id") @db.VarChar(64)
-  contractHash String?  @map("contract_hash") @db.VarChar(32)
+  objects        Json
+  sourceSystem   String   @map("source_system") @db.VarChar(64)
+  sourceUri      String?  @map("source_uri") @db.VarChar(500)
+  experimentId   String?  @map("experiment_id") @db.VarChar(120)
+  variantId      String?  @map("variant_id") @db.VarChar(64)
+  contractHash   String?  @map("contract_hash") @db.VarChar(32)
   /// observed | derived | inferred
-  quality      String   @default("observed") @db.VarChar(16)
+  quality        String   @default("observed") @db.VarChar(16)
   /// public | internal — never pii; a PII-bearing event does not belong in this table
-  privacy      String   @default("internal") @db.VarChar(16)
-  payload      Json?
-  sender       String   @db.VarChar(64)
-  createdAt    DateTime @default(now()) @map("created_at")
+  privacy        String   @default("internal") @db.VarChar(16)
+  payload        Json?
+  sender         String   @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("created_at")
 
+  @@index([eventType, occurredAt])
   @@index([eventType, observedAt])
+  @@index([correlationId])
+  @@index([causationId])
   @@index([experimentId])
   @@index([createdAt])
   @@map("reality_events")
