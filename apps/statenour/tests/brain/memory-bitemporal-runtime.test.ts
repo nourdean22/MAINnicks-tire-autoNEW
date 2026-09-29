@@ -109,6 +109,9 @@ describe("Q-31 transaction-time runtime bridge", () => {
     expect(src).toContain("lastVerifiedAt: args.snapshot.previousLastVerifiedAt");
     expect(src).toContain("deleteMany({ where: { id: args.snapshot.snapshotId } })");
     expect(src).toContain("restoreTransactionWindowIfAvailable(");
+    expect(src).toContain("const opened = await openTransactionWindowIfAvailable(");
+    expect(src).toContain("const recovered = await restoreTransactionWindowIfAvailable(");
+    expect(src).toContain("memory_transaction_window_reopen_failed");
     expect(src.match(/memory_supersession_replace_failed/g)?.length).toBe(2);
   });
 
