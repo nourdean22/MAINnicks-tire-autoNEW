@@ -70,38 +70,64 @@ describe("surfaceNearDuplicate", () => {
   });
 });
 
-describe("resolveContradiction writes the supersession columns recall filters on", () => {
+describe("resolveContradiction delegates memory-history mutation to one owner", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     cleanup.cleanupResolvedContradiction.mockResolvedValue(undefined);
-    mocks.brainMemory.findUnique.mockResolvedValue({ id: "row", content: JSON.stringify(STORED), createdAt: new Date("2026-09-07T00:00:00Z") });
+    mocks.brainMemory.findUnique.mockResolvedValue({
+      id: "row",
+      content: JSON.stringify(STORED),
+      createdAt: new Date("2026-09-07T00:00:00Z"),
+    });
     mocks.brainMemory.update.mockResolvedValue({});
   });
 
-  it("current_wins: the OLD row is superseded by the NEW one and closed now", async () => {
-    const before = Date.now();
+  it("current_wins records the verdict then delegates exactly once", async () => {
     const out = await resolveContradiction(KEY, "current_wins", "the amount changed");
     expect(out?.status).toBe("current_wins");
-    const memoryUpdate = mocks.brainMemory.update.mock.calls.find((c) => c[0].where?.id === "bm-old")?.[0];
-    expect(memoryUpdate, "the losing memory must be updated").toBeTruthy();
-    expect(memoryUpdate.data).toMatchObject({ supersededById: "bm-new", confidence: 0.1, source: "deprecated_by_resolution" });
-    expect(memoryUpdate.data.validUntil).toBeInstanceOf(Date);
-    expect(memoryUpdate.data.validUntil.getTime()).toBeGreaterThanOrEqual(before);
-    // The winner is never touched.
-    expect(mocks.brainMemory.update.mock.calls.some((c) => c[0].where?.id === "bm-new")).toBe(false);
+    expect(cleanup.cleanupResolvedContradiction).toHaveBeenCalledOnce();
+    expect(cleanup.cleanupResolvedContradiction).toHaveBeenCalledWith(
+      "current_wins",
+      "bm-new",
+      "bm-old",
+    );
+
+    // The contradiction row itself is updated; neither memory is directly
+    // superseded here. cleanupResolvedContradiction is the only history owner.
+    const directMemoryWrites = mocks.brainMemory.update.mock.calls.filter(
+      (call) => call[0].where?.id === "bm-old" || call[0].where?.id === "bm-new",
+    );
+    expect(directMemoryWrites).toEqual([]);
   });
 
-  it("old_wins: the NEW row is superseded by the OLD one", async () => {
+  it("old_wins delegates the opposite winner/loser without a direct write", async () => {
     await resolveContradiction(KEY, "old_wins");
-    const memoryUpdate = mocks.brainMemory.update.mock.calls.find((c) => c[0].where?.id === "bm-new")?.[0];
-    expect(memoryUpdate?.data).toMatchObject({ supersededById: "bm-old" });
-    expect(memoryUpdate?.data.validUntil).toBeInstanceOf(Date);
-    expect(mocks.brainMemory.update.mock.calls.some((c) => c[0].where?.id === "bm-old")).toBe(false);
+    expect(cleanup.cleanupResolvedContradiction).toHaveBeenCalledWith(
+      "old_wins",
+      "bm-new",
+      "bm-old",
+    );
+    expect(
+      mocks.brainMemory.update.mock.calls.some(
+        (call) => call[0].where?.id === "bm-old" || call[0].where?.id === "bm-new",
+      ),
+    ).toBe(false);
   });
 
-  it.each(["both_valid", "dismissed"] as const)("%s: neither memory is superseded", async (status) => {
-    await resolveContradiction(KEY, status);
-    const memoryUpdates = mocks.brainMemory.update.mock.calls.filter((c) => c[0].where?.id === "bm-old" || c[0].where?.id === "bm-new");
-    expect(memoryUpdates).toEqual([]);
-  });
+  it.each(["both_valid", "dismissed"] as const)(
+    "%s still delegates so cleanup can apply the shared no-loser rule",
+    async (status) => {
+      await resolveContradiction(KEY, status);
+      expect(cleanup.cleanupResolvedContradiction).toHaveBeenCalledWith(
+        status,
+        "bm-new",
+        "bm-old",
+      );
+      expect(
+        mocks.brainMemory.update.mock.calls.some(
+          (call) => call[0].where?.id === "bm-old" || call[0].where?.id === "bm-new",
+        ),
+      ).toBe(false);
+    },
+  );
 });
