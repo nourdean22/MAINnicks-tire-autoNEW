@@ -111,13 +111,16 @@ export const campaignsRouter = router({
     const rows = await d.select().from(smsCampaigns).orderBy(desc(smsCampaigns.createdAt)).limit(100);
     if (rows.length === 0) return [];
 
+    // .mapWith(Number): SUM() is DECIMAL and this mysql2 pool does not set
+    // decimalNumbers, so the driver returns "6" — and the client's
+    // sent + heldOut + failed then concatenates ("603/10").
     const statRows = await d
       .select({
         campaignId: smsCampaignSends.campaignId,
-        sent: sql<number>`sum(case when ${smsCampaignSends.status} = 'sent' then 1 else 0 end)`,
-        heldOut: sql<number>`sum(case when ${smsCampaignSends.status} = 'heldout' then 1 else 0 end)`,
-        failed: sql<number>`sum(case when ${smsCampaignSends.status} = 'failed' then 1 else 0 end)`,
-        pending: sql<number>`sum(case when ${smsCampaignSends.status} = 'pending' then 1 else 0 end)`,
+        sent: sql<number>`sum(case when ${smsCampaignSends.status} = 'sent' then 1 else 0 end)`.mapWith(Number),
+        heldOut: sql<number>`sum(case when ${smsCampaignSends.status} = 'heldout' then 1 else 0 end)`.mapWith(Number),
+        failed: sql<number>`sum(case when ${smsCampaignSends.status} = 'failed' then 1 else 0 end)`.mapWith(Number),
+        pending: sql<number>`sum(case when ${smsCampaignSends.status} = 'pending' then 1 else 0 end)`.mapWith(Number),
       })
       .from(smsCampaignSends)
       .where(inArray(smsCampaignSends.campaignId, rows.map((r: (typeof rows)[number]) => r.id)))
@@ -143,10 +146,10 @@ export const campaignsRouter = router({
 
       // Get send stats
       const [stats] = await d.select({
-        sent: sql<number>`sum(case when ${smsCampaignSends.status} = 'sent' then 1 else 0 end)`,
-        heldOut: sql<number>`sum(case when ${smsCampaignSends.status} = 'heldout' then 1 else 0 end)`,
-        failed: sql<number>`sum(case when ${smsCampaignSends.status} = 'failed' then 1 else 0 end)`,
-        pending: sql<number>`sum(case when ${smsCampaignSends.status} = 'pending' then 1 else 0 end)`,
+        sent: sql<number>`sum(case when ${smsCampaignSends.status} = 'sent' then 1 else 0 end)`.mapWith(Number),
+        heldOut: sql<number>`sum(case when ${smsCampaignSends.status} = 'heldout' then 1 else 0 end)`.mapWith(Number),
+        failed: sql<number>`sum(case when ${smsCampaignSends.status} = 'failed' then 1 else 0 end)`.mapWith(Number),
+        pending: sql<number>`sum(case when ${smsCampaignSends.status} = 'pending' then 1 else 0 end)`.mapWith(Number),
       })
         .from(smsCampaignSends)
         .where(eq(smsCampaignSends.campaignId, input.id));
@@ -526,6 +529,7 @@ export async function processCampaignSends(
       if (((claimRes as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 0) {
         continue; // already claimed by an overlapping run
       }
+      let heldOutNow = false;
       try {
         const result = await sendSms(send.phone, send.messageBody, { via: "shop", variantKey });
 
@@ -556,8 +560,7 @@ export async function processCampaignSends(
           totalFailed++;
         }
 
-        // Provider rate limiting only. A holdout made no provider call.
-        if (!result.heldOut) await new Promise(r => setTimeout(r, 1000));
+        if (result.heldOut) heldOutNow = true;
       } catch (err) {
         log.error(`[Campaigns] Failed to process send ${send.id}:`, err);
         await d.update(smsCampaignSends).set({
@@ -567,6 +570,11 @@ export async function processCampaignSends(
         batchFailed++;
         totalFailed++;
       }
+
+      // Rate limiting: 1 second between sends — AFTER the try/catch, so an
+      // errored send still paces the next one. Skipped only for a holdout
+      // control, which made no provider call.
+      if (!heldOutNow) await new Promise(r => setTimeout(r, 1000));
     }
 
     // Batch update campaign counts once per batch instead of per-send

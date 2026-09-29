@@ -2,6 +2,11 @@
   "$comment": "knip + script-invoker findings accepted at baseline. ANY NEW ENTRY IS A CI FAILURE — see scripts/knip-orphan-gate.mjs. Every entry needs a real reason; an accidental orphan has none to write.",
   "entries": [
     {
+      "file": "apps/nickstire/server/routers/nick/intelligence.ts",
+      "symbol": "reviewRequestsSentSinceQuery",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The operator-context count of review requests that actually went out (status sent/clicked only; pending, failed, skipped and Q-21 heldout controls never reached a customer). reviewRequestsSentCount.test.ts imports it to pin the status filter in the emitted SQL, because the only other route to it is handleOperatorCommand's LLM path. Its runtime consumer is handleOperatorCommand in the same module (the monthReviews slot), so the rule is live, not vacuous."
+    },
+    {
       "file": "apps/nickstire/server/cron/jobs/declinedWorkRecovery.ts",
       "symbol": "recoverySendsEnabled",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The send gate of the declined-work SMS lane: an explicit dryRun always wins over FEATURE_DECLINED_RECOVERY and skipDryRunGate (the CLI's --dry-run used to send whenever the env flag was 1). declinedWorkRecovery.manualLanes.test.ts imports it to pin that rule directly, because the only other route to it is runDeclinedWorkRecovery's database path. Its runtime consumer is runDeclinedWorkRecovery in the same module (the featureEnabled line), so the rule is live, not vacuous."
@@ -5464,7 +5469,7 @@
     {
       "file": "apps/nickstire/server/services/contactExperiment.ts",
       "symbol": "CONTACT_HOLDOUT_CONTROL_PCT",
-      "reason": "Q-21 INTENTIONAL TEST-VISIBLE CONTRACT. The runtime allocation is encoded by HOLDOUT_BUCKETS in the same module; contactExperiment.test.ts imports this declared percentage to assert the durable randomized control share stays at 15% instead of duplicating the policy literal. The production consumer is resolveContactExperiment -> contactArmForSubject in this same module, so this is a test seam, not an unwired capability."
+      "reason": "Q-21 INTENTIONAL TEST-VISIBLE CONTRACT. The runtime allocation is encoded by HOLDOUT_BUCKET_COUNT / HOLDOUT_CONTROL_BUCKETS (3 of 20, sha256-bucketed) in the same module; contactExperiment.test.ts imports this declared percentage to assert the durable randomized control share stays at 15% instead of duplicating the policy literal. The production consumer is resolveContactExperiment -> contactArmForSubject in this same module, so this is a test seam, not an unwired capability."
     },
     {
       "file": "apps/nickstire/server/services/contactExperiment.ts",

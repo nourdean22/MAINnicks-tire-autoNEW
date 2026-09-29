@@ -679,7 +679,8 @@ function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
       }).$returningId();
       queued.dbId = row?.id;
     } catch (err) {
-      log.warn("Failed to persist delayed SMS to DB", { error: err instanceof Error ? err.message : String(err) });
+      // describeDbError, never err.message: the insert binds the phone and body.
+      log.warn("Failed to persist delayed SMS to DB", { error: describeDbError(err) });
     }
   })();
 }
@@ -1731,7 +1732,8 @@ async function persistOutboundShopSms(
     });
   } catch (err) {
     log.warn("Failed to persist outbound shop SMS to smsMessages", {
-      error: err instanceof Error ? err.message : String(err),
+      // describeDbError, never err.message: the insert binds the phone and body.
+      error: describeDbError(err),
     });
   }
 }
@@ -1865,7 +1867,8 @@ async function checkDailyLimit(phone: string, opts?: { skipShortCooldown?: boole
   } catch (err) {
     log.warn("checkDailyLimit DB error — allowing send (fail-open)", {
       errorId: "SMS_DAILY_LIMIT_QUERY_ERROR",
-      error: err instanceof Error ? err.message : String(err),
+      // describeDbError, never err.message: the upsert binds the phone.
+      error: describeDbError(err),
     });
     smsLastSentMap.set(phone, now);
     return true;

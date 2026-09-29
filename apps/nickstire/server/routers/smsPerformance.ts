@@ -24,6 +24,7 @@ import { and, desc, eq, gte, sql, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { smsMessages, smsConversations } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
+import { describeDbError, isMissingTableError } from "../lib/dbErrors";
 import { createLogger } from "../lib/logger";
 import { PHONE_MATCH_KEY_SQL } from "../lib/phoneIdentity";
 import {
@@ -296,7 +297,7 @@ export const smsPerformanceRouter = router({
       windowDays: z.number().int().min(7).max(365).default(180),
       attributionWindowDays: z.number().int().min(1).max(90).default(30),
     }).optional())
-    .query(async ({ input }): Promise<LoopScoreboard & { error?: true; errorMessage?: string }> => {
+    .query(async ({ input }): Promise<LoopScoreboard & { error?: true; errorMessage?: string; holdoutError?: string | null; holdoutPending?: boolean }> => {
       const windowDays = input?.windowDays ?? 180;
       const attributionWindowDays = input?.attributionWindowDays ?? 30;
       const empty = (errorMessage: string) => ({
@@ -382,6 +383,7 @@ export const smsPerformanceRouter = router({
         // to return.
         const holdoutByLane = new Map<string, HoldoutObservationInput>();
         let holdoutReadError: string | undefined;
+        let holdoutPending = false;
         try {
           const [assignmentRows] = await d.execute(sql`
             SELECT a.lane_key      AS laneKey,
@@ -495,10 +497,19 @@ export const smsPerformanceRouter = router({
             holdoutByLane.set(current.laneKey, current);
           }
         } catch (err) {
-          holdoutReadError = err instanceof Error ? err.message : String(err);
-          log.warn("Q-21 holdout economics unavailable; keeping observed board", {
-            error: holdoutReadError,
-          });
+          if (isMissingTableError(err)) {
+            // 0136 not applied yet: no experiment can exist, so every lane is
+            // truthfully "unmeasured". Reporting it as a failed read would put
+            // an outage banner on the board from the day this deploys.
+            holdoutPending = true;
+            log.info("Q-21 holdout table not present (migration 0136 pending); lanes stay unmeasured");
+          } else {
+            // describeDbError, not err.message: the message is the SQL + params.
+            holdoutReadError = describeDbError(err);
+            log.warn("Q-21 holdout economics unavailable; keeping observed board", {
+              error: holdoutReadError,
+            });
+          }
         }
 
         // Merge on the RAW variantKey before the rollup below folds A/B and
@@ -558,12 +569,20 @@ export const smsPerformanceRouter = router({
           [...byLoop.values()],
           { windowDays, attributionWindowDays },
         );
+        if (holdoutPending) {
+          scoreboard.limitations.push(
+            "HOLDOUT MEASUREMENT NOT SET UP: migration 0136 (contact_experiment_assignments) is not applied, so no lane has a randomized control yet.",
+          );
+        }
         if (holdoutReadError) {
           scoreboard.limitations.push(
             `HOLDOUT MEASUREMENT UNAVAILABLE: ${holdoutReadError}. Observed revenue remains readable; causal lift is unknown, not zero.`,
           );
         }
-        return scoreboard;
+        // A failed holdout read must not render as "unmeasured" (a lane that
+        // simply has no experiment). The section reads this field and says
+        // "unavailable" instead; `limitations` alone was never rendered.
+        return { ...scoreboard, holdoutError: holdoutReadError ?? null, holdoutPending };
       } catch (err) {
         log.error("recoveredRevenue failed", { error: err instanceof Error ? err.message : String(err) });
         return empty(err instanceof Error ? err.message : "Query failed");
