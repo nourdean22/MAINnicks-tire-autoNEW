@@ -12,6 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { sliceBlock } from "../testUtils/sourceBlock";
 import { createGracefulShutdown, detachedWork, trackDetached } from "./gracefulShutdown";
 
 function deferred() {
@@ -90,10 +91,7 @@ describe("the production drain includes detachedWork", () => {
     // The behaviour is pinned above; this pins that the server actually waits
     // on it — a tracker nobody drains is a writer with no reader.
     const src = readFileSync(resolve(__dirname, "index.ts"), "utf8");
-    const start = src.indexOf("const shutdownOnSigterm = createGracefulShutdown(");
-    expect(start).toBeGreaterThan(-1);
-    const block = src.slice(start, src.indexOf("\n});", start));
-    const sources = block.slice(block.indexOf("sources: ["));
+    const sources = sliceBlock(src, "sources: [", "process.on(\"SIGTERM\"", { label: "_core/index.ts drain sources" });
     expect(sources).toMatch(/^\s*detachedWork,\s*$/m);
   });
 });
