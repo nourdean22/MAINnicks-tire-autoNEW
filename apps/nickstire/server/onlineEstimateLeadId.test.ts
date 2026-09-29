@@ -52,6 +52,10 @@ vi.mock("./services/shopDriverSync", () => ({ pushEstimate: h.pushEstimate }));
 
 vi.mock("./services/eventBus", () => ({ emit: { leadCaptured: h.leadCaptured } }));
 
+// The pipeline is fire-and-forget and loads modules on first use; a cold runner
+// can take longer than vi.waitFor's 1 s default.
+const WAIT = { timeout: 5_000 };
+
 const VISITOR = {
   year: "2012",
   make: "Honda",
@@ -77,9 +81,9 @@ describe("online-estimate lead · the router emits the lead's real id", () => {
 
   it("two visitors produce two lead_captured events carrying their own inserted ids", async () => {
     await submitEstimate(VISITOR);
-    await vi.waitFor(() => expect(h.leadCaptured).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(h.leadCaptured).toHaveBeenCalledTimes(1), WAIT);
     await submitEstimate({ ...VISITOR, customerName: "Second Customer", customerPhone: "2165550124" });
-    await vi.waitFor(() => expect(h.leadCaptured).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(h.leadCaptured).toHaveBeenCalledTimes(2), WAIT);
 
     const ids = h.leadCaptured.mock.calls.map(([data]) => (data as { id: number }).id);
     expect(ids).toEqual([9101, 9102]);
@@ -89,7 +93,7 @@ describe("online-estimate lead · the router emits the lead's real id", () => {
   it("with no database there is no lead row, so no lead event, and the estimate still reaches ShopDriver", async () => {
     h.dbAvailable = false;
     await submitEstimate(VISITOR);
-    await vi.waitFor(() => expect(h.pushEstimate).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(h.pushEstimate).toHaveBeenCalledTimes(1), WAIT);
     expect(h.leadCaptured).not.toHaveBeenCalled();
   });
 
@@ -141,7 +145,7 @@ describe("online-estimate lead · the StateNour bridge receives each one", () =>
   it("two online-estimate leads a minute apart are two POSTs to StateNour, each with its lead id", async () => {
     await submitEstimate(VISITOR);
     await submitEstimate({ ...VISITOR, customerName: "Second Customer", customerPhone: "2165550124" });
-    await vi.waitFor(() => expect(h.leadCaptured).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(h.leadCaptured).toHaveBeenCalledTimes(2), WAIT);
 
     for (const [data] of h.leadCaptured.mock.calls) await throughTheBridge(data as Record<string, unknown>);
 
