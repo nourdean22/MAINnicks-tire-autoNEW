@@ -1379,6 +1379,20 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
               riskTier = "high";
             }
 
+            // F4a: a draft the provider cut off at the token cap reads exactly
+            // like a finished one. Only a provider-confirmed finish may
+            // auto-send; "truncated" and "unknown" (no/odd stop signal) go to
+            // the operator — never trimmed and sent.
+            if (draftResult.completion !== "complete") {
+              metadataJson.draftCompletion = draftResult.completion;
+              isLowRisk = false;
+              requiresHumanApproval = true;
+              // Keep an earlier, more specific reason (complaint, plan violation);
+              // the completion state is recorded in metadata either way.
+              if (!humanReviewReason) humanReviewReason = draftResult.completion === "truncated" ? "draft_truncated" : "draft_completion_unknown";
+              riskTier = "high";
+            }
+
             if (autoReplyEnabled && lowRiskEnabled && isLowRisk && !requiresHumanApproval) {
               shouldAutoSend = true;
               reason = `low_risk_auto_send:${detectedIntent}`;
