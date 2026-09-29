@@ -26,7 +26,14 @@ import { smsMessages, smsConversations } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
 import { createLogger } from "../lib/logger";
 import { PHONE_MATCH_KEY_SQL } from "../lib/phoneIdentity";
-import { buildLoopScoreboard, type LoopRow, type LoopScoreboard } from "../../shared/loopScoreboard";
+import {
+  buildHoldoutLift,
+  buildLoopScoreboard,
+  type HoldoutObservationInput,
+  type LoopRow,
+  type LoopScoreboard,
+} from "../../shared/loopScoreboard";
+import { CONTACT_HOLDOUT_VERSION } from "../services/contactExperiment";
 
 const log = createLogger("routers:smsPerformance");
 
@@ -360,6 +367,140 @@ export const smsPerformanceRouter = router({
           GROUP BY loop
         `);
 
+        // Q-21 · randomized no-contact holdout economics.
+        //
+        // This is intentionally a SIDE read: a migration/read failure must not
+        // erase the existing correlation board. In that case the board remains
+        // useful but says causal measurement is unavailable.
+        //
+        // Two cohort counts are kept:
+        //   assigned = every durable randomized assignment in the report window
+        //   matured  = assignments old enough to have the FULL attribution window
+        //
+        // Lift uses matured cohorts only. That avoids right-censoring a customer
+        // assigned yesterday against a control customer who already had 30 days
+        // to return.
+        const holdoutByLane = new Map<string, HoldoutObservationInput>();
+        let holdoutReadError: string | undefined;
+        try {
+          const [assignmentRows] = await d.execute(sql`
+            SELECT a.lane_key      AS laneKey,
+                   a.experiment_id AS experimentId,
+                   a.arm_id        AS armId,
+                   COUNT(*)        AS assigned,
+                   SUM(
+                     CASE
+                       WHEN a.assigned_at <= DATE_SUB(
+                         NOW(),
+                         INTERVAL ${sql.raw(String(attributionWindowDays))} DAY
+                       )
+                       THEN 1 ELSE 0
+                     END
+                   ) AS matured
+            FROM contact_experiment_assignments a
+            WHERE a.assignment_version = ${CONTACT_HOLDOUT_VERSION}
+              AND a.assigned_at >= DATE_SUB(
+                NOW(),
+                INTERVAL ${sql.raw(String(windowDays))} DAY
+              )
+            GROUP BY a.lane_key, a.experiment_id, a.arm_id
+          `);
+
+          const [holdoutRevenueRows] = await d.execute(sql`
+            SELECT matured_invoice.laneKey,
+                   matured_invoice.experimentId,
+                   matured_invoice.armId,
+                   COUNT(*)                      AS paidInvoices,
+                   COALESCE(SUM(matured_invoice.totalAmount), 0) AS revenueCents
+            FROM (
+              SELECT DISTINCT
+                     a.lane_key      AS laneKey,
+                     a.experiment_id AS experimentId,
+                     a.arm_id        AS armId,
+                     a.subject_key   AS subjectKey,
+                     i.id            AS invoiceId,
+                     i.totalAmount   AS totalAmount
+              FROM contact_experiment_assignments a
+              JOIN customers cu
+                ON ${sql.raw(PHONE_MATCH_KEY_SQL("cu.phone"))} = a.subject_key
+              JOIN invoices i
+                ON i.customerId = cu.id
+               AND i.paymentStatus = 'paid'
+               AND i.invoiceDate > a.assigned_at
+               AND i.invoiceDate <= DATE_ADD(
+                 a.assigned_at,
+                 INTERVAL ${sql.raw(String(attributionWindowDays))} DAY
+               )
+              WHERE a.assignment_version = ${CONTACT_HOLDOUT_VERSION}
+                AND a.assigned_at >= DATE_SUB(
+                  NOW(),
+                  INTERVAL ${sql.raw(String(windowDays))} DAY
+                )
+                AND a.assigned_at <= DATE_SUB(
+                  NOW(),
+                  INTERVAL ${sql.raw(String(attributionWindowDays))} DAY
+                )
+            ) AS matured_invoice
+            GROUP BY matured_invoice.laneKey,
+                     matured_invoice.experimentId,
+                     matured_invoice.armId
+          `);
+
+          const byExperiment = new Map<string, HoldoutObservationInput & { laneKey: string }>();
+          for (const raw of assignmentRows as Array<Record<string, unknown>>) {
+            const experimentId = String(raw.experimentId ?? "");
+            const laneKey = String(raw.laneKey ?? "");
+            if (!experimentId || !laneKey) continue;
+            const current = byExperiment.get(experimentId) ?? {
+              experimentId,
+              laneKey,
+              treatmentAssigned: 0,
+              controlAssigned: 0,
+              treatmentMatured: 0,
+              controlMatured: 0,
+              treatmentPaidInvoices: 0,
+              controlPaidInvoices: 0,
+              treatmentRevenueCents: 0,
+              controlRevenueCents: 0,
+            };
+            const armId = String(raw.armId ?? "");
+            if (armId === "control") {
+              current.controlAssigned += Number(raw.assigned ?? 0);
+              current.controlMatured += Number(raw.matured ?? 0);
+            } else if (armId === "treatment") {
+              current.treatmentAssigned += Number(raw.assigned ?? 0);
+              current.treatmentMatured += Number(raw.matured ?? 0);
+            }
+            byExperiment.set(experimentId, current);
+          }
+
+          for (const raw of holdoutRevenueRows as Array<Record<string, unknown>>) {
+            const experimentId = String(raw.experimentId ?? "");
+            const current = byExperiment.get(experimentId);
+            if (!current) continue;
+            const armId = String(raw.armId ?? "");
+            if (armId === "control") {
+              current.controlPaidInvoices += Number(raw.paidInvoices ?? 0);
+              current.controlRevenueCents += Number(raw.revenueCents ?? 0);
+            } else if (armId === "treatment") {
+              current.treatmentPaidInvoices += Number(raw.paidInvoices ?? 0);
+              current.treatmentRevenueCents += Number(raw.revenueCents ?? 0);
+            }
+          }
+
+          // Current assignment_version guarantees one active experiment version
+          // per lane. Keeping the map keyed by lane makes it join naturally to
+          // the existing variant rollup below without changing that incumbent.
+          for (const current of byExperiment.values()) {
+            holdoutByLane.set(current.laneKey, current);
+          }
+        } catch (err) {
+          holdoutReadError = err instanceof Error ? err.message : String(err);
+          log.warn("Q-21 holdout economics unavailable; keeping observed board", {
+            error: holdoutReadError,
+          });
+        }
+
         // Merge on the RAW variantKey before the rollup below folds A/B and
         // profile suffixes together.
         const revenueByKey = new Map<string, { invoices: number; cents: number }>();
@@ -394,7 +535,35 @@ export const smsPerformanceRouter = router({
           byLoop.set(key, cur);
         }
 
-        return buildLoopScoreboard([...byLoop.values()], { windowDays, attributionWindowDays });
+        // Attach causal measurement after the legacy variant rollup. A lane
+        // with assignments but no sent message rows still gets a row: a valid
+        // control cohort must never disappear merely because contact was
+        // deliberately withheld.
+        for (const [laneKey, observation] of holdoutByLane) {
+          const cur = byLoop.get(laneKey) ?? {
+            loop: prettyTier(laneKey),
+            attempted: 0,
+            sent: 0,
+            undelivered: 0,
+            replied: 0,
+            optedOut: 0,
+            paidInvoicesAfter: 0,
+            revenueObservedCents: 0,
+          };
+          cur.holdout = buildHoldoutLift(observation);
+          byLoop.set(laneKey, cur);
+        }
+
+        const scoreboard = buildLoopScoreboard(
+          [...byLoop.values()],
+          { windowDays, attributionWindowDays },
+        );
+        if (holdoutReadError) {
+          scoreboard.limitations.push(
+            `HOLDOUT MEASUREMENT UNAVAILABLE: ${holdoutReadError}. Observed revenue remains readable; causal lift is unknown, not zero.`,
+          );
+        }
+        return scoreboard;
       } catch (err) {
         log.error("recoveredRevenue failed", { error: err instanceof Error ? err.message : String(err) });
         return empty(err instanceof Error ? err.message : "Query failed");

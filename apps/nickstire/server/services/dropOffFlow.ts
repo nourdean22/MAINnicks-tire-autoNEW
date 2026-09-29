@@ -185,7 +185,7 @@ export async function sendReadyForPickup(workOrderId: string): Promise<ReadyForP
   try {
     const ctx = await getWorkOrderContext(workOrderId);
     const { sendSms } = await import("../sms");
-    const { smsOutcome } = await import("../lib/smsOutcome");
+    const { nonExperimentSmsOutcome } = await import("../lib/smsOutcome");
 
     const closingTime = getClosingTime();
 
@@ -195,7 +195,7 @@ export async function sendReadyForPickup(workOrderId: string): Promise<ReadyForP
       STORE_PHONE_DISPLAY,
     ].filter(Boolean).join(" ");
 
-    const outcome = smsOutcome(await sendSms(ctx.phone, message, { via: "shop" }));
+    const outcome = nonExperimentSmsOutcome(await sendSms(ctx.phone, message, { via: "shop" }));
     log.info(`Ready-for-pickup SMS ${outcome}`, { workOrderId, phone: ctx.phone.slice(-4) });
     return outcome;
   } catch (err) {

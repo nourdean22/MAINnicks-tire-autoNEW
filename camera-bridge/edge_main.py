@@ -66,6 +66,24 @@ PRODUCER_INSTANCE_ID = (
 )
 
 
+def _refresh_progress_lease(path: Optional[str]) -> None:
+    """Best-effort out-of-process liveness lease.
+
+    The supervisor uses this to distinguish a producer that merely owns its metrics port
+    from one whose main loop is actually making progress. The refresh happens only after
+    EdgeLoop.step() returns, so a capture backend wedged inside source.read() naturally
+    leaves the lease stale and becomes restartable from outside the blocked process.
+    """
+    if not path:
+        return
+    try:
+        with open(path, "a", encoding="ascii"):
+            pass
+        os.utime(path, None)
+    except OSError as exc:
+        log.warning("progress lease refresh failed path=%s error=%s", path, exc)
+
+
 def _iso(ts: Optional[float]) -> Optional[str]:
     """Epoch seconds -> ISO-8601 UTC. None stays None: an unobserved time is not 'now'."""
     if ts is None:
@@ -2053,6 +2071,7 @@ def run_edge(args: argparse.Namespace) -> int:
     interval = 1.0 / max(0.5, args.fps)
     deadline = (time.time() + args.seconds) if args.seconds else None
     exit_code = 0
+    progress_lease = os.environ.get("EDGE_PROGRESS_LEASE")
     try:
         # Claim or confirm producer authority BEFORE the first frame can emit a visit.
         # Primary can buffer locally if the shop is temporarily unreachable; standbys
@@ -2068,6 +2087,7 @@ def run_edge(args: argparse.Namespace) -> int:
                 break
             started = time.time()
             loop.step()
+            _refresh_progress_lease(progress_lease)
             if loop.stalled:
                 # Ask to be restarted rather than trying to resurrect in place. The OS
                 # supervisor already knows how to restart with a budget and a backoff;

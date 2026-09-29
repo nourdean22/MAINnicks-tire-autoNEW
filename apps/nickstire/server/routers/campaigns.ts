@@ -115,6 +115,7 @@ export const campaignsRouter = router({
       .select({
         campaignId: smsCampaignSends.campaignId,
         sent: sql<number>`sum(case when ${smsCampaignSends.status} = 'sent' then 1 else 0 end)`,
+        heldOut: sql<number>`sum(case when ${smsCampaignSends.status} = 'heldout' then 1 else 0 end)`,
         failed: sql<number>`sum(case when ${smsCampaignSends.status} = 'failed' then 1 else 0 end)`,
         pending: sql<number>`sum(case when ${smsCampaignSends.status} = 'pending' then 1 else 0 end)`,
       })
@@ -126,7 +127,7 @@ export const campaignsRouter = router({
 
     return rows.map((r: (typeof rows)[number]) => ({
       ...r,
-      stats: statsById.get(r.id) ?? { campaignId: r.id, sent: 0, failed: 0, pending: 0 },
+      stats: statsById.get(r.id) ?? { campaignId: r.id, sent: 0, heldOut: 0, failed: 0, pending: 0 },
     }));
   }),
 
@@ -143,6 +144,7 @@ export const campaignsRouter = router({
       // Get send stats
       const [stats] = await d.select({
         sent: sql<number>`sum(case when ${smsCampaignSends.status} = 'sent' then 1 else 0 end)`,
+        heldOut: sql<number>`sum(case when ${smsCampaignSends.status} = 'heldout' then 1 else 0 end)`,
         failed: sql<number>`sum(case when ${smsCampaignSends.status} = 'failed' then 1 else 0 end)`,
         pending: sql<number>`sum(case when ${smsCampaignSends.status} = 'pending' then 1 else 0 end)`,
       })
@@ -456,6 +458,7 @@ export async function processCampaignSends(
 
   let totalSent = 0;
   let totalQueued = 0; // parked for the 8 AM window (audit F-3)
+  let totalHeldOut = 0;
   let totalFailed = 0;
 
   while (true) {
@@ -536,6 +539,14 @@ export async function processCampaignSends(
             twilioSid: result.sid || null,
           }).where(eq(smsCampaignSends.id, send.id));
           if (outcome === "sent") { batchSent++; totalSent++; } else { batchQueued++; totalQueued++; }
+        } else if (outcome === "heldout") {
+          await d.update(smsCampaignSends).set({
+            status: "heldout",
+            sentAt: null,
+            twilioSid: null,
+            errorMessage: result.experimentId ? `experiment_control:${result.experimentId}` : "experiment_control",
+          }).where(eq(smsCampaignSends.id, send.id));
+          totalHeldOut++;
         } else {
           await d.update(smsCampaignSends).set({
             status: "failed",
@@ -544,6 +555,9 @@ export async function processCampaignSends(
           batchFailed++;
           totalFailed++;
         }
+
+        // Provider rate limiting only. A holdout made no provider call.
+        if (!result.heldOut) await new Promise(r => setTimeout(r, 1000));
       } catch (err) {
         log.error(`[Campaigns] Failed to process send ${send.id}:`, err);
         await d.update(smsCampaignSends).set({
@@ -553,9 +567,6 @@ export async function processCampaignSends(
         batchFailed++;
         totalFailed++;
       }
-
-      // Rate limiting: 1 second delay between sends
-      await new Promise(r => setTimeout(r, 1000));
     }
 
     // Batch update campaign counts once per batch instead of per-send
@@ -589,7 +600,7 @@ export async function processCampaignSends(
     })
   ).catch((e) => { log.warn("[routers/campaigns] fire-and-forget failed:", e); });
 
-  console.info(`[campaigns:done] Campaign ${campaignId} completed: ${totalSent} sent, ${totalQueued} queued for 8 AM, ${totalFailed} failed`);
+  console.info(`[campaigns:done] Campaign ${campaignId} completed: ${totalSent} sent, ${totalQueued} queued for 8 AM, ${totalHeldOut} holdout controls, ${totalFailed} failed`);
 }
 
 /**

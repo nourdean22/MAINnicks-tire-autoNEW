@@ -753,10 +753,11 @@ export default function WinBackSection() {
         icon={<RotateCcw className="w-5 h-5" />}
       />
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <StatCard label="Total Campaigns" value={stats?.totalCampaigns ?? 0} icon={<RotateCcw className="w-4 h-4" />} />
         <StatCard label="Active" value={stats?.activeCampaigns ?? 0} icon={<Zap className="w-4 h-4" />} color="text-emerald-400" />
         <StatCard label="Messages Sent" value={stats?.totalSent ?? 0} icon={<Send className="w-4 h-4" />} color="text-blue-400" />
+        <StatCard label="Holdout" value={stats?.totalHeldOut ?? 0} icon={<Clock className="w-4 h-4" />} />
         <StatCard label="Failed" value={stats?.totalFailed ?? 0} icon={<XCircle className="w-4 h-4" />} color="text-red-400" />
         <StatCard label="Pending" value={stats?.totalPending ?? 0} icon={<Clock className="w-4 h-4" />} color="text-amber-400" />
       </div>

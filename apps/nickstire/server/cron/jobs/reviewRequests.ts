@@ -23,7 +23,7 @@ export async function processReviewRequests(): Promise<{ recordsProcessed: numbe
       recordsProcessed: result.processed,
       details: "reason" in result && result.reason
         ? String(result.reason)
-        : `sent ${result.sent}, failed ${result.failed}`,
+        : `sent ${result.sent}, queued ${"queued" in result ? result.queued : 0}, holdout controls ${"heldOut" in result ? result.heldOut : 0}, failed ${result.failed}`,
     };
   } catch (err) {
     // ROS-083 · this catch used to swallow and return { recordsProcessed: 0 },

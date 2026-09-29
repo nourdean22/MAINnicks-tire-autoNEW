@@ -16,16 +16,33 @@ export interface SmsOutcomeShape {
   success: boolean;
   queued?: boolean;
   uncertain?: boolean;
+  /** Deliberate experiment control: no provider attempt was made. */
+  heldOut?: boolean;
 }
 
-export type SmsOutcome = "sent" | "queued" | "uncertain" | "failed";
+export type SmsOutcome = "sent" | "queued" | "uncertain" | "heldout" | "failed";
+export type NonExperimentSmsOutcome = Exclude<SmsOutcome, "heldout">;
 
-/** Four-way classification for receipts and counters. "sent" means the gateway accepted the message NOW — not queued, not uncertain. */
+/** Canonical classification for receipts and counters. "sent" means the gateway accepted the message NOW — not queued, not uncertain. */
 export function smsOutcome(result: SmsOutcomeShape | null | undefined): SmsOutcome {
   if (!result || result.success !== true) return "failed";
+  if (result.heldOut) return "heldout";
   if (result.queued) return "queued";
   if (result.uncertain) return "uncertain";
   return "sent";
+}
+
+/**
+ * Typed classifier for paths that are structurally excluded from Q-21 holdouts:
+ * transactional messages, customer confirmations, or human-initiated sends.
+ * If a future regression somehow returns heldout here, fail closed instead of
+ * claiming the customer was contacted.
+ */
+export function nonExperimentSmsOutcome(
+  result: SmsOutcomeShape | null | undefined,
+): NonExperimentSmsOutcome {
+  const outcome = smsOutcome(result);
+  return outcome === "heldout" ? "failed" : outcome;
 }
 
 /**
@@ -41,7 +58,9 @@ export function smsWillReachCustomer(result: SmsOutcomeShape | null | undefined)
 /**
  * "Do not send this again": the claim (bookings.followUp24hSent,
  * estimates.followUpSent, customers.smsCampaignSent, reminder status …) must
- * be consumed for every outcome except a DEFINITE failure. `uncertain` is a
+ * be consumed for every outcome except a DEFINITE failure. A deliberate
+ * `heldout` control consumes the claim too — retrying it would contaminate
+ * the control cohort. `uncertain` is a
  * gateway timeout where the relay may well have delivered — sms.ts documents
  * it as "do not retry", and leaving the claim open re-texts the customer on
  * the next tick until a send completes cleanly (Codex/self-review on

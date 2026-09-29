@@ -5460,6 +5460,21 @@
       "file": "apps/nickstire/server/services/instagramAdminStrategy.ts",
       "symbol": "chooseProfileCandidates",
       "reason": "INTENTIONAL TEST-VISIBLE MERCHANDISING CONTRACT. buildProfileMerchandising consumes this selector in production; instagramAdminStrategy.test.ts imports it to pin distinct discovery/save/share/retention candidate roles from measured outcomes without a duplicated ranking implementation."
+    },
+    {
+      "file": "apps/nickstire/server/services/contactExperiment.ts",
+      "symbol": "CONTACT_HOLDOUT_CONTROL_PCT",
+      "reason": "Q-21 INTENTIONAL TEST-VISIBLE CONTRACT. The runtime allocation is encoded by HOLDOUT_BUCKETS in the same module; contactExperiment.test.ts imports this declared percentage to assert the durable randomized control share stays at 15% instead of duplicating the policy literal. The production consumer is resolveContactExperiment -> contactArmForSubject in this same module, so this is a test seam, not an unwired capability."
+    },
+    {
+      "file": "apps/nickstire/server/services/contactExperiment.ts",
+      "symbol": "contactLaneForVariant",
+      "reason": "Q-21 INTENTIONAL TEST-VISIBLE SEAM. resolveContactExperiment consumes this mapper in production before any assignment or withholding decision. contactExperiment.test.ts imports it directly to pin the allowlist and the exclusions for transactional/customer-initiated and independently-experimented lanes; duplicating that mapping in the test would make the safety test vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/contactExperiment.ts",
+      "symbol": "contactArmForSubject",
+      "reason": "Q-21 INTENTIONAL TEST-VISIBLE SEAM. resolveContactExperiment consumes this deterministic assignment helper in production before persisting the arm. contactExperiment.test.ts imports it to prove repeatability and the 15% allocation over a large synthetic cohort without database noise; it is live logic in the same module, not an orphan."
     }
   ]
 }
