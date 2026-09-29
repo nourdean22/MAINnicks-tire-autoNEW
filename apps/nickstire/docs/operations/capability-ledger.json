@@ -2679,6 +2679,88 @@
       "codeState": "merged",
       "operationalState": "live_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "cron-observer-alertmanager-q28",
+      "name": "Cron observer grouped alerts, dependency inhibition, resolved notices, and quiet hours",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unverified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch feat/nouros-resilience-q28-q34-q36-20260929: cron/alertPolicy.ts + observer.ts integration; no second monitoring dependency.",
+        "tests": [
+          "server/cron/alertPolicy.test.ts pins grouping, quiet-time boundaries, DB-root threshold/classification, resolved formatting, and incident-diff behavior.",
+          "Existing cronObserverSuppression.test.ts still pins persisted suppression and positive-control re-alert semantics.",
+          "Exact-head CI and production Telegram behavior are not yet claimed."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Exact-head CI and a post-deploy observer run are still required before operational promotion."
+        }
+      ],
+      "deferredScope": [
+        "No new external Alertmanager service; pattern is implemented inside the incumbent observer.",
+        "Production alert-volume comparison and recovery-notice receipt after deploy."
+      ],
+      "lastVerifiedAt": "2026-09-29"
+    },
+    {
+      "capabilityId": "nickstire-process-role-q34",
+      "name": "Nick's process-role ownership switch (all|web|jobs)",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unverified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch feat/nouros-resilience-q28-q34-q36-20260929: server/_core/processRole.ts + startup gating.",
+        "tests": [
+          "server/_core/processRole.test.ts pins default=all, web=no background ownership, jobs/all own jobs, invalid values fail loudly.",
+          "No Railway service split or PROCESS_ROLE production mutation is performed by this branch."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "A future web/jobs service split requires an operator-controlled deployment rehearsal proving exactly one background owner before changing production roles."
+        }
+      ],
+      "deferredScope": [
+        "Default remains all; no production role change.",
+        "No scheduler-service split in this PR."
+      ],
+      "lastVerifiedAt": "2026-09-29"
+    },
+    {
+      "capabilityId": "statenour-worker-hygiene-q36",
+      "name": "StateNour worker ownership and secret-surface hygiene",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unverified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch feat/nouros-resilience-q28-q34-q36-20260929: removes vestigial worker /cron/mega* routes and dead inbound secret comparator; keeps worker-owned forwarder + render loop.",
+        "tests": [
+          "apps/statenour/tests/repo/worker-hygiene.test.ts pins no mega endpoints, no worker reads of DATABASE_URL/DIRECT_URL/GITHUB_TOKEN, and the existing finite reel render timeout.",
+          "Read-only Railway 2026-09-29: exactly four services; none is a cron job; worker has no cron schedule, no domains, one east4 replica. Exact-head CI still pending."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Actual production mega morning/evening firing is unverified here: INNGEST_MEGA_V2 exists but its value is redacted, and the Neon project ID required for a CronJobLog receipt is not available in repo/prior context."
+        }
+      ],
+      "deferredScope": [
+        "Do not delete live worker Railway variables in this code PR; env removal is operator-owned.",
+        "Verify mega/mega-evening receipts before claiming Inngest cutover live."
+      ],
+      "lastVerifiedAt": "2026-09-29"
     }
   ],
   "axes": {
