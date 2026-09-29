@@ -759,6 +759,124 @@ function buildTiers(): void {
             const cbCount = (staleCallbacks as Record<string, unknown>[])?.[0]?.cnt || (staleCallbacks as Record<string, unknown>)?.cnt || 0;
             if (Number(cbCount) > 0) issues.push(`${cbCount} callbacks unanswered >24h`);
 
+            // Q-26 · data contracts. Freshness is sourced from a REAL mirror
+            // receipt, never inferred from whether today's row count is zero.
+            // Volume compares only the same shop weekday across prior weeks.
+            const {
+              assessFreshness,
+              assessWeekdayVolume,
+              contractByKey,
+            } = await import("../../shared/businessDataContracts");
+            const { BUSINESS } = await import("../../shared/business");
+            const now = new Date();
+            const today = now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone });
+            const todayDow = new Date(`${today}T12:00:00Z`).getUTCDay();
+            const openWeekdays = Object.entries(BUSINESS.hours.structured as Record<string, string>)
+              .filter(([, hours]) => Boolean(hours))
+              .map(([day]) => ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].indexOf(day.toLowerCase()))
+              .filter((day) => day >= 0);
+
+            const { getLastSuccessfulSync } = await import("../services/shopDriverMirror");
+            const invoiceFreshness = assessFreshness({
+              contract: contractByKey("shopdriver_invoices"),
+              dataAsOf: getLastSuccessfulSync(),
+              now,
+              timeZone: BUSINESS.timezone,
+              openWeekdays,
+            });
+            if (invoiceFreshness.state === "warn" || invoiceFreshness.state === "error") {
+              issues.push(`invoice mirror freshness ${invoiceFreshness.state}: ${invoiceFreshness.reason}`);
+            }
+
+            type DailyCountRow = { day: string | Date; cnt: string | number };
+            const rowsFrom = (result: unknown): DailyCountRow[] =>
+              Array.isArray(result) ? (result as DailyCountRow[]) : [];
+            const dailySeries = (rows: DailyCountRow[]) => {
+              const normalized = rows
+                .map((row) => {
+                  const day = row.day instanceof Date
+                    ? row.day.toISOString().slice(0, 10)
+                    : String(row.day).slice(0, 10);
+                  return { day, count: Number(row.cnt) || 0 };
+                })
+                .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.day));
+              const current = normalized.find((row) => row.day === today)?.count ?? 0;
+              const history = normalized
+                .filter((row) => row.day !== today && new Date(`${row.day}T12:00:00Z`).getUTCDay() === todayDow)
+                .map((row) => row.count);
+              return { current, history };
+            };
+
+            const [invoiceDailyRaw] = await d.execute(sql`
+              SELECT DATE(CONVERT_TZ(invoiceDate, '+00:00', 'America/New_York')) AS day, COUNT(*) AS cnt
+              FROM invoices
+              WHERE source = 'shopdriver' AND invoiceDate >= DATE_SUB(NOW(), INTERVAL 70 DAY)
+              GROUP BY day
+              ORDER BY day DESC
+            `);
+            const [leadDailyRaw] = await d.execute(sql`
+              SELECT DATE(CONVERT_TZ(createdAt, '+00:00', 'America/New_York')) AS day, COUNT(*) AS cnt
+              FROM leads
+              WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 70 DAY)
+              GROUP BY day
+              ORDER BY day DESC
+            `);
+            const [callbackDailyRaw] = await d.execute(sql`
+              SELECT DATE(CONVERT_TZ(createdAt, '+00:00', 'America/New_York')) AS day, COUNT(*) AS cnt
+              FROM callback_requests
+              WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 70 DAY)
+              GROUP BY day
+              ORDER BY day DESC
+            `);
+
+            const invoiceSeries = dailySeries(rowsFrom(invoiceDailyRaw));
+            const leadSeries = dailySeries(rowsFrom(leadDailyRaw));
+            const callbackSeries = dailySeries(rowsFrom(callbackDailyRaw));
+            // If the mirror clock is ERROR/UNMEASURED, today's invoice count may
+            // simply be incomplete. Refuse to manufacture a volume anomaly.
+            const invoiceVolume =
+              invoiceFreshness.state === "fresh" || invoiceFreshness.state === "warn"
+                ? assessWeekdayVolume({
+                    contract: contractByKey("shopdriver_invoices"),
+                    current: invoiceSeries.current,
+                    sameWeekdayHistory: invoiceSeries.history,
+                  })
+                : {
+                    state: "unmeasured" as const,
+                    current: invoiceSeries.current,
+                    expectedMean: null,
+                    standardDeviation: null,
+                    zScore: null,
+                    historyPoints: invoiceSeries.history.length,
+                    reason: `suppressed because mirror freshness is ${invoiceFreshness.state}`,
+                  };
+            const leadVolume = assessWeekdayVolume({
+              contract: contractByKey("leads"),
+              current: leadSeries.current,
+              sameWeekdayHistory: leadSeries.history,
+            });
+            const callbackVolume = assessWeekdayVolume({
+              contract: contractByKey("callbacks"),
+              current: callbackSeries.current,
+              sameWeekdayHistory: callbackSeries.history,
+            });
+            const volumes = [
+              ["invoices", invoiceVolume],
+              ["leads", leadVolume],
+              ["callbacks", callbackVolume],
+            ] as const;
+            for (const [label, verdict] of volumes) {
+              if (verdict.state === "warn" || verdict.state === "error") {
+                issues.push(`${label} weekday volume ${verdict.state}: ${verdict.reason}; current=${verdict.current}, expected≈${verdict.expectedMean?.toFixed(1) ?? "?"}`);
+              }
+            }
+            const contractDetails = [
+              `invoiceFreshness=${invoiceFreshness.state}(${invoiceFreshness.shopDaysOld ?? "?"} shop-day-old)`,
+              ...volumes.map(([label, verdict]) =>
+                `${label}Volume=${verdict.state}(n=${verdict.current ?? "?"},history=${verdict.historyPoints},z=${verdict.zScore?.toFixed(2) ?? "?"})`
+              ),
+            ].join(" | ");
+
             if (issues.length > 0) {
               // Log internally only — no external notifications
               const { createLogger } = await import("../lib/logger");
@@ -768,7 +886,14 @@ function buildTiers(): void {
               await remember({ type: "lesson", content: `Data accuracy: ${issues.join(". ")}`, identity: "data_accuracy", source: "accuracy_check", confidence: 0.8 });
             }
 
-            return { recordsProcessed: issues.length, details: issues.length === 0 ? "All data clean" : issues.join("; ") };
+            return {
+              recordsProcessed: issues.length,
+              // A zero now says WHAT was checked. "All data clean" with no
+              // denominator was indistinguishable from a checker that did no work.
+              details: issues.length === 0
+                ? `All declared checks clean · ${contractDetails}`
+                : `${issues.join("; ")} · ${contractDetails}`,
+            };
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },

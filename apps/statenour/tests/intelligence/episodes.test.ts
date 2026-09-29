@@ -21,12 +21,40 @@ describe("universal episode envelope", () => {
       { type: "mission", id: "mission-1", role: "mission" },
     ]);
     expect(event.source).toMatchObject({ system: "statenour", version: "abc123" });
+    expect(event).toMatchObject({
+      eventVersion: 1,
+      retentionClass: "learning",
+      correlationId: "trace-1",
+      occurredAt: expect.any(String),
+    });
     expect(event.payload).toMatchObject({
       schemaVersion: EPISODE_SCHEMA_VERSION,
       traceId: "trace-1",
       decision: { selected: "web", confidence: 0.82 },
       latencyMs: 17,
     });
+  });
+
+  it("preserves explicit causation and does not invent it when absent", () => {
+    const caused = buildEpisodeEvent({
+      kind: "tool",
+      phase: "completed",
+      episodeId: "ep-child",
+      correlationId: "mission-run-7",
+      causationId: "ep-parent",
+    });
+    expect(caused).toMatchObject({
+      correlationId: "mission-run-7",
+      causationId: "ep-parent",
+    });
+
+    const root = buildEpisodeEvent({
+      kind: "mission",
+      phase: "started",
+      episodeId: "ep-root",
+    });
+    expect(root.correlationId).toBe("ep-root");
+    expect(root.causationId).toBeUndefined();
   });
 
   it("stores hashes/structured outcomes, not raw prompts by contract", () => {
