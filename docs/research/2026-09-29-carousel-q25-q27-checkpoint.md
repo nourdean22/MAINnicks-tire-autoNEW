@@ -1,7 +1,8 @@
 # NOUR OS Carousel checkpoint — Q-21 / Q-25 / Q-26 / Q-27
 
 **Checkpoint time:** 2026-09-29  
-**Recovery branch:** `feat/nouros-carousel-q25-q27-20260929`  
+**Recovery source branch:** `feat/nouros-carousel-q25-q27-20260929`  
+**Current-main re-anchored branch:** `feat/nouros-carousel-q25-q27-current-20260929`  
 **Status language:** BUILT means committed on the recovery branch. MERGED means present on `main`. LIVE/VERIFIED is used only with production evidence.
 
 ## Merged baseline
@@ -18,7 +19,7 @@
 
 ## Active recovery branch
 
-This branch was created from the then-current `main` before Q-21 merged and has since diverged because `main` continued moving. **Do not merge it blindly.** Reconcile/re-anchor it onto the latest `main` before opening its PR.
+The original recovery branch was created before Q-21 merged and diverged as `main` moved. Its 25 changed files were re-anchored onto current `main` after a zero-overlap proof against the intervening commits. The current-main branch is the PR candidate; keep the original branch only as recovery history.
 
 ### Q-25 · RealityEvent registry + canonical event envelope — BUILT, NOT MERGED
 
