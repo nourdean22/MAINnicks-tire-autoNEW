@@ -266,3 +266,15 @@ describe("isSpokenOptOut · the transcript safety net", () => {
     expect(customerUtterances({ artifact: { messages: [{ role: "bot", message: opener }] } }).some(isSpokenOptOut)).toBe(false);
   });
 });
+
+describe("the INBOUND receptionist can record a do-not-call (audit-2026-09-29 F4b)", () => {
+  it("exposes recordDoNotCall, without hanging up, and its prompt says when to call it", async () => {
+    const { buildAssistantConfig, ASSISTANT_SYSTEM_PROMPT } = await import("./vapi");
+    const cfg = buildAssistantConfig() as { model: { tools: Array<{ function?: { name?: string }; messages?: unknown[] }> } };
+    const dnc = cfg.model.tools.filter((t) => t.function?.name === DO_NOT_CALL_TOOL_NAME);
+    expect(dnc).toHaveLength(1);
+    // Nothing that ends the call: no endCallAfterSpokenEnabled message.
+    expect(JSON.stringify(dnc[0]!.messages ?? [])).not.toMatch(/endCallAfterSpokenEnabled/);
+    expect(ASSISTANT_SYSTEM_PROMPT).toContain(`${DO_NOT_CALL_TOOL_NAME}()`);
+  });
+});

@@ -166,3 +166,35 @@ export function trackHttpRequests(server: RequestEmitter): DrainSource {
     settled: () => new Promise<void>((resolve) => { waiters.push(resolve); check(); }),
   };
 }
+
+/**
+ * Work a handler starts AFTER it has answered (F5, post-merge audit of #2651).
+ *
+ * "Ack first, then work" handlers — the Vapi end-of-call report, the inbound
+ * SMS answer — send their 200 and then run the real work detached. Once the
+ * response is sent, trackHttpRequests no longer sees the request, so a SIGTERM
+ * in that window exited mid-work: a customer's text acked and never answered,
+ * a post-call confirmation lost, and nothing retries because the sender
+ * already got its 200. Wrapping the detached promise here makes it one more
+ * drain source, waited for inside the same grace budget.
+ *
+ * Returns the same promise, so a call site keeps its own `.catch`.
+ */
+let detachedSeq = 0;
+const detachedRuns = new Map<number, { label: string; done: Promise<void> }>();
+
+export function trackDetached<T>(label: string, work: Promise<T>): Promise<T> {
+  const id = ++detachedSeq;
+  const done = work.then(() => undefined, () => undefined).finally(() => { detachedRuns.delete(id); });
+  detachedRuns.set(id, { label, done });
+  return work;
+}
+
+export const detachedWork: DrainSource = {
+  label: "detached",
+  pending: () => [...detachedRuns.values()].map((r) => r.label),
+  settled: async () => {
+    // Loop: detached work may start more detached work while we wait.
+    while (detachedRuns.size) await Promise.all([...detachedRuns.values()].map((r) => r.done));
+  },
+};

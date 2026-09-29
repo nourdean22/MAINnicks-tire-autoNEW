@@ -372,6 +372,9 @@ export const smsConversationsRouter = router({
         violations,
         /** Which playbook the planner would have used, for operator context. */
         plannedIntent,
+        /** F4a: "truncated" means the draft was cut at the token cap mid-sentence;
+         *  "unknown" means the provider gave no stop signal. Advisory — the operator sends. */
+        completion: draftResult.completion,
       };
     }),
 
