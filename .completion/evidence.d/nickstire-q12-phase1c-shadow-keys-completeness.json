@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "deferred": "cron/jobs/cleanup.ts gains one read-only block after the bridge_outbox prune, in its own try/catch like every other block in cleanupOldData. It reads nothing unless the bridge_outbox_shadow flag is ON (isEnabled fails closed to false). ON, it logs the 7-day completeness totals (counts only) on state 'measured', warns 'bridge_outbox completeness unavailable' on state 'error', and stays silent on no_db / table_missing (the enqueue already warns about an unapplied 0137). It never writes and never changes the job's return value. No existing catch, swallow or early return changed. Receipts: server/cron/jobs/cleanup.bridgeOutboxCompleteness.test.ts 3 passed (flag ON logs the totals; flag OFF never reads; an error state warns and logs no zeros); mutant 'never log a measured report' red (1 failed / 3). cron/jobs/reviewMonitor.ts only adds reviewId to the review_detected bus payload; its error handling is untouched. The existing cleanup.bridgeOutbox.test.ts (2) is unchanged and passes: an earlier ungated version of this block broke it, which is why the block is flag-gated."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability state changes (2026-09-29, branch nickstire/q12-phase1c-shadow-keys-completeness, Q-12 phase 1c). The callback, emergency and review emit sites now carry their row ids, so bridge_outbox can key them; services/bridgeOutboxCompleteness.ts is a new read-only report reached by the admin query nourOsBridge.outboxCompleteness and by the cleanup cron. Both depend on migration 0137 and the bridge_outbox_shadow flag (both operator, both still off), so nothing is promoted. There is no bridge_outbox ledger entry yet (#2797 deferred it the same way); one belongs with the phase-2 drainer, when a family is actually delivered through the outbox."
+    }
+  }
+}

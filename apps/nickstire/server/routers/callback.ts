@@ -129,7 +129,7 @@ export const callbackRouter = router({
 
       // Unified event bus dispatch (→ NOUR OS + ShopDriver + Telegram + learning)
       import("../services/eventBus").then(({ emit }) =>
-        emit.callbackRequested({ name, phone, reason: input.context || null })
+        emit.callbackRequested({ id: result?.id ?? null, name, phone, reason: input.context || null })
       ).catch(e => log.warn("[callback:submit] event bus dispatch failed:", e));
 
       // After-hours gets a different SMS than business hours

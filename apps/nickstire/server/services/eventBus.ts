@@ -711,7 +711,8 @@ export const emit = {
   leadCaptured: (data: { id: number; name: string; phone: string; source: string; urgencyScore: number }) =>
     dispatch("lead_captured", data, { priority: "high", source: "lead" }),
 
-  callbackRequested: (data: { name: string; phone: string; reason?: string | null }) =>
+  // `id` is the callback_requests row: the bridge_outbox key names it (ADR-0019 §4).
+  callbackRequested: (data: { id: number | null; name: string; phone: string; reason?: string | null }) =>
     dispatch("callback_requested", data, { priority: "critical", source: "callback" }),
 
   bookingCreated: (data: { id: number; name: string; phone: string; service: string; vehicle?: string; urgency?: string; refCode?: string }) =>
@@ -732,7 +733,8 @@ export const emit = {
   estimateGenerated: (data: Record<string, any>) =>
     dispatch("estimate_generated", data, { priority: "normal", source: "estimate" }),
 
-  emergencyRequest: (data: { name: string; phone: string; problem?: string; urgency: string }) =>
+  // `id` is the emergency_requests row: the bridge_outbox key names it (ADR-0019 §4).
+  emergencyRequest: (data: { id: number | null; name: string; phone: string; problem?: string; urgency: string }) =>
     dispatch("emergency_request", data, { priority: "critical", source: "emergency" }),
 
   paymentReceived: (data: { orderNumber: string; invoiceNumber?: string; amount: number; customerName: string; cardLast4: string }) =>

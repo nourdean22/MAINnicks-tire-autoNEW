@@ -3,6 +3,8 @@
  *
  * Consumers: Admin shell + Overview/Money/Revenue read `shopFloor`; Admin shell
  * reads `status`. (`recentEvents` is read by surfaces that surface the event log.)
+ * `outboxCompleteness` is the ADR-0019 §9 phase-1 comparison, read on demand
+ * during the 7-day shadow; the cleanup cron logs the same totals.
  *
  * 2026-06-03 · `pushShopFloor` mutation removed. Its only caller was the deleted
  * CommandCenterSection page, and it pushed to a dead Vercel deployment (404
@@ -32,4 +34,16 @@ export const nourOsBridgeRouter = router({
     const { getWorkOrderStats } = await import("../services/workOrderService");
     return getWorkOrderStats();
   }),
+
+  /**
+   * Q-12 phase 1c · ADR-0019 §9 completeness: business rows (leads, bookings,
+   * callbacks, emergencies) against their bridge_outbox rows, per UTC day.
+   * Read-only, counts only. The same summary is logged by the cleanup job.
+   */
+  outboxCompleteness: adminProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(14).default(7) }).optional())
+    .query(async ({ input }) => {
+      const { bridgeOutboxCompleteness } = await import("../services/bridgeOutboxCompleteness");
+      return bridgeOutboxCompleteness({ windowDays: input?.windowDays ?? 7 });
+    }),
 });
