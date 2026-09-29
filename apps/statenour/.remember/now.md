@@ -1194,3 +1194,10 @@ declined rotation 2026-09-02, do NOT re-raise.
 **Traps:** two SDKs cannot both own OpenTelemetry by accident · Sentry's `tracesSampler` sees
 ROOT spans only · `lib/observability/sentry.ts` reaches the BROWSER bundle · Langfuse names
 observations `<functionId>:<span>` and `/api/public/v2/observations` is a thin projection.
+
+
+## 2026-09-29 Carousel checkpoint · Q-25
+- **Q-25 BUILT, not merged:** canonical RealityEvent registry, eventVersion/retentionClass enforcement, occurredAt + correlation/causation lineage, Episode lineage, Nick evidence-envelope support, RealityEvent adapter into the EXISTING DomainEventEnvelope projection, and focused refusal/lineage tests.
+- Additive schema remains **pending/operator-gated** at `prisma/migrations-pending/20260929123500_reality_event_envelope/migration.sql`. Do not claim production columns exist until operator apply + read-back.
+- The implementation reuses the existing bridge-receipt/idempotency transaction; no second event spine was introduced.
+- Recovery details and next steps: `docs/research/2026-09-29-carousel-q25-q27-checkpoint.md`. Active branch: `feat/nouros-carousel-q25-q27-20260929`. Re-anchor onto latest main before PR; main is moving.
