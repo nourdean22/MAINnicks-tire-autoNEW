@@ -9,8 +9,8 @@ them back when ready.
 Every dir parked here must be registered in the guarded endpoint with its exact
 statements, or listed with a reason in the test's `OPERATOR_ONLY` map:
 `tests/api/apply-pending-migration.test.ts` fails otherwise. #2784 parked one
-without registering it, and production failed every reality-event read and
-write until #2788 made it one request.
+its code already needed without registering it: production failed every
+reality-event read and write, and the one-request fix only existed after #2788.
 
 ### `20260929123500_reality_event_envelope`
 

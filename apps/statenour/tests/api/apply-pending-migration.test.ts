@@ -192,11 +192,12 @@ describe("POST /api/system/apply-pending-migration · registry copy matches the 
 
   /**
    * The rule behind the case above. #2784's gap was not one file: it parked a
-   * migration with no way to apply it, so production stayed broken until a
-   * second PR registered it. Every migration parked in migrations-pending is one
-   * request away, and runs exactly its reviewed statements. One the endpoint must
-   * never run (the registry-safety test forbids DELETE, TRUNCATE and DROP) goes
-   * in OPERATOR_ONLY with its reason.
+   * migration its code already needed, with no way to apply it from the app, so
+   * the operator's one-request fix only existed after a second PR registered it.
+   * Every migration parked in migrations-pending is one request away, and runs
+   * exactly its reviewed statements. One the endpoint must never run (the
+   * registry-safety test forbids DELETE, TRUNCATE and DROP TABLE, COLUMN, SCHEMA,
+   * DATABASE or EXTENSION) goes in OPERATOR_ONLY with its reason.
    */
   it("every migration parked in migrations-pending is registered, statement for statement", async () => {
     const OPERATOR_ONLY = new Map<string, string>();
