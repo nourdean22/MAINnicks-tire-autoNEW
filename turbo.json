@@ -3,7 +3,8 @@
   "ui": "stream",
   "globalDependencies": [
     "pnpm-lock.yaml",
-    "pnpm-workspace.yaml"
+    "pnpm-workspace.yaml",
+    "config/retired-claude-models.json"
   ],
   "globalEnv": [
     "NODE_ENV",
