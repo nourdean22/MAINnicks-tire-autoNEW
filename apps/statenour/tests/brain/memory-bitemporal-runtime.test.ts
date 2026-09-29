@@ -104,6 +104,7 @@ describe("Q-31 transaction-time runtime bridge", () => {
     // remove the provisional history row before the error is contained.
     expect(src).toContain("previousValidFrom: args.existing.validFrom ?? null");
     expect(src).toContain("previousLastVerifiedAt: args.existing.lastVerifiedAt ?? null");
+    expect(src.match(/lastVerifiedAt: existing\.lastVerifiedAt/g)?.length).toBe(2);
     expect(src).toContain("validFrom: args.snapshot.previousValidFrom");
     expect(src).toContain("lastVerifiedAt: args.snapshot.previousLastVerifiedAt");
     expect(src).toContain("deleteMany({ where: { id: args.snapshot.snapshotId } })");
