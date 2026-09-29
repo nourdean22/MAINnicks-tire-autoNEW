@@ -3,6 +3,7 @@ import {
   isOperatorSource,
   evaluateMemoryCandidate,
   evidenceClassForSource,
+  contradictionSignal,
 } from "@/lib/brain/memory-commit-gateway";
 
 const cand = (over: Partial<Parameters<typeof evaluateMemoryCandidate>[0]> = {}) => ({
@@ -129,5 +130,44 @@ describe("isOperatorSource / evidenceClassForSource — the operator's own write
     }
     expect(evidenceClassForSource("weekly_digest")).toBe("generated_summary");
     expect(evidenceClassForSource("lib:semantic-link")).toBe("weak_inference");
+  });
+});
+
+
+describe("Q-31 contradictionSignal — conservative shadow-only detector", () => {
+  it("flags a same-topic negation flip", () => {
+    expect(
+      contradictionSignal(
+        "Nour no longer prefers morning appointments for tire rotations",
+        "Nour prefers morning appointments for tire rotations",
+      ),
+    ).toBe("negation");
+  });
+
+  it("flags explicit antonym reversals", () => {
+    expect(
+      contradictionSignal(
+        "Keep the second shop location closed and sell the equipment",
+        "Keep the second shop location open and buy the equipment",
+      ),
+    ).toBe("antonym");
+  });
+
+  it("does not invent a contradiction from ordinary paraphrase", () => {
+    expect(
+      contradictionSignal(
+        "Nour prefers evening boxing sessions",
+        "Nour likes boxing training in the evening",
+      ),
+    ).toBeNull();
+  });
+
+  it("does not classify unrelated text as contradiction", () => {
+    expect(
+      contradictionSignal(
+        "The shop needs more alignment leads",
+        "Nour wants to train boxing tonight",
+      ),
+    ).toBeNull();
   });
 });
