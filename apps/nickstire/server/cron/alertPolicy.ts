@@ -97,12 +97,15 @@ export function formatResolvedAlertGroup(keys: readonly string[]): string {
   return `✅ Cron alerts resolved · ${keys.length}\n${labels.join("\n")}`;
 }
 
-export function formatDatabaseDependencyAlert(error: unknown): string {
+export function formatDatabaseDependencyAlert(
+  error: unknown,
+  observerReadFailed = false,
+): string {
   const message = clean(error instanceof Error ? error.message : String(error), 300);
   return (
-    "🚨 Cron observer dependency · database unavailable\n" +
-    "Downstream job-failure pages are inhibited until the observer can read cron_log again.\n" +
-    `Observer error: ${message}`
+    `🚨 Cron observer dependency · ${observerReadFailed ? "database unavailable" : "database dependency incident"}\n` +
+    "Downstream job/shape pages are inhibited so one dependency problem does not become alert spam.\n" +
+    `${observerReadFailed ? "Observer error" : "Evidence"}: ${message}`
   );
 }
 
