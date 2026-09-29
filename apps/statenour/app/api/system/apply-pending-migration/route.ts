@@ -373,6 +373,44 @@ const MIGRATIONS: Record<string, string[]> = {
     );`,
     `CREATE INDEX IF NOT EXISTS "bridge_receipts_first_seen_at_idx" ON "bridge_receipts"("first_seen_at");`
   ],
+
+  // Q-25 · RealityEvent envelope columns (#2784). The Prisma model already
+  // names these five columns, so until this runs every realityEvent read and
+  // write fails with "column event_version does not exist" (seen in
+  // production 2026-09-29 15:50Z). Additive: five columns, two backfills
+  // from existing data, three indexes. Mirrors, statement for statement,
+  // prisma/migrations-pending/20260929123500_reality_event_envelope/migration.sql,
+  // which also holds the rollback; tests/api/apply-pending-migration.test.ts
+  // fails if the two drift.
+  "20260929123500_reality_event_envelope": [
+    `ALTER TABLE "reality_events"
+  ADD COLUMN IF NOT EXISTS "event_version" INTEGER NOT NULL DEFAULT 1;`,
+    `ALTER TABLE "reality_events"
+  ADD COLUMN IF NOT EXISTS "occurred_at" TIMESTAMP(3);`,
+    `UPDATE "reality_events"
+SET "occurred_at" = "observed_at"
+WHERE "occurred_at" IS NULL;`,
+    `ALTER TABLE "reality_events"
+  ALTER COLUMN "occurred_at" SET DEFAULT CURRENT_TIMESTAMP,
+  ALTER COLUMN "occurred_at" SET NOT NULL;`,
+    `ALTER TABLE "reality_events"
+  ADD COLUMN IF NOT EXISTS "correlation_id" VARCHAR(160),
+  ADD COLUMN IF NOT EXISTS "causation_id" VARCHAR(160),
+  ADD COLUMN IF NOT EXISTS "retention_class" VARCHAR(32) NOT NULL DEFAULT 'operational';`,
+    `UPDATE "reality_events"
+SET "retention_class" = CASE
+  WHEN "event_type" = 'experiment.verdict' OR "event_type" LIKE 'proof.%' THEN 'evidence'
+  WHEN "event_type" LIKE 'episode.%' THEN 'learning'
+  WHEN "event_type" LIKE 'darwin.%' THEN 'audit'
+  ELSE 'operational'
+END;`,
+    `CREATE INDEX IF NOT EXISTS "reality_events_event_type_occurred_at_idx"
+  ON "reality_events" ("event_type", "occurred_at");`,
+    `CREATE INDEX IF NOT EXISTS "reality_events_correlation_id_idx"
+  ON "reality_events" ("correlation_id");`,
+    `CREATE INDEX IF NOT EXISTS "reality_events_causation_id_idx"
+  ON "reality_events" ("causation_id");`
+  ],
 };
 
 export async function POST(req: Request) {
