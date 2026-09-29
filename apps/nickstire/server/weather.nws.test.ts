@@ -67,6 +67,28 @@ describe("weather.ts via NWS", () => {
     for (const [text, pop, code] of cases) expect(nwsForecastToWmoCode(text, pop), text).toBe(code);
   });
 
+  // audit 2026-09-29 · NWS words convective probability as areal coverage:
+  // "Isolated" (about 10-20%) and "Scattered" (about 30-50%). Only "Chance" was
+  // read as a probability, so a 40% "Scattered Showers And Thunderstorms" hour
+  // mapped to a thunderstorm, and the public notification bar, which leads with
+  // this alert on every page, told visitors "Thunderstorm in Cleveland area."
+  it("'Isolated' and 'Scattered' under 50% are a probability, not weather now", () => {
+    const cases: Array<[string, number | null, number]> = [
+      ["Scattered Showers And Thunderstorms", 40, 3],
+      ["Isolated Showers And Thunderstorms", 20, 3],
+      ["Scattered Rain Showers", 30, 3],
+      ["Isolated Snow Showers", 15, 3],
+      // CONTROL: from 50% the same wording names weather worth warning about.
+      ["Scattered Showers And Thunderstorms", 50, 95],
+    ];
+    for (const [text, pop, code] of cases) expect(nwsForecastToWmoCode(text, pop), `${text} @ ${pop}%`).toBe(code);
+
+    const alertFor = (text: string, pop: number) =>
+      getWeatherAlert({ temperature_f: 75, wind_speed_mph: 8, weather_code: nwsForecastToWmoCode(text, pop), weather_condition: "x", is_day: true, precipitation_mm: 0 });
+    expect(alertFor("Scattered Showers And Thunderstorms", 40).message ?? "").not.toMatch(/thunderstorm/i);
+    expect(alertFor("Scattered Showers And Thunderstorms", 50)).toMatchObject({ active: true, message: expect.stringMatching(/^Thunderstorm/) });
+  });
+
   it("a mapped heavy-snow hour still raises the danger bar", () => {
     const alert = getWeatherAlert({ temperature_f: 25, wind_speed_mph: 10, weather_code: nwsForecastToWmoCode("Heavy Snow", 90), weather_condition: "heavy_snow", is_day: true, precipitation_mm: 0 });
     expect(alert).toMatchObject({ active: true, severity: "danger", icon: "snowflake" });
