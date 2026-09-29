@@ -96,6 +96,37 @@ function isConfigured(): boolean {
 }
 
 // ─── Core Send (with circuit breaker + rate limiting) ──
+
+/** Telegram's 400 description when parse_mode "HTML" meets a stray `<` or `&`. */
+const HTML_PARSE_ERROR = /can't parse entities/i;
+
+function postMessage(text: string, parseMode: "HTML" | undefined): Promise<Response> {
+  return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: CHAT_ID,
+      text,
+      ...(parseMode ? { parse_mode: parseMode } : {}),
+      disable_web_page_preview: true,
+    }),
+  });
+}
+
+/**
+ * The same alert as plain text: formatting tags dropped and the escapes
+ * decoded. A link keeps only its text, so alertNewLead's masked "...0123"
+ * never turns into the full number from its tel: target.
+ */
+function toPlainText(html: string): string {
+  return html
+    .replace(/<\/?(?:b|strong|i|em|u|ins|s|strike|del|code|pre|a|span|tg-spoiler|blockquote)(?:\s[^<>]*)?>/gi, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, "&");
+}
+
 async function sendRaw(text: string): Promise<boolean> {
   if (!isConfigured()) {
     log.debug("Telegram not configured, skipping");
@@ -110,22 +141,21 @@ async function sendRaw(text: string): Promise<boolean> {
 
   try {
     const result = await telegramCB.call(async () => {
-      const res = await fetch(
-        `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: CHAT_ID,
-            text,
-            parse_mode: "HTML",
-            disable_web_page_preview: true,
-          }),
-        }
-      );
+      let res = await postMessage(text, "HTML");
 
       if (!res.ok) {
-        const err = await res.text();
+        let err = await res.text();
+        // Callers build alerts from customer and upstream text (a DVI note, a
+        // review, a vendor's HTML error page). A `<` that opens no supported
+        // tag makes Telegram reject the whole message. Resend it once as plain
+        // text: the alert arrives, and a formatting error is not counted by
+        // the breaker as an outage that blocks every other alert.
+        if (res.status === 400 && HTML_PARSE_ERROR.test(err)) {
+          log.warn("Telegram rejected the HTML; resending as plain text", { error: err.slice(0, 200) });
+          res = await postMessage(toPlainText(text), undefined);
+          if (res.ok) return true;
+          err = await res.text();
+        }
         throw new Error(`Telegram HTTP ${res.status}: ${err.slice(0, 200)}`);
       }
 

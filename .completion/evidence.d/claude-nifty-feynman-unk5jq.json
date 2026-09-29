@@ -1,7 +1,7 @@
 {
   "evidence": {
     "capability-ledger-updated": {
-      "ref": "2026-09-29 ledger-date/audit-log fix (server/services/activityLedger.ts scrubFreeText shields ISO dates from the phone scrub; server/services/auditTrail.ts logs describeDbError instead of err.message). No capability entry changes state or evidence: none of the 85 entries in docs/operations/capability-ledger.json covers activityLedger.ts, auditTrail.ts or audit_log (searched for activityLedger, auditTrail, audit_log, 'activity ledger': 0 hits). The fix corrects stored values and a log line; it adds no capability and moves none. Receipts: activityLedger.test.ts red on origin/main 9 of 31, green 31/31, mutants 9/6/1/1 failing; auditTrail.failureLog.test.ts red 2/2, green 2/2."
+      "ref": "2026-09-29 Telegram HTML fallback (server/services/telegram.ts sendRaw: on a 400 \"can't parse entities\" it resends the alert once as plain text, inside the circuit-breaker call, so the alert arrives and a formatting error is not counted as an outage). No capability entry changes state or evidence: the only ledger entries naming Telegram are the camera-health paging entry (its Telegram fallback now fails less often; its unproven live-degradation receipt is unchanged) and the web-experiment/vapi-eval/weather entries, which cite Telegram only as an alert channel. Receipts: server/services/telegram.htmlFallback.test.ts red on origin/main 5 of 7 (the 2 controls green), green 7/7; mutants caught 3/3 (resend outside the breaker, links kept, resend on any 400)."
     }
   }
 }

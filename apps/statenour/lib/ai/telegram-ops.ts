@@ -1,4 +1,5 @@
 import { withTimeout } from "@nour/utils";
+import { postTelegramText } from "@/lib/services/telegram-post";
 
 interface TelegramSendOptions {
   replyMarkup?: any;
@@ -17,8 +18,6 @@ export async function sendTelegramOpsAlert(text: string, options?: TelegramSendO
   const cleanText = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   if (!cleanText) return false;
 
-  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-  
   const payload: any = {
     chat_id: TELEGRAM_OWNER_ID,
     text: cleanText,
@@ -30,12 +29,11 @@ export async function sendTelegramOpsAlert(text: string, options?: TelegramSendO
   }
 
   try {
-    const response = await withTimeout(
-      fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      }),
+    // Model-written ops text often breaks Markdown (a lone `_` or `*`); the
+    // helper resends it once as plain text instead of dropping the alert.
+    // The 3-second hard cap still covers both attempts.
+    const { res: response } = await withTimeout(
+      postTelegramText(TELEGRAM_BOT_TOKEN, "sendMessage", payload),
       3000
     );
 
