@@ -25,7 +25,6 @@
  */
 
 import express from "express";
-import { timingSafeEqual } from "node:crypto";
 import {
   startScheduler,
   stopScheduler,
@@ -38,9 +37,9 @@ const app = express();
 const port = Number(process.env.PORT ?? 8080);
 
 // ── Fail-closed on missing CRON_SECRET ──
-// Per Wave 49's runner-auth hardening pattern: empty env + empty header
-// would compare equal with timingSafeEqual and bypass auth. Force a
-// non-empty secret at boot.
+// Outbound cron forwards authenticate to statenour-web with this bearer.
+// Force a non-empty secret at boot so the worker cannot start in a state
+// where every scheduled forward is guaranteed to 401.
 const CRON_SECRET = (process.env.CRON_SECRET ?? "").trim();
 if (!CRON_SECRET) {
   console.error(
@@ -51,22 +50,6 @@ if (!CRON_SECRET) {
 }
 
 const SERVICE_ROLE = process.env.SERVICE_ROLE ?? "worker";
-
-function requireCronSecret(req: express.Request, res: express.Response, next: express.NextFunction): void {
-  const header = req.header("authorization") ?? "";
-  const expected = `Bearer ${CRON_SECRET}`;
-  if (header.length !== expected.length) {
-    res.status(401).json({ error: "unauthorized" });
-    return;
-  }
-  // timingSafeEqual requires equal-length buffers · the length check
-  // above gates that.
-  if (!timingSafeEqual(Buffer.from(header), Buffer.from(expected))) {
-    res.status(401).json({ error: "unauthorized" });
-    return;
-  }
-  next();
-}
 
 // ── Liveness / deploy gate · Railway probes THIS path ──
 //
