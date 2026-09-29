@@ -23,6 +23,7 @@ import {
   fromBrainBusEvent,
   fromAuditEvent,
   fromEntityAudit,
+  fromRealityEvent,
 } from "./adapters";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -48,7 +49,7 @@ export async function readOperatorTimeline(options?: {
   const since = new Date(Date.now() - windowDays * 86_400_000);
   const includeSensitive = options?.includeSensitiveData ?? false;
 
-  const [tasks, goals, devices, autonomous, vision, bus, audits, entity] =
+  const [tasks, goals, devices, autonomous, vision, bus, audits, entity, reality] =
     await Promise.all([
       prisma.taskEvent.findMany({
         where: { createdAt: { gte: since } },
@@ -98,6 +99,30 @@ export async function readOperatorTimeline(options?: {
         take,
         select: { id: true, entityType: true, entityId: true, action: true, actor: true, before: true, createdAt: true },
       }).catch(() => []),
+      // Q-25: until the additive migration is operator-applied this select may
+      // hit P2022. The projection already treats missing event sources as an
+      // empty source; RealityEvent was not part of this projection before Q-25.
+      prisma.realityEvent.findMany({
+        where: { occurredAt: { gte: since } },
+        orderBy: { occurredAt: "desc" },
+        take,
+        select: {
+          id: true,
+          eventType: true,
+          eventVersion: true,
+          occurredAt: true,
+          observedAt: true,
+          correlationId: true,
+          causationId: true,
+          retentionClass: true,
+          objects: true,
+          sourceSystem: true,
+          sourceUri: true,
+          privacy: true,
+          payload: true,
+          sender: true,
+        },
+      }).catch(() => []),
     ]);
 
   const candidates: DomainEventEnvelope[] = [
@@ -109,6 +134,7 @@ export async function readOperatorTimeline(options?: {
     ...bus.map(fromBrainBusEvent),
     ...audits.map(fromAuditEvent),
     ...entity.map(fromEntityAudit),
+    ...reality.map(fromRealityEvent),
   ];
 
   let dropped = 0;
@@ -142,6 +168,7 @@ export async function readOperatorTimeline(options?: {
       "brain-bus-event": bus.length,
       "audit-event": audits.length,
       "entity-audit": entity.length,
+      "reality-event": reality.length,
     },
     windowDays,
   };
