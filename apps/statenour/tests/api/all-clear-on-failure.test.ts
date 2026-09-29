@@ -51,6 +51,7 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/services/telegram", () => ({
   sendTelegram,
   formatTelegramNotification: (t: string, b: string) => `${t}\n${b}`,
+  escapeHtml: (t: string) => t,
 }));
 
 vi.mock("@/lib/services/email", () => ({ sendEmail }));

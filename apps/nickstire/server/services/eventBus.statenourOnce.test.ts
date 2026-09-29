@@ -60,14 +60,17 @@ const FIXTURES: Record<BusinessEvent, (n: number) => Fixture> = {
 const BRIDGE_ONLY: BusinessEvent[] = [
   "lead_captured", "callback_requested", "booking_created", "booking_completed",
   "tire_order_placed", "invoice_created", "review_detected",
+  // adapters fixed against config/nickstire-bridge-events.json
+  "invoice_paid", "estimate_generated", "emergency_request",
 ];
-const SYNC_ONLY: BusinessEvent[] = ["social_draft:sync", "mirror_synced", "data_refreshed"];
-// Bridge adapter reads fields these emitters never send (onRevenueMilestone,
-// onInvoiceCreated for estimates, onCampaignResult, onStageChanged, onEmergencyRequest).
-const MISWIRED_BOTH: BusinessEvent[] = [
-  "invoice_paid", "payment_received", "estimate_generated",
-  "campaign_sent", "social_posted", "stage_changed", "emergency_request",
+const SYNC_ONLY: BusinessEvent[] = [
+  "social_draft:sync", "mirror_synced", "data_refreshed",
+  // carry nothing a bridge adapter can use, so the bridge does not map them
+  "payment_received", "social_posted",
 ];
+// The adapter fits some emitters of the type but not these fixtures' (cross-sell per-customer
+// sends; work-order stage changes), so the bridge skips them and the direct copy is kept.
+const MISWIRED_BOTH: BusinessEvent[] = ["campaign_sent", "stage_changed"];
 
 type Post = { via: "bridge" | "direct"; body: string };
 const posts: Post[] = [];
@@ -149,9 +152,11 @@ describe("eventBus -> statenour: once, and never lossy", () => {
     expect(posts[0].body).toContain(f.mark);
   });
 
-  // Positive control for the rule above, and the stale check for this list: each of these
-  // bridge copies loses the event's identity today. When an adapter is fixed, its case
-  // here goes red: move the type to BRIDGE_ONLY and drop it from statenour-sync.
+  // For these fixtures the bridge adapter now sends NOTHING (onStageChanged / onCampaignResult
+  // skip payloads with no bookingId / campaignId), so the direct copy is their only path. Their
+  // well-formed siblings (booking stages, routers/campaigns.ts) still post twice, bridge +
+  // direct; that double post is pinned below. Making one of these types bridge-only needs an
+  // adapter that fits every emitter, not only these.
   it.each(MISWIRED_BOTH.map(t => [t]))("%s: bridge copy is lossy, so the direct copy is kept", async type => {
     const f = FIXTURES[type](caseNo);
     await send(type, f.data);
@@ -159,5 +164,14 @@ describe("eventBus -> statenour: once, and never lossy", () => {
     expect(direct).toHaveLength(1);
     expect(direct[0].body).toContain(f.mark);
     expect(posts.filter(p => p.via === "bridge").some(p => p.body.includes(f.mark))).toBe(false);
+  });
+
+  it.each([
+    ["stage_changed", { bookingId: 7600 + 1, phone: "2165550601", stage: "in_progress", refCode: "REF-S1" }, "REF-S1"],
+    ["campaign_sent", { campaignId: 7700 + 1, sent: 3, queued: 0, failed: 0, campaignType: "reminder" }, "\"campaignId\":7701"],
+  ] as const)("%s with an identity: posts twice (bridge + direct) until the type goes bridge-only", async (type, data, mark) => {
+    await send(type, data as Record<string, unknown>);
+    expect(posts.map(p => p.via).sort()).toEqual(["bridge", "direct"]);
+    for (const p of posts) expect(p.body).toContain(mark);
   });
 });

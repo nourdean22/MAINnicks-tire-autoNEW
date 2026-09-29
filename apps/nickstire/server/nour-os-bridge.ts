@@ -16,9 +16,10 @@
  *   nickstire:lead            — new lead captured
  *   nickstire:tire_order      — tire order placed
  *   nickstire:invoice         — invoice created (manual or auto)
+ *   nickstire:estimate        — repair estimate generated (not a job, not money)
  *   nickstire:callback        — callback requested
  *   nickstire:review          — Google review detected
- *   nickstire:revenue         — revenue milestone
+ *   nickstire:revenue         — invoice paid (kind: "invoice_paid")
  *   nickstire:stage-change    — booking stage transition
  *   nickstire:campaign-result — SMS campaign batch completed
  *   nickstire:emergency       — after-hours emergency request
@@ -44,24 +45,30 @@ const cloudCB = getOrCreateBreaker("nour-os-cloud", {
 });
 
 // ─── Event Types ─────────────────────────────────────
-export type NourOsEventType =
-  | "nickstire:booking"
-  | "nickstire:booking:complete"
-  | "nickstire:lead"
-  | "nickstire:tire_order"
-  | "nickstire:invoice"
-  | "nickstire:callback"
-  | "nickstire:review"
-  | "nickstire:revenue"
-  | "nickstire:vendor_health"
-  | "nickstire:vendor_degraded"
-  | "nickstire:vendor_recovered"
-  | "nickstire:work_order"
-  | "nickstire:work_order:status"
-  | "nickstire:shop_floor"
-  | "nickstire:stage-change"
-  | "nickstire:campaign-result"
-  | "nickstire:emergency";
+// Runtime list so the golden contract test (bridgeEventContract.test.ts, bound to
+// config/nickstire-bridge-events.json) can prove every type is covered.
+export const NOUR_OS_EVENT_TYPES = [
+  "nickstire:booking",
+  "nickstire:booking:complete",
+  "nickstire:lead",
+  "nickstire:tire_order",
+  "nickstire:invoice",
+  "nickstire:estimate",
+  "nickstire:callback",
+  "nickstire:review",
+  "nickstire:revenue",
+  "nickstire:vendor_health",
+  "nickstire:vendor_degraded",
+  "nickstire:vendor_recovered",
+  "nickstire:work_order",
+  "nickstire:work_order:status",
+  "nickstire:shop_floor",
+  "nickstire:stage-change",
+  "nickstire:campaign-result",
+  "nickstire:emergency",
+] as const;
+
+export type NourOsEventType = (typeof NOUR_OS_EVENT_TYPES)[number];
 
 export interface NourOsEvent {
   type: NourOsEventType;
@@ -536,6 +543,38 @@ export function onInvoiceCreated(details: {
   });
 }
 
+/**
+ * Repair estimate generated (routers/estimates.ts). Its own event: an estimate has no
+ * invoice number, customer or amount, so riding "nickstire:invoice" rendered as
+ * "JOB COMPLETE — $0" in StateNour and deduped on a constant key.
+ */
+export function onEstimateGenerated(details: {
+  type?: string | null;
+  vehicle?: string | null;
+  symptom?: string | null;
+  service?: string | null;
+  issueCount?: number | null;
+  source: string;
+  estimateLow?: number | null;
+  estimateHigh?: number | null;
+  /** routers/estimates.ts passes the work order's id, a UUID string. */
+  workOrderId?: string | number | null;
+  orderNumber?: string | null;
+}) {
+  return dispatchEvent("nickstire:estimate", {
+    kind: details.type ?? null,
+    vehicle: details.vehicle ?? null,
+    symptom: details.symptom ?? null,
+    service: details.service ?? null,
+    issueCount: details.issueCount ?? null,
+    source: details.source,
+    estimateLow: details.estimateLow ?? null,
+    estimateHigh: details.estimateHigh ?? null,
+    workOrderId: details.workOrderId ?? null,
+    orderNumber: details.orderNumber ?? null,
+  });
+}
+
 /** Callback requested */
 export function onCallbackRequested(details: {
   name: string;
@@ -549,16 +588,28 @@ export function onCallbackRequested(details: {
   });
 }
 
-/** Revenue milestone hit */
-export function onRevenueMilestone(details: {
-  milestone: string;
-  totalRevenue: number;
-  period: string;
+/**
+ * Invoice paid (bus "invoice_paid"). Emitters send { invoiceNumber, customerName,
+ * totalAmount (dollars), method }; snapFinanceSync sends { invoiceId, name, paymentMethod }.
+ * Replaces onRevenueMilestone, whose milestone/totalRevenue/period no emitter ever sent.
+ */
+export function onInvoicePaid(details: {
+  invoiceNumber?: string | null;
+  invoiceId?: number | string | null;
+  customerName?: string | null;
+  name?: string | null;
+  totalAmount: number;
+  method?: string | null;
+  paymentMethod?: string | null;
+  [extra: string]: unknown;
 }) {
+  const invoiceNumber = details.invoiceNumber ?? (details.invoiceId != null ? String(details.invoiceId) : null);
   return dispatchEvent("nickstire:revenue", {
-    milestone: details.milestone,
-    totalRevenue: details.totalRevenue,
-    period: details.period,
+    kind: "invoice_paid",
+    invoiceNumber,
+    customer: details.customerName ?? details.name ?? null,
+    totalAmount: details.totalAmount,
+    method: details.method ?? details.paymentMethod ?? null,
   });
 }
 
@@ -569,6 +620,10 @@ export function onStageChanged(details: {
   stage: string;
   refCode: string | null;
 }) {
+  // Work-order and callback status changes ride the same bus type with no bookingId/stage;
+  // their raw copy reaches StateNour via the statenour-sync destination. An empty bridge
+  // copy would dedupe on a constant key.
+  if (details.bookingId == null || !details.stage) return Promise.resolve();
   return dispatchEvent("nickstire:stage-change", {
     bookingId: details.bookingId,
     phone: details.phone,
@@ -597,6 +652,9 @@ export function onCampaignResult(details: {
   failed: number;
   campaignType: string;
 }) {
+  // Per-customer cross-sell sends ride "campaign_sent" with no campaignId; the
+  // statenour-sync destination carries those. Same constant-key reason as onStageChanged.
+  if (details.campaignId == null) return Promise.resolve();
   return dispatchEvent("nickstire:campaign-result", {
     campaignId: details.campaignId,
     sent: details.sent,
@@ -609,13 +667,15 @@ export function onCampaignResult(details: {
 export function onEmergencyRequest(details: {
   name: string;
   phone: string;
-  description: string;
+  /** emit.emergencyRequest sends `problem`; `description` kept for older callers. */
+  description?: string;
+  problem?: string;
   urgency: string;
 }) {
   return dispatchEvent("nickstire:emergency", {
     name: details.name,
     phone: details.phone,
-    description: details.description,
+    description: details.description ?? details.problem ?? null,
     urgency: details.urgency,
   });
 }

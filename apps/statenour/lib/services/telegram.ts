@@ -69,7 +69,8 @@ export function formatTelegramNotification(
   return `${icon} <b>${escapeHtml(title)}</b>\n\n${escapeHtml(body)}`;
 }
 
-function escapeHtml(text: string): string {
+/** Escape text interpolated into a parse_mode "HTML" message (Telegram rejects stray `<` / `&`). */
+export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

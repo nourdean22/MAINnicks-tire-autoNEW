@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "nickstire/bridge-contract-truth: server/services/eventBus.ts bridge typeMap + statenour-sync handles changed; no capability-ledger entry covers the nickstire->StateNour event bridge, so the contract is pinned instead by config/nickstire-bridge-events.json, bound on the sender by server/bridgeEventContract.test.ts (33 tests, red 14f/19p on origin/main) and server/services/eventBus.statenourOnce.test.ts (lists re-pinned), and on the receiver by apps/statenour/tests/api/nickstire-bridge-contract.test.ts (29, red 8f/21p) + tests/brain/pipeline-bridge-fields.test.ts (4, red 4f/0p)"
+    }
+  }
+}

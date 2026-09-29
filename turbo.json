@@ -4,7 +4,8 @@
   "globalDependencies": [
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
-    "config/retired-claude-models.json"
+    "config/retired-claude-models.json",
+    "config/nickstire-bridge-events.json"
   ],
   "globalEnv": [
     "NODE_ENV",
