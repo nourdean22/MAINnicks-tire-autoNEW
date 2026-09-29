@@ -138,11 +138,19 @@ export function modelFamilyFromLane(
   if (byModel !== "unknown") return byModel;
   const p = (provider ?? "").trim().toLowerCase();
   if (!p) return "unknown";
+  // Hosting layers (Venice, Ollama, OpenRouter, custom gateways) are NOT
+  // model families. Only a provider that itself names a known family may
+  // serve as fallback when the model id is opaque.
   if (p === "anthropic") return "anthropic";
   if (p === "openai") return "openai";
   if (p === "google") return "google";
   if (p === "meta") return "meta";
-  return p;
+  if (p === "mistral") return "mistral";
+  if (p === "qwen" || p === "alibaba") return "qwen";
+  if (p === "deepseek") return "deepseek";
+  if (p === "zhipu") return "zhipu";
+  if (p === "minimax") return "minimax";
+  return "unknown";
 }
 
 export function assertDifferentJudgeFamily(
