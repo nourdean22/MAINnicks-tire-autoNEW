@@ -4,7 +4,10 @@ import {
   formatFailureAlertGroup,
   formatResolvedAlertGroup,
   formatShapeAlertGroup,
+  hasDatabaseRootIncident,
   isCronAlertQuietHours,
+  isDatabaseDependencyError,
+  resolvedIncidentKeys,
 } from "./alertPolicy";
 
 const TZ = "America/New_York";
@@ -75,4 +78,28 @@ describe("Q-28 Alertmanager-style cron policy", () => {
     expect(text).toContain("Downstream job-failure pages are inhibited");
     expect(text).toContain("ECONNREFUSED");
   });
+
+  it("requires at least two distinct DB-shaped job failures before inhibiting downstream pages", () => {
+    const one = [
+      { jobName: "reviews", latestError: "ECONNREFUSED 10.0.0.1", consecutiveFailures: 2, latestFailureAt: new Date() },
+    ];
+    const two = [
+      ...one,
+      { jobName: "gsc", latestError: "mysql connection timed out", consecutiveFailures: 2, latestFailureAt: new Date() },
+    ];
+    expect(hasDatabaseRootIncident(one)).toBe(false);
+    expect(hasDatabaseRootIncident(two)).toBe(true);
+    expect(isDatabaseDependencyError(new Error("database unavailable"))).toBe(true);
+    expect(isDatabaseDependencyError("validation failed")).toBe(false);
+  });
+
+  it("reports only incidents that were alerted before and are no longer active as resolved", () => {
+    expect(
+      resolvedIncidentKeys(
+        ["failure:reviews", "shape:gsc:missing", "root:database"],
+        ["failure:reviews", "root:database"],
+      ),
+    ).toEqual(["shape:gsc:missing"]);
+  });
+
 });
