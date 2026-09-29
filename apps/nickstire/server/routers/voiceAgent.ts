@@ -23,6 +23,7 @@ import { router, publicProcedure, voiceAgentInternalProcedure } from "../_core/t
 import { TRPCError } from "@trpc/server";
 import { SERVICES } from "../../shared/services";
 import { BUSINESS } from "../../shared/business";
+import { localClock } from "../../shared/shopState";
 import { createLogger } from "../lib/logger";
 import { ordinaryTireInquiryReply } from "../lib/tireInquiryReply";
 import type { SmsOrchestratorEvent, SmsOrchestratorResult } from "../services/smsOrchestrator";
@@ -79,6 +80,33 @@ function spokenWeeklyHours(): string {
       return `${days} ${spokenClock(from)} to ${spokenClock(to)}`;
     })
     .join(", ");
+}
+
+const DAYS_FROM_SUNDAY = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+
+/**
+ * The weekday a capacityCheck `day` names, in the shop's timezone (audit
+ * 2026-09-29). The Vapi tool asks for "YYYY-MM-DD", "today" or "tomorrow".
+ * `new Date(day)` answered "tomorrow" for today, and read "2026-10-05" as UTC
+ * midnight, the evening before in Cleveland, so every date was named as the
+ * day before. The hours were then chosen with getDay() in the server's
+ * timezone (UTC on Railway), which disagrees with Cleveland from 8 PM to
+ * midnight. A calendar date has the same weekday everywhere, so a date is read
+ * as a date; a weekday name is taken as given; anything else is today.
+ */
+function requestedShopWeekday(day: string | undefined, now: Date): (typeof DAYS_FROM_SUNDAY)[number] {
+  const todayIndex = Math.max(0, DAYS_FROM_SUNDAY.indexOf(localClock(now, BUSINESS.timezone).weekday as never));
+  const raw = (day ?? "").trim().toLowerCase();
+  if (raw === "tomorrow") return DAYS_FROM_SUNDAY[(todayIndex + 1) % 7];
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (iso) {
+    const [y, m, d] = [Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])];
+    const date = new Date(Date.UTC(y, m, d));
+    if (date.getUTCFullYear() === y && date.getUTCMonth() === m && date.getUTCDate() === d) {
+      return DAYS_FROM_SUNDAY[date.getUTCDay()];
+    }
+  }
+  return DAYS_FROM_SUNDAY.find((name) => name === raw) ?? DAYS_FROM_SUNDAY[todayIndex];
 }
 
 /**
@@ -219,19 +247,29 @@ export const voiceAgentRouter = router({
       // Operator decision: the AI never states a wait or a capacity. It
       // confirms whether the shop is OPEN that day and says walk in; a live
       // person answers "how busy is it right now".
-      const requestedDay = input.day ? new Date(input.day) : new Date();
-      const isValidDay = !Number.isNaN(requestedDay.getTime());
-      const day = isValidDay ? requestedDay : new Date();
-      const dayName = day.toLocaleDateString("en-US", { weekday: "long", timeZone: BUSINESS.timezone });
-      const isSunday = day.getDay() === 0;
+      const weekday = requestedShopWeekday(input.day, new Date());
+      const dayName = weekday[0].toUpperCase() + weekday.slice(1);
+      const aiHint =
+        "Do NOT state a wait time, a number of minutes, or how busy the shop is — you don't have that information. Confirm the day is open and that it's walk-in. If the caller presses on how long the wait is, hand them to a person (transferCall while open).";
+      // The same source the site renders, read at call time.
+      const range = (BUSINESS.hours.structured as Record<string, string | undefined>)[weekday];
+      if (!range) {
+        return {
+          walkIn: true,
+          openThatDay: false,
+          hours: null,
+          message: `${dayName} — we're closed. Nick's is first come, first served: ${spokenWeeklyHours()}.`,
+          aiHint,
+        };
+      }
+      const [from, to] = range.split("-");
 
       return {
         walkIn: true,
         openThatDay: true,
-        hours: isSunday ? "9-4" : "8-6",
-        message: `${dayName} — we're open ${isSunday ? "9 to 4" : "8 to 6"}. Nick's is first come, first served, so walk in any time we're open.`,
-        aiHint:
-          "Do NOT state a wait time, a number of minutes, or how busy the shop is — you don't have that information. Confirm the day is open and that it's walk-in. If the caller presses on how long the wait is, hand them to a person (transferCall while open).",
+        hours: `${spokenClock(from)}-${spokenClock(to)}`,
+        message: `${dayName} — we're open ${spokenClock(from)} to ${spokenClock(to)}. Nick's is first come, first served, so walk in any time we're open.`,
+        aiHint,
       };
     }),
 
