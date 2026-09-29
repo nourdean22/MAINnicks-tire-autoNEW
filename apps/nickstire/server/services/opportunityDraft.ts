@@ -261,8 +261,8 @@ export async function sendOpportunityDraft(params: SendDraftParams): Promise<Sen
     variantKey: `opp_bridge_${opp.sourceType}`,
   });
 
-  const { smsOutcome } = await import("../lib/smsOutcome");
-  const outcome = smsOutcome(result);
+  const { nonExperimentSmsOutcome } = await import("../lib/smsOutcome");
+  const outcome = nonExperimentSmsOutcome(result);
   if (outcome === "failed") {
     log.warn("opportunity draft send failed", { id: params.id, error: result.error });
     return { ok: false, error: result.error ?? "send failed", outcome };

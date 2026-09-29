@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildLoopScoreboard, sendsPerInvoice, type LoopRow } from "../loopScoreboard";
+import {
+  buildHoldoutLift,
+  buildLoopScoreboard,
+  sendsPerInvoice,
+  type LoopRow,
+} from "../loopScoreboard";
 
 const row = (over: Partial<LoopRow> = {}): LoopRow => ({
   loop: "retention_d7", attempted: 10, sent: 10, undelivered: 0, replied: 1, optedOut: 0,
@@ -97,5 +102,107 @@ describe("sendsPerInvoice", () => {
   // first in an ascending sort, where low sends-per-sale reads as efficient.
   it("returns null — never 0 — when nothing converted", () => {
     expect(sendsPerInvoice(row({ sent: 575, paidInvoicesAfter: 0 }))).toBeNull();
+  });
+});
+
+
+describe("buildHoldoutLift", () => {
+  it("stays UNMEASURED when no durable assignments exist", () => {
+    const h = buildHoldoutLift();
+    expect(h.status).toBe("UNMEASURED");
+    expect(h.incrementalGrossRevenueCents).toBeNull();
+    expect(h.netValueStatus).toBe("UNMEASURED_PROVIDER_COST");
+  });
+
+  it("stays COLLECTING until both arms have a full attribution window", () => {
+    const h = buildHoldoutLift({
+      experimentId: "contact:retention_d90:v1",
+      treatmentAssigned: 85,
+      controlAssigned: 15,
+      treatmentMatured: 20,
+      controlMatured: 0,
+      treatmentPaidInvoices: 2,
+      controlPaidInvoices: 0,
+      treatmentRevenueCents: 30_000,
+      controlRevenueCents: 0,
+    });
+    expect(h.status).toBe("COLLECTING");
+    expect(h.incrementalGrossRevenueCents).toBeNull();
+  });
+
+  it("computes incremental gross revenue from matured randomized arms only", () => {
+    const h = buildHoldoutLift({
+      experimentId: "contact:retention_d90:v1",
+      treatmentAssigned: 100,
+      controlAssigned: 20,
+      treatmentMatured: 80,
+      controlMatured: 16,
+      treatmentPaidInvoices: 8,
+      controlPaidInvoices: 1,
+      treatmentRevenueCents: 80_000,
+      controlRevenueCents: 8_000,
+    });
+    expect(h.status).toBe("OBSERVED_HOLDOUT");
+    expect(h.treatmentRevenuePerAssignedCents).toBe(1_000);
+    expect(h.controlRevenuePerAssignedCents).toBe(500);
+    expect(h.incrementalGrossRevenuePerTreatmentCents).toBe(500);
+    expect(h.incrementalGrossRevenueCents).toBe(40_000);
+    expect(h.netValueCents).toBeNull();
+  });
+
+  it("preserves negative lift instead of flooring a losing lane at zero", () => {
+    const h = buildHoldoutLift({
+      experimentId: "contact:campaign:12:v1",
+      treatmentAssigned: 40,
+      controlAssigned: 10,
+      treatmentMatured: 40,
+      controlMatured: 10,
+      treatmentPaidInvoices: 1,
+      controlPaidInvoices: 1,
+      treatmentRevenueCents: 10_000,
+      controlRevenueCents: 8_000,
+    });
+    expect(h.incrementalGrossRevenuePerTreatmentCents).toBe(-550);
+    expect(h.incrementalGrossRevenueCents).toBe(-22_000);
+  });
+
+  it("counts causal measurement states without turning cost into profit", () => {
+    const observed = buildHoldoutLift({
+      experimentId: "contact:retention_d7:v1",
+      treatmentAssigned: 20,
+      controlAssigned: 5,
+      treatmentMatured: 20,
+      controlMatured: 5,
+      treatmentPaidInvoices: 2,
+      controlPaidInvoices: 0,
+      treatmentRevenueCents: 20_000,
+      controlRevenueCents: 0,
+    });
+    const collecting = buildHoldoutLift({
+      experimentId: "contact:review_request:v1",
+      treatmentAssigned: 10,
+      controlAssigned: 2,
+      treatmentMatured: 0,
+      controlMatured: 0,
+      treatmentPaidInvoices: 0,
+      controlPaidInvoices: 0,
+      treatmentRevenueCents: 0,
+      controlRevenueCents: 0,
+    });
+    const s = buildLoopScoreboard(
+      [
+        row({ loop: "retention_d7", holdout: observed }),
+        row({ loop: "review_request", holdout: collecting }),
+        row({ loop: "legacy" }),
+      ],
+      { windowDays: 180, attributionWindowDays: 30 },
+    );
+    expect(s.causalMeasurement).toEqual({
+      observedHoldoutLanes: 1,
+      collectingLanes: 1,
+      unmeasuredLanes: 1,
+      providerCostMeasured: false,
+    });
+    expect(s.limitations.join(" ")).toMatch(/NET P&L IS UNMEASURED/);
   });
 });

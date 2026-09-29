@@ -465,6 +465,7 @@ export const winbackRouter = router({
         step: winbackSends.step,
         total: sql<number>`count(*)`,
         sent: sql<number>`sum(case when ${winbackSends.status} = 'sent' then 1 else 0 end)`,
+        heldOut: sql<number>`sum(case when ${winbackSends.status} = 'heldout' then 1 else 0 end)`,
         failed: sql<number>`sum(case when ${winbackSends.status} = 'failed' then 1 else 0 end)`,
         pending: sql<number>`sum(case when ${winbackSends.status} = 'pending' then 1 else 0 end)`,
       })
@@ -478,11 +479,12 @@ export const winbackRouter = router({
   /** Get campaign send stats summary */
   campaignStats: adminProcedure.query(async () => {
     const d = await db();
-    if (!d) return { totalCampaigns: 0, totalSent: 0, totalFailed: 0, totalPending: 0, activeCampaigns: 0 };
+    if (!d) return { totalCampaigns: 0, totalSent: 0, totalHeldOut: 0, totalFailed: 0, totalPending: 0, activeCampaigns: 0 };
 
     const [campaigns] = await d.select({ count: sql<number>`count(*)` }).from(winbackCampaigns);
     const [active] = await d.select({ count: sql<number>`count(*)` }).from(winbackCampaigns).where(eq(winbackCampaigns.status, "active"));
     const [sent] = await d.select({ count: sql<number>`count(*)` }).from(winbackSends).where(eq(winbackSends.status, "sent"));
+    const [heldOut] = await d.select({ count: sql<number>`count(*)` }).from(winbackSends).where(eq(winbackSends.status, "heldout"));
     const [failed] = await d.select({ count: sql<number>`count(*)` }).from(winbackSends).where(eq(winbackSends.status, "failed"));
     const [pending] = await d.select({ count: sql<number>`count(*)` }).from(winbackSends).where(eq(winbackSends.status, "pending"));
 
@@ -490,6 +492,7 @@ export const winbackRouter = router({
       totalCampaigns: campaigns?.count ?? 0,
       activeCampaigns: active?.count ?? 0,
       totalSent: sent?.count ?? 0,
+      totalHeldOut: heldOut?.count ?? 0,
       totalFailed: failed?.count ?? 0,
       totalPending: pending?.count ?? 0,
     };
@@ -721,7 +724,7 @@ export const winbackRouter = router({
    *  path uses services/winbackProcessor.ts (claim-then-send + opt-out). */
   processPending: adminProcedure.mutation(async () => {
     const d = await db();
-    if (!d) return { processed: 0, sent: 0, failed: 0 };
+    if (!d) return { processed: 0, sent: 0, queued: 0, heldOut: 0, failed: 0 };
 
     const now = new Date();
 
@@ -743,6 +746,7 @@ export const winbackRouter = router({
 
     let sent = 0;
     let queued = 0;
+    let heldOut = 0;
     let failed = 0;
 
     for (const { send } of pendingSends) {
@@ -764,7 +768,10 @@ export const winbackRouter = router({
         continue; // already claimed
       }
 
-      const result = await sendSms(send.phone, send.personalizedBody, { via: "shop" });
+      const result = await sendSms(send.phone, send.personalizedBody, {
+        via: "shop",
+        variantKey: "winback",
+      });
 
       // 2026-09-01 (audit F-3): a queued text keeps its claim and counts in the
       // campaign total (it will go out), but the run receipt says queued.
@@ -778,6 +785,14 @@ export const winbackRouter = router({
         // Update campaign sent count
         await d.execute(sql`UPDATE winback_campaigns SET sentCount = sentCount + 1 WHERE id = ${send.campaignId}`);
         if (outcome === "sent") sent++; else queued++;
+      } else if (outcome === "heldout") {
+        await d.update(winbackSends).set({
+          status: "heldout",
+          sentAt: null,
+          twilioSid: null,
+          errorMessage: result.experimentId ? `experiment_control:${result.experimentId}` : "experiment_control",
+        }).where(eq(winbackSends.id, send.id));
+        heldOut++;
       } else {
         await d.update(winbackSends).set({
           status: "failed",
@@ -787,7 +802,7 @@ export const winbackRouter = router({
       }
     }
 
-    return { processed: pendingSends.length, sent, queued, failed };
+    return { processed: pendingSends.length, sent, queued, heldOut, failed };
   }),
 
   /** Get recent send activity for a campaign */

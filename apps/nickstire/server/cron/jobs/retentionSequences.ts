@@ -143,7 +143,7 @@ async function logRetentionSms(
  * Process a single retention tier.
  * Returns count of customers contacted.
  */
-async function processRetentionTier(tier: RetentionTier): Promise<number> {
+async function processRetentionTier(tier: RetentionTier): Promise<{ contacted: number; heldOut: number }> {
   // wave-181.60-followup (audit-181.58 finding · 2026-05-18 PM) · the
   // legacy Twilio env guard was blocking all 6 retention tiers in prod
   // because Twilio is dead per operator and env vars are intentionally
@@ -153,20 +153,20 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
   // 2. Check feature flags
   const { isEnabled } = await import("../../services/featureFlags");
   for (const flag of tier.flags) {
-    if (!(await isEnabled(flag))) return 0;
+    if (!(await isEnabled(flag))) return { contacted: 0, heldOut: 0 };
   }
 
   // 3. Check sending hours (9am-6pm ET)
   if (!isWithinRetentionHours()) {
     log.info(`Retention ${tier.days}d: outside sending hours (9am-6pm ET), skipping`);
-    return 0;
+    return { contacted: 0, heldOut: 0 };
   }
 
   const { getDb } = await import("../../db");
   const { customers, bookings } = await import("../../../drizzle/schema");
   const { sendSms } = await import("../../sms");
   const db = await getDb();
-  if (!db) return 0;
+  if (!db) return { contacted: 0, heldOut: 0 };
 
   // 4. Find eligible customers:
   //    - Has phone, has lastVisitDate
@@ -201,7 +201,7 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
     )
     .limit(100);
 
-  if (targets.length === 0) return 0;
+  if (targets.length === 0) return { contacted: 0, heldOut: 0 };
 
   // 5. Batch-check for pending bookings — exclude customers who already have one
   //    A "pending" booking = status is new or confirmed
@@ -221,6 +221,7 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
   );
 
   let processed = 0;
+  let heldOut = 0;
   let perRowErrors = 0;
   for (const c of targets) {
     // wave-117 — per-customer try/catch. Was: a Twilio error on customer
@@ -298,15 +299,20 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
       // here would double-count it (untagged twin → "Untagged (pre-181.51)").
       // Only log for the non-queued (online) path, where skipPersist made
       // logOutboundSms the sole writer.
-      if (!result.queued) {
+      if (!result.queued && !result.heldOut) {
         await logRetentionSms(c.phone, messageBody, result, variantKey);
       }
 
       const { smsOutcome: retentionOutcome } = await import("../../lib/smsOutcome");
       const ro = retentionOutcome(result);
-      if (ro !== "failed") {
-        // sent, queued and uncertain all count as processed (the customer is
-        // not re-texted); only a confirmed send is silent — the rest say so.
+      if (ro === "heldout") {
+        heldOut++;
+        log.info(`Retention ${tier.days}d control held out for customer #${c.id}`, {
+          experimentId: result.experimentId,
+        });
+      } else if (ro !== "failed") {
+        // sent, queued and uncertain consume the claim and count as contacted
+        // attempts; heldout is counted separately above and never called contact.
         processed++;
         if (ro !== "sent") log.info(`Retention ${tier.days}d SMS ${ro} for customer #${c.id}`);
       } else {
@@ -327,11 +333,11 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
     log.warn(`Retention ${tier.days}d: ${perRowErrors} customers errored — see logs above`);
   }
 
-  if (processed > 0) {
-    log.info(`Retention ${tier.days}-day: contacted ${processed} customers`);
+  if (processed > 0 || heldOut > 0) {
+    log.info(`Retention ${tier.days}-day: contacted ${processed} customers, held out ${heldOut} controls`);
   }
 
-  return processed;
+  return { contacted: processed, heldOut };
 }
 
 // ─── EXPORTED PROCESSORS ─────────────────────────────
@@ -340,38 +346,42 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
 // wave-181.58 · D7 + D14 added in wave-181.47 but the processor functions were
 // never exported and the scheduler never called them — code-review audit
 // caught this. Zero D7/D14 messages were sent. Wiring them now.
+function retentionReceipt(
+  result: { contacted: number; heldOut: number },
+  label: string,
+): { recordsProcessed: number; details: string } {
+  return {
+    recordsProcessed: result.contacted,
+    details: `${result.contacted} customers contacted, ${result.heldOut} holdout controls (${label})`,
+  };
+}
+
 export async function processRetention7Day(): Promise<{ recordsProcessed: number; details?: string }> {
   const tier = RETENTION_TIERS.find((t) => t.days === 7)!;
-  const processed = await processRetentionTier(tier);
-  return { recordsProcessed: processed, details: `${processed} customers contacted (7d check-in)` };
+  return retentionReceipt(await processRetentionTier(tier), "7d check-in");
 }
 
 export async function processRetention14Day(): Promise<{ recordsProcessed: number; details?: string }> {
   const tier = RETENTION_TIERS.find((t) => t.days === 14)!;
-  const processed = await processRetentionTier(tier);
-  return { recordsProcessed: processed, details: `${processed} customers contacted (14d reactivation)` };
+  return retentionReceipt(await processRetentionTier(tier), "14d reactivation");
 }
 
 export async function processRetention45Day(): Promise<{ recordsProcessed: number; details?: string }> {
   const tier = RETENTION_TIERS.find((t) => t.days === 45)!;
-  const processed = await processRetentionTier(tier);
-  return { recordsProcessed: processed, details: `${processed} customers contacted (45d)` };
+  return retentionReceipt(await processRetentionTier(tier), "45d");
 }
 
 export async function processRetention90Day(): Promise<{ recordsProcessed: number; details?: string }> {
   const tier = RETENTION_TIERS.find((t) => t.days === 90)!;
-  const processed = await processRetentionTier(tier);
-  return { recordsProcessed: processed, details: `${processed} customers contacted (90d)` };
+  return retentionReceipt(await processRetentionTier(tier), "90d");
 }
 
 export async function processRetention180Day(): Promise<{ recordsProcessed: number; details?: string }> {
   const tier = RETENTION_TIERS.find((t) => t.days === 180)!;
-  const processed = await processRetentionTier(tier);
-  return { recordsProcessed: processed, details: `${processed} customers contacted (180d)` };
+  return retentionReceipt(await processRetentionTier(tier), "180d");
 }
 
 export async function processRetention365Day(): Promise<{ recordsProcessed: number; details?: string }> {
   const tier = RETENTION_TIERS.find((t) => t.days === 365)!;
-  const processed = await processRetentionTier(tier);
-  return { recordsProcessed: processed, details: `${processed} customers contacted (365d)` };
+  return retentionReceipt(await processRetentionTier(tier), "365d");
 }

@@ -82,7 +82,7 @@ describe("the cron · a failed run must be recorded as failed", () => {
     const { processReviewRequests } = await import("./cron/jobs/reviewRequests");
     const result = await processReviewRequests();
     expect(result.recordsProcessed).toBe(7);
-    expect(result.details).toMatch(/sent 6, failed 1/);
+    expect(result.details).toMatch(/sent 6, queued 0, holdout controls 0, failed 1/);
   });
 
   it("keeps a declined run legible — a real zero carries its reason", async () => {

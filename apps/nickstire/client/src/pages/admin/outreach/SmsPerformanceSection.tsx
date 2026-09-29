@@ -31,7 +31,9 @@ function pct(num: number, denom: number): string {
 
 /** Cents to whole dollars — the operator reads these on a phone, not a ledger. */
 function usd(cents: number): string {
-  return `$${Math.round(cents / 100).toLocaleString("en-US")}`;
+  const dollars = Math.round(cents / 100);
+  const magnitude = Math.abs(dollars).toLocaleString("en-US");
+  return dollars < 0 ? `-$${magnitude}` : `$${magnitude}`;
 }
 
 export default function SmsPerformanceSection() {
@@ -127,17 +129,28 @@ export default function SmsPerformanceSection() {
         <div className="px-4 py-3 border-b border-border/30 flex items-center gap-2">
           <DollarSign className="w-4 h-4 text-foreground/60" />
           <span className="text-xs uppercase tracking-[0.15em] text-foreground/70 font-medium">
-            Money after each loop · {money?.windowDays ?? 180}d
+            Money / outcome board · {money?.windowDays ?? 180}d
           </span>
         </div>
 
-        <div className="px-4 py-3 border-b border-border/30 bg-amber-500/5">
+        <div className="px-4 py-3 border-b border-border/30 bg-amber-500/5 space-y-1.5">
           <p className="text-[11px] leading-relaxed text-amber-200/80">
-            <span className="font-semibold text-amber-200">Observed after, not caused by.</span>{" "}
-            This counts customers who paid within {money?.attributionWindowDays ?? 30} days of getting a
-            text. Many would have come back anyway. Use it to compare loops against each other — every
-            loop is measured the same way — not as revenue the texts produced.
+            <span className="font-semibold text-amber-200">Observed ≠ caused.</span>{" "}
+            Observed dollars are customers who paid within {money?.attributionWindowDays ?? 30} days after
+            a text. The separate Holdout lift column uses randomized no-contact controls and only cohorts
+            old enough to have the full attribution window.
           </p>
+          <p className="text-[11px] leading-relaxed text-foreground/55">
+            Net P&amp;L remains <span className="font-medium text-foreground/70">UNMEASURED</span> until
+            real provider/carrier SMS cost is persisted; incremental gross lift is never relabeled as profit.
+          </p>
+          {money && (
+            <p className="text-[11px] leading-relaxed text-foreground/55">
+              Holdout state: {money.causalMeasurement.observedHoldoutLanes} observed ·{" "}
+              {money.causalMeasurement.collectingLanes} collecting ·{" "}
+              {money.causalMeasurement.unmeasuredLanes} unmeasured lanes.
+            </p>
+          )}
         </div>
 
         {money?.error && (
@@ -167,6 +180,7 @@ export default function SmsPerformanceSection() {
                   <th className="text-right font-medium px-3 py-2">Sent</th>
                   <th className="text-right font-medium px-3 py-2">Invoices</th>
                   <th className="text-right font-medium px-3 py-2">Observed</th>
+                  <th className="text-right font-medium px-3 py-2 whitespace-nowrap">Holdout lift</th>
                   <th className="text-right font-medium px-4 py-2 whitespace-nowrap">Per sale</th>
                 </tr>
               </thead>
@@ -189,6 +203,31 @@ export default function SmsPerformanceSection() {
                       <td className="px-3 py-2.5 text-right tabular-nums font-medium text-emerald-400">
                         {usd(l.revenueObservedCents)}
                       </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">
+                        {l.holdout?.status === "OBSERVED_HOLDOUT" ? (
+                          <div>
+                            <div className={
+                              (l.holdout.incrementalGrossRevenueCents ?? 0) >= 0
+                                ? "font-medium text-emerald-400"
+                                : "font-medium text-red-400"
+                            }>
+                              {usd(l.holdout.incrementalGrossRevenueCents ?? 0)}
+                            </div>
+                            <div className="text-[10px] text-foreground/45">
+                              matured T{l.holdout.treatmentMatured} / C{l.holdout.controlMatured}
+                            </div>
+                          </div>
+                        ) : l.holdout?.status === "COLLECTING" ? (
+                          <div>
+                            <div className="text-amber-400/90">collecting</div>
+                            <div className="text-[10px] text-foreground/45">
+                              assigned T{l.holdout.treatmentAssigned} / C{l.holdout.controlAssigned}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-foreground/35">unmeasured</span>
+                        )}
+                      </td>
                       {/* "—" not "0": a loop with no invoices has no ratio.
                           Printing 0 would sort the worst loop to the top. */}
                       <td className="px-4 py-2.5 text-right tabular-nums text-foreground/70">
@@ -208,6 +247,9 @@ export default function SmsPerformanceSection() {
                   <td className="px-3 py-2.5 text-right tabular-nums">{money.totals.paidInvoicesAfter}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums text-emerald-400">
                     {usd(money.totals.revenueObservedCents)}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-[11px] text-foreground/45">
+                    not additive
                   </td>
                   <td className="px-4 py-2.5" />
                 </tr>

@@ -1,7 +1,7 @@
 # NourOS exception consolidation — current truth
 
 Date: 2026-09-28 ET
-Status: BUILT + LOCALLY VERIFIED on the follow-up branch based on merged Decision Plane main. Not merged, deployed, or production-proven at this receipt.
+Status: MERGED to `main` in PR #2757 as `3178a894ff1d39d402837b214d060ce7b61b3a55`. Production exercise of real dead-letter/UNKNOWN/stalled rows remains pending.
 
 ## Design decision
 
@@ -74,4 +74,4 @@ The isolated worktree reuses the installed test/lint binaries from the existing 
 
 This does not resolve the underlying dead letters or UNKNOWN actions automatically. It makes them impossible to disappear across separate subsystem pages and routes the operator to the existing canonical remediation surfaces.
 
-Production proof remains pending until this stacked commit is eventually pushed, reviewed, merged, deployed, and exercised against real rows.
+Production proof remains pending until the merged code is deployed and exercised against real dead-letter/UNKNOWN/stalled rows.
