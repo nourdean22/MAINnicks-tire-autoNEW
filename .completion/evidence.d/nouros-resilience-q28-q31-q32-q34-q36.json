@@ -1,7 +1,7 @@
 {
   "evidence": {
     "capability-ledger-updated": {
-      "deferred": "2026-09-29 resilience consolidation: capability-ledger.json and generated REALITY-LEDGER.md were reconciled on feat/nouros-resilience-final-current-chatgpt-20260929. Q-25/Q-26/Q-27 are corrected to merged + unit_verified from already-green #2784. New Q-31/Q-32 rows remain in_progress/unverified/disabled until the consolidated PR exact-head CI runs; Q-28/Q-34/Q-36 remain in_progress/unverified/disabled. No production/live promotion is claimed."
+      "deferred": "2026-09-29 post-merge closeout: Q-28/Q-31/Q-32/Q-34/Q-36 are codeState=merged, operationalState=unit_verified, exposure=disabled after #2794 exact-head CI passed and squash merge 48ac53827eb7f4f5754ee2a41fe74789c5c36c89 reached main. Production/deployment/empirical blockers remain separate and unclaimed."
     },
     "operator-gated-migrations": {
       "deferred": "Q-31 migration 20260929150500_brain_memory_transaction_time is registered with the current apply-pending-migration discipline but is NOT applied by this branch. Production transaction-time columns must not be claimed without operator apply + read-back."
@@ -10,19 +10,23 @@
       "deferred": "No Railway PROCESS_ROLE service split, no worker env deletion, no new Alertmanager/Braintrust service, and no claim of live mega fan-out or Q-32 empirical label/kappa acceptance. Those require separate deployment/operator/empirical receipts."
     },
     "consolidation-integrity": {
-      "deferred": "Historical source branches were not rewritten. The dedicated integration branch incorporated current main 223079d33407b9a6091e34a55032ea935d788e9e through merge commit 80e031ac88d0b35443f1986e8dc05ad5faab97ae after a zero-overlap census against intervening #2789/#2793 files. Exact-head PR CI is intentionally still pending at this evidence-writing point."
+      "deferred": "Historical source branches were not rewritten. The dedicated integration branch incorporated then-current main through #2793 after a zero-overlap census. Final #2794 exact head 79dbea91630f860f0a84bbd68b075df4a7697eea passed Turbo affected verify, StateNour E2E, Completion Authority, Adoption Gates, Agent Policy, Secret Scanning, and Admin Diagnostic; guarded squash merge produced main commit 48ac53827eb7f4f5754ee2a41fe74789c5c36c89."
     },
     "cron-fail-closed": {
       "ref": "apps/nickstire/server/cron/alertPolicy.test.ts + apps/nickstire/server/cron/observer.ts",
-      "deferred": "2026-09-29 PR #2794 exact diff: Q-28 changes cron-observer alert grouping/inhibition/resolution routing, not business-job swallow/rethrow semantics. The new alertPolicy.test.ts pins DB-root classification, grouping, quiet-hour deferral, resolved formatting, and incident-diff behavior; existing cronObserverSuppression.test.ts remains the persisted suppression/re-alert control. No catch/swallow path was added to non-operator cron jobs. Exact-head Turbo/PR CI is the remaining execution receipt."
+      "deferred": "Q-28 changes cron-observer alert grouping/inhibition/resolution routing, not business-job swallow/rethrow semantics. alertPolicy.test.ts + cronObserverSuppression.test.ts passed in #2794 exact-head CI. A post-deploy observer receipt is still required before production Telegram behavior is promoted."
     },
     "q31-failure-compensation": {
       "ref": "apps/statenour/lib/brain/memory-manager.ts + apps/statenour/tests/brain/memory-bitemporal-runtime.test.ts",
-      "deferred": "PR #2794 branch evidence: prepared supersession failures restore transaction/effective verification state, remove the provisional snapshot, and return the existing canonical row instead of silently falling through to a legacy overwrite. After a successful content replacement, the new transaction window is verified and retried through the compensating helper if the first open fails. Exact-head CI is still the remaining acceptance receipt."
+      "deferred": "Merged #2794 evidence: prepared supersession failures restore transaction/effective verification state, remove the provisional snapshot, and keep the existing canonical row instead of falling through to a legacy overwrite. The new transaction window is verified/retried after a successful replacement. Exact-head Turbo + E2E passed; the operator-gated production migration remains unapplied here."
     },
     "q32-independent-judge": {
       "ref": "apps/statenour/lib/evals/q32-regression.ts + apps/statenour/lib/ai/judge-eval.ts + apps/statenour/tests/ai/judge-eval-family.test.ts",
-      "deferred": "PR #2794 branch evidence: model-family classification distinguishes hosted model family from hosting provider and rejects unknown-family labels; optional Langfuse experiment parser repaired. Live label volume/kappa remain empirical and unclaimed."
+      "deferred": "Merged #2794 evidence: model-family classification distinguishes model family from hosting provider and rejects unknown-family labels; optional Langfuse experiment parser was repaired; exact-head Turbo + E2E passed. Live label volume, double-label kappa, and cloud dataset read-back remain empirical and unclaimed."
+    },
+    "merge-receipt": {
+      "ref": "PR #2794 / main 48ac53827eb7f4f5754ee2a41fe74789c5c36c89",
+      "deferred": "Guarded squash merge accepted only after exact head 79dbea91630f860f0a84bbd68b075df4a7697eea was green and main still matched base 223079d33407b9a6091e34a55032ea935d788e9e. This proves MERGED + unit-verified code, not deployment/live production promotion."
     }
   }
 }
