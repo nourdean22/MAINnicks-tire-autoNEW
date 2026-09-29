@@ -26,6 +26,7 @@ import {
   loadConsentLedgerSnapshot,
   type ConsentMethod,
   type ConsentScope,
+  SMS_KEYWORD_GRANT_SCOPES,
 } from "./consentLedger";
 import { desc, eq, sql, and } from "drizzle-orm";
 import { auditLog } from "../../drizzle/schema";
@@ -94,13 +95,22 @@ export async function logSmsOptIn(params: {
   context?: Record<string, unknown>;
   evidenceRef?: string;
   ledgerScope?: ConsentScope;
+  /** Several scopes from one piece of evidence; wins over `ledgerScope`. */
+  ledgerScopes?: readonly ConsentScope[];
   ledgerMethod?: ConsentMethod;
 }): Promise<void> {
   const normalized = normalizePhone(params.phone);
   if (!normalized) return;
   const ledgerMode = getConsentLedgerMode();
-  const ledgerScope =
-    params.ledgerScope ?? (params.source.startsWith("start_keyword:") ? "all" : "sms_informational");
+  // A START-family keyword restores SMS scopes only, never "all": that would
+  // also lift a voice do-not-call (design rule 4, audit-2026-09-29-F3).
+  const ledgerScopes: readonly ConsentScope[] =
+    params.ledgerScopes ??
+    (params.ledgerScope
+      ? [params.ledgerScope]
+      : params.source.startsWith("start_keyword:")
+        ? SMS_KEYWORD_GRANT_SCOPES
+        : ["sms_informational"]);
 
   // The cache means two different things across rollout modes:
   // - off: legacy audit_log opt-in evidence, where every recorded opt-in was
@@ -124,19 +134,22 @@ export async function logSmsOptIn(params: {
     },
     ipAddress: params.ipAddress,
   });
-  if (params.evidenceRef) {
-    await appendConsentEvent({
-      subjectType: "phone",
-      subjectKey: normalized,
-      scope: ledgerScope,
-      action: "grant",
-      source: params.source,
-      method: params.ledgerMethod ?? (params.source.startsWith("start_keyword:") ? "sms_reply" : "web_submit_implicit"),
-      evidenceRef: params.evidenceRef,
-      ipAddress: params.ipAddress,
-      userAgent: params.userAgent,
-      actor: `system:${params.source.slice(0, 80)}`,
-    });
+  const evidenceRef = params.evidenceRef;
+  if (evidenceRef) {
+    for (const scope of ledgerScopes) {
+      await appendConsentEvent({
+        subjectType: "phone",
+        subjectKey: normalized,
+        scope,
+        action: "grant",
+        source: params.source,
+        method: params.ledgerMethod ?? (params.source.startsWith("start_keyword:") ? "sms_reply" : "web_submit_implicit"),
+        evidenceRef,
+        ipAddress: params.ipAddress,
+        userAgent: params.userAgent,
+        actor: `system:${params.source.slice(0, 80)}`,
+      });
+    }
   }
   if (ledgerMode !== "off") {
     consentCache = null;
