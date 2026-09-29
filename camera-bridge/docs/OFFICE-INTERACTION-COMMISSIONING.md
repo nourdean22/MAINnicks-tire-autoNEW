@@ -99,6 +99,33 @@ Historical measurement on the office camera was poor: a 90 second sample returne
 37.4 seconds of transcript. The Nick's server already refuses fact extraction below 65%
 coverage. Do not weaken that gate to make the feature look live.
 
+## Secondary local wake fallback
+
+Do not make production capture depend on Eufy semantic pushes alone. If the camera is media-healthy
+but `motion` / `personDetected` events are absent, enable the local audio fallback only after the
+normal capture/policy/schedule gates are already commissioned:
+
+- `OFFICE_AUDIO_FALLBACK_ENABLED=1`
+- `OFFICE_AUDIO_PROBE_SECONDS` controls the short live level probe.
+- `OFFICE_AUDIO_PROBE_INTERVAL_SECONDS` controls probe cadence.
+- `OFFICE_AUDIO_ACTIVITY_MEAN_DB` is the sustained mean dBFS threshold.
+- `OFFICE_AUDIO_ACTIVITY_MAX_DB` is the peak dBFS threshold.
+- `OFFICE_AUDIO_FALLBACK_COOLDOWN_SECONDS` prevents repeated fallback captures and starts after a fallback-triggered capture finishes.
+
+Probe audio is not written to disk. A fallback wake requires both the mean and peak thresholds, so a
+single door slam / ring / impact is less likely to start a recording. A threshold crossing only creates
+an `audioActivity` wake; the existing bounded capture, local Whisper, transcript-coverage, retention,
+and ingest gates still decide whether an episode is usable. Vendor motion/person events remain
+preferred and can still wake the worker independently.
+
+The installer fails closed unless `-AcknowledgeRecordingPolicy` is supplied. That switch is an
+operator assertion that the applicable notice/consent and counsel review is complete; the installer
+must never create that approval for the operator. Issue #2628 still records that policy review as open,
+so production fallback activation remains blocked even though the technical path is dry-run proven.
+
+A real NicksMax dry-run on 2026-09-29 proved the technical path with transcript coverage of 0.991 and
+1.000. Those canaries are technical evidence only and are not a production-authorization receipt.
+
 ## Rung 4 — live conversation posting
 
 Only after the dry run is intelligible and policy gates are satisfied:

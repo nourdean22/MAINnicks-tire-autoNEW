@@ -102,6 +102,12 @@ class OfficeWakeConfig:
     retention_max_mb: float = 256.0
     min_free_mb: float = 512.0
     capture_host: str = ""
+    audio_fallback_enabled: bool = False
+    audio_probe_seconds: float = 5.0
+    audio_probe_interval_seconds: float = 15.0
+    audio_activity_mean_db: float = -50.0
+    audio_activity_max_db: float = -34.0
+    audio_fallback_cooldown_seconds: float = 180.0
 
     def startup_blockers(self) -> list[str]:
         blockers: list[str] = []
@@ -325,6 +331,12 @@ def trigger_from_event(event: dict[str, Any], *, at: float) -> Optional[Trigger]
     return Trigger(received_at=float(at), event=name, device_sn=serial)
 
 
+def trigger_enabled(config: OfficeWakeConfig, event_name: str) -> bool:
+    return event_name in config.event_names or (
+        event_name == "audioActivity" and config.audio_fallback_enabled
+    )
+
+
 def decide_event(
     config: OfficeWakeConfig,
     event: dict[str, Any],
@@ -336,7 +348,7 @@ def decide_event(
         return WakeDecision("drop", "missing event/deviceSn", "", "", float(at))
     if trigger.device_sn != config.office_serial:
         return WakeDecision("drop", "different camera", trigger.event, trigger.device_sn, trigger.received_at)
-    if trigger.event not in config.event_names:
+    if not trigger_enabled(config, trigger.event):
         return WakeDecision("drop", "event not enabled", trigger.event, trigger.device_sn, trigger.received_at)
     if not event_is_positive(event):
         return WakeDecision("drop", "clear/inactive transition", trigger.event, trigger.device_sn, trigger.received_at)
@@ -573,6 +585,7 @@ class OfficeWakeDaemon:
         self.runner = runner or run_capture_once
         self.queue: asyncio.Queue[Trigger] = asyncio.Queue(maxsize=1)
         self.last_capture_started_at: Optional[float] = None
+        self.last_audio_fallback_finished_at: Optional[float] = None
         self.runtime = runtime or RuntimeReceipt(config, clock=clock)
         self.runtime_state = "STARTING"
         self.bridge_connected = False
@@ -586,7 +599,7 @@ class OfficeWakeDaemon:
             return decision
         if (
             trigger.device_sn == self.config.office_serial
-            and trigger.event in self.config.event_names
+            and trigger_enabled(self.config, trigger.event)
             and event_is_positive(event)
         ):
             self.runtime.update(
@@ -680,6 +693,8 @@ class OfficeWakeDaemon:
                 self.ledger.note("capture_finished", asdict(result))
 
                 finished_at = self.clock()
+                if trigger.event == "audioActivity":
+                    self.last_audio_fallback_finished_at = finished_at
                 measured_coverages = [
                     float(value) for value in (result.coverages or []) if value is not None
                 ]
@@ -716,6 +731,136 @@ class OfficeWakeDaemon:
                     )
             finally:
                 self.queue.task_done()
+
+
+def audio_activity_detected(
+    mean_db: Optional[float],
+    max_db: Optional[float],
+    *,
+    mean_threshold_db: float,
+    max_threshold_db: float,
+) -> bool:
+    return (
+        mean_db is not None
+        and max_db is not None
+        and float(mean_db) >= float(mean_threshold_db)
+        and float(max_db) >= float(max_threshold_db)
+    )
+
+
+def audio_fallback_in_cooldown(
+    last_finished_at: Optional[float],
+    *,
+    now: float,
+    cooldown_seconds: float,
+) -> bool:
+    return (
+        last_finished_at is not None
+        and float(now) - float(last_finished_at) < max(0.0, float(cooldown_seconds))
+    )
+
+
+async def audio_fallback_worker(
+    daemon: OfficeWakeDaemon,
+    *,
+    probe_fn: Optional[Callable[..., tuple[Optional[float], Optional[float]]]] = None,
+) -> None:
+    """Wake capture from brief local audio-energy probes when Eufy semantic pushes are absent."""
+    if not daemon.config.audio_fallback_enabled:
+        return
+    from . import officeaudio
+
+    probe_fn = probe_fn or officeaudio.probe_level
+    interval = max(2.0, float(daemon.config.audio_probe_interval_seconds))
+    while True:
+        now = daemon.clock()
+        eligible = (
+            daemon.config.capture_mode
+            and daemon.config.capture_enabled
+            and daemon.config.policy_acknowledged
+            and schedule_allows(
+                daemon.config.schedule,
+                at=now,
+                timezone_name=daemon.config.timezone_name,
+            )
+        )
+        if not eligible:
+            daemon.runtime.update(conversationFallbackState="IDLE")
+            await asyncio.sleep(interval)
+            continue
+
+        if daemon.runtime_state == "CAPTURING" or not daemon.queue.empty():
+            await asyncio.sleep(interval)
+            continue
+
+        if audio_fallback_in_cooldown(
+            daemon.last_audio_fallback_finished_at,
+            now=now,
+            cooldown_seconds=daemon.config.audio_fallback_cooldown_seconds,
+        ):
+            daemon.runtime.update(conversationFallbackState="COOLDOWN")
+            await asyncio.sleep(interval)
+            continue
+
+        if (
+            daemon.last_capture_started_at is not None
+            and now - daemon.last_capture_started_at < daemon.config.cooldown_seconds
+        ):
+            await asyncio.sleep(interval)
+            continue
+
+        try:
+            mean_db, max_db = await asyncio.to_thread(
+                probe_fn,
+                daemon.config.source_url,
+                daemon.config.audio_probe_seconds,
+                binary=os.environ.get("FFMPEG_BIN") or None,
+                input_format=daemon.config.input_format,
+            )
+        except Exception as exc:  # noqa: BLE001
+            detail = f"{type(exc).__name__}: {exc}"[:500]
+            daemon.ledger.note("audio_fallback_error", {"error": detail})
+            daemon.runtime.update(
+                conversationFallbackOk=False,
+                conversationFallbackState="DEGRADED",
+                conversationFallbackLastError=detail,
+                conversationFallbackLastProbeAt=_iso_utc(now),
+            )
+            await asyncio.sleep(interval)
+            continue
+
+        active = audio_activity_detected(
+            mean_db,
+            max_db,
+            mean_threshold_db=daemon.config.audio_activity_mean_db,
+            max_threshold_db=daemon.config.audio_activity_max_db,
+        )
+        daemon.runtime.update(
+            conversationFallbackOk=True,
+            conversationFallbackState="ACTIVE" if active else "QUIET",
+            conversationFallbackLastError=None,
+            conversationFallbackLastProbeAt=_iso_utc(now),
+            conversationFallbackMeanDb=mean_db,
+            conversationFallbackMaxDb=max_db,
+        )
+        if active:
+            daemon.ledger.note(
+                "audio_fallback_wake",
+                {
+                    "meanDb": mean_db,
+                    "maxDb": max_db,
+                    "meanThresholdDb": daemon.config.audio_activity_mean_db,
+                    "maxThresholdDb": daemon.config.audio_activity_max_db,
+                },
+            )
+            await daemon.offer(
+                {
+                    "event": "audioActivity",
+                    "deviceSn": daemon.config.office_serial,
+                    "detected": True,
+                }
+            )
+        await asyncio.sleep(interval)
 
 
 async def retention_worker(
@@ -788,6 +933,7 @@ async def listen_forever(
         retention_worker(daemon.config, daemon.ledger, daemon.runtime)
     )
     status_task = asyncio.create_task(runtime_status_worker(daemon))
+    fallback_task = asyncio.create_task(audio_fallback_worker(daemon))
     seen = 0
     delay = 2.0
     try:
@@ -856,9 +1002,9 @@ async def listen_forever(
                 await asyncio.sleep(delay)
                 delay = min(60.0, delay * 2)
     finally:
-        for task in (worker_task, retention_task, status_task):
+        for task in (worker_task, retention_task, status_task, fallback_task):
             task.cancel()
-        for task in (worker_task, retention_task, status_task):
+        for task in (worker_task, retention_task, status_task, fallback_task):
             try:
                 await task
             except asyncio.CancelledError:
@@ -907,6 +1053,12 @@ def config_from_args(args: argparse.Namespace) -> OfficeWakeConfig:
         retention_max_mb=max(1.0, float(args.retention_max_mb)),
         min_free_mb=max(0.0, float(args.min_free_mb)),
         capture_host=str(args.capture_host or os.environ.get("COMPUTERNAME", "")).strip(),
+        audio_fallback_enabled=bool(args.audio_fallback),
+        audio_probe_seconds=max(0.5, float(args.audio_probe_seconds)),
+        audio_probe_interval_seconds=max(2.0, float(args.audio_probe_interval_seconds)),
+        audio_activity_mean_db=float(args.audio_activity_mean_db),
+        audio_activity_max_db=float(args.audio_activity_max_db),
+        audio_fallback_cooldown_seconds=max(0.0, float(args.audio_fallback_cooldown_seconds)),
     )
 
 
@@ -952,6 +1104,17 @@ def main(argv: Optional[list[str]] = None) -> int:
         default=os.environ.get("OFFICE_ACTIVE_SCHEDULE_JSON", ""),
     )
     parser.add_argument("--cooldown-seconds", type=float, default=float(os.environ.get("OFFICE_CAPTURE_COOLDOWN_SECONDS", "30")))
+    parser.add_argument(
+        "--audio-fallback",
+        action="store_true",
+        default=_env_true("OFFICE_AUDIO_FALLBACK_ENABLED"),
+        help="wake from brief local audio-energy probes when semantic camera pushes are absent",
+    )
+    parser.add_argument("--audio-probe-seconds", type=float, default=float(os.environ.get("OFFICE_AUDIO_PROBE_SECONDS", "5")))
+    parser.add_argument("--audio-probe-interval-seconds", type=float, default=float(os.environ.get("OFFICE_AUDIO_PROBE_INTERVAL_SECONDS", "15")))
+    parser.add_argument("--audio-activity-mean-db", type=float, default=float(os.environ.get("OFFICE_AUDIO_ACTIVITY_MEAN_DB", "-50")))
+    parser.add_argument("--audio-activity-max-db", type=float, default=float(os.environ.get("OFFICE_AUDIO_ACTIVITY_MAX_DB", "-34")))
+    parser.add_argument("--audio-fallback-cooldown-seconds", type=float, default=float(os.environ.get("OFFICE_AUDIO_FALLBACK_COOLDOWN_SECONDS", "180")))
     parser.add_argument("--retention-hours", type=float, default=float(os.environ.get("OFFICE_RAW_AUDIO_RETENTION_HOURS", "6")))
     parser.add_argument("--retention-max-mb", type=float, default=float(os.environ.get("OFFICE_RAW_AUDIO_MAX_MB", "256")))
     parser.add_argument("--min-free-mb", type=float, default=float(os.environ.get("OFFICE_MIN_FREE_MB", "768")))
