@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const { executeRawUnsafe, queryRawUnsafe } = vi.hoisted(() => ({
@@ -188,5 +188,39 @@ describe("POST /api/system/apply-pending-migration · registry copy matches the 
       "reality_events_correlation_id_idx",
       "reality_events_causation_id_idx",
     ]);
+  });
+
+  /**
+   * The rule behind the case above. #2784's gap was not one file: it parked a
+   * migration with no way to apply it, so production stayed broken until a
+   * second PR registered it. Every migration parked in migrations-pending is one
+   * request away, and runs exactly its reviewed statements. One the endpoint must
+   * never run (the registry-safety test forbids DELETE, TRUNCATE and DROP) goes
+   * in OPERATOR_ONLY with its reason.
+   */
+  it("every migration parked in migrations-pending is registered, statement for statement", async () => {
+    const OPERATOR_ONLY = new Map<string, string>();
+    const pendingDir = fileURLToPath(new URL("../../prisma/migrations-pending/", import.meta.url));
+    const parked = readdirSync(pendingDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !OPERATOR_ONLY.has(entry.name))
+      .map((entry) => entry.name);
+
+    const problems: string[] = [];
+    for (const name of parked) {
+      executeRawUnsafe.mockClear();
+      const res = await post({ name });
+      if (res.status === 400) {
+        problems.push(`${name}: parked but not registered in apply-pending-migration`);
+        continue;
+      }
+      const executed = executeRawUnsafe.mock.calls.map((call) =>
+        String(call[0]).replace(/;\s*$/, "").replace(/\s+/g, " ").trim(),
+      );
+      const expected = statementsOf(readFileSync(`${pendingDir}${name}/migration.sql`, "utf8"));
+      if (JSON.stringify(executed) !== JSON.stringify(expected)) {
+        problems.push(`${name}: registered statements differ from its migration.sql`);
+      }
+    }
+    expect(problems).toEqual([]);
   });
 });
