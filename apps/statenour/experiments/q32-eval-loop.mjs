@@ -92,13 +92,13 @@ const q32PpiLower = async ({ itemResults }) => {
     throw new Error("Q32_UNMEASURED: no cross-family prediction deltas");
   }
   if (labeled.length < 30) {
-    throw new Error(\`Q32_UNMEASURED: \${labeled.length}/30 human-labeled paired items\`);
+    throw new Error(`Q32_UNMEASURED: ${labeled.length}/30 human-labeled paired items`);
   }
 
   const judgeKappa = kappa(calibrationRows);
   if (judgeKappa == null || judgeKappa < 0.6) {
     throw new Error(
-      \`Q32_UNTRUSTED_JUDGE: kappa=\${judgeKappa ?? "null"} on n=\${calibrationRows.length}\`,
+      `Q32_UNTRUSTED_JUDGE: kappa=${judgeKappa ?? "null"} on n=${calibrationRows.length}`,
     );
   }
 
@@ -114,9 +114,9 @@ const q32PpiLower = async ({ itemResults }) => {
     name: "q32_ppi_lower",
     value: lower,
     comment:
-      \`estimate=\${estimate.toFixed(4)} lower=\${lower.toFixed(4)} \` +
-      \`predicted_n=\${predictionDeltas.length} human_n=\${labeled.length} \` +
-      \`kappa=\${judgeKappa.toFixed(3)} calibration_n=\${calibrationRows.length}\`,
+      `estimate=${estimate.toFixed(4)} lower=${lower.toFixed(4)} ` +
+      `predicted_n=${predictionDeltas.length} human_n=${labeled.length} ` +
+      `kappa=${judgeKappa.toFixed(3)} calibration_n=${calibrationRows.length}`,
   };
 };
 
