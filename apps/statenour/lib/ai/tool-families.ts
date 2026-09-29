@@ -76,8 +76,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   getAgendaItems: { family: "personal-read", description: "Active agenda items — witnessed commitments, intentions, contradictions, neglect alerts (JIT complement to the gated inline agenda section)", cost: "cheap" },
   getTasks: { family: "personal-read", description: "INBOX/READY/DOING tasks with mission context", cost: "cheap" },
   getMissions: { family: "personal-read", description: "ACTIVE missions sorted by priority", cost: "cheap" },
-  getExternalWorkerJob: { family: "personal-read", description: "Read one queued external-worker job with durable status, bounded result, errors, and Reality Ledger receipts", cost: "cheap" },
-  getExternalWorkerLanes: { family: "personal-read", description: "Read external-worker lane health, freshness, quota, auth class, and cost class without executing a worker", cost: "cheap" },
   getMissionDetail: { family: "personal-read", description: "One mission with task progress, next actions, deadline health", cost: "cheap" },
   getMissionRetros: { family: "personal-read", description: "Recent mission retrospectives (lessons at close-out)", cost: "cheap" },
   getHabitStreaks: { family: "personal-read", description: "Habit completion summary (last 7 days)", cost: "cheap" },
@@ -125,7 +123,6 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   clearMit: { family: "personal-write", description: "Clear MIT slot", cost: "cheap" },
   createMissionPlan: { family: "personal-write", description: "Create a full mission plan with tasks", cost: "medium" },
   queueMissionExecution: { family: "personal-write", description: "Queue bounded durable background execution for an active mission", cost: "medium" },
-  queueExternalWorkerJob: { family: "personal-write", description: "Queue a bounded job onto the durable external-worker plane with explicit routing and write controls", cost: "medium" },
   captureSkillFromSource: { family: "personal-write", description: "Capture a protocol from a book/article/photo as a pending candidate skill", cost: "cheap" },
   updateMissionStatus: { family: "personal-write", description: "Change a mission's lifecycle status (pause/complete/kill/reactivate)", cost: "cheap" },
   scheduleFollowUp: { family: "personal-write", description: "Schedule a follow-up reminder", cost: "cheap" },
@@ -236,6 +233,9 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   runDeviceCommand: { family: "device", description: "Dispatch a device command (Ring/Eufy/Tuya)", cost: "cheap" },
 
   // ── Meta (system introspection) ──
+  getExternalWorkerLanes: { family: "meta", description: "Read live NOUR external-worker lanes with auth, health, quota, capabilities, and cost class", cost: "cheap", tags: ["worker", "routing"] },
+  getExternalWorkerJob: { family: "meta", description: "Read durable status, result/error state, and Reality Ledger receipts for one external-worker job", cost: "cheap", tags: ["worker", "receipts"] },
+  queueExternalWorkerJob: { family: "meta", description: "Queue a bounded external-worker job through NOUR's governed durable worker plane", cost: "medium", tags: ["worker", "routing", "durable"] },
   listTools: { family: "meta", description: "List available tools (self-reflection)", cost: "cheap" },
   toolHealth: { family: "meta", description: "Check tool health / recent failures", cost: "cheap" },
   getCronStatus: { family: "meta", description: "Query cron fire/fail status", cost: "cheap" },
