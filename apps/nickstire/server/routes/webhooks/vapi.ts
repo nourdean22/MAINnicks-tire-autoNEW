@@ -254,7 +254,7 @@ interface VapiToolCall {
   function: { name: string; arguments: string | Record<string, unknown> };
 }
 
-async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, customerNumber?: string): Promise<{
+async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, customerNumber?: string, callType?: string): Promise<{
   toolCallId: string;
   result: string;
 }> {
@@ -287,15 +287,20 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string, custom
   log.info("Vapi tool call", { ...toolCallLogFields(call.function.name, args) });
 
   // Q-45 · handled before the voiceAgent router: it needs the DIALLED number,
-  // which only this layer has. Vapi speaks the tool's own request-complete
-  // message and hangs up, so the result text is for the transcript only.
+  // which only this layer has. Outbound, Vapi speaks the tool's own
+  // request-complete message and hangs up (64.1200(b)(3)), so the result text
+  // is for the transcript only. Inbound (audit-2026-09-29 F4b) the
+  // receptionist's copy, INBOUND_DO_NOT_CALL_TOOL, has no such message: the
+  // person rang US and may still want a booking, so `endCall: false` tells the
+  // model to confirm and keep helping.
   if (call.function.name === DO_NOT_CALL_TOOL_NAME) {
+    const endCall = callType === "outboundPhoneCall";
     const r = await recordDoNotCallRequest(customerNumber, "tool", phoneCallId, "voice");
     const result = r.recorded
-      ? { ok: true, endCall: true }
+      ? { ok: true, endCall }
       : r.reason === "persistence"
-        ? { ok: false, endCall: true, retryable: true }
-        : { ok: false, endCall: true };
+        ? { ok: false, endCall, retryable: true }
+        : { ok: false, endCall };
     return { toolCallId: call.id, result: JSON.stringify(result) };
   }
 
@@ -459,20 +464,30 @@ type VapiWebhookMessage = {
  * Compliance-critical subset of end-of-call handling. This runs BEFORE the
  * webhook 200 so Vapi can retry if a transcript-only do-not-call request
  * cannot be made durable. Noncritical analytics remain detached below.
+ *
+ * BOTH directions (audit-2026-09-29 F4b). A customer who calls the shop, or
+ * calls back after an automated call, and says "take me off your list" has
+ * revoked consent to every outbound voice lane — 47 CFR 64.1200(a)(10) accepts
+ * "any reasonable method", and (d)(3) says to record it "at the time the
+ * request is made". This used to return early unless call.type was
+ * "outboundPhoneCall", so an inbound request was never recorded.
  */
 async function persistTranscriptDoNotCallBeforeAck(event: VapiWebhookMessage): Promise<void> {
   const call = event.call as { id?: string; type?: string; customer?: { number?: string } } | undefined;
-  if (call?.type !== "outboundPhoneCall") return;
 
-  const utterance = customerUtterances(event as never).find(isSpokenOptOut);
-  if (!utterance) return;
+  const requests = customerUtterances(event as never).filter(isSpokenOptOut);
+  if (requests.length === 0) return;
+  // The broadest request across the whole call: a later "stop texting" widens
+  // an earlier "stop calling" (main read only the first matching line).
+  const scope: SpokenOptOutScope = requests.some((u) => spokenOptOutScope(u) === "all") ? "all" : "voice";
 
-  const scope = spokenOptOutScope(utterance);
-  if (!scope) return;
-
-  const r = await recordDoNotCallRequest(call.customer?.number, "transcript", call.id, scope);
-  if (!r.persisted) {
-    throw new Error(`do-not-call persistence failed (${r.reason ?? "unknown"})`);
+  const r = await recordDoNotCallRequest(call?.customer?.number, "transcript", call?.id, scope);
+  // Only a failed WRITE is retryable. No usable number (a blocked caller ID, a
+  // web call) cannot be fixed by a Vapi retry — a 503 there would only hold
+  // back this call's log row forever; recordDoNotCallRequest already logged
+  // VAPI_DNC_NO_NUMBER.
+  if (!r.persisted && r.reason === "persistence") {
+    throw new Error("do-not-call persistence failed (persistence)");
   }
 }
 
@@ -1051,7 +1066,8 @@ router.post("/vapi", async (req: Request, res: Response) => {
         // outcomes so the webhook always 200s with a per-tool result.
         const calls = event.toolCalls || [];
         const dialled = (event.call as { customer?: { number?: string } } | undefined)?.customer?.number;
-        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled)));
+        const callType = (event.call as { type?: string } | undefined)?.type;
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id, dialled, callType)));
         const results = settled.map((s, i) => {
           if (s.status === "fulfilled") return s.value;
           const err = s.reason instanceof Error ? s.reason.message : String(s.reason);

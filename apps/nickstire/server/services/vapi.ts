@@ -308,6 +308,7 @@ NEVER SAY (kill-list — sounds fake or loses the sale):
 · escalate({ name, phone, reason, urgency }) — callback to the shop queue AND the promise ledger: the ONLY way a callback you promise is tracked. Use when CLOSED and the caller wanted a human, or in CALLBACK CAPTURE (a transfer didn't connect / the caller won't hold). When OPEN and they'll hold, transfer instead. Not for ordinary tire questions or bookings. Never tell a caller a callback is coming without it.
 · sendConfirmationSms({ phone, summary }) — recap text before goodbye if you got a phone. Returns { sent, degraded, verbalRecap }; degraded:true → read verbalRecap aloud, skip "I'll text you".
 · shopInfo() — hours, address, financing, languages. For "what time do you close" / "where are you".
+· ${DO_NOT_CALL_TOOL_NAME}() — the caller asks us not to call them ("stop calling me", "take me off your list", "don't call me", "lose my number"). Call it right away, no questions. ok:true → say "Done — we won't call you again." ok:false → say "Got it, I've noted that." Either way it does not hang up: keep helping with anything else they called about.
 
 # CONVERSATION FLOWS
 
@@ -1023,7 +1024,7 @@ function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
       provider: "openai",
       model: "gpt-4o", // Smarter on tool calls + size matching than -mini
       messages: [{ role: "system", content: ASSISTANT_SYSTEM_PROMPT }],
-      tools: VAPI_TOOLS,
+      tools: [...VAPI_TOOLS, INBOUND_DO_NOT_CALL_TOOL],
       temperature: 0.4, // Lower than default 0.7 → more deterministic
       maxTokens: 250, // Force concise responses (phone calls = short)
       emotionRecognitionEnabled: true, // Detect sentiment for escalation
@@ -1818,7 +1819,8 @@ function followUpToolSet(): VapiToolDef[] {
  * `endCallAfterSpokenEnabled` hangs up after it, so ending the call does not
  * depend on the model. `request-failed` (our webhook unreachable) still ends
  * the call; the end-of-call transcript check records the opt-out then.
- * Outbound-only: the inbound receptionist never gets it.
+ * The inbound receptionist gets INBOUND_DO_NOT_CALL_TOOL instead: same name,
+ * same handler, but it does not hang up on someone who rang us.
  */
 const DO_NOT_CALL_TOOL: VapiFunctionToolDef = {
   type: "function",
@@ -1843,6 +1845,26 @@ const DO_NOT_CALL_TOOL: VapiFunctionToolDef = {
       endCallAfterSpokenEnabled: true,
     },
   ],
+};
+
+/**
+ * audit-2026-09-29 F4b · the inbound receptionist's do-not-call tool. A caller
+ * who rings the shop (often calling back after one of our automated calls) and
+ * says "stop calling me" has revoked consent to every outbound voice lane —
+ * 64.1200(a)(10), "any reasonable method". Same name, so the same webhook
+ * handler records the number VAPI saw (never one the model supplies). No
+ * `messages`: the call is theirs and may still be a booking, so nothing hangs
+ * up — the result ({ ok, endCall: false }) tells the model to confirm and carry
+ * on. The end-of-call transcript check is the safety net in both directions.
+ */
+const INBOUND_DO_NOT_CALL_TOOL: VapiFunctionToolDef = {
+  type: "function",
+  function: {
+    name: DO_NOT_CALL_TOOL_NAME,
+    description:
+      "The caller asked us not to call them (\"stop calling me\", \"take me off your list\", \"don't call me\", \"lose my number\"). Records their number to the shop's do-not-call list. No arguments. Does NOT end the call: confirm in one short sentence and keep helping with anything else they called about.",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
 };
 
 const END_ON_VOICEMAIL_TOOL: VapiVoicemailToolDef = {
