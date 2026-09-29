@@ -433,7 +433,7 @@ export async function updateReferralStatus(id: number, status: "pending" | "visi
 // DrizzleQueryError wrapper to the driver error on `.cause`. One definition
 // lives in lib/dbErrors.ts; it is re-exported here for this file's callers and
 // tests.
-import { isMissingTableError, isUnknownColumnError } from "./lib/dbErrors";
+import { describeDbError, isMissingTableError, isUnknownColumnError } from "./lib/dbErrors";
 export { isMissingTableError, isUnknownColumnError };
 
 export async function createTechnicianReferral(referral: InsertTechnicianReferral) {
@@ -1455,6 +1455,8 @@ export async function decideInspectionItem(params: {
   itemId: number;
   decision: "approved" | "declined" | "question";
   note?: string | null;
+  /** The price the customer's page showed next to the item, in whole dollars. */
+  shownCost?: number | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const db = await getDb();
   if (!db) return { ok: false, error: "DB unavailable" };
@@ -1474,11 +1476,16 @@ export async function decideInspectionItem(params: {
       : result) as { affectedRows?: number };
     if ((raw.affectedRows ?? 0) === 0) return { ok: false, error: "item not found for this report" };
 
+    // Q-46 (2026-09-29): the UPDATE above overwrites the previous answer and
+    // records no amount, while estimatedCost stays editable afterwards. One
+    // append-only receipt per decision keeps who, when and how much.
+    await recordInspectionDecisionReceipt(db, params);
+
     // 2026-09-01 (audit F-23): the customer's answer was written and nobody
     // was told — the advisor learned of an approval only by re-opening the
     // report. Notify the admin shell (SSE) and the owner channel (Telegram).
     // Fire-and-forget: a notification miss must never undo a recorded decision.
-    void notifyInspectionDecision(db, params.itemId, params.decision, params.note ?? null).catch((err) => {
+    void notifyInspectionDecision(db, params.itemId, params.decision, params.note ?? null, params.shownCost ?? null).catch((err) => {
       log.warn("[inspection] decision notification failed (decision is saved)", {
         itemId: params.itemId,
         err: err instanceof Error ? err.message : String(err),
@@ -1490,11 +1497,77 @@ export async function decideInspectionItem(params: {
   }
 }
 
+/**
+ * One audit_log row per customer decision on an inspection item (Q-46). The
+ * item row keeps only the latest answer; this keeps every answer, the amount
+ * stored when it was given (whole dollars, as InspectionCapturePanel enters
+ * it) and the amount the customer's page showed. Never throws: a receipt
+ * failure is logged and the decision stands.
+ */
+async function recordInspectionDecisionReceipt(
+  db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
+  params: {
+    itemId: number;
+    decision: "approved" | "declined" | "question";
+    note?: string | null;
+    shownCost?: number | null;
+  },
+): Promise<void> {
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT v.id AS inspectionId, i.component, i.recommendedAction, i.estimatedCost,
+             UNIX_TIMESTAMP(i.decisionAt) AS decidedAtEpoch
+      FROM inspection_items i
+      INNER JOIN vehicle_inspections v ON v.id = i.inspectionId
+      WHERE i.id = ${params.itemId}
+      LIMIT 1
+    `);
+    const row = (Array.isArray(rows) ? rows[0] : undefined) as
+      | { inspectionId: number; component: string | null; recommendedAction: string | null; estimatedCost: number | null; decidedAtEpoch: unknown }
+      | undefined;
+    const amount = row?.estimatedCost ?? null;
+    // The page shows no price for a 0 or missing estimate, so 0 is "no price shown".
+    const shown = params.shownCost != null && params.shownCost > 0 ? params.shownCost : null;
+    // A number, not a date string: the ledger's free-text scrubber reads
+    // "2026-09-29 17:30:00" as a phone number and masks it.
+    const epochSeconds = Number(row?.decidedAtEpoch);
+    const decidedAtEpochMs = Number.isFinite(epochSeconds) && epochSeconds > 0 ? epochSeconds * 1000 : Date.now();
+    const { recordActivity } = await import("./services/activityLedger");
+    await recordActivity({
+      action: "inspection.item_decided",
+      entityType: "inspection_item",
+      entityId: params.itemId,
+      actor: { actor: `inspection-link:${row?.inspectionId ?? "unknown"}`, actorType: "public" },
+      after: {
+        inspectionId: row?.inspectionId ?? null,
+        component: row?.component ?? null,
+        recommendedAction: row?.recommendedAction ?? null,
+        decision: params.decision,
+        channel: "inspection_link",
+        amountDollars: amount,
+        amountShownDollars: shown,
+        // null = unknown (the page sent no price), never a silent "matches".
+        amountMatchesShown: amount != null && shown != null ? amount === shown : null,
+        customerNote: params.note ? params.note.slice(0, 500) : null,
+        decidedAtEpochMs,
+      },
+      details: `customer ${params.decision} inspection item ${params.itemId} via share link` +
+        (amount != null ? ` at $${amount}` : ""),
+    });
+  } catch (err) {
+    log.error("[inspection] decision receipt failed (decision is saved)", {
+      itemId: params.itemId,
+      err: describeDbError(err),
+    });
+  }
+}
+
 async function notifyInspectionDecision(
   db: NonNullable<Awaited<ReturnType<typeof getDb>>>,
   itemId: number,
   decision: "approved" | "declined" | "question",
   note: string | null,
+  shownCost: number | null = null,
 ): Promise<void> {
   const [ctxRows] = await db.execute(sql`
     SELECT v.id AS inspectionId, v.customerName, v.vehicleInfo, i.component, i.recommendedAction, i.estimatedCost
@@ -1521,12 +1594,22 @@ async function notifyInspectionDecision(
   });
 
   const label = decision === "approved" ? "APPROVED" : decision === "declined" ? "declined" : "has a QUESTION about";
-  const cost = row.estimatedCost != null ? ` (~$${Math.round(row.estimatedCost / 100)})` : "";
+  // estimatedCost is whole dollars (the admin types "Est. $", the customer
+  // page renders it unscaled). It was divided by 100 here, so a $450 approval
+  // reached the owner as "~$5".
+  const cost = row.estimatedCost != null ? ` (~$${row.estimatedCost})` : "";
+  // The shop can edit the estimate after the page loads; say so when the
+  // customer answered a different price than the row now holds.
+  const priceChanged = decision === "approved" && shownCost != null && shownCost > 0 &&
+    row.estimatedCost != null && shownCost !== row.estimatedCost
+    ? `\n⚠️ Their page showed ~$${shownCost}; the estimate now reads ~$${row.estimatedCost}. Confirm the price with them.`
+    : "";
   const { sendTelegram } = await import("./services/telegram");
   await sendTelegram(
     `🔧 DVI decision: ${row.customerName ?? "Customer"} ${label} "${row.component ?? "item"}"${cost}` +
     (row.vehicleInfo ? ` · ${row.vehicleInfo}` : "") +
     (note ? `\nNote: ${note.slice(0, 200)}` : "") +
+    priceChanged +
     `\nInspection #${row.inspectionId} · open the admin → Customers`,
   );
 }

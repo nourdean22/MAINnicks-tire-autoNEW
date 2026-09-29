@@ -64,8 +64,11 @@ export default function InspectionReport() {
   const [noteFor, setNoteFor] = useState<number | null>(null);
   const [noteText, setNoteText] = useState("");
 
-  const decide = (itemId: number, decision: "approved" | "declined" | "question", note?: string) => {
-    decideItem.mutate({ token, itemId, decision, note: note || undefined });
+  // shownCost: the price this page displayed, so the receipt can say what the
+  // customer said yes to even if the shop edits the estimate later (Q-46).
+  const decide = (item: { id: number; estimatedCost?: number | null }, decision: "approved" | "declined" | "question", note?: string) => {
+    const shownCost = typeof item.estimatedCost === "number" && item.estimatedCost > 0 && item.estimatedCost <= 1_000_000 ? Math.round(item.estimatedCost) : undefined;
+    decideItem.mutate({ token, itemId: item.id, decision, note: note || undefined, shownCost });
     setNoteFor(null);
     setNoteText("");
   };
@@ -266,7 +269,7 @@ export default function InspectionReport() {
                           </span>
                         )}
                         <button
-                          onClick={() => decide(item.id, item.decision === "approved" ? "declined" : "approved")}
+                          onClick={() => decide(item, item.decision === "approved" ? "declined" : "approved")}
                           className="text-[12px] text-foreground/40 underline hover:text-foreground/70"
                           disabled={decideItem.isPending}
                         >
@@ -285,14 +288,14 @@ export default function InspectionReport() {
                         />
                         <div className="flex gap-2">
                           <button
-                            onClick={() => decide(item.id, "question", noteText)}
+                            onClick={() => decide(item, "question", noteText)}
                             disabled={decideItem.isPending}
                             className="text-[12px] font-bold px-3 py-2 rounded bg-primary/20 text-primary border border-primary/30"
                           >
                             Send question
                           </button>
                           <button
-                            onClick={() => decide(item.id, "declined", noteText)}
+                            onClick={() => decide(item, "declined", noteText)}
                             disabled={decideItem.isPending}
                             className="text-[12px] font-bold px-3 py-2 rounded border border-border/40 text-foreground/60"
                           >
@@ -306,7 +309,7 @@ export default function InspectionReport() {
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         <button
-                          onClick={() => decide(item.id, "approved")}
+                          onClick={() => decide(item, "approved")}
                           disabled={decideItem.isPending}
                           className="text-[13px] font-bold px-4 py-2.5 rounded-md bg-nick-teal/15 text-nick-teal border border-nick-teal/30 active:scale-95"
                         >

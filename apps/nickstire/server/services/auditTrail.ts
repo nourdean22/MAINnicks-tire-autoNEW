@@ -104,7 +104,11 @@ export type AuditAction =
   // the only difference that matters when a referrer contests a lost $300.
   | "technician_referral.forfeited"
   // 2026-09-09 · candidate applications (server/routers/candidates.ts)
-  | "candidate.status_changed";
+  | "candidate.status_changed"
+  // 2026-09-29 · Q-46: a customer's approve / decline / question on an
+  // inspection item via the share link, with the amount (db.ts
+  // decideInspectionItem). One row per decision; the item keeps only the latest.
+  | "inspection.item_decided";
 
 // ─── Log an admin action ────────────────────────────
 export async function logAdminAction(data: {

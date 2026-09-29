@@ -347,6 +347,8 @@ export const inspectionRouter = router({
       itemId: z.number().int().positive(),
       decision: z.enum(["approved", "declined", "question"]),
       note: z.string().max(500).optional(),
+      /** Whole dollars the page showed for this item; recorded, never trusted as the price. */
+      shownCost: z.number().int().min(0).max(1_000_000).optional(),
     }))
     .mutation(async ({ input }) =>
       decideInspectionItem({
@@ -354,6 +356,7 @@ export const inspectionRouter = router({
         itemId: input.itemId,
         decision: input.decision,
         note: input.note ?? null,
+        shownCost: input.shownCost ?? null,
       }),
     ),
   list: dbAdminProcedure.query(async () => {
