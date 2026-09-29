@@ -1222,3 +1222,9 @@ observations `<functionId>:<span>` and `/api/public/v2/observations` is a thin p
 - Q-32: experiment parser repaired; unknown model families are now rejected for independent judging; Venice/Ollama/custom hosts are not model families. The pinned Langfuse action owns its SDK install, so no extra app dependency was added.
 - Q-31: transaction-column probing is single-owner in `memory-bitemporal.ts`. Failed prepared supersessions restore transaction + effective verification state, delete the provisional snapshot, and do not silently fall through to a legacy history-destroying overwrite.
 - These are still branch truths until PR #2794 is exact-head green and merged. Production migration/application and empirical Q-32 acceptance remain separate.
+
+## 2026-09-29 · #2794 merged — resilience/Q-31/Q-32 closeout
+- **MERGED + UNIT-VERIFIED:** #2794 final head `79dbea91630f860f0a84bbd68b075df4a7697eea` passed Turbo affected verify, StateNour E2E, Completion Authority, Adoption Gates, Agent Policy, Secret Scanning, and Admin Diagnostic; guarded squash merge is `48ac53827eb7f4f5754ee2a41fe74789c5c36c89` on main.
+- Q-31 remains production-gated by pending transaction-time migration `20260929150500_brain_memory_transaction_time`; do not claim those production columns exist until operator apply + read-back.
+- Q-32 remains empirically gated: live label volume, double-label kappa, and cloud dataset read-back are not yet evidence.
+- No Railway `PROCESS_ROLE` split, worker env deletion, or live mega fan-out proof was performed by #2794.
