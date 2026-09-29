@@ -629,6 +629,7 @@ export class BrainMemoryManager {
                   createdAt: existing.createdAt,
                   validFrom: existing.validFrom,
                   validUntil: existing.validUntil,
+                  lastVerifiedAt: existing.lastVerifiedAt,
                 },
                 newContent: content,
                 newSource: source,
