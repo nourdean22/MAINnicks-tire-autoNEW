@@ -137,6 +137,7 @@ export type WallClockCheck =
   | "tier-running"
   | "no-db"
   | "claim-error"
+  | "draining"
   | "lost"
   | "fired";
 
@@ -145,8 +146,10 @@ export interface WallClockRunnerDeps {
   /** Runs the tier's pass. Resolves when the pass ends. */
   runTier: (tierName: string) => Promise<void>;
   isTierRunning: (tierName: string) => boolean;
+  /** Test seam: the drain flag the claim reads. Production leaves it unset (the claim defaults to the cron drain flag). */
+  isDraining?: () => boolean;
   log: { info: (msg: string) => void; warn: (msg: string, meta?: unknown) => void };
-  claim?: (d: StartupExecutor, key: string, allowanceMs: number) => Promise<StartupClaim>;
+  claim?: (d: StartupExecutor, key: string, allowanceMs: number, isDraining?: () => boolean) => Promise<StartupClaim>;
 }
 
 /**
@@ -156,6 +159,7 @@ export interface WallClockRunnerDeps {
  */
 export function createWallClockRunner(deps: WallClockRunnerDeps) {
   const claim = deps.claim ?? claimStartupPass;
+  const isDraining = deps.isDraining; // undefined → claimStartupPass's own default (isCronDraining)
   const settled = new Set<string>();
 
   async function check(tierName: string, now: Date = new Date()): Promise<WallClockCheck> {
@@ -171,13 +175,19 @@ export function createWallClockRunner(deps: WallClockRunnerDeps) {
     try {
       const d = await deps.getDb();
       if (!d) return "no-db";
-      result = await claim(d, slotClaimKey(open.slot), open.sinceOpenMs + SLOT_CLAIM_MARGIN_MS);
+      // isDraining is re-checked inside the claim, after its queries: a SIGTERM
+      // that lands mid-claim gets the slot handed back, not spent (F5).
+      result = await claim(d, slotClaimKey(open.slot), open.sinceOpenMs + SLOT_CLAIM_MARGIN_MS, isDraining);
     } catch (err) {
       deps.log.warn(`${tierName} wall-clock slot ${open.slot.key}: claim failed — not running, retrying next check`, {
         error: err instanceof Error ? err.message : String(err),
         errorId: "CRON_WALLCLOCK_CLAIM_FAILED",
       });
       return "claim-error";
+    }
+    if (!result.claimed && result.via === "draining") {
+      deps.log.info(`${tierName} wall-clock slot ${open.slot.key} ${open.dayKey}: shutting down — slot left for the next container`);
+      return "draining";
     }
     settled.add(memo);
     if (!result.claimed) {

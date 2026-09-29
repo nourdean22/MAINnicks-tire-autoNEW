@@ -106,7 +106,7 @@ import { inFlightCronRuns, whenCronRunsSettled } from "../cron/index";
 import { validateTwilioRequest } from "../middleware/twilioValidation";
 import { resolveNickDeployIdentity, resolveConfiguredSurfaces } from "../lib/deployIdentity";
 import { withBatchRegex, blockBatchedLimits } from "./batchGuard";
-import { createGracefulShutdown, resolveShutdownGraceMs, trackHttpRequests, type DrainSource } from "./gracefulShutdown";
+import { createGracefulShutdown, detachedWork, resolveShutdownGraceMs, trackHttpRequests, type DrainSource } from "./gracefulShutdown";
 
 const serverLog = createLogger("server");
 
@@ -1415,6 +1415,8 @@ const shutdownOnSigterm = createGracefulShutdown({
       pending: () => _httpDrain?.pending() ?? [],
       settled: () => _httpDrain?.settled() ?? Promise.resolve(),
     },
+    // Work a webhook started after it already answered 200 (trackDetached).
+    detachedWork,
   ],
 });
 

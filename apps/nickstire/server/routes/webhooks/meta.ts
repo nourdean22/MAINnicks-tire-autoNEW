@@ -37,6 +37,7 @@
 import { Router, type Request, type Response } from "express";
 import crypto from "node:crypto";
 import { createLogger } from "../../lib/logger";
+import { trackDetached } from "../../_core/gracefulShutdown";
 
 const log = createLogger("meta-webhook");
 const router = Router();
@@ -127,7 +128,7 @@ function scheduleResponderRun(reason: string): void {
   if (pendingTimer) return; // already debouncing — this burst is accounted for
   pendingTimer = setTimeout(() => {
     pendingTimer = null;
-    void runResponderNow(reason);
+    void trackDetached("meta:comment-responder", runResponderNow(reason));
   }, DEBOUNCE_MS);
   // Don't hold the event loop open on shutdown.
   if (typeof pendingTimer.unref === "function") pendingTimer.unref();

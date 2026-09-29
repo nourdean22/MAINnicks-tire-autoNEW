@@ -18,6 +18,7 @@
 import { Router, type Request, type Response } from "express";
 import express from "express";
 import { timingSafeEqual } from "node:crypto";
+import { trackDetached } from "../../_core/gracefulShutdown";
 import { createLogger } from "../../lib/logger";
 import { isDuplicateKeyError } from "../../lib/dbErrors";
 import { toolCallLogFields } from "../../lib/vapiToolCallLog";
@@ -1202,7 +1203,8 @@ router.post("/vapi", async (req: Request, res: Response) => {
         }
 
         res.json({ ack: true });
-        void processCallEndReport(event, cleanEndedReason).catch((err) => {
+        // F5 · tracked so a SIGTERM drain waits for it (the 200 is already sent).
+        void trackDetached("vapi:end-of-call", processCallEndReport(event, cleanEndedReason)).catch((err) => {
           log.warn("[vapi webhook] detached post-call processing failed", {
             error: err instanceof Error ? err.message : String(err),
           });

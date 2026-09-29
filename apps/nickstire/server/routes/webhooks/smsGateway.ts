@@ -23,6 +23,7 @@
 import { Router, type Request, type Response } from "express";
 import crypto from "node:crypto";
 import { createLogger } from "../../lib/logger";
+import { trackDetached } from "../../_core/gracefulShutdown";
 import { recordInboundShopSms } from "../../sms";
 import { STORE_PHONE } from "@shared/const";
 // Type-only: erased at compile time, so it cannot create an import cycle with the
@@ -186,7 +187,7 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
       // sending-hours checks via sendSms.
       const mmsUrl = (payload.attachments && payload.attachments[0]) || payload.mediaUrl;
       if (mmsUrl && phone) {
-        (async () => {
+        trackDetached("sms-gateway:mms-photo-assess", (async () => {
           try {
             const { runPhotoAssess } = await import("../../services/photo-assess-pipeline");
             await runPhotoAssess({
@@ -199,7 +200,7 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
               error: err instanceof Error ? err.message : String(err),
             });
           }
-        })().catch(() => undefined);
+        })()).catch(() => undefined);
       }
 
       if (!phone || !body) {
@@ -287,7 +288,7 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
                 return;
               }
               // Answering stays off the ack path; the durable row is the guarantee.
-              void answerResponseObligation(healed, healInput).catch((err) => {
+              void trackDetached("sms-gateway:answer-healed", answerResponseObligation(healed, healInput)).catch((err) => {
                 log.warn("Healed obligation could not be answered in-request", {
                   error: err instanceof Error ? err.message : String(err),
                 });
@@ -395,8 +396,9 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
           }
         }
         // Answering stays OFF the ack path: the durable row is what guarantees a
-        // reply, so this call only supplies latency.
-        (async () => {
+        // reply, so this call only supplies latency. Tracked (F5) so a deploy's
+        // SIGTERM waits for an answer already in flight instead of cutting it.
+        trackDetached("sms-gateway:answer", (async () => {
           if (compositeRedelivery) {
             log.info("Skipping orchestrator — composite redelivery (prior identical inbound <5min)", {
               phone: phone.slice(-4),
@@ -410,7 +412,7 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
             providerMsgId: messageId || null,
             body,
           });
-        })().catch((err) => {
+        })()).catch((err) => {
           log.warn("Inbound shop SMS intent processing failed", {
             error: err instanceof Error ? err.message : String(err),
           });
