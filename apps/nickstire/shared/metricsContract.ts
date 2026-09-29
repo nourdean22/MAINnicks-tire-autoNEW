@@ -32,6 +32,8 @@
  * cannot drift the way the brand voice did.
  */
 
+import type { FreshnessVerdict } from "./businessDataContracts";
+
 /** Contract §"Evidence levels", plus `modeled` from §"Revenue concepts". */
 export type EvidenceLevel =
   /** Deterministic source event or persisted row. */
@@ -406,6 +408,8 @@ export interface MetricEnvelope<T = number> {
   lastAttemptedAt: string;
   lastSuccessfulAt: string | null;
   dataAsOf: string | null;
+  /** Q-26: optional source-freshness verdict; value freshness is not inferred from volume. */
+  freshness?: FreshnessVerdict;
   limitations: readonly string[];
 }
 
@@ -423,6 +427,7 @@ export interface BuildEnvelopeInput<T> {
   denominator?: number | null;
   lastSuccessfulAt?: string | null;
   dataAsOf?: string | null;
+  freshness?: FreshnessVerdict;
   extraLimitations?: readonly string[];
 }
 
@@ -461,6 +466,7 @@ export function buildEnvelope<T>(input: BuildEnvelopeInput<T>): MetricEnvelope<T
     lastAttemptedAt: input.now,
     lastSuccessfulAt: input.lastSuccessfulAt ?? (state === "ok" ? input.now : null),
     dataAsOf: input.dataAsOf ?? (state === "ok" ? input.now : null),
+    freshness: input.freshness,
     limitations: [...(canonical.limitations ?? []), ...(input.extraLimitations ?? [])],
   };
 }
