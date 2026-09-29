@@ -15,6 +15,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const { executeRawUnsafe, queryRawUnsafe } = vi.hoisted(() => ({
   executeRawUnsafe: vi.fn(),
@@ -145,5 +147,46 @@ describe("POST /api/system/apply-pending-migration · ledger drift-guard", () =>
     expect(json.available ?? []).not.toContain("0007_brain_fts");
     expect(executeRawUnsafe).not.toHaveBeenCalled();
     expect(queryRawUnsafe).not.toHaveBeenCalled();
+  });
+});
+
+/** Statements of a migration file: `--` comment lines dropped, split on `;`, whitespace collapsed. */
+function statementsOf(sql: string): string[] {
+  return sql
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("--"))
+    .join("\n")
+    .split(";")
+    .map((stmt) => stmt.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+describe("POST /api/system/apply-pending-migration · registry copy matches the reviewed file", () => {
+  /**
+   * 2026-09-29 · #2784 shipped the RealityEvent model with five new columns while
+   * their migration sat in migrations-pending, unapplied and unregistered, and
+   * production failed every realityEvent read and write ("column event_version
+   * does not exist"). The registry entry lets the operator apply it from the app.
+   * It must run exactly what the reviewed file says, nothing more or less.
+   */
+  it("runs 20260929123500_reality_event_envelope statement for statement, then verifies its three indexes", async () => {
+    const name = "20260929123500_reality_event_envelope";
+    const file = fileURLToPath(new URL(`../../prisma/migrations-pending/${name}/migration.sql`, import.meta.url));
+    const expected = statementsOf(readFileSync(file, "utf8"));
+
+    const res = await post({ name });
+
+    expect(res.status).toBe(200);
+    const executed = executeRawUnsafe.mock.calls.map((call) =>
+      String(call[0]).replace(/;\s*$/, "").replace(/\s+/g, " ").trim(),
+    );
+    expect(executed).toEqual(expected);
+    expect(expected).toHaveLength(9);
+    const verified = queryRawUnsafe.mock.calls.find((call) => /pg_indexes/i.test(String(call[0])))?.slice(1);
+    expect(verified).toEqual([
+      "reality_events_event_type_occurred_at_idx",
+      "reality_events_correlation_id_idx",
+      "reality_events_causation_id_idx",
+    ]);
   });
 });
