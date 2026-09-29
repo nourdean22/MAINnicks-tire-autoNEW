@@ -134,6 +134,22 @@ def interaction_heartbeat_keys(module=None):
         "lastControlProofAt": "2026-09-27T10:00:02+00:00",
         "lastMediaProofAt": "2026-09-27T10:00:03+00:00",
         "lastPtzNotifyAt": "2026-09-27T10:00:04+00:00",
+        "conversationWorkerOk": True,
+        "conversationWorkerState": "OFF_HOURS",
+        "conversationWorkerHeartbeatAt": "2026-09-27T10:00:05+00:00",
+        "conversationAudioSource": "eufy-office",
+        "conversationCaptureHost": "NICKSMAX",
+        "conversationSttEngine": "whisper-cli.exe",
+        "conversationQueueDepth": 0,
+        "conversationLastTrigger": "personDetected",
+        "lastConversationEventAt": "2026-09-27T09:59:59+00:00",
+        "lastConversationCaptureAt": "2026-09-27T09:58:00+00:00",
+        "lastConversationSttAt": "2026-09-27T09:58:20+00:00",
+        "lastConversationPostAt": "2026-09-27T09:58:21+00:00",
+        "lastConversationSummaryAt": "2026-09-27T09:58:21+00:00",
+        "lastConversationCoverage": 0.91,
+        "conversationFailuresToday": 0,
+        "conversationLastError": "fixture-only prior error",
     }
     payload = module.build_office_camera_heartbeat(
         auth_ok=True,
@@ -195,6 +211,12 @@ class HeartbeatContractTest(unittest.TestCase):
         expected = {
             "authPlaneOk", "eventPlaneOk", "controlPlaneOk", "mediaPlaneOk", "ptzHomeOk",
             "lastEventProofAt", "lastControlProofAt", "lastMediaProofAt", "lastPtzNotifyAt",
+            "conversationWorkerOk", "conversationWorkerState", "conversationWorkerHeartbeatAt",
+            "conversationAudioSource", "conversationCaptureHost", "conversationSttEngine",
+            "conversationQueueDepth", "conversationLastTrigger", "lastConversationEventAt",
+            "lastConversationCaptureAt", "lastConversationSttAt", "lastConversationPostAt",
+            "lastConversationSummaryAt", "lastConversationCoverage", "conversationFailuresToday",
+            "conversationLastError",
         }
         self.assertTrue(
             expected.issubset(self.interaction),
@@ -225,6 +247,29 @@ class HeartbeatContractTest(unittest.TestCase):
             "mutation canary failed: dropping a real interaction field must break the contract",
         )
 
+    def test_interaction_gate_detects_a_mutated_producer_that_drops_conversation_field(self):
+        module = load_eufy_agent_module()
+        if module is None:
+            self.skipTest("statenour local agent is not checked out beside camera-bridge")
+        original = module.INTERACTION_HEARTBEAT_FIELDS
+        try:
+            module.INTERACTION_HEARTBEAT_FIELDS = tuple(
+                key for key in original if key != "conversationWorkerState"
+            )
+            mutated = interaction_heartbeat_keys(module)
+        finally:
+            module.INTERACTION_HEARTBEAT_FIELDS = original
+
+        authored = set(self.body) | set(mutated)
+        orphans = sorted(
+            field for field in self.columns
+            if field not in authored and field not in NOT_SENT_BY_DESIGN
+        )
+        self.assertIn(
+            "conversationWorkerState",
+            orphans,
+            "mutation canary failed: dropping a real conversation field must break the contract",
+        )
     def test_the_gate_can_actually_SEE_the_columns(self):
         """The positive control. A parse that returned [] would make every assertion above
         pass vacuously, forever, and this whole file would be decoration."""
