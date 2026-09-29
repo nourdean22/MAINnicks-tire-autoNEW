@@ -54,6 +54,7 @@
 
 import { withGuardian } from "@/lib/tools/guardian";
 import { logger as rootLogger } from "@/lib/logger";
+import { modelFamilyFromLane } from "@/lib/evals/q32-regression";
 
 const log = rootLogger.withSurface("ai/judge-eval");
 
@@ -117,20 +118,7 @@ interface JudgeArgs {
 }
 
 export function modelFamily(provider?: string | null, model?: string | null): string {
-  const m = String(model ?? "").toLowerCase();
-  const p = String(provider ?? "").toLowerCase();
-  if (/claude/.test(m) || /anthropic/.test(p)) return "anthropic";
-  if (/gpt|o[1345](?:-|$)|openai/.test(m) || /openai/.test(p)) return "openai";
-  if (/gemini/.test(m) || /google/.test(p)) return "google";
-  if (/deepseek/.test(m)) return "deepseek";
-  if (/glm/.test(m)) return "zhipu";
-  if (/minimax/.test(m)) return "minimax";
-  if (/qwen/.test(m)) return "qwen";
-  if (/llama|meta/.test(m)) return "meta";
-  // Hosting provider is only a last-resort family. Venice/Ollama can host
-  // many model families, so never call them an independent model family when
-  // the model id itself is recognizable above.
-  return p || m || "unknown";
+  return modelFamilyFromLane(provider, model);
 }
 
 async function _judgeReply(args: JudgeArgs): Promise<JudgeReport | null> {
