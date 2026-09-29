@@ -84,13 +84,41 @@ export function maskEmail(raw: string): string {
 const EMBEDDED_EMAIL = /[\w.+-]+@[\w-]+\.[\w.]+/g; // pii-allow: matcher that REMOVES emails from ledger snapshots
 const EMBEDDED_PHONE = /(?<!\d)(?:\+?\d[\s().-]{0,2}){6,14}\d(?!\d)/g;
 
-export function scrubFreeText(raw: string): string {
-  return raw
+/**
+ * An ISO date or date-time: a 19xx/20xx year, a real month and day, then an
+ * optional time and zone. 2026-09-29 (review of #2782): EMBEDDED_PHONE read
+ * "2026-09-29 17:30:00" as the phone digits 2026092917, so every ledger row
+ * carrying a timestamp string stored "•••2917:30:00". No phone number is
+ * written as year-month-day, so these are shielded from the phone scrub and
+ * put back unchanged. A year range ("2015-2019") is not shielded: it is still
+ * masked, which loses readability but can never leak a number.
+ */
+const ISO_DATE =
+  /(?<!\d)(?:19|20)\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?:[T ](?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,9})?)?(?:Z|[+-](?:[01]\d|2[0-3]):?[0-5]\d)?)?(?!\d)/g;
+/** Private-use code points: they carry no digit the phone scrub could match. */
+const SHIELD = "";
+const SHIELD_BASE = 0xe100;
+const SHIELD_MAX = 0xf8ff - SHIELD_BASE;
+const SHIELDED = /([-])/g;
+
+function scrubContacts(text: string): string {
+  return text
     .replace(EMBEDDED_EMAIL, (m) => maskEmail(m))
     .replace(EMBEDDED_PHONE, (m) => {
       const digits = m.replace(/\D/g, "");
       return digits.length >= 7 ? `•••${digits.slice(-4)}` : m;
     });
+}
+
+export function scrubFreeText(raw: string): string {
+  // Text that already holds the marker could forge a restore, so it gets the
+  // unshielded scrub: dates masked, never a phone left visible.
+  if (raw.includes(SHIELD)) return scrubContacts(raw);
+  const dates: string[] = [];
+  const shielded = raw.replace(ISO_DATE, (m) =>
+    dates.length > SHIELD_MAX ? m : `${SHIELD}${String.fromCharCode(SHIELD_BASE + dates.push(m) - 1)}${SHIELD}`,
+  );
+  return scrubContacts(shielded).replace(SHIELDED, (_, c: string) => dates[c.charCodeAt(0) - SHIELD_BASE]);
 }
 
 /**
