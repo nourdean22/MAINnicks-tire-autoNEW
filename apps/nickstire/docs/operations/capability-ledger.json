@@ -2855,10 +2855,11 @@
       "operationalState": "unverified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: inferred writers routed through admitMemory(), acceptance-authority repair, bitemporal effective/transaction semantics, memory-manager history freezing, atomic explicit contradiction supersession, and bounded shadow contradiction receipts.",
+        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: inferred writers routed through admitMemory(), acceptance-authority repair, bitemporal effective/transaction semantics, one shared transaction-column probe/cache, memory-manager history freezing with full compensating rollback/fail-closed replacement, atomic explicit contradiction supersession, and bounded shadow contradiction receipts.",
         "tests": [
           "memory-admission.test.ts, memory-bitemporal.test.ts, memory-bitemporal-runtime.test.ts, memory-transaction-time.test.ts, contradiction-resolution-supersedes.test.ts, supersession-recall.test.ts, memory-contradiction-shadow.test.ts, and the direct-writer ratchet cover the consolidated Q-31 mechanics.",
-          "Exact-head PR CI is not yet claimed for the consolidated branch."
+          "memory-bitemporal-runtime.test.ts pins close-before-flip ordering plus compensation: failed prepared replacements restore transaction/effective verification state, remove the provisional snapshot, and do not fall through to a history-destroying legacy overwrite.",
+          "Exact-head PR CI is not yet claimed for the final consolidated branch."
         ],
         "liveRuns": []
       },
@@ -2887,11 +2888,12 @@
       "operationalState": "unverified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: metadata-only four-signal selector, single Langfuse annotation queue, thumbs-down/runtime queue wiring, cross-family judge enforcement, versioned de-identified recall corpus, PPI/kappa statistics, optional cloud experiment, and conditional CI action.",
+        "codeCommit": "Branch feat/nouros-resilience-final-current-chatgpt-20260929: metadata-only four-signal selector, single Langfuse annotation queue, thumbs-down/runtime queue wiring, fail-closed cross-family judge enforcement that distinguishes hosting layers from model families, versioned de-identified recall corpus, PPI/kappa statistics, and optional cloud experiment with conditional CI action.",
         "tests": [
           "q32-regression.test.ts pins all four selector signals, no raw-text candidate export, actual-drop vs advisory-drop, A/A behavior, planted regression failure, human correction, PPI interval, and kappa.",
-          "judge-eval-family.test.ts, langfuse-annotation-queue.test.ts, and q32-recall-corpus-contract.test.ts pin cross-family judging, missing-config no-op, and one committed de-identified recall slice.",
-          "Exact-head PR CI is not yet claimed for the consolidated branch."
+          "judge-eval-family.test.ts pins hosted-model family recognition, recognized-family provider fallback, and rejection of Venice/Ollama/custom hosts as model families; langfuse-annotation-queue.test.ts and q32-recall-corpus-contract.test.ts pin missing-config no-op and one committed de-identified recall slice.",
+          "The Q-32 experiment MJS parser defect was repaired; the pinned Langfuse action supplies @langfuse/client and supports dataset_version, so no duplicate app dependency is added.",
+          "Exact-head PR CI is not yet claimed for the final consolidated branch."
         ],
         "liveRuns": []
       },
