@@ -93,7 +93,7 @@ describe("Graphify governance receipt", () => {
     expect(sync).toMatch(/NON-FATAL/i);
   });
 
-  it("session-start consumes only a receipt that matches the selected report commit", () => {
+  it("session-start consumes only a receipt that matches the exact selected report snapshot", () => {
     const context = readFileSync(
       resolve(REPO_ROOT, "scripts/graphify-session-context.ps1"),
       "utf8",
@@ -102,6 +102,8 @@ describe("Graphify governance receipt", () => {
     expect(context).toContain("GRAPH_RECEIPT.json");
     expect(context).toContain("RECEIPT MISMATCH");
     expect(context).toContain("$receiptCommit -ne $builtFrom");
+    expect(context).toContain("Get-FileHash -Path $report -Algorithm SHA256");
+    expect(context).toContain("$receiptHash.ToLowerInvariant() -ne $selectedHash");
     expect(context).toContain("graph necropsy:");
   });
 });
