@@ -1,5 +1,14 @@
 # CURRENT-TRUTH.md — Statenour
 
+## 2026-09-28 evening — NourOS intelligence foundation (branch/test truth, not production truth)
+
+- **Current base repo truth for this work:** `origin/main` = `4e628f0dbdc2bbdbdb91f196a7889b90a706305a` (#2753) when the foundation branch was refreshed. Camera PRs #2746/#2747 remain separate sibling workstreams.
+- **Built + locally verified on `feat/nouros-foundation-20260928`:** typed Episode envelopes over the existing Reality Ledger; bounded Inngest mission execution over existing Mission rows; tool-gap intelligence over existing `ToolSelectionTurn`/`ToolGateDecision`; persistence for the already-built verified-regen telemetry; explicit E2B deny-egress.
+- **Verification:** 45/45 focused tests passed; StateNour TypeScript passed after fresh-worktree workspace dependencies were built; changed-file ESLint passed; `git diff --check` passed; staged secret scan found no findings.
+- **Promotion boundaries:** `NICK_DURABLE_MISSIONS` defaults OFF until a deployed Inngest registration + harmless checkpoint-only run produce real RealityEvent receipts. E2B remains unprovisioned by this slice.
+- **Not built here:** the Jev/TypeSafe-style probabilistic Decision Plane, backend calibration/shadowing, and outcome-threshold promotion. Those remain a separate next slice.
+- Durable receipt: `docs/00-current-truth/nouros-foundation-2026-09-28.md`.
+
 ## 2026-09-28 — original-plan infrastructure + private-worker observability
 
 - **Repository current truth:** `main` = `18db7de13af5fe0f6f4f2fb62456e371db3dd698` (#2726); GitHub showed **0 open PRs** immediately after the #2724/#2725/#2726 wave.
