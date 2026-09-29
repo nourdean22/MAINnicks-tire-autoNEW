@@ -63,6 +63,9 @@ class EufyShopRuntimeInstallerTests(unittest.TestCase):
         self.assertIn("NICKS_OFFICE_CAMERA_MODE", SOURCE)
         self.assertIn('[string]$OfficeSerial = "T8410P5225154105"', SOURCE)
         self.assertNotIn('[string]$OfficeSerial = "T8410P522517180B"', SOURCE)
+        self.assertIn("OFFICE_CONVERSATION_STATUS_PATH", SOURCE)
+        self.assertIn("OfficeIntelligence\\office-conversation-status.json", SOURCE)
+        self.assertIn('OFFICE_CONVERSATION_STATUS_MAX_AGE_SECONDS = "120"', SOURCE)
 
     def test_control_fails_closed_until_explicitly_enabled(self):
         self.assertIn("controlEnabled = $false", SOURCE)
@@ -71,10 +74,12 @@ class EufyShopRuntimeInstallerTests(unittest.TestCase):
         enable = SOURCE.index("PTZ command queue enabled after auth + identity + capability proof")
         self.assertLess(identity, enable)
 
-    def test_event_wake_is_live_but_audio_capture_stays_off(self):
+    def test_office_intelligence_owns_wake_capture_and_summary(self):
         self.assertIn("StateNour-Eufy-OfficeWake", SOURCE)
-        self.assertIn("-m vision.officewake", SOURCE)
-        self.assertIn("-r $OfficeWakeRequirements", SOURCE)
+        self.assertIn("Disable-ScheduledTask -TaskName \"StateNour-Eufy-OfficeWake\"", SOURCE)
+        self.assertIn('OfficeWakeMode = "delegated_to_StateNour-OfficeIntelligence-NicksMax"', SOURCE)
+        self.assertNotIn("-m vision.officewake", SOURCE)
+        self.assertNotIn("$OfficeWakeRequirements", SOURCE)
         self.assertNotIn("OFFICE_INTERACTION_CAPTURE_ENABLED", SOURCE)
         self.assertNotIn("--capture", SOURCE)
 
@@ -92,12 +97,9 @@ class EufyShopRuntimeInstallerTests(unittest.TestCase):
         self.assertIn("-RestartInterval (New-TimeSpan -Minutes 1)", SOURCE)
         self.assertIn("-LogonType Interactive", SOURCE)
         self.assertIn("-RunLevel Highest", SOURCE)
-        for name in (
-            "StateNour-Eufy-Bridge",
-            "StateNour-Eufy-Agent",
-            "StateNour-Eufy-OfficeWake",
-        ):
-            self.assertIn(name, SOURCE)
+        for name in ("StateNour-Eufy-Bridge", "StateNour-Eufy-Agent"):
+            self.assertIn('Install-Task "' + name + '"', SOURCE)
+        self.assertNotIn('Install-Task "StateNour-Eufy-OfficeWake"', SOURCE)
 
     def test_media_health_uses_real_bridge_bytes(self):
         self.assertIn("probe_office_media_health", SOURCE)
