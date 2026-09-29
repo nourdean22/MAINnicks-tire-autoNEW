@@ -1488,3 +1488,11 @@ External audit's "/brakes broken" (stale cache; renders fine live) and "duplicat
 - **Q-26 BUILT, not merged:** `shared/businessDataContracts.ts` + tests, `MetricEnvelope.freshness`, and `data-accuracy-check` wiring. Source freshness is separate from business volume; leads/callbacks are never called stale merely for having a quiet day. Invoice volume is suppressed when ShopDriver mirror freshness is not trustworthy.
 - **Q-27 BUILT IN PART, not merged:** BG/NBD + Gamma-Gamma pure kernel with CDNOW goldens and a read-only customer ranking service. Hard contract: `rankingOnly: true`; calibration is `external-cdnow-reference-not-shop-fitted`; never a send/revenue promise.
 - Recovery details and next steps: `docs/research/2026-09-29-carousel-q25-q27-checkpoint.md`. Active branch: `feat/nouros-carousel-q25-q27-20260929`. Re-anchor onto latest main before PR; main is moving.
+
+
+## 2026-09-29 · consolidated resilience + memory/eval wave checkpoint
+- **Q-25/Q-26/Q-27 MERGED:** PR #2784 squash-merged to `main` as `bee3abc5aa61a45702cd341adb3893b39ff0013c`. Exact-head Turbo verify, StateNour E2E, Completion Authority, Adoption Gates, Agent Policy, Secret Scan, Docker context, and admin diagnostic were green. Pre-merge overlap against newer main work was empty.
+- **New active branch:** `feat/nouros-resilience-q28-q34-q36-q31-q32-20260929`, created fresh from post-#2784 `main` to avoid stale-history overwrite and active-session collisions.
+- **Q-28/Q-34/Q-36 carry-over in progress:** first transplant batch is already on the new branch (Nick live deploy truth, server process-role startup wiring, cron observer Alertmanager semantics, StateNour current-truth topology). Remaining resilience files are being carried over in small connector-safe batches.
+- **Safety:** GitHub/connectors only for this workstream; do not touch NattyNour/local worktrees/processes owned by other sessions. Re-read `main` immediately before PR/merge.
+- **Next on this same big wave:** finish Q-28/Q-34/Q-36 carry-over + evidence, then Q-31 memory admission/bitemporal correction and Q-32 Langfuse eval loop before paying CI once for the consolidated PR.
