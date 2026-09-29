@@ -1132,8 +1132,10 @@ export const invoicesRouter = router({
           killSwitchOn: true,
         };
       }
-      const { runDeclinedWorkRecovery } = await import("../../cron/jobs/declinedWorkRecovery");
-      const result = await runDeclinedWorkRecovery({
+      // Match first, like the scheduled lane: an estimate paid since the last
+      // match still looks declined, and this click would text that customer.
+      const { runDeclinedWorkRecoveryAfterMatch } = await import("../../cron/jobs/declinedWorkRecovery");
+      const result = await runDeclinedWorkRecoveryAfterMatch({
         maxSends: input?.maxSends ?? 100,
         bypassBusinessHoursCheck: true,
         skipDryRunGate: true,

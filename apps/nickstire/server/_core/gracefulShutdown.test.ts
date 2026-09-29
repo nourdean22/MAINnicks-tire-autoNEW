@@ -9,8 +9,11 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventEmitter } from "node:events";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   createGracefulShutdown,
+  resolveDrainCoverage,
   resolveShutdownGraceMs,
   trackHttpRequests,
   type DrainSource,
@@ -153,6 +156,46 @@ describe("resolveShutdownGraceMs", () => {
     expect(resolveShutdownGraceMs(" 20000 ")).toBe(20_000);
     expect(resolveShutdownGraceMs("0")).toBe(1_000);
     expect(resolveShutdownGraceMs("999999999")).toBe(120_000);
+  });
+});
+
+describe("resolveDrainCoverage", () => {
+  // Railway's default drain is 0 s; the grace default is 25 s plus a 5 s exit margin.
+  it("unset is Railway's default of 0: not covered, and the note says what to set", () => {
+    const d = resolveDrainCoverage({});
+    expect(d).toMatchObject({ railwayDrainingSeconds: null, shutdownGraceMs: 25_000, covered: false });
+    expect(d.note).toMatch(/is unset/);
+    expect(d.note).toMatch(/at least 30/);
+  });
+
+  it("a value that is not a whole number of seconds is never covered", () => {
+    for (const raw of ["", "  ", "30s", "abc", "-5", "2.5"]) {
+      const d = resolveDrainCoverage({ RAILWAY_DEPLOYMENT_DRAINING_SECONDS: raw });
+      expect(d.railwayDrainingSeconds).toBeNull();
+      expect(d.covered).toBe(false);
+    }
+  });
+
+  it("30 s covers the 25 s default; 29 s and 0 do not", () => {
+    expect(resolveDrainCoverage({ RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "30" }).covered).toBe(true);
+    expect(resolveDrainCoverage({ RAILWAY_DEPLOYMENT_DRAINING_SECONDS: " 30 " }).covered).toBe(true);
+    const short = resolveDrainCoverage({ RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "29" });
+    expect(short).toMatchObject({ railwayDrainingSeconds: 29, covered: false });
+    expect(short.note).toMatch(/only 29 s/);
+    expect(resolveDrainCoverage({ RAILWAY_DEPLOYMENT_DRAINING_SECONDS: "0" }).covered).toBe(false);
+  });
+
+  it("follows a custom grace budget", () => {
+    const env = (drain: string, grace: string) => ({ RAILWAY_DEPLOYMENT_DRAINING_SECONDS: drain, NICKSTIRE_SHUTDOWN_GRACE_MS: grace });
+    expect(resolveDrainCoverage(env("30", "60000")).covered).toBe(false);
+    expect(resolveDrainCoverage(env("65", "60000")).covered).toBe(true);
+    expect(resolveDrainCoverage(env("10", "5000")).covered).toBe(true);
+  });
+
+  it("reaches /api/version and the boot warning (the consumer half)", () => {
+    const src = readFileSync(join(__dirname, "index.ts"), "utf8");
+    expect(src).toContain("drain: resolveDrainCoverage(process.env),");
+    expect(src).toMatch(/RAILWAY_DEPLOYMENT_ID && !drain\.covered\)\s*\{\s*serverLog\.warn/);
   });
 });
 
