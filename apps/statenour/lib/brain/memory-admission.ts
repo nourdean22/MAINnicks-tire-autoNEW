@@ -122,33 +122,78 @@ export interface AdmitMemoryResult {
  */
 export async function admitMemory(input: AdmitMemoryInput): Promise<AdmitMemoryResult> {
   const envelope = buildAdmissionEnvelope({ ...input, content: input.content });
+  const normalized = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
+
+  // Outcome awareness matters. remember() intentionally returns the existing
+  // row for a rejected weaker-evidence contradiction and for no-op repeats.
+  // Without this pre-image, admission would mutate the winning row's
+  // trust/effective metadata even though the candidate never became canonical.
+  const before = await prisma.brainMemory.findUnique({
+    where: { category_key: { category: input.category, key: input.key } },
+    select: { id: true, content: true, source: true, metadata: true },
+  });
+
   const row = await brainMemory.remember(input.category, input.key, input.content, input.source, {
     ...(input.metadata ?? {}),
     admission: envelope,
   });
 
-  // Q-31: semantic admission must materialize provenance. A model-made
-  // synthesis is AGENT_INFERRED even when its source slug looks first-party
-  // (journal_brain, conversation_analysis, belief_harvester, distillation).
-  // External intake can force EXTERNAL_CONTENT after human review; operator
-  // writers continue to use their identity-first stampAdmission path.
-  const trustTier: TrustTier =
-    input.trustTier ??
-    (input.memoryKind === "derived" || input.extractionMethod === "llm_extract"
-      ? "AGENT_INFERRED"
-      : classifyTrustTier(input.source, undefined, input.category));
+  const candidatePersisted = normalized(row.content) === normalized(input.content);
+  const contentChanged =
+    !before || normalized(before.content) !== normalized(input.content);
+  const acceptedCanonicalWrite = candidatePersisted && contentChanged;
 
-  const patch: Record<string, unknown> = { trustTier };
-  if (input.effectiveFrom) patch.validFrom = input.effectiveFrom;
-  if (input.effectiveUntil) patch.validUntil = input.effectiveUntil;
-  if (typeof input.confidence === "number") {
-    patch.confidence = Math.max(0, Math.min(1, input.confidence));
+  // Q-31: only a candidate that actually became canonical is allowed to stamp
+  // provenance, validity, source, or writer-supplied confidence. A parked
+  // weaker contradiction and a same-content no-op leave the winning row alone.
+  if (acceptedCanonicalWrite) {
+    const trustTier: TrustTier =
+      input.trustTier ??
+      (input.memoryKind === "derived" || input.extractionMethod === "llm_extract"
+        ? "AGENT_INFERRED"
+        : classifyTrustTier(input.source, undefined, input.category));
+
+    const rowMetadata =
+      row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+        ? (row.metadata as Record<string, unknown>)
+        : {};
+
+    const patch: Record<string, unknown> = {
+      source: input.source,
+      trustTier,
+      metadata: {
+        ...rowMetadata,
+        ...(input.metadata ?? {}),
+        admission: envelope,
+      },
+    };
+    if (input.effectiveFrom) patch.validFrom = input.effectiveFrom;
+    if (input.effectiveUntil) patch.validUntil = input.effectiveUntil;
+    if (typeof input.confidence === "number") {
+      patch.confidence = Math.max(0, Math.min(1, input.confidence));
+    }
+
+    await prisma.brainMemory.update({
+      where: { id: row.id },
+      data: patch as never,
+    });
+
+    // Shadow only: measurable contradiction candidates, no live ticker/page.
+    // Keep it off the write latency path and never let detector failure reject
+    // an otherwise valid memory admission.
+    if (input.memoryKind !== "episodic") {
+      void import("@/lib/brain/memory-contradiction-shadow")
+        .then(({ shadowAdmissionContradictions }) =>
+          shadowAdmissionContradictions({
+            memoryId: row.id,
+            category: input.category,
+            content: input.content,
+          }),
+        )
+        .catch(() => undefined);
+    }
   }
-
-  await prisma.brainMemory.update({
-    where: { id: row.id },
-    data: patch as never,
-  });
 
   return { id: row.id, evidenceClass: envelope.evidenceClass, memoryKind: envelope.memoryKind };
 }
+
