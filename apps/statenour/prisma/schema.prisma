@@ -1841,6 +1841,11 @@ model BrainMemory {
   validUntil     DateTime? @map("valid_until")
   lastVerifiedAt DateTime? @map("last_verified_at")
   supersededById String?   @map("superseded_by_id")
+  /// Q-31 · transaction-time validity, distinct from effective validity above
+  /// and from expiresAt (retention/decay TTL). Nullable so legacy rows use
+  /// createdAt as their transaction start without a fabricated backfill.
+  transactionFromAt    DateTime? @map("transaction_from_at")
+  transactionExpiredAt DateTime? @map("transaction_expired_at")
   /// Self-relation. SetNull, never Cascade: if the replacement is hard-
   /// deleted we want a detectable dangling pointer, not a cascade that
   /// erases the record that something changed. `supersedes` is a LIST
@@ -1881,6 +1886,8 @@ model BrainMemory {
   // plain index.
   @@index([validUntil])
   @@index([supersededById])
+  @@index([transactionFromAt])
+  @@index([transactionExpiredAt])
   @@index([category, confidence])
   @@index([expiresAt])
   // Apr 18: decay queries filter by lastSeen < 30d + confidence > 0.1.
