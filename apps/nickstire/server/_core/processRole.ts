@@ -27,9 +27,3 @@ export function processRoleRunsJobs(role: ProcessRole): boolean {
   return role === "all" || role === "jobs";
 }
 
-export function processRoleServesWeb(_role: ProcessRole): boolean {
-  // The executable remains one Express server in Q-34. The jobs role keeps
-  // health/admin endpoints available for observability; traffic routing is a
-  // later Railway concern, not hidden in this switch.
-  return true;
-}
