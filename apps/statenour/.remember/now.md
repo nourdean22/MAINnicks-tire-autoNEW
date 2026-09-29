@@ -1210,3 +1210,10 @@ observations `<functionId>:<span>` and `/api/public/v2/observations` is a thin p
 - Post-#2790 migration rule also applies: every parked migration must be registered statement-for-statement in the operator-only apply endpoint or explicitly classified operator-only. Q-31 registration is still pending.
 - Q-32 Langfuse eval loop is next; reuse existing Langfuse, do not add a second eval platform.
 - Durable checkpoint: `docs/research/2026-09-29-resilience-wave-current-checkpoint.md`.
+
+## 2026-09-29 · final Q-31/Q-32 consolidation before PR
+- Branch `feat/nouros-resilience-final-current-chatgpt-20260929` now combines deep Q-31 admission/history semantics with the row-locked explicit contradiction path; `cleanupResolvedContradiction()` is the single losing-memory mutation owner.
+- Q-31 transaction migration `20260929150500_brain_memory_transaction_time` is registered but NOT applied; production columns remain unclaimed.
+- Q-32 uses one deterministic `q32-regression.ts` owner + incumbent Langfuse queue/runtime/judge/optional experiment. The duplicate runtime selector import and fail-open unknown-family classifier were repaired during consolidation.
+- Empirical Q-32 targets (>=50 labels; kappa >=0.6 on >=30 double labels) remain UNMEASURED.
+- Full checkpoint: `docs/research/2026-09-29-resilience-final-consolidation-checkpoint.md`.
