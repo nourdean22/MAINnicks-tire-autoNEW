@@ -10,6 +10,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { sliceBlock } from "../../testUtils/sourceBlock";
 import { recoverySendsEnabled, runDeclinedWorkRecoveryAfterMatch } from "./declinedWorkRecovery";
 
 const APP = join(__dirname, "..", "..", "..");
@@ -75,8 +76,7 @@ describe("runDeclinedWorkRecoveryAfterMatch", () => {
 describe("the manual lanes reach the wrapper (the consumer half)", () => {
   it("the admin run-now mutation matches first", () => {
     const src = readFileSync(join(APP, "server", "routers", "advanced", "invoices.ts"), "utf8");
-    const from = src.slice(src.indexOf("runDeclinedRecoveryNow:"));
-    const mutation = from.slice(0, from.indexOf("}),"));
+    const mutation = sliceBlock(src, "runDeclinedRecoveryNow:", "}),", { label: "invoices.ts" });
     expect(mutation).toContain("runDeclinedWorkRecoveryAfterMatch({");
     expect(mutation).not.toMatch(/runDeclinedWorkRecovery\(/);
   });
@@ -85,7 +85,7 @@ describe("the manual lanes reach the wrapper (the consumer half)", () => {
     const src = readFileSync(join(APP, "scripts", "fire-declined-recovery.ts"), "utf8");
     expect(src.match(/runDeclinedWorkRecoveryAfterMatch\(\{/g)?.length).toBe(2);
     expect(src).not.toMatch(/runDeclinedWorkRecovery\(\{/);
-    const dryBranch = src.slice(src.indexOf("if (dryRun) {"), src.indexOf("} else {", src.indexOf("if (dryRun) {")));
+    const dryBranch = sliceBlock(src, "if (dryRun) {", "} else {", { label: "fire-declined-recovery.ts" });
     expect(dryBranch).toMatch(/dryRun: true,/);
   });
 });
