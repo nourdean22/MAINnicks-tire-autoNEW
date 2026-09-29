@@ -121,3 +121,25 @@ Before merge:
 - Adoption Gates green;
 - Completion Authority green;
 - current main rechecked for overlap immediately before squash merge.
+
+
+## Q-31 discovery checkpoint · memory truth wiring started
+
+Read-only source census on 2026-09-29 established:
+
+- `lib/brain/memory-admission.ts` already owns the semantic admission envelope and `admitMemory()`.
+- `brainMemory.remember()` already routes through the existing memory commit gateway; Q-31 does **not** need a second memory write authority.
+- Several high-value machine-inferred writers still bypass the admission door with direct Prisma writes, including journal extraction, session distillation, and belief harvesting.
+- `BrainMemory` already has event/effective-time semantics through `validFrom` / `validUntil` plus `supersededById`.
+- **Critical schema collision:** the existing TTL field `expiresAt` already maps to database column `expires_at`. The architecture note's proposed transaction-time `expired_at` cannot be implemented by repurposing that column without corrupting retention semantics.
+- Therefore Q-31 will use a separate additive transaction-time field/column and keep TTL expiry untouched. The exact DB name must remain distinct and the pending migration/operator gate must make that explicit.
+- The direct-writer ratchet in `tests/repo/brain-memory-direct-writers-ratchet.test.ts` remains the enforcement surface; converted semantic writers must shrink the allowlist rather than bypassing it.
+
+Still to build:
+1. transaction-time expiry field + pending additive migration;
+2. overlap-safe supersession transaction that closes the prior transaction interval only when the effective intervals overlap and the old event-time starts before the new event-time;
+3. route selected machine-inferred writers through `admitMemory()`;
+4. index-constrained contradiction shadow at the admission gateway;
+5. retro-dated correction tests proving both “what was true at t?” and “what did I believe at t?” views.
+
+This is BUILT-DISCOVERY only at this checkpoint; no Q-31 code or production migration is claimed yet.
