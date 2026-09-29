@@ -6,13 +6,14 @@
   NICKS EUCLID semantic event -> officewake.py -> bounded local audio -> local whisper.cpp
   -> POST /api/conversation-episodes -> evidence-backed Admin summary.
   The legacy continuous-hours officeloop.py task is disabled by this installer.
-  DirectShow audio runs in the interactive Windows session: locking is fine; full log-out
-  removes the Windows audio endpoint until the user logs in again.
+  Production defaults to the NicksMax loopback Eufy fragmented-MP4 recording route, so the
+  worker can run as SYSTEM at startup without Chrome, an unlocked desktop, or a Windows mic.
+  DirectShow remains an explicit fallback and therefore uses the interactive desktop session.
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-  [Parameter(Mandatory = $true)][string]$SourceUrl,
-  [ValidateSet("rtsp", "dshow")][string]$SourceKind = "dshow",
+  [string]$SourceUrl = "",
+  [ValidateSet("generic", "rtsp", "dshow")][string]$SourceKind = "generic",
   [Parameter(Mandatory = $true)][string]$IngestKey,
   [string]$OfficeSerial = "T8410P5225154105",
   [string]$BridgeUrl = "ws://127.0.0.1:3000/ws",
@@ -30,7 +31,7 @@ param(
   [double]$RetentionHours = 6,
   [double]$RetentionMaxMb = 256,
   [double]$MinFreeMb = 768,
-  [string]$TaskName = "NickOfficeIntelligence",
+  [string]$TaskName = "StateNour-OfficeIntelligence-NicksMax",
   [string]$DesktopUser = "",
   [switch]$ProbeOnly
 )
@@ -42,6 +43,14 @@ function Fail([string]$what, [string]$fix) {
   Write-Host "BLOCKED: $what" -ForegroundColor Red
   Write-Host "  fix: $fix" -ForegroundColor Yellow
   exit 1
+}
+
+if (-not $SourceUrl) {
+  if ($SourceKind -ne "generic") {
+    Fail "SourceUrl is required for $SourceKind" "pass -SourceUrl explicitly or use the generic NICKS EUCLID default"
+  }
+  $bridgeMaxSeconds = [math]::Min(300, [math]::Max(5, [math]::Ceiling($WindowSeconds + 15)))
+  $SourceUrl = "http://127.0.0.1:3000/record/$OfficeSerial`?maxSeconds=$bridgeMaxSeconds"
 }
 
 function Resolve-Executable([string]$candidate) {
@@ -59,21 +68,33 @@ if (-not $ffmpeg) {
 }
 
 function Test-AudioSource {
-  if ($SourceKind -eq "rtsp") {
+  if ($WhatIfPreference) {
+    Write-Host "  [whatif] audio probe skipped; no probe file created"
+    return
+  }
+  if ($SourceKind -in @("rtsp", "generic")) {
     $ffprobe = Join-Path (Split-Path -Parent $ffmpeg) "ffprobe.exe"
     if (-not (Test-Path $ffprobe)) { $ffprobe = Resolve-Executable "ffprobe" }
     if (-not $ffprobe) { Fail "ffprobe is unavailable" "install ffprobe beside ffmpeg or put it on PATH" }
-    Write-Host "  [..] probing RTSP for an audio stream" -ForegroundColor Yellow
+    $label = if ($SourceKind -eq "rtsp") { "RTSP" } else { "generic fMP4/HTTP" }
+    Write-Host "  [..] probing $label for an audio stream" -ForegroundColor Yellow
     $probeOut = Join-Path $env:TEMP ("nick-office-probe-" + [guid]::NewGuid().ToString("N") + ".txt")
     $probeErr = Join-Path $env:TEMP ("nick-office-probe-" + [guid]::NewGuid().ToString("N") + ".err")
     try {
-      $p = Start-Process -FilePath $ffprobe -ArgumentList @("-v","error","-select_streams","a","-show_entries","stream=codec_name,sample_rate,channels","-of","default=nw=1","-rtsp_transport","tcp",$SourceUrl) -RedirectStandardOutput $probeOut -RedirectStandardError $probeErr -Wait -PassThru
+      $probeArgs = @("-v","error","-select_streams","a","-show_entries","stream=codec_name,sample_rate,channels","-of","default=nw=1")
+      if ($SourceKind -eq "rtsp") {
+        $probeArgs += @("-rtsp_transport","tcp")
+      } else {
+        $probeArgs += @("-rw_timeout","15000000")
+      }
+      $probeArgs += $SourceUrl
+      $p = Start-Process -FilePath $ffprobe -ArgumentList $probeArgs -RedirectStandardOutput $probeOut -RedirectStandardError $probeErr -Wait -PassThru
       $body = (Get-Content $probeOut -Raw -ErrorAction SilentlyContinue)
       if ($p.ExitCode -ne 0 -or -not $body.Trim()) {
         $detail = (Get-Content $probeErr -Raw -ErrorAction SilentlyContinue)
-        Fail "RTSP source has no usable audio stream" ($detail.Trim() | Select-Object -First 1)
+        Fail "$label source has no usable audio stream" ($detail.Trim() | Select-Object -First 1)
       }
-      Write-Host "  [ok] RTSP audio stream proved"
+      Write-Host "  [ok] $label audio stream proved"
     } finally {
       Remove-Item $probeOut,$probeErr -Force -ErrorAction SilentlyContinue
     }

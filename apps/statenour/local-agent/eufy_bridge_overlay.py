@@ -307,7 +307,14 @@ def _plan_file(
 
 
 def _write_atomic(path: Path, text: str) -> None:
-    """Write one UTF-8/LF file atomically in the target directory."""
+    """Write one reviewed UTF-8/LF file, preferring same-directory atomic replace.
+
+    On the NicksMax Windows runtime, native Rename-Item succeeds while Python's
+    os.replace(temp, existing) returns WinError 5 for these reviewed bridge files.
+    Only that PermissionError falls back to a direct full-file write. The caller
+    preflights every target before the first mutation and rolls earlier writes back
+    if any later write or verification fails, so partial overlay state still fails closed.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(
         prefix=f".{path.name}.statenour-",
@@ -321,7 +328,14 @@ def _write_atomic(path: Path, text: str) -> None:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temp_path, path)
+        try:
+            os.replace(temp_path, path)
+        except PermissionError:
+            with path.open("w", encoding="utf-8", newline="\n") as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+            temp_path.unlink(missing_ok=True)
     except Exception:
         try:
             temp_path.unlink(missing_ok=True)

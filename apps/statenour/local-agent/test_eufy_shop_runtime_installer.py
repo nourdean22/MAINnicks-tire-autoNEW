@@ -30,6 +30,12 @@ class EufyShopRuntimeInstallerTests(unittest.TestCase):
         self.assertIn('$env:BRIDGE_HOST = "127.0.0.1"', SOURCE)
         self.assertIn('$env:BRIDGE_SELF_HOST = "127.0.0.1"', SOURCE)
         self.assertIn('ws://127.0.0.1:3000/ws', SOURCE)
+        self.assertIn('[string]$Go2RtcApiListen = "127.0.0.1:1984"', SOURCE)
+        self.assertIn('[string]$Go2RtcRtspListen = "127.0.0.1:8654"', SOURCE)
+        self.assertIn('[string]$Go2RtcWebrtcListen = "127.0.0.1:8655"', SOURCE)
+        self.assertIn('$env:GO2RTC_API_LISTEN = "__GO2RTC_API_LISTEN__"', SOURCE)
+        self.assertIn('$env:GO2RTC_RTSP_LISTEN = "__GO2RTC_RTSP_LISTEN__"', SOURCE)
+        self.assertIn('$env:GO2RTC_WEBRTC_LISTEN = "__GO2RTC_WEBRTC_LISTEN__"', SOURCE)
         self.assertNotIn('BRIDGE_HOST = "0.0.0.0"', SOURCE)
 
     def test_secrets_are_dpapi_and_never_written_to_runtime_json(self):

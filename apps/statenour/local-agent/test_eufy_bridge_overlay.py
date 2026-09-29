@@ -172,6 +172,22 @@ class EufyBridgeOverlayTests(unittest.TestCase):
             "PTZ file must not be written before all targets pass preflight",
         )
 
+    def test_windows_replace_permission_error_uses_full_file_fallback(self):
+        root = self.fixture()
+        with patch(
+            "eufy_bridge_overlay.os.replace",
+            side_effect=PermissionError("synthetic WinError 5"),
+        ):
+            report = apply(root)
+
+        self.assertEqual(
+            set(report.changed_files),
+            {"src/ws-server.mjs", "src/http-routes.mjs", "go2rtc-config.mjs"},
+        )
+        verified = verify(root)
+        self.assertEqual(verified.record_route, "verified_fragmented_mp4")
+        self.assertEqual(verified.go2rtc_listeners, "loopback_runtime_configurable")
+
     def test_second_write_failure_rolls_back_first_write(self):
         root = self.fixture()
         ws = root / WS_PATH

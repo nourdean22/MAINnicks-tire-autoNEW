@@ -5,6 +5,9 @@ param(
   [string]$BridgeRoot = (Join-Path $env:LOCALAPPDATA "StateNour\Eufy\ha-eufy-sdk-bridge-0.3.0"),
   [string]$OfficeSerial = "T8410P5225154105",
   [string]$NickHeartbeatUrl = "https://nickstire.org/api/camera/heartbeat",
+  [string]$Go2RtcApiListen = "127.0.0.1:1984",
+  [string]$Go2RtcRtspListen = "127.0.0.1:8654",
+  [string]$Go2RtcWebrtcListen = "127.0.0.1:8655",
   [switch]$EnableControl,
   [switch]$CommissionPtz,
   [Nullable[int]]$HomePresetId = $null,
@@ -358,6 +361,9 @@ $runtime = [ordered]@{
   homePresetId = if ($HomePresetId.HasValue) { $HomePresetId.Value } else { $null }
   bridgeCommit = $BridgeCommit
   go2rtcVersion = $Go2RtcVersion
+  go2rtcApiListen = $Go2RtcApiListen
+  go2rtcRtspListen = $Go2RtcRtspListen
+  go2rtcWebrtcListen = $Go2RtcWebrtcListen
   repoRoot = $RepoRoot
   bridgeRoot = $BridgeRoot
 }
@@ -390,6 +396,9 @@ $env:BRIDGE_PORT = "3000"
 $env:BRIDGE_SELF_HOST = "127.0.0.1"
 $env:EUFY_SESSION = Join-Path $StateRoot "state\.eufy-session.json"
 $env:GO2RTC_ENABLE = "1"
+$env:GO2RTC_API_LISTEN = "__GO2RTC_API_LISTEN__"
+$env:GO2RTC_RTSP_LISTEN = "__GO2RTC_RTSP_LISTEN__"
+$env:GO2RTC_WEBRTC_LISTEN = "__GO2RTC_WEBRTC_LISTEN__"
 $env:BRIDGE_PREWARM = "1"
 $env:BRIDGE_EVENT_LOG = "1"
 $env:BRIDGE_DEBUG = "0"
@@ -428,7 +437,7 @@ Set-Location "__CAMERA_BRIDGE_DIR__"
 & "__VENV_PYTHON__" -m vision.officewake
 '@
 
-$bridgeText = $bridgeTemplate.Replace("__STATE_ROOT__", $StateRoot).Replace("__SECRET_LOADER__", $secretLoader).Replace("__BRIDGE_ROOT__", $BridgeRoot).Replace("__NODE__", $node)
+$bridgeText = $bridgeTemplate.Replace("__STATE_ROOT__", $StateRoot).Replace("__SECRET_LOADER__", $secretLoader).Replace("__BRIDGE_ROOT__", $BridgeRoot).Replace("__NODE__", $node).Replace("__GO2RTC_API_LISTEN__", $Go2RtcApiListen).Replace("__GO2RTC_RTSP_LISTEN__", $Go2RtcRtspListen).Replace("__GO2RTC_WEBRTC_LISTEN__", $Go2RtcWebrtcListen)
 $agentText = $agentTemplate.Replace("__STATE_ROOT__", $StateRoot).Replace("__SECRET_LOADER__", $secretLoader).Replace("__RUNTIME_PATH__", $runtimePath).Replace("__BRIDGE_URL__", $BridgeUrl).Replace("__LOCAL_AGENT_DIR__", $LocalAgentDir).Replace("__VENV_PYTHON__", $venvPython)
 $wakeLedger = Join-Path $receiptDir "office-wake.jsonl"
 $wakeText = $wakeTemplate.Replace("__BRIDGE_URL__", $BridgeUrl).Replace("__OFFICE_SERIAL__", $OfficeSerial).Replace("__WAKE_LEDGER__", $wakeLedger).Replace("__CAMERA_BRIDGE_DIR__", $CameraBridgeDir).Replace("__VENV_PYTHON__", $venvPython)
