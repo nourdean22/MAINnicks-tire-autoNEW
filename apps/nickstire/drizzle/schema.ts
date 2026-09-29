@@ -682,7 +682,7 @@ export const reviewRequests = mysqlTable("review_requests", {
   /** Service performed (for personalization) */
   service: varchar("service", { length: 100 }),
   /** Current status of the review request */
-  status: mysqlEnum("status", ["pending", "sent", "clicked", "failed", "skipped"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "sent", "clicked", "heldout", "failed", "skipped"]).default("pending").notNull(),
   /** When the SMS should be sent (booking completion + delay) */
   scheduledAt: timestamp("scheduledAt").notNull(),
   /** When the SMS was actually sent */
@@ -1127,7 +1127,7 @@ export const winbackSends = mysqlTable("winback_sends", {
   personalizedBody: text("personalizedBody").notNull(),
   scheduledAt: timestamp("scheduledAt").notNull(),
   sentAt: timestamp("sentAt"),
-  status: mysqlEnum("status", ["pending", "sent", "failed"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "sent", "heldout", "failed"]).default("pending").notNull(),
   twilioSid: varchar("twilioSid", { length: 100 }),
   errorMessage: text("errorMessage"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -1934,8 +1934,8 @@ export const smsCampaignSends = mysqlTable("sms_campaign_sends", {
   messageBody: text("messageBody").notNull(),
   /** Twilio message SID for tracking */
   twilioSid: varchar("twilioSid", { length: 100 }),
-  /** Status: pending, sent, failed */
-  status: mysqlEnum("status", ["pending", "sent", "failed"]).default("pending").notNull(),
+  /** Status: pending, sent, heldout, failed */
+  status: mysqlEnum("status", ["pending", "sent", "heldout", "failed"]).default("pending").notNull(),
   /** Error message if failed */
   errorMessage: text("errorMessage"),
   /** When SMS was actually sent */
@@ -3944,6 +3944,28 @@ export const nickgptDrafts = mysqlTable("nickgpt_drafts", {
 
 export type NickgptDraft = typeof nickgptDrafts.$inferSelect;
 export type InsertNickgptDraft = typeof nickgptDrafts.$inferInsert;
+
+// ─── 0135: customer-contact holdout assignments ──────────────────────
+// Q-21. This table records NO-CONTACT control assignment. Do not overload
+// sms_orchestrations.isControl: that existing field describes copy/template
+// experiment control inside a message that may still be sent.
+export const contactExperimentAssignments = mysqlTable("contact_experiment_assignments", {
+  id: bigint("id", { mode: "number", unsigned: true }).autoincrement().primaryKey(),
+  experimentId: varchar("experiment_id", { length: 120 }).notNull(),
+  laneKey: varchar("lane_key", { length: 100 }).notNull(),
+  subjectKey: varchar("subject_key", { length: 64 }).notNull(),
+  armId: varchar("arm_id", { length: 16 }).notNull(),
+  assignmentVersion: varchar("assignment_version", { length: 32 }).notNull(),
+  sourceVariantKey: varchar("source_variant_key", { length: 100 }),
+  assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("uk_contact_exp_subject").on(table.experimentId, table.subjectKey),
+  index("idx_contact_exp_lane_arm_time").on(table.laneKey, table.armId, table.assignedAt),
+  index("idx_contact_exp_assigned").on(table.assignedAt),
+]);
+
+export type ContactExperimentAssignment = typeof contactExperimentAssignments.$inferSelect;
+export type InsertContactExperimentAssignment = typeof contactExperimentAssignments.$inferInsert;
 
 export const smsOrchestrations = mysqlTable("sms_orchestrations", {
   id: int("id").autoincrement().primaryKey(),

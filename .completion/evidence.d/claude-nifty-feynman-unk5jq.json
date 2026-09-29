@@ -1,7 +1,7 @@
 {
   "evidence": {
-    "cron-fail-closed": {
-      "ref": "2026-09-29 declined-work manual lanes (server/cron/jobs/declinedWorkRecovery.ts): server/cron/jobs/declinedWorkRecovery.manualLanes.test.ts pins the fail-closed paths. A failed estimate-invoice match sends nothing (the sender is never called, recordsProcessed 0, details say nothing was sent). An explicit dryRun never sends, even with FEATURE_DECLINED_RECOVERY=1 or skipDryRunGate. Red 7 of 7 on origin/main 1f7084b57, green after; mutants 'sends after a failed match' and 'dryRun does not win' each fail 1 test. The scheduled tier keeps its own requiresSuccessfulJobs gate on estimate-invoice-match, unchanged."
+    "capability-ledger-updated": {
+      "ref": "2026-09-29 ledger-date/audit-log fix (server/services/activityLedger.ts scrubFreeText shields ISO dates from the phone scrub; server/services/auditTrail.ts logs describeDbError instead of err.message). No capability entry changes state or evidence: none of the 85 entries in docs/operations/capability-ledger.json covers activityLedger.ts, auditTrail.ts or audit_log (searched for activityLedger, auditTrail, audit_log, 'activity ledger': 0 hits). The fix corrects stored values and a log line; it adds no capability and moves none. Receipts: activityLedger.test.ts red on origin/main 9 of 31, green 31/31, mutants 9/6/1/1 failing; auditTrail.failureLog.test.ts red 2/2, green 2/2."
     }
   }
 }

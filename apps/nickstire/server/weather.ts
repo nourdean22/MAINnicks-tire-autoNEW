@@ -71,11 +71,15 @@ const CACHE_DURATION_MS = 15 * 60 * 1000; // 15 minutes
  * NWS forecast text ("Chance Rain Showers", "Heavy Snow", "Mostly Sunny") ->
  * the nearest WMO code, most severe match first. A low-probability "chance"
  * of precipitation this hour is not weather happening now: it maps to cloudy.
+ * NWS also words convective probability as coverage, "Isolated" (about 10-20%)
+ * and "Scattered" (about 30-50%), so those count as a chance too (audit
+ * 2026-09-29: a 40% "Scattered Showers And Thunderstorms" hour put
+ * "Thunderstorm in Cleveland area" on the public notification bar).
  */
 export function nwsForecastToWmoCode(shortForecast: string, precipChancePct: number | null = null): number {
   const t = shortForecast.toLowerCase();
   const precip = /snow|rain|showers|drizzle|sleet|thunderstorm|t-storm|ice|flurries/.test(t);
-  if (precip && /^(slight )?chance/.test(t) && (precipChancePct ?? 0) < 50) return 3;
+  if (precip && /^((slight )?chance|isolated|scattered)\b/.test(t) && (precipChancePct ?? 0) < 50) return 3;
   if (/thunderstorm|t-storm/.test(t)) return /hail/.test(t) ? 96 : 95;
   if (/blizzard|heavy snow/.test(t)) return 75;
   if (/freezing rain|sleet|ice pellets|ice storm/.test(t)) return 66;

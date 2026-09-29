@@ -15,12 +15,25 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { claimReceipt, isReceiptTableMissing, settleReceipt } from "@/lib/services/bridge-receipts";
+import {
+  REALITY_EVENT_RETENTION_CLASSES,
+  validateRealityEventRegistration,
+  type RealityEventRegistrationResult,
+} from "@/lib/events/reality-event-registry";
 
 export const EVIDENCE_GRADES = ["H0", "H1", "H2", "H3", "H4", "H5"] as const;
 
 export const RealityEventInputSchema = z.object({
   eventType: z.string().min(3).max(80).regex(/^[a-z0-9_.]+$/, "dotted lower_snake"),
+  /** Q-25: omitted by legacy producers; when supplied it must match the registry. */
+  eventVersion: z.number().int().min(1).optional(),
+  /** Canonical source-domain event time. Legacy producers may still send observedAt only. */
+  occurredAt: z.string().datetime().optional(),
   observedAt: z.string().datetime().optional(),
+  correlationId: z.string().min(1).max(160).optional(),
+  causationId: z.string().min(1).max(160).optional(),
+  /** Registry-owned retention class; an explicit mismatch is rejected. */
+  retentionClass: z.enum(REALITY_EVENT_RETENTION_CLASSES).optional(),
   objects: z.array(z.object({ type: z.string().min(1).max(40), id: z.string().min(1).max(200), role: z.string().max(40).optional() })).min(1).max(20),
   source: z.object({ system: z.string().min(1).max(64), version: z.string().max(40).optional(), uri: z.string().max(500).optional() }),
   experiment: z.object({ experimentId: z.string().max(120), variantId: z.string().max(64).optional(), contractHash: z.string().max(32).optional() }).optional(),
@@ -172,19 +185,43 @@ export async function recordEvidenceBatch(
 
   // Events keep their batch index (claims reference it), so a rejected event
   // leaves a hole that a claim pointing at it must not silently fall through.
-  const events: Array<{ index: number; data: RealityEventInput }> = [];
+  const events: Array<{
+    index: number;
+    data: RealityEventInput;
+    registration: Extract<RealityEventRegistrationResult, { ok: true }>;
+  }> = [];
   batch.events.forEach((e, index) => {
     const r = RealityEventInputSchema.safeParse(e);
     if (!r.success) {
       receipt.rejected.push({ kind: "event", index, error: issues(r.error) });
       return;
     }
-    const pii = findPii({ payload: r.data.payload ?? {}, objects: r.data.objects, sourceUri: r.data.source.uri ?? "" });
+    // Security ordering is intentional: after the generic envelope shape is
+    // parseable, reject PII BEFORE family-specific payload validation. Otherwise
+    // an experiment payload such as { customer: { phone: ... } } can fail first
+    // on a missing business field and mask the stronger aggregate-only refusal.
+    const pii = findPii({
+      payload: r.data.payload ?? {},
+      objects: r.data.objects,
+      sourceUri: r.data.source.uri ?? "",
+      correlationId: r.data.correlationId ?? "",
+      causationId: r.data.causationId ?? "",
+    });
     if (pii) {
       receipt.rejected.push({ kind: "event", index, error: `${pii.path}: ${pii.reason} — the ledger is aggregate-only` });
       return;
     }
-    events.push({ index, data: r.data });
+    const registration = validateRealityEventRegistration({
+      eventType: r.data.eventType,
+      eventVersion: r.data.eventVersion,
+      retentionClass: r.data.retentionClass,
+      payload: r.data.payload,
+    });
+    if (!registration.ok) {
+      receipt.rejected.push({ kind: "event", index, error: registration.error });
+      return;
+    }
+    events.push({ index, data: r.data, registration });
   });
 
   const claims: Array<{ index: number; data: EvidenceClaimInput }> = [];
@@ -245,11 +282,20 @@ export async function recordEvidenceBatch(
       }
       const idByIndex = new Map<number, string>();
       let firstRef: string | null = null;
-      for (const { index, data: e } of events) {
+      for (const { index, data: e, registration } of events) {
+        const legacyTime = e.observedAt ? new Date(e.observedAt) : new Date();
+        const occurredAt = e.occurredAt ? new Date(e.occurredAt) : legacyTime;
         const row = await tx.realityEvent.create({
           data: {
             eventType: e.eventType,
-            observedAt: e.observedAt ? new Date(e.observedAt) : new Date(),
+            eventVersion: registration.eventVersion,
+            occurredAt,
+            // Keep observedAt backward-compatible for existing readers while
+            // occurredAt becomes the canonical source-domain clock.
+            observedAt: legacyTime,
+            correlationId: e.correlationId ?? null,
+            causationId: e.causationId ?? null,
+            retentionClass: registration.retentionClass,
             objects: e.objects as Prisma.InputJsonValue,
             sourceSystem: e.source.system,
             sourceUri: e.source.uri ?? null,
@@ -258,7 +304,7 @@ export async function recordEvidenceBatch(
             contractHash: e.experiment?.contractHash ?? null,
             quality: e.quality,
             privacy: e.privacy,
-            payload: (e.payload ?? undefined) as Prisma.InputJsonValue | undefined,
+            payload: registration.payload as Prisma.InputJsonValue,
             sender: batch.sender,
           },
           select: { id: true },

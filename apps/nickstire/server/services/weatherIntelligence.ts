@@ -252,7 +252,7 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
         // wave-2026-06 (telemetry dedup) — a QUEUED send already has ONE tiered
         // row from queueForLater (now carries variantKey); logging here too
         // would double-count it as an untagged twin. Only log the online path.
-        if (!result.queued) {
+        if (!result.queued && !result.heldOut) {
           await logOutboundSms(c.phone, msg, result, variantKey);
         }
         // Only a confirmed send counts as sent; queued/uncertain are logged (audit F-3).

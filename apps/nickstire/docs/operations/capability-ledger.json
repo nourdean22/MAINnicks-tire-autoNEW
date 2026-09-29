@@ -6,7 +6,7 @@
       "name": "SMS send receipts derive from outcomes (sent / queued / uncertain / failed)",
       "owner": "operator",
       "evidence": {
-        "codeCommit": "2026-09-01 admin audit wave (#2063, squash 9f903fff3): server/lib/smsOutcome.ts is the single classification; follow-ups, operator replies, campaigns, winback, reminders, review requests, cross-sell, unpaid-invoice recovery, warranty alerts, crudAutomation x3, post-invoice follow-up, tire-order confirmations and the customer-profile manual send all derive counters and status rows from it. RUN FOLLOW-UPS checks its feature flag BEFORE claiming a customer. CORRECTION #18 (2026-09-02, #2070): the estimate follow-up job this entry first listed as a receipt site queried an `estimates` table that never existed in production; it is retired and its tests deleted. smsClaimConsumed (2026-09-02 second pass): a claim is consumed for every outcome except a definite failure, so an uncertain (gateway-timeout) text is never re-sent.",
+        "codeCommit": "2026-09-01 admin audit wave (#2063, squash 9f903fff3): server/lib/smsOutcome.ts is the single classification; follow-ups, operator replies, campaigns, winback, reminders, review requests, cross-sell, unpaid-invoice recovery, warranty alerts, crudAutomation x3, post-invoice follow-up, tire-order confirmations and the customer-profile manual send all derive counters and status rows from it. RUN FOLLOW-UPS checks its feature flag BEFORE claiming a customer. CORRECTION #18 (2026-09-02, #2070): the estimate follow-up job this entry first listed as a receipt site queried an `estimates` table that never existed in production; it is retired and its tests deleted. smsClaimConsumed (2026-09-02 second pass): a claim is consumed for every outcome except a definite failure, so an uncertain (gateway-timeout) text is never re-sent. Q-21 branch ec4dad00a: proactive retention/winback/drip/weather/review-request/campaign lanes gain durable randomized no-contact holdouts behind master + lane flags that default OFF; heldout is an explicit terminal outcome; Money / Outcome Board separates causal randomized lift from observational correlation and preserves negative gross lift.",
         "tests": [
           "server/lib/smsOutcome.test.ts (4): the four-way classification, queued is not delivered, uncertain is not guaranteed",
           "server/followUpReceipts.test.ts (7): flag off claims nothing; delivered / queued / failed / no-phone each produce the matching receipt; runFollowUps total == sent",
@@ -14,7 +14,8 @@
           "server/bridgeSmsCampaignDraft.test.ts (3): the GPT bridge never calls sendSms; it drafts",
           "server/lib/smsClaimConsumed.test.ts (4): claim consumed on sent/queued/uncertain, open only on a definite failure; the two helpers disagree exactly on uncertain",
           "server/__tests__/rawSqlTablesExist.test.ts (3): every table named in raw SQL is declared or allowlisted -- the phantom-table class that hid the dead estimate follow-up (correction #18)",
-          "2026-09-29 audit item 2 (branch nickstire/sms-voice-truth-batch): after_hours_capture ('We're closed right now and open again at {nextOpen}') is sent with sendSms's new sendNowOrDrop option; at the quiet-hours, global-pause and gateway-offline queue sites it is dropped (notQueued) instead of parked, and the orchestrator records skipped / time_sensitive_not_queued, not failed. server/__tests__/afterHoursReplyNotQueued.test.ts (4, fake timers, the real delayed-queue processor): a 22:00 ET text is not queued and nothing 'closed right now' is delivered at 08:00 ET; CONTROL without the option it IS queued and delivered at 08:00; not held behind a pause; POSITIVE CONTROL at 19:00 ET it sends now, word for word. Red on main 2 of 4; mutation (drop the quiet-hours guard) red 1 of 4. smsOrchestrator.golden.test.ts (+2) pins the orchestrator wiring (red on main 2 of 63)."
+          "2026-09-29 audit item 2 (branch nickstire/sms-voice-truth-batch): after_hours_capture ('We're closed right now and open again at {nextOpen}') is sent with sendSms's new sendNowOrDrop option; at the quiet-hours, global-pause and gateway-offline queue sites it is dropped (notQueued) instead of parked, and the orchestrator records skipped / time_sensitive_not_queued, not failed. server/__tests__/afterHoursReplyNotQueued.test.ts (4, fake timers, the real delayed-queue processor): a 22:00 ET text is not queued and nothing 'closed right now' is delivered at 08:00 ET; CONTROL without the option it IS queued and delivered at 08:00; not held behind a pause; POSITIVE CONTROL at 19:00 ET it sends now, word for word. Red on main 2 of 4; mutation (drop the quiet-hours guard) red 1 of 4. smsOrchestrator.golden.test.ts (+2) pins the orchestrator wiring (red on main 2 of 63).",
+          "Q-21 focused verification before PR: Nick's full TypeScript PASS; 243/243 focused + consent-safety tests PASS; server/services/contactExperiment.test.ts pins lane eligibility, deterministic ~15% assignment, durable race-safe readback, flags OFF, and fail-open-to-normal-send on experiment storage failure; SQL lint + git diff --check PASS."
         ],
         "liveRuns": [],
         "deploymentId": "deployed with #2063 (main auto-deploy, squash 9f903fff3, 2026-09-02); #2070 retires the phantom-table job"
@@ -28,9 +29,10 @@
       ],
       "deferredScope": [
         "a per-send delivery-receipt table (sms_messages already carries status; not duplicated)",
-        "surfacing queued counts on the Winback → Campaigns tiles (server returns them; UI shows sent/failed)"
+        "surfacing queued counts on the Winback → Campaigns tiles (server returns them; UI shows sent/failed)",
+        "Q-21 contact holdout flags remain OFF by default until the operator deliberately arms each lane; provider/carrier cost is UNMEASURED, so the board reports incremental gross revenue rather than profit; migration 0136 still requires the normal operator-gated production apply/read-back."
       ],
-      "lastVerifiedAt": "2026-09-02",
+      "lastVerifiedAt": "2026-09-29",
       "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "internal"
@@ -2677,6 +2679,96 @@
       "codeState": "merged",
       "operationalState": "live_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "reality-event-envelope-q25",
+      "name": "Versioned RealityEvent registry + correlation/causation envelope",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unverified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch feat/nouros-carousel-q25-q27-current-20260929: StateNour RealityEvent registry, existing DomainEventEnvelope adapter/projection, Episode lineage, Nick evidence-ledger envelope support, additive pending migration.",
+        "tests": [
+          "Branch tests added: apps/statenour/tests/events/reality-event-registry.test.ts",
+          "Branch tests extended: apps/statenour/tests/events/envelope-adapters.test.ts, apps/statenour/tests/api/sync-evidence.test.ts, apps/statenour/tests/intelligence/episodes.test.ts",
+          "Exact-head CI is still pending; no green status is claimed by this ledger row."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Operator must apply and read back the additive StateNour RealityEvent migration before any production code may rely on the new columns."
+        },
+        {
+          "severity": "P3",
+          "description": "Exact-head CI and post-deploy ingestion/projection observation are still pending."
+        }
+      ],
+      "deferredScope": [
+        "Production migration apply/read-back.",
+        "Production event ingestion/projection receipt after deploy."
+      ],
+      "lastVerifiedAt": "2026-09-29"
+    },
+    {
+      "capabilityId": "business-data-contracts-q26",
+      "name": "Business-table freshness + weekday-seasonal volume contracts",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unverified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch feat/nouros-carousel-q25-q27-current-20260929: shared/businessDataContracts.ts, MetricEnvelope freshness field, and data-accuracy-check wiring.",
+        "tests": [
+          "Branch tests added: apps/nickstire/shared/businessDataContracts.test.ts",
+          "Exact-head CI is still pending; no production cron observation is claimed."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Thresholds have not yet been observed against production weekday history; exact-head CI and live data-accuracy-check observation are pending."
+        }
+      ],
+      "deferredScope": [
+        "Calibrate warn/error thresholds only after observing real same-weekday history; do not tune by intuition.",
+        "No event table is called stale merely because business volume is zero."
+      ],
+      "lastVerifiedAt": "2026-09-29"
+    },
+    {
+      "capabilityId": "customer-value-reference-ranking-q27",
+      "name": "BG/NBD + Gamma-Gamma customer-value reference ranking",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unverified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch feat/nouros-carousel-q25-q27-current-20260929: pure BG/NBD/Gamma-Gamma kernel, CDNOW goldens, read-only customer ranking service, and admin read procedure.",
+        "tests": [
+          "Branch tests added: apps/nickstire/shared/customerValueModel.test.ts and apps/nickstire/server/lib/customerValueRanking.test.ts",
+          "Exact-head CI is still pending. The model is explicitly external-cdnow-reference-not-shop-fitted."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "The CDNOW fit is an external reference, not Nick's calibration. It must remain ranking-only and may not be labeled predicted revenue or drive customer sends."
+        },
+        {
+          "severity": "P3",
+          "description": "Shop-specific backtest/calibration is unmeasured."
+        }
+      ],
+      "deferredScope": [
+        "No SMS, campaign, winback, or autonomous action wiring.",
+        "No revenue/CLV promise until shop-specific calibration and outcome evaluation exist."
+      ],
+      "lastVerifiedAt": "2026-09-29"
     }
   ],
   "axes": {

@@ -70,8 +70,67 @@ describe("recordEvidenceBatch", () => {
     const { recordEvidenceBatch } = await import("@/lib/services/reality-ledger");
     const r = await recordEvidenceBatch({ events: [validEvent], claims: [validClaim], sender: "nickstire" }, { producer: "bridge" });
     expect(r).toEqual({ eventsWritten: 1, claimsWritten: 1, rejected: [] });
-    expect(eventCreate.mock.calls[0][0].data).toMatchObject({ eventType: "experiment.verdict", sender: "nickstire", experimentId: "home-hero-subline-2026-09" });
+    expect(eventCreate.mock.calls[0][0].data).toMatchObject({
+      eventType: "experiment.verdict",
+      eventVersion: 1,
+      retentionClass: "evidence",
+      sender: "nickstire",
+      experimentId: "home-hero-subline-2026-09",
+    });
     expect(claimCreate.mock.calls[0][0].data).toMatchObject({ grade: "H4", disposition: "SUPPORTED", createdBy: "CRON" });
+    expect(prismaMock.$transaction).toHaveBeenCalledOnce();
+  });
+
+  it("rejects unknown event types at the ledger door — dotted syntax alone is not authority", async () => {
+    const { recordEvidenceBatch } = await import("@/lib/services/reality-ledger");
+    const r = await recordEvidenceBatch(
+      { events: [{ ...validEvent, eventType: "new.unreviewed_fact" }], sender: "nickstire" },
+      { producer: "bridge" },
+    );
+    expect(r.eventsWritten).toBe(0);
+    expect(r.rejected).toEqual([
+      expect.objectContaining({ kind: "event", index: 0, error: expect.stringMatching(/unregistered RealityEvent type/) }),
+    ]);
+    expect(eventCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects an explicit eventVersion mismatch instead of silently coercing it", async () => {
+    const { recordEvidenceBatch } = await import("@/lib/services/reality-ledger");
+    const r = await recordEvidenceBatch(
+      { events: [{ ...validEvent, eventVersion: 2 }], sender: "nickstire" },
+      { producer: "bridge" },
+    );
+    expect(r.eventsWritten).toBe(0);
+    expect(r.rejected[0]?.error).toMatch(/eventVersion 2.*registered version 1/);
+  });
+
+  it("persists canonical occurredAt plus correlation/causation lineage inside the existing transaction", async () => {
+    const { recordEvidenceBatch } = await import("@/lib/services/reality-ledger");
+    const occurredAt = "2026-09-29T12:00:00.000Z";
+    const r = await recordEvidenceBatch(
+      {
+        events: [{
+          ...validEvent,
+          eventVersion: 1,
+          occurredAt,
+          observedAt: "2026-09-29T12:00:01.000Z",
+          correlationId: "experiment:home-hero:run-1",
+          causationId: "evt-parent-1",
+          retentionClass: "evidence",
+        }],
+        sender: "nickstire",
+      },
+      { producer: "bridge" },
+    );
+    expect(r.eventsWritten).toBe(1);
+    expect(eventCreate.mock.calls[0][0].data).toMatchObject({
+      eventVersion: 1,
+      occurredAt: new Date(occurredAt),
+      observedAt: new Date("2026-09-29T12:00:01.000Z"),
+      correlationId: "experiment:home-hero:run-1",
+      causationId: "evt-parent-1",
+      retentionClass: "evidence",
+    });
     expect(prismaMock.$transaction).toHaveBeenCalledOnce();
   });
 

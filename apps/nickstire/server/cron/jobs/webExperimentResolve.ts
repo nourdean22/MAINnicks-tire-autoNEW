@@ -202,10 +202,16 @@ export async function processWebExperimentResolve(): Promise<ProcessResult> {
       const grade = "H4" as const;
       const authority = decisive ? authorityFor(grade) : authorityFor("H1");
       const meetsContractMinimum = decisive && gradeSatisfies(grade, owning.contract.minimumEvidence);
+      const verdictOccurredAt = new Date().toISOString();
       await postToEvidenceLedger({
         events: [
           {
             eventType: "experiment.verdict",
+            eventVersion: 1,
+            occurredAt: verdictOccurredAt,
+            observedAt: verdictOccurredAt,
+            correlationId: `experiment:${def.experimentId}:${owning.hash}`,
+            retentionClass: "evidence",
             objects: [
               { type: "experiment", id: def.experimentId },
               { type: "goal", id: owning.contract.goalId },

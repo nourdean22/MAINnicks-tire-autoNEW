@@ -139,7 +139,7 @@ export async function sendWorkOrderStatusMessage(params: {
     return { id, outcome: "failed", error: `no delivery path for channel "${channel}"` };
   }
   const { sendSms } = await import("../sms");
-  const { smsOutcome } = await import("../lib/smsOutcome");
+  const { nonExperimentSmsOutcome } = await import("../lib/smsOutcome");
   const result = await sendSms(params.recipient, params.message, {
     via: "shop",
     messageClass: "customer_confirmation",
@@ -148,7 +148,7 @@ export async function sendWorkOrderStatusMessage(params: {
   // `uncertain` (gateway timeout) is carried through, never collapsed to
   // failed: the relay may have delivered, and a "failed" receipt would make
   // the advisor re-send — a duplicate pickup text (self-review on PR #2063).
-  const outcome = smsOutcome(result);
+  const outcome = nonExperimentSmsOutcome(result);
   const id = await logStatusMessage({ ...params, channel, status: outcome });
   if (outcome === "failed" || outcome === "uncertain") {
     log.warn(`[customerMessaging] status message ${outcome}`, {

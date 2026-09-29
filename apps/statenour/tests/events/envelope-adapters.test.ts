@@ -29,6 +29,7 @@ import {
   fromBrainBusEvent,
   fromAuditEvent,
   fromEntityAudit,
+  fromRealityEvent,
   withTrace,
 } from "@/lib/events/adapters";
 
@@ -83,6 +84,27 @@ const fixtures = [
       fromEntityAudit({ id: "ea1", entityType: "Task", entityId: "t1", action: "update", actor: "owner", before: { x: 1 }, createdAt: at }),
     expectType: "com.statenour.audit.task.update.v1",
   },
+  {
+    name: "RealityEvent",
+    make: () =>
+      fromRealityEvent({
+        id: "re1",
+        eventType: "episode.decision.shadow_evaluated",
+        eventVersion: 1,
+        occurredAt: at,
+        observedAt: at,
+        correlationId: "trace-1",
+        causationId: "re0",
+        retentionClass: "learning",
+        objects: [{ type: "episode", id: "ep-1" }],
+        sourceSystem: "statenour",
+        sourceUri: null,
+        privacy: "internal",
+        payload: { schemaVersion: 1, episodeId: "ep-1" },
+        sender: "statenour-episode",
+      }),
+    expectType: "com.statenour.episode.decision.shadow_evaluated.v1",
+  },
 ] as const;
 
 describe("runtime mirrors are drift-pinned to the canonical contract", () => {
@@ -111,6 +133,14 @@ describe("adapters → schema-valid envelopes", () => {
     expect(a.id).toBe(b.id);
     expect(a.type).toBe(b.type);
     expect(a.time).toBe(b.time);
+  });
+
+  it("RealityEvent keeps its native correlation id and source clock in the shared envelope", () => {
+    const env = fixtures[8].make();
+    expect(env.correlationId).toBe("trace-1");
+    expect(env.time).toBe(at.toISOString());
+    expect(env.subject).toBe("ep-1");
+    expect(env.schemaVersion).toBe(1);
   });
 
   it("operator-sourced triage TaskEvents carry actorType operator", () => {

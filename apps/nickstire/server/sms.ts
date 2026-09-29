@@ -1290,6 +1290,8 @@ interface SmsDeliveryStats {
   blockedByConsent: number;
   /** marketing sends that WOULD be refused once the consent gate is armed */
   consentGateShadowMisses: number;
+  /** eligible marketing contacts deliberately withheld by a durable holdout */
+  heldOutByExperiment: number;
 }
 
 const smsStats: SmsDeliveryStats = {
@@ -1306,6 +1308,7 @@ const smsStats: SmsDeliveryStats = {
   internalLineRefused: 0,
   blockedByConsent: 0,
   consentGateShadowMisses: 0,
+  heldOutByExperiment: 0,
   lastSentAt: null,
   lastError: null,
   deliveryRate: 100,
@@ -1460,6 +1463,11 @@ export interface SmsResult {
    * the row as `sending`. Three parts of one system, two different truths.
    */
   uncertain?: boolean;
+  /** Deliberate no-contact experiment control. No provider attempt occurred. */
+  heldOut?: boolean;
+  /** Present on held-out controls so receipts can cite the exact cohort. */
+  experimentId?: string;
+  experimentLane?: string;
   /**
    * The caller passed sendNowOrDrop and the text could not go out now, so it was
    * dropped instead of queued. Nothing was sent and nothing will be.
@@ -2236,6 +2244,48 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
         messageClass,
         why,
       });
+    }
+  }
+
+  // ─── Q-21 · durable no-contact holdout assignment ─────────────────
+  //
+  // Only proactive MARKETING sends with a registered variantKey are eligible.
+  // The experiment service is default-OFF and fail-open-to-treatment: if its
+  // durable assignment cannot be read/written, this send proceeds normally.
+  //
+  // Placement is load-bearing:
+  //   1. AFTER opt-out + prior-consent gates, so ineligible customers never
+  //      contaminate either experiment arm;
+  //   2. BEFORE quiet-hours / gateway queues, so a treatment queued overnight
+  //      keeps its assignment and a control is never persisted as a fake send;
+  //   3. skipped for _forceImmediate queue replays and human-initiated sends.
+  if (
+    messageClass === "customer_marketing" &&
+    !isInternal &&
+    !opts?._forceImmediate &&
+    !opts?.humanInitiated &&
+    opts?.variantKey
+  ) {
+    const { resolveContactExperiment } = await import("./services/contactExperiment");
+    const assignment = await resolveContactExperiment(normalizedEarly, opts.variantKey);
+    if (
+      assignment.armed &&
+      assignment.measurable &&
+      assignment.armId === "control"
+    ) {
+      smsStats.heldOutByExperiment++;
+      log.info("[sendSms] HELD OUT — durable no-contact experiment control", {
+        to: normalizedEarly.slice(-4),
+        lane: assignment.laneKey,
+        experimentId: assignment.experimentId,
+        variantKey: opts.variantKey,
+      });
+      return {
+        success: true,
+        heldOut: true,
+        experimentId: assignment.experimentId ?? undefined,
+        experimentLane: assignment.laneKey ?? undefined,
+      };
     }
   }
 

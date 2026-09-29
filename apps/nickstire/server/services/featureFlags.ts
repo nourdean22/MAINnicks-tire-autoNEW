@@ -29,6 +29,17 @@ export const FLAG_DEFINITIONS = [
   { key: "sms_blast_enabled", description: "Bulk SMS campaign sending" },
   { key: "smart_sms_auto_reply", description: "Auto-reply to inbound SMS based on intent" },
   { key: "sms_cross_sell_outreach", description: "Proactive cross-sell SMS based on service history patterns" },
+  // Q-21 · NO-CONTACT holdout measurement. Every switch is OFF by default.
+  // The master switch alone changes nothing: a lane must also be explicitly
+  // armed. Cross-sell + declined-work are absent because they already have
+  // independent holdout designs.
+  { key: "contact_holdouts_enabled", description: "MASTER for durable no-contact holdout experiments on eligible proactive SMS lanes. OFF by default; each lane also requires its own flag." },
+  { key: "contact_holdout_retention", description: "15% deterministic no-contact control for each retention tier (D7/D14/D45/D90/D180/D365). Requires contact_holdouts_enabled." },
+  { key: "contact_holdout_winback", description: "15% deterministic no-contact control for winback SMS. Requires contact_holdouts_enabled." },
+  { key: "contact_holdout_drip", description: "15% deterministic no-contact control for drip SMS steps. Requires contact_holdouts_enabled." },
+  { key: "contact_holdout_weather", description: "15% deterministic no-contact control per weather-trigger SMS lane. Requires contact_holdouts_enabled." },
+  { key: "contact_holdout_review_requests", description: "15% deterministic no-contact control for review-request SMS. Random only; never sentiment-selected. Requires contact_holdouts_enabled." },
+  { key: "contact_holdout_campaigns", description: "15% deterministic no-contact control independently within each explicit SMS campaign. Requires contact_holdouts_enabled." },
   { key: "service_affinity_v2_compute", description: "Service Affinity v2 prediction cron · writes per-customer predictions to service_affinity_predictions w/ 50/50 A/B arm split (treatment eligible for SMS · control hold-out for closed-loop measurement). Disabled until migration 0061 applied + operator verifies v2 quality." },
   { key: "auto_revenue_correction", description: "Auto-trigger winback when revenue behind pace" },
   { key: "vip_auto_recognition", description: "Auto-SMS new VIP customers with 10% off perk" },
@@ -127,8 +138,7 @@ export const FLAG_DEFINITIONS = [
   // ─── COMPETITIVE INTEL ────────────────────────────
   // competitor_threshold_alerts was retired 2026-09-23 (Q-48): the alerts
   // diffed stored Google ratings/review counts, which the Places terms do not
-  // allow storing. docs/operations/operator-sql/0131_places_content_purge.sql
-  // (operator-run, not a migration) deletes its row.
+  // allow storing. drizzle/0131_places_content_purge.sql deletes its row.
 
   // ─── CREATIVE SKILL PACKS ─────────────────────────
   { key: "skill_ad_creative_enabled", description: "Augments staging of Meta Ads with localized hook strategies" },

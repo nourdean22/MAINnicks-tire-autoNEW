@@ -453,7 +453,11 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
   };
 
   const config = statusConfig[campaign.status] || statusConfig.draft;
-  const sentPercent = campaign.targetCount > 0 ? Math.round((campaign.sentCount / campaign.targetCount) * 100) : 0;
+  const sentCount = campaign.stats?.sent ?? campaign.sentCount;
+  const heldOutCount = campaign.stats?.heldOut ?? 0;
+  const failedCount = campaign.stats?.failed ?? 0;
+  const processedCount = sentCount + heldOutCount + failedCount;
+  const processedPercent = campaign.targetCount > 0 ? Math.round((processedCount / campaign.targetCount) * 100) : 0;
 
   return (
     <div className="bg-card/50 border border-border/30 p-4 rounded hover:border-border/50 transition-colors">
@@ -477,21 +481,23 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
       <div className="mt-3 space-y-1">
         <div className="flex items-center justify-between text-xs">
           <span className="text-foreground/50">
-            {campaign.sentCount}/{campaign.targetCount}
+            Processed {processedCount}/{campaign.targetCount}
           </span>
-          <span className="text-foreground/50">{sentPercent}%</span>
+          <span className="text-foreground/50">{processedPercent}%</span>
         </div>
         <div className="h-2 bg-foreground/10 rounded overflow-hidden">
           <div
             className="h-full bg-primary/50 transition-all"
-            style={{ width: `${sentPercent}%` }}
+            style={{ width: `${processedPercent}%` }}
           />
         </div>
       </div>
 
       {/* Stats — served by the list query itself, no extra request */}
       <div className="mt-3 flex gap-4 text-xs text-foreground/60">
-        <div>Failed: {campaign.stats?.failed ?? 0}</div>
+        <div>Sent: {sentCount}</div>
+        <div>Holdout: {heldOutCount}</div>
+        <div>Failed: {failedCount}</div>
         <div>Pending: {campaign.stats?.pending ?? 0}</div>
         <div className="text-foreground/30">Created {formatDate(campaign.createdAt)}</div>
       </div>

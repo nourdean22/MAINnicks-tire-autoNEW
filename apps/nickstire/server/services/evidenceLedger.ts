@@ -21,7 +21,13 @@ export type EvidenceGrade = "H0" | "H1" | "H2" | "H3" | "H4" | "H5";
 
 export interface RealityEventInput {
   eventType: string;
+  /** Q-25 envelope metadata. Legacy producers may omit these; StateNour's registry supplies v1 defaults. */
+  eventVersion?: number;
+  occurredAt?: string;
   observedAt?: string;
+  correlationId?: string;
+  causationId?: string;
+  retentionClass?: "operational" | "evidence" | "learning" | "audit";
   objects: Array<{ type: string; id: string; role?: string }>;
   source: { system: string; version?: string; uri?: string };
   experiment?: { experimentId: string; variantId?: string; contractHash?: string };

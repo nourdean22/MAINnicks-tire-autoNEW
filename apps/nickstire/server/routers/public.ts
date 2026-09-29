@@ -122,9 +122,10 @@ export const laborEstimateRouter = router({
             // 1. Create lead in our DB for pipeline tracking
             const { getDb } = await import("../db");
             const d = await getDb();
+            let leadId: number | null = null;
             if (d) {
               const { leads } = await import("../../drizzle/schema");
-              await d.insert(leads).values({
+              const insertedRows = await d.insert(leads).values({
                 name: input.customerName || "Online Estimate",
                 phone: input.customerPhone || "",
                 email: input.customerEmail || null,
@@ -133,7 +134,8 @@ export const laborEstimateRouter = router({
                 problem: `Estimate: ${estimate.repairTitle}\nRange: $${estimate.grandTotalLow}–$${estimate.grandTotalHigh}\nPowered by Auto Labor Guide`,
                 recommendedService: estimate.repairTitle.slice(0, 100),
                 urgencyScore: 3,
-              });
+              }).$returningId();
+              leadId = insertedRows[0]?.id ?? null;
             }
 
             // 2. Push estimate to Auto Labor Guide (API first, Telegram fallback)
@@ -149,15 +151,21 @@ export const laborEstimateRouter = router({
               grandTotalHigh: estimate.grandTotalHigh,
             });
 
-            // 3. Unified event bus
-            const { emit } = await import("../services/eventBus");
-            emit.leadCaptured({
-              id: 0,
-              name: input.customerName || "Online Estimate",
-              phone: input.customerPhone || "",
-              source: "estimate",
-              urgencyScore: 3,
-            });
+            // 3. Unified event bus. Only with the real lead id, as
+            // routers/lead.ts does: the StateNour bridge dedupes lead events
+            // on leadId for 5 minutes, so the `id: 0` this used to send let
+            // one online-estimate lead through and silently dropped every
+            // other one inside that window (audit 2026-09-29).
+            if (leadId) {
+              const { emit } = await import("../services/eventBus");
+              emit.leadCaptured({
+                id: leadId,
+                name: input.customerName || "Online Estimate",
+                phone: input.customerPhone || "",
+                source: "estimate",
+                urgencyScore: 3,
+              });
+            }
           } catch (err) {
             log.error("[Estimate] Pipeline failed:", err instanceof Error ? err.message : err);
           }

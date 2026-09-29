@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { smsOutcome, smsWillReachCustomer } from "./smsOutcome";
+import {
+  nonExperimentSmsOutcome,
+  smsClaimConsumed,
+  smsOutcome,
+  smsWillReachCustomer,
+} from "./smsOutcome";
 
 /**
  * The one classification every SMS receipt must share (audit F-3): success:true
@@ -20,6 +25,15 @@ describe("smsOutcome", () => {
     const r = { success: true, uncertain: true };
     expect(smsOutcome(r)).toBe("uncertain");
     expect(smsWillReachCustomer(r)).toBe(false);
+  });
+  it("holdout is terminal but never a contact", () => {
+    const r = { success: true, heldOut: true };
+    expect(smsOutcome(r)).toBe("heldout");
+    expect(smsWillReachCustomer(r)).toBe(false);
+    expect(smsClaimConsumed(r)).toBe(true);
+    // Transactional/human-initiated paths are structurally ineligible for
+    // holdout; a regression is fail-closed in their narrower type domain.
+    expect(nonExperimentSmsOutcome(r)).toBe("failed");
   });
   it("failure, null and undefined are failed", () => {
     for (const r of [{ success: false }, null, undefined]) {
