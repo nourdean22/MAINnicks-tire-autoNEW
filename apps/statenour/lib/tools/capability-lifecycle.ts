@@ -111,7 +111,7 @@ function objectValue(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-async function lifecycleRows(proposalId?: string, since?: Date) {
+async function lifecycleRows(proposalId?: string) {
   return prisma.realityEvent.findMany({
     where: {
       eventType: {
@@ -127,7 +127,6 @@ async function lifecycleRows(proposalId?: string, since?: Date) {
       ...(proposalId
         ? { payload: { path: ["episodeId"], equals: proposalId } }
         : {}),
-      ...(since ? { observedAt: { gte: since } } : {}),
     },
     orderBy: { observedAt: "asc" },
     select: { eventType: true, observedAt: true, payload: true },
@@ -253,10 +252,12 @@ export async function transitionCapabilityProposal(rawInput: CapabilityTransitio
 
 export async function buildCapabilityLifecycleReport(windowDays = 30) {
   const boundedDays = Math.max(1, Math.min(Math.floor(windowDays), 90));
-  const since = new Date(Date.now() - boundedDays * 86_400_000);
   const [gapReport, rows] = await Promise.all([
     buildToolGapReport(boundedDays),
-    lifecycleRows(undefined, since),
+    // Lifecycle state is governance, not telemetry. A proposal must remain
+    // visible until it reaches a terminal state even when its last transition
+    // predates the telemetry window.
+    lifecycleRows(),
   ]);
 
   const proposals = new Map<

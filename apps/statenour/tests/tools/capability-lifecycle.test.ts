@@ -191,6 +191,43 @@ describe("Toolsmith lifecycle transitions", () => {
 });
 
 describe("Toolsmith lifecycle report", () => {
+  it("keeps unresolved lifecycle state visible beyond the telemetry window", async () => {
+    const proposalId = "ff47ae2e-7f3c-4706-83db-6326ee728bc5";
+    h.findMany.mockResolvedValue([
+      {
+        eventType: "episode.tool_gap.capability_proposed",
+        observedAt: new Date("2026-01-01T00:00:00Z"),
+        payload: {
+          episodeId: proposalId,
+          decision: {
+            need: "Keep a long-running capability proposal visible until it is resolved.",
+            sourceGapClass: "UNRESOLVED_GAP",
+            existingToolId: null,
+            riskClass: "low",
+            recommendedGapAction: "INVESTIGATE_NEW_CAPABILITY",
+          },
+        },
+      },
+      {
+        eventType: "episode.tool_gap.capability_approved",
+        observedAt: new Date("2026-01-02T00:00:00Z"),
+        payload: { episodeId: proposalId },
+      },
+    ]);
+
+    const report = await buildCapabilityLifecycleReport(30);
+
+    expect(h.gapReport).toHaveBeenCalledWith(30);
+    expect(h.findMany.mock.calls[0]?.[0]?.where).not.toHaveProperty("observedAt");
+    expect(report.proposals).toEqual([
+      expect.objectContaining({
+        proposalId,
+        state: "APPROVED",
+        need: "Keep a long-running capability proposal visible until it is resolved.",
+      }),
+    ]);
+  });
+
   it("turns gap telemetry into repair-vs-new-capability recommendations", async () => {
     h.gapReport.mockResolvedValue({
       available: true,

@@ -37,6 +37,7 @@ Hard boundaries:
 - `IMPLEMENTED_UNVERIFIED` requires an external implementation reference such as a PR/commit/artifact.
 - `VERIFIED` requires a verification reference/receipt.
 - Illegal state jumps are rejected.
+- Gap telemetry stays bounded by the requested report window, but lifecycle history is read all-time so unresolved proposals cannot silently age out of governance.
 - Capability risk/approval posture is derived from requested read/write/external-mutation/memory-write behavior and recorded with the proposal.
 
 ## Operator surface
@@ -52,9 +53,9 @@ No new auth surface was created.
 
 ## Verification
 
-- 7/7 capability lifecycle tests green.
+- 8/8 capability lifecycle tests green, including a regression test proving old unresolved proposals do not age out of the report.
 - Existing Tool Gap tests remain 4/4 green.
-- 11/11 combined focused tests green.
+- 12/12 combined focused Toolsmith + Tool Gap tests green.
 - Changed-file ESLint green.
 - `git diff --check` green.
 
