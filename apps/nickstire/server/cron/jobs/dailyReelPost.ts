@@ -491,6 +491,25 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         continue;
       }
 
+      // INVENTORY HOLD. The Queue row is where the operator rejects a reel and
+      // where the Queue/Trial doors publish it. A rejected, already-published,
+      // publishing or ambiguous row means this job must not go out from here —
+      // and it reads the same on every pulse, so it is skipped, not selected.
+      // An unreadable row is skipped too: fail closed.
+      {
+        let hold: string | null;
+        try {
+          const { reelInventoryHold } = await import("../../services/reelInventoryLink");
+          hold = await reelInventoryHold(d, candidate.briefId);
+        } catch {
+          hold = "unreadable";
+        }
+        if (hold) {
+          skipped.push({ jobId: candidate.id, code: `inventory_${hold}` });
+          continue;
+        }
+      }
+
       const cPayload = parseReelJobPayload(candidate.payload);
       const cOnScreen = (cPayload.storyboardBeats ?? []).map((b) => b?.onScreenText ?? "").filter(Boolean).join(" ");
       const cCondemned = condemnedContentProblem({ voiceover: cPayload.voiceoverScript, onScreenText: cOnScreen });
@@ -902,6 +921,33 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     const videoUrl = job.mp4Url;
     if (!videoUrl) {
       return { recordsProcessed: 0, details: `Job ${job.id} assembled but mp4Url is missing` };
+    }
+
+    // ── INVENTORY GATE: the Queue row has the last word ─────────────────────
+    // Same check as the drain pre-filter, applied to WHATEVER was selected
+    // (today's job reaches here without the drain). A reel the operator
+    // rejected in the Queue, or one already published / publishing / possibly
+    // live through the Queue or Trial doors, is held. FIRST in the assembled
+    // branch, before the rendered-QA gate: that gate can queue an auto-repair,
+    // and a re-assembly resets the inventory row to review_ready — which would
+    // quietly un-reject the reel. Fail closed on a read error. Not terminal:
+    // the index is not advanced.
+    {
+      let hold: string | null;
+      try {
+        const { reelInventoryHold } = await import("../../services/reelInventoryLink");
+        hold = await reelInventoryHold(d, job.briefId);
+      } catch {
+        hold = "unreadable";
+      }
+      if (hold) {
+        const note = `HELD: Queue inventory row ${job.briefId} is '${hold}' — the autonomous lane will not publish it`.slice(0, 1000);
+        if (job.error !== note) {
+          await d.update(reelJobs).set({ error: note }).where(eq(reelJobs.id, job.id));
+        }
+        log.warn(`daily reel: job ${job.id} held by its inventory row (${hold})`);
+        return { recordsProcessed: 0, details: `held: job ${job.id} inventory is ${hold}; index not advanced` };
+      }
     }
     
     try {
@@ -1471,11 +1517,20 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         caption,
         brief: parseReelJobPayload(job.payload),
       });
-      log.info("confirmed Reel publication mirrored to social inventory", {
-        jobId: job.id,
-        inventoryId: job.briefId,
-        mirror,
-      });
+      if (mirror === "conflict_rejected") {
+        // Only reachable if the reel was rejected after the gates above ran.
+        log.error("Reel is LIVE but its Queue draft was REJECTED — inventory kept as rejected; operator must reconcile", {
+          jobId: job.id,
+          inventoryId: job.briefId,
+          igPostId: ig.postId,
+        });
+      } else {
+        log.info("confirmed Reel publication mirrored to social inventory", {
+          jobId: job.id,
+          inventoryId: job.briefId,
+          mirror,
+        });
+      }
     } catch (inventoryErr) {
       log.error("Reel is LIVE but social inventory mirror could not be updated; self-heal will retry", {
         jobId: job.id,

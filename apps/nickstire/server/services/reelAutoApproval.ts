@@ -11,7 +11,10 @@
  * back to "approval_required" and this does nothing.
  *
  * WHAT THIS DOES NOT DO. It approves only `no_approval_recorded` and `approval_expired`.
- * A REVOKED approval is a human's no and stays a no. Caption/asset drift after an
+ * A REVOKED approval is a human's no and stays a no (listReelPublishQueue reports
+ * it as `approval_revoked`, not as "missing"). A reel whose Queue draft was
+ * rejected, or is already published / publishing / ambiguous through another
+ * door (`inventoryHold`), is never approved. Caption/asset drift after an
  * approval is what the binding exists to catch and is left for a human. A vetoed
  * reel is refused by the writer itself (content_vetoed). Every other publish gate —
  * rendered QA, originality, condemned script, disclosure — still runs after this.
@@ -42,6 +45,7 @@ export async function autoApproveAssembledReels(limit = 25): Promise<AutoApprova
   const out: AutoApprovalOutcome = { policy: "auto", considered: entries.length, approved: [], skipped: [] };
   for (const e of entries) {
     if (e.vetoReason) { out.skipped.push({ jobId: e.jobId, why: "vetoed" }); continue; }
+    if (e.inventoryHold) { out.skipped.push({ jobId: e.jobId, why: `inventory_${e.inventoryHold}` }); continue; }
     if (!e.approvalProblem) continue; // already approved — nothing to do
     if (!AUTO_APPROVABLE_CODES.has(e.approvalProblem.code)) {
       // revoked / caption changed / video changed / digest mismatch: a human's call

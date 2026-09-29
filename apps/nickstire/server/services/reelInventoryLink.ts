@@ -124,7 +124,7 @@ export async function markReelInventoryPublished(
     caption?: string | null;
     brief?: unknown;
   },
-): Promise<"updated" | "created"> {
+): Promise<"updated" | "created" | "conflict_rejected"> {
   const publishedAt = args.publishedAt ?? new Date();
   const patch = {
     status: "published",
@@ -134,11 +134,29 @@ export async function markReelInventoryPublished(
     updatedAt: new Date(),
   };
 
+  // NEVER overwrite an operator's rejection. The unguarded update turned a
+  // rejected row into "published" and nulled the rejection reason, so a reel
+  // the owner said no to went live AND the record of the no disappeared.
+  // If a rejected reel is live anyway, that is a conflict for a human, and the
+  // row keeps saying "rejected" so the Queue shows it.
   const updated = await d
     .update(socialContentInventory)
     .set(patch)
-    .where(eq(socialContentInventory.id, args.briefId));
+    .where(and(eq(socialContentInventory.id, args.briefId), ne(socialContentInventory.status, "rejected")));
   if (affectedRowCount(updated) > 0) return "updated";
+
+  const [existing] = await d
+    .select({ status: socialContentInventory.status })
+    .from(socialContentInventory)
+    .where(eq(socialContentInventory.id, args.briefId))
+    .limit(1);
+  if (existing) {
+    log.error("REJECTED reel is confirmed LIVE — inventory left as rejected; operator must decide (delete the post or un-reject)", {
+      inventoryId: args.briefId,
+      status: existing.status,
+    });
+    return "conflict_rejected";
+  }
 
   const brief = args.brief ?? {};
   await d.insert(socialContentInventory).values({
@@ -159,6 +177,39 @@ export async function markReelInventoryPublished(
     version: 1,
   });
   return "created";
+}
+
+/**
+ * Inventory states in which the autonomous lane must not publish (or
+ * auto-approve) the reel behind the row: an operator said no, or it is already
+ * live / being published / possibly live through another door.
+ */
+const REEL_INVENTORY_HOLD_STATUSES = new Set(["rejected", "published", "published_partial", "publishing", "ambiguous"]);
+
+/**
+ * Why the inventory row behind a reel job forbids an autonomous publish, or
+ * null. No row means no objection (canary/autopost briefs get one at assembly).
+ * A read failure THROWS: callers must fail closed on it, never treat it as clear.
+ */
+export async function reelInventoryHold(d: DB, briefId: string): Promise<string | null> {
+  const [row] = await d
+    .select({ status: socialContentInventory.status })
+    .from(socialContentInventory)
+    .where(eq(socialContentInventory.id, briefId))
+    .limit(1);
+  return row && REEL_INVENTORY_HOLD_STATUSES.has(row.status) ? row.status : null;
+}
+
+/** reelInventoryHold for many rows in one read: briefId -> hold, holds only. Throws on a read error. */
+export async function reelInventoryHolds(d: DB, briefIds: string[]): Promise<Map<string, string>> {
+  const holds = new Map<string, string>();
+  if (!briefIds.length) return holds;
+  const rows = await d
+    .select({ id: socialContentInventory.id, status: socialContentInventory.status })
+    .from(socialContentInventory)
+    .where(inArray(socialContentInventory.id, briefIds));
+  for (const r of rows) if (REEL_INVENTORY_HOLD_STATUSES.has(r.status)) holds.set(r.id, r.status);
+  return holds;
 }
 
 function parseStoredBrief(payload: string | null): unknown {
@@ -265,6 +316,11 @@ export async function reconcilePublishedReelInventoryTruth(
           caption: job.caption,
           brief: parseStoredBrief(job.payload),
         });
+        // A rejected-but-live reel is not repaired; it stays visible (and logged) until a human acts.
+        if (outcome === "conflict_rejected") {
+          failed += 1;
+          continue;
+        }
         repaired += 1;
         if (outcome === "created") created += 1;
       } catch (err) {
