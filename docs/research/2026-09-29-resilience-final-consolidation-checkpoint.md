@@ -97,3 +97,11 @@ NOT YET CLAIMED:
 - Q-32 live-label volume or kappa target
 
 Next action: open one consolidated PR, run the expensive CI once, repair legitimate reds on the same branch, then re-read current main and squash merge only on an exact-head green result.
+
+## Final pre-CI hardening added after the initial checkpoint
+- Q-32 experiment source had escaped template-literal delimiters/interpolations; repaired before acceptance.
+- Q-32 runtime judge independence now fails closed when either candidate or judge family is unknown. Hosting layers such as Venice/Ollama/custom gateways are not treated as model families.
+- The pinned Langfuse experiment action was checked at its pinned SHA: it supplies `@langfuse/client`, supports `dataset_version`, and does not require a duplicate app dependency.
+- Q-31 now has one shared transaction-column availability probe/cache in `memory-bitemporal.ts`; `memory-transaction-time.ts` reuses it.
+- Q-31 prepared canonical replacements now have full compensation: transaction window, effective validity/verification state, and provisional snapshot are rolled back on failure. With supersession/history mode enabled, a failed history preparation/replacement returns the existing canonical row rather than silently falling through to a legacy overwrite.
+- `memory-bitemporal-runtime.test.ts` pins that fail-closed compensation contract.
