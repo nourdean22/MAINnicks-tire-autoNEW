@@ -101,6 +101,53 @@ describe("emailCampaigns · a suppressed recipient never reaches the sender", ()
     expect(r.recordsProcessed).toBe(1);
   });
 
+  it("normalizes only safe whitespace/domain casing and refuses ambiguous recipient syntax", async () => {
+    stubTransport();
+    arm([
+      row(1, CLEAN_PHONE, "  Name.Tag+shop@EXAMPLE.COM  "),
+      row(2, CLEAN_PHONE, 'badquote@example.com"'),
+      row(3, CLEAN_PHONE, "Name <person@example.com>"),
+      row(4, CLEAN_PHONE, "double@@example.com"),
+      row(5, CLEAN_PHONE, "missing-domain-dot@example"),
+      row(6, CLEAN_PHONE, ".leading@example.com"),
+      row(7, CLEAN_PHONE, "trailing.@example.com"),
+    ], {
+      ok: true, phones: new Set<string>(), carrierBlocked: new Set<string>(), stale: false,
+    });
+
+    const r = await run();
+
+    expect(sentTo).toEqual(["Name.Tag+shop@example.com"]);
+    expect(r.recordsProcessed).toBe(1);
+    expect(r.details).toMatch(/6 invalid email skipped/);
+  });
+
+  it("BREAKS: malformed CRM emails never reach Resend or starve clean recipients", async () => {
+    stubTransport();
+    const malformed = Array.from(
+      { length: 15 },
+      (_, i) => row(200 + i, CLEAN_PHONE, `bad${i}@example.com"`),
+    );
+    const clean = [
+      row(1, CLEAN_PHONE, "first@example.com"),
+      row(2, CLEAN_PHONE, "second@example.com"),
+      row(3, CLEAN_PHONE, "third@example.com"),
+    ];
+    arm([...malformed, ...clean], {
+      ok: true, phones: new Set<string>(), carrierBlocked: new Set<string>(), stale: false,
+    });
+
+    const r = await run();
+
+    expect(sentTo.sort()).toEqual([
+      "first@example.com",
+      "second@example.com",
+      "third@example.com",
+    ]);
+    expect(r.recordsProcessed).toBe(3);
+    expect(r.details).toMatch(/15 invalid email skipped/);
+  });
+
   it("BREAKS: a phone known only to the shared index is never emailed", async () => {
     stubTransport();
     arm([row(1, SUPPRESSED_PHONE, "suppressed@example.com")], {

@@ -23,6 +23,10 @@ apps/**/graphify-out/
 packages/**/graphify-out/
 
 # Environment variables
+# Eufy local auth/session material must never be committed.
+apps/statenour/local-agent/eufy-ws-config.json
+apps/statenour/local-agent/eufy-ws-config.local.json
+apps/statenour/local-agent/eufy-data/
 .env
 .env.*
 !.env.example
@@ -161,6 +165,7 @@ scripts/night-shift/logs/
 # Local context packs and agent memory
 docs/LOCAL-CONTEXT-PACK.md
 .remember/
+.agent-cache/
 
 # 2026-07-11 · real customer PII — never commit (nickstire handleImportCustomerCSV;
 # operator sets CUSTOMER_IMPORT_CSV_PATH). Git HISTORY still holds it — scrub

@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "publishReconciler.test.ts + publishReconcileLane.test.ts + publishAttemptLedger.test.ts: unattended reconciliation requires a full normalized-caption match; prefix-only similarity is operator evidence, not proof. Durable operator handoff freezes candidates/detail before automation stops checking; scheduled posts recover the exact attempted caption from the append-only attempt row; transient Meta failures remain retryable; already-handed-off attempts are skipped behaviorally."
+    },
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=reel-outcome-learning: records the #2731 publish-reconciliation provenance/handoff repair, focused tests, live log trigger, and the explicit post-deploy verification still required."
+    }
+  }
+}

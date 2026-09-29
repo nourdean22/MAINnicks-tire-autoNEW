@@ -52,8 +52,9 @@ import {
   machineEventsFromVisit, QUIESCENCE_HEARTBEAT_MAX_AGE_S, TRUTH_EVENTS,
 } from "../lib/commissioningReport";
 import { EXPECTED_CAMERAS } from "../../shared/cameras";
-import { isDuplicateKeyError } from "../lib/tire-order-guards";
+import { isDuplicateKeyError } from "../lib/dbErrors";
 import { createLogger } from "../lib/logger";
+import { jsonArray, transcriptCoverage } from "../lib/conversationQuality";
 
 const log = createLogger("routers:lot");
 
@@ -345,6 +346,81 @@ async function finalizeSettledVerdicts(
 }
 
 export const lotRouter = router({
+  /**
+   * Counter conversations — operational summaries only.
+   *
+   * Privacy/truth boundary:
+   * - raw audio is never returned here
+   * - full transcripts are never returned here
+   * - candidate visit/work-order links stay explicitly confidence-scored
+   * - self-test rows are hidden by default so commissioning does not look like customers
+   *
+   * Coverage is recomputed from timed transcript intervals rather than trusting a stored
+   * scalar. Overlapping diarizer windows count once, and NULL means "cannot know" rather
+   * than a reassuring zero.
+   */
+  conversations: adminProcedure
+    .input(z.object({
+      limit: z.number().int().min(1).max(100).default(25),
+      includeSelftest: z.boolean().default(false),
+    }).optional())
+    .query(async ({ input }) => {
+      const d = await dbTyped();
+      if (!d) return { ok: false as const, reason: "database unavailable" };
+
+      const limit = input?.limit ?? 25;
+      const includeSelftest = input?.includeSelftest ?? false;
+      try {
+        const where = includeSelftest ? sql`1 = 1` : sql`source <> 'selftest'`;
+        const rows = rowsOf(await d.execute(sql`
+          SELECT episodeId, source, cameraSerial, captureHost, triggerType,
+                 ROUND(UNIX_TIMESTAMP(triggeredAt) * 1000) AS triggeredAtMs,
+                 ROUND(UNIX_TIMESTAMP(startedAt) * 1000) AS startedAtMs,
+                 durationSeconds, meanVolumeDb,
+                 transcriptStatus, transcriptError, transcript,
+                 sttEngine, sttModel, sttLatencyMs, speakerCount,
+                 facts, summary,
+                 vehicleVisitId, workOrderId, linkConfidence
+            FROM conversation_episodes
+           WHERE ${where}
+           ORDER BY COALESCE(startedAt, createdAt) DESC
+           LIMIT ${limit}
+        `));
+
+        return {
+          ok: true as const,
+          conversations: rows.map((r) => ({
+            episodeId: String(r.episodeId),
+            source: String(r.source),
+            cameraSerial: r.cameraSerial == null ? null : String(r.cameraSerial),
+            captureHost: r.captureHost == null ? null : String(r.captureHost),
+            triggerType: r.triggerType == null ? null : String(r.triggerType),
+            triggeredAtMs: numOrNull(r.triggeredAtMs),
+            startedAtMs: numOrNull(r.startedAtMs),
+            durationSeconds: numOrNull(r.durationSeconds),
+            meanVolumeDb: numOrNull(r.meanVolumeDb),
+            transcriptStatus: String(r.transcriptStatus ?? "PENDING"),
+            transcriptError: r.transcriptError == null ? null : String(r.transcriptError),
+            sttEngine: r.sttEngine == null ? null : String(r.sttEngine),
+            sttModel: r.sttModel == null ? null : String(r.sttModel),
+            sttLatencyMs: numOrNull(r.sttLatencyMs),
+            speakerCount: numOrNull(r.speakerCount),
+            coverage: transcriptCoverage(r.transcript, r.durationSeconds),
+            factCount: jsonArray(r.facts).length,
+            summary: r.summary == null ? null : String(r.summary),
+            candidateVehicleVisitId: r.vehicleVisitId == null ? null : String(r.vehicleVisitId),
+            candidateWorkOrderId: r.workOrderId == null ? null : String(r.workOrderId),
+            linkConfidence: numOrNull(r.linkConfidence),
+          })),
+        };
+      } catch (err) {
+        return {
+          ok: false as const,
+          reason: err instanceof Error ? err.message : "conversation read failed",
+        };
+      }
+    }),
+
   /**
    * The counter card: what is on the lot right now.
    *
@@ -728,7 +804,23 @@ export const lotRouter = router({
                UNIX_TIMESTAMP(r.observedAtEdge) AS observedAtEdgeEpoch,
                UNIX_TIMESTAMP(r.lastHealthyFrameAt) AS lastHealthyFrameAtEpoch,
                r.sourceType, r.sourceGeneration, r.sourceConnected, r.captureFps,
-               r.frameOk, r.poseOk, r.poseDelta, r.calibrationVersion, r.detectorName,
+               r.frameOk, r.poseOk, r.poseDelta,
+               r.authPlaneOk, r.eventPlaneOk, r.controlPlaneOk, r.mediaPlaneOk, r.ptzHomeOk,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastEventProofAt) AS eventProofAgeSeconds,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastControlProofAt) AS controlProofAgeSeconds,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastMediaProofAt) AS mediaProofAgeSeconds,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastPtzNotifyAt) AS ptzNotifyAgeSeconds,
+               r.conversationWorkerOk, r.conversationWorkerState,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.conversationWorkerHeartbeatAt) AS conversationWorkerAgeSeconds,
+               r.conversationAudioSource, r.conversationCaptureHost, r.conversationSttEngine,
+               r.conversationQueueDepth, r.conversationLastTrigger, r.lastConversationCoverage,
+               r.conversationFailuresToday, r.conversationLastError,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastConversationEventAt) AS conversationEventAgeSeconds,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastConversationCaptureAt) AS conversationCaptureAgeSeconds,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastConversationSttAt) AS conversationSttAgeSeconds,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastConversationPostAt) AS conversationPostAgeSeconds,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastConversationSummaryAt) AS conversationSummaryAgeSeconds,
+               r.calibrationVersion, r.detectorName,
                r.modelSha256, r.inferenceP95Ms, r.outboxDepth, r.oldestOutboxAgeSeconds,
                -- As an AGE, matching cloudAckAgeSeconds two lines down. A raw timestamp on a
                -- card asks the reader to do date arithmetic to answer the only question they
@@ -767,7 +859,9 @@ export const lotRouter = router({
       const stability = rowsOf(await d.execute(sql`
         SELECT camera,
                SUM(CASE WHEN toState IN ('CAMERA_OFFLINE','DEGRADED_VISION','PRODUCER_OFFLINE',
-                                         'CALIBRATION_INVALID','STALE') THEN 1 ELSE 0 END) AS drops,
+                                         'CALIBRATION_INVALID','STALE','AUTH_DEGRADED',
+                                         'EVENTS_DEGRADED','CONTROL_DEGRADED','MEDIA_DEGRADED',
+                                         'PTZ_HOME_INVALID') THEN 1 ELSE 0 END) AS drops,
                COUNT(*) AS transitions
         FROM camera_health_events
         WHERE ${sql.raw("DATE(CONVERT_TZ(at, '+00:00', 'America/New_York'))")}
@@ -781,7 +875,14 @@ export const lotRouter = router({
         v === null || v === undefined ? null : Boolean(Number(v));
       const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
 
-      const describe = (camera: string, label: string, commissioned: boolean, registered: boolean) => {
+      const describe = (
+        camera: string,
+        label: string,
+        role: string,
+        healthProfile: "fixed_geometry" | "interaction_ptz",
+        commissioned: boolean,
+        registered: boolean,
+      ) => {
         const r = byCamera.get(camera) ?? null;
         const verdict = deriveCameraState(
           r === null
@@ -795,14 +896,22 @@ export const lotRouter = router({
                 frameOk: bool(r.frameOk),
                 poseOk: bool(r.poseOk),
                 calibrationVersion: str(r.calibrationVersion),
+                authPlaneOk: bool(r.authPlaneOk),
+                eventPlaneOk: bool(r.eventPlaneOk),
+                controlPlaneOk: bool(r.controlPlaneOk),
+                mediaPlaneOk: bool(r.mediaPlaneOk),
+                ptzHomeOk: bool(r.ptzHomeOk),
                 outboxDepth: numOrNull(r.outboxDepth),
                 oldestOutboxAgeSeconds: numOrNull(r.oldestOutboxAgeSeconds),
                 deadLetterDepth: numOrNull(r.deadLetterDepth),
               },
+          healthProfile,
         );
         return {
           camera,
           label,
+          role,
+          healthProfile,
           commissioned,
           registered,
           state: verdict.state,
@@ -830,6 +939,34 @@ export const lotRouter = router({
           vision: r
             ? { detector: str(r.detectorName), modelSha256: str(r.modelSha256), inferenceP95Ms: numOrNull(r.inferenceP95Ms), inferenceAgeSeconds: numOrNull(r.inferenceAgeSeconds), poseDelta: numOrNull(r.poseDelta), calibrationVersion: str(r.calibrationVersion), relocateFailures: numOrNull(r.relocateFailures), preexistingCrossed: numOrNull(r.preexistingCrossed), arrivalsAfterStitch: numOrNull(r.arrivalsAfterStitch), stitchedTotal: numOrNull(r.stitchedTotal), stitchRefusedAmbiguous: numOrNull(r.stitchRefusedAmbiguous) }
             : null,
+          transport: r
+            ? {
+                eventProofAgeSeconds: numOrNull(r.eventProofAgeSeconds),
+                controlProofAgeSeconds: numOrNull(r.controlProofAgeSeconds),
+                mediaProofAgeSeconds: numOrNull(r.mediaProofAgeSeconds),
+                ptzNotifyAgeSeconds: numOrNull(r.ptzNotifyAgeSeconds),
+              }
+            : null,
+          conversation: r
+            ? {
+                workerOk: bool(r.conversationWorkerOk),
+                state: str(r.conversationWorkerState),
+                workerAgeSeconds: numOrNull(r.conversationWorkerAgeSeconds),
+                audioSource: str(r.conversationAudioSource),
+                captureHost: str(r.conversationCaptureHost),
+                sttEngine: str(r.conversationSttEngine),
+                queueDepth: numOrNull(r.conversationQueueDepth),
+                lastTrigger: str(r.conversationLastTrigger),
+                eventAgeSeconds: numOrNull(r.conversationEventAgeSeconds),
+                captureAgeSeconds: numOrNull(r.conversationCaptureAgeSeconds),
+                sttAgeSeconds: numOrNull(r.conversationSttAgeSeconds),
+                postAgeSeconds: numOrNull(r.conversationPostAgeSeconds),
+                summaryAgeSeconds: numOrNull(r.conversationSummaryAgeSeconds),
+                lastCoverage: numOrNull(r.lastConversationCoverage),
+                failuresToday: numOrNull(r.conversationFailuresToday),
+                lastError: str(r.conversationLastError),
+              }
+            : null,
           cloud: r
             ? { outboxDepth: numOrNull(r.outboxDepth), oldestOutboxAgeSeconds: numOrNull(r.oldestOutboxAgeSeconds), deadLetterDepth: numOrNull(r.deadLetterDepth), cloudAckAgeSeconds: numOrNull(r.cloudAckAgeSeconds), diskFreeBytes: numOrNull(r.diskFreeBytes) }
             : null,
@@ -837,13 +974,24 @@ export const lotRouter = router({
         };
       };
 
-      const expected = EXPECTED_CAMERAS.map((c) => describe(c.camera, c.label, c.commissioned, true));
+      const expected = EXPECTED_CAMERAS.map((c) =>
+        describe(c.camera, c.label, c.role, c.healthProfile, c.commissioned, true),
+      );
       const known = new Set<string>(EXPECTED_CAMERAS.map((c) => c.camera));
       // A producer nobody registered is shown, not hidden: it is either a config typo
       // (camera id mismatch) or something posting under the shop's key that should not be.
       const unregistered = runtime
         .filter((r) => !known.has(String(r.camera)))
-        .map((r) => describe(String(r.camera), `Unregistered producer: ${String(r.camera)}`, false, false));
+        .map((r) =>
+          describe(
+            String(r.camera),
+            `Unregistered producer: ${String(r.camera)}`,
+            "unregistered",
+            "fixed_geometry",
+            false,
+            false,
+          ),
+        );
       const cameras = [...expected, ...unregistered];
 
       return {

@@ -1467,16 +1467,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/server/services/vendorHealth.ts",
-      "symbol": "startContinuousMonitoring",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/services/vendorHealth.ts",
-      "symbol": "stopContinuousMonitoring",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/server/services/promiseRisk.ts",
       "symbol": "getAtRiskJobs",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
@@ -3014,16 +3004,6 @@
     {
       "file": "apps/nickstire/server/services/sms-scheduler.ts",
       "symbol": "schedulePostServiceReminders",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/services/sms-scheduler.ts",
-      "symbol": "startSmsScheduler",
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/services/sms-scheduler.ts",
-      "symbol": "stopSmsScheduler",
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
@@ -5380,6 +5360,101 @@
       "file": "apps/nickstire/server/lib/self-healing.ts",
       "symbol": "__runRequestAnomalyCheckForTest",
       "reason": "INTENTIONAL TEST SEAM. It runs detectRequestAnomalies, the one pass the 60s health tick calls in production (runHealthCheck), so selfHealing.requestRate.test.ts can drive the real recordRequest to real anomaly log path minute by minute without starting the DB/AI checks. It is not an unwired capability."
+    },
+    {
+      "file": "apps/nickstire/server/__tests__/nwsWeatherFixtures.ts",
+      "symbol": null,
+      "reason": "Q-51 2026-09-23 · TEST HELPER, not production code: serves the recorded api.weather.gov fixtures to nwsWeather.test.ts, weatherIntelligence.nws.test.ts and weather.nws.test.ts. knip excludes *.test.ts from the project, so its only importers are invisible to it."
+    },
+    {
+      "file": "apps/nickstire/server/services/weatherIntelligence.ts",
+      "symbol": "evaluateForecast",
+      "reason": "Q-51 2026-09-23 · TEST SEAM. The pure trigger evaluation (forecast periods + alerts + clock -> triggers / imminent / details). Its runtime consumers are evaluateWeatherTriggers and checkWeatherTriggers in the same module (live via the weather-intel cron, shadowPlanner and contentManufacturing); weatherIntelligence.nws.test.ts drives it with a fixed clock."
+    },
+    {
+      "file": "apps/nickstire/server/services/weatherIntelligence.ts",
+      "symbol": "__resetWeatherAlertMemoryForTests",
+      "reason": "Q-51 2026-09-23 · TEST-ONLY RESET of the in-process operator-alert de-dup map, so each weatherIntelligence.nws.test.ts case starts clean in the shared serial process."
+    },
+    {
+      "file": "apps/nickstire/server/lib/nwsWeather.ts",
+      "symbol": "__resetNwsCacheForTests",
+      "reason": "Q-51 2026-09-23 · TEST-ONLY RESET of the 45-min NWS response cache; without it serial test files would read each other's cached fixtures."
+    },
+    {
+      "file": "apps/nickstire/server/lib/nwsWeather.ts",
+      "symbol": "NWS_CACHE_MS",
+      "reason": "Q-51 2026-09-23 · TEST-VISIBLE CONTRACT. nwsWeather.test.ts advances the clock past exactly this TTL to prove the refetch; the runtime consumer is cachedGet in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/lib/nwsWeather.ts",
+      "symbol": "NWS_USER_AGENT",
+      "reason": "Q-51 2026-09-23 · TEST-VISIBLE CONTRACT. NWS requires an identifying User-Agent; the tests assert every request carries exactly this string. Runtime consumer: nwsGetJson in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/lib/nwsWeather.ts",
+      "symbol": "parseWindMph",
+      "reason": "Q-51 2026-09-23 · TEST-VISIBLE PARSER for NWS wind strings ('7 to 12 mph'); runtime consumer is parsePeriods in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/lib/nwsWeather.ts",
+      "symbol": "parsePeriods",
+      "reason": "Q-51 2026-09-23 · TEST SEAM. Tests parse recorded/edited forecast fixtures directly into evaluateForecast. Runtime consumers: getForecastPeriods and getHourlyPeriods in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/lib/nwsWeather.ts",
+      "symbol": "parseAlerts",
+      "reason": "Q-51 2026-09-23 · TEST SEAM. Tests parse the recorded alerts fixture into evaluateForecast. Runtime consumer: getActiveAlerts in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/weather.ts",
+      "symbol": "nwsForecastToWmoCode",
+      "reason": "Q-51 2026-09-23 · TEST-VISIBLE MAPPING of NWS forecast text onto the WMO codes the notification bar reads, pinned case by case in weather.nws.test.ts. Runtime consumer: weatherFromNwsPeriod -> getWeather in the same module (public notification bar, shopState, vapi-bdi)."
+    },
+    {
+      "file": "apps/nickstire/server/weather.ts",
+      "symbol": "__resetWeatherCacheForTests",
+      "reason": "Q-51 2026-09-23 · TEST-ONLY RESET of the 15-min weather cache for weather.nws.test.ts in the shared serial process."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "ACTIVE_REEL_SLATE_KEY",
+      "reason": "INTENTIONAL TEST-VISIBLE PERSISTENCE CONTRACT. Runtime read/write/clear paths in the same service use this exact durable shop_settings key; reelRotationDeadlock.test.ts imports it so the fake DB models the real overlay row instead of duplicating a string that could drift. The production consumer is live in this module, so this is not an unreachable capability."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "normalizeActiveReelSlateSlugs",
+      "reason": "INTENTIONAL TEST-VISIBLE VALIDATION CONTRACT. Runtime read/write paths call this normalizer before accepting an active slate; approvedReelPackRotation.test.ts imports it to pin unknown/duplicate/limit behavior directly. The helper is consumed by production in the same module and is not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "approvedReelPackAtFromPool",
+      "reason": "INTENTIONAL TEST-VISIBLE SELECTION CONTRACT. Production active-slate selection and race-safe cursor advancement call this helper in the same service; approvedReelPackRotation.test.ts imports it to assert exact ordered-pool boundaries without duplicating the selection algorithm."
+    },
+    {
+      "file": "apps/nickstire/server/services/approvedReelPackRotation.ts",
+      "symbol": "approvedReelPackAt",
+      "reason": "INTENTIONAL TEST-VISIBLE ROTATION CONTRACT. Production full-library selection and race-safe progress resolution call this helper in the same service; approvedReelPackRotation.test.ts imports it to pin exhaustion/invalid-index behavior so completed rotation cannot silently wrap."
+    },
+    {
+      "file": "apps/nickstire/server/services/instagramAdminStrategy.ts",
+      "symbol": "recommendedSlateOrder",
+      "reason": "INTENTIONAL TEST-VISIBLE STRATEGY CONTRACT. buildActiveSlateStrategy consumes this comparator in production; instagramAdminStrategy.test.ts imports it to pin the transparent ranking precedence (unpublished, grammar collision, live demand, novelty, measured saves/reach, recency) without asserting through database mocks."
+    },
+    {
+      "file": "apps/nickstire/server/services/instagramAdminStrategy.ts",
+      "symbol": "structureHypothesesFromComparisons",
+      "reason": "INTENTIONAL TEST-VISIBLE ANALYSIS CONTRACT. buildStructureHypotheses consumes this function in production; instagramAdminStrategy.test.ts imports it to guarantee only sufficient measured comparisons become explicitly non-causal priors and that ranking is magnitude-based."
+    },
+    {
+      "file": "apps/nickstire/server/services/instagramAdminStrategy.ts",
+      "symbol": "judgeOutcomeAlignment",
+      "reason": "INTENTIONAL TEST-VISIBLE CALIBRATION CONTRACT. buildReelJudgeCalibration consumes this function in production; instagramAdminStrategy.test.ts imports it to pin that observational cohort alignment can never itself promote the shadow judge to a hard gate."
+    },
+    {
+      "file": "apps/nickstire/server/services/instagramAdminStrategy.ts",
+      "symbol": "chooseProfileCandidates",
+      "reason": "INTENTIONAL TEST-VISIBLE MERCHANDISING CONTRACT. buildProfileMerchandising consumes this selector in production; instagramAdminStrategy.test.ts imports it to pin distinct discovery/save/share/retention candidate roles from measured outcomes without a duplicated ranking implementation."
     }
   ]
 }

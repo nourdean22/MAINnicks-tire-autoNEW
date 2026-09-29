@@ -18,7 +18,7 @@ The entire ecosystem is deployed on **Railway** and spans two primary database b
 
 ## ⏰ Cron Job & Scheduler Layout
 
-The scheduled jobs are split between high-frequency tasks orchestrated by the background worker and daily/weekly schedules triggered by Railway system crons:
+The scheduled jobs are split between high-frequency tasks orchestrated by the background worker and daily/weekly schedules owned by Inngest or triggered by a Railway cron (see §2):
 
 ```
 [apps/worker node-cron] ➔ Fires HTTP triggers ➔ apps/statenour/app/api/cron/[name]
@@ -26,18 +26,25 @@ The scheduled jobs are split between high-frequency tasks orchestrated by the ba
 ```
 
 ### 1. High-Frequency Scheduler (`apps/worker`)
-The background worker process utilizes `node-cron` to trigger the following jobs by making internal HTTP requests to `statenour-web`:
+The background worker process utilizes `node-cron` to trigger the following jobs by making internal HTTP requests to `statenour-web` (`apps/worker/src/scheduler.ts:124-170`):
 
-*   **`brain-bus-backfill`** (`*/2 * * * *`): Runs every 2 minutes. Backfills brain-bus queues.
-*   **`processVideoRenders`** (`*/2 * * * *`): Runs every 2 minutes. Polls `/api/sync/queue/render` for approved video drafts and renders them using the Remotion engine locally.
-*   **`calendar-premeeting`** (`*/15 11-23,0 * * *`): Runs every 15 minutes. Prepares pre-meeting diagnostic cards.
-*   **`bus-exhaustion-watch`** (`*/30 * * * *`): Runs every 30 minutes. Warns of stuck/exhausted tasks in the queue.
-*   **`provider-ping`** (`0 * * * *`): Runs hourly. Check LLM provider latencies and health.
+*   **`brain-bus-drain`** (`*/15 * * * *`): Runs every 15 minutes. Drains the durable brain-bus event queue.
+*   **`outbox-drain`** (`*/15 * * * *`): Runs every 15 minutes. Replays orphaned post-turn chat work.
+*   **`device-heartbeat-sentinel`** (`*/15 * * * *`): Runs every 15 minutes. Flips cameras/bridges silent >20 min to OFFLINE (ADR-0017).
+*   **`inngest-liveness`** (`0 13 * * *`): Daily 13:00 UTC. Out-of-band check that the Inngest scheduler is alive.
+*   **Video render loop** (`*/15 * * * *`, `RENDER_SCHEDULE`, `scheduler.ts:179`): runs **in-process**, not forwarded. Polls `/api/sync/queue/render` for approved video drafts and renders them using the Remotion engine locally. (Was every 2 minutes until #1696.)
+
+The earlier list here (`brain-bus-backfill`, `calendar-premeeting`, `bus-exhaustion-watch`, `provider-ping`) forwarded to routes deleted on 2026-05-28 and was removed from the worker on 2026-07-28 (`scheduler.ts:125-130`).
 
 ### 2. Daily & Low-Frequency Scheduler
-Larger batch operations (e.g. daily/weekly dashboard rollups and Obsidian syncs) are managed directly inside the Next.js runtime:
-*   Standard route endpoint: `/api/system/crons/run`
+Two scheduler classes own daily/weekly work. Which one owns a job is its row in `apps/statenour/config/crons.ts`:
+*   **Inngest-native crons** (`inngest: true`, e.g. `operator-morning-brief`, `quality-bench-weekly`) carry their own Inngest triggers and do not touch the worker or the mega routes.
+*   **Mega fan-out children**, described below.
+
+Mega fan-out children ride in the Next.js runtime (`apps/statenour/app/api/cron/mega/route.ts`, `?slot=morning|evening`):
+*   Entry points: the worker's `POST /cron/mega` and `POST /cron/mega-evening` (`apps/worker/src/index.ts:168,174`), which forward to `/api/cron/mega`. The Railway cron that calls them is set in the dashboard, not in `.railway/railway.ts`, so the repo cannot show whether it is firing. Check statenour `cron_job_logs` (`CronJobLog`). The Inngest `mega-fanout` function is registered too but skips every run unless `INNGEST_MEGA_V2=true` (`apps/statenour/lib/inngest/functions/mega-fanout.ts:341-347`).
 *   Requires the `CRON_SECRET` Bearer header to trigger successfully.
+*   Manual fire: `POST /api/settings/crons/trigger`, or run-now / kill switch on `/system/crons`. There is no `/api/system/crons/run` route.
 
 ---
 
@@ -57,17 +64,21 @@ telemetry helper. The deployed exporter has started on Railway, and the public
 System errors, database failures, and bridge authentication failures write to
 `ErrorLog` database tables and are instrumented for **Sentry** error monitoring:
 *   Errors are surfaced dynamically inside the **Statenour Admin Cockpit** (`/system/logs`).
-*   Bridge auth failures are logged in `statenourAuth` using standard winston/console logs.
+*   Bridge auth failures are logged by nickstire's `server/middleware/statenourAuth.ts` through its own `createLogger` (`log.warn`, line 52); there is no winston dependency.
 *   Sentry is configured with `NEXT_PUBLIC_SENTRY_DSN` (client) and `SENTRY_DSN` (server/edge).
 *   Default PII capture is disabled and performance tracing is disabled by default.
 
-### 3. AI Provider Health
-LLM provider health, latencies, and fallback transitions are monitored hourly:
-*   Route: `/api/system/provider-health`
-*   Provides real-time failover rotation when a provider drops (e.g. rotating from Ollama to Gemini or OpenAI).
+### 3. AI Provider / Model Health
+General provider health and Ollama model liveness are separate surfaces:
+
+*   **Provider snapshot:** `/api/system/provider-health` reads `getProviderHealth()` on demand (availability, cooldown, recent errors), cached for 30 s. The old hourly `provider-ping` cron was deleted on 2026-05-28. Failover between providers happens in the AI call path (`lib/ai/stream-with-fallback.ts`), not in this route.
+*   **Ollama resolved-model liveness:** `/api/cron/ollama-model-liveness` is a real cron endpoint. Its executable mega-morning registration lives in `apps/statenour/lib/inngest/jobs.ts` (`MORNING_JOBS`); `apps/statenour/config/crons.ts` carries the corresponding manifest metadata. It resolves the same chat / fast / vision model IDs that StateNour web would use, sends live Ollama requests, writes `CronJobLog`, and alerts on failure; HTTP 410 is treated as model retirement rather than a retryable outage.
+*   **2026-09-28 live receipt:** the cron correctly detected the retired fast model `deepseek-v4-flash:0731` (410) while chat `minimax-m3` and vision `gemma4:31b` were alive. After a live fast-lane bake-off, Railway was repinned to `glm-5.3-flash`; the exact deployed route then returned all three lanes alive/200 and `data.ok=true`. See `ollama-liveness-repair-2026-09-28.md`.
+*   **Worker boundary:** `apps/worker/src` has no AI/model-call sites. It forwards cron HTTP calls to StateNour web **and** runs the local `processVideoRenders()` Remotion render/upload loop. Worker freshness is observed through persisted receipts surfaced by `/api/system/heartbeat`; that signal is not a duplicate Ollama model probe.
 
 ---
 
 ## 📚 Related Current-Truth Docs
 
+*   **[Ollama liveness repair + worker freshness receipt (2026-09-28)](./ollama-liveness-repair-2026-09-28.md)** — exact model-retirement detection, replacement bake-off, Railway pins, final live cron receipt, and the worker/non-AI boundary.
 *   **[Antigravity Capability Arc (2026-07)](./antigravity-capabilities-2026-07.md)** — operator runbook for the 26-packet wave: new Telegram commands (/remind, tool-capable /ask, instant /qa), specialist shadow routing, nickstire time-clock ledger, self-improving content/persona loops, skill-registry maintenance.

@@ -31,11 +31,15 @@ import { auditPublishBlock, condemnedContentProblem } from "@shared/reelClaimAud
 import { reelApprovalProblem } from "../../services/reelApproval";
 import { parseReelJobPayload } from "@shared/reelJobPayload";
 import {
+  ACTIVE_REEL_SLATE_CURSOR_KEY,
+  APPROVED_REEL_PACKS,
   advanceRotationPastRefusedPack,
-  approvedReelPackAt,
   buildBriefFromApprovedProductionPack,
   loadApprovedProductionPack,
+  readActiveReelSlate,
+  resolveApprovedPackProgressTarget,
   resolveApprovedPackRotationIndex,
+  resolveApprovedPackSelection,
 } from "../../services/approvedReelPackRotation";
 import {
   decideReadyBuffer,
@@ -236,9 +240,12 @@ async function setAutopostProgress(idx: number, date: string): Promise<void> {
  * persists. This is now just "pull the slug off the job and delegate".
  */
 async function advancePastRefusedPack(job: { id: number; payload: string | null }, reason: string): Promise<void> {
+  const payload = parseReelJobPayload(job.payload);
   await advanceRotationPastRefusedPack({
     jobId: job.id,
-    jobPackSlug: parseReelJobPayload(job.payload).approvedPackSlug,
+    jobPackSlug: payload.approvedPackSlug,
+    jobPackPool: payload.approvedPackPool,
+    jobSlateRevision: payload.approvedPackSlateRevision,
     reason,
   });
 }
@@ -255,6 +262,30 @@ async function setApprovedPackProgress(idx: number, date: string): Promise<void>
       key: "reel_approved_pack_rotation_index",
       value: String(idx),
       label: "Approved Reel-pack rotation — next pack index",
+      category: "general",
+      updatedBy: "system",
+    }).onDuplicateKeyUpdate({ set: { value: String(idx), updatedBy: "system" } });
+    await tx.insert(shopSettings).values({
+      key: "reel_autopost_last_date",
+      value: date,
+      label: "Daily reel autopost — last post date (ET)",
+      category: "general",
+      updatedBy: "system",
+    }).onDuplicateKeyUpdate({ set: { value: date, updatedBy: "system" } });
+  });
+}
+
+/** Active slate is an overlay: advance its own cursor without touching the
+ * canonical approved-library cursor. The one-post-per-day date is still shared. */
+async function setActiveSlateProgress(idx: number, date: string): Promise<void> {
+  const { getDb } = await import("../../db");
+  const d = await getDb();
+  if (!d) return;
+  await d.transaction(async (tx: any) => {
+    await tx.insert(shopSettings).values({
+      key: ACTIVE_REEL_SLATE_CURSOR_KEY,
+      value: String(idx),
+      label: "Instagram active Reel slate — next item index",
       category: "general",
       updatedBy: "system",
     }).onDuplicateKeyUpdate({ set: { value: String(idx), updatedBy: "system" } });
@@ -604,9 +635,21 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;
     const approvedPackCursor = await getKv("reel_approved_pack_rotation_index");
     const approvedPackIndex = resolveApprovedPackRotationIndex(approvedPackCursor);
-    const approvedPack = approvedPackIndex === null ? null : approvedReelPackAt(approvedPackIndex);
-    if (approvedPackIndex === null) {
+    const activeSlate = await readActiveReelSlate(d);
+    const packSelection = resolveApprovedPackSelection(approvedPackIndex, activeSlate);
+    const approvedPack = packSelection.pack;
+    if (packSelection.state === "cursor_invalid") {
       log.error("approved-pack rotation index is malformed — leaving its cursor untouched", {});
+    }
+    if (packSelection.state === "slate_malformed") {
+      log.error("active Reel slate is malformed — production holds instead of bypassing operator selection", {});
+      return { recordsProcessed: 0, details: "held: active Reel slate is malformed; save a valid slate in Instagram → Strategy" };
+    }
+    if (packSelection.state === "slate_exhausted") {
+      return {
+        recordsProcessed: 0,
+        details: `held: active Reel slate exhausted at index ${packSelection.index} of ${activeSlate.slugs.length}; refresh/reorder the slate in Instagram → Strategy`,
+      };
     }
     if (!approvedPack && idx >= MANIFEST.length) {
       return { recordsProcessed: 0, details: `campaign complete (${MANIFEST.length}/${MANIFEST.length} posted)` };
@@ -633,7 +676,13 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     let topic = approvedPack?.topic ?? "";
     let topicOrigin = approvedPack ? `approved_pack:${approvedPack.slug}` : "miner";
     if (approvedPack) {
-      log.info("daily reel topic from approved pack rotation", { slug: approvedPack.slug, index: approvedPackIndex, topic });
+      log.info("daily reel topic from approved pack selection", {
+        slug: approvedPack.slug,
+        index: packSelection.index,
+        topic,
+        pool: packSelection.state,
+        poolSize: packSelection.state === "active_slate" ? activeSlate.slugs.length : APPROVED_REEL_PACKS.length,
+      });
     } else {
       try {
         const { gatherTopicSignals } = await import("../../services/contentTopicSignals");
@@ -747,7 +796,14 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     const { brief } = prepared;
     brief.id = briefId;
     if (approvedPack) {
+      const approvedPackPool = packSelection.state === "active_slate"
+        ? "active_slate"
+        : "full_approved_library";
       (brief as { approvedPackSlug?: string }).approvedPackSlug = approvedPack.slug;
+      (brief as { approvedPackPool?: "active_slate" | "full_approved_library" }).approvedPackPool = approvedPackPool;
+      if (approvedPackPool === "active_slate") {
+        (brief as { approvedPackSlateRevision?: string }).approvedPackSlateRevision = activeSlate.updatedAt ?? undefined;
+      }
       (brief as { productionSlot?: string }).productionSlot = productionSlotForHour(normalizedTargetHour);
     }
 
@@ -822,6 +878,8 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       }
       await advanceRotationPastRefusedPack({
         jobPackSlug: approvedPack.slug,
+        jobPackPool: packSelection.state === "active_slate" ? "active_slate" : "full_approved_library",
+        jobSlateRevision: packSelection.state === "active_slate" ? activeSlate.updatedAt : null,
         reason: `enqueue preflight blocked: ${err.blocking.join("; ")}`,
       });
       log.warn("daily reel: approved pack refused at enqueue preflight — rotation advanced past it", {
@@ -1248,20 +1306,39 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
 
     log.info(`Attempting to publish assembled reel job ${job.id} (mp4Url: ${videoUrl})`);
 
-    // Durable attempt record BEFORE the irreversible call. The CAS claim above
+    // Durable attempt record BEFORE any non-essential awaited work and BEFORE
+    // the irreversible Meta call. If the process dies after the claim but
+    // before this receipt exists, stale-job recovery has nothing to reconcile.
     // stops two runners racing, but it does not survive a process death: killed
     // between Meta accepting and the DB update, nothing would record that an
     // attempt happened at all. Refusing to publish unrecorded is the point — an
     // unrecorded publish is the ambiguity this exists to remove.
     const { recordPublishAttempt, recordPublishOutcome, OUTCOME } = await import("../../services/publishAttemptLedger");
     const attemptId = await recordPublishAttempt({
-      jobId: job.id, platforms: ["instagram"], mediaUrl: videoUrl,
+      jobId: job.id, platforms: ["instagram"], mediaUrl: videoUrl, caption,
     });
     if (!attemptId) {
       await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      const { advanceContentRunByReelJobId, RUN_STAGE } = await import("../../services/contentRun");
+      await advanceContentRunByReelJobId(job.id, {
+        stage: RUN_STAGE.held,
+        failureReason: "publish-attempt ledger unavailable",
+        evidence: { at: new Date().toISOString(), what: "Publish held before Meta because the attempt ledger was unavailable" },
+      });
       log.error(`daily reel: could not record a publish attempt for job ${job.id} — HOLDING rather than publishing unrecorded`);
       return { recordsProcessed: 0, details: "held: publish-attempt ledger unavailable; index not advanced" };
+    }
+
+    // Best-effort observability only AFTER the durable attempt exists. A slow or
+    // unavailable content-run mirror must never open a crash window where the
+    // Reel is claimed but has no attempt id for reconciliation.
+    {
+      const { advanceContentRunByReelJobId, RUN_STAGE } = await import("../../services/contentRun");
+      await advanceContentRunByReelJobId(job.id, {
+        stage: RUN_STAGE.publishing,
+        evidence: { at: new Date().toISOString(), what: "Instagram publish claimed; durable attempt recorded" },
+      });
     }
 
     let outcome;
@@ -1295,6 +1372,15 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       await d.update(reelJobs)
         .set({ status: "publish_ambiguous", queueState: queueStateForReelStatus("publish_ambiguous"), error: `publish threw: ${msg.slice(0, 300)}` })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      {
+        const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("../../services/contentRun");
+        await advanceContentRunByReelJobId(job.id, {
+          stage: RUN_STAGE.held,
+          operationalState: OPERATIONAL_STATE.ambiguous,
+          failureReason: msg.slice(0, 1000),
+          evidence: { at: new Date().toISOString(), what: "Instagram publish threw after dispatch may have occurred" },
+        });
+      }
       log.error(`daily reel: publish THREW — job ${job.id} parked publish_ambiguous; verify on Instagram before retrying`, { err: msg });
       throw pubErr;
     }
@@ -1325,6 +1411,15 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
           error: String(ig?.error ?? "media_publish dispatched, no response — may be LIVE").slice(0, 500),
         })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      {
+        const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("../../services/contentRun");
+        await advanceContentRunByReelJobId(job.id, {
+          stage: RUN_STAGE.held,
+          operationalState: OPERATIONAL_STATE.ambiguous,
+          failureReason: String(ig?.error ?? "ambiguous Instagram dispatch").slice(0, 1000),
+          evidence: { at: new Date().toISOString(), what: "Instagram media_publish returned ambiguous" },
+        });
+      }
       log.error(`Reel autopost publish AMBIGUOUS for job ${job.id} — parked, NOT retried`, { error: ig?.error });
       return {
         recordsProcessed: 0,
@@ -1340,8 +1435,19 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       // claim is safe to release for a later retry.
       await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      {
+        const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("../../services/contentRun");
+        await advanceContentRunByReelJobId(job.id, {
+          stage: RUN_STAGE.held,
+          operationalState: OPERATIONAL_STATE.failed,
+          failureReason: String(ig?.error ?? "Instagram publish failed").slice(0, 1000),
+          evidence: { at: new Date().toISOString(), what: "Instagram explicitly rejected the publish attempt" },
+        });
+      }
       log.error(`Reel autopost publish failed for job ${job.id}`, { error: ig?.error });
-      return { recordsProcessed: 0, details: `Publish failed: ${ig?.error ?? "unknown"} — not advancing index` };
+      // Throw, not return: a returned run is recorded `completed` and the cron
+      // observer never sees it. The job row is already restored above.
+      throw new Error(`Publish failed: ${ig?.error ?? "unknown"} — not advancing index`);
     }
 
     // Successfully posted live!
@@ -1349,6 +1455,56 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // the "HELD awaiting approval ..." explanation in that column, and leaving
     // it on a successfully posted reel would describe a live post as blocked.
     await d.update(reelJobs).set({ status: "posted", queueState: queueStateForReelStatus("posted"), igPostId: ig.postId, error: null }).where(eq(reelJobs.id, job.id));
+
+    // The Reel job is the delivery authority, but social_content_inventory is
+    // what Queue/creative-memory/metric-sync learn from. Keep that mirror in the
+    // same confirmed-live transition so a posted Reel cannot remain
+    // "review_ready" forever. Failure here must NEVER turn a successful Meta
+    // publish into a retry (duplicate-post risk); the recurring self-heal repairs
+    // it later.
+    try {
+      const { markReelInventoryPublished } = await import("../../services/reelInventoryLink");
+      const mirror = await markReelInventoryPublished(d, {
+        briefId: job.briefId,
+        publishedAt: new Date(),
+        mp4Url: videoUrl,
+        caption,
+        brief: parseReelJobPayload(job.payload),
+      });
+      log.info("confirmed Reel publication mirrored to social inventory", {
+        jobId: job.id,
+        inventoryId: job.briefId,
+        mirror,
+      });
+    } catch (inventoryErr) {
+      log.error("Reel is LIVE but social inventory mirror could not be updated; self-heal will retry", {
+        jobId: job.id,
+        inventoryId: job.briefId,
+        err: inventoryErr instanceof Error ? inventoryErr.message.slice(0, 240) : String(inventoryErr).slice(0, 240),
+      });
+    }
+
+    {
+      const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("../../services/contentRun");
+      let proof: string | null = ig.postId ? `instagram-media:${ig.postId}` : null;
+      if (ig.postId) {
+        try {
+          const { getInstagramPermalink } = await import("../../services/metaSocial");
+          proof = (await getInstagramPermalink(ig.postId)) || proof;
+        } catch { /* media id remains durable publish proof */ }
+      }
+      await advanceContentRunByReelJobId(job.id, {
+        stage: RUN_STAGE.done,
+        operationalState: proof ? OPERATIONAL_STATE.published : OPERATIONAL_STATE.attempted,
+        failureReason: null,
+        evidence: {
+          at: new Date().toISOString(),
+          what: proof ? "Instagram publish confirmed" : "Instagram publish returned success without a durable media id",
+          proof,
+        },
+      });
+    }
+
     // Experiment traceability: if this job was assigned to an experiment at
     // enqueue, stamp the published media id + time — the verdict horizon
     // cannot be derived without them. The post is already live; a failed
@@ -1367,21 +1523,36 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     const postedPayload = parseReelJobPayload(job.payload);
     let progressDetail: string;
     if (postedPayload.approvedPackSlug) {
-      const approvedPackIndex = resolveApprovedPackRotationIndex(await getKv("reel_approved_pack_rotation_index"));
-      const expected = approvedPackIndex === null ? null : approvedReelPackAt(approvedPackIndex);
-      if (approvedPackIndex !== null && expected?.slug === postedPayload.approvedPackSlug) {
-        await setApprovedPackProgress(approvedPackIndex + 1, date);
-        progressDetail = `approved-pack index: ${approvedPackIndex + 1}`;
+      const fullLibraryIndex = resolveApprovedPackRotationIndex(await getKv("reel_approved_pack_rotation_index"));
+      const activeSlate = await readActiveReelSlate(d);
+      const target = resolveApprovedPackProgressTarget(
+        postedPayload.approvedPackSlug,
+        fullLibraryIndex,
+        activeSlate,
+        postedPayload.approvedPackPool,
+        postedPayload.approvedPackSlateRevision,
+      );
+      if (target?.pool === "active_slate") {
+        await setActiveSlateProgress(target.nextIndex, date);
+        progressDetail = `active-slate index: ${target.nextIndex}`;
+      } else if (target?.pool === "full_approved_library") {
+        await setApprovedPackProgress(target.nextIndex, date);
+        progressDetail = `approved-library index: ${target.nextIndex}`;
       } else {
-        // The post is already live. Record its date without guessing which pack
-        // to skip if an operator altered the rotation while it rendered.
+        // The post is already live. Always record its date, but never guess
+        // which queue to consume after an operator enabled, cleared, or reordered
+        // Strategy while this Reel was rendering.
         await setAutopostDate(date);
-        log.warn("approved-pack rotation changed while a reel rendered; date recorded but index held", {
+        log.warn("approved-pack source queue changed while a reel rendered; date recorded but cursor held", {
           jobId: job.id,
-          expected: expected?.slug ?? null,
           posted: postedPayload.approvedPackSlug,
+          jobPool: postedPayload.approvedPackPool ?? "legacy_full_approved_library",
+          jobSlateRevision: postedPayload.approvedPackSlateRevision ?? null,
+          fullLibraryIndex,
+          activeSlateCursor: activeSlate.cursor,
+          activeSlateRevision: activeSlate.updatedAt,
         });
-        progressDetail = "approved-pack index held after concurrent rotation change";
+        progressDetail = "approved-pack cursor held after concurrent source-queue change";
       }
     } else {
       const idx = parseInt((await getKv("reel_autopost_index")) || "0", 10) || 0;

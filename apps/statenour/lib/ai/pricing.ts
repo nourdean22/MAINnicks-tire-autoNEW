@@ -18,7 +18,7 @@ export const PROVIDER_RATES_PER_1M_TOKENS: Record<string, { input: number; outpu
   ollama: { input: 0.0, output: 0.0 }, // local · zero marginal
   gemini: { input: 0.075, output: 0.3 }, // Gemini 2.5/3.5 Flash rates
   openai: { input: 2.5, output: 10.0 }, // gpt-4o-mini-ish average
-  anthropic: { input: 3.0, output: 15.0 }, // Claude Sonnet-ish average
+  anthropic: { input: 2.0, output: 10.0 }, // = claude-sonnet-5, the registry default (config/ai-providers.ts)
   openrouter: { input: 0.15, output: 0.6 }, // OpenRouter Gemini 2.5 rates
   none: { input: 0.0, output: 0.0 },
 };
@@ -82,7 +82,7 @@ export const LANGFUSE_MODEL_PRICES: LangfuseModelPrice[] = [
     matchPattern: "(?i)^claude[-.].*",
     inputPrice: perToken(PROVIDER_RATES_PER_1M_TOKENS.anthropic.input),
     outputPrice: perToken(PROVIDER_RATES_PER_1M_TOKENS.anthropic.output),
-    sample: "claude-sonnet-4-5",
+    sample: "claude-sonnet-5",
   },
   {
     modelName: "statenour/openrouter-slug",

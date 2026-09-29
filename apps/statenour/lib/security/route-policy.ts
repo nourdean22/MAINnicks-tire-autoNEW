@@ -86,7 +86,7 @@ export const PUBLIC_EXACT = [
   //     already points there — see .railway/railway.ts, which replaced
   //     railway.json on 2026-09-18 — so deploys are unaffected).
   "/api/system/health",    // owner-gated at the route ({ auth: "owner" }); kept here as coexistence path
-  "/api/system/heartbeat", // External monitors (UptimeRobot, etc.) — returns only { status, db_latency_ms }
+  "/api/system/heartbeat", // External monitors — coarse web/db + private-worker receipt freshness only; no operator payloads
   "/api/system/observability-probe", // CRON_SECRET-gated at the route ({ auth: "cron" }); plants a known positive in Langfuse + Sentry from inside the deployed process
   // 2026-08-25 · deploy identity. Genuinely public data, which is the FIRST arm
   // of this file's invariant (the other being "runs its own auth"): a commit

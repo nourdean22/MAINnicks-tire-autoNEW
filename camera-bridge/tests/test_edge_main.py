@@ -399,6 +399,52 @@ class HeartbeatTest(unittest.TestCase):
                          {edge_main.PRODUCER_INSTANCE_ID})
 
 
+    def test_standby_promotion_discards_standby_state_before_writes(self):
+        class AuthorityRecorder(Recorder):
+            def __call__(self, method, url, payload, headers, timeout):
+                super().__call__(method, url, payload, headers, timeout)
+                return 200, '{"authoritative": true, "authorityLeaseSeconds": 90}'
+
+        pipeline = make_pipeline()
+        transport = shop_enabled(pipeline, AuthorityRecorder())
+        pipeline.shop.producer_instance_id = "p2-nicksmax-test"
+        pipeline.shop._lease_managed = True
+        vision = FakeVision(pipeline.tracker)
+        reset_calls = []
+        vision.reset_authority_epoch = lambda ts: reset_calls.append(ts) or {"tracks": 2, "visits": 1}
+        loop = _loop(pipeline, vision, FakeSource())
+
+        with self.assertLogs("edge", level="WARNING"):
+            self.assertTrue(loop.send_heartbeat(1234.0))
+        self.assertTrue(pipeline.shop.is_authoritative(loop.camera))
+        self.assertEqual(reset_calls, [1234.0])
+        self.assertEqual(len(transport.calls), 1)
+
+    def test_failed_promotion_reset_stops_renewing_until_local_reset_recovers(self):
+        class AuthorityRecorder(Recorder):
+            def __call__(self, method, url, payload, headers, timeout):
+                super().__call__(method, url, payload, headers, timeout)
+                return 200, '{"authoritative": true, "authorityLeaseSeconds": 90}'
+
+        pipeline = make_pipeline()
+        transport = shop_enabled(pipeline, AuthorityRecorder())
+        pipeline.shop.producer_instance_id = "p2-nicksmax-test"
+        pipeline.shop._lease_managed = True
+        vision = FakeVision(pipeline.tracker)
+        vision.reset_authority_epoch = lambda _ts: (_ for _ in ()).throw(RuntimeError("boom"))
+        loop = _loop(pipeline, vision, FakeSource())
+
+        with self.assertLogs("edge", level="ERROR"):
+            self.assertFalse(loop.send_heartbeat(1234.0))
+        self.assertFalse(pipeline.shop.is_authoritative(loop.camera))
+        self.assertTrue(loop.authority_recovery_blocked)
+        self.assertEqual(len(transport.calls), 1)
+
+        # Repeated local failure must NOT send another heartbeat and refresh the backend lease.
+        with self.assertLogs("edge", level="ERROR"):
+            self.assertFalse(loop.send_heartbeat(1264.0))
+        self.assertEqual(len(transport.calls), 1)
+
 class TimersTest(unittest.TestCase):
     def test_the_heartbeat_and_drain_fire_on_THEIR_OWN_schedules_not_per_frame(self):
         """At 4 fps, a per-frame heartbeat would be 4 POSTs a second."""
@@ -565,14 +611,15 @@ def _cfg(raw=None):
 def _args(**over):
     defaults = dict(
         config="config.yaml", camera="lot", ledger=":memory:", source="window", hwnd=None,
-        window_title="V380", no_crop=True, calibration=None, model=None, device="AUTO",
+        source_url_env="CAMERA_SOURCE_URL", window_title="V380", no_crop=True,
+        calibration=None, model=None, device="AUTO",
         motion_gate=False, evidence=None, fps=4.0, seconds=0.0, mode=None,
         commissioning_run=None, heartbeat_seconds=30.0, drain_seconds=5.0,
         dry_run=True, log_level="WARNING", channel=None, persist_seconds=2.0,
         stall_exit_seconds=180.0, scene_atlas=None, scene=None,
         adjudicator_model=None, adjudicator_device=None,
         hard_cases=None, hard_case_max_gb=2.0, hard_case_episodes="both", trajectories=None,
-        shadow_ledger=None,
+        service_review_seconds=30.0, shadow_ledger=None,
         relocate_seconds=120.0,
         challenger_model=None,
         replay=False,
@@ -923,6 +970,28 @@ class RestartClassificationWiringTest(unittest.TestCase):
                 os.unlink(path)
             except OSError:
                 pass
+
+
+
+class RtspEdgeWiringTest(unittest.TestCase):
+    """The durable runtime must read the source URL from the named environment variable."""
+
+    def test_build_edge_reads_the_named_environment_variable(self):
+        from unittest.mock import patch
+
+        fake_source = FakeSource(name="rtsp")
+        with patch.dict(os.environ, {"NICK_TEST_CAMERA_URL": "rtsp://127.0.0.1:8554/live"}), \
+             patch("vision.run_live.build_source", return_value=fake_source) as build:
+            pipeline, _vision, source, *_ = edge_main.build_edge(
+                _cfg(), _args(source="rtsp", source_url_env="NICK_TEST_CAMERA_URL"))
+            try:
+                self.assertIs(source, fake_source)
+                self.assertEqual(
+                    build.call_args.kwargs["source_url"],
+                    "rtsp://127.0.0.1:8554/live",
+                )
+            finally:
+                pipeline.ledger.close()
 
 
 class DoctorScriptTest(unittest.TestCase):

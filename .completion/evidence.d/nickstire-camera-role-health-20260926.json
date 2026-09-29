@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "deferred": "operator-pending: apps/nickstire/drizzle/0134_camera_interaction_health.sql is additive and idempotent on TiDB via ADD COLUMN IF NOT EXISTS, and the Drizzle schema/journal are aligned to migration 0134 / idx 147. This PR intentionally does not run production DDL. After merge, apply 0134 through the scoped production DB guard, verify the nine nullable camera_runtime columns through INFORMATION_SCHEMA/read-only schema evidence, then record the live application receipt."
+    },
+    "operator-walkthrough": {
+      "deferred": "After deployment and migration 0134, operator opens Admin > Lot and verifies the camera cards show authority roles plus role-specific facets. The fixed sign camera must not require PTZ facets; the office camera must show auth/events/control/media/home as unknown, degraded, or proven with proof ages. No live office-camera commissioning claim is made by this PR; physical motion/person, media, PTZ notify, and home-view proof remain operator-pending on the shop-side host."
+    }
+  }
+}

@@ -1002,6 +1002,48 @@
       "when": 1789301000000,
       "tag": "0129_candidates_recruiting_funnel",
       "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "5",
+      "when": 1789301100000,
+      "tag": "0130_tire_registrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "5",
+      "when": 1789301200000,
+      "tag": "0131_places_content_purge",
+      "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "5",
+      "when": 1789301300000,
+      "tag": "0132_declined_work_captures",
+      "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "5",
+      "when": 1789301400000,
+      "tag": "0133_contact_consent_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "5",
+      "when": 1789301500000,
+      "tag": "0134_camera_interaction_health",
+      "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "5",
+      "when": 1789301600000,
+      "tag": "0135_office_conversation_runtime",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "Post-merge operator-pending: inspect signed-in Admin > Lot on the deployed build. Verify Counter conversations shows status/coverage/facts/summary without raw audio or full transcript, candidate links remain explicitly unconfirmed, and vehicle stages read Inside service / Pulled out · still here / On lot · no bay observed. No live visual receipt exists on this branch."
+    },
+    "capability-ledger-updated": {
+      "ref": "PR #2686 adds counter-conversation-cockpit to apps/nickstire/docs/operations/capability-ledger.json at unit_verified/internal only, with live UI + diarization commissioning blockers and no deployment/live claim; REALITY-LEDGER.md is regenerated deterministically from that JSON."
+    }
+  }
+}

@@ -163,3 +163,121 @@ licence separately, because they are not the same question:
 - **D-FINE pretrained weights** are **not** vendored: the distributed-weights licence
   (Objects365-derived) was unresolved as of 2026-08-19. Repository licence is not weight
   licence, which is why this list separates the two.
+
+
+## Outside-service recognition: shadow evidence before authority
+
+Nick's can legitimately service a vehicle outside the indoor bays (for example tire, plug, or
+jack work). The deterministic geometry layer can prove that a vehicle arrived, entered a
+calibrated bay, exited it, or departed. It **cannot** infer that a stationary no-bay vehicle is
+"waiting" or "being serviced" from geometry alone.
+
+The first production-safe layer therefore does two separate things:
+
+1. **NO_BAY_ACTIVITY_REVIEW** — when a confirmed arrival has remained *observably stationary*
+   outside every calibrated bay for `--service-review-seconds` (30s default), the existing
+   bounded hard-case recorder saves one pre/post clip. This label means only "ambiguous and
+   worth review." It intentionally gathers both waiting/parking negatives and real outside-
+   service positives.
+2. **OutsideServiceShadow** — `vision/service_shadow.py` accepts auxiliary cues from an
+   open-vocabulary detector or video reasoner and emits `OUTSIDE_SERVICE_CANDIDATE` only
+   after all of these persist around the same vehicle: no bay, stationary dwell, nearby
+   person/technician, nearby mechanical cue, and temporal repetition.
+
+The returned `evidence_support` is a deterministic sorting score, **not a probability**.
+`ServiceEvidenceLedger` writes candidate metadata as `authority=shadow_only`. Neither the
+shadow scorer nor its ledger imports or mutates VisitTracker/BayLatch/shop state.
+
+This split is deliberate: local hard-case clips become the test set that a future Grounded
+SAM 2 / video-MLLM sidecar must pass. A model earns authority from measured precision on
+Nick's actual camera/weather/work patterns; installing a newer model does not grant it truth.
+
+Operational corpus sampling can be disabled with:
+
+```text
+--service-review-seconds 0
+```
+
+or tuned with `EDGE_SERVICE_REVIEW_SECONDS`. This changes only when a review clip is sampled,
+not any customer/visit/service classification.
+
+### Offline service-review sidecar
+
+`NO_BAY_ACTIVITY_REVIEW` clips now carry two pieces of provenance the reviewer must never
+guess: the canonical vehicle box at the trigger and the exact timestamp of every saved frame.
+`vision/service_review_worker.py` consumes only those saved clips. It does **not** run in the
+live frame loop.
+
+The first detector adapter is the official Hugging Face Transformers representation of
+`IDEA-Research/grounding-dino-tiny`, pinned to a model-repository revision. It grounds
+person/mechanic plus jack/tire/wheel/tool/hood cues, then passes them through the already
+conservative `OutsideServiceShadow` temporal/proximity rules. The detector itself never gets
+visit authority.
+
+Recommended Windows isolation:
+
+```powershell
+cd camera-bridge
+py -3.12 -m venv .venv-service-review
+.\.venv-service-review\Scripts\python.exe -m pip install --upgrade pip
+
+# Install the PyTorch build appropriate for THIS machine from:
+# https://pytorch.org/get-started/locally/
+.\.venv-service-review\Scripts\python.exe -m pip install -r requirements-service-review.txt
+
+.\.venv-service-review\Scripts\python.exe -m vision.service_review_worker \
+  --cases-dir ".\data\hard-cases" \
+  --ledger ".\data\hard-cases\service-evidence.jsonl"
+```
+
+Once that isolated environment passes a manual one-shot, install the unattended shadow
+consumer separately from the live edge producer:
+
+```powershell
+powershell -File scripts/install-service-review-worker.ps1 \
+  -PythonPath ".\.venv-service-review\Scripts\python.exe" \
+  -CasesDir ".\data\hard-cases"
+
+Start-ScheduledTask -TaskName "NickOutsideServiceReview"
+powershell -File scripts/doctor-service-review-worker.ps1 \
+  -PythonPath ".\.venv-service-review\Scripts\python.exe"
+```
+
+The scheduled worker is intentionally a batch sidecar, not another camera daemon. It runs
+every 15 minutes by default, refuses intervals below five minutes, uses
+`MultipleInstances=IgnoreNew`, and never passes `--force`. A failed or slow review run
+therefore cannot block or restart the live vehicle-truth producer. The doctor reports task
+state, overlap protection, ML-environment readiness, pending review clips, case-local errors,
+and whether every durable candidate row still says `authority=shadow_only`.
+
+Outputs:
+- each processed clip gets `service-review.json` with the analyzer identity and shadow result;
+- a clip that accumulates sufficient person + mechanical + temporal evidence adds one row to
+  `service-evidence.jsonl` with `authority=shadow_only`;
+- `episodes=replace` clips are read back from their verified MCAP episode after numbered JPEG
+  duplicates are removed; timestamps must match the exact `case.json` provenance;
+- old clips that lack exact `frameTimestamps` or `vehicleBox` are skipped rather than
+  backfilled from guesses;
+- model/inference failure is case-local and visible in that clip's receipt.
+
+The default model is pinned to repository revision
+`a2bb814dd30d776dcf7e30523b00659f4f141c71`, which contains `model.safetensors`.
+The loader sets `use_safetensors=True`; it must not silently fall back to the legacy
+`pytorch_model.bin` pickle artifact.
+
+The default Grounding-DINO model source is Apache-2.0:
+https://huggingface.co/IDEA-Research/grounding-dino-tiny
+
+Transformers' Grounding-DINO contract:
+https://huggingface.co/docs/transformers/model_doc/grounding-dino
+
+This is still a **measurement lane**, not production classification. Promotion requires a
+Nick's-specific labelled corpus with measured false-positive performance across weather,
+occlusion, customer waiting, employee walk-bys, and simultaneous vehicles. A newer model or
+a higher detector score does not waive that requirement.
+
+For hard clips that object grounding cannot resolve, VideoChat3 4B is a current research
+candidate for a second-stage temporal adjudicator; it is intentionally not installed or
+claimed live here:
+https://github.com/OpenGVLab/VideoChat-Flash
+

@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "2026-09-27 committed-tree proof: pnpm exec vitest run server/__tests__/cronNoSwallowedFailure.test.ts server/cron/jobs/cronRethrow2026.test.ts server/reelRotationDeadlock.test.ts server/cron/jobs/dailyReelPost.test.ts => 4 files / 52 tests passed. The active-slate refusal writer advances only the job's original source cursor; stale slate revisions and concurrent source-queue changes hold with no cursor write."
+    },
+    "operator-walkthrough": {
+      "deferred": "Authenticated PRODUCTION walkthrough must occur after this single consolidation PR merges and deploys; doing it pre-merge would test old production code. Pre-merge client behavior was exercised in system Chrome with deterministic authenticated fixtures at 1440x900 and 390x844: Strategy/Create rendered with zero horizontal overflow and the expected tabs, slate controls, profile links/bio copy, Highlight controls, and real-shop media picker. The persistent post-deploy walkthrough contract is tests/e2e/instagram-admin.spec.ts; the boundary and fixture receipt are documented in docs/operations/INSTAGRAM-CONTENT-SYSTEM-AUDIT-2026-09-27.md and docs/CURRENT-TRUTH.md."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json capabilityId=reel-topic-rotation updated 2026-09-27 with the independent active-slate cursor, source/revision provenance, race-safe publish/refusal advancement, Strategy evidence, corrected Higgsfield recovery truth, and post-deploy boundary. scripts/render-reality-ledger.mjs regenerated docs/operations/REALITY-LEDGER.md; scripts/check-capability-ledger.mjs passed with 85 capabilities and no fatal stale load-bearing capability."
+    }
+  }
+}

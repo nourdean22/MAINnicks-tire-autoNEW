@@ -157,8 +157,8 @@ class InstallerFlagDriftTest(unittest.TestCase):
         makes the drift test above pass unconditionally. These five are the capabilities
         that were live, tested, and unreachable this morning.
         """
-        for flag in ("--scene-atlas", "--hard-cases", "--shadow-ledger",
-                     "--relocate-seconds", "--replay"):
+        for flag in ("--scene-atlas", "--hard-cases", "--service-review-seconds",
+                     "--shadow-ledger", "--relocate-seconds", "--replay"):
             self.assertIn(flag, self.reachable, f"{flag} is not on the wrapper line")
 
     def test_the_installers_own_DryRun_does_not_leak_into_the_wrapper(self):
@@ -242,6 +242,48 @@ class ResolverCanaryTest(unittest.TestCase):
         flags, _ = wrapper_reachable_flags(self._text(
             '$aArg = $bArg + " --alpha"', '$bArg = $aArg + " --beta"', self.WRAPPER))
         self.assertEqual({"--alpha", "--beta"} & flags, {"--alpha", "--beta"})
+
+
+def installer_role_contract(text: str) -> tuple[bool, bool, bool]:
+    """(preserves_existing, rejects_missing, stamps_wrapper)."""
+    preserves = (
+        "Preserving installed producer role" in text
+        and "Groups[1].Value" in text
+        and "EDGE_ROLE=(shop|nicksmax|nattynour)" in text
+    )
+    rejects = (
+        'if (-not $Role)' in text
+        and "Producer role is required for runtime installation" in text
+    )
+    stamps = (
+        "$roleLine      = if ($Role) { 'set \"EDGE_ROLE=" in text
+        and "$roleLine" in text.split("$wrapperBody", 1)[1]
+    )
+    return preserves, rejects, stamps
+
+
+class InstallerRoleContractTest(unittest.TestCase):
+    def test_runtime_install_preserves_or_requires_role_and_stamps_it(self):
+        self.assertEqual(installer_role_contract(_installer_text()), (True, True, True))
+
+    def test_gate_detects_each_missing_leg(self):
+        good = _installer_text()
+        self.assertEqual(
+            installer_role_contract(good.replace("Groups[1].Value", "Value")),
+            (False, True, True),
+        )
+        self.assertEqual(
+            installer_role_contract(good.replace(
+                "Producer role is required for runtime installation", "role optional"
+            )),
+            (True, False, True),
+        )
+        stamp = """$roleLine      = if ($Role) { 'set "EDGE_ROLE="""
+        broken_stamp = """$roleLine      = if ($Role) { 'set "EDGE_DISABLED="""
+        self.assertEqual(
+            installer_role_contract(good.replace(stamp, broken_stamp, 1)),
+            (True, True, False),
+        )
 
 
 PER_TASK_PATHS = ("$wrapper", "$logFile")

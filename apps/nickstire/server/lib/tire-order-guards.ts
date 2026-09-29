@@ -126,10 +126,34 @@ export function generateOrderNumber(now: Date = new Date()): string {
  * MySQL unique-constraint violation. The only UNIQUE key on tire_orders
  * is orderNumber (id is auto-increment), so any duplicate-entry error on
  * insert is an order-number collision.
+ *
+ * Re-exported from lib/dbErrors, which follows drizzle's `.cause` to the
+ * driver error. The local copy that lived here text-matched the top-level
+ * message; on drizzle 0.45 that is the SQL and params, so placeOrder's
+ * collision retry never fired and a same-day collision failed the order.
  */
-export function isDuplicateKeyError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return msg.includes("Duplicate entry");
+export { isDuplicateKeyError } from "./dbErrors";
+
+/**
+ * Is this invoice the one placeOrder created for this tire order?
+ *
+ * finalizeTireOrderPayment marks the linked invoice paid and overwrites its
+ * total with what Stripe collected. The link is only an invoice NUMBER, and
+ * numbers come from MAX()+1 with no lock, so a stale number (a checkout
+ * opened before #2592, or any future regression) names ANOTHER customer's
+ * invoice. placeOrder writes both facts checked here onto the invoice: the
+ * order's phone and "Order: <orderNumber>" in the description. Either one
+ * matching is enough, so an admin edit to one of them does not strand a real
+ * payment. Neither matching means the row belongs to someone else.
+ */
+export function invoiceBelongsToTireOrder(
+  invoice: { customerPhone: string | null; serviceDescription: string | null },
+  order: { orderNumber: string; customerPhone: string },
+): boolean {
+  if (invoice.serviceDescription?.includes(`Order: ${order.orderNumber}`)) return true;
+  const last10 = (p: string | null) => (p ?? "").replace(/\D/g, "").slice(-10);
+  const invoicePhone = last10(invoice.customerPhone);
+  return invoicePhone.length === 10 && invoicePhone === last10(order.customerPhone);
 }
 
 /**

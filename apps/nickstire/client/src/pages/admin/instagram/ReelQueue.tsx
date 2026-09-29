@@ -54,7 +54,7 @@ export default function ReelQueue() {
   const [filter, setFilter] = useState<DraftStatus | "all">("all");
   const [showLegacyStatics, setShowLegacyStatics] = useState(false);
   /** Draft whose publish was refused by the quality gate, awaiting an operator decision. */
-  const [blockedDraft, setBlockedDraft] = useState<{ id: string; version: number; reason: string } | null>(null);
+  const [blockedDraft, setBlockedDraft] = useState<{ id: string; version: number; reason: string; asTrial: boolean } | null>(null);
   const [overrideReason, setOverrideReason] = useState("");
   /** Two-tap reject (in-DOM — window.confirm is suppressed in the installed iOS PWA). */
   const [confirmRejectId, setConfirmRejectId] = useState<string | null>(null);
@@ -116,8 +116,14 @@ export default function ReelQueue() {
   const { data: drafts, isLoading, isError, error, refetch } = trpc.instagramAdmin.getAllDrafts.useQuery();
 
   const publishDraft = trpc.instagramAdmin.publishPost.useMutation({
-    onSuccess: () => {
-      toast.success("Published Successfully!");
+    onSuccess: (_data, vars) => {
+      if (vars.trialReel) {
+        toast.success("Trial Reel published", {
+          description: "Instagram will test it with non-followers first. Graduation stays manual.",
+        });
+      } else {
+        toast.success("Published Successfully!");
+      }
       refetch();
     },
     onError: (err, vars) => {
@@ -126,7 +132,15 @@ export default function ReelQueue() {
       const gateRefusal = /rendered-QA gate|quality decision|needs_review|needs_paid_repair|stale/i.test(err.message);
       if (gateRefusal && vars?.inventoryId) {
         const d = (drafts || []).find((x: any) => x.id === vars.inventoryId);
-        setBlockedDraft({ id: vars.inventoryId, version: d?.version ?? 0, reason: err.message });
+        setBlockedDraft({
+          id: vars.inventoryId,
+          version: d?.version ?? 0,
+          reason: err.message,
+          // Preserve the operator's original irreversible choice. Without this,
+          // accepting an advisory hold after "Publish as Trial" retried through
+          // the normal Reel path and silently lost MANUAL Trial semantics.
+          asTrial: Boolean(vars.trialReel),
+        });
         setOverrideReason("");
         return;
       }
@@ -148,7 +162,12 @@ export default function ReelQueue() {
   /** Record an operator override for ADVISORY findings, then retry the publish. */
   const createOverride = trpc.instagramAdmin.createQualityOverride.useMutation({
     onSuccess: (_d, vars) => {
-      toast.success("Override recorded", { description: "Findings accepted — retrying the publish." });
+      const retryAsTrial = blockedDraft?.id === vars.inventoryId && blockedDraft.asTrial;
+      toast.success("Override recorded", {
+        description: retryAsTrial
+          ? "Findings accepted — retrying the same MANUAL Trial publish."
+          : "Findings accepted — retrying the publish.",
+      });
       const d = (drafts || []).find((x: any) => x.id === vars.inventoryId);
       setBlockedDraft(null);
       if (d) {
@@ -158,6 +177,7 @@ export default function ReelQueue() {
           caption: d.publishCaption ?? captionWithHashtags(d),
           imageUrl: d.format !== "reel" ? (d.assetPack?.imageUrl || undefined) : undefined,
           videoUrl: d.format === "reel" ? (d.assetPack?.videoUrl || undefined) : undefined,
+          ...(retryAsTrial ? { trialReel: { graduationStrategy: "MANUAL" as const } } : {}),
         });
       }
     },
@@ -244,6 +264,14 @@ export default function ReelQueue() {
             </div>
           )}
         </div>
+        {draft.conceptBrief?.productionGrammarNovelty && (
+          <div className="mb-2 flex flex-wrap gap-1">
+            {draft.conceptBrief.productionGrammarNovelty.isProductionTwin && <Badge variant="destructive">grammar twin</Badge>}
+            {typeof draft.conceptBrief.productionGrammarNovelty.similarity === "number" && (
+              <Badge variant="outline">grammar similarity {draft.conceptBrief.productionGrammarNovelty.similarity.toFixed(2)}</Badge>
+            )}
+          </div>
+        )}
         <CardTitle className="text-base line-clamp-2">
           {draft.conceptBrief?.sourceSummary || "Generated Draft"}
         </CardTitle>
@@ -287,10 +315,35 @@ export default function ReelQueue() {
           <div className="mt-3 space-y-3 rounded-lg border border-primary/40 bg-primary/5 p-3">
             <div className="text-sm font-semibold">Publish this {draft.format} to Instagram now?</div>
             <p className="text-xs text-muted-foreground">The media above and this final caption go live exactly as shown{draft.format === "reel" ? " (the server re-verifies the approved reel bytes before posting)" : ""}:</p>
+            {draft.format === "reel" && (
+              <p className="text-xs text-muted-foreground">
+                Trial mode tests this Reel with non-followers first, does not share it to the normal feed initially, and uses MANUAL graduation only.
+              </p>
+            )}
             <div className="max-h-32 overflow-y-auto whitespace-pre-wrap rounded border bg-background/60 p-2 text-xs leading-5">{draft.publishCaption ?? captionWithHashtags(draft) ?? "(no caption)"}</div>
             {draft.publishCaptionError && <p className="text-xs text-red-400">This cannot publish yet: {draft.publishCaptionError}</p>}
             <div className="flex justify-end gap-2">
               <Button size="sm" variant="ghost" onClick={() => setConfirmPublishId(null)}>Cancel</Button>
+              {draft.format === "reel" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={publishDraft.isPending || Boolean(draft.publishCaptionError)}
+                  onClick={() => {
+                    setConfirmPublishId(null);
+                    publishDraft.mutate({
+                      inventoryId: draft.id,
+                      platforms: ["instagram"],
+                      caption: draft.publishCaption ?? captionWithHashtags(draft),
+                      videoUrl: draft.assetPack?.videoUrl || undefined,
+                      trialReel: { graduationStrategy: "MANUAL" },
+                    });
+                  }}
+                >
+                  {publishDraft.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  Publish as Trial
+                </Button>
+              )}
               <Button size="sm" disabled={publishDraft.isPending || Boolean(draft.publishCaptionError)} onClick={() => {
                 setConfirmPublishId(null);
                 publishDraft.mutate({
@@ -468,7 +521,17 @@ export default function ReelQueue() {
                         ) : (
                           <Badge variant="secondary" className="gap-1"><ShieldAlert className="h-3 w-3" /> {entry.approvalProblem.code}</Badge>
                         )}
+                        {entry.approvedPackSlug && <Badge variant="outline">{entry.approvedPackSlug}</Badge>}
+                        {entry.productionGrammarNovelty?.isProductionTwin && <Badge variant="destructive">grammar twin</Badge>}
+                        {typeof entry.productionGrammarNovelty?.similarity === "number" && (
+                          <Badge variant="outline">grammar similarity {entry.productionGrammarNovelty.similarity.toFixed(2)}</Badge>
+                        )}
                       </div>
+                      {entry.productionGrammarNovelty?.collisions?.length > 0 && (
+                        <p className="text-xs text-amber-500">
+                          Structure overlap: {entry.productionGrammarNovelty.collisions.join(", ")}. Diagnostic only — approval still depends on the normal safety/quality gates.
+                        </p>
+                      )}
 
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -730,9 +793,9 @@ export default function ReelQueue() {
                       <li>· Trust before selling?</li>
                     </ul>
                   </div>
-                  {/* Trial-reel tracking (manual by design): read the 24h
-                      numbers in the IG app, record them here so the
-                      winner/archive decision leaves a durable trail. */}
+                  {/* Trial publishing is wired through Meta trial_params.
+                      Trial-specific 24h metrics remain manual until a verified
+                      Graph ingestion surface is wired. */}
                   <div className="rounded border bg-muted/10 p-2 space-y-2">
                     <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Trial result · 24h (manual)</p>
                     <div className="grid grid-cols-2 gap-2">

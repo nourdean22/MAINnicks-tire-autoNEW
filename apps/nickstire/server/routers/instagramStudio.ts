@@ -269,6 +269,18 @@ async function loadInventoryDraft(id: string) {
 
 export const instagramStudioRouter = router({
   /**
+   * Reusable first-party media already captured through Create. This is the
+   * missing retrieval half of the real-shop registry: read-only, rights-gated,
+   * and limited to current reusable assets.
+   */
+  listRealShopMedia: adminProcedure.query(async () => {
+    const database = await dbTyped();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — real-shop media is unknown, not empty." });
+    const { listReusableRealShopMedia } = await import("../services/instagramAdminStrategy");
+    return listReusableRealShopMedia(database);
+  }),
+
+  /**
    * Evidence-first Create (Wave B): phone photo → durable storage → a URL the
    * draft carries as its subject image. Mirrors services.uploadPhoto exactly
    * (same size cap, same mime allowlist, same filename hygiene). The key
@@ -290,8 +302,41 @@ export const instagramStudioRouter = router({
       const buffer = Buffer.from(input.base64, "base64");
       const safeFilename = input.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
       const suffix = randomInt(100000, 999999).toString();
-      const key = `ig-evidence/${Date.now()}-${suffix}-${safeFilename}`;
+      const capturedAt = Date.now();
+      const key = `ig-evidence/${capturedAt}-${suffix}-${safeFilename}`;
+      // Registry identity is deliberately independent of the human filename:
+      // media_assets.logical_key is varchar(191), while accepted upload names
+      // may be 255 chars. Keep the original name in metadata, not in the key.
+      const registryKey = `ig-evidence/${capturedAt}-${suffix}-${randomUUID()}`;
       const { url } = await storagePut(key, buffer, input.mimeType);
+
+      // Build the real-media memory while the bytes are in hand. This was a
+      // BUILT-UNWIRED gap: evidence uploads already existed, and the canonical
+      // media registry already stores provenance/rights, but the two never met.
+      // Registration is tolerant by design and must never make a successful
+      // operator upload fail.
+      try {
+        const { getDb } = await import("../db");
+        const database = await getDb();
+        if (database) {
+          const { registerProducedAsset } = await import("../services/mediaRegistry");
+          await registerProducedAsset(database, buffer, {
+            logicalKey: registryKey,
+            assetType: "instagram_evidence_photo",
+            format: "image",
+            mimeType: input.mimeType,
+            runtimeUrl: url,
+            provider: "operator_upload",
+            providerModel: null,
+            providerRequestId: null,
+            originalProviderUrl: null,
+            gdriveSyncState: "pending",
+            generationParams: { originalFilename: safeFilename, source: "instagram_studio_evidence" },
+            rightsStatus: "real_shop",
+          });
+        }
+      } catch { /* upload succeeded; registry observability may degrade */ }
+
       return { url };
     }),
 
@@ -524,7 +569,7 @@ export const instagramStudioRouter = router({
         .select({ id: reviewReplies.id, author: reviewReplies.reviewerName, text: reviewReplies.reviewText, date: reviewReplies.reviewDate })
         .from(reviewReplies)
         .where(eq(reviewReplies.reviewRating, 5))
-        .orderBy(desc(reviewReplies.id))
+        .orderBy(desc(reviewReplies.createdAt), desc(reviewReplies.id))
         .limit(8);
       reviewLane.options = replies
         .filter((row) => (row.text ?? "").trim().length > 0)
@@ -545,7 +590,7 @@ export const instagramStudioRouter = router({
           .select({ id: reviewPipeline.id, author: reviewPipeline.authorName, text: reviewPipeline.reviewText, time: reviewPipeline.reviewTime })
           .from(reviewPipeline)
           .where(eq(reviewPipeline.rating, 5))
-          .orderBy(desc(reviewPipeline.id))
+          .orderBy(desc(reviewPipeline.createdAt), desc(reviewPipeline.id))
           .limit(8);
         const mapped = pipeline
           .filter((row) => (row.text ?? "").trim().length > 0)

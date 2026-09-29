@@ -45,9 +45,18 @@ export function isExpired(lease) {
  * (infrastructure errors) — callers decide fail-open/fail-closed, this layer never
  * silently swallows one.
  */
-export function createGitHubLeaseStore(owner, repo) {
+export function createGitHubLeaseStore(owner, repo, { json = ghJson } = {}) {
   const base = `/repos/${owner}/${repo}`;
-  const refPath = (branch) => `refs/leases/${branch}`;
+  // ONE namespace, spelled two ways because GitHub's endpoints disagree on the
+  // prefix: the POST body and every returned `ref` are fully qualified
+  // (`refs/leases/<b>`), while the matching-refs and PATCH URL paths take the name
+  // WITHOUT the leading `refs/`. The shipped v1 prefixed the full name again on
+  // create/update (`refs/refs/leases/<b>`) but read `refs/leases/<b>`, so getRef()
+  // never found its own ref (audit item O). lease-store.test.mjs pins this against
+  // a fake of GitHub's ref semantics. Branch segments are encoded one at a time so
+  // the `/` separators stay literal in the URL.
+  const fullRef = (branch) => `refs/leases/${branch}`;
+  const urlRef = (branch) => `leases/${branch.split("/").map(encodeURIComponent).join("/")}`;
 
   return {
     /** Current {sha, content} at refs/leases/<branch>, or null if it has never
@@ -57,37 +66,37 @@ export function createGitHubLeaseStore(owner, repo) {
     async getRef(branch) {
       let matches;
       try {
-        matches = await ghJson(`${base}/git/matching-refs/leases/${encodeURIComponent(branch)}`);
+        matches = await json(`${base}/git/matching-refs/${urlRef(branch)}`);
       } catch (e) {
-        if (/404/.test(e.message)) return null;
+        if (/-> 404\b/.test(e.message)) return null;
         throw e;
       }
-      const exact = matches.find((m) => m.ref === `refs/${refPath(branch)}`);
+      const exact = matches.find((m) => m.ref === fullRef(branch));
       return exact ? { sha: exact.object.sha } : null;
     },
 
     /** Parsed lease.json content at a given lease commit sha. */
     async getContent(commitSha) {
-      const commit = await ghJson(`${base}/git/commits/${commitSha}`);
-      const tree = await ghJson(`${base}/git/trees/${commit.tree.sha}`);
+      const commit = await json(`${base}/git/commits/${commitSha}`);
+      const tree = await json(`${base}/git/trees/${commit.tree.sha}`);
       const entry = tree.tree.find((e) => e.path === "lease.json");
       if (!entry) throw new Error(`lease commit ${commitSha} has no lease.json`);
-      const blob = await ghJson(`${base}/git/blobs/${entry.sha}`);
+      const blob = await json(`${base}/git/blobs/${entry.sha}`);
       return JSON.parse(Buffer.from(blob.content, blob.encoding).toString("utf8"));
     },
 
     /** Build (but do not publish) a new lease commit. Returns its sha. */
     async writeCommit(record, parentSha) {
       const content = `${JSON.stringify(record, null, 2)}\n`;
-      const blob = await ghJson(`${base}/git/blobs`, {
+      const blob = await json(`${base}/git/blobs`, {
         method: "POST",
         body: JSON.stringify({ content, encoding: "utf-8" }),
       });
-      const tree = await ghJson(`${base}/git/trees`, {
+      const tree = await json(`${base}/git/trees`, {
         method: "POST",
         body: JSON.stringify({ tree: [{ path: "lease.json", mode: "100644", type: "blob", sha: blob.sha }] }),
       });
-      const commit = await ghJson(`${base}/git/commits`, {
+      const commit = await json(`${base}/git/commits`, {
         method: "POST",
         body: JSON.stringify({
           message: `lease ${record.status}: ${record.branch}`,
@@ -100,21 +109,32 @@ export function createGitHubLeaseStore(owner, repo) {
 
     /** CAS create: fails if the ref already exists (someone else created it first). */
     async createRef(branch, sha) {
-      await ghJson(`${base}/git/refs`, {
+      await json(`${base}/git/refs`, {
         method: "POST",
-        body: JSON.stringify({ ref: `refs/${refPath(branch)}`, sha }),
+        body: JSON.stringify({ ref: fullRef(branch), sha }),
       });
     },
 
     /** CAS update: `force:false` fails unless `sha` is a fast-forward of the ref's
      * CURRENT tip — atomic on GitHub's side, so this is the actual compare-and-swap. */
     async updateRef(branch, sha) {
-      await ghJson(`${base}/git/refs/${refPath(branch)}`, {
+      await json(`${base}/git/refs/${urlRef(branch)}`, {
         method: "PATCH",
         body: JSON.stringify({ sha, force: false }),
       });
     },
   };
+}
+
+/** True for the CAS itself rejecting the write (GitHub answers 422 both for
+ * "Reference already exists" on create and "not a fast forward" on update) — the
+ * one error that means "someone else's write landed first". Anything else (5xx,
+ * 401/403, network) is an infrastructure failure and must propagate so the CLI's
+ * documented fail-open posture applies, instead of masquerading as a lost race. */
+function isCasRejection(e) {
+  // Anchored on ghJson's "<METHOD> <path> -> <status>" shape: the path itself can
+  // contain "422" (a branch named fix-422), so a bare \b422\b would misread a 5xx.
+  return /-> 422\b/.test(String(e?.message ?? e));
 }
 
 /** Read the current lease for a branch, or null. Never throws on "no lease" —
@@ -165,10 +185,11 @@ export async function acquireLease(branch, meta, { store, ttlMs = DEFAULT_TTL_MS
   try {
     if (priorSha) await store.updateRef(branch, commitSha);
     else await store.createRef(branch, commitSha);
-  } catch {
+  } catch (e) {
     // The CAS itself rejected us — someone else's write landed first. Never
     // swallowed as "acquired"; the caller decides whether to retry.
-    return { ok: false, reason: "race" };
+    if (isCasRejection(e)) return { ok: false, reason: "race" };
+    throw e;
   }
   return { ok: true, lease: { ...record, _commitSha: commitSha } };
 }
@@ -178,11 +199,30 @@ export async function acquireLease(branch, meta, { store, ttlMs = DEFAULT_TTL_MS
  * git state (this module has no filesystem access by design — see file header);
  * refuses unless `force` is set, in which case `reason` is written permanently into
  * the release record.
+ *
+ * Only the HOLDER may release a live lease (audit item O: v1 let any session
+ * release any other's). `sessionId` is the caller; a live lease held by a different
+ * session is refused with reason "not-holder" unless `forceForeign` is set WITH a
+ * non-empty `foreignReason`, which is recorded permanently as `foreignReleaseReason`
+ * next to `releasedBy`. An EXPIRED foreign lease needs no force: acquireLease
+ * already lets anyone reclaim it, so refusing its release would protect nothing.
+ * An already-released lease is "no-lease" — there is nothing to release.
  */
-export async function releaseLease(branch, { dirty = false, unpushedCount = 0, force = false, reason = null } = {}, { store }) {
+export async function releaseLease(
+  branch,
+  { sessionId = null, dirty = false, unpushedCount = 0, force = false, reason = null, forceForeign = false, foreignReason = null } = {},
+  { store },
+) {
   const ref = await store.getRef(branch);
   if (!ref) return { ok: false, reason: "no-lease" };
   const current = await store.getContent(ref.sha);
+  if (current.status !== "active") return { ok: false, reason: "no-lease", lease: current };
+
+  const foreign = current.sessionId !== sessionId;
+  if (foreign && !isExpired(current)) {
+    if (!forceForeign) return { ok: false, reason: "not-holder", holder: current };
+    if (!foreignReason || !String(foreignReason).trim()) return { ok: false, reason: "force-needs-reason", holder: current };
+  }
   if ((dirty || unpushedCount > 0) && !force) {
     return { ok: false, reason: "dirty", dirty, unpushedCount };
   }
@@ -191,14 +231,17 @@ export async function releaseLease(branch, { dirty = false, unpushedCount = 0, f
     ...current,
     status: "released",
     releasedAt: new Date().toISOString(),
+    releasedBy: sessionId,
     releaseReason: dirty || unpushedCount > 0 ? reason : null,
+    foreignReleaseReason: foreign && !isExpired(current) ? foreignReason : null,
     priorLeaseSha: ref.sha,
   };
   const commitSha = await store.writeCommit(record, ref.sha);
   try {
     await store.updateRef(branch, commitSha);
-  } catch {
-    return { ok: false, reason: "race" };
+  } catch (e) {
+    if (isCasRejection(e)) return { ok: false, reason: "race" };
+    throw e;
   }
   return { ok: true, lease: { ...record, _commitSha: commitSha } };
 }

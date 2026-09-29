@@ -25,7 +25,7 @@ import {
 import { SERVICE_FEED } from "../../../../shared/serviceFeed";
 import LegacyStudio from "./Studio";
 import CampaignPackageCard from "@/components/admin/CampaignPackageCard";
-import { consumeCreateHandoff } from "./igViews";
+import { consumeCreateHandoff, type IgView } from "./igViews";
 
 /** Per-lane copy. Keyed by lane so adding a resolvable source is one entry. */
 const RECORD_LANE_LABELS = {
@@ -115,7 +115,7 @@ function gateClass(gate: string) {
   return "border-amber-500/40 bg-amber-500/10 text-amber-400";
 }
 
-export default function StudioV2({ onNavigate }: { onNavigate?: (view: "publish" | "today") => void } = {}) {
+export default function StudioV2({ onNavigate }: { onNavigate?: (view: IgView) => void } = {}) {
   // Handoff from Community/Insights/Today — consumed exactly once, before
   // first render, so a preloaded source is indistinguishable from a typed one.
   const [handoff] = useState(() => initialFromHandoff());
@@ -167,6 +167,15 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: "publish"
     enabled: draft === null,
     select: (rows) => rows.filter((row) => row.status === "draft").slice(0, 3),
   });
+  const realShopMedia = trpc.instagramStudio.listRealShopMedia.useQuery(undefined, { staleTime: 120_000 });
+  const slateStrategy = trpc.instagramAdmin.getActiveSlate.useQuery(undefined, { staleTime: 120_000 });
+  const slateSlugs = slateStrategy.data?.active.configured
+    ? slateStrategy.data.active.slugs
+    : (slateStrategy.data?.recommendedSlugs ?? []);
+  const slateRows = slateSlugs
+    .map((slug) => slateStrategy.data?.candidates.find((c) => c.slug === slug))
+    .filter(Boolean);
+  const slateTwinCount = slateRows.filter((row) => row?.productionTwin).length;
 
   const generate = trpc.instagramStudio.generate.useMutation({
     onError: (error) => toast.error("Generation failed", { description: error.message }),
@@ -303,8 +312,8 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: "publish"
           setDraft(null);
           setRowVersion(null);
           setSavedAt(null);
-          toast.success("Sent to review queue", { description: "Approve, schedule, or publish from Publish." });
-        }, "Staged — find it in Publish.");
+          toast.success("Sent to review queue", { description: "Approve, schedule, or publish from Queue." });
+        }, "Staged — find it in Queue.");
       },
     });
   };
@@ -403,6 +412,24 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: "publish"
       </div>
 
       <CampaignPackageCard />
+
+      <Card className={slateTwinCount > 0 ? "border-amber-500/40" : "border-emerald-500/30"}>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div>
+            <p className="text-sm font-semibold">Creative entropy watch</p>
+            <p className="text-xs text-muted-foreground">
+              {slateStrategy.isError
+                ? "Active-slate structure is unknown — do not assume variety."
+                : slateRows.length === 0
+                  ? "No active slate is available yet."
+                  : slateTwinCount > 0
+                    ? String(slateTwinCount) + " of " + String(slateRows.length) + " active candidates collide with recent approved-pack production grammar."
+                    : "No active-slate candidate is currently flagged as a production-grammar twin."}
+            </p>
+          </div>
+          {onNavigate && <Button size="sm" variant="outline" onClick={() => onNavigate("strategy")}>Open slate strategy</Button>}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 xl:grid-cols-[390px_minmax(0,1fr)]">
         <Card className="h-fit xl:sticky xl:top-5">
@@ -585,6 +612,42 @@ export default function StudioV2({ onNavigate }: { onNavigate?: (view: "publish"
               <p className="text-xs text-muted-foreground">
                 Stored durably before generation — a draft never depends on your phone keeping the file.
               </p>
+
+              <div className="rounded-lg border bg-muted/20 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-semibold">Real-shop media library</p>
+                    <p className="text-[11px] text-muted-foreground">Current reusable assets only · registry rightsStatus=real_shop.</p>
+                  </div>
+                  <Badge variant="outline">{realShopMedia.data?.length ?? 0} available</Badge>
+                </div>
+                {realShopMedia.isError ? (
+                  <p className="text-xs text-amber-500">Library read failed — unknown, not empty.</p>
+                ) : realShopMedia.isLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading library…</p>
+                ) : (realShopMedia.data?.length ?? 0) === 0 ? (
+                  <p className="text-xs text-muted-foreground">No reusable real-shop assets are registered yet. Upload one above.</p>
+                ) : (
+                  <div className="grid max-h-52 grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-6">
+                    {realShopMedia.data!.map((asset) => {
+                      const selected = evidenceUrls.includes(asset.url);
+                      return (
+                        <button
+                          type="button"
+                          key={asset.id}
+                          title={asset.originalFilename ?? asset.logicalKey}
+                          disabled={!selected && evidenceUrls.length >= 3}
+                          onClick={() => setEvidenceUrls((current) => selected ? current.filter((u) => u !== asset.url) : [...current, asset.url])}
+                          className={"relative overflow-hidden rounded-lg border " + (selected ? "border-primary ring-2 ring-primary/30" : "border-border/70")}
+                        >
+                          <img src={asset.url} alt={asset.originalFilename ?? "Reusable real shop media"} className="aspect-square h-full w-full object-cover" />
+                          {selected && <span className="absolute right-1 top-1 rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">USED</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">

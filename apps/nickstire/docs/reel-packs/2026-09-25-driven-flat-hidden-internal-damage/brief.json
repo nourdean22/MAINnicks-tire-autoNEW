@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-driven-flat-hidden-internal-damage",
+  "title": "The Puncture Looks Repairable Until the Tire Comes Off",
+  "topic": "Driving a tire low or flat can create hidden internal damage that changes repairability",
+  "mechanicTruth": "A puncture can be in an otherwise repairable tread location yet the tire can still be unsuitable for repair if low-pressure or flat operation damaged the inner liner or internal structure; internal inspection requires dismounting.",
+  "campaignKeyword": "TIRES",
+  "hookText": "PUNCTURE LOCATION LOOKS OK",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Michelin puncture-repair and underinflation guidance",
+      "kind": "proof",
+      "supports": "A puncture can be in an otherwise repairable tread location yet the tire can still be unsuitable for repair if low-pressure or flat operation damaged the inner liner or internal structure; internal inspection requires dismounting."
+    }
+  ],
+  "videoPrompt": "Real puncture outside, tire-machine dismount, then genuine inner-liner reveal. Never generate customer damage.",
+  "modelRecommendation": "Real Nick's dismount and inner-liner footage.",
+  "creditEfficiencyNote": "0 credits. Save every verified internal-damage example for the library.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "PUNCTURE LOCATION LOOKS OK",
+      "narration": "A puncture can be in the right tread area and still belong to a tire that should not be repaired.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "BUT WAS IT DRIVEN LOW?",
+      "narration": "Driving low or flat can create hidden internal damage.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "TAKE THE TIRE OFF",
+      "narration": "That is why a proper repair decision includes dismounting and internal inspection.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "DAMAGE CAN HIDE INSIDE",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "OUTSIDE HOLE != WHOLE STORY",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "A puncture can be in the right tread area and still belong to a tire that should not be repaired. Driving low or flat can create hidden internal damage. That is why a proper repair decision includes dismounting and internal inspection.",
+  "selectedCaption": "The nail location is only part of the repair decision. Low-pressure driving can damage the inside where a tread-only inspection cannot see it.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from puncture-zone and plug-vs-patch packs: this is hidden internal damage after low-pressure operation."
+}

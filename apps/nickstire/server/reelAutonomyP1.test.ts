@@ -24,7 +24,9 @@ const STUDIO = readFileSync(path.join(__dirname, "..", "client", "src", "lib", "
 describe("the manual runner is as safe as the tiered one", () => {
   it("both runners derive the budget from ONE definition", () => {
     expect(INDEX).toContain("export function jobTimeoutMs");
-    expect(SCHED).toContain('import { acquireCronLock, releaseCronLock, jobTimeoutMs } from "./index"');
+    // The import line may carry other names (Q-10 added the drain helpers);
+    // what matters is that jobTimeoutMs comes from ./index and nowhere else.
+    expect(SCHED).toMatch(/import \{[^}]*\bjobTimeoutMs\b[^}]*\} from "\.\/index"/);
     // The duplicate that used to live in scheduler.ts is gone.
     expect(SCHED).not.toContain("function jobTimeoutMs(job:");
   });
@@ -80,34 +82,17 @@ describe("reservations nothing will settle are released", () => {
 });
 
 describe("an ambiguous publish resolves itself", () => {
-  it("the lane reuses the operator's reconciler and writer, inventing no verdict", () => {
-    expect(LANE).toContain("reconcileAttempt");
-    expect(LANE).toContain("applyReconciliation");
-    expect(LANE).toContain("findUnreconciledAttempts");
-  });
-
-  it("it auto-applies only the two EVIDENCED verdicts", () => {
-    expect(LANE).toContain('verdict.status === "resolved_published"');
-    expect(LANE).toContain('verdict.status === "resolved_not_published"');
-    // Judgement and no-evidence stay with a human.
-    expect(LANE).toContain("leftForOperator");
-    expect(LANE).not.toMatch(/decision:\s*"published"[\s\S]{0,200}needs_operator/);
-  });
-
-  it("it touches reel jobs only — a scheduled post has its own closure path", () => {
-    expect(LANE).toContain('a.kind === "reel_job"');
-  });
-
-  it("it is bounded per run and ignores attempts that may still be settling", () => {
-    expect(LANE).toContain("RECONCILE_MAX_PER_RUN");
-    expect(LANE).toContain("RECONCILE_MIN_AGE_MINUTES");
-    expect(LANE).toContain("slice(0, maxPerRun)");
-  });
-
-  it("the pulse calls it, and a failure cannot take the pulse down", () => {
+  it("the scheduler invokes the bounded recovery lane without letting its failure take the pulse down", () => {
     expect(SCHED).toContain("reconcileAmbiguousPublishes()");
     const call = SCHED.slice(SCHED.indexOf("reconcileAmbiguousPublishes()"));
     expect(call.slice(0, 400)).toContain(".catch(");
+  });
+
+  it("lane decision semantics are covered behaviorally, not by source-string matching", () => {
+    // publishReconcileLane.test.ts executes permanent handoff, transient retry,
+    // already-handed-off suppression, candidate persistence, and evidenced
+    // published application. This file only pins scheduler wiring.
+    expect(LANE).toContain("export async function reconcileAmbiguousPublishes");
   });
 });
 

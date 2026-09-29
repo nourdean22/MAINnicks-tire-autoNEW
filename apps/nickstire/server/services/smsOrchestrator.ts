@@ -25,10 +25,12 @@ import { draftSmsReply } from "./nickgpt-client";
 import { classifyIntent } from "./classifiers";
 import { isEnabled } from "./featureFlags";
 import { BUSINESS } from "@shared/business";
+import { nextOpeningLabel } from "@shared/shopState";
+import { SMS_OPT_IN_KEYWORDS } from "@shared/smsOptOutKeywords";
 import { createLogger } from "../lib/logger";
 import { notSentLogFields } from "../lib/smsNotSentLog";
 import { normalizePhone } from "../lib/phone";
-import { eq, and, desc, gte, sql, like, or } from "drizzle-orm";
+import { eq, and, desc, gte, sql, like, or, inArray } from "drizzle-orm";
 import { getTemplateVariant, assignVariantWithExperiment, REPLY_CONFIGS } from "./smsMessageCatalog";
 import { runNickgptPreflightGuard, PreflightResult } from "./nickgptPreflightGuard";
 // 2026-09-01 (audit F-18): the Nexus audit sampler + nexus_audit_jobs enqueue
@@ -418,7 +420,7 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
     })
     .from(vapiCallLogs)
     .where(like(vapiCallLogs.phoneNumber, `%${phone10}`))
-    .orderBy(desc(vapiCallLogs.id))
+    .orderBy(desc(vapiCallLogs.createdAt), desc(vapiCallLogs.id))
     .limit(1);
     if (lastVapi && lastVapi.length > 0) {
       ctx.lastVapiCall = {
@@ -448,9 +450,28 @@ export async function loadCustomerContext(phone: string): Promise<CustomerContex
 }
 
 /**
+ * Every status a text that went out, or may have, can be in: the orchestration
+ * row form of lib/smsOutcome.ts smsClaimConsumed ("consumed for every outcome
+ * except a DEFINITE failure"). Until 2026-09-23 the cooldown counted only sent
+ * and queued, so it stopped blocking the moment the shop gateway's delivery
+ * receipt flipped the row to delivered (routes/webhooks/smsGateway.ts), and it
+ * never blocked after a gateway timeout, which stores sending ("do not retry").
+ */
+const COOLDOWN_STATUSES = ["sent", "queued", "sending", "delivered", "replied"];
+
+/**
+ * Booking reminders keep the old two statuses: operator decision 2026-09-23.
+ * Their cooldown key is <bookingId>:<reminderType> for 365 days, so counting a
+ * delivered reminder would stop a rescheduled booking from getting its new
+ * reminder. Each reminder row already carries its own at-most-once claim
+ * (sms-scheduler.ts appointmentReminders CAS).
+ */
+const BOOKING_REMINDER_COOLDOWN_STATUSES = ["sent", "queued"];
+
+/**
  * Checks if a cooldown is active for the given cooldownKey.
  */
-async function checkCooldown(cooldownKey: string, ttlMs: number): Promise<boolean> {
+async function checkCooldown(cooldownKey: string, ttlMs: number, statuses: string[] = COOLDOWN_STATUSES): Promise<boolean> {
   const db = await getDbTyped();
   if (!db) return false;
   
@@ -462,7 +483,7 @@ async function checkCooldown(cooldownKey: string, ttlMs: number): Promise<boolea
       and(
         eq(smsOrchestrations.cooldownKey, cooldownKey),
         gte(smsOrchestrations.createdAt, cutoff),
-        sql`${smsOrchestrations.status} IN ('sent', 'queued')`
+        inArray(smsOrchestrations.status, statuses)
       )
     )
     .limit(1);
@@ -470,24 +491,17 @@ async function checkCooldown(cooldownKey: string, ttlMs: number): Promise<boolea
   return recent.length > 0;
 }
 
-/** Helper to get next opening time as string */
+/**
+ * {nextOpen} for a text: the next opening with its weekday ("8:00 AM
+ * Wednesday"), from the shop's configured hours (shared/shopState.ts).
+ *
+ * The after-hours text is marketing-class, so sendSms holds it through quiet
+ * hours and delivers it after 8 AM. The hand-typed copy this replaced said
+ * "8:00 AM tomorrow", which a form at 9 PM Tuesday delivered on Wednesday
+ * morning (issue #2579), and it retyped hours BUSINESS.hours.structured owns.
+ */
 function getNextOpenTimeStr(): string {
-  const now = new Date();
-  const et = new Date(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone }));
-  const day = et.getDay();
-  const hour = et.getHours();
-
-  if (day === 0) {
-    if (hour < 9) return "9:00 AM today";
-    return "8:00 AM tomorrow (Monday)";
-  }
-  if (day === 6) {
-    if (hour < 8) return "8:00 AM today";
-    return "9:00 AM Sunday";
-  }
-  if (hour < 8) return "8:00 AM today";
-  if (day === 5) return "8:00 AM Saturday";
-  return "8:00 AM tomorrow";
+  return nextOpeningLabel(new Date(), BUSINESS.timezone, BUSINESS.hours.structured) ?? "our next business day";
 }
 
 /**
@@ -645,7 +659,13 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
         .limit(1);
 
       if (existing && existing.idempotencyKey === idempotencyKey) {
-        log.info("Idempotency match found, returning existing orchestration", { idempotencyKey });
+        // Never the key itself: it carries the customer's full number.
+        log.info("Idempotency match found, returning existing orchestration", {
+          type: event.type,
+          existingId: existing.id,
+          status: existing.status,
+          phone: phone10.slice(-4),
+        });
         return {
           id: existing.id,
           body: existing.messageBody || "",
@@ -688,6 +708,91 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
         orchestrationId = row?.id;
       } catch (err) {
         log.warn("Failed to write received log to sms_orchestrations", err);
+      }
+    }
+  }
+
+  // Q-43 safety invariant: explicit inbound STOP/START is processed BEFORE
+  // every rollout/legacy exit. Rollout controls decide what automation sends;
+  // they must never decide whether a customer's revocation is honored.
+  // Q-43: resolve explicit consent changes BEFORE suppression/context gates.
+  // A freshly persisted STOP can itself make loadCustomerContext report this
+  // number as opted out, so waiting until the parser below would skip the
+  // compliance event. Likewise START must clear suppression before the early
+  // "already opted out" return. This block is deliberately deterministic and
+  // idempotent; the ledger's subject/source/evidence unique key collapses a
+  // retry of the same orchestration.
+  if (event.type === "inbound_sms") {
+    const keyword = event.body.trim().toUpperCase().replace(/\s+/g, " ");
+    const parsedConsent = parseSmsResponse(event.body);
+    const evidenceRef = event.idempotencyKey
+      ? `sms:${event.idempotencyKey}`
+      : orchestrationId
+        ? `sms_orchestration:${orchestrationId}`
+        : `sms_conversation:${event.conversationId}:${Date.now()}`;
+
+    if (parsedConsent.intent === "unsubscribe" || parsedConsent.autoAction === "unsubscribe-customer") {
+      try {
+        const { markPhoneFullyOptedOut } = await import("../sms");
+        const persisted = await markPhoneFullyOptedOut(normalizedPhone);
+        if (!persisted) {
+          log.error("[smsOrchestrator] explicit opt-out was cached but durable preference write failed", {
+            customerPhoneSuffix: normalizedPhone.slice(-4),
+            errorId: "SMS_OPT_OUT_PERSIST_FAILED",
+          });
+        }
+        if (db && phone10.length === 10) {
+          await db.update(customers).set({ smsOptOut: 1 }).where(like(customers.phone, `%${phone10}`));
+        }
+        const { logSmsOptOut } = await import("./complianceLog");
+        await logSmsOptOut({
+          phone: normalizedPhone,
+          via: "keyword",
+          keyword: event.body,
+          evidenceRef,
+          ledgerScope: "all",
+          ledgerMethod: "sms_reply",
+        });
+      } catch (err) {
+        // The in-process suppression write happens before its first await;
+        // never let evidence persistence make the inbound reply disappear.
+        log.error("[smsOrchestrator] explicit opt-out evidence write failed", {
+          customerPhoneSuffix: normalizedPhone.slice(-4),
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    } else if ((SMS_OPT_IN_KEYWORDS as readonly string[]).includes(keyword)) {
+      let shouldOptIn = keyword !== "YES";
+      if (keyword === "YES") {
+        try {
+          const { loadSuppressionIndex } = await import("../sms");
+          const index = await loadSuppressionIndex();
+          shouldOptIn = index.ok && index.phones.has(phone10);
+        } catch {
+          shouldOptIn = false;
+        }
+      }
+      if (shouldOptIn) {
+        try {
+          const { markPhoneOptedIn } = await import("../sms");
+          markPhoneOptedIn(normalizedPhone);
+          if (db && phone10.length === 10) {
+            await db.update(customers).set({ smsOptOut: 0 }).where(like(customers.phone, `%${phone10}`));
+          }
+          const { logSmsOptIn } = await import("./complianceLog");
+          await logSmsOptIn({
+            phone: normalizedPhone,
+            source: `start_keyword:${keyword}`,
+            evidenceRef,
+            ledgerScope: "all",
+            ledgerMethod: "sms_reply",
+          });
+        } catch (err) {
+          log.error("[smsOrchestrator] explicit opt-in evidence write failed", {
+            customerPhoneSuffix: normalizedPhone.slice(-4),
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
   }
@@ -1385,7 +1490,11 @@ async function orchestrateSmsDecide(event: SmsOrchestratorEvent): Promise<SmsOrc
       }
 
       if (cooldownKey && cooldownTtlMs > 0) {
-        const hasCooldown = await checkCooldown(cooldownKey, cooldownTtlMs);
+        const hasCooldown = await checkCooldown(
+          cooldownKey,
+          cooldownTtlMs,
+          event.type === "booking_reminder" ? BOOKING_REMINDER_COOLDOWN_STATUSES : COOLDOWN_STATUSES,
+        );
         if (hasCooldown) {
           status = "skipped";
           statusReason = "cooldown_active";

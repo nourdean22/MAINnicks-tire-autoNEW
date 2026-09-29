@@ -3,8 +3,12 @@
  *
  * Was "shop action handlers"; the nine handleShop* handlers were DELETED
  * 2026-08-03 (see below). What remains is the client itself plus its success
- * predicate, which three other modules import directly:
- *   app/api/telegram/webhook/route.ts (two branches) · lib/inngest/functions/audit-todays-leads.ts
+ * predicate, which the Telegram webhook imports directly:
+ *   app/api/telegram/webhook/route.ts (two branches)
+ * (2026-09-23 · Q-35 deleted the third importer, the `audit-todays-leads`
+ * cron: its daily lead.list call was this module's 403 below, ×174 in Sentry
+ * NICKSTIRE-2. tests/inngest/no-cron-calls-nickstire-trpc.test.ts keeps every
+ * Inngest function off this client.)
  *
  * 2026-08-03 · WHY THE NINE HANDLERS ARE GONE. They could not work, and had
  * never worked. Five of the nine named procedures DO NOT EXIST in nickstire —
@@ -25,8 +29,8 @@
  *
  * NOT deleted, deliberately: the name "shop.sendSms" survives in the tool
  * registry and the write-classification lists, because lib/ai/tools/social.ts
- * still stamps PENDING ActionReceipt rows with it and audit-todays-leads still
- * writes it as an approval toolId. The NAME labels real pending work even
+ * still stamps PENDING ActionReceipt rows with it (the audit-todays-leads cron
+ * also wrote it as an approval toolId until Q-35). The NAME labels real pending work even
  * though execution is gone; removing the classification would leave a
  * high-risk label unclassified.
  *

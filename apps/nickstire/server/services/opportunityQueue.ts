@@ -896,6 +896,9 @@ export function resolveEstimateIdentity(input: {
  * Unresolved ALG estimates (7-60d old, ≥ $150) → unapproved_estimate
  * opportunities. data_quality is "inferred" BY DESIGN: an unmatched
  * estimate is unresolved, not proven-declined (revenue-truth doctrine).
+ * The one exception (Q-37): an estimate the counter captured as declined
+ * (declined_work_captures) is an observed decline and is "verified" —
+ * see estimateOpportunityLabel in shared/declineProvenance.ts.
  * Identity: the bare last-10 LEFT JOIN multiplied rows when a phone
  * matched 2+ customers (last write won, consent read off a possibly
  * wrong person). Now aggregated per estimate and resolved through
@@ -962,6 +965,11 @@ export async function collectUnapprovedEstimates(): Promise<CollectorStats> {
     }
   }
 
+  // Q-37 · counter-captured declines are OBSERVED; the rest stay inferred.
+  const { readDeclineCaptures } = await import("./declineCaptures");
+  const { declineProvenance, estimateOpportunityLabel } = await import("../../shared/declineProvenance");
+  const captures = await readDeclineCaptures(rows.map((r) => Number(r.id)));
+
   let inserted = 0;
   let refreshed = 0;
   for (const r of rows) {
@@ -970,6 +978,8 @@ export async function collectUnapprovedEstimates(): Promise<CollectorStats> {
       ? Math.floor((Date.now() - new Date(r.estimateDate as string).getTime()) / 86_400_000)
       : 0;
     const touches = (Number(r.f7 ?? 0) ? 1 : 0) + (Number(r.f30 ?? 0) ? 1 : 0);
+    const provenance = declineProvenance(Number(r.id), captures);
+    const label = estimateOpportunityLabel(provenance, ageDays, touches);
     const name = r.customerName ? String(r.customerName) : "customer";
     const service = r.serviceDescription ? String(r.serviceDescription).slice(0, 80) : "quoted work";
     const identity = resolveEstimateIdentity({
@@ -999,17 +1009,18 @@ export async function collectUnapprovedEstimates(): Promise<CollectorStats> {
       customerName: name,
       customerPhone: r.customerPhone == null ? null : String(r.customerPhone),
       expectedRevenueCents: amountCents,
-      dataQuality: "inferred",
+      dataQuality: label.dataQuality,
       urgency: amountCents >= 80_000 ? "today" : "this_week",
       recommendedAction: `Call ${name} about the $${Math.round(amountCents / 100)} ${service} quote`,
       reason:
-        `Estimate ${ageDays}d old with no matched invoice (unresolved — not proven declined). Recovery SMS touches so far: ${touches}.` +
+        label.reason +
         (belowPartsCost ? ` QUOTE GUARD: quote is BELOW captured parts cost ($${Math.round(partsCostCents / 100)}) — review before contacting.` : "") +
         (!amountSane ? " QUOTE GUARD: amount outside the $20-$20,000 sanity band — likely a data-entry slip." : ""),
       evidence: {
         estimateId: Number(r.id),
         estimateAgeDays: ageDays,
         serviceDescription: service,
+        declineProvenance: provenance,
         recoveryTouchesSent: touches,
         statedConcern: r.statedConcern ? String(r.statedConcern) : null,
         quoteFlags,

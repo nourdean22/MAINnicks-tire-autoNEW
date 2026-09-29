@@ -1,7 +1,7 @@
 /**
  * AG-10 · finalizeSystemPrompt behavior-directive wiring.
  *
- * The ANTICIPATE→ANSWER→ELEVATE directive (Sparring Partner Mode at
+ * The ANTICIPATE→SOLVE→ELEVATE directive (Sparring Partner Mode at
  * NICK_CHAT_INTENSITY=HIGH) is authored in lib/ai/knowledge/
  * behavior-directive.ts. These tests pin the injection contract:
  *   · STANDARD intensity → the ANTICIPATE block appears
@@ -129,7 +129,7 @@ describe("finalizeSystemPrompt · behavior directive (AG-10)", () => {
     setIntensityOverride(null);
   });
 
-  it("injects ANTICIPATE→ANSWER→ELEVATE on analytical turns at STANDARD", async () => {
+  it("injects ANTICIPATE→SOLVE→ELEVATE on analytical turns at STANDARD", async () => {
     process.env.NICK_CHAT_INTENSITY = "STANDARD";
     const prompt = await finalize(
       "analyze whether raising the alignment price would hurt our win rate",

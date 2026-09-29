@@ -15,7 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from vision.officeaudio import (  # noqa: E402
-    AudioSegment, FfmpegMissing, _speech_spans, capture_window, measure_level,
+    AudioSegment, FfmpegMissing, _input_args, _speech_spans, capture_window, measure_level,
 )
 
 
@@ -126,6 +126,7 @@ def test_a_missing_ffmpeg_raises_a_NAMED_error_not_a_bare_oserror(monkeypatch):
 def test_short_bursts_are_discarded_as_noise(monkeypatch, tmp_path):
     """A door slam is not an interaction. Two seconds of anything is noise with a timestamp."""
     monkeypatch.setattr("vision.officeaudio._ffmpeg", lambda b=None: "ffmpeg")
+    monkeypatch.setattr("vision.officeaudio._wav_duration", lambda _path: 60.0)
     monkeypatch.setattr("vision.officeaudio._speech_spans",
                         lambda *a, **k: [(0.0, 2.0), (10.0, 40.0)])
     monkeypatch.setattr("vision.officeaudio.measure_level", lambda *a, **k: (-30.0, -5.0))
@@ -203,3 +204,74 @@ def test_a_refusal_carries_its_REASON_not_just_a_null(monkeypatch, tmp_path):
     cal = calibrate("rtsp://x/live0", str(tmp_path), samples=3)
     assert cal.refused and len(cal.refused) > 20
     assert cal.to_dict()["refused"] == cal.refused
+
+
+# ------------------------------------------------------------------ source selection
+
+def test_rtsp_source_keeps_tcp_transport():
+    assert _input_args("rtsp://camera/live0", "auto") == [
+        "-rtsp_transport", "tcp", "-i", "rtsp://camera/live0"
+    ]
+
+
+def test_dshow_source_does_not_inherit_rtsp_flags():
+    assert _input_args("USB Counter Mic", "dshow") == [
+        "-f", "dshow", "-i", "audio=USB Counter Mic"
+    ]
+    assert "-rtsp_transport" not in _input_args("USB Counter Mic", "dshow")
+
+
+def test_explicit_dshow_audio_spec_is_not_double_prefixed():
+    assert _input_args("audio=USB Counter Mic", "dshow") == [
+        "-f", "dshow", "-i", "audio=USB Counter Mic"
+    ]
+
+
+def test_unknown_input_format_fails_loudly():
+    with pytest.raises(ValueError, match="unsupported input_format"):
+        _input_args("x", "magic")
+
+
+def test_capture_window_threads_dshow_input_args_to_ffmpeg(monkeypatch, tmp_path):
+    monkeypatch.setattr("vision.officeaudio._ffmpeg", lambda b=None: "ffmpeg")
+    monkeypatch.setattr("vision.officeaudio._wav_duration", lambda _path: 5.0)
+    monkeypatch.setattr("vision.officeaudio._speech_spans", lambda *a, **k: [])
+
+    seen = {}
+
+    def fake_run(cmd, *a, **k):
+        if "-y" in cmd:
+            seen["cmd"] = cmd
+            target = cmd[cmd.index("-y") + 1]
+            Path(target).write_bytes(b"RIFF" + b"\0" * 5000)
+        return _Ran(rc=0)
+
+    monkeypatch.setattr("vision.officeaudio.subprocess.run", fake_run)
+    capture_window("USB Counter Mic", str(tmp_path), 5.0, input_format="dshow")
+    cmd = seen["cmd"]
+    assert cmd[cmd.index("-f") + 1] == "dshow"
+    assert cmd[cmd.index("-i") + 1] == "audio=USB Counter Mic"
+    assert "-rtsp_transport" not in cmd
+
+
+def test_finite_generic_input_uses_actual_wav_duration_not_requested_ceiling(monkeypatch, tmp_path):
+    monkeypatch.setattr("vision.officeaudio._ffmpeg", lambda b=None: "ffmpeg")
+    monkeypatch.setattr("vision.officeaudio._wav_duration", lambda _path: 10.0)
+
+    seen = {}
+
+    def fake_spans(_ff, _raw, _silence_db, _gap, duration):
+        seen["duration"] = duration
+        return []
+
+    def fake_run(cmd, *a, **k):
+        if "-y" in cmd:
+            target = cmd[cmd.index("-y") + 1]
+            Path(target).write_bytes(b"RIFF" + b"0" * 5000)
+        return _Ran(rc=0)
+
+    monkeypatch.setattr("vision.officeaudio._speech_spans", fake_spans)
+    monkeypatch.setattr("vision.officeaudio.subprocess.run", fake_run)
+
+    capture_window("short-input.wav", str(tmp_path), 300.0, input_format="generic")
+    assert seen["duration"] == 10.0

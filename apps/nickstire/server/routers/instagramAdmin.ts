@@ -327,6 +327,67 @@ export const instagramAdminRouter = router({
     }),
 
   /**
+   * Editorial control plane for the approved Reel library. The recommended
+   * ordering is deliberately a transparent heuristic, never a virality score.
+   * Saving a slate resets only the slate's independent cursor atomically;
+   * the canonical approved-library cursor is preserved. Production's daily
+   * selector reads the same durable overlay.
+   */
+  getActiveSlate: adminProcedure.query(async () => {
+    const database = await db();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — active slate is unknown, not empty." });
+    const { buildActiveSlateStrategy } = await import("../services/instagramAdminStrategy");
+    return buildActiveSlateStrategy(database);
+  }),
+
+  saveActiveSlate: adminProcedure
+    .input(z.object({ slugs: z.array(z.string().min(1).max(191)).min(1).max(24) }))
+    .mutation(async ({ input, ctx }) => {
+      const database = await db();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — active slate was not changed." });
+      const { writeActiveReelSlate } = await import("../services/approvedReelPackRotation");
+      try {
+        return await writeActiveReelSlate(database, input.slugs, ctx.user.email ?? String(ctx.user.id));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.startsWith("active Reel slate ")) {
+          throw new TRPCError({ code: "BAD_REQUEST", message });
+        }
+        log.error("active Reel slate write failed", { error: message });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Active Reel slate could not be saved; no success is claimed." });
+      }
+    }),
+
+  clearActiveSlate: adminProcedure.mutation(async ({ ctx }) => {
+    const database = await db();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — active slate was not changed." });
+    const { clearActiveReelSlate } = await import("../services/approvedReelPackRotation");
+    return clearActiveReelSlate(database, ctx.user.email ?? String(ctx.user.id));
+  }),
+
+  /** Correlations promoted only to testable priors — never causal rules. */
+  getStructureHypotheses: adminProcedure.query(async () => {
+    const { buildStructureHypotheses } = await import("../services/instagramAdminStrategy");
+    return buildStructureHypotheses();
+  }),
+
+  /** Shadow-judge verdicts joined to downstream Reel outcomes and coverage. */
+  getReelJudgeCalibration: adminProcedure.query(async () => {
+    const database = await db();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — judge calibration is unknown." });
+    const { buildReelJudgeCalibration } = await import("../services/instagramAdminStrategy");
+    return buildReelJudgeCalibration(database);
+  }),
+
+  /** Measured pin candidates + a visual cover shelf; profile mutations stay manual. */
+  getProfileMerchandising: adminProcedure.query(async () => {
+    const database = await db();
+    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — profile evidence is unknown." });
+    const { buildProfileMerchandising } = await import("../services/instagramAdminStrategy");
+    return buildProfileMerchandising(database);
+  }),
+
+  /**
    * Multilingual variant worklist (ScanFinish NT-015). NOT an automation —
    * verified before building: Meta's Reels AI translation is a Creator
    * Studio publish-time toggle with no Graph Content-Publishing API field,
@@ -345,11 +406,11 @@ export const instagramAdminRouter = router({
   }),
 
   /**
-   * Trial-reel tracking (Wave C′): Instagram's Trial Reels show a post to
-   * non-followers first; the operator reads the 24h numbers in the IG app and
-   * records them HERE so the winner/archive decision leaves a durable trail.
-   * Manual entry by design — no Graph surface for trial metrics is wired, and
-   * a hand-entered number labeled as such beats a fabricated integration.
+   * Trial-reel outcome tracking (Wave C′): Trial publishing itself can now
+   * use Meta's trial_params from the Queue. The 24h Trial-specific outcome
+   * numbers remain manual because no trustworthy Trial-metric ingestion is
+   * wired into our Graph reader yet. Hand-entered numbers stay explicitly
+   * labeled rather than being fabricated from ordinary Reel insights.
    * Rides briefJson (zero DDL); CAS on version; fail-closed on unreadable
    * driver results (the `?? 1` class).
    */
@@ -1584,10 +1645,25 @@ Keep it under 200 characters.`;
        * NOT the platform mechanism.
        */
       isAiGenerated: z.boolean().optional(),
+      /**
+       * Explicit operator-only Trial Reel publish. We intentionally expose
+       * MANUAL graduation only: broad distribution remains a second operator
+       * decision instead of an opaque Meta auto-promotion.
+       */
+      trialReel: z.object({ graduationStrategy: z.literal("MANUAL") }).strict().optional(),
     }))
     .mutation(async ({ input }) => {
       const database = await db();
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not available" });
+
+      if (input.trialReel) {
+        if (!input.inventoryId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Trial Reel publishing requires an approved Reel inventory item." });
+        }
+        if (input.platforms.length !== 1 || input.platforms[0] !== "instagram") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Trial Reels are Instagram-only and cannot be cross-posted." });
+        }
+      }
       
       let publishCaption = input.caption;
       let publishVideoUrl = input.videoUrl;
@@ -1602,6 +1678,11 @@ Keep it under 200 characters.`;
       // won. Captured in the reel integrity gate (where the current hashes are
       // known); consumed at the CAS below. Additive — no override = unchanged path.
       let pendingOverride: { inventoryId: string; assetVersion: number; currentContentHash: string; currentBriefHash: string } | null = null;
+      // Resolved by the SAME publish authority that checked rendered-QA. Carry
+      // this exact job id through to the success receipt so Queue/Trial posts
+      // enter the existing controlled-experiment measurement loop just like
+      // dailyReelPost does.
+      let resolvedReelJobId: number | null = null;
 
       if (input.inventoryId) {
         const { socialContentInventory, socialContentApprovals } = await import("../../drizzle/schema");
@@ -1626,6 +1707,9 @@ Keep it under 200 characters.`;
                     ? "This draft is already published. Re-publishing would duplicate the live post."
                     : "This draft is partially published — one platform is already live. Re-publishing would duplicate it; resolve the failed platform manually.",
             });
+          }
+          if (input.trialReel && draft.contentType !== "reel") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Trial Reel mode is valid only for an approved Reel draft." });
           }
           if (draft.contentType === "reel") {
             if (draft.status !== "ready") {
@@ -1679,9 +1763,17 @@ Keep it under 200 characters.`;
             // publish CAS below. An override still lets an operator ship over
             // ADVISORY findings; it never bypasses a hard gate.
             pendingOverride = authorization.overrideBinding;
+            resolvedReelJobId = authorization.reelJobId;
 
             publishCaption = approvedCaption;
             publishVideoUrl = approvedVideoUrl;
+            // Reel media is server-authoritative. Clear any client-supplied
+            // static/carousel fields before the shared publisher sees the
+            // request, otherwise a crafted payload with imageUrls + an approved
+            // Reel inventoryId can be routed through the carousel branch before
+            // the approved video branch.
+            input.imageUrl = undefined;
+            input.imageUrls = undefined;
           } else {
             // Non-reel drafts: media is SERVER-authoritative. The client used to
             // supply imageUrl(s) verbatim with no check against the row — the last
@@ -1781,7 +1873,9 @@ Keep it under 200 characters.`;
               proof: proof ?? null,
               what: status === "published_partial"
                 ? `published to some platforms only: ${errorMessage ?? "partial"}`
-                : "published to Instagram",
+                : input.trialReel
+                  ? "published as Instagram Trial Reel (MANUAL graduation)"
+                  : "published to Instagram",
             });
           } catch (err) {
             log.warn("publish succeeded but the content run could not be closed", {
@@ -1789,6 +1883,73 @@ Keep it under 200 characters.`;
               err: err instanceof Error ? err.message.slice(0, 200) : String(err),
             });
           }
+        }
+      };
+
+      const attachExperimentMediaReceipt = async (postId?: string | null) => {
+        if (!postId || !resolvedReelJobId) return;
+        try {
+          const { attachPublishedMediaForReelJob } = await import("../services/contentExperimentStore");
+          await attachPublishedMediaForReelJob(resolvedReelJobId, postId, new Date());
+        } catch (err) {
+          // The Instagram post is already confirmed live. Experiment bookkeeping
+          // must never turn that success into an error that invites a duplicate.
+          log.warn("Queue Reel published but experiment media attachment failed", {
+            reelJobId: resolvedReelJobId,
+            postId,
+            err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+          });
+        }
+      };
+
+      const persistTrialPublishReceipt = async (postId?: string | null) => {
+        if (!input.trialReel || !input.inventoryId) return;
+        try {
+          const { socialContentInventory } = await import("../../drizzle/schema");
+          const { eq, and } = await import("drizzle-orm");
+          const rows = await database
+            .select({ briefJson: socialContentInventory.briefJson, version: socialContentInventory.version })
+            .from(socialContentInventory)
+            .where(eq(socialContentInventory.id, input.inventoryId))
+            .limit(1);
+          if (!rows.length) return;
+
+          let parsed: Record<string, unknown> = {};
+          try { parsed = rows[0].briefJson ? JSON.parse(rows[0].briefJson) : {}; } catch { parsed = {}; }
+          const prior = (parsed.trial ?? {}) as Record<string, unknown>;
+          const next = {
+            ...parsed,
+            trial: {
+              ...prior,
+              postedAsTrial: true,
+              graduationStrategy: input.trialReel.graduationStrategy,
+              publishedAt: new Date().toISOString(),
+              postId: postId ?? null,
+            },
+          };
+          // Version is an optimistic guard only; publishing metadata does not
+          // mutate the approved creative version. If a human records 24h
+          // metrics concurrently and bumps version, refuse to overwrite them.
+          const result = await database.update(socialContentInventory)
+            .set({ briefJson: JSON.stringify(next), updatedAt: new Date() })
+            .where(and(
+              eq(socialContentInventory.id, input.inventoryId),
+              eq(socialContentInventory.version, rows[0].version),
+            ));
+          if (affectedRowCount(result) !== 1) {
+            log.warn("Trial Reel published but trial receipt lost a concurrent metadata race", {
+              inventoryId: input.inventoryId,
+              postId: postId ?? null,
+            });
+          }
+        } catch (err) {
+          // External publish is already live. Never turn bookkeeping failure
+          // into a user-visible publish failure that could invite a duplicate.
+          log.warn("Trial Reel published but trial receipt persistence failed", {
+            inventoryId: input.inventoryId,
+            postId: postId ?? null,
+            err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+          });
         }
       };
 
@@ -1862,6 +2023,7 @@ Keep it under 200 characters.`;
         inventoryId: input.inventoryId ?? null,
         platforms: input.platforms ?? [],
         mediaUrl: publishVideoUrl ?? null,
+        caption: publishCaption,
       });
       if (!attemptId) {
         await setInventoryStatus(observedStatus ?? "ready");
@@ -1914,6 +2076,12 @@ Keep it under 200 characters.`;
         { igPostId: igPostId ?? null, error: failureDetail || null, platformResults: results },
       );
 
+      // Attach as soon as Instagram has returned a confirmed media id, even if
+      // another requested platform failed later in this multi-platform call.
+      // The assignment store is idempotent (media_id IS NULL), so a retry cannot
+      // rewrite an experiment episode onto a different post.
+      await attachExperimentMediaReceipt(igPostId ?? null);
+
       if (dispatchAmbiguous) {
         const confirmedNote = succeeded.length
           ? `CONFIRMED on ${succeeded.map((r) => r.platform).join(", ")}${igPostId ? ` (id ${igPostId})` : ""}; `
@@ -1956,8 +2124,9 @@ Keep it under 200 characters.`;
       }
 
       await setInventoryStatus("published", undefined, igPostId ?? null);
+      await persistTrialPublishReceipt(igPostId ?? null);
 
-      return { success: true, results, postId: igPostId };
+      return { success: true, results, postId: igPostId, publishedAsTrial: Boolean(input.trialReel) };
     }),
 
   /**
@@ -2167,9 +2336,16 @@ Keep it under 200 characters.`;
           scoreObj = { gate: "block", overall: 0 };
         } else {
           try {
-            const { calculateReelQualityScore } = await import("../../client/src/lib/facelessReelStudio");
-            const qRes = calculateReelQualityScore(parsedBrief, undefined, { recent: recentSignals });
-            scoreObj = { gate: qRes.passing ? "pass" : "block", overall: qRes.overall };
+            const { calculateReelQualityScore, isScorableReelBrief } = await import("../../client/src/lib/facelessReelStudio");
+            if (!isScorableReelBrief(parsedBrief)) {
+              // Historical rows predate the current ReelBrief shape. Treat
+              // those as unscorable/fail-closed instead of throwing on a
+              // missing array (observed in production 2026-09-28).
+              scoreObj = { gate: "block", overall: 0 };
+            } else {
+              const qRes = calculateReelQualityScore(parsedBrief, undefined, { recent: recentSignals });
+              scoreObj = { gate: qRes.passing ? "pass" : "block", overall: qRes.overall };
+            }
           } catch (e) {
             log.warn("failed to calculate reel score in getAllDrafts", e);
             scoreObj = { gate: "block", overall: 0 };

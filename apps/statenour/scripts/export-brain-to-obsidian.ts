@@ -18,6 +18,7 @@ import {
   pruneConflictDir,
   sanitizeFilename,
 } from "../lib/obsidian/note-writer";
+import { pickNewestIdsPerCategory } from "../lib/obsidian/memory-rollup";
 
 // Parse CLI arguments
 const args = process.argv.slice(2);
@@ -300,27 +301,51 @@ async function main() {
   // 4. Export Brain Memories
   console.log("  Processing: Brain Memories...");
   try {
-    const memories = await prisma.brainMemory.findMany({
-      where: {
-        deletedAt: null,
-        NOT: {
-          OR: [
-            { key: { startsWith: "obsidian_" } },
-            { category: "morning_brief_audio" },
-            { category: "suggestion_hypothesis" },
-            { category: "ARCHIVE_DOCUMENT" },
-            { category: "GMAIL_THREAD" },
-            { category: "GMAIL_OUTGOING" },
-            { category: "archive_document" },
-            { category: "gmail_thread" },
-            { category: "gmail_outgoing" }
-          ]
-        }
+    const memoryWhere = {
+      deletedAt: null,
+      NOT: {
+        OR: [
+          { key: { startsWith: "obsidian_" } },
+          { category: "morning_brief_audio" },
+          { category: "suggestion_hypothesis" },
+          { category: "ARCHIVE_DOCUMENT" },
+          { category: "GMAIL_THREAD" },
+          { category: "GMAIL_OUTGOING" },
+          { category: "archive_document" },
+          { category: "gmail_thread" },
+          { category: "gmail_outgoing" },
+        ],
       },
-      // Secondary id sort keeps the rendered order stable when createdAt ties —
-      // an order flip would read as a content change and rewrite the rollup
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }]
-    });
+    };
+
+    // Rollup is a READING surface, not the backup. Before 2026-09-28 this
+    // loaded every full BrainMemory row (~36k live rows in production) and
+    // then discarded everything beyond the newest 100/category below. Neon
+    // pg_stat_statements measured 744 executions returning ~26.5M rows.
+    //
+    // Keep the proven fast ordered scan, but make it narrow first. Then fetch
+    // full payloads only for the IDs the rollup can actually render. Individual
+    // mode intentionally remains complete; export-brain-archive.ts owns backup.
+    const memories = memoryMode === "rollup"
+      ? await (async () => {
+          const candidates = await prisma.brainMemory.findMany({
+            where: memoryWhere,
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            select: { id: true, category: true },
+          });
+          const selectedIds = pickNewestIdsPerCategory(candidates, 100);
+          if (selectedIds.length === 0) return [];
+          return prisma.brainMemory.findMany({
+            where: { id: { in: selectedIds } },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          });
+        })()
+      : await prisma.brainMemory.findMany({
+          where: memoryWhere,
+          // Secondary id sort keeps the rendered order stable when createdAt
+          // ties — an order flip would read as a content change and rewrite.
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        });
 
     // Group memories by category
     const grouped: Record<string, typeof memories> = {};

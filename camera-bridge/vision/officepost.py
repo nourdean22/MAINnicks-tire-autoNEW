@@ -51,6 +51,7 @@ class Transcript:
     #: Populated ONLY when transcription could not run or produce output. An empty `segments`
     #: list with `error is None` is a real finding: the clip had no speech in it.
     error: Optional[str] = None
+    model: Optional[str] = None
 
 
 def covered_seconds(segments: Sequence[dict], total: Optional[float] = None) -> float:
@@ -98,6 +99,8 @@ def transcribe(path: str, binary: str = "whisper-cli", model: Optional[str] = No
     cmd = [binary, "-f", path, "--output-json", "--no-prints"]
     if model:
         cmd[1:1] = ["-m", model]
+    engine_name = os.path.basename(binary) or binary
+    model_name = os.path.basename(model) if model else None
     started = time.time()
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
@@ -106,12 +109,12 @@ def transcribe(path: str, binary: str = "whisper-cli", model: Optional[str] = No
             f"transcriber {binary!r} not found; set --transcriber to its path"
         ) from exc
     except subprocess.TimeoutExpired:
-        return Transcript([], engine=binary, latency_ms=int((time.time() - started) * 1000),
+        return Transcript([], engine=engine_name, model=model_name, latency_ms=int((time.time() - started) * 1000),
                           error=f"transcriber timed out after {timeout_s:.0f}s")
     latency = int((time.time() - started) * 1000)
 
     if proc.returncode != 0:
-        return Transcript([], engine=binary, latency_ms=latency,
+        return Transcript([], engine=engine_name, model=model_name, latency_ms=latency,
                           error=f"transcriber exited {proc.returncode}: {(proc.stderr or '')[:300]}")
 
     # whisper-cli writes <path>.json beside the wav; fall back to stdout for other builds.
@@ -121,18 +124,18 @@ def transcribe(path: str, binary: str = "whisper-cli", model: Optional[str] = No
         try:
             raw = json.load(open(side, encoding="utf-8"))
         except (OSError, ValueError) as exc:
-            return Transcript([], engine=binary, latency_ms=latency,
+            return Transcript([], engine=engine_name, model=model_name, latency_ms=latency,
                               error=f"transcript json unreadable: {exc}"[:300])
     elif proc.stdout.strip():
         try:
             raw = json.loads(proc.stdout)
         except ValueError as exc:
-            return Transcript([], engine=binary, latency_ms=latency,
+            return Transcript([], engine=engine_name, model=model_name, latency_ms=latency,
                               error=f"transcriber stdout was not json: {exc}"[:300])
     if raw is None:
         # Exited clean and wrote nothing. That is a BROKEN run, not a quiet room: a working
         # transcriber emits a json envelope with an empty segment list for silence.
-        return Transcript([], engine=binary, latency_ms=latency,
+        return Transcript([], engine=engine_name, model=model_name, latency_ms=latency,
                           error="transcriber produced no output file and no stdout")
 
     out: List[dict] = []
@@ -141,7 +144,7 @@ def transcribe(path: str, binary: str = "whisper-cli", model: Optional[str] = No
         if not text:
             continue
         out.append({"index": i, "start": _secs(seg, "start"), "end": _secs(seg, "end"), "text": text})
-    return Transcript(out, engine=binary, latency_ms=latency, error=None)
+    return Transcript(out, engine=engine_name, model=model_name, latency_ms=latency, error=None)
 
 
 def _iter_segments(raw) -> List[dict]:
@@ -202,7 +205,15 @@ def _maybe_json(body: str):
         return body[:300]
 
 
-def build_payload(seg, transcript: Transcript) -> dict:
+def build_payload(
+    seg,
+    transcript: Transcript,
+    *,
+    camera_serial: Optional[str] = None,
+    capture_host: Optional[str] = None,
+    trigger_type: Optional[str] = None,
+    triggered_at: Optional[float] = None,
+) -> dict:
     """Assemble what the route requires, with coverage computed over the UNION of spans.
 
     `seg` is an officeaudio.AudioSegment. `totalSeconds` is the clip length and
@@ -213,6 +224,10 @@ def build_payload(seg, transcript: Transcript) -> dict:
     return {
         "episodeId": seg.episode_id,
         "source": seg.source,
+        "cameraSerial": camera_serial,
+        "captureHost": capture_host,
+        "triggerType": trigger_type,
+        "triggeredAt": triggered_at,
         "startedAt": seg.started_at,
         "durationSeconds": total,
         "audioRef": seg.path,
@@ -220,6 +235,7 @@ def build_payload(seg, transcript: Transcript) -> dict:
         "meanVolumeDb": seg.mean_volume_db if seg.measured else None,
         "segments": transcript.segments,
         "sttEngine": transcript.engine,
+        "sttModel": transcript.model,
         "sttLatencyMs": transcript.latency_ms,
         "transcriptError": transcript.error,
         "coveredSeconds": covered_seconds(transcript.segments, total),
@@ -234,6 +250,7 @@ def main(argv: List[str]) -> int:
 
     ap = argparse.ArgumentParser(description="capture -> transcribe -> post one office window")
     ap.add_argument("--source-url", required=True)
+    ap.add_argument("--input-format", choices=("auto", "rtsp", "dshow", "generic"), default="auto")
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--seconds", type=float, default=300.0)
     ap.add_argument("--source", default="eufy-office")
@@ -249,8 +266,14 @@ def main(argv: List[str]) -> int:
     if args.silence_db is not None:
         kw["silence_db"] = args.silence_db
     try:
-        segs = capture_window(args.source_url, args.out_dir, args.seconds,
-                              source=args.source, **kw)
+        segs = capture_window(
+            args.source_url,
+            args.out_dir,
+            args.seconds,
+            source=args.source,
+            input_format=args.input_format,
+            **kw,
+        )
     except FfmpegMissing as exc:
         print(json.dumps({"error": "ffmpeg_missing", "detail": str(exc)}))
         return 3

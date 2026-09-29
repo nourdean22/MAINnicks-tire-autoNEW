@@ -33,12 +33,12 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from vision.capture import CaptureMux, V380WindowSource, WgcWindowSource  # noqa: E402
+from vision.capture import CaptureMux, RtspSource, V380WindowSource, WgcWindowSource  # noqa: E402
 from vision.detector import (  # noqa: E402
     DetectorCouncil, DetectorUnavailable, Mog2MotionDetector, OpenVinoVehicleDetector,
 )
 from vision.evidence import EvidenceStore  # noqa: E402
-from vision.geometry import EntryPortal, LotMap, Zone  # noqa: E402
+from vision.geometry import EntryPortal, LotMap, Zone, point_in_poly  # noqa: E402
 from vision.panedetect import (ChannelNotFound, assert_channel_usable,  # noqa: E402
                                classify_motion, detect_live_region,
                                resolve_channel, split_into_channels)
@@ -460,7 +460,8 @@ def title_of(src) -> str:
 def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
                  channel: int | None = None, calibrated: bool = False,
                  scene_atlas: str | None = None, scene: str | None = None,
-                 canonical_size=None, declared_fixed: bool = False):
+                 canonical_size=None, declared_fixed: bool = False,
+                 source_url: str | None = None):
     # --channel and --scene-atlas are two answers to the same question and cannot both be
     # the answer. `--channel` finds a rectangle by MOTION; the atlas finds THE CAMERA by
     # APPEARANCE. Silently letting one win would make the producer's aim depend on argument
@@ -472,6 +473,23 @@ def build_source(kind: str, hwnd: int | None, title: str, crop: bool,
             "only proves that a rectangle holds moving pixels. Use --channel only for a "
             "camera with no atlas entry yet."
         )
+    if kind == "rtsp":
+        if channel is not None:
+            raise ChannelNotFound(
+                "--channel is a V380/WGC pane selector; an RTSP URL already names one "
+                "stream. Point the URL at the intended camera instead."
+            )
+        if scene_atlas:
+            raise SceneNotLocated(
+                "--scene-atlas currently proves identity inside the V380/WGC window. "
+                "RTSP is already a single stream and has no atlas binding path yet."
+            )
+        if not source_url:
+            raise ValueError(
+                "--source rtsp needs a URL from the environment named by "
+                "--source-url-env (default CAMERA_SOURCE_URL)."
+            )
+        return _solo(RtspSource(source_url))
     if kind == "wgc":
         src = WgcWindowSource(
             window_hwnd=hwnd, window_title=title,
@@ -542,6 +560,56 @@ def _solo(src, calibrated_reference=None):
     if getattr(src, "revalidate", None) is not None:
         mux.revalidate = src.revalidate
     return mux
+
+
+class PortalNotUsable(Exception):
+    """A portal that cannot be crossed inward. See `assert_portal_straddles`."""
+
+
+def assert_portal_straddles(lot_poly, portal_poly, samples: int = 4000) -> None:
+    """Refuse a portal that does not span the lot boundary.
+
+    An arrival is a vehicle crossing INTO the lot through the portal. A portal drawn
+    wholly INSIDE the lot can never be crossed inward -- there is no outside half to come
+    from -- so the producer records zero arrivals forever while every other signal stays
+    green: frames arrive, vehicles are detected and tracked, the health lattice is happy,
+    and the shop board simply shows a lot nobody ever drove into. That is indistinguishable
+    from a genuinely quiet week, which is why it has to fail at LOAD time and loudly.
+
+    Caught on the shop PC 2026-09-16 against a hand-drawn calibration: 75 of 75 sampled
+    portal cells were inside the lot, 0 outside. The polygons looked perfectly sensible
+    drawn over the camera view; only counting the two halves showed it.
+
+    A portal wholly OUTSIDE is refused for the mirror reason: nothing can land in the lot
+    through it either.
+    """
+    if not portal_poly:
+        return                      # census mode: no portal is a deliberate, honest state
+    xs = [p[0] for p in lot_poly + list(portal_poly)]
+    ys = [p[1] for p in lot_poly + list(portal_poly)]
+    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
+    step = max(1.0, ((x1 - x0) * (y1 - y0) / max(samples, 1)) ** 0.5)
+    inside_lot = outside_lot = 0
+    y = y0
+    while y <= y1:
+        x = x0
+        while x <= x1:
+            if point_in_poly((x, y), portal_poly):
+                if point_in_poly((x, y), lot_poly):
+                    inside_lot += 1
+                else:
+                    outside_lot += 1
+            x += step
+        y += step
+    if inside_lot and outside_lot:
+        return
+    where = "entirely INSIDE the lot" if outside_lot == 0 else "entirely OUTSIDE the lot"
+    raise PortalNotUsable(
+        f"the portal is {where} ({inside_lot} sampled cells inside, {outside_lot} outside), "
+        "so no vehicle can ever cross INTO the lot through it and no arrival will ever be "
+        "recorded -- which looks exactly like a quiet lot. Redraw the portal as a band "
+        "STRADDLING the lot's entry edge, with part of it outside the lot polygon."
+    )
 
 
 def build_council(model: str | None, device: str, motion_gate: bool,
@@ -654,7 +722,10 @@ def main() -> int:
     ap.add_argument("--fps", type=float, default=4.0)
     ap.add_argument("--model", default=os.environ.get("VISION_OV_MODEL"))
     ap.add_argument("--device", default=os.environ.get("VISION_OV_DEVICE", "GPU"))
-    ap.add_argument("--source", choices=["wgc", "mss"], default="wgc")
+    ap.add_argument("--source", choices=["wgc", "mss", "rtsp"], default="wgc")
+    ap.add_argument("--source-url-env", default="CAMERA_SOURCE_URL",
+                    help="env var holding the RTSP/source URL. Keep credential-bearing URLs "
+                         "out of the process command line.")
     ap.add_argument("--window-title", default=os.environ.get("V380_WINDOW_TITLE", "V380"))
     ap.add_argument("--hwnd", type=int, default=None)
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window")
@@ -701,6 +772,8 @@ def main() -> int:
                           channel=args.channel, calibrated=bool(args.calibration),
                           declared_fixed=declared_fixed_lens(args.calibration),
                           scene_atlas=args.scene_atlas, scene=args.scene,
+                          source_url=(os.environ.get(args.source_url_env)
+                                      if args.source_url_env else None),
                           # ONLY the atlas path warps, so only it needs the canonical frame.
                           # Evaluating this unconditionally aborted every EXISTING calibrated
                           # producer -- ones using the documented lot/portal/bays format with no
@@ -732,6 +805,7 @@ def main() -> int:
             cal = json.load(fh)
         lot_poly = [tuple(p) for p in cal["lot"]]
         portal_poly = [tuple(p) for p in cal.get("portal", [])]
+        assert_portal_straddles(lot_poly, portal_poly)
         lot_map = LotMap().add("front_lot", lot_poly)
         for name, poly in (cal.get("bays") or {}).items():
             lot_map.add(name, [tuple(p) for p in poly])

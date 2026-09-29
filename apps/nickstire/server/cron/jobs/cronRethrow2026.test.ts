@@ -68,6 +68,64 @@ describe("cron rethrow contract · 2026-09-01 audit F-9", () => {
     }
   });
 
+  // 2026-09-23 widening of cronNoSwallowedFailure: ten crudAutomation catches
+  // returned "<X> failed: …" as a completed run. Each now REJECTS with the same
+  // text, so cron_log's details column still reads the same words.
+  it.each([
+    ["detectNoShows", /No-show detection failed: database unreachable/],
+    ["autoCleanStaleBookings", /Stale booking cleanup failed: database unreachable/],
+    ["alertLowStock", /Low-stock check failed: database unreachable/],
+    ["autoAdvanceWorkOrders", /WO auto-advance failed: database unreachable/],
+    ["autoEscalateBookingPriority", /Booking escalation failed: database unreachable/],
+    ["autoFetchAndDraftReviews", /Review drafting failed: database unreachable/],
+    ["closeReferralLoop", /Referral loop failed: database unreachable/],
+    ["notifyNewVips", /VIP notification failed: database unreachable/],
+  ])("crudAutomation.%s REJECTS when the DB is unreachable", async (name, expected) => {
+    vi.doMock("../../db", () => ({ getDb: async () => { throw new Error("database unreachable (canary)"); } }));
+    // closeReferralLoop / notifyNewVips skip before their try when their flag is off.
+    vi.doMock("../../services/featureFlags", () => ({ isEnabled: async () => true }));
+    const mod = (await import("./crudAutomation")) as unknown as Record<string, () => Promise<unknown>>;
+    await expect(mod[name]()).rejects.toThrow(expected);
+  });
+
+  it("crudAutomation.autoGenerateContent REJECTS when article generation throws (on a content day)", async () => {
+    // The job only runs Wed/Sat (shop TZ) — pin the clock so this is not a
+    // test that passes two days a week.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-23T16:00:00Z")); // Wednesday noon ET
+    vi.doMock("../../content-generator", () => ({ generateArticle: async () => { throw new Error("llm down (canary)"); } }));
+    try {
+      const { autoGenerateContent } = await import("./crudAutomation");
+      await expect(autoGenerateContent()).rejects.toThrow(/Content gen failed: llm down/);
+    } finally {
+      vi.doUnmock("../../content-generator");
+      vi.useRealTimers();
+    }
+  });
+
+  it("crudAutomation.processReminders REJECTS when the reminder queue throws", async () => {
+    vi.doMock("../../routers/reminders", () => ({ processReminderQueue: async () => { throw new Error("queue exploded (canary)"); } }));
+    try {
+      const { processReminders } = await import("./crudAutomation");
+      await expect(processReminders()).rejects.toThrow(/Reminders failed: queue exploded/);
+    } finally {
+      vi.doUnmock("../../routers/reminders");
+    }
+  });
+
+  it("processReviewMonitor REJECTS on a non-OK Google response (not only on a thrown fetch)", async () => {
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "canary-key");
+    vi.stubGlobal("fetch", async () => new Response("quota", { status: 429 }));
+    const { processReviewMonitor } = await import("./reviewMonitor");
+    await expect(processReviewMonitor()).rejects.toThrow(/Google API error: 429/);
+  });
+
+  it("checkWeatherTriggers (weather-intel handler) REJECTS on a non-OK NWS response", async () => {
+    vi.stubGlobal("fetch", async () => new Response("down", { status: 503 }));
+    const { checkWeatherTriggers } = await import("../../services/weatherIntelligence");
+    await expect(checkWeatherTriggers()).rejects.toThrow(/NWS 503/);
+  });
+
   it("CANARY — a job that still swallows would RESOLVE here, proving `rejects` bites", async () => {
     const swallowing = async () => {
       try { throw new Error("boom"); } catch (err) { return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` }; }

@@ -4,7 +4,7 @@ Every background job in `server/cron/scheduler.ts` (tiered scheduler) and the
 HTTP-triggerable registry in `server/cron/index.ts`. **This file is generated** from
 those two sources — `server/cron/cronInventoryParity.test.ts` fails when they drift.
 
-**Last regenerated: 2026-09-22 by `scripts/gen-cron-inventory.mts`.**
+**Last regenerated: 2026-09-27 by `scripts/gen-cron-inventory.mts`.**
 
 > The code is the source of truth. To add or change a job, edit the scheduler and
 > re-run the generator in the same commit; write the job's purpose in the last column.
@@ -15,19 +15,21 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 
 | Tier | Interval | Jobs (scheduled / staged) |
 |---|---|---|
-| heartbeat | every 5m | 3 / 1 |
+| heartbeat | every 5m | 4 / 2 |
 | pulse | every 15m | 23 / 0 |
 | hourly | every 2h | 35 / 1 |
-| daily | every 1d | 51 / 0 |
+| daily | every 1d | 52 / 0 |
 | briefings | every 12h | 6 / 0 |
 
-**Total: 120 tiered jobs (118 scheduled automatically, 2 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 123 tiered jobs (120 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
 | Job | Business hours only | Once per shop day | Scheduled | Purpose |
 |---|---|---|---|---|
 | `alg-mirror-health` | yes | no | yes | — |
+| `camera-health-alert-selftest` | no | no | **STAGED — HTTP trigger only** | — |
+| `camera-health-alerts` | no | no | yes | — |
 | `campaign-resume` | no | no | **STAGED — HTTP trigger only** | — |
 | `data-accuracy-check` | no | no | yes | — |
 | `self-healing` | no | no | yes | Detect + auto-recover from common failures (DB pool, restart spam) |
@@ -121,6 +123,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `declined-work-recovery` | no | no | yes | Recover declined estimates via SMS |
 | `email-campaign-auto` | no | no | yes | — |
 | `engine-health` | no | no | yes | — |
+| `estimate-invoice-match` | no | no | yes | — |
 | `fleet-scoring` | no | no | yes | Score fleet customers by health + spend |
 | `full-intelligence-digest` | no | no | yes | — |
 | `gateway-price-refresh` | no | no | yes | — |

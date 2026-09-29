@@ -16,9 +16,16 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveToken, ghJson, ghPaginate } from "./github-client.mjs";
+import { liveDecision } from "./live-gate.mjs";
 
 const REPO = "nourdean22/MAINnicks-tire-autoNEW";
 const auth = resolveToken();
+// The two real-API tests below run only when this diff touches the client (or on
+// dispatch/schedule, or AGENT_OS_LIVE_GHCLIENT=1): ~2 requests, but on every PR,
+// and a spent installation budget 403'd them into every PR's red — live-gate.mjs.
+const ghclientGate = liveDecision("AGENT_OS_LIVE_GHCLIENT");
+console.log(ghclientGate.reason);
+const liveSkip = !ghclientGate.run ? ghclientGate.reason : !auth;
 
 test("a GitHub token can be resolved in this environment (precondition for the rest)", () => {
   assert.ok(auth, "resolveToken() returned null — gh auth token failed AND GH_TOKEN/GITHUB_TOKEN are both unset");
@@ -40,7 +47,7 @@ test("BROKEN control: a raw fetch() with NODE_USE_ENV_PROXY unset 401s against t
   assert.equal(r.stdout.trim(), "401", `expected the unshimmed control to 401; got: ${r.stdout}${r.stderr}`);
 });
 
-test("FIXED: ghJson() reaches the real API and returns this repo", { skip: !auth }, () => {
+test("FIXED: ghJson() reaches the real API and returns this repo", { skip: liveSkip }, () => {
   // Mirrors the BROKEN control above exactly, but in a child with
   // NODE_USE_ENV_PROXY=1 set from process start (setting it mid-process, as this
   // test file's own process would be doing if it called ghJson() in-process, does
@@ -94,7 +101,7 @@ test("resolveToken falls back to GITHUB_TOKEN when GH_TOKEN is absent and gh is 
   assert.equal(out.source, "GITHUB_TOKEN env");
 });
 
-test("LIVE: ghPaginate crosses a real page boundary without the numeric-ID proxy 403 (real regression)", { skip: !auth }, () => {
+test("LIVE: ghPaginate crosses a real page boundary without the numeric-ID proxy 403 (real regression)", { skip: liveSkip }, () => {
   // The repo's own /branches endpoint has 130+ branches (>100 = at least 2 pages)
   // at last count, and this environment's proxy previously 403'd the second page
   // because ghPaginate followed the Link header's numeric-ID URL verbatim. This

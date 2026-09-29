@@ -17,7 +17,11 @@ describe("parseReelJobPayload", () => {
       storyboardBeats: [{ beatNumber: 1, visual: "a tire", motion: "", onScreenText: "text" }],
       episodeContract: { script: { ctaType: "SEND", voiceover: "hello" }, evidence: [{ entailment: "supported" }] },
       approvedPackSlug: "2026-08-16-wheel-bearing-hum",
+      approvedPackPool: "active_slate",
+      approvedPackSlateRevision: "2026-09-27T20:00:00.000Z",
       productionSlot: "morning",
+      productionGrammarFingerprint: { durationBucket: "20s", beatCount: 5, purposeFamilies: [], visualFamilies: [], motionFamilies: [], audioFamilies: [], ctaType: "visit", loopType: "visual", signature: "sig" },
+      productionGrammarNovelty: { similarity: 0.88, isProductionTwin: true, collisions: ["visual_sequence"], nearestSignature: "prior", comparisonWindow: 12 },
       approvedProductionPack: { packId: "2026-08-16-wheel-bearing-hum", contentSha256: "a".repeat(64) },
     });
     const v = parseReelJobPayload(payload);
@@ -26,7 +30,11 @@ describe("parseReelJobPayload", () => {
     expect(v.episodeContract?.script?.ctaType).toBe("SEND");
     expect(v.episodeContract?.evidence?.[0].entailment).toBe("supported");
     expect(v.approvedPackSlug).toBe("2026-08-16-wheel-bearing-hum");
+    expect(v.approvedPackPool).toBe("active_slate");
+    expect(v.approvedPackSlateRevision).toBe("2026-09-27T20:00:00.000Z");
     expect(v.productionSlot).toBe("morning");
+    expect(v.productionGrammarNovelty?.isProductionTwin).toBe(true);
+    expect(v.productionGrammarNovelty?.nearestSignature).toBe("prior");
     expect(v.approvedProductionPack?.packId).toBe("2026-08-16-wheel-bearing-hum");
   });
 

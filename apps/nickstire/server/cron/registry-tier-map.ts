@@ -259,6 +259,14 @@ export const MANUAL_TRIGGER_STAGED: readonly ManualTriggerStagedJob[] = [
   // outage going unnoticed — which is the entire reason to have it scheduled.
   // Pinned by higgsfieldKeepalivePromoted.test.ts.
   {
+    name: "camera-health-alert-selftest",
+    why:
+      "sends a real owner notification through the production camera-health delivery rail. " +
+      "It changes no camera state and exists only to prove provider acceptance on operator request.",
+    promote:
+      "never automatic — this is an operator-only delivery diagnostic, not a scheduled monitor.",
+  },
+  {
     name: "campaign-resume",
     why:
       "can call processCampaignSends() for a campaign still 'active' with rows left 'pending', " +

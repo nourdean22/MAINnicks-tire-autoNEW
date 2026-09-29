@@ -9,9 +9,8 @@
  *
  * One typed input → one typed result; the only I/O is getAiConfig +
  * classifyIntent (both already best-effort/bounded upstream of this
- * move). The classify stage-timer, via the injected stageTracker, ends
- * when classifyIntent settles; the turn awaits it only when no fixed
- * mode decides the mode (2026-09-23, see the mode block below).
+ * move). classifyIntent runs, timed by the injected stageTracker, only
+ * when no fixed mode decides the mode (2026-09-23, see the mode block).
  *
  * Everything else is pure (<2ms) derivation from user text — see the
  * original block comments preserved inline below.
@@ -25,6 +24,7 @@ import type { ChatMode } from "@/lib/ai/chat-mode";
 import type { TaskType } from "@/lib/ai/provider";
 import type { createStageTracker } from "@/lib/ai/chat/timing";
 import type { logger as rootLogger } from "@/lib/logger";
+import type { ResearchCompilerMode } from "@/lib/ai/research-query-compiler";
 
 type Logger = ReturnType<typeof rootLogger.withSurface>;
 type StageTracker = ReturnType<typeof createStageTracker>;
@@ -32,23 +32,10 @@ type Classification = Awaited<
   ReturnType<typeof import("@/lib/ai/runtime/intent-router").classifyIntent>
 >;
 
-/**
- * The classification if it has already landed, else undefined. Never waits:
- * a settled promise wins Promise.race over the already-resolved fallback,
- * a pending one loses to it.
- */
-export function takeClassificationIfLanded(
-  pending: Promise<Classification | undefined>,
-): Promise<Classification | undefined> {
-  return Promise.race([pending, Promise.resolve(undefined)]);
-}
-
 export interface TurnSignals {
   aiConfig: Awaited<ReturnType<typeof getAiConfig>> | null;
-  /** Undefined when a fixed mode meant the turn did not wait for it — see classificationPromise. */
+  /** Undefined on a fixed-mode turn: the classifier is not called (see the mode block). */
   classification: Classification | undefined;
-  /** Always settles, never rejects; carries the classification once it lands. */
-  classificationPromise: Promise<Classification | undefined>;
   mode: ChatMode;
   taskTypeForMode: TaskType;
   queryShape: ReturnType<typeof detectQueryShape>;
@@ -63,6 +50,7 @@ export interface TurnSignals {
   webSearchIntent: boolean;
   /** Weaker sibling: recency-phrased ask → search tools INCLUDED, never forced. */
   webSearchRecency: boolean;
+  researchCompilerMode: ResearchCompilerMode | null;
 }
 
 export async function deriveTurnSignals(args: {
@@ -74,6 +62,7 @@ export async function deriveTurnSignals(args: {
   traceId: string;
   stageTracker: StageTracker;
   log: Logger;
+  researchCompilerMode?: ResearchCompilerMode | null;
 }): Promise<TurnSignals> {
   const {
     userContent,
@@ -84,6 +73,7 @@ export async function deriveTurnSignals(args: {
     traceId,
     stageTracker,
     log,
+    researchCompilerMode = null,
   } = args;
 
   // ═══ PERF: Chat mode detection (with overrides) ═══
@@ -92,41 +82,26 @@ export async function deriveTurnSignals(args: {
   //   2. Global default from the AI config (Settings page)
   //   3. Automatic detection via detectChatMode
   const aiConfig = await getAiConfig().catch((): null => null);
-  const { classifyIntent } = await import("@/lib/ai/runtime/intent-router");
-  const classifyTimer = stageTracker.start("classify");
-  const classifying = classifyIntent(userContent, traceId);
-  // 2026-09-23 · classifyIntent is an LLM call on the pre-stream path with an
-  // 8 s cap, and the mode below is its only pre-stream consumer. A per-request
-  // override or the configured default decides the mode first, so when either
-  // is set the turn no longer waits for it: the call runs on, and the stream's
-  // intent.classified event takes it only if it has landed by then
-  // (takeClassificationIfLanded; buildChatResponse already labels the turn
-  // when it has not). Production has had defaultMode "deep" since 2026-08-31,
-  // so every turn paid this wait for a result that could not change its mode:
-  // the prompt build started 4.8-8.3 s after the request on 2026-09-23, and the
-  // call hit its 8 s cap on 3 of 10 turns.
-  const fixedMode = modeOverride || aiConfig?.defaultMode;
+  // 2026-09-23 · classifyIntent is an LLM call (8 s cap) whose only pre-stream
+  // consumer is the mode. A per-request override or the configured default
+  // decides the mode first, and production has had defaultMode "deep" since
+  // 2026-08-31, so on a fixed-mode turn the call is not made at all: its one
+  // other reader, the stream's intent.classified event, has no client listener
+  // (use-chat-transport re-dispatches it; chat-island reads only
+  // memory.recalled) and is labelled `skipped` by buildChatResponse. The
+  // classify stage is marked skipped rather than timed, so chat_pipeline_stages
+  // reads `classify=skipped`, never a 0 ms stage that looks like a fast call.
+  const fixedMode = researchCompilerMode ? "deep" : (modeOverride || aiConfig?.defaultMode);
   let classification: Classification | undefined;
-  let classificationPromise: Promise<Classification | undefined>;
   let mode: ChatMode;
   if (fixedMode) {
     mode = fixedMode;
-    // Handled at creation: nothing awaits this promise before the stream, and
-    // a rejection nobody is listening to crashes a Node process.
-    classificationPromise = classifying.then(
-      (c) => {
-        classifyTimer.end();
-        return c;
-      },
-      (): undefined => {
-        classifyTimer.end();
-        return undefined;
-      },
-    );
+    stageTracker.meta("classify", { skipped: "fixed-mode" });
   } else {
-    classification = await classifying;
+    const { classifyIntent } = await import("@/lib/ai/runtime/intent-router");
+    const classifyTimer = stageTracker.start("classify");
+    classification = await classifyIntent(userContent, traceId);
     classifyTimer.end();
-    classificationPromise = Promise.resolve(classification);
     mode =
       classification.mode === "engineer" || classification.mode === "operator" ? "deep" : "standard";
   }
@@ -227,13 +202,15 @@ export async function deriveTurnSignals(args: {
       })
     : false;
   const domainRoute = detectDomain(userContent, { hasImageAttachments });
-  const finalTaskType = (taskTypeOverride
-    ? taskTypeForMode
-    : domainRoute.domain !== "general"
-      ? domainRoute.taskType
-      : taskTypeForMode) as TaskType;
+  const finalTaskType = (researchCompilerMode
+    ? "deep"
+    : taskTypeOverride
+      ? taskTypeForMode
+      : domainRoute.domain !== "general"
+        ? domainRoute.taskType
+        : taskTypeForMode) as TaskType;
   const finalPreferLargeContext =
-    contentMode || domainRoute.preferLargeContext;
+    Boolean(researchCompilerMode) || contentMode || domainRoute.preferLargeContext;
   log.info("domain_route", {
     label: domainRoute.label,
     taskType: finalTaskType,
@@ -248,6 +225,7 @@ export async function deriveTurnSignals(args: {
   // Route python-execute intent through Anthropic to guarantee the
   // tool actually fires.
   const pythonExecuteIntent =
+    !researchCompilerMode &&
     /\b(run|execute|invoke)\s+(?:this\s+)?python\b|\bpython\s+(?:to\s+|and\s+)?(?:compute|calculate|run|execute)\b|\buse\s+(?:the\s+)?runPython\b|\brun\s+(?:this\s+)?code\b/i.test(
       userContent,
     );
@@ -262,7 +240,7 @@ export async function deriveTurnSignals(args: {
   // routes to the lane that actually fires the tool. Detected ONCE
   // and reused for both the provider force and toolChoice.
   // Degrades safely: if Ollama is unavailable, getModel falls through.
-  const actionIntent = pythonExecuteIntent
+  const actionIntent = researchCompilerMode || pythonExecuteIntent
     ? null
     : (() => {
         try {
@@ -285,6 +263,7 @@ export async function deriveTurnSignals(args: {
   // stays tight (explicit phrasings only) so ordinary questions keep
   // toolChoice auto.
   const webSearchIntent =
+    !researchCompilerMode &&
     !pythonExecuteIntent &&
     /\b(search (the )?(web|internet|net|online)|google (it|for|me|this|that)|web ?search|look (it |this |that |them )?up online|(find|pull|get) (me )?(the )?(latest|current|live|breaking|newest|hottest) .{0,40}\b(online|on the web|from the web|news|trends?)\b)\b/i.test(
       userContent,
@@ -301,6 +280,7 @@ export async function deriveTurnSignals(args: {
   // toolChoice forcing stays on the tight explicit regex above, exactly
   // per its "detection stays tight" design note.
   const webSearchRecency =
+    !researchCompilerMode &&
     !pythonExecuteIntent &&
     !webSearchIntent &&
     /\b(right now|trending|what'?s (hot|new|popular)|(top|best)[- ]rated|(latest|newest|current|breaking) (news|movies?|shows?|series|releases?|trends?|prices?|models?)|this (week|month))\b/i.test(
@@ -310,7 +290,6 @@ export async function deriveTurnSignals(args: {
   return {
     aiConfig,
     classification,
-    classificationPromise,
     mode,
     taskTypeForMode,
     queryShape,
@@ -322,5 +301,6 @@ export async function deriveTurnSignals(args: {
     actionIntent,
     webSearchIntent,
     webSearchRecency,
+    researchCompilerMode,
   };
 }

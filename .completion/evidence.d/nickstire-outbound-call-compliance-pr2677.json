@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "PR #2677 fresh evidence after review hardening: outbound spoken opt-outs are now scope-aware (voice-only vs all-contact), do-not-call success requires durable persistence, transcript-only opt-outs persist before webhook acknowledgement with retryable 503 on failure, and the UTF-8 promise-truth fixtures were repaired. The capability ledger is deliberately NOT promoted by this PR because these safeguards are not yet live-exercised. Protected operator follow-up remains: push/verify the Vapi assistant config, run controlled outbound calls covering voice-only and all-contact opt-outs plus a persistence-failure/retry path, then record production receipts before changing operational state."
+    }
+  }
+}

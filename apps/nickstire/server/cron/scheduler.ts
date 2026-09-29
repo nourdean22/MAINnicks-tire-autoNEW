@@ -20,7 +20,8 @@
 
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
-import { acquireCronLock, releaseCronLock, jobTimeoutMs } from "./index";
+import { DECLINED_RECOVERY_WINDOW_DAYS } from "@shared/const";
+import { acquireCronLock, releaseCronLock, jobTimeoutMs, beginCronDrain, isCronDraining, trackCronRun } from "./index";
 import { claimStartupPass, describeStartup, readLastRunAgeMs, startupAllowanceMs, type StartupClaim } from "./tierStartup";
 import { createWallClockRunner, isWallClockTier, startWallClockLoop } from "./wallClockTiers";
 
@@ -47,7 +48,7 @@ export function reelPipelineCronShouldFailLoudly(gen: { processed: boolean; erro
   return !gen.processed && Boolean(gen.error);
 }
 
-interface TieredJob {
+export interface TieredJob {
   name: string;
   handler: () => Promise<{ recordsProcessed?: number; details?: string }>;
   /** Only run during business hours (7 AM - 9 PM ET) */
@@ -86,6 +87,13 @@ interface TieredJob {
    * switches whose consumer compares against "true".
    */
   requiresFlag?: string | string[];
+  /**
+   * Jobs that must have COMPLETED SUCCESSFULLY earlier in this same tier pass.
+   * A throw, timeout, lock/env/flag skip, shutdown break, or disabled dependency
+   * never satisfies this gate. Use this for customer-action jobs whose safety
+   * depends on a preceding local reconciliation.
+   */
+  requiresSuccessfulJobs?: string[];
   /** Skip if disabled */
   enabled?: boolean;
   /**
@@ -106,7 +114,7 @@ interface TieredJob {
 // derived from it — they did, and the HTTP path took a 10-minute lock for a
 // 14-minute job.
 
-interface Tier {
+export interface Tier {
   name: string;
   intervalMs: number;
   jobs: TieredJob[];
@@ -342,7 +350,10 @@ async function claimOncePerShopDay(jobName: string): Promise<boolean> {
   }
 }
 
-async function runTier(tier: Tier): Promise<void> {
+export async function runTier(tier: Tier): Promise<void> {
+  // Q-10 · a pass that fires after SIGTERM (a staggered boot timer, the
+  // wall-clock loop) must not start at all — not even its skip-state writes.
+  if (isCronDraining()) return;
   if (tier.running) {
     const skips = await bumpSkipCount(tier.name);
     log.info(`Tier ${tier.name} still running, skipping`, { consecutiveSkips: skips });
@@ -369,8 +380,13 @@ async function runTier(tier: Tier): Promise<void> {
   const start = Date.now();
   let completed = 0;
   let skipped = 0;
+  const successfulJobs = new Set<string>();
 
   for (const job of tier.jobs) {
+    // Q-10 · SIGTERM landed mid-pass: the job in flight finishes (the
+    // shutdown drain waits for it), but the rest of the pass never starts.
+    if (isCronDraining()) break;
+
     // Skip disabled jobs
     if (job.enabled === false) { skipped++; continue; }
 
@@ -403,6 +419,22 @@ async function runTier(tier: Tier): Promise<void> {
       continue;
     }
 
+    // Q-37 review hardening: ordering alone is not a dependency. runTier()
+    // deliberately continues after a job throws or times out, so a customer
+    // action must explicitly require the reconciliation that makes it safe.
+    const missingSuccessfulJobs = (job.requiresSuccessfulJobs ?? []).filter((name) => !successfulJobs.has(name));
+    if (missingSuccessfulJobs.length > 0) {
+      skipped++;
+      logTierJob(
+        job.name,
+        "skipped",
+        0,
+        0,
+        `requiresSuccessfulJobs:${missingSuccessfulJobs.join("|")} (dependency did not complete successfully this pass)`,
+      ).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
+      continue;
+    }
+
     let jobTimer: ReturnType<typeof setTimeout> | undefined;
     const jobStart = Date.now();
 
@@ -421,6 +453,14 @@ async function runTier(tier: Tier): Promise<void> {
       skipped++;
       logTierJob(job.name, "skipped", 0, 0, "cross-dyno lock held by another process").catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
       continue;
+    }
+
+    // Q-10 · re-check after the lock await, and BEFORE the once-per-day claim
+    // below: a claim consumed and then skipped for shutdown would lose the
+    // job for the whole shop day. Hand the lock straight back.
+    if (isCronDraining()) {
+      if (lockResult.status === "acquired") await releaseCronLock(lockResult);
+      break;
     }
 
     // ROS-081 · at-most-once-per-shop-day jobs claim their slot per JOB.
@@ -445,12 +485,13 @@ async function runTier(tier: Tier): Promise<void> {
     let timedOut = false;
     try {
       const result = await Promise.race([
-        job.handler(),
+        trackCronRun(job.name, job.handler()),
         new Promise<never>((_, reject) => {
           jobTimer = setTimeout(() => { timedOut = true; reject(new Error("timeout")); }, jobTimeoutMs(job));
         }),
       ]) as { recordsProcessed?: number; details?: string };
       completed++;
+      successfulJobs.add(job.name);
       const dur = Date.now() - jobStart;
       if (dur > 5000) {
         log.info(`[${tier.name}] ${job.name}: ${dur}ms`);
@@ -555,6 +596,28 @@ function buildTiers(): void {
         handler: async () => {
           const { runSelfHealingChecks } = await import("../services/selfHealing");
           return runSelfHealingChecks();
+        },
+      },
+      {
+        // Camera truth is operational infrastructure: a quiet lot must not hide a dead
+        // producer, and a PTZ bridge can be auth-healthy while control/media are broken.
+        // This job reads the role-aware camera_runtime lattice every heartbeat pass and
+        // uses durable cron_alerts_fired claims before owner notifications.
+        name: "camera-health-alerts",
+        handler: async () => {
+          const { runCameraHealthAlerts } = await import("../services/cameraHealthAlerts");
+          return runCameraHealthAlerts();
+        },
+      },
+      {
+        // Real provider delivery test, held OFF the scheduler permanently. It does not
+        // alter camera_runtime or synthesize a camera outage; it only exercises the same
+        // email/webhook -> Telegram fallback used by real camera-health pages.
+        name: "camera-health-alert-selftest",
+        enabled: false,
+        handler: async () => {
+          const { runCameraHealthAlertSelfTest } = await import("../services/cameraHealthAlerts");
+          return runCameraHealthAlertSelfTest();
         },
       },
       {
@@ -2201,7 +2264,36 @@ function buildTiers(): void {
         },
       },
       {
+        /*
+         * Q-37 · the estimate -> invoice matcher, on a schedule. It used to run
+         * only inside runEstimateMirror(), i.e. only after a demand-driven ALG
+         * probe logged in AND fetched estimates — so an auth failure or an empty
+         * fetch left already-mirrored invoices unmatched, and the next job reads
+         * "unmatched" as "declined". The match is local (alg_estimates x
+         * invoices); it makes no ALG call and contacts no one.
+         *
+         * ORDER MATTERS: tier jobs run sequentially, and this sits immediately
+         * BEFORE alg-declined-work-recovery so every send decision sees that
+         * day's matches. Pinned by estimateInvoiceMatch.test.ts.
+         */
+        name: "estimate-invoice-match",
+        handler: async () => {
+          const { backfillMatches } = await import("../services/shopDriverEstimateSync");
+          const r = await backfillMatches({ sinceDays: DECLINED_RECOVERY_WINDOW_DAYS });
+          if (r.scanned === 0) {
+            return { recordsProcessed: 0, details: `no unmatched estimates in the last ${DECLINED_RECOVERY_WINDOW_DAYS}d` };
+          }
+          return {
+            recordsProcessed: r.matched,
+            details: `matched ${r.matched} of ${r.scanned} unmatched · ambiguous ${r.ambiguous} · no phone ${r.skippedNoPhone}`,
+          };
+        },
+      },
+      {
         name: "alg-declined-work-recovery", // NEW: ALG-sourced walk-in estimates SMS follow-ups
+        // Fail closed: this customer-send lane cannot run unless the local
+        // estimate->invoice reconciliation actually succeeded in THIS pass.
+        requiresSuccessfulJobs: ["estimate-invoice-match"],
         handler: async () => {
           const { runDeclinedWorkRecovery } = await import("./jobs/declinedWorkRecovery");
           // wave-148 · operator chose 50/day to drain the ~$321K declined
@@ -2324,17 +2416,15 @@ function buildTiers(): void {
       {
         name: "competitor-monitor",
         requiresEnv: ["GOOGLE_PLACES_API_KEY", "GOOGLE_MAPS_API_KEY"],
-        // wave-181.x · Tier S · enabled now that competitor_snapshots
-        // table persists baselines across pod restarts. Without
-        // persistence the in-memory diff reset on every restart and
-        // change detection never fired (which is why this was off).
+        // Q-48: keep only the Google place_id registry current. Ratings/review
+        // counts are read on demand and are not persisted as a historical baseline.
         enabled: true,
         handler: async () => {
           const { runCompetitorMonitorCycle } = await import("../services/competitorMonitor");
           const result = await runCompetitorMonitorCycle();
           return {
-            recordsProcessed: result.fetched,
-            details: `${result.fetched} competitors · ${result.changes} changes · ${result.alertsFired} alerts fired`,
+            recordsProcessed: result.known,
+            details: `${result.known} competitor place_ids known · ${result.newlyResolved} newly resolved · ${result.unresolved} unresolved`,
           };
         },
       },
@@ -2828,7 +2918,13 @@ function buildTiers(): void {
         // detail. Declared here, the miss becomes the alarm that was built
         // for it. Setting the key ARMS weather_triggered_sms (flag is ON in
         // prod): decide that flag before the key.
-        requiresEnv: "OPENWEATHER_API_KEY",
+        //
+        // 2026-09-23 · the service now reads the keyless NWS forecast, so the
+        // env gate is gone (OPENWEATHER_API_KEY is no longer read). The job
+        // runs operator alerts + GBP drafts days ahead. Customer SMS is SHADOW
+        // until env WEATHER_SMS_SEND=1 on top of the flag, because the trigger
+        // meaning changed, and even armed it texts only on imminent (24h)
+        // triggers. A failed NWS read throws, so cron_log records `failed`.
         handler: async () => {
           const { checkWeatherTriggers } = await import("../services/weatherIntelligence");
           const result = await checkWeatherTriggers();
@@ -2993,6 +3089,9 @@ export function startTieredScheduler(): void {
  * Stop the tiered scheduler.
  */
 export function stopTieredScheduler(): void {
+  // Q-10 · clearing the intervals alone left a pass already inside runTier
+  // free to start every remaining job in its list after SIGTERM.
+  beginCronDrain();
   stopWallClockLoop?.();
   stopWallClockLoop = undefined;
   for (const tier of tiers) {
@@ -3134,8 +3233,12 @@ export async function runTierJobByName(jobName: string): Promise<{ status: strin
       if (lockResult.status === "held-by-other") {
         return { status: "skipped", details: "manual run skipped — cross-dyno lock held by another process" };
       }
+      if (isCronDraining()) {
+        if (lockResult.status === "acquired") await releaseCronLock(lockResult);
+        return { status: "skipped", details: "server shutting down — no new job starts" };
+      }
       try {
-        const result = await job.handler();
+        const result = await trackCronRun(job.name, job.handler());
         return { status: "completed", recordsProcessed: result.recordsProcessed, details: result.details };
       } catch (err) {
         return { status: "failed", details: err instanceof Error ? err.message : String(err) };

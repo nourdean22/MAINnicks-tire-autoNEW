@@ -1,5 +1,105 @@
 # Session ledger - nickstire
 
+**Updated: 2026-09-28** (Instagram Admin closeout current through #2742 docs receipt; #2741 is the live Nick runtime and its Queue repair is live-receipted)
+
+## 2026-09-28 · Instagram Admin production closeout
+
+**Repository/runtime receipt.** The pre-Pattern-cohort GitHub baseline is #2744 (`5334a51b403435ed1cdd202e4f454ca50a0ab116`), a docs-only merge that correctly **SKIPPED** the Nick service. This Pattern Lab receipt update is docs/memory/capability-only and may advance repository history without changing the runtime. Nick production remains exact #2741 (`45a5c02690e7193f05ce0da822fb59d2ebc899ca`) on Railway deployment `c7b4b57c-799a-4042-9539-42d6571674d6` **SUCCESS** at 15:54:52Z; that container reached `server:ready`, schema guard green, and the 123-job scheduler active. Earlier camera-only #2739/#2740 changes likewise correctly SKIPPED Nick until #2741 required a runtime deploy.
+
+**Pattern Lab.** LIVE END-TO-END VERIFIED. Production seeded the empty lab with exactly four explicitly unmeasured house hypotheses at 13:49:47Z. Earlier canaries proved rotation selection; on 2026-09-28 the first successful post-bootstrap cohort completed the full chain. Pattern `rp_house_myth_reality` was selected for Reel job `1980001`, persisted in `reel_jobs.payload.structurePatternId`, rendered to `https://nickstire.org/generated/reels/reel-1980001.mp4`, passed rendered QA (`approve`, 6 frames, 0 findings, publishGate=`proceed`), received byte-exact human approval, and published as Instagram media `18634414420000924` / Reel `Dd10eTKkUtO`. A forced analytics sync then wrote `ig_metric_snapshots.id=1530001` for that exact post at 18:24:42Z and `instagram_analytics` identified it as `REELS`. Initial metrics were all zero because the snapshot was captured seconds after publish; the important receipt is the exact durable lineage `rp_house_myth_reality -> reel_jobs.id=1980001 -> igPostId=18634414420000924 -> ig_metric_snapshots.id=1530001`. The learner is no longer dormant.
+
+**Trial Reel.** LIVE VERIFIED. The Admin publish path first refused an expired approval, then published eligible inventory `autopost-2026-09-29` as Trial media `18448893436192927` at 14:41:54Z. DB provenance: `postedAsTrial=true`, `graduationStrategy=MANUAL`, same post id; Reel job `1920015` also attached the media to the controlled-experiment loop. 24h Trial metrics remain manual-entry and automatic graduation remains intentionally absent.
+
+**Static autopost.** The #2727 caption-budget boundary survived a guarded live one-off: three generations all reached the independent judge (0.58 / 0.60 / 0.41), with none of the old exact-4096 truncation / empty-caption signature. The judge aborted the run for price-compliance, novelty and fabricated-stat defects, so no post was emitted. This is live recurrence evidence for caption generation, not a successful scheduled-slot publish receipt.
+
+**Authenticated Admin walkthrough.** Real signed-in production traffic exercised the Instagram Today/Create/Queue/Community/Learn/Strategy backing procedures: pipeline health, creation brief, Studio list/diagnostics/board, evidence options, real-shop media, active slate, live feed, analytics, performance report, structure hypotheses, profile merchandising and judge calibration. One real defect surfaced: historical incomplete Reel briefs could throw `undefined.map` while Queue computed a quality score. The router caught it and failed closed, but logs were noisy.
+
+**Closeout fix.** #2741 merged and deployed the runtime `ReelBrief` shape guard before Queue scoring, preserving fail-closed score 0 for genuinely incomplete legacy rows while accepting the canonical queued-Reel persistence shape. Codex's P2 on that canonical shape was fixed before merge. Final GitHub gates were green: affected CI, Completion Authority, Admin diagnostic/typecheck, Adoption, Agent Policy and Secret Scanning. NattyNour focused verification remained 76/76. **Positive post-deploy receipt:** at 2026-09-28 16:48:08Z a real signed-in NattyNour session opened Publish -> Reels on the #2741 container. Windows UI Automation observed `getAllDrafts`-only draft cards for the exact affected legacy rows, including `Reading a tire sidewall: the three markings that decide which tire fits` and `ALIGNMENT: You just hit a pothole on Euclid Ave and heard a clunk that made you wince.`, plus their `Review 9:16` controls. A read-only production DB probe of the handler's latest-50 cohort independently confirmed 49 Reel rows and those same two non-empty legacy/unscorable briefs missing current scorer fields. This proves `getAllDrafts` completed over the affected legacy shapes with the guard in place, rather than merely entering middleware or relying on the separate publish-queue query; the historical `failed to calculate reel score in getAllDrafts` / `undefined.map` warning did not recur. NicksMax/camera/V380 remained untouched.
+
+**Remaining evidence boundaries, not hidden backlog:** natural scheduled static-slot success; Trial 24h metric entry; profile bio/pin/Highlight mutations remain explicit Instagram-side operator actions.
+
+## 2026-09-28 · current Nick repo/deploy truth
+
+**Repo truth.** `main` = `18db7de13af5fe0f6f4f2fb62456e371db3dd698`; zero open PRs immediately after the #2724/#2725/#2726 wave. The prior “Instagram Admin consolidation still pending” handoff is historical: #2723 merged as `785a43b8564cd30ad377da294039dbb4c6cd3341`, then #2727 merged the static-caption budget fix as `904f82bdaebeaa5bf3fefc0c00149c21bf76fa91`.
+
+**Nick production truth.** Latest Nick deployment `87d12fb1-951c-4a77-95c3-086869736a65` is SUCCESS on exact commit `904f82bdaebeaa5bf3fefc0c00149c21bf76fa91` (#2727), so production ancestry includes the #2723 Instagram Admin consolidation. #2725/#2726 correctly SKIPPED Nick because they are StateNour-only.
+
+**Original-plan infrastructure receipts.** The public Redis TCP proxy is removed; Redis remains private/internal pending the separate 2FA-gated deletion of the service/volume/REDIS_URL. Nick's negated Railway watch paths are live, preventing docs-only changes from triggering avoidable Nick deploys. Q-41 Vapi confirmation calls were live-verified without `mapLink`. Durable operator-plan status is in `docs/research/2026-09-28-original-plan-reconciliation.md`; do not collapse its remaining dashboard/vendor/decision items into “code backlog.”
+
+**NicksMax receipt.** Hostname rename/reboot is complete: active hostname is `nicksmax` and Windows reports no CBS/WU/PendingFileRename reboot flags. Consumer ESU is still unenrolled, and the V380 `ACTIVE-WORK.md` guard still exists; do not reboot or touch the camera stack until its owning session clears that guard.
+
+## 2026-09-28 · Instagram Admin / static autopost live verification
+
+**Live Admin receipt.** Meta live probe is healthy. Active-slate service: 133 approved candidates, full-library cursor 32, 12 recommended packs, 23 current demand candidates; no finite slate silently enabled. Structure lane: 42 measured samples → 12 correlation-only hypotheses. Shadow judge: 27 judged / 10 would-block / 92.59% downstream coverage / hard gate still false because current outcomes do not support promotion. Profile merchandising returns 4 pin candidates, 12 cover-review items and 5 Highlight plans. Real-shop reusable media is honestly 0 under the strict first-party eligibility predicate; no unrelated asset was relabeled.
+
+**Actual Reel runtime.** Sep 27 daily Reel publish exists: job `1950017`, status `posted`, Instagram post id `18435703312179867`. Reel autopost/generation/publish flags are enabled and the provider is Higgsfield.
+
+**Static lane defect + hotfix.** During post-merge verification, old static `ig-autopost` failures were traced to DeepSeek/Ollama structured generations repeatedly consuming exactly 4096 completion tokens before returning truncated/empty JSON. #2727 raises only that pre-side-effect generator call to 8192 and preserves the DeepSeek generator / gpt-oss independent judge split plus global routing. Targeted posting suite 36/36, TypeScript, build, lints, Completion Authority, affected monorepo pre-push and GitHub CI all passed. Hotfix is deployed. The next real static slot has not happened yet, so final recurrence-proof remains pending rather than being falsely labeled green.
+
+**Updated: 2026-09-27 late ET** (Instagram Admin consolidation recovered on isolated NattyNour worktree; single PR/merge still pending)
+
+## 2026-09-27 · Instagram Admin consolidation handoff
+
+**Current branch truth.** `nickstire/instagram-admin-finish-20260927` is isolated at `C:/Users/nourd/Documents/Codex/instagram-admin-finish-20260927` on NattyNour and is based on current `origin/main` `8421383d823f293d2595de5adb354de48530a32d` (#2722). NicksMax is a separate active session; do not touch or overwrite its local worktree/state. Before any merge, refetch `origin/main` and reconcile whatever NicksMax lands.
+
+**What the branch closes.** The seven unfinished Instagram audit slices are now implemented together: durable active-slate ordering with its own cursor and mid-render source/revision provenance; production-grammar fatigue visibility; live-topic demand/timeliness tie-breaks; correlation-only structure hypotheses; shadow-judge/downstream outcome calibration; profile merchandising operator tools; and direct reusable `real_shop` image retrieval in Create. The Strategy surface is deliberately advisory/operator-facing; existing generation, QA, approval, and publish gates remain authoritative.
+
+**Verification.** Browser fixtures on system Chrome passed desktop/mobile layout with zero horizontal overflow. Targeted race/state suites passed, then the full Vitest suite passed after fixing one TiDB `id DESC` latest-row defect and regenerating the procedure census. TypeScript, build, source/SQL/hooks/brand/PII/cron/orphan/CURDATE/route/prerender gates are green; orphan gate reports 0 NEW after one accidental export was removed and only deliberate test-visible seams received reasoned baseline entries. Railway/TiDB migration reconciliation is **not green** because of pre-existing migration drift (blocking 0127-0130, 0132, 0133); this branch has no schema/migration changes and must not pretend to repair it.
+
+**Merge rule.** One consolidation PR, one merge only. Do not open or merge until the branch is refetched against current main and the final diff/CI/review gates are clean. After merge, replace this handoff with the actual merge SHA + post-deploy authenticated production receipt; until then this is BUILT/WIRED/TESTED, not LIVE.
+
+**Updated: 2026-09-27 21:17 ET** (final connection-hardening closeout merged as #2721)
+
+## 2026-09-27 · final connection-hardening merge receipt
+
+**Final receipt.** PR #2721 squash-merged to `main` as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` after the corrected head passed affected CI, authenticated StateNour E2E, Completion Authority, Adoption gates, Agent Policy, Admin diagnostic, Secret Scanning, and security checks. The four earlier review findings were fixed and formally resolved before merge. This was documentation/memory-only; it does not imply a new Nick production deploy beyond #2720. Remaining work is intentionally external/operator-gated: office Eufy real-event/control/media/PTZ/home commissioning, provider-accepted real degradation + recovery owner delivery, NicksMax guarded reboot + consumer ESU enrollment, and Resend DNS verification. Durable receipt: `docs/00-current-truth/connection-hardening-2026-09-27.md`.
+
+**Updated: 2026-09-27 evening ET** (connection hardening truth persisted; production verified through #2720)
+
+## 2026-09-27 · connection hardening closeout
+
+**Current truth.** Core connection reconciliation is closed: Nick production is healthy on source-code deploy #2720 (`a3b3555e43e755f0a90b12fc6962be2340e21503`), TiDB is no longer blocking, and Tailscale establishes direct shop-PC connectivity after normal DERP fallback. Camera-health detection/claim/retry and persisted state recovery are live, but provider-accepted real degradation + recovery owner delivery remains open. Office Eufy remains uncommissioned until a real motion/person event plus control/media/PTZ-notify/home receipts exist. NicksMax still needs Microsoft-account ESU enrollment plus its intentionally guarded reboot; Resend still needs DNS records at the authoritative Global Domain Group provider. See `docs/00-current-truth/connection-hardening-2026-09-27.md` for receipts and boundaries.
+
+**Updated: 2026-09-27 afternoon ET** (cross-session recovery closed; #2712 merged; 0 open PRs)
+
+## 2026-09-27 · recovery closeout
+
+**Final repo checkpoint.** `main` = `93f0f66ca285600831ca50df87fb79f0497e3ed2`. #2712 (legacy Resend-token remediation + smoke-test guard coverage) merged only after its two outdated P1 review threads were formally resolved and Completion Authority reran green. Final reviewed head `bc02816e00fed586c5a7195b65a3dd5e8a800646` had green StateNour E2E, affected CI, Secret Scanning, local-agent, Adoption, Admin, Agent Policy, and Completion Authority.
+
+**Open PRs after merge: 0.** Recovery document: `docs/00-current-truth/session-recovery-2026-09-27.md`. If the UI-visible conversation loses history again, reconstruct from current `main`, PR/review/check state, deploy receipts, and the truth/memory ledgers rather than from the apparent stopping point in chat.
+
+**Updated: 2026-09-27 afternoon ET** (cross-session recovery after visible chat trail loss; current GitHub truth captured)
+
+## 2026-09-27 · durable recovery handoff
+
+**Source of truth.** The visible chat omitted substantial completed work, so current state was reconstructed from GitHub instead. Recovery document: `docs/00-current-truth/session-recovery-2026-09-27.md`.
+
+**Current repository checkpoint.** `main` = `a01abc97eb6ee4bd5c9f8519f48d49c3fb2545e3` (#2711, Instagram publish-truth/creative-quality merge). After #2696, merged work also includes camera/Eufy/health/runtime/docs/test waves #2697, #2698, #2699, #2700, #2701, #2702, #2703, #2704, #2705, #2706, #2707, #2708, and #2710. #2709 closed without merge. The earlier "0 open PRs" reconciliation line is now historical.
+
+**Only open PR at snapshot: #2712 · security · remove legacy Resend token from source.** Head `bc02816e00fed586c5a7195b65a3dd5e8a800646`. All substantive code/test/security lanes were green; Completion Authority failed the review gate because two P1 threads remained unresolved. One thread's requested token-copy cleanup is claimed fixed on current head but not resolved in GitHub; the other still requests behavioral coverage for the smoke-test guards because `test-resend.py` is not picked up by `test_*.py` discovery. Do not merge around that gate.
+
+**Rule for the next session.** If transcript continuity looks wrong, ignore the apparent chat stopping point and reconstruct from current main, open PRs, review threads, checks, deploy receipts, CURRENT-TRUTH, RECONCILIATION, and this ledger.
+
+**Updated: 2026-09-25 12:08Z** (Midday Reel reconciliation PR #2656 merged to `main` at `55d5d5fa2`: 27 source concepts -> 11 distinct additions + 16 already-covered; 133/133 preflight-clean; all required PR gates green. Prior header preserved below.)
+
+## 2026-09-25 · Midday Reel reconciliation — #2656 merged; 133/133 preflight-clean
+
+**State.** The midday Reel batches were re-audited *after* #2655's evening import landed, rather than merging the stale branch blindly. **27 source concepts = 11 distinct lessons appended + 16 semantic duplicates already represented** by the live rotation. The machine-readable map is `docs/reel-packs/MIDDAY-IMPORT-2026-09-25.json`; the narrative audit is `docs/reel-packs/2026-09-25-midday-idea-rotation-audit.md`. Two older reviewed packs (nitrogen-vs-air and foggy-windshield A/C) are normalized and made reachable instead of cloned. Existing entries remain in place; the 11 additions are append-only because the durable cursor is an array index.
+
+**Gate receipt.** Running the real production builder plus `runReelPreflight` over the resulting rotation returned **133 checked / 0 failures** locally, and PR #2656 then passed the full required GitHub gate set before squash merge: **CI · turbo-affected verify, Completion Authority, Secret Scanning, Adoption gates, Agent policy, and Admin completion diagnostic all succeeded** (Evaluator separation was skipped by design). The first reconciliation exposed one real content blocker in the new UTQG pack: the Reel safety bank rejects “warranty” and “guarantee” wording. The copy was recast as manufacturer tread-life coverage / mileage promise without weakening the safety rule. `server/reelPackRotationCoverage.test.ts` ratchets the floor from 122 to **133**. Merge receipt: `55d5d5fa21fb912c49b450e665c00f74df9c8b83`, 2026-09-25T12:08:44Z.
+
+**Boundary.** This records reviewed, rotation-reachable, pre-spend-clean production inputs. It does **not** claim a Higgsfield render, Instagram/Facebook publish, production DB/env mutation, ad action, or post-merge Railway deployment receipt.
+
+**Updated: 2026-09-25 11:21Z** (Reel rotation expansion #2655 merged to `main` at `f5f621379`; 122/122 approved packs clear the pre-spend preflight. Prior header preserved below.)
+
+## 2026-09-25 · Reel rotation expansion — #2655 merged; 122/122 preflight-clean
+
+**State.** PR #2655 merged at `f5f6213799d167b40c1285cfc20c45215e082163`. The recent evening-batch ideas were reconciled against the live approved Reel rotation before editing: **33 source concepts = 23 distinct new packs + 10 concepts already covered by existing rotating packs**. The 23 new slugs were appended after the prior 99 entries; no existing entry was reordered, so the persisted array-index cursor was not silently repointed. The audit map is `docs/reel-packs/EVENING-IMPORT-2026-09-25.json`.
+
+**Gate receipt.** `server/reelPackRotationCoverage.test.ts` now ratchets the production preflight floor to **122**. The first CI pass correctly failed at 99/122: every new pack inherited the same generic beat visual containing the phrase `generated readout`, which tripped the existing `no-in-frame-text` hard gate. The visual was recast as a wordless physical distinction in all 23 packs; the floor was **not** lowered. Final PR CI was green, including the affected check/lint/test/build sweep (**7 successful / 7 total Turbo tasks**), Completion Authority, Agent policy, Adoption gates, Admin diagnostic/typecheck, and Secret Scanning.
+
+**Boundary.** This proves repository wiring and pre-spend enqueueability for the 122 approved packs. It does **not** claim a live Higgsfield render, Instagram/Facebook publish, production DB write, env change, ad launch, or post-merge Railway deployment receipt for this batch. Those require their own live evidence.
+
 **Updated: 2026-09-23 13:20Z** (customer-corpus wave: #2569 #2571 #2575 #2579 #2580 #2581 #2582 #2584 #2587 merged and deployed on `958b89ef7`; config pushed 13:12Z. Prior header preserved below.)
 
 ## 2026-09-23 · Customer-corpus wave — merged, deployed, config pushed

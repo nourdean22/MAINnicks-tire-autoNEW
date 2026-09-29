@@ -47,11 +47,17 @@ function fakeRes() {
   return { res, out };
 }
 
-const SEGMENTS = [{ index: 0, start: 0, end: 4, text: "front right tire keeps losing air" }];
+const SEGMENTS = [{
+  index: 0,
+  start: 0,
+  end: 4,
+  text: "front right tire keeps losing air",
+  speaker: "SPEAKER_00",
+}];
 
 const body = (over: Record<string, unknown> = {}) => ({
   episodeId: "ep-1", source: "eufy-office", segments: SEGMENTS,
-  coveredSeconds: 85, totalSeconds: 90, ...over,
+  speakerCount: 1, coveredSeconds: 85, totalSeconds: 90, ...over,
 });
 
 const okExtract = {
@@ -92,6 +98,20 @@ describe("conversation ingest — auth fails CLOSED", () => {
     const { res, out } = fakeRes();
     await h({ headers: { "x-sync-key": KEY }, body: body() }, res);
     expect(out.code).toBe(200);
+  });
+});
+
+describe("conversation ingest — diarization stays evidence, not identity", () => {
+  it("passes speaker grouping labels to the extractor and reports speakerCount", async () => {
+    const h = mount();
+    const { res, out } = fakeRes();
+    await h({ headers: { "x-sync-key": KEY }, body: body() }, res);
+
+    expect(extract).toHaveBeenCalledWith(
+      [expect.objectContaining({ speaker: "SPEAKER_00" })],
+      expect.any(Object),
+    );
+    expect((out.body as { speakerCount: number | null }).speakerCount).toBe(1);
   });
 });
 

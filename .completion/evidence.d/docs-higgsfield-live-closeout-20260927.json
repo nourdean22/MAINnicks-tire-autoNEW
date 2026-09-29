@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=higgsfield-keepalive: live_verified after PR #2717 deployed, repeated production keepalives recovered, and a fresh Railway process later completed another keepalive using a durable app_secret_kv credential row that predated that process start. Live canary reel job 1950002 generated five Higgsfield clips, then failed closed at render QA on a caption/end-card CTA mismatch; no publish is claimed. Verification expiry is 2026-10-18 per the 21-day third-party credential/session horizon. Full token revocation still requires operator browser login."
+    }
+  }
+}

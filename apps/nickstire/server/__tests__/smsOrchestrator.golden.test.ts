@@ -2,9 +2,24 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mocks for third-party integrations
 const mockSendSms = vi.fn().mockResolvedValue({ success: true, sid: "SM_test_123" });
+const mockMarkPhoneFullyOptedOut = vi.fn().mockResolvedValue(true);
+const mockMarkPhoneOptedOut = vi.fn();
+const mockMarkPhoneOptedIn = vi.fn();
+const mockLoadSuppressionIndex = vi.fn().mockResolvedValue({ ok: true, phones: new Set<string>() });
 vi.mock("../sms", () => ({
   sendSms: (...args: any[]) => mockSendSms(...args),
   withOptOut: (body: string) => body,
+  markPhoneFullyOptedOut: (...args: any[]) => mockMarkPhoneFullyOptedOut(...args),
+  markPhoneOptedOut: (...args: any[]) => mockMarkPhoneOptedOut(...args),
+  markPhoneOptedIn: (...args: any[]) => mockMarkPhoneOptedIn(...args),
+  loadSuppressionIndex: (...args: any[]) => mockLoadSuppressionIndex(...args),
+}));
+
+const mockLogSmsOptOut = vi.fn().mockResolvedValue(undefined);
+const mockLogSmsOptIn = vi.fn().mockResolvedValue(undefined);
+vi.mock("../services/complianceLog", () => ({
+  logSmsOptOut: (...args: any[]) => mockLogSmsOptOut(...args),
+  logSmsOptIn: (...args: any[]) => mockLogSmsOptIn(...args),
 }));
 
 const mockDraftSmsReply = vi.fn().mockResolvedValue({ ok: true, draft: "Hi! Used tires are $60 installed.", source: "fallback-claude", latencyMs: 100 });
@@ -27,6 +42,7 @@ const mockInsertId = { id: 42 };
 
 let mockRolloutGlobalMode: string | undefined = undefined;
 let mockRolloutEventMode: string | undefined = undefined;
+let mockDbAvailable = true;
 let mockResolvedValues: any[] = [];
 let mockTableResponses: Record<string, any> = {};
 
@@ -129,14 +145,31 @@ const mockDb = {
 };
 
 vi.mock("../db", () => ({
-  getDbTyped: () => Promise.resolve(mockDb),
-  getDb: () => Promise.resolve(mockDb),
+  getDbTyped: () => Promise.resolve(mockDbAvailable ? mockDb : null),
+  getDb: () => Promise.resolve(mockDbAvailable ? mockDb : null),
 }));
 
 const mockNotifyOwner = vi.fn().mockResolvedValue(true);
 vi.mock("../_core/notification", () => ({
   notifyOwner: (...args: any[]) => mockNotifyOwner(...args),
 }));
+
+// Every WHERE the orchestrator built in this test, rendered by drizzle's own
+// MySQL dialect, so an assertion reads the query that would reach TiDB.
+import { SQL } from "drizzle-orm";
+import { MySqlDialect } from "drizzle-orm/mysql-core";
+const dialect = new MySqlDialect();
+function cooldownStatuses(): string[] {
+  const q = mockDb.where.mock.calls
+    .map((args: unknown[]) => args[0])
+    .filter((c: unknown): c is SQL => c instanceof SQL)
+    .map((c: SQL) => dialect.sqlToQuery(c))
+    .find((r) => r.sql.includes("cooldown_key"));
+  if (!q) throw new Error("no cooldown query was built");
+  const inline = [...q.sql.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  const bound = q.params.filter((p): p is string => typeof p === "string");
+  return [...inline, ...bound];
+}
 
 // Import orchestrator and helpers
 import { orchestrateSms, loadCustomerContext, humanizeCopy } from "../services/smsOrchestrator";
@@ -151,6 +184,7 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     mockDb._appSecretKvQueryCount = 0;
     mockRolloutGlobalMode = undefined;
     mockRolloutEventMode = undefined;
+    mockDbAvailable = true;
     mockResolvedValues = [];
     mockTableResponses = {
       customers: [{ id: 1, firstName: "John", smsOptOut: 0 }],
@@ -463,6 +497,31 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
   // 13b-13c (2026-09-23). The recap tool now passes the call id
   // (routes/webhooks/vapi.recapCallId.test.ts), so the recap has a stable
   // idempotency key. These pin what that key buys, in both send paths.
+  // 2026-09-23 (operator: "leave them left out"). The shop gateway's delivery
+  // receipt flips a row from sent to delivered (routes/webhooks/smsGateway.ts)
+  // and a gateway timeout stores sending ("do not retry": lib/smsOutcome.ts
+  // smsClaimConsumed). A cooldown counting only sent and queued stops blocking
+  // the moment either happens. Booking reminders are left out on purpose: their
+  // 365-day key would block a rescheduled booking's new reminder.
+  it("Cooldown -> counts every status a sent text can reach", async () => {
+    await orchestrateSms({ type: "review_request", phone: "2165550021", name: "John", bookingId: 9 } as any);
+    const statuses = cooldownStatuses();
+    for (const s of ["sent", "queued", "sending", "delivered", "replied"]) expect(statuses).toContain(s);
+    expect(statuses).not.toContain("failed");
+  });
+
+  it("Cooldown -> booking reminders keep counting only sent and queued", async () => {
+    await orchestrateSms({
+      type: "booking_reminder", phone: "2165550022", name: "John", reminderType: "24h-before",
+      service: "Tires", refCode: "77", bookingId: 77,
+    } as any);
+    const statuses = cooldownStatuses();
+    expect(statuses).toContain("sent");
+    expect(statuses).toContain("queued");
+    expect(statuses).not.toContain("delivered");
+    expect(statuses).not.toContain("sending");
+  });
+
   it("Vapi confirmation -> a second recap on the same call returns the first and sends nothing", async () => {
     mockTableResponses.sms_orchestrations = [{
       id: 7,
@@ -485,6 +544,38 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     expect(mockSendSms).not.toHaveBeenCalled();
   });
 
+  // Post-merge audit 2026-09-23, item C. The dedupe line logged the whole
+  // idempotency key, which carries the caller's full number.
+  it("Vapi confirmation -> the dedupe log line carries the last 4 digits only", async () => {
+    mockTableResponses.sms_orchestrations = [{
+      id: 7,
+      idempotencyKey: "idemp_vapi_confirmation_+12165550013_call_call_vapi_log",
+      status: "delivered",
+      messageBody: "first recap",
+      eventType: "vapi_confirmation",
+      shouldAutoSend: true,
+    }];
+    const lines: string[] = [];
+    const spy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: unknown) => {
+      lines.push(String(chunk));
+      return true;
+    });
+    try {
+      await orchestrateSms({
+        type: "vapi_confirmation",
+        phone: "2165550013",
+        summary: "Appointment booked for alignment",
+        vapiCallId: "call_vapi_log",
+      });
+    } finally {
+      spy.mockRestore();
+    }
+    const line = lines.find((l) => l.includes("Idempotency match found"));
+    expect(line).toBeDefined();
+    expect(line).toContain("0013");
+    expect(line).not.toContain("2165550013");
+  });
+
   it("Global kill switch -> the legacy send still records its idempotency key", async () => {
     mockRolloutGlobalMode = "legacy_passthrough";
 
@@ -500,6 +591,29 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
   });
 
   // 14. Abandoned form -> cooldown 7 days
+  // Issue #2579 / audit item D. The after-hours text is held by quiet hours
+  // and read the next morning, so {nextOpen} must name the day.
+  it.each([
+    ["Tue 21:00 ET", "8:00 AM Wednesday", "2026-09-22T21:00:00-04:00"],
+    ["Sun 21:00 ET", "8:00 AM Monday", "2026-09-20T21:00:00-04:00"],
+    ["Sat 21:00 ET, DST ends overnight", "9:00 AM Sunday", "2026-10-31T21:00:00-04:00"],
+  ])("After-hours capture at %s -> the text names %s, never 'tomorrow'", async (_when, expected, iso) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(iso));
+    try {
+      const res = await orchestrateSms({
+        type: "after_hours_capture",
+        phone: "2165550031",
+        name: "John",
+        captureType: "lead",
+      });
+      expect(res.body).toContain(expected);
+      expect(res.body).not.toMatch(/tomorrow|today/i);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("Abandoned form -> sends once, cooldown blocks repeat within 7 days", async () => {
     mockTableResponses.sms_orchestrations = [{ id: 42, cooldownKey: "abandoned_form:+12165550014", status: "sent", createdAt: new Date() }];
 
@@ -735,6 +849,46 @@ describe("SMS Operating System & Orchestrator Golden Tests", () => {
     expect(res.status).toBe("sent");
     expect(res.variantKey).toBe("legacy");
     expect(mockSendSms).toHaveBeenCalledWith("+12165550032", "Legacy message body here", expect.objectContaining({ variantKey: "legacy" }));
+  });
+
+  it("Q43 safety: legacy passthrough cannot bypass a plain-English revocation", async () => {
+    mockRolloutGlobalMode = "legacy_passthrough";
+
+    const res = await orchestrateSms({
+      type: "inbound_sms",
+      phone: "2165550137",
+      body: "please stop texting me",
+      conversationId: 137,
+      idempotencyKey: "resp:q43-legacy-stop",
+    });
+
+    expect(res.variantKey).toBe("legacy");
+    expect(mockMarkPhoneFullyOptedOut).toHaveBeenCalledWith("+12165550137");
+    expect(mockLogSmsOptOut).toHaveBeenCalledWith(expect.objectContaining({
+      phone: "+12165550137",
+      ledgerScope: "all",
+      ledgerMethod: "sms_reply",
+      evidenceRef: "sms:resp:q43-legacy-stop",
+    }));
+  });
+
+  it("Q43 safety: no database cannot bypass a plain-English revocation", async () => {
+    mockDbAvailable = false;
+
+    const res = await orchestrateSms({
+      type: "inbound_sms",
+      phone: "2165550138",
+      body: "do not contact me",
+      conversationId: 138,
+      idempotencyKey: "resp:q43-nodb-stop",
+    });
+
+    expect(res.variantKey).toBe("legacy");
+    expect(mockMarkPhoneFullyOptedOut).toHaveBeenCalledWith("+12165550138");
+    expect(mockLogSmsOptOut).toHaveBeenCalledWith(expect.objectContaining({
+      phone: "+12165550138",
+      evidenceRef: "sms:resp:q43-nodb-stop",
+    }));
   });
 
   // 33. Variant experiment assignment

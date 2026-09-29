@@ -16,6 +16,7 @@ import {
   determineVisualStyle
 } from "../services/contentManufacturing";
 import { invokeLLM } from "../_core/llm";
+import { evaluateWeatherTriggers } from "../services/weatherIntelligence";
 
 // Mock Database
 let currentTableName = "";
@@ -90,7 +91,7 @@ vi.mock("../db", () => ({
 }));
 
 vi.mock("../services/weatherIntelligence", () => ({
-  checkWeatherTriggers: vi.fn().mockResolvedValue({
+  evaluateWeatherTriggers: vi.fn().mockResolvedValue({
     triggered: ["cold_snap"],
     details: "Cold snap trigger: 25 degrees"
   })
@@ -357,6 +358,9 @@ describe("Content Domination Engine - Manufacturing & Safety", () => {
         ...mockDraft,
         weatherTriggerCondition: "cold_snap"
       });
+      // Drafting reads weather through the side-effect-free entry point, never
+      // the cron handler that alerts the operator and can text customers.
+      expect(evaluateWeatherTriggers).toHaveBeenCalled();
     });
   });
 

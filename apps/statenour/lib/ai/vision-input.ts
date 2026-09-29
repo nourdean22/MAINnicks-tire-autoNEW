@@ -10,7 +10,7 @@
  * Provider order:
  *   1. Ollama    (preferred — model from PROVIDERS_REGISTRY.ollama)
  *   2. OpenAI gpt-4o                  (fallback — best vision quality)
- *   3. Anthropic claude-haiku-4.5     (fallback — fast vision)
+ *   3. Anthropic (registry vision model — claude-sonnet-5)
  *
  * Returns the same {content, provider, model} shape as `aiChat()` so
  * callers can swap one for the other on the vision path without
@@ -77,7 +77,14 @@ const OLLAMA_VISION_MODEL =
   PROVIDERS_REGISTRY.ollama.defaultVisionModel ||
   PROVIDERS_REGISTRY.ollama.defaultModel;
 const OPENAI_VISION_MODEL = "gpt-4o";
-const ANTHROPIC_VISION_MODEL = "claude-haiku-4-5-20251001";
+// 2026-09-23 · was the literal "claude-haiku-4-5-20251001" (retirement "not
+// sooner than 2026-10-15"). Now the registry's declared vision model
+// (claude-sonnet-5, not before 2027-06-30), overridable via its visionModelEnv
+// — the same resolution the main provider chain uses for vision.
+const ANTHROPIC_VISION_MODEL =
+  cleanEnv(process.env[PROVIDERS_REGISTRY.anthropic.visionModelEnv ?? ""]) ||
+  PROVIDERS_REGISTRY.anthropic.defaultVisionModel ||
+  PROVIDERS_REGISTRY.anthropic.defaultModel;
 
 function cleanEnv(v: string | undefined): string | null {
   if (!v) return null;
@@ -198,6 +205,9 @@ async function callAnthropic(
   const body = {
     model: ANTHROPIC_VISION_MODEL,
     max_tokens: options.maxOutputTokens ?? 1024,
+    // Sonnet 5 thinks adaptively by default and thinking shares max_tokens;
+    // Haiku 4.5 (the previous model here) never did. Keep the old behavior.
+    thinking: { type: "disabled" },
     system: sysText || undefined,
     messages: restParts.map((m) => ({
       role: m.role,

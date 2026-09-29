@@ -10,11 +10,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { localGitState } from "./agent-finish.mjs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { localGitState, resolveReleaseCaller } from "./agent-finish.mjs";
+import { readLocalMarker, writeLocalMarker } from "./local-lease-marker.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 function cleanEnv() {
   return Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
@@ -105,4 +109,65 @@ test("untracked file: dirty:true", (t) => {
   writeFileSync(join(dir, "new-file.txt"), "untracked\n");
   const s = localGitState(dir, "main");
   assert.equal(s.dirty, true);
+});
+
+// ── audit item O (2026-09-23): who is releasing, and the self-lock recovery ──
+
+test("resolveReleaseCaller: a Claude session is its own id, never the marker's", () => {
+  const marker = { branch: "main", sessionId: "manual-1-2" };
+  assert.equal(resolveReleaseCaller(marker, "main", { CLAUDE_CODE_SESSION_ID: "sess-A" }), "sess-A");
+});
+
+test("resolveReleaseCaller: a manual run reuses its own worktree's MANUAL marker id (else it could never release)", () => {
+  assert.equal(resolveReleaseCaller({ branch: "main", sessionId: "manual-1-2" }, "main", {}), "manual-1-2");
+});
+
+test("resolveReleaseCaller: a manual run never borrows a real session's id, or another branch's marker", () => {
+  assert.match(resolveReleaseCaller({ branch: "main", sessionId: "sess-B" }, "main", {}), /^manual-\d+-\d+$/);
+  assert.match(resolveReleaseCaller({ branch: "other", sessionId: "manual-1-2" }, "main", {}), /^manual-\d+-\d+$/);
+});
+
+function runFinish(cwd, args) {
+  const env = { ...cleanEnv(), CLAUDE_CODE_SESSION_ID: "me" };
+  for (const k of ["HTTPS_PROXY", "HTTP_PROXY", "GITHUB_TOKEN", "GH_TOKEN"]) delete env[k];
+  return spawnSync(process.execPath, [join(HERE, "agent-finish.mjs"), ...args], { cwd, encoding: "utf8", env, timeout: 20000 });
+}
+
+test("REAL BINARY: --force-release-foreign clears a foreign live marker even when the lease service is unreachable (no origin)", (t) => {
+  const dir = makeRepo();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeLocalMarker(dir, { branch: "main", sessionId: "someone-else", expiresAt: new Date(Date.now() + 3600000).toISOString() });
+  const r = runFinish(dir, ["--force-release-foreign", "holder session died"]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, /failing OPEN/);
+  assert.equal(readLocalMarker(dir), null, "the marker that self-locked the worktree must be gone");
+});
+
+test("REAL BINARY: --force-release-foreign rejects another option as the reason", (t) => {
+  const dir = makeRepo();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeLocalMarker(dir, { branch: "main", sessionId: "someone-else", expiresAt: new Date(Date.now() + 3600000).toISOString() });
+  const r = runFinish(dir, ["--force-release-foreign", "--branch", "main"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /requires a prose reason/);
+  assert.equal(readLocalMarker(dir)?.sessionId, "someone-else", "an option token must never authorize a foreign release");
+});
+
+test("REAL BINARY: without --force-release-foreign an unreachable lease service leaves the marker alone", (t) => {
+  const dir = makeRepo();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeLocalMarker(dir, { branch: "main", sessionId: "someone-else", expiresAt: new Date(Date.now() + 3600000).toISOString() });
+  const r = runFinish(dir, []);
+  assert.equal(r.status, 0);
+  assert.equal(readLocalMarker(dir)?.sessionId, "someone-else");
+});
+
+test("REAL BINARY: --force-release-foreign with no reason is refused (exit 1) and touches nothing", (t) => {
+  const dir = makeRepo();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeLocalMarker(dir, { branch: "main", sessionId: "someone-else", expiresAt: new Date(Date.now() + 3600000).toISOString() });
+  const r = runFinish(dir, ["--force-release-foreign"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /requires a prose reason/);
+  assert.equal(readLocalMarker(dir)?.sessionId, "someone-else");
 });

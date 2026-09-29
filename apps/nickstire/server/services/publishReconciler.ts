@@ -44,18 +44,25 @@ export type ReconcileResult =
   | { status: "resolved_published"; igPostId: string; permalink: string; detail: string }
   | { status: "resolved_not_published"; detail: string }
   | { status: "needs_operator"; candidates: ReconcileCandidate[]; detail: string }
-  | { status: "cannot_check"; detail: string };
+  | { status: "cannot_check"; reason: "meta_unavailable" | "history_window_exhausted"; detail: string };
 
-/** Compare captions ignoring whitespace/case — Meta normalises some whitespace. */
-function captionMatches(a: string, b: string): boolean {
-  const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
-  const x = norm(a), y = norm(b);
+/** Normalize only transformations Meta may apply without changing identity. */
+function normalizeCaption(s: string): string {
+  return s.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** Unattended closure requires the FULL normalized caption. A prefix is useful
+ * operator evidence, never proof: template-style openings can legitimately
+ * collide across two different posts. */
+function exactCaptionMatches(a: string, b: string): boolean {
+  const x = normalizeCaption(a), y = normalizeCaption(b);
+  return Boolean(x && y && x === y);
+}
+
+function captionPrefixMatches(a: string, b: string): boolean {
+  const x = normalizeCaption(a), y = normalizeCaption(b);
   if (!x || !y) return false;
-  if (x === y) return true;
-  // A published caption can be truncated or have the CTA appended; compare the
-  // opening, which is the part the compiler fixes.
-  const head = (s: string) => s.slice(0, 60);
-  return head(x) === head(y);
+  return x.slice(0, 60) === y.slice(0, 60);
 }
 
 /**
@@ -73,7 +80,7 @@ export async function reconcileAttempt(args: {
   const media = await fetchInstagramMedia(RECONCILE_PAGE_SIZE);
   if (!media.ok) {
     // Not knowing is a legitimate outcome and must not look like "not published".
-    return { status: "cannot_check", detail: `Could not read the Instagram account: ${media.error}` };
+    return { status: "cannot_check", reason: "meta_unavailable", detail: `Could not read the Instagram account: ${media.error}` };
   }
 
   const attemptMs = args.attemptedAt.getTime();
@@ -87,12 +94,15 @@ export async function reconcileAttempt(args: {
     // before the attempt cannot be this attempt.
     if (deltaMin < -2 || deltaMin > MATCH_WINDOW_MINUTES) continue;
 
-    const capMatch = args.expectedCaption ? captionMatches(args.expectedCaption, post.caption) : false;
-    const reasoning = capMatch
-      ? `Caption matches and it was posted ${deltaMin} minute(s) after the attempt.`
-      : args.expectedCaption
-        ? `Posted ${deltaMin} minute(s) after the attempt, but the caption differs.`
-        : `Posted ${deltaMin} minute(s) after the attempt. No caption was recorded for the attempt, so this is timing evidence only.`;
+    const exactMatch = args.expectedCaption ? exactCaptionMatches(args.expectedCaption, post.caption) : false;
+    const prefixMatch = !exactMatch && args.expectedCaption ? captionPrefixMatches(args.expectedCaption, post.caption) : false;
+    const reasoning = exactMatch
+      ? `Full normalized caption matches and it was posted ${deltaMin} minute(s) after the attempt.`
+      : prefixMatch
+        ? `Caption opening matches, but the full caption differs. This is operator evidence only.`
+        : args.expectedCaption
+          ? `Posted ${deltaMin} minute(s) after the attempt, but the caption differs.`
+          : `Posted ${deltaMin} minute(s) after the attempt. No caption was recorded for the attempt, so this is timing evidence only.`;
 
     candidates.push({
       igPostId: post.id,
@@ -101,7 +111,7 @@ export async function reconcileAttempt(args: {
       postedAt: post.posted,
       minutesFromAttempt: deltaMin,
       reasoning,
-      confident: capMatch,
+      confident: exactMatch,
     });
   }
 
@@ -160,6 +170,7 @@ export async function reconcileAttempt(args: {
     if (windowTruncated) {
       return {
         status: "cannot_check",
+        reason: "history_window_exhausted",
         detail:
           `Every one of the ${media.posts.length} most recent posts is NEWER than this attempt, so the ` +
           `attempt's own post would have fallen off the end of the page we can see. This is UNKNOWN, ` +
@@ -234,10 +245,45 @@ export async function applyReconciliation(args: {
     if (affectedRowCount(res) !== 1) {
       return { ok: false, detail: `${noun} is no longer in a reconcilable state — refresh and look again.` };
     }
+
+    // Reconciliation is just as authoritative as the ordinary success path:
+    // once Instagram proves the Reel is live, repair the universal inventory
+    // mirror too. Never fail the reconciliation because the mirror write failed
+    // — that would reopen the duplicate-publish risk this service exists to
+    // eliminate. The metrics loop has a self-heal for the mirror.
+    if (!isScheduled) {
+      try {
+        const { markReelInventoryPublishedByJobId } = await import("./reelInventoryLink");
+        // Omit an override timestamp: the helper preserves the original
+        // publicationScheduledAt/dispatch time recorded when the job was claimed.
+        await markReelInventoryPublishedByJobId(d, args.jobId);
+      } catch (inventoryErr) {
+        log.error("reconciled Reel is LIVE but social inventory mirror update failed", {
+          jobId: args.jobId,
+          err: inventoryErr instanceof Error ? inventoryErr.message.slice(0, 240) : String(inventoryErr).slice(0, 240),
+        });
+      }
+    }
+
     await recordPublishOutcome(args.attemptId, OUTCOME.confirmed, {
       igPostId: args.igPostId ?? null,
       error: args.operatorNote ? `reconciled by operator: ${args.operatorNote}` : "reconciled: confirmed live",
     });
+
+    if (!isScheduled) {
+      const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("./contentRun");
+      await advanceContentRunByReelJobId(args.jobId, {
+        stage: RUN_STAGE.done,
+        operationalState: OPERATIONAL_STATE.published,
+        failureReason: null,
+        evidence: {
+          at: new Date().toISOString(),
+          what: "Ambiguous Instagram publish reconciled as live",
+          proof: `instagram-media:${args.igPostId}`,
+        },
+      });
+    }
+
     log.warn("ambiguous publish reconciled as LIVE", { kind: args.kind ?? "reel_job", id: args.jobId, igPostId: args.igPostId });
     return { ok: true, detail: "Marked as published. This will not be retried." };
   }
@@ -251,6 +297,20 @@ export async function applyReconciliation(args: {
   await recordPublishOutcome(args.attemptId, OUTCOME.failed, {
     error: args.operatorNote ? `reconciled by operator: ${args.operatorNote}` : "reconciled: never reached Instagram",
   });
+
+  if (!isScheduled) {
+    const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("./contentRun");
+    await advanceContentRunByReelJobId(args.jobId, {
+      stage: RUN_STAGE.held,
+      operationalState: OPERATIONAL_STATE.failed,
+      failureReason: "reconciled: did not reach Instagram — safe to retry",
+      evidence: {
+        at: new Date().toISOString(),
+        what: "Ambiguous Instagram publish reconciled as not published; Reel released for retry",
+      },
+    });
+  }
+
   log.warn("ambiguous publish reconciled as NOT published — released for retry", { kind: args.kind ?? "reel_job", id: args.jobId });
   return {
     ok: true,

@@ -272,11 +272,18 @@ export const vapiRouter = router({
       serverUrl: z.string().url().optional(),
     }).optional())
     .mutation(async ({ input }) => {
-      const { updateFollowUpAssistant } = await import("../services/vapi");
+      const { updateFollowUpAssistant, followUpAssistantIdOrNull, isRetiredAssistant } = await import("../services/vapi");
       const serverUrl = input?.serverUrl || "https://nickstire.org/api/webhooks/vapi";
-      const assistantId = input?.assistantId || process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+      // The pin goes through the shared chokepoint, never a direct env read, so a
+      // pin left on the retired duplicate receptionist cannot be overwritten with
+      // the follow-up prompt. An explicit id gets the same retired check.
+      const explicit = input?.assistantId?.trim();
+      if (explicit && isRetiredAssistant(explicit)) {
+        return { success: false as const, error: "Refused: that id is a retired assistant. Push to the dedicated follow-up caller." };
+      }
+      const assistantId = explicit || followUpAssistantIdOrNull();
       if (!assistantId) {
-        return { success: false as const, error: "No follow-up assistant id (VAPI_FOLLOWUP_ASSISTANT_ID unset)" };
+        return { success: false as const, error: "No follow-up assistant id: VAPI_FOLLOWUP_ASSISTANT_ID is unset or points at a retired assistant" };
       }
       return updateFollowUpAssistant(assistantId, serverUrl);
     }),
@@ -1324,50 +1331,32 @@ export const vapiRouter = router({
         ? input.customerName.split(",")[1]?.trim().split(/\s+/)[0] || "there"
         : input.customerName.split(/\s+/)[0] || "there";
 
-      // Get the VAPI phone number ID (the inbound assistant's line)
-      const phoneNumbers = await vapiApiFetch<Array<{ id: string; number: string }>>("/phone-number");
-      const ourLine = phoneNumbers.find((p) => p.number === "+12164249249");
-      if (!ourLine) {
-        return { success: false, error: "Could not find the +12164249249 VAPI phone number" };
-      }
-
-      const body = {
-        assistantId,
-        phoneNumberId: ourLine.id,
-        customer: {
-          number: e164,
-          name: firstName,
-        },
-        assistantOverrides: {
-          variableValues: {
-            name: firstName,
-            lastService: input.lastService,
-          },
-        },
-      };
-
-      const res = await fetch(`https://api.vapi.ai/call`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
+      // Q-45 · route every outbound AI call through the one sanctioned dial.
+      // The helper owns the compliant opener, do-not-call tool and voicemail
+      // policy, while the suppression checks above remain the first gate.
+      const { placeVapiOutboundCall, buildFollowUpCallContent } = await import("../services/vapi");
+      const content = buildFollowUpCallContent({ customerName: firstName, lastService: input.lastService });
+      const call = await placeVapiOutboundCall({
+        customerNumber: e164,
+        lane: "followup_manual",
+        customerName: firstName,
+        openerBody: content.openerBody,
+        systemPrompt: content.systemPrompt,
+        variableValues: { name: firstName, lastService: input.lastService },
+        maxDurationSeconds: 180,
       });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        log.warn("makeFollowUpCall failed", { status: res.status, body: errText.slice(0, 300) });
-        return {
-          success: false,
-          error: `VAPI returned ${res.status}: ${errText.slice(0, 200)}`,
-        };
+      if (!call.success || !call.callId) {
+        log.warn("makeFollowUpCall failed", {
+          errorKind: call.errorKind,
+          error: (call.error ?? "unknown").slice(0, 300),
+        });
+        return { success: false, error: call.error ?? "VAPI call failed" };
       }
-      const data = await res.json() as { id: string; status?: string };
-      log.info("Follow-up call queued", { callId: data.id, name: firstName, phone: e164.slice(-4) });
+      log.info("Follow-up call queued", { callId: call.callId, name: firstName, phone: e164.slice(-4) });
       return {
         success: true,
-        callId: data.id,
-        status: data.status || "queued",
+        callId: call.callId,
+        status: "queued",
       };
     }),
 

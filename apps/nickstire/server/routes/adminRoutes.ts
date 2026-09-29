@@ -317,7 +317,7 @@ export function registerAdminRoutes(app: Express): void {
         // Same durable attempt record as the cron and Queue doors — the canary
         // publishes to the same live account, so a crash here is just as ambiguous.
         const { recordPublishAttempt, recordPublishOutcome, OUTCOME } = await import("../services/publishAttemptLedger");
-        const attemptId = await recordPublishAttempt({ jobId, platforms: ["instagram"], mediaUrl: job.mp4Url });
+        const attemptId = await recordPublishAttempt({ jobId, platforms: ["instagram"], mediaUrl: job.mp4Url, caption: job.caption || "" });
         if (!attemptId) {
           await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null })
             .where(and(eq(reelJobs.id, jobId), eq(reelJobs.status, "publishing")));
@@ -441,7 +441,7 @@ export function registerAdminRoutes(app: Express): void {
       // row must stay visible here until resolved, on the same principle as
       // the still-in-progress statuses this list already includes.
       const ATTENTION = ["assembled", "publishing", "publish_ambiguous", "queued", "generating", "assets_ready", "assembling", "repair_rendering", "needs_regen"];
-      const rows = await d.select().from(reelJobs).where(inArray(reelJobs.status, ATTENTION)).orderBy(desc(reelJobs.id)).limit(50);
+      const rows = await d.select().from(reelJobs).where(inArray(reelJobs.status, ATTENTION)).orderBy(desc(reelJobs.createdAt), desc(reelJobs.id)).limit(50);
 
       const { assessReelJob } = await import("../services/reelRecoverability");
       const { evaluateReelPublishGate } = await import("../services/qualityGate");

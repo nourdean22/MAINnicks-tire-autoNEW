@@ -10,9 +10,11 @@
  *   - intent NOT in regen-gated set → never regen, ship first attempt
  *   - first attempt passes critic → never regen, ship first attempt
  *   - first attempt fails critic + intent gated → run regen
- *   - regen wins only if cleaner AND higher overall
+ *   - regen wins when the same quality function says it is better, even if not perfect
  */
 import { describe, it, expect, vi } from "vitest";
+import { classifyTurn } from "@/lib/ai/turn-intelligence";
+import { buildResponseContract } from "@/lib/ai/response-contract";
 import {
   maybePreStreamRegen,
   shouldGateForIntent,
@@ -33,6 +35,7 @@ describe("pre-stream-regen · intent gating", () => {
   it("gates regen-worthy intents", () => {
     expect(shouldGateForIntent("factual")).toBe(true);
     expect(shouldGateForIntent("decision")).toBe(true);
+    expect(shouldGateForIntent("creative")).toBe(true);
     expect(shouldGateForIntent("instructional")).toBe(true);
     expect(shouldGateForIntent("procedural")).toBe(true);
     expect(shouldGateForIntent("analytical")).toBe(true);
@@ -41,7 +44,6 @@ describe("pre-stream-regen · intent gating", () => {
   it("does NOT gate flow-prioritized intents", () => {
     expect(shouldGateForIntent("casual")).toBe(false);
     expect(shouldGateForIntent("emotional")).toBe(false);
-    expect(shouldGateForIntent("creative")).toBe(false);
     expect(shouldGateForIntent("reflective")).toBe(false);
   });
 });
@@ -99,11 +101,33 @@ describe("pre-stream-regen · orchestration", () => {
     expect(result.regenScore?.shouldRegen).toBe(false);
   });
 
-  it("ships the first attempt when regen ALSO fails (two bad replies)", async () => {
+  it("ships a measurably better regen even when it still has a minor critic flag", async () => {
+    const BETTER_BUT_STILL_FLAGGED =
+      "The first move is follow-up. Contact the people who have not answered, confirm the appointment, " +
+      "and use the same reminder step before changing price or adding another channel.";
     const generateOnce = vi.fn().mockResolvedValue(VAGUE_REPLY);
-    const regenOnce = vi
-      .fn()
-      .mockResolvedValue("Still vague. Various factors at play here.");
+    const regenOnce = vi.fn().mockResolvedValue(BETTER_BUT_STILL_FLAGGED);
+
+    const result = await maybePreStreamRegen({
+      intent: "decision",
+      shape: "prose",
+      generateOnce,
+      regenOnce,
+    });
+
+    expect(regenOnce).toHaveBeenCalledOnce();
+    expect(result.firstScore.shouldRegen).toBe(true);
+    expect(result.regenScore?.shouldRegen).toBe(true);
+    expect(result.regenScore?.overall).toBeGreaterThan(result.firstScore.overall);
+    expect(result.regenFired).toBe(true);
+    expect(result.regenWasBetter).toBe(true);
+    expect(result.selectionReason).toBe("higher-overall");
+    expect(result.text).toBe(BETTER_BUT_STILL_FLAGGED);
+  });
+
+  it("keeps the first attempt when the regen is actually worse", async () => {
+    const generateOnce = vi.fn().mockResolvedValue(VAGUE_REPLY);
+    const regenOnce = vi.fn().mockResolvedValue("Still vague. Various factors at play here.");
 
     const result = await maybePreStreamRegen({
       intent: "decision",
@@ -115,8 +139,33 @@ describe("pre-stream-regen · orchestration", () => {
     expect(regenOnce).toHaveBeenCalledOnce();
     expect(result.regenFired).toBe(false);
     expect(result.regenWasBetter).toBe(false);
-    // Ship first attempt back (less-bad of two bad replies).
+    expect(result.selectionReason).toBe("first-kept");
     expect(result.text).toBe(VAGUE_REPLY);
+  });
+
+  it("repairs response-contract failures even when style alone looks acceptable", async () => {
+    const ask = "Give me the top 3 moves, no extra options.";
+    const turn = classifyTurn(ask);
+    const contract = buildResponseContract(ask, turn);
+    const fiveItems = "1. Fix intake\n2. Call leads\n3. Confirm appointments\n4. Cut price\n5. Add radio";
+    const threeItems = "1. Fix intake\n2. Call leads\n3. Confirm appointments";
+    const generateOnce = vi.fn().mockResolvedValue(fiveItems);
+    const regenOnce = vi.fn().mockResolvedValue(threeItems);
+
+    const result = await maybePreStreamRegen({
+      intent: "decision",
+      shape: "list",
+      userPrompt: ask,
+      turnSignal: turn,
+      responseContract: contract,
+      generateOnce,
+      regenOnce,
+    });
+
+    expect(result.firstAssessment.gate?.contractSignals.rankCountMismatch).toBe(true);
+    expect(regenOnce).toHaveBeenCalledOnce();
+    expect(result.text).toBe(threeItems);
+    expect(result.regenFired).toBe(true);
   });
 
   it("passes the regen prefix to the regen function", async () => {
@@ -134,9 +183,9 @@ describe("pre-stream-regen · orchestration", () => {
       regenOnce,
     });
 
-    expect(capturedPrefix).toBe(REGEN_SYSTEM_PREFIX);
-    expect(capturedPrefix).toContain("SPECIFIC numbers");
-    expect(capturedPrefix).toContain("hedging");
+    expect(capturedPrefix.startsWith(REGEN_SYSTEM_PREFIX)).toBe(true);
+    expect(capturedPrefix).toContain("MEASURED FAILURES IN THE PRIOR DRAFT");
+    expect(capturedPrefix).toContain("spec-density");
   });
 
   it("populates latency telemetry across both attempts", async () => {

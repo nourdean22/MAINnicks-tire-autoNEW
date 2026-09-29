@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-alignment-green-loose-parts",
+  "title": "Green Alignment Numbers Cannot Tighten a Loose Part",
+  "topic": "Alignment readings can look good while steering or suspension play prevents a stable alignment",
+  "mechanicTruth": "An alignment measures wheel angles, but excessive play in steering or suspension components can let wheel position change and can prevent a reliable alignment from holding.",
+  "campaignKeyword": "ALIGNMENT",
+  "hookText": "ALIGNMENT: GREEN",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "MOOG steering and alignment guidance",
+      "kind": "proof",
+      "supports": "An alignment measures wheel angles, but excessive play in steering or suspension components can let wheel position change and can prevent a reliable alignment from holding."
+    }
+  ],
+  "videoPrompt": "Real alignment rack and verified component play; keep machine values real and add teaching graphics in post.",
+  "modelRecommendation": "Real alignment rack and real looseness footage; no generation needed for factual evidence.",
+  "creditEfficiencyNote": "0 credits. Build a reusable alignment-proof library.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "ALIGNMENT: GREEN",
+      "narration": "An alignment machine measures wheel angles.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "DONE?",
+      "narration": "It cannot tighten a worn steering or suspension part.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "WHAT IF THE PART MOVES?",
+      "narration": "If a component has excessive play, wheel position can move after adjustment.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "ANGLES CAN MOVE TOO",
+      "narration": "Inspect the hardware, repair verified play, then align.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "INSPECT -> REPAIR -> ALIGN",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "An alignment machine measures wheel angles. It cannot tighten a worn steering or suspension part. If a component has excessive play, wheel position can move after adjustment. Inspect the hardware, repair verified play, then align.",
+  "selectedCaption": "Green alignment numbers are useful only when the parts holding those angles are stable. Nick's can inspect steering and suspension play before chasing the same symptom again.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from tie-rod wobble identification and balance-vs-alignment: this is mechanical play invalidating an otherwise good alignment reading."
+}

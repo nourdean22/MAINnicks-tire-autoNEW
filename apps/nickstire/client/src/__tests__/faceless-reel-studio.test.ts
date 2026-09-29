@@ -35,6 +35,7 @@ import {
   validateNoExternalSideEffects,
   scoreReelConcept,
   calculateReelQualityScore,
+  isScorableReelBrief,
   runSafetyChecks,
   buildHiggsfieldReelPromptPack,
   buildReelContinuityBlock,
@@ -650,6 +651,37 @@ describe("builders", () => {
     expect(r.topicRepeated).toBe(true);
     expect(r.keywordRepeated).toBe(sample().campaignKeyword === "PRESSURE");
     expect(r.archetypeRepeated).toBe(false);
+  });
+});
+
+describe("persisted ReelBrief runtime shape", () => {
+  it("accepts current briefs and rejects legacy partial rows without throwing", () => {
+    expect(isScorableReelBrief(sample())).toBe(true);
+
+    const queued = structuredClone(sample()) as any;
+    // contentAdmin.enqueueReelJob's persisted briefClean intentionally omits
+    // these authoring-only fields. The Queue scorer must accept that canonical
+    // serialized shape instead of relabeling every newly queued Reel as 0/block.
+    for (const key of ["driverConfusion", "clevelandAngle", "usefulAbsurdity", "avoidedForRepetition", "assetPlan"]) {
+      delete queued[key];
+    }
+    expect(isScorableReelBrief(queued)).toBe(true);
+
+    const legacy = {
+      topic: "legacy reel",
+      selectedCaption: "old caption",
+    };
+    expect(isScorableReelBrief(legacy)).toBe(false);
+  });
+
+  it("rejects a current-looking brief when a scorer array is missing", () => {
+    const partial = structuredClone(sample()) as any;
+    delete partial.storyboardBeats;
+    expect(isScorableReelBrief(partial)).toBe(false);
+
+    partial.storyboardBeats = structuredClone(sample().storyboardBeats);
+    delete partial.concepts;
+    expect(isScorableReelBrief(partial)).toBe(false);
   });
 });
 

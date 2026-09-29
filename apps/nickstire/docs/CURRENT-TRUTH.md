@@ -1,11 +1,149 @@
 # Nick's Tire & Auto — Current Truth
 
 **Status:** active operating contract  
-**Verified against:** `main` `54e7d5958` on 2026-09-10 (recruiting + honest-reads arc: #2266 #2268 #2272 #2274 #2276 #2277 #2278 #2279 #2281 #2282 merged and deployed; NO migration applied — every change is code or CI). Prior line: `main` `425aff57c` on 2026-09-09 (camera/Lot arc: #2234 #2241 #2236 #2238 #2244 merged and deployed; migration 0119 applied to prod — see "Lot / vehicle visits" below). Prior line: `1a64afd4d` on 2026-09-08 (five merged PRs, all deployed: #2182 release closure, #2187 security, #2190 shop strip + ticket, #2192 Haiku restore, #2194 toast gate; 2026-09-07 public-site serving contract, PR #2173; prior lines: 2026-08-13 ScanFinish Runs 1+2 + audit round 2, PRs #1551–#1561; 2026-08-07 self-improvement arc, PRs #1382–#1421)  
+**Repository + runtime truth:** the pre-Pattern-cohort repository baseline is #2744 `5334a51b403435ed1cdd202e4f454ca50a0ab116` on 2026-09-28. This Pattern Lab receipt update is docs/memory/capability-only and therefore may advance repository history without claiming a new Nick runtime. Nick production remains exact #2741 `45a5c02690e7193f05ce0da822fb59d2ebc899ca` via Railway deployment `c7b4b57c-799a-4042-9539-42d6571674d6` **SUCCESS** (15:54:52Z). The #2741 container reached `server:ready`, schema guard passed, and the 123-job scheduler started. #2742 and earlier camera-only #2739/#2740 correctly SKIPPED Nick under watch paths.
 **Owner:** Nick's Tire & Auto operator  
 **Operator runbook for the SMS side:** [`operations/SMS-REVENUE-AGENT-OS.md`](operations/SMS-REVENUE-AGENT-OS.md)
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
+
+## Original-plan infrastructure reconciliation (2026-09-28)
+
+- Durable 24-slice ledger: `../../../docs/research/2026-09-28-original-plan-reconciliation.md`.
+- Live Nick/worker watch-path negations are applied; docs-only changes should no longer trigger broad Nick/worker deploys.
+- Redis public TCP 6379 exposure is removed. Redis itself remains private/internal until the Railway dashboard 2FA deletion of service + volume + StateNour `REDIS_URL`.
+- Worker is east4/private-only and StateNour observability no longer depends on a public worker URL.
+- `pg_stat_statements` v1.11 is enabled on Neon and has already produced actionable StateNour performance evidence.
+- Remaining §15 items are explicitly operator/dashboard/vendor/decision gates; do not relabel them as unfinished Nick code.
+
+## Instagram Admin consolidation (2026-09-27/28) — merged and in live Nick ancestry
+
+The recovered Instagram Audit workstream was reconciled past the Higgsfield closeout into the operator/admin layer and merged as #2723 (`785a43b8564cd30ad377da294039dbb4c6cd3341`). Nick production now serves #2741 (`45a5c02690e7193f05ce0da822fb59d2ebc899ca`), whose ancestry includes #2723, the #2727 static-caption budget repair, #2731 publish reconciliation, #2732 Pattern Lab outcome learning, #2733 content-run lineage, #2734/#2735 Trial Reel publishing/hardening, #2737 empty-lab bootstrap, and #2741's production-closeout Queue scoring repair. The implementation extends the existing system rather than building a parallel content stack.
+
+- **Active Reel slate:** an ordered production overlay over the 133 approved packs with an independent durable cursor. Enabling, consuming, exhausting, clearing, or re-saving the slate does not move the canonical full-library cursor. Jobs persist source-pool provenance plus the active-slate definition revision so a mid-render enable/clear/reorder cannot advance the wrong queue. Legacy jobs remain full-library jobs.
+- **Creative-fatigue + demand evidence:** existing production-grammar fingerprints, novelty collisions, and the existing live topic miner are surfaced as transparent ranking inputs. No fake virality score or automatic publish promotion was added.
+- **Measured learning:** attention-microstructure comparisons become explicitly correlation-only structure hypotheses; shadow-judge verdicts are joined to append-only reach/save/share/skip snapshots. Both `posted` and reconciled `published` count as live. The UI always reports `hardGateSupported: false`; controlled validation is still required before any judge promotion.
+- **Profile merchandising:** measured pin candidates, recent Reel cover review, a BUSINESS-source-of-truth bio suggestion, and upload-ready black/yellow Highlight cover assets are exposed. Actual bio edits, pinning, Highlight ordering, and cover uploads remain explicit Instagram-side operator actions.
+- **Real-shop media:** Create can reuse only current, reuse-allowed, image-MIME, direct-runtime-URL `real_shop` assets. Drive viewer pages and non-image assets are not misrepresented as usable generation inputs; Strategy's reusable-media count uses the same predicate as Create.
+- **Visual QA:** deterministic authenticated-client fixtures were exercised in system Chrome at 1440x900 and 390x844. Strategy and Create rendered without horizontal overflow; primary tabs, slate controls, profile links/bio-copy, Highlight controls, and the real-shop picker were present. This proves client/runtime layout behavior, not a live production-login or Meta mutation receipt.
+
+**Local verification on the final code tree before PR:** full Vitest suite passed after the TiDB latest-row ordering fix and procedure-census regeneration; TypeScript, production build, source/SQL/hooks/brand/PII/cron lints, orphan gate (0 NEW), CURDATE, route registry, prerender and semantic-prerender checks passed. The live read-only migration reconciliation still reports six pre-existing blocking migration states (0127-0130, 0132, 0133); this branch changes no schema/migration files and does not claim that unrelated production drift is repaired.
+
+**Post-deploy production receipt:**
+- Meta configuration and live Graph probe are healthy: Facebook ready, Instagram ready, live probe `ok=true`.
+- Active-slate service is live/readable: no operator slate is currently configured, canonical full-library cursor = **32**, approved candidates = **133**, Strategy recommendations = **12**, current demand candidates = **23**.
+- Structure learning is live: **42** measured samples → **12** correlation-only hypotheses.
+- Shadow-judge calibration is live: **27** judged, **10** would-block, downstream coverage **92.59%**, current outcome status `not_supported_by_current_outcomes`, and `hardGateSupported=false`. The system correctly did **not** promote the judge automatically.
+- Profile merchandising service executes successfully with **4** measured pin candidates, **12** cover-review items and **5** Highlight plans. Current account-profile cache was empty on the fresh container while the Meta Graph probe itself was live; this is an ephemeral cache/data state, not a Strategy crash.
+- Strict reusable `real_shop` media count is currently **0**. The picker is live but production has no first-party asset satisfying `real_shop + current + reuseAllowed + image MIME + direct runtime URL`. No unrelated asset was relabeled merely to populate the UI.
+- The daily Reel lane is armed and has a real Sep 27 publish receipt: Reel job `1950017`, `igPostId=18435703312179867`, status `posted`.
+- **Pattern Lab learning is live end-to-end.** The empty lab seeded exactly four unmeasured house hypotheses, and on 2026-09-28 the first successful post-bootstrap cohort completed the full production lineage. `rp_house_myth_reality` was persisted on Reel job `1980001`, the job assembled cleanly, rendered QA returned `approve` across 6 frames with 0 findings and `publishGate=proceed`, byte-exact approval was recorded, and the Reel published as Instagram media `18634414420000924` (`Dd10eTKkUtO`). The analytics pipeline then wrote `ig_metric_snapshots.id=1530001` for that same post at 18:24:42Z and `instagram_analytics.mediaProductType=REELS`. Initial reach/views/saves/shares/watch/skip values were zero because the snapshot was captured seconds after publish; the durable join itself is proven: `structurePatternId -> reel_jobs -> igPostId -> ig_metric_snapshots`.
+- **Trial Reel publishing is live-proven.** An expired approval was first refused, then an eligible approved Reel published through the normal Admin choke point as Trial media `18448893436192927` at 2026-09-28 14:41:54Z. Inventory `autopost-2026-09-29` persisted `trial.postedAsTrial=true`, `graduationStrategy=MANUAL`, and the same post id; the published media also attached to the controlled-experiment loop for Reel job `1920015`. Trial-specific 24h metrics remain manual-entry and automatic SS_PERFORMANCE graduation is intentionally not implemented.
+- **Authenticated production Admin walkthrough is now receipted.** A real signed-in session exercised the Today/Create/Queue/Community/Learn/Strategy backing procedures, including pipeline health, creation brief, Studio list/diagnostics/board, real-shop media, active slate, live feed, analytics, structure hypotheses, profile merchandising, judge calibration, and performance reporting. The surfaces returned live data; one legacy-draft scoring warning discovered during the walkthrough is handled by the closeout fix in this change.
+- **#2727 static-caption recurrence boundary is live-proven, but not by a successful post.** A guarded manual one-off on 2026-09-28 reached the independent judge on all three generation attempts (scores 0.58, 0.60 and 0.41) without reproducing the old 4096-token truncation / empty-caption failure. The judge then correctly aborted the run for price-compliance, novelty and fabricated-stat defects; no IG/FB media id was created. A natural scheduled-slot successful post remains a separate future receipt.
+- **Admin Queue legacy-brief scoring repair is LIVE VERIFIED on #2741.** The guard rejects genuinely incomplete historical `brief_json` without throwing while accepting the canonical queued-Reel shape persisted by `contentAdmin.enqueueReelJob`; that exact shape was added as a regression after Codex raised a P2. Final #2741 GitHub gates were green and Railway deployment `c7b4b57c-799a-4042-9539-42d6571674d6` is SUCCESS. At 2026-09-28 16:48:08Z a real signed-in NattyNour session opened Publish -> Reels. Windows UI Automation observed `getAllDrafts`-only draft cards for the two affected legacy rows themselves: `Reading a tire sidewall: the three markings that decide which tire fits` and `ALIGNMENT: You just hit a pothole on Euclid Ave and heard a clunk that made you wince.`, with `Review 9:16` controls. A read-only DB probe of the same latest-50 cohort independently found 49 Reel rows and confirmed both are non-empty legacy/unscorable briefs missing current scorer fields. Therefore `getAllDrafts` completed over affected legacy shapes with the guard in place—not merely the separate `reelPublishQueue` query—and the historical `failed to calculate reel score in getAllDrafts` / `undefined.map` warning did not recur.
+- No active finite slate was silently enabled; production intentionally continues on the canonical 133-pack library. Bio/pin/Highlight mutations remain explicit Instagram-side operator actions.
+
+**Evidence boundary:** Instagram Admin is **MERGED + DEPLOYED + POST-DEPLOY QUEUE LIVE-VERIFIED** through the #2741 runtime; later repository receipts through #2744 are docs-only. Trial Reel publish/provenance and Pattern Lab bootstrap/selection also have production receipts. The static generator live one-off did not reproduce the old truncation failure but was quality-aborted, so a natural scheduled successful static post remains pending. Trial 24h metrics and bio/pin/Highlight mutations remain explicit operator actions.
+
+## NicksMax camera production authority (2026-09-28) — LIVE VERIFIED
+
+NicksMax now owns the lightweight production `sign` camera-processing lane. This supersedes the earlier sibling-session/V380-GUI guard.
+
+- **Direct production path:** native V380 cloud relay on `:8554` -> FFmpeg SHOPSIGN middle-lens crop -> MediaMTX `rtsp://127.0.0.1:8555/sign` -> production OpenVINO `edge_main.py` using `calib-nicksmax-sign-rtsp.json` (SHA256 `67F719CC875DEE8B0EFF9B246428CE9840530FB0921FA9BCC1FFB8803D502258`).
+- **No GUI dependency:** the V380 desktop executable was absent during final verification. Legacy WGC/V380-watchdog and shadow-candidate tasks remain disabled.
+- **SYSTEM authority:** `NicksMaxCameraSupervisorUser` is disabled. The active supervisor and production camera process tree run in Windows Session 0.
+- **Self-heal receipt:** with the user supervisor disabled, the old Session-1 production edge tree was killed. Session 0 recreated the production wrapper at 18:27:11 ET and Python/OpenVINO edge processes at 18:27:12 ET; the local status log recorded `START authoritative RTSP sign producer` at 18:27:12 ET.
+- **Cloud/admin-backend receipt:** Railway `MAINnicks-tire-auto` accepted the restarted producer at 22:27:38Z as `sign seq=1 accepted state=HEALTHY`, followed by seq=2 and seq=3 HEALTHY. After Windows was locked, HEARTBEAT acceptance continued through at least seq=8 at 22:31:08Z.
+- **Evidence boundary:** GUI-free, Session-0, self-heal, and locked-screen operation are proven. A full Windows reboot after the SYSTEM-supervisor cutover is not yet live-proven because the remote-control layer blocked restart/shutdown. Do not promote `AtStartup` configuration into a cold-boot receipt until a later controlled reboot produces fresh Session-0 and Railway evidence.
+- **Storage warning:** C: had about 2.53 GB free (6.3%) at closeout. Camera logs/DBs were small; active worktrees were deliberately preserved rather than deleted.
+
+Durable local-node receipt: [`../../../docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md`](../../../docs/operations/NICKSMAX-WORKSTATION-2026-09-27.md).
+
+## NicksMax Office Eufy production authority (2026-09-28) - LIVE VERIFIED
+
+The canonical production Office device is **NICKS EUCLID** (`T8410P5225154105`, T8410C). `Moes Euclid Office` (`T8410P522517180B`) is the old/legacy shared camera and must not be used as the production target.
+
+- **Producer contract:** `office` is commissioned and emits `mode=PRODUCTION`; the Eufy agent/bridge/installer/wake defaults target `T8410P5225154105`.
+- **NicksMax runtime:** bridge, agent and watchdog run on NicksMax; NattyNour's old OfficeHealth producer remains disabled.
+- **Port isolation:** Eufy bridge `3000`, go2rtc API `1984`, Eufy RTSP `8654`, Eufy WebRTC `8655`; V380 sign retains `8554/8555`.
+- **Live device proof:** the authenticated bridge enumerates NICKS EUCLID as T8410C with video/RTSP/PTZ/audio plus motion/person capabilities.
+- **Live media proof:** direct NicksMax probe succeeded with `mediaPlaneOk=true` and `lastMediaProofAt=2026-09-29T00:20:11.894521+00:00`.
+- **Backend receipt:** after correcting the target, `office seq=1` at 00:19:11Z transitioned `MEDIA_DEGRADED -> UNVERIFIED_CAPABILITIES`; continuous corrected heartbeats reached at least `seq=16` at 00:28:15Z.
+- **Current health truth:** media is no longer degraded. `UNVERIFIED_CAPABILITIES` remains until the current producer observes fresh semantic-event, control/PTZ and calibrated-home receipts.
+- **Legacy boundary:** old Moes P2P failures and any Moes home/calibration/PTZ evidence are camera-specific historical evidence and must not be transferred to NICKS EUCLID.
+
+## NicksMax Office Intelligence runtime (2026-09-28/29) - EDGE LIVE, ADMIN DEPLOY PENDING
+
+This extends the commissioned NICKS EUCLID Office lane; it does not create a second camera authority.
+
+- **Headless audio source is live-proven:** the reviewed Eufy bridge overlay exposes `http://127.0.0.1:3000/record/T8410P5225154105`; `ffprobe` read H.264 video plus AAC 16 kHz mono audio from that route. Chrome/Eufy web UI and the Windows microphone are not required.
+- **Port isolation remains intact:** Eufy uses bridge `3000`, go2rtc API `1984`, RTSP `8654`, WebRTC `8655`; V380 sign remains on `8554/8555`.
+- **Single worker authority:** `StateNour-OfficeIntelligence-NicksMax` is the sole Office interaction worker. It was commissioned elevated as a SYSTEM, AtStartup task. The generic Eufy installer now owns only Bridge + Agent and disables the legacy `StateNour-Eufy-OfficeWake` task if present.
+- **Live worker receipt:** `office-conversation-status.json` advances continuously and currently reports `conversationWorkerOk=true`, `conversationWorkerState=OFF_HOURS`, source `eufy-office`, host `NICKSMAX`, STT `whisper-cli.exe`, queue depth 0, failures today 0. The OfficeWake ledger records a successful connection to the NICKS EUCLID event bridge.
+- **Authoritative heartbeat integration is live locally:** the refreshed NicksMax Eufy agent folds the worker receipt into the existing `office` heartbeat rather than writing `camera_runtime` from a second producer. A local payload proof showed `producerInstanceId=p2-nicksmax-...`, `mode=PRODUCTION`, `sourceGeneration=T8410P5225154105`, plus the worker state/source/host/STT/queue/failure facets.
+- **Real-camera STT boundary:** a 15-second commissioning capture from the real NICKS EUCLID route produced a valid ~447 KB WAV. The room was actually quiet (about -71.8 dBFS mean / -50.6 dBFS peak), below the -35 dB speech threshold, so segmentation correctly produced zero conversation episodes. Do not relabel that as a transcription failure or invent a summary.
+- **Resource controls:** production uses event-triggered bounded capture, local Whisper, 6-hour raw-audio age retention, 256 MB raw-audio quota, and a 768 MB free-disk floor.
+- **Built/tested Admin path, not yet a deploy receipt:** this branch adds conversation-worker facets to the existing Office `camera_runtime` row, provenance fields on `conversation_episodes`, evidence-gated ingest, and a unified Admin -> Lot -> Office intelligence panel. Focused verification passed 76 Office tests, 38 Eufy tests, and 63 Nick/Admin tests; the later ownership cleanup also passed 12/12 Eufy installer tests.
+- **Remaining production receipt:** after the Nick backend/UI branch is merged and deployed, observe a real in-hours NICKS EUCLID person/motion event -> bounded camera-audio capture -> local STT -> evidence/coverage gate -> `/api/conversation-episodes` -> visible Admin summary. Until that happens, do not claim a real customer summary has appeared in production.
+
+## Connection hardening closeout (2026-09-27/28)
+
+**Final merge receipt:** #2721 squash-merged as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` after affected CI, authenticated StateNour E2E, Completion Authority, Adoption, Agent Policy, Admin, Secret Scanning, and security all passed. Its four earlier review findings were fixed and resolved. #2721 changed documentation/memory only; it does **not** claim a newer Nick production deployment than #2720.
+
+Durable receipt: [`../../../docs/00-current-truth/connection-hardening-2026-09-27.md`](../../../docs/00-current-truth/connection-hardening-2026-09-27.md).
+
+- Nick production's source-code deployment is `a3b3555e43e755f0a90b12fc6962be2340e21503` (#2720); later repository commits at this checkpoint are documentation-only and must not be mistaken for the deployed app SHA.
+- TiDB/database/schema/self-healing are healthy and no longer the incident blocker.
+- Tailscale shop connectivity works; initial DERP fallback followed by a direct peer path is normal NAT traversal, not an outage.
+- Camera-health detection, durable claim/retry behavior, and persisted sign degradation/recovery state transitions are proven. Provider-accepted **real production degradation plus recovery owner delivery is not yet proven** and remains open.
+- Office is commissioned and emits `PRODUCTION` heartbeats from NicksMax against NICKS EUCLID (`T8410P5225154105`). Media is live-proven; the current state is `UNVERIFIED_CAPABILITIES` because fresh semantic-event, control/PTZ and calibrated-home receipts remain unknown. The old Moes camera (`T8410P522517180B`) is legacy and is not the production target.
+- NicksMax camera authority is now live on the direct Session-0 RTSP/OpenVINO path with the V380 GUI absent and locked-screen heartbeats proven. The earlier camera-session reboot guard is superseded; only the post-cutover cold-boot persistence receipt and separate consumer ESU enrollment remain open.
+- Resend domain verification is failed until the required records are added at the authoritative Global Domain Group DNS provider.
+
+## Higgsfield runtime recovery + live canary (2026-09-27)
+
+PR #2717 (`4d6488623e08f682ccdf5a283d501b9c9c24525c`) moved the CLI/runtime from the obsolete 0.2.3 contract to 1.1.26, version-scoped its native cache, and wired the current workspace contract. Production then changed from `Session expired` / `higgsfield session dead` to successful keepalive and Reel-pipeline pulses.
+
+The recovery is now proven across a process boundary, not just inside one dyno. A read-only mysql2 probe showed the durable `app_secret_kv` Higgsfield credential row already existed before a later Railway process startup (reported row `updated_at` 22:44:08Z; process registration logged 23:39:20Z). A subsequent keepalive from the fresh process completed with `session refreshed, 13.5 credits`, proving the restarted service recovered usable persisted credentials. Full refresh-token revocation still cannot be bootstrapped by cron and requires an operator browser login.
+
+Live canary Reel job `1950002` then generated five Higgsfield clips. The pipeline recorded both generation and repair as `assets_ready`, then failed closed at render QA because the caption ask (`send this`) disagreed with the end-card ask (`profile`). **No social publish is claimed.** The canary was paid work: the observed Higgsfield balance fell from 98.5 credits to 13.5 credits during the generation/repair sequence, so do not repeat this canary merely to re-prove liveness.
+
+## Portfolio reconciliation (2026-09-26/27) — stale branches are not backlog
+
+A run-to-empty reconciliation was performed against current `main`, PR history, tests, and concrete tree equivalence — not branch names.
+
+- **Dependency refresh is merged as #2696**: reviewed head `301392c325c0c0b34e7ef68c6d4bef9ccdd37ea0`, squash `6704ca49b63dbaa0997c57efb689e4b618e4f19a`. The merge changed exactly the intended 10 dependency/lock files and has the same stable patch-id as the reviewed branch (`8001fef75e4a6176a37a47ea5f1a088dbd54788b`). The reviewed head passed real pre-push affected build 12/12, StateNour 9,748/9,748 tests, Linux affected CI, authenticated StateNour E2E, Docker/adoption/completion/admin/secret gates, and a fresh Agent Policy run after adding the required source/date citation. Stale Dependabot #2662 is closed as superseded. Repo dependency truth includes Next 16.3.6, Turbo manifest `^2.11.3` (lock resolved 2.11.4), Lefthook 2.1.14, tsx 4.23.15, Drizzle Kit 0.31.11, and aligned Next tooling. **No production deploy claim is made here.**
+- **Q43 consent ledger is merged as #2694** (`1bb19803c4d6107a61d3e39d135ef35d82a0631a`) and **Q45 spoken opt-out truth is merged as #2683** (`78fcd528adcffb4ca32191636794e5b720aab4ad`).
+- **Q49 VIN consolidation is merged as #2684** (`4e75f1750523bee658eec08f1a6a9a7ba51c5ac4`). The old dirty Q49 worktree is a rejected predecessor: it reintroduces an unconsumed vPIC batch API and removes the historical 11–17-character admin partial-VIN lookup #2684 deliberately preserved. Do not resurrect it.
+- **Q37 review work is already on `main`.** The surviving dirty review worktree would restore the obsolete `OPENWEATHER_API_KEY` scheduler gate and contains only stale/garbled ShopDriver edits around matcher logic already present on `main`. Do not merge it.
+- **Q35 Sentry/noise work is already on `main` byte-for-byte** across every file touched by its two old commits, including deploy-skew recovery, social-assets font tracing, duplicate lead-audit retirement, and the import-graph cron/tRPC guard. Its apparent branch uniqueness is squash-history noise.
+- **Nour runtime commit `8f0de2f4d` is patch-equivalent to `main`** and its five files match current `main`; it is not unfinished work.
+- **Q51 weather review is superseded by current keyless-NWS truth.** Its dirty worktree would delete newer scheduler dependency ordering, corrupt text encoding, and throttle operator alerts before delivery instead of after successful delivery. Do not merge it.
+
+**Concurrency boundary:** camera/Eufy, Q12 receiver, migration-0134, office-wake, conversation-cockpit and other newly-created worktrees belong to separate active workstreams unless their owning session explicitly hands them off. Do not infer backlog status from `git branch --no-merged`; squash merges and dirty historical worktrees make that signal unsafe.
+
+**Closeout receipt (2026-09-27):** after the reconciliation entry above, GitHub was rechecked with **0 open PRs**. The clean redundant worktrees `deps-dev-minor-current`, `nour-intelligence-runtime-20260926`, and `portfolio-truth-20260927` were removed locally and their obsolete local branches deleted. Dirty Q35/Q37/Q49/Q51 predecessor worktrees were deliberately preserved rather than force-deleted because they contain uncommitted or divergent historical evidence. Camera/Eufy/Q12 worktrees remain owned by separate active sessions. **The reconciled code backlog is exhausted; issue #2628 remains the source of operator/vendor/infrastructure actions and must not be misreported as unfinished code.**
+
+## Midday Reel reconciliation (2026-09-25, PR #2656 merged): 133 approved packs
+
+The recent midday Reel batches were reconciled against **current** `main` after #2655's evening import, rather than merging the stale 121-pack branch. The census is **27 source concepts = 11 distinct additions + 16 semantic duplicates already covered**. The machine-readable map is `docs/reel-packs/MIDDAY-IMPORT-2026-09-25.json`; the narrative audit is `docs/reel-packs/2026-09-25-midday-idea-rotation-audit.md`.
+
+The 11 distinct slugs are appended after the 122-pack rotation; no earlier entry is reordered because `reel_approved_pack_rotation_index` is a persisted array index. Two pre-existing reviewed packs (nitrogen-vs-air and foggy-windshield A/C) are normalized and made reachable rather than duplicated. `server/reelPackRotationCoverage.test.ts` raises the ratchet to `PREFLIGHT_PASSING_FLOOR = 133`.
+
+The deterministic production builder + `runReelPreflight` sweep returned **133 checked / 0 failures** locally. PR #2656 then passed **CI · turbo-affected verify, Completion Authority, Secret Scanning, Adoption gates, Agent policy, and Admin completion diagnostic** before squash merge at `55d5d5fa21fb912c49b450e665c00f74df9c8b83` (Evaluator separation skipped by design). During reconciliation the UTQG draft correctly tripped existing safety rules because its social copy used “warranty” / “guarantee”; the mechanic truth was preserved while the wording became manufacturer tread-life coverage / mileage promise. The gate was not weakened.
+
+**Evidence boundary:** 133/133 preflight-clean proves repository reachability and pre-spend enqueueability only. It does **not** prove a live Higgsfield render, Instagram/Facebook publish, production DB/env mutation, ad action, or Railway deployment receipt.
+
+## Reel rotation expansion (2026-09-25, PR #2655): 122 approved packs
+
+The approved Reel-pack queue on `main` now contains **122** append-only entries. The 2026-09-25 operator batch reconciled **33** candidate lessons against the live rotation before adding anything: **23 distinct packs were added; 10 semantic duplicates were mapped to packs already rotating**. The machine-readable reconciliation is `docs/reel-packs/EVENING-IMPORT-2026-09-25.json`.
+
+The cursor contract did not change: `reel_approved_pack_rotation_index` is an array index, so the 23 additions were appended after the previous 99 and no existing slug was reordered. `server/reelPackRotationCoverage.test.ts` now sets `PREFLIGHT_PASSING_FLOOR = 122`; CI requires every rotating pack to remain builder-loadable and clear `runReelPreflight` before paid generation.
+
+The gate caught a real defect before merge. All 23 imported packs initially used one shared visual phrase containing `generated readout`, so the `no-in-frame-text` hard gate rejected them and CI measured **99/122**. The briefs were fixed to describe the physical distinction through shape/position/surface/motion, the ratchet stayed at 122, and the final #2655 affected pipeline passed (**7/7 Turbo tasks**) along with Completion Authority, Agent policy, Adoption gates, Admin diagnostic/typecheck, and Secret Scanning.
+
+**Evidence boundary:** this is merged repository truth at `f5f6213799d167b40c1285cfc20c45215e082163`. It proves rotation reachability + pre-spend preflight for the 122 packs. It does **not** prove a live render, social publish, production DB/env mutation, paid-ad action, or post-merge deployment for this batch.
 
 ## Customer-corpus wave (2026-09-23): what changed in live behaviour
 
@@ -24,8 +162,8 @@ assistant` (`0daaf7dc…`), twice each, and no refusal. Grounded in the first pr
 | The after-hours web-form text gives the real opening time (`{nextOpen}`) and promises no callback | `services/smsMessageCatalog.ts` | #2579 |
 | The assistant no longer promises "we'll text when it's ready" on a drop-off | `services/vapi.ts` | #2580 |
 | Vapi `transfer-update` is recorded (state `transfer_attempted`, destination kind only); the end-of-call `transferArtifact` carries `transferUpdateSeen`. Proves an attempt, never an answer | `routes/webhooks/vapi.ts`, `lib/transferArtifact.ts` | #2581 |
-| Today's action queue lists customers whose last text is unanswered (7 days, 15-min grace, no STOP/ack/short codes); an unreadable inbox vetoes "All clear". A reply by phone call is invisible to it | `services/owedTexts.ts`, `lib/owedTextsRule.ts`, `OverviewSection.tsx` | #2582 |
-| Today -> Arrival load shows the tire sizes phone callers asked about today (size + new/used, never name or phone), counted from the #2584 deploy on | `lib/tireDemand.ts`, `dispatch.phoneTireDemandToday` | #2584 |
+| Today's action queue lists customers waiting on a HUMAN text reply: the ROS-058 obligation (`sms_response_jobs` human_pending), one per conversation, internal lines excluded, Urgent past the 30-min SLA; the Outreach badge and morning brief count the same rows. A human reply or "No reply needed" clears it, an automated text does not; an unreadable queue vetoes "All clear" | `services/smsResponseJobs.ts` (`listWaitingConversations`), `OverviewSection.tsx` | #2582, audit I |
+| Today -> Arrival load shows the tire sizes phone callers asked about today (size + new/used, never name or phone), one caller per call, counted from the #2584 deploy on | `lib/tireDemand.ts`, `dispatch.phoneTireDemandToday` | #2584, audit J |
 | The live unsubscribe rule no longer fires on "stop by/in/over/at/off" or "end of/up"; every other reply opening with an opt-out keyword still unsubscribes | `services/smsResponseParser.ts` | #2587 |
 | Campaign recent/lapsed audiences and the capacity estimate's "today's bookings" use the Eastern date (curdate baseline 105 sites / 30 files) | `routers/campaigns.ts`, `routers/conversion.ts` | #2587 |
 
@@ -480,20 +618,8 @@ Automation success is valid only when the final system of record confirms the ac
   `contentManufacturing` also enqueues with `source: "cron"` but publishes
   elsewhere. The date comes from the briefId, not `updatedAt` (`onUpdateNow`,
   drifts) or `createdAt` (enqueue, not publish).
-- **Higgsfield now has a KEY-BASED lane that never expires (shipped 2026-08-17),
-  and the CLI-session lane went dead for four days first.** Probed prod
-  (read-only, operator-authorized): keepalive **332 completed** (08-10 08:47 ->
-  08-13 18:07), then **372 CONSECUTIVE failures** (08-13 18:11 -> 08-17), every
-  one `Session expired. Hint: Run: hf auth login`; cadence stayed perfect the
-  whole time (largest gap 15.4 min), so the token was simply revoked, not
-  starved or raced. Nobody noticed because `socialDeliveryIssues` computed
-  `generatorConfigured` as `!!credentialsJson` - a PRESENCE check.
-  `higgsfieldSessionHealth()` existed for exactly this since the 2026-07-31
-  incident and was never wired in. Fixed: a dead session is now a
-  `generator_session_expired` BLOCKER (#1628). The keepalive also now clears its
-  in-process credential cache on failure, so a re-login lands within 15 minutes
-  instead of requiring a redeploy.
-- **`server/services/higgsfieldApiClient.ts`** talks to Higgsfield's OFFICIAL
+- **The 2026-08-17 four-day CLI-session outage is historical; the session lane is live again as of 2026-09-27.** The old incident measured **332 completed** keepalives followed by **372 consecutive `Session expired` failures**, which is why `higgsfieldSessionHealth()` became a real blocker instead of a presence check. PR #2717 later updated the runtime to CLI 1.1.26. The current proof is stronger than one successful call: a fresh Railway process started after the durable credential row had been written, and its later keepalive still completed with `session refreshed`. Live canary job `1950002` then generated five Higgsfield clips and failed later at render QA on a CTA mismatch, with no publish. Full token revocation still needs an operator browser login.
+- **The separate key-based API lane remains a distinct fallback and is not the proof for the 2026-09-27 recovery.** `server/services/higgsfieldApiClient.ts` talks to Higgsfield's official
   REST API directly (no new npm dependency - `pnpm install` is policy-blocked in
   harness worktrees): `Authorization: Key <HIGGSFIELD_API_KEY_ID>:<HIGGSFIELD_API_KEY_SECRET>`
   against `https://platform.higgsfield.ai`, submit to the DoP image-to-video

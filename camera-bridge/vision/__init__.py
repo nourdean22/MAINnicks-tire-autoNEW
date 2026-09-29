@@ -28,5 +28,5 @@ simulation-proven, controlled-field-proven and long-horizon-unproven separately.
 __all__ = [
     "frame", "capture", "framehealth", "scenelock", "census", "detector",
     "track", "geometry", "baylatch", "fingerprint", "platelab", "evidence",
-    "pipeline", "replaylab",
+    "pipeline", "replaylab", "officeaudio", "officepost", "officewake", "homepose",
 ]

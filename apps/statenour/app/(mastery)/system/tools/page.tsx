@@ -7,6 +7,8 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
+import { ToolGapPanel } from "@/components/system/tool-gap-panel";
+import { DecisionPlanePanel } from "@/components/system/decision-plane-panel";
 // 2026-09-15 · UI workbench wave 3: a registry row is an inspectable object.
 import { useInspector } from "@/hooks/use-inspector";
 import {
@@ -153,6 +155,9 @@ export default function SystemToolsPage() {
           hint={missingEnvKeys.size > 0 ? Array.from(missingEnvKeys).join(", ") : "All healthy"}
         />
       </div>
+
+      <ToolGapPanel />
+      <DecisionPlanePanel />
 
       {/* Capability Matrix */}
       <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] overflow-hidden">

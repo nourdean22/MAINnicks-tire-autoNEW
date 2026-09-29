@@ -1,5 +1,5 @@
 import { parseReelJson } from "./reelBriefGen";
-import { eq, and, desc, sql, gte, lte, like } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, like, inArray, isNotNull } from "drizzle-orm";
 import { getDbTyped } from "../db";
 import {
   contentManufacturingCampaigns,
@@ -10,11 +10,14 @@ import {
   smsMessages,
   smsConversations,
   bookings,
-  instagramAnalytics
+  instagramAnalytics,
+  reelJobs
 } from "../../drizzle/schema";
 import { invokeLLM } from "../_core/llm";
 import { createLogger } from "../lib/logger";
-import { checkWeatherTriggers } from "./weatherIntelligence";
+// evaluateWeatherTriggers, never checkWeatherTriggers: drafting content must
+// not fire operator alerts or customer weather SMS (the cron handler does).
+import { evaluateWeatherTriggers } from "./weatherIntelligence";
 import { applyCreativeSkills } from "./skillRouter";
 import type { ReelBrief } from "../../client/src/lib/facelessReelStudio";
 
@@ -138,19 +141,21 @@ export async function explodeTopic(
   // B. Query weather triggers
   let weatherDetails = "Normal Cleveland weather";
   try {
-    const weather = await checkWeatherTriggers();
+    const weather = await evaluateWeatherTriggers();
     weatherDetails = weather.details;
   } catch (e) {
     log.warn("Weather check failed during explodeTopic:", e);
   }
 
-  // C. Competitor snapshot details
+  // C. Competitor names. Q-48 (2026-09-23): competitor_snapshots holds
+  // place_ids only — ratings are Google Places content that may not be
+  // stored, so the rating/review_count columns are defaults, not data.
   const comps = await db
-    .select({ name: competitorSnapshots.competitorName, rating: competitorSnapshots.rating })
+    .select({ name: competitorSnapshots.competitorName })
     .from(competitorSnapshots)
-    .orderBy(desc(competitorSnapshots.rating))
-    .limit(3);
-  const compDetails = comps.map((c) => `${c.name} (Rating: ${c.rating})`).join(", ");
+    .where(eq(competitorSnapshots.source, "place_id"))
+    .limit(50);
+  const compDetails = Array.from(new Set(comps.map((c) => c.name))).slice(0, 3).join(", ");
 
   const prompt = `
 You are a world-class attention engineer and Cleveland automotive content strategist.
@@ -634,7 +639,7 @@ export async function generateScoredDraft(
   // Gather current weather state for weather trigger check
   let weatherCond = "";
   try {
-    const weather = await checkWeatherTriggers();
+    const weather = await evaluateWeatherTriggers();
     if (weather.triggered.length > 0) {
       weatherCond = weather.triggered[0];
     }
@@ -1500,6 +1505,25 @@ export async function syncSocialMetrics(): Promise<{ matched: number; updated: n
   const db = await getDbTyped();
   if (!db) return { matched: 0, updated: 0 };
 
+  // Publication truth first, metrics second. The dedicated Reel publisher
+  // historically advanced reel_jobs to posted without advancing its universal
+  // inventory mirror, so live Reels remained review_ready and were invisible to
+  // this loop forever. Reconcile only jobs with BOTH a terminal live status and
+  // a durable Instagram media id; no caption guessing can promote a draft.
+  try {
+    const { reconcilePublishedReelInventoryTruth } = await import("./reelInventoryLink");
+    const repaired = await reconcilePublishedReelInventoryTruth(db);
+    if (repaired.repaired > 0 || repaired.failed > 0) {
+      log.warn("reconciled Reel publication truth before social metric sync", repaired);
+    }
+  } catch (err) {
+    // Metric collection should still run for already-healthy rows even if the
+    // self-heal itself is temporarily unavailable.
+    log.warn("Reel inventory publication self-heal failed", {
+      err: err instanceof Error ? err.message.slice(0, 240) : String(err).slice(0, 240),
+    });
+  }
+
   const inventoryItems = await db
     .select()
     .from(socialContentInventory)
@@ -1509,25 +1533,60 @@ export async function syncSocialMetrics(): Promise<{ matched: number; updated: n
     .select()
     .from(instagramAnalytics);
 
+  // Reels have a durable exact identity chain. Prefer it over captions:
+  // inventory.id === reel_jobs.briefId -> reel_jobs.igPostId ->
+  // instagram_analytics.postId. Caption matching remains only as legacy/static
+  // fallback because captions are editable and can legitimately collide.
+  const publishedReelJobs = await db
+    .select({
+      briefId: reelJobs.briefId,
+      igPostId: reelJobs.igPostId,
+    })
+    .from(reelJobs)
+    .where(and(
+      inArray(reelJobs.status, ["posted", "published"]),
+      isNotNull(reelJobs.igPostId),
+    ));
+  const reelPostIdByBrief = new Map(
+    publishedReelJobs
+      .filter((job): job is typeof job & { igPostId: string } => Boolean(job.igPostId))
+      .map((job) => [job.briefId, job.igPostId]),
+  );
+  const analyticsByPostId = new Map(
+    analyticsPosts.map((post) => [post.postId, post]),
+  );
+
   let matched = 0;
   let updated = 0;
 
   const cleanText = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
 
   for (const item of inventoryItems) {
-    const matchingPost = analyticsPosts.find((post) => {
+    const exactReelPostId = item.contentType === "reel"
+      ? reelPostIdByBrief.get(item.id)
+      : undefined;
+    const exactReelPost = exactReelPostId
+      ? analyticsByPostId.get(exactReelPostId)
+      : undefined;
+
+    // A durable Reel media id is authoritative. If ingestion has not produced
+    // that exact analytics row yet, metrics are PENDING — never borrow an older
+    // post merely because its caption happens to collide.
+    const matchingPost = exactReelPostId
+      ? exactReelPost
+      : analyticsPosts.find((post) => {
       if (!post.caption) return false;
       const cleanCaption = cleanText(post.caption);
 
-      // Match 1: caption contains clean hookText
+      // Legacy/static fallback 1: caption contains clean hookText.
       if (item.hookText && cleanCaption.includes(cleanText(item.hookText))) {
         return true;
       }
-      // Match 2: caption contains clean bodyText
+      // Legacy/static fallback 2: caption contains clean bodyText.
       if (item.bodyText && cleanCaption.includes(cleanText(item.bodyText))) {
         return true;
       }
-      // Match 3: keyword match + content type alignment
+      // Legacy/static fallback 3: keyword match + content type alignment.
       if (item.interactiveDmKeyword && item.interactiveDmKeyword.length > 2) {
         const cleanKeyword = cleanText(item.interactiveDmKeyword);
         if (cleanCaption.includes(cleanKeyword)) {

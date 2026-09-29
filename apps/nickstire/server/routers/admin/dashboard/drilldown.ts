@@ -173,16 +173,24 @@ export const drilldownProcedures = {
               .orderBy(desc(algEstimates.estimatedAmount))
               .limit(input.limit);
             const total = rows.reduce((s: number, r: { estimatedAmount: number }) => s + r.estimatedAmount, 0);
+            // Q-37 · each row says whether the decline was captured at the
+            // counter or inferred from no matching invoice.
+            const { readDeclineCaptures } = await import("../../../services/declineCaptures");
+            const { declineProvenance, countDeclineProvenance, DECLINE_PROVENANCE_LABEL } = await import("../../../../shared/declineProvenance");
+            const captures = await readDeclineCaptures(rows.map((r: { id: number }) => r.id));
+            const split = countDeclineProvenance(rows.map((r: { id: number }) => r.id), captures);
             return {
               title: "Walk-Away Estimates",
-              subtitle: `${rows.length} unmatched · $${Math.round(total / 100).toLocaleString()} on the table`,
+              subtitle: captures.status === "error"
+                ? `${rows.length} unmatched · $${Math.round(total / 100).toLocaleString()} on the table · counter/inferred split unknown`
+                : `${rows.length} unmatched · $${Math.round(total / 100).toLocaleString()} on the table · ${split.counter} confirmed at counter, ${split.inferred} inferred`,
               rows: rows.map((r: { id: number; customerName: string; customerPhone: string | null; vehicleInfo: string | null; serviceDescription: string | null; estimatedAmount: number; estimateDate: Date }) => {
                 const days = Math.floor((Date.now() - new Date(r.estimateDate).getTime()) / 86_400_000);
                 return {
                   id: r.id,
                   primary: r.customerName,
                   secondary: r.customerPhone || r.vehicleInfo || "—",
-                  meta: r.serviceDescription?.slice(0, 80) || "",
+                  meta: [DECLINE_PROVENANCE_LABEL[declineProvenance(r.id, captures)], r.serviceDescription?.slice(0, 80)].filter(Boolean).join(" · "),
                   value: `$${Math.round(r.estimatedAmount / 100).toLocaleString()} · ${days}d ago`,
                 };
               }),

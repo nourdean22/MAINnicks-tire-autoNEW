@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-epdm-belt-wear-no-cracks",
+  "title": "A Serpentine Belt Can Be Worn Without Looking Cracked",
+  "topic": "Modern EPDM serpentine belts can wear through rib material loss without dramatic cracking",
+  "mechanicTruth": "Modern EPDM serpentine belts resist visible cracking, so crack-counting alone can miss wear; rib material loss and profile change, along with tensioner and pulley condition, are more useful inspection clues.",
+  "campaignKeyword": "NOISE",
+  "hookText": "ZERO CRACKS",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "Gates EPDM belt-wear guidance",
+      "kind": "proof",
+      "supports": "Modern EPDM serpentine belts resist visible cracking, so crack-counting alone can miss wear; rib material loss and profile change, along with tensioner and pulley condition, are more useful inspection clues."
+    }
+  ],
+  "videoPrompt": "Macro comparison of new and worn EPDM rib profiles plus accurate pulley contact. Prefer real belts.",
+  "modelRecommendation": "Real belts and macro lens; cheapest short macro model only if filler is unavoidable.",
+  "creditEfficiencyNote": "Target 0 credits. Stationary product macro does not justify a flagship model.",
+  "distribution": "organic_first",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "ZERO CRACKS",
+      "narration": "Modern EPDM serpentine belts can resist visible cracking even as they wear.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "HEALTHY?",
+      "narration": "Rib material loss and profile change can tell more than crack-counting alone.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "EPDM RESISTS CRACKING",
+      "narration": "The tensioner and pulleys matter too, because the belt works as a system.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "RIB MATERIAL WEARS",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "BELT + TENSIONER + PULLEYS",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "Modern EPDM serpentine belts can resist visible cracking even as they wear. Rib material loss and profile change can tell more than crack-counting alone. The tensioner and pulleys matter too, because the belt works as a system.",
+  "selectedCaption": "No cracks does not automatically equal no wear on a modern EPDM serpentine belt. Rib profile, material loss, tensioner, and pulleys all belong in the inspection.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from cold-start belt squeal: this is how modern EPDM wear can hide without dramatic cracks."
+}

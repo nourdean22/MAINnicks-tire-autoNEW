@@ -57,13 +57,15 @@ export async function reconcileAmbiguousPublishes(
     leftForOperator: [],
   };
 
-  const { findUnreconciledAttempts } = await import("./publishAttemptLedger");
+  const { findUnreconciledAttempts, recordPublishOutcome, OUTCOME } = await import("./publishAttemptLedger");
   const { reconcileAttempt, applyReconciliation } = await import("./publishReconciler");
 
   const open = await findUnreconciledAttempts(RECONCILE_MIN_AGE_MINUTES);
   // Reel jobs only. A scheduled post is a different target with its own
   // closure path, and reconciling it from here would write the wrong table.
-  const reelAttempts = open.filter((a) => a.kind === "reel_job" && a.jobId != null).slice(0, maxPerRun);
+  const reelAttempts = open
+    .filter((a) => a.kind === "reel_job" && a.jobId != null && !a.operatorRequired)
+    .slice(0, maxPerRun);
 
   for (const attempt of reelAttempts) {
     out.checked++;
@@ -73,6 +75,7 @@ export async function reconcileAmbiguousPublishes(
       const verdict = await reconcileAttempt({
         attemptId: attempt.attemptId,
         attemptedAt: attempt.occurredAt,
+        expectedCaption: attempt.expectedCaption,
       });
 
       if (verdict.status === "resolved_published") {
@@ -114,9 +117,34 @@ export async function reconcileAmbiguousPublishes(
         continue;
       }
 
-      // needs_operator | cannot_check — a real judgement call or no evidence.
-      out.leftForOperator.push({ jobId: attempt.jobId, why: verdict.status });
-      log.warn("ambiguous publish needs a human", {
+      // A true judgement case, or a history window that can never become wider,
+      // is a durable HANDOFF — not a reason to spend another Graph read every
+      // 15 minutes forever. OPERATOR_REQUIRED deliberately does not resolve the
+      // attempt, so Action Center keeps showing it until a person settles it.
+      const permanentlyNeedsOperator =
+        verdict.status === "needs_operator"
+        || (verdict.status === "cannot_check" && verdict.reason === "history_window_exhausted");
+      if (permanentlyNeedsOperator) {
+        await recordPublishOutcome(attempt.attemptId, OUTCOME.operatorRequired, {
+          error: `auto-reconcile handed to operator: ${verdict.detail}`.slice(0, 500),
+          platformResults: {
+            detail: verdict.detail,
+            candidates: verdict.status === "needs_operator" ? verdict.candidates : [],
+            handoffReason: verdict.status === "cannot_check" ? verdict.reason : verdict.status,
+          },
+        });
+        out.leftForOperator.push({ jobId: attempt.jobId, why: verdict.status });
+        log.warn("ambiguous publish handed to human resolution", {
+          jobId: attempt.jobId, attemptId: attempt.attemptId, status: verdict.status, detail: verdict.detail,
+        });
+        continue;
+      }
+
+      // Transient read failure: DO retry on a future pulse. Turning token/API
+      // unavailability into OPERATOR_REQUIRED would freeze a case automation
+      // may be able to settle as soon as Meta recovers.
+      out.leftForOperator.push({ jobId: attempt.jobId, why: "retry_later" });
+      log.warn("ambiguous publish temporarily unverifiable; will retry", {
         jobId: attempt.jobId, attemptId: attempt.attemptId, status: verdict.status, detail: verdict.detail,
       });
     } catch (err) {

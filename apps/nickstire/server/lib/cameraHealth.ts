@@ -1,35 +1,31 @@
 /**
  * Camera health LATTICE -> one user-facing state, without losing the dimensions.
  *
- * Every dimension is judged on its own and kept (`facets`); the headline `state`
- * is the FIRST failing dimension in a fixed precedence, so the operator reads one
- * word and the panel still shows why. Precedence, most fundamental first:
+ * Camera role changes what "healthy" means:
  *
- *   NEVER_INGESTED      no heartbeat has ever arrived for an expected camera
- *   PRODUCER_OFFLINE    heartbeat older than `offlineAfterSeconds`
- *   STALE               heartbeat older than `staleAfterSeconds` (not yet offline)
- *   CAMERA_OFFLINE      producer alive, no usable source / no healthy frame
- *   CALIBRATION_INVALID pixels exist, geometry cannot authorise an arrival
- *   DEGRADED_VISION     frames usable but the capture is frozen / looping
- *   CLOUD_BACKLOG       sensing fine, durable queue not draining
- *   HEALTHY
+ * fixed_geometry
+ *   producer -> source -> frames -> pose/calibration -> vision -> cloud
  *
- * Two rules the old visit-derived health could not honour:
- *   - a quiet lot is HEALTHY: zero visits never appears in this function;
- *   - nothing ever says HEALTHY while frames are stale, and frame age is judged
- *     against the PRODUCER's clock (`observedAtEdge`), so a late heartbeat does
- *     not make the frames look stale twice.
+ * interaction_ptz
+ *   producer -> auth -> semantic events -> P2P control -> media -> home pose -> cloud
  *
- * All inputs are epoch seconds or plain values. Dates are parsed by SQL
- * (`UNIX_TIMESTAMP(...)`), never in JS: driver-parsed TiDB TIMESTAMPs are the
- * class of bug this app has already paid for.
+ * A movable office camera is deliberately NOT judged on vehicle calibration, and a fixed
+ * vehicle-truth camera is deliberately NOT judged on PTZ. This keeps authority aligned
+ * with the job each camera is allowed to do.
  */
+import type { CameraHealthProfile } from "../../shared/cameras";
 
 const CAMERA_STATES = [
   "NEVER_INGESTED",
   "PRODUCER_OFFLINE",
   "STALE",
   "CAMERA_OFFLINE",
+  "AUTH_DEGRADED",
+  "EVENTS_DEGRADED",
+  "CONTROL_DEGRADED",
+  "MEDIA_DEGRADED",
+  "PTZ_HOME_INVALID",
+  "UNVERIFIED_CAPABILITIES",
   "CALIBRATION_INVALID",
   "DEGRADED_VISION",
   "CLOUD_BACKLOG",
@@ -54,22 +50,40 @@ interface RuntimeSnapshot {
   /** Producer clock at heartbeat time, epoch seconds. */
   observedAtEdgeEpoch: number | null;
   receivedAtEpoch: number | null;
+
+  /** Fixed-geometry / generic capture dimensions. */
   sourceConnected: boolean | null;
   lastHealthyFrameAtEpoch: number | null;
   frameOk: boolean | null;
   poseOk: boolean | null;
   calibrationVersion: string | null;
+
+  /** Interaction/PTZ transport dimensions. Null means NOT PROVEN, never success. */
+  authPlaneOk?: boolean | null;
+  eventPlaneOk?: boolean | null;
+  controlPlaneOk?: boolean | null;
+  mediaPlaneOk?: boolean | null;
+  ptzHomeOk?: boolean | null;
+
   outboxDepth: number | null;
   oldestOutboxAgeSeconds: number | null;
   deadLetterDepth: number | null;
 }
 
+type RequirementFacet = "ok" | "down" | "unknown" | "not_required";
+type HomeFacet = "ok" | "invalid" | "unknown" | "not_required";
+
 interface HealthFacets {
   producer: "alive" | "stale" | "offline" | "never";
-  source: "connected" | "disconnected" | "unknown";
-  frames: "fresh" | "stale" | "unhealthy" | "unknown";
-  pose: "ok" | "invalid" | "unknown";
-  calibration: "valid" | "missing";
+  source: "connected" | "disconnected" | "unknown" | "not_required";
+  frames: "fresh" | "stale" | "unhealthy" | "unknown" | "not_required";
+  pose: "ok" | "invalid" | "unknown" | "not_required";
+  calibration: "valid" | "missing" | "not_required";
+  auth: RequirementFacet;
+  events: RequirementFacet;
+  control: RequirementFacet;
+  media: RequirementFacet;
+  home: HomeFacet;
   cloud: "ok" | "backlog" | "dead_letters" | "unknown";
 }
 
@@ -80,11 +94,39 @@ interface HealthVerdict {
   reason: string;
 }
 
-export function deriveCameraState(r: RuntimeSnapshot | null): HealthVerdict {
+function requirement(value: boolean | null | undefined): RequirementFacet {
+  return value === true ? "ok" : value === false ? "down" : "unknown";
+}
+
+function homeRequirement(value: boolean | null | undefined): HomeFacet {
+  return value === true ? "ok" : value === false ? "invalid" : "unknown";
+}
+
+function neverFacets(profile: CameraHealthProfile): HealthFacets {
+  const interaction = profile === "interaction_ptz";
+  return {
+    producer: "never",
+    source: interaction ? "not_required" : "unknown",
+    frames: interaction ? "not_required" : "unknown",
+    pose: interaction ? "not_required" : "unknown",
+    calibration: interaction ? "not_required" : "missing",
+    auth: interaction ? "unknown" : "not_required",
+    events: interaction ? "unknown" : "not_required",
+    control: interaction ? "unknown" : "not_required",
+    media: interaction ? "unknown" : "not_required",
+    home: interaction ? "unknown" : "not_required",
+    cloud: "unknown",
+  };
+}
+
+export function deriveCameraState(
+  r: RuntimeSnapshot | null,
+  profile: CameraHealthProfile = "fixed_geometry",
+): HealthVerdict {
   if (r === null || r.receivedAtEpoch === null) {
     return {
       state: "NEVER_INGESTED",
-      facets: { producer: "never", source: "unknown", frames: "unknown", pose: "unknown", calibration: "missing", cloud: "unknown" },
+      facets: neverFacets(profile),
       reason: "no heartbeat has ever been received for this camera",
     };
   }
@@ -93,6 +135,84 @@ export function deriveCameraState(r: RuntimeSnapshot | null): HealthVerdict {
 
   const producer: HealthFacets["producer"] =
     age === null ? "stale" : age > T.offlineAfterSeconds ? "offline" : age > T.staleAfterSeconds ? "stale" : "alive";
+
+  let cloud: HealthFacets["cloud"] = "unknown";
+  // Real producer semantics: an EMPTY outbox has no oldest row, so
+  // oldestOutboxAgeSeconds=null is the correct/healthy representation when depth=0.
+  // For a NON-empty queue, age must be measured before delivery health is proven.
+  const queueProofComplete =
+    r.outboxDepth !== null &&
+    r.deadLetterDepth !== null &&
+    (r.outboxDepth === 0 || r.oldestOutboxAgeSeconds !== null);
+  if (r.deadLetterDepth !== null && r.deadLetterDepth > 0) cloud = "dead_letters";
+  else if (
+    r.outboxDepth !== null &&
+    r.outboxDepth > 0 &&
+    r.oldestOutboxAgeSeconds !== null &&
+    r.oldestOutboxAgeSeconds > T.backlogWarnSeconds
+  ) cloud = "backlog";
+  else if (queueProofComplete) cloud = "ok";
+
+  if (profile === "interaction_ptz") {
+    const facets: HealthFacets = {
+      producer,
+      source: "not_required",
+      frames: "not_required",
+      pose: "not_required",
+      calibration: "not_required",
+      auth: requirement(r.authPlaneOk),
+      events: requirement(r.eventPlaneOk),
+      control: requirement(r.controlPlaneOk),
+      media: requirement(r.mediaPlaneOk),
+      home: homeRequirement(r.ptzHomeOk),
+      cloud,
+    };
+
+    if (producer === "offline") {
+      return { state: "PRODUCER_OFFLINE", facets, reason: `last heartbeat ${Math.round(age ?? 0)}s ago (offline after ${T.offlineAfterSeconds}s)` };
+    }
+    if (producer === "stale") {
+      return { state: "STALE", facets, reason: age === null ? "heartbeat age unknown" : `last heartbeat ${Math.round(age)}s ago (stale after ${T.staleAfterSeconds}s)` };
+    }
+    if (facets.auth === "down") {
+      return { state: "AUTH_DEGRADED", facets, reason: "Eufy bridge is reachable but its authenticated control session is not healthy" };
+    }
+    if (facets.events === "down") {
+      return { state: "EVENTS_DEGRADED", facets, reason: "semantic motion/person event stream is disconnected" };
+    }
+    if (facets.control === "down") {
+      return { state: "CONTROL_DEGRADED", facets, reason: "PTZ/P2P control has a measured failure" };
+    }
+    if (facets.media === "down") {
+      return { state: "MEDIA_DEGRADED", facets, reason: "camera media path has a measured failure" };
+    }
+    if (facets.home === "invalid") {
+      return { state: "PTZ_HOME_INVALID", facets, reason: "PTZ moved but has not been proven back at the calibrated home view" };
+    }
+    if (cloud === "dead_letters" || cloud === "backlog") {
+      return {
+        state: "CLOUD_BACKLOG",
+        facets,
+        reason: cloud === "dead_letters"
+          ? `${r.deadLetterDepth} dead-lettered event(s) need attention`
+          : `oldest unsent event is ${r.oldestOutboxAgeSeconds}s old`,
+      };
+    }
+
+    const required = [facets.auth, facets.events, facets.control, facets.media, facets.home];
+    if (required.includes("unknown")) {
+      return {
+        state: "UNVERIFIED_CAPABILITIES",
+        facets,
+        reason: "one or more required interaction-camera planes have not been physically proven yet",
+      };
+    }
+    return {
+      state: "HEALTHY",
+      facets,
+      reason: "producer, auth, events, P2P control, media, PTZ home and delivery are proven healthy",
+    };
+  }
 
   const source: HealthFacets["source"] =
     r.sourceConnected === null ? "unknown" : r.sourceConnected ? "connected" : "disconnected";
@@ -112,13 +232,19 @@ export function deriveCameraState(r: RuntimeSnapshot | null): HealthVerdict {
 
   const pose: HealthFacets["pose"] = r.poseOk === null ? "unknown" : r.poseOk ? "ok" : "invalid";
   const calibration: HealthFacets["calibration"] = r.calibrationVersion ? "valid" : "missing";
-
-  let cloud: HealthFacets["cloud"] = "unknown";
-  if (r.deadLetterDepth !== null && r.deadLetterDepth > 0) cloud = "dead_letters";
-  else if (r.oldestOutboxAgeSeconds !== null && r.oldestOutboxAgeSeconds > T.backlogWarnSeconds) cloud = "backlog";
-  else if (r.outboxDepth !== null || r.oldestOutboxAgeSeconds !== null) cloud = "ok";
-
-  const facets: HealthFacets = { producer, source, frames, pose, calibration, cloud };
+  const facets: HealthFacets = {
+    producer,
+    source,
+    frames,
+    pose,
+    calibration,
+    auth: "not_required",
+    events: "not_required",
+    control: "not_required",
+    media: "not_required",
+    home: "not_required",
+    cloud,
+  };
 
   if (producer === "offline") {
     return { state: "PRODUCER_OFFLINE", facets, reason: `last heartbeat ${Math.round(age ?? 0)}s ago (offline after ${T.offlineAfterSeconds}s)` };
@@ -156,7 +282,29 @@ export function deriveCameraState(r: RuntimeSnapshot | null): HealthVerdict {
         : `oldest unsent event is ${r.oldestOutboxAgeSeconds}s old`,
     };
   }
-  return { state: "HEALTHY", facets, reason: "producer, source, frames, pose, calibration and delivery inside SLO" };
+
+  // A fresh heartbeat is not proof that a fixed camera is healthy. Vehicle-truth
+  // authority requires positive evidence for source, frames, pose/calibration and
+  // delivery. Missing telemetry stays visibly unverified instead of silently
+  // becoming HEALTHY (which could also emit a false recovery).
+  if (
+    source === "unknown" ||
+    frames === "unknown" ||
+    pose === "unknown" ||
+    cloud === "unknown"
+  ) {
+    return {
+      state: "UNVERIFIED_CAPABILITIES",
+      facets,
+      reason: "one or more required fixed-camera health facets have not been proven yet",
+    };
+  }
+
+  return {
+    state: "HEALTHY",
+    facets,
+    reason: "producer, source, frames, pose, calibration and delivery inside SLO",
+  };
 }
 
 /**
@@ -164,6 +312,9 @@ export function deriveCameraState(r: RuntimeSnapshot | null): HealthVerdict {
  * trivially alive at that instant, so age is 0 by construction. The read side
  * re-derives with the real age.
  */
-export function deriveStateAtIngest(r: Omit<RuntimeSnapshot, "ageSeconds">): HealthVerdict {
-  return deriveCameraState({ ...r, ageSeconds: 0 });
+export function deriveStateAtIngest(
+  r: Omit<RuntimeSnapshot, "ageSeconds">,
+  profile: CameraHealthProfile = "fixed_geometry",
+): HealthVerdict {
+  return deriveCameraState({ ...r, ageSeconds: 0 }, profile);
 }

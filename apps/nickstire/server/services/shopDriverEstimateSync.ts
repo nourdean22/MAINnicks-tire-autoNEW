@@ -1,15 +1,15 @@
 /**
- * ShopDriver Estimate Mirror — ALG walk-in estimates (declined work)
+ * ShopDriver Estimate Mirror Ã¢â‚¬â€ ALG walk-in estimates (declined work)
  *
  * In ALG / ShopDriver Elite, an ESTIMATE = a customer walked into the shop,
  * got a physical quote, and did NOT get the work done. That is a declined
- * sale — a recovery opportunity.
+ * sale Ã¢â‚¬â€ a recovery opportunity.
  *
  * This service:
  *   - Pulls estimates from ShopDriver's /api/Estimate/* endpoints using the
  *     same JWT session pattern as shopDriverMirror.ts (authSession reused).
  *   - Upserts into the `alg_estimates` table keyed by externalId.
- *   - Matches estimates against the `invoices` table (phone + ±10% amount
+ *   - Matches estimates against the `invoices` table (phone + Ã‚Â±10% amount
  *     + within 30d) to flag which ones converted. Unmatched estimates = lost
  *     sales that the declined-work-recovery cron will follow up on.
  *   - Never destroys follow_up_7d_sent / follow_up_30d_sent flags on update.
@@ -18,24 +18,25 @@
  * in the scheduler. Probing ShopDriver kicks the shop counter's live session.
  *
  * Companion files:
- *   - drizzle/schema.ts              — `algEstimates` table definition
- *   - drizzle/0027_alg_estimates.sql — migration
- *   - server/cron/scheduler.ts       — pulse-tier wiring (15 min)
- *   - server/admin-stats.ts          — consumer of real conversion math
- *   - server/cron/jobs/declinedWorkRecovery.ts — 7d/30d SMS follow-ups
+ *   - drizzle/schema.ts              Ã¢â‚¬â€ `algEstimates` table definition
+ *   - drizzle/0027_alg_estimates.sql Ã¢â‚¬â€ migration
+ *   - server/cron/scheduler.ts       Ã¢â‚¬â€ pulse-tier wiring (15 min)
+ *   - server/admin-stats.ts          Ã¢â‚¬â€ consumer of real conversion math
+ *   - server/cron/jobs/declinedWorkRecovery.ts Ã¢â‚¬â€ 7d/30d SMS follow-ups
  */
 
-import { eq, and, gte, lte, isNull, sql, desc, asc } from "drizzle-orm";
+import { eq, and, gte, gt, lte, isNull, sql, desc, asc } from "drizzle-orm";
 import { DECLINED_RECOVERY_WINDOW_DAYS } from "@shared/const";
 import { createLogger } from "../lib/logger";
 import { normalizePhone } from "../lib/phone";
+import { affectedRowCount } from "../lib/db-affected";
 
 const log = createLogger("shopdriver-estimate-sync");
 
 const SHOPDRIVER_BASE = "https://secure.autolaborexperts.com";
 const SHOPDRIVER_API = "https://8DD0FCE9-80F9-4A9E-B0C3-CF76825AD9B7.autolaborexperts.com";
 
-// ─── STATE ──────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ STATE Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 let lastEstimateSync: Date | null = null;
 let consecutiveEstimateFailures = 0;
@@ -45,10 +46,10 @@ export function getLastEstimateSync(): Date | null {
   return lastEstimateSync;
 }
 
-// ─── SESSION REUSE ──────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ SESSION REUSE Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // We authenticate against ShopDriver ourselves to avoid depending on
 // shopDriverMirror's private module state. The endpoints + session flow
-// are identical so the shop-session impact is the same — runIfAdminActive
+// are identical so the shop-session impact is the same Ã¢â‚¬â€ runIfAdminActive
 // gates us before we ever call this.
 
 let sessionToken: string | null = null;
@@ -119,7 +120,7 @@ function buildHeaders(token: string): Record<string, string> {
   };
 }
 
-// ─── TYPES ──────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ TYPES Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 interface RawEstimate {
   externalId: string;
@@ -131,7 +132,7 @@ interface RawEstimate {
   estimateDate: Date;
 }
 
-// ─── FETCH ──────────────────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ FETCH Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 function parseDollarsToCents(input: unknown): number {
   if (typeof input === "number") return Math.round(input * 100);
@@ -210,12 +211,12 @@ function normalizeEstimateJson(raw: Record<string, unknown>): RawEstimate | null
  * This is the primary path now that we know the API response shape.
  *
  * Key field map:
- *   - external_id ← String(estimateNumber) when present, else ticketId
- *   - estimateDate ← raw.estimateDate (ALG sets this even on tickets
+ *   - external_id Ã¢â€ Â String(estimateNumber) when present, else ticketId
+ *   - estimateDate Ã¢â€ Â raw.estimateDate (ALG sets this even on tickets
  *     that later become invoices, so it captures the original quote
- *     date — perfect for declined-work-recovery cron timing)
- *   - estimatedAmount ← raw.total (in dollars, multiply by 100)
- *   - vehicle ← year + make + model (denormalized in this endpoint)
+ *     date Ã¢â‚¬â€ perfect for declined-work-recovery cron timing)
+ *   - estimatedAmount Ã¢â€ Â raw.total (in dollars, multiply by 100)
+ *   - vehicle Ã¢â€ Â year + make + model (denormalized in this endpoint)
  */
 function normalizeTicketAsEstimate(raw: Record<string, unknown>): RawEstimate {
   const estimateNumber = raw.estimateNumber;
@@ -264,7 +265,7 @@ function normalizeTicketAsEstimate(raw: Record<string, unknown>): RawEstimate {
 }
 
 async function fetchEstimates(token: string): Promise<RawEstimate[]> {
-  // ─── PRIMARY PATH (wave-97 + wave-98 pagination): /api/ticket/listRecentTickets ──
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ PRIMARY PATH (wave-97 + wave-98 pagination): /api/ticket/listRecentTickets Ã¢â€â‚¬Ã¢â€â‚¬
   // The mirror service uses this same endpoint to pull invoices. It
   // returns BOTH invoices (ticketType=0) and estimates (ticketType=1)
   // mixed together. We filter for estimate-type rows and route them
@@ -284,10 +285,10 @@ async function fetchEstimates(token: string): Promise<RawEstimate[]> {
         `${SHOPDRIVER_API}/api/ticket/listRecentTickets?pageNumber=${page}&pageSize=${PAGE_SIZE}`,
         { headers: buildHeaders(token), signal: AbortSignal.timeout(30000) }
       );
-      log.info(`Estimate primary probe: page ${page} → ${res.status}`);
+      log.info(`Estimate primary probe: page ${page} Ã¢â€ â€™ ${res.status}`);
       if (!res.ok) {
         if (page === 1) break;
-        // Mid-pagination failure — keep what we have
+        // Mid-pagination failure Ã¢â‚¬â€ keep what we have
         break;
       }
       if (!(res.headers.get("content-type") || "").includes("application/json")) break;
@@ -303,7 +304,7 @@ async function fetchEstimates(token: string): Promise<RawEstimate[]> {
         const est = t.estimateNumber;
         return (inv == null || inv === 0) && est != null && est !== 0;
       });
-      log.info(`Page ${page}: ${tickets.length} tickets · ${estimateTickets.length} estimates`);
+      log.info(`Page ${page}: ${tickets.length} tickets Ã‚Â· ${estimateTickets.length} estimates`);
       collected.push(...estimateTickets.map((t) => normalizeTicketAsEstimate(t)));
 
       // Last page reached
@@ -323,7 +324,7 @@ async function fetchEstimates(token: string): Promise<RawEstimate[]> {
     return collected;
   }
 
-  // Endpoint probe order — different ShopDriver tenants expose different
+  // Endpoint probe order Ã¢â‚¬â€ different ShopDriver tenants expose different
   // names. The primary candidates came from SPA bundle inspection. As of
   // 2026-05-05 production probe returned 0 results from the original 4
   // candidates, so we expanded the list significantly. If JSON probe
@@ -334,12 +335,12 @@ async function fetchEstimates(token: string): Promise<RawEstimate[]> {
     "/api/ticket/listEstimates?pageNumber=1&pageSize=500",
     "/api/Estimate/list?pageNumber=1&pageSize=500",
     "/api/Report/listEstimates?pageNumber=1&pageSize=500",
-    // Common ShopDriver patterns — different tenants expose different names
+    // Common ShopDriver patterns Ã¢â‚¬â€ different tenants expose different names
     "/api/Ticket/listOpenEstimates?pageNumber=1&pageSize=500",
     "/api/Estimate/listOpen?pageNumber=1&pageSize=500",
     "/api/Estimates?pageNumber=1&pageSize=500",
     "/api/Customer/listEstimates?pageNumber=1&pageSize=500",
-    // Date-range variants — some tenants require dates
+    // Date-range variants Ã¢â‚¬â€ some tenants require dates
     `/api/Estimate/list?fromDate=${dateNDaysAgo(60)}&toDate=${todayISO()}`,
     `/api/ticket/listEstimates?fromDate=${dateNDaysAgo(60)}&toDate=${todayISO()}`,
     // Singular without "/list"
@@ -358,10 +359,10 @@ async function fetchEstimates(token: string): Promise<RawEstimate[]> {
         headers: buildHeaders(token),
         signal: AbortSignal.timeout(30000),
       });
-      log.info(`Estimate endpoint probe: ${endpoint} → ${res.status} ${res.headers.get("content-type") || "no-type"}`);
+      log.info(`Estimate endpoint probe: ${endpoint} Ã¢â€ â€™ ${res.status} ${res.headers.get("content-type") || "no-type"}`);
 
       if (res.status === 401 || res.status === 403) {
-        // Token kicked — clear and bail; the scheduler will retry next tier.
+        // Token kicked Ã¢â‚¬â€ clear and bail; the scheduler will retry next tier.
         sessionToken = null;
         sessionExpiresAt = 0;
         log.warn(`Estimate endpoint returned ${res.status}; session invalidated`);
@@ -403,12 +404,12 @@ async function fetchEstimates(token: string): Promise<RawEstimate[]> {
     }
   }
 
-  // ─── HTML SCRAPE FALLBACK ──────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ HTML SCRAPE FALLBACK Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   // None of the JSON endpoints returned data. Try scraping the ALG portal's
   // Estimates page HTML. The portal renders estimates as a server-side
   // table; we extract rows via regex. Less reliable than JSON but better
   // than empty.
-  log.info("All JSON endpoints empty/failed — trying HTML scrape fallback");
+  log.info("All JSON endpoints empty/failed Ã¢â‚¬â€ trying HTML scrape fallback");
   try {
     const htmlEstimates = await fetchEstimatesViaHtml(token);
     if (htmlEstimates.length > 0) {
@@ -425,10 +426,10 @@ async function fetchEstimates(token: string): Promise<RawEstimate[]> {
   return [];
 }
 
-// ─── ESTIMATE ENDPOINT DIAGNOSTIC ──────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ ESTIMATE ENDPOINT DIAGNOSTIC Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // Pings every JSON + HTML endpoint candidate and returns what each one
 // said. Used by admin "Discover Estimate Endpoints" button. Doesn't
-// upsert — just observes — so it's safe to run for diagnostics.
+// upsert Ã¢â‚¬â€ just observes Ã¢â‚¬â€ so it's safe to run for diagnostics.
 //
 // Returns the actual status code, content-type, body sample, and item
 // count for each candidate. Lets us figure out which endpoint name
@@ -451,7 +452,7 @@ export async function probeEstimateEndpoints(): Promise<Array<{
       contentType: "auth_failed",
       bytes: 0,
       itemCount: null,
-      firstChars: "Authentication failed — could not get session token",
+      firstChars: "Authentication failed Ã¢â‚¬â€ could not get session token",
     }];
   }
 
@@ -582,7 +583,7 @@ export async function probeEstimateEndpoints(): Promise<Array<{
   return results;
 }
 
-// ─── HTML SCRAPE FALLBACK ─────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ HTML SCRAPE FALLBACK Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // When none of the JSON endpoints work, we fall back to scraping the
 // ALG portal's Estimates page. The portal is a SPA but server-renders
 // the initial table for SEO, so we can extract via regex.
@@ -600,7 +601,7 @@ function todayISO(): string {
  * Last-resort HTML scrape of the ALG Estimates page.
  * Tries multiple URL patterns + extracts table rows via regex.
  *
- * NOTE: this is fragile by nature — DOM structure can change without
+ * NOTE: this is fragile by nature Ã¢â‚¬â€ DOM structure can change without
  * notice. Per probe, log the first 500 chars of HTML so we can debug
  * when ShopDriver redesigns the page.
  */
@@ -608,7 +609,7 @@ async function fetchEstimatesViaHtml(token: string): Promise<RawEstimate[]> {
   // /recent is the proven page (operator screenshot 2026-05-07). It mixes
   // Invoice# + Estimate# rows in nested <table> blocks. We extract only
   // Estimate# rows here. The /Estimate/* URLs are SPA route guesses that
-  // historically returned empty bodies — kept as last-resort fallbacks.
+  // historically returned empty bodies Ã¢â‚¬â€ kept as last-resort fallbacks.
   const htmlEndpoints = [
     `${SHOPDRIVER_BASE}/recent`,
     `${SHOPDRIVER_BASE}/Estimate/list`,
@@ -628,7 +629,7 @@ async function fetchEstimatesViaHtml(token: string): Promise<RawEstimate[]> {
         redirect: "follow",
         signal: AbortSignal.timeout(20000),
       });
-      log.info(`HTML scrape probe: ${url} → ${res.status}`);
+      log.info(`HTML scrape probe: ${url} Ã¢â€ â€™ ${res.status}`);
       if (!res.ok) continue;
 
       const html = await res.text();
@@ -638,7 +639,7 @@ async function fetchEstimatesViaHtml(token: string): Promise<RawEstimate[]> {
 
       const rows: RawEstimate[] = [];
 
-      // ─── Pattern 0 — /recent page format (nested <table> blocks) ──
+      // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Pattern 0 Ã¢â‚¬â€ /recent page format (nested <table> blocks) Ã¢â€â‚¬Ã¢â€â‚¬
       // The proven format from operator's 2026-05-07 screenshot. Each
       // ticket block contains "Invoice# XXXX" or "Estimate# XXXX",
       // customer "LASTNAME, FIRSTNAME", vehicle, date, total.
@@ -655,7 +656,7 @@ async function fetchEstimatesViaHtml(token: string): Promise<RawEstimate[]> {
             .trim();
 
           const estimateMatch = text.match(/Estimate#\s*(\d+)/i);
-          if (!estimateMatch) continue; // skip Invoice# blocks — those go to invoices mirror
+          if (!estimateMatch) continue; // skip Invoice# blocks Ã¢â‚¬â€ those go to invoices mirror
 
           const estimateNum = estimateMatch[1];
           const nameMatch = text.match(/([A-Z][A-Za-z'\-]+,\s*[A-Z][A-Za-z'\-\s]+)/);
@@ -686,7 +687,7 @@ async function fetchEstimatesViaHtml(token: string): Promise<RawEstimate[]> {
         continue;
       }
 
-      // ─── Pattern 1 — explicit data-estimate-id rows on /Estimate pages ──
+      // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Pattern 1 Ã¢â‚¬â€ explicit data-estimate-id rows on /Estimate pages Ã¢â€â‚¬Ã¢â€â‚¬
       const rowPattern = /<tr[^>]*data-(?:estimate|ticket)-id="([^"]+)"[^>]*>([\s\S]*?)<\/tr>/gi;
       let m: RegExpExecArray | null;
       while ((m = rowPattern.exec(html)) !== null) {
@@ -730,7 +731,7 @@ async function fetchEstimatesViaHtml(token: string): Promise<RawEstimate[]> {
   return [];
 }
 
-// ─── DB UPSERT + MATCHING ──────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ DB UPSERT + MATCHING Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 interface UpsertResult {
   created: number;
@@ -765,9 +766,9 @@ async function upsertEstimates(rawEstimates: RawEstimate[]): Promise<UpsertResul
         .where(eq(algEstimates.externalId, est.externalId))
         .limit(1);
 
-      // Try to find a matching invoice — only if estimate has a phone.
-      // Heuristic: same customerPhone, amount within ±10%, invoiceDate in
-      // [estimateDate, estimateDate + 30d]. The ±10% fudge handles tax /
+      // Try to find a matching invoice Ã¢â‚¬â€ only if estimate has a phone.
+      // Heuristic: same customerPhone, amount within Ã‚Â±10%, invoiceDate in
+      // [estimateDate, estimateDate + 30d]. The Ã‚Â±10% fudge handles tax /
       // part substitutions between quote and final invoice.
       let matchedInvoiceId: number | null = null;
       let matchedAt: Date | null = null;
@@ -813,7 +814,7 @@ async function upsertEstimates(rawEstimates: RawEstimate[]): Promise<UpsertResul
         if (matchedInvoiceId) result.matchedNow++;
         else result.unmatched++;
       } else {
-        // UPDATE — preserve follow_up flags; refresh core fields;
+        // UPDATE Ã¢â‚¬â€ preserve follow_up flags; refresh core fields;
         // only set matchedInvoiceId when previously null.
         const row = existing[0];
         const updates: Record<string, unknown> = {
@@ -850,10 +851,10 @@ async function upsertEstimates(rawEstimates: RawEstimate[]): Promise<UpsertResul
  * Runs inline after each sync, and is exported so a one-time backfill can
  * reach further back than the inline window.
  *
- * ★ IT WAS NOT DORMANT — IT RAN AND MATCHED NOTHING (fixed 2026-08-08).
+ * Ã¢Ëœâ€¦ IT WAS NOT DORMANT Ã¢â‚¬â€ IT RAN AND MATCHED NOTHING (fixed 2026-08-08).
  *
- * The phone predicate was `eq(invoices.customerPhone, est.customerPhone)` —
- * exact string equality — and the two tables store phones in different formats:
+ * The phone predicate was `eq(invoices.customerPhone, est.customerPhone)` Ã¢â‚¬â€
+ * exact string equality Ã¢â‚¬â€ and the two tables store phones in different formats:
  * `alg_estimates` holds E.164 (`+11234567890`) while `invoices` holds whatever
  * the mirror wrote (`(216) 555-9999`, bare 10-digit). Those never compare equal,
  * so the pass executed on every sync and found nothing, which is indistinguishable
@@ -865,7 +866,7 @@ async function upsertEstimates(rawEstimates: RawEstimate[]): Promise<UpsertResul
  * `matched_invoice_id IS NULL` as "the customer declined" and texts them. An
  * unmatched-because-unmatchable row is a customer who may have paid.
  *
- * Fixed with PHONE_MATCH_KEY_SQL + phoneMatchKey — the JS/SQL twins the rest of
+ * Fixed with PHONE_MATCH_KEY_SQL + phoneMatchKey Ã¢â‚¬â€ the JS/SQL twins the rest of
  * the app already uses. `smsPerformance.ts` carries the same repair for the same
  * reason; this is not a fourth identity rule, it is the existing one finally
  * applied here. Read-only simulation before the change: raw equality would match
@@ -907,11 +908,11 @@ export interface BackfillMatchResult {
  *
  * Two things that table settles:
  *
- * · Widening the DATE alone is not a strict improvement - 45d/+/-10% finds
+ * Ã‚Â· Widening the DATE alone is not a strict improvement - 45d/+/-10% finds
  *   FEWER unambiguous matches than 30d/+/-10%, because the extra fortnight
  *   turns one clean match into a two-candidate tie. The amount band is what
  *   was actually too tight.
- * · Dropping the amount band entirely nearly triples ambiguity (2 -> 11). An
+ * Ã‚Â· Dropping the amount band entirely nearly triples ambiguity (2 -> 11). An
  *   unrelated later invoice for the same customer then becomes a candidate,
  *   which is the false-positive the tolerance exists to prevent.
  *
@@ -936,96 +937,132 @@ export const MATCH_AMOUNT_TOLERANCE = 0.25;
 
 export async function backfillMatches(opts: BackfillMatchOptions = {}): Promise<BackfillMatchResult> {
   const dryRun = opts.dryRun ?? false;
-  const empty: BackfillMatchResult = { matched: 0, scanned: 0, skippedNoPhone: 0, ambiguous: 0, dryRun, preview: [] };
   const { getDb } = await import("../db");
   const d = await getDb();
-  if (!d) return empty;
+  // Q-37 Ã‚Â· this used to return an all-zero result, which the scheduled
+  // estimate-invoice-match job would log as "nothing to match" on a day it
+  // could not see the table at all. A matcher that did not run is a failure.
+  if (!d) throw new Error("database unavailable Ã¢â‚¬â€ estimate matcher did not run");
 
   const { algEstimates, invoices } = await import("../../drizzle/schema");
   const { PHONE_MATCH_KEY_SQL, phoneMatchKey } = await import("../lib/phoneIdentity");
   const since = new Date(Date.now() - (opts.sinceDays ?? DECLINED_RECOVERY_WINDOW_DAYS) * 24 * 60 * 60 * 1000);
 
-  const unmatched = await d
-    .select({
-      id: algEstimates.id,
-      customerPhone: algEstimates.customerPhone,
-      estimatedAmount: algEstimates.estimatedAmount,
-      estimateDate: algEstimates.estimateDate,
-    })
-    .from(algEstimates)
-    .where(and(isNull(algEstimates.matchedInvoiceId), gte(algEstimates.estimateDate, since)))
-    .limit(200);
-
+  const PAGE_SIZE = 200;
   let matched = 0;
   let skippedNoPhone = 0;
   let ambiguous = 0;
+  let scanned = 0;
+  let lastId: number | null = null;
   const preview: BackfillMatchResult["preview"] = [];
 
-  for (const est of unmatched) {
-    // The JS twin. Returns null below ten digits — a truncation or placeholder
-    // identifies nobody, and matching one would be a guess.
-    const key = phoneMatchKey(est.customerPhone);
-    if (!key) {
-      skippedNoPhone++;
-      continue;
-    }
-    const low = Math.floor(est.estimatedAmount * (1 - MATCH_AMOUNT_TOLERANCE));
-    const high = Math.ceil(est.estimatedAmount * (1 + MATCH_AMOUNT_TOLERANCE));
-    const upperDate = new Date(est.estimateDate.getTime() + MATCH_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-    // Fetch TWO, deterministically ordered, so ambiguity is detectable.
-    //
-    // This used to be `.limit(1)` with no ORDER BY: with several candidate
-    // invoices it silently took whichever row the engine returned first and
-    // marked the estimate converted against it. A wrong match is worse than a
-    // missed one - it reports an unsold estimate as sold and removes the
-    // customer from recovery outreach. Now: exactly one candidate or nothing.
-    const candidates = await d
-      .select({ id: invoices.id })
-      .from(invoices)
+  type UnmatchedEstimatePageRow = {
+    id: number;
+    customerPhone: string | null;
+    estimatedAmount: number;
+    estimateDate: Date;
+  };
+
+  // Q-37 review hardening: scan the whole recovery window, not one arbitrary
+  // 200-row slice. Keyset pagination is required because ambiguous / no-phone
+  // rows deliberately remain unmatched; offset pagination over a mutating
+  // "matched IS NULL" set would skip rows as successful matches disappear.
+  while (true) {
+    const unmatched: UnmatchedEstimatePageRow[] = await d
+      .select({
+        id: algEstimates.id,
+        customerPhone: algEstimates.customerPhone,
+        estimatedAmount: algEstimates.estimatedAmount,
+        estimateDate: algEstimates.estimateDate,
+      })
+      .from(algEstimates)
       .where(
         and(
-          // The SQL twin, normalising the stored column to the same last-10
-          // digits the JS side produced. Same pattern as smsPerformance.ts.
-          sql`${sql.raw(PHONE_MATCH_KEY_SQL("customerPhone"))} = ${key}`,
-          gte(invoices.totalAmount, low),
-          lte(invoices.totalAmount, high),
-          gte(invoices.invoiceDate, est.estimateDate),
-          lte(invoices.invoiceDate, upperDate),
+          isNull(algEstimates.matchedInvoiceId),
+          gte(algEstimates.estimateDate, since),
+          lastId === null ? undefined : gt(algEstimates.id, lastId),
         ),
       )
-      .orderBy(asc(invoices.invoiceDate))
-      .limit(2);
-    if (candidates.length > 1) {
-      // Ambiguous. Leave it unmatched and say so - a guess here corrupts the
-      // conversion number in the direction nobody would check.
-      ambiguous++;
-      continue;
-    }
-    if (candidates.length === 1) {
-      if (dryRun) {
-        preview.push({ estimateId: est.id, invoiceId: candidates[0].id, amountCents: est.estimatedAmount });
-      } else {
-        await d
-          .update(algEstimates)
-          .set({ matchedInvoiceId: candidates[0].id, matchedAt: new Date() })
-          .where(eq(algEstimates.id, est.id));
+      .orderBy(asc(algEstimates.id))
+      .limit(PAGE_SIZE);
+
+    if (unmatched.length === 0) break;
+    scanned += unmatched.length;
+
+    for (const est of unmatched) {
+      // The JS twin. Returns null below ten digits Ã¢â‚¬â€ a truncation or placeholder
+      // identifies nobody, and matching one would be a guess.
+      const key = phoneMatchKey(est.customerPhone);
+      if (!key) {
+        skippedNoPhone++;
+        continue;
       }
-      matched++;
+      const low = Math.floor(est.estimatedAmount * (1 - MATCH_AMOUNT_TOLERANCE));
+      const high = Math.ceil(est.estimatedAmount * (1 + MATCH_AMOUNT_TOLERANCE));
+      const upperDate = new Date(est.estimateDate.getTime() + MATCH_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+      // Fetch TWO, deterministically ordered, so ambiguity is detectable.
+      //
+      // This used to be `.limit(1)` with no ORDER BY: with several candidate
+      // invoices it silently took whichever row the engine returned first and
+      // marked the estimate converted against it. A wrong match is worse than a
+      // missed one - it reports an unsold estimate as sold and removes the
+      // customer from recovery outreach. Now: exactly one candidate or nothing.
+      const candidates = await d
+        .select({ id: invoices.id })
+        .from(invoices)
+        .where(
+          and(
+            // The SQL twin, normalising the stored column to the same last-10
+            // digits the JS side produced. Same pattern as smsPerformance.ts.
+            sql`${sql.raw(PHONE_MATCH_KEY_SQL("customerPhone"))} = ${key}`,
+            gte(invoices.totalAmount, low),
+            lte(invoices.totalAmount, high),
+            gte(invoices.invoiceDate, est.estimateDate),
+            lte(invoices.invoiceDate, upperDate),
+          ),
+        )
+        .orderBy(asc(invoices.invoiceDate))
+        .limit(2);
+      if (candidates.length > 1) {
+        // Ambiguous. Leave it unmatched and say so - a guess here corrupts the
+        // conversion number in the direction nobody would check.
+        ambiguous++;
+        continue;
+      }
+      if (candidates.length === 1) {
+        if (dryRun) {
+          preview.push({ estimateId: est.id, invoiceId: candidates[0].id, amountCents: est.estimatedAmount });
+          matched++;
+        } else {
+          // Q-37 Ã‚Â· compare-and-swap on the field the decision read. Two passes can
+          // now overlap (a demand probe's runEstimateMirror and the scheduled
+          // estimate-invoice-match job); an update by id alone would let the later
+          // one overwrite a match it never re-checked. Only a won claim counts.
+          const res = await d
+            .update(algEstimates)
+            .set({ matchedInvoiceId: candidates[0].id, matchedAt: new Date() })
+            .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.matchedInvoiceId)));
+          if (affectedRowCount(res) === 1) matched++;
+        }
+      }
     }
+
+    lastId = unmatched[unmatched.length - 1]!.id;
+    if (unmatched.length < PAGE_SIZE) break;
   }
 
   log.info("estimate backfill match pass", {
-    scanned: unmatched.length,
+    scanned,
     matched,
     skippedNoPhone,
     ambiguous,
     dryRun,
     sinceDays: opts.sinceDays ?? DECLINED_RECOVERY_WINDOW_DAYS,
   });
-  return { matched, scanned: unmatched.length, skippedNoPhone, ambiguous, dryRun, preview };
+  return { matched, scanned, skippedNoPhone, ambiguous, dryRun, preview };
 }
 
-// ─── PUBLIC ENTRYPOINT ─────────────────────────────────
+// Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ PUBLIC ENTRYPOINT Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 /**
  * Run one full estimate mirror cycle.
@@ -1052,7 +1089,7 @@ export async function runEstimateMirror(): Promise<{ recordsProcessed: number; d
     };
   }
 
-  // Deduplicate raw by externalId (defensive — shouldn't happen but ShopDriver
+  // Deduplicate raw by externalId (defensive Ã¢â‚¬â€ shouldn't happen but ShopDriver
   // sometimes returns duplicates across concatenated pages)
   const seen = new Set<string>();
   const unique = raw.filter((e) => {
@@ -1062,9 +1099,9 @@ export async function runEstimateMirror(): Promise<{ recordsProcessed: number; d
   });
 
   const upsert = await upsertEstimates(unique);
-  // ROS-093 · the backfill MUST cover the whole declined-recovery send window.
+  // ROS-093 Ã‚Â· the backfill MUST cover the whole declined-recovery send window.
   // This called backfillMatches() with no options, so it used the 30-day
-  // default while declinedWorkRecovery texts on a 60-day window — estimates
+  // default while declinedWorkRecovery texts on a 60-day window Ã¢â‚¬â€ estimates
   // aged 31-60 days could never be matched, stayed "declined" forever, and the
   // 30-day touch fired precisely where the matcher had gone blind. Shared
   // constant so the two cannot drift apart again.

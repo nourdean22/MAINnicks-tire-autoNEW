@@ -1,9 +1,141 @@
 # CURRENT-TRUTH.md — Statenour
 
+## 2026-09-28 night — Graphify code-intelligence governance (follow-up branch truth, not merged/live)
+
+- Graphify stays a developer snapshot; this slice adds no second graph store and does not bulk-ingest Graphify into BrainMemory.
+- The existing sync now runs existing graphify-necropsy propose-only drift analysis when two snapshots exist, then writes ignored runtime GRAPH_RECEIPT.json with source SHA, report hash/time, Graphify version, label provenance, graph shape, HEAD/origin-main commit relation, previous-snapshot delta, and necropsy count.
+- Session-start trusts a receipt only when receipt.report.sourceCommit exactly matches the Built from commit in the selected GRAPH_REPORT.md; missing/malformed/mismatched receipts are named and ignored without suppressing the graph briefing.
+- Local proof: tracked graph source 9c4f30f4; 63,099 nodes; 115,045 edges; 3,401 communities; 313 commits behind this branch; 308 behind locally observed origin/main.
+- Verification: Node syntax + governance self-test green; existing necropsy self-test green; both PowerShell scripts parse; repo contract tests 4/4 green; live session-context execution green; git diff --check green.
+- Durable receipt: docs/00-current-truth/nouros-code-intelligence-governance-2026-09-28.md.
+
+## 2026-09-28 night — Owner Panel exception consolidation (follow-up branch truth, not merged/live)
+
+- **No new exception queue:** the existing Q-24 Owner Panel on `/system` remains the single owner attention surface.
+- **New projections from canonical stores:** dead `post_turn_outbox`; generic `action_attempts` WAITING_APPROVAL / UNKNOWN / recent FAILED / stale EXECUTING.
+- **No duplication:** `railway.deploy_alert` attempts stay on the pre-existing deploy-page path; dead-letter redrive remains `redriveDeadOutboxRows()`; approvals retain their current source tables.
+- **Truth rules:** UNKNOWN never retries blindly; a failed source read is unreadable/UNKNOWN, not a clear; fresh EXECUTING stays quiet; stale is 30m+.
+- **Pure dependency repair:** cron hard-failure classification now lives in DB-free `lib/services/cron-status.ts`; `cron-control.ts` re-exports the same names for API compatibility.
+- **Verification:** 53/53 focused Owner Panel + outbox + ActionAttempt tests green; changed-file ESLint and `git diff --check` green.
+- Durable receipt: `docs/00-current-truth/nouros-exception-consolidation-2026-09-28.md`.
+
+## 2026-09-28 night — capability lifecycle / Toolsmith (follow-up branch truth, not merged/live)
+
+- **Reuses incumbents:** Tool Registry + Tool Policy + ToolSelectionTurn/ToolGateDecision + Tool Gap + ActionAttempt remain canonical.
+- **Gap response is explicit:** discoverability → fix discoverability; routing → fix routing; external-service → repair integration; only unresolved gaps enter new-capability investigation.
+- **Append-only lifecycle:** `PROPOSED → APPROVED → IMPLEMENTED_UNVERIFIED → VERIFIED → RETIRED`; rejection is allowed before verification.
+- **Authority boundary:** Toolsmith can propose/track only. It cannot install code, activate a registry entry, or execute a newly proposed capability. Implementation requires an external artifact reference; verification requires a receipt.
+- **Operator surface:** existing `system.tools` tRPC + Tool Gap panel expose lifecycle report/mutations and proposal counts; no new auth surface.
+- **Verification:** 11/11 focused lifecycle + existing Tool Gap tests green; changed-file ESLint and `git diff --check` green.
+- Durable receipt: `docs/00-current-truth/nouros-capability-lifecycle-2026-09-28.md`.
+
+## 2026-09-28 late evening — Decision Plane shadow/calibration (merged repo truth; production shadow still off)
+
+- **Merged as #2756 (`e2622a514`):** vendor-neutral typed decision contracts; strict private/external System-One-compatible HTTP adapter; deterministic sampled shadow evaluation through existing Inngest; Decision Episodes through the existing Reality Ledger; multiclass Brier/log-loss/ECE calibration primitives; Replay Lab outcome labeling; operator report + `/system/tools` panel.
+- **Zero authority change:** the incumbent StateNour router still owns production. `NICK_DECISION_PLANE_SHADOW` defaults OFF; the report hard-codes `promotionReady=false`.
+- **Privacy/egress boundary:** private-mode and obvious-PII turns never enqueue. Public backends require explicit `NICK_DECISION_PLANE_ALLOW_EXTERNAL_STATE=1`; an API key alone is insufficient.
+- **Honest comparison:** candidate decisions are compared only against incumbent-owned fields. `needsBackgroundMission` has no fabricated incumbent label. Incumbent agreement is not correctness or calibration.
+- **Replay Lab now reuses the same Episode lineage:** operator-observed labels append as `episode.decision.outcome_observed` on the candidate `episodeId`; corrections stay append-only; unlabeled Episodes remain visible and unscored; the panel reports label coverage, Brier, log loss and categorical ECE. Existing `DecisionReplay`/`MasteryDecision` remain the human decision journal rather than being duplicated.
+- **Verification:** 22/22 focused Decision Plane + Replay Lab tests locally; final head `271e40225` passed Turbo affected verify, StateNour E2E, Completion Authority, Secret Scanning, Agent Policy, Adoption gates, and admin diagnostic before squash merge.
+- **Not yet proven:** live shadow receipts, representative real outcome labels, or any candidate promotion. `NICK_DECISION_PLANE_SHADOW` still defaults OFF.
+- Durable receipt: `docs/00-current-truth/nouros-decision-plane-2026-09-28.md`.
+
+## 2026-09-28 evening — NourOS intelligence foundation (merged repo truth; feature-specific production proof remains)
+
+- **Merged as #2755 (`a37a9f02c`):** the foundation is now repo truth on `main`; `4e628f0db` was only the branch starting point. Camera work remained a separate sibling workstream.
+- **Merged foundation contents:** typed Episode envelopes over the existing Reality Ledger; bounded Inngest mission execution over existing Mission rows; tool-gap intelligence over existing `ToolSelectionTurn`/`ToolGateDecision`; persistence for verified-regen telemetry; explicit E2B deny-egress.
+- **Verification:** 45/45 focused tests passed; StateNour TypeScript passed after fresh-worktree workspace dependencies were built; changed-file ESLint passed; `git diff --check` passed; staged secret scan found no findings.
+- **Promotion boundaries:** `NICK_DURABLE_MISSIONS` defaults OFF until a deployed Inngest registration + harmless checkpoint-only run produce real RealityEvent receipts. E2B remains unprovisioned by this slice.
+- **Not built here:** the Jev/TypeSafe-style probabilistic Decision Plane, backend calibration/shadowing, and outcome-threshold promotion. Those remain a separate next slice.
+- Durable receipt: `docs/00-current-truth/nouros-foundation-2026-09-28.md`.
+
+## 2026-09-28 — original-plan infrastructure + private-worker observability
+
+- **Repository current truth:** `main` = `18db7de13af5fe0f6f4f2fb62456e371db3dd698` (#2726); GitHub showed **0 open PRs** immediately after the #2724/#2725/#2726 wave.
+- **#2724 closed the original-plan reconciliation gap, not every operator action.** It merged the 24-slice evidence ledger plus Railway IaC/source-of-truth hardening. Live receipts in that pass: worker moved to east4/private-only, Nick + worker negated watch paths applied, Redis public TCP proxy removed, and Neon `pg_stat_statements` v1.11 enabled. Redis service/volume deletion is still blocked on Railway dashboard 2FA; Wait-for-CI and sealed-secret status remain dashboard-only; the project deploy webhook is still absent.
+- **#2725 is merged and live on StateNour web.** Deployment `bdfe33a5-0a80-48e0-b992-b9662ae42079` is SUCCESS on exact commit `7fbeb855d5bc12a33e5592d09380ab081f86f6cb`. The default Obsidian rollup keeps newest-100/category semantics but avoids full-payload loading for 32,410 of the current 36,042 eligible BrainMemory rows; only 3,632 full rows are needed today. Individual mode and `export-brain-archive.ts` stay complete.
+- **#2726 is merged and live on both worker + web.** Worker deployment `aa4db42e-5b0e-4611-a461-2338d3d7f12c` and web deployment `f14abc77-e0cb-4e90-915a-250a21bdee0a` are SUCCESS on exact commit `18db7de13af5fe0f6f4f2fb62456e371db3dd698`. The worker remains private. Deploy-drift/smoke observation now derives from the persisted `brain-bus-drain` success receipt instead of a public worker URL. A live NicksMax request to `/api/system/heartbeat` returned `status: ok`, DB latency 5 ms, and `worker.status: fresh` at age 12 minutes.
+- **Worker freshness definition:** fresh through 1 hour (four missed 15-minute ticks), stale afterward, public probe failure => `unknown`; internal fleet truth preserves the difference between “no receipt ever” and “DB probe failed.” The production lookup uses an index-only scan and measured ~0.076 ms warm.
+- **Durable plan ledger:** `docs/research/2026-09-28-original-plan-reconciliation.md`. The old “code backlog exhausted” sentence below is historical scope for stale worktree reconciliation, not a claim that the broader operator/infrastructure plan is finished.
+
+## 2026-09-28 — Ollama liveness repaired on the real web AI runtime
+
+- **Neither #2727 nor #2726 changed the Ollama liveness implementation.** The deployed `/api/cron/ollama-model-liveness` route, model resolver, cron manifest, Inngest registration and cron-control service were unchanged.
+- **The cron was healthy and exposed a real retired model.** A live authenticated route call resolved chat=`minimax-m3` (200), fast=`deepseek-v4-flash:0731` (**410 retired**), vision=`gemma4:31b` (200). Production `CronJobLog` already contained repeated failures on Sep 25–27; the missing `cron_control` row means the kill switch leaves this job enabled by default.
+- **Fast-lane replacement was measured, not guessed.** A live Ollama bake-off on strict JSON classify/extract/summary tasks put `glm-5.3-flash` at 6/6 valid JSON, ~1.1 s average and zero length stops. `deepseek-v4.1-flash` was 5/6 with one length stop; `minimax-m3` was 6/6 but ~2.5 s; `glm-5.2` was slower / less reliable in this run. Railway `OLLAMA_FAST_MODEL` is now `glm-5.3-flash`.
+- **Final live liveness receipt:** chat `minimax-m3` 200/alive (648 ms), fast `glm-5.3-flash` 200/alive (365 ms), vision `gemma4:31b` 200/alive (368 ms); route envelope `data.ok=true`. Latest production liveness row: 2026-09-28T03:22:51.032Z, `status=success`, no error, 649 ms.
+- **Worker boundary:** `apps/worker/src` has zero AI/model-call sites. It forwards cron HTTP calls to StateNour web and also runs the in-process `processVideoRenders()` Remotion render/upload loop. A stale worker-only `OLLAMA_MODEL=deepseek-v3.1:671b` pin was therefore unused AI configuration debris, not a second model-serving outage. It was aligned to `minimax-m3` for hygiene. Worker health remains the #2726 persisted-freshness contract, not a duplicate Ollama probe.
+- Durable receipt: `docs/00-current-truth/ollama-liveness-repair-2026-09-28.md`.
+
+## 2026-09-27 afternoon — recovery closeout after #2712
+
+- **Recovery handoff is now closed on repo truth.** `main` reached `93f0f66ca285600831ca50df87fb79f0497e3ed2` after #2712 (`fix · security · remove legacy Resend token from source`) squash-merged.
+- #2712's two P1 review threads were both outdated because the current head already contained the fixes: the remaining hardcoded Resend token copies were removed from `get-dns-records.py`, and the smoke probe was factored into `resend_smoke.py` with discoverable `test_resend_smoke.py` behavioral coverage. The threads were formally resolved and Completion Authority reran **green**.
+- Final #2712 reviewed head `bc02816e00fed586c5a7195b65a3dd5e8a800646`: StateNour E2E, affected CI, Secret Scanning, local-agent, Adoption, Admin, Agent Policy, and Completion Authority all passed.
+- **Open PR count after #2712 merge: 0.**
+- Durable recovery artifact remains `docs/00-current-truth/session-recovery-2026-09-27.md`. Treat the earlier #2712-open notes below as historical snapshots, not current instructions.
+
 > **The one-screen answer to "where am I and what's real?"** If any other doc
 > contradicts this file as a *present-tense instruction*, this file and live
-> code win. Last verified **2026-09-17**. When in doubt, **verify in code, git,
+> code win. Last verified **2026-09-28**. When in doubt, **verify in code, git,
 > the DB, or logs** — not in prose.
+
+## 2026-09-27 afternoon — recovery after lost visible session trail
+
+- **The visible chat was incomplete; GitHub/repo receipts are authoritative.** A recovery sweep on 2026-09-27 reconstructed work that had disappeared from the UI-visible conversation. Durable handoff: `docs/00-current-truth/session-recovery-2026-09-27.md`.
+- **Snapshot source `main`: `a01abc97eb6ee4bd5c9f8519f48d49c3fb2545e3`**, the squash merge of #2711 (`feat · instagram · unify publish truth and creative quality`).
+- **Fourteen PRs after #2696 are confirmed merged:** #2697, #2698, #2699, #2700, #2701, #2702, #2703, #2704, #2705, #2706, #2707, #2708, #2710, and #2711. #2709 closed without merge.
+- **The earlier “0 open PRs” closeout is historical, not current.** At this recovery snapshot the only open PR is #2712 (`fix · security · remove legacy Resend token from source`), head `bc02816e00fed586c5a7195b65a3dd5e8a800646`.
+- **#2712 build/test/security lanes are green; Completion Authority is red at the review gate.** Two unresolved P1 threads remain in GitHub: the first says remove every remaining hardcoded token copy (a follow-up on the PR says the current head fixed those copies, but the thread remained unresolved); the second requests behavioral coverage for the smoke-test guards because the hyphenated `test-resend.py` is not discovered by the workflow's `test_*.py` unittest pattern. Do not merge #2712 until the review state is reconciled and Completion Authority is green on the current head.
+- **Recovery rule:** when transcript/context looks truncated, re-query current `main`, open PRs, review threads, CI, and live deployment receipts before trusting an old memory line or visible chat excerpt.
+
+## Since 2026-09-26/27 — repo reconciliation and dependency patch
+
+- **Repo dependency patch #2696 is merged, but deploy truth is separate.** Repository `main` contains Next 16.3.6 and the aligned Next tooling patch plus the refreshed dev-minor set. The reviewed head passed StateNour `check`, lint with zero errors, a production build, 935/935 test files (9,748/9,748 tests), Linux affected CI, and authenticated E2E. This proves repository/build compatibility; it does **not** prove `statenour-web` is serving that dependency patch. Use `/api/version` plus Railway deployment ancestry before claiming it live.
+- **Q35 is not pending.** Current `main` exactly matches the old Q35 branch for deploy-skew recovery, standalone social-assets font tracing, expected `lead.list` denial cleanup, retirement of the duplicate audit cron, and the strengthened `no-cron-calls-nickstire-trpc` import-graph guard.
+- **Agent/runtime memory #2681 remains repo-only runtime guidance unless app code changes.** Commit `8f0de2f4d` is patch-equivalent to `main`; its `NOUR-COMMAND.md`, runtime-kernel doc, intelligence-context hook/test and Claude settings are already absorbed.
+- **Historical dirty worktrees are not authoritative.** The 2026-09-26/27 portfolio sweep proved the old Q49/Q37/Q51 worktrees contain superseded or regressive variants. Compare concrete tree/patch state to current `main` before reviving one.
+- **Reconciliation closeout is complete.** A follow-up check on 2026-09-27 found 0 open PRs. Three clean redundant local worktrees (`deps-dev-minor-current`, `nour-intelligence-runtime-20260926`, `portfolio-truth-20260927`) were removed; dirty historical Q35/Q37/Q49/Q51 worktrees were intentionally preserved instead of force-deleted; camera/Eufy/Q12 worktrees remain separate active-session property. The reconciled **code** backlog is exhausted. Remaining issue #2628 items are operator/vendor/infrastructure actions, not missing code.
+
+## Since 2026-09-25/26 — Nick operator runtime + one-shot quality repair
+
+- **#2673 `2b0783ea` made the live chat solution/principle-first, proactive, creative when useful, and explicitly truth-seeking.**
+  The always-on Prompt V2 kernel says: recover context, use available tools/data, take the obvious safe/authorized next step,
+  seek disconfirming evidence, separate fact/inference/unknown, finish through verification, and defer the final decision to
+  the operator without rubber-stamping a false premise. Existing mutation confirmation, fencing, and injection safeguards
+  were preserved.
+- **The first production sample showed the kernel was useful but the quality loop was still observational.**
+  On the #2673 deployment, 27 completed assistant turns had an average critic score of **91.3/100**, 12 scored 100,
+  and 21/27 (77.8%) were clean at the reply gate. Median reply length was 167 words. But the same cohort's evidence
+  shadow returned 14 `pass`, 9 `repair`, and 4 `block` verdicts, and the critic could emit `REGEN_CANDIDATE`
+  without forcing the streamed answer to change. This is the measured reason #2680 exists.
+- **#2680 `2b021632` changes the buffered regen lane from "detect/log" to "detect -> one targeted repair -> compare -> ship the better draft."**
+  `pre-stream-regen.ts` now scores each candidate with the universal critic plus the per-turn response contract.
+  Gated intents are `factual`, `decision`, `creative`, `instructional`, `procedural`, and `analytical`;
+  casual/emotional/reflective turns stay flow-first. A failing first draft gets exactly one repair prompt containing the
+  measured failure reasons. The second draft wins when the same deterministic selector finds it cleaner, lower-severity,
+  higher-overall, or (at equal score) more specific. A partial repair may replace a worse first draft; a worse repair never wins.
+- **Operator preference is now an explicit boundary, not implied persona.** Nick supplies facts, mechanisms, options,
+  consequences, and execution toward Nour's stated objective. He does not substitute his own preferences/values/taste.
+  A recommendation is given when explicitly asked, optimized for Nour's objective and constraints. If the premise conflicts
+  with evidence, Nick corrects it once with evidence and then respects the operator's decision.
+- **Deployment truth:** #2680 merged at 2026-09-26 13:16:28Z and Railway deployment
+  `99ab4bda-931f-4dce-ba0d-807b91b8d9ec` reached **SUCCESS** on exact commit
+  `2b021632bf2806c95e7e275ba56b7c64117ba8b6`. Fresh post-merge push CI was green for
+  StateNour affected verify, authenticated e2e, Agent Policy, Adoption gates, Lighthouse, and deploy-drift.
+  Repo HEAD then advanced to #2681 `36961a342`, but that commit touched only Agent OS files and Railway correctly
+  marked the StateNour deployment **SKIPPED**. Therefore repo HEAD and live StateNour app SHA are intentionally different.
+- **#2681 is cross-agent memory, not a StateNour app deploy.** It adds/updates `NOUR-COMMAND.md`,
+  `docs/agent-os/NOUR-RUNTIME-KERNEL.md`, the intelligence-context hook, and its tests so coding agents inherit the same
+  outcome/truth/completion posture. It does not change bdnick.info runtime code.
+- **Still owed:** read post-#2680 `verified_regen_path` logs after enough real weak drafts exist. This is the
+  live proof source today: it emits `regenFired`, `regenAttempted`, `regenWasBetter`, `selectionReason`,
+  `firstOverall`, `firstSeverity`, `regenOverall`, `regenSeverity`, and `intent`. The helper
+  `formatRegenTelemetry()` can construct a richer `chat.pre_stream_regen` metric, but **has no live caller** as of
+  2026-09-26; do not query it or claim specificity/latency deltas from production until it is actually persisted.
+  Implementation and deployment are proven; the production *repair win rate* is not yet. Evidence-gate enforcement remains
+  a separate question: its shadow cohort was not a promote signal on 2026-09-23, so do not conflate the new quality repair
+  selector with promoting the evidence gate itself.
 
 ## Since 2026-09-17 — W12, and the things that cost a session time to learn
 

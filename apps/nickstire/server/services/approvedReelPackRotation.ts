@@ -8,9 +8,15 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import type { ApprovedProductionPackSnapshot } from "../../shared/episodeContract";
+import {
+  assessReelStructureNovelty,
+  reelStructureFingerprint,
+  type ReelStructureFingerprint,
+} from "../../shared/reelStructureFingerprint";
 import { resolvePacksDir } from "./reelPackRegistry";
 import { MOTION_LENSES, REEL_ARCHETYPES } from "../../client/src/lib/facelessReelStudio";
 import type { MotionLens, ReelArchetype } from "../../client/src/lib/facelessReelStudio";
+import type { ApprovedPackPool } from "../../shared/reelJobPayload";
 
 /**
  * EVERY PACK-DERIVED REEL LOOKED THE SAME, AND THIS IS WHY.
@@ -176,6 +182,50 @@ export const APPROVED_REEL_PACK_SLUGS = [
   "2026-09-06-sealed-transmission-no-dipstick-check",
   "2026-09-07-auto-headlights-wont-turn-on-dusk",
   "2026-09-07-wheel-stud-snapped",
+
+  // -- Approved 2026-09-25: operator-requested evening-batch import ----------
+  // 33 concepts reconciled against the live rotation: 23 distinct lessons
+  // appended below; 10 semantic duplicates are mapped in the import manifest.
+  // APPEND ONLY: reel_approved_pack_rotation_index is an array index.
+  "2026-09-25-oil-overfill-not-extra-protection",
+  "2026-09-25-ev-regen-brake-corrosion",
+  "2026-09-25-alignment-green-loose-parts",
+  "2026-09-25-balancer-zero-still-vibrates",
+  "2026-09-25-ohio-used-tire-whole-inspection",
+  "2026-09-25-impact-gun-vs-torque-wrench",
+  "2026-09-25-xl-means-extra-load",
+  "2026-09-25-oil-pressure-vs-oil-life",
+  "2026-09-25-rotor-surface-rust-overnight",
+  "2026-09-25-coolant-level-vs-freeze-protection",
+  "2026-09-25-starting-circuit-voltage-drop",
+  "2026-09-25-puncture-repair-zone",
+  "2026-09-25-two-new-tires-rear-axle",
+  "2026-09-25-tpms-flash-vs-steady",
+  "2026-09-25-tire-age-dot-date-code",
+  "2026-09-25-sidewall-max-psi-vs-placard",
+  "2026-09-25-directional-tire-rotation-arrow",
+  "2026-09-25-run-flat-limited-mobility",
+  "2026-09-25-battery-light-charging-system",
+  "2026-09-25-inner-outer-brake-pad-wear",
+  "2026-09-25-driven-flat-hidden-internal-damage",
+  "2026-09-25-epdm-belt-wear-no-cracks",
+  "2026-09-25-swollen-capped-lug-nuts",
+
+  // -- Approved 2026-09-25: midday-batch reconciliation after #2655 --------
+  // 27 source concepts reconciled against current main: 11 distinct lessons
+  // appended here; 16 are already covered by the existing/evening rotation.
+  // APPEND ONLY: reel_approved_pack_rotation_index is an array index.
+  "2026-09-06-nitrogen-vs-air-tire-fill",
+  "2026-08-27-foggy-windshield-recirculate-trick",
+  "2026-09-25-locking-lug-roadside-tool",
+  "2026-09-25-lug-nut-seat-shape-fit",
+  "2026-09-25-hidden-inner-lip-wheel-bend",
+  "2026-09-25-utqg-treadwear-not-mileage",
+  "2026-09-25-strut-misting-vs-leak",
+  "2026-09-25-run-flat-can-look-normal",
+  "2026-09-25-wheel-fitment-beyond-bolt-pattern",
+  "2026-09-25-sidewall-indent-vs-bulge",
+  "2026-09-25-ms-vs-3pmsf",
 ] as const;
 
 /**
@@ -292,6 +342,7 @@ export function buildBriefFromApprovedProductionPack(
   pack: ApprovedReelPack,
   snapshot: ApprovedProductionPackSnapshot,
   briefId: string,
+  skipStructureNovelty = false,
 ): Record<string, unknown> | null {
   const source = snapshot.parsed;
   const rawBeats = Array.isArray(source.storyboardBeats)
@@ -334,6 +385,56 @@ export function buildBriefFromApprovedProductionPack(
   const hasProofSource = sourceNotes.some((note) =>
     Boolean(note && typeof note === "object" && (note as Record<string, unknown>).kind === "proof"),
   );
+  const productionGrammarFingerprint = reelStructureFingerprint({
+    beats: storyboardBeats,
+    ctaType: isReelAskShape(source.ask) ? source.ask.kind : null,
+    loopIdea: packLoopIdea || null,
+  });
+
+  // Compare the candidate against a bounded window of REAL reviewed pack
+  // structures. This is diagnostic metadata, not a publish gate: the audit
+  // proved topic diversity can coexist with nearly identical production
+  // grammar, but outcome data is not yet strong enough to let this score decide
+  // what publishes. The recursive builder call explicitly skips novelty so this
+  // stays finite and evaluates the same normalized brief shape production uses.
+  let productionGrammarNovelty: {
+    similarity: number;
+    isProductionTwin: boolean;
+    collisions: string[];
+    nearestSignature: string | null;
+    comparisonWindow: number;
+  } | null = null;
+  if (!skipStructureNovelty) {
+    const packIndex = APPROVED_REEL_PACK_SLUGS.indexOf(pack.slug);
+    const start = Math.max(0, packIndex - 12);
+    const priors: ReelStructureFingerprint[] = [];
+
+    for (let index = start; index < packIndex; index += 1) {
+      const priorSlug = APPROVED_REEL_PACK_SLUGS[index];
+      const priorSnapshot = loadApprovedProductionPack(priorSlug);
+      if (!priorSnapshot) continue;
+      const priorBrief = buildBriefFromApprovedProductionPack(
+        { slug: priorSlug, topic: topicFromSlug(priorSlug) },
+        priorSnapshot,
+        `novelty-prior-${priorSlug}`,
+        true,
+      );
+      const priorFingerprint = priorBrief?.productionGrammarFingerprint;
+      if (priorFingerprint && typeof priorFingerprint === "object") {
+        priors.push(priorFingerprint as ReelStructureFingerprint);
+      }
+    }
+
+    const verdict = assessReelStructureNovelty(productionGrammarFingerprint, priors);
+    productionGrammarNovelty = {
+      similarity: verdict.similarity,
+      isProductionTwin: verdict.isProductionTwin,
+      collisions: verdict.collisions,
+      nearestSignature: verdict.nearest?.signature ?? null,
+      comparisonWindow: priors.length,
+    };
+  }
+
   return {
     id: briefId,
     // THE PACK LANE HAD NO ASK AT ALL.
@@ -407,6 +508,8 @@ export function buildBriefFromApprovedProductionPack(
       : [],
     winningConceptId: packLoopIdea ? briefId : null,
     storyboardBeats,
+    productionGrammarFingerprint,
+    ...(productionGrammarNovelty ? { productionGrammarNovelty } : {}),
     promptPack: [],
     higgsfieldPromptPack: [],
     ffmpegAssemblyNotes: stringValue(source.ffmpegAssemblyNotes),
@@ -431,6 +534,173 @@ export const APPROVED_REEL_PACKS: readonly ApprovedReelPack[] = APPROVED_REEL_PA
   slug,
   topic: topicFromSlug(slug),
 }));
+
+export const ACTIVE_REEL_SLATE_KEY = "reel_active_slate_json";
+export const ACTIVE_REEL_SLATE_CURSOR_KEY = "reel_active_slate_cursor";
+const ACTIVE_REEL_SLATE_MAX = 24;
+
+export interface ActiveReelSlateState {
+  configured: boolean;
+  slugs: string[];
+  /** Independent from the full approved-library cursor. */
+  cursor: number | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+  malformed: boolean;
+}
+
+const APPROVED_SLUG_SET = new Set<string>(APPROVED_REEL_PACK_SLUGS);
+
+export function normalizeActiveReelSlateSlugs(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "string" || !APPROVED_SLUG_SET.has(raw) || seen.has(raw)) continue;
+    seen.add(raw);
+    out.push(raw);
+    if (out.length >= ACTIVE_REEL_SLATE_MAX) break;
+  }
+  return out;
+}
+
+export async function readActiveReelSlate(database: any): Promise<ActiveReelSlateState> {
+  const { shopSettings } = await import("../../drizzle/schema");
+  const { inArray } = await import("drizzle-orm");
+  const rows = await database.select({
+    key: shopSettings.key,
+    value: shopSettings.value,
+    updatedAt: shopSettings.updatedAt,
+    updatedBy: shopSettings.updatedBy,
+  }).from(shopSettings).where(inArray(shopSettings.key, [ACTIVE_REEL_SLATE_KEY, ACTIVE_REEL_SLATE_CURSOR_KEY])).limit(2);
+  const slateRow = rows.find((row: { key: string }) => row.key === ACTIVE_REEL_SLATE_KEY);
+  const cursorRow = rows.find((row: { key: string }) => row.key === ACTIVE_REEL_SLATE_CURSOR_KEY);
+  if (!slateRow) {
+    return { configured: false, slugs: [], cursor: null, updatedAt: null, updatedBy: null, malformed: false };
+  }
+  try {
+    const parsed = JSON.parse(String(slateRow.value)) as { slugs?: unknown; updatedAt?: unknown };
+    const slugs = normalizeActiveReelSlateSlugs(parsed.slugs);
+    const payloadUpdatedAt =
+      typeof parsed.updatedAt === "string" && !Number.isNaN(Date.parse(parsed.updatedAt))
+        ? new Date(parsed.updatedAt).toISOString()
+        : null;
+    const invalidPayloadRevision = parsed.updatedAt !== undefined && payloadUpdatedAt === null;
+    // Missing cursor means a newly introduced slate starts at its first item.
+    // A present-but-malformed cursor is never guessed.
+    const cursor = cursorRow
+      ? parseApprovedPackRotationIndex(String(cursorRow.value))
+      : 0;
+    const malformed =
+      !Array.isArray(parsed.slugs)
+      || slugs.length === 0
+      || slugs.length !== parsed.slugs.length
+      || cursor === null
+      || invalidPayloadRevision;
+    return {
+      configured: slugs.length > 0,
+      slugs,
+      cursor,
+      // New saves carry an explicit definition revision in the payload. That
+      // changes even when an operator re-saves the same slug order and resets
+      // the cursor, unlike a DB on-update timestamp that may stay unchanged on
+      // a no-op value update. Row time remains the legacy fallback.
+      updatedAt: payloadUpdatedAt ?? (slateRow.updatedAt ? new Date(slateRow.updatedAt).toISOString() : null),
+      updatedBy: slateRow.updatedBy ? String(slateRow.updatedBy) : null,
+      malformed,
+    };
+  } catch {
+    return {
+      configured: false,
+      slugs: [],
+      cursor: null,
+      updatedAt: slateRow.updatedAt ? new Date(slateRow.updatedAt).toISOString() : null,
+      updatedBy: slateRow.updatedBy ? String(slateRow.updatedBy) : null,
+      malformed: true,
+    };
+  }
+}
+
+export function approvedReelPackAtFromPool(index: number, activeSlugs: readonly string[]): ApprovedReelPack | null {
+  if (!Number.isSafeInteger(index) || index < 0) return null;
+  if (!activeSlugs.length) return approvedReelPackAt(index);
+  const slug = activeSlugs[index];
+  if (!slug) return null;
+  return APPROVED_REEL_PACKS.find((pack) => pack.slug === slug) ?? null;
+}
+
+export type ApprovedPackSelection =
+  | { state: "cursor_invalid"; pack: null; index: null }
+  | { state: "slate_malformed"; pack: null; index: null }
+  | { state: "slate_exhausted"; pack: null; index: number }
+  | { state: "active_slate"; pack: ApprovedReelPack; index: number }
+  | { state: "full_approved_library"; pack: ApprovedReelPack | null; index: number };
+
+export function resolveApprovedPackSelection(
+  fullLibraryIndex: number | null,
+  active: Pick<ActiveReelSlateState, "configured" | "slugs" | "cursor" | "malformed">,
+): ApprovedPackSelection {
+  // An operator-configured slate is an overlay with its OWN cursor. The full
+  // library cursor is intentionally ignored while the overlay is active so a
+  // short editorial slate cannot move or reset the canonical rotation.
+  if (active.malformed) return { state: "slate_malformed", pack: null, index: null };
+  if (active.configured) {
+    if (active.cursor === null) return { state: "slate_malformed", pack: null, index: null };
+    const pack = approvedReelPackAtFromPool(active.cursor, active.slugs);
+    if (!pack) return { state: "slate_exhausted", pack: null, index: active.cursor };
+    return { state: "active_slate", pack, index: active.cursor };
+  }
+  if (fullLibraryIndex === null) return { state: "cursor_invalid", pack: null, index: null };
+  return { state: "full_approved_library", pack: approvedReelPackAt(fullLibraryIndex), index: fullLibraryIndex };
+}
+
+export async function clearActiveReelSlate(
+  database: any,
+  updatedBy: string,
+): Promise<ActiveReelSlateState> {
+  const { shopSettings } = await import("../../drizzle/schema");
+  const { inArray } = await import("drizzle-orm");
+  // Remove only the overlay and its cursor. The full approved-library cursor is
+  // untouched so disabling Strategy resumes the canonical rotation where it was.
+  await database.transaction(async (tx: any) => {
+    await tx.delete(shopSettings).where(inArray(shopSettings.key, [ACTIVE_REEL_SLATE_KEY, ACTIVE_REEL_SLATE_CURSOR_KEY]));
+  });
+  return { configured: false, slugs: [], cursor: null, updatedAt: new Date().toISOString(), updatedBy, malformed: false };
+}
+
+export async function writeActiveReelSlate(
+  database: any,
+  slugsInput: unknown,
+  updatedBy: string,
+): Promise<ActiveReelSlateState> {
+  const slugs = normalizeActiveReelSlateSlugs(slugsInput);
+  if (!slugs.length) throw new Error("active Reel slate must contain at least one approved pack");
+  if (!Array.isArray(slugsInput) || slugs.length !== slugsInput.length) {
+    throw new Error("active Reel slate contains an unknown, duplicate, or over-limit pack; nothing was saved");
+  }
+  const { shopSettings } = await import("../../drizzle/schema");
+  const updatedAt = new Date().toISOString();
+  const payload = JSON.stringify({ version: 1, slugs, updatedAt });
+  await database.transaction(async (tx: any) => {
+    await tx.insert(shopSettings).values({
+      key: ACTIVE_REEL_SLATE_KEY,
+      value: payload,
+      label: "Instagram active Reel slate — ordered approved pack slugs",
+      category: "general",
+      updatedBy: updatedBy.slice(0, 100) || "admin",
+    }).onDuplicateKeyUpdate({ set: { value: payload, updatedBy: updatedBy.slice(0, 100) || "admin" } });
+    // A saved reorder is a new editorial queue. Reset only the overlay cursor;
+    // the canonical full-library cursor must survive activation/clear intact.
+    await tx.insert(shopSettings).values({
+      key: ACTIVE_REEL_SLATE_CURSOR_KEY,
+      value: "0",
+      label: "Instagram active Reel slate — next item index",
+      category: "general",
+      updatedBy: updatedBy.slice(0, 100) || "admin",
+    }).onDuplicateKeyUpdate({ set: { value: "0", updatedBy: updatedBy.slice(0, 100) || "admin" } });
+  });
+  return { configured: true, slugs, cursor: 0, updatedAt, updatedBy, malformed: false };
+}
 
 /** Returns null for a completed or malformed rotation index. */
 export function approvedReelPackAt(index: number): ApprovedReelPack | null {
@@ -476,6 +746,66 @@ export function nextRotationIndexAfterRefusal(
   return currentIndex + 1;
 }
 
+export interface ApprovedPackProgressTarget {
+  pool: ApprovedPackPool;
+  currentIndex: number;
+  nextIndex: number;
+  expectedSlug: string;
+}
+
+/**
+ * Resolve the ONLY cursor an already-created Reel job is allowed to consume.
+ *
+ * Missing pool provenance means a pre-feature/legacy job and is deliberately
+ * treated as full-library work. Before the active-slate feature existed, that
+ * was the only approved-pack source, so interpreting a legacy job through a
+ * newly-enabled slate would be the dangerous guess.
+ *
+ * Active-slate jobs also carry the slate definition revision. Reordering or
+ * re-saving a slate resets its cursor and changes that revision; an older
+ * in-flight job must then hold instead of consuming the new editorial queue.
+ */
+export function resolveApprovedPackProgressTarget(
+  jobPackSlug: string | null | undefined,
+  fullLibraryIndex: number | null,
+  active: Pick<ActiveReelSlateState, "configured" | "slugs" | "cursor" | "updatedAt" | "malformed">,
+  jobPackPool?: ApprovedPackPool | null,
+  jobSlateRevision?: string | null,
+): ApprovedPackProgressTarget | null {
+  if (!jobPackSlug) return null;
+
+  const pool: ApprovedPackPool = jobPackPool ?? "full_approved_library";
+  if (pool === "active_slate") {
+    if (
+      active.malformed
+      || !active.configured
+      || active.cursor === null
+      || !jobSlateRevision
+      || active.updatedAt !== jobSlateRevision
+    ) return null;
+    const expected = approvedReelPackAtFromPool(active.cursor, active.slugs);
+    const nextIndex = nextRotationIndexAfterRefusal(jobPackSlug, active.cursor, expected?.slug);
+    if (!expected || nextIndex === null) return null;
+    return {
+      pool,
+      currentIndex: active.cursor,
+      nextIndex,
+      expectedSlug: expected.slug,
+    };
+  }
+
+  if (fullLibraryIndex === null) return null;
+  const expected = approvedReelPackAt(fullLibraryIndex);
+  const nextIndex = nextRotationIndexAfterRefusal(jobPackSlug, fullLibraryIndex, expected?.slug);
+  if (!expected || nextIndex === null) return null;
+  return {
+    pool,
+    currentIndex: fullLibraryIndex,
+    nextIndex,
+    expectedSlug: expected.slug,
+  };
+}
+
 /**
  * Advance the rotation past a pack whose reel was terminally refused.
  *
@@ -504,6 +834,10 @@ export async function advanceRotationPastRefusedPack(input: {
    *  rotation must still move or that pack jams every later pulse. */
   jobId?: number | null;
   jobPackSlug: string | null | undefined;
+  /** Persisted on new jobs. Missing means a legacy full-library job. */
+  jobPackPool?: ApprovedPackPool | null;
+  /** Active-slate definition revision captured when the job was selected. */
+  jobSlateRevision?: string | null;
   reason: string;
 }): Promise<number | null> {
   const { createLogger } = await import("../lib/logger");
@@ -521,37 +855,59 @@ export async function advanceRotationPastRefusedPack(input: {
     .from(shopSettings)
     .where(eq(shopSettings.key, "reel_approved_pack_rotation_index"))
     .limit(1);
-  const currentIndex = resolveApprovedPackRotationIndex(rows.length ? String(rows[0].value) : null);
-  const next = nextRotationIndexAfterRefusal(
+  const fullLibraryIndex = resolveApprovedPackRotationIndex(rows.length ? String(rows[0].value) : null);
+  const activeSlate = await readActiveReelSlate(d);
+  const target = resolveApprovedPackProgressTarget(
     input.jobPackSlug,
-    currentIndex,
-    currentIndex === null ? null : approvedReelPackAt(currentIndex)?.slug,
+    fullLibraryIndex,
+    activeSlate,
+    input.jobPackPool,
+    input.jobSlateRevision,
   );
 
-  if (next === null) {
+  if (!target) {
     if (input.jobPackSlug) {
-      log.warn("rotation NOT advanced past a refused reel", {
-        jobId: input.jobId, slug: input.jobPackSlug, currentIndex, reason: input.reason,
+      log.warn("approved-pack selection NOT advanced past a refused reel", {
+        jobId: input.jobId,
+        slug: input.jobPackSlug,
+        fullLibraryIndex,
+        activeSlateCursor: activeSlate.cursor,
+        jobPool: input.jobPackPool ?? "legacy_full_approved_library",
+        activeSlateRevision: activeSlate.updatedAt,
+        jobSlateRevision: input.jobSlateRevision ?? null,
+        reason: input.reason,
       });
     }
     return null;
   }
 
+  const cursorKey = target.pool === "active_slate"
+    ? ACTIVE_REEL_SLATE_CURSOR_KEY
+    : "reel_approved_pack_rotation_index";
+  const cursorLabel = target.pool === "active_slate"
+    ? "Instagram active Reel slate — next item index"
+    : "Approved Reel-pack rotation — next pack index";
+
   await d
     .insert(shopSettings)
     .values({
-      key: "reel_approved_pack_rotation_index",
-      value: String(next),
-      label: "Approved Reel-pack rotation — next pack index",
+      key: cursorKey,
+      value: String(target.nextIndex),
+      label: cursorLabel,
       category: "general",
       updatedBy: "system",
     })
-    .onDuplicateKeyUpdate({ set: { value: String(next), updatedBy: "system" } });
+    .onDuplicateKeyUpdate({ set: { value: String(target.nextIndex), updatedBy: "system" } });
 
-  log.warn("approved-pack rotation ADVANCED past a terminally refused reel", {
-    jobId: input.jobId, slug: input.jobPackSlug, from: currentIndex, to: next, reason: input.reason,
+  log.warn("approved-pack selection ADVANCED past a terminally refused reel", {
+    jobId: input.jobId,
+    slug: input.jobPackSlug,
+    from: target.currentIndex,
+    to: target.nextIndex,
+    pool: target.pool,
+    reason: input.reason,
   });
-  return next;
+  return target.nextIndex;
 }
 
 /**

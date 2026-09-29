@@ -390,7 +390,7 @@ export const smsConversationsRouter = router({
       const { resolveHumanPendingForConversation } = await import("../services/smsResponseJobs");
       const closed = await resolveHumanPendingForConversation(input.conversationId, "no_reply_required");
       logAdminAction({
-        action: "customer.sms_manual_send",
+        action: "customer.sms_no_reply_needed",
         entityType: "sms_conversation",
         entityId: input.conversationId,
         details: `Marked no-reply-needed (${closed} obligation${closed === 1 ? "" : "s"} closed)`,

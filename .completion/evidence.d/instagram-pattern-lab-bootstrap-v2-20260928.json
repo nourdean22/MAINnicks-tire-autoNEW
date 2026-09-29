@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=reel-outcome-learning records #2732 as successfully deployed, the read-only production proof that social_reel_patterns and published structurePatternId cohorts are both empty, and the branch-only four-house-hypothesis bootstrap with no live promotion."
+    },
+    "operator-walkthrough": {
+      "deferred": "No live Reel generation or publish is performed by this PR. After deploy, the first eligible Reel-generation path must prove the empty lab seeds once, Pattern Lab shows the four entries labeled house hypothesis · unmeasured bootstrap, and the resulting accepted brief carries structurePatternId. Outcome ranking must remain on fair rotation until the existing measured-cohort threshold is actually met."
+    }
+  }
+}

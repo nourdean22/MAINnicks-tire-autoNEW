@@ -68,7 +68,7 @@ which carries a stated invariant per entry and is pinned by
 |---|---|
 | `/api/health` | **owner session** — was public until 2026-07-21 (it leaked the whole health payload); anonymous → 401 |
 | `/api/system/health` | owner session (`{ auth: "owner" }`); anonymous → 401 |
-| `/api/system/heartbeat` | none — `{ status, db_latency_ms }` only; Railway healthcheck + uptime monitors |
+| `/api/system/heartbeat` | none — coarse `{ status, db_latency_ms, worker: { status, age_minutes } }`; worker freshness is a persisted cron receipt only, with no job payloads/secrets; Railway healthcheck + uptime/deploy-drift monitors |
 | `/api/version` | none — commit SHA / branch / configured-booleans only, no values |
 | `/api/auth/*` | NextAuth internal |
 | `/api/cron/*` | `CRON_SECRET` via `Authorization: Bearer` |

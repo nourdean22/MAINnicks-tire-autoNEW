@@ -122,6 +122,7 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   setMit: { family: "personal-write", description: "Set MIT (most important task)", cost: "cheap" },
   clearMit: { family: "personal-write", description: "Clear MIT slot", cost: "cheap" },
   createMissionPlan: { family: "personal-write", description: "Create a full mission plan with tasks", cost: "medium" },
+  queueMissionExecution: { family: "personal-write", description: "Queue bounded durable background execution for an active mission", cost: "medium" },
   captureSkillFromSource: { family: "personal-write", description: "Capture a protocol from a book/article/photo as a pending candidate skill", cost: "cheap" },
   updateMissionStatus: { family: "personal-write", description: "Change a mission's lifecycle status (pause/complete/kill/reactivate)", cost: "cheap" },
   scheduleFollowUp: { family: "personal-write", description: "Schedule a follow-up reminder", cost: "cheap" },

@@ -118,6 +118,24 @@ def run_eufy():
     log.info("Eufy: %d devices synced", count)
     return count
 
+def run_eufy_commands():
+    from eufy_bridge import process_pending_commands
+    count = process_pending_commands()
+    if count:
+        log.info("Eufy: %d queued commands processed", count)
+    return count
+
+def run_eufy_office_health():
+    from eufy_agent import sync_office_camera_heartbeat
+    return sync_office_camera_heartbeat()
+
+def start_eufy_events():
+    from eufy_bridge import start_event_thread
+    thread = start_event_thread()
+    if thread:
+        log.info("Eufy semantic event listener started")
+    return thread
+
 def run_v380():
     from v380_agent import sync_v380_devices
     count = sync_v380_devices()
@@ -157,13 +175,26 @@ def sync_metrics(cycle_count, platform_results, cycle_duration_ms, errors):
 
 def main():
     parser = argparse.ArgumentParser(description="Statenour Smart Home Agent v2")
-    parser.add_argument("--tuya-only", action="store_true")
+    only = parser.add_mutually_exclusive_group()
+    only.add_argument("--tuya-only", action="store_true")
+    only.add_argument(
+        "--eufy-only",
+        action="store_true",
+        help="Run only the Eufy bridge/event/control/health lane; skip Tuya, Ring and V380",
+    )
     parser.add_argument("--once", action="store_true", help="Single cycle then exit")
     parser.add_argument("--no-ring", action="store_true")
     parser.add_argument("--no-eufy", action="store_true")
     parser.add_argument("--no-v380", action="store_true")
     parser.add_argument("--no-health", action="store_true", help="Skip health server")
     args = parser.parse_args()
+    if args.eufy_only and args.no_eufy:
+        parser.error("--eufy-only cannot be combined with --no-eufy")
+
+    tuya_enabled = not args.eufy_only
+    ring_enabled = not args.tuya_only and not args.eufy_only and not args.no_ring
+    eufy_enabled = not args.tuya_only and not args.no_eufy
+    v380_enabled = not args.tuya_only and not args.eufy_only and not args.no_v380
 
     # Start health server
     health_update = lambda **kw: None  # no-op default
@@ -179,13 +210,27 @@ def main():
     log.info("=" * 50)
     log.info("STATENOUR OS — Smart Home Agent v2")
     log.info("Poll interval: %ds | Health: port %d", POLL_INTERVAL, HEALTH_PORT)
-    log.info("Tuya: ENABLED | Ring: %s | Eufy: %s | V380: %s",
-             "DISABLED" if args.tuya_only or args.no_ring else "ENABLED",
-             "DISABLED" if args.tuya_only or args.no_eufy else "ENABLED",
-             "DISABLED" if args.tuya_only or args.no_v380 else "ENABLED")
+    log.info(
+        "Tuya: %s | Ring: %s | Eufy: %s | V380: %s",
+        "ENABLED" if tuya_enabled else "DISABLED",
+        "ENABLED" if ring_enabled else "DISABLED",
+        "ENABLED" if eufy_enabled else "DISABLED",
+        "ENABLED" if v380_enabled else "DISABLED",
+    )
     log.info("=" * 50)
 
     health_update(status="running")
+
+    # The event listener is a daemon thread and is intentionally separate from
+    # periodic device polling. Motion/person/PTZ notifications arrive promptly
+    # without continuously pulling video or waiting for the 2-minute Eufy poll.
+    if not args.once and eufy_enabled:
+        try:
+            start_eufy_events()
+        except Exception as e:
+            # Polling remains useful even if the event stream cannot start.
+            log.warning("Eufy event listener failed to start: %s", e)
+
     cycle = 0
 
     while not _shutdown:
@@ -195,23 +240,39 @@ def main():
         errors = 0
         platform_results = {}
 
-        # Tuya every cycle
-        ok, count = with_retry(run_tuya, "Tuya")
-        platform_results["tuya"] = count or 0
-        if not ok:
-            errors += 1
-        health_update(platforms={"tuya": {
-            "devices": count or 0,
-            "last_sync": datetime.utcnow().isoformat() + "Z" if ok else None,
-            "status": "ok" if ok else "error",
-        }})
+        # Tuya every cycle unless an explicit single-platform mode excludes it.
+        if tuya_enabled:
+            ok, count = with_retry(run_tuya, "Tuya")
+            platform_results["tuya"] = count or 0
+            if not ok:
+                errors += 1
+            health_update(platforms={"tuya": {
+                "devices": count or 0,
+                "last_sync": datetime.utcnow().isoformat() + "Z" if ok else None,
+                "status": "ok" if ok else "error",
+            }})
 
-        # Commands every 3rd cycle
-        if cycle % 3 == 0:
-            with_retry(run_tuya_commands, "Tuya Commands")
+            # Commands every 3rd cycle.
+            if cycle % 3 == 0:
+                with_retry(run_tuya_commands, "Tuya Commands")
+
+        # Eufy controls are checked every local-agent cycle for low latency.
+        # eufy_bridge.poll_commands fails closed and DOES NOT claim queue rows
+        # until bridge auth + the explicit control feature flag are ready.
+        if eufy_enabled:
+            ok, _ = with_retry(run_eufy_commands, "Eufy Commands", max_retries=0)
+            if not ok:
+                errors += 1
+
+            # Role-aware Nick's health heartbeat runs EVERY 30s local-agent cycle. The full
+            # Eufy inventory poll is intentionally slower, but using that cadence here
+            # would make a healthy office producer stale/offline by construction.
+            ok, _ = with_retry(run_eufy_office_health, "Eufy Office Health", max_retries=0)
+            if not ok:
+                errors += 1
 
         # Ring
-        if not args.tuya_only and not args.no_ring and (cycle % RING_POLL_MULTIPLIER == 0 or args.once):
+        if ring_enabled and (cycle % RING_POLL_MULTIPLIER == 0 or args.once):
             ok, count = with_retry(run_ring, "Ring")
             platform_results["ring"] = count or 0
             if not ok:
@@ -223,7 +284,7 @@ def main():
             }})
 
         # Eufy
-        if not args.tuya_only and not args.no_eufy and (cycle % EUFY_POLL_MULTIPLIER == 0 or args.once):
+        if eufy_enabled and (cycle % EUFY_POLL_MULTIPLIER == 0 or args.once):
             ok, count = with_retry(run_eufy, "Eufy")
             platform_results["eufy"] = count or 0
             if not ok:
@@ -235,7 +296,7 @@ def main():
             }})
 
         # V380
-        if not args.tuya_only and not args.no_v380 and (cycle % V380_POLL_MULTIPLIER == 0 or args.once):
+        if v380_enabled and (cycle % V380_POLL_MULTIPLIER == 0 or args.once):
             ok, count = with_retry(run_v380, "V380")
             platform_results["v380"] = count or 0
             if not ok:

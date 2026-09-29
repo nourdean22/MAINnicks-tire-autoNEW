@@ -45,9 +45,12 @@ import type { SmsResult } from "./sms";
 const orchestratorStatus = (r: SmsResult): string =>
   r.success ? (r.queued ? "queued" : r.uncertain ? "sending" : "sent") : "failed";
 
+// `delivered` / `replied` are a `sent` row moved on by the gateway's receipt or
+// the caller's reply (2026-09-23 audit item C); they read as sent.
+const OUT = ["sent", "delivered", "replied"];
 const toolResult = (status: string) => ({
-  sent: status === "sent" || status === "queued" || status === "sending",
-  degraded: status !== "sent",
+  sent: OUT.includes(status) || status === "queued" || status === "sending",
+  degraded: !OUT.includes(status),
 });
 
 describe("gateway timeout is not a confirmed send", () => {
@@ -80,6 +83,11 @@ describe("the other outcomes are unchanged", () => {
     expect(r).toEqual({ sent: true, degraded: true });
   });
 
+  it("a delivered or replied row is sent + NOT degraded", () => {
+    expect(toolResult("delivered")).toEqual({ sent: true, degraded: false });
+    expect(toolResult("replied")).toEqual({ sent: true, degraded: false });
+  });
+
   it("a definitive failure is neither sent nor confirmed", () => {
     const r = toolResult(orchestratorStatus({ success: false, error: "gateway down" }));
     expect(r).toEqual({ sent: false, degraded: true });
@@ -110,7 +118,8 @@ describe("the production code actually carries these mappings", () => {
   it("the voice tool degrades on anything that is not an observed send", async () => {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync(new URL("./routers/voiceAgent.ts", import.meta.url), "utf8");
-    expect(src).toMatch(/const degraded = orchResult\.status !== "sent"/);
-    expect(src).toMatch(/orchResult\.status === "sending"/);
+    expect(src).toMatch(/const degraded = !wentOut/);
+    expect(src).toMatch(/RECAP_OUT_STATUSES[^=]*= new Set\(\["sent", "delivered", "replied"\]\)/);
+    expect(src).toMatch(/RECAP_HANDED_OFF_STATUSES[^=]*= new Set\(\["queued", "sending"\]\)/);
   });
 });

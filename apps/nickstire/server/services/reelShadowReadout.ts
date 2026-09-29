@@ -188,7 +188,9 @@ function isUsable(row: ReelShadowJudgeRow): boolean {
 /** `reel_jobs.status` values that mean the reel reached Instagram. */
 export function isPublished(outcome: ReelJobOutcome | undefined): boolean | null {
   if (!outcome) return null;
-  if (outcome.status === "posted") return true;
+  // Both are terminal live states in production: dailyReelPost writes "posted";
+  // reconciliation may later promote the same confirmed media to "published".
+  if (outcome.status === "posted" || outcome.status === "published") return true;
   // publish_ambiguous is genuinely unknown — it may be live. Never claim false.
   if (outcome.status === "publish_ambiguous") return null;
   return false;

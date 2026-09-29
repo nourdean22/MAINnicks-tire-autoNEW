@@ -42,12 +42,18 @@ const NOT_SHOWN: Record<string, string> = {
 /** The keys of the object literal `lot.health` returns as a camera's `vision` block. */
 function visionFieldsReturned(): string[] {
   const src = fs.readFileSync(ROUTER, "utf8");
-  // The block is one object literal on one line, opened by `? {` after the vision guard.
-  const line = src.split("\n").find((l) => l.includes("detector: str(r.detectorName)"));
-  expect(line, "the vision block moved; this gate is reading nothing").toBeTruthy();
-  return [...line!.matchAll(/([A-Za-z0-9_]+):\s/g)].map((m) => m[1]);
+  const start = src.indexOf("          vision: r");
+  const end = src.indexOf("          transport: r", start);
+  expect(start, "the vision block moved or vanished").toBeGreaterThanOrEqual(0);
+  expect(end, "the vision block has no closing boundary").toBeGreaterThan(start);
+  const block = src.slice(start, end);
+  const objectStart = block.indexOf("{");
+  const objectEnd = block.lastIndexOf("}");
+  expect(objectStart, "the vision object opening brace moved").toBeGreaterThanOrEqual(0);
+  expect(objectEnd, "the vision object closing brace moved").toBeGreaterThan(objectStart);
+  const objectBody = block.slice(objectStart + 1, objectEnd);
+  return [...objectBody.matchAll(/(?:^|,)\s*([A-Za-z0-9_]+):\s/gm)].map((m) => m[1]);
 }
-
 describe("every vision field the router returns reaches the card", () => {
   it("finds a vision block worth checking", () => {
     // The positive control. A parse that returned [] would make the assertion below pass
@@ -94,5 +100,81 @@ describe("every vision field the router returns reaches the card", () => {
     const card = fs.readFileSync(CARD, "utf8");
     expect(card).toContain("vision.inferenceP95Ms");
     expect(card).toContain("vision.inferenceAgeSeconds");
+  });
+});
+
+/** The keys of the object literal `lot.health` returns as a camera's transport block. */
+function transportFieldsReturned(): string[] {
+  const src = fs.readFileSync(ROUTER, "utf8");
+  const start = src.indexOf("          transport: r");
+  const end = src.indexOf("          conversation: r", start);
+  expect(start, "the transport block moved or vanished").toBeGreaterThanOrEqual(0);
+  expect(end, "the transport block has no closing boundary").toBeGreaterThan(start);
+  const block = src.slice(start, end);
+  return [...block.matchAll(/^\s{16}([A-Za-z0-9_]+):\s/gm)].map((m) => m[1]);
+}
+
+describe("every interaction transport field reaches the camera card", () => {
+  it("finds a transport block worth checking", () => {
+    const fields = transportFieldsReturned();
+    expect(fields.length).toBeGreaterThanOrEqual(4);
+    expect(fields).toContain("eventProofAgeSeconds");
+    expect(fields).toContain("controlProofAgeSeconds");
+    expect(fields).toContain("mediaProofAgeSeconds");
+    expect(fields).toContain("ptzNotifyAgeSeconds");
+  });
+
+  it("the card renders every returned transport proof age", () => {
+    const card = fs.readFileSync(CARD, "utf8");
+    const missing = transportFieldsReturned().filter(
+      (field) =>
+        !card.includes(`transport.${field}`) &&
+        !card.includes(`transport?.${field}`),
+    );
+    expect(
+      missing,
+      `lot.health returns transport fields ${JSON.stringify(missing)} that the camera card drops`,
+    ).toEqual([]);
+  });
+
+  it("the authority role reaches the screen", () => {
+    const card = fs.readFileSync(CARD, "utf8");
+    expect(card).toContain("c.role");
+  });
+});
+
+
+/** The keys of the object literal `lot.health` returns as Office conversation runtime. */
+function conversationFieldsReturned(): string[] {
+  const src = fs.readFileSync(ROUTER, "utf8");
+  const start = src.indexOf("          conversation: r");
+  const end = src.indexOf("          cloud: r", start);
+  expect(start, "the conversation block moved or vanished").toBeGreaterThanOrEqual(0);
+  expect(end, "the conversation block has no closing boundary").toBeGreaterThan(start);
+  const block = src.slice(start, end);
+  return [...block.matchAll(/^\s{16}([A-Za-z0-9_]+):\s/gm)].map((m) => m[1]);
+}
+
+describe("every Office conversation-runtime field reaches the Office intelligence panel", () => {
+  it("finds a conversation block worth checking", () => {
+    const fields = conversationFieldsReturned();
+    expect(fields.length).toBeGreaterThanOrEqual(8);
+    expect(fields).toContain("workerOk");
+    expect(fields).toContain("state");
+    expect(fields).toContain("lastCoverage");
+    expect(fields).toContain("lastError");
+  });
+
+  it("renders every returned conversation-runtime field", () => {
+    const card = fs.readFileSync(CARD, "utf8");
+    const missing = conversationFieldsReturned().filter(
+      (field) =>
+        !card.includes(`runtime.${field}`) &&
+        !card.includes(`runtime?.${field}`),
+    );
+    expect(
+      missing,
+      `lot.health returns conversation fields ${JSON.stringify(missing)} that Office intelligence drops`,
+    ).toEqual([]);
   });
 });

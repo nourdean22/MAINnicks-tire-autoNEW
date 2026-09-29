@@ -9,6 +9,8 @@ interface CreateCockpitSseStreamInput {
     model: string;
     provider: string;
     targets: string[];
+    /** The classifier did not run; the other fields are the turn's own labels. */
+    skipped?: boolean;
   };
   recalledMemories: Array<{ id: string; content: string; similarity: number; category: string }>;
   /** 2026-09-10 · three-state provenance for `recalledMemories`. An empty
@@ -61,6 +63,7 @@ export function createCockpitSseStream(input: CreateCockpitSseStreamInput): Read
         model: classification.model,
         provider: classification.provider,
         targets: classification.targets,
+        ...(classification.skipped ? { skipped: true } : {}),
       });
 
       // 2. Publish memory.recalled

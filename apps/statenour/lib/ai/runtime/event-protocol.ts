@@ -7,6 +7,8 @@ export type CockpitEvent =
         model: string;
         provider: string;
         targets: string[];
+        /** Set when the classifier did not run (fixed-mode turn). */
+        skipped?: boolean;
       };
     }
   | {

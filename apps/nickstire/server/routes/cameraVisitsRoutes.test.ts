@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS, HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore } from "./cameraVisitsRoutes";
+import {
+  COLUMNS, GUARDED_SET, HEARTBEAT_ACCEPT, HEARTBEAT_COLUMNS,
+  HEARTBEAT_GUARDED_SET, activeRunField, parseHeartbeat, plateTextToStore,
+} from "./cameraVisitsRoutes";
+import { cameraProducerAuthority } from "./cameraProducerAuthority";
 
 describe("camera visit ingest — plate durability", () => {
   it("stores plate text ONLY when the read is CONFIRMED", () => {
@@ -126,20 +130,20 @@ describe("camera heartbeat ingest — idempotency key (producerInstanceId, heart
     expect(HEARTBEAT_GUARDED_SET).not.toContain("`camera` =");
   });
 
-  it("a new producer instance is accepted even when its sequence restarts from zero", () => {
-    // A restart legitimately resets heartbeatSeq; the OR makes the instance change
-    // sufficient on its own. Without it, a restarted producer would be ignored until
-    // its counter climbed past the dead instance's last value.
-    expect(HEARTBEAT_ACCEPT).toBe(
-      "(VALUES(`producerInstanceId`) <> `producerInstanceId` OR VALUES(`heartbeatSeq`) >= `heartbeatSeq`)",
-    );
+  it("encodes the priority fence and stale-owner takeover in the SQL predicate", () => {
+    expect(HEARTBEAT_ACCEPT).toContain("p1-%");
+    expect(HEARTBEAT_ACCEPT).toContain("p2-%");
+    expect(HEARTBEAT_ACCEPT).toContain("p3-%");
+    expect(HEARTBEAT_ACCEPT).toContain(`INTERVAL ${cameraProducerAuthority.staleSeconds} SECOND`);
   });
 
   it("stateSince moves only on an ACCEPTED heartbeat whose state actually changed", () => {
     expect(HEARTBEAT_GUARDED_SET).toContain(
       "`stateSince` = IF(" + HEARTBEAT_ACCEPT + " AND VALUES(`state`) <> `state`, NOW(), `stateSince`)",
     );
-    expect(HEARTBEAT_GUARDED_SET).toContain("`receivedAt` = IF(" + HEARTBEAT_ACCEPT + ", NOW(), `receivedAt`)");
+    expect(HEARTBEAT_GUARDED_SET).toContain(
+      "`receivedAt` = IF((VALUES(`producerInstanceId`) = `producerInstanceId` AND VALUES(`heartbeatSeq`) >= `heartbeatSeq`), NOW(), `receivedAt`)",
+    );
   });
 
   it("rejects a body without the key fields and an unparseable producer timestamp", () => {
@@ -151,6 +155,51 @@ describe("camera heartbeat ingest — idempotency key (producerInstanceId, heart
       expect(ok.data.mode).toBe("PRODUCTION");
       expect(ok.data.observedAtEdge?.getTime()).toBe(1_800_000_000 * 1000);
     }
+  });
+});
+
+describe("camera producer authority — priority and visit fencing", () => {
+  it("orders the three machines shop PC -> NicksMax -> NattyNour", () => {
+    expect(cameraProducerAuthority.producerPriority("p1-shop-abc")).toBe(1);
+    expect(cameraProducerAuthority.producerPriority("p2-nicksmax-abc")).toBe(2);
+    expect(cameraProducerAuthority.producerPriority("p3-nattynour-abc")).toBe(3);
+    expect(cameraProducerAuthority.producerPriority("legacy")).toBe(99);
+  });
+
+  it("expires local business-write authority BEFORE backend takeover becomes legal", () => {
+    expect(cameraProducerAuthority.leaseSeconds).toBeGreaterThan(0);
+    expect(cameraProducerAuthority.leaseSeconds).toBeLessThan(cameraProducerAuthority.staleSeconds);
+  });
+
+  it("lets the shop PC preempt a fresh standby immediately", () => {
+    expect(cameraProducerAuthority.heartbeatAuthorityAccepted({
+      incomingId: "p1-shop-new", incomingSeq: 1,
+      storedId: "p2-nicksmax-old", storedSeq: 99, storedAgeSeconds: 1,
+    })).toBe(true);
+  });
+
+  it("blocks NicksMax while a fresh shop-PC owner is alive", () => {
+    expect(cameraProducerAuthority.heartbeatAuthorityAccepted({
+      incomingId: "p2-nicksmax-new", incomingSeq: 1,
+      storedId: "p1-shop-live", storedSeq: 99, storedAgeSeconds: 1,
+    })).toBe(false);
+  });
+
+  it("allows the next standby only after the current owner is stale", () => {
+    expect(cameraProducerAuthority.heartbeatAuthorityAccepted({
+      incomingId: "p2-nicksmax-new", incomingSeq: 1,
+      storedId: "p1-shop-dead", storedSeq: 99,
+      storedAgeSeconds: cameraProducerAuthority.staleSeconds + 1,
+    })).toBe(true);
+  });
+
+  it("visit writes require the elected live producer", () => {
+    const current = { producerInstanceId: "p1-shop-live", ageSeconds: 10 };
+    expect(cameraProducerAuthority.visitProducerAuthorized("p1-shop-live", current)).toBe(true);
+    expect(cameraProducerAuthority.visitProducerAuthorized("p2-nicksmax-wait", current)).toBe(false);
+    expect(cameraProducerAuthority.visitProducerAuthorized("p1-shop-live", {
+      ...current, ageSeconds: cameraProducerAuthority.staleSeconds + 1,
+    })).toBe(false);
   });
 });
 
@@ -177,14 +226,25 @@ function applyOnDuplicateKeyUpdate(
   const NOW = "__NOW__";
 
   const evalPredicate = (pred: string): boolean => {
-    const base = /^\(VALUES\(`(\w+)`\) <> `\1` OR VALUES\(`(\w+)`\) >= `\2`\)$/;
     const withState = /^(.*) AND VALUES\(`(\w+)`\) <> `\2`$/;
     const st = withState.exec(pred);
     if (st) return evalPredicate(st[1]) && incoming[st[2]] !== row[st[2]];
-    const m = base.exec(pred);
-    if (!m) throw new Error(`unsupported predicate shape, re-review ordering: ${pred}`);
-    const [, idCol, seqCol] = m;
-    return incoming[idCol] !== row[idCol] || Number(incoming[seqCol]) >= Number(row[seqCol]);
+    if (pred === HEARTBEAT_ACCEPT) {
+      return cameraProducerAuthority.heartbeatAuthorityAccepted({
+        incomingId: String(incoming.producerInstanceId),
+        incomingSeq: Number(incoming.heartbeatSeq),
+        storedId: String(row.producerInstanceId),
+        storedSeq: Number(row.heartbeatSeq),
+        storedAgeSeconds: Number(row.receivedAtAgeSeconds ?? 0),
+      });
+    }
+    if (pred === "(VALUES(`producerInstanceId`) = `producerInstanceId` AND VALUES(`heartbeatSeq`) >= `heartbeatSeq`)") {
+      return (
+        incoming.producerInstanceId === row.producerInstanceId
+        && Number(incoming.heartbeatSeq) >= Number(row.heartbeatSeq)
+      );
+    }
+    throw new Error(`unsupported predicate shape, re-review ordering: ${pred}`);
   };
 
   // Split on top-level commas only (the IF(...) arguments contain commas of their own).
@@ -289,14 +349,41 @@ describe("camera heartbeat ingest — the guard must survive a producer RESTART"
     expect(after.stateSince).toBe("old");
   });
 
-  it("the two discriminators are assigned LAST, which is what makes all of the above true", () => {
+  it("a lower-priority producer can take over a STALE owner without a half-applied row", () => {
+    const stalePrimary = {
+      producerInstanceId: "p1-shop-dead",
+      heartbeatSeq: 120,
+      state: "CAMERA_OFFLINE",
+      calibrationVersion: "cal-1",
+      captureFps: 0,
+      receivedAt: "old",
+      receivedAtAgeSeconds: cameraProducerAuthority.staleSeconds + 1,
+      stateSince: "old",
+    };
+    const standby = {
+      producerInstanceId: "p2-nicksmax-new",
+      heartbeatSeq: 1,
+      state: "HEALTHY",
+      calibrationVersion: "cal-1",
+      captureFps: 4,
+    };
+    const after = applyOnDuplicateKeyUpdate(HEARTBEAT_GUARDED_SET, stalePrimary, standby);
+    expect(after.producerInstanceId).toBe("p2-nicksmax-new");
+    expect(after.heartbeatSeq).toBe(1);
+    expect(after.state).toBe("HEALTHY");
+    expect(after.captureFps).toBe(4);
+    expect(after.receivedAt).toBe("__NOW__");
+  });
+
+  it("the discriminators precede receivedAt, which is what keeps stale takeover atomic", () => {
     // A structural assertion ON TOP of the behavioural ones, pinning the DERIVED order
     // itself: a refactor that reorders these reintroduces one of two measured defects,
     // and this fails naming the ordering rather than a downstream symptom.
     const order = [...HEARTBEAT_GUARDED_SET.matchAll(/`(\w+)` = IF\(/g)].map((m) => m[1]);
-    // The exact derived order, not merely "last": heartbeatSeq must precede
-    // producerInstanceId, and stateSince must precede state.
-    expect(order.slice(-2)).toEqual(["heartbeatSeq", "producerInstanceId"]);
+    // The exact derived order, not merely "last": heartbeatSeq precedes
+    // producerInstanceId, and receivedAt is last so stale-owner age stays immutable
+    // while every authority guard is evaluated.
+    expect(order.slice(-3)).toEqual(["heartbeatSeq", "producerInstanceId", "receivedAt"]);
     expect(order.indexOf("stateSince")).toBeLessThan(order.indexOf("state"));
     for (const d of ["producerInstanceId", "heartbeatSeq", "state", "stateSince"]) {
       expect(order.filter((c) => c === d), `${d} assigned more than once`).toHaveLength(1);
@@ -404,5 +491,77 @@ describe("camera visit ingest — the episode trail cannot be erased", () => {
     const sql = String(GUARDED_SET);
     expect(sql).toContain("VALUES(`state`)");
     expect(sql).not.toContain("COALESCE(VALUES(`state`)");
+  });
+});
+
+
+describe("camera heartbeat — interaction transport proofs (0134)", () => {
+  const base = {
+    camera: "office",
+    producerInstanceId: "eufy-agent-1",
+    heartbeatSeq: 1,
+    observedAtEdge: "2026-09-26T23:55:00Z",
+    mode: "SHADOW" as const,
+  };
+
+  it("an older producer that sends none of the new fields still parses", () => {
+    const hb = parseHeartbeat(base);
+    expect(hb.success).toBe(true);
+    if (hb.success) {
+      expect(hb.data.authPlaneOk ?? null).toBeNull();
+      expect(hb.data.mediaPlaneOk ?? null).toBeNull();
+      expect(hb.data.lastPtzNotifyAt ?? null).toBeNull();
+    }
+  });
+
+  it("false is a measured failure and survives parsing as false", () => {
+    const hb = parseHeartbeat({
+      ...base,
+      heartbeatSeq: 2,
+      authPlaneOk: true,
+      eventPlaneOk: true,
+      controlPlaneOk: false,
+      mediaPlaneOk: false,
+      ptzHomeOk: false,
+    });
+    expect(hb.success).toBe(true);
+    if (hb.success) {
+      expect(hb.data.controlPlaneOk).toBe(false);
+      expect(hb.data.mediaPlaneOk).toBe(false);
+      expect(hb.data.ptzHomeOk).toBe(false);
+    }
+  });
+
+  it("proof timestamps are parsed and every field reaches the guarded write", () => {
+    const hb = parseHeartbeat({
+      ...base,
+      heartbeatSeq: 3,
+      lastEventProofAt: "2026-09-26T23:54:00Z",
+      lastControlProofAt: "2026-09-26T23:54:10Z",
+      lastMediaProofAt: "2026-09-26T23:54:20Z",
+      lastPtzNotifyAt: "2026-09-26T23:54:30Z",
+    });
+    expect(hb.success).toBe(true);
+    if (hb.success) {
+      expect(hb.data.lastEventProofAt).toBeInstanceOf(Date);
+      expect(hb.data.lastPtzNotifyAt).toBeInstanceOf(Date);
+    }
+
+    for (const field of [
+      "authPlaneOk",
+      "eventPlaneOk",
+      "controlPlaneOk",
+      "mediaPlaneOk",
+      "ptzHomeOk",
+      "lastEventProofAt",
+      "lastControlProofAt",
+      "lastMediaProofAt",
+      "lastPtzNotifyAt",
+    ]) {
+      expect(HEARTBEAT_COLUMNS, `${field} must be named by the durable heartbeat writer`).toContain(field);
+      expect(HEARTBEAT_GUARDED_SET, `${field} must be protected from replay rollback`).toContain(
+        `\`${field}\` = IF(${HEARTBEAT_ACCEPT}, VALUES(\`${field}\`), \`${field}\`)`,
+      );
+    }
   });
 });

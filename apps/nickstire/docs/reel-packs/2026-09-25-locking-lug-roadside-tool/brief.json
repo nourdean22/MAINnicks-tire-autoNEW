@@ -1,0 +1,92 @@
+{
+  "packVersion": "2026-09-25.rotation-v1",
+  "topic": "wheel lock key roadside",
+  "mechanicTruth": "A locking wheel fastener requires its matching key or removal tool; a spare, jack, and lug wrench do not by themselves ensure wheel removal.",
+  "driverConfusion": "A spare tire kit can still leave you stuck if a locking wheel fastener is installed and its matching key is missing.",
+  "sourceNotes": [
+    {
+      "label": "McGard wheel-lock installation and replacement-key guidance",
+      "kind": "proof",
+      "supports": "A locking wheel fastener requires its matching key or removal tool; a spare, jack, and lug wrench do not by themselves ensure wheel removal."
+    }
+  ],
+  "campaignKeyword": "SPARE",
+  "hookText": "A spare tire kit can still leave you stuck if a locking wheel fastener is installed and its matching key is missing.",
+  "usefulAbsurdity": "A small visual detail changes the diagnosis or decision.",
+  "loopIdea": "The last shot returns to the same opening macro angle and lighting for a seamless replay.",
+  "ask": {
+    "kind": "visit"
+  },
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "unbranded automotive component macro under clean shop light",
+      "motion": "slow push-in",
+      "onScreenText": "SPARE + JACK + WRENCH",
+      "narration": "Spare, jack, and wrench can still leave you stuck."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "truth",
+      "visual": "two matching physical comparison samples on a clean bench",
+      "motion": "short lateral slide",
+      "onScreenText": "ONE LUG CAN STILL STOP YOU",
+      "narration": "A wheel lock needs its matching key."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "mechanism",
+      "visual": "wordless mechanical cross-section model of the relevant component",
+      "motion": "controlled macro orbit",
+      "onScreenText": "WHEEL LOCKS NEED THEIR KEY",
+      "narration": "Without it, the normal wrench may not remove the wheel."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "nuance",
+      "visual": "second physical comparison angle under the same lighting",
+      "motion": "locked comparison move",
+      "onScreenText": "FIND IT BEFORE A FLAT",
+      "narration": "Find the key before a roadside flat."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "payoff",
+      "visual": "return to the opening component macro from the same angle",
+      "motion": "slow return to opening composition",
+      "onScreenText": "KEEP THE KEY WITH THE TOOLS",
+      "narration": "Keep it accessible with the vehicle tools."
+    }
+  ],
+  "voiceoverScript": "Spare, jack, and wrench can still leave you stuck. A wheel lock needs its matching key. Without it, the normal wrench may not remove the wheel. Find the key before a roadside flat. Keep it accessible with the vehicle tools.",
+  "selectedCaption": "A locking wheel fastener requires its matching key or removal tool; a spare, jack, and lug wrench do not by themselves ensure wheel removal. A spare tire kit can still leave you stuck if a locking wheel fastener is installed and its matching key is missing. Nick's Tire & Auto can inspect the actual vehicle or tire before parts are replaced.",
+  "hashtags": [
+    "#WheelLocks",
+    "#FlatTire",
+    "#ClevelandCars",
+    "#ClevelandTires",
+    "#NicksTire"
+  ],
+  "productionPack": {
+    "distribution": "ad-ready",
+    "modelRecommendation": "Original Nick's footage first; cheapest competent Higgsfield I2V only for a missing connector shot; premium only after cheaper geometry fails.",
+    "creditEfficiencyNote": "Target 0 fresh credits.",
+    "platformOriginalitySafety": "Use first-party footage and deterministic overlays. Never present generated defects, readings, or customer events as real. Instagram/Facebook only; no TikTok-specific execution.",
+    "qaGate": [
+      "No fabricated measurements or defects.",
+      "No universal torque, pressure, or fitment claim.",
+      "No synthetic customer evidence."
+    ]
+  }
+}

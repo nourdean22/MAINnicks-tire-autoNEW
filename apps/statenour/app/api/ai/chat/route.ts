@@ -144,6 +144,15 @@ async function chatPostInner(req: Request) {
   const { detectContentIntent: _detectContentIntent } = await import("@/lib/ai/business-knowledge");
   const contentMode = _detectContentIntent(userContent);
 
+  // Research Query Compiler: explicit pre-research mode. Detect before
+  // interceptors/specialists so /drq and /nickdrq stay on the main context-rich
+  // chat path and are never mistaken for an action/research request.
+  const {
+    detectResearchCompilerMode,
+    buildResearchCompilerDirective,
+  } = await import("@/lib/ai/research-query-compiler");
+  const researchCompilerMode = detectResearchCompilerMode(userContent);
+
   // ═══ NL INTERCEPTOR FAST PATH ═══
   //
   // Three deterministic intents bypass the entire model pipeline:
@@ -162,7 +171,8 @@ async function chatPostInner(req: Request) {
   // commands / brain-dumps / decisions / /save create a titled conversation +
   // user row + BrainMemory/Decision rows (self-review blocker #1). Falling
   // through routes the turn to the model pipeline, which is private-safe.
-  if (!privateMode) {
+  // Compiler turns are prompt-only: interceptors can execute or persist before tool pruning.
+  if (!privateMode && !researchCompilerMode) {
     const interceptorTimer = stageTracker.start("interceptors");
     const { runInterceptors } = await import("@/lib/ai/chat/interceptors");
     const interceptResult = await runInterceptors({
@@ -186,7 +196,7 @@ async function chatPostInner(req: Request) {
   // Private Lab: skip specialist routing entirely — it records
   // content-derived route metrics (self-review #7) and its
   // buildFastStream persists the reply.
-  if (!privateMode) {
+  if (!privateMode && !researchCompilerMode) {
     const { runSpecialistRouting } = await import("./specialist-routing");
     const specialist = await runSpecialistRouting({
       messages: messages as unknown as Array<Record<string, unknown>>,
@@ -301,15 +311,15 @@ async function chatPostInner(req: Request) {
   // shape → turn-intelligence → response contract → domain routing →
   // the three tool-mandatory intent detections) moved VERBATIM to
   // ./derive-turn-signals.ts. One typed input → one typed result; the
-  // classify stage-timer is threaded through and wraps classifyIntent
-  // exactly as before. The three pure intent regexes now evaluate
+  // classify stage-timer is threaded through and wraps classifyIntent,
+  // which runs only when no fixed mode decides the mode (2026-09-23;
+  // the stage then reads `classify=skipped`). The three pure intent regexes now evaluate
   // BEFORE the budget gate below (they ran after it inline) — zero
   // side effects, zero I/O, so ordering is unobservable.
-  const { deriveTurnSignals, takeClassificationIfLanded } = await import("./derive-turn-signals");
+  const { deriveTurnSignals } = await import("./derive-turn-signals");
   const {
     aiConfig,
     classification,
-    classificationPromise,
     mode,
     taskTypeForMode,
     queryShape,
@@ -330,6 +340,7 @@ async function chatPostInner(req: Request) {
     traceId: __traceId,
     stageTracker,
     log,
+    researchCompilerMode,
   });
   // t0 anchors the prompt_built buildMs log metric. It previously sat
   // between the classify call and the pure derivations; the ~2-5ms of
@@ -366,6 +377,42 @@ async function chatPostInner(req: Request) {
   // deriveTurnSignals above — destructured as __pythonExecuteIntent /
   // __actionIntent / __webSearchIntent to keep every downstream
   // reference byte-identical.)
+
+  // Decision Plane shadow: candidate System-One backends are sampled and
+  // evaluated DURABLY by Inngest. They have zero production authority; the
+  // incumbent signals above still decide this turn. Feature defaults OFF and
+  // PII/private-mode turns are rejected before enqueue.
+  try {
+    const { scheduleTurnDecisionShadow } = await import(
+      "@/lib/ai/decision-plane/shadow"
+    );
+    const shadow = await scheduleTurnDecisionShadow({
+      userContent,
+      traceId: __traceId,
+      conversationId:
+        convId && convId !== "temp" && convId !== "private" ? convId : undefined,
+      privateMode,
+      turnSignal,
+      mode,
+      finalTaskType,
+      pythonExecuteIntent: __pythonExecuteIntent,
+      actionIntent: Boolean(__actionIntent),
+      webSearchIntent: __webSearchIntent,
+      webSearchRecency: __webSearchRecency,
+    });
+    if (shadow.queued) {
+      log.info("decision_plane_shadow_queued", {
+        eventCount: shadow.eventIds.length,
+      });
+    } else if (shadow.reason !== "feature_disabled" && shadow.reason !== "sampled_out") {
+      log.info("decision_plane_shadow_skipped", { reason: shadow.reason });
+    }
+  } catch (err) {
+    // Shadow instrumentation can never take chat down.
+    log.warn("decision_plane_shadow_enqueue_failed", {
+      error: err instanceof Error ? err.name : "Error",
+    });
+  }
 
   let model: ReturnType<typeof getModel>;
   let effectiveForce: ProviderName | undefined = undefined;
@@ -836,7 +883,7 @@ ${priorsBlock}`;
   // content-feedback step swallows its own errors; anything else
   // throwing lands in this route's catch → 500, as before.
   const { augmentFinalPrompt } = await import("./augment-final-prompt");
-  const finalSystemPrompt = await augmentFinalPrompt({
+  let finalSystemPrompt = await augmentFinalPrompt({
     systemPrompt,
     provider,
     greeneSummary,
@@ -846,6 +893,18 @@ ${priorsBlock}`;
     turnSignal,
     log,
   });
+
+  // Append LAST, after every generic persona/shape/business addendum. This makes
+  // prompt-compilation the controlling contract for this turn while preserving
+  // all recovered context above it. The model receives zero tools downstream.
+  if (researchCompilerMode) {
+    finalSystemPrompt += `\n\n${buildResearchCompilerDirective(researchCompilerMode)}`;
+    log.info("research_query_compiler", {
+      mode: researchCompilerMode,
+      tools: 0,
+      outputContract: "prompt-only",
+    });
+  }
 
   // 2026-08-12 · Context Manifest (VNext) — log-only: record exactly what
   // the model saw this turn (sections on the trimmer's own `\n## `
@@ -895,6 +954,7 @@ ${priorsBlock}`;
     finalSystemPromptLength: finalSystemPrompt.length,
     // WP-14 · read-mode hard enforcement (strips mutating tools LAST)
     actionPermission,
+    researchCompilerMode,
     traceId: __traceId,
     conversationId: convId,
     log,
@@ -989,7 +1049,7 @@ ${priorsBlock}`;
   // VERBATIM to ./alternate-paths.ts. Returns a Response when an
   // alternate path handled the turn; null falls through to the
   // untouched streamText path below. Flags off = zero change.
-  {
+  if (!researchCompilerMode) {
     const { runAlternatePaths } = await import("./alternate-paths");
     const altResponse = await runAlternatePaths({
       persistBase,
@@ -1014,9 +1074,8 @@ ${priorsBlock}`;
       traceId: __traceId,
       modeOverride,
       personality,
-      // Undefined on a fixed-mode turn that did not wait for the classifier:
-      // take it if it has landed, never wait for it (derive-turn-signals.ts).
-      classification: classification ?? (await takeClassificationIfLanded(classificationPromise)),
+      // Undefined on a fixed-mode turn: the classifier is skipped (derive-turn-signals.ts).
+      classification,
       recalledHits,
       detectedContradictions,
       deeperContextCount,
@@ -1256,7 +1315,7 @@ ${priorsBlock}`;
     deeperContextCount,
     deeperContextTypes,
     contextBlocksFired,
-    classification: classification ?? (await takeClassificationIfLanded(classificationPromise)),
+    classification,
     recalledMemories: recalledHits,
     recallProvenance,
     recallProvenanceReason,

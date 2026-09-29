@@ -158,9 +158,9 @@ Every adversarial self-review since 2026-08-12 found real defects in the session
 - **Write the if-this-then-that branches before starting, and take them without asking.** If a gate is red for an
   environmental reason, run its inner gates one by one and name the broken link. If pre-push is blocked by the OTHER app's
   build, push from a hook-free clone and let CI carry the real gate (never `--no-verify`). If the classifier denies a
-  compound command, send one plain command per call. If CI is cancelled by a sibling's merge, rerun; don't debug. If a
-  requirement is derived per diff (completion evidence), rewrite the entry for THIS diff. **A branch that does not land is
-  a hard block:** no second reshape, no retry loop — name it, hand the operator the exact one-liner, finish the rest.
+  compound command, send one plain command per call. If CI is cancelled by a sibling's merge, rerun; don't debug. Derived
+  completion evidence goes in a NEW `.completion/evidence.d/<branch>.json`, written for THIS diff. **A branch that does not
+  land is a hard block:** no second reshape, no retry loop — name it, hand the operator the exact one-liner, finish the rest.
 
 ## Commit Attribution
 
@@ -192,9 +192,9 @@ loads nothing while still passing a substring check. Registry + design notes:
 
 ## Operating frameworks
 
-- [`AGENT-OPERATING-PROFILE.md`](./AGENT-OPERATING-PROFILE.md) — operator identity, response shape, §11
-  multi-agent safety. Read when deciding *how* to communicate; policy here wins on conflict.
+- [`AGENT-OPERATING-PROFILE.md`](./AGENT-OPERATING-PROFILE.md) — operator identity, response shape, §11 multi-agent safety.
+- [`NOUR-COMMAND.md`](./NOUR-COMMAND.md) — **read before every non-trivial task**: infer outcome, recover context, define proof,
+  route modes, run authorized work to empty, falsify success, simplify, and report evidence-backed completion.
 - [`.agents/frameworks/ciitty/SKILL.md`](.agents/frameworks/ciitty/SKILL.md) — CIITTY v2.1: **Blind Spot
   Check** + **Forgotten Factor Protocol** (what route/cron/webhook/env var depends on what I changed?).
-- [`docs/UPSTREAMS.md`](docs/UPSTREAMS.md) — adoption verdicts. Check BEFORE proposing any new platform,
-  library or MCP server; a row there is an answer, not a starting point.
+- [`docs/UPSTREAMS.md`](docs/UPSTREAMS.md) — adoption verdicts; check before proposing a new platform, library, or MCP.

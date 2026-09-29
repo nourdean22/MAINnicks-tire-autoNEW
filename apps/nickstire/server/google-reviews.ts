@@ -5,7 +5,10 @@
  * Caches results for 1 hour to avoid excessive API calls.
  *
  * When the API key is not configured, falls back to DB-stored review stats
- * (editable from admin dashboard) instead of returning null.
+ * (editable from admin dashboard) instead of returning null. Those stats are
+ * ADMIN-ENTERED only: the automatic copy of Google's rating/count into
+ * shop_settings (saveBackupStatsToDb, updatedBy "system_sync") was removed in
+ * Q-48 because the Places terms do not allow storing it.
  */
 
 import { makeRequest, type PlaceDetailsResult, type PlacesSearchResult } from "./_core/map";
@@ -82,55 +85,6 @@ async function getReviewStatsFromDb(): Promise<{ count: number; rating: number }
     return null;
   }
 }
-
-/**
- * Keep backup review stats fresh in the shop_settings table.
- * Does not clear the in-memory cache to avoid fetch loops.
- */
-export async function saveBackupStatsToDb(count: number, rating: number): Promise<void> {
-  try {
-    const { getDb } = await import("./db");
-    const d = await getDb();
-    if (!d) return;
-
-    const existingCount = await d.select().from(shopSettings).where(eq(shopSettings.key, "reviewCount")).limit(1);
-    const existingRating = await d.select().from(shopSettings).where(eq(shopSettings.key, "reviewRating")).limit(1);
-
-    const dbCountVal = existingCount[0]?.value;
-    const dbRatingVal = existingRating[0]?.value;
-
-    if (dbCountVal !== String(count)) {
-      if (existingCount.length > 0) {
-        await d.update(shopSettings).set({ value: String(count), updatedBy: "system_sync" }).where(eq(shopSettings.key, "reviewCount"));
-      } else {
-        await d.insert(shopSettings).values({
-          key: "reviewCount",
-          value: String(count),
-          label: "Google Review Count",
-          category: "general",
-          updatedBy: "system_sync",
-        });
-      }
-    }
-
-    if (dbRatingVal !== String(rating)) {
-      if (existingRating.length > 0) {
-        await d.update(shopSettings).set({ value: String(rating), updatedBy: "system_sync" }).where(eq(shopSettings.key, "reviewRating"));
-      } else {
-        await d.insert(shopSettings).values({
-          key: "reviewRating",
-          value: String(rating),
-          label: "Google Review Rating",
-          category: "general",
-          updatedBy: "system_sync",
-        });
-      }
-    }
-  } catch (err) {
-    log.warn("[GoogleReviews] Failed to save backup stats to DB:", err);
-  }
-}
-
 
 /**
  * Save review stats to the DB (used by admin mutation).
@@ -220,6 +174,10 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
       {
         place_id: placeId,
         fields: "name,rating,user_ratings_total,reviews,formatted_address,formatted_phone_number,website,opening_hours,geometry",
+        // Legacy Place Details defaults to "most_relevant". The public reviews
+        // page promises recency, so request newest explicitly and still sort
+        // client-side by the returned Unix timestamp as a defensive fallback.
+        reviews_sort: "newest",
       }
     );
 
@@ -265,8 +223,12 @@ export async function getGoogleReviews(): Promise<GoogleReviewData | null> {
     cacheTimestamp = Date.now();
     failCount = 0;
 
-    // Asynchronously save backup stats to DB (non-blocking, no cache bust)
-    void saveBackupStatsToDb(reviewData.totalReviews, reviewData.rating);
+    // Q-48 (2026-09-23): the live rating/count are NOT copied into
+    // shop_settings any more. Google Maps Platform Terms forbid caching
+    // Places content beyond what the Service Specific Terms permit (place_id;
+    // Places lat/lng for 30 days), and a rating has no carve-out. This
+    // in-process cache is the only copy: memory only, TTL above, gone on
+    // restart. The DB fallback now serves ADMIN-ENTERED numbers only.
 
     // Reviews fetched successfully
     return reviewData;

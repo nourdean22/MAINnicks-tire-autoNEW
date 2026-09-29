@@ -74,8 +74,8 @@ flag that has no route through the installer is off in production no matter how 
 tested. `tests/test_installer_flag_drift.py` fails when that happens.
 
 ```powershell
-powershell -File scripts/install-edge-runtime.ps1 -DryRun     # print the plan, install nothing
-powershell -File scripts/install-edge-runtime.ps1
+powershell -File scripts/install-edge-runtime.ps1 -Role shop -DryRun     # print the plan, install nothing
+powershell -File scripts/install-edge-runtime.ps1 -Role shop
 ```
 
 > `-DryRun` is the INSTALLER's ("show me the plan"). The producer's own dry-run is
@@ -85,33 +85,77 @@ powershell -File scripts/install-edge-runtime.ps1
 **It must run at logon on the interactive desktop, never as SYSTEM.** The WGC capture lane
 reads a window; Windows services run in Session 0, which has no desktop at all.
 
-The command line the producer has been running under, verbatim, for reference:
+**Schedule `shop-pc-keepalive.ps1`, and nothing else.** It is the single entry point: V380
+process, its window, the Tips dialog, the producer task AND process, and (since 2026-09-16)
+whether the producer is aimed at the calibrated rectangle at all. Each link had its own fix
+and no one thing checked them all, so a green report from any one of them meant nothing about
+the lot being counted.
+
+```powershell
+powershell -File scripts/shop-pc-keepalive.ps1 -Install   # at logon + every 3 min, hidden
+powershell -File scripts/shop-pc-keepalive.ps1 -Status    # report only, touches nothing
+```
+
+The command line the shop PC actually runs, read back off the installed wrapper
+(`camera-bridge/edge-task.cmd`) rather than remembered:
 
 ```
-python edge_main.py --config config.yaml --camera sign
-  --scene-atlas data/scene-atlas --scene shop-left
-  --calibration data/calib-shop-left.json
+python edge_main.py --config config.yaml --camera "sign"
+  --calibration data/calib-ch1-sidelot.json --channel 1
   --model ov_models/vehicle-detection-0200/FP16/vehicle-detection-0200.xml
-  --device AUTO --hard-cases data/hard-cases --hard-case-episodes both
-  --trajectories data/trajectories.sqlite --fps 4 --dry-run
+  --device AUTO --hard-cases data\hard-cases --hard-case-max-gb 2
+  --hard-case-episodes both --relocate-seconds 120
+  --trajectories data\trajectories.sqlite --dry-run
+  --fps 4 --heartbeat-seconds 30 --stall-exit-seconds 180
 ```
+
+Note what is NOT there: `--scene-atlas`/`--scene`. Without an atlas the channel is located by
+`--channel N`, which finds a *rectangle* but cannot prove WHICH camera is in it — which is
+exactly why a window resize is silent (§4). And read `--dry-run` against the warning at the
+top of §4: it gates StateNour only; the shop lane POSTs to nickstire production regardless.
+The `CAMERA_INGEST_KEY` decrypt line must be present in that wrapper — `grep CAMERA_INGEST_KEY
+edge-task.cmd`. A wrapper generated BEFORE the secret existed has no such line, and
+`-SecretOnly` preserves it, so the lane stays dead while the installer reports success; re-run
+the FULL registration with every flag to rebuild it.
 
 ---
 
-## 4. The three things that will bite
+## 4. The four things that will bite
 
 **`--dry-run` gates StateNour ONLY. The shop lane still POSTs to production.** This is the
 one to read twice. A producer started "just to see if it works" is writing real rows against
 the shop's live counters unless you have separately arranged otherwise.
 
-**The V380 client window is the sensor.** The scene locator finds SHOPSIGN by *appearance*
-against `data/scene-atlas`, so the client must be showing the right channel, and the window
-must not be resized or re-ordered casually — a layout change breaks track continuity by
-design (the epoch folds into `source_generation`). Two things it handles on its own, so do
-not "fix" them: it captures an **occluded** window fine (WGC reads the surface, not the
-screen), and it **un-minimises itself** — `capture.restore_if_minimized` detects the
-no-surface case and restores the window by title *without stealing focus*, because a
-minimised window renders nothing for WGC to read.
+**The V380 client window is the sensor, and it must stay MAXIMISED.** The producer resolves
+its channel box ONCE at startup, in WINDOW coordinates — `channel 1: x=1084 y=65 552x310 of a
+1920x1080 window`. Occlusion is genuinely fine (WGC reads the window's own composited surface,
+not the screen; measured on this box 30/30 frames at 1920x1080 with Chrome on top), and it
+**un-minimises itself** via `capture.restore_if_minimized`, without stealing focus. Neither of
+those needs "fixing".
+
+**Resizing it does not degrade gracefully — it silently stops the count.** The client re-flows
+its panes, that rectangle then frames black letterbox or the wrong lens, and every frame after
+is garbage that is still well-formed. Process alive, task `Running`, client showing live video,
+`doctor` green, keepalive printing `chain OK`, lot uncounted. Twelve minutes passed before
+anything noticed on 2026-09-16.
+
+- **The only tell is `hard case saved ...-POSE_OFF_HOME`, once a minute.** `edge_health.py`
+  now reads exactly that, scoped to the CURRENT run (`==== edge start` banner) — `edge.log` is
+  append-only across restarts, so an unscoped grep condemns a freshly repaired producer with
+  the broken run's lines and restarts it every three minutes for ever.
+- `shop-pc-keepalive.ps1` carries the repair as link 4: re-maximise FIRST, then restart, so
+  startup reads the restored layout. **Stop before start** — the task is registered
+  `-MultipleInstances IgnoreNew`, so a bare `Start-ScheduledTask` on the still-running
+  producer is silently discarded and the "repair" becomes a window nudge that logs `ACTION`
+  and changes nothing.
+- **`ShowWindow(hwnd, 4)` (`SW_SHOWNOACTIVATE`) un-maximises a maximised window.** That one
+  call, made to screenshot the window, is what caused the outage above. To look at V380,
+  screenshot it where it sits; never "restore" it first. `SW_MAXIMIZE` is `3`, and the way
+  back under the operator's work is `SetWindowPos(..., HWND_BOTTOM, SWP_NOMOVE|SWP_NOSIZE|
+  SWP_NOACTIVATE)`.
+
+Deliberately NOT guarded by ledger staleness: an empty lot at 3am is legitimately still, and
+restarting on that would thrash the machine all night.
 
 **Never run a package install inside a junctioned worktree.** `worktree-setup.ps1` NTFS-
 junctions every `node_modules`; an install inside one offers to wipe the shared tree every
@@ -148,6 +192,32 @@ deaths in a band rather than a number somebody will quote.
   crossing when there is no portal, and neither fixed lens sees the driveway. Fit it to the
   full drivable region and there is no *outside* left: cars appear already inside, never
   cross, and the shop records zero arrivals under a perfectly green producer.
+- **An image-derived threshold is stale the moment a crop, resize or `--channel` changes what
+  it looks at.** `FrameHealth.freeze_epsilon` was 0.02, justified in-file by live footage
+  measuring >= 0.26 — measured on the FULL SHOPSIGN frame, which carries the overlay clock
+  ticking once a second and the wide pane onto Euclid. `--channel` then changed the subject to
+  a 552x310 crop of one fixed lens: static asphalt, no clock, **median consecutive MAD
+  0.0198**. The threshold sat on top of the live distribution, 51% of healthy pairs read as
+  "same buffer", and the admin flapped `healthy <-> degraded_vision` every few minutes. That
+  is not cosmetic: `not hs.ok` sets `_was_unhealthy`, recovery calls `census.note_reconnect`,
+  which **re-arms the preexisting census** — so a car arriving near a flap is PREEXISTING for
+  ever. Now byte-exact (a replayed buffer is the same BYTES; equality needs no threshold) plus
+  a time gate.
+- **State a freeze verdict in SECONDS, never in samples.** `freeze_run=8` means 2.1s at the
+  producer's 3.8fps and 0.27s at 29fps, so the same healthy feed reads as dead the moment the
+  loop speeds up — at 8fps the live feed measured 75% unhealthy. `freeze_seconds=3.0` is a ~4x
+  margin over the longest byte-identical stretch the real camera produces (16 in 90s, longest
+  0.79s: WGC re-hands `_latest` while the pane has not repainted).
+- **Probe at the rate the producer actually runs.** A first diagnosis of the above sampled at
+  29fps and blamed `looping`; at the real 3.8fps the culprit was `frozen`, a different code
+  path entirely. `looping` still fires ~4% at 8fps for the same reason (buffer re-delivery
+  counted as a camera loop) — harmless where the producer sits, a trap if it ever speeds up.
+- **A fixture can stand for a camera that does not exist.** The test that should have caught
+  the epsilon bug passed throughout, because its "live" frames were whole-frame `rng` noise,
+  an order of magnitude noisier than the real crop. Two replacement drafts were also wrong:
+  an A/B/A/B fixture **is** a two-frame loop, and a nudged block walked down the image
+  collides onto the same rows under `_thumb`'s stride-6 subsample, yielding byte-identical
+  thumbnails. Build the fixture from measured numbers, then assert it still sits in the band.
 - **A moved PTZ matched its stored reference at 158 inliers** — nine times the floor — with a
   0.81 ratio and 1.33px reprojection. Confidently, precisely wrong. Only an independent
   signal caught it (the quad sat 623px from the detected live pane). Fit quality alone will
@@ -226,21 +296,34 @@ recording.
 
 ### Install it
 
-One command, once, as Administrator. Read the key on this machine so it never travels:
+**Summary-first rule:** Admin does not need a live camera player. The evidence source only needs
+to produce intelligible counter audio. Eufy RTSP is one source; a dedicated Windows counter mic
+is another, and is the preferred fallback when camera P2P/video is unreliable.
+
+Read the ingest key on the shop machine so it never travels.
+
+RTSP source:
 
 ```powershell
 railway run -s MAINnicks-tire-auto -- printenv CAMERA_INGEST_KEY
 cd C:\NOURCITY\camera-bridge\scripts
-.\install-office-capture.ps1 -SourceUrl "rtsp://<user>:<pass>@192.168.0.167/live0" -IngestKey "<paste>"
+.\install-office-capture.ps1 -SourceKind rtsp -SourceUrl "rtsp://<verified-audio-source>" -IngestKey "<paste>"
 ```
 
-It verifies every prerequisite BEFORE changing anything -- Administrator, Python >= 3.9,
-`tzdata`, `ffmpeg`, the whisper binary, and a live `ffprobe` proving the camera really carries
-an audio stream -- and names the fix for each. `-WhatIf` shows the changes without making them.
+Dedicated Windows counter mic:
 
-The ingest key and the RTSP URL go into the MACHINE environment, not the task's arguments: a
-scheduled task's command line is readable by any user via `schtasks /query /v`, and the camera
-credentials are inside that URL.
+```powershell
+ffmpeg -list_devices true -f dshow -i dummy
+.\install-office-capture.ps1 -SourceKind dshow -SourceUrl "<exact microphone name>" -IngestKey "<paste>"
+```
+
+The installer verifies every prerequisite BEFORE changing anything. RTSP is probed for a real
+audio stream. DirectShow is proved by recording a real five-second PCM file from the exact
+device name. A local microphone is registered under the interactive shop user at logon because
+Windows audio devices are desktop-session resources; RTSP remains a boot/SYSTEM task.
+
+The ingest key and source are stored in machine environment variables, never in task arguments.
+`-WhatIf` still shows the changes without making one.
 
 ### Hours
 
@@ -279,18 +362,18 @@ a threshold edit.
 
 ```powershell
 cd C:\NOURCITY\camera-bridge\vision
-python officepost.py --source-url $env:NICK_OFFICE_RTSP --out-dir C:\nick-office-audio --seconds 60 --dry-run
+python officepost.py --source-url $env:NICK_OFFICE_AUDIO_SOURCE --input-format $env:NICK_OFFICE_AUDIO_INPUT_FORMAT --out-dir C:\nick-office-audio --seconds 60
 ```
 
-`--dry-run` transcribes and prints the payload without posting. Drop it to post for real; the
-reply carries `transcriptStatus`, `coverage` and `dropped`.
+That command posts for real. The reply carries `transcriptStatus`, `coverage` and `dropped`.
+Coverage below 0.65 is an evidence-quality refusal, not permission to invent a summary.
 
 **Calibrate the silence threshold from the real room** rather than trusting the default, and do
 it during a BUSY stretch -- a calibration run in a quiet hour derives its threshold from room
 tone, and the capture then splits on nothing:
 
 ```powershell
-python officeaudio.py --source-url $env:NICK_OFFICE_RTSP --out-dir C:\nick-office-audio --calibrate --calib-samples 12 --calib-spacing 60
+python officeaudio.py --source-url $env:NICK_OFFICE_AUDIO_SOURCE --input-format $env:NICK_OFFICE_AUDIO_INPUT_FORMAT --out-dir C:\nick-office-audio --calibrate --calib-samples 12 --calib-spacing 60
 ```
 
 It exits 5 and proposes nothing when the samples are too few or too flat to separate speech

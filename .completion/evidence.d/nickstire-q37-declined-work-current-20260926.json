@@ -1,0 +1,16 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "Q-37 replacement branch: server/cron/estimateInvoiceMatch.test.ts pins the daily estimate-invoice-match job before alg-declined-work-recovery, the matched_invoice_id IS NULL compare-and-swap guard, no-DB throw semantics, and an explanatory zero-scan result. Exact-head CI/review on the replacement PR remains the acceptance gate."
+    },
+    "operator-walkthrough": {
+      "deferred": "After merge and migration 0132, operator verifies Admin > Money > Declined Work on the signed-in app: provenance totals, per-row DECLINED AT COUNTER / INFERRED / UNKNOWN labels, and the one-tap DECLINED capture. No customer send is performed by this PR."
+    },
+    "migration-evidence": {
+      "ref": "apps/nickstire/drizzle/0132_declined_work_captures.sql is additive and idempotent (CREATE TABLE IF NOT EXISTS). server/services/declineCaptures.ts treats missing-table as not_enabled and names migration 0132. Protected operator action: apply 0132 through the scoped production DB guard after merge; this PR does not run production DDL."
+    },
+    "capability-ledger-updated": {
+      "ref": "capability-ledger.json records estimate-invoice-match-scheduled and declined-work-counter-capture as merged/unverified post-merge claims with explicit blockers; REALITY-LEDGER.md is regenerated from the canonical JSON. Production/live claims remain withheld until migration 0132 and first live receipts."
+    }
+  }
+}

@@ -2,7 +2,7 @@
  * behavior-directive · the per-turn intensity gate for Nick's chat prompt.
  *
  * getBehaviorDirective decides whether Nick's response carries the
- * ANTICIPATE→ANSWER→ELEVATE directive, the HIGH sparring-partner addendum,
+ * ANTICIPATE→SOLVE→ELEVATE directive, the HIGH sparring-partner addendum,
  * or nothing at all. isStrictMode + resolveIntensity feed that decision.
  * These tests pin the gate: the strict-mode triggers, the intensity
  * env/override resolution, and that strict mode overrides intensity.
@@ -52,10 +52,28 @@ describe("getBehaviorDirective", () => {
     expect(getBehaviorDirective("normal question", "MINIMAL")).toBe("");
   });
 
-  it("returns the ANTICIPATE/ELEVATE directive at STANDARD intensity", () => {
+  it("returns the ANTICIPATE/SOLVE/ELEVATE directive at STANDARD intensity", () => {
     const directive = getBehaviorDirective("normal question", "STANDARD");
     expect(directive.length).toBeGreaterThan(0);
     expect(directive).toContain("ANTICIPATE");
+    expect(directive).toContain("SOLVE");
+  });
+
+  it("does not substitute Nick's preferences for Nour's objective", () => {
+    const directive = getBehaviorDirective("help me decide what to do", "STANDARD");
+    expect(directive).toContain("not your own opinion");
+    expect(directive).toContain("unless Nour explicitly asks for a recommendation");
+    expect(directive).toContain("optimize the recommendation for his stated objective and constraints");
+  });
+
+  it("pins proactive truth-seeking without yes-manning", () => {
+    const directive = getBehaviorDirective("analyze this and tell me what to do", "STANDARD");
+    expect(directive).toContain("What would make my first answer wrong?");
+    expect(directive).toContain("required tool is attached and permitted");
+    expect(directive).toContain("Separate fact from inference from unknown");
+    expect(directive).toContain("THE COUNTERMODEL");
+    expect(directive).toContain("state the hard truth once with evidence");
+    expect(directive).toContain("respect his decision");
   });
 
   it("HIGH intensity embeds the STANDARD directive and adds to it", () => {

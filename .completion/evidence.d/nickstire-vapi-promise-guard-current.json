@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Settings > VAPI: PUSH FOLLOW-UP ASSISTANT now opens the in-DOM confirmDialog on first tap; cancel/Escape/backdrop send nothing; only confirmation mutates; button has a 48px target. Proof: client/src/__tests__/vapi-followup-push-confirm.test.tsx (4 arms). No live Vapi push is performed by this PR."
+    },
+    "capability-ledger-updated": {
+      "ref": "Deliberately not updated: server/services/vapi.ts only removes the unsupported 'we text when done' promise and exports the existing retired-assistant guard so routers/vapi.ts cannot overwrite a retired assistant. No capability state or live Vapi config changes until an operator pushes config. Proof: server/vapiFollowUpPushButton.test.ts and server/__tests__/vapiToolPromiseTruth.test.ts."
+    }
+  }
+}

@@ -28,7 +28,7 @@ import { join } from "node:path";
 import { ensureProxyEnv } from "./github-client.mjs";
 import { gatherRemoteEvidence } from "./repo-status.mjs";
 import { classifyBranch, applyOverride, CLASSIFICATIONS } from "./classify-branch.mjs";
-import { originOwnerRepo, flag } from "./cli-common.mjs";
+import { originOwnerRepo, flag, isMainModule } from "./cli-common.mjs";
 
 const LEDGER_JSON = "docs/agent-os/branch-sweep-ledger.json";
 const LEDGER_MD = "docs/agent-os/BRANCH-SWEEP.md";
@@ -106,7 +106,9 @@ async function mapWithConcurrency(items, limit, worker) {
 export async function sweepBranches(owner, repo, { ghPaginate, concurrency = 8 }) {
   const branches = await ghPaginate(`/repos/${owner}/${repo}/branches`);
   return mapWithConcurrency(branches, concurrency, async (b) => {
-    const evidence = await gatherRemoteEvidence(owner, repo, b.name);
+    // The branches listing itself proves this ref exists; do not spend one
+    // extra /branches/<name> request per branch rediscovering that fact.
+    const evidence = await gatherRemoteEvidence(owner, repo, b.name, { knownExistsOnOrigin: true });
     const result = classifyBranch(evidence);
     return { branch: b.name, ...evidence, ...result };
   });
@@ -137,7 +139,7 @@ async function main() {
   console.log(`[branch-sweep] wrote ${LEDGER_JSON} and ${LEDGER_MD} (${merged.length} branches)`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   main().catch((e) => {
     console.error(`[branch-sweep] ${e.message}`);
     process.exit(1);

@@ -3,7 +3,7 @@ import { deriveCameraState, deriveStateAtIngest, HEALTH_THRESHOLDS } from "./cam
 
 type RuntimeSnapshot = NonNullable<Parameters<typeof deriveCameraState>[0]>;
 
-/** A heartbeat received just now from a producer with everything in order. */
+/** A heartbeat received just now from a fixed producer with everything in order. */
 function healthy(over: Partial<RuntimeSnapshot> = {}): RuntimeSnapshot {
   const now = 1_800_000_000;
   return {
@@ -22,11 +22,41 @@ function healthy(over: Partial<RuntimeSnapshot> = {}): RuntimeSnapshot {
   };
 }
 
-describe("camera health lattice", () => {
+const fixedFacets = {
+  producer: "alive",
+  source: "connected",
+  frames: "fresh",
+  pose: "ok",
+  calibration: "valid",
+  auth: "not_required",
+  events: "not_required",
+  control: "not_required",
+  media: "not_required",
+  home: "not_required",
+  cloud: "ok",
+};
+
+function healthyInteraction(over: Partial<RuntimeSnapshot> = {}): RuntimeSnapshot {
+  return healthy({
+    sourceConnected: null,
+    lastHealthyFrameAtEpoch: null,
+    frameOk: null,
+    poseOk: null,
+    calibrationVersion: null,
+    authPlaneOk: true,
+    eventPlaneOk: true,
+    controlPlaneOk: true,
+    mediaPlaneOk: true,
+    ptzHomeOk: true,
+    ...over,
+  });
+}
+
+describe("camera health lattice — fixed geometry", () => {
   it("a quiet lot is HEALTHY: zero visits is not an input to this function", () => {
     const v = deriveCameraState(healthy());
     expect(v.state).toBe("HEALTHY");
-    expect(v.facets).toEqual({ producer: "alive", source: "connected", frames: "fresh", pose: "ok", calibration: "valid", cloud: "ok" });
+    expect(v.facets).toEqual(fixedFacets);
   });
 
   it("no heartbeat ever is NEVER_INGESTED, the state the old visit-derived health could not express", () => {
@@ -38,19 +68,15 @@ describe("camera health lattice", () => {
     const T = HEALTH_THRESHOLDS;
     expect(deriveCameraState(healthy({ ageSeconds: T.staleAfterSeconds + 1 })).state).toBe("STALE");
     expect(deriveCameraState(healthy({ ageSeconds: T.offlineAfterSeconds + 1 })).state).toBe("PRODUCER_OFFLINE");
-    // Even a heartbeat that reported dead letters is judged offline first.
     expect(deriveCameraState(healthy({ ageSeconds: 999, deadLetterDepth: 4 })).state).toBe("PRODUCER_OFFLINE");
     expect(deriveCameraState(healthy({ ageSeconds: null })).state).toBe("STALE");
   });
 
   it("never HEALTHY while frames are stale, judged on the PRODUCER's clock", () => {
     const now = 1_800_000_000;
-    // The producer stamped its heartbeat at `now` but its last healthy frame is 40s older.
     const v = deriveCameraState(healthy({ observedAtEdgeEpoch: now, lastHealthyFrameAtEpoch: now - 40 }));
     expect(v.state).toBe("CAMERA_OFFLINE");
     expect(v.facets.frames).toBe("stale");
-    // A heartbeat that arrived late (large transport delay) does NOT make the frames
-    // look stale: age is 50s but the frame is 1s old on the producer's clock.
     const late = deriveCameraState(healthy({ ageSeconds: 50, observedAtEdgeEpoch: now, lastHealthyFrameAtEpoch: now - 1 }));
     expect(late.state).toBe("HEALTHY");
   });
@@ -73,11 +99,53 @@ describe("camera health lattice", () => {
   });
 
   it("a queue that is not draining is CLOUD_BACKLOG; dead letters outrank a plain backlog", () => {
-    expect(deriveCameraState(healthy({ oldestOutboxAgeSeconds: HEALTH_THRESHOLDS.backlogWarnSeconds + 1 })).state).toBe("CLOUD_BACKLOG");
+    const backlog = deriveCameraState(healthy({
+      outboxDepth: 1,
+      oldestOutboxAgeSeconds: HEALTH_THRESHOLDS.backlogWarnSeconds + 1,
+      deadLetterDepth: 0,
+    }));
+    expect(backlog.state).toBe("CLOUD_BACKLOG");
+    expect(backlog.facets.cloud).toBe("backlog");
+
     const dl = deriveCameraState(healthy({ deadLetterDepth: 2 }));
     expect(dl.state).toBe("CLOUD_BACKLOG");
     expect(dl.facets.cloud).toBe("dead_letters");
     expect(dl.reason).toContain("2 dead-lettered");
+  });
+
+  it("zero queued events do not become backlog because of a stale leftover age value", () => {
+    const v = deriveCameraState(healthy({
+      outboxDepth: 0,
+      oldestOutboxAgeSeconds: HEALTH_THRESHOLDS.backlogWarnSeconds + 1,
+      deadLetterDepth: 0,
+    }));
+    expect(v.state).toBe("HEALTHY");
+    expect(v.facets.cloud).toBe("ok");
+  });
+
+  it("the real producer empty-outbox representation is proven healthy", () => {
+    const v = deriveCameraState(healthy({
+      outboxDepth: 0,
+      oldestOutboxAgeSeconds: null,
+      deadLetterDepth: 0,
+    }));
+    expect(v.state).toBe("HEALTHY");
+    expect(v.facets.cloud).toBe("ok");
+  });
+
+  it("partial cloud telemetry stays UNVERIFIED instead of becoming healthy", () => {
+    for (const over of [
+      { outboxDepth: 0, oldestOutboxAgeSeconds: null, deadLetterDepth: null },
+      { outboxDepth: null, oldestOutboxAgeSeconds: 0, deadLetterDepth: null },
+      { outboxDepth: 0, oldestOutboxAgeSeconds: 0, deadLetterDepth: null },
+      { outboxDepth: null, oldestOutboxAgeSeconds: null, deadLetterDepth: 0 },
+      // A non-empty queue without its oldest age is not complete delivery proof.
+      { outboxDepth: 1, oldestOutboxAgeSeconds: null, deadLetterDepth: 0 },
+    ]) {
+      const v = deriveCameraState(healthy(over));
+      expect(v.state).toBe("UNVERIFIED_CAPABILITIES");
+      expect(v.facets.cloud).toBe("unknown");
+    }
   });
 
   it("precedence is fixed: camera-offline beats calibration beats vision beats cloud", () => {
@@ -89,14 +157,110 @@ describe("camera health lattice", () => {
     expect(deriveCameraState(posed).state).toBe("DEGRADED_VISION");
   });
 
-  it("unknown dimensions stay unknown rather than reading as fine", () => {
-    const v = deriveCameraState(healthy({ sourceConnected: null, frameOk: null, lastHealthyFrameAtEpoch: null, poseOk: null, outboxDepth: null, oldestOutboxAgeSeconds: null, deadLetterDepth: null }));
-    expect(v.facets).toEqual({ producer: "alive", source: "unknown", frames: "unknown", pose: "unknown", calibration: "valid", cloud: "unknown" });
+  it("unknown fixed dimensions are UNVERIFIED_CAPABILITIES, never healthy", () => {
+    const v = deriveCameraState(healthy({
+      sourceConnected: null,
+      frameOk: null,
+      lastHealthyFrameAtEpoch: null,
+      poseOk: null,
+      outboxDepth: null,
+      oldestOutboxAgeSeconds: null,
+      deadLetterDepth: null,
+    }));
+    expect(v.state).toBe("UNVERIFIED_CAPABILITIES");
+    expect(v.facets).toEqual({
+      ...fixedFacets,
+      source: "unknown",
+      frames: "unknown",
+      pose: "unknown",
+      cloud: "unknown",
+    });
+  });
+
+  it.each([
+    ["sourceConnected", null],
+    ["frameOk", null],
+    ["poseOk", null],
+    ["outboxDepth", null],
+  ] as const)("missing fixed-camera proof %s blocks HEALTHY", (field, value) => {
+    const over: Partial<RuntimeSnapshot> = { [field]: value };
+    if (field === "frameOk") over.lastHealthyFrameAtEpoch = null;
+    if (field === "outboxDepth") over.oldestOutboxAgeSeconds = null;
+    expect(deriveCameraState(healthy(over)).state).toBe("UNVERIFIED_CAPABILITIES");
+  });
+
+  it("PTZ transport failures do not demote the fixed vehicle-truth camera", () => {
+    const v = deriveCameraState(healthy({
+      authPlaneOk: false,
+      eventPlaneOk: false,
+      controlPlaneOk: false,
+      mediaPlaneOk: false,
+      ptzHomeOk: false,
+    }), "fixed_geometry");
+    expect(v.state).toBe("HEALTHY");
+    expect(v.facets.control).toBe("not_required");
   });
 
   it("the ingest-time derivation is the same lattice with age pinned to zero", () => {
     const { ageSeconds: _drop, ...rest } = healthy({ ageSeconds: 999 });
     void _drop;
     expect(deriveStateAtIngest(rest).state).toBe("HEALTHY");
+  });
+});
+
+describe("camera health lattice — interaction PTZ", () => {
+  it("does NOT require vehicle calibration, fixed pose or a detector frame", () => {
+    const v = deriveCameraState(healthyInteraction(), "interaction_ptz");
+    expect(v.state).toBe("HEALTHY");
+    expect(v.facets.source).toBe("not_required");
+    expect(v.facets.calibration).toBe("not_required");
+    expect(v.facets.home).toBe("ok");
+  });
+
+  it("unknown required planes are UNVERIFIED_CAPABILITIES, never green", () => {
+    const v = deriveCameraState(
+      healthyInteraction({ mediaPlaneOk: null, ptzHomeOk: null }),
+      "interaction_ptz",
+    );
+    expect(v.state).toBe("UNVERIFIED_CAPABILITIES");
+    expect(v.facets.media).toBe("unknown");
+    expect(v.facets.home).toBe("unknown");
+  });
+
+  it.each([
+    ["authPlaneOk", "AUTH_DEGRADED"],
+    ["eventPlaneOk", "EVENTS_DEGRADED"],
+    ["controlPlaneOk", "CONTROL_DEGRADED"],
+    ["mediaPlaneOk", "MEDIA_DEGRADED"],
+    ["ptzHomeOk", "PTZ_HOME_INVALID"],
+  ] as const)("%s=false produces %s", (field, expected) => {
+    const v = deriveCameraState(healthyInteraction({ [field]: false }), "interaction_ptz");
+    expect(v.state).toBe(expected);
+  });
+
+  it("known transport failure outranks unknown lower-priority planes", () => {
+    const v = deriveCameraState(
+      healthyInteraction({ authPlaneOk: true, eventPlaneOk: false, controlPlaneOk: null }),
+      "interaction_ptz",
+    );
+    expect(v.state).toBe("EVENTS_DEGRADED");
+  });
+
+  it("producer liveness still outranks every transport self-report", () => {
+    const v = deriveCameraState(
+      healthyInteraction({
+        ageSeconds: HEALTH_THRESHOLDS.offlineAfterSeconds + 1,
+        authPlaneOk: false,
+        mediaPlaneOk: false,
+      }),
+      "interaction_ptz",
+    );
+    expect(v.state).toBe("PRODUCER_OFFLINE");
+  });
+
+  it("ingest derives the profile-specific state with age pinned to zero", () => {
+    const { ageSeconds: _drop, ...rest } = healthyInteraction({ ageSeconds: 999 });
+    void _drop;
+    expect(deriveStateAtIngest(rest, "interaction_ptz").state).toBe("HEALTHY");
   });
 });

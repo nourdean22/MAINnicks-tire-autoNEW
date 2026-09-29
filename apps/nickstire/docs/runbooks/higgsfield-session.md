@@ -1,4 +1,4 @@
-# Higgsfield session — why it dies, and the 3-step recovery
+# Higgsfield session — why it dies, and the 4-step recovery
 
 **Read this before "fixing" Higgsfield auth.** The autonomous refresh is already
 built and working. What cannot be automated is one human step, and this runbook
@@ -8,23 +8,20 @@ exists so that step takes 60 seconds instead of a day.
 
 ## 1 · Recovery (do this when reels stop)
 
-### ⚠️ FIRST: there is NO `hf` command. Two traps, both measured.
+### ⚠️ FIRST: use `higgsfield` explicitly. Two traps, both measured.
 
-**TRAP 1 — `hf` is huggingface_hub, and the npm package never provides `hf`.**
-`which hf` resolves to `Python314/Scripts/hf` — **huggingface_hub** — which has its
-own `auth login` that succeeds while doing nothing for Higgsfield. This burned
-2026-07-31 (login run, believed done, canary failed identically) and again
-2026-08-18.
-
-It keeps happening because this runbook used to say `hf auth login`, copying the
-`Hint: Run: hf auth login` text out of Higgsfield's own error output. That hint
-names the *native binary*. **The npm package exposes different commands:**
+**TRAP 1 — bare `hf` can still be Hugging Face, not Higgsfield.** On NattyNour,
+`hf` has historically resolved to `huggingface_hub`, whose `auth login` succeeds
+while doing nothing for Higgsfield. This burned 2026-07-31 and again 2026-08-18.
+The current Higgsfield native binary accepts `hf` as an alias internally, but the
+npm package still exposes the unambiguous wrappers:
 
 ```json
 "bin": { "higgsfield": "bin/higgsfield.js", "higgs": "bin/higgs.js" }
 ```
 
-So the command is **`higgsfield auth login`** (or `higgs`), never `hf`.
+So operator recovery uses **`higgsfield ...`** explicitly. Do not trust whichever
+`hf` happens to win PATH precedence on the machine.
 
 **TRAP 2 — pnpm does not run the package's postinstall, so the native binary is
 absent.** `@higgsfield/cli` ships an `install.js` postinstall that fetches
@@ -35,33 +32,38 @@ absent.** `@higgsfield/cli` ships an `install.js` postinstall that fetches
 @higgsfield/cli: binary not found at <...>/vendor/hf.exe
 ```
 
-Verified 2026-08-18: no `vendor/` directory under
-`node_modules/.pnpm/@higgsfield+cli@0.2.3/node_modules/@higgsfield/cli`. Get the
-binary by running that postinstall directly:
+The current supported pin is **`@higgsfield/cli@1.1.26`**. Verified
+2026-09-27: the old 0.2.3 login flow is rejected by Higgsfield with **“Update
+your app to sign in”**. Check `higgsfield --version` before re-authenticating.
+If a pnpm install omitted the native vendor binary, run the pinned package's
+postinstall directly:
 
 ```
-node node_modules/.pnpm/@higgsfield+cli@0.2.3/node_modules/@higgsfield/cli/install.js
+node node_modules/.pnpm/@higgsfield+cli@1.1.26/node_modules/@higgsfield/cli/install.js
 ```
 
-(A global install of the package also runs its own postinstall. Do NOT run a
-workspace install from a worktree — policy blocks it, and it would wipe the shared
-junctioned `node_modules`.)
+A global `npm install -g @higgsfield/cli@1.1.26` also runs postinstall and is the
+safe operator-machine route. Do NOT run a workspace install from a worktree.
 
-`higgsfieldBinary.ts` is the server-side path and fetches the same release into the
-OS temp dir. Two bugs there were fixed 2026-08-18, both of which made it fail
-**only on Windows** — i.e. only on the machine where the login has to happen:
+`higgsfieldBinary.ts` is the server-side path. It pins the same current release
+and caches it in a **version-scoped** temp directory so an old native binary
+cannot survive a dependency bump. Two historical bugs fixed 2026-08-18 made the
+older path fail **only on Windows**:
 extraction passed absolute paths to `tar` (GNU tar reads `C:\...` as a remote
 `host:path`), and the version was hardcoded to `0.2.2` against a `0.2.3` pin.
 
 ### The steps
 
-1. Run `higgsfield auth login` (the npm bin — NOT `hf`) and complete the device
-   flow in the browser.
-   **The post-login redirect DROPS the device code**, so go back to
-   `/device?code=…` and click Connect — it took two clicks on 2026-07-31.
-   It writes `~/.config/higgsfield/credentials.json`
+1. Confirm `higgsfield --version` is **1.1.26 or newer**, then run
+   `higgsfield auth login` and approve the browser OAuth screen. It writes
+   `~/.config/higgsfield/credentials.json`
    (`%USERPROFILE%\.config\higgsfield\credentials.json` on Windows).
-2. Get it into `app_secret_kv`, either way:
+2. Select the billing workspace required by CLI >=1.1:
+   `higgsfield workspace list`, then `higgsfield workspace set <workspace_id>`.
+   Verify with `higgsfield account status`. Production must carry the same
+   non-secret workspace id as `HIGGSFIELD_WORKSPACE_ID`; credentials remain in
+   `app_secret_kv`, not Railway env.
+3. Get the fresh credentials into `app_secret_kv`, either way:
    - **From your phone:** paste the file's contents into
      **Instagram → Settings → "Replace Higgsfield credentials JSON"**.
    - **From this machine — the shell matters.** The CLI here is PowerShell, so a
@@ -70,7 +72,7 @@ extraction passed absolute paths to `tar` (GNU tar reads `C:\...` as a remote
      from the script's own directory upward:
 
      ```
-     railway run --service MAINnicks-tire-auto -- node C:\Users\nourd\NOURCITY\apps\nickstire\scripts\push-higgsfield-creds.mjs --apply
+     railway run -s MAINnicks-tire-auto -- node scripts/push-higgsfield-creds.mjs --apply
      ```
 
      Drop `--apply` for a dry run first. It refuses unless the file parses with
@@ -84,7 +86,7 @@ extraction passed absolute paths to `tar` (GNU tar reads `C:\...` as a remote
      has already rotated pushes cleanly and still fails the keepalive — measured
      2026-08-18, when a 4-hour-old pair wrote successfully and the session stayed
      revoked.
-3. Confirm, do not infer: `pnpm exec tsx scripts/probe-higgsfield-session-health.mts`
+4. Confirm, do not infer: `pnpm exec tsx scripts/probe-higgsfield-session-health.mts`
    (or the Higgsfield refresh button on Today → HQ). The Delivery card's
    `generator_session_expired` blocker clears on its own once keepalive succeeds.
 
@@ -117,7 +119,7 @@ rotates tokens and the rotated successor has nowhere to go.
 | Dead session raises a **blocker** on the Delivery card | `socialDeliveryIssues.ts` → `generator_session_expired` |
 
 15 min << the ~90 min token life, so ordinary inactivity can never expire the
-session. **The operator should only ever need step 1 when the refresh token
+session. **After the one-time workspace setup, the operator normally repeats steps 1 and 3 only when the refresh token
 itself is revoked.**
 
 ---

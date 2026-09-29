@@ -1,0 +1,102 @@
+{
+  "packDate": "2026-09-25",
+  "mode": "OPERATOR_APPROVED_IMPORT",
+  "status": "READY_FOR_ROTATION",
+  "id": "pack-2026-09-25-two-new-tires-rear-axle",
+  "title": "Only Buying Two Tires? The New Pair Usually Goes on the Rear",
+  "topic": "When replacing only two tires, the newer or deeper-tread pair generally goes on the rear axle",
+  "mechanicTruth": "Industry guidance generally places the newer or deeper-tread pair on the rear axle when only two tires are replaced, unless vehicle-specific requirements say otherwise, to preserve rear wet-grip stability.",
+  "campaignKeyword": "RAIN",
+  "hookText": "ONLY TWO NEW TIRES",
+  "totalMotionSeconds": 20,
+  "faceless": true,
+  "mutedFirst": true,
+  "ask": {
+    "kind": "visit"
+  },
+  "sourceNotes": [
+    {
+      "label": "USTMA tire-replacement guidance + Michelin replacement guidance",
+      "kind": "proof",
+      "supports": "Industry guidance generally places the newer or deeper-tread pair on the rear axle when only two tires are replaced, unless vehicle-specific requirements say otherwise, to preserve rear wet-grip stability."
+    }
+  ],
+  "videoPrompt": "Real tread-depth comparison plus a simple top-down wet-stability animation; avoid crash or spin imagery.",
+  "modelRecommendation": "Real tires plus deterministic top-down animation.",
+  "creditEfficiencyNote": "Target 0 credits. A clean diagram explains the physics better than rerolled wet-road video.",
+  "distribution": "ad_ready",
+  "audioDirection": "Use restrained real shop ambience and one synchronized mechanical confirmation cue; no fake failure sounds.",
+  "qaGate": [
+    "Keep real customer measurements and defects real; generated imagery is illustrative only.",
+    "Avoid universal diagnosis from a single symptom; vehicle and manufacturer requirements still control.",
+    "No price, guarantee, inventory, wait-time, or unsupported safety claim."
+  ],
+  "platformCheck": "Prioritize first-party Nick's footage for originality. If realistic synthetic footage survives the edit, preserve provenance and use applicable platform AI disclosure.",
+  "beats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "HOOK",
+      "visual": "Extreme macro of the physical subject under clean shop inspection light; no readable markings are required in the generated image.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "ONLY TWO NEW TIRES",
+      "narration": "When only two tires are replaced, industry guidance generally puts the newer, deeper pair on the rear axle.",
+      "audioCue": "Single dry mechanical click."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "VALUE",
+      "visual": "Second angle on the same physical subject with stable geometry and a restrained lateral camera move.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "PUT THEM ON THE DRIVE WHEELS?",
+      "narration": "The reason is wet stability.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "VALUE",
+      "visual": "Neutral technical comparison of the relevant physical components, wordless and unbranded.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "NEW / DEEPER PAIR -> REAR",
+      "narration": "Vehicle-specific requirements and AWD matching still control the final decision.",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "VALUE",
+      "visual": "Close inspection view that reveals the mechanical distinction through shape, position, surface, or motion.",
+      "motion": "Short controlled lateral move with stable geometry.",
+      "onScreenText": "WHY? WET STABILITY",
+      "narration": "",
+      "audioCue": "Low shop ambience."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "PAYOFF",
+      "visual": "Return to the opening physical subject with the corrected condition clearly visible through shape, position, or motion.",
+      "motion": "Slow controlled push-in on the object.",
+      "onScreenText": "CHECK THE VEHICLE REQUIREMENT",
+      "narration": "",
+      "audioCue": "Clean confirmation click."
+    }
+  ],
+  "loopIdea": "Close on the same physical subject and framing as beat one, now with the key condition clarified, so replay returns naturally to the opening question.",
+  "voiceoverScript": "When only two tires are replaced, industry guidance generally puts the newer, deeper pair on the rear axle. The reason is wet stability. Vehicle-specific requirements and AWD matching still control the final decision.",
+  "selectedCaption": "Only buying two tires? The replacement pair generally belongs on the rear axle for wet stability, unless the vehicle's requirements say otherwise.",
+  "hashtags": [
+    "#ClevelandCars",
+    "#NicksTire",
+    "#CarCareTips",
+    "#ClevelandTires"
+  ],
+  "avoidedForRepetition": "Distinct from AWD one-new-tire matching: this is axle placement when exactly two tires are being replaced."
+}

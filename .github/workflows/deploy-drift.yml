@@ -12,7 +12,8 @@ name: Deploy drift (statenour)
 #     that touched something the web image is built from, once that commit is
 #     older than the grace window (Railway builds take ~5 min; a merge from two
 #     minutes ago is not drift);
-#   · worker: `/health` must answer ok with a running scheduler.
+#   · worker: public web heartbeat must report a fresh persisted worker-forward
+#     receipt (brain-bus-drain; 1h tolerance = four missed 15-minute ticks).
 # An unrelated nickstire or docs-only merge does not count as drift for
 # statenour, and a deliberately older release is a state to explain, not an
 # outage — set the `expected_sha` input to that commit to silence it.
@@ -49,7 +50,7 @@ jobs:
     timeout-minutes: 10
     env:
       WEB_VERSION_URL: https://bdnick.info/api/version
-      WORKER_HEALTH_URL: https://statenour-worker-production.up.railway.app/health
+      WEB_HEARTBEAT_URL: https://bdnick.info/api/system/heartbeat
       GRACE_MINUTES: "25"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -110,17 +111,19 @@ jobs:
             exit 1
           fi
 
-      - name: Worker liveness
+      - name: Worker liveness from persisted private-worker receipt
         run: |
           set -euo pipefail
           if [ "${{ github.event.inputs.simulate }}" = "worker-down" ]; then
             echo "::error::CANARY simulate=worker-down — treating the worker as down on purpose"
             exit 1
           fi
-          body="$(curl -sS --max-time 20 "$WORKER_HEALTH_URL" || true)"
-          if printf '%s' "$body" | grep -q '"ok":true' && printf '%s' "$body" | grep -q '"scheduler":"running"'; then
-            echo "worker ok: ${body:0:200}"
+          body="$(curl -sS --max-time 20 "$WEB_HEARTBEAT_URL" || true)"
+          status="$(printf '%s' "$body" | jq -r '.data.worker.status // .worker.status // empty' 2>/dev/null || true)"
+          age="$(printf '%s' "$body" | jq -r '.data.worker.age_minutes // .worker.age_minutes // empty' 2>/dev/null || true)"
+          if [ "$status" = "fresh" ]; then
+            echo "worker receipt fresh · age_minutes=${age:-unknown}"
           else
-            echo "::error::WORKER: /health did not report ok + scheduler running — body: ${body:0:300}"
+            echo "::error::WORKER: public heartbeat did not report a fresh private-worker receipt — status=${status:-missing} age_minutes=${age:-unknown} body: ${body:0:300}"
             exit 1
           fi

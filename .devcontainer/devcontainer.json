@@ -1,0 +1,23 @@
+{
+  "name": "NOURCITY sovereign dev",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "containerEnv": {
+    "COREPACK_ENABLE_PROJECT_SPEC": "1"
+  },
+  "postCreateCommand": "bash scripts/dev/bootstrap.sh --install",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+  "remoteUser": "node"
+}

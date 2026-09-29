@@ -1,0 +1,92 @@
+{
+  "packVersion": "2026-09-25.rotation-v1",
+  "topic": "strut misting vs leak",
+  "mechanicTruth": "A slight oil film or misting can occur around some shock or strut seals without proving failure; extensive wetness, runs, drips, damage, or poor damping are a different condition.",
+  "driverConfusion": "Light shock or strut misting is different from an active hydraulic leak.",
+  "sourceNotes": [
+    {
+      "label": "Monroe and KYB shock/strut inspection guidance",
+      "kind": "proof",
+      "supports": "A slight oil film or misting can occur around some shock or strut seals without proving failure; extensive wetness, runs, drips, damage, or poor damping are a different condition."
+    }
+  ],
+  "campaignKeyword": "CLUNK",
+  "hookText": "Light shock or strut misting is different from an active hydraulic leak.",
+  "usefulAbsurdity": "A small visual detail changes the diagnosis or decision.",
+  "loopIdea": "The last shot returns to the same opening macro angle and lighting for a seamless replay.",
+  "ask": {
+    "kind": "visit"
+  },
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "unbranded automotive component macro under clean shop light",
+      "motion": "slow push-in",
+      "onScreenText": "OILY DOES NOT AUTOMATICALLY MEAN FAILED",
+      "narration": "A little oil film does not automatically prove failure."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "truth",
+      "visual": "two matching physical comparison samples on a clean bench",
+      "motion": "short lateral slide",
+      "onScreenText": "LIGHT MISTING CAN OCCUR",
+      "narration": "Light misting can occur around some seals."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "mechanism",
+      "visual": "wordless mechanical cross-section model of the relevant component",
+      "motion": "controlled macro orbit",
+      "onScreenText": "HEAVY WET RUNS ARE DIFFERENT",
+      "narration": "Heavy wet streaks or drips are different."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "nuance",
+      "visual": "second physical comparison angle under the same lighting",
+      "motion": "locked comparison move",
+      "onScreenText": "CONDITION + PERFORMANCE MATTER",
+      "narration": "A dry unit can also be worn."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "payoff",
+      "visual": "return to the opening component macro from the same angle",
+      "motion": "slow return to opening composition",
+      "onScreenText": "INSPECT THE WHOLE COMPONENT",
+      "narration": "Inspect condition and performance before deciding."
+    }
+  ],
+  "voiceoverScript": "A little oil film does not automatically prove failure. Light misting can occur around some seals. Heavy wet streaks or drips are different. A dry unit can also be worn. Inspect condition and performance before deciding.",
+  "selectedCaption": "A slight oil film or misting can occur around some shock or strut seals without proving failure; extensive wetness, runs, drips, damage, or poor damping are a different condition. Light shock or strut misting is different from an active hydraulic leak. Nick's Tire & Auto can inspect the actual condition before parts are replaced.",
+  "hashtags": [
+    "#Struts",
+    "#Shocks",
+    "#ClevelandCars",
+    "#ClevelandTires",
+    "#NicksTire"
+  ],
+  "productionPack": {
+    "distribution": "ad-ready",
+    "modelRecommendation": "Original Nick's footage first; cheapest competent Higgsfield I2V only for a missing connector shot; premium only after cheaper geometry fails.",
+    "creditEfficiencyNote": "Target 0 fresh credits.",
+    "platformOriginalitySafety": "Use first-party footage and deterministic overlays. Never present generated defects, readings, or customer events as real. Instagram/Facebook only; no TikTok-specific execution.",
+    "qaGate": [
+      "No fabricated measurements or defects.",
+      "No universal torque, pressure, or fitment claim.",
+      "No synthetic customer evidence."
+    ]
+  }
+}

@@ -28,11 +28,21 @@
  */
 import type { StoryboardBeat } from "../client/src/lib/facelessReelStudio";
 import type { ApprovedProductionPackSnapshot, EpisodeContract, ProductionSlot } from "./episodeContract";
+import type { ReelStructureFingerprint } from "./reelStructureFingerprint";
+
+/** Durable provenance for which approved-pack cursor owns this Reel job. */
+export type ApprovedPackPool = "active_slate" | "full_approved_library";
 
 export interface ReelJobPayloadView {
   topic?: string;
   /** A human-reviewed pack selected by the daily rotation. */
   approvedPackSlug?: string;
+  /** Which durable cursor selected the pack. Prevents mid-render mode switches
+   * from advancing a different queue that happens to point at the same slug. */
+  approvedPackPool?: ApprovedPackPool;
+  /** Revision of the slate definition that selected this job. Only present for
+   * active-slate jobs; lets later publish/refusal detect a save/reorder/clear. */
+  approvedPackSlateRevision?: string;
   approvedProductionPack?: ApprovedProductionPackSnapshot;
   productionSlot?: ProductionSlot;
   archetype?: string;
@@ -41,6 +51,18 @@ export interface ReelJobPayloadView {
   clevelandAngle?: string;
   campaignKeyword?: string;
   motionLens?: string;
+  /** Pattern Lab structure used to generate this Reel. Persisted specifically
+   * so published outcomes can be joined back to the structure policy. */
+  structurePatternId?: string;
+  /** Diagnostic production-grammar metadata stamped by approved-pack intake. */
+  productionGrammarFingerprint?: ReelStructureFingerprint;
+  productionGrammarNovelty?: {
+    similarity: number;
+    isProductionTwin: boolean;
+    collisions: string[];
+    nearestSignature?: string | null;
+    comparisonWindow?: number;
+  };
   storyboardBeats?: StoryboardBeat[];
   /**
    * The narration. IN the persisted payload all along and simply undeclared

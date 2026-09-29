@@ -44,6 +44,40 @@ export function personalizeEmail(template: string, data: Record<string, string>)
   return result;
 }
 
+/**
+ * Normalize a campaign recipient without guessing at malformed customer data.
+ *
+ * We only trim outer whitespace and lowercase the domain. Anything requiring
+ * repair beyond that is rejected so a bad CRM import can never become a
+ * different person's address. The validator is deliberately conservative for
+ * a marketing lane: quoted local-parts and address-display syntax are refused.
+ */
+function normalizeCampaignRecipientEmail(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const email = value.trim();
+  if (!email || email.length > 254 || /[\s<>",():;\[\]\\]/.test(email)) return null;
+
+  const parts = email.split("@");
+  if (parts.length !== 2) return null;
+  const [local, rawDomain] = parts;
+  if (!local || local.length > 64 || local.startsWith(".") || local.endsWith(".") || local.includes("..")) return null;
+  if (!/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(local)) return null;
+
+  const domain = rawDomain.toLowerCase();
+  if (!domain || domain.length > 253 || !domain.includes(".")) return null;
+  const labels = domain.split(".");
+  if (labels.some((label) =>
+    !label ||
+    label.length > 63 ||
+    !/^[a-z0-9-]+$/.test(label) ||
+    label.startsWith("-") ||
+    label.endsWith("-")
+  )) return null;
+  if (!/[a-z]/.test(labels.at(-1) ?? "")) return null;
+
+  return `${local}@${domain}`;
+}
+
 // Pre-built campaign templates
 export const CAMPAIGN_TEMPLATES: Record<string, { subject: string; body: string }> = {
   "retention-90day": {
@@ -233,10 +267,31 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
      * suppressed phone pushed into TiDB is the worse trade, and an unbounded
      * fetch is how a "small" cron turns into a table scan.
      */
-    const customers = unsuppressed.slice(0, BATCH_SIZE);
+    // Validate BEFORE taking the batch. A malformed address that fails every
+    // day must not occupy one of the 15 send slots forever and starve clean
+    // customers behind it. Refuse rather than "repair" ambiguous CRM data.
+    const validRecipients = unsuppressed.flatMap((cust: any) => {
+      const email = normalizeCampaignRecipientEmail(cust.email);
+      if (!email) {
+        log.warn("[email-campaigns] skipping malformed recipient email", {
+          customerId: cust.id,
+          errorId: "EMAIL_CAMPAIGNS_INVALID_EMAIL",
+        });
+        return [];
+      }
+      return [{ ...cust, email }];
+    });
+    const invalidEmailCount = unsuppressed.length - validRecipients.length;
+    const customers = validRecipients.slice(0, BATCH_SIZE);
     if (suppressedCount > 0) {
       log.info(
         `[email-campaigns] ${suppressedCount} of ${candidates.length} in the candidate window suppressed by the shared opt-out index`,
+      );
+    }
+    if (invalidEmailCount > 0) {
+      log.warn(
+        `[email-campaigns] ${invalidEmailCount} malformed recipient email(s) refused before transport`,
+        { errorId: "EMAIL_CAMPAIGNS_INVALID_EMAIL" },
       );
     }
     // The starvation condition, made VISIBLE rather than silent: if the whole
@@ -244,12 +299,12 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
     // too small for the current suppression rate and someone should widen it.
     if (candidates.length === CANDIDATE_WINDOW && customers.length < BATCH_SIZE) {
       log.warn(
-        `[email-campaigns] the ${CANDIDATE_WINDOW}-row candidate window yielded only ${customers.length}/${BATCH_SIZE} sendable recipients — suppression is consuming it, so eligible customers may be waiting behind suppressed rows`,
+        `[email-campaigns] the ${CANDIDATE_WINDOW}-row candidate window yielded only ${customers.length}/${BATCH_SIZE} sendable recipients — suppression or invalid email data is consuming it, so eligible customers may be waiting behind unusable rows`,
         { errorId: "EMAIL_CAMPAIGNS_WINDOW_EXHAUSTED" },
       );
     }
     if (customers.length === 0) {
-      return { recordsProcessed: 0, details: `No eligible customers (${suppressedCount} suppressed)` };
+      return { recordsProcessed: 0, details: `No eligible customers (${suppressedCount} suppressed, ${invalidEmailCount} invalid email)` };
     }
 
     // Try Resend first
@@ -343,7 +398,10 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
       await sendTelegram(`📧 EMAIL CAMPAIGN: ${sent}/${customers.length} ${templateKey} emails sent automatically.`);
     }
 
-    return { recordsProcessed: sent, details: `${sent} emails sent (${templateKey})` };
+    return {
+      recordsProcessed: sent,
+      details: `${sent} emails sent (${templateKey}); ${invalidEmailCount} invalid email skipped`,
+    };
   } catch (err: unknown) {
     // 2026-09-01 (audit F-9/F-17): the missing column used to be reported as a
     // permanent silent "skip". It is a deploy-state defect — name the

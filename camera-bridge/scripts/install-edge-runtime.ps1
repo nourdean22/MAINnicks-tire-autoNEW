@@ -66,6 +66,8 @@ param(
     [string]$Model = "",
     [string]$Device = "AUTO",
     [string]$Camera = "sign",
+    [ValidateSet("", "shop", "nicksmax", "nattynour")]
+    [string]$Role = "",
     [double]$Fps = 4.0,
     [double]$HeartbeatSeconds = 30.0,
     [double]$StallExitSeconds = 180.0,
@@ -80,6 +82,8 @@ param(
     [int]$Channel = -1,
     [string]$HardCases = "",
     [double]$HardCaseMaxGb = 2.0,
+    # Corpus sampling dwell only. This does NOT alter visit/service truth.
+    [double]$ServiceReviewSeconds = 30.0,
     [ValidateSet("", "off", "both", "replace")]
     [string]$HardCaseEpisodes = "",
     [string]$Trajectories = "",
@@ -92,6 +96,7 @@ param(
     [string]$Ledger = "",
     [switch]$Replay,
     [string]$Source = "",
+    [string]$SourceUrlEnv = "",
     [string]$WindowTitle = "",
     [switch]$NoCrop,
     [string]$Mode = "",
@@ -163,7 +168,13 @@ if ($EncryptSecret) {
             throw ("CAMERA_INGEST_KEY is not in this process's environment. -SecretFromEnvironment " +
                    "expects a wrapper that injects it, e.g.`n" +
                    "  railway run --service MAINnicks-tire-auto -- pwsh -NoProfile -File scripts/install-edge-runtime.ps1 -SecretFromEnvironment -SecretOnly`n" +
-                   "Check `railway whoami` first; the CLI must be logged in ON THIS MACHINE.")
+                   # No backticks around the command. In a double-quoted PowerShell string a
+                   # backtick is the ESCAPE character, so "`railway" renders as a carriage
+                   # return followed by "ailway" -- this line printed "Check ailway whoami
+                   # first" on the shop PC. An error whose job is to hand the reader a
+                   # command they will copy cannot afford to mangle it, which is the same
+                   # defect class as printing `powershell` where only `pwsh` works.
+                   "Check 'railway whoami' first; the CLI must be logged in ON THIS MACHINE.")
         }
         $sourceLabel = "the injected environment (nothing was written in plaintext)"
     } else {
@@ -204,6 +215,20 @@ if ($EncryptSecret) {
 # if it had is how a no-op gets read as a success.
 if ($SecretOnly -and -not $EncryptSecret) {
     throw "-SecretOnly needs a secret to install: add -SecretFromEnvironment, or -EncryptSecret to read .env.local."
+}
+
+# Preserve an already-installed role on reinstall. A fresh runtime install MUST name
+# its role, or this script would silently erase the failover priority contract.
+if (-not $Role -and (Test-Path $wrapper)) {
+    $roleMatch = Select-String -Path $wrapper -Pattern '^set "EDGE_ROLE=(shop|nicksmax|nattynour)"$' |
+        Select-Object -First 1
+    if ($roleMatch) {
+        $Role = $roleMatch.Matches[0].Groups[1].Value
+        Write-Host "Preserving installed producer role '$Role' from $wrapper." -ForegroundColor Green
+    }
+}
+if (-not $Role) {
+    throw "Producer role is required for runtime installation. Pass -Role shop, -Role nicksmax, or -Role nattynour."
 }
 
 # --- Preflight ---------------------------------------------------------------
@@ -282,6 +307,7 @@ $channelArg    = if ($Channel -ge 0) { " --channel $Channel" } else { '' }
 $episodeArg    = _Arg '--hard-case-episodes' $HardCaseEpisodes
 $trajArg       = _Arg '--trajectories' $Trajectories
 $hardCaseArg   = if ($HardCases) { (_Arg '--hard-cases' $HardCases) + " --hard-case-max-gb $HardCaseMaxGb" + $episodeArg } else { '' }
+$serviceReviewArg = " --service-review-seconds $ServiceReviewSeconds"
 $relocateArg   = " --relocate-seconds $RelocateSeconds"
 $shadowArg     = (_Arg '--shadow-ledger' $ShadowLedger) + (_Arg '--challenger-model' $ChallengerModel)
 $adjArg        = (_Arg '--adjudicator-model' $AdjudicatorModel) + (_Arg '--adjudicator-device' $AdjudicatorDevice)
@@ -289,7 +315,7 @@ $evidenceArg   = _Arg '--evidence' $Evidence
 $ledgerArg     = _Arg '--ledger' $Ledger
 $replayArg     = if ($Replay) { ' --replay' } else { '' }
 $noCropArg     = if ($NoCrop) { ' --no-crop' } else { '' }
-$captureArg    = (_Arg '--source' $Source) + (_Arg '--window-title' $WindowTitle) + $noCropArg
+$captureArg    = (_Arg '--source' $Source) + (_Arg '--source-url-env' $SourceUrlEnv) + (_Arg '--window-title' $WindowTitle) + $noCropArg
 $modeArg       = (_Arg '--mode' $Mode) + (_Arg '--commissioning-run' $CommissioningRun)
 # -1 is the "operator said nothing" sentinel; 0 is a real, meaningful value for both of
 # these (drain nothing / persist every frame), so an `if ($X)` truthiness test would
@@ -301,6 +327,7 @@ $persistArg    = if ($PersistSeconds -ge 0) { " --persist-seconds $PersistSecond
 $dryRunArg     = if ($ProducerDryRun) { ' --dry-run' } else { '' }
 $logLevelArg   = _Arg '--log-level' $LogLevel
 $extraArg      = if ($ExtraArgs) { ' ' + $ExtraArgs } else { '' }
+$roleLine      = if ($Role) { 'set "EDGE_ROLE=' + $Role + '"' } else { 'set "EDGE_ROLE="' }
 
 # The secret is decrypted by a short inline PowerShell call and handed to the child as an
 # environment variable. It never appears on a command line (Task Manager shows those) and
@@ -312,11 +339,12 @@ $secretLine = if (Test-Path $secretFile) {
 $wrapperBody = @"
 @echo off
 setlocal
+$roleLine
 cd /d "$pctRoot"
 $secretLine
 echo. >> "$pctLog"
 echo ==== edge start %DATE% %TIME% ==== >> "$pctLog"
-"$pctPython" edge_main.py --config "$pctConfig" --camera "$Camera"$calArg$modelArg$sceneArg$channelArg$hardCaseArg$relocateArg$shadowArg$adjArg$evidenceArg$ledgerArg$replayArg$trajArg$captureArg$modeArg$drainArg$persistArg$dryRunArg$logLevelArg$extraArg --fps $Fps --heartbeat-seconds $HeartbeatSeconds --stall-exit-seconds $StallExitSeconds >> "$pctLog" 2>&1
+"$pctPython" edge_main.py --config "$pctConfig" --camera "$Camera"$calArg$modelArg$sceneArg$channelArg$hardCaseArg$serviceReviewArg$relocateArg$shadowArg$adjArg$evidenceArg$ledgerArg$replayArg$trajArg$captureArg$modeArg$drainArg$persistArg$dryRunArg$logLevelArg$extraArg --fps $Fps --heartbeat-seconds $HeartbeatSeconds --stall-exit-seconds $StallExitSeconds >> "$pctLog" 2>&1
 set RC=%ERRORLEVEL%
 echo ==== edge exit %RC% %DATE% %TIME% ==== >> "$pctLog"
 exit /b %RC%

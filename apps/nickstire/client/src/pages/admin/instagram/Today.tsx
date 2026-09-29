@@ -67,7 +67,7 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
     decisionRows.push({ key: "meta", tone: "red", label: "Meta rejected the access token — publishing is down", detail: meta.liveError ?? undefined, action: "Open Settings", view: "settings" });
   }
   if ((rows.readyCount ?? 0) > 0) {
-    decisionRows.push({ key: "ready", tone: "blue", label: `${rows.readyCount} approved draft${rows.readyCount === 1 ? "" : "s"} ready to publish or schedule`, action: "Publish", view: "publish" });
+    decisionRows.push({ key: "ready", tone: "blue", label: `${rows.readyCount} approved draft${rows.readyCount === 1 ? "" : "s"} ready to publish or schedule`, action: "Queue", view: "publish" });
   }
   // Delivery-issue engine rows: blockers and warnings only — deliberate stops
   // (kill switches, disarmed gates) are INFO and live in Control/Settings, not

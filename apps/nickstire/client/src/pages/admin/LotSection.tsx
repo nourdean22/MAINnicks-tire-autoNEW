@@ -33,7 +33,7 @@
  * of a database timestamp. It is applied only while an interval is open: a departed
  * car's stay is a fact, and a fact that grows while you watch it is a bug.
  *
- * Data: trpc.lot.now + trpc.lot.visits + trpc.lot.health, polled every 15s.
+ * Data: trpc.lot.now + trpc.lot.visits + trpc.lot.health + trpc.lot.conversations, polled every 15s.
  */
 import { useEffect, useState } from "react";
 
@@ -54,6 +54,7 @@ import {
   ShieldQuestion,
   HelpCircle,
   Hourglass,
+  MessageSquare,
 } from "lucide-react";
 
 const POLL_MS = 15_000;
@@ -153,18 +154,49 @@ type VisitRow = {
   open: boolean;
 };
 
+type ConversationRow = {
+  episodeId: string;
+  source: string;
+  cameraSerial: string | null;
+  captureHost: string | null;
+  triggerType: string | null;
+  triggeredAtMs: number | null;
+  startedAtMs: number | null;
+  durationSeconds: number | null;
+  meanVolumeDb: number | null;
+  transcriptStatus: string;
+  transcriptError: string | null;
+  sttEngine: string | null;
+  sttModel: string | null;
+  sttLatencyMs: number | null;
+  speakerCount: number | null;
+  coverage: number | null;
+  factCount: number;
+  summary: string | null;
+  candidateVehicleVisitId: string | null;
+  candidateWorkOrderId: string | null;
+  linkConfidence: number | null;
+};
+
 type CameraFacets = {
   producer: string;
   source: string;
   frames: string;
   pose: string;
   calibration: string;
+  auth: string;
+  events: string;
+  control: string;
+  media: string;
+  home: string;
   cloud: string;
 };
 
 type CameraHealth = {
   camera: string;
   label: string;
+  role: string;
+  healthProfile: "fixed_geometry" | "interaction_ptz";
   commissioned: boolean;
   registered: boolean;
   state: string;
@@ -177,6 +209,25 @@ type CameraHealth = {
   producer: { instanceId: string; version: string | null; gitSha: string | null; heartbeatSeq: number } | null;
   source: { type: string | null; generation: string | null; fps: number | null; restores: number | null } | null;
   vision: { detector: string | null; modelSha256: string | null; inferenceP95Ms: number | null; inferenceAgeSeconds: number | null; poseDelta: number | null; calibrationVersion: string | null; relocateFailures: number | null; preexistingCrossed: number | null; arrivalsAfterStitch: number | null; stitchedTotal: number | null; stitchRefusedAmbiguous: number | null } | null;
+  transport: { eventProofAgeSeconds: number | null; controlProofAgeSeconds: number | null; mediaProofAgeSeconds: number | null; ptzNotifyAgeSeconds: number | null } | null;
+  conversation: {
+    workerOk: boolean | null;
+    state: string | null;
+    workerAgeSeconds: number | null;
+    audioSource: string | null;
+    captureHost: string | null;
+    sttEngine: string | null;
+    queueDepth: number | null;
+    lastTrigger: string | null;
+    eventAgeSeconds: number | null;
+    captureAgeSeconds: number | null;
+    sttAgeSeconds: number | null;
+    postAgeSeconds: number | null;
+    summaryAgeSeconds: number | null;
+    lastCoverage: number | null;
+    failuresToday: number | null;
+    lastError: string | null;
+  } | null;
   cloud: { outboxDepth: number | null; oldestOutboxAgeSeconds: number | null; deadLetterDepth: number | null; cloudAckAgeSeconds: number | null; diskFreeBytes: number | null } | null;
   /** Null when no health event was recorded for this camera today -- which is NOT the same
    *  as a steady day, and must not render as one. */
@@ -198,12 +249,18 @@ function stateTone(state: string, commissioned: boolean): string {
     case "HEALTHY":
       return "border-emerald-500/40 bg-emerald-500/10 text-emerald-300";
     case "STALE":
+    case "UNVERIFIED_CAPABILITIES":
+    case "PTZ_HOME_INVALID":
     case "CALIBRATION_INVALID":
     case "DEGRADED_VISION":
     case "CLOUD_BACKLOG":
       return "border-amber-500/40 bg-amber-500/10 text-amber-300";
     case "PRODUCER_OFFLINE":
     case "CAMERA_OFFLINE":
+    case "AUTH_DEGRADED":
+    case "EVENTS_DEGRADED":
+    case "CONTROL_DEGRADED":
+    case "MEDIA_DEGRADED":
       return "border-red-500/40 bg-red-500/10 text-red-300";
     default:
       // NEVER_INGESTED: a fault for a commissioned camera, an expectation for a planned one.
@@ -216,7 +273,7 @@ function stateTone(state: string, commissioned: boolean): string {
 /** One dimension of the lattice. `good` values read calm; the rest read as attention. */
 function facetTone(value: string): string {
   if (["alive", "connected", "fresh", "ok", "valid"].includes(value)) return "text-emerald-400/80";
-  if (value === "unknown" || value === "never") return "text-foreground/35";
+  if (value === "unknown" || value === "never" || value === "not_required") return "text-foreground/35";
   return "text-amber-400";
 }
 
@@ -228,8 +285,13 @@ function CameraCard({ c }: { c: CameraHealth }) {
     ["frames", c.facets.frames],
     ["pose", c.facets.pose],
     ["calibration", c.facets.calibration],
+    ["auth", c.facets.auth],
+    ["events", c.facets.events],
+    ["control", c.facets.control],
+    ["media", c.facets.media],
+    ["home", c.facets.home],
     ["cloud", c.facets.cloud],
-  ];
+  ].filter(([, value]) => value !== "not_required") as Array<[string, string]>;
   /**
    * Everything except `producer` is the producer's own last SELF-REPORT, and it is only a
    * statement about NOW while the producer is still alive. `deriveCameraState` computes
@@ -250,6 +312,9 @@ function CameraCard({ c }: { c: CameraHealth }) {
           <div className="text-[13px] font-semibold truncate">{c.label}</div>
           <div className="text-[12px] text-foreground/50 truncate">
             {c.camera}
+            <span className="ml-2 rounded border border-foreground/15 px-1 py-px text-[10px] uppercase tracking-wide text-foreground/45">
+              {c.role.replace(/_/g, " ")}
+            </span>
             {c.mode && c.mode !== "PRODUCTION" && (
               <span className="ml-2 rounded border border-sky-500/40 bg-sky-500/10 px-1 py-px text-[10px] uppercase tracking-wide text-sky-300">
                 {c.mode.toLowerCase()}
@@ -370,6 +435,18 @@ function CameraCard({ c }: { c: CameraHealth }) {
                 missed arrivals {c.vision.preexistingCrossed}
               </span>
             )}
+            {typeof c.transport?.eventProofAgeSeconds === "number" && (
+              <span>event proof {formatAgo(c.transport.eventProofAgeSeconds)} ago</span>
+            )}
+            {typeof c.transport?.controlProofAgeSeconds === "number" && (
+              <span>control proof {formatAgo(c.transport.controlProofAgeSeconds)} ago</span>
+            )}
+            {typeof c.transport?.mediaProofAgeSeconds === "number" && (
+              <span>media proof {formatAgo(c.transport.mediaProofAgeSeconds)} ago</span>
+            )}
+            {typeof c.transport?.ptzNotifyAgeSeconds === "number" && (
+              <span>PTZ receipt {formatAgo(c.transport.ptzNotifyAgeSeconds)} ago</span>
+            )}
             {c.cloud && c.cloud.outboxDepth !== null && <span>outbox {c.cloud.outboxDepth}</span>}
             {c.source && c.source.restores !== null && c.source.restores > 0 && (
               <span className="text-amber-400">window restored {c.source.restores}×</span>
@@ -400,22 +477,31 @@ function CameraCard({ c }: { c: CameraHealth }) {
 
 type Stage = { label: string; tone: string };
 
-/** Where a vehicle is, derived from its timestamps rather than the raw state string. */
+/**
+ * Where a vehicle is, derived only from timestamps the camera actually observed.
+ *
+ * A non-bay car is deliberately NOT called "waiting": Nick's does tire changes, plugs
+ * and other jack work wherever necessary outside. Geometry can prove "no bay observed";
+ * it cannot prove whether the car is queueing or being serviced where it stands.
+ */
 function stageOf(v: VisitRow): Stage {
   if (v.bayEnteredAt && !v.bayExitedAt) {
     return {
-      label: v.bay ? `In ${v.bay}` : "In a bay",
+      label: v.bay ? `Inside service · ${v.bay}` : "Inside service",
       tone: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
     };
   }
   if (v.bayExitedAt && !v.departedAt) {
     return {
-      label: "Done, not left",
+      label: "Pulled out · still here",
       tone: "bg-amber-500/15 text-amber-300 border-amber-500/30",
     };
   }
   if (v.departedAt) {
-    return { label: "Left", tone: "bg-foreground/10 text-foreground/55 border-foreground/20" };
+    return {
+      label: v.bayEnteredAt ? "Left after inside service" : "Left · no bay observed",
+      tone: "bg-foreground/10 text-foreground/55 border-foreground/20",
+    };
   }
   if (v.preexisting) {
     return {
@@ -423,7 +509,10 @@ function stageOf(v: VisitRow): Stage {
       tone: "bg-foreground/10 text-foreground/60 border-foreground/20",
     };
   }
-  return { label: "Waiting", tone: "bg-sky-500/15 text-sky-300 border-sky-500/30" };
+  return {
+    label: "On lot · no bay observed",
+    tone: "bg-sky-500/15 text-sky-300 border-sky-500/30",
+  };
 }
 
 /**
@@ -642,6 +731,352 @@ function FloorCard({ v, fetchedAt, now }: { v: VisitRow; fetchedAt: number; now:
   );
 }
 
+type ConversationQueryData =
+  | { ok: true; conversations: ConversationRow[] }
+  | { ok: false; reason: string };
+
+function ConversationPanel({
+  query,
+  officeCamera,
+}: {
+  query: ReturnType<typeof trpc.lot.conversations.useQuery>;
+  officeCamera: CameraHealth | null;
+}) {
+  // tRPC's decorated hook proxy widens ReturnType<useQuery>["data"] to {} at this
+  // component boundary. Re-narrow ONLY the procedure payload here; the server still owns
+  // runtime validation and every branch below preserves failed/unknown vs empty.
+  const data = query.data as ConversationQueryData | undefined;
+  const rows: ConversationRow[] = data?.ok === true ? data.conversations : [];
+  const runtime = officeCamera?.conversation ?? null;
+  const workerState =
+    runtime?.state ?? (runtime?.workerOk === false ? "STOPPED" : "UNKNOWN");
+  const workerHealthy =
+    runtime?.workerOk === true &&
+    !["DEGRADED", "MISSING", "STALE", "ERROR", "STOPPED"].includes(workerState);
+  const workerTone = workerHealthy
+    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+    : runtime?.workerOk === false ||
+        ["DEGRADED", "MISSING", "STALE", "ERROR", "STOPPED"].includes(
+          workerState
+        )
+      ? "border-red-500/30 bg-red-500/10 text-red-300"
+      : "border-amber-500/30 bg-amber-500/10 text-amber-300";
+
+  return (
+    <Panel
+      title="Office intelligence"
+      icon={<MessageSquare className="w-4 h-4" />}
+      subtitle="NICKS EUCLID camera health, counter capture/STT health, and evidence-backed summaries in one truth surface"
+    >
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="rounded-lg border border-foreground/10 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[12px] font-semibold">
+                NICKS EUCLID ┬╖ office camera
+              </div>
+              <div className="mt-0.5 text-[11px] text-foreground/45">
+                {officeCamera?.source?.generation ?? "camera identity unknown"}
+              </div>
+            </div>
+            {officeCamera ? (
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${stateTone(officeCamera.state, officeCamera.commissioned)}`}
+              >
+                {officeCamera.state.replace(/_/g, " ").toLowerCase()}
+              </span>
+            ) : (
+              <span className="rounded-full border border-foreground/20 px-2 py-0.5 text-[10px] text-foreground/50">
+                unknown
+              </span>
+            )}
+          </div>
+          {officeCamera ? (
+            <>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/55">
+                <span>
+                  producer{" "}
+                  <b className={facetTone(officeCamera.facets.producer)}>
+                    {officeCamera.facets.producer}
+                  </b>
+                </span>
+                <span>
+                  events{" "}
+                  <b className={facetTone(officeCamera.facets.events)}>
+                    {officeCamera.facets.events}
+                  </b>
+                </span>
+                <span>
+                  media{" "}
+                  <b className={facetTone(officeCamera.facets.media)}>
+                    {officeCamera.facets.media}
+                  </b>
+                </span>
+                <span>
+                  control{" "}
+                  <b className={facetTone(officeCamera.facets.control)}>
+                    {officeCamera.facets.control}
+                  </b>
+                </span>
+                <span>
+                  home{" "}
+                  <b className={facetTone(officeCamera.facets.home)}>
+                    {officeCamera.facets.home.replace(/_/g, " ")}
+                  </b>
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/45 tabular-nums">
+                <span>heartbeat {formatAgo(officeCamera.ageSeconds)} ago</span>
+                {officeCamera.transport?.eventProofAgeSeconds !== null &&
+                  officeCamera.transport?.eventProofAgeSeconds !==
+                    undefined && (
+                    <span>
+                      event proof{" "}
+                      {formatAgo(officeCamera.transport.eventProofAgeSeconds)}{" "}
+                      ago
+                    </span>
+                  )}
+                {officeCamera.transport?.mediaProofAgeSeconds !== null &&
+                  officeCamera.transport?.mediaProofAgeSeconds !==
+                    undefined && (
+                    <span>
+                      media proof{" "}
+                      {formatAgo(officeCamera.transport.mediaProofAgeSeconds)}{" "}
+                      ago
+                    </span>
+                  )}
+              </div>
+              <div className="mt-2 text-[11px] text-foreground/40">
+                {officeCamera.reason}
+              </div>
+            </>
+          ) : (
+            <div className="mt-2 text-[12px] text-foreground/50">
+              Office camera runtime could not be read.
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-foreground/10 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[12px] font-semibold">
+                Conversation intelligence
+              </div>
+              <div className="mt-0.5 text-[11px] text-foreground/45">
+                {runtime?.audioSource ?? "audio source unknown"}
+                {runtime?.captureHost ? ` ┬╖ ${runtime.captureHost}` : ""}
+              </div>
+            </div>
+            <span
+              className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${workerTone}`}
+            >
+              {workerState.replace(/_/g, " ").toLowerCase()}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/55 tabular-nums">
+            <span>
+              worker {formatAgo(runtime?.workerAgeSeconds ?? null)} ago
+            </span>
+            {runtime?.queueDepth !== null &&
+              runtime?.queueDepth !== undefined && (
+                <span>queue {runtime.queueDepth}</span>
+              )}
+            {runtime?.sttEngine && <span>{runtime.sttEngine}</span>}
+            {runtime?.lastTrigger && <span>trigger {runtime.lastTrigger}</span>}
+            {runtime?.eventAgeSeconds !== null &&
+              runtime?.eventAgeSeconds !== undefined && (
+                <span>event {formatAgo(runtime.eventAgeSeconds)} ago</span>
+              )}
+            {runtime?.captureAgeSeconds !== null &&
+              runtime?.captureAgeSeconds !== undefined && (
+                <span>capture {formatAgo(runtime.captureAgeSeconds)} ago</span>
+              )}
+            {runtime?.sttAgeSeconds !== null &&
+              runtime?.sttAgeSeconds !== undefined && (
+                <span>STT {formatAgo(runtime.sttAgeSeconds)} ago</span>
+              )}
+            {runtime?.postAgeSeconds !== null &&
+              runtime?.postAgeSeconds !== undefined && (
+                <span>posted {formatAgo(runtime.postAgeSeconds)} ago</span>
+              )}
+            {runtime?.summaryAgeSeconds !== null &&
+              runtime?.summaryAgeSeconds !== undefined && (
+                <span>summary {formatAgo(runtime.summaryAgeSeconds)} ago</span>
+              )}
+            {runtime?.lastCoverage !== null &&
+              runtime?.lastCoverage !== undefined && (
+                <span>
+                  {Math.round(runtime.lastCoverage * 100)}% latest coverage
+                </span>
+              )}
+            {runtime?.failuresToday !== null &&
+              runtime?.failuresToday !== undefined &&
+              runtime.failuresToday > 0 && (
+                <span className="text-amber-400">
+                  {runtime.failuresToday} failure
+                  {runtime.failuresToday === 1 ? "" : "s"} today
+                </span>
+              )}
+          </div>
+          {runtime?.lastError && (
+            <div className="mt-2 text-[11px] text-red-300/90">
+              {runtime.lastError}
+            </div>
+          )}
+          {!runtime && (
+            <div className="mt-2 text-[11px] text-foreground/45">
+              Conversation worker has not reported yet; camera health alone is
+              not capture health.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 border-t border-foreground/10 pt-3">
+        <div className="mb-2">
+          <div className="text-[12px] font-semibold">Counter conversations</div>
+          <div className="text-[11px] text-foreground/40">
+            Operational summaries only ΓÇö raw audio and full transcripts stay off
+            this screen; self-tests are hidden
+          </div>
+        </div>
+
+        {query.isError ? (
+          <Unknown what="Counter conversations" reason={query.error?.message} />
+        ) : query.isPending ? (
+          <Loading what="counter conversations" />
+        ) : !data ? (
+          <Unknown what="Counter conversations" />
+        ) : data.ok === false ? (
+          <Unknown what="Counter conversations" reason={data.reason} />
+        ) : rows.length === 0 ? (
+          <div className="text-[13px] text-foreground/60">
+            No customer conversation episodes recorded yet. Self-test episodes
+            are hidden.
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {rows.map(row => {
+              const status = row.transcriptStatus.toUpperCase();
+              const statusTone =
+                status === "DONE"
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  : status === "FAILED"
+                    ? "border-red-500/30 bg-red-500/10 text-red-300"
+                    : status === "SKIPPED"
+                      ? "border-foreground/20 bg-foreground/5 text-foreground/60"
+                      : "border-amber-500/30 bg-amber-500/10 text-amber-300";
+              const coverage =
+                row.coverage === null
+                  ? "coverage unknown"
+                  : `${Math.round(row.coverage * 100)}% covered`;
+              const duration =
+                row.durationSeconds === null
+                  ? "duration unknown"
+                  : row.durationSeconds < 60
+                    ? `${Math.round(row.durationSeconds)}s clip`
+                    : `${(row.durationSeconds / 60).toFixed(1)}m clip`;
+              const summaryText =
+                row.summary ??
+                (status === "SKIPPED"
+                  ? "No speech was transcribed in this clip."
+                  : status === "FAILED"
+                    ? "Summary unavailable ΓÇö capture, transcription, or extraction failed."
+                    : row.coverage === null
+                      ? "Summary withheld ΓÇö transcript coverage is unknown."
+                      : row.coverage < 0.65
+                        ? `Summary withheld ΓÇö transcript coverage ${Math.round(row.coverage * 100)}% is below the 65% evidence threshold.`
+                        : row.factCount === 0
+                          ? "No evidence-backed actionable facts were found."
+                          : "Summary withheld ΓÇö validated evidence is incomplete.");
+
+              return (
+                <div
+                  key={row.episodeId}
+                  className="rounded-lg border border-foreground/10 p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[12px] text-foreground/45">
+                        {row.startedAtMs === null
+                          ? "time unknown"
+                          : stamp(new Date(row.startedAtMs).toISOString())}
+                        {" ┬╖ "}
+                        {row.source}
+                        {row.triggerType ? ` ┬╖ ${row.triggerType}` : ""}
+                      </div>
+                      <div className="mt-1 text-[13px] text-foreground/85">
+                        {summaryText}
+                      </div>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusTone}`}
+                    >
+                      {status.toLowerCase()}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-foreground/50 tabular-nums">
+                    <span>{coverage}</span>
+                    <span>
+                      {row.factCount} fact{row.factCount === 1 ? "" : "s"}
+                    </span>
+                    <span>{duration}</span>
+                    {row.speakerCount !== null && (
+                      <span>
+                        {row.speakerCount} speaker group
+                        {row.speakerCount === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    {row.meanVolumeDb !== null && (
+                      <span>{row.meanVolumeDb.toFixed(1)} dBFS</span>
+                    )}
+                    {row.sttEngine && <span>{row.sttEngine}</span>}
+                    {row.sttModel && <span>{row.sttModel}</span>}
+                    {row.sttLatencyMs !== null && (
+                      <span>STT {row.sttLatencyMs}ms</span>
+                    )}
+                    {row.captureHost && <span>{row.captureHost}</span>}
+                    {row.cameraSerial && <span>camera {row.cameraSerial}</span>}
+                  </div>
+
+                  {(row.candidateVehicleVisitId ||
+                    row.candidateWorkOrderId) && (
+                    <div className="mt-2 text-[11px] text-amber-300/80">
+                      Candidate link
+                      {row.candidateVehicleVisitId
+                        ? ` ┬╖ visit ${row.candidateVehicleVisitId}`
+                        : ""}
+                      {row.candidateWorkOrderId
+                        ? ` ┬╖ work order ${row.candidateWorkOrderId}`
+                        : ""}
+                      {row.linkConfidence === null
+                        ? " ┬╖ confidence unknown"
+                        : ` ┬╖ ${Math.round(row.linkConfidence * 100)}% confidence`}
+                      {" ┬╖ not identity-confirmed"}
+                    </div>
+                  )}
+
+                  {row.transcriptError && (
+                    <div className="mt-2 text-[11px] text-red-300/90">
+                      Capture/transcription error: {row.transcriptError}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <div className="text-[11px] text-foreground/35">
+              Speaker labels group voices only; they do not identify people.
+              Candidate visit/work-order links remain unconfirmed.
+            </div>
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
 export default function LotSection() {
   // Commissioning / replay rows are excluded from every counter and hidden from the
   // list by default; they are never deleted, so the operator can opt in to see them.
@@ -653,6 +1088,10 @@ export default function LotSection() {
     { refetchInterval: POLL_MS },
   );
   const health = trpc.lot.health.useQuery(undefined, { refetchInterval: POLL_MS });
+  const conversations = trpc.lot.conversations.useQuery(
+    { limit: 25, includeSelftest: false },
+    { refetchInterval: POLL_MS },
+  );
   // Hooks stay above every conditional return — `pnpm run lint:hooks` fails a hook
   // called after an early return, and this component has many conditional branches.
   const tick = useTick(TICK_MS);
@@ -684,6 +1123,9 @@ export default function LotSection() {
 
   const allRows: VisitRow[] =
     visits.data?.ok === true ? (visits.data.rows as unknown as VisitRow[]) : [];
+  const healthCameras: CameraHealth[] =
+    health.data?.ok === true ? (health.data.cameras as unknown as CameraHealth[]) : [];
+  const officeCamera = healthCameras.find((camera) => camera.camera === "office") ?? null;
   // Longest-dwelling first: the car that has been there longest is the one about to
   // become a complaint, so it belongs at the top of the screen, not the bottom.
   const onLot = allRows
@@ -760,7 +1202,7 @@ export default function LotSection() {
               trendLabel="pulled in · bays 1 and 3"
             />
             <StatCard
-              label="Done, not left"
+              label="Pulled out, still here"
               value={n.counts.postService}
               icon={<LogOut className="w-4 h-4" />}
               color={n.counts.postService > 0 ? "text-amber-400" : "text-foreground"}
@@ -854,11 +1296,11 @@ export default function LotSection() {
                 trendLabel="occupancy, never an arrival"
               />
               <StatCard
-                label="Waiting, already parked"
+                label="No bay observed, already parked"
                 value={n.counts.preexistingWaiting}
                 icon={<Clock className="w-4 h-4" />}
                 color="text-foreground/60"
-                trendLabel="excluded from Waiting above"
+                trendLabel="may be parked, queued, or outside service"
               />
             </MetricGrid>
           </Panel>
@@ -917,6 +1359,8 @@ export default function LotSection() {
         </>
       ) : null}
 
+      <ConversationPanel query={conversations} officeCamera={officeCamera} />
+
       <Panel title="Cameras" icon={<Camera className="w-4 h-4" />}
              subtitle="Producer heartbeats — infrastructure health, independent of whether any car has arrived">
         {health.isError ? (
@@ -929,7 +1373,7 @@ export default function LotSection() {
           <Unknown what="Camera health" reason={health.data.reason} />
         ) : (
           <div className="space-y-2">
-            {(health.data.cameras as CameraHealth[]).map((c) => (
+            {healthCameras.map((c) => (
               <CameraCard key={c.camera} c={c} />
             ))}
             {health.data.transitions.length > 0 && (

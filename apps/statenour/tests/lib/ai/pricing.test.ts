@@ -10,8 +10,8 @@ import { LANGFUSE_MODEL_PRICES, PROVIDER_RATES_PER_1M_TOKENS, estimateCostUsd, u
 
 describe("estimateCostUsd", () => {
   it("prices a known provider from the table and rounds to $0.0001", () => {
-    // 1M in + 1M out at anthropic rates = 3 + 15
-    expect(estimateCostUsd("anthropic", 1_000_000, 1_000_000)).toBe(18);
+    // 1M in + 1M out at anthropic (= claude-sonnet-5) rates = 2 + 10
+    expect(estimateCostUsd("anthropic", 1_000_000, 1_000_000)).toBe(12);
     expect(estimateCostUsd("gemini", 10_000, 2_000)).toBe(0.0014);
   });
   it("no usage → undefined; unknown provider → undefined; local → 0", () => {

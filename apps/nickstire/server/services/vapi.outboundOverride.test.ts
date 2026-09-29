@@ -24,9 +24,14 @@
  * branches on it — and that the customer-kind message masks the digits,
  * because it travels into cron_log.details.
  *
- * POSITIVE CONTROL. Without an override NO model block is sent at all — the
- * cadence lane relies on the assistant's base prompt plus variableValues, and
- * an accidental full block there would silently replace its prompt.
+ * Q-45 (2026-09-23) CHANGED ONE CONTRACT HERE, deliberately. This file used to
+ * pin that a call WITHOUT a prompt override sends no model block, so the
+ * cadence lane ran on the live assistant's base prompt. That is exactly what
+ * let the lane open with a bare "{{name}}?" — no business name first, no
+ * callback number, no opt-out (47 CFR 64.1200(b)). Every call now sends a
+ * complete block carrying the do-not-call tool and instruction, so the old
+ * positive control is replaced by one proving the cadence lane's block holds
+ * the trust-call prompt, filled for the customer.
  *
  * SYNTHETIC ONLY — fetch is stubbed, numbers are 555, env pins are canaries.
  */
@@ -82,9 +87,10 @@ describe("placeVapiOutboundCall · assistantOverrides.model", () => {
     captured = null;
     const r = await placeVapiOutboundCall({
       customerNumber: "+12165550142",
-      systemPromptOverride: "RECOVERY PROMPT",
-      firstMessageOverride: "hi there",
-      voicemailMessage: "vm",
+      lane: "voice_recovery",
+      customerName: "Pat",
+      openerBody: "hi there",
+      systemPrompt: "RECOVERY PROMPT",
     });
     expect(r).toEqual({ success: true, callId: "call_ok" });
     expect(captured?.url).toBe("https://api.vapi.ai/call");
@@ -95,19 +101,31 @@ describe("placeVapiOutboundCall · assistantOverrides.model", () => {
     // shape had neither — that absence was the whole 400.
     expect(sentModel.provider).toBe("openai");
     expect(sentModel.model).toBe("gpt-4o");
-    expect(sentModel.messages).toEqual([{ role: "system", content: "RECOVERY PROMPT" }]);
+    const { OUTBOUND_COMPLIANCE_PROMPT } = await import("./outboundCallCompliance");
+    expect(sentModel.messages).toEqual([{ role: "system", content: `RECOVERY PROMPT\n\n${OUTBOUND_COMPLIANCE_PROMPT}` }]);
     // Prompt aside, byte-for-byte what the assistant itself is defined with.
     expect(withoutMessages(sentModel)).toEqual(withoutMessages(definedModel));
     const toolNames = (sentModel.tools as Array<{ function?: { name?: string } }>).map((t) => t.function?.name).sort();
-    expect(toolNames).toEqual(["escalate", "sendConfirmationSms"]);
+    expect(toolNames).toEqual(["endOnVoicemail", "escalate", "recordDoNotCall", "sendConfirmationSms"]);
   });
 
-  it("POSITIVE CONTROL: without an override no model block is sent — the cadence lane keeps its base prompt", async () => {
-    const { placeVapiOutboundCall } = await import("./vapi");
-    const r = await placeVapiOutboundCall({ customerNumber: "+12165550142", variableValues: { name: "Pat" } });
+  it("POSITIVE CONTROL: the cadence lane's block carries the trust-call prompt, filled for this customer", async () => {
+    const { placeVapiOutboundCall, buildFollowUpCallContent, FOLLOW_UP_SYSTEM_PROMPT } = await import("./vapi");
+    const content = buildFollowUpCallContent({ customerName: "Pat", lastService: "brake job" });
+    const r = await placeVapiOutboundCall({
+      customerNumber: "+12165550142",
+      lane: "followup_cadence",
+      customerName: "Pat",
+      ...content,
+      variableValues: { name: "Pat" },
+    });
     expect(r.success).toBe(true);
     const o = overridesOf(captured);
-    expect(o).not.toHaveProperty("model");
+    const system = String((o.model?.messages as Array<{ content: string }>)[0]?.content);
+    // The trust-call prompt's own opening line, filled — not some other prompt.
+    expect(FOLLOW_UP_SYSTEM_PROMPT).toContain("Outbound follow-up to {{name}} after their {{lastService}}.");
+    expect(system).toContain("Outbound follow-up to Pat after their brake job.");
+    expect(system).not.toContain("{{");
     expect(o.variableValues).toEqual({ name: "Pat" });
   });
 
@@ -118,7 +136,7 @@ describe("placeVapiOutboundCall · assistantOverrides.model", () => {
         { status: 400 },
       );
     const { placeVapiOutboundCall } = await import("./vapi");
-    const r = await placeVapiOutboundCall({ customerNumber: "+12165550142", systemPromptOverride: "x" });
+    const r = await placeVapiOutboundCall({ customerNumber: "+12165550142", lane: "voice_recovery", openerBody: "x", systemPrompt: "x" });
     expect(r.success).toBe(false);
     expect(r.errorKind).toBe("provider");
     expect(r.error).toContain("VAPI /call returned 400");
@@ -129,13 +147,13 @@ describe("placeVapiOutboundCall · assistantOverrides.model", () => {
       throw new Error("ECONNRESET (canary)");
     };
     const { placeVapiOutboundCall } = await import("./vapi");
-    const r = await placeVapiOutboundCall({ customerNumber: "+12165550142", systemPromptOverride: "x" });
+    const r = await placeVapiOutboundCall({ customerNumber: "+12165550142", lane: "voice_recovery", openerBody: "x", systemPrompt: "x" });
     expect(r).toEqual({ success: false, error: "ECONNRESET (canary)", errorKind: "network" });
   });
 
   it("errorKind · customer — a number that is not E.164 never reaches fetch, and the message carries no digits", async () => {
     const { placeVapiOutboundCall } = await import("./vapi");
-    const r = await placeVapiOutboundCall({ customerNumber: "216-555-0142", systemPromptOverride: "x" });
+    const r = await placeVapiOutboundCall({ customerNumber: "216-555-0142", lane: "voice_recovery", openerBody: "x", systemPrompt: "x" });
     expect(r.success).toBe(false);
     expect(r.errorKind).toBe("customer");
     expect(captured).toBeNull();
@@ -146,7 +164,7 @@ describe("placeVapiOutboundCall · assistantOverrides.model", () => {
   it("errorKind · config — no follow-up assistant pinned never reaches fetch", async () => {
     vi.stubEnv("VAPI_FOLLOWUP_ASSISTANT_ID", "");
     const { placeVapiOutboundCall } = await import("./vapi");
-    const r = await placeVapiOutboundCall({ customerNumber: "+12165550142", systemPromptOverride: "x" });
+    const r = await placeVapiOutboundCall({ customerNumber: "+12165550142", lane: "voice_recovery", openerBody: "x", systemPrompt: "x" });
     expect(r).toEqual({ success: false, error: "VAPI_FOLLOWUP_ASSISTANT_ID env not set", errorKind: "config" });
     expect(captured).toBeNull();
   });

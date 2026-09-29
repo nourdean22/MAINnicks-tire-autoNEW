@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseWorktreePorcelain, formatStatusTable } from "./repo-status.mjs";
+import { gatherRemoteEvidence, parseWorktreePorcelain, formatStatusTable } from "./repo-status.mjs";
 
 test("parseWorktreePorcelain: single worktree, real format from `git worktree list --porcelain`", () => {
   const text = "worktree /home/user/MAINnicks-tire-autoNEW\nHEAD f8e2b96089a2e8e8fff873dfacca9ccc2c91384b\nbranch refs/heads/claude/clever-franklin-kx3sci\n";
@@ -60,4 +60,46 @@ test("formatStatusTable: header + separator + one row per branch, columns aligne
 test("formatStatusTable: an empty row set still prints the header (never crashes on zero branches)", () => {
   const out = formatStatusTable([]);
   assert.match(out, /^branch/);
+});
+
+
+test("gatherRemoteEvidence: known-origin landed branch skips redundant branch and PR reads", async () => {
+  const calls = [];
+  const ghJsonImpl = async (path) => {
+    calls.push(path);
+    if (path.includes("/compare/main...")) return { ahead_by: 0, behind_by: 4 };
+    throw new Error(`unexpected API call: ${path}`);
+  };
+  const r = await gatherRemoteEvidence("o", "r", "feature/x", {
+    knownExistsOnOrigin: true,
+    ghJsonImpl,
+  });
+  assert.equal(r.existsOnOrigin, true);
+  assert.equal(r.aheadOfMain, 0);
+  assert.deepEqual(r.prs, []);
+  assert.deepEqual(calls, ["/repos/o/r/compare/main...feature%2Fx"]);
+});
+
+test("gatherRemoteEvidence: known-origin ahead branch skips only the redundant branch-existence read", async () => {
+  const calls = [];
+  const ghJsonImpl = async (path) => {
+    calls.push(path);
+    if (path.includes("/compare/main...")) return { ahead_by: 2, behind_by: 7 };
+    if (path.includes("/pulls?head=")) return [{ number: 42 }];
+    if (path.endsWith("/pulls/42")) return { number: 42, merged: true, merged_at: "2026-09-23T00:00:00Z" };
+    throw new Error(`unexpected API call: ${path}`);
+  };
+  const r = await gatherRemoteEvidence("o", "r", "feature/y", {
+    knownExistsOnOrigin: true,
+    ghJsonImpl,
+  });
+  assert.equal(r.existsOnOrigin, true);
+  assert.equal(r.aheadOfMain, 2);
+  assert.equal(r.prs[0].merged, true);
+  assert.equal(calls.some((p) => p.includes("/branches/")), false);
+  assert.deepEqual(calls, [
+    "/repos/o/r/compare/main...feature%2Fy",
+    "/repos/o/r/pulls?head=o:feature%2Fy&state=all",
+    "/repos/o/r/pulls/42",
+  ]);
 });

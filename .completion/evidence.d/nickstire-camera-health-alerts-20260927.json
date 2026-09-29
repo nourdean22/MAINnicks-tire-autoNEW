@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/cameraHealthAlerts.test.ts + apps/nickstire/server/services/cameraHealthAlerts.ts: the five-minute camera alert path evaluates commissioned cameras only; STALE is non-paging; every actionable state requires an atomic cron_alerts_fired claim; notifySystemAlert counts only when emailSent or pushSent is confirmed; zero confirmed delivery releases that camera/state/day claim and throws so cron_log records failure and the next heartbeat can retry."
+    },
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json capabilityId=camera-role-aware-health: records the #2705 owner-alert extension and its tests while explicitly retaining a P2 blocker that production alert delivery/recovery has not yet been observed."
+    }
+  }
+}

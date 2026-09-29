@@ -1,0 +1,92 @@
+{
+  "packVersion": "2026-09-25.rotation-v1",
+  "topic": "wheel fitment beyond bolt pattern",
+  "mechanicTruth": "Complete wheel fitment can also depend on offset, center bore, brake clearance, wheel dimensions, load capacity, tire package, and correct hardware; matching bolt pattern alone is insufficient.",
+  "driverConfusion": "Matching bolt pattern alone does not establish complete wheel fitment.",
+  "sourceNotes": [
+    {
+      "label": "Tire Rack and Discount Tire wheel fitment guidance",
+      "kind": "proof",
+      "supports": "Complete wheel fitment can also depend on offset, center bore, brake clearance, wheel dimensions, load capacity, tire package, and correct hardware; matching bolt pattern alone is insufficient."
+    }
+  ],
+  "campaignKeyword": "TIRES",
+  "hookText": "Matching bolt pattern alone does not establish complete wheel fitment.",
+  "usefulAbsurdity": "A small visual detail changes the diagnosis or decision.",
+  "loopIdea": "The last shot returns to the same opening macro angle and lighting for a seamless replay.",
+  "ask": {
+    "kind": "visit"
+  },
+  "storyboardBeats": [
+    {
+      "beatNumber": 1,
+      "startSecond": 0,
+      "endSecond": 4,
+      "purpose": "hook",
+      "visual": "unbranded automotive component macro under clean shop light",
+      "motion": "slow push-in",
+      "onScreenText": "SAME BOLT PATTERN",
+      "narration": "Matching bolt pattern does not prove complete wheel fit."
+    },
+    {
+      "beatNumber": 2,
+      "startSecond": 4,
+      "endSecond": 8,
+      "purpose": "truth",
+      "visual": "two matching physical comparison samples on a clean bench",
+      "motion": "short lateral slide",
+      "onScreenText": "FIT NOT PROVEN",
+      "narration": "Offset controls where the wheel sits."
+    },
+    {
+      "beatNumber": 3,
+      "startSecond": 8,
+      "endSecond": 12,
+      "purpose": "mechanism",
+      "visual": "wordless mechanical cross-section model of the relevant component",
+      "motion": "controlled macro orbit",
+      "onScreenText": "OFFSET + CENTER BORE",
+      "narration": "Center bore and brake clearance matter too."
+    },
+    {
+      "beatNumber": 4,
+      "startSecond": 12,
+      "endSecond": 16,
+      "purpose": "nuance",
+      "visual": "second physical comparison angle under the same lighting",
+      "motion": "locked comparison move",
+      "onScreenText": "BRAKE CLEARANCE + LOAD + SIZE",
+      "narration": "Load capacity, wheel size, tire package, and hardware also matter."
+    },
+    {
+      "beatNumber": 5,
+      "startSecond": 16,
+      "endSecond": 20,
+      "purpose": "payoff",
+      "visual": "return to the opening component macro from the same angle",
+      "motion": "slow return to opening composition",
+      "onScreenText": "FIT THE WHOLE PACKAGE",
+      "narration": "Verify the whole application, not one measurement."
+    }
+  ],
+  "voiceoverScript": "Matching bolt pattern does not prove complete wheel fit. Offset controls where the wheel sits. Center bore and brake clearance matter too. Load capacity, wheel size, tire package, and hardware also matter. Verify the whole application, not one measurement.",
+  "selectedCaption": "Complete wheel fitment can also depend on offset, center bore, brake clearance, wheel dimensions, load capacity, tire package, and correct hardware; matching bolt pattern alone is insufficient. Matching bolt pattern alone does not establish complete wheel fitment. Nick's Tire & Auto can inspect the actual condition before parts are replaced.",
+  "hashtags": [
+    "#WheelFitment",
+    "#AftermarketWheels",
+    "#ClevelandCars",
+    "#ClevelandTires",
+    "#NicksTire"
+  ],
+  "productionPack": {
+    "distribution": "ad-ready",
+    "modelRecommendation": "Original Nick's footage first; cheapest competent Higgsfield I2V only for a missing connector shot; premium only after cheaper geometry fails.",
+    "creditEfficiencyNote": "Target 0 fresh credits.",
+    "platformOriginalitySafety": "Use first-party footage and deterministic overlays. Never present generated defects, readings, or customer events as real. Instagram/Facebook only; no TikTok-specific execution.",
+    "qaGate": [
+      "No fabricated measurements or defects.",
+      "No universal torque, pressure, or fitment claim.",
+      "No synthetic customer evidence."
+    ]
+  }
+}

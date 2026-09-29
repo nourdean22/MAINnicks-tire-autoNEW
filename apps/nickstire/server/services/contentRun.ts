@@ -262,6 +262,114 @@ export async function markContentRunPublishedByInventory(
 }
 
 /**
+ * Reverse-link helper for the Reel pipeline. Reel jobs predate content runs and
+ * many call sites only have the durable job id in hand. Looking the run up by
+ * reelJobId keeps stage recording centralized instead of teaching every worker
+ * how to query content_runs.
+ */
+export async function advanceContentRunByReelJobId(
+  reelJobId: number,
+  patch: Parameters<typeof advanceContentRun>[1],
+): Promise<boolean> {
+  if (!Number.isFinite(reelJobId) || reelJobId <= 0) return false;
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return false;
+    const { contentRuns } = await import("../../drizzle/schema");
+    const { eq, desc } = await import("drizzle-orm");
+    const [row] = await d
+      .select({ id: contentRuns.id })
+      .from(contentRuns)
+      .where(eq(contentRuns.reelJobId, reelJobId))
+      .orderBy(desc(contentRuns.createdAt))
+      .limit(1);
+    if (!row) return false;
+    return await advanceContentRun(row.id, patch);
+  } catch (err) {
+    log.warn("could not advance content run by reel job id", {
+      reelJobId,
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return false;
+  }
+}
+
+/**
+ * Make the Reel lane participate in the same durable request lineage as Studio.
+ *
+ * Idempotent on reelJobId: retries/deduped enqueue calls repair the link instead
+ * of creating a second parent. runId lets a future/explicit caller attach an
+ * already-open operator run; otherwise this opens the canonical parent itself.
+ * Failure is deliberately non-fatal to Reel production — lineage observability
+ * may degrade, but it must never strand a customer-visible content job.
+ */
+export async function ensureContentRunForReelJob(args: {
+  reelJobId: number;
+  source: "admin" | "cron";
+  topic?: string | null;
+  runId?: string | null;
+}): Promise<string | null> {
+  if (!Number.isFinite(args.reelJobId) || args.reelJobId <= 0) return null;
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return null;
+    const { contentRuns } = await import("../../drizzle/schema");
+    const { eq, desc } = await import("drizzle-orm");
+
+    const [existing] = await d
+      .select({ id: contentRuns.id })
+      .from(contentRuns)
+      .where(eq(contentRuns.reelJobId, args.reelJobId))
+      .orderBy(desc(contentRuns.createdAt))
+      .limit(1);
+    if (existing?.id) return existing.id;
+
+    // No linked parent exists yet. For the normal Reel path, derive the parent
+    // primary key from the durable Reel job id so two overlapping enqueue
+    // requests race on the SAME key rather than creating two random parents.
+    // The PK upsert is the atomic claim; no schema migration is required.
+    const runId = args.runId || `run_reel_${args.reelJobId}`;
+    if (!args.runId) {
+      await d.insert(contentRuns).values({
+        id: runId,
+        requestSource: args.source === "cron" ? "cron" : "operator",
+        requestedTopic: args.topic ?? null,
+        requestedFormat: "reel",
+        reelJobId: args.reelJobId,
+        stage: RUN_STAGE.requested,
+        implementationState: IMPLEMENTATION_STATE.pending,
+        operationalState: OPERATIONAL_STATE.unproven,
+        evidenceJson: JSON.stringify([{ at: new Date().toISOString(), what: "run requested" }]),
+      }).onDuplicateKeyUpdate({
+        // Deliberately minimal: the loser of the race must not overwrite the
+        // winner's accumulated stage/evidence; it only reasserts the same link.
+        set: { reelJobId: args.reelJobId },
+      });
+    }
+
+    const linked = await advanceContentRun(runId, {
+      stage: RUN_STAGE.planning,
+      chosenFormat: "reel",
+      formatReason: "Reel pipeline episode",
+      reelJobId: args.reelJobId,
+      evidence: {
+        at: new Date().toISOString(),
+        what: "reel job " + args.reelJobId + " queued and linked to this run",
+      },
+    });
+    return linked ? runId : null;
+  } catch (err) {
+    log.warn("could not ensure content run for reel job", {
+      reelJobId: args.reelJobId,
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return null;
+  }
+}
+
+/**
  * The operator-facing summary: what did I ask for, what did it decide, where is
  * it, and can I trust that it actually happened.
  */

@@ -20,6 +20,7 @@ export type IgView =
   | "pipeline"
   | "planning"
   | "patterns"
+  | "strategy"
   | "actions"
   | "control"
   | "settings";
@@ -27,9 +28,9 @@ export type IgView =
 export const IG_PRIMARY_VIEWS: Array<{ key: IgView; label: string }> = [
   { key: "today", label: "Today" },
   { key: "create", label: "Create" },
-  { key: "publish", label: "Publish" },
+  { key: "publish", label: "Queue" },
   { key: "community", label: "Community" },
-  { key: "insights", label: "Insights" },
+  { key: "insights", label: "Learn" },
 ];
 
 export const IG_SECONDARY_VIEWS: Array<{ key: IgView; label: string }> = [
@@ -38,6 +39,7 @@ export const IG_SECONDARY_VIEWS: Array<{ key: IgView; label: string }> = [
   { key: "pipeline", label: "Pipeline health" },
   { key: "planning", label: "Planning board" },
   { key: "patterns", label: "Pattern Lab" },
+  { key: "strategy", label: "Strategy & profile" },
   { key: "actions", label: "Reel recovery (Action Center)" },
   { key: "control", label: "Autonomy control" },
   { key: "settings", label: "Settings" },

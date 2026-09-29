@@ -131,3 +131,108 @@ test("REAL BINARY: no stdin at all (manual run) does not crash — resolves via 
   const r = spawnSync(process.execPath, [join(HERE, "lease-check.mjs")], { cwd: dir, input: "", encoding: "utf8", env, timeout: 10000 });
   assert.equal(r.status, 0);
 });
+
+// ── audit item O (2026-09-23): the block must not lock out its own recovery ──
+// A foreign live marker blocked EVERY Bash call, including the agent-finish.mjs
+// run the block message itself recommends — the worktree could only be recovered
+// by hand-deleting the marker. The recovery command is now let through, but only
+// when it is the WHOLE command: guard-red-team's chaining / subshell / redirection
+// / prefix-flag probes below must all still block.
+
+const FOREIGN = { branch: "main", sessionId: "someone-else", expiresAt: future };
+
+const RECOVERY_ALLOWED = [
+  "node scripts/agent-os/agent-finish.mjs",
+  'node scripts/agent-os/agent-finish.mjs --force-release-foreign "holder session died" --force-release-dirty "operator ok"',
+  "node ./scripts/agent-os/agent-finish.mjs --worktree .",
+  "node /home/user/repo/scripts/agent-os/agent-finish.mjs",
+  "node scripts\\agent-os\\agent-finish.mjs",
+  'node "C:\\Users\\nourd\\NOURCITY\\scripts\\agent-os\\agent-finish.mjs" --force-release-foreign "dead"',
+  "node.exe C:\\Users\\nourd\\NOURCITY\\scripts\\agent-os\\agent-finish.mjs",
+  "  node scripts/agent-os/agent-finish.mjs  ",
+];
+// Destructive verbs are spelled via RM/RESET so this file does not itself trip the
+// repo's PreToolUse deny-list when an agent cats or appends it (mention-vs-execution).
+const RM = ["rm", "-rf"].join(" ");
+const RESET = ["git", "reset", "--hard"].join(" ");
+const RECOVERY_STILL_BLOCKED = [
+  "git status",
+  `node scripts/agent-os/agent-finish.mjs; ${RM} .`,
+  `node scripts/agent-os/agent-finish.mjs && ${RESET}`,
+  "node scripts/agent-os/agent-finish.mjs || true",
+  "node scripts/agent-os/agent-finish.mjs | tee x",
+  `node scripts/agent-os/agent-finish.mjs & ${RM} x`,
+  "node scripts/agent-os/agent-finish.mjs > out.txt",
+  `node scripts/agent-os/agent-finish.mjs $(${RM} x)`,
+  `node scripts/agent-os/agent-finish.mjs \`${RM} x\``,
+  `node scripts/agent-os/agent-finish.mjs\n${RM} x`,
+  `${RM} x; node scripts/agent-os/agent-finish.mjs`,
+  "cd .. ; node scripts/agent-os/agent-finish.mjs",
+  "node -e \"require('fs').rmSync('x')\" scripts/agent-os/agent-finish.mjs",
+  "node --import=./evil.mjs scripts/agent-os/agent-finish.mjs",
+  "NODE_OPTIONS=--require=./evil.cjs node scripts/agent-os/agent-finish.mjs",
+  "node scripts/agent-os/agent-finish.mjs.bak",
+  "node scripts/agent-os/agent-finish.mjsx",
+  "node scripts/agent-os/agent-start.mjs",
+  "echo node scripts/agent-os/agent-finish.mjs",
+  "& node scripts/agent-os/agent-finish.mjs; Remove-Item x",
+  "node scripts/agent-os/agent-finish.mjs (Remove-Item x)",
+];
+
+test("decide: a foreign live marker still BLOCKS every non-recovery Bash command (probe set)", () => {
+  for (const command of RECOVERY_STILL_BLOCKED) {
+    const r = decide({ marker: FOREIGN, branch: "main", mySessionId: "me", command });
+    assert.equal(r.verdict, "block", `should block: ${JSON.stringify(command)}`);
+  }
+});
+
+test("decide: a foreign live marker ALLOWS the bare agent-finish.mjs recovery command", () => {
+  for (const command of RECOVERY_ALLOWED) {
+    const r = decide({ marker: FOREIGN, branch: "main", mySessionId: "me", command });
+    assert.equal(r.verdict, "allow", `should allow: ${JSON.stringify(command)}`);
+  }
+});
+
+test("decide: the block message names the exact recovery command and the override", () => {
+  const r = decide({ marker: FOREIGN, branch: "main", mySessionId: "me", command: "git status" });
+  assert.match(r.message, /node scripts\/agent-os\/agent-finish\.mjs --force-release-foreign/);
+  assert.match(r.message, /AGENT_OS_LEASE_OVERRIDE/);
+});
+
+test("decide: an explicit AGENT_OS_LEASE_OVERRIDE turns the block into a warning that carries the reason", () => {
+  const r = decide({ marker: FOREIGN, branch: "main", mySessionId: "me", command: "git status", override: "operator: took over dead session" });
+  assert.equal(r.verdict, "warn");
+  assert.equal(r.key, "override");
+  assert.match(r.message, /operator: took over dead session/);
+  const blank = decide({ marker: FOREIGN, branch: "main", mySessionId: "me", command: "git status", override: "   " });
+  assert.equal(blank.verdict, "block", "a blank override is not an override");
+});
+
+test("REAL BINARY: foreign live marker — the agent-finish recovery command passes (exit 0); a chained one and a Write still block (exit 2)", (t) => {
+  const dir = makeRepo();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeLocalMarker(dir, FOREIGN);
+  const ok = runHook(dir, { cwd: dir, tool_name: "Bash", tool_input: { command: 'node scripts/agent-os/agent-finish.mjs --force-release-foreign "dead"' } });
+  assert.equal(ok.code, 0, `recovery command was blocked: ${ok.out}`);
+  const chained = runHook(dir, { cwd: dir, tool_name: "Bash", tool_input: { command: `node scripts/agent-os/agent-finish.mjs; ${RM} .` } });
+  assert.equal(chained.code, 2);
+  assert.match(chained.out, /REFUSED/);
+  const write = runHook(dir, { cwd: dir, tool_name: "Write", tool_input: { file_path: join(dir, "x"), content: "node scripts/agent-os/agent-finish.mjs" } });
+  assert.equal(write.code, 2, "Write must stay blocked even if its CONTENT is the recovery command");
+});
+
+test("REAL BINARY: AGENT_OS_LEASE_OVERRIDE lets a foreign-marker call through (exit 0) and says so", (t) => {
+  const dir = makeRepo();
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeLocalMarker(dir, FOREIGN);
+  const env = { ...cleanEnv(), CLAUDE_CODE_SESSION_ID: "me", AGENT_OS_LEASE_OVERRIDE: "operator took over" };
+  const r = spawnSync(process.execPath, [join(HERE, "lease-check.mjs")], {
+    cwd: dir,
+    input: JSON.stringify({ cwd: dir, tool_name: "Bash", tool_input: { command: "git status" } }),
+    encoding: "utf8",
+    env,
+    timeout: 10000,
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, /operator took over/);
+});

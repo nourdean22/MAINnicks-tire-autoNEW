@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "Q-51 NWS replacement: server/lib/nwsWeather.ts throws on non-2xx, timeout, non-JSON and wrong-shape responses so weather-intel records a failed run instead of a false zero. scheduler.ts no longer requires OPENWEATHER_API_KEY. server/services/weatherIntelligence.nws.test.ts and weatherIntelEnvGate.test.ts pin the fail-closed read and no-key scheduler contract."
+    },
+    "capability-ledger-updated": {
+      "ref": "weather-triggered-marketing is reconciled to the post-merge Q-51 state: code merged, operational unit_verified, exposure internal. Customer SMS remains shadowed behind WEATHER_SMS_SEND=1 in addition to the existing weather_triggered_sms kill switch; prior OpenWeather production observations are preserved only as legacy pre-Q51 history and are not treated as proof of the NWS lane."
+    },
+    "operator-walkthrough": {
+      "deferred": "After merge, verify one weather-intel cron run/alert on the NWS path. Do NOT arm customer weather SMS for verification. Re-arming WEATHER_SMS_SEND=1 is a separate protected operator decision; only after that decision may a controlled live-send receipt advance the lane."
+    }
+  }
+}

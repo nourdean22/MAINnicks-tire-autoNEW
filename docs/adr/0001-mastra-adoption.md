@@ -1,6 +1,9 @@
 # ADR-0001 · Adopt Mastra as the agent orchestration layer
 
-- **Status**: Accepted · 2026-05-17
+- **Status**: Superseded · 2026-06-02 (was Accepted · 2026-05-17). Commit `33a035257` ("delete Mastra Agent V2",
+  pushed without a PR) deleted `src/mastra/**`, `/api/agent` and the `@mastra/*` dependencies; the AI SDK v6
+  `streamText` pipeline is Nick's only path. No `@mastra` package or `mastra` source file remains in the repo.
+  `AGENT_V2` is still set on Railway (`.railway/railway.ts:110`) but no code reads it. The text below is history.
 - **Operator**: nour
 - **Author**: Claude (during Wave-200 brainstorm session)
 - **Supersedes**: the ad-hoc agent orchestration accreting in `apps/statenour/lib/ai/turn-intelligence.ts` + `lib/ai/system-prompt.ts` + `lib/ai/chat-mode.ts` (all stay · but Mastra becomes the orchestrator above them)

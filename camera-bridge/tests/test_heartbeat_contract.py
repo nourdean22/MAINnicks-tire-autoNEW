@@ -17,10 +17,13 @@ producer's real heartbeat body carries, and fails on any column with no producer
 """
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 import sys
+from datetime import datetime, timezone
 import tempfile
+import types
 import unittest
 from types import SimpleNamespace
 
@@ -31,6 +34,7 @@ import edge_main                                                       # noqa: E
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROUTE = os.path.join(REPO, "..", "apps", "nickstire", "server", "routes",
                      "cameraVisitsRoutes.ts")
+EUFY_AGENT = os.path.join(REPO, "..", "apps", "statenour", "local-agent", "eufy_agent.py")
 
 # Columns the producer is NOT expected to send, each with the reason. An entry here is a
 # decision, and `test_no_exemption_has_gone_STALE` keeps it from becoming a place to hide a
@@ -80,6 +84,82 @@ def producer_heartbeat_keys():
     return body
 
 
+def load_eufy_agent_module():
+    """Load the REAL StateNour producer in Camera Bridge's intentionally minimal CI.
+
+    The contract needs to EXECUTE build_office_camera_heartbeat, not merely grep its source,
+    but Camera Bridge CI deliberately does not install StateNour's smart-home/network
+    dependencies. Stub only the two import-time modules the pure builder never touches;
+    restore sys.modules immediately after import so this test cannot mask dependency use in
+    any other test or production path.
+    """
+    if not os.path.exists(EUFY_AGENT):
+        return None
+    local_agent_dir = os.path.dirname(EUFY_AGENT)
+    if local_agent_dir not in sys.path:
+        sys.path.insert(0, local_agent_dir)
+    spec = importlib.util.spec_from_file_location("heartbeat_contract_eufy_agent", EUFY_AGENT)
+    if spec is None or spec.loader is None:
+        raise AssertionError("could not load StateNour Eufy producer module")
+
+    previous = {name: sys.modules.get(name) for name in ("requests", "dotenv")}
+    requests_stub = types.ModuleType("requests")
+    dotenv_stub = types.ModuleType("dotenv")
+    dotenv_stub.load_dotenv = lambda *_args, **_kwargs: None
+    sys.modules["requests"] = requests_stub
+    sys.modules["dotenv"] = dotenv_stub
+    try:
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        for name, prior in previous.items():
+            if prior is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = prior
+    return module
+
+
+def interaction_heartbeat_keys(module=None):
+    """Keys emitted by the REAL build_office_camera_heartbeat function."""
+    module = module or load_eufy_agent_module()
+    if module is None:
+        return set()
+    runtime = {
+        "eventPlaneOk": True,
+        "controlPlaneOk": False,
+        "mediaPlaneOk": True,
+        "ptzHomeOk": False,
+        "lastEventProofAt": "2026-09-27T10:00:01+00:00",
+        "lastControlProofAt": "2026-09-27T10:00:02+00:00",
+        "lastMediaProofAt": "2026-09-27T10:00:03+00:00",
+        "lastPtzNotifyAt": "2026-09-27T10:00:04+00:00",
+        "conversationWorkerOk": True,
+        "conversationWorkerState": "OFF_HOURS",
+        "conversationWorkerHeartbeatAt": "2026-09-27T10:00:05+00:00",
+        "conversationAudioSource": "eufy-office",
+        "conversationCaptureHost": "NICKSMAX",
+        "conversationSttEngine": "whisper-cli.exe",
+        "conversationQueueDepth": 0,
+        "conversationLastTrigger": "personDetected",
+        "lastConversationEventAt": "2026-09-27T09:59:59+00:00",
+        "lastConversationCaptureAt": "2026-09-27T09:58:00+00:00",
+        "lastConversationSttAt": "2026-09-27T09:58:20+00:00",
+        "lastConversationPostAt": "2026-09-27T09:58:21+00:00",
+        "lastConversationSummaryAt": "2026-09-27T09:58:21+00:00",
+        "lastConversationCoverage": 0.91,
+        "conversationFailuresToday": 0,
+        "conversationLastError": "fixture-only prior error",
+    }
+    payload = module.build_office_camera_heartbeat(
+        auth_ok=True,
+        runtime_health=runtime,
+        seq=1,
+        observed_at=datetime(2026, 9, 27, 10, 0, tzinfo=timezone.utc),
+    )
+    return set(payload)
+
+
 class HeartbeatContractTest(unittest.TestCase):
 
     def setUp(self):
@@ -87,10 +167,12 @@ class HeartbeatContractTest(unittest.TestCase):
             self.skipTest("nickstire is not checked out beside camera-bridge")
         self.columns = route_heartbeat_columns()
         self.body = producer_heartbeat_keys()
+        self.interaction = interaction_heartbeat_keys()
 
     def test_EVERY_stored_column_has_a_producer(self):
+        authored = set(self.body) | set(self.interaction)
         orphans = sorted(c for c in self.columns
-                         if c not in self.body and c not in NOT_SENT_BY_DESIGN)
+                         if c not in authored and c not in NOT_SENT_BY_DESIGN)
         self.assertEqual(
             orphans, [],
             f"the shop stores {orphans} and no producer sends them, so those cards can only "
@@ -103,7 +185,10 @@ class HeartbeatContractTest(unittest.TestCase):
         than no list."""
         gone = sorted(c for c in NOT_SENT_BY_DESIGN if c not in self.columns)
         self.assertEqual(gone, [], f"{gone} are exempted but are not stored columns any more")
-        wired = sorted(c for c in NOT_SENT_BY_DESIGN if c in self.body)
+        wired = sorted(
+            c for c in NOT_SENT_BY_DESIGN
+            if c in self.body or c in self.interaction
+        )
         self.assertEqual(
             wired, [],
             f"{wired} are listed as having no producer, but the heartbeat sends them. "
@@ -113,12 +198,78 @@ class HeartbeatContractTest(unittest.TestCase):
         """The other direction. A key the route does not store is parsed and discarded, so
         the producer pays to compute and send something nobody will ever read -- and it
         looks, from the producer side, exactly like a field that works."""
-        ignored = sorted(k for k in self.body if k not in self.columns)
+        ignored = sorted(
+            k for k in (set(self.body) | set(self.interaction))
+            if k not in self.columns
+        )
         self.assertEqual(
             ignored, [],
             f"the heartbeat sends {ignored}, which the shop does not store. Either add the "
             f"column or stop sending it -- it is silently dropped on arrival today.")
 
+    def test_interaction_fields_have_a_REAL_external_producer_contract(self):
+        expected = {
+            "authPlaneOk", "eventPlaneOk", "controlPlaneOk", "mediaPlaneOk", "ptzHomeOk",
+            "lastEventProofAt", "lastControlProofAt", "lastMediaProofAt", "lastPtzNotifyAt",
+            "conversationWorkerOk", "conversationWorkerState", "conversationWorkerHeartbeatAt",
+            "conversationAudioSource", "conversationCaptureHost", "conversationSttEngine",
+            "conversationQueueDepth", "conversationLastTrigger", "lastConversationEventAt",
+            "lastConversationCaptureAt", "lastConversationSttAt", "lastConversationPostAt",
+            "lastConversationSummaryAt", "lastConversationCoverage", "conversationFailuresToday",
+            "conversationLastError",
+        }
+        self.assertTrue(
+            expected.issubset(self.interaction),
+            f"real StateNour heartbeat builder omitted {sorted(expected - self.interaction)}",
+        )
+
+    def test_interaction_gate_detects_a_mutated_producer_that_drops_one_field(self):
+        module = load_eufy_agent_module()
+        if module is None:
+            self.skipTest("statenour local agent is not checked out beside camera-bridge")
+        original = module.INTERACTION_HEARTBEAT_FIELDS
+        try:
+            module.INTERACTION_HEARTBEAT_FIELDS = tuple(
+                key for key in original if key != "mediaPlaneOk"
+            )
+            mutated = interaction_heartbeat_keys(module)
+        finally:
+            module.INTERACTION_HEARTBEAT_FIELDS = original
+
+        authored = set(self.body) | set(mutated)
+        orphans = sorted(
+            field for field in self.columns
+            if field not in authored and field not in NOT_SENT_BY_DESIGN
+        )
+        self.assertIn(
+            "mediaPlaneOk",
+            orphans,
+            "mutation canary failed: dropping a real interaction field must break the contract",
+        )
+
+    def test_interaction_gate_detects_a_mutated_producer_that_drops_conversation_field(self):
+        module = load_eufy_agent_module()
+        if module is None:
+            self.skipTest("statenour local agent is not checked out beside camera-bridge")
+        original = module.INTERACTION_HEARTBEAT_FIELDS
+        try:
+            module.INTERACTION_HEARTBEAT_FIELDS = tuple(
+                key for key in original if key != "conversationWorkerState"
+            )
+            mutated = interaction_heartbeat_keys(module)
+        finally:
+            module.INTERACTION_HEARTBEAT_FIELDS = original
+
+        authored = set(self.body) | set(mutated)
+        orphans = sorted(
+            field for field in self.columns
+            if field not in authored and field not in NOT_SENT_BY_DESIGN
+        )
+        self.assertIn(
+            "conversationWorkerState",
+            orphans,
+            "mutation canary failed: dropping a real conversation field must break the contract",
+        )
     def test_the_gate_can_actually_SEE_the_columns(self):
         """The positive control. A parse that returned [] would make every assertion above
         pass vacuously, forever, and this whole file would be decoration."""

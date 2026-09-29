@@ -35,7 +35,6 @@ import {
   buildFollowUpAssistantConfig,
   buildOutboundConfirmationPrompt,
   buildOutboundRecoveryPrompt,
-  buildRecoveryVoicemail,
 } from "../services/vapi";
 
 type Param = { description?: string };
@@ -61,9 +60,9 @@ const SCRIPTS: Array<[string, string]> = [
   ["confirmation prompt", buildOutboundConfirmationPrompt({ customerName: "Jordan", service: "brake check", preferredDay: "tomorrow" })],
   ["recovery prompt", buildOutboundRecoveryPrompt({ customerName: "Jordan", service: "front brakes", amountDollars: 400 })],
   ["receptionist voicemail", String((buildAssistantConfig() as { voicemailMessage?: string }).voicemailMessage ?? "")],
-  ["follow-up voicemail", String(followUpConfig.voicemailMessage ?? "")],
+  // Follow-up is a sales lane and intentionally leaves no voicemail (Q-45).
   ["confirmation voicemail", buildConfirmationVoicemail({ customerName: "Jordan", service: "brake check", preferredDay: "tomorrow" })],
-  ["recovery voicemail", buildRecoveryVoicemail({ customerName: "Jordan", service: "front brakes" })],
+  // Recovery is a sales lane and intentionally leaves no voicemail (Q-45).
 ];
 
 // A closing quote or bracket can sit between the full stop and the space
@@ -182,6 +181,16 @@ describe("every script and tool text the model reads promises nothing untracked"
     expect(ASSISTANT_SYSTEM_PROMPT).not.toMatch(/first thing when we open/i);
     // No rule makes a 5-6-week-old quote binding; the recovery lane must not say it is.
     for (const [where, text] of SCRIPTS) expect([where, /quote('?s| is)\s+still\s+good/i.test(text)]).toEqual([where, false]);
+  });
+
+  it("no script promises a 'done' / 'ready' text: nothing sends one on a drop-off", () => {
+    // #2580 removed "we'll text when it's ready" from the OIL line and the follow-up
+    // script but missed the WALK-IN / FCFS line ("we text when done"), so callers
+    // still heard it. No lane sends a completion text for a walk-in drop-off.
+    const DONE_TEXT = /\btext(s|ed)?\b(\s+you)?\b.{0,20}\bwhen\b.{0,15}\b(done|ready|finished)\b/i;
+    expect("drop it off, we text when done").toMatch(DONE_TEXT);
+    expect("drop it off and we'll text you when it's ready").toMatch(DONE_TEXT);
+    for (const [where, text] of SCRIPTS) expect([where, DONE_TEXT.test(text)]).toEqual([where, false]);
   });
 
   it("escalate is allowed for CALLBACK CAPTURE during open hours, not only when closed", () => {

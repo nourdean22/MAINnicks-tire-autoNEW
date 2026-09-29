@@ -425,6 +425,8 @@ export async function runAlternatePaths(args: {
           >[0]["intent"],
           shape: turnSignal.outputShape,
           userPrompt: userContent,
+          turnSignal,
+          responseContract: persistBase.responseContract ?? null,
           generateOnce: () => genOnce(finalSystemPrompt, turnSignal.temperature),
           regenOnce: ({ suggestedSystemPrefix }) =>
             genOnce(
@@ -435,8 +437,39 @@ export async function runAlternatePaths(args: {
         winner = regen.text;
         log.info("verified_regen_path", {
           regenFired: regen.regenFired,
+          regenAttempted: regen.regenScore !== null,
+          regenWasBetter: regen.regenWasBetter,
+          selectionReason: regen.selectionReason,
+          firstOverall: regen.firstScore.overall,
+          firstSeverity: regen.firstAssessment.severity,
+          regenOverall: regen.regenScore?.overall ?? null,
+          regenSeverity: regen.regenAssessment?.severity ?? null,
           intent: turnSignal.intent,
         });
+
+        // Persist one best-effort row per eligible regen turn so the operator can
+        // answer whether repair fires, wins, costs latency, or should be retired.
+        // Telemetry must NEVER become load-bearing for a valid chat response.
+        try {
+          const { formatRegenTelemetry } = await import(
+            "@/lib/ai/chat/pre-stream-regen"
+          );
+          const regenMetric = formatRegenTelemetry(
+            regen,
+            turnSignal.intent as Parameters<typeof formatRegenTelemetry>[1],
+            turnSignal.outputShape,
+          );
+          const { recordMetric } = await import("@/lib/services/metrics");
+          await recordMetric(regenMetric.metric, regenMetric.value, {
+            unit: regenMetric.unit,
+            tags: { ...regenMetric.tags, traceId },
+            source: regenMetric.source,
+          });
+        } catch (err) {
+          log.warn("verified_regen_telemetry_failed", {
+            error: err instanceof Error ? err.name : "Error",
+          });
+        }
       } else if (selfConsistencyOn) {
         laneName = "self-consistency";
         const { generateText } = await import("ai");

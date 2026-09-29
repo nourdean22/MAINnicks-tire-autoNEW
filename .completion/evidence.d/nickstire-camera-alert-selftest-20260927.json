@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "server/cameraHealthAlerts.test.ts pins three fail-closed delivery cases for this diff: Telegram provider acceptance is required for fallback success; zero accepted providers throws instead of returning green; accepted email suppresses duplicate Telegram. The same file pins enabled:false + MANUAL_TRIGGER_STAGED + legacy registry reachability + ADMIN_API_KEY-gated run-staged-cron wiring, so the self-test cannot silently become automatic or unreachable."
+    },
+    "capability-ledger-updated": {
+      "ref": "docs/operations/capability-ledger.json capability camera-role-aware-health records PR #2720 as the operator-only real-provider alert self-test candidate, including its tests and the explicit post-deploy live receipt required before the external-delivery blocker can be cleared."
+    }
+  }
+}

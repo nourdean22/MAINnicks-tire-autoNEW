@@ -288,6 +288,37 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     readOnly: true,
   },
   {
+    key: "NICK_DECISION_PLANE_SHADOW",
+    description:
+      "Samples turns into a durable background Decision Plane bake-off. Candidate System-One backends never control production; their distributions are written as Decision Episodes and compared to the incumbent only as a baseline. Requires explicit backend list/config. OFF means zero event enqueue and zero candidate inference.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior:
+      "OFF: current heuristic/router behavior remains the sole production path. Promotion requires local outcome calibration, replay, and an explicit authority change.",
+    ownerDoc: "lib/ai/decision-plane/shadow.ts",
+  },
+  {
+    key: "NICK_DECISION_PLANE_ALLOW_EXTERNAL_STATE",
+    description:
+      "Explicit egress attestation for Decision Plane candidate backends. When set to exactly 1, raw decision state may be sent to a configured PUBLIC candidate endpoint; private-network endpoints do not need this attestation. This is a read-only mirror of the direct runtime env check so a stale database override can never weaken the boundary.",
+    status: "experimental",
+    onValue: "1",
+    defaultBehavior:
+      "OFF: public candidate endpoints are rejected before inference; only private Decision Plane endpoints can receive raw state.",
+    ownerDoc: "lib/ai/decision-plane/backends.ts",
+    readOnly: true,
+  },
+  {
+    key: "NICK_DURABLE_MISSIONS",
+    description:
+      "Queues bounded multi-step mission execution onto the existing Inngest control plane. V1 supports checkpoint + deep-research steps only, records progress as RealityEvent episodes, survives chat/browser closure, and never auto-completes the Mission. OFF = mission planning remains synchronous/manual.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior:
+      "OFF: queueMissionExecution refuses to enqueue background mission work. Enable only after the durable-run tests and deployed Inngest registration receipt are green.",
+    ownerDoc: "lib/missions/durable-execution.ts",
+  },
+  {
     key: "NICK_VERIFIED_REGEN",
     description: "WIRED. On factual/decision/analytical/procedural/instructional turns, generates the reply non-streaming, runs the critic, and regenerates ONCE (critic-gated best-of-2) before shipping the winner as a stream. Persists via the normal pipeline. Falls through to the normal stream on any error. OFF = single-pass (today's behavior). Adds latency on the regen path only.",
     status: "experimental",

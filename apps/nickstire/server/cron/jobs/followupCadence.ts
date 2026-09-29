@@ -24,8 +24,9 @@
  *   · DRY RUN (FOLLOWUP_CADENCE_DRY_RUN=1) — logs the call list WITHOUT
  *     dialing. Review it before flipping the feature live.
  *
- * Reuses the live follow-up assistant's trust-call prompt (no new script) by
- * passing {{name}} / {{lastService}} via placeVapiOutboundCall variableValues.
+ * Uses the follow-up caller's trust-call prompt (no new script), filled for
+ * this customer and sent explicitly with a 64.1200(b) opener (Q-45) — no
+ * longer inherited from whatever the live assistant was last pushed with.
  */
 import { createLogger } from "../../lib/logger";
 import { isDuplicateKeyError } from "../../lib/dbErrors";
@@ -205,7 +206,7 @@ export async function runFollowupCadence(): Promise<RunResult> {
   const optedOut = suppression.phones;
 
   // 4. Place calls · one touch per booking, hard daily cap.
-  const { placeVapiOutboundCall } = await import("../../services/vapi");
+  const { placeVapiOutboundCall, buildFollowUpCallContent } = await import("../../services/vapi");
   let placed = 0, skipped = 0, failed = 0;
   const preview: string[] = [];
 
@@ -247,12 +248,16 @@ export async function runFollowupCadence(): Promise<RunResult> {
       failed++; continue;
     }
 
-    const voicemailMsg = `Hey ${firstName}, Nick's Tire \u2014 checking in after your ${b.service}. Everything running smooth, no need to call back. Something feels off, hit us at 216-862-0005. Drive safe.`;
-
+    // Q-45 · a SALES lane (the call ends in a referral ask): compliant opener,
+    // and no voicemail — the shop has no toll-free opt-out number.
+    const content = buildFollowUpCallContent({ customerName: firstName, lastService: b.service });
     const call = await placeVapiOutboundCall({
       customerNumber: e164,
+      lane: "followup_cadence",
+      customerName: firstName,
+      openerBody: content.openerBody,
+      systemPrompt: content.systemPrompt,
       variableValues: { name: firstName, lastService: b.service },
-      voicemailMessage: voicemailMsg,
       maxDurationSeconds: 180,
     });
 

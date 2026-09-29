@@ -51,6 +51,10 @@ TRIGGERS = (
     "MODEL_OOD",
     "OPERATOR_CORRECTION",       # the highest-value label there is: a human said we were wrong
     "CAMERA_VS_RO_MISMATCH",     # the lot says a visit, the shop's records say none
+    # An arrived vehicle is stationary outside every calibrated bay. This is NOT a claim
+    # of service; it intentionally collects both waiting/parking negatives and true outside
+    # jack/tire/plug positives so a future classifier can be measured on THIS lot.
+    "NO_BAY_ACTIVITY_REVIEW",
     # UNWIRED ON PURPOSE, and this is the measurement that says so rather than a TODO.
     # Over 62 real visits in the edge ledger the dwell distribution is
     #   min 26s - p25 131s - median 345s - p75 990s - p90 1,885s - max 6,741s
@@ -106,6 +110,9 @@ TRIGGERS_WIRED = frozenset({
     # real case matched at 158 inliers against a floor of 18 and was caught by an independent
     # signal, not by its own fit quality.
     "SCENE_LOCATOR_LOW_CONFIDENCE",
+    # Fires once per arrived track after a configurable observed-stationary dwell outside
+    # every bay. The caller says only "ambiguous enough to review"; it never says service.
+    "NO_BAY_ACTIVITY_REVIEW",
 })
 # `SOURCE_FAILOVER` was listed here one commit before it had a caller, which is precisely
 # what the comment above forbids. It now fires from the generation-break branch in
@@ -207,6 +214,28 @@ class HardCaseRecorder:
         while len(self._buffer) > self.max_buffer_frames:
             self._buffer.popleft()
 
+    def annotate(self, ts: float, patch: Optional[dict] = None) -> bool:
+        """Attach post-vision provenance to a frame already in the rolling window.
+
+        EdgeLoop intentionally buffers pixels BEFORE vision gates so a rejected frame is not
+        lost. Some evidence (canonical track boxes/zones) only exists AFTER vision runs.
+        Updating the buffered metadata joins those two moments without buffering the image
+        twice. A miss is returned to the caller; nothing is invented.
+        """
+        if not patch:
+            return True
+        for index in range(len(self._buffer) - 1, -1, -1):
+            stored_ts, _image, meta = self._buffer[index]
+            if stored_ts == ts:
+                # The tuple is immutable; its metadata dict is intentionally not. Mutating
+                # it preserves the exact buffered image object and avoids replacing deque
+                # entries just to join provenance produced later in the same frame.
+                meta.update(dict(patch))
+                return True
+            if stored_ts < ts:
+                break
+        return False
+
     def trigger(self, reason: str, at: float, context: Optional[dict] = None) -> bool:
         """Arm a clip around `at`. Returns whether it was armed.
 
@@ -259,7 +288,7 @@ class HardCaseRecorder:
             pending.until = now
         return self.flush_ready(now)
 
-    def _window(self, pending: _Pending) -> List[Tuple[float, np.ndarray]]:
+    def _window(self, pending: _Pending) -> List[Tuple[float, np.ndarray, dict]]:
         lo, hi = pending.at - self.before_seconds, pending.until
         return [(ts, img, meta) for ts, img, meta in self._buffer if lo <= ts <= hi]
 
@@ -307,8 +336,25 @@ class HardCaseRecorder:
                 "firstFrameAt": frames[0][0],
                 "lastFrameAt": frames[-1][0],
                 "frames": len(frames),
+                # Preserve the observation clock exactly. An offline temporal reasoner
+                # must not invent evenly-spaced timestamps from frame numbers: capture can
+                # stall, gate, or jitter, and evidence persistence is measured in seconds.
+                "frameTimestamps": [round(float(ts), 6) for ts, _img, _meta in frames],
                 "context": pending.context,
             }
+            if pending.reason == "NO_BAY_ACTIVITY_REVIEW":
+                target_id = str((pending.context or {}).get("trackId", ""))
+                meta["serviceTrackObservations"] = [
+                    {
+                        "at": round(float(ts), 6),
+                        # None is evidence too: this frame did not have a trustworthy
+                        # canonical observation of the target track after vision ran.
+                        "track": dict(
+                            (((fmeta or {}).get("visionTracks") or {}).get(target_id) or {})
+                        ) or None,
+                    }
+                    for ts, _image, fmeta in frames
+                ]
             if episode is not None:
                 episode.note("/hardcase/trigger", pending.at,
                              {"reason": pending.reason, "context": pending.context})

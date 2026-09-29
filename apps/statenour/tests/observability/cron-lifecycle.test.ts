@@ -578,6 +578,19 @@ describe("cron lifecycle · outcome receipts (2026-09-22)", () => {
     expect((await settled({ processed: 2.5 })).resultCount).toBeNull();
   });
 
+  it("a job that says it skipped settles with skipReason, a worked run with null (2026-09-23)", async () => {
+    // Before the column, both rows below were identical: success, resultCount null.
+    expect(await settled({ ok: true, skipped: "no_meta_token" })).toMatchObject({
+      status: "success",
+      resultCount: null,
+      skipReason: "no_meta_token",
+    });
+    expect(await settled({ slot: "evening", skipped: true, reason: "INNGEST_MEGA_V2 off" })).toMatchObject({
+      skipReason: "INNGEST_MEGA_V2 off",
+    });
+    expect((await settled({ swept: 7 })).skipReason).toBeNull();
+  });
+
   it("deriveResultCount is the single reader of a job's summary", async () => {
     const { deriveResultCount } = await loadMiddleware(makeStore().prisma);
     expect(deriveResultCount({ drained: 4 })).toBe(4);
@@ -741,6 +754,37 @@ describe("cron lifecycle · one run, one row — parallel-step requests (2026-09
     expect(by("b-dead").status).toBe(CRON_STATUS.interrupted);
     expect(by("c-legacy").status).toBe(CRON_STATUS.interrupted);
     expect(sweeps).toEqual(["scan", "duplicate:1", "interrupted:2"]);
+  });
+
+  // #2525 · the sweep reads stale `started` rows, then writes by id. A run that
+  // settles in that gap must keep its real outcome: `interrupted` counts as a
+  // hard failure in cron-control, so overwriting a success is a false alarm.
+  it("RACE — a row that settles between the sweep's read and its write keeps its real outcome", async () => {
+    const { prisma, rows } = makeStore();
+    const m = 60_000;
+    rows.push({ id: "late-ok", jobName: "outbox-drain", runId: "run-late", status: "started", createdAt: new Date(Date.now() - 300 * m) });
+    rows.push({ id: "dup-late", jobName: "mega-fanout-evening", runId: "run-d", status: "started", createdAt: new Date(Date.now() - 300 * m) });
+    rows.push({ id: "dup-ok", jobName: "mega-fanout-evening", runId: "run-d", status: "success", createdAt: new Date(Date.now() - 299 * m) });
+    rows.push({ id: "dead", jobName: "goal-pruner", runId: "run-dead", status: "started", createdAt: new Date(Date.now() - 300 * m) });
+    const findMany = prisma.cronJobLog.findMany;
+    let reads = 0;
+    prisma.cronJobLog.findMany = async (args) => {
+      const out = await findMany(args);
+      // Right after the stale scan, two runs settle on their own.
+      if (++reads === 1) {
+        rows.find((r) => r.id === "late-ok")!.status = "success";
+        rows.find((r) => r.id === "dup-late")!.status = "partial";
+      }
+      return out;
+    };
+    const { CronLifecycleMiddleware, CRON_STATUS } = await loadMiddleware(prisma);
+    const mw = new CronLifecycleMiddleware({ client: {} as never });
+    await mw.onRunStart({ ctx: { runId: "now" }, fn: cronFn("approval-sweeper") });
+    const by = (id: string) => rows.find((r) => r.id === id)!;
+    expect(by("late-ok").status).toBe("success");
+    expect(by("late-ok").error).toBeUndefined();
+    expect(by("dup-late").status).toBe("partial");
+    expect(by("dead").status).toBe(CRON_STATUS.interrupted); // the guard does not stop the real sweep
   });
 
   it("`duplicate` is in the vocabulary and in neither positive list", async () => {

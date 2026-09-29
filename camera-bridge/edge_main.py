@@ -49,10 +49,21 @@ from visitd.metrics import REGISTRY, MetricsServer                # noqa: E402
 
 log = logging.getLogger("edge")
 
-#: Identity of THIS process, for the heartbeat's (producerInstanceId, heartbeatSeq)
-#: idempotency key. A restart is a new instance, so the cloud accepts a sequence that
-#: starts again from zero instead of treating it as a stale replay.
-PRODUCER_INSTANCE_ID = os.environ.get("EDGE_INSTANCE_ID") or os.urandom(8).hex()
+#: Priority-bearing identity of THIS process. The prefix is interpreted by the shop
+#: heartbeat route as the failover order; the random suffix still makes every restart a
+#: fresh heartbeat instance, so its sequence may safely restart at zero.
+#: Unknown/legacy roles keep the old opaque id and therefore receive no priority privilege.
+_EDGE_ROLE_PREFIX = {
+    "shop": "p1-shop",
+    "nicksmax": "p2-nicksmax",
+    "nattynour": "p3-nattynour",
+}
+_edge_role = os.environ.get("EDGE_ROLE", "").strip().lower()
+_edge_prefix = _EDGE_ROLE_PREFIX.get(_edge_role)
+PRODUCER_INSTANCE_ID = (
+    os.environ.get("EDGE_INSTANCE_ID")
+    or (f"{_edge_prefix}-{os.urandom(6).hex()}" if _edge_prefix else os.urandom(8).hex())
+)
 
 
 def _iso(ts: Optional[float]) -> Optional[str]:
@@ -477,6 +488,7 @@ class EdgeLoop:
         shadow: Any = None,
         challenger: Any = None,
         relocate_seconds: float = 120.0,
+        service_review_seconds: float = 30.0,
         clock=time.time,
     ) -> None:
         self.pipeline = pipeline
@@ -515,6 +527,11 @@ class EdgeLoop:
         #: disagreements are not a counterfactual.
         self.challenger = challenger
         self._last_layout_epoch = None
+        # Corpus sampler only. This number is NOT a service classifier threshold; it says
+        # when an arrived, no-bay, stationary vehicle has become worth one review clip.
+        self.service_review_seconds = max(0.0, float(service_review_seconds))
+        self._service_review_armed: set[int] = set()
+        self._service_review_attempted: Dict[int, float] = {}
         self.camera = camera
         # REJECT an unknown mode at construction. Uppercasing whatever arrives turns a
         # programming error into a value the shop rejects 400 -- and it did: a local named
@@ -583,6 +600,10 @@ class EdgeLoop:
         self.generation = source_generation(source)
         #: How many times the lane or the restore count changed under us.
         self.generation_breaks = 0
+        # If authority-boundary invalidation fails, do not renew the server lease until
+        # a later local retry succeeds. Otherwise this broken producer can block failover
+        # forever by refreshing a lease it refuses to use.
+        self.authority_recovery_blocked = False
 
     # ------------------------------------------------------------------ one pass
     def step(self) -> Dict[str, object]:
@@ -668,6 +689,10 @@ class EdgeLoop:
                 log.exception("vision step error")
                 out = {"emissions": [], "suppressed": "vision error"}
 
+            # The recorder got the pixels before vision gates. Now that this frame has
+            # actually been reasoned over, attach the canonical track snapshot to that same
+            # buffered frame before any trigger can arm a service-review clip.
+            self._annotate_hard_case_vision(frame, out)
             self._note_hard_cases(frame, out)
             self._note_trajectory(frame, out)
             self._note_deaths(frame, out)
@@ -824,6 +849,18 @@ class EdgeLoop:
         """Compose and post one heartbeat. False when no shop is configured."""
         if not self.pipeline.shop.enabled:
             return False
+        heartbeat_now = self.clock() if now is None else now
+        if self.authority_recovery_blocked:
+            try:
+                self.vision.reset_authority_epoch(heartbeat_now)
+                self.pipeline.ledger.discard_camera_state(self.camera)
+                self.authority_recovery_blocked = False
+                log.warning("authority-boundary reset recovered locally; heartbeat renewal may resume")
+            except Exception:
+                self.pipeline.metrics.inc("edge_authority_promotion_errors_total")
+                log.exception("authority-boundary reset still failing; NOT renewing server lease")
+                return False
+        authority_before = self.pipeline.shop.is_authoritative(self.camera)
         self.heartbeat_seq += 1
         # Empty dict, not None: a vision layer without a stitcher then reports NOTHING for
         # each counter (`.get` -> None) rather than a fabricated 0, which is the same
@@ -832,7 +869,7 @@ class EdgeLoop:
         body = edge_heartbeat_body(
             camera=self.camera,
             seq=self.heartbeat_seq,
-            now=self.clock() if now is None else now,
+            now=heartbeat_now,
             mode=self.mode,
             source=self.source,
             vision=self.vision,
@@ -863,6 +900,27 @@ class EdgeLoop:
             stitch_refused_ambiguous=stitch_counts.get("refused_ambiguous"),
         )
         ok = self.pipeline.shop.heartbeat(body)
+        authority_after = self.pipeline.shop.is_authoritative(self.camera)
+        if not authority_before and authority_after:
+            # Promotion is a hard evidence boundary. Standby-era tracks and open visits
+            # cannot be allowed to become authoritative later with their original times.
+            try:
+                reset = self.vision.reset_authority_epoch(heartbeat_now)
+                durable = self.pipeline.ledger.discard_camera_state(self.camera)
+                self.pipeline.metrics.inc("edge_authority_promotions_total")
+                log.warning(
+                    "producer promoted to shop authority: discarded standby state "
+                    "tracks=%s visits=%s durable=%s", reset.get("tracks"), reset.get("visits"), durable,
+                )
+            except Exception:
+                # The server has already granted a lease. Revoke it LOCALLY and block
+                # future heartbeat renewal until the reset succeeds, so a lower-priority
+                # producer can take over once this lease expires.
+                self.pipeline.shop.revoke_authority(self.camera)
+                self.authority_recovery_blocked = True
+                self.pipeline.metrics.inc("edge_authority_promotion_errors_total")
+                log.exception("authority promotion reset FAILED; lease will NOT be renewed")
+                ok = False
         # The reply may have switched the mode either way; keep the loop's view in step so
         # the NEXT heartbeat reports it without waiting another round trip. Returning to
         # `base_mode` is what lets the camera card's badge clear when a run ends.
@@ -1172,6 +1230,36 @@ class EdgeLoop:
         except Exception:  # noqa: BLE001
             log.exception("hard-case observe failed; the corpus loses a frame, not the lot")
 
+    def _annotate_hard_case_vision(self, frame, out: Dict[str, object]) -> None:
+        """Join post-vision canonical track facts to the pre-vision buffered pixels.
+
+        A suppressed frame is deliberately left without a snapshot: the tracker did not
+        observe the lot on that frame, so copying its previous box forward would turn
+        absence of observation into evidence.
+        """
+        if self.hard_cases is None or out.get("suppressed") is not None:
+            return
+        try:
+            tracks = getattr(getattr(self.vision, "tracks", None), "tracks", {}) or {}
+            snapshots = {}
+            for track in tracks.values():
+                track_id = int(getattr(track, "track_id", -1))
+                if track_id < 0:
+                    continue
+                snapshots[str(track_id)] = {
+                    "trackId": track_id,
+                    "box": [round(float(v), 3) for v in getattr(track, "box", ())],
+                    "zones": list(getattr(track, "zones", None) or []),
+                    "evidence": str(getattr(track, "evidence", "unknown")),
+                    "misses": int(getattr(track, "misses", 0) or 0),
+                    "stationarySeconds": round(float(track.stationary_for(frame.ts)), 3),
+                }
+            if not self.hard_cases.annotate(frame.ts, {"visionTracks": snapshots}):
+                self.pipeline.metrics.inc("edge_hard_case_annotation_miss_total")
+        except Exception:  # noqa: BLE001 - corpus metadata must never take the lot down
+            self.pipeline.metrics.inc("edge_hard_case_annotation_errors_total")
+            log.exception("hard-case vision annotation failed; frame kept without track provenance")
+
     def _note_hard_cases(self, frame, out: Dict[str, object]) -> None:
         """Arm a clip for anything the system just told us it was unsure about.
 
@@ -1254,6 +1342,59 @@ class EdgeLoop:
                     if scores and max(scores) < 0.60:
                         self.hard_cases.trigger("PORTAL_LOW_CONFIDENCE", ts, {
                             "bestScore": round(max(scores), 3), "detections": len(scores)})
+
+            # NO-BAY ACTIVITY REVIEW. This is deliberately a DATASET trigger, not a service
+            # classification. Nick's legitimately changes tires/plugs outside on jacks, but
+            # customers also wait or park in the same geometry. The only honest claim the
+            # deterministic edge can make is: an ARRIVED vehicle stayed still outside every
+            # calibrated bay long enough to be worth one labelled clip.
+            #
+            # One successful clip per live track. If the recorder's global per-reason
+            # cooldown suppresses a concurrent car, retry no faster than that cooldown
+            # instead of hammering trigger() four times a second and turning the drop counter
+            # into frames rather than opportunities.
+            tracks = getattr(getattr(self.vision, "tracks", None), "tracks", {}) or {}
+            live_ids = {int(tid) for tid in tracks}
+            self._service_review_armed.intersection_update(live_ids)
+            for old in list(self._service_review_attempted):
+                if old not in live_ids:
+                    self._service_review_attempted.pop(old, None)
+
+            bay_names = set(getattr(getattr(self.vision, "bays", None), "bays", {}) or {})
+            if self.service_review_seconds > 0:
+                for track in tracks.values():
+                    track_id = int(getattr(track, "track_id", -1))
+                    if track_id < 0 or track_id in self._service_review_armed:
+                        continue
+                    if getattr(track, "evidence", None) != "arrival":
+                        continue
+                    if int(getattr(track, "misses", 0) or 0) != 0:
+                        continue
+                    zones = set(getattr(track, "zones", None) or [])
+                    if zones & bay_names:
+                        continue
+                    stationary = float(track.stationary_for(ts))
+                    if stationary < self.service_review_seconds:
+                        continue
+                    last_attempt = self._service_review_attempted.get(track_id)
+                    retry_after = float(getattr(self.hard_cases, "cooldown_seconds", 60.0))
+                    if last_attempt is not None and ts - last_attempt < retry_after:
+                        continue
+                    self._service_review_attempted[track_id] = ts
+                    if self.hard_cases.trigger("NO_BAY_ACTIVITY_REVIEW", ts, {
+                        "trackId": track_id,
+                        # Snapshot the canonical track box AT THE REVIEW TRIGGER. The
+                        # offline service sidecar needs an anchor for "near this vehicle";
+                        # without it, a jack beside another car can support the wrong one.
+                        "vehicleBox": [round(float(v), 3) for v in track.box],
+                        "stationarySeconds": round(stationary, 3),
+                        "zones": sorted(zones),
+                        "bayNames": sorted(bay_names),
+                        "camera": self.camera,
+                        "evidence": "arrival",
+                        "meaning": "review ambiguity only; NOT proof of outside service",
+                    }):
+                        self._service_review_armed.add(track_id)
 
             for path in self.hard_cases.flush_ready(ts):
                 log.info("hard case saved %s", path)
@@ -1523,7 +1664,7 @@ def build_edge(cfg: Config, args: argparse.Namespace):
         policy=cfg.policy,
     )
     cloud = CloudClient(cfg.backend, ledger, REGISTRY, dry_run=args.dry_run)
-    pipeline = Pipeline(cfg, ledger, cloud, REGISTRY)
+    pipeline = Pipeline(cfg, ledger, cloud, REGISTRY, producer_instance_id=PRODUCER_INSTANCE_ID)
 
     camera = args.camera
     if camera not in cfg.cameras:
@@ -1543,6 +1684,8 @@ def build_edge(cfg: Config, args: argparse.Namespace):
                           calibrated=bool(args.calibration and os.path.exists(args.calibration)),
                           declared_fixed=declared_fixed_lens(args.calibration),
                           scene_atlas=args.scene_atlas, scene=args.scene,
+                          source_url=(os.environ.get(args.source_url_env)
+                                      if args.source_url_env else None),
                           canonical_size=(canonical_size_from(args.calibration)
                                           if args.scene_atlas else None))
 
@@ -1678,7 +1821,11 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--config", default="config.yaml", help="visitd config (cameras, backend, policy)")
     ap.add_argument("--camera", default="sign", help="which configured camera this producer IS")
     ap.add_argument("--ledger", default=None, help="override the SQLite ledger path (':memory:' for a throwaway)")
-    ap.add_argument("--source", default="wgc", help="capture lane: wgc | window")
+    ap.add_argument("--source", choices=["wgc", "window", "mss", "rtsp"], default="wgc",
+                    help="capture lane: wgc | window/mss | rtsp")
+    ap.add_argument("--source-url-env", default="CAMERA_SOURCE_URL",
+                    help="env var holding the RTSP/source URL. Keep credential-bearing URLs "
+                         "out of the scheduled-task command line.")
     ap.add_argument("--hwnd", type=int, default=None, help="explicit window handle (else resolved by title)")
     ap.add_argument("--window-title", default="V380", help="capture window title")
     ap.add_argument("--no-crop", action="store_true", help="capture the whole window, not the measured pane")
@@ -1714,11 +1861,20 @@ def parse_args(argv=None) -> argparse.Namespace:
                     help="JSONL of what the adjudicator ALONE would have decided, beside the "
                          "primary. Counterfactual only -- a challenger never gets a vote.")
     ap.add_argument("--hard-cases", default=os.environ.get("EDGE_HARD_CASES"),
-                    help="directory for clips of moments the system found HARD -- detector "
-                         "disagreement, a weak portal decision, an off-home pose, a layout "
-                         "change. Unset means no corpus is collected.")
+                    help="directory for clips of moments the system found HARD or worth "
+                         "labelling -- detector disagreement, weak portal decisions, off-home "
+                         "pose/layout changes, and no-bay activity review. Unset means no "
+                         "corpus is collected.")
     ap.add_argument("--hard-case-max-gb", type=float, default=2.0,
                     help="disk budget for the hard-case store; oldest clips are evicted first")
+    ap.add_argument(
+        "--service-review-seconds",
+        type=float,
+        default=float(os.environ.get("EDGE_SERVICE_REVIEW_SECONDS", "30")),
+        help="after this many OBSERVED stationary seconds, save one review clip for an arrived "
+             "vehicle outside all calibrated bays. This samples ambiguity for labelling; it "
+             "does NOT classify outside service. 0 disables.",
+    )
     ap.add_argument("--trajectories", default=os.environ.get("EDGE_TRAJECTORIES"),
                     help="SQLite path recording where vehicles actually drove, at 1 Hz. Feeds "
                          "`python -m vision.trajectory`, which PROPOSES a lot polygon measured "
@@ -1879,6 +2035,7 @@ def run_edge(args: argparse.Namespace) -> int:
         stall_exit_seconds=args.stall_exit_seconds, persist_seconds=args.persist_seconds,
         hard_cases=recorder, trajectories=trajectories, shadow=shadow, challenger=challenger,
         relocate_seconds=args.relocate_seconds,
+        service_review_seconds=args.service_review_seconds,
     )
 
     stop = threading.Event()
@@ -1897,6 +2054,15 @@ def run_edge(args: argparse.Namespace) -> int:
     deadline = (time.time() + args.seconds) if args.seconds else None
     exit_code = 0
     try:
+        # Claim or confirm producer authority BEFORE the first frame can emit a visit.
+        # Primary can buffer locally if the shop is temporarily unreachable; standbys
+        # start fail-closed and only begin mirroring after the shop explicitly elects them.
+        try:
+            loop.send_heartbeat(time.time())
+            loop.next_heartbeat = time.time() + loop.heartbeat_seconds
+        except Exception:
+            pipeline.metrics.inc("edge_heartbeat_errors_total")
+            log.exception("startup heartbeat error")
         while not stop.is_set():
             if deadline is not None and time.time() >= deadline:
                 break

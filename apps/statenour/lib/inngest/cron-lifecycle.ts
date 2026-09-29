@@ -2,7 +2,8 @@
  * Cron run lifecycle · one row per run, `started` -> `success` | `failed`,
  * or `interrupted` when no terminal event ever arrives (settled by AGE, see
  * `reconcileInterruptedRuns`). A success also carries `resultCount`, read off
- * the job's own return value (`deriveResultCount`).
+ * the job's own return value (`deriveResultCount`), and `skipReason` when the
+ * job said it chose not to work (`deriveSkipReason`).
  *
  * ★★★ WHY A MIDDLEWARE AND NOT A PER-HANDLER WRAPPER. The previous mechanism
  * (`recordSelfRow`) wrote ONE row before the work and called it done. Both a
@@ -68,6 +69,7 @@
  */
 
 import { Middleware } from "inngest";
+import { deriveSkipReason } from "@/lib/services/cron-skip-reason";
 
 /**
  * Statuses this module writes. `partial` is deliberately ABSENT: it remains
@@ -249,6 +251,10 @@ export function deriveResultCount(output: unknown): number | null {
  * were exactly that. Only a stale row with NO terminal sibling is presumed
  * `interrupted`.
  *
+ * Both writes re-check `status: started` (#2525): the read above and the
+ * update below are not atomic, and a run that settles in between must keep
+ * its real outcome - cron-control counts `interrupted` as a hard failure.
+ *
  * `interrupted` is a presumption: `settleCronRun` still accepts an exact-run-id
  * terminal event for such a row and overrides it, so a retry that lands after
  * the ceiling keeps its real outcome. Never throws - a failed sweep must not
@@ -287,7 +293,7 @@ async function reconcileInterruptedRuns(prisma: PrismaLike): Promise<void> {
     const orphans = stale.filter((r) => !isDuplicate(r)).map((r) => r.id);
     if (duplicates.length > 0) {
       await prisma.cronJobLog.updateMany({
-        where: { id: { in: duplicates } },
+        where: { id: { in: duplicates }, status: CRON_STATUS.started },
         data: {
           status: CRON_STATUS.duplicate,
           error:
@@ -298,7 +304,7 @@ async function reconcileInterruptedRuns(prisma: PrismaLike): Promise<void> {
     }
     if (orphans.length > 0) {
       await prisma.cronJobLog.updateMany({
-        where: { id: { in: orphans } },
+        where: { id: { in: orphans }, status: CRON_STATUS.started },
         data: {
           status: CRON_STATUS.interrupted,
           error:
@@ -402,7 +408,9 @@ export async function settleCronRun(
         // Always written: a success overriding `interrupted` must also clear
         // the presumed-dead text that sweep left behind.
         error: err === undefined ? null : describeError(err),
-        ...(status === CRON_STATUS.success ? { resultCount: deriveResultCount(output) } : {}),
+        ...(status === CRON_STATUS.success
+          ? { resultCount: deriveResultCount(output), skipReason: deriveSkipReason(output) }
+          : {}),
       },
     });
   } catch (e) {

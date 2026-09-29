@@ -1406,9 +1406,11 @@ export type InsertKpiSnapshot = typeof kpiSnapshots.$inferInsert;
  * hits ShopDriver's /api/Estimate/listEstimates endpoint. Shop-protection
  * aware: only syncs when admin is active (runIfAdminActive wrapper).
  *
- * matchedInvoiceId is set during sync when we find an invoice for the
- * same customer within ±10% of the estimated amount and within 30d of
- * the estimate date.
+ * matchedInvoiceId is set by backfillMatches() when exactly one invoice for
+ * the same phone falls within MATCH_AMOUNT_TOLERANCE and MATCH_WINDOW_DAYS of
+ * the estimate (shopDriverEstimateSync.ts). It runs after each ALG estimate
+ * sync and daily as the `estimate-invoice-match` tier job (Q-37). No match is
+ * an INFERRED decline; an observed one is in declined_work_captures.
  */
 export const algEstimates = mysqlTable("alg_estimates", {
   id: int("id").autoincrement().primaryKey(),
@@ -1501,6 +1503,36 @@ export const algEstimates = mysqlTable("alg_estimates", {
 
 export type AlgEstimate = typeof algEstimates.$inferSelect;
 export type InsertAlgEstimate = typeof algEstimates.$inferInsert;
+
+// ─── DECLINED WORK · COUNTER CAPTURES (Q-37, migration 0132) ──
+/**
+ * A person at the counter recorded that the customer declined this estimate.
+ * The only OBSERVED decline for an ALG estimate; everything else is inferred from
+ * "no matching invoice" (shared/declineProvenance.ts).
+ *
+ * A separate table, not columns on alg_estimates, on purpose: drizzle's MySQL
+ * insert names EVERY column in the table definition (mysql-core/dialect.js
+ * buildInsertQuery), so a new alg_estimates column would break the estimate
+ * mirror's insert for the whole window between deploy and the hand-applied DDL.
+ * A missing table here degrades to "not enabled" (services/declineCaptures.ts).
+ *
+ * One row per estimate (unique key) — the capture is a claim, so a second tap or
+ * a second device loses the insert and reads the winner back.
+ */
+export const declinedWorkCaptures = mysqlTable("declined_work_captures", {
+  id: int("id").autoincrement().primaryKey(),
+  estimateId: int("estimate_id").notNull(),
+  /** What was quoted, snapshotted at capture (the estimate's service description). */
+  declinedItem: varchar("declined_item", { length: 500 }),
+  /** "counter" today. VARCHAR, not ENUM: an out-of-enum write loses the row on TiDB. */
+  source: varchar("source", { length: 32 }).default("counter").notNull(),
+  capturedBy: varchar("captured_by", { length: 255 }),
+  capturedAt: timestamp("captured_at").defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("uq_declined_capture_estimate").on(t.estimateId),
+]);
+
+export type DeclinedWorkCapture = typeof declinedWorkCaptures.$inferSelect;
 
 // ─── CUSTOMER PORTAL SESSIONS ──────────────────────────
 /**
@@ -2003,6 +2035,42 @@ export const smsPreferences = mysqlTable("sms_preferences", {
 });
 
 /**
+ * Q-43 append-only consent/revocation evidence. The TiDB table is hand-applied
+ * by migration 0133; code tolerates it being absent until the operator applies it.
+ */
+export const contactConsentEvents = mysqlTable("contact_consent_events", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  subjectType: varchar("subject_type", { length: 8 }).notNull(),
+  subjectKey: varchar("subject_key", { length: 255 }).notNull(),
+  customerKey: varchar("customer_key", { length: 64 }),
+  scope: varchar("scope", { length: 32 }).notNull(),
+  action: varchar("action", { length: 16 }).notNull(),
+  source: varchar("source", { length: 48 }).notNull(),
+  method: varchar("method", { length: 32 }).notNull(),
+  disclosureId: varchar("disclosure_id", { length: 64 }),
+  disclosureVersion: varchar("disclosure_version", { length: 16 }),
+  disclosureSha256: varchar("disclosure_sha256", { length: 64 }),
+  evidenceRef: varchar("evidence_ref", { length: 191 }).notNull(),
+  evidenceExcerpt: varchar("evidence_excerpt", { length: 160 }),
+  detectorVersion: varchar("detector_version", { length: 16 }),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: varchar("user_agent", { length: 300 }),
+  actor: varchar("actor", { length: 100 }).notNull(),
+  occurredAt: datetime("occurred_at", { mode: "date" }).notNull(),
+  occurredAtEstimated: tinyint("occurred_at_estimated").default(0).notNull(),
+  recordedAt: timestamp("recorded_at").defaultNow().notNull(),
+  reviewStatus: varchar("review_status", { length: 16 }),
+  reviewedBy: varchar("reviewed_by", { length: 100 }),
+  reviewedAt: datetime("reviewed_at", { mode: "date" }),
+}, (table) => [
+  uniqueIndex("uq_contact_consent_event").on(
+    table.subjectType, table.subjectKey, table.source, table.evidenceRef, table.scope, table.action,
+  ),
+  index("idx_contact_consent_subject").on(table.subjectType, table.subjectKey, table.occurredAt),
+  index("idx_contact_consent_review").on(table.action, table.reviewStatus),
+]);
+
+/**
  * Tracks abandoned form submissions for recovery outreach.
  */
 export const formAbandonment = mysqlTable("form_abandonment", {
@@ -2243,6 +2311,39 @@ export const workOrderTransitions = mysqlTable("work_order_transitions", {
 }, (table) => [
   index("idx_wot_work_order").on(table.workOrderId),
 ]);
+
+/**
+ * Tire registrations — each installed tire's TIN (DOT code) and how 49 CFR 574.8 was met.
+ * One row per tire position on a work order (migration 0130, hand-applied). No FK on purpose:
+ * the compliance record must outlive a deleted work order. Values validated in shared/tireTin.ts.
+ */
+export const tireRegistrations = mysqlTable("tire_registrations", {
+  id: int("id").autoincrement().primaryKey(),
+  workOrderId: varchar("work_order_id", { length: 36 }).notNull(),
+  /** Base positions LF/RF/LR/RR/LRI/RRI/SPARE, plus EXTRA1..EXTRA999 when an order contains more tires. */
+  position: varchar("position", { length: 8 }).notNull(),
+  /** Normalized TIN; null = position reserved, TIN not captured yet */
+  tin: varchar("tin", { length: 20 }),
+  /** valid | legacy_date_code | invalid */
+  tinStatus: varchar("tin_status", { length: 32 }),
+  tinWeek: int("tin_week"),
+  tinYear: int("tin_year"),
+  tireBrand: varchar("tire_brand", { length: 100 }),
+  /** new | used — 574.8 covers new tires only */
+  tireCondition: varchar("tire_condition", { length: 8 }).default("new").notNull(),
+  /** pending | form_given | dealer_submitted_paper | dealer_submitted_electronic | not_required_used */
+  registrationMethod: varchar("registration_method", { length: 32 }).default("pending").notNull(),
+  registeredAt: timestamp("registered_at"),
+  registeredBy: varchar("registered_by", { length: 100 }),
+  capturedBy: varchar("captured_by", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("uq_tire_reg_wo_position").on(table.workOrderId, table.position),
+  index("idx_tire_reg_tin").on(table.tin),
+]);
+
+export type TireRegistration = typeof tireRegistrations.$inferSelect;
 
 /**
  * Specials / Promotions
@@ -4662,6 +4763,39 @@ export const cameraRuntime = mysqlTable("camera_runtime", {
   frameOk: boolean("frameOk"),
   poseOk: boolean("poseOk"),
   poseDelta: float("poseDelta"),
+  /**
+   * Interaction/PTZ transport proofs (0134). NULL means not measured, never success.
+   * Fixed-geometry producers may omit all of these forever.
+   */
+  authPlaneOk: boolean("authPlaneOk"),
+  eventPlaneOk: boolean("eventPlaneOk"),
+  controlPlaneOk: boolean("controlPlaneOk"),
+  mediaPlaneOk: boolean("mediaPlaneOk"),
+  ptzHomeOk: boolean("ptzHomeOk"),
+  lastEventProofAt: timestamp("lastEventProofAt"),
+  lastControlProofAt: timestamp("lastControlProofAt"),
+  lastMediaProofAt: timestamp("lastMediaProofAt"),
+  lastPtzNotifyAt: timestamp("lastPtzNotifyAt"),
+  /**
+   * Office conversation worker runtime (0135). These fields ride the existing Office camera
+   * heartbeat so Admin has one current-state authority, not a second health table.
+   */
+  conversationWorkerOk: boolean("conversationWorkerOk"),
+  conversationWorkerState: varchar("conversationWorkerState", { length: 32 }),
+  conversationWorkerHeartbeatAt: timestamp("conversationWorkerHeartbeatAt"),
+  conversationAudioSource: varchar("conversationAudioSource", { length: 64 }),
+  conversationCaptureHost: varchar("conversationCaptureHost", { length: 64 }),
+  conversationSttEngine: varchar("conversationSttEngine", { length: 128 }),
+  conversationQueueDepth: int("conversationQueueDepth"),
+  conversationLastTrigger: varchar("conversationLastTrigger", { length: 32 }),
+  lastConversationEventAt: timestamp("lastConversationEventAt"),
+  lastConversationCaptureAt: timestamp("lastConversationCaptureAt"),
+  lastConversationSttAt: timestamp("lastConversationSttAt"),
+  lastConversationPostAt: timestamp("lastConversationPostAt"),
+  lastConversationSummaryAt: timestamp("lastConversationSummaryAt"),
+  lastConversationCoverage: decimal("lastConversationCoverage", { precision: 5, scale: 4 }),
+  conversationFailuresToday: int("conversationFailuresToday"),
+  conversationLastError: varchar("conversationLastError", { length: 500 }),
   calibrationVersion: varchar("calibrationVersion", { length: 32 }),
   detectorName: varchar("detectorName", { length: 128 }),
   modelSha256: varchar("modelSha256", { length: 64 }),
@@ -4805,6 +4939,11 @@ export const conversationEpisodes = mysqlTable("conversation_episodes", {
   episodeId: varchar("episodeId", { length: 64 }).notNull(),
   /** `eufy-office` today; `counter-mic` if the camera mic fails the intelligibility test. */
   source: varchar("source", { length: 32 }).notNull(),
+  /** Capture provenance added after the Office camera identity correction. */
+  cameraSerial: varchar("cameraSerial", { length: 64 }),
+  captureHost: varchar("captureHost", { length: 64 }),
+  triggerType: varchar("triggerType", { length: 32 }),
+  triggeredAt: timestamp("triggeredAt"),
 
   // TIMESTAMP, not DATETIME — same reason vehicleVisits gives: the driver hands JS a
   // shifted Date for DATETIME on ET, corrupting every duration and day bucket downstream.
@@ -4827,6 +4966,7 @@ export const conversationEpisodes = mysqlTable("conversation_episodes", {
    *  genuinely silent. Those are different facts and must stay distinguishable. */
   transcript: json("transcript"),
   sttEngine: varchar("sttEngine", { length: 32 }),
+  sttModel: varchar("sttModel", { length: 128 }),
   sttLatencyMs: int("sttLatencyMs"),
 
   /** NULL = diarization not attempted (today's state). Never 0 — "no speakers detected" is

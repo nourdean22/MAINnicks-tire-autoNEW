@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "operator-pending: migration 0130_tire_registrations must be applied through the scoped prod-db-guard after merge, then capture/replace/remove/print must be observed on a real work order. This PR performs no production DDL, customer contact, or manufacturer registration."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability state is promoted in this PR. Code/schema may ship ahead of the hand-applied DDL; advance only after migration + real work-order proof. Tests pin dynamic EXTRA positions for >7 tires, cached-form invalidation after capture/removal, TIN completeness, and a printable form that does not invent a sale date."
+    },
+    "migration-evidence": {
+      "deferred": "operator-pending: apps/nickstire/drizzle/0130_tire_registrations.sql is an additive/idempotent CREATE TABLE IF NOT EXISTS migration and the Drizzle schema/journal are aligned to 0130 / idx 143. Per Nick's prod-db-guard, the migration is intentionally NOT applied by this PR; after merge an operator must run the scoped Railway migration, verify the table via INFORMATION_SCHEMA/read-only schema receipt, then record the application evidence."
+    }
+  }
+}
