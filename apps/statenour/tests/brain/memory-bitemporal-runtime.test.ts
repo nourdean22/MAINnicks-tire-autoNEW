@@ -90,6 +90,27 @@ describe("Q-31 transaction-time runtime bridge", () => {
     expect(String(db.execute.mock.calls[1][0])).toContain('"transaction_expired_at" = NULL');
   });
 
+  it("pins fail-closed compensation when prepared supersession cannot complete", () => {
+    const src = readFileSync(
+      join(process.cwd(), "lib", "brain", "memory-manager.ts"),
+      "utf8",
+    );
+
+    // Both gateway replacement lanes must refuse a legacy overwrite when
+    // snapshot/history preparation failed.
+    expect(src.match(/if \(!snapshot\) return existing;/g)?.length).toBe(2);
+
+    // A failed canonical write must restore effective + transaction state and
+    // remove the provisional history row before the error is contained.
+    expect(src).toContain("previousValidFrom: args.existing.validFrom ?? null");
+    expect(src).toContain("previousLastVerifiedAt: args.existing.lastVerifiedAt ?? null");
+    expect(src).toContain("validFrom: args.snapshot.previousValidFrom");
+    expect(src).toContain("lastVerifiedAt: args.snapshot.previousLastVerifiedAt");
+    expect(src).toContain("deleteMany({ where: { id: args.snapshot.snapshotId } })");
+    expect(src).toContain("restoreTransactionWindowIfAvailable(");
+    expect(src.match(/memory_supersession_replace_failed/g)?.length).toBe(2);
+  });
+
   it("pins the source ordering: close precedes the canonical content flip", () => {
     const src = readFileSync(
       join(process.cwd(), "lib", "brain", "memory-manager.ts"),
