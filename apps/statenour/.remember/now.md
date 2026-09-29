@@ -1217,3 +1217,8 @@ observations `<functionId>:<span>` and `/api/public/v2/observations` is a thin p
 - Q-32 uses one deterministic `q32-regression.ts` owner + incumbent Langfuse queue/runtime/judge/optional experiment. The duplicate runtime selector import and fail-open unknown-family classifier were repaired during consolidation.
 - Empirical Q-32 targets (>=50 labels; kappa >=0.6 on >=30 double labels) remain UNMEASURED.
 - Full checkpoint: `docs/research/2026-09-29-resilience-final-consolidation-checkpoint.md`.
+
+## 2026-09-29 · Q-31/Q-32 hardening on final resilience PR
+- Q-32: experiment parser repaired; unknown model families are now rejected for independent judging; Venice/Ollama/custom hosts are not model families. The pinned Langfuse action owns its SDK install, so no extra app dependency was added.
+- Q-31: transaction-column probing is single-owner in `memory-bitemporal.ts`. Failed prepared supersessions restore transaction + effective verification state, delete the provisional snapshot, and do not silently fall through to a legacy history-destroying overwrite.
+- These are still branch truths until PR #2794 is exact-head green and merged. Production migration/application and empirical Q-32 acceptance remain separate.
