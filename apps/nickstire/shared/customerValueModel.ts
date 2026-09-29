@@ -121,7 +121,9 @@ export function bgnbdExpectedPurchases(input: {
   assertBgnbd(p);
   if (tx > T) throw new Error("recency cannot exceed T");
   if (t === 0) return 0;
-  if (p.a <= 1) throw new Error("BG/NBD expected-purchase formula requires a > 1");
+  if (Math.abs(p.a - 1) < 1e-12) {
+    throw new Error("BG/NBD expected-purchase formula is singular at a = 1");
+  }
 
   const z = t / (p.alpha + T + t);
   const hyp = hypergeometric2F1(
