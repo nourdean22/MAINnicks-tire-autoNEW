@@ -4776,6 +4776,26 @@ export const cameraRuntime = mysqlTable("camera_runtime", {
   lastControlProofAt: timestamp("lastControlProofAt"),
   lastMediaProofAt: timestamp("lastMediaProofAt"),
   lastPtzNotifyAt: timestamp("lastPtzNotifyAt"),
+  /**
+   * Office conversation worker runtime (0135). These fields ride the existing Office camera
+   * heartbeat so Admin has one current-state authority, not a second health table.
+   */
+  conversationWorkerOk: boolean("conversationWorkerOk"),
+  conversationWorkerState: varchar("conversationWorkerState", { length: 32 }),
+  conversationWorkerHeartbeatAt: timestamp("conversationWorkerHeartbeatAt"),
+  conversationAudioSource: varchar("conversationAudioSource", { length: 64 }),
+  conversationCaptureHost: varchar("conversationCaptureHost", { length: 64 }),
+  conversationSttEngine: varchar("conversationSttEngine", { length: 128 }),
+  conversationQueueDepth: int("conversationQueueDepth"),
+  conversationLastTrigger: varchar("conversationLastTrigger", { length: 32 }),
+  lastConversationEventAt: timestamp("lastConversationEventAt"),
+  lastConversationCaptureAt: timestamp("lastConversationCaptureAt"),
+  lastConversationSttAt: timestamp("lastConversationSttAt"),
+  lastConversationPostAt: timestamp("lastConversationPostAt"),
+  lastConversationSummaryAt: timestamp("lastConversationSummaryAt"),
+  lastConversationCoverage: decimal("lastConversationCoverage", { precision: 5, scale: 4 }),
+  conversationFailuresToday: int("conversationFailuresToday"),
+  conversationLastError: varchar("conversationLastError", { length: 500 }),
   calibrationVersion: varchar("calibrationVersion", { length: 32 }),
   detectorName: varchar("detectorName", { length: 128 }),
   modelSha256: varchar("modelSha256", { length: 64 }),
@@ -4919,6 +4939,11 @@ export const conversationEpisodes = mysqlTable("conversation_episodes", {
   episodeId: varchar("episodeId", { length: 64 }).notNull(),
   /** `eufy-office` today; `counter-mic` if the camera mic fails the intelligibility test. */
   source: varchar("source", { length: 32 }).notNull(),
+  /** Capture provenance added after the Office camera identity correction. */
+  cameraSerial: varchar("cameraSerial", { length: 64 }),
+  captureHost: varchar("captureHost", { length: 64 }),
+  triggerType: varchar("triggerType", { length: 32 }),
+  triggeredAt: timestamp("triggeredAt"),
 
   // TIMESTAMP, not DATETIME — same reason vehicleVisits gives: the driver hands JS a
   // shifted Date for DATETIME on ET, corrupting every duration and day bucket downstream.
@@ -4941,6 +4966,7 @@ export const conversationEpisodes = mysqlTable("conversation_episodes", {
    *  genuinely silent. Those are different facts and must stay distinguishable. */
   transcript: json("transcript"),
   sttEngine: varchar("sttEngine", { length: 32 }),
+  sttModel: varchar("sttModel", { length: 128 }),
   sttLatencyMs: int("sttLatencyMs"),
 
   /** NULL = diarization not attempted (today's state). Never 0 — "no speakers detected" is

@@ -531,11 +531,36 @@ export async function handleRunMigrations() {
       // Every extracted fact carries the transcript span it came from — a summary nobody can
       // trace back to what was said is a rumour with a timestamp.
       `CREATE TABLE IF NOT EXISTS conversation_episodes (id BIGINT AUTO_INCREMENT PRIMARY KEY, episodeId VARCHAR(64) NOT NULL, source VARCHAR(32) NOT NULL, startedAt TIMESTAMP NULL DEFAULT NULL, endedAt TIMESTAMP NULL DEFAULT NULL, durationSeconds INT NULL DEFAULT NULL, audioRef VARCHAR(255) NULL DEFAULT NULL, meanVolumeDb DECIMAL(6,2) NULL DEFAULT NULL, transcriptStatus VARCHAR(32) NOT NULL DEFAULT 'PENDING', transcriptError VARCHAR(500) NULL DEFAULT NULL, transcript JSON NULL DEFAULT NULL, sttEngine VARCHAR(32) NULL DEFAULT NULL, sttLatencyMs INT NULL DEFAULT NULL, speakerCount INT NULL DEFAULT NULL, facts JSON NULL DEFAULT NULL, summary TEXT NULL DEFAULT NULL, vehicleVisitId VARCHAR(64) NULL DEFAULT NULL, workOrderId VARCHAR(64) NULL DEFAULT NULL, linkConfidence DECIMAL(4,3) NULL DEFAULT NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uniq_conversation_episode (episodeId), INDEX idx_conversation_started (startedAt), INDEX idx_conversation_status (transcriptStatus, startedAt), INDEX idx_conversation_visit (vehicleVisitId))`,
+
+      // 2026-09-29 - Office conversation runtime + provenance (matches drizzle/0135).
+      // Current worker state rides camera_runtime.office so the Eufy agent remains the ONE
+      // cloud producer; conversation_episodes remains history/evidence.
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationWorkerOk BOOLEAN NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationWorkerState VARCHAR(32) NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationWorkerHeartbeatAt TIMESTAMP NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationAudioSource VARCHAR(64) NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationCaptureHost VARCHAR(64) NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationSttEngine VARCHAR(128) NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationQueueDepth INT NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationLastTrigger VARCHAR(32) NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS lastConversationEventAt TIMESTAMP NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS lastConversationCaptureAt TIMESTAMP NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS lastConversationSttAt TIMESTAMP NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS lastConversationPostAt TIMESTAMP NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS lastConversationSummaryAt TIMESTAMP NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS lastConversationCoverage DECIMAL(5,4) NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationFailuresToday INT NULL`,
+      `ALTER TABLE camera_runtime ADD COLUMN IF NOT EXISTS conversationLastError VARCHAR(500) NULL`,
+      `ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS cameraSerial VARCHAR(64) NULL`,
+      `ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS captureHost VARCHAR(64) NULL`,
+      `ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS triggerType VARCHAR(32) NULL`,
+      `ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS triggeredAt TIMESTAMP NULL`,
+      `ALTER TABLE conversation_episodes ADD COLUMN IF NOT EXISTS sttModel VARCHAR(128) NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_conversation_camera_started ON conversation_episodes (cameraSerial, startedAt)`,
       // 2026-09-23 · candidates recruiting funnel (matches drizzle/0129 + schema.ts). All
       // nullable, all IF NOT EXISTS. createCandidate falls back to the pre-0129 columns on
       // ER_BAD_FIELD_ERROR, so deploy order does not matter; until this runs, intent and
-      // move reasons survive only inside `message`.
-      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS intent VARCHAR(32) NULL`,
+      // move reasons survive only inside `message`.      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS intent VARCHAR(32) NULL`,
       `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS moveReasons VARCHAR(500) NULL`,
       `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS phoneE164 VARCHAR(20) NULL`,
       `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS refCode VARCHAR(64) NULL`,
