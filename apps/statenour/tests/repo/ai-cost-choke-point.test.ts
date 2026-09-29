@@ -26,6 +26,15 @@ describe("aiChat is the cost choke point", () => {
     expect(aiChatBody).toMatch(/costUsd,?\s*\}\)/);
   });
 
+  it("the cost is computed for the model that actually answered, not the provider family (2026-09-29)", () => {
+    // An escalation-lane Fable call ($10/$50) was priced at the anthropic family
+    // rate ($2/$10). estimateCostUsd prices Claude ids per model only when it is
+    // handed the id — so the id must be the 4th argument here.
+    expect(aiChatBody).toMatch(
+      /estimateCostUsd\(\s*entry\.name,\s*usage\?\.inputTokens,\s*usage\?\.outputTokens,\s*resolvedModelId,?\s*\)/,
+    );
+  });
+
   it("a lane past its cap stops before any provider is called", () => {
     const stop = aiChatBody.indexOf("checkLaneBudget(");
     const firstProviderCall = aiChatBody.indexOf("for (const entry of");
