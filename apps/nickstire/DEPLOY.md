@@ -9,9 +9,9 @@
 | Project | `natural-appreciation` |
 | Project ID | `d78487fa-24c7-412e-9d2c-1055d9f8db93` |
 | Service | `MAINnicks-tire-auto` |
-| Service ID | `2c388ec9-d8f1-449c-a583-ba40cdb36b4e` |
+| Service ID | `a6234c8d-1ff4-478f-9085-654954b54e97` |
 | Environment | `production` (`84f0d4b4-efcd-480f-a761-27589e0a095f`) |
-| Region | US West |
+| Region | `us-east4-eqdc4a` · 1 replica (live Railway read-back 2026-09-29) |
 | Build context | monorepo root |
 | Builder | **Nixpacks** (Railway default) · augmented by `apps/nickstire/nixpacks.toml` (adds `ffmpeg` + `fonts-dejavu-core` for server-side reel assembly) |
 | Build / start | Dashboard-configured: `pnpm --filter nicks-tire-auto build` / `start` · healthcheck `/api/health` · **no Dockerfile in repo** |
@@ -91,10 +91,9 @@ VAPI_KILL_SWITCH=true
 
 ## Cross-app coupling
 
-- `apps/worker/` (statenour-worker) runs cron jobs that read nickstire DB ·
-  shared `STATENOUR_SYNC_KEY` env var for signed bridge calls
-- `apps/statenour/` doesn't read nickstire data directly · all bridges go through
-  the worker
+- `apps/worker/` has **no Nick/TiDB database client**. It forwards its own scheduled HTTP ticks to StateNour web and runs the local approved-video render loop.
+- StateNour reads/mutates Nick only through Nick's explicit signed bridge/query endpoints (for example `/api/bridge/*` / NOUR OS query routes), using the established bridge keys. The worker is not a data proxy between the two apps.
+- `STATENOUR_SYNC_KEY` remains a shared authentication boundary where those signed cross-app routes require it; keep the matching values synchronized.
 
 ## Related docs
 

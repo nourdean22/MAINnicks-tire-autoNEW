@@ -1,5 +1,15 @@
 # CURRENT-TRUTH.md — Statenour
 
+
+## 2026-09-29 — live Railway topology supersedes older worker-region/domain notes
+
+- **Read-only Railway read-back:** production project `natural-appreciation` currently has exactly four services: `MAINnicks-tire-auto` (`a6234c8d-1ff4-478f-9085-654954b54e97`), `statenour-web` (`c68ce7f7-63b1-47bf-9e9e-2d7dfe717d4e`), `statenour-worker` (`5441c378-3bab-4bb7-958f-36961159f5fe`), and `Redis` (`ee90ba3b-7dc4-44da-b892-bc6152226b75`).
+- **Regions now:** Nick, StateNour web, and StateNour worker each run one replica in `us-east4-eqdc4a`; Redis alone remains one replica in `us-west2`. Any older section below saying the worker is still west2 is historical and superseded by this read-back.
+- **Worker is private:** live Railway lists no worker service/custom domains and no cron schedule. Worker-owned activity is its four node-cron HTTP forwards plus the in-process approved-video render loop; Q-36 removes the vestigial inbound `POST /cron/mega*` routes.
+- **Worker data boundary:** `apps/worker/src` has no DB client and does not read `DATABASE_URL`, `DIRECT_URL`, or `GITHUB_TOKEN`. It talks to StateNour web over authenticated HTTP. Cross-app Nick ↔ StateNour data continues through the explicit signed bridge endpoints, not through the worker.
+- **Still unverified here:** whether Inngest morning/evening mega fan-out is currently firing in production. `INNGEST_MEGA_V2` exists in Railway config but its value is redacted by the connector; obtain a `CronJobLog`/Inngest receipt before calling that cutover live.
+
+
 ## 2026-09-28 night — #2757 governance wave merge receipt
 
 - **Merged:** PR #2757 squash-merged to `main` as `3178a894ff1d39d402837b214d060ce7b61b3a55`.
@@ -414,3 +424,26 @@ only what changes how you WORK is repeated here.
 - `lib/evals/` + `pnpm eval:memory` — the truth scoreboard that checks Nick remembers this file.
 - `lib/ai/receipts/action-receipt.ts` — the action-honesty receipt contract (`canClaimDone`).
 - `lib/knowledge/action-converter.ts` — knowledge→action suggestions (suggestion-only).
+
+## 2026-09-29 — resilience/Q-31/Q-32 consolidation (pre-PR truth)
+
+- Integration branch `feat/nouros-resilience-final-current-chatgpt-20260929` incorporates current main through `223079d33407b9a6091e34a55032ea935d788e9e` (#2793) via merge commit `80e031ac88d0b35443f1986e8dc05ad5faab97ae`; intervening #2789/#2793 had zero file overlap with the resilience diff.
+- Q-28 cron grouping/inhibition, Q-34 process ownership, Q-36 worker hygiene, deep Q-31 admission/bitemporal/history + atomic explicit contradiction resolution, and Q-32 Langfuse evaluation mechanics are BUILT on the branch. They are not called merged/deployed/live until the consolidated PR passes exact-head CI and is merged.
+- Q-31 pending migration `20260929150500_brain_memory_transaction_time` is operator-gated and **not applied** by this workstream.
+- Q-32 production evidence remains intentionally incomplete: live label count, double-label kappa, and cloud dataset read-back are UNMEASURED. The optional cloud experiment stays config-gated.
+- Durable implementation checkpoint: `docs/research/2026-09-29-resilience-final-consolidation-checkpoint.md`.
+
+## 2026-09-29 — final resilience hardening before #2794 acceptance
+- Q-32 independent judging is now fail-closed for unknown model families. Hosting providers are not accepted as model-family substitutes. The optional Langfuse experiment script parser defect was repaired, and the pinned experiment action was verified to supply its JS SDK and `dataset_version` input.
+- Q-31 transaction-column availability has one shared probe/cache. Prepared canonical replacements now compensate transaction time, effective validity/verification state, and provisional snapshot on failure; history mode does not fall through to a legacy overwrite after a failed prepared replacement.
+- These statements describe branch implementation only until exact-head CI and merge. No production Q-31 migration application or Q-32 empirical threshold is claimed.
+
+## 2026-09-29 — #2794 merged; production claims remain gated
+This supersedes the pre-PR status notes immediately above while preserving them as historical execution context.
+
+- PR **#2794** final head `79dbea91630f860f0a84bbd68b075df4a7697eea` passed Turbo affected verify, StateNour E2E, Completion Authority, Adoption Gates, Agent Policy, Secret Scanning, and Admin Diagnostic, then guarded-squash-merged as `48ac53827eb7f4f5754ee2a41fe74789c5c36c89`; that commit was read back as `main`.
+- Q-28, Q-31, Q-32, Q-34, and Q-36 are now **merged + unit-verified** in the machine capability ledger. Exposure remains disabled because merge/test evidence is not production evidence.
+- Q-31 transaction-time migration `20260929150500_brain_memory_transaction_time` remains operator-gated and unapplied by this workstream. The app deliberately tolerates both schemas until apply + read-back.
+- Q-32 live acceptance remains unmeasured: >=50 labels in 30 days, >=30 double-labeled items, Cohen's kappa >=0.6, and cloud Langfuse dataset/config read-back are still required for operational promotion.
+- Q-34 default stays `PROCESS_ROLE=all`; no live web/jobs service split was performed.
+- Q-36 has no claimed live mega morning/evening receipt; Q-28 has no claimed post-deploy Telegram grouping/recovery receipt yet.

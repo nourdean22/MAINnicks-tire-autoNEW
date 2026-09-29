@@ -18,7 +18,7 @@ The entire ecosystem is deployed on **Railway** and spans two primary database b
 
 ## ⏰ Cron Job & Scheduler Layout
 
-The scheduled jobs are split between high-frequency tasks orchestrated by the background worker and daily/weekly schedules owned by Inngest or triggered by a Railway cron (see §2):
+The scheduled jobs are split between high-frequency tasks orchestrated by the background worker and daily/weekly schedules owned by Inngest (see §2). Live Railway inspection on 2026-09-29 found exactly four services — Nick's, StateNour web, StateNour worker, Redis — and **no Railway cron services/jobs**.
 
 ```
 [apps/worker node-cron] ➔ Fires HTTP triggers ➔ apps/statenour/app/api/cron/[name]
@@ -41,10 +41,11 @@ Two scheduler classes own daily/weekly work. Which one owns a job is its row in 
 *   **Inngest-native crons** (`inngest: true`, e.g. `operator-morning-brief`, `quality-bench-weekly`) carry their own Inngest triggers and do not touch the worker or the mega routes.
 *   **Mega fan-out children**, described below.
 
-Mega fan-out children ride in the Next.js runtime (`apps/statenour/app/api/cron/mega/route.ts`, `?slot=morning|evening`):
-*   Entry points: the worker's `POST /cron/mega` and `POST /cron/mega-evening` (`apps/worker/src/index.ts:168,174`), which forward to `/api/cron/mega`. The Railway cron that calls them is set in the dashboard, not in `.railway/railway.ts`, so the repo cannot show whether it is firing. Check statenour `cron_job_logs` (`CronJobLog`). The Inngest `mega-fanout` function is registered too but skips every run unless `INNGEST_MEGA_V2=true` (`apps/statenour/lib/inngest/functions/mega-fanout.ts:341-347`).
-*   Requires the `CRON_SECRET` Bearer header to trigger successfully.
-*   Manual fire: `POST /api/settings/crons/trigger`, or run-now / kill switch on `/system/crons`. There is no `/api/system/crons/run` route.
+Mega fan-out children ride in the Next.js/Inngest runtime (`apps/statenour/lib/inngest/functions/mega-fanout.ts`):
+*   Inngest registers morning at `0 9 * * *` and evening at `0 3 * * *`, plus manual events.
+*   Q-36 removes the vestigial worker `POST /cron/mega*` entry points. Live Railway inspection on 2026-09-29 found no cron service/job and no cron schedule on the worker, so those HTTP routes had no platform caller.
+*   The Inngest functions remain gated by `INNGEST_MEGA_V2=true`. The Railway OAuth connector confirms the variable exists but redacts its value, and this session could not query `CronJobLog` because the Neon connector requires a project ID that is not in repo/prior context. **Therefore actual production mega firing is UNVERIFIED in this checkpoint.** Verify from `cron_job_logs` / Inngest before claiming the cutover is live.
+*   Manual fire remains available through the StateNour cron controls; child routes still require `CRON_SECRET`.
 
 ---
 

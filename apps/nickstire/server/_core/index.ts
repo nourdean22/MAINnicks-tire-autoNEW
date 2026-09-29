@@ -107,8 +107,10 @@ import { validateTwilioRequest } from "../middleware/twilioValidation";
 import { resolveNickDeployIdentity, resolveConfiguredSurfaces } from "../lib/deployIdentity";
 import { withBatchRegex, blockBatchedLimits } from "./batchGuard";
 import { createGracefulShutdown, detachedWork, resolveDrainCoverage, resolveShutdownGraceMs, trackHttpRequests, type DrainSource } from "./gracefulShutdown";
+import { processRoleRunsJobs, resolveProcessRole } from "./processRole";
 
 const serverLog = createLogger("server");
+const PROCESS_ROLE = resolveProcessRole(process.env.PROCESS_ROLE);
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -421,7 +423,13 @@ async function startServer() {
   // run — turning a 15-min job into a multi-hour hang.
   const isPrerenderMode = process.env.PRERENDER_MODE === "true";
 
-  if (!isPrerenderMode) {
+  if (!isPrerenderMode && processRoleRunsJobs(PROCESS_ROLE)) {
+    // Q-34 · background work ownership. PROCESS_ROLE defaults to "all", so
+    // today's single-service deployment is behavior-identical. A future split
+    // can set the public service to "web" and a sibling to "jobs" without
+    // changing the scheduler code.
+    serverLog.info(`[process-role] ${PROCESS_ROLE} owns background jobs`);
+
     // ─── Tiered Cron Scheduler ──────────────────────────────
     // 4 tiers: heartbeat(5m), pulse(15m), hourly(2h), daily(24h)
     // + 2 standalone: morning brief + daily report (12h)
@@ -471,8 +479,10 @@ async function startServer() {
       startRetryProcessor();
       serverLog.info("NOUR OS bridge retry processor started");
     }).catch(e => console.warn("[server:init] NOUR OS bridge retry processor startup failed:", e));
-  } else {
+  } else if (isPrerenderMode) {
     serverLog.info("[prerender-mode] Skipping cron scheduler, SMS queue, Telegram batch, NOUR OS bridge");
+  } else {
+    serverLog.info(`[process-role] ${PROCESS_ROLE} does not own background jobs; HTTP server stays active`);
   }
 
   // ─── Admin REST endpoints + statenour Ultron bridge ─────

@@ -11,9 +11,9 @@ export const maxDuration = 300;
  * engine in lib/brain/drive-ingest.ts so the same pipeline powers
  * the manual /api/drive/sync endpoint and the syncDriveMemory tool.
  *
- * Each memory keys on the Drive file ID so re-runs reinforce rather
- * than duplicate. Embeddings are stored async by brainMemory.remember
- * so the first searchColdMemory call after ingest sees fresh vectors.
+ * Each item keys on the Drive file ID. External document text goes through
+ * the shared memory quarantine first; only reviewed/allowed content reaches
+ * BrainMemory and becomes eligible for embedding/recall.
  *
  * Exits gracefully if OAuth isn't set up yet.
  */
@@ -46,6 +46,7 @@ export const GET = cronHandler(async () => {
 
   return {
     stored: result.stored,
+    quarantined: result.quarantined ?? 0,
     skipped: result.skippedCount,
     categoryCounts: result.categoryCounts,
     errorCount: result.errors.length,

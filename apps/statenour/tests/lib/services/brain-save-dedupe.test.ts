@@ -149,7 +149,10 @@ describe("saveToBrain identity and near-duplicate semantics", () => {
     });
     expect(stored.similarity).toBeCloseTo(0.99, 5);
     expect(stored.days_apart).toBeGreaterThan(0);
-    expect(upsert.create.source).toBe("user_save_near_duplicate");
+    expect(stored.detector).toBe("near_duplicate");
+    // Q-31 consolidation: all normal contradiction rows share one canonical
+    // storage owner/source. The detector field records the near-duplicate lane.
+    expect(upsert.create.source).toBe("contradiction_surfacer");
     // The new statement gets its own embedding so recall can find it.
     expect(mocks.vectorEmbedding.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ sourceId: "bm-new", content: "Rent is $1,900 a month" }) }),

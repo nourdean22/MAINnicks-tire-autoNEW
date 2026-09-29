@@ -374,6 +374,21 @@ const MIGRATIONS: Record<string, string[]> = {
     `CREATE INDEX IF NOT EXISTS "bridge_receipts_first_seen_at_idx" ON "bridge_receipts"("first_seen_at");`
   ],
 
+  // Q-31 · BrainMemory transaction-time validity. Additive nullable columns
+  // only; no historical backfill and no destructive DDL. Runtime code probes
+  // these columns before use, so this remains deploy-safe before the operator
+  // applies it. Mirrors the reviewed pending migration statement-for-statement.
+  "20260929150500_brain_memory_transaction_time": [
+    `ALTER TABLE "brain_memories"
+  ADD COLUMN IF NOT EXISTS "transaction_from_at" TIMESTAMP(3)`,
+    `ALTER TABLE "brain_memories"
+  ADD COLUMN IF NOT EXISTS "transaction_expired_at" TIMESTAMP(3)`,
+    `CREATE INDEX IF NOT EXISTS "brain_memories_transaction_from_at_idx"
+  ON "brain_memories"("transaction_from_at")`,
+    `CREATE INDEX IF NOT EXISTS "brain_memories_transaction_expired_at_idx"
+  ON "brain_memories"("transaction_expired_at")`
+  ],
+
   // Q-25 · RealityEvent envelope columns (#2784). The Prisma model already
   // names these five columns, so until this runs every realityEvent read and
   // write fails with "column event_version does not exist" (seen in

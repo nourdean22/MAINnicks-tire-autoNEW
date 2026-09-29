@@ -27,7 +27,7 @@
  * stay direct: quarantining the operator's own words would be theatre.
  */
 import { GuardianApprovalPendingError, withGuardian } from "@/lib/tools/guardian";
-import { brainMemory } from "@/lib/brain/memory-manager";
+import { admitMemory } from "@/lib/brain/memory-admission";
 
 export interface ExternalMemoryIntake {
   /** BrainMemory category the memory belongs in once reviewed. */
@@ -65,7 +65,17 @@ interface GuardedMemoryPayload extends ExternalMemoryIntake {
 const guardedRemember = withGuardian(
   "memory.pin",
   async (p: GuardedMemoryPayload): Promise<{ pinned: true; committed?: boolean }> => {
-    await brainMemory.remember(p.category, p.key, p.content, p.source, p.metadata);
+    await admitMemory({
+      category: p.category,
+      key: p.key,
+      content: p.content,
+      source: p.source,
+      memoryKind: "semantic",
+      extractionMethod: "import",
+      trustTier: "EXTERNAL_CONTENT",
+      evidenceRefs: [p.sourceUrl],
+      metadata: p.metadata,
+    });
     return { pinned: true };
   },
 );

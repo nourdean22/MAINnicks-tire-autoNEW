@@ -1,6 +1,6 @@
 import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
-import { brainMemory } from "@/lib/brain/memory-manager";
+import { intakeExternalMemory } from "@/lib/brain/external-memory-intake";
 import {
   listEvents,
   type CalEvent,
@@ -68,6 +68,7 @@ export const GET = cronHandler(async () => {
   const t0 = Date.now();
   let pastStored = 0;
   let upcomingStored = 0;
+  let quarantined = 0;
   let skipped = 0;
 
   try {
@@ -83,19 +84,25 @@ export const GET = cronHandler(async () => {
       const startMs = ev.start ? new Date(ev.start).getTime() : now;
       const category = startMs > now ? "calendar_upcoming" : "calendar_past";
 
-      await brainMemory.remember(
+      const outcome = await intakeExternalMemory({
         category,
-        `calendar_${ev.id}`,
-        buildEventContent(ev),
-        "calendar_cron",
-        {
+        key: `calendar_${ev.id}`,
+        content: buildEventContent(ev),
+        source: "calendar_cron",
+        sourceType: "calendar_ingest",
+        sourceUrl: `gcal://${ev.id}`,
+        metadata: {
           eventId: ev.id,
           start: ev.start,
           recurring: !!ev.recurring,
           attendees: ev.attendees,
-        }
-      );
+        },
+      });
 
+      if (outcome.outcome === "quarantined") {
+        quarantined++;
+        continue;
+      }
       if (startMs > now) upcomingStored++;
       else pastStored++;
     }
@@ -143,13 +150,13 @@ export const GET = cronHandler(async () => {
       data: {
         actor: "calendar_ingest_cron",
         eventType: "calendar_events_ingested",
-        detail: `Ingested ${pastStored} past + ${upcomingStored} upcoming calendar events`,
-        payload: { pastStored, upcomingStored, skipped, durationMs },
+        detail: `Ingested ${pastStored} past + ${upcomingStored} upcoming calendar events · ${quarantined} quarantined for review`,
+        payload: { pastStored, upcomingStored, quarantined, skipped, durationMs },
       },
     })
     .catch(() => {});
 
-  return { pastStored, upcomingStored, skipped, durationMs };
+  return { pastStored, upcomingStored, quarantined, skipped, durationMs };
 });
 
 function shouldIngest(e: CalEvent): boolean {

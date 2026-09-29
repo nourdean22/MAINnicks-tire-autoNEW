@@ -145,6 +145,17 @@ export async function recordMessageFeedback(
     // turn's trace, so prompt/model quality can be asked THERE. Fire-and-forget.
     void sendLangfuseScore({ traceId: payload.traceId, name: "operator_thumb", value: nextScore, comment: reason ?? undefined });
 
+    // Q-32 · a thumbs-down is deterministic high-value review material.
+    // Queue the existing TRACE in the single configured Langfuse annotation
+    // queue. Missing queue config is a clean no-op.
+    if (nextScore < 0 && payload.traceId) {
+      void import("@/lib/observability/langfuse-annotation-queue")
+        .then(({ enqueueLangfuseTraceForAnnotation }) =>
+          enqueueLangfuseTraceForAnnotation(payload.traceId),
+        )
+        .catch(() => false);
+    }
+
     // Brain memory · today's contextual recall reads this.
     void prisma.brainMemory
       .create({

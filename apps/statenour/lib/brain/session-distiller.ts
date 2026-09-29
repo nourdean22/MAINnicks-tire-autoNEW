@@ -37,6 +37,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { admitMemory } from "@/lib/brain/memory-admission";
 import { fenceContent } from "@/lib/ai/tool-result-fencing";
 // v10.0.64 · AgentTrace coverage.
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
@@ -215,23 +216,18 @@ If a field has nothing to record, use [] or null. Never invent content. Be terse
       : null,
   };
 
-  // Persist as a BrainMemory row. The embed-backfill cron will index
-  // it for vector search overnight.
-  await prisma.brainMemory.upsert({
-    where: { category_key: { category: BRAIN_CATEGORIES.CHAT_SUMMARY, key: conversationId } },
-    create: {
-      category: BRAIN_CATEGORIES.CHAT_SUMMARY,
-      key: conversationId,
-      content: JSON.stringify(distill),
-      confidence: 0.75,
-      source: "session_distiller",
-    },
-    update: {
-      content: JSON.stringify(distill),
-      confidence: 0.75,
-      lastSeen: new Date(),
-      seenCount: { increment: 1 },
-    },
+  // Persist through the semantic admission gateway. The summary is model-made,
+  // so its trust tier is AGENT_INFERRED even though it summarizes operator text.
+  const admittedSummary = await admitMemory({
+    category: BRAIN_CATEGORIES.CHAT_SUMMARY,
+    key: conversationId,
+    content: JSON.stringify(distill),
+    source: "session_distiller",
+    memoryKind: "derived",
+    extractionMethod: "llm_extract",
+    confidence: 0.75,
+    effectiveFrom: lastAt,
+    evidenceRefs: [`conversation:${conversationId}`],
   });
 
   // v10.0.529.106 · Wave 60 · CROSS-SESSION NICK STATE.
@@ -241,7 +237,7 @@ If a field has nothing to record, use [] or null. Never invent content. Be terse
   // was unresolved by reverse-searching past distills. Now: one upsert
   // row at category="nick_current_concerns", key="current" that holds
   // the top-5 most-recent open threads sorted by recency.
-  void updateNickCurrentConcerns(distill).catch((err) => {
+  void updateNickCurrentConcerns(distill, admittedSummary.id).catch((err) => {
     logError("brain.session-distiller", err, { fn: "distillConversation.updateConcerns" });
   });
 
@@ -263,7 +259,7 @@ If a field has nothing to record, use [] or null. Never invent content. Be terse
  *   ]
  * }
  */
-async function updateNickCurrentConcerns(distill: SessionDistill): Promise<void> {
+async function updateNickCurrentConcerns(distill: SessionDistill, summaryMemoryId: string): Promise<void> {
   const MAX_THREADS = 5;
   const existing = await prisma.brainMemory.findUnique({
     where: { category_key: { category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS, key: "current" } },
@@ -320,20 +316,16 @@ async function updateNickCurrentConcerns(distill: SessionDistill): Promise<void>
     .sort((a, b) => new Date(b.sourceLastAt).getTime() - new Date(a.sourceLastAt).getTime())
     .slice(0, MAX_THREADS);
 
-  await prisma.brainMemory.upsert({
-    where: { category_key: { category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS, key: "current" } },
-    create: {
-      category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS,
-      key: "current",
-      content: JSON.stringify({ updatedAt: new Date().toISOString(), threads: merged }),
-      confidence: 0.9,
-      source: "session_distiller",
-    },
-    update: {
-      content: JSON.stringify({ updatedAt: new Date().toISOString(), threads: merged }),
-      lastSeen: new Date(),
-      seenCount: { increment: 1 },
-    },
+  await admitMemory({
+    category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS,
+    key: "current",
+    content: JSON.stringify({ updatedAt: new Date().toISOString(), threads: merged }),
+    source: "session_distiller",
+    memoryKind: "derived",
+    extractionMethod: "llm_extract",
+    confidence: 0.9,
+    derivedFrom: [summaryMemoryId],
+    evidenceRefs: [`conversation:${distill.conversationId}`],
   });
 }
 

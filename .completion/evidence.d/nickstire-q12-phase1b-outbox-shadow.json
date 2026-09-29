@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "deferred": "operator-pending: apps/nickstire/drizzle/0137_bridge_outbox.sql is additive and idempotent (CREATE TABLE IF NOT EXISTS, no ALTER/DROP, VARCHAR status) and is registered in drizzle/meta/_journal.json at idx 150 after 0136; server/bridgeOutboxMigration.test.ts pins the SQL columns to schema.ts bridgeOutbox, the unique idempotency_key and the journal order (5 passed). This PR deliberately does NOT apply production DDL (no DATABASE_URL in the cloud session; prod-db-guard). Until it is applied, a flag-ON enqueue returns table_missing and the cleanup prune skips, so the unapplied state is safe. After merge the operator applies it with pnpm db:migrate after an INFORMATION_SCHEMA check that bridge_outbox is absent, and records the read-back."
+    },
+    "capability-ledger-updated": {
+      "deferred": "No capability state changes in this diff (2026-09-29, branch nickstire/q12-phase1b-outbox-shadow, Q-12 phase 1b shadow enqueue). server/services/bridgeOutbox.ts is new and reached from a new event-bus destination; it writes status='shadow' rows only while the bridge_outbox_shadow flag is ON (seeded OFF) and after migration 0137 is applied (operator). Nothing is drained and the legacy StateNour senders are unchanged, so nothing is promoted or demoted. Receipts: 4 new test files, 24 passed; 11 planted mutants each turned a test red; pnpm exec vitest run 808 files, 10,051 passed, exit 0; typecheck exit 0; build exit 0."
+    },
+    "cron-fail-closed": {
+      "deferred": "cron/jobs/cleanup.ts gains one prune block (DELETE bridge_outbox shadow rows older than 14 days) inside its own try/catch, the same shape as the cron_alerts_fired block above it. Only a missing table (MySQL 1146, migration 0137 not applied) is treated as nothing to prune; any other error is rethrown to that block's catch and logged as 'bridge_outbox shadow cleanup failed', which is how every other block in cleanupOldData reports. No existing catch, swallow or early return changed. Receipts: server/cron/jobs/cleanup.bridgeOutbox.test.ts 2 passed; mutants 'prune every status' and 'swallow no errors' each red."
+    }
+  }
+}
