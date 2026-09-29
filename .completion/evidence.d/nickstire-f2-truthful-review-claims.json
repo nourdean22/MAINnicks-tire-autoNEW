@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "F2 truthful review claims (2026-09-29). What a visitor sees: the homepage Reviews heading now reads '<live total>+ Google reviews.' (was '<total>+ five-star reviews.') and its subline says 'Posted on Google.' (was 'Verified by Google.', which Google's own Places policy says is untrue); /reviews hero reads '<total>+ Google reviews | <avg> average across all ratings' (was '... | live Google data') and, while the default 4-5 star view is active, a line under it reads 'Showing 4- and 5-star reviews only. Show all ratings' whose button switches to every rating. Rendered and exercised in jsdom by client/src/__tests__/reviews-page-filter-disclosure.test.tsx (3 tests: disclosure shown + 2-star hidden by default; hidden after the 'All ratings' pill; hidden after the disclosure's own button, 2-star now shown) and home-v2.test.tsx (Reviews heading located by the new total-count text). A live phone walkthrough is still owed after deploy."
+    }
+  }
+}
