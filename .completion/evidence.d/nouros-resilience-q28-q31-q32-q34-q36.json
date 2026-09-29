@@ -11,6 +11,10 @@
     },
     "consolidation-integrity": {
       "deferred": "Historical source branches were not rewritten. The dedicated integration branch incorporated current main 223079d33407b9a6091e34a55032ea935d788e9e through merge commit 80e031ac88d0b35443f1986e8dc05ad5faab97ae after a zero-overlap census against intervening #2789/#2793 files. Exact-head PR CI is intentionally still pending at this evidence-writing point."
+    },
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/cron/alertPolicy.test.ts + apps/nickstire/server/cron/observer.ts",
+      "deferred": "2026-09-29 PR #2794 exact diff: Q-28 changes cron-observer alert grouping/inhibition/resolution routing, not business-job swallow/rethrow semantics. The new alertPolicy.test.ts pins DB-root classification, grouping, quiet-hour deferral, resolved formatting, and incident-diff behavior; existing cronObserverSuppression.test.ts remains the persisted suppression/re-alert control. No catch/swallow path was added to non-operator cron jobs. Exact-head Turbo/PR CI is the remaining execution receipt."
     }
   }
 }
