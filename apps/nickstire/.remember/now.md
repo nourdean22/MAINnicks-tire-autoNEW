@@ -1497,3 +1497,9 @@ External audit's "/brakes broken" (stale cache; renders fine live) and "duplicat
 - Q-31 is **not yet complete**: transaction-time expiry still must be wired at the real supersession boundary before the supersession mutation, and its pending migration must be registered with the current operator apply/drift-guard mechanism. Migration is NOT applied.
 - Q-32 remains to be built on the existing Langfuse stack. No Braintrust duplicate.
 - Durable recovery checkpoint: `docs/research/2026-09-29-resilience-wave-current-checkpoint.md`.
+
+## 2026-09-29 · final resilience consolidation before PR
+- Dedicated branch: `feat/nouros-resilience-final-current-chatgpt-20260929`; current main through #2793 was reconciled at merge commit `80e031ac88d0b35443f1986e8dc05ad5faab97ae` after a zero-file-overlap census with #2789/#2793.
+- Q-28/Q-34/Q-36 are consolidated BUILT scope, not yet merged/live. Q-34 default remains `PROCESS_ROLE=all`; no Railway role split or env deletion occurred.
+- Capability truth corrected: already-merged Q-25/Q-26/Q-27 are now recorded as merged + unit-verified; no production migration/live promotion was invented.
+- Full checkpoint: `docs/research/2026-09-29-resilience-final-consolidation-checkpoint.md`.
