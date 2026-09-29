@@ -49,6 +49,7 @@
  * guard could skip a due run.
  */
 import { sql, type SQL } from "drizzle-orm";
+import { isCronDraining } from "./index";
 
 /** The one database method this module needs — injected so tests drive it without a connection. */
 export interface StartupExecutor {
@@ -71,26 +72,74 @@ function affectedRows(result: unknown): number {
 
 export type StartupClaim =
   | { claimed: true; via: "created" | "stamped" }
-  | { claimed: false; via: "not-due" };
+  | { claimed: false; via: "not-due" | "draining" };
 
 /**
  * Claim this tier's boot pass. Exactly one process can succeed per allowance
  * window: the state row is created once, and the stamp UPDATE changes the
  * row only while `last_run_at` is still at least `allowanceMs` old.
+ *
+ * DRAINING (F5, post-merge audit of #2651). runTier starts nothing once the
+ * SIGTERM drain has begun, so a claim taken while draining is a slot spent on
+ * a pass that never runs — and the replacement container then reads the slot
+ * as taken. A boot-stagger timer is not cleared on stop and a wall-clock check
+ * can be mid-await when SIGTERM lands, so both happened. So no claim is
+ * attempted once draining, and a claim that SIGTERM overtook during its own
+ * queries is handed back (releaseStartupPass) before returning. The drain flag
+ * is the DEFAULT, so every caller gets this without wiring; tests inject one.
  */
-export async function claimStartupPass(d: StartupExecutor, tierName: string, allowanceMs: number): Promise<StartupClaim> {
+export async function claimStartupPass(
+  d: StartupExecutor,
+  tierName: string,
+  allowanceMs: number,
+  isDraining: () => boolean = isCronDraining,
+): Promise<StartupClaim> {
+  if (isDraining()) return { claimed: false, via: "draining" };
   const allowanceSec = Math.max(0, Math.floor(allowanceMs / 1000));
   const created = await d.execute(
     sql`INSERT IGNORE INTO cron_tier_skip_state (tier_name, consecutive_skips, last_run_at, updated_at) VALUES (${tierName}, 0, NOW(), NOW())`,
   );
-  if (affectedRows(created) === 1) return { claimed: true, via: "created" };
-  const stamped = await d.execute(sql`
+  let claim: StartupClaim;
+  if (affectedRows(created) === 1) {
+    claim = { claimed: true, via: "created" };
+  } else {
+    const stamped = await d.execute(sql`
+      UPDATE cron_tier_skip_state
+      SET last_run_at = NOW(), updated_at = NOW()
+      WHERE tier_name = ${tierName}
+        AND (last_run_at IS NULL OR TIMESTAMPDIFF(SECOND, last_run_at, NOW()) >= ${allowanceSec})
+    `);
+    claim = affectedRows(stamped) === 1 ? { claimed: true, via: "stamped" } : { claimed: false, via: "not-due" };
+  }
+  if (claim.claimed && isDraining()) {
+    await releaseStartupPass(d, tierName, allowanceSec);
+    return { claimed: false, via: "draining" };
+  }
+  return claim;
+}
+
+/**
+ * Slack on a release. The next claimant computes its own allowance from its own
+ * clock (a wall-clock slot's allowance grows with time since the opening), so a
+ * stamp rewound to exactly our allowance could read one rounded second short.
+ * Rewinding further is harmless: the pass was due, and it did not run.
+ */
+const RELEASE_SLACK_SEC = 600;
+
+/**
+ * Hand back a claim this process took but will not run: rewind the stamp to
+ * more than one allowance old, so the next claimant's `>= allowance` test
+ * passes. Only a stamp still younger than the allowance is touched — i.e. the
+ * one just written; nobody else can have claimed over it inside that window.
+ */
+async function releaseStartupPass(d: StartupExecutor, tierName: string, allowanceSec: number): Promise<void> {
+  const rewindSec = Math.floor(allowanceSec) + RELEASE_SLACK_SEC;
+  await d.execute(sql`
     UPDATE cron_tier_skip_state
-    SET last_run_at = NOW(), updated_at = NOW()
+    SET last_run_at = DATE_SUB(NOW(), INTERVAL ${sql.raw(String(rewindSec))} SECOND), updated_at = NOW()
     WHERE tier_name = ${tierName}
-      AND (last_run_at IS NULL OR TIMESTAMPDIFF(SECOND, last_run_at, NOW()) >= ${allowanceSec})
+      AND TIMESTAMPDIFF(SECOND, last_run_at, NOW()) < ${allowanceSec}
   `);
-  return affectedRows(stamped) === 1 ? { claimed: true, via: "stamped" } : { claimed: false, via: "not-due" };
 }
 
 /** Informational, for the boot log line: age of the tier's last stamped run. `null` = no row. */
@@ -125,6 +174,9 @@ export function describeStartup(ctx: StartupContext): { fire: boolean; reason: s
         ? "never ran — created its state row, which is the claim"
         : `claimed the boot pass — ${age} ≥ allowance ${allowanceMin} min`,
     };
+  }
+  if (ctx.claim?.via === "draining") {
+    return { fire: false, reason: "server is shutting down — no claim taken (or it was handed back); the next container decides" };
   }
   if (!ctx.claim) {
     return { fire: false, reason: `could not claim (${ctx.claimError ?? "no database"}) — no claim, no fire; the interval timer owns it` };
