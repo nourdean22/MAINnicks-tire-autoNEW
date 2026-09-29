@@ -9,6 +9,30 @@ import type {
 } from "./types";
 
 const ProbabilitySchema = z.number().finite().min(0).max(1);
+
+function isDecisionEntry(value: unknown): value is DecisionEntry {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return true;
+  }
+  if (Array.isArray(value)) {
+    return value.every(isDecisionEntry);
+  }
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).every(isDecisionEntry);
+  }
+  return false;
+}
+
+const DecisionEntrySchema = z.custom<DecisionEntry>(
+  isDecisionEntry,
+  "decision entry must be JSON-compatible",
+);
+
 const NoulAnswerSchema = z.object({
   type: z.literal("noul"),
   noul: ProbabilitySchema,
@@ -23,7 +47,7 @@ const ScoreAnswerSchema = z.object({
   type: z.literal("score"),
   score: z.number().finite(),
   confidence: ProbabilitySchema,
-  legend: z.record(z.string(), z.unknown()),
+  legend: z.record(z.string(), DecisionEntrySchema),
   probabilities: z.record(z.string(), ProbabilitySchema),
 });
 const AnswerSchema = z.discriminatedUnion("type", [

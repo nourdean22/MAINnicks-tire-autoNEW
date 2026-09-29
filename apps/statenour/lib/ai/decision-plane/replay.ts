@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
 import { recordEpisode } from "@/lib/intelligence/episodes";
 import { TURN_DECISION_QUESTIONS } from "./turn-schema";
+import type { DecisionQuestion } from "./types";
 import {
   binaryBrierScore,
   categoricalLogLoss,
@@ -28,8 +29,10 @@ export type RecordDecisionPlaneOutcomeInput = z.infer<
   typeof RecordDecisionPlaneOutcomeSchema
 >;
 
-function questionFor(key: string) {
-  return TURN_DECISION_QUESTIONS[key as keyof typeof TURN_DECISION_QUESTIONS];
+function questionFor(key: string): DecisionQuestion | undefined {
+  // The current turn schema contains noul + choice questions only, but Replay
+  // is intentionally generic enough to validate future score questions too.
+  return (TURN_DECISION_QUESTIONS as unknown as Record<string, DecisionQuestion>)[key];
 }
 
 function assertObservedAnswer(key: string, value: string | boolean | number): void {
