@@ -194,9 +194,17 @@ try {
             Write-Output 'graph governance: receipt unavailable - the next governed sync will generate it.'
         } else {
             $receipt = Get-Content $receiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
-            $receiptCommit = $receipt.report.sourceCommit
-            if (-not $builtFrom -or -not $receiptCommit -or $receiptCommit -ne $builtFrom) {
-                Write-Output "graph governance: RECEIPT MISMATCH - report=$builtFrom receipt=$receiptCommit; ignoring receipt."
+            $receiptCommit = [string]$receipt.report.sourceCommit
+            $receiptHash = [string]$receipt.report.sha256
+            $selectedHash = (Get-FileHash -Path $report -Algorithm SHA256).Hash.ToLowerInvariant()
+            if (
+                -not $builtFrom -or
+                -not $receiptCommit -or
+                $receiptCommit -ne $builtFrom -or
+                -not $receiptHash -or
+                $receiptHash.ToLowerInvariant() -ne $selectedHash
+            ) {
+                Write-Output "graph governance: RECEIPT MISMATCH - report=$builtFrom/$selectedHash receipt=$receiptCommit/$receiptHash; ignoring receipt."
             } else {
                 $originState = $receipt.comparedTo.originMain.state
                 $originBehind = $receipt.comparedTo.originMain.commitsBehind
