@@ -1774,6 +1774,23 @@ export async function markReviewRequestSent(id: number, twilioSid?: string) {
 }
 
 /**
+ * Mark a review request as an experiment control. This is terminal for the
+ * queue but is explicitly NOT a send: clear sentAt/twilioSid so the dashboard
+ * and daily send cap cannot mistake a withheld contact for delivery.
+ */
+export async function markReviewRequestHeldOut(id: number, experimentId?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(reviewRequests).set({
+    status: "heldout",
+    sentAt: null,
+    twilioSid: null,
+    errorMessage: experimentId ? `experiment_control:${experimentId}` : "experiment_control",
+  }).where(eq(reviewRequests.id, id));
+  return { success: true };
+}
+
+/**
  * Mark a review request as failed.
  */
 export async function markReviewRequestFailed(id: number, errorMessage: string) {
@@ -1865,6 +1882,7 @@ export async function getReviewRequestStats() {
   const [total] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests);
   const [sent] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(eq(reviewRequests.status, "sent"));
   const [clicked] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(eq(reviewRequests.status, "clicked"));
+  const [heldOut] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(eq(reviewRequests.status, "heldout"));
   const [failed] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(eq(reviewRequests.status, "failed"));
   const [pending] = await db.select({ count: sql<number>`count(*)` }).from(reviewRequests).where(eq(reviewRequests.status, "pending"));
   const sentCount = (sent?.count ?? 0) + (clicked?.count ?? 0);
@@ -1873,6 +1891,7 @@ export async function getReviewRequestStats() {
     total: total?.count ?? 0,
     sent: sentCount,
     clicked: clickedCount,
+    heldOut: heldOut?.count ?? 0,
     failed: failed?.count ?? 0,
     pending: pending?.count ?? 0,
     clickRate: sentCount > 0 ? Math.round((clickedCount / sentCount) * 100) : 0,

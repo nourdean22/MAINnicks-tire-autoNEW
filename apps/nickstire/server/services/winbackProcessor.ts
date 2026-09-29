@@ -80,6 +80,7 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
     const { sendSms } = await import("../sms");
     let sent = 0;
     let queued = 0; // parked for the 8 AM window (audit F-3)
+    let heldOut = 0;
     let failed = 0;
     let skipped = 0;
 
@@ -140,6 +141,14 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
         `);
         await db.execute(sql`UPDATE winback_campaigns SET sentCount = sentCount + 1 WHERE id = ${send.campaignId}`);
         if (outcome === "sent") sent++; else queued++;
+      } else if (outcome === "heldout") {
+        await db.execute(sql`
+          UPDATE winback_sends
+          SET status = 'heldout', sentAt = NULL, twilioSid = NULL,
+              errorMessage = ${result.experimentId ? `experiment_control:${result.experimentId}` : "experiment_control"}
+          WHERE id = ${send.id}
+        `);
+        heldOut++;
       } else {
         await db.execute(sql`
           UPDATE winback_sends SET status = 'failed', errorMessage = ${result.error || "unknown"}
@@ -148,19 +157,19 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
         failed++;
       }
 
-      await new Promise(r => setTimeout(r, 1500)); // Rate limit
+      if (!result.heldOut) await new Promise(r => setTimeout(r, 1500)); // provider rate limit
     }
 
-    if (sent + queued > 0) {
+    if (sent + queued + heldOut > 0) {
       try {
         const { sendTelegram } = await import("./telegram");
-        await sendTelegram(`📬 WINBACK AUTO: ${sent} messages sent, ${queued} queued for 8 AM, ${failed} failed`);
+        await sendTelegram(`📬 WINBACK AUTO: ${sent} messages sent, ${queued} queued for 8 AM, ${heldOut} holdout controls, ${failed} failed`);
       } catch (err: unknown) {
         log.warn(`Winback Telegram notification failed: ${(err as Error).message}`);
       }
     }
 
-    return { recordsProcessed: sent, details: `${sent} sent, ${queued} queued, ${failed} failed, ${skipped} skipped out of ${pendingSends.length}` };
+    return { recordsProcessed: sent, details: `${sent} sent, ${queued} queued, ${heldOut} holdout controls, ${failed} failed, ${skipped} skipped out of ${pendingSends.length}` };
   } catch (err: unknown) {
     // 2026-09-01 (audit F-9): rethrow — a swallowed error was recorded as `completed`.
     log.error("[winbackProcessor] run failed:", { error: (err as Error).message });

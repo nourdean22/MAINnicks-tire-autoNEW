@@ -47,11 +47,102 @@
  * A loop that sends nothing at all is invisible here BY CONSTRUCTION — it has no
  * rows to aggregate. Absence from this board is not a pass; check cron_log.
  *
- * The honest way to get true lift is a holdout: withhold the message from a
- * random slice and compare. crossSellOutreach already has a 50/50 control arm,
- * so that measurement is available for at least one loop and is the natural next
- * step. Until then this is a ranking, not a P&L line.
+ * True lift requires a holdout. Q-21 now provides a durable, default-OFF
+ * no-contact assignment spine for explicit proactive lanes; cross-sell and
+ * declined-work keep their independent experiment designs. Where a row has
+ * matured treatment + control cohorts, this board can show incremental gross
+ * revenue separately from the correlation fields. Net P&L stays unmeasured
+ * until real provider/carrier cost is persisted.
  */
+
+export type HoldoutMeasurementStatus =
+  | "UNMEASURED"
+  | "COLLECTING"
+  | "OBSERVED_HOLDOUT";
+
+export interface HoldoutObservationInput {
+  experimentId: string;
+  treatmentAssigned: number;
+  controlAssigned: number;
+  /** Cohorts old enough to have a complete attribution window. */
+  treatmentMatured: number;
+  controlMatured: number;
+  treatmentPaidInvoices: number;
+  controlPaidInvoices: number;
+  treatmentRevenueCents: number;
+  controlRevenueCents: number;
+}
+
+export interface HoldoutLift {
+  status: HoldoutMeasurementStatus;
+  experimentId: string | null;
+  treatmentAssigned: number;
+  controlAssigned: number;
+  treatmentMatured: number;
+  controlMatured: number;
+  treatmentPaidInvoices: number;
+  controlPaidInvoices: number;
+  treatmentRevenueCents: number;
+  controlRevenueCents: number;
+  treatmentRevenuePerAssignedCents: number | null;
+  controlRevenuePerAssignedCents: number | null;
+  incrementalGrossRevenuePerTreatmentCents: number | null;
+  incrementalGrossRevenueCents: number | null;
+  /**
+   * Net profit is intentionally unavailable until real provider/carrier cost is
+   * persisted. Gross lift must never be silently relabeled as P&L.
+   */
+  netValueCents: null;
+  netValueStatus: "UNMEASURED_PROVIDER_COST";
+}
+
+/**
+ * Pure holdout math. Revenue rates use only MATURED assignments so a customer
+ * assigned yesterday is not compared with one that already had the full
+ * attribution window to return.
+ */
+export function buildHoldoutLift(
+  input?: HoldoutObservationInput | null,
+): HoldoutLift {
+  const empty: HoldoutLift = {
+    status: "UNMEASURED",
+    experimentId: input?.experimentId ?? null,
+    treatmentAssigned: input?.treatmentAssigned ?? 0,
+    controlAssigned: input?.controlAssigned ?? 0,
+    treatmentMatured: input?.treatmentMatured ?? 0,
+    controlMatured: input?.controlMatured ?? 0,
+    treatmentPaidInvoices: input?.treatmentPaidInvoices ?? 0,
+    controlPaidInvoices: input?.controlPaidInvoices ?? 0,
+    treatmentRevenueCents: input?.treatmentRevenueCents ?? 0,
+    controlRevenueCents: input?.controlRevenueCents ?? 0,
+    treatmentRevenuePerAssignedCents: null,
+    controlRevenuePerAssignedCents: null,
+    incrementalGrossRevenuePerTreatmentCents: null,
+    incrementalGrossRevenueCents: null,
+    netValueCents: null,
+    netValueStatus: "UNMEASURED_PROVIDER_COST",
+  };
+  if (!input || (input.treatmentAssigned + input.controlAssigned) === 0) return empty;
+
+  if (input.treatmentMatured <= 0 || input.controlMatured <= 0) {
+    return { ...empty, status: "COLLECTING" };
+  }
+
+  const treatmentRate = input.treatmentRevenueCents / input.treatmentMatured;
+  const controlRate = input.controlRevenueCents / input.controlMatured;
+  const incrementalPerTreatment = treatmentRate - controlRate;
+
+  return {
+    ...empty,
+    status: "OBSERVED_HOLDOUT",
+    treatmentRevenuePerAssignedCents: Math.round(treatmentRate),
+    controlRevenuePerAssignedCents: Math.round(controlRate),
+    incrementalGrossRevenuePerTreatmentCents: Math.round(incrementalPerTreatment),
+    incrementalGrossRevenueCents: Math.round(
+      incrementalPerTreatment * input.treatmentMatured,
+    ),
+  };
+}
 
 /** One outbound loop, measured identically to every other. */
 export interface LoopRow {
@@ -96,6 +187,8 @@ export interface LoopRow {
   /** Paid invoices from recipients inside the window. Correlation. */
   paidInvoicesAfter: number;
   revenueObservedCents: number;
+  /** Randomized no-contact lift when the lane has a durable matured cohort. */
+  holdout?: HoldoutLift;
 }
 
 export interface LoopScoreboard {
@@ -110,6 +203,12 @@ export interface LoopScoreboard {
     optedOut: number;
     paidInvoicesAfter: number;
     revenueObservedCents: number;
+  };
+  causalMeasurement: {
+    observedHoldoutLanes: number;
+    collectingLanes: number;
+    unmeasuredLanes: number;
+    providerCostMeasured: false;
   };
   /** Stated, never implied. A number without its limits invites over-reading. */
   limitations: string[];
@@ -142,12 +241,29 @@ export function buildLoopScoreboard(
     { attempted: 0, sent: 0, undelivered: 0, replied: 0, optedOut: 0, paidInvoicesAfter: 0, revenueObservedCents: 0 },
   );
 
+  const causalMeasurement = loops.reduce(
+    (acc, row) => {
+      const status = row.holdout?.status ?? "UNMEASURED";
+      if (status === "OBSERVED_HOLDOUT") acc.observedHoldoutLanes++;
+      else if (status === "COLLECTING") acc.collectingLanes++;
+      else acc.unmeasuredLanes++;
+      return acc;
+    },
+    {
+      observedHoldoutLanes: 0,
+      collectingLanes: 0,
+      unmeasuredLanes: 0,
+      providerCostMeasured: false as const,
+    },
+  );
+
   const limitations = [
-    "CORRELATION, NOT ATTRIBUTION: this counts customers who paid AFTER receiving a message, not because of it. Most would have returned anyway.",
-    `Revenue is counted only for PAID invoices dated within ${opts.attributionWindowDays} days of the send.`,
-    "Use this to COMPARE loops — every loop is measured the same way. Do not read the total as revenue the SMS system produced.",
-    "True lift needs a holdout. crossSellOutreach already runs a 50/50 control arm, so that loop can be measured properly first.",
-    "A customer reached by two loops in the window is counted for both — the totals are not a sum of distinct dollars.",
+    "CORRELATION, NOT ATTRIBUTION: the Observed column counts customers who paid AFTER receiving a message, not because of it. Most would have returned anyway.",
+    `Observed revenue is counted only for PAID invoices dated within ${opts.attributionWindowDays} days of the send.`,
+    "Holdout lift, when present, uses randomized NO-CONTACT assignment and only matured cohorts with the full attribution window. It is a causal experiment estimate, not a claim of statistical significance.",
+    "NET P&L IS UNMEASURED: provider/carrier SMS cost is not persisted in this repo, so incremental gross revenue is never relabeled as profit.",
+    "Cross-sell and declined-work have independent control designs and are not silently merged into the generic contact-holdout cohort.",
+    "A customer reached by two loops in the window is counted for both — the observed totals are not a sum of distinct dollars.",
   ];
 
   if (totals.undelivered > 0) {
@@ -161,7 +277,14 @@ export function buildLoopScoreboard(
     limitations.push("No recipient paid an invoice in this window. That is a real result, not a missing measurement.");
   }
 
-  return { windowDays: opts.windowDays, attributionWindowDays: opts.attributionWindowDays, loops, totals, limitations };
+  return {
+    windowDays: opts.windowDays,
+    attributionWindowDays: opts.attributionWindowDays,
+    loops,
+    totals,
+    causalMeasurement,
+    limitations,
+  };
 }
 
 /**

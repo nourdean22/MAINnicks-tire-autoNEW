@@ -1,0 +1,16 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "deferred": "operator-pending: Q-21 drizzle/0136_contact_experiment_assignments.sql is additive and SQL-linted; live migration-drift/apply was deliberately not run from the isolated build because DATABASE_URL was unavailable. Apply/read-back remains an operator-gated production step."
+    },
+    "cron-fail-closed": {
+      "ref": "Q-21 focused verification: 243/243 focused + consent-safety tests green. server/services/contactExperiment.test.ts proves experiment infrastructure failure and unreadable assignment storage fall back to treatment/normal send rather than silently withholding a customer; existing transactional/customer-initiated lanes are excluded from holdouts."
+    },
+    "operator-walkthrough": {
+      "ref": "Q-21 operator surface: Admin -> Outreach / SMS Performance now exposes the Money / Outcome view with matured treatment/control cohorts, randomized incremental gross revenue, negative lift preserved, and provider/carrier cost explicitly UNMEASURED. All holdout flags remain OFF by default."
+    },
+    "capability-ledger-updated": {
+      "ref": "THIS DIFF updates apps/nickstire/docs/operations/capability-ledger.json capability sms-send-receipts with Q-21 code/test evidence, the 2026-09-29 verification date, rollout boundary (flags OFF), unmeasured cost caveat, and operator-pending migration; REALITY-LEDGER.md is regenerated from that machine record."
+    }
+  }
+}

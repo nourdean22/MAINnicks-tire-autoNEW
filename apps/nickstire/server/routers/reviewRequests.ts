@@ -18,6 +18,7 @@ import {
   getPendingReviewRequests,
   claimReviewRequest,
   markReviewRequestSent,
+  markReviewRequestHeldOut,
   markReviewRequestFailed,
   markReviewRequestClicked,
   isPhoneOnReviewCooldown,
@@ -194,6 +195,7 @@ export async function processReviewRequestQueue() {
 
   let sent = 0;
   let queued = 0;
+  let heldOut = 0;
   let failed = 0;
 
   for (const req of batch) {
@@ -207,7 +209,10 @@ export async function processReviewRequestQueue() {
     const trackingUrl = `${SITE_URL}/api/review-click/${req.trackingToken}`;
     const message = buildReviewMessage(req.customerName, req.service, trackingUrl, settings.messageTemplate);
 
-    const result = await sendSms(`+1${req.phone}`, withOptOut(message), { via: "shop" });
+    const result = await sendSms(`+1${req.phone}`, withOptOut(message), {
+      via: "shop",
+      variantKey: "review_request",
+    });
 
     // 2026-09-01 (audit F-3): a request parked for the 8 AM window is marked
     // (it will go out — the claim holds) but counted as queued, not sent.
@@ -216,6 +221,12 @@ export async function processReviewRequestQueue() {
     if (outcome === "sent" || outcome === "queued") {
       await markReviewRequestSent(req.id, result.sid);
       if (outcome === "sent") sent++; else queued++;
+    } else if (outcome === "heldout") {
+      await markReviewRequestHeldOut(req.id, result.experimentId);
+      heldOut++;
+      log.info(`[ReviewRequest] experiment control held out for request #${req.id}`, {
+        experimentId: result.experimentId,
+      });
     } else {
       await markReviewRequestFailed(req.id, result.error || "Unknown error");
       failed++;
@@ -226,7 +237,7 @@ export async function processReviewRequestQueue() {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
-  return { processed: batch.length, sent, queued, failed };
+  return { processed: batch.length, sent, queued, heldOut, failed };
 }
 
 // ─── tRPC ROUTER ─────────────────────────────────────

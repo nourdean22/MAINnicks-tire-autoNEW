@@ -1,6 +1,15 @@
 # CURRENT-TRUTH.md — Statenour
 
-## 2026-09-28 night — Graphify code-intelligence governance (follow-up branch truth, not merged/live)
+## 2026-09-28 night — #2757 governance wave merge receipt
+
+- **Merged:** PR #2757 squash-merged to `main` as `3178a894ff1d39d402837b214d060ce7b61b3a55`.
+- **Final PR head:** `bed19035637dc2ba0bd1e9482c373403bce7db1d`.
+- **Merge integrity:** squash-merge tree SHA exactly matched the final PR-head tree SHA; no file content was dropped or rewritten by the merge.
+- **Final CI:** Turbo affected verify, StateNour E2E, Completion Authority, Secret Scanning, Agent Policy, Adoption gates, and Admin completion diagnostic all completed successfully.
+- **Scope now on main:** Toolsmith capability lifecycle, unified Owner Panel exceptions, and Graphify governance/freshness receipts.
+- **Still not claimed:** live production exercise of Toolsmith/exception flows, or a governed scheduled Graphify run after merge.
+
+## 2026-09-28 night — Graphify code-intelligence governance (merged repo truth; scheduled-run proof pending)
 
 - Graphify stays a developer snapshot; this slice adds no second graph store and does not bulk-ingest Graphify into BrainMemory.
 - The existing sync now runs existing graphify-necropsy propose-only drift analysis when two snapshots exist, then writes ignored runtime GRAPH_RECEIPT.json with source SHA, report hash/time, Graphify version, label provenance, graph shape, HEAD/origin-main commit relation, previous-snapshot delta, and necropsy count.
@@ -9,24 +18,24 @@
 - Verification: Node syntax + governance self-test green; existing necropsy self-test green; both PowerShell scripts parse; repo contract tests 4/4 green; live session-context execution green; git diff --check green.
 - Durable receipt: docs/00-current-truth/nouros-code-intelligence-governance-2026-09-28.md.
 
-## 2026-09-28 night — Owner Panel exception consolidation (follow-up branch truth, not merged/live)
+## 2026-09-28 night — Owner Panel exception consolidation (merged repo truth; production exercise pending)
 
 - **No new exception queue:** the existing Q-24 Owner Panel on `/system` remains the single owner attention surface.
 - **New projections from canonical stores:** dead `post_turn_outbox`; generic `action_attempts` WAITING_APPROVAL / UNKNOWN / recent FAILED / stale EXECUTING.
 - **No duplication:** `railway.deploy_alert` attempts stay on the pre-existing deploy-page path; dead-letter redrive remains `redriveDeadOutboxRows()`; approvals retain their current source tables.
 - **Truth rules:** UNKNOWN never retries blindly; a failed source read is unreadable/UNKNOWN, not a clear; fresh EXECUTING stays quiet; stale is 30m+.
 - **Pure dependency repair:** cron hard-failure classification now lives in DB-free `lib/services/cron-status.ts`; `cron-control.ts` re-exports the same names for API compatibility.
-- **Verification:** 53/53 focused Owner Panel + outbox + ActionAttempt tests green; changed-file ESLint and `git diff --check` green.
+- **Verification:** 53/53 focused Owner Panel + outbox + ActionAttempt tests were green locally; final #2757 head passed Turbo affected verify and StateNour E2E.
 - Durable receipt: `docs/00-current-truth/nouros-exception-consolidation-2026-09-28.md`.
 
-## 2026-09-28 night — capability lifecycle / Toolsmith (follow-up branch truth, not merged/live)
+## 2026-09-28 night — capability lifecycle / Toolsmith (merged repo truth; operator-gated production usage)
 
 - **Reuses incumbents:** Tool Registry + Tool Policy + ToolSelectionTurn/ToolGateDecision + Tool Gap + ActionAttempt remain canonical.
 - **Gap response is explicit:** discoverability → fix discoverability; routing → fix routing; external-service → repair integration; only unresolved gaps enter new-capability investigation.
 - **Append-only lifecycle:** `PROPOSED → APPROVED → IMPLEMENTED_UNVERIFIED → VERIFIED → RETIRED`; rejection is allowed before verification.
 - **Authority boundary:** Toolsmith can propose/track only. It cannot install code, activate a registry entry, or execute a newly proposed capability. Implementation requires an external artifact reference; verification requires a receipt.
 - **Operator surface:** existing `system.tools` tRPC + Tool Gap panel expose lifecycle report/mutations and proposal counts; no new auth surface.
-- **Verification:** 11/11 focused lifecycle + existing Tool Gap tests green; changed-file ESLint and `git diff --check` green.
+- **Verification:** capability lifecycle regression coverage includes old unresolved proposals remaining visible beyond the telemetry window; final #2757 head passed Turbo affected verify and the complete PR CI suite.
 - Durable receipt: `docs/00-current-truth/nouros-capability-lifecycle-2026-09-28.md`.
 
 ## 2026-09-28 late evening — Decision Plane shadow/calibration (merged repo truth; production shadow still off)

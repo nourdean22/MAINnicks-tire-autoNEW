@@ -2,7 +2,7 @@
 # NourOS code-intelligence governance — current truth
 
 Date: 2026-09-28 ET
-Status: BUILT + LOCALLY VERIFIED on the follow-up branch above Toolsmith + Owner Panel exception consolidation. Not merged, deployed, or scheduled-live at this receipt.
+Status: MERGED to `main` in PR #2757 as `3178a894ff1d39d402837b214d060ce7b61b3a55`. The governed scheduled Graphify sync has not yet produced a post-merge live receipt.
 
 ## Decision
 
@@ -106,4 +106,4 @@ That is the important outcome: an old graph can no longer look authoritative mer
 - No automatic issue creation occurs from necropsy findings.
 - No graph finding receives authority merely because it appears in Graphify.
 
-Production/operator proof remains pending until this commit is eventually pushed, merged, the local scheduled sync runs it, and a real GRAPH_RECEIPT.json from that governed run is inspected.
+Production/operator proof remains pending until the local scheduled sync runs the merged code and a real post-merge GRAPH_RECEIPT.json is inspected.
