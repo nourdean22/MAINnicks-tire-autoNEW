@@ -47,7 +47,7 @@ REVIEWED_DIGESTS: dict[Path, frozenset[str]] = {
             # upstream v0.3.0 @ f00dd98
             "652f969cf531f743c55d2c4812c570ff7242e68c78f8c29080f41bad59ec651c",
             # reviewed StateNour local fragmented-MP4 recording route
-            "cd8430e8825651a0afea82f9d30640f2102e0caafa53ce1aad4158a41dbee6c6",
+            "f5154de93007fee3b24ad47f95eb6ffda134bcfccb2cc61b6f57fda178c139da",
         }
     ),
     GO2RTC_PATH: frozenset(
@@ -152,16 +152,23 @@ HTTP_ROUTE_NEW = """    if (kind === "record" && sn) {
         });
 
         let closed = false;
+        let timer;
         const cleanup = () => {
           if (closed) return;
           closed = true;
+          if (timer) clearTimeout(timer);
           try {
             recording?.stop?.();
           } catch {
             // Closing a recording is best-effort; socket teardown is already authoritative.
           }
         };
-        req.on("close", cleanup);
+        const maxSeconds = Math.min(
+          300,
+          Math.max(5, Number(url.searchParams.get("maxSeconds")) || 180),
+        );
+        timer = setTimeout(cleanup, maxSeconds * 1000);
+        req.on("aborted", cleanup);
         res.on("close", cleanup);
         try {
           for await (const fragment of recording) {
