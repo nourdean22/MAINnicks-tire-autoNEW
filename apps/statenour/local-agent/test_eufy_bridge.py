@@ -5,8 +5,8 @@ from unittest.mock import Mock, patch
 import eufy_bridge
 
 
-OFFICE = "T8410P522517180B"
-OTHER = "T8410P5225154105"
+OFFICE = "T8410P5225154105"
+OTHER = "T8410P522517180B"
 
 
 class FakeResponse:
@@ -26,6 +26,9 @@ class FakeResponse:
 
 
 class EufyBridgeTests(unittest.TestCase):
+    def test_default_office_identity_is_nicks_euclid(self):
+        self.assertEqual(eufy_bridge.OFFICE_CAMERA_SERIAL, OFFICE)
+
     def setUp(self):
         eufy_bridge._reset_runtime_health_for_test()
 

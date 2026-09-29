@@ -14,7 +14,7 @@ PR #2721 squash-merged to `main` as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` a
 - Camera-health state evaluation, durable claim, retry, and recovery-state logic are live. A real `sign=DEGRADED_VISION` transition and later `sign=HEALTHY` recovery were persisted. This proves state transitions, not that a real degradation/recovery pair reached the owner externally.
 - Telegram is configured as the independent owner-alert fallback when email/webhook delivery is unavailable.
 - The `sign` fixed-geometry camera is current and healthy.
-- NattyNour's Eufy bridge and office-health daemon are running under the watchdog.
+- NicksMax is the Office Eufy bridge/agent/watchdog authority; NattyNour's old OfficeHealth producer is disabled.
 - Tailscale reaches the shop PC. Tests from both NattyNour and NicksMax initially used DERP, then established direct peer paths; this is normal fallback/NAT traversal, not an outage.
 - The stale camera row is legacy runtime residue, not current expected topology. shared/cameras.ts now commissions sign and office; only inside remains intentionally uncommissioned.
 
@@ -22,11 +22,15 @@ PR #2721 squash-merged to `main` as `1ab0063f523e0761d5e9e2c4f02ed12d8966b41d` a
 
 ### Office Eufy commissioning
 
-Office is now commissioned and the NicksMax producer emits PRODUCTION heartbeats. Production currently derives MEDIA_DEGRADED: the bridge is authenticated and the semantic-event lane is connected, but the Office T8410C reports hubStatus=false and its live P2P stream times out. The same NicksMax bridge successfully reads video bytes from the same-model Kitchen T8410C, so this is not a host-wide media failure. Keep Office operational and surface the degradation until a real Office media-byte probe succeeds; control, PTZ-notify, and calibrated-home proof remain separate.
-The current shop-side bootstrap bundle was already delivered to the shop PC. Completion requires local elevation and locally entered Eufy / StateNour / camera-ingest credentials. Do not move those secrets through chat.
+Office is commissioned and the NicksMax producer emits `PRODUCTION` heartbeats against **NICKS EUCLID** (`T8410P5225154105`). `Moes Euclid Office` (`T8410P522517180B`) is the old/legacy shared device and is not the production Office target.
 
-Before commissioning, require all of these physical receipts: a real office motion/person event, successful media byte read, bounded PTZ command, unsolicited `ptzNotify`, and visual/SceneLock confirmation of the calibrated home view.
+Current live receipts:
+- authenticated bridge sees NICKS EUCLID with video/RTSP/PTZ/audio and motion/person capabilities;
+- NicksMax event stream is connected and receives `streamState` for `T8410P5225154105`;
+- real media-byte probe succeeds (`mediaPlaneOk=true`, proof at 2026-09-29T00:20:11.894521Z);
+- Nick backend transitioned Office from `MEDIA_DEGRADED` to `UNVERIFIED_CAPABILITIES` at corrected producer seq=1 (00:19:11Z), then continuously accepted the corrected producer through at least seq=16 at 00:28:15Z.
 
+`UNVERIFIED_CAPABILITIES` is the truthful remaining boundary: a real semantic motion/person event, fresh control/PTZ receipt, and NICKS-EUCLID-specific calibrated-home proof are still required. Do not reuse old Moes media failures, PTZ receipts, or visual-home references for the current camera.
 ### Real camera-alert owner delivery
 
 The production alert rail has proven detection, claim, retry, and recovery-state behavior. Resend rejected the observed real production page while the domain was unverified, and logger-only fallback correctly did not count as delivery. PR #2715 added Telegram fallback and #2720 added a manual provider self-test, but a provider-accepted **real production degradation alert plus its recovery delivery** has not yet been observed. Keep this open until that pair has external acceptance receipts.

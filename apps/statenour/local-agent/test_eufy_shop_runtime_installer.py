@@ -55,6 +55,9 @@ class EufyShopRuntimeInstallerTests(unittest.TestCase):
     def test_office_heartbeat_is_production_by_default(self):
         self.assertIn('heartbeatMode = "PRODUCTION"', SOURCE)
         self.assertIn("NICKS_OFFICE_CAMERA_MODE", SOURCE)
+        self.assertIn('[string]$OfficeSerial = "T8410P5225154105"', SOURCE)
+        self.assertNotIn('[string]$OfficeSerial = "T8410P522517180B"', SOURCE)
+
     def test_control_fails_closed_until_explicitly_enabled(self):
         self.assertIn("controlEnabled = $false", SOURCE)
         self.assertIn("if ($EnableControl)", SOURCE)

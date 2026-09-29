@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 from zoneinfo import ZoneInfo
 
-DEFAULT_OFFICE_SERIAL = "T8410P522517180B"
+DEFAULT_OFFICE_SERIAL = "T8410P5225154105"
 DEFAULT_EVENTS = frozenset({"motion", "personDetected"})
 FALSE_MARKERS = frozenset({"0", "false", "off", "clear", "cleared", "idle", "inactive", "none"})
 

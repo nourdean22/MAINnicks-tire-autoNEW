@@ -104,10 +104,10 @@ Recommended local configuration:
 EUFY_BRIDGE_URL=ws://127.0.0.1:3000/ws
 EUFY_CONTROL_ENABLED=0
 EUFY_EVENTS_ENABLED=1
-EUFY_OFFICE_CAMERA_SERIAL=T8410P522517180B
+EUFY_OFFICE_CAMERA_SERIAL=T8410P5225154105
 # Optional comma-separated override. If unset, only the office camera above
 # forwards semantic events into StateNour.
-# EUFY_EVENT_DEVICE_SNS=T8410P522517180B
+# EUFY_EVENT_DEVICE_SNS=T8410P5225154105
 ```
 
 Keep `EUFY_CONTROL_ENABLED=0` until bridge auth, device identity, and the reported `ptz` capability

@@ -258,23 +258,21 @@ Storage note: C: had about 2.53 GB free (6.3%) at camera closeout. Camera logs/D
 
 ## Office Eufy production authority - 2026-09-28
 
-NicksMax also owns the commissioned Office Eufy interaction/health lane.
+NicksMax owns the commissioned Office Eufy interaction/health lane. The canonical camera is **NICKS EUCLID** (`T8410P5225154105`, T8410C); `Moes Euclid Office` (`T8410P522517180B`) is legacy and must not be used as the production target.
 
 Verified runtime:
 - Eufy bridge HTTP/WS: `127.0.0.1:3000`
 - go2rtc API: `127.0.0.1:1984`
 - Eufy RTSP: `127.0.0.1:8654`
 - Eufy WebRTC: `127.0.0.1:8655`
-- V380 sign ports remain `8554/8555`, so the two camera stacks do not collide
+- V380 sign ports remain `8554/8555`
 - scheduled tasks: `StateNour-Eufy-Bridge-NicksMax`, `StateNour-Eufy-Agent-NicksMax`, `StateNour-Eufy-Watchdog-NicksMax`
-- NicksMax uses a distinct Eufy bridge client identity (`BRIDGE_OPENUDID`)
-- bridge auth is `ok`; 6 Eufy devices and 3 camera streams are enumerated
-- Office serial `T8410P522517180B` is a T8410C and reports video, RTSP, PTZ and audio capabilities
-- Nick production accepted durable Office heartbeats from seq=1 through at least seq=14
+- bridge auth is `ok`; NICKS EUCLID reports video, RTSP, PTZ, audio, motion and person capabilities
+- corrected NicksMax producer cycles complete without errors and receive `streamState` from `T8410P5225154105`
+- direct media probe succeeds with `mediaPlaneOk=true`
+- Nick backend transitioned `MEDIA_DEGRADED -> UNVERIFIED_CAPABILITIES` at corrected Office seq=1
 
-Office is deliberately **PRODUCTION + commissioned**, but current health is **MEDIA_DEGRADED**. Direct Office `/stream` probes fail with Eufy `P2P connect timeout`, and the device reports `hubStatus=false`. A same-host comparison against the same-model Kitchen T8410C returned HTTP 200 and 2048 real video bytes in about 4.3 seconds. Therefore the residual fault is Office-device/account/P2P-specific rather than a NicksMax bridge/network failure.
-
-Do not demote Office back to SHADOW to make the dashboard look green. Recovery requires a successful Office media-byte probe and the resulting Admin health transition. Control/PTZ/home evidence remains separately measured.
+Remaining proof is capability commissioning, not media recovery: wait for/produce a fresh semantic event, obtain a fresh PTZ/control receipt, and create a NICKS-EUCLID-specific visual-home reference before claiming those facets healthy. Never reuse old Moes calibration/home evidence for NICKS EUCLID.
 ## Windows 10 ESU — why it is required
 
 Windows 10 normal support ended on **2025-10-14**. Microsoft no longer provides ordinary Windows 10 security updates to unenrolled consumer devices after that date.

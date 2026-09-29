@@ -36,7 +36,7 @@ From any working directory:
 
 ```powershell
 python C:\path\to\camera-bridge\scripts\verify_home_pose.py `
-  --serial T8410P522517180B `
+  --serial T8410P5225154105 `
   --reference C:\StateNour\Eufy\office-home.png `
   --current C:\StateNour\Eufy\current.png `
   --receipt C:\StateNour\Eufy\receipts\office-home.json
@@ -56,7 +56,7 @@ For live media, prefer the local go2rtc URL and keep it out of the process comma
 ```powershell
 $env:EUFY_HOME_MEDIA_URL = "rtsp://127.0.0.1:8554/<local-stream-name>"
 python C:\path\to\camera-bridge\scripts\verify_home_pose.py `
-  --serial T8410P522517180B `
+  --serial T8410P5225154105 `
   --reference C:\StateNour\Eufy\office-home.png `
   --rtsp-env EUFY_HOME_MEDIA_URL `
   --receipt C:\StateNour\Eufy\receipts\office-home.json

@@ -9,8 +9,8 @@ Strategy:
 
 Known devices scraped from mysecurity.eufylife.com on 2026-03-26:
   - Solar Wall Light Cam  (T81A0P10250205C5) — type 10005, outdoor solar cam
-  - Kitchen               (T8410P5225154105) — type 31, indoor cam
-  - Moes Euclid Office    (T8410P522517180B) — type 31, indoor cam (shared)
+  - NICKS EUCLID          (T8410P5225154105) — type 31, operational office indoor cam
+  - Moes Euclid Office    (T8410P522517180B) — legacy shared camera; NOT production Office
   - SIDE DOOR             (T8502K1025071702) — type 180, entry sensor
   - Front Door            (T8502K1025090456) — type 180, entry sensor
 """
@@ -40,7 +40,7 @@ EUFY_PASSWORD = os.getenv("EUFY_PASSWORD", "")
 EUFY_BRIDGE_URL = os.getenv("EUFY_BRIDGE_URL", "").strip()
 EUFY_OFFICE_CAMERA_SERIAL = os.getenv(
     "EUFY_OFFICE_CAMERA_SERIAL",
-    "T8410P522517180B",
+    "T8410P5225154105",
 ).strip()
 
 # Optional cross-app operational heartbeat. Deliberately requires a SEPARATE Nick's
@@ -154,22 +154,7 @@ KNOWN_DEVICES = [
     },
     {
         "platformDeviceId": "eufy-T8410P5225154105",
-        "name": "Kitchen",
-        "platform": "EUFY",
-        "deviceType": "CAMERA",
-        "location": "home-kitchen",
-        "status": "ONLINE",
-        "currentState": {"motion_detected": False},
-        "metadata": {
-            "model": "Indoor Cam",
-            "serial": "T8410P5225154105",
-            "type_code": 31,
-            "category": "indoor_cam",
-        },
-    },
-    {
-        "platformDeviceId": "eufy-T8410P522517180B",
-        "name": "Moes Euclid Office",
+        "name": "NICKS EUCLID",
         "platform": "EUFY",
         "deviceType": "CAMERA",
         "location": "office",
@@ -177,10 +162,9 @@ KNOWN_DEVICES = [
         "currentState": {"motion_detected": False},
         "metadata": {
             "model": "Indoor Cam",
-            "serial": "T8410P522517180B",
+            "serial": "T8410P5225154105",
             "type_code": 31,
             "category": "indoor_cam",
-            "shared_by": "moeseuclid",
         },
     },
     {

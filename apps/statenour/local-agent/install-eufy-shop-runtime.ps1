@@ -3,7 +3,7 @@ param(
   [string]$RepoRoot = "",
   [string]$StateRoot = (Join-Path $env:LOCALAPPDATA "StateNour\Eufy"),
   [string]$BridgeRoot = (Join-Path $env:LOCALAPPDATA "StateNour\Eufy\ha-eufy-sdk-bridge-0.3.0"),
-  [string]$OfficeSerial = "T8410P522517180B",
+  [string]$OfficeSerial = "T8410P5225154105",
   [string]$NickHeartbeatUrl = "https://nickstire.org/api/camera/heartbeat",
   [switch]$EnableControl,
   [switch]$CommissionPtz,

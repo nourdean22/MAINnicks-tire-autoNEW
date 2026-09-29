@@ -62,7 +62,7 @@ def test_cli_runs_from_an_unrelated_working_directory(tmp_path: Path):
             sys.executable,
             str(SCRIPT),
             "--serial",
-            "T8410P522517180B",
+            "T8410P5225154105",
             "--reference",
             str(ref),
             "--current",
