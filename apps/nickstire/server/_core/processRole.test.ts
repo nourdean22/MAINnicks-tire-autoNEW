@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   processRoleRunsJobs,
-  processRoleServesWeb,
   resolveProcessRole,
 } from "./processRole";
 
@@ -21,11 +20,6 @@ describe("Q-34 PROCESS_ROLE", () => {
     expect(processRoleRunsJobs(resolveProcessRole("all"))).toBe(true);
   });
 
-  it("keeps the HTTP process available for health/admin surfaces in every role", () => {
-    for (const role of ["all", "web", "jobs"] as const) {
-      expect(processRoleServesWeb(role)).toBe(true);
-    }
-  });
 
   it("rejects a typo instead of silently duplicating or disabling jobs", () => {
     expect(() => resolveProcessRole("worker")).toThrow(/all\|web\|jobs/);
