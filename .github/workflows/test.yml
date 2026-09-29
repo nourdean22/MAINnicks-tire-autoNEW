@@ -451,6 +451,24 @@ jobs:
           DATABASE_URL: postgresql://user:password@localhost:5432/statenour
         run: pnpm --filter @statenour/web exec prisma validate
 
+      # Q-32 · cloud experiment is an OPTIONAL extension of the same node job,
+      # not another workflow/check. The deterministic local Q-32 tests above
+      # always run through Turbo. Enable this only after a versioned Langfuse
+      # dataset has actually been created and read back.
+      - name: Statenour · Q-32 Langfuse paired experiment
+        if: ${{ github.event_name == 'pull_request' && needs.changes.outputs.statenour == 'true' && vars.LANGFUSE_Q32_ENABLED == '1' }}
+        uses: langfuse/experiment-action@b945f9bf921b24a4074306078f621cba729d173e # v1.0.10
+        with:
+          langfuse_public_key: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          langfuse_secret_key: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          langfuse_base_url: ${{ vars.LANGFUSE_BASE_URL || 'https://us.cloud.langfuse.com' }}
+          experiment_path: apps/statenour/experiments/q32-eval-loop.mjs
+          dataset_name: ${{ vars.LANGFUSE_Q32_DATASET_NAME }}
+          dataset_version: ${{ vars.LANGFUSE_Q32_DATASET_VERSION }}
+          should_fail_on_regression: 'true'
+          should_fail_on_script_error: 'true'
+          should_comment_on_pr: 'false'
+
   # ─── Dependency gate — deliberately its OWN job ────────────────────
   # These two steps used to be the last steps of `node`. That placement meant
   # ANY unrelated failure above them skipped the gate silently, and in

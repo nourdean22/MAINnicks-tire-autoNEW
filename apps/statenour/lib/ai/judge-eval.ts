@@ -111,6 +111,26 @@ interface JudgeArgs {
   userQuery: string;
   assistantReply: string;
   brainContextHint?: string; // optional · helps accuracy axis
+  /** Q-32: generation lane, used to refuse same-model-family self-judging. */
+  generatedByProvider?: string;
+  generatedByModel?: string;
+}
+
+export function modelFamily(provider?: string | null, model?: string | null): string {
+  const m = String(model ?? "").toLowerCase();
+  const p = String(provider ?? "").toLowerCase();
+  if (/claude/.test(m) || /anthropic/.test(p)) return "anthropic";
+  if (/gpt|o[1345](?:-|$)|openai/.test(m) || /openai/.test(p)) return "openai";
+  if (/gemini/.test(m) || /google/.test(p)) return "google";
+  if (/deepseek/.test(m)) return "deepseek";
+  if (/glm/.test(m)) return "zhipu";
+  if (/minimax/.test(m)) return "minimax";
+  if (/qwen/.test(m)) return "qwen";
+  if (/llama|meta/.test(m)) return "meta";
+  // Hosting provider is only a last-resort family. Venice/Ollama can host
+  // many model families, so never call them an independent model family when
+  // the model id itself is recognizable above.
+  return p || m || "unknown";
 }
 
 async function _judgeReply(args: JudgeArgs): Promise<JudgeReport | null> {
@@ -149,6 +169,25 @@ Score the reply. Output JSON only.`;
     );
     text = (result.content ?? "").trim();
     judgedBy = `${result.provider ?? "?"}:${result.model ?? "?"}`;
+
+    // Q-32 · independent evaluator boundary. A judge from the same model
+    // family as the candidate is not an independent label. Discard it rather
+    // than silently boosting agreement/kappa with self-preference.
+    const candidateFamily = modelFamily(args.generatedByProvider, args.generatedByModel);
+    const judgeFamily = modelFamily(result.provider, result.model);
+    if (
+      candidateFamily !== "unknown" &&
+      judgeFamily !== "unknown" &&
+      candidateFamily === judgeFamily
+    ) {
+      log.warn("judge_same_family_discarded", {
+        candidateFamily,
+        judgeFamily,
+        generatedBy: `${args.generatedByProvider ?? "?"}:${args.generatedByModel ?? "?"}`,
+        judgedBy,
+      });
+      return null;
+    }
   } catch (err) {
     log.warn("judge_provider_failed", {
       err: err instanceof Error ? err.message.slice(0, 200) : String(err),
