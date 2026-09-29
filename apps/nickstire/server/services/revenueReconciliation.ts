@@ -106,6 +106,7 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
     let inferred = 0;
     let ambiguous = 0;
     let unmatched = 0;
+    const ambiguousCallIds: number[] = [];
 
     for (const candidate of candidates) {
       if (currentDecisions.has(candidate.callId)) {
@@ -117,8 +118,10 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
       const lead = call?.leadId == null ? null : leadById.get(call.leadId) ?? null;
       if (candidate.resolution === "attributed") verified += 1;
       else if (candidate.resolution === "manual_review") inferred += 1;
-      else if (candidate.resolution === "ambiguous") ambiguous += 1;
-      else unmatched += 1;
+      else if (candidate.resolution === "ambiguous") {
+        ambiguous += 1;
+        ambiguousCallIds.push(candidate.callId);
+      } else unmatched += 1;
 
       const matchMethod = candidate.resolution === "attributed"
         ? "direct_call_lead_invoice"
@@ -170,6 +173,11 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
           authorization: { tier: 1, role: "manager" },
           writeBack: "revenueAttribution.resolve (Attribution review card → Confirm / Unsure / Reject)",
           priority: "medium",
+          // The obligation is the SET of unruled calls, not the run: the job
+          // re-runs every 2 h over a rolling 21-day window, and each run used to
+          // open a fresh StateNour task for the same unchanged set (ADR-0019 §2.1).
+          // A new ambiguous call, or a ruling that shrinks the set, is a new fact.
+          subjectId: { opaque: [...ambiguousCallIds].sort((a, b) => a - b).join(",") },
         });
       } catch (e) {
         log.warn("[revenueReconciliation] escalation failed (run result unaffected)", { error: e instanceof Error ? e.message : String(e) });

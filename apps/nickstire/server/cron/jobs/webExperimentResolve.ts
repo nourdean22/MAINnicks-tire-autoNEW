@@ -22,6 +22,7 @@
  */
 import { sql } from "drizzle-orm";
 import { createLogger } from "../../lib/logger";
+import { bridgeKey } from "../../services/bridgeKeys";
 import { assignByKey, evaluateWebExperiment, type ArmMetricCounts, type WebExperimentDefinition, type WebExperimentVerdict } from "../../../shared/experimentKernel";
 import { EXPERIMENT_EXPOSURE_EVENT, WEB_EXPERIMENTS, experimentAssignmentKey } from "../../../shared/webExperiments";
 import { authorityFor, gradeSatisfies } from "../../../shared/goalContract";
@@ -241,6 +242,17 @@ export async function processWebExperimentResolve(): Promise<ProcessResult> {
               },
             ]
           : [],
+      }, {
+        // ADR-0019 §4: one fact per (experiment, contract, status[, winning arm]).
+        // The daily re-post of an unchanged verdict dedupes in StateNour; a new
+        // status, a new winning arm or a re-registered contract is a new fact.
+        idempotencyKey: bridgeKey(
+          "experiment.verdict",
+          def.experimentId,
+          { opaque: owning.hash },
+          verdict.status,
+          ...(verdict.status === "winner" ? [verdict.armId] : []),
+        ),
       });
     } catch (error) {
       outcomes.push(`${def.experimentId}: ERROR`);
