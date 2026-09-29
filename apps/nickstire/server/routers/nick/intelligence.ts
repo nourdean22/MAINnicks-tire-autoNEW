@@ -560,7 +560,8 @@ export async function handleRunMigrations() {
       // 2026-09-23 · candidates recruiting funnel (matches drizzle/0129 + schema.ts). All
       // nullable, all IF NOT EXISTS. createCandidate falls back to the pre-0129 columns on
       // ER_BAD_FIELD_ERROR, so deploy order does not matter; until this runs, intent and
-      // move reasons survive only inside `message`.      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS intent VARCHAR(32) NULL`,
+      // move reasons survive only inside `message`.
+      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS intent VARCHAR(32) NULL`,
       `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS moveReasons VARCHAR(500) NULL`,
       `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS phoneE164 VARCHAR(20) NULL`,
       `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS refCode VARCHAR(64) NULL`,
