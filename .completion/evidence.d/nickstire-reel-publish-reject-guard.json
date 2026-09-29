@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/reelPublishRejectGuard.test.ts > 'daily reel cron honours the inventory row' runs the REAL runDailyReelPost over real drizzle + an in-memory MySQL subset (Meta publish, attempt ledger, rendered-QA verdict and originality corpus mocked at their module seams). Gate chain: today's approved job whose Queue draft is rejected is HELD with publishToSocial never called (unfixed main PUBLISHED it — red). Drain pre-filter: a rejected backlog job is skipped and the next approved reel publishes (unfixed main published the rejected one — red; with only the pre-filter removed the drain jams on the rejected job — red). Both inventory reads fail CLOSED: a read error is treated as a hold ('unreadable'), never as clear. Index is not advanced on the hold. Mirror: a live-but-rejected reel keeps inventory 'rejected' and logs an error instead of overwriting it."
+    }
+  }
+}
