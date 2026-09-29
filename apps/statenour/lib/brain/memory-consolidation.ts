@@ -258,19 +258,20 @@ export async function promoteToWisdom(): Promise<{ promoted: number }> {
       // content + boost seenCount; otherwise create. Either way the
       // cron chain continues.
       try {
-        await prisma.brainMemory.upsert({
-          where: { category_key: { category: BRAIN_CATEGORIES.WISDOM, key: `wisdom_from_${c.id}` } },
-          create: {
-            category: BRAIN_CATEGORIES.WISDOM,
-            key: `wisdom_from_${c.id}`,
-            content: `[PROVEN PATTERN] ${c.content} (confirmed ${c.seenCount}x, ${(c.confidence * 100).toFixed(0)}% confidence)`,
-            confidence: 1.0,
-            seenCount: c.seenCount,
-            source: "consolidation",
-          },
-          update: {
-            content: `[PROVEN PATTERN] ${c.content} (confirmed ${c.seenCount}x, ${(c.confidence * 100).toFixed(0)}% confidence)`,
-            seenCount: c.seenCount,
+        await admitMemory({
+          category: BRAIN_CATEGORIES.WISDOM,
+          key: `wisdom_from_${c.id}`,
+          content: `[PROVEN PATTERN] ${c.content} (confirmed ${c.seenCount}x, ${(c.confidence * 100).toFixed(0)}% confidence)`,
+          source: "consolidation",
+          memoryKind: "derived",
+          extractionMethod: "cron",
+          derivedFrom: [c.id],
+          evidenceRefs: [`brain-memory:${c.id}`],
+          confidence: 1.0,
+          seenCount: c.seenCount,
+          metadata: {
+            consolidationSourceId: c.id,
+            consolidationSourceConfidence: c.confidence,
           },
         });
         promoted++;
