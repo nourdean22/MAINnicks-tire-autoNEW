@@ -1,4 +1,4 @@
--- 0135 · Customer-contact holdout assignments
+-- 0136 · Customer-contact holdout assignments
 --
 -- One durable assignment per experiment + customer subject. This is the
 -- no-contact control spine for Q-21; it is deliberately separate from
@@ -27,11 +27,16 @@ CREATE TABLE IF NOT EXISTS contact_experiment_assignments (
 -- to guarantee at-most-once behavior. A no-contact control is also terminal,
 -- but calling it sent or failed would corrupt the operator readout. Extend the
 -- enums so the source lane can represent the truth after the holdout decision.
+--
+-- 'heldout' is APPENDED at the END of each list, never inserted mid-list (the
+-- repo's append-only enum rule, 0082/0097). Appending keeps every existing
+-- member's ordinal, so TiDB can apply it as a metadata-only change; a mid-list
+-- insert reorders ordinals and forces a full rewrite of all three tables.
 ALTER TABLE winback_sends
-  MODIFY COLUMN status ENUM('pending','sent','heldout','failed') NOT NULL DEFAULT 'pending';
+  MODIFY COLUMN status ENUM('pending','sent','failed','heldout') NOT NULL DEFAULT 'pending';
 
 ALTER TABLE sms_campaign_sends
-  MODIFY COLUMN status ENUM('pending','sent','heldout','failed') NOT NULL DEFAULT 'pending';
+  MODIFY COLUMN status ENUM('pending','sent','failed','heldout') NOT NULL DEFAULT 'pending';
 
 ALTER TABLE review_requests
-  MODIFY COLUMN status ENUM('pending','sent','clicked','heldout','failed','skipped') NOT NULL DEFAULT 'pending';
+  MODIFY COLUMN status ENUM('pending','sent','clicked','failed','skipped','heldout') NOT NULL DEFAULT 'pending';

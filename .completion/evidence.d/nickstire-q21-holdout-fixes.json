@@ -1,0 +1,13 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "deferred": "operator-pending: this diff edits drizzle/0136_contact_experiment_assignments.sql IN PLACE (0136 has never been applied in production; the operator was told on #2628 to hold it until this follow-up merges). 'heldout' is now appended at the END of each status ENUM, so each list is the live pre-0136 list plus one trailing member (pinned by server/migration0136EnumAppend.test.ts, which also checks schema.ts matches). No apply was run from this container: no DATABASE_URL and no production access. Apply + INFORMATION_SCHEMA read-back stays an operator-gated step."
+    },
+    "operator-walkthrough": {
+      "ref": "What the operator sees after this diff: (1) Admin -> Outreach -> Campaigns: progress reads e.g. '9/10 · 90%' instead of '603/10 · 6030%' (sums now numbers). (2) Admin -> Outreach -> SMS Performance -> Money / outcome board: if the holdout read fails, an amber 'Couldn't read holdout experiments (<driver class>)' banner appears and the Holdout lift column says 'unavailable' instead of 'unmeasured'; a lane shows a lift only once each arm has 30 matured customers, otherwise 'collecting'. (3) Feature flags: contact_holdout_drip is gone. All holdout flags remain OFF; nothing changes for customers."
+    },
+    "capability-ledger-updated": {
+      "ref": "THIS DIFF rewrites the Q-21 sentence of capability sms-send-receipts in apps/nickstire/docs/operations/capability-ledger.json (drip lane removed; sha256 independent assignment; append-only 0136; numeric campaign stats; 30-per-arm minimum) and re-renders REALITY-LEDGER.md with scripts/render-reality-ledger.mjs."
+    }
+  }
+}

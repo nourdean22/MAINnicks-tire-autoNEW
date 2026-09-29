@@ -11,17 +11,19 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { alertSystem, isEnabled, getDb, sendSms } = vi.hoisted(() => ({
+const { alertSystem, isEnabled, getDb, sendSms, logOutboundSms } = vi.hoisted(() => ({
   alertSystem: vi.fn((_title: string, _detail: string) => Promise.resolve(true)),
   isEnabled: vi.fn(async (_key: string) => true),
-  getDb: vi.fn(async () => null),
+  getDb: vi.fn<() => Promise<unknown>>(async () => null),
   sendSms: vi.fn(),
+  logOutboundSms: vi.fn(async () => undefined),
 }));
 
 vi.mock("./telegram", () => ({ alertSystem }));
 vi.mock("./featureFlags", () => ({ isEnabled }));
 vi.mock("../db", () => ({ getDb }));
 vi.mock("../sms", () => ({ sendSms, withOptOut: (s: string) => s }));
+vi.mock("./smsInstrumentation", () => ({ logOutboundSms }));
 
 import { editForecast, nwsFixtures, stubNwsFetch } from "../__tests__/nwsWeatherFixtures";
 import { __resetNwsCacheForTests, parseAlerts, parsePeriods } from "../lib/nwsWeather";
@@ -46,7 +48,8 @@ beforeEach(() => {
   alertSystem.mockClear();
   isEnabled.mockClear();
   getDb.mockClear();
-  sendSms.mockClear();
+  sendSms.mockReset();
+  logOutboundSms.mockClear();
 });
 afterEach(() => {
   delete process.env.WEATHER_SMS_SEND;
@@ -123,6 +126,47 @@ describe("checkWeatherTriggers (cron handler)", () => {
     await checkWeatherTriggers();
     expect(getDb).toHaveBeenCalled(); // reaches the audience query (null DB here -> 0 sent)
     expect(sendSms).not.toHaveBeenCalled();
+  });
+
+  it("Q-21: a held-out control is neither logged as an outbound SMS nor counted as sent", async () => {
+    freezeTonight();
+    process.env.WEATHER_SMS_SEND = "1";
+    const rows = (r: unknown[]) => ({ limit: async () => r });
+    getDb.mockResolvedValueOnce({
+      select: () => ({
+        from: () => ({
+          where: () => rows([{ id: 9, firstName: "Pat", phone: "2165550142" }]),
+          innerJoin: () => ({ where: () => rows([]) }), // no cooldown hit
+        }),
+      }),
+    });
+    sendSms.mockResolvedValue({ success: true, heldOut: true, experimentId: "contact:weather_first_freeze:v1" });
+
+    await checkWeatherTriggers();
+
+    expect(sendSms).toHaveBeenCalledWith("2165550142", expect.any(String), expect.objectContaining({ variantKey: "weather_first_freeze" }));
+    // An sms_messages row would put a control customer in the treatment readout.
+    expect(logOutboundSms).not.toHaveBeenCalled();
+    expect(alertSystem).not.toHaveBeenCalledWith(expect.stringMatching(/^Weather SMS/), expect.anything());
+  });
+
+  it("control: a real weather send IS logged (so the held-out assertion above is live)", async () => {
+    freezeTonight();
+    process.env.WEATHER_SMS_SEND = "1";
+    const rows = (r: unknown[]) => ({ limit: async () => r });
+    getDb.mockResolvedValueOnce({
+      select: () => ({
+        from: () => ({
+          where: () => rows([{ id: 9, firstName: "Pat", phone: "2165550142" }]),
+          innerJoin: () => ({ where: () => rows([]) }),
+        }),
+      }),
+    });
+    sendSms.mockResolvedValue({ success: true, sid: "SM1" });
+
+    await checkWeatherTriggers();
+
+    expect(logOutboundSms).toHaveBeenCalledTimes(1);
   });
 
   it("does not hand a days-ahead trigger to SMS even when armed", async () => {

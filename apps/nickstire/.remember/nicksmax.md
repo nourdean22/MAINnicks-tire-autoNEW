@@ -63,24 +63,17 @@ LIVE VERIFIED:
 
 ## Office Intelligence production runtime - 2026-09-28/29
 
-LIVE ON NICKSMAX:
-- NICKS EUCLID (`T8410P5225154105`) now has a headless local recording route at `http://127.0.0.1:3000/record/T8410P5225154105`; live probing returned H.264 + AAC 16 kHz mono. Chrome and the Windows mic are not production dependencies.
-- `StateNour-OfficeIntelligence-NicksMax` is the sole Office interaction worker and was commissioned as SYSTEM / AtStartup. The durable Eufy installer owns Bridge + Agent only and disables legacy `StateNour-Eufy-OfficeWake` if found.
-- Current worker receipt advances continuously as `workerOk=true`, `state=OFF_HOURS`, source `eufy-office`, host `NICKSMAX`, STT `whisper-cli.exe`, queue 0, failures 0. Ledger confirms event-bridge connection.
-- The live Eufy agent reads that receipt and folds it into the authoritative `office` heartbeat. Local payload proof: `p2-nicksmax-*`, `PRODUCTION`, source generation `T8410P5225154105`, with worker state/source/host/STT/queue/failure facets.
-- A real 15-second camera-audio commissioning run wrote a valid ~447 KB WAV but correctly produced zero episodes because the room was quiet (~ -71.8 dBFS mean, -50.6 dBFS peak; speech gate -35 dB).
-- Eufy remains on 3000/1984/8654/8655 and V380 remains on 8554/8555.
-
-CURRENT OFFICE-INTELLIGENCE TRUTH:
-- PR #2759 is deployed; the production conversation-ingest route and Admin Office-intelligence surface are live. The remaining receipt is an automatic real episode, not an Admin deployment.
-- The camera reports motion enabled and the bridge has live FCM/MQTT transport, but an in-hours raw event watch observed no `motion` / `personDetected` semantic events. Vendor push is therefore not sufficient as the sole wake source.
-- The live bridge launcher was fixed after `spawn ffmpeg ENOENT` showed its helper could not find ffmpeg. A real `/stream/T8410P5225154105` probe succeeded after restart. The durable Eufy installer is being fixed in `feat/office-audio-fallback-20260929` so recommissioning preserves that PATH.
-- The fallback branch adds short non-retained audio-energy probes as a secondary wake signal. Wake now requires both sustained mean + peak level, and the dedicated fallback cooldown starts only after an `audioActivity` capture finishes.
-- The installer now requires explicit `-AcknowledgeRecordingPolicy` and otherwise fails closed before mutation; it no longer self-sets policy approval. Issue #2628 still leaves counsel/recording-policy review open, so production fallback remains disabled.
-- Live dry-run canaries proved real office speech: canary 1 reached 0.991 transcript coverage; canary 2 reached 1.000 coverage. These prove the technical path only.
-- Focused Office verification is 64/64 green, including direct async fallback-worker coverage for active-capture skip, post-capture cooldown, and probe error -> DEGRADED.
-- The canaries were intentionally dry-run, so no production Admin episode was posted. Do not claim a real automatic summary until policy approval is resolved and an authorized production wake completes ingest and becomes visible in Admin.
-
+LIVE VERIFIED END-TO-END:
+- NICKS EUCLID (`T8410P5225154105`) has a headless local recording route at `http://127.0.0.1:3000/record/T8410P5225154105`; Chrome and the Windows mic are not production dependencies.
+- `StateNour-OfficeIntelligence-NicksMax` is the sole Office interaction worker. It was recreated from the hardened #2786 installer after activation and uses the existing local Whisper pipeline.
+- User explicitly cleared the recording-policy gate on 2026-09-29; machine flags were verified `capture=1`, `policyAck=1`, `fallback=1`.
+- Eufy semantic pushes remain unreliable as a sole wake source, so #2786's non-retained audio-energy fallback is active. Wake requires both sustained mean + peak thresholds, and cooldown begins after fallback capture finishes.
+- First real automatic production run woke on `audioActivity` at 17:35:54Z with probe mean -48.2 dBFS / peak -27.1 dBFS, then completed bounded capture -> segmentation -> Whisper -> production ingest.
+- Final live receipt at 17:39:57Z: 5 segments found, 5 prepared, 5 transcribed, 5 posted, 0 failed; coverages 1.000 / 0.911 / 0.919 / 0.742 / 0.167; one summary stored; one fact stored; STT latency 25,086 ms.
+- Worker returned `READY`; fallback moved to `COOLDOWN`; failures today stayed 0.
+- Admin read path is wired: `trpc.lot.conversations` reads `conversation_episodes`, hides self-tests, recomputes coverage, and returns summary/fact count to **Admin -> Lot -> Office intelligence -> Counter conversations**. Raw audio/full transcripts remain hidden from that screen.
+- Eufy remained healthy (6 devices, 0 errors) and sign ports 8554/8555/9095 stayed healthy throughout activation.
+- PR #2786 is merged as `59c34109e5cc861419011fb769bc693edd81c140`. No additional runtime code change was needed for the successful production receipt.
 Health boundary:
 - NICKS EUCLID media is healthy. The old Moes P2P timeout / `hubStatus=false` evidence is historical and must not be used to describe current Office health.
 - `UNVERIFIED_CAPABILITIES` is currently honest: fresh semantic-event proof, PTZ/control receipt, and calibrated-home proof are still unknown in the current producer process.

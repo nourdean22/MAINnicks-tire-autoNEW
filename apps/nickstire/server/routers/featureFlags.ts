@@ -8,8 +8,12 @@ import { logAdminAction } from "../services/auditTrail";
 
 export const featureFlagsRouter = router({
   list: dbAdminProcedure.query(async () => {
-    const { getAllFlags } = await import("../services/featureFlags");
-    return getAllFlags();
+    const { getAllFlags, FLAG_DEFINITIONS } = await import("../services/featureFlags");
+    // Only flags the code still defines. seedFlags inserts a row per definition
+    // at boot and nothing deletes a retired one (e.g. contact_holdout_drip), so
+    // listing raw rows showed switches that `toggle` rejects and nothing reads.
+    const known = new Set<string>(FLAG_DEFINITIONS.map((f) => f.key));
+    return (await getAllFlags()).filter((f) => known.has(f.key));
   }),
 
   toggle: adminProcedure
