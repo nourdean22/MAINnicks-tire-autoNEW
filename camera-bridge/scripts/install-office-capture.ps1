@@ -28,6 +28,13 @@ param(
   [string]$ScheduleJson = '{"mon":"08:00-18:00","tue":"08:00-18:00","wed":"08:00-18:00","thu":"08:00-18:00","fri":"08:00-18:00","sat":"08:00-18:00","sun":"09:00-16:00"}',
   [double]$WindowSeconds = 120,
   [double]$CooldownSeconds = 30,
+  [switch]$AcknowledgeRecordingPolicy,
+  [switch]$EnableAudioFallback,
+  [double]$AudioProbeSeconds = 5,
+  [double]$AudioProbeIntervalSeconds = 15,
+  [double]$AudioActivityMeanDb = -50,
+  [double]$AudioActivityMaxDb = -34,
+  [double]$AudioFallbackCooldownSeconds = 180,
   [double]$RetentionHours = 6,
   [double]$RetentionMaxMb = 256,
   [double]$MinFreeMb = 768,
@@ -135,6 +142,10 @@ if ($ProbeOnly) {
   exit 0
 }
 
+if (-not $AcknowledgeRecordingPolicy) {
+  Fail "recording policy has not been explicitly acknowledged" "after the applicable notice/consent and counsel review is complete, rerun with -AcknowledgeRecordingPolicy"
+}
+
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) { Fail "installer is not elevated" "re-run PowerShell as Administrator" }
 
@@ -171,7 +182,7 @@ $envs = @{
   "EUFY_BRIDGE_URL" = $BridgeUrl
   "EUFY_OFFICE_CAMERA_SERIAL" = $OfficeSerial
   "OFFICE_INTERACTION_CAPTURE_ENABLED" = "1"
-  "OFFICE_AUDIO_POLICY_ACK" = "1"
+  "OFFICE_AUDIO_POLICY_ACK" = $(if ($AcknowledgeRecordingPolicy) { "1" } else { "0" })
   "OFFICE_AUDIO_SOURCE" = $SourceUrl
   "OFFICE_AUDIO_INPUT_FORMAT" = $SourceKind
   "OFFICE_AUDIO_SOURCE_NAME" = $episodeSource
@@ -183,6 +194,12 @@ $envs = @{
   "OFFICE_WHISPER_MODEL" = $WhisperModel
   "OFFICE_CAPTURE_SECONDS" = [string]$WindowSeconds
   "OFFICE_CAPTURE_COOLDOWN_SECONDS" = [string]$CooldownSeconds
+  "OFFICE_AUDIO_FALLBACK_ENABLED" = $(if ($EnableAudioFallback) { "1" } else { "0" })
+  "OFFICE_AUDIO_PROBE_SECONDS" = [string]$AudioProbeSeconds
+  "OFFICE_AUDIO_PROBE_INTERVAL_SECONDS" = [string]$AudioProbeIntervalSeconds
+  "OFFICE_AUDIO_ACTIVITY_MEAN_DB" = [string]$AudioActivityMeanDb
+  "OFFICE_AUDIO_ACTIVITY_MAX_DB" = [string]$AudioActivityMaxDb
+  "OFFICE_AUDIO_FALLBACK_COOLDOWN_SECONDS" = [string]$AudioFallbackCooldownSeconds
   "OFFICE_RAW_AUDIO_RETENTION_HOURS" = [string]$RetentionHours
   "OFFICE_RAW_AUDIO_MAX_MB" = [string]$RetentionMaxMb
   "OFFICE_MIN_FREE_MB" = [string]$MinFreeMb
@@ -228,6 +245,7 @@ Write-Host "  task: $TaskName ($taskMode)"
 Write-Host "  trigger camera: $OfficeSerial"
 Write-Host "  audio: $episodeSource / $SourceUrl"
 Write-Host "  capture: $WindowSeconds sec max, $CooldownSeconds sec cooldown"
+Write-Host ("  audio fallback: " + $(if ($EnableAudioFallback) { "enabled ($AudioProbeSeconds sec probe every $AudioProbeIntervalSeconds sec; wake >= $AudioActivityMaxDb dBFS peak; $AudioFallbackCooldownSeconds sec fallback cooldown)" } else { "disabled" }))
 Write-Host "  raw audio: <= $RetentionHours h, <= $RetentionMaxMb MB, disk floor $MinFreeMb MB"
 Write-Host "  status: $StatusPath"
 Write-Host "  summaries: https://nickstire.org/admin -> Lot -> Office intelligence"

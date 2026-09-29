@@ -19,6 +19,27 @@ import { inArray } from "drizzle-orm";
 
 
 export const sectionInsightProcedures = {
+  // Q-27 · reference customer-value ranking. Read-only and deliberately
+  // separate from every SMS/re-engagement action. The response labels its
+  // calibration as external CDNOW, not shop-fitted, so no surface can honestly
+  // present this as predicted revenue.
+  customerValueReferenceRanking: dbAdminProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(100).default(25) }).optional())
+    .query(async ({ input }) => {
+      try {
+        const { getCustomerValueReferenceRanking } = await import("../../../lib/customerValueRanking");
+        return await getCustomerValueReferenceRanking(input?.limit ?? 25);
+      } catch {
+        return {
+          rankingOnly: true as const,
+          calibration: "external-cdnow-reference-not-shop-fitted" as const,
+          horizonWeeks: 13 as const,
+          rows: [],
+          measuredRows: 0,
+        };
+      }
+    }),
+
   // Read-only repeat-customer retention cohorts (one-and-done vs repeat,
   // reactivation-eligible). Powers the customers-section insight below and any
   // retention panel. NOTHING on the SMS send path.

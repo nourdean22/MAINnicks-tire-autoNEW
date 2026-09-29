@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendTelegram } from "@/lib/services/telegram";
+import { sendTelegram, escapeHtml } from "@/lib/services/telegram";
 import { requireSyncAuth } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("webhooks/nickstire");
+
+// Every alert below is sent with parse_mode "HTML" and interpolates customer-written text
+// (names, review text, emergency descriptions). A stray `<` or `&` makes Telegram answer
+// 400 "can't parse entities" and the whole alert is dropped, so every data-derived slot
+// goes through h().
+const h = (v: unknown): string => escapeHtml(v == null ? "" : String(v));
 
 // v10.0.529.106 · Wave 58 · CRITICAL · pre-Wave-58 every sendTelegram
 // in this route swallowed failures with `.catch(() => {})` · meaning
@@ -101,24 +107,26 @@ export async function POST(req: Request) {
       // event's failure (e.g. an emergency Telegram re-throw) 500'd the batch
       // the same way. Guard the shape and isolate each event.
       const { type, data = {}, timestamp } = event ?? {};
+      // Field names below: the bridge's own first (config/nickstire-bridge-events.json,
+      // pinned in tests/api/nickstire-bridge-contract.test.ts), older names kept as fallbacks.
 
       try {
       switch (type) {
         case "nickstire:lead": {
           // Instant lead alert to Telegram
-          const name = data.name || data.customerName || "Unknown";
+          const name = data.customer || data.name || data.customerName || "Unknown";
           const phone = data.phone || "";
           const vehicle = data.vehicle || "";
-          const problem = data.problem || data.service || "";
+          const problem = data.problem || data.service || data.interest || "";
           const value = data.estimatedValue ? `$${data.estimatedValue}` : "";
 
           const delivered = await notifyOrLog(
             () => sendTelegram(
-              `🔴 <b>NEW LEAD — ${name}</b>\n\n` +
-              `📞 ${phone}\n` +
-              `🚗 ${vehicle}\n` +
-              `🔧 ${problem}\n` +
-              (value ? `💰 Est: ${value}\n` : "") +
+              `🔴 <b>NEW LEAD — ${h(name)}</b>\n\n` +
+              `📞 ${h(phone)}\n` +
+              `🚗 ${h(vehicle)}\n` +
+              `🔧 ${h(problem)}\n` +
+              (value ? `💰 Est: ${h(value)}\n` : "") +
               `\n⏱ Response time starts NOW.\nCall within 15 min for max conversion.`,
             ),
             { eventType: type, isEmergency: false },
@@ -132,8 +140,8 @@ export async function POST(req: Request) {
           const delivered = await notifyOrLog(
             () => sendTelegram(
               `📞 <b>CALLBACK REQUEST</b>\n\n` +
-              `${data.name || "Customer"} — ${data.phone || "no phone"}\n` +
-              `${data.reason || ""}\n\n` +
+              `${h(data.customer || data.name || "Customer")} — ${h(data.phone || "no phone")}\n` +
+              `${h(data.reason)}\n\n` +
               `Call back IMMEDIATELY.`,
             ),
             { eventType: type, isEmergency: false },
@@ -149,8 +157,8 @@ export async function POST(req: Request) {
           const delivered = await notifyOrLog(
             () => sendTelegram(
               `🚨 <b>EMERGENCY REQUEST</b>\n\n` +
-              `${data.name || "Customer"} — ${data.phone || "no phone"}\n` +
-              `${data.description || data.problem || ""}\n\n` +
+              `${h(data.name || "Customer")} — ${h(data.phone || "no phone")}\n` +
+              `${h(data.description || data.problem)}\n\n` +
               `After-hours emergency. Respond ASAP.`,
             ),
             { eventType: type, isEmergency: true },
@@ -162,12 +170,16 @@ export async function POST(req: Request) {
 
         case "nickstire:booking:complete":
         case "nickstire:invoice": {
-          const amount = data.totalCents ? (data.totalCents / 100) : data.total || 0;
+          // The bridge sends totalAmount in DOLLARS (null when the completion carries no
+          // invoice). An unknown amount is omitted, never rendered as "$0".
+          const rawAmount = data.totalCents ? data.totalCents / 100 : (data.totalAmount ?? data.total);
+          const amount = rawAmount == null || rawAmount === "" ? null : Number(rawAmount);
+          const amountLabel = amount != null && Number.isFinite(amount) ? ` — $${amount.toFixed(0)}` : "";
           const delivered = await notifyOrLog(
             () => sendTelegram(
-              `✅ <b>JOB COMPLETE — $${amount.toFixed(0)}</b>\n\n` +
-              `${data.customerName || ""} — ${data.vehicle || ""}\n` +
-              `${data.service || data.services || ""}`,
+              `✅ <b>JOB COMPLETE${amountLabel}</b>\n\n` +
+              `${h(data.customer || data.customerName)} — ${h(data.vehicle)}\n` +
+              `${h(data.service || data.services)}`,
             ),
             { eventType: type, isEmergency: false },
           );
@@ -180,9 +192,9 @@ export async function POST(req: Request) {
           const emoji = stars >= 4 ? "⭐" : stars >= 3 ? "😐" : "⚠️";
           const delivered = await notifyOrLog(
             () => sendTelegram(
-              `${emoji} <b>NEW REVIEW — ${stars}/5</b>\n\n` +
-              `${data.customerName || "Customer"}\n` +
-              `"${(data.text || data.comment || "").slice(0, 200)}"\n\n` +
+              `${emoji} <b>NEW REVIEW — ${h(stars)}/5</b>\n\n` +
+              `${h(data.customerName || "Customer")}\n` +
+              `"${h(String(data.reviewText || data.text || data.comment || "").slice(0, 200))}"\n\n` +
               (stars < 4 ? `⚠️ NEGATIVE — draft response ASAP` : `Great review! Consider sharing on social.`),
             ),
             { eventType: type, isEmergency: false },

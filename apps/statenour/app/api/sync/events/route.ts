@@ -42,7 +42,10 @@ export const POST = apiHandler(
         // Create drift alert for negative reviews
         if (event.type === "nickstire:review" && (event.data?.rating as number) <= 3) {
           const today_ = today();
-          const message = `${event.data?.rating}★ review from ${event.data?.author ?? "customer"}: ${String(event.data?.text ?? "").substring(0, 120)}`;
+          // Bridge fields first (config/nickstire-bridge-events.json); older names as fallbacks.
+          const author = event.data?.customerName ?? event.data?.author ?? "customer";
+          const text = event.data?.reviewText ?? event.data?.text ?? "";
+          const message = `${event.data?.rating}★ review from ${author}: ${String(text).substring(0, 120)}`;
           const coachEvent = await recordCoachEvent({
             kind: "drift-recovery",
             subjectId: "negative_review",
@@ -67,7 +70,7 @@ export const POST = apiHandler(
         // Create drift alert for callback overdue
         if (event.type === "nickstire:callback") {
           const today_ = today();
-          const message = `Callback: ${event.data?.name ?? "Unknown"} — ${event.data?.phone ?? "no phone"}`;
+          const message = `Callback: ${event.data?.customer ?? event.data?.name ?? "Unknown"} — ${event.data?.phone ?? "no phone"}`;
           const coachEvent = await recordCoachEvent({
             kind: "drift-recovery",
             subjectId: "callback_requested",

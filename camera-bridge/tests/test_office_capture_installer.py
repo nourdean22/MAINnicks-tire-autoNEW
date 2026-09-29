@@ -132,6 +132,19 @@ def test_task_arguments_do_not_embed_source_or_ingest_key():
     assert '"OFFICE_AUDIO_SOURCE_NAME" = $episodeSource' in text
 
 
+
+
+def test_installer_requires_explicit_recording_policy_acknowledgment():
+    text = source()
+    assert "[switch]$AcknowledgeRecordingPolicy" in text
+    assert "if (-not $AcknowledgeRecordingPolicy)" in text
+    assert "recording policy has not been explicitly acknowledged" in text
+    assert (
+        '"OFFICE_AUDIO_POLICY_ACK" = $(if ($AcknowledgeRecordingPolicy) { "1" } else { "0" })'
+        in text
+    )
+
+
 def test_installer_disables_legacy_continuous_task_and_self_restarts():
     text = source()
     assert 'Get-ScheduledTask -TaskName "NickOfficeCapture"' in text

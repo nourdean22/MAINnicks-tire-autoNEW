@@ -129,6 +129,41 @@ def measure_level(path: str, binary: Optional[str] = None) -> tuple[Optional[flo
     return (found.get("mean"), found.get("max"))
 
 
+def probe_level(
+    source_url: str,
+    seconds: float,
+    *,
+    binary: Optional[str] = None,
+    input_format: str = "auto",
+) -> tuple[Optional[float], Optional[float]]:
+    """Measure a short live source without writing or retaining probe audio."""
+    ff = _ffmpeg(binary)
+    proc = subprocess.run(
+        [
+            ff,
+            "-hide_banner",
+            *_input_args(source_url, input_format),
+            "-vn",
+            "-t",
+            str(max(0.5, float(seconds))),
+            "-af",
+            "volumedetect",
+            "-f",
+            "null",
+            os.devnull,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=max(30.0, float(seconds) + 30.0),
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"audio probe failed (rc={proc.returncode}): {(proc.stderr or '')[-300:]}"
+        )
+    found = {k: float(v) for k, v in _VOL_RE.findall(proc.stderr or "")}
+    return (found.get("mean"), found.get("max"))
+
+
 def _wav_duration(path: str) -> float:
     """Return the duration actually written to a PCM WAV.
 

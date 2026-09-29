@@ -16,6 +16,9 @@ from vision.officewake import (
     OfficeWakeDaemon,
     Trigger,
     active_window_remaining_seconds,
+    audio_activity_detected,
+    audio_fallback_in_cooldown,
+    audio_fallback_worker,
     decide_event,
     parse_schedule,
     prune_audio,
@@ -138,6 +141,172 @@ def test_capture_path_fails_closed_until_policy_media_and_enablement_exist():
         at=MONDAY_10AM,
     )
     assert decision.action == "capture"
+
+
+
+
+
+def test_audio_activity_threshold_requires_sustained_mean_and_peak():
+    assert audio_activity_detected(
+        -45.0, -30.0, mean_threshold_db=-50.0, max_threshold_db=-34.0
+    )
+    assert not audio_activity_detected(
+        -60.0, -20.0, mean_threshold_db=-50.0, max_threshold_db=-34.0
+    )
+    assert not audio_activity_detected(
+        -40.0, -38.0, mean_threshold_db=-50.0, max_threshold_db=-34.0
+    )
+    assert not audio_activity_detected(
+        None, -20.0, mean_threshold_db=-50.0, max_threshold_db=-34.0
+    )
+
+
+def test_audio_fallback_cooldown_is_independent_and_bounded():
+    assert not audio_fallback_in_cooldown(None, now=100.0, cooldown_seconds=60.0)
+    assert audio_fallback_in_cooldown(50.0, now=100.0, cooldown_seconds=60.0)
+    assert not audio_fallback_in_cooldown(40.0, now=100.0, cooldown_seconds=60.0)
+    assert not audio_fallback_in_cooldown(100.0, now=100.0, cooldown_seconds=0.0)
+
+
+def test_audio_activity_wake_requires_explicit_fallback_enablement():
+    blocked = config(
+        capture_mode=True,
+        capture_enabled=True,
+        policy_acknowledged=True,
+        source_url="http://127.0.0.1:3000/record/office",
+        audio_fallback_enabled=False,
+    )
+    decision = decide_event(
+        blocked,
+        {"event": "audioActivity", "deviceSn": OFFICE, "detected": True},
+        at=MONDAY_10AM,
+    )
+    assert decision.action == "drop"
+    assert decision.reason == "event not enabled"
+
+    allowed = config(
+        capture_mode=True,
+        capture_enabled=True,
+        policy_acknowledged=True,
+        source_url="http://127.0.0.1:3000/record/office",
+        audio_fallback_enabled=True,
+    )
+    decision = decide_event(
+        allowed,
+        {"event": "audioActivity", "deviceSn": OFFICE, "detected": True},
+        at=MONDAY_10AM,
+    )
+    assert decision.action == "capture"
+
+
+
+def test_audio_fallback_worker_skips_probe_while_capturing():
+    async def scenario():
+        calls = []
+        cfg = config(
+            capture_mode=True,
+            capture_enabled=True,
+            policy_acknowledged=True,
+            source_url="rtsp://verified-media-source",
+            audio_fallback_enabled=True,
+        )
+        daemon = OfficeWakeDaemon(cfg, ledger=MemoryLedger(), clock=lambda: MONDAY_10AM)
+        daemon.runtime_state = "CAPTURING"
+
+        def probe(*args, **kwargs):
+            calls.append((args, kwargs))
+            return (-40.0, -20.0)
+
+        task = asyncio.create_task(audio_fallback_worker(daemon, probe_fn=probe))
+        try:
+            await asyncio.sleep(0.05)
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        assert calls == []
+
+    asyncio.run(scenario())
+
+
+def test_audio_fallback_worker_respects_post_capture_cooldown():
+    async def scenario():
+        calls = []
+        cfg = config(
+            capture_mode=True,
+            capture_enabled=True,
+            policy_acknowledged=True,
+            source_url="rtsp://verified-media-source",
+            audio_fallback_enabled=True,
+            audio_fallback_cooldown_seconds=180.0,
+        )
+        daemon = OfficeWakeDaemon(cfg, ledger=MemoryLedger(), clock=lambda: MONDAY_10AM)
+        daemon.runtime_state = "READY"
+        daemon.last_audio_fallback_finished_at = MONDAY_10AM - 30.0
+
+        def probe(*args, **kwargs):
+            calls.append((args, kwargs))
+            return (-40.0, -20.0)
+
+        task = asyncio.create_task(audio_fallback_worker(daemon, probe_fn=probe))
+        try:
+            for _ in range(20):
+                if daemon.runtime.state.get("conversationFallbackState") == "COOLDOWN":
+                    break
+                await asyncio.sleep(0.01)
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        assert calls == []
+        assert daemon.runtime.state.get("conversationFallbackState") == "COOLDOWN"
+
+    asyncio.run(scenario())
+
+
+def test_audio_fallback_worker_marks_probe_error_degraded():
+    async def scenario():
+        ledger = MemoryLedger()
+        cfg = config(
+            capture_mode=True,
+            capture_enabled=True,
+            policy_acknowledged=True,
+            source_url="rtsp://verified-media-source",
+            audio_fallback_enabled=True,
+        )
+        daemon = OfficeWakeDaemon(cfg, ledger=ledger, clock=lambda: MONDAY_10AM)
+        daemon.runtime_state = "READY"
+
+        def probe(*args, **kwargs):
+            raise RuntimeError("probe exploded")
+
+        task = asyncio.create_task(audio_fallback_worker(daemon, probe_fn=probe))
+        try:
+            for _ in range(20):
+                if daemon.runtime.state.get("conversationFallbackState") == "DEGRADED":
+                    break
+                await asyncio.sleep(0.01)
+        finally:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        assert daemon.runtime.state.get("conversationFallbackState") == "DEGRADED"
+        assert daemon.runtime.state.get("conversationFallbackOk") is False
+        assert "probe exploded" in str(
+            daemon.runtime.state.get("conversationFallbackLastError")
+        )
+        assert any(kind == "audio_fallback_error" for kind, _ in ledger.rows)
+
+    asyncio.run(scenario())
 
 
 def test_event_wake_passes_local_mic_input_format_to_capture(tmp_path):

@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "Q-46 DVI approval receipt (2026-09-29): no capability-ledger row covers the inspection share link and no state moves. This diff adds an inspection.item_decided audit_log row per customer decision (amount stored, amount shown, DB decision time) and fixes the owner Telegram alert that divided whole-dollar estimatedCost by 100. Proof is unit-level only: server/inspectionDecisionReceipt.test.ts 6/6 green, 5 of 6 red on main first. No production decision has been observed writing a receipt (migration 0110, whose columns the write uses, is recorded applied 2026-08-12 in docs/CURRENT-TRUTH.md), so nothing here earns a ledger promotion."
+    }
+  }
+}

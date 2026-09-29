@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-28T01:40:00.371Z",
-  "count": 756,
+  "generatedAt": "2026-09-29T14:27:26.456Z",
+  "count": 757,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -358,6 +358,7 @@
     "mutation.workOrders.updatePartStatus",
     "query.activity.recent",
     "query.adminDashboard.capiStatus",
+    "query.adminDashboard.customerValueReferenceRanking",
     "query.adminDashboard.dbCleanupScan",
     "query.adminDashboard.drilldown",
     "query.adminDashboard.integrationFailures",

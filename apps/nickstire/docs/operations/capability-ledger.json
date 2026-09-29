@@ -2679,6 +2679,96 @@
       "codeState": "merged",
       "operationalState": "live_verified",
       "exposure": "internal"
+    },
+    {
+      "capabilityId": "reality-event-envelope-q25",
+      "name": "Versioned RealityEvent registry + correlation/causation envelope",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unverified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch feat/nouros-carousel-q25-q27-current-20260929: StateNour RealityEvent registry, existing DomainEventEnvelope adapter/projection, Episode lineage, Nick evidence-ledger envelope support, additive pending migration.",
+        "tests": [
+          "Branch tests added: apps/statenour/tests/events/reality-event-registry.test.ts",
+          "Branch tests extended: apps/statenour/tests/events/envelope-adapters.test.ts, apps/statenour/tests/api/sync-evidence.test.ts, apps/statenour/tests/intelligence/episodes.test.ts",
+          "Exact-head CI is still pending; no green status is claimed by this ledger row."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Operator must apply and read back the additive StateNour RealityEvent migration before any production code may rely on the new columns."
+        },
+        {
+          "severity": "P3",
+          "description": "Exact-head CI and post-deploy ingestion/projection observation are still pending."
+        }
+      ],
+      "deferredScope": [
+        "Production migration apply/read-back.",
+        "Production event ingestion/projection receipt after deploy."
+      ],
+      "lastVerifiedAt": "2026-09-29"
+    },
+    {
+      "capabilityId": "business-data-contracts-q26",
+      "name": "Business-table freshness + weekday-seasonal volume contracts",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unverified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch feat/nouros-carousel-q25-q27-current-20260929: shared/businessDataContracts.ts, MetricEnvelope freshness field, and data-accuracy-check wiring.",
+        "tests": [
+          "Branch tests added: apps/nickstire/shared/businessDataContracts.test.ts",
+          "Exact-head CI is still pending; no production cron observation is claimed."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Thresholds have not yet been observed against production weekday history; exact-head CI and live data-accuracy-check observation are pending."
+        }
+      ],
+      "deferredScope": [
+        "Calibrate warn/error thresholds only after observing real same-weekday history; do not tune by intuition.",
+        "No event table is called stale merely because business volume is zero."
+      ],
+      "lastVerifiedAt": "2026-09-29"
+    },
+    {
+      "capabilityId": "customer-value-reference-ranking-q27",
+      "name": "BG/NBD + Gamma-Gamma customer-value reference ranking",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unverified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch feat/nouros-carousel-q25-q27-current-20260929: pure BG/NBD/Gamma-Gamma kernel, CDNOW goldens, read-only customer ranking service, and admin read procedure.",
+        "tests": [
+          "Branch tests added: apps/nickstire/shared/customerValueModel.test.ts and apps/nickstire/server/lib/customerValueRanking.test.ts",
+          "Exact-head CI is still pending. The model is explicitly external-cdnow-reference-not-shop-fitted."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "The CDNOW fit is an external reference, not Nick's calibration. It must remain ranking-only and may not be labeled predicted revenue or drive customer sends."
+        },
+        {
+          "severity": "P3",
+          "description": "Shop-specific backtest/calibration is unmeasured."
+        }
+      ],
+      "deferredScope": [
+        "No SMS, campaign, winback, or autonomous action wiring.",
+        "No revenue/CLV promise until shop-specific calibration and outcome evaluation exist."
+      ],
+      "lastVerifiedAt": "2026-09-29"
     }
   ],
   "axes": {
