@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "apps/nickstire/server/cron/drainClaims.test.ts (F5, PR #2771): once the SIGTERM drain begins claimStartupPass sends no statement and returns via 'draining' (never fires); a claim overtaken mid-query is released and the next container claims it; the real startTieredScheduler takes no boot or wall-clock slot after stopTieredScheduler. Red on origin/main 91ab0048: 7 of 9 failed (only the not-draining controls passed); 4 mutations each caught."
+    }
+  }
+}

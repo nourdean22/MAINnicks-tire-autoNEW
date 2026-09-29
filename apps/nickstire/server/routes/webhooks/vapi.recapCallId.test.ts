@@ -45,6 +45,7 @@ vi.mock("../../services/smsOrchestrator", () => ({
 }));
 
 import { vapiWebhookRouter } from "./vapi";
+import { BUSINESS } from "../../../shared/business";
 
 let server: http.Server;
 let port: number;
@@ -222,6 +223,42 @@ describe("a recap the orchestrator reports as already delivered", () => {
   });
   it("drafted (held for review) -> not sent, degraded", async () => {
     expect(await result("drafted")).toMatchObject({ sent: false, degraded: true });
+  });
+});
+
+// audit 2026-09-29 · every degraded recap used to open "Texts are temporarily
+// down", including a text held as a draft, queued for the morning window, or
+// timed out while the gateway may still deliver it. Texts were not down. What
+// Nick reads aloud must be true in each case, and still carry the address.
+describe("the spoken fallback on a degraded recap", () => {
+  const spoken = async (status: string) => {
+    h.status = status;
+    const res = await postEvent(recapCall(`call-spoken-${status}`));
+    const r = JSON.parse(res.body.results?.[0]?.result ?? "{}") as Record<string, unknown>;
+    expect(r.degraded).toBe(true);
+    return String(r.verbalRecap);
+  };
+
+  for (const status of ["failed", "drafted", "queued", "sending"]) {
+    it(`${status}: never claims texts are down, and still reads the address`, async () => {
+      const line = await spoken(status);
+      expect(line).not.toMatch(/down|disabled|not working|outage/i);
+      expect(line).toContain("17625 Euclid Avenue");
+      expect(line).toContain("2 1 6 8 6 2 0 0 0 5");
+    });
+  }
+
+  it("reads the hours from the shop's hours, not a copy that can drift", async () => {
+    const hours = BUSINESS.hours.structured as Record<string, string>;
+    const saved = hours.saturday;
+    try {
+      hours.saturday = "09:00-15:00";
+      expect(await spoken("failed")).toContain("Monday through Friday 8 to 6, Saturday 9 to 3, Sunday 9 to 4");
+    } finally {
+      hours.saturday = saved;
+    }
+    // Positive control: the real hours read the way the site states them.
+    expect(await spoken("failed")).toContain("Monday through Saturday 8 to 6, Sunday 9 to 4");
   });
 });
 

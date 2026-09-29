@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "2026-09-29 declined-work manual lanes (server/cron/jobs/declinedWorkRecovery.ts): server/cron/jobs/declinedWorkRecovery.manualLanes.test.ts pins the fail-closed paths. A failed estimate-invoice match sends nothing (the sender is never called, recordsProcessed 0, details say nothing was sent). An explicit dryRun never sends, even with FEATURE_DECLINED_RECOVERY=1 or skipDryRunGate. Red 7 of 7 on origin/main 1f7084b57, green after; mutants 'sends after a failed match' and 'dryRun does not win' each fail 1 test. The scheduled tier keeps its own requiresSuccessfulJobs gate on estimate-invoice-match, unchanged."
+    }
+  }
+}

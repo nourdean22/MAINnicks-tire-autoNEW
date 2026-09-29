@@ -720,7 +720,7 @@ export async function pruneTools(
     const helpTools = [
       "getTasks", "createTask", "addTasksToProject", "completeTask", "setTaskPriority",
       "getCommitments", "createCommitment", "updateCommitment",
-      "getMissions", "createMissionPlan",
+      "getMissions", "createMissionPlan", "queueMissionExecution",
       "dailyPulse", "weeklyReview", "endOfDay",
       "searchMemories", "searchColdMemory", "searchConversations",
       "findCustomer", "queryNickstire", "compareLiveRevenue",

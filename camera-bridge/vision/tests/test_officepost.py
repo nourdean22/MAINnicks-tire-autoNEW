@@ -151,6 +151,25 @@ def test_a_genuinely_quiet_clip_carries_NO_error():
     assert p["transcriptError"] is None and p["coveredSeconds"] == 0.0
 
 
+def test_payload_carries_trigger_capture_and_stt_provenance():
+    tr = Transcript([], engine="whisper-cli.exe", latency_ms=7129, model="ggml-base-q5_1.bin")
+    p = build_payload(
+        _Seg(),
+        tr,
+        camera_serial="T8410P5225154105",
+        capture_host="NICKSMAX",
+        trigger_type="personDetected",
+        triggered_at=1_700_000_001.5,
+    )
+    assert p["cameraSerial"] == "T8410P5225154105"
+    assert p["captureHost"] == "NICKSMAX"
+    assert p["triggerType"] == "personDetected"
+    assert p["triggeredAt"] == 1_700_000_001.5
+    assert p["sttEngine"] == "whisper-cli.exe"
+    assert p["sttModel"] == "ggml-base-q5_1.bin"
+    assert p["sttLatencyMs"] == 7129
+
+
 # ------------------------------------------------------------------ posting
 
 def test_posting_without_the_key_FAILS_LOUD_rather_than_401ing_silently(monkeypatch):

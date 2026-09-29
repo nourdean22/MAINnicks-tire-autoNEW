@@ -60,6 +60,22 @@ LIVE VERIFIED:
 - A forced NICKS EUCLID media probe read real media successfully: `mediaPlaneOk=true`, `lastMediaProofAt=2026-09-29T00:20:11.894521+00:00`.
 - Nick production accepted the corrected producer at 00:19:11Z as `office seq=1 state=UNVERIFIED_CAPABILITIES`, explicitly transitioning `MEDIA_DEGRADED -> UNVERIFIED_CAPABILITIES`; heartbeats continued through at least `seq=16` at 00:28:15Z.
 
+
+## Office Intelligence production runtime - 2026-09-28/29
+
+LIVE ON NICKSMAX:
+- NICKS EUCLID (`T8410P5225154105`) now has a headless local recording route at `http://127.0.0.1:3000/record/T8410P5225154105`; live probing returned H.264 + AAC 16 kHz mono. Chrome and the Windows mic are not production dependencies.
+- `StateNour-OfficeIntelligence-NicksMax` is the sole Office interaction worker and was commissioned as SYSTEM / AtStartup. The durable Eufy installer owns Bridge + Agent only and disables legacy `StateNour-Eufy-OfficeWake` if found.
+- Current worker receipt advances continuously as `workerOk=true`, `state=OFF_HOURS`, source `eufy-office`, host `NICKSMAX`, STT `whisper-cli.exe`, queue 0, failures 0. Ledger confirms event-bridge connection.
+- The live Eufy agent reads that receipt and folds it into the authoritative `office` heartbeat. Local payload proof: `p2-nicksmax-*`, `PRODUCTION`, source generation `T8410P5225154105`, with worker state/source/host/STT/queue/failure facets.
+- A real 15-second camera-audio commissioning run wrote a valid ~447 KB WAV but correctly produced zero episodes because the room was quiet (~ -71.8 dBFS mean, -50.6 dBFS peak; speech gate -35 dB).
+- Eufy remains on 3000/1984/8654/8655 and V380 remains on 8554/8555.
+
+BUILT/TESTED, NOT YET A PRODUCTION ADMIN RECEIPT:
+- Branch `feat/office-intelligence-20260929` adds the unified Admin -> Lot -> Office intelligence cockpit, conversation-worker facets on `camera_runtime.office`, episode provenance, and evidence-gated summary ingest.
+- Focused verification passed 76 Office tests, 38 Eufy tests, 63 Nick/Admin tests; latest duplicate-owner cleanup passed 12/12 Eufy installer tests.
+- Still required after deploy: one real in-hours person/motion -> bounded capture -> Whisper -> evidence/coverage -> conversation episode -> visible Admin summary. Do not claim a production customer summary before that receipt exists.
+
 Health boundary:
 - NICKS EUCLID media is healthy. The old Moes P2P timeout / `hubStatus=false` evidence is historical and must not be used to describe current Office health.
 - `UNVERIFIED_CAPABILITIES` is currently honest: fresh semantic-event proof, PTZ/control receipt, and calibrated-home proof are still unknown in the current producer process.

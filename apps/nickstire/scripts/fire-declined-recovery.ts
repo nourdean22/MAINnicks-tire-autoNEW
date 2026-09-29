@@ -1,7 +1,8 @@
 /**
  * wave-181.73 · operator one-shot · drain the declined-work backlog NOW.
  *
- * Calls the same runDeclinedWorkRecovery() function the daily cron uses
+ * Calls runDeclinedWorkRecoveryAfterMatch(): the estimate-invoice match the
+ * daily tier runs first, then the same runDeclinedWorkRecovery() the cron uses
  * — same code path, same safety guards (wave-181.59 at-most-once claim
  * via followUp{N}dAttemptedAt · wave-181.60 TCPA opt-out hoisted above
  * routing · wave-181.64 8AM-8PM ET sending window enforced per-message
@@ -22,9 +23,10 @@
  * Flags:
  *   --max=N      · per-run cap override (default 50 · hard ceiling 500)
  *   --confirm    · skip the 10s "are you sure" pause (for known-good runs)
- *   --dry-run    · log what would send but don't actually fire SMS · runs
- *                  the eligibility query + opt-out check + claim attempt
- *                  but ABORTS before sendSms call. Useful for sizing.
+ *   --dry-run    · report only: the match runs in dry-run mode (no writes)
+ *                  and the sender takes its report path (no claims, no
+ *                  SMS), whatever FEATURE_DECLINED_RECOVERY says. Useful
+ *                  for sizing.
  *
  * Safety: this script bypasses the FEATURE_DECLINED_RECOVERY env gate
  * (skipDryRunGate: true) because running this script IS the operator's
@@ -123,7 +125,9 @@ async function main(): Promise<void> {
     console.log("\n");
   }
 
-  const { runDeclinedWorkRecovery } = await import(
+  // Match estimates to invoices first, like the scheduled lane: an estimate paid
+  // since the last match still looks declined and would be texted.
+  const { runDeclinedWorkRecoveryAfterMatch } = await import(
     "../server/cron/jobs/declinedWorkRecovery"
   );
 
@@ -138,15 +142,18 @@ async function main(): Promise<void> {
     // affect any future code in the same Node session). Just omit
     // skipDryRunGate · the cron defaults to dry-run when the env flag
     // is "1"-less.
-    const result = await runDeclinedWorkRecovery({
+    // 2026-09-29 · omitting skipDryRunGate was not enough: with
+    // FEATURE_DECLINED_RECOVERY=1 in the env this "dry run" SENT. dryRun
+    // now forces the report path, and the match runs in dry-run mode too.
+    const result = await runDeclinedWorkRecoveryAfterMatch({
       maxSends: max,
       bypassBusinessHoursCheck: true,
-      // intentionally NOT skipDryRunGate · we want the dry-run report
+      dryRun: true,
     });
     console.log(`\nDRY-RUN result:`);
     console.log(JSON.stringify(result, null, 2));
   } else {
-    const result = await runDeclinedWorkRecovery({
+    const result = await runDeclinedWorkRecoveryAfterMatch({
       maxSends: max,
       bypassBusinessHoursCheck: true,
       skipDryRunGate: true,

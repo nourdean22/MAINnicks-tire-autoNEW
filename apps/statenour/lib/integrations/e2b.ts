@@ -25,7 +25,8 @@
  * of pretending he ran the code.
  *
  * Safety:
- *   · No network access from the sandbox by default
+ *   · Network access is explicitly denied on every sandbox create. E2B defaults
+ *     internet access ON, so this must never rely on the vendor default.
  *   · 60-second wall-clock timeout per invocation
  *   · Sandbox auto-destroys after the run completes
  *   · No filesystem persistence — every run starts clean
@@ -80,6 +81,10 @@ export async function runPython(code: string): Promise<PythonRunResult> {
     sandbox = (await Sandbox.create({
       apiKey,
       timeoutMs: E2B_TIMEOUT_MS,
+      // E2B's SDK defaults internet access to true. Toolsmith/runPython must
+      // fail closed: generated code gets no egress unless a future, separately
+      // governed capability broker explicitly grants it.
+      allowInternetAccess: false,
     })) as unknown as {
       runCode: (code: string) => Promise<unknown>;
       kill: () => Promise<void>;

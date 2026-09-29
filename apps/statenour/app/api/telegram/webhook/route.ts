@@ -1894,9 +1894,12 @@ async function handlePhoto(
     let analysisText = "";
 
     // Primary: Anthropic Claude (native vision support)
+    let photoModel = "";
     if (anthropicKey) {
       try {
         const { resolveProviderModel } = await import("@/lib/ai/provider");
+        const { claudeThinkingOffParams } = await import("@/lib/ai/claude5-compat");
+        photoModel = resolveProviderModel("anthropic", "vision");
         const aRes = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -1908,10 +1911,12 @@ async function handlePhoto(
             // Central registry, not a literal: the literal here was
             // claude-3-5-sonnet-latest (retired 2025-10-28): with ANTHROPIC_MODEL
             // unset, photos silently degraded to caption-only analysis.
-            model: resolveProviderModel("anthropic", "vision"),
+            model: photoModel,
             max_tokens: 500,
             // Sonnet 5 thinks adaptively by default; thinking shares max_tokens.
-            thinking: { type: "disabled" },
+            // Thinking off in whichever form this model accepts: Opus 5.5,
+            // Sonnet 5.5 and Fable 400 on `disabled` (lib/ai/claude5-compat.ts).
+            ...claudeThinkingOffParams(photoModel),
             messages: [{
               role: "user",
               content: [
@@ -1927,10 +1932,23 @@ async function handlePhoto(
           analysisText =
             aData.content?.filter((c) => c.type === "text").map((c) => c.text ?? "").join("") ?? "";
         } else {
-          console.warn("[telegram:webhook] photo analysis: Anthropic HTTP", aRes.status);
+          // Model id + Anthropic's error type + its message (capped): enough to
+          // tell a retired model from a rejected parameter from a quota stop.
+          // Never the request body, the image, the caption or the key.
+          const errBody = (await aRes.json().catch(() => null)) as { error?: { type?: string; message?: string } } | null;
+          console.warn("[telegram:webhook] photo analysis: Anthropic HTTP error", {
+            status: aRes.status,
+            model: photoModel,
+            errorType: errBody?.error?.type ?? "unknown",
+            message: (errBody?.error?.message ?? "").slice(0, 200),
+          });
         }
       } catch (err) {
-        console.warn("[telegram:webhook] photo analysis: Anthropic request failed:", err instanceof Error ? err.message.slice(0, 200) : "unknown");
+        console.warn("[telegram:webhook] photo analysis: Anthropic request failed", {
+          model: photoModel,
+          errorType: err instanceof Error ? err.name : "unknown",
+          message: err instanceof Error ? err.message.slice(0, 200) : "",
+        });
       }
     }
 

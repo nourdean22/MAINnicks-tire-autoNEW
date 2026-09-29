@@ -446,6 +446,30 @@ export async function runAlternatePaths(args: {
           regenSeverity: regen.regenAssessment?.severity ?? null,
           intent: turnSignal.intent,
         });
+
+        // Persist one best-effort row per eligible regen turn so the operator can
+        // answer whether repair fires, wins, costs latency, or should be retired.
+        // Telemetry must NEVER become load-bearing for a valid chat response.
+        try {
+          const { formatRegenTelemetry } = await import(
+            "@/lib/ai/chat/pre-stream-regen"
+          );
+          const regenMetric = formatRegenTelemetry(
+            regen,
+            turnSignal.intent as Parameters<typeof formatRegenTelemetry>[1],
+            turnSignal.outputShape,
+          );
+          const { recordMetric } = await import("@/lib/services/metrics");
+          await recordMetric(regenMetric.metric, regenMetric.value, {
+            unit: regenMetric.unit,
+            tags: { ...regenMetric.tags, traceId },
+            source: regenMetric.source,
+          });
+        } catch (err) {
+          log.warn("verified_regen_telemetry_failed", {
+            error: err instanceof Error ? err.name : "Error",
+          });
+        }
       } else if (selfConsistencyOn) {
         laneName = "self-consistency";
         const { generateText } = await import("ai");

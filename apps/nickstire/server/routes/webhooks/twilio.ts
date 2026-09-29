@@ -10,6 +10,7 @@
 
 import { Router, type Request, type Response } from "express";
 import { createLogger } from "../../lib/logger";
+import { trackDetached } from "../../_core/gracefulShutdown";
 import { generateGreetingTwiML, generateResponseTwiML } from "../../services/aiReceptionist";
 import { validateTwilioRequest } from "../../middleware/twilioValidation";
 
@@ -30,7 +31,7 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
     // runs its own opt-out + sending-hours checks via sendSms.
     const numMedia = Number(numMediaRaw ?? 0);
     if (numMedia >= 1 && mediaUrl0 && from) {
-      (async () => {
+      trackDetached("twilio:mms-photo-assess", (async () => {
         try {
           const { runPhotoAssess } = await import("../../services/photo-assess-pipeline");
           await runPhotoAssess({
@@ -43,7 +44,7 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
             error: err instanceof Error ? err.message : String(err),
           });
         }
-      })().catch(() => undefined);
+      })()).catch(() => undefined);
     }
 
     if (!body || !from) {

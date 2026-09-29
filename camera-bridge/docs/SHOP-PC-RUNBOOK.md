@@ -74,8 +74,8 @@ flag that has no route through the installer is off in production no matter how 
 tested. `tests/test_installer_flag_drift.py` fails when that happens.
 
 ```powershell
-powershell -File scripts/install-edge-runtime.ps1 -DryRun     # print the plan, install nothing
-powershell -File scripts/install-edge-runtime.ps1
+powershell -File scripts/install-edge-runtime.ps1 -Role shop -DryRun     # print the plan, install nothing
+powershell -File scripts/install-edge-runtime.ps1 -Role shop
 ```
 
 > `-DryRun` is the INSTALLER's ("show me the plan"). The producer's own dry-run is

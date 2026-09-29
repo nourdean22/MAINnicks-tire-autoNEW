@@ -340,5 +340,21 @@ class HousekeepingTest(unittest.TestCase):
         self.assertEqual(p.housekeeping(2000.0 + 7200.0, T0 + 2 * 86400.0), 0)
 
 
+class AuthorityBoundaryResetTest(unittest.TestCase):
+    def test_discard_camera_state_removes_memory_and_durable_open_visit(self) -> None:
+        p = make_pipeline()
+        self.addCleanup(p.ledger.close)
+        p.process_message(EVENTS, raw("new", "authority-car", 1000.0, ["front_lot"]), 1000.0)
+        p.process_message(EVENTS, raw("update", "authority-car", 1012.0, ["front_lot"]), 1012.0)
+        self.assertTrue(p.tracker.open_visits())
+        self.assertTrue(p.ledger.load_open_visits().get("visits"))
+
+        self.assertGreaterEqual(p.tracker.discard_camera_state("lot"), 1)
+        self.assertGreaterEqual(p.ledger.discard_camera_state("lot"), 1)
+
+        self.assertEqual(p.tracker.open_visits(), [])
+        self.assertEqual(p.ledger.load_open_visits().get("visits"), [])
+
+
 if __name__ == "__main__":
     unittest.main()

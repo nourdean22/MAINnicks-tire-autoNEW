@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "nickstire/sms-voice-truth-batch (audit 2026-09-29): server/services/smsOrchestrator.ts (after_hours_capture sent with sendNowOrDrop; a dropped text records skipped / time_sensitive_not_queued) and server/services/vapi.ts (SMS-DEGRADED prompt lines no longer say texts are down). docs/operations/capability-ledger.json gains the receipts on sms-send-receipts, receptionist-tire-inquiry-truth and outbound-consent-one-index; no state moves (unit-verified, not deployed). REALITY-LEDGER.md re-rendered; check-capability-ledger.mjs valid, 85 capabilities."
+    }
+  }
+}

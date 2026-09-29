@@ -1683,6 +1683,9 @@ Keep it under 200 characters.`;
       // enter the existing controlled-experiment measurement loop just like
       // dailyReelPost does.
       let resolvedReelJobId: number | null = null;
+      // The reel job this publish must claim assembled -> publishing alongside
+      // the inventory row. Set only once the job is proven "assembled".
+      let reelJobToClaim: number | null = null;
 
       if (input.inventoryId) {
         const { socialContentInventory, socialContentApprovals } = await import("../../drizzle/schema");
@@ -1764,6 +1767,68 @@ Keep it under 200 characters.`;
             // ADVISORY findings; it never bypasses a hard gate.
             pendingOverride = authorization.overrideBinding;
             resolvedReelJobId = authorization.reelJobId;
+
+            // ONE REEL, ONE DOOR AT A TIME. The cron publishes from reel_jobs
+            // ("assembled" -> "publishing") and never looked at this row; this
+            // door published from this row and never looked at reel_jobs. So a
+            // reel posted here stayed "assembled" and the cron posted it again,
+            // and a job the cron had in flight ("publishing"/"publish_ambiguous",
+            // possibly live) could be published here a second time. The job must
+            // be "assembled" now, and is claimed below in the same step as the row.
+            if (input.trialReel && resolvedReelJobId === null) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Trial Reel publishing needs this Reel's production job, and none could be resolved for this draft.",
+              });
+            }
+            let clipUrlsJson: string | null = null;
+            let onScreenText = "";
+            if (resolvedReelJobId !== null) {
+              const { reelJobs } = await import("../../drizzle/schema");
+              const [reelJob] = await database
+                .select({ status: reelJobs.status, clipUrlsJson: reelJobs.clipUrlsJson, payload: reelJobs.payload })
+                .from(reelJobs)
+                .where(eq(reelJobs.id, resolvedReelJobId))
+                .limit(1);
+              if (!reelJob) {
+                throw new TRPCError({ code: "BAD_REQUEST", message: `Reel job ${resolvedReelJobId} behind this draft no longer exists.` });
+              }
+              if (reelJob.status !== "assembled") {
+                throw new TRPCError({
+                  code: "CONFLICT",
+                  message:
+                    `Reel job ${resolvedReelJobId} is '${reelJob.status}', not 'assembled'` +
+                    (["publishing", "publish_ambiguous", "posted", "published"].includes(String(reelJob.status))
+                      ? " — it is already being published or may already be LIVE. Check Instagram; publishing again would duplicate it."
+                      : " — only a finished, unpublished render can be published."),
+                });
+              }
+              clipUrlsJson = reelJob.clipUrlsJson ?? null;
+              const { parseReelJobPayload } = await import("@shared/reelJobPayload");
+              onScreenText = (parseReelJobPayload(reelJob.payload).storyboardBeats ?? [])
+                .map((b) => b?.onScreenText ?? "")
+                .filter(Boolean)
+                .join(" ");
+              reelJobToClaim = resolvedReelJobId;
+            }
+
+            // AI SELF-DISCLOSURE is server-authoritative for reels, derived from
+            // THIS job's clips exactly as the cron derives it. The Queue sent no
+            // flag, so generated reels went out with no is_ai_generated — which
+            // cannot be added after the container is created. Any client value
+            // is ignored. The disclosure gate judges the value that will be sent.
+            const { shouldDiscloseAi, publishDisclosureProblem } = await import("@shared/reelDisclosure");
+            const willDiscloseAi = shouldDiscloseAi(clipUrlsJson, process.env.REEL_VIDEO_PROVIDER);
+            const disclosureViolation = publishDisclosureProblem({
+              jobId: resolvedReelJobId ?? draft.id,
+              caption: approvedCaption,
+              onScreenText,
+              willDiscloseAi,
+            });
+            if (disclosureViolation) {
+              throw new TRPCError({ code: "BAD_REQUEST", message: `Disclosure gate: ${disclosureViolation}` });
+            }
+            input.isAiGenerated = willDiscloseAi;
 
             publishCaption = approvedCaption;
             publishVideoUrl = approvedVideoUrl;
@@ -1974,6 +2039,48 @@ Keep it under 200 characters.`;
         }
       }
 
+      // Claim the reel job too — the same CAS the cron uses. Losing it means the
+      // autonomous lane got there first: hand the row back and refuse.
+      const { queueStateForReelStatus } = await import("@shared/reelQueue");
+      const setClaimedReelJob = async (status: "assembled" | "publish_ambiguous" | "posted", extra: { igPostId?: string | null; error?: string | null } = {}) => {
+        if (reelJobToClaim === null) return;
+        const { reelJobs } = await import("../../drizzle/schema");
+        const { eq, and, inArray } = await import("drizzle-orm");
+        const res = await database
+          .update(reelJobs)
+          .set({
+            status,
+            queueState: queueStateForReelStatus(status),
+            ...(status === "assembled" ? { publicationScheduledAt: null } : {}),
+            ...(status === "posted" ? { igPostId: extra.igPostId ?? null, error: null } : {}),
+            ...(status === "publish_ambiguous" ? { error: String(extra.error ?? "publish outcome unknown — may be LIVE").slice(0, 500) } : {}),
+          })
+          // A confirmed post wins even if the stuck-claim sweeper (reelPipeline,
+          // 12 min) already parked a slow publish as publish_ambiguous.
+          .where(and(
+            eq(reelJobs.id, reelJobToClaim),
+            status === "posted" ? inArray(reelJobs.status, ["publishing", "publish_ambiguous"]) : eq(reelJobs.status, "publishing"),
+          ));
+        if (affectedRowCount(res) !== 1) {
+          log.error("Queue Reel publish could not move its claimed reel job", { reelJobId: reelJobToClaim, toStatus: status });
+        }
+      };
+      if (reelJobToClaim !== null) {
+        const { reelJobs } = await import("../../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+        const jobClaim = await database
+          .update(reelJobs)
+          .set({ status: "publishing", queueState: queueStateForReelStatus("publishing"), publicationScheduledAt: new Date() })
+          .where(and(eq(reelJobs.id, reelJobToClaim), eq(reelJobs.status, "assembled")));
+        if (affectedRowCount(jobClaim) === 0) {
+          await setInventoryStatus(observedStatus ?? "ready");
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: `Reel job ${reelJobToClaim} was claimed by another publish (the autonomous lane or a second tap). Refresh — it may already be going out.`,
+          });
+        }
+      }
+
       // Publication is beginning (claim won) — consume any operator quality
       // override atomically and record it in the audit trail. Additive: with no
       // override this is a no-op ("none") and the publish proceeds on the
@@ -2010,6 +2117,7 @@ Keep it under 200 characters.`;
       const hasMedia = Boolean(publishVideoUrl || input.imageUrl || (input.imageUrls && input.imageUrls.length));
       if (!hasMedia) {
         await setInventoryStatus(observedStatus ?? "ready");
+        await setClaimedReelJob("assembled");
         throw new TRPCError({ code: "BAD_REQUEST", message: "No media to publish — provide imageUrl, imageUrls or videoUrl." });
       }
 
@@ -2027,6 +2135,7 @@ Keep it under 200 characters.`;
       });
       if (!attemptId) {
         await setInventoryStatus(observedStatus ?? "ready");
+        await setClaimedReelJob("assembled");
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Publish-attempt ledger unavailable — refusing to publish unrecorded. Retry shortly.",
@@ -2045,6 +2154,13 @@ Keep it under 200 characters.`;
         // A throw is not proof nothing posted — record it as AMBIGUOUS so the
         // reconciler surfaces it rather than leaving the attempt silently open.
         await recordPublishOutcome(attemptId, OUTCOME.ambiguous, { error: err instanceof Error ? err.message : String(err) });
+        // Same rule as the cron: a throw may have posted, so the job is parked
+        // for reconciliation, never handed back to "assembled" for a re-post.
+        try {
+          await setClaimedReelJob("publish_ambiguous", { error: `Queue publish threw: ${err instanceof Error ? err.message : String(err)}` });
+        } catch (jobErr) {
+          log.error("Queue Reel publish threw and its reel job could not be parked", { reelJobId: reelJobToClaim, err: jobErr instanceof Error ? jobErr.message.slice(0, 200) : String(jobErr) });
+        }
         // The claim must not outlive a throw, or the draft wedges in "publishing"
         // and every later attempt hits the CONFLICT guard above.
         await setInventoryStatus(observedStatus ?? "failed", err instanceof Error ? err.message : String(err));
@@ -2075,6 +2191,19 @@ Keep it under 200 characters.`;
         dispatchAmbiguous ? OUTCOME.ambiguous : succeeded.length === 0 ? OUTCOME.failed : OUTCOME.confirmed,
         { igPostId: igPostId ?? null, error: failureDetail || null, platformResults: results },
       );
+
+      // Settle the claimed reel job from INSTAGRAM's outcome: live -> posted
+      // (with the media id, so no door posts it again), unanswered ->
+      // publish_ambiguous, clean refusal -> back to assembled. Bookkeeping after
+      // a possibly-live publish must never throw into a retry.
+      try {
+        const igResult = results.find((r) => r.platform === "instagram");
+        if (igPostId || igResult?.success) await setClaimedReelJob("posted", { igPostId: igPostId ?? null });
+        else if (igResult?.ambiguous) await setClaimedReelJob("publish_ambiguous", { error: igResult.error ?? null });
+        else await setClaimedReelJob("assembled");
+      } catch (jobErr) {
+        log.error("Queue Reel publish finished but its reel job could not be settled", { reelJobId: reelJobToClaim, err: jobErr instanceof Error ? jobErr.message.slice(0, 200) : String(jobErr) });
+      }
 
       // Attach as soon as Instagram has returned a confirmed media id, even if
       // another requested platform failed later in this multi-platform call.
@@ -2410,7 +2539,7 @@ Keep it under 200 characters.`;
       /** Optional for legacy callers; when supplied it joins the CAS. */
       expectedVersion: z.number().int().positive().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       // The old body was every anti-pattern this codebase has spent a week
       // deleting: `if (database)` returned {success:true} on a DB OUTAGE
       // (a lying success that wrote nothing), no status guard could relabel a
@@ -2420,7 +2549,12 @@ Keep it under 200 characters.`;
       if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — nothing was rejected." });
       const { socialContentInventory } = await import("../../drizzle/schema");
       const { and, eq, inArray } = await import("drizzle-orm");
-      const rows = await database.select({ status: socialContentInventory.status, version: socialContentInventory.version })
+      const rows = await database.select({
+        status: socialContentInventory.status,
+        version: socialContentInventory.version,
+        contentType: socialContentInventory.contentType,
+        briefJson: socialContentInventory.briefJson,
+      })
         .from(socialContentInventory).where(eq(socialContentInventory.id, input.id)).limit(1);
       if (!rows[0]) throw new TRPCError({ code: "NOT_FOUND", message: "Draft not found." });
       const REJECTABLE = ["pending", "needs_review", "review_ready", "ready", "failed", "draft", "generating"];
@@ -2441,7 +2575,29 @@ Keep it under 200 characters.`;
       if (affectedRowCount(rejected) === 0) {
         throw new TRPCError({ code: "CONFLICT", message: "The draft changed while you were deciding (it may have been approved or published). Refresh before rejecting." });
       }
-      return { success: true };
+      // A Reel's publish consent lives on its reel job, not on this row. Setting
+      // "rejected" alone left any live approval standing, so the autonomous cron
+      // published the reel the operator had just rejected. Withdraw it here.
+      // The row is already rejected, and the cron + auto-approval both hold a
+      // rejected row on their own, so a failed revoke is reported, not thrown.
+      if (rows[0].contentType !== "reel") return { success: true };
+      let revokedApprovals: number | null = null;
+      try {
+        const { resolveReelJobId } = await import("../services/reelPublishAuthority");
+        const jobId = await resolveReelJobId(database, { id: input.id, briefJson: rows[0].briefJson });
+        if (jobId) {
+          const { revokeReelApproval } = await import("../services/reelApproval");
+          revokedApprovals = (await revokeReelApproval({ jobId, revokedBy: `rejected in Queue by admin:${ctx.user?.id ?? "unknown"}` })).revoked;
+        } else {
+          revokedApprovals = 0;
+        }
+      } catch (err) {
+        log.error("reel draft rejected but its publish approval could not be revoked — the inventory hold still stops the cron", {
+          inventoryId: input.id,
+          err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+        });
+      }
+      return { success: true, revokedApprovals };
     }),
 });
 

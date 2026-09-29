@@ -1830,7 +1830,7 @@ export default function TireFinder() {
                   <Users className="w-7 h-7 text-primary" />
                 </div>
                 <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
-                  Real mechanics. {reviewCountDisplay} five-star reviews.
+                  Real mechanics. {reviewCountDisplay} Google reviews.
                 </h2>
                 <p className="text-sm text-muted-foreground mt-2 max-w-2xl mx-auto leading-relaxed">
                   We do not just sell tires. The same crew has been mounting them on Euclid Ave since 2018 — they show you the tread before they sell you anything, and you don't pay until you say yes.
@@ -1852,7 +1852,7 @@ export default function TireFinder() {
                   {
                     icon: <ThumbsUp className="w-5 h-5" />,
                     title: "Honest Recommendations",
-                    desc: "We will never sell you a tire you do not need. If a flat can be repaired for $15, we repair it. Period. That is how we have earned thousands of five-star reviews.",
+                    desc: `We will never sell you a tire you do not need. If a flat can be repaired for $15, we repair it. Period. That is how we have earned a ${reviewRating}-star average on Google.`,
                   },
                   {
                     icon: <ShieldCheck className="w-5 h-5" />,

@@ -64,23 +64,25 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 class Pipeline:
     """Owns the tracker and turns emissions into ledger rows + outbox items."""
 
-    def __init__(self, cfg: Config, ledger: Ledger, cloud: CloudClient, metrics: MetricsRegistry) -> None:
+    def __init__(self, cfg: Config, ledger: Ledger, cloud: CloudClient, metrics: MetricsRegistry,
+                 producer_instance_id: Optional[str] = None) -> None:
         self.cfg = cfg
         self.ledger = ledger
         self.cloud = cloud
+        #: Identity of THIS process for the shop heartbeat's idempotency/authority key.
+        #: Edge producers pass a priority-bearing id; generic visitd keeps the legacy
+        #: opaque id so this change is backward compatible.
+        self.producer_instance_id = producer_instance_id or uuid.uuid4().hex[:16]
         # Best-effort mirror into the shop's read model. Never blocks the outbox.
         self.shop = ShopMirror(
             cfg.backend.shop_url,
             cfg.backend.shop_sync_key,
             timeout_seconds=cfg.backend.timeout_seconds,
             bay_zones={name: frozenset(cam.bay_zones) for name, cam in cfg.cameras.items()},
+            producer_instance_id=self.producer_instance_id,
         )
         self.metrics = metrics
         self.tracker = VisitTracker(cfg.policy, cfg.camera_specs())
-        #: Identity of THIS process for the shop heartbeat's idempotency key
-        #: (producerInstanceId, heartbeatSeq): a restart is a new instance, so the
-        #: cloud accepts its sequence starting again from zero.
-        self.producer_instance_id = uuid.uuid4().hex[:16]
         self.shop_heartbeat_seq = 0
         self.last_frame_time: Optional[float] = None
         self.wall_at_last_message: float = time.monotonic()
@@ -316,7 +318,7 @@ class Pipeline:
         block every other car on the lot -- it stays queued with its attempt count climbing, which
         is what surfaces as a stuck backlog in the admin.
         """
-        result = {"sent": 0, "rejected": 0, "unreachable": 0}
+        result = {"sent": 0, "rejected": 0, "unreachable": 0, "stale_authority": 0}
         if not self.shop.enabled:
             return result
         try:
@@ -332,7 +334,9 @@ class Pipeline:
                 outcome = "unreachable"
             result[outcome] = result.get(outcome, 0) + 1
             try:
-                if outcome == "sent":
+                if outcome in {"sent", "stale_authority"}:
+                    # A row from an expired authority epoch is intentionally discarded:
+                    # replaying it after another producer took over can double-count cars.
                     self.ledger.shop_outbox_ack(str(item["visit_id"]), int(item["seq"]))
                 else:
                     self.ledger.shop_outbox_fail(str(item["visit_id"]), outcome)

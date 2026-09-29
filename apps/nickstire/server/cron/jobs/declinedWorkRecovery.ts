@@ -163,11 +163,66 @@ export { firstName as parseFirstName };
  *     etc, but still respects the per-message sending-hours guard
  *     in sms.ts which queues out-of-hours messages for the morning
  *   skipDryRunGate · script-only · trust the operator's intent
+ *   dryRun · report only, whatever FEATURE_DECLINED_RECOVERY says. The
+ *     CLI's --dry-run used to just omit skipDryRunGate, so with the env
+ *     flag at "1" a "dry run" sent real texts.
  */
 export interface RecoveryOptions {
   maxSends?: number;
   bypassBusinessHoursCheck?: boolean;
   skipDryRunGate?: boolean;
+  dryRun?: boolean;
+}
+
+/** Whether this run may claim and send. An explicit dryRun always wins. Exported for tests. */
+export function recoverySendsEnabled(env: Record<string, string | undefined>, opts?: RecoveryOptions): boolean {
+  if (opts?.dryRun === true) return false;
+  return env.FEATURE_DECLINED_RECOVERY === "1" || opts?.skipDryRunGate === true;
+}
+
+type EstimateMatchSummary = { matched: number; scanned: number };
+
+export interface AfterMatchDeps {
+  match: (dryRun: boolean) => Promise<EstimateMatchSummary>;
+  recover: (opts?: RecoveryOptions) => Promise<RecoveryResult>;
+}
+
+const defaultAfterMatchDeps: AfterMatchDeps = {
+  match: async (dryRun) => {
+    const { backfillMatches } = await import("../../services/shopDriverEstimateSync");
+    return backfillMatches({ sinceDays: DECLINED_RECOVERY_WINDOW_DAYS, dryRun });
+  },
+  recover: (opts) => runDeclinedWorkRecovery(opts),
+};
+
+/**
+ * The manual lanes: the admin "run now" button and scripts/fire-declined-recovery.ts.
+ *
+ * The scheduled lane sends only after the estimate-invoice match succeeded in the
+ * same pass (scheduler.ts requiresSuccessfulJobs). The manual lanes called
+ * runDeclinedWorkRecovery directly, and an estimate the customer has since PAID
+ * still reads matchedInvoiceId IS NULL until the matcher runs, so a click could
+ * text someone about work they already bought. Run the same matcher first, and
+ * send nothing if it fails. A dry run matches in dry-run mode too (no writes).
+ */
+export async function runDeclinedWorkRecoveryAfterMatch(
+  opts?: RecoveryOptions,
+  deps: AfterMatchDeps = defaultAfterMatchDeps,
+): Promise<RecoveryResult> {
+  const dryRun = opts?.dryRun === true;
+  let match: EstimateMatchSummary;
+  try {
+    match = await deps.match(dryRun);
+  } catch (err) {
+    const reason = (err instanceof Error ? err.message : String(err)).slice(0, 160);
+    log.warn(`[declined-recovery] estimate-invoice match failed, manual run sent nothing: ${reason}`);
+    return { recordsProcessed: 0, details: `estimate-invoice match failed, so nothing was sent (${reason})` };
+  }
+  const result = await deps.recover(opts);
+  const matchNote = dryRun
+    ? `match (dry run) would clear ${match.matched} of ${match.scanned} first, and the count below still includes them`
+    : `matched ${match.matched} of ${match.scanned} estimates to invoices first`;
+  return { ...result, details: `${matchNote} · ${result.details}` };
 }
 
 export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<RecoveryResult> {
@@ -244,7 +299,7 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
     0,
   );
 
-  const featureEnabled = process.env.FEATURE_DECLINED_RECOVERY === "1" || opts?.skipDryRunGate === true;
+  const featureEnabled = recoverySendsEnabled(process.env, opts);
 
   // DRY RUN path — report but don't send
   if (!featureEnabled) {

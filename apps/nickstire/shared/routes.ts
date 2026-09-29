@@ -646,7 +646,7 @@ const CITY_PAGES: RouteEntry[] = [
     priority: 0.8,
     changefreq: "monthly",
     title: "Strongsville Auto Repair · Used Tires $25 · Open Sundays | Nick's",
-    description: "Strongsville drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, check-engine light, emissions. 1,710+ five-star reviews. (216) 862-0005.",
+    description: "Strongsville drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, check-engine light, emissions. 4.9★ across 1,710+ Google reviews. (216) 862-0005.",
     group: "city",
     sitemap: true,
     prerender: true,

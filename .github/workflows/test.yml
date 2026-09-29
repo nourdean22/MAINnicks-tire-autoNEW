@@ -71,6 +71,7 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
+              - 'config/retired-claude-models.json'
               - '.github/workflows/**'
             statenour:
               - 'apps/statenour/**'
@@ -79,6 +80,7 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
+              - 'config/retired-claude-models.json'
               - '.github/workflows/**'
             worker:
               - 'apps/worker/**'
@@ -99,6 +101,7 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'pnpm-workspace.yaml'
               - 'turbo.json'
+              - 'config/retired-claude-models.json'
               - '.github/workflows/**'
             workflow:
               - '.github/workflows/**'

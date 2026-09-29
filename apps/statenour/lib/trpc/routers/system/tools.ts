@@ -6,6 +6,20 @@ import {
   getMissingEnvForTool
 } from "@/lib/tools/tool-registry";
 import { evaluateToolAction } from "@/lib/tools/tool-policy";
+import { buildToolGapReport } from "@/lib/observability/tool-gap-report";
+import { buildDecisionPlaneReport } from "@/lib/observability/decision-plane-report";
+import {
+  buildDecisionPlaneReplayReport,
+  recordDecisionPlaneOutcome,
+  RecordDecisionPlaneOutcomeSchema,
+} from "@/lib/ai/decision-plane/replay";
+import {
+  buildCapabilityLifecycleReport,
+  proposeCapability,
+  transitionCapabilityProposal,
+  CapabilityProposalSchema,
+  CapabilityTransitionSchema,
+} from "@/lib/tools/capability-lifecycle";
 
 const ToolActionRequestSchema = z.object({
   toolId: z.string(),
@@ -34,6 +48,34 @@ export const toolsProcedures = {
       };
     });
   }),
+
+  toolGapReport: operatorProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(90).default(30) }).optional())
+    .query(async ({ input }) => buildToolGapReport(input?.windowDays ?? 30)),
+
+  decisionPlaneReport: operatorProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(90).default(30) }).optional())
+    .query(async ({ input }) => buildDecisionPlaneReport(input?.windowDays ?? 30)),
+
+  decisionPlaneReplayReport: operatorProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(90).default(30) }).optional())
+    .query(async ({ input }) => buildDecisionPlaneReplayReport(input?.windowDays ?? 30)),
+
+  recordDecisionPlaneOutcome: operatorProcedure
+    .input(RecordDecisionPlaneOutcomeSchema)
+    .mutation(async ({ input }) => recordDecisionPlaneOutcome(input)),
+
+  capabilityLifecycleReport: operatorProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(90).default(30) }).optional())
+    .query(async ({ input }) => buildCapabilityLifecycleReport(input?.windowDays ?? 30)),
+
+  proposeCapability: operatorProcedure
+    .input(CapabilityProposalSchema)
+    .mutation(async ({ input }) => proposeCapability(input)),
+
+  transitionCapabilityProposal: operatorProcedure
+    .input(CapabilityTransitionSchema)
+    .mutation(async ({ input }) => transitionCapabilityProposal(input)),
 
   evaluateTool: operatorProcedure
     .input(ToolActionRequestSchema)

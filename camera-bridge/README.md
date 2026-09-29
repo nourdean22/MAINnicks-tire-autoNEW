@@ -204,7 +204,7 @@ cloud device ids, the second is the ledger.
 
 ```powershell
 powershell -File scripts/doctor-edge-runtime.ps1 -Calibration .\scratchpad\shopsign_calibration.json
-powershell -File scripts/install-edge-runtime.ps1 -EncryptSecret -Calibration .\scratchpad\shopsign_calibration.json
+powershell -File scripts/install-edge-runtime.ps1 -Role shop -EncryptSecret -Calibration .\scratchpad\shopsign_calibration.json
 Start-ScheduledTask -TaskName NickEdgeProducer
 ```
 

@@ -378,6 +378,42 @@ async function chatPostInner(req: Request) {
   // __actionIntent / __webSearchIntent to keep every downstream
   // reference byte-identical.)
 
+  // Decision Plane shadow: candidate System-One backends are sampled and
+  // evaluated DURABLY by Inngest. They have zero production authority; the
+  // incumbent signals above still decide this turn. Feature defaults OFF and
+  // PII/private-mode turns are rejected before enqueue.
+  try {
+    const { scheduleTurnDecisionShadow } = await import(
+      "@/lib/ai/decision-plane/shadow"
+    );
+    const shadow = await scheduleTurnDecisionShadow({
+      userContent,
+      traceId: __traceId,
+      conversationId:
+        convId && convId !== "temp" && convId !== "private" ? convId : undefined,
+      privateMode,
+      turnSignal,
+      mode,
+      finalTaskType,
+      pythonExecuteIntent: __pythonExecuteIntent,
+      actionIntent: Boolean(__actionIntent),
+      webSearchIntent: __webSearchIntent,
+      webSearchRecency: __webSearchRecency,
+    });
+    if (shadow.queued) {
+      log.info("decision_plane_shadow_queued", {
+        eventCount: shadow.eventIds.length,
+      });
+    } else if (shadow.reason !== "feature_disabled" && shadow.reason !== "sampled_out") {
+      log.info("decision_plane_shadow_skipped", { reason: shadow.reason });
+    }
+  } catch (err) {
+    // Shadow instrumentation can never take chat down.
+    log.warn("decision_plane_shadow_enqueue_failed", {
+      error: err instanceof Error ? err.name : "Error",
+    });
+  }
+
   let model: ReturnType<typeof getModel>;
   let effectiveForce: ProviderName | undefined = undefined;
   let allowMetered = false;

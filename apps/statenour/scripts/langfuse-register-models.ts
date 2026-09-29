@@ -11,7 +11,7 @@
  * Needs LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL (optional).
  * Prices come from lib/ai/pricing.ts — never edit them here.
  */
-import { LANGFUSE_MODEL_PRICES } from "../lib/ai/pricing";
+import { LANGFUSE_MODEL_PRICES, RETIRED_LANGFUSE_MODEL_NAMES } from "../lib/ai/pricing";
 
 const dryRun = process.argv.includes("--dry-run");
 const pk = process.env.LANGFUSE_PUBLIC_KEY;
@@ -35,6 +35,14 @@ async function main() {
   if (!listRes.ok) throw new Error(`list models: HTTP ${listRes.status}`);
   const listed = (await listRes.json()) as { data?: Array<{ id: string; modelName: string; isLangfuseManaged?: boolean }> };
   const existing = new Map((listed.data ?? []).filter((d) => !d.isLangfuseManaged).map((d) => [d.modelName, d.id]));
+
+  for (const name of RETIRED_LANGFUSE_MODEL_NAMES) {
+    const id = existing.get(name);
+    if (!id) continue;
+    const del = await fetch(`${base}/api/public/models/${id}`, { method: "DELETE", headers });
+    if (!del.ok && del.status !== 404) throw new Error(`delete retired ${name}: HTTP ${del.status}`);
+    console.log(`[langfuse-models] deleted retired definition ${name}`);
+  }
 
   let created = 0;
   for (const m of LANGFUSE_MODEL_PRICES) {

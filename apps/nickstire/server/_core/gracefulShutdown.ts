@@ -38,6 +38,46 @@ export function resolveShutdownGraceMs(raw: string | undefined): number {
   return Math.min(MAX_SHUTDOWN_GRACE_MS, Math.max(MIN_SHUTDOWN_GRACE_MS, n));
 }
 
+/** Headroom between the end of the grace budget and Railway's SIGKILL ("30 for the 25 s default"). */
+const DRAIN_EXIT_MARGIN_MS = 5_000;
+
+export interface DrainCoverage {
+  /** Railway's drain window, or null when unset or not a whole number (Railway then uses 0). */
+  railwayDrainingSeconds: number | null;
+  shutdownGraceMs: number;
+  /** True only when the window outlasts the grace budget by the exit margin. */
+  covered: boolean;
+  note: string;
+}
+
+/**
+ * Does Railway's drain window cover the grace budget above?
+ *
+ * RAILWAY_DEPLOYMENT_DRAINING_SECONDS is Railway's setting, not ours, but it is
+ * an ordinary service variable, so the process can read it. Nothing did: whether
+ * the drain ever got its time was an operator-only fact that no agent or probe
+ * could check (the 2026-09-28 audit saw the variable but not its value).
+ * /api/version reports this and boot warns when it is short. Unset or
+ * unreadable counts as Railway's default of 0, never as covered.
+ */
+export function resolveDrainCoverage(env: Record<string, string | undefined>): DrainCoverage {
+  const shutdownGraceMs = resolveShutdownGraceMs(env.NICKSTIRE_SHUTDOWN_GRACE_MS);
+  const raw = env.RAILWAY_DEPLOYMENT_DRAINING_SECONDS?.trim() ?? "";
+  const railwayDrainingSeconds = /^\d+$/.test(raw) ? Number(raw) : null;
+  const neededSeconds = Math.ceil((shutdownGraceMs + DRAIN_EXIT_MARGIN_MS) / 1000);
+  const covered = railwayDrainingSeconds !== null && railwayDrainingSeconds >= neededSeconds;
+  let note: string;
+  if (railwayDrainingSeconds === null) {
+    const state = raw ? "is not a whole number of seconds" : "is unset";
+    note = `RAILWAY_DEPLOYMENT_DRAINING_SECONDS ${state}, so Railway uses 0 and kills the process right after SIGTERM; the ${shutdownGraceMs} ms drain needs at least ${neededSeconds} s`;
+  } else if (covered) {
+    note = `Railway waits ${railwayDrainingSeconds} s after SIGTERM; the ${shutdownGraceMs} ms drain needs ${neededSeconds} s`;
+  } else {
+    note = `Railway waits only ${railwayDrainingSeconds} s after SIGTERM; the ${shutdownGraceMs} ms drain needs ${neededSeconds} s, so work still running then is killed`;
+  }
+  return { railwayDrainingSeconds, shutdownGraceMs, covered, note };
+}
+
 /** One kind of work the drain waits for. */
 export interface DrainSource {
   /** Stable label for the log line, e.g. "cron", "sms-queue", "http". */
@@ -166,3 +206,35 @@ export function trackHttpRequests(server: RequestEmitter): DrainSource {
     settled: () => new Promise<void>((resolve) => { waiters.push(resolve); check(); }),
   };
 }
+
+/**
+ * Work a handler starts AFTER it has answered (F5, post-merge audit of #2651).
+ *
+ * "Ack first, then work" handlers — the Vapi end-of-call report, the inbound
+ * SMS answer — send their 200 and then run the real work detached. Once the
+ * response is sent, trackHttpRequests no longer sees the request, so a SIGTERM
+ * in that window exited mid-work: a customer's text acked and never answered,
+ * a post-call confirmation lost, and nothing retries because the sender
+ * already got its 200. Wrapping the detached promise here makes it one more
+ * drain source, waited for inside the same grace budget.
+ *
+ * Returns the same promise, so a call site keeps its own `.catch`.
+ */
+let detachedSeq = 0;
+const detachedRuns = new Map<number, { label: string; done: Promise<void> }>();
+
+export function trackDetached<T>(label: string, work: Promise<T>): Promise<T> {
+  const id = ++detachedSeq;
+  const done = work.then(() => undefined, () => undefined).finally(() => { detachedRuns.delete(id); });
+  detachedRuns.set(id, { label, done });
+  return work;
+}
+
+export const detachedWork: DrainSource = {
+  label: "detached",
+  pending: () => [...detachedRuns.values()].map((r) => r.label),
+  settled: async () => {
+    // Loop: detached work may start more detached work while we wait.
+    while (detachedRuns.size) await Promise.all([...detachedRuns.values()].map((r) => r.done));
+  },
+};

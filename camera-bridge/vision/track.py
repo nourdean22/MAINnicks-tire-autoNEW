@@ -254,6 +254,13 @@ class TrackGraph:
 
         return born, died
 
+    def reset_authority_epoch(self) -> int:
+        """Drop every live track at an authority boundary; return how many were removed."""
+        count = len(self.tracks)
+        self.tracks.clear()
+        self._blind_from = None
+        return count
+
     def mark_degraded(self, now: Optional[float] = None) -> None:
         """Mark every track as observed through a degraded interval.
 

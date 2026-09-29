@@ -14,6 +14,7 @@
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { claimReceipt, isReceiptTableMissing, settleReceipt } from "@/lib/services/bridge-receipts";
 
 export const EVIDENCE_GRADES = ["H0", "H1", "H2", "H3", "H4", "H5"] as const;
 
@@ -99,7 +100,16 @@ export interface BatchReceipt {
   eventsWritten: number;
   claimsWritten: number;
   rejected: Array<{ kind: "event" | "claim"; index: number; error: string }>;
+  /** ADR-0019: this Idempotency-Key was already recorded; nothing was written. */
+  duplicate?: true;
+  /** On a duplicate: the first row the first delivery wrote ("none" when it wrote no row). */
+  resultRef?: string | null;
+  /** The key was sent but bridge_receipts is not migrated yet, so the batch was written without dedupe. */
+  dedupe?: "unavailable";
 }
+
+/** Route name recorded on this door's receipts. */
+export const EVIDENCE_RECEIPT_ROUTE = "sync/evidence";
 
 /**
  * PII must not enter the ledger. Two tripwires, both recursive (2026-09-15 —
@@ -149,7 +159,10 @@ export function findPii(value: unknown, path = ""): { path: string; reason: stri
  * than its producer's ceiling, or for OPERATOR provenance through a keyed door,
  * is refused by index so the producer sees exactly what it tried to launder.
  */
-export async function recordEvidenceBatch(raw: unknown, ctx: { producer: EvidenceProducer }): Promise<BatchReceipt> {
+export async function recordEvidenceBatch(
+  raw: unknown,
+  ctx: { producer: EvidenceProducer; idempotencyKey?: string | null },
+): Promise<BatchReceipt> {
   const batch = EvidenceBatchSchema.parse(raw);
   const receipt: BatchReceipt = { eventsWritten: 0, claimsWritten: 0, rejected: [] };
   const ceiling = PRODUCER_CEILING[ctx.producer];
@@ -197,61 +210,97 @@ export async function recordEvidenceBatch(raw: unknown, ctx: { producer: Evidenc
     claims.push({ index, data: r.data });
   });
 
-  await prisma.$transaction(async (tx) => {
-    const idByIndex = new Map<number, string>();
-    for (const { index, data: e } of events) {
-      const row = await tx.realityEvent.create({
-        data: {
-          eventType: e.eventType,
-          observedAt: e.observedAt ? new Date(e.observedAt) : new Date(),
-          objects: e.objects as Prisma.InputJsonValue,
-          sourceSystem: e.source.system,
-          sourceUri: e.source.uri ?? null,
-          experimentId: e.experiment?.experimentId ?? null,
-          variantId: e.experiment?.variantId ?? null,
-          contractHash: e.experiment?.contractHash ?? null,
-          quality: e.quality,
-          privacy: e.privacy,
-          payload: (e.payload ?? undefined) as Prisma.InputJsonValue | undefined,
-          sender: batch.sender,
-        },
-        select: { id: true },
-      });
-      idByIndex.set(index, row.id);
-      receipt.eventsWritten += 1;
-    }
-    for (const { index, data: c } of claims) {
-      const linked: string[] = [];
-      let broken: number | null = null;
-      for (const i of c.sourceEventIndexes ?? []) {
-        const id = idByIndex.get(i);
-        if (!id) { broken = i; break; }
-        linked.push(id);
-      }
-      if (broken !== null) {
-        // A claim that says it rests on an event this batch did not land has no lineage — refuse it.
-        receipt.rejected.push({ kind: "claim", index, error: `sourceEventIndexes[${broken}] does not name an event written by this batch` });
-        continue;
-      }
-      const sourceEventKeys = [...(c.sourceEventKeys ?? []), ...linked];
-      await tx.evidenceClaim.create({
-        data: {
-          claimText: c.claimText,
-          grade: c.grade,
-          disposition: c.disposition.toUpperCase() as "SUPPORTED" | "REFUTED" | "INCONCLUSIVE",
-          hypothesisId: c.hypothesisId ?? null,
-          goalId: c.goalId ?? null,
-          contractHash: c.contractHash ?? null,
-          sourceEventKeys: sourceEventKeys.length ? sourceEventKeys : undefined,
-          confidence: c.confidence ?? null,
-          createdBy: author,
-        },
-        select: { id: true },
-      });
-      receipt.claimsWritten += 1;
-    }
-  });
+  // ADR-0019 §6.2: the receipt joins the batch's transaction. A batch with
+  // nothing valid to write records no receipt, so a corrected resend under the
+  // same key is not swallowed as a duplicate of a batch that landed nothing.
+  const key = ctx.idempotencyKey && (events.length > 0 || claims.length > 0) ? ctx.idempotencyKey : null;
+  if (!key) {
+    await writeBatch(null);
+    return receipt;
+  }
+  const validationRejects = receipt.rejected.slice();
+  try {
+    await writeBatch(key);
+  } catch (err) {
+    if (!isReceiptTableMissing(err)) throw err;
+    // The transaction rolled back whole; nothing from the keyed attempt landed.
+    receipt.eventsWritten = 0;
+    receipt.claimsWritten = 0;
+    receipt.rejected = validationRejects;
+    receipt.dedupe = "unavailable";
+    await writeBatch(null);
+  }
   return receipt;
+
+  async function writeBatch(receiptKey: string | null): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      if (receiptKey) {
+        const claim = await claimReceipt(tx, receiptKey, EVIDENCE_RECEIPT_ROUTE);
+        if (!claim.first) {
+          receipt.duplicate = true;
+          receipt.resultRef = claim.resultRef;
+          receipt.rejected = [];
+          return;
+        }
+      }
+      const idByIndex = new Map<number, string>();
+      let firstRef: string | null = null;
+      for (const { index, data: e } of events) {
+        const row = await tx.realityEvent.create({
+          data: {
+            eventType: e.eventType,
+            observedAt: e.observedAt ? new Date(e.observedAt) : new Date(),
+            objects: e.objects as Prisma.InputJsonValue,
+            sourceSystem: e.source.system,
+            sourceUri: e.source.uri ?? null,
+            experimentId: e.experiment?.experimentId ?? null,
+            variantId: e.experiment?.variantId ?? null,
+            contractHash: e.experiment?.contractHash ?? null,
+            quality: e.quality,
+            privacy: e.privacy,
+            payload: (e.payload ?? undefined) as Prisma.InputJsonValue | undefined,
+            sender: batch.sender,
+          },
+          select: { id: true },
+        });
+        idByIndex.set(index, row.id);
+        firstRef ??= row.id;
+        receipt.eventsWritten += 1;
+      }
+      for (const { index, data: c } of claims) {
+        const linked: string[] = [];
+        let broken: number | null = null;
+        for (const i of c.sourceEventIndexes ?? []) {
+          const id = idByIndex.get(i);
+          if (!id) { broken = i; break; }
+          linked.push(id);
+        }
+        if (broken !== null) {
+          // A claim that says it rests on an event this batch did not land has no lineage — refuse it.
+          receipt.rejected.push({ kind: "claim", index, error: `sourceEventIndexes[${broken}] does not name an event written by this batch` });
+          continue;
+        }
+        const sourceEventKeys = [...(c.sourceEventKeys ?? []), ...linked];
+        const claimRow = await tx.evidenceClaim.create({
+          data: {
+            claimText: c.claimText,
+            grade: c.grade,
+            disposition: c.disposition.toUpperCase() as "SUPPORTED" | "REFUTED" | "INCONCLUSIVE",
+            hypothesisId: c.hypothesisId ?? null,
+            goalId: c.goalId ?? null,
+            contractHash: c.contractHash ?? null,
+            sourceEventKeys: sourceEventKeys.length ? sourceEventKeys : undefined,
+            confidence: c.confidence ?? null,
+            createdBy: author,
+          },
+          select: { id: true },
+        });
+        firstRef ??= claimRow.id;
+        receipt.claimsWritten += 1;
+      }
+      if (receiptKey) await settleReceipt(tx, receiptKey, firstRef ?? "none");
+    });
+  }
 }
 
 export const TasteJudgmentInputSchema = z.object({

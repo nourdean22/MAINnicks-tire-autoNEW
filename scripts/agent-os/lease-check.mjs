@@ -71,13 +71,19 @@ function isExpired(marker) {
  * backtick, `$` expansion, parenthesis or newline anywhere, and no node flag before
  * the script — so nothing can ride along with the recovery. Probe set (chaining,
  * prefixes, look-alike names, PowerShell forms) in lease-check.test.mjs.
+ *
+ * The path may not START with "-", quoted or not (audit 2026-09-29 F6). Node reads
+ * such a token as a flag, and a flag whose VALUE merely ends in the script path,
+ * e.g. --import=data:text/javascript,<code>//scripts/agent-os/agent-finish.mjs,
+ * matched the old pattern while running arbitrary code before any script.
  */
 const SAFE = String.raw`[^\s;&|\`$<>()"'\n\r]`;
 const SAFE_IN_QUOTES = String.raw`[^;&|\`$<>()"'\n\r]`;
 const TAIL = String.raw`scripts[\\/]agent-os[\\/]agent-finish\.mjs`;
+const NOT_A_FLAG = "(?!-)";
 const RECOVERY_COMMAND = new RegExp(
   String.raw`^[ \t]*node(?:\.exe)?[ \t]+` +
-    String.raw`(?:"(?:${SAFE_IN_QUOTES}*[\\/])?${TAIL}"|'(?:${SAFE_IN_QUOTES}*[\\/])?${TAIL}'|(?:${SAFE}*[\\/])?${TAIL})` +
+    String.raw`(?:"${NOT_A_FLAG}(?:${SAFE_IN_QUOTES}*[\\/])?${TAIL}"|'${NOT_A_FLAG}(?:${SAFE_IN_QUOTES}*[\\/])?${TAIL}'|${NOT_A_FLAG}(?:${SAFE}*[\\/])?${TAIL})` +
     String.raw`(?:[ \t]+[^;&|\`$<>()\n\r]*)?[ \t]*$`,
 );
 

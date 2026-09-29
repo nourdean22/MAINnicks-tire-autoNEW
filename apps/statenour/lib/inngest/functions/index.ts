@@ -54,7 +54,11 @@ export { approvalSweeper } from "./approval-sweeper";
 // research/on-demand · fired by the queueDeepResearch chat tool and
 // the Telegram /research command)
 export { researchOnDemand } from "./deep-research";
-
+// 2026-09-28 · durable bounded mission runner. Uses the existing Mission
+// objective + Inngest checkpoints; v1 intentionally executes only safe
+// checkpoint/research steps and never mutates Mission lifecycle state.
+export { durableMissionExecution } from "./mission-execution";
+export { decisionPlaneShadow } from "./decision-plane-shadow";
 
 // AG-41 · execute Nick actions the moment /qa approves them (event:
 // nick-action/approved) · the daily 9am cron stays as backstop

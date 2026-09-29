@@ -14,7 +14,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, renameSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, renameSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -47,7 +47,7 @@ const SUPERSEDED = { ref: "an old cron note, kept under a superseded key" };
  * copy, plus one merged PR's fragment covering operator-walkthrough.
  * Then a `feature` branch off main, where each arm makes its change.
  */
-function scratch(t, { legacy = true } = {}) {
+function scratch(t, { legacy = true, baseFiles = {} } = {}) {
   const dir = mkdtempSync(path.join(tmpdir(), "dod-compiler-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   git(dir, "init", "-q", "-b", "main");
@@ -61,6 +61,7 @@ function scratch(t, { legacy = true } = {}) {
     });
     write(dir, ".completion/evidence.d/earlier-pr.json", { evidence: { "operator-walkthrough": OLD_FRAGMENT_WALKTHROUGH } });
   }
+  for (const [rel, content] of Object.entries(baseFiles)) write(dir, rel, content);
   git(dir, "add", "-A");
   git(dir, "commit", "-q", "-m", "base");
   git(dir, "checkout", "-q", "-b", "feature");
@@ -70,8 +71,8 @@ const commit = (dir) => {
   git(dir, "add", "-A");
   git(dir, "commit", "-q", "-m", "change");
 };
-const run = (dir) => {
-  const r = spawnSync(process.execPath, [COMPILER, "--base", "main", "--enforce"], { cwd: dir, env, encoding: "utf8" });
+const run = (dir, base = "main") => {
+  const r = spawnSync(process.execPath, [COMPILER, "--base", base, "--enforce"], { cwd: dir, env, encoding: "utf8" });
   return { status: r.status, out: `${r.stdout}\n${r.stderr}` };
 };
 const line = (out, id) => out.split("\n").find((l) => l.includes(`[${id}]`)) ?? "";
@@ -216,4 +217,52 @@ test("FAILS-ON-OLD + PINS (mutation: drop the base-value check): two concurrent 
   const r = run(dir);
   assert.equal(r.status, 0, r.out);
   assert.match(line(r.out, "cron-fail-closed"), /pr-b\.json: B's cron proof/);
+});
+
+/**
+ * Git-derived names are DATA, never shell (2026-09-29). The compiler built shell
+ * strings from `git ls-tree` output (`git show "<merge-base>:<name>"`), so once a
+ * fragment whose NAME carried $(...) or backticks reached main, the name ran as a
+ * command on every later CI run and agent machine. The same string handling also
+ * lost the value of any name git C-quotes (a double quote, non-ASCII), so that
+ * untouched base fragment read FRESH: a false green. Each arm commits the name on
+ * main and asserts that nothing ran AND the untouched value reads STALE.
+ */
+const markers = (dir) => readdirSync(dir).filter((n) => n.startsWith("PWNED"));
+const HOSTILE_NAMES = [
+  ["command substitution", ".completion/evidence.d/x$(touch PWNED-subst).json"],
+  ["backticks", ".completion/evidence.d/y`touch PWNED-backtick`.json"],
+  ["non-ASCII (git C-quotes it)", ".completion/evidence.d/caf\u00e9-pr.json"],
+  // A double quote cannot appear in a Windows file name.
+  ...(process.platform === "win32" ? [] : [["double quote", '.completion/evidence.d/z";touch PWNED-quote;".json']]),
+];
+for (const [label, name] of HOSTILE_NAMES) {
+  test(`FAILS-ON-OLD: a base fragment named with ${label} is read as a file name, never run, and stays STALE`, (t) => {
+    const dir = scratch(t, { baseFiles: { [name]: { evidence: { "cron-fail-closed": { ref: `cron proof merged under a ${label} name` } } } } });
+    write(dir, CRON, "export {};\n");
+    commit(dir);
+    const r = run(dir);
+    assert.deepEqual(markers(dir), [], `the fragment name was executed as shell:\n${r.out}`);
+    assert.equal(r.status, 1, r.out);
+    assert.match(line(r.out, "cron-fail-closed"), /STALE/);
+  });
+}
+
+test("FAILS-ON-OLD: a CHANGED file git C-quotes still derives its requirement (migration-evidence is anchored on .sql$)", (t) => {
+  const dir = scratch(t, { legacy: false });
+  write(dir, "apps/nickstire/drizzle/0200_caf\u00e9_backfill.sql", "SELECT 1;\n");
+  commit(dir);
+  const r = run(dir);
+  assert.equal(r.status, 1, r.out);
+  assert.match(line(r.out, "migration-evidence"), /MISSING/);
+});
+
+test("FAILS-ON-OLD: a --base starting with '-' is refused, never handed to git as an option", (t) => {
+  const dir = scratch(t);
+  write(dir, CRON, "export {};\n");
+  commit(dir);
+  const r = run(dir, "--output=PWNED-option");
+  assert.deepEqual(markers(dir), [], `git treated --base as an option and wrote a file:\n${r.out}`);
+  assert.equal(r.status, 2, r.out);
+  assert.match(r.out, /--base must be a git revision/);
 });

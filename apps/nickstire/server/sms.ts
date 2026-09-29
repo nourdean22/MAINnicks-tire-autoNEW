@@ -30,7 +30,7 @@ import { internalLineFor } from "./services/nonCustomerFilter";
 import { getOrCreateBreaker } from "./lib/circuit-breaker";
 import { isGatewayOnline } from "./lib/gateway-device";
 import { affectedRowCount } from "./lib/db-affected";
-import { isUnknownColumnError } from "./lib/dbErrors";
+import { describeDbError, isUnknownColumnError } from "./lib/dbErrors";
 import { isInternalLineDestination, queuedReplayIntent } from "./lib/smsQueueReplay";
 
 import { BUSINESS } from "@shared/business";
@@ -68,11 +68,22 @@ let optOutCacheLoadedAt = 0;
  * opt-out — no second list — told apart by this marker because its SCOPE is
  * narrower: it suppresses every AI-voice call and every marketing, recovery and
  * follow-up text, but not a `customer_confirmation` text the customer asked for
- * (a verification code, a status update on their own car). A text STOP, a
+ * (a verification code, a status update on their own car), nor a staff
+ * member's reply to the customer's own text. A text STOP, a
  * customers.smsOptOut flag or an inbound STOP body for the same phone still
  * wins and suppresses everything.
  */
 export const VOICE_OPT_OUT_KEYWORD = "VOICE";
+/**
+ * `opt_out_keyword` for a FULL opt-out that also carries a spoken do-not-call
+ * (audit-2026-09-29-F3). The index reads it as a full opt-out, like any
+ * non-VOICE marker. It exists so a later SMS opt-in (START, or YES to a
+ * suppressed number) restores texting but falls back to VOICE, never to
+ * "callable". Before it, a text STOP nulled the VOICE marker and the next START
+ * set opted_out=0, so the voice recovery and follow-up lanes could call a
+ * number that had told us "stop calling" (47 CFR 64.1200(d)).
+ */
+const VOICE_AND_SMS_OPT_OUT_KEYWORD = "SMS+VOICE";
 const OPT_OUT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 /**
@@ -323,30 +334,33 @@ async function ensureOptOutCache(): Promise<OptOutIndex> {
 }
 
 /**
- * code-review 2026-07-09 · durably persist the opt-out/in state to the
+ * code-review 2026-07-09 · durably persist a full opt-out to the
  * phone-keyed sms_preferences table so it survives the 5-min cache rebuild,
  * process restarts, and other pods. The in-memory cache write in the callers
  * already blocks the next send from THIS process; this makes it stick
  * everywhere. Best-effort fire-and-forget: if the table is missing (schema
  * drift) the catch degrades to the prior in-memory-only behavior.
  */
-async function persistOptOutPreference(phone10: string, optedOut: boolean): Promise<boolean> {
+async function persistOptOutPreference(phone10: string): Promise<boolean> {
   try {
     const { getDb } = await import("./db");
     const { smsPreferences } = await import("../drizzle/schema");
     const db = await getDb();
     if (!db) return false;
-    // A full opt-out clears the voice-only marker (Q-45): a STOP after a
-    // spoken "stop calling" widens the opt-out to every text.
-    const stamp = optedOut ? { optedOutAt: new Date(), optOutKeyword: null } : { optedInAt: new Date() };
+    // A full opt-out with no do-not-call row carries no marker. A row that
+    // does carry one never reaches here: widenVoiceOptOut keeps it as
+    // SMS+VOICE (audit-2026-09-29-F3).
+    const stamp = { optedOutAt: new Date(), optOutKeyword: null };
     await db
       .insert(smsPreferences)
-      .values({ phone: phone10, optedOut, ...stamp })
-      .onDuplicateKeyUpdate({ set: { optedOut, ...stamp } });
+      .values({ phone: phone10, optedOut: true, ...stamp })
+      .onDuplicateKeyUpdate({ set: { optedOut: true, ...stamp } });
     return true;
   } catch (err) {
+    // describeDbError, never err.message: drizzle's message carries the bound
+    // params, which include the phone number.
     log.warn("sms_preferences persist failed — opt-out is in-memory only", {
-      error: err instanceof Error ? err.message : String(err),
+      error: describeDbError(err),
     });
     return false;
   }
@@ -363,7 +377,52 @@ export async function markPhoneFullyOptedOut(phone: string): Promise<boolean> {
   if (!optOutCache) optOutCache = new Set();
   optOutCache.add(norm);
   voiceOnlyCache?.delete(norm);
-  return persistOptOutPreference(norm, true);
+  // A number that already carries a spoken do-not-call keeps that memory:
+  // widen it to a full opt-out in one conditional statement. Only when no
+  // do-not-call row exists does the plain upsert below write the NULL marker.
+  const widened = await widenVoiceOptOut(norm);
+  if (widened !== null) return widened;
+  return persistOptOutPreference(norm);
+}
+
+/**
+ * A text STOP on a number with a VOICE (or already SMS+VOICE) row: becomes
+ * SMS+VOICE in place, atomically. Returns true when that row now reads
+ * SMS+VOICE, false when the write or read failed, and null when there was no
+ * such row and the caller's normal full opt-out write should run.
+ */
+async function widenVoiceOptOut(norm: string): Promise<boolean | null> {
+  try {
+    const { getDb } = await import("./db");
+    const { smsPreferences } = await import("../drizzle/schema");
+    const { eq, sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return null;
+    await db.execute(sql`
+      UPDATE sms_preferences
+      SET opted_out = 1,
+        opt_out_keyword = ${VOICE_AND_SMS_OPT_OUT_KEYWORD},
+        opted_out_at = NOW()
+      WHERE phone = ${norm}
+        AND opt_out_keyword IN (${VOICE_OPT_OUT_KEYWORD}, ${VOICE_AND_SMS_OPT_OUT_KEYWORD})
+    `);
+    // Read the row back rather than trusting affectedRows: whether an
+    // unchanged row counts depends on a driver flag, and a false "no row"
+    // here would let the plain upsert erase the do-not-call.
+    const rows = await db
+      .select({ keyword: smsPreferences.optOutKeyword })
+      .from(smsPreferences)
+      .where(eq(smsPreferences.phone, norm));
+    return rows[0]?.keyword === VOICE_AND_SMS_OPT_OUT_KEYWORD ? true : null;
+  } catch (err) {
+    log.error("full opt-out on a do-not-call number FAILED to persist", {
+      error: describeDbError(err),
+      errorId: "SMS_OPT_OUT_PERSIST_FAILED",
+    });
+    // Not null: falling through to the plain upsert could erase a do-not-call
+    // we failed to read. This process still has the number suppressed.
+    return false;
+  }
 }
 
 /**
@@ -413,10 +472,23 @@ export async function markPhoneVoiceOptedOut(phone: string): Promise<boolean> {
         opted_out_at = IF(opted_out, opted_out_at, NOW()),
         opted_out = 1
     `);
+    // A number that was ALREADY fully opted out kept its marker above (a NULL
+    // or other non-VOICE one). Record that it now also has a do-not-call, so a
+    // later START restores texting only (audit-2026-09-29-F3). A second
+    // statement, not folded into the IF above, because that statement's exact
+    // shape is pinned by sms.voiceOptOut.test.ts; a START landing between the
+    // two would miss this marker, a window of milliseconds.
+    await db.execute(sql`
+      UPDATE sms_preferences
+      SET opt_out_keyword = ${VOICE_AND_SMS_OPT_OUT_KEYWORD}
+      WHERE phone = ${norm}
+        AND opted_out = 1
+        AND (opt_out_keyword IS NULL OR opt_out_keyword <> ${VOICE_OPT_OUT_KEYWORD})
+    `);
     return true;
   } catch (err) {
     log.error("voice opt-out persist FAILED — suppressed in this process only", {
-      error: err instanceof Error ? err.message : String(err),
+      error: describeDbError(err),
       errorId: "VOICE_OPT_OUT_PERSIST_FAILED",
     });
     return false;
@@ -424,16 +496,64 @@ export async function markPhoneVoiceOptedOut(phone: string): Promise<boolean> {
 }
 
 /**
- * Inverse — call when a customer texts START/UNSTOP and smsOptOut goes
- * back to 0. Removes from cache so future sends to this number resume, and
- * clears the durable sms_preferences flag.
+ * Inverse — call when a customer texts START/UNSTOP (or YES while SMS-opted
+ * out). Restores TEXTING only.
+ *
+ * A spoken do-not-call survives it (audit-2026-09-29-F3): a VOICE or SMS+VOICE
+ * row stays opted_out=1 with the VOICE marker, so every AI-voice lane keeps
+ * refusing the number and only its texts resume. Until then this deleted the
+ * number from both caches and wrote opted_out=0, and a customer who said "stop
+ * calling, just text me" and later replied YES or START could be called by the
+ * next recovery or follow-up run.
+ *
+ * The caches change only after the durable row is read back. If the write or
+ * the read-back fails the number stays suppressed in this process, which is the
+ * same answer the next index rebuild gives, because the row did not change.
+ * Returns whether the opt-in was durably recorded.
  */
-export function markPhoneOptedIn(phone: string): void {
+export async function markPhoneOptedIn(phone: string): Promise<boolean> {
   const norm = (phone || "").replace(/\D/g, "").slice(-10);
-  if (norm.length !== 10) return;
-  optOutCache?.delete(norm);
-  voiceOnlyCache?.delete(norm);
-  void persistOptOutPreference(norm, false);
+  if (norm.length !== 10) return false;
+  try {
+    const { getDb } = await import("./db");
+    const { smsPreferences } = await import("../drizzle/schema");
+    const { eq, sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return false;
+    // Both IFs read opt_out_keyword, and the keyword's own IF maps each marker
+    // to a value still in the set, so the result is the same whichever order
+    // the engine applies the assignments in.
+    await db.execute(sql`
+      INSERT INTO sms_preferences (phone, opted_out, opted_in_at)
+      VALUES (${norm}, 0, NOW())
+      ON DUPLICATE KEY UPDATE
+        opted_in_at = NOW(),
+        opted_out = IF(opt_out_keyword IN (${VOICE_OPT_OUT_KEYWORD}, ${VOICE_AND_SMS_OPT_OUT_KEYWORD}), 1, 0),
+        opt_out_keyword = IF(opt_out_keyword IN (${VOICE_OPT_OUT_KEYWORD}, ${VOICE_AND_SMS_OPT_OUT_KEYWORD}), ${VOICE_OPT_OUT_KEYWORD}, opt_out_keyword)
+    `);
+    const [row] = await db
+      .select({ optedOut: smsPreferences.optedOut })
+      .from(smsPreferences)
+      .where(eq(smsPreferences.phone, norm));
+    if (!row) return false;
+    if (row.optedOut) {
+      // The do-not-call stands: still suppressed for voice, texting allowed.
+      if (!optOutCache) optOutCache = new Set();
+      optOutCache.add(norm);
+      if (!voiceOnlyCache) voiceOnlyCache = new Set();
+      voiceOnlyCache.add(norm);
+    } else {
+      optOutCache?.delete(norm);
+      voiceOnlyCache?.delete(norm);
+    }
+    return true;
+  } catch (err) {
+    log.error("sms opt-in persist FAILED — number stays suppressed in this process", {
+      error: describeDbError(err),
+      errorId: "SMS_OPT_IN_PERSIST_FAILED",
+    });
+    return false;
+  }
 }
 
 // ─── TWILIO CLIENT ─────────────────────────────────────
@@ -1340,6 +1460,17 @@ export interface SmsResult {
    * the row as `sending`. Three parts of one system, two different truths.
    */
   uncertain?: boolean;
+  /**
+   * The caller passed sendNowOrDrop and the text could not go out now, so it was
+   * dropped instead of queued. Nothing was sent and nothing will be.
+   */
+  notQueued?: boolean;
+}
+
+/** sendNowOrDrop's refusal: a time-sensitive text is dropped, never parked. */
+function refuseToQueue(to: string, why: string): SmsResult {
+  log.info(`[sendSms] NOT QUEUED — time-sensitive text, ${why}`, { to: to.slice(-4) });
+  return { success: false, notQueued: true, error: `Time-sensitive text not queued (${why})` };
 }
 
 interface SendSmsOptions {
@@ -1353,6 +1484,20 @@ interface SendSmsOptions {
    * Automated callers must never set it.
    */
   humanInitiated?: boolean;
+  /**
+   * audit 2026-09-29 · the caller is replying in a thread where the customer has
+   * texted the shop. With humanInitiated and messageClass "customer_followup"
+   * it lets the reply through a VOICE-only opt-out (VOICE_OPT_OUT_KEYWORD);
+   * any full SMS opt-out still refuses it. Only smsConversations.send sets it.
+   */
+  replyToCustomerInbound?: boolean;
+  /**
+   * audit 2026-09-29 · the text is only true when it is sent (the after-hours
+   * "we're closed right now" reply). Where sendSms would park it in the delayed
+   * queue (quiet hours, global pause, shop gateway offline) it drops it and
+   * returns notQueued instead, because the queue can deliver it after opening.
+   */
+  sendNowOrDrop?: boolean;
   /**
    * wave-2026-06 — the caller writes the smsMessages row itself (via
    * logOutboundSms, with its variantKey). Skip persistOutboundShopSms so
@@ -2015,7 +2160,16 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       // Q-45 · a SPOKEN "stop calling" does not cover a text the customer asked
       // for (verification code, their own car's status). Only that class, and
       // only when nothing but the voice opt-out suppresses the number.
-      !(messageClass === "customer_confirmation" && index.voiceOnly?.has(last10))
+      !(messageClass === "customer_confirmation" && index.voiceOnly?.has(last10)) &&
+      // Nor does it cover a staff member answering the customer's own text in
+      // the SMS inbox (audit 2026-09-29). All three marks are required, so an
+      // automated follow-up or a marketing send stays refused.
+      !(
+        messageClass === "customer_followup" &&
+        opts?.humanInitiated &&
+        opts?.replyToCustomerInbound &&
+        index.voiceOnly?.has(last10)
+      )
     ) {
       smsStats.totalOptedOut++;
       log.info("[sendSms] not sent — recipient opted out (TCPA)", { to: last10.slice(-4), messageClass });
@@ -2092,6 +2246,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
   const bypassQuietHours = isInternal || messageClass === "customer_confirmation" || opts?._forceImmediate;
   
   if (!bypassQuietHours && !isWithinSendingHours()) {
+    if (opts?.sendNowOrDrop) return refuseToQueue(normalizedEarly, "outside sending hours (8AM-8PM ET)");
     log.info("[sendSms] QUEUED — outside sending hours (8AM-8PM ET)", {
       to: normalizedEarly.slice(-4),
       messageClass,
@@ -2130,6 +2285,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       (!pause.readable && messageClass === "customer_marketing");
     if (holdForPause) {
       smsStats.blockedByPause++;
+      if (opts?.sendNowOrDrop) return refuseToQueue(normalizedEarly, "global SMS pause");
       log.warn("[sendSms] QUEUED — global SMS pause", {
         to: normalizedEarly.slice(-4),
         messageClass,
@@ -2192,6 +2348,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     isShopGatewayConfigured() &&
     !(await isShopGatewayReachable())
   ) {
+    if (opts?.sendNowOrDrop) return refuseToQueue(normalizedEarly, "shop gateway (F25e) unreachable");
     log.warn("[sendSms] QUEUED — shop gateway (F25e) unreachable", {
       to: normalizedEarly.slice(-4),
       messageClass,

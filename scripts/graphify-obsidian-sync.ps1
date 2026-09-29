@@ -240,6 +240,46 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# 3.5. GOVERNED CODE-INTELLIGENCE RECEIPTS.
+#
+# Graphify already produces the graph/report and keeps dated snapshots. Reuse
+# those incumbents rather than inventing a second graph store:
+#   - necropsy compares snapshots and proposes wire-or-delete findings when a
+#     still-present symbol loses every importer;
+#   - the compact governance receipt pins source SHA, origin/main freshness,
+#     graph shape/delta, label provenance, and the necropsy count.
+#
+# Both are NON-FATAL. A reporting/provenance defect must be visible in the log
+# but must not erase the valid graph + vault artifacts already produced.
+$nodeCommand = Get-Command node -ErrorAction SilentlyContinue
+if (-not $nodeCommand) {
+    Log "WARN: graph governance skipped - node is not available on PATH"
+} else {
+    $snapshotDirs = @(Get-ChildItem -Path (Join-Path $RepoRoot "graphify-out") -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}$' -and (Test-Path (Join-Path $_.FullName "graph.json")) } |
+        Sort-Object Name)
+
+    if ($snapshotDirs.Count -ge 2) {
+        Log "running graphify importer-death necropsy over newest snapshots"
+        & $nodeCommand.Source (Join-Path $RepoRoot "scripts\graphify-necropsy.mjs") 2>&1 | Add-Content -Path $log
+        if ($LASTEXITCODE -ne 0) {
+            Log "WARN: graphify necropsy exited $LASTEXITCODE - graph artifacts remain valid"
+        } else {
+            Log "graphify necropsy OK"
+        }
+    } else {
+        Log "graphify necropsy skipped - fewer than two dated graph snapshots are available"
+    }
+
+    Log "writing compact Graphify governance receipt"
+    & $nodeCommand.Source (Join-Path $RepoRoot "scripts\graphify-governance-receipt.mjs") --repo $RepoRoot --label-status $labelStatus --run-status "graph_core_success" 2>&1 | Add-Content -Path $log
+    if ($LASTEXITCODE -ne 0) {
+        Log "WARN: graph governance receipt exited $LASTEXITCODE - graph artifacts remain valid"
+    } else {
+        Log "graph governance receipt OK"
+    }
+}
+
 # 4. ROTATE VAULT BACKUPS (added 2026-08-21). Step 3 writes one
 # obsidian-backup-<date>/ per run and never removed any, so they accumulated
 # until someone noticed and hand-deleted the oldest. They are regenerable,

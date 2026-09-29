@@ -399,6 +399,52 @@ class HeartbeatTest(unittest.TestCase):
                          {edge_main.PRODUCER_INSTANCE_ID})
 
 
+    def test_standby_promotion_discards_standby_state_before_writes(self):
+        class AuthorityRecorder(Recorder):
+            def __call__(self, method, url, payload, headers, timeout):
+                super().__call__(method, url, payload, headers, timeout)
+                return 200, '{"authoritative": true, "authorityLeaseSeconds": 90}'
+
+        pipeline = make_pipeline()
+        transport = shop_enabled(pipeline, AuthorityRecorder())
+        pipeline.shop.producer_instance_id = "p2-nicksmax-test"
+        pipeline.shop._lease_managed = True
+        vision = FakeVision(pipeline.tracker)
+        reset_calls = []
+        vision.reset_authority_epoch = lambda ts: reset_calls.append(ts) or {"tracks": 2, "visits": 1}
+        loop = _loop(pipeline, vision, FakeSource())
+
+        with self.assertLogs("edge", level="WARNING"):
+            self.assertTrue(loop.send_heartbeat(1234.0))
+        self.assertTrue(pipeline.shop.is_authoritative(loop.camera))
+        self.assertEqual(reset_calls, [1234.0])
+        self.assertEqual(len(transport.calls), 1)
+
+    def test_failed_promotion_reset_stops_renewing_until_local_reset_recovers(self):
+        class AuthorityRecorder(Recorder):
+            def __call__(self, method, url, payload, headers, timeout):
+                super().__call__(method, url, payload, headers, timeout)
+                return 200, '{"authoritative": true, "authorityLeaseSeconds": 90}'
+
+        pipeline = make_pipeline()
+        transport = shop_enabled(pipeline, AuthorityRecorder())
+        pipeline.shop.producer_instance_id = "p2-nicksmax-test"
+        pipeline.shop._lease_managed = True
+        vision = FakeVision(pipeline.tracker)
+        vision.reset_authority_epoch = lambda _ts: (_ for _ in ()).throw(RuntimeError("boom"))
+        loop = _loop(pipeline, vision, FakeSource())
+
+        with self.assertLogs("edge", level="ERROR"):
+            self.assertFalse(loop.send_heartbeat(1234.0))
+        self.assertFalse(pipeline.shop.is_authoritative(loop.camera))
+        self.assertTrue(loop.authority_recovery_blocked)
+        self.assertEqual(len(transport.calls), 1)
+
+        # Repeated local failure must NOT send another heartbeat and refresh the backend lease.
+        with self.assertLogs("edge", level="ERROR"):
+            self.assertFalse(loop.send_heartbeat(1264.0))
+        self.assertEqual(len(transport.calls), 1)
+
 class TimersTest(unittest.TestCase):
     def test_the_heartbeat_and_drain_fire_on_THEIR_OWN_schedules_not_per_frame(self):
         """At 4 fps, a per-frame heartbeat would be 4 POSTs a second."""

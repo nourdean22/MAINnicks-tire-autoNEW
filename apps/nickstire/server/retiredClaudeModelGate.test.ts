@@ -78,6 +78,13 @@ describe("no retired Claude model id in runtime source", () => {
     ];
     expect(findRetired(planted, res).map((h) => h.id)).toEqual(["claude-3-5-haiku-latest", "claude-sonnet-4-20250514"]);
     expect(findRetired([{ file: "ok.ts", text: 'm = "claude-sonnet-5"; h = "claude-haiku-4-5"; o = "claude-opus-4-8";' }], res)).toEqual([]);
+    // 2026-09-29 · the retired ALIASES are caught too, not only the dated ids…
+    expect(
+      findRetired([{ file: "alias.ts", text: 'a = "claude-opus-4-1"; b = "claude-opus-4-0"; c = "claude-sonnet-4-0";' }], res).map((h) => h.id),
+    ).toEqual(["claude-opus-4-1", "claude-opus-4-0", "claude-sonnet-4-0"]);
+    // …and the alias patterns never reach a live id that shares their prefix.
+    const live = ["claude-opus-4-5", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8", "claude-sonnet-4-5", "claude-sonnet-4-6", "claude-sonnet-4-5-20250929", "claude-opus-4-5-20251101"];
+    expect(findRetired([{ file: "live.ts", text: live.map((id) => `"${id}"`).join(", ") }], res)).toEqual([]);
   });
 
   it("the scan reaches the file that carried the defect", () => {

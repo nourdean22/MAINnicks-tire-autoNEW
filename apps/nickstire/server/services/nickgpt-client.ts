@@ -22,6 +22,7 @@
 import { createLogger } from "../lib/logger";
 import { withTimeout } from "@nour/utils";
 import { NICK_SMS_SYSTEM_PROMPT } from "./nickSmsPersona";
+import { claudeThinkingOffParams } from "./claudeThinkingParams";
 import { buildWarrantyFactsPreambleLive } from "./businessFacts";
 
 const log = createLogger("nickgpt-client");
@@ -88,9 +89,34 @@ export function buildCustomerMemoryPreamble(opts: Pick<DraftOpts, "customer" | "
   return `\n\n[Customer memory: ${bits.join("; ")}. Use these only when they help answer the text — do NOT recite them or restart the conversation, and never invent details beyond them.]`;
 }
 
+/**
+ * Did the provider say the draft is FINISHED? F4a: DEFAULT_MAX_TOKENS is ~one SMS,
+ * so a draft that hit the cap was cut mid-sentence and looked exactly like a
+ * finished one. Each provider reports why it stopped; we read it:
+ *   Ollama /api/chat          done_reason            "stop"                    | "length"
+ *   Anthropic /v1/messages    stop_reason            "end_turn"|"stop_sequence" | "max_tokens"|"model_context_window_exceeded"
+ *   OpenAI-compatible chat    choices[0].finish_reason "stop"                  | "length"
+ * Anything else — missing field, refusal, content_filter, a value added later —
+ * is "unknown". Only "complete" may auto-send; unknown is not healthy.
+ */
+export type DraftCompletion = "complete" | "truncated" | "unknown";
+
+const COMPLETE_REASONS = new Set(["stop", "end_turn", "stop_sequence"]);
+const TRUNCATED_REASONS = new Set(["length", "max_tokens", "model_context_window_exceeded"]);
+
+/** Map a provider stop signal to a completion state. */
+function classifyStopReason(reason: unknown): DraftCompletion {
+  if (typeof reason !== "string") return "unknown";
+  if (COMPLETE_REASONS.has(reason)) return "complete";
+  if (TRUNCATED_REASONS.has(reason)) return "truncated";
+  return "unknown";
+}
+
 interface DraftResult {
   ok: true;
   draft: string;
+  /** Provider stop signal, classified. Auto-send callers MUST require "complete". */
+  completion: DraftCompletion;
   source: "nickgpt-ollama" | "fallback-claude" | "fallback-openai";
   modelName: string;
   latencyMs: number;
@@ -134,7 +160,7 @@ async function isNickGptEnabled(): Promise<boolean> {
  * success, OR throws. Timeout-wrapped so a hung Ollama doesn't block
  * the caller.
  */
-async function callOllama(opts: Required<Pick<DraftOpts, "inboundMessage" | "systemPrompt" | "maxTokens" | "temperature" | "timeoutMs">> & { conversationContext: DraftOpts["conversationContext"] }): Promise<string> {
+async function callOllama(opts: Required<Pick<DraftOpts, "inboundMessage" | "systemPrompt" | "maxTokens" | "temperature" | "timeoutMs">> & { conversationContext: DraftOpts["conversationContext"] }): Promise<{ text: string; completion: DraftCompletion }> {
   const url = process.env.NICKGPT_OLLAMA_URL!;
   const model = process.env.NICKGPT_MODEL_NAME!;
 
@@ -172,10 +198,10 @@ async function callOllama(opts: Required<Pick<DraftOpts, "inboundMessage" | "sys
     const text = await response.text().catch(() => "<no body>");
     throw new Error(`Ollama HTTP ${response.status} · ${text.slice(0, 200)}`);
   }
-  const json = (await response.json()) as { message?: { content?: string } };
+  const json = (await response.json()) as { message?: { content?: string }; done_reason?: string };
   const content = json.message?.content?.trim() ?? "";
   if (!content) throw new Error("Ollama returned empty content");
-  return content;
+  return { text: content, completion: classifyStopReason(json.done_reason) };
 }
 
 /**
@@ -188,7 +214,7 @@ async function callOllama(opts: Required<Pick<DraftOpts, "inboundMessage" | "sys
  * client (Venice/Claude) is invoked elsewhere; we only need a thin
  * wrapper for this single use case.
  */
-async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage" | "systemPrompt" | "maxTokens" | "temperature">> & { conversationContext: DraftOpts["conversationContext"] }): Promise<{ text: string; source: "fallback-claude" | "fallback-openai"; modelName: string }> {
+async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage" | "systemPrompt" | "maxTokens" | "temperature">> & { conversationContext: DraftOpts["conversationContext"] }): Promise<{ text: string; source: "fallback-claude" | "fallback-openai"; modelName: string; completion: DraftCompletion }> {
   // Prefer Anthropic if key present, else fall back to Gemini or OpenAI
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
@@ -217,8 +243,10 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
           system: opts.systemPrompt,
           // Current Claude models reject non-default temperature (HTTP 400), and
           // Sonnet 5 thinks adaptively unless told not to — thinking would eat
-          // this 110-token budget and leave no draft. So: no temperature, no thinking.
-          thinking: { type: "disabled" },
+          // this 110-token budget and leave no draft. So: no temperature, and
+          // thinking off in whichever form this model accepts (Opus 5.5, Sonnet
+          // 5.5 and Fable 400 on `disabled`; see claudeThinkingParams.ts).
+          ...claudeThinkingOffParams(modelName),
           messages,
         }),
       });
@@ -226,10 +254,10 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
         const text = await resp.text().catch(() => "<no body>");
         throw new Error(`Anthropic HTTP ${resp.status} · ${text.slice(0, 200)}`);
       }
-      const json = (await resp.json()) as { content?: Array<{ type?: string; text?: string }> };
+      const json = (await resp.json()) as { content?: Array<{ type?: string; text?: string }>; stop_reason?: string };
       const text = json.content?.find((b) => b.type === "text")?.text?.trim() ?? "";
       if (!text) throw new Error("Anthropic returned empty content");
-      return { text, source: "fallback-claude", modelName };
+      return { text, source: "fallback-claude", modelName, completion: classifyStopReason(json.stop_reason) };
     } catch (err) {
       log.warn("Anthropic fallback draft generation failed, trying next provider", { error: err instanceof Error ? err.message : String(err) });
     }
@@ -256,10 +284,10 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
         const text = await resp.text().catch(() => "<no body>");
         throw new Error(`Gemini HTTP ${resp.status} · ${text.slice(0, 200)}`);
       }
-      const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
       const text = json.choices?.[0]?.message?.content?.trim() ?? "";
       if (!text) throw new Error("Gemini returned empty content");
-      return { text, source: "fallback-openai", modelName };
+      return { text, source: "fallback-openai", modelName, completion: classifyStopReason(json.choices?.[0]?.finish_reason) };
     } catch (err) {
       log.warn("Gemini fallback draft generation failed, trying next provider", { error: err instanceof Error ? err.message : String(err) });
     }
@@ -287,10 +315,10 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
         const text = await resp.text().catch(() => "<no body>");
         throw new Error(`OpenAI HTTP ${resp.status} · ${text.slice(0, 200)}`);
       }
-      const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const json = (await resp.json()) as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
       const text = json.choices?.[0]?.message?.content?.trim() ?? "";
       if (!text) throw new Error("OpenAI returned empty content");
-      return { text, source: "fallback-openai", modelName };
+      return { text, source: "fallback-openai", modelName, completion: classifyStopReason(json.choices?.[0]?.finish_reason) };
     } catch (err) {
       log.warn("OpenAI fallback draft generation failed", { error: err instanceof Error ? err.message : String(err) });
     }
@@ -306,7 +334,8 @@ async function callClaudeFallback(opts: Required<Pick<DraftOpts, "inboundMessage
  * is on + env vars set. Falls back to Claude/Venice otherwise. NEVER
  * sends the SMS — caller is responsible for showing the draft to the
  * operator OR auto-sending if the appropriate flag is on (e.g.
- * `smart_sms_auto_reply`).
+ * `smart_sms_auto_reply`). An auto-send caller must require
+ * `completion === "complete"`: a truncated or unknown-stop draft goes to a human.
  */
 export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
   let systemPrompt = opts.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
@@ -352,7 +381,7 @@ export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
   if (enabled) {
     const t0 = Date.now();
     try {
-      const draft = await callOllama({
+      const { text: draft, completion } = await callOllama({
         inboundMessage: opts.inboundMessage,
         conversationContext: opts.conversationContext,
         systemPrompt,
@@ -363,6 +392,7 @@ export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
       return {
         ok: true,
         draft,
+        completion,
         source: "nickgpt-ollama",
         modelName: process.env.NICKGPT_MODEL_NAME!,
         latencyMs: Date.now() - t0,
@@ -387,6 +417,7 @@ export async function draftSmsReply(opts: DraftOpts): Promise<DraftResponse> {
     return {
       ok: true,
       draft: result.text,
+      completion: result.completion,
       source: result.source,
       modelName: result.modelName,
       latencyMs: Date.now() - t0,

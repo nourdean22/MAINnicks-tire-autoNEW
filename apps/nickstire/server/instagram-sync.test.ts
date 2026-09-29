@@ -13,8 +13,9 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
  * global fetch (Graph). metaSocial is REAL — its request/mapping code is
  * under test too.
  */
-const { insertValues, selectQueue, cachePosts, cacheAccount, writeInstagramCache, database } = vi.hoisted(() => {
+const { insertValues, updateSet, selectQueue, cachePosts, cacheAccount, writeInstagramCache, database } = vi.hoisted(() => {
   const insertValues = vi.fn().mockResolvedValue(undefined);
+  const updateSet = vi.fn((_values: Record<string, unknown>) => ({ where: () => Promise.resolve([{ affectedRows: 1 }, []]) }));
   const selectQueue: unknown[][] = [];
   function makeSelectChain(): Record<string, unknown> {
     const chain: Record<string, unknown> = {};
@@ -26,10 +27,11 @@ const { insertValues, selectQueue, cachePosts, cacheAccount, writeInstagramCache
   const database = {
     insert: () => ({ values: insertValues }),
     select: () => makeSelectChain(),
-    update: () => ({ set: () => ({ where: () => Promise.resolve([{ affectedRows: 1 }, []]) }) }),
+    update: () => ({ set: updateSet }),
   };
   return {
     insertValues,
+    updateSet,
     selectQueue,
     database,
     cachePosts: vi.fn<() => unknown[]>(() => []),
@@ -105,6 +107,7 @@ function stubGraph(opts: { mediaStatus?: number; accountStatus?: number } = {}) 
 
 beforeEach(() => {
   insertValues.mockClear();
+  updateSet.mockClear();
   writeInstagramCache.mockClear();
   selectQueue.length = 0;
   cachePosts.mockReturnValue([]);
@@ -160,7 +163,10 @@ describe("syncInstagramPosts source selection", () => {
     expect(account?.followers).toBe(500);
   });
 
-  it("falls back to the cache when the Graph rejects the token (source=cache)", async () => {
+  // F10 (2026-09-29): the non-Graph source is a copy (file cache) or not an
+  // observation at all (the DB stand-in fallback on a fresh container). It is
+  // reported, never written: no analytics insert, no update, no snapshot.
+  it("reports source=cache but writes NOTHING when the Graph rejects the token", async () => {
     stubGraph({ mediaStatus: 401 });
     cachePosts.mockReturnValue([
       { id: "cache_post", type: "IMAGE", caption: "old cached post", link: "", likes: 5, comments: 1, posted: OLD_TS },
@@ -170,9 +176,77 @@ describe("syncInstagramPosts source selection", () => {
 
     const res = await syncInstagramPosts();
     expect(res.source).toBe("cache");
-    expect(res.processed).toBe(1);
-    expect(insertValues.mock.calls[0][0].postId).toBe("cache_post");
+    expect(res.processed).toBe(0);
+    expect(res.newPosts).toBe(0);
+    expect(res.snapshotsWritten).toBe(0);
+    expect(insertValues).not.toHaveBeenCalled();
+    expect(updateSet).not.toHaveBeenCalled();
     expect(writeInstagramCache).not.toHaveBeenCalled();
+  });
+
+  it("Graph down + no cache file: DB-fallback stand-in posts insert no analytics row and no snapshot", async () => {
+    stubGraph({ mediaStatus: 500 });
+    // What getInstagramPostsFromDb returns on a fresh container: one row keyed by
+    // a social_content_inventory id (no igPostId) with defaulted 0 metrics, and
+    // one real media id whose metrics are copies of the stored row.
+    cachePosts.mockReturnValue([
+      { id: "inv_42", type: "VIDEO", caption: "stand-in reel", link: "", likes: 0, comments: 0, posted: OLD_TS, mediaProductType: "REELS" },
+      { id: "graph_post_1", type: "IMAGE", caption: "stored post", link: "", likes: 12, comments: 3, posted: OLD_TS, mediaProductType: "FEED" },
+    ]);
+    cacheAccount.mockReturnValue(null); // no cache file -> no account
+    selectQueue.push([], []);
+
+    const res = await syncInstagramPosts();
+    expect(res.source).not.toBe("graph");
+    expect(res.processed).toBe(0);
+    expect(insertValues).not.toHaveBeenCalled(); // neither instagram_analytics nor ig_metric_snapshots
+    expect(updateSet).not.toHaveBeenCalled();
+  });
+
+  it("Graph down: an already-tracked row keeps its engagementRate/followerSnapshot (no zero overwrite)", async () => {
+    stubGraph({ mediaStatus: 500 });
+    cachePosts.mockReturnValue([
+      { id: "graph_post_1", type: "IMAGE", caption: "stored post", link: "", likes: 12, comments: 3, posted: OLD_TS },
+    ]);
+    cacheAccount.mockReturnValue(null);
+    selectQueue.push([{ id: 7 }]); // already tracked
+
+    await syncInstagramPosts();
+    expect(updateSet).not.toHaveBeenCalled();
+    expect(insertValues).not.toHaveBeenCalled();
+  });
+
+  it("Graph media up but follower count unknown: update omits engagementRate/followerSnapshot, new post is deferred", async () => {
+    stubGraph({ accountStatus: 500 });
+    cacheAccount.mockReturnValue(null);
+    selectQueue.push([{ id: 7 }], []); // post 1 tracked, post 2 new
+
+    const res = await syncInstagramPosts();
+    expect(res.source).toBe("graph");
+    expect(updateSet).toHaveBeenCalledTimes(1);
+    const set = updateSet.mock.calls[0][0];
+    expect(set.likes).toBe(12);
+    expect(set).not.toHaveProperty("engagementRate");
+    expect(set).not.toHaveProperty("followerSnapshot");
+    const rows = insertValues.mock.calls.map(([v]: [Record<string, unknown>]) => v);
+    // No analytics row with a fabricated 0 rate; the snapshot for the tracked
+    // post still lands, with followerSnapshot null (unknown), never 0.
+    expect(rows.filter((r) => "engagementRate" in r)).toEqual([]);
+    expect(rows.map((r) => r.postId)).toEqual(["graph_post_1"]);
+    expect(rows[0].followerSnapshot).toBeNull();
+    expect(res.newPosts).toBe(0);
+  });
+
+  it("positive control: Graph up refreshes a tracked row with live rate + follower count and snapshots it", async () => {
+    stubGraph();
+    selectQueue.push([{ id: 7 }], [{ id: 8 }]);
+
+    const res = await syncInstagramPosts();
+    expect(res.source).toBe("graph");
+    expect(res.processed).toBe(2);
+    expect(updateSet).toHaveBeenCalledTimes(2);
+    expect(updateSet.mock.calls[0][0]).toMatchObject({ likes: 12, comments: 3, engagementRate: 300, followerSnapshot: 500 });
+    expect(res.snapshotsWritten).toBe(2);
   });
 
   it("reports source=none (not success) when Graph is down and the cache is empty", async () => {

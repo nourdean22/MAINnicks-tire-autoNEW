@@ -3,7 +3,8 @@
 
 The overlay is intentionally narrow:
 - expose PTZ + preset.goto through the bridge device.action router;
-- bind bundled go2rtc listeners to loopback only.
+- expose a loopback-only fragmented-MP4 recording route that carries camera audio;
+- keep bundled go2rtc listeners loopback-only while making their ports runtime-configurable.
 
 Safety contract:
 - require the exact reviewed bridge package/version;
@@ -27,6 +28,7 @@ SUPPORTED_NAME = "ha-eufy-sdk-bridge"
 SUPPORTED_VERSION = "0.3.0"
 
 WS_PATH = Path("src/ws-server.mjs")
+HTTP_PATH = Path("src/http-routes.mjs")
 GO2RTC_PATH = Path("go2rtc-config.mjs")
 
 # SHA-256 over UTF-8 source with CRLF normalized to LF. This pins ALL executable
@@ -40,12 +42,24 @@ REVIEWED_DIGESTS: dict[Path, frozenset[str]] = {
             "7fa967da9d83c1fa35d42f1fa6abfe1e8d103fe55895232371bede2e71cd17d7",
         }
     ),
+    HTTP_PATH: frozenset(
+        {
+            # upstream v0.3.0 @ f00dd98
+            "652f969cf531f743c55d2c4812c570ff7242e68c78f8c29080f41bad59ec651c",
+            # reviewed StateNour local fragmented-MP4 recording route
+            "f5154de93007fee3b24ad47f95eb6ffda134bcfccb2cc61b6f57fda178c139da",
+        }
+    ),
     GO2RTC_PATH: frozenset(
         {
             # upstream v0.3.0 @ f00dd98
             "a06f4c47b07a7a4ab2c9eb827375261cb116dbb672fd3bc1f190ff5d89f5886d",
             # reviewed StateNour loopback-only overlay
             "55a8a0e8965cdbc6131e75c965b4542a0600dae41a1e54cd8d730f8da0169293",
+            # NicksMax reviewed hard-coded 8654/8655 interim state
+            "a210a44f2547ea9df4c3f970c162a2734964bf49e557adf53094627fc7fe5e51",
+            # reviewed environment-driven loopback listener overlay
+            "c6e4fa1e601b5793cf66c05dcc508da9a1e5ae486e49f366e832e77a298f5fa3",
         }
     ),
 }
@@ -79,11 +93,109 @@ ROUTER_NEW = """          // Capability surfaces that expose actions. Add more a
           try {
             const result = await surface[method](...args);"""
 
+GO2RTC_ENV_OLD = "const isCamera = (d) => Boolean(d.stream);"
+GO2RTC_ENV_NEW = """const isCamera = (d) => Boolean(d.stream);
+
+// Listener addresses are runtime configuration, not source edits. Defaults preserve upstream
+// loopback behavior; NicksMax overrides RTSP/WebRTC to 8654/8655 so V380 keeps 8554/8555.
+const go2rtcApiListen = process.env.GO2RTC_API_LISTEN || "127.0.0.1:1984";
+const go2rtcRtspListen = process.env.GO2RTC_RTSP_LISTEN || "127.0.0.1:8554";
+const go2rtcWebrtcListen = process.env.GO2RTC_WEBRTC_LISTEN || "127.0.0.1:8555";"""
+
 LISTENER_REPLACEMENTS = (
-    ('  listen: ":1984"', '  listen: "127.0.0.1:1984"'),
-    ('  listen: ":8554"', '  listen: "127.0.0.1:8554"'),
-    ('  listen: ":8555"', '  listen: "127.0.0.1:8555"'),
+    (
+        ("'  listen: \":1984\"'", "'  listen: \"127.0.0.1:1984\"'"),
+        "'  listen: \"' + go2rtcApiListen + '\"'",
+    ),
+    (
+        (
+            "'  listen: \":8554\"'",
+            "'  listen: \"127.0.0.1:8554\"'",
+            "'  listen: \"127.0.0.1:8654\"'",
+        ),
+        "'  listen: \"' + go2rtcRtspListen + '\"'",
+    ),
+    (
+        (
+            "'  listen: \":8555\"'",
+            "'  listen: \"127.0.0.1:8555\"'",
+            "'  listen: \"127.0.0.1:8655\"'",
+        ),
+        "'  listen: \"' + go2rtcWebrtcListen + '\"'",
+    ),
 )
+
+HTTP_ROUTE_OLD = '    if (kind === "stream" && sn) {'
+HTTP_ROUTE_NEW = """    if (kind === "record" && sn) {
+      // Headless bounded-media source for local interaction capture. The SDK fragmented-MP4
+      // recorder muxes the same live H264 feed with the camera AAC microphone frames, while
+      // /stream intentionally exposes video-only Annex-B for go2rtc. The bridge itself is bound
+      // to loopback, so this never exposes customer audio off the NicksMax host.
+      const backoff = ctx.streamBackoffMs?.(sn) ?? 0;
+      if (backoff > 0)
+        return json(res, 503, {
+          error: "recording backing off after a failed open - retry in "
+            + Math.ceil(backoff / 1000)
+            + "s (P2P unreachable)",
+        });
+      let recording;
+      try {
+        const client = await openStreamClient(sn, cfg);
+        const cam = (await client.getDevice(sn)).camera?.();
+        if (!cam?.recordFragments) return json(res, 404, { error: "no fragmented recording on this device" });
+        recording = cam.recordFragments({ fragmentSeconds: 1 });
+        ctx.noteStreamOpened?.(sn);
+        res.writeHead(200, {
+          "content-type": "video/mp4",
+          "cache-control": "no-cache",
+          "x-content-type-options": "nosniff",
+        });
+
+        let closed = false;
+        let timer;
+        const cleanup = () => {
+          if (closed) return;
+          closed = true;
+          if (timer) clearTimeout(timer);
+          try {
+            recording?.stop?.();
+          } catch {
+            // Closing a recording is best-effort; socket teardown is already authoritative.
+          }
+        };
+        const maxSeconds = Math.min(
+          300,
+          Math.max(5, Number(url.searchParams.get("maxSeconds")) || 180),
+        );
+        timer = setTimeout(cleanup, maxSeconds * 1000);
+        req.on("aborted", cleanup);
+        res.on("close", cleanup);
+        try {
+          for await (const fragment of recording) {
+            if (closed) break;
+            if (fragment?.init?.length) res.write(fragment.init);
+            if (fragment?.data?.length) res.write(fragment.data);
+          }
+          if (!res.writableEnded) res.end();
+        } finally {
+          cleanup();
+        }
+        return;
+      } catch (e) {
+        ctx.noteStreamFailure?.(sn);
+        dropClient(sn);
+        if (res.headersSent) {
+          res.destroy(e instanceof Error ? e : new Error(String(e)));
+          return;
+        }
+        return json(res, 502, { error: String(e?.message ?? e) });
+      }
+    }
+
+    if (kind === "stream" && sn) {"""
+
+
+ReplacementSource = str | tuple[str, ...]
 
 
 class OverlayError(RuntimeError):
@@ -95,6 +207,7 @@ class OverlayReport:
     bridge_root: str
     bridge_version: str
     ptz_router: str
+    record_route: str
     go2rtc_listeners: str
     changed_files: tuple[str, ...]
 
@@ -153,21 +266,28 @@ def _read_reviewed(root: Path, relative: Path) -> str:
     return text
 
 
-def _replace_exact(text: str, old: str, new: str, label: str) -> tuple[str, str]:
+def _replace_exact(
+    text: str,
+    old: ReplacementSource,
+    new: str,
+    label: str,
+) -> tuple[str, str]:
     if new in text:
         return text, "already_patched"
-    count = text.count(old)
-    if count != 1:
+    candidates = (old,) if isinstance(old, str) else tuple(old)
+    matches = [candidate for candidate in candidates if text.count(candidate) == 1]
+    if len(matches) != 1:
+        counts = ", ".join(f"{candidate!r}:{text.count(candidate)}" for candidate in candidates)
         raise OverlayError(
-            f"{label} source drift: expected exactly one reviewed seam, found {count}"
+            f"{label} source drift: expected exactly one reviewed seam variant; {counts}"
         )
-    return text.replace(old, new, 1), "patched"
+    return text.replace(matches[0], new, 1), "patched"
 
 
 def _plan_file(
     root: Path,
     relative: Path,
-    transforms: Iterable[tuple[str, str, str]],
+    transforms: Iterable[tuple[ReplacementSource, str, str]],
 ) -> _Plan:
     original = _read_reviewed(root, relative)
     current = original
@@ -187,7 +307,14 @@ def _plan_file(
 
 
 def _write_atomic(path: Path, text: str) -> None:
-    """Write one UTF-8/LF file atomically in the target directory."""
+    """Write one reviewed UTF-8/LF file, preferring same-directory atomic replace.
+
+    On the NicksMax Windows runtime, native Rename-Item succeeds while Python's
+    os.replace(temp, existing) returns WinError 5 for these reviewed bridge files.
+    Only that PermissionError falls back to a direct full-file write. The caller
+    preflights every target before the first mutation and rolls earlier writes back
+    if any later write or verification fails, so partial overlay state still fails closed.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(
         prefix=f".{path.name}.statenour-",
@@ -201,7 +328,14 @@ def _write_atomic(path: Path, text: str) -> None:
             handle.write(text)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temp_path, path)
+        try:
+            os.replace(temp_path, path)
+        except PermissionError:
+            with path.open("w", encoding="utf-8", newline="\n") as handle:
+                handle.write(text)
+                handle.flush()
+                os.fsync(handle.fileno())
+            temp_path.unlink(missing_ok=True)
     except Exception:
         try:
             temp_path.unlink(missing_ok=True)
@@ -210,41 +344,56 @@ def _write_atomic(path: Path, text: str) -> None:
         raise
 
 
-def _plans(root: Path) -> tuple[_Plan, _Plan]:
-    """Preflight BOTH targets completely before the first mutation."""
+def _plans(root: Path) -> tuple[_Plan, _Plan, _Plan]:
+    """Preflight every reviewed target completely before the first mutation."""
     ptz = _plan_file(
         root,
         WS_PATH,
         ((ROUTER_OLD, ROUTER_NEW, "PTZ/preset device.action router"),),
     )
+    record = _plan_file(
+        root,
+        HTTP_PATH,
+        ((HTTP_ROUTE_OLD, HTTP_ROUTE_NEW, "local fragmented-MP4 recording route"),),
+    )
     go2rtc = _plan_file(
         root,
         GO2RTC_PATH,
-        tuple(
-            (old, new, f"go2rtc listener {new}")
-            for old, new in LISTENER_REPLACEMENTS
+        (
+            (GO2RTC_ENV_OLD, GO2RTC_ENV_NEW, "go2rtc runtime listener configuration"),
+            *tuple(
+                (old, new, f"go2rtc listener {new}")
+                for old, new in LISTENER_REPLACEMENTS
+            ),
         ),
     )
-    return ptz, go2rtc
+    return ptz, record, go2rtc
 
 
 def verify(root: str | Path) -> OverlayReport:
     base = Path(root).resolve()
     package = _load_package(base)
     ws_text = _read_reviewed(base, WS_PATH)
+    http_text = _read_reviewed(base, HTTP_PATH)
     go_text = _read_reviewed(base, GO2RTC_PATH)
 
     if ROUTER_NEW not in ws_text or ROUTER_OLD in ws_text:
         raise OverlayError("PTZ/preset action router overlay is not verified")
+    if HTTP_ROUTE_NEW not in http_text:
+        raise OverlayError("fragmented-MP4 recording route overlay is not verified")
+    if GO2RTC_ENV_NEW not in go_text:
+        raise OverlayError("go2rtc runtime listener configuration is not verified")
     for old, new in LISTENER_REPLACEMENTS:
-        if new not in go_text or old in go_text:
+        variants = (old,) if isinstance(old, str) else tuple(old)
+        if new not in go_text or any(variant in go_text for variant in variants):
             raise OverlayError(f"go2rtc listener overlay is not verified: {new}")
 
     return OverlayReport(
         bridge_root=str(base),
         bridge_version=str(package["version"]),
         ptz_router="verified_with_preset_goto",
-        go2rtc_listeners="loopback_only",
+        record_route="verified_fragmented_mp4",
+        go2rtc_listeners="loopback_runtime_configurable",
         changed_files=(),
     )
 
@@ -253,7 +402,7 @@ def apply(root: str | Path) -> OverlayReport:
     base = Path(root).resolve()
     package = _load_package(base)
 
-    # Critical invariant: inspect package + BOTH complete source files before writing either.
+    # Critical invariant: inspect package + every complete source file before writing any of them.
     plans = _plans(base)
     changed = [plan for plan in plans if plan.changed]
     written: list[_Plan] = []
@@ -284,7 +433,8 @@ def apply(root: str | Path) -> OverlayReport:
         bridge_root=str(base),
         bridge_version=str(package["version"]),
         ptz_router=plans[0].state,
-        go2rtc_listeners=plans[1].state,
+        record_route=plans[1].state,
+        go2rtc_listeners=plans[2].state,
         changed_files=tuple(plan.relative.as_posix() for plan in changed),
     )
 

@@ -15,6 +15,8 @@ const mockTaskGroupBy = vi.fn(() => Promise.resolve([]));
 const mockTaskFindMany = vi.fn(() => Promise.resolve([]));
 const mockMemoryFindMany = vi.fn(() => Promise.resolve([]));
 const mockAuditCreate = vi.fn(() => Promise.resolve({}));
+const mockLatestMissionExecution = vi.fn(() => Promise.resolve(null));
+const mockQueueMissionExecution = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -31,6 +33,14 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 vi.mock("@/lib/services/tasks", () => ({ createTaskAndEnrich: vi.fn() }));
+vi.mock("@/lib/missions/durable-execution", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/missions/durable-execution")>();
+  return {
+    ...actual,
+    getLatestMissionExecution: (...a: unknown[]) => mockLatestMissionExecution(...a),
+    queueDurableMissionExecution: (...a: unknown[]) => mockQueueMissionExecution(...a),
+  };
+});
 
 import { missionsTools } from "@/lib/ai/tools/missions";
 
@@ -76,6 +86,22 @@ describe("getMissionDetail", () => {
       progress: { total: number; done: number; open: number; percentComplete: number | null };
     };
     expect(r.progress).toEqual({ total: 4, done: 3, open: 1, percentComplete: 75 });
+  });
+
+  it("surfaces the latest durable execution receipt without inventing progress", async () => {
+    mockMissionFindFirst.mockResolvedValueOnce(mission);
+    mockLatestMissionExecution.mockResolvedValueOnce({
+      runId: "run-1",
+      phase: "step_completed",
+      observedAt: "2026-09-28T12:00:00.000Z",
+      metadata: { stepId: "research-1", stepIndex: 0 },
+    });
+    const r = await run("getMissionDetail", { missionId: "m1" });
+    expect(mockLatestMissionExecution).toHaveBeenCalledWith("m1");
+    expect(r.durableExecution).toMatchObject({
+      runId: "run-1",
+      phase: "step_completed",
+    });
   });
 
   it("a mission with NO tasks reports null percent — 0/0 is not 0%", async () => {
@@ -135,6 +161,37 @@ describe("getMissionRetros", () => {
     >;
     expect(r[0].missionTitle).toBeNull();
     expect(r[0].tasksAtClose).toBeNull();
+  });
+});
+
+describe("queueMissionExecution", () => {
+  it("queues only the bounded durable-step schema through the shared mission service", async () => {
+    mockQueueMissionExecution.mockResolvedValueOnce({
+      queued: true,
+      missionId: "m1",
+      runId: "run-1",
+      eventIds: ["evt-1"],
+    });
+
+    const result = await run("queueMissionExecution", {
+      missionId: "m1",
+      objective: "Research the safest migration path",
+      steps: [
+        { id: "cp1", label: "Checkpoint", kind: "checkpoint" },
+        { id: "r1", label: "Research", kind: "research", question: "What are the current migration risks?" },
+      ],
+    });
+
+    expect(mockQueueMissionExecution).toHaveBeenCalledWith({
+      missionId: "m1",
+      objective: "Research the safest migration path",
+      steps: [
+        { id: "cp1", label: "Checkpoint", kind: "checkpoint" },
+        { id: "r1", label: "Research", kind: "research", question: "What are the current migration risks?" },
+      ],
+      requestedBy: "nick",
+    });
+    expect(result).toMatchObject({ queued: true, runId: "run-1" });
   });
 });
 

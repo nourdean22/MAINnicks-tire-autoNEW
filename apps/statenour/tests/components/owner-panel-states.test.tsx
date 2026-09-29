@@ -29,6 +29,15 @@ const base: OwnerPanelInput = {
   expiredRequests: { count: 0, oldest: null },
   commitments: [],
   lanes: [],
+  outboxHealth: {
+    pending: 0,
+    processing: 0,
+    done24h: 0,
+    dead: 0,
+    oldestDeadAt: null,
+    lastDeadError: null,
+  },
+  actionAttempts: [],
   spend: { costCents: 500, calls: 10, unpricedCalls: 0 },
   tasksDone: 0,
 };
@@ -49,7 +58,7 @@ describe("OwnerPanel render states", () => {
     stub.q = { data: composeOwnerPanel({ ...base, pendingActions: null }), isError: false };
     const html = renderToStaticMarkup(<OwnerPanel />);
     expect(html).toContain("decisions waiting · unknown");
-    expect(html).toContain("Approvals unreadable");
+    expect(html).toContain("Decision sources unreadable — state unknown.");
     expect(html).toContain("Unreadable, so not cleared: approvals");
     expect(html).toContain('data-owner-panel="unknown"');
   });

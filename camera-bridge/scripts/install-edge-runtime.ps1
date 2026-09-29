@@ -66,6 +66,8 @@ param(
     [string]$Model = "",
     [string]$Device = "AUTO",
     [string]$Camera = "sign",
+    [ValidateSet("", "shop", "nicksmax", "nattynour")]
+    [string]$Role = "",
     [double]$Fps = 4.0,
     [double]$HeartbeatSeconds = 30.0,
     [double]$StallExitSeconds = 180.0,
@@ -215,6 +217,20 @@ if ($SecretOnly -and -not $EncryptSecret) {
     throw "-SecretOnly needs a secret to install: add -SecretFromEnvironment, or -EncryptSecret to read .env.local."
 }
 
+# Preserve an already-installed role on reinstall. A fresh runtime install MUST name
+# its role, or this script would silently erase the failover priority contract.
+if (-not $Role -and (Test-Path $wrapper)) {
+    $roleMatch = Select-String -Path $wrapper -Pattern '^set "EDGE_ROLE=(shop|nicksmax|nattynour)"$' |
+        Select-Object -First 1
+    if ($roleMatch) {
+        $Role = $roleMatch.Matches[0].Groups[1].Value
+        Write-Host "Preserving installed producer role '$Role' from $wrapper." -ForegroundColor Green
+    }
+}
+if (-not $Role) {
+    throw "Producer role is required for runtime installation. Pass -Role shop, -Role nicksmax, or -Role nattynour."
+}
+
 # --- Preflight ---------------------------------------------------------------
 function Resolve-Python {
     if ($PythonPath) {
@@ -311,6 +327,7 @@ $persistArg    = if ($PersistSeconds -ge 0) { " --persist-seconds $PersistSecond
 $dryRunArg     = if ($ProducerDryRun) { ' --dry-run' } else { '' }
 $logLevelArg   = _Arg '--log-level' $LogLevel
 $extraArg      = if ($ExtraArgs) { ' ' + $ExtraArgs } else { '' }
+$roleLine      = if ($Role) { 'set "EDGE_ROLE=' + $Role + '"' } else { 'set "EDGE_ROLE="' }
 
 # The secret is decrypted by a short inline PowerShell call and handed to the child as an
 # environment variable. It never appears on a command line (Task Manager shows those) and
@@ -322,6 +339,7 @@ $secretLine = if (Test-Path $secretFile) {
 $wrapperBody = @"
 @echo off
 setlocal
+$roleLine
 cd /d "$pctRoot"
 $secretLine
 echo. >> "$pctLog"

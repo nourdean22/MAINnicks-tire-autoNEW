@@ -1,5 +1,54 @@
 # CURRENT-TRUTH.md — Statenour
 
+## 2026-09-28 night — Graphify code-intelligence governance (follow-up branch truth, not merged/live)
+
+- Graphify stays a developer snapshot; this slice adds no second graph store and does not bulk-ingest Graphify into BrainMemory.
+- The existing sync now runs existing graphify-necropsy propose-only drift analysis when two snapshots exist, then writes ignored runtime GRAPH_RECEIPT.json with source SHA, report hash/time, Graphify version, label provenance, graph shape, HEAD/origin-main commit relation, previous-snapshot delta, and necropsy count.
+- Session-start trusts a receipt only when receipt.report.sourceCommit exactly matches the Built from commit in the selected GRAPH_REPORT.md; missing/malformed/mismatched receipts are named and ignored without suppressing the graph briefing.
+- Local proof: tracked graph source 9c4f30f4; 63,099 nodes; 115,045 edges; 3,401 communities; 313 commits behind this branch; 308 behind locally observed origin/main.
+- Verification: Node syntax + governance self-test green; existing necropsy self-test green; both PowerShell scripts parse; repo contract tests 4/4 green; live session-context execution green; git diff --check green.
+- Durable receipt: docs/00-current-truth/nouros-code-intelligence-governance-2026-09-28.md.
+
+## 2026-09-28 night — Owner Panel exception consolidation (follow-up branch truth, not merged/live)
+
+- **No new exception queue:** the existing Q-24 Owner Panel on `/system` remains the single owner attention surface.
+- **New projections from canonical stores:** dead `post_turn_outbox`; generic `action_attempts` WAITING_APPROVAL / UNKNOWN / recent FAILED / stale EXECUTING.
+- **No duplication:** `railway.deploy_alert` attempts stay on the pre-existing deploy-page path; dead-letter redrive remains `redriveDeadOutboxRows()`; approvals retain their current source tables.
+- **Truth rules:** UNKNOWN never retries blindly; a failed source read is unreadable/UNKNOWN, not a clear; fresh EXECUTING stays quiet; stale is 30m+.
+- **Pure dependency repair:** cron hard-failure classification now lives in DB-free `lib/services/cron-status.ts`; `cron-control.ts` re-exports the same names for API compatibility.
+- **Verification:** 53/53 focused Owner Panel + outbox + ActionAttempt tests green; changed-file ESLint and `git diff --check` green.
+- Durable receipt: `docs/00-current-truth/nouros-exception-consolidation-2026-09-28.md`.
+
+## 2026-09-28 night — capability lifecycle / Toolsmith (follow-up branch truth, not merged/live)
+
+- **Reuses incumbents:** Tool Registry + Tool Policy + ToolSelectionTurn/ToolGateDecision + Tool Gap + ActionAttempt remain canonical.
+- **Gap response is explicit:** discoverability → fix discoverability; routing → fix routing; external-service → repair integration; only unresolved gaps enter new-capability investigation.
+- **Append-only lifecycle:** `PROPOSED → APPROVED → IMPLEMENTED_UNVERIFIED → VERIFIED → RETIRED`; rejection is allowed before verification.
+- **Authority boundary:** Toolsmith can propose/track only. It cannot install code, activate a registry entry, or execute a newly proposed capability. Implementation requires an external artifact reference; verification requires a receipt.
+- **Operator surface:** existing `system.tools` tRPC + Tool Gap panel expose lifecycle report/mutations and proposal counts; no new auth surface.
+- **Verification:** 11/11 focused lifecycle + existing Tool Gap tests green; changed-file ESLint and `git diff --check` green.
+- Durable receipt: `docs/00-current-truth/nouros-capability-lifecycle-2026-09-28.md`.
+
+## 2026-09-28 late evening — Decision Plane shadow/calibration (merged repo truth; production shadow still off)
+
+- **Merged as #2756 (`e2622a514`):** vendor-neutral typed decision contracts; strict private/external System-One-compatible HTTP adapter; deterministic sampled shadow evaluation through existing Inngest; Decision Episodes through the existing Reality Ledger; multiclass Brier/log-loss/ECE calibration primitives; Replay Lab outcome labeling; operator report + `/system/tools` panel.
+- **Zero authority change:** the incumbent StateNour router still owns production. `NICK_DECISION_PLANE_SHADOW` defaults OFF; the report hard-codes `promotionReady=false`.
+- **Privacy/egress boundary:** private-mode and obvious-PII turns never enqueue. Public backends require explicit `NICK_DECISION_PLANE_ALLOW_EXTERNAL_STATE=1`; an API key alone is insufficient.
+- **Honest comparison:** candidate decisions are compared only against incumbent-owned fields. `needsBackgroundMission` has no fabricated incumbent label. Incumbent agreement is not correctness or calibration.
+- **Replay Lab now reuses the same Episode lineage:** operator-observed labels append as `episode.decision.outcome_observed` on the candidate `episodeId`; corrections stay append-only; unlabeled Episodes remain visible and unscored; the panel reports label coverage, Brier, log loss and categorical ECE. Existing `DecisionReplay`/`MasteryDecision` remain the human decision journal rather than being duplicated.
+- **Verification:** 22/22 focused Decision Plane + Replay Lab tests locally; final head `271e40225` passed Turbo affected verify, StateNour E2E, Completion Authority, Secret Scanning, Agent Policy, Adoption gates, and admin diagnostic before squash merge.
+- **Not yet proven:** live shadow receipts, representative real outcome labels, or any candidate promotion. `NICK_DECISION_PLANE_SHADOW` still defaults OFF.
+- Durable receipt: `docs/00-current-truth/nouros-decision-plane-2026-09-28.md`.
+
+## 2026-09-28 evening — NourOS intelligence foundation (merged repo truth; feature-specific production proof remains)
+
+- **Merged as #2755 (`a37a9f02c`):** the foundation is now repo truth on `main`; `4e628f0db` was only the branch starting point. Camera work remained a separate sibling workstream.
+- **Merged foundation contents:** typed Episode envelopes over the existing Reality Ledger; bounded Inngest mission execution over existing Mission rows; tool-gap intelligence over existing `ToolSelectionTurn`/`ToolGateDecision`; persistence for verified-regen telemetry; explicit E2B deny-egress.
+- **Verification:** 45/45 focused tests passed; StateNour TypeScript passed after fresh-worktree workspace dependencies were built; changed-file ESLint passed; `git diff --check` passed; staged secret scan found no findings.
+- **Promotion boundaries:** `NICK_DURABLE_MISSIONS` defaults OFF until a deployed Inngest registration + harmless checkpoint-only run produce real RealityEvent receipts. E2B remains unprovisioned by this slice.
+- **Not built here:** the Jev/TypeSafe-style probabilistic Decision Plane, backend calibration/shadowing, and outcome-threshold promotion. Those remain a separate next slice.
+- Durable receipt: `docs/00-current-truth/nouros-foundation-2026-09-28.md`.
+
 ## 2026-09-28 — original-plan infrastructure + private-worker observability
 
 - **Repository current truth:** `main` = `18db7de13af5fe0f6f4f2fb62456e371db3dd698` (#2726); GitHub showed **0 open PRs** immediately after the #2724/#2725/#2726 wave.
