@@ -145,7 +145,7 @@ export async function runAlternatePaths(args: {
   }
 
   try {
-    const { shouldGateForIntent, maybePreStreamRegen, formatRegenTelemetry } = await import(
+    const { shouldGateForIntent, maybePreStreamRegen } = await import(
       "@/lib/ai/chat/pre-stream-regen"
     );
     const { isMultiPartQuestion } = await import(
@@ -447,20 +447,29 @@ export async function runAlternatePaths(args: {
           intent: turnSignal.intent,
         });
 
-        // The formatter shipped with the regen lane but had no writer. Persist
-        // one fail-soft row per eligible turn so the operator can answer
-        // whether repair fires, wins, costs latency, or should be retired.
-        const regenMetric = formatRegenTelemetry(
-          regen,
-          turnSignal.intent as Parameters<typeof formatRegenTelemetry>[1],
-          turnSignal.outputShape,
-        );
-        const { recordMetric } = await import("@/lib/services/metrics");
-        await recordMetric(regenMetric.metric, regenMetric.value, {
-          unit: regenMetric.unit,
-          tags: { ...regenMetric.tags, traceId },
-          source: regenMetric.source,
-        });
+        // Persist one best-effort row per eligible regen turn so the operator can
+        // answer whether repair fires, wins, costs latency, or should be retired.
+        // Telemetry must NEVER become load-bearing for a valid chat response.
+        try {
+          const { formatRegenTelemetry } = await import(
+            "@/lib/ai/chat/pre-stream-regen"
+          );
+          const regenMetric = formatRegenTelemetry(
+            regen,
+            turnSignal.intent as Parameters<typeof formatRegenTelemetry>[1],
+            turnSignal.outputShape,
+          );
+          const { recordMetric } = await import("@/lib/services/metrics");
+          await recordMetric(regenMetric.metric, regenMetric.value, {
+            unit: regenMetric.unit,
+            tags: { ...regenMetric.tags, traceId },
+            source: regenMetric.source,
+          });
+        } catch (err) {
+          log.warn("verified_regen_telemetry_failed", {
+            error: err instanceof Error ? err.name : "Error",
+          });
+        }
       } else if (selfConsistencyOn) {
         laneName = "self-consistency";
         const { generateText } = await import("ai");
