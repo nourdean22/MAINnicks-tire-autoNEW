@@ -121,6 +121,18 @@ describe("Telegram senders · text Telegram cannot parse", () => {
     expect(sent[1]?.url).toContain("/editMessageText");
   });
 
+  it("an ops alert whose model-written text breaks Markdown still arrives", async () => {
+    const sent = fakeTelegram((body) => (body.parse_mode === "Markdown" ? PARSE_ERROR : null));
+    vi.stubEnv("TELEGRAM_OWNER_ID", "456");
+    await load();
+    const { sendTelegramOpsAlert } = await import("@/lib/ai/telegram-ops");
+
+    await expect(sendTelegramOpsAlert("First live dispatch: customer_service")).resolves.toBe(true);
+
+    expect(sent.map((s) => s.body.parse_mode)).toEqual(["Markdown", undefined]);
+    expect(sent[1]?.body.text).toBe("First live dispatch: customer_service");
+  });
+
   it("CONSUMER: a NICK control-plane send reports the resent message as provider_accepted", async () => {
     const sent = fakeTelegram(rejectsBadHtml);
     const { observed } = await load();
