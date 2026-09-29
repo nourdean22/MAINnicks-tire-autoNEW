@@ -1452,6 +1452,7 @@ export async function aiChat(
         entry.name,
         usage?.inputTokens,
         usage?.outputTokens,
+        resolvedModelId,
       );
       // U6 (2026-09-08) · the ledger write lives HERE, once, for every caller.
       // 47 of 54 aiChat callers never recorded a row before this.
