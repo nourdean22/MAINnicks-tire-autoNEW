@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "migration-evidence": {
+      "deferred": "operator-pending after merge: apps/nickstire/drizzle/0135_office_conversation_runtime.sql is additive/idempotent (ADD COLUMN IF NOT EXISTS plus CREATE INDEX IF NOT EXISTS), and apps/nickstire/server/routers/nick/intelligence.ts carries the matching idempotent production reconciler. This PR deliberately does not mutate production DDL before the matching application code deploys. After merge/deploy, apply/reconcile 0135 through the scoped production DB path and verify the new nullable camera_runtime conversation-worker fields plus conversation_episodes provenance columns/index through INFORMATION_SCHEMA/readback before calling the schema live."
+    },
+    "operator-walkthrough": {
+      "deferred": "post-deploy operator-pending: the NicksMax edge worker and headless NICKS EUCLID audio route are live-proven, but the unified Admin > Lot > Office intelligence cockpit in this diff cannot be truthfully walked on the old production bundle. After deployment and 0135 reconciliation, use a signed-in production Admin session to verify the Office camera facets and conversation-worker OFF_HOURS/READY state render together, then verify the first real in-hours evidence-backed conversation row appears without raw audio/full transcript exposure."
+    }
+  }
+}
