@@ -263,10 +263,25 @@ async function replaceCanonicalWithHistory<T>(args: {
   try {
     const result = await args.write();
     if (args.snapshot?.transactionWindowClosed) {
-      await openTransactionWindowIfAvailable(
+      const opened = await openTransactionWindowIfAvailable(
         args.memoryId,
         args.snapshot.replacementAt,
       );
+      if (!opened) {
+        // The content flip already succeeded. Do not throw into the rollback
+        // branch (which cannot unwrite content); instead retry the same desired
+        // transaction state through the compensating helper.
+        const recovered = await restoreTransactionWindowIfAvailable(
+          args.memoryId,
+          args.snapshot.replacementAt,
+        );
+        if (!recovered) {
+          log.error("memory_transaction_window_reopen_failed", {
+            memoryId: args.memoryId,
+            replacementAt: args.snapshot.replacementAt.toISOString(),
+          });
+        }
+      }
     }
     return result;
   } catch (err) {
