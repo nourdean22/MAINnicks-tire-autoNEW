@@ -51,6 +51,14 @@ NICKS_OFFICE_CAMERA_ID = os.getenv("NICKS_OFFICE_CAMERA_ID", "office").strip() o
 NICKS_OFFICE_CAMERA_MODE = (
     os.getenv("NICKS_OFFICE_CAMERA_MODE", "PRODUCTION").strip().upper() or "PRODUCTION"
 )
+OFFICE_CONVERSATION_STATUS_PATH = os.getenv("OFFICE_CONVERSATION_STATUS_PATH", "").strip()
+try:
+    OFFICE_CONVERSATION_STATUS_MAX_AGE_SECONDS = max(
+        30.0,
+        float(os.getenv("OFFICE_CONVERSATION_STATUS_MAX_AGE_SECONDS", "120")),
+    )
+except ValueError:
+    OFFICE_CONVERSATION_STATUS_MAX_AGE_SECONDS = 120.0
 if NICKS_OFFICE_CAMERA_MODE not in {"PRODUCTION", "SHADOW", "COMMISSIONING"}:
     raise RuntimeError(
         "NICKS_OFFICE_CAMERA_MODE must be PRODUCTION, SHADOW, or COMMISSIONING"
@@ -108,7 +116,7 @@ try:
 except ValueError:
     EUFY_HOME_MAX_CHANGED_FRACTION = 0.65
 
-_OFFICE_PRODUCER_INSTANCE_ID = uuid.uuid4().hex
+_OFFICE_PRODUCER_INSTANCE_ID = f"p2-nicksmax-{uuid.uuid4().hex}"
 _office_heartbeat_seq = 0
 _last_home_verify_monotonic = 0.0
 _HOME_VERIFY_LOCK = threading.Lock()
@@ -127,6 +135,22 @@ INTERACTION_HEARTBEAT_FIELDS = (
     "lastControlProofAt",
     "lastMediaProofAt",
     "lastPtzNotifyAt",
+    "conversationWorkerOk",
+    "conversationWorkerState",
+    "conversationWorkerHeartbeatAt",
+    "conversationAudioSource",
+    "conversationCaptureHost",
+    "conversationSttEngine",
+    "conversationQueueDepth",
+    "conversationLastTrigger",
+    "lastConversationEventAt",
+    "lastConversationCaptureAt",
+    "lastConversationSttAt",
+    "lastConversationPostAt",
+    "lastConversationSummaryAt",
+    "lastConversationCoverage",
+    "conversationFailuresToday",
+    "conversationLastError",
 )
 
 EUFY_API_BASE = "https://security-app.eufylife.com"
@@ -691,6 +715,67 @@ def schedule_home_pose_verification(runtime_health: dict) -> bool:
         return True
 
 
+def load_office_conversation_runtime(*, now: float | None = None) -> dict:
+    """Read the OfficeWake current-state receipt without creating another cloud producer.
+
+    Empty path means the conversation worker is not commissioned on this host yet, so legacy
+    agents omit these facets. Once a path is configured, missing/unreadable/stale is negative
+    evidence and must be reported as such rather than disappearing from Admin.
+    """
+    if not OFFICE_CONVERSATION_STATUS_PATH:
+        return {}
+
+    path = Path(OFFICE_CONVERSATION_STATUS_PATH)
+    current = float(time.time() if now is None else now)
+    if not path.exists():
+        return {
+            "conversationWorkerOk": False,
+            "conversationWorkerState": "MISSING",
+            "conversationLastError": "conversation worker status receipt is missing",
+        }
+
+    try:
+        stat = path.stat()
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError("status receipt is not a JSON object")
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        return {
+            "conversationWorkerOk": False,
+            "conversationWorkerState": "ERROR",
+            "conversationLastError": f"conversation status unreadable: {exc}"[:500],
+        }
+
+    allowed = {
+        "conversationWorkerOk",
+        "conversationWorkerState",
+        "conversationWorkerHeartbeatAt",
+        "conversationAudioSource",
+        "conversationCaptureHost",
+        "conversationSttEngine",
+        "conversationQueueDepth",
+        "conversationLastTrigger",
+        "lastConversationEventAt",
+        "lastConversationCaptureAt",
+        "lastConversationSttAt",
+        "lastConversationPostAt",
+        "lastConversationSummaryAt",
+        "lastConversationCoverage",
+        "conversationFailuresToday",
+        "conversationLastError",
+    }
+    out = {key: raw[key] for key in allowed if key in raw and raw[key] is not None}
+    age = max(0.0, current - float(stat.st_mtime))
+    if age > OFFICE_CONVERSATION_STATUS_MAX_AGE_SECONDS:
+        out["conversationWorkerOk"] = False
+        out["conversationWorkerState"] = "STALE"
+        out["conversationLastError"] = (
+            f"conversation worker status stale for {age:.0f}s "
+            f"(limit {OFFICE_CONVERSATION_STATUS_MAX_AGE_SECONDS:.0f}s)"
+        )[:500]
+    return out
+
+
 def build_office_camera_heartbeat(
     *,
     auth_ok: bool,
@@ -745,6 +830,9 @@ def sync_office_camera_heartbeat() -> int:
         # a real H264 byte read is positive proof. The probe self-throttles.
         probe_office_media_health()
     runtime = runtime_health_snapshot(auth_ok=auth_ok)
+    # OfficeWake never writes camera_runtime directly. Fold its atomic local receipt into this
+    # already-authoritative Office heartbeat so one producer instance owns the whole card.
+    runtime.update(load_office_conversation_runtime())
 
     # Heartbeat publishes immediately from current proof. The potentially 25s visual
     # verifier runs separately and can only affect a later heartbeat through its receipt.

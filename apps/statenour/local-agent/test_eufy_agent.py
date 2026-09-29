@@ -87,6 +87,10 @@ class EufyAgentTests(unittest.TestCase):
                 "lastControlProofAt": None,
                 "lastMediaProofAt": None,
                 "lastPtzNotifyAt": None,
+                "conversationWorkerOk": False,
+                "conversationWorkerState": "STALE",
+                "conversationQueueDepth": 0,
+                "conversationFailuresToday": 2,
             },
             seq=7,
             observed_at=at,
@@ -94,6 +98,7 @@ class EufyAgentTests(unittest.TestCase):
         self.assertEqual(payload["camera"], "office")
         self.assertEqual(payload["mode"], "PRODUCTION")
         self.assertEqual(payload["heartbeatSeq"], 7)
+        self.assertTrue(payload["producerInstanceId"].startswith("p2-nicksmax-"))
         self.assertTrue(payload["authPlaneOk"])
         self.assertTrue(payload["eventPlaneOk"])
         self.assertFalse(payload["controlPlaneOk"])
@@ -101,7 +106,48 @@ class EufyAgentTests(unittest.TestCase):
         self.assertFalse(payload["ptzHomeOk"])
         self.assertEqual(payload["lastEventProofAt"], "2026-09-26T23:54:00+00:00")
         self.assertNotIn("lastControlProofAt", payload)
+        self.assertFalse(payload["conversationWorkerOk"])
+        self.assertEqual(payload["conversationWorkerState"], "STALE")
+        self.assertEqual(payload["conversationQueueDepth"], 0)
+        self.assertEqual(payload["conversationFailuresToday"], 2)
         self.assertEqual(payload["sourceGeneration"], eufy_agent.EUFY_OFFICE_CAMERA_SERIAL)
+
+    def test_conversation_runtime_receipt_is_fresh_or_explicitly_stale(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "conversation.json"
+            payload = {
+                "conversationWorkerOk": True,
+                "conversationWorkerState": "READY",
+                "conversationWorkerHeartbeatAt": "2026-09-28T22:00:00+00:00",
+                "conversationAudioSource": "counter-mic",
+                "conversationCaptureHost": "NICKSMAX",
+                "conversationSttEngine": "whisper-cli.exe",
+                "conversationQueueDepth": 0,
+            }
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            mtime = path.stat().st_mtime
+            with patch.object(eufy_agent, "OFFICE_CONVERSATION_STATUS_PATH", str(path)), patch.object(
+                eufy_agent,
+                "OFFICE_CONVERSATION_STATUS_MAX_AGE_SECONDS",
+                120.0,
+            ):
+                fresh = eufy_agent.load_office_conversation_runtime(now=mtime + 30)
+                self.assertTrue(fresh["conversationWorkerOk"])
+                self.assertEqual(fresh["conversationWorkerState"], "READY")
+                self.assertEqual(fresh["conversationCaptureHost"], "NICKSMAX")
+
+                stale = eufy_agent.load_office_conversation_runtime(now=mtime + 121)
+                self.assertFalse(stale["conversationWorkerOk"])
+                self.assertEqual(stale["conversationWorkerState"], "STALE")
+                self.assertIn("stale", stale["conversationLastError"])
+
+    def test_missing_conversation_runtime_receipt_is_negative_evidence_once_configured(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "missing.json"
+            with patch.object(eufy_agent, "OFFICE_CONVERSATION_STATUS_PATH", str(path)):
+                state = eufy_agent.load_office_conversation_runtime()
+            self.assertFalse(state["conversationWorkerOk"])
+            self.assertEqual(state["conversationWorkerState"], "MISSING")
 
     def _receipt(self, *, is_home=True, reference_hash="a" * 64, **overrides):
         payload = {

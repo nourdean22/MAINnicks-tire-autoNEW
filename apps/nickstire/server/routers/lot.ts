@@ -373,11 +373,12 @@ export const lotRouter = router({
       try {
         const where = includeSelftest ? sql`1 = 1` : sql`source <> 'selftest'`;
         const rows = rowsOf(await d.execute(sql`
-          SELECT episodeId, source,
+          SELECT episodeId, source, cameraSerial, captureHost, triggerType,
+                 ROUND(UNIX_TIMESTAMP(triggeredAt) * 1000) AS triggeredAtMs,
                  ROUND(UNIX_TIMESTAMP(startedAt) * 1000) AS startedAtMs,
                  durationSeconds, meanVolumeDb,
                  transcriptStatus, transcriptError, transcript,
-                 sttEngine, sttLatencyMs, speakerCount,
+                 sttEngine, sttModel, sttLatencyMs, speakerCount,
                  facts, summary,
                  vehicleVisitId, workOrderId, linkConfidence
             FROM conversation_episodes
@@ -391,12 +392,17 @@ export const lotRouter = router({
           conversations: rows.map((r) => ({
             episodeId: String(r.episodeId),
             source: String(r.source),
+            cameraSerial: r.cameraSerial == null ? null : String(r.cameraSerial),
+            captureHost: r.captureHost == null ? null : String(r.captureHost),
+            triggerType: r.triggerType == null ? null : String(r.triggerType),
+            triggeredAtMs: numOrNull(r.triggeredAtMs),
             startedAtMs: numOrNull(r.startedAtMs),
             durationSeconds: numOrNull(r.durationSeconds),
             meanVolumeDb: numOrNull(r.meanVolumeDb),
             transcriptStatus: String(r.transcriptStatus ?? "PENDING"),
             transcriptError: r.transcriptError == null ? null : String(r.transcriptError),
             sttEngine: r.sttEngine == null ? null : String(r.sttEngine),
+            sttModel: r.sttModel == null ? null : String(r.sttModel),
             sttLatencyMs: numOrNull(r.sttLatencyMs),
             speakerCount: numOrNull(r.speakerCount),
             coverage: transcriptCoverage(r.transcript, r.durationSeconds),
@@ -804,6 +810,16 @@ export const lotRouter = router({
                UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastControlProofAt) AS controlProofAgeSeconds,
                UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastMediaProofAt) AS mediaProofAgeSeconds,
                UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastPtzNotifyAt) AS ptzNotifyAgeSeconds,
+               r.conversationWorkerOk, r.conversationWorkerState,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.conversationWorkerHeartbeatAt) AS conversationWorkerAgeSeconds,
+               r.conversationAudioSource, r.conversationCaptureHost, r.conversationSttEngine,
+               r.conversationQueueDepth, r.conversationLastTrigger, r.lastConversationCoverage,
+               r.conversationFailuresToday, r.conversationLastError,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastConversationEventAt) AS conversationEventAgeSeconds,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastConversationCaptureAt) AS conversationCaptureAgeSeconds,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastConversationSttAt) AS conversationSttAgeSeconds,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastConversationPostAt) AS conversationPostAgeSeconds,
+               UNIX_TIMESTAMP() - UNIX_TIMESTAMP(r.lastConversationSummaryAt) AS conversationSummaryAgeSeconds,
                r.calibrationVersion, r.detectorName,
                r.modelSha256, r.inferenceP95Ms, r.outboxDepth, r.oldestOutboxAgeSeconds,
                -- As an AGE, matching cloudAckAgeSeconds two lines down. A raw timestamp on a
@@ -929,6 +945,26 @@ export const lotRouter = router({
                 controlProofAgeSeconds: numOrNull(r.controlProofAgeSeconds),
                 mediaProofAgeSeconds: numOrNull(r.mediaProofAgeSeconds),
                 ptzNotifyAgeSeconds: numOrNull(r.ptzNotifyAgeSeconds),
+              }
+            : null,
+          conversation: r
+            ? {
+                workerOk: bool(r.conversationWorkerOk),
+                state: str(r.conversationWorkerState),
+                workerAgeSeconds: numOrNull(r.conversationWorkerAgeSeconds),
+                audioSource: str(r.conversationAudioSource),
+                captureHost: str(r.conversationCaptureHost),
+                sttEngine: str(r.conversationSttEngine),
+                queueDepth: numOrNull(r.conversationQueueDepth),
+                lastTrigger: str(r.conversationLastTrigger),
+                eventAgeSeconds: numOrNull(r.conversationEventAgeSeconds),
+                captureAgeSeconds: numOrNull(r.conversationCaptureAgeSeconds),
+                sttAgeSeconds: numOrNull(r.conversationSttAgeSeconds),
+                postAgeSeconds: numOrNull(r.conversationPostAgeSeconds),
+                summaryAgeSeconds: numOrNull(r.conversationSummaryAgeSeconds),
+                lastCoverage: numOrNull(r.lastConversationCoverage),
+                failuresToday: numOrNull(r.conversationFailuresToday),
+                lastError: str(r.conversationLastError),
               }
             : null,
           cloud: r

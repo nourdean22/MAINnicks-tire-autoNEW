@@ -5,6 +5,9 @@ param(
   [string]$BridgeRoot = (Join-Path $env:LOCALAPPDATA "StateNour\Eufy\ha-eufy-sdk-bridge-0.3.0"),
   [string]$OfficeSerial = "T8410P5225154105",
   [string]$NickHeartbeatUrl = "https://nickstire.org/api/camera/heartbeat",
+  [string]$Go2RtcApiListen = "127.0.0.1:1984",
+  [string]$Go2RtcRtspListen = "127.0.0.1:8654",
+  [string]$Go2RtcWebrtcListen = "127.0.0.1:8655",
   [switch]$EnableControl,
   [switch]$CommissionPtz,
   [Nullable[int]]$HomePresetId = $null,
@@ -259,16 +262,12 @@ if (-not $RepoRoot) {
   $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path
 }
 $LocalAgentDir = Join-Path $RepoRoot "apps\statenour\local-agent"
-$CameraBridgeDir = Join-Path $RepoRoot "camera-bridge"
 $OverlayScript = Join-Path $LocalAgentDir "eufy_bridge_overlay.py"
-$OfficeWakeRequirements = Join-Path $CameraBridgeDir "requirements-office-wake.txt"
 
 foreach ($required in @(
   (Join-Path $LocalAgentDir "agent.py"),
   (Join-Path $LocalAgentDir "eufy_bridge.py"),
-  $OverlayScript,
-  (Join-Path $CameraBridgeDir "vision\officewake.py"),
-  $OfficeWakeRequirements
+  $OverlayScript
 )) {
   if (-not (Test-Path $required)) { throw "Required repo file missing: $required" }
 }
@@ -340,8 +339,8 @@ if (-not (Test-Path (Join-Path $venv "Scripts\python.exe"))) {
 }
 $venvPython = Join-Path $venv "Scripts\python.exe"
 & $venvPython -m pip install --disable-pip-version-check --upgrade pip
-& $venvPython -m pip install --disable-pip-version-check "requests>=2.31.0" "python-dotenv>=1.0.0" -r $OfficeWakeRequirements
-if ($LASTEXITCODE -ne 0) { throw "Eufy-only / office-wake Python dependency install failed" }
+& $venvPython -m pip install --disable-pip-version-check "requests>=2.31.0" "python-dotenv>=1.0.0"
+if ($LASTEXITCODE -ne 0) { throw "Eufy-only Python dependency install failed" }
 
 Write-Step "Capturing machine-local secrets with Windows DPAPI"
 [void](Save-DpapiSecret "eufy-email" "Eufy account email" -PlainPrompt)
@@ -358,6 +357,9 @@ $runtime = [ordered]@{
   homePresetId = if ($HomePresetId.HasValue) { $HomePresetId.Value } else { $null }
   bridgeCommit = $BridgeCommit
   go2rtcVersion = $Go2RtcVersion
+  go2rtcApiListen = $Go2RtcApiListen
+  go2rtcRtspListen = $Go2RtcRtspListen
+  go2rtcWebrtcListen = $Go2RtcWebrtcListen
   repoRoot = $RepoRoot
   bridgeRoot = $BridgeRoot
 }
@@ -365,7 +367,6 @@ $runtime | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $runtimePath -Enco
 
 $bridgeWrapper = Join-Path $wrapperDir "start-bridge.ps1"
 $agentWrapper = Join-Path $wrapperDir "start-agent.ps1"
-$wakeWrapper = Join-Path $wrapperDir "start-officewake.ps1"
 
 $secretLoader = @'
 function Read-DpapiSecret([string]$Name) {
@@ -390,6 +391,9 @@ $env:BRIDGE_PORT = "3000"
 $env:BRIDGE_SELF_HOST = "127.0.0.1"
 $env:EUFY_SESSION = Join-Path $StateRoot "state\.eufy-session.json"
 $env:GO2RTC_ENABLE = "1"
+$env:GO2RTC_API_LISTEN = "__GO2RTC_API_LISTEN__"
+$env:GO2RTC_RTSP_LISTEN = "__GO2RTC_RTSP_LISTEN__"
+$env:GO2RTC_WEBRTC_LISTEN = "__GO2RTC_WEBRTC_LISTEN__"
 $env:BRIDGE_PREWARM = "1"
 $env:BRIDGE_EVENT_LOG = "1"
 $env:BRIDGE_DEBUG = "0"
@@ -413,34 +417,27 @@ $env:EUFY_OFFICE_CAMERA_SERIAL = [string]$cfg.officeSerial
 $env:EUFY_EVENT_DEVICE_SNS = [string]$cfg.officeSerial
 $env:NICKS_CAMERA_HEARTBEAT_URL = [string]$cfg.heartbeatUrl
 $env:NICKS_OFFICE_CAMERA_MODE = if ($cfg.heartbeatMode) { [string]$cfg.heartbeatMode } else { "PRODUCTION" }
+$env:OFFICE_CONVERSATION_STATUS_PATH = Join-Path (Split-Path $StateRoot -Parent) "OfficeIntelligence\office-conversation-status.json"
+$env:OFFICE_CONVERSATION_STATUS_MAX_AGE_SECONDS = "120"
 $env:NICKS_CAMERA_INGEST_KEY = Read-DpapiSecret "nicks-camera-ingest-key"
 if ($null -ne $cfg.homePresetId) { $env:EUFY_OFFICE_HOME_PRESET = [string]$cfg.homePresetId }
 Set-Location "__LOCAL_AGENT_DIR__"
 & "__VENV_PYTHON__" agent.py --eufy-only
 '@
 
-$wakeTemplate = @'
-$ErrorActionPreference = "Stop"
-$env:EUFY_BRIDGE_URL = "__BRIDGE_URL__"
-$env:EUFY_OFFICE_CAMERA_SERIAL = "__OFFICE_SERIAL__"
-$env:OFFICE_WAKE_LEDGER = "__WAKE_LEDGER__"
-Set-Location "__CAMERA_BRIDGE_DIR__"
-& "__VENV_PYTHON__" -m vision.officewake
-'@
-
-$bridgeText = $bridgeTemplate.Replace("__STATE_ROOT__", $StateRoot).Replace("__SECRET_LOADER__", $secretLoader).Replace("__BRIDGE_ROOT__", $BridgeRoot).Replace("__NODE__", $node)
+$bridgeText = $bridgeTemplate.Replace("__STATE_ROOT__", $StateRoot).Replace("__SECRET_LOADER__", $secretLoader).Replace("__BRIDGE_ROOT__", $BridgeRoot).Replace("__NODE__", $node).Replace("__GO2RTC_API_LISTEN__", $Go2RtcApiListen).Replace("__GO2RTC_RTSP_LISTEN__", $Go2RtcRtspListen).Replace("__GO2RTC_WEBRTC_LISTEN__", $Go2RtcWebrtcListen)
 $agentText = $agentTemplate.Replace("__STATE_ROOT__", $StateRoot).Replace("__SECRET_LOADER__", $secretLoader).Replace("__RUNTIME_PATH__", $runtimePath).Replace("__BRIDGE_URL__", $BridgeUrl).Replace("__LOCAL_AGENT_DIR__", $LocalAgentDir).Replace("__VENV_PYTHON__", $venvPython)
-$wakeLedger = Join-Path $receiptDir "office-wake.jsonl"
-$wakeText = $wakeTemplate.Replace("__BRIDGE_URL__", $BridgeUrl).Replace("__OFFICE_SERIAL__", $OfficeSerial).Replace("__WAKE_LEDGER__", $wakeLedger).Replace("__CAMERA_BRIDGE_DIR__", $CameraBridgeDir).Replace("__VENV_PYTHON__", $venvPython)
 
 Write-Utf8NoBom $bridgeWrapper $bridgeText
 Write-Utf8NoBom $agentWrapper $agentText
-Write-Utf8NoBom $wakeWrapper $wakeText
 
 Write-Step "Registering restart-capable scheduled tasks"
 Install-Task "StateNour-Eufy-Bridge" $bridgeWrapper
 Install-Task "StateNour-Eufy-Agent" $agentWrapper
-Install-Task "StateNour-Eufy-OfficeWake" $wakeWrapper
+if (Get-ScheduledTask -TaskName "StateNour-Eufy-OfficeWake" -ErrorAction SilentlyContinue) {
+  Stop-ScheduledTask -TaskName "StateNour-Eufy-OfficeWake" -ErrorAction SilentlyContinue
+  Disable-ScheduledTask -TaskName "StateNour-Eufy-OfficeWake" | Out-Null
+}
 
 Stop-ScheduledTask -TaskName "StateNour-Eufy-Bridge" -ErrorAction SilentlyContinue
 Start-ScheduledTask -TaskName "StateNour-Eufy-Bridge"
@@ -472,7 +469,6 @@ if ($EnableControl) {
 }
 
 Start-ScheduledTask -TaskName "StateNour-Eufy-Agent"
-Start-ScheduledTask -TaskName "StateNour-Eufy-OfficeWake"
 
 Write-Step "Forcing one real office media-byte probe"
 $oldBridge = $env:EUFY_BRIDGE_URL
@@ -532,7 +528,7 @@ Get-ScheduledTask -TaskName "StateNour-Eufy-*" | Select-Object TaskName,State | 
   OfficeSerial = $OfficeSerial
   PtzCapability = $true
   ControlEnabled = [bool]$runtime.controlEnabled
-  OfficeWakeMode = "events_only"
+  OfficeWakeMode = "delegated_to_StateNour-OfficeIntelligence-NicksMax"
   Secrets = "DPAPI current-user"
   StateRoot = $StateRoot
   Next = if ($CommissionPtz) {

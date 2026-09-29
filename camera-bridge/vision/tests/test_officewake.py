@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -49,7 +51,7 @@ def config(**overrides):
         source_name="eufy-office",
         seconds=30.0,
         silence_db=None,
-        transcriber="whisper-cli",
+        transcriber=sys.executable,
         model=None,
         endpoint="https://nickstire.org/api/conversation-episodes",
         dry_run=True,
@@ -58,6 +60,7 @@ def config(**overrides):
         cooldown_seconds=30.0,
         retention_hours=24.0,
         ingest_key_present=False,
+        status_path=str(Path(tempfile.gettempdir()) / f"officewake-test-{os.getpid()}.json"),
     )
     base.update(overrides)
     return OfficeWakeConfig(**base)
@@ -378,7 +381,8 @@ def test_retention_worker_prunes_without_any_capture(tmp_path):
         )
         try:
             for _ in range(50):
-                if not old_wav.exists():
+                pruned = any(kind == "retention_prune" for kind, _ in ledger.rows)
+                if not old_wav.exists() and pruned:
                     break
                 await asyncio.sleep(0.01)
         finally:
@@ -392,6 +396,31 @@ def test_retention_worker_prunes_without_any_capture(tmp_path):
         assert any(kind == "retention_prune" for kind, _ in ledger.rows)
 
     asyncio.run(scenario())
+
+
+def test_retention_hard_quota_prunes_oldest_but_protects_fresh(tmp_path):
+    now = 20_000.0
+    old_a = tmp_path / "old-a.wav"
+    old_b = tmp_path / "old-b.wav.json"
+    fresh = tmp_path / "fresh.wav"
+    for path in (old_a, old_b, fresh):
+        path.write_bytes(b"x" * 700)
+    os.utime(old_a, (now - 5000, now - 5000))
+    os.utime(old_b, (now - 4000, now - 4000))
+    os.utime(fresh, (now - 30, now - 30))
+
+    removed = prune_audio(
+        tmp_path,
+        retention_hours=24.0,
+        max_bytes=1000,
+        protect_newer_than_seconds=600.0,
+        now=now,
+    )
+
+    assert removed == 2
+    assert not old_a.exists()
+    assert not old_b.exists()
+    assert fresh.exists()
 
 
 def test_retention_prunes_only_expired_audio_artifacts(tmp_path):

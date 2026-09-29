@@ -17,8 +17,8 @@ def source() -> str:
 
 
 def _pwsh() -> str:
-    exe = shutil.which("pwsh")
-    assert exe, "GitHub runner must provide pwsh so the Windows installer probe is behavior-tested"
+    exe = shutil.which("pwsh") or shutil.which("powershell.exe") or shutil.which("powershell")
+    assert exe, "installer probe requires PowerShell 7 or Windows PowerShell"
     return exe
 
 
@@ -63,7 +63,7 @@ raise SystemExit(0)
     return fake
 
 
-def _run_probe(tmp_path: Path, *, mean_db: str = "-20.0", what_if: bool = False):
+def _run_dshow_probe(tmp_path: Path, *, mean_db: str = "-20.0", what_if: bool = False):
     _fake_ffmpeg(tmp_path)
     env = os.environ.copy()
     env["PATH"] = str(tmp_path) + os.pathsep + env.get("PATH", "")
@@ -74,6 +74,8 @@ def _run_probe(tmp_path: Path, *, mean_db: str = "-20.0", what_if: bool = False)
     cmd = [
         _pwsh(),
         "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
         "-File",
         str(INSTALLER),
         "-SourceUrl",
@@ -89,71 +91,83 @@ def _run_probe(tmp_path: Path, *, mean_db: str = "-20.0", what_if: bool = False)
     return subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=30), marker
 
 
-def test_installer_supports_rtsp_and_windows_counter_mic():
+def test_default_is_headless_nicks_euclid_generic_source():
     text = source()
-    assert '[ValidateSet("rtsp", "dshow")]' in text
-    assert '$SourceKind = $SourceKind.ToLowerInvariant()' in text
-    assert "NICK_OFFICE_AUDIO_SOURCE" in text
-    assert "NICK_OFFICE_AUDIO_INPUT_FORMAT" in text
-    assert '"--source", $episodeSource' in text
-    assert "--source-url" not in text[text.index("$argList = @("):text.index("$action =", text.index("$argList = @("))]
-    assert "--input-format" not in text[text.index("$argList = @("):text.index("$action =", text.index("$argList = @("))]
-    assert '"counter-mic"' in text
+    assert '[ValidateSet("generic", "rtsp", "dshow")]' in text
+    assert '[string]$SourceKind = "generic"' in text
+    assert '[string]$SourceUrl = ""' in text
+    assert '[string]$OfficeSerial = "T8410P5225154105"' in text
+    assert 'http://127.0.0.1:3000/record/$OfficeSerial' in text
+    assert "maxSeconds=$bridgeMaxSeconds" in text
+    assert '$SourceKind -in @("rtsp", "generic")' in text
+    assert '"-rw_timeout","15000000"' in text
 
 
-def test_local_mic_uses_interactive_desktop_user_not_elevation_identity():
+def test_generic_and_rtsp_run_as_system_while_dshow_is_interactive():
     text = source()
-    start = text.index('$action = New-ScheduledTaskAction')
-    end = text.index("# RestartCount/Interval", start)
+    start = text.index("$action = New-ScheduledTaskAction")
+    end = text.index("$settings = New-ScheduledTaskSettingsSet", start)
     block = text[start:end]
 
+    assert 'if ($SourceKind -eq "dshow")' in block
     assert "Get-CimInstance Win32_ComputerSystem" in block
     assert "$DesktopUser" in block
-    assert "WindowsIdentity]::GetCurrent().Name" not in block
     assert "New-ScheduledTaskTrigger -AtLogOn" in block
     assert "-LogonType Interactive" in block
-    assert 'UserId "SYSTEM"' in block, "RTSP fallback must remain service-capable"
+    assert 'New-ScheduledTaskTrigger -AtStartup' in block
+    assert 'UserId "SYSTEM"' in block
+    assert "-LogonType ServiceAccount" in block
 
 
-def test_installer_keeps_source_secret_out_of_task_arguments_and_clears_legacy_rtsp():
+def test_task_arguments_do_not_embed_source_or_ingest_key():
     text = source()
-    arg_start = text.index("$argList = @(")
-    arg_end = text.index("$action =", arg_start)
-    args = text[arg_start:arg_end]
+    action = next(line for line in text.splitlines() if line.startswith("$action = New-ScheduledTaskAction"))
+    assert "-m vision.officewake --capture" in action
+    assert "$SourceUrl" not in action
+    assert "$IngestKey" not in action
 
-    assert "%NICK_OFFICE_AUDIO_SOURCE%" not in args
-    assert "%NICK_OFFICE_AUDIO_INPUT_FORMAT%" not in args
-    assert "$SourceUrl" not in args
-    assert "$IngestKey" not in args
-    assert "--source-url" not in args
-    assert "--input-format" not in args
-    assert 'SetEnvironmentVariable("NICK_OFFICE_RTSP", $null, "Machine")' in text
+    assert '"CAMERA_INGEST_KEY" = $IngestKey' in text
+    assert '"OFFICE_AUDIO_SOURCE" = $SourceUrl' in text
+    assert '"OFFICE_AUDIO_INPUT_FORMAT" = $SourceKind' in text
+    assert '"OFFICE_AUDIO_SOURCE_NAME" = $episodeSource' in text
 
 
-def test_verification_command_is_dry_run_first():
+def test_installer_disables_legacy_continuous_task_and_self_restarts():
     text = source()
-    assert "--seconds 60 --dry-run" in text
-    assert "Only after reviewing the dry-run output" in text
+    assert 'Get-ScheduledTask -TaskName "NickOfficeCapture"' in text
+    assert 'Disable-ScheduledTask -TaskName "NickOfficeCapture"' in text
+    assert "-MultipleInstances IgnoreNew" in text
+    assert "-RestartCount 999" in text
+    assert "-ExecutionTimeLimit ([TimeSpan]::Zero)" in text
 
 
-def test_dshow_probe_behavior_accepts_real_signal(tmp_path):
-    result, marker = _run_probe(tmp_path, mean_db="-24.5")
+def test_default_headless_source_is_not_tied_to_chrome_or_desktop():
+    text = source().lower()
+    assert "chrome" in text  # documentation states the independence explicitly
+    assert "without chrome" in text
+    assert "generic" in text
+    assert "fragmented-mp4" in text
+    assert "directshow remains an explicit fallback" in text
+
+
+def test_dshow_probe_behavior_accepts_real_signal(tmp_path: Path):
+    result, marker = _run_dshow_probe(tmp_path, mean_db="-24.5")
     assert result.returncode == 0, result.stdout + result.stderr
     assert "signal measured at -24.5 dBFS mean" in result.stdout
     assert marker.exists()
 
 
-def test_dshow_probe_behavior_rejects_effective_silence(tmp_path):
-    result, marker = _run_probe(tmp_path, mean_db="-91.0")
+def test_dshow_probe_behavior_rejects_effective_silence(tmp_path: Path):
+    result, marker = _run_dshow_probe(tmp_path, mean_db="-91.0")
     assert result.returncode != 0
     assert "effectively silent" in (result.stdout + result.stderr)
     assert marker.exists()
-    assert not list(tmp_path.glob("nick-office-mic-probe-*.wav"))
+    assert not list(tmp_path.glob("nick-office-mic-*.wav"))
 
 
-def test_dshow_probe_is_inert_under_whatif(tmp_path):
-    result, marker = _run_probe(tmp_path, what_if=True)
+def test_probe_is_inert_under_whatif(tmp_path: Path):
+    result, marker = _run_dshow_probe(tmp_path, what_if=True)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "no probe file created" in result.stdout
     assert not marker.exists()
-    assert not list(tmp_path.glob("nick-office-mic-probe-*.wav"))
+    assert not list(tmp_path.glob("nick-office-mic-*.wav"))

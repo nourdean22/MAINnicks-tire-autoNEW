@@ -51,6 +51,10 @@ const episodeSchema = z.object({
   episodeId: z.string().min(1).max(64),
   /** `eufy-office` today; `counter-mic` if the source changes. Nothing else here cares. */
   source: z.string().min(1).max(32),
+  cameraSerial: z.string().max(64).nullish(),
+  captureHost: z.string().max(64).nullish(),
+  triggerType: z.string().max(32).nullish(),
+  triggeredAt: z.union([z.string(), z.number(), z.null()]).optional(),
   startedAt: z.union([z.string(), z.number(), z.null()]).optional(),
   durationSeconds: z.number().nullish(),
   audioRef: z.string().max(255).nullish(),
@@ -59,6 +63,7 @@ const episodeSchema = z.object({
   meanVolumeDb: z.number().nullish(),
   segments: z.array(segmentSchema).default([]),
   sttEngine: z.string().max(32).nullish(),
+  sttModel: z.string().max(128).nullish(),
   sttLatencyMs: z.number().int().nullish(),
   /** Distinct diarized speakers. NULL means diarization was not attempted. */
   speakerCount: z.number().int().min(0).nullish(),
@@ -124,15 +129,18 @@ export function registerConversationEpisodeRoute(app: Express): void {
 
       await d.execute(sql`
         INSERT INTO conversation_episodes
-          (episodeId, source, startedAt, durationSeconds, audioRef, meanVolumeDb,
-           transcriptStatus, transcriptError, transcript, sttEngine, sttLatencyMs,
+          (episodeId, source, cameraSerial, captureHost, triggerType, triggeredAt,
+           startedAt, durationSeconds, audioRef, meanVolumeDb,
+           transcriptStatus, transcriptError, transcript, sttEngine, sttModel, sttLatencyMs,
            speakerCount, facts, summary)
         VALUES (
-          ${e.episodeId}, ${e.source},
+          ${e.episodeId}, ${e.source}, ${e.cameraSerial ?? null}, ${e.captureHost ?? null},
+          ${e.triggerType ?? null},
+          ${e.triggeredAt ? new Date(typeof e.triggeredAt === "number" ? e.triggeredAt * 1000 : e.triggeredAt) : null},
           ${e.startedAt ? new Date(typeof e.startedAt === "number" ? e.startedAt * 1000 : e.startedAt) : null},
           ${e.durationSeconds ?? null}, ${e.audioRef ?? null}, ${e.meanVolumeDb ?? null},
           ${status}, ${storedError}, ${JSON.stringify(segments)},
-          ${e.sttEngine ?? null}, ${e.sttLatencyMs ?? null},
+          ${e.sttEngine ?? null}, ${e.sttModel ?? null}, ${e.sttLatencyMs ?? null},
           ${e.speakerCount ?? null},
           ${JSON.stringify(extracted.facts)}, ${extracted.summary}
         )
@@ -143,8 +151,13 @@ export function registerConversationEpisodeRoute(app: Express): void {
           facts            = VALUES(facts),
           summary          = VALUES(summary),
           sttEngine        = VALUES(sttEngine),
+          sttModel         = VALUES(sttModel),
           sttLatencyMs     = VALUES(sttLatencyMs),
           speakerCount     = VALUES(speakerCount),
+          cameraSerial     = COALESCE(VALUES(cameraSerial), cameraSerial),
+          captureHost      = COALESCE(VALUES(captureHost), captureHost),
+          triggerType      = COALESCE(VALUES(triggerType), triggerType),
+          triggeredAt      = COALESCE(VALUES(triggeredAt), triggeredAt),
           meanVolumeDb     = COALESCE(VALUES(meanVolumeDb), meanVolumeDb),
           audioRef         = VALUES(audioRef)
       `);
@@ -163,6 +176,7 @@ export function registerConversationEpisodeRoute(app: Express): void {
       transcriptStatus: status,
       transcriptError: storedError,
       factsStored: extracted.facts.length,
+      summaryStored: Boolean(extracted.summary),
       dropped: extracted.dropped,
       coverage: e.totalSeconds > 0 ? Number((e.coveredSeconds / e.totalSeconds).toFixed(3)) : null,
       engine: extracted.engine,
