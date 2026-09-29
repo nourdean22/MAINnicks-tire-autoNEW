@@ -437,3 +437,13 @@ only what changes how you WORK is repeated here.
 - Q-32 independent judging is now fail-closed for unknown model families. Hosting providers are not accepted as model-family substitutes. The optional Langfuse experiment script parser defect was repaired, and the pinned experiment action was verified to supply its JS SDK and `dataset_version` input.
 - Q-31 transaction-column availability has one shared probe/cache. Prepared canonical replacements now compensate transaction time, effective validity/verification state, and provisional snapshot on failure; history mode does not fall through to a legacy overwrite after a failed prepared replacement.
 - These statements describe branch implementation only until exact-head CI and merge. No production Q-31 migration application or Q-32 empirical threshold is claimed.
+
+## 2026-09-29 — #2794 merged; production claims remain gated
+This supersedes the pre-PR status notes immediately above while preserving them as historical execution context.
+
+- PR **#2794** final head `79dbea91630f860f0a84bbd68b075df4a7697eea` passed Turbo affected verify, StateNour E2E, Completion Authority, Adoption Gates, Agent Policy, Secret Scanning, and Admin Diagnostic, then guarded-squash-merged as `48ac53827eb7f4f5754ee2a41fe74789c5c36c89`; that commit was read back as `main`.
+- Q-28, Q-31, Q-32, Q-34, and Q-36 are now **merged + unit-verified** in the machine capability ledger. Exposure remains disabled because merge/test evidence is not production evidence.
+- Q-31 transaction-time migration `20260929150500_brain_memory_transaction_time` remains operator-gated and unapplied by this workstream. The app deliberately tolerates both schemas until apply + read-back.
+- Q-32 live acceptance remains unmeasured: >=50 labels in 30 days, >=30 double-labeled items, Cohen's kappa >=0.6, and cloud Langfuse dataset/config read-back are still required for operational promotion.
+- Q-34 default stays `PROCESS_ROLE=all`; no live web/jobs service split was performed.
+- Q-36 has no claimed live mega morning/evening receipt; Q-28 has no claimed post-deploy Telegram grouping/recovery receipt yet.
