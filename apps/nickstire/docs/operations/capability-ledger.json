@@ -2781,7 +2781,12 @@
         ],
         "liveRuns": []
       },
-      "blockers": [],
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "A post-deploy observer run is still required before claiming production Telegram grouping, dependency inhibition, and recovery-notice behavior."
+        }
+      ],
       "deferredScope": [
         "No new external Alertmanager service; pattern is implemented inside the incumbent observer.",
         "Production alert-volume comparison and recovery-notice receipt after deploy."
