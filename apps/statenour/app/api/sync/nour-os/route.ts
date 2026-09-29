@@ -8,8 +8,18 @@ import { createTask } from "@/lib/services/tasks";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { priorityBandLabel } from "@/lib/scoring/task-priority";
+import { readIdempotencyKey, runOnceByKey } from "@/lib/services/bridge-receipts";
 
 export const dynamic = "force-dynamic";
+
+/** Receipt route for keyed `open_loop` pushes (ADR-0019 family `obligation.opened`). */
+const OPEN_LOOP_RECEIPT_ROUTE = "sync/nour-os:open_loop";
+/**
+ * An unsettled open_loop receipt older than this is taken as a dead delivery
+ * and rewritten. createTask's own transaction budget is 20 s (TASK_TX_OPTS),
+ * so a live first delivery settles long before this.
+ */
+const OPEN_LOOP_RECEIPT_STALE_MS = 2 * 60_000;
 
 /**
  * POST /api/sync/nour-os — Receive data pushes from local NOUR OS.
@@ -185,21 +195,37 @@ export const POST = syncHandler(async (req) => {
       // value is captured as autoPriorityExplanation rather than the
       // hardcoded autoPriority field (which the schema doesn't
       // accept on create).
-      const inboxMissionId = await resolveInboxMissionId();
-      const priorityLabel = String(data.priority ?? "medium");
-      result = await createTask({
-        title: String(data.title ?? "Untitled task").slice(0, 150),
-        missionId: inboxMissionId,
-        status: "INBOX",
-        nextPhysicalAction: String(data.title ?? "").slice(0, 150) || "start",
-        effort: "M15",
-        roiScore: 50,
-        frictionScore: 50,
-        energyRequired: "MEDIUM",
-        context: "ANYWHERE",
-        finishCondition: data.description ? String(data.description).slice(0, 200) : "done when complete",
-        autoPriorityExplanation: `from ${data.source ?? "nour-os-local"}${data.domain ? ` · ${data.domain}` : ""} · operator-priority=${priorityLabel}`,
-      });
+      //
+      // 2026-09-29 · ADR-0019 · an `Idempotency-Key` header makes this
+      // at-most-one task per key: nickstire re-escalating the same subject is
+      // the same obligation. Without the header, behaviour is unchanged.
+      const idempotencyKey = readIdempotencyKey(req.headers);
+      const once = await runOnceByKey(
+        prisma,
+        idempotencyKey,
+        OPEN_LOOP_RECEIPT_ROUTE,
+        async () => {
+          const inboxMissionId = await resolveInboxMissionId();
+          const priorityLabel = String(data.priority ?? "medium");
+          return createTask({
+            title: String(data.title ?? "Untitled task").slice(0, 150),
+            missionId: inboxMissionId,
+            status: "INBOX",
+            nextPhysicalAction: String(data.title ?? "").slice(0, 150) || "start",
+            effort: "M15",
+            roiScore: 50,
+            frictionScore: 50,
+            energyRequired: "MEDIUM",
+            context: "ANYWHERE",
+            finishCondition: data.description ? String(data.description).slice(0, 200) : "done when complete",
+            autoPriorityExplanation: `from ${data.source ?? "nour-os-local"}${data.domain ? ` · ${data.domain}` : ""} · operator-priority=${priorityLabel}`,
+          });
+        },
+        // createTask returns its view model; `null` only if the re-read raced a delete.
+        (task) => task?.id ?? "created",
+        { staleMs: OPEN_LOOP_RECEIPT_STALE_MS },
+      );
+      result = once.duplicate ? { duplicate: true, resultRef: once.resultRef } : once.value;
       break;
     }
     case "body": {
