@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
     findUnique: vi.fn(),
   },
   getFlag: vi.fn(),
+  supersedeMemoryVersion: vi.fn(),
+  restoreMemoryAsCurrent: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -41,6 +43,11 @@ vi.mock("@/lib/feature-flags", () => ({
 
 vi.mock("@/lib/logger", () => ({
   logger: { withSurface: () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn() }) },
+}));
+
+vi.mock("@/lib/brain/memory-transaction-time", () => ({
+  supersedeMemoryVersion: mocks.supersedeMemoryVersion,
+  restoreMemoryAsCurrent: mocks.restoreMemoryAsCurrent,
 }));
 
 import { cleanupResolvedContradiction } from "@/lib/brain/contradiction-cleanup";
@@ -57,58 +64,152 @@ beforeEach(() => {
   mocks.getFlag.mockReturnValue({ isOn: false }); // soft-delete lane OFF
   mocks.brainMemory.updateMany.mockResolvedValue({ count: 1 });
   mocks.brainMemory.update.mockResolvedValue({});
-  // Winner row: no validFrom writer exists yet, not itself superseded.
-  mocks.brainMemory.findUnique.mockResolvedValue({ validFrom: null, supersededById: null });
+  mocks.supersedeMemoryVersion.mockResolvedValue({
+    count: 1,
+    transactionStamped: true,
+  });
+  mocks.restoreMemoryAsCurrent.mockResolvedValue({
+    count: 1,
+    transactionStamped: true,
+  });
+
+  mocks.brainMemory.findUnique.mockImplementation(async ({ where }: any) => {
+    if (where.id === "mem-new") {
+      return { validFrom: null, supersededById: null };
+    }
+    if (where.id === "mem-old") {
+      return {
+        createdAt: new Date("2026-07-01T00:00:00Z"),
+        validFrom: new Date("2026-07-01T00:00:00Z"),
+        validUntil: null,
+      };
+    }
+    return null;
+  });
 });
 
 describe("supersession writer · cleanupResolvedContradiction", () => {
-  it("current_wins → the OLD row is superseded by the new one, even with the delete flag off", async () => {
+  it("current_wins → the OLD row is atomically superseded by the NEW one, even with delete off", async () => {
     const res = await cleanupResolvedContradiction("current_wins", "mem-new", "mem-old");
 
     expect(res.superseded).toBe(true);
-    expect(res.cleaned).toBe(false); // flag off — no soft delete
-    const stamps = loserStampCalls();
-    expect(stamps).toHaveLength(1);
-    expect(stamps[0][0].where).toMatchObject({ id: "mem-old", supersededById: null, deletedAt: null });
-    expect(stamps[0][0].data.supersededById).toBe("mem-new");
-    expect(stamps[0][0].data.validUntil).toBeInstanceOf(Date);
+    expect(res.cleaned).toBe(false);
+    expect(res.transactionStamped).toBe(true);
+    expect(mocks.supersedeMemoryVersion).toHaveBeenCalledOnce();
+    expect(mocks.supersedeMemoryVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        losingMemoryId: "mem-old",
+        winningMemoryId: "mem-new",
+        effectiveUntil: expect.any(Date),
+        transactionAt: expect.any(Date),
+        deprecate: true,
+      }),
+    );
   });
 
-  it("stamps lastVerifiedAt on the WINNER — an operator adjudication is a verification event", async () => {
+  it("stamps lastVerifiedAt on the WINNER — operator adjudication is verification", async () => {
     await cleanupResolvedContradiction("current_wins", "mem-new", "mem-old");
     const verify = mocks.brainMemory.updateMany.mock.calls.find(
-      (c: any[]) => c[0]?.data?.lastVerifiedAt !== undefined && c[0]?.where?.id === "mem-new",
+      (call: any[]) =>
+        call[0]?.data?.lastVerifiedAt !== undefined &&
+        call[0]?.where?.id === "mem-new",
     );
     expect(verify, "winner lastVerifiedAt bump missing").toBeDefined();
   });
 
-  it("uses the winner's validFrom as the loser's validUntil when present (Zep t_invalid semantics)", async () => {
+  it("uses the winner's validFrom as the loser's effective end only when intervals overlap", async () => {
     const winnerBorn = new Date("2026-08-01T00:00:00Z");
-    mocks.brainMemory.findUnique.mockResolvedValue({ validFrom: winnerBorn, supersededById: null });
+    mocks.brainMemory.findUnique.mockImplementation(async ({ where }: any) => {
+      if (where.id === "mem-new") {
+        return { validFrom: winnerBorn, supersededById: null };
+      }
+      return {
+        createdAt: new Date("2026-07-01T00:00:00Z"),
+        validFrom: new Date("2026-07-01T00:00:00Z"),
+        validUntil: null,
+      };
+    });
+
     await cleanupResolvedContradiction("current_wins", "mem-new", "mem-old");
-    expect(loserStampCalls()[0][0].data.validUntil).toEqual(winnerBorn);
+    const call = mocks.supersedeMemoryVersion.mock.calls[0][0];
+    expect(call.effectiveUntil).toEqual(winnerBorn);
   });
 
-  it("a verdict FLIP un-strands the winner instead of leaving both rows superseded", async () => {
-    // Round 1 resolved the other way: the row now ruled correct carries a
-    // stamp pointing at the row it now beats.
-    mocks.brainMemory.findUnique.mockResolvedValue({ validFrom: null, supersededById: "mem-old" });
-    await cleanupResolvedContradiction("current_wins", "mem-new", "mem-old");
-    expect(mocks.brainMemory.update).toHaveBeenCalledTimes(1);
-    const unstrand = mocks.brainMemory.update.mock.calls[0][0];
-    expect(unstrand.where).toEqual({ id: "mem-new" });
-    expect(unstrand.data.supersededById).toBeNull();
-    expect(unstrand.data.validUntil).toBeNull();
-    expect(unstrand.data.lastVerifiedAt).toBeInstanceOf(Date);
-    // The loser still gets stamped.
-    expect(loserStampCalls()).toHaveLength(1);
+  it("retro-dated NON-OVERLAP does not supersede or soft-delete the old interval", async () => {
+    const winnerBorn = new Date("2026-08-15T00:00:00Z");
+    mocks.brainMemory.findUnique.mockImplementation(async ({ where }: any) => {
+      if (where.id === "mem-new") {
+        return { validFrom: winnerBorn, supersededById: null };
+      }
+      return {
+        createdAt: new Date("2026-07-01T00:00:00Z"),
+        validFrom: new Date("2026-07-01T00:00:00Z"),
+        validUntil: new Date("2026-08-01T00:00:00Z"),
+      };
+    });
+    mocks.getFlag.mockReturnValue({ isOn: true });
+
+    const res = await cleanupResolvedContradiction(
+      "current_wins",
+      "mem-new",
+      "mem-old",
+    );
+
+    expect(res).toMatchObject({
+      superseded: false,
+      cleaned: false,
+      skippedReason: "non_overlapping",
+    });
+    expect(mocks.supersedeMemoryVersion).not.toHaveBeenCalled();
+    expect(mocks.brainMemory.update).not.toHaveBeenCalled();
+  });
+
+  it("a verdict FLIP reopens the winner through the transaction-time owner", async () => {
+    mocks.brainMemory.findUnique.mockImplementation(async ({ where }: any) => {
+      if (where.id === "mem-new") {
+        return { validFrom: null, supersededById: "mem-old" };
+      }
+      return {
+        createdAt: new Date("2026-07-01T00:00:00Z"),
+        validFrom: new Date("2026-07-01T00:00:00Z"),
+        validUntil: null,
+      };
+    });
+
+    const res = await cleanupResolvedContradiction(
+      "current_wins",
+      "mem-new",
+      "mem-old",
+    );
+
+    expect(mocks.restoreMemoryAsCurrent).toHaveBeenCalledWith(
+      "mem-new",
+      "mem-old",
+      expect.any(Date),
+    );
+    expect(res.transactionStamped).toBe(true);
+    expect(mocks.supersedeMemoryVersion).toHaveBeenCalledOnce();
   });
 
   it("old_wins → the NEW row is the loser", async () => {
+    mocks.brainMemory.findUnique.mockImplementation(async ({ where }: any) => {
+      if (where.id === "mem-old") {
+        return { validFrom: null, supersededById: null };
+      }
+      return {
+        createdAt: new Date("2026-08-01T00:00:00Z"),
+        validFrom: new Date("2026-08-01T00:00:00Z"),
+        validUntil: null,
+      };
+    });
+
     await cleanupResolvedContradiction("old_wins", "mem-new", "mem-old");
-    const call = loserStampCalls()[0][0];
-    expect(call.where.id).toBe("mem-new");
-    expect(call.data.supersededById).toBe("mem-old");
+    expect(mocks.supersedeMemoryVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        losingMemoryId: "mem-new",
+        winningMemoryId: "mem-old",
+      }),
+    );
   });
 
   it("both_valid / dismissed name no loser → nothing is stamped", async () => {
@@ -117,19 +218,30 @@ describe("supersession writer · cleanupResolvedContradiction", () => {
       expect(res.superseded).toBe(false);
       expect(res.skippedReason).toBe("no_loser");
     }
+    expect(mocks.supersedeMemoryVersion).not.toHaveBeenCalled();
     expect(mocks.brainMemory.updateMany).not.toHaveBeenCalled();
   });
 
-  it("is idempotent — an already-superseded row is not re-stamped", async () => {
-    mocks.brainMemory.updateMany.mockResolvedValue({ count: 0 });
-    const res = await cleanupResolvedContradiction("current_wins", "mem-new", "mem-old");
+  it("is idempotent — an already-superseded row is not reported as re-stamped", async () => {
+    mocks.supersedeMemoryVersion.mockResolvedValue({
+      count: 0,
+      transactionStamped: false,
+    });
+    const res = await cleanupResolvedContradiction(
+      "current_wins",
+      "mem-new",
+      "mem-old",
+    );
     expect(res.superseded).toBe(false);
   });
 
-  it("a failed stamp never throws into the resolve path", async () => {
-    mocks.brainMemory.findUnique.mockRejectedValue(new Error("db down"));
-    mocks.brainMemory.updateMany.mockRejectedValue(new Error("db down"));
-    const res = await cleanupResolvedContradiction("current_wins", "mem-new", "mem-old");
+  it("a failed atomic supersession never throws into the resolve path", async () => {
+    mocks.supersedeMemoryVersion.mockRejectedValue(new Error("db down"));
+    const res = await cleanupResolvedContradiction(
+      "current_wins",
+      "mem-new",
+      "mem-old",
+    );
     expect(res.superseded).toBe(false);
   });
 });
