@@ -12,7 +12,7 @@
  *
  * Usage: node scripts/dod-compiler.mjs [--base origin/main] [--enforce]
  */
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -66,11 +66,28 @@ const enforce = args.includes("--enforce");
 const baseIdx = args.indexOf("--base");
 const base = baseIdx >= 0 ? args[baseIdx + 1] : "origin/main";
 
-const repoRoot = execSync("git rev-parse --show-toplevel", { encoding: "utf8" }).trim();
+/**
+ * GIT NAMES ARE DATA, NEVER SHELL (2026-09-29). Every git call passes an argv
+ * array (no shell), and every name list is read NUL-separated (-z). This file
+ * used to build shell strings from `git ls-tree` output, so a fragment whose
+ * NAME held $(...) or backticks ran as a command on every later CI run once it
+ * was on main. And any name git C-quotes (a double quote, non-ASCII) came back
+ * wrapped in quotes, so its value was lost and the untouched fragment read
+ * FRESH. Pinned in scripts/agent-os/dodCompiler.test.mjs. `--base` is still a
+ * revision git parses; it may not start with "-", or git reads it as an option
+ * (`--output=<file>` writes a file).
+ */
+if (typeof base === "string" && base.startsWith("-")) {
+  console.error(`--base must be a git revision, not an option (got ${JSON.stringify(base)})`);
+  process.exit(2);
+}
+const git = (argv, opts = {}) => execFileSync("git", argv, { encoding: "utf8", ...opts });
+
+const repoRoot = git(["rev-parse", "--show-toplevel"]).trim();
 let files = [];
 try {
-  files = execSync(`git diff --name-only ${base}...HEAD`, { encoding: "utf8", cwd: repoRoot })
-    .split(/\r?\n/)
+  files = git(["diff", "--name-only", "-z", `${base}...HEAD`], { cwd: repoRoot })
+    .split("\0")
     .filter(Boolean);
 } catch {
   console.error(`could not diff against ${base}`);
@@ -98,9 +115,7 @@ const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath
  */
 let baseEvidence = {};
 try {
-  const raw = execSync(`git show ${base}:.completion/evidence.json`, {
-    encoding: "utf8", cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"],
-  });
+  const raw = git(["show", `${base}:.completion/evidence.json`], { cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"] });
   baseEvidence = JSON.parse(raw).evidence ?? {};
 } catch {
   // No manifest at base — nothing can be stale.
@@ -133,31 +148,27 @@ const hasEvidence = (ev) => Boolean(evidenceRef(ev) || evidenceDeferred(ev));
 
 let mergeBase = base;
 try {
-  mergeBase = execSync(`git merge-base ${base} HEAD`, {
-    encoding: "utf8", cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"],
-  }).trim();
+  mergeBase = git(["merge-base", base, "HEAD"], { cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"] }).trim();
 } catch {
   // Unrelated histories or a shallow clone: fall back to the base tip.
 }
 
 const baseValues = new Set(Object.values(baseEvidence).map(entryKey));
 try {
-  const legacyAtMergeBase = execSync(`git show ${mergeBase}:.completion/evidence.json`, {
-    encoding: "utf8", cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"],
+  const legacyAtMergeBase = git(["show", `${mergeBase}:.completion/evidence.json`], {
+    cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"],
   });
   for (const v of Object.values(JSON.parse(legacyAtMergeBase).evidence ?? {})) baseValues.add(entryKey(v));
 } catch {
   // No legacy manifest at the merge-base.
 }
 try {
-  const listed = execSync(`git ls-tree -r --name-only ${mergeBase} -- "${FRAGMENT_DIR}/"`, {
-    encoding: "utf8", cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"],
-  }).split(/\r?\n/).filter((f) => f.endsWith(".json"));
+  const listed = git(["ls-tree", "-r", "-z", "--name-only", mergeBase, "--", `${FRAGMENT_DIR}/`], {
+    cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"],
+  }).split("\0").filter((f) => f.endsWith(".json"));
   for (const f of listed) {
     try {
-      const raw = execSync(`git show "${mergeBase}:${f}"`, {
-        encoding: "utf8", cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"],
-      });
+      const raw = git(["show", `${mergeBase}:${f}`], { cwd: repoRoot, stdio: ["pipe", "pipe", "ignore"] });
       for (const v of Object.values(JSON.parse(raw).evidence ?? {})) baseValues.add(entryKey(v));
     } catch {
       // An unreadable fragment at base contributes nothing to compare against.
