@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "No capability state changes in this diff (2026-09-29, branch nickstire/q12-phase1-sender-keys, Q-12 phase 1 sender keys). server/services/bridgeKeys.ts is new; ownerEscalation.ts and evidenceLedger.ts add an optional Idempotency-Key header (auth header unchanged); revenueReconciliation.ts keys its escalation on the sorted set of ambiguous call ids. The only ledger capability near this code is the home-hero web experiment resolver, whose state does not move: the key is inert until the operator applies StateNour's parked 20260929090000_bridge_receipts migration, so nothing is promoted or demoted. Receipts: new tests red on main (4 failed | 3 passed of 7 with the two senders reverted), green after (5 files, 22 passed); pnpm run verify exit 0 (795 files, 9,964 tests passed, build ok)."
+    },
+    "cron-fail-closed": {
+      "deferred": "No fail-closed behaviour changes in this diff (2026-09-29, branch nickstire/q12-phase1-sender-keys). cron/jobs/webExperimentResolve.ts only passes a second argument (the idempotency key) to postToEvidenceLedger inside the existing per-experiment try/catch; bridgeKey is pure and returns null instead of throwing, and postToEvidenceLedger keeps returning false (never throwing) on every failure path. No new catch, swallow or early return was added. Receipts: server/cron/jobs/webExperimentResolve.test.ts green; pnpm run verify exit 0 (795 files, 9,964 tests passed)."
+    }
+  }
+}

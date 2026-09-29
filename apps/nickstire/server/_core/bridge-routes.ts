@@ -1024,6 +1024,7 @@ export function registerBridgeRoutes(app: Express): void {
           evidenceLinks: ["/admin?tab=campaigns&outreachTab=campaigns"],
           authorization: { tier: 0, role: "owner" },
           writeBack: `campaigns.send({ campaignId: ${draft.id} })`,
+          subjectId: `draft-${draft.id}`,
         });
       } catch (e) { log.warn("[bridge] escalation failed:", e); }
 
