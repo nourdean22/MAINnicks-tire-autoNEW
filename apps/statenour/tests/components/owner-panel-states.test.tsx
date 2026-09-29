@@ -58,7 +58,7 @@ describe("OwnerPanel render states", () => {
     stub.q = { data: composeOwnerPanel({ ...base, pendingActions: null }), isError: false };
     const html = renderToStaticMarkup(<OwnerPanel />);
     expect(html).toContain("decisions waiting · unknown");
-    expect(html).toContain("Approvals unreadable");
+    expect(html).toContain("Decision sources unreadable — state unknown.");
     expect(html).toContain("Unreadable, so not cleared: approvals");
     expect(html).toContain('data-owner-panel="unknown"');
   });
