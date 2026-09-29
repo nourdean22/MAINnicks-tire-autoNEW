@@ -135,6 +135,11 @@ const MUST_UNSUBSCRIBE = [
   "Take me off your list",
   "please unsubscribe me",
   "I want to opt out",
+  // audit-2026-09-29-F3: a negated phrase elsewhere in the reply must not hide
+  // a real revocation (the negated span is removed, the rest is still read)
+  "You guys never stop texting me. STOP",
+  "Don't stop by today. Stop texting me",
+  "I never said yes. Unsubscribe me",
 ];
 
 const MUST_NOT_UNSUBSCRIBE = [
@@ -171,6 +176,28 @@ const MUST_NOT_UNSUBSCRIBE = [
   "Win a gift card! Reply STOP to end",
   "Win a gift card! Reply STOP to unsubscribe",
   "Your code is 1234. Txt STOP to opt out",
+  // audit-2026-09-29-F3 (#2622 review): "stop at" / "stop off" / "end of"
+  // unsubscribe only with a revocation continuation; every other time phrase
+  // goes to a person
+  "Stop at five ok?",
+  "Stop at like 3",
+  "Stop at a quarter to 3",
+  "Stop at lunchtime?",
+  "stop off tomorrow ok?",
+  "End of next week works",
+  "End of this week?",
+  "End of September is better",
+  // questions about us, and the customer talking about themself
+  "Why did you stop texting me?",
+  "Why'd you stop texting me",
+  "Ok I'll stop texting you, see you at 3",
+  // negation without the old exact wording
+  "Don't stop texting me updates",
+  "I don't want to opt out",
+  "No don't unsubscribe me",
+  // dictated cancels: "text me" is a request, not an object of cancel
+  "cancel text me when you have an opening",
+  "Need to cancel text me a new time",
 ];
 
 describe("an opt-out is honoured before confirm, cancel or decline", () => {
@@ -202,4 +229,41 @@ describe("an opt-out is honoured before confirm, cancel or decline", () => {
       expect(parseSmsResponse(msg).requiresHuman).toBe(true);
     },
   );
+});
+
+/**
+ * audit-2026-09-29-F3. A dictated "cancel, text me when you have an opening" is
+ * a reschedule request with no punctuation. It must neither unsubscribe nor
+ * auto-cancel the booking: a person reads it.
+ */
+describe("a cancel that asks to be texted back goes to a person", () => {
+  it.each(["cancel text me when you have an opening", "Need to cancel text me a new time", "cancel, call me to reschedule"])(
+    "%j does not auto-cancel",
+    (msg) => {
+      const r = parseSmsResponse(msg);
+      expect(r.intent).not.toBe("cancel");
+      expect(r.autoAction).not.toBe("cancel-appointment");
+      expect(r.requiresHuman).toBe(true);
+    },
+  );
+});
+
+/**
+ * audit-2026-09-29-F3. The negation check used to run on the WHOLE message and
+ * return before any revocation rule, so one negated phrase anywhere hid a real
+ * STOP elsewhere. Only the negated span is removed now. Both directions:
+ */
+describe("a negated phrase is removed, not the whole message", () => {
+  it("the negated phrase alone still goes to a person", () => {
+    const r = parseSmsResponse("You guys never stop texting me");
+    expect(r.intent).not.toBe("unsubscribe");
+    expect(r.requiresHuman).toBe(true);
+  });
+
+  it("a real STOP after a negated phrase unsubscribes", () => {
+    const r = parseSmsResponse("You guys never stop texting me. STOP");
+    expect(r.intent).toBe("unsubscribe");
+    expect(r.autoAction).toBe("unsubscribe-customer");
+    expect(r.extractedData?.message).toBe("You guys never stop texting me. STOP");
+  });
 });
