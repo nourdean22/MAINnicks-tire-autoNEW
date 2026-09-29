@@ -24,6 +24,14 @@ import { getDb } from "../db";
 import { sendTelegramMessage } from "../services/telegram";
 import { createLogger } from "../lib/logger";
 import { MANUAL_TRIGGER_STAGED } from "./registry-tier-map";
+import { BUSINESS } from "@shared/business";
+import {
+  formatDatabaseDependencyAlert,
+  formatFailureAlertGroup,
+  formatResolvedAlertGroup,
+  formatShapeAlertGroup,
+  isCronAlertQuietHours,
+} from "./alertPolicy";
 import {
   classifyRun,
   LOOP_CONTRACTS,
@@ -49,6 +57,8 @@ const log = createLogger("cron:observer");
 const lastAlertAt: Map<string, number> = new Map();
 const ALERT_SUPPRESS_MS = 6 * 60 * 60 * 1000; // 6 hours
 const ALERT_KV_PREFIX = "cron_observer_last_alert:";
+const ACTIVE_KV_PREFIX = "cron_observer_active_alert:";
+const activeAlertCache = new Set<string>();
 
 /**
  * The suppression judge. PURE, so the canary can prove BOTH directions against
@@ -112,6 +122,67 @@ async function writeLastAlertAt(key: string, whenMs: number): Promise<void> {
     log.warn(`[cron-observer] could not persist alert dedupe for ${key}`, { err: err instanceof Error ? err.message : String(err) });
   }
 }
+
+/**
+ * Alertmanager-style active-state ledger for one-shot resolved notices.
+ * Cache is the fail-open fallback; shop_settings survives normal deploys.
+ */
+async function readActiveAlertKeys(): Promise<Set<string>> {
+  const out = new Set(activeAlertCache);
+  try {
+    const d = await getDb();
+    if (!d) return out;
+    const { shopSettings } = await import("../../drizzle/schema");
+    const { like } = await import("drizzle-orm");
+    const rows = await d
+      .select({ key: shopSettings.key, value: shopSettings.value })
+      .from(shopSettings)
+      .where(like(shopSettings.key, `${ACTIVE_KV_PREFIX}%`));
+    for (const row of rows) {
+      const key = String(row.key).slice(ACTIVE_KV_PREFIX.length);
+      if (String(row.value) === "1") {
+        out.add(key);
+        activeAlertCache.add(key);
+      }
+    }
+  } catch (err) {
+    log.warn("[cron-observer] could not read active-alert state; using process cache", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return out;
+}
+
+async function writeAlertActive(key: string, active: boolean): Promise<void> {
+  if (active) activeAlertCache.add(key);
+  else activeAlertCache.delete(key);
+  try {
+    const d = await getDb();
+    if (!d) return;
+    const { shopSettings } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const k = ACTIVE_KV_PREFIX + key;
+    const rows = await d.select().from(shopSettings).where(eq(shopSettings.key, k)).limit(1);
+    if (rows.length > 0) {
+      await d
+        .update(shopSettings)
+        .set({ value: active ? "1" : "0", updatedBy: "system" })
+        .where(eq(shopSettings.key, k));
+    } else if (active) {
+      await d.insert(shopSettings).values({
+        key: k,
+        value: "1",
+        label: `cron observer active alert: ${key}`,
+        category: "general",
+        updatedBy: "system",
+      });
+    }
+  } catch (err) {
+    log.warn(`[cron-observer] could not persist active state for ${key}`, {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 /**
  * Shape verdicts (dormant / anomalous / unknown / missing) persist for days by
  * nature, and the observer runs every 15 minutes — a 6h window would page the
@@ -153,7 +224,9 @@ interface JobFailureSnapshot {
  */
 async function fetchFailingJobs(): Promise<JobFailureSnapshot[]> {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) {
+    throw new Error("database unavailable: getDb() returned null");
+  }
 
   // Take the last RUNS_PER_JOB runs PER JOB, not the last N rows overall.
   //
