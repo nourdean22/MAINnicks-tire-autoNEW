@@ -18,6 +18,7 @@ import {
   toTraceparent,
   type DomainEventEnvelope,
 } from "./envelope";
+import { realityEventContract } from "./reality-event-registry";
 
 const iso = (d: Date | string | null | undefined): string =>
   (d instanceof Date ? d : d ? new Date(d) : new Date(0)).toISOString();
@@ -185,6 +186,56 @@ export const fromEntityAudit = (r: EntityAuditRow): DomainEventEnvelope =>
       actorId: r.actor,
     },
   );
+
+export interface RealityEventRow {
+  id: string;
+  eventType: string;
+  eventVersion: number;
+  occurredAt: Date;
+  observedAt: Date;
+  correlationId: string | null;
+  causationId: string | null;
+  retentionClass: string;
+  objects: unknown;
+  sourceSystem: string;
+  sourceUri: string | null;
+  privacy: string;
+  payload: unknown;
+  sender: string;
+}
+
+/**
+ * RealityEvent is now the ninth source in the existing DomainEventEnvelope
+ * projection. Registry validation happens at WRITE time; this adapter keeps
+ * historical rows visible, but marks an unregistered legacy type under the
+ * reality/legacy namespace instead of pretending it is registered.
+ */
+export const fromRealityEvent = (r: RealityEventRow): DomainEventEnvelope => {
+  const contract = realityEventContract(r.eventType);
+  const objects = Array.isArray(r.objects) ? r.objects : [];
+  const firstObject = objects.find(
+    (value): value is { id: string } =>
+      Boolean(value) &&
+      typeof value === "object" &&
+      typeof (value as { id?: unknown }).id === "string",
+  );
+  return base(
+    r.id,
+    `reality/${seg(r.sourceSystem, "unknown")}`,
+    contract?.canonicalType(r.eventType) ??
+      eventTypeName("reality", "legacy", r.eventType, r.eventVersion || 1),
+    r.occurredAt ?? r.observedAt,
+    r.payload ?? {},
+    {
+      subject: firstObject?.id,
+      schemaVersion: r.eventVersion || 1,
+      correlationId: r.correlationId ?? undefined,
+      actorType: r.sourceSystem === "statenour" ? "system" : "integration",
+      actorId: r.sender || r.sourceSystem,
+      privacyClass: r.privacy === "public" ? "public" : "internal",
+    },
+  );
+};
 
 /** Attach the derived W3C traceparent when a native correlation id is
  *  known. Kept separate so adapters stay trivially pure. */
