@@ -18,7 +18,7 @@
     },
     "q31-failure-compensation": {
       "ref": "apps/statenour/lib/brain/memory-manager.ts + apps/statenour/tests/brain/memory-bitemporal-runtime.test.ts",
-      "deferred": "PR #2794 branch evidence: prepared supersession failures restore transaction/effective verification state, remove the provisional snapshot, and return the existing canonical row instead of silently falling through to a legacy overwrite. Exact-head CI is still the remaining acceptance receipt."
+      "deferred": "PR #2794 branch evidence: prepared supersession failures restore transaction/effective verification state, remove the provisional snapshot, and return the existing canonical row instead of silently falling through to a legacy overwrite. After a successful content replacement, the new transaction window is verified and retried through the compensating helper if the first open fails. Exact-head CI is still the remaining acceptance receipt."
     },
     "q32-independent-judge": {
       "ref": "apps/statenour/lib/evals/q32-regression.ts + apps/statenour/lib/ai/judge-eval.ts + apps/statenour/tests/ai/judge-eval-family.test.ts",
