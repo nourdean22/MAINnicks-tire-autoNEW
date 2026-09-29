@@ -1,4 +1,5 @@
 import { logger as rootLogger } from "@/lib/logger";
+import { postTelegramText } from "@/lib/services/telegram-post";
 
 const log = rootLogger.withSurface("services/telegram-observed");
 
@@ -31,23 +32,19 @@ export async function sendTelegramObserved(
   if (!target) return { state: "known_failure", reason: "no_chat_id" };
 
   try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(5_000),
-      body: JSON.stringify({
-        chat_id: target,
-        text,
-        parse_mode: parseMode,
-        disable_web_page_preview: true,
-      }),
+    // A 400 "can't parse entities" is resent once as plain text inside
+    // postTelegramText; a resend that times out lands in the catch below.
+    const { res, error } = await postTelegramText(token, "sendMessage", {
+      chat_id: target,
+      text,
+      parse_mode: parseMode,
+      disable_web_page_preview: true,
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
       log.error("send_known_failure", {
         status: res.status,
-        error: String(err).slice(0, 200),
+        error: (error ?? "").slice(0, 200),
       });
       return {
         state: "known_failure",

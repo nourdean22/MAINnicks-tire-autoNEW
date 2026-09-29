@@ -1,6 +1,7 @@
 // ── Telegram Bot Integration ───────────────────────────────────────────
 
 import { logger as rootLogger } from "@/lib/logger";
+import { postTelegramText } from "@/lib/services/telegram-post";
 
 const log = rootLogger.withSurface("services/telegram");
 
@@ -28,24 +29,15 @@ export async function sendTelegram(
   }
 
   try {
-    const res = await fetch(
-      `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(5_000), // wave-181.92 · alerts are best-effort
-        body: JSON.stringify({
-          chat_id: target,
-          text,
-          parse_mode: parseMode,
-          disable_web_page_preview: true,
-        }),
-      }
-    );
+    const { res, error } = await postTelegramText(BOT_TOKEN, "sendMessage", {
+      chat_id: target,
+      text,
+      parse_mode: parseMode,
+      disable_web_page_preview: true,
+    });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      log.error("send_failed", { status: res.status, error: String(err).slice(0, 200) });
+      log.error("send_failed", { status: res.status, error: (error ?? "").slice(0, 200) });
       return false;
     }
 
@@ -105,25 +97,16 @@ export async function sendTelegramWithButtons(
   if (!target) return { ok: false };
 
   try {
-    const res = await fetch(
-      `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(5_000), // wave-181.92
-        body: JSON.stringify({
-          chat_id: target,
-          text,
-          parse_mode: "HTML",
-          disable_web_page_preview: true,
-          reply_markup: { inline_keyboard: buttons },
-        }),
-      }
-    );
+    const { res, error } = await postTelegramText(BOT_TOKEN, "sendMessage", {
+      chat_id: target,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+      reply_markup: { inline_keyboard: buttons },
+    });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      log.error("send_buttons_failed", { error: String(err).slice(0, 200) });
+      log.error("send_buttons_failed", { status: res.status, error: (error ?? "").slice(0, 200) });
       return { ok: false };
     }
 
@@ -180,22 +163,14 @@ export async function editTelegramMessage(
   if (!target) return false;
 
   try {
-    const res = await fetch(
-      `https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(5_000), // wave-181.92
-        body: JSON.stringify({
-          chat_id: target,
-          message_id: messageId,
-          text,
-          parse_mode: "HTML",
-          disable_web_page_preview: true,
-          ...(buttons ? { reply_markup: { inline_keyboard: buttons } } : {}),
-        }),
-      }
-    );
+    const { res } = await postTelegramText(BOT_TOKEN, "editMessageText", {
+      chat_id: target,
+      message_id: messageId,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+      ...(buttons ? { reply_markup: { inline_keyboard: buttons } } : {}),
+    });
     return res.ok;
   } catch {
     return false;
