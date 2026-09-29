@@ -288,6 +288,16 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     readOnly: true,
   },
   {
+    key: "NICK_DURABLE_MISSIONS",
+    description:
+      "Queues bounded multi-step mission execution onto the existing Inngest control plane. V1 supports checkpoint + deep-research steps only, records progress as RealityEvent episodes, survives chat/browser closure, and never auto-completes the Mission. OFF = mission planning remains synchronous/manual.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior:
+      "OFF: queueMissionExecution refuses to enqueue background mission work. Enable only after the durable-run tests and deployed Inngest registration receipt are green.",
+    ownerDoc: "lib/missions/durable-execution.ts",
+  },
+  {
     key: "NICK_VERIFIED_REGEN",
     description: "WIRED. On factual/decision/analytical/procedural/instructional turns, generates the reply non-streaming, runs the critic, and regenerates ONCE (critic-gated best-of-2) before shipping the winner as a stream. Persists via the normal pipeline. Falls through to the normal stream on any error. OFF = single-pass (today's behavior). Adds latency on the regen path only.",
     status: "experimental",

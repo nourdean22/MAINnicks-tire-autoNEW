@@ -6,6 +6,7 @@ import {
   getMissingEnvForTool
 } from "@/lib/tools/tool-registry";
 import { evaluateToolAction } from "@/lib/tools/tool-policy";
+import { buildToolGapReport } from "@/lib/observability/tool-gap-report";
 
 const ToolActionRequestSchema = z.object({
   toolId: z.string(),
@@ -34,6 +35,10 @@ export const toolsProcedures = {
       };
     });
   }),
+
+  toolGapReport: operatorProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(90).default(30) }).optional())
+    .query(async ({ input }) => buildToolGapReport(input?.windowDays ?? 30)),
 
   evaluateTool: operatorProcedure
     .input(ToolActionRequestSchema)

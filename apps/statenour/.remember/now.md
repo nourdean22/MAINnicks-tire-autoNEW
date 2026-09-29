@@ -1,5 +1,15 @@
 # Session ledger — statenour
 
+**Updated: 2026-09-28 evening ET** (NourOS intelligence foundation built/tested; merge + production proof still pending)
+
+## 2026-09-28 · NourOS intelligence foundation — branch truth
+
+**Current branch truth.** `feat/nouros-foundation-20260928` is based on current `origin/main` #2753 (`4e628f0db`) and contains the tested foundation slice. It reuses `RealityEvent`, `Mission`, Inngest, `ToolSelectionTurn`/`ToolGateDecision`, verified regen, and E2B instead of adding parallel substrates. Local receipts: 45/45 focused tests, StateNour typecheck, changed-file ESLint, diff check, and staged secret scan all green.
+
+**What is built, not yet live-proven:** typed Episode envelopes over the Reality Ledger; feature-gated bounded durable mission execution; a /system/tools tool-gap readout over existing routing telemetry; persistence for `chat.pre_stream_regen`; explicit E2B `allowInternetAccess:false` with a regression test. `NICK_DURABLE_MISSIONS` defaults OFF. No E2B key is being provisioned in this slice.
+
+**Do not overclaim.** The Jev/TypeSafe-style probabilistic Decision Plane is **not** in this slice. Vendor-neutral typed probability backends, shadow calibration, and outcome-based promotion remain the next separate workstream. Durable receipt: `docs/00-current-truth/nouros-foundation-2026-09-28.md`.
+
 **Updated: 2026-09-28** (original-plan execution reconciled through #2726; zero open PRs at this receipt)
 
 ## 2026-09-28 · original-plan infrastructure + observability closeout
