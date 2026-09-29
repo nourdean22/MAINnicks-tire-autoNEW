@@ -150,6 +150,9 @@ const RECOVERY_ALLOWED = [
   'node "C:\\Users\\nourd\\NOURCITY\\scripts\\agent-os\\agent-finish.mjs" --force-release-foreign "dead"',
   "node.exe C:\\Users\\nourd\\NOURCITY\\scripts\\agent-os\\agent-finish.mjs",
   "  node scripts/agent-os/agent-finish.mjs  ",
+  // A "-" INSIDE a path is fine; only a leading one makes node read a flag (F6).
+  "node ../nour-city/scripts/agent-os/agent-finish.mjs",
+  'node "C:\\Users\\x\\my-repo\\scripts\\agent-os\\agent-finish.mjs"',
 ];
 // Destructive verbs are spelled via RM/RESET so this file does not itself trip the
 // repo's PreToolUse deny-list when an agent cats or appends it (mention-vs-execution).
@@ -177,6 +180,16 @@ const RECOVERY_STILL_BLOCKED = [
   "echo node scripts/agent-os/agent-finish.mjs",
   "& node scripts/agent-os/agent-finish.mjs; Remove-Item x",
   "node scripts/agent-os/agent-finish.mjs (Remove-Item x)",
+  // audit 2026-09-29 F6: a node FLAG whose value ends in the script path. Every one
+  // of these was allowed; the data: form runs inline code with no file on disk.
+  "node --import=data:text/javascript,x//scripts/agent-os/agent-finish.mjs",
+  "node --import=./evil.mjs//scripts/agent-os/agent-finish.mjs",
+  "node --require=./evil.cjs/scripts/agent-os/agent-finish.mjs",
+  "node --experimental-loader=./evil.mjs/scripts/agent-os/agent-finish.mjs",
+  'node "--import=./evil.mjs/scripts/agent-os/agent-finish.mjs"',
+  "node '--import=./evil.mjs/scripts/agent-os/agent-finish.mjs'",
+  "node -r./evil.cjs/scripts/agent-os/agent-finish.mjs",
+  "node.exe --import=C:\\evil.mjs\\scripts\\agent-os\\agent-finish.mjs",
 ];
 
 test("decide: a foreign live marker still BLOCKS every non-recovery Bash command (probe set)", () => {
@@ -217,6 +230,9 @@ test("REAL BINARY: foreign live marker — the agent-finish recovery command pas
   const chained = runHook(dir, { cwd: dir, tool_name: "Bash", tool_input: { command: `node scripts/agent-os/agent-finish.mjs; ${RM} .` } });
   assert.equal(chained.code, 2);
   assert.match(chained.out, /REFUSED/);
+  const flag = runHook(dir, { cwd: dir, tool_name: "Bash", tool_input: { command: "node --import=data:text/javascript,x//scripts/agent-os/agent-finish.mjs" } });
+  assert.equal(flag.code, 2, `a flag-shaped path passed as recovery: ${flag.out}`);
+  assert.match(flag.out, /REFUSED/);
   const write = runHook(dir, { cwd: dir, tool_name: "Write", tool_input: { file_path: join(dir, "x"), content: "node scripts/agent-os/agent-finish.mjs" } });
   assert.equal(write.code, 2, "Write must stay blocked even if its CONTENT is the recovery command");
 });
