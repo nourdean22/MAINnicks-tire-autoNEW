@@ -4,6 +4,16 @@ Migrations parked here are NOT in the live `prisma/migrations/`
 directory · `prisma migrate deploy` will not apply them. Move
 them back when ready.
 
+## ⏳ 2026-09-29 — ONE PENDING: `20260929090000_bridge_receipts`
+
+ADR-0019 phase 0b (the receiver's dedupe table). **Not applied.** One new table
+plus one index; no ALTER or DROP. Registered in the guarded endpoint
+(`POST /api/system/apply-pending-migration { name: "20260929090000_bridge_receipts" }`).
+The code that reads it (`lib/services/bridge-receipts.ts`) treats a missing
+table as "not migrated" and falls back to today's write, so the deploy is safe
+before the apply. After applying: promote the dir to `prisma/migrations/`, then
+`prisma migrate resolve --applied 20260929090000_bridge_receipts` — both halves.
+
 ## ✅ 2026-09-23 — EMPTY AGAIN
 
 `20260923150000_cron_job_log_skip_reason` was parked here, then applied to

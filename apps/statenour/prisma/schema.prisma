@@ -3803,6 +3803,23 @@ model ActionAttempt {
   @@map("action_attempts")
 }
 
+/// ADR-0019 · one row per nickstire -> statenour write that carried an
+/// Idempotency-Key. The key embeds (source, eventType, objectId), so this is the
+/// one place bridge writes are deduplicated. seenCount - 1 = duplicates refused.
+/// resultRef NULL on a row = its business write has not settled yet (the
+/// non-transactional open_loop path, lib/services/bridge-receipts.ts).
+model BridgeReceipt {
+  idempotencyKey String   @id @map("idempotency_key") @db.VarChar(190)
+  route          String   @db.VarChar(64)
+  resultRef      String?  @map("result_ref") @db.VarChar(120)
+  firstSeenAt    DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt     DateTime @default(now()) @map("last_seen_at")
+  seenCount      Int      @default(1) @map("seen_count")
+
+  @@index([firstSeenAt])
+  @@map("bridge_receipts")
+}
+
 model EvidenceClaim {
   id              String           @id @default(cuid())
   claimText       String           @map("claim_text") @db.Text

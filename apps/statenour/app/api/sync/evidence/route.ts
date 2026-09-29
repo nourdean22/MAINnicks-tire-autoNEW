@@ -7,6 +7,8 @@
  *       STATENOUR_SYNC_KEY (nickstire's cron, which already holds the bridge
  *       key). The scoped key opens no other route. Partial batches land; the
  *       receipt names every rejected row by index.
+ *       Optional `Idempotency-Key` header (ADR-0019): a batch posted twice
+ *       under one key lands once; the replay answers `{ duplicate: true }`.
  * GET   ?limit=50  Recent claims + events, newest first — what the Night
  *       Shift prompt reads before choosing a hypothesis. Same auth.
  */
@@ -14,6 +16,7 @@ import { evidenceHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { recordEvidenceBatch, type EvidenceProducer } from "@/lib/services/reality-ledger";
 import { evidenceDoorAccepts, presentedLedgerKey } from "@/lib/security/evidence-ledger-auth";
+import { readIdempotencyKey } from "@/lib/services/bridge-receipts";
 
 export const dynamic = "force-dynamic";
 
@@ -37,8 +40,9 @@ export const POST = evidenceHandler(async (req) => {
   }
   const producer = producerOf(req);
   if (!producer) return { ok: false, error: "no evidence producer resolved for this credential" };
+  const idempotencyKey = readIdempotencyKey(req.headers);
   const body = await req.json();
-  const receipt = await recordEvidenceBatch(body, { producer });
+  const receipt = await recordEvidenceBatch(body, { producer, idempotencyKey });
   return { ok: receipt.rejected.length === 0, producer, ...receipt };
 });
 
