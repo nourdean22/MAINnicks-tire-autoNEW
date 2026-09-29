@@ -555,30 +555,38 @@ export async function persistAssistantMessage(a: {
     );
     createdAssistantId = createdAssistant?.id ?? null;
 
-    // Q-32 · deterministic annotation selection. This is deliberately
-    // fire-and-forget: evaluation infrastructure must never delay or break
-    // a user turn. Only REAL context drops count here; q32SelectionReasons
-    // ignores advisory over-budget/redundancy entries while ContextReceipt
-    // remains enforced=false.
+    // Q-32 · deterministic metadata-only annotation selection. Fire-and-forget:
+    // evaluation infrastructure must never delay or break a user turn. The
+    // consolidated q32-regression selector is the single owner of signal
+    // semantics, including the distinction between advisory budget receipts
+    // and an ACTUAL below-threshold context drop.
     if (createdAssistant?.id) {
       void Promise.all([
-        import("@/lib/evals/q32-eval-loop"),
+        import("@/lib/evals/q32-regression"),
         import("@/lib/observability/langfuse-annotation-queue"),
       ])
-        .then(([{ q32SelectionReasons }, { enqueueLangfuseTraceForAnnotation }]) => {
-          const eg = (evidenceGate ?? {}) as { verdict?: unknown };
-          const reasons = q32SelectionReasons({
-            verifierBanner: isVerifierRewritten(cleanedText),
-            evidenceGateVerdict: eg.verdict,
-            contextReceipt: contextReceipt ?? null,
+        .then(([{ selectQ32Turn }, { enqueueLangfuseTraceForAnnotation }]) => {
+          const selection = selectQ32Turn({
+            id: createdAssistant.id,
+            createdAt: new Date(),
+            feedbackScore: null,
+            content: cleanedText,
+            model: modelId,
+            provider,
+            tokenUsage: {
+              traceId,
+              evidenceGate,
+              contextReceipt: contextReceipt ?? null,
+            },
           });
-          if (reasons.length === 0) return false;
+          if (!selection?.traceId) return false;
           log.info("q32_annotation_candidate", {
-            messageId: createdAssistant.id,
-            traceId,
-            reasons,
+            messageId: selection.messageId,
+            traceId: selection.traceId,
+            signals: selection.signals,
+            datasetVersion: selection.datasetVersion,
           });
-          return enqueueLangfuseTraceForAnnotation(traceId);
+          return enqueueLangfuseTraceForAnnotation(selection.traceId);
         })
         .catch((err) => {
           log.warn("q32_annotation_queue_dispatch_failed", {
