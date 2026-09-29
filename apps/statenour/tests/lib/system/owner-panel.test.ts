@@ -30,6 +30,15 @@ const clean: OwnerPanelInput = {
   expiredRequests: { count: 0, oldest: null },
   commitments: [],
   lanes: [],
+  outboxHealth: {
+    pending: 0,
+    processing: 0,
+    done24h: 0,
+    dead: 0,
+    oldestDeadAt: null,
+    lastDeadError: null,
+  },
+  actionAttempts: [],
   spend: { costCents: 1234, calls: 40, unpricedCalls: 0 },
   tasksDone: 4,
 };
@@ -205,6 +214,150 @@ describe("other exception sources", () => {
       expect(e.detail).not.toMatch(/paged to Telegram/);
     }
     expect(describePage("railway:deploy:body-0123:CRASHED")).toBe("deploy crashed · unknown deployment");
+  });
+});
+
+describe("durable exception consolidation", () => {
+  it("rolls dead post-turn work into one actionable exception", () => {
+    const p = composeOwnerPanel({
+      ...clean,
+      outboxHealth: {
+        pending: 3,
+        processing: 1,
+        done24h: 40,
+        dead: 4,
+        oldestDeadAt: ago(180).toISOString(),
+        lastDeadError: "memory projection failed after five attempts",
+      },
+    });
+
+    expect(p.exceptions).toHaveLength(1);
+    expect(p.exceptions[0]).toMatchObject({
+      key: "outbox:dead",
+      kind: "outbox_dead",
+      tone: "rose",
+      title: "4 chat background items dead-lettered",
+      detail: "memory projection failed after five attempts",
+      ageMin: 180,
+      href: "/system/health",
+    });
+  });
+
+  it("treats an unreadable outbox as UNKNOWN, never an empty queue", () => {
+    const p = composeOwnerPanel({ ...clean, outboxHealth: null });
+    expect(p.state).toBe("unknown");
+    expect(p.unreadable).toContain("chat outbox");
+    expect(p.exceptions).toEqual([]);
+  });
+
+  it("surfaces failed/unknown/stalled action attempts while fresh execution stays quiet", () => {
+    const p = composeOwnerPanel({
+      ...clean,
+      actionAttempts: [
+        {
+          id: "unknown-1",
+          operationKey: "shop:sms:42",
+          tool: "shop.sendSms",
+          effectClass: "write",
+          state: "UNKNOWN",
+          reason: null,
+          startedAt: ago(60),
+          settledAt: ago(40),
+          updatedAt: ago(40),
+        },
+        {
+          id: "failed-1",
+          operationKey: "calendar:create:7",
+          tool: "calendar.create",
+          effectClass: "write",
+          state: "FAILED",
+          reason: "provider rejected request",
+          startedAt: ago(25),
+          settledAt: ago(20),
+          updatedAt: ago(20),
+        },
+        {
+          id: "fresh-1",
+          operationKey: "slow:but-normal",
+          tool: "document.ingest",
+          effectClass: "write",
+          state: "EXECUTING",
+          reason: null,
+          startedAt: ago(10),
+          settledAt: null,
+          updatedAt: ago(1),
+        },
+        {
+          id: "stale-1",
+          operationKey: "stuck:operation",
+          tool: "github.create_pr",
+          effectClass: "write",
+          state: "EXECUTING",
+          reason: null,
+          startedAt: ago(45),
+          settledAt: null,
+          updatedAt: ago(45),
+        },
+      ],
+    });
+
+    expect(p.exceptions.map((e) => e.kind)).toEqual([
+      "action_unknown",
+      "action_failed",
+      "action_stalled",
+    ]);
+    expect(p.exceptions[0]).toMatchObject({
+      title: "shop.sendSms outcome unknown",
+      tone: "rose",
+      ageMin: 40,
+    });
+    expect(p.exceptions[1]).toMatchObject({
+      title: "calendar.create failed",
+      detail: "provider rejected request",
+      tone: "rose",
+    });
+    expect(p.exceptions[2]).toMatchObject({
+      title: "github.create_pr still executing after 30m",
+      tone: "amber",
+      ageMin: 45,
+    });
+    expect(p.exceptions.some((e) => e.key.includes("fresh-1"))).toBe(false);
+  });
+
+  it("joins ActionAttempt WAITING_APPROVAL into the existing decision list", () => {
+    const p = composeOwnerPanel({
+      ...clean,
+      actionAttempts: [
+        {
+          id: "wait-1",
+          operationKey: "gmail:send:abc",
+          tool: "gmail.send",
+          effectClass: "write",
+          state: "WAITING_APPROVAL",
+          reason: "external message requires owner approval",
+          startedAt: ago(90),
+          settledAt: null,
+          updatedAt: ago(90),
+        },
+      ],
+    });
+
+    expect(p.exceptions).toEqual([]);
+    expect(p.decisions).toEqual([
+      expect.objectContaining({
+        key: "attempt:wait-1",
+        kind: "approval",
+        title: "approve gmail.send?",
+        href: "/system/actions",
+        evidence: "action_attempts wait-1",
+      }),
+    ]);
+  });
+
+  it("makes action-attempt read failure explicit instead of clearing decisions", () => {
+    const p = composeOwnerPanel({ ...clean, actionAttempts: null });
+    expect(p.state).toBe("unknown");
+    expect(p.unreadable).toContain("action attempts");
   });
 });
 

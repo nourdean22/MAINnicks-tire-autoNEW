@@ -27,7 +27,7 @@
  * Canary: tests/lib/system/owner-panel.test.ts.
  */
 
-import { isHardFailure } from "@/lib/services/cron-control";
+import { isHardFailure } from "@/lib/services/cron-status";
 import { endOfDayET } from "@/lib/utils/datetime";
 
 export const EXCEPTION_WINDOW_MS = 24 * 60 * 60_000;
@@ -36,6 +36,8 @@ export const COST_WINDOW_DAYS = 7;
 export const SKIP_STREAK_MIN = 2;
 export const DECISIONS_VISIBLE_CAP = 5;
 export const DEPLOY_ALERT_TOOL = "railway.deploy_alert";
+/** In-flight consequential actions older than this are no longer ordinary latency. */
+export const ACTION_EXECUTION_STALE_MS = 30 * 60_000;
 
 const TERMINAL = new Set(["success", "partial", "failed", "interrupted"]);
 /** ActionAttempt states that record the provider accepted the page (lib/services/action-attempts.ts). */
@@ -45,7 +47,18 @@ export type Provenance = "MEASURED" | "ESTIMATE" | "UNMEASURED";
 
 export interface OwnerItem {
   key: string;
-  kind: "cron_failed" | "cron_skipping" | "deploy_page" | "approval_expired" | "commitment_overdue" | "lane_stopped" | "approval";
+  kind:
+    | "cron_failed"
+    | "cron_skipping"
+    | "deploy_page"
+    | "approval_expired"
+    | "commitment_overdue"
+    | "lane_stopped"
+    | "outbox_dead"
+    | "action_failed"
+    | "action_unknown"
+    | "action_stalled"
+    | "approval";
   tone: "rose" | "amber" | "neutral";
   title: string;
   detail: string | null;
@@ -126,6 +139,25 @@ export interface SpendLite {
   /** Calls whose cost_cents is NULL — the spend is a floor while this is > 0. */
   unpricedCalls: number;
 }
+export interface OutboxHealthLite {
+  pending: number;
+  processing: number;
+  done24h: number;
+  dead: number;
+  oldestDeadAt: string | null;
+  lastDeadError: string | null;
+}
+export interface ActionAttemptLite {
+  id: string;
+  operationKey: string;
+  tool: string;
+  effectClass: string;
+  state: string;
+  reason: string | null;
+  startedAt: Date;
+  settledAt: Date | null;
+  updatedAt: Date;
+}
 
 /** null = that read FAILED. [] / 0 = it succeeded and found nothing. */
 export interface OwnerPanelInput {
@@ -142,6 +174,10 @@ export interface OwnerPanelInput {
   expiredRequests: { count: number; oldest: Date | null } | null;
   commitments: CommitmentLite[] | null;
   lanes: LaneLite[] | null;
+  /** Existing post-turn durability queue health; dead rows are exceptions. */
+  outboxHealth: OutboxHealthLite | null;
+  /** Consequential attempts that are unresolved, failed, or still executing. */
+  actionAttempts: ActionAttemptLite[] | null;
   spend: SpendLite | null;
   tasksDone: number | null;
 }
@@ -260,6 +296,108 @@ export function composeOwnerPanel(input: OwnerPanelInput): OwnerPanel {
         }),
       );
     }
+
+  if (input.outboxHealth === null) {
+    unreadable.push("chat outbox");
+  } else if (input.outboxHealth.dead > 0) {
+    const rawOldest = input.outboxHealth.oldestDeadAt
+      ? new Date(input.outboxHealth.oldestDeadAt)
+      : null;
+    const oldest =
+      rawOldest && Number.isFinite(rawOldest.getTime()) ? rawOldest : null;
+    exceptions.push(
+      item(now, {
+        key: "outbox:dead",
+        kind: "outbox_dead",
+        tone: "rose",
+        title: `${input.outboxHealth.dead} chat background ${input.outboxHealth.dead === 1 ? "item" : "items"} dead-lettered`,
+        detail:
+          clip(input.outboxHealth.lastDeadError) ??
+          "dead-letter queue needs review or redrive",
+        since: oldest,
+        href: "/system/health",
+        evidence: "post_turn_outbox status=dead|failed",
+      }),
+    );
+  }
+
+  if (input.actionAttempts === null) {
+    unreadable.push("action attempts");
+  } else {
+    for (const attempt of input.actionAttempts) {
+      const evidence = `action_attempts ${attempt.id}`;
+      if (attempt.state === "WAITING_APPROVAL") {
+        decisions.push(
+          item(now, {
+            key: `attempt:${attempt.id}`,
+            kind: "approval",
+            tone: "neutral",
+            title: `approve ${attempt.tool}?`,
+            detail:
+              clip(attempt.reason) ??
+              `${attempt.effectClass} · ${clip(attempt.operationKey, 100) ?? attempt.operationKey}`,
+            since: attempt.startedAt,
+            href: "/system/actions",
+            evidence,
+          }),
+        );
+        continue;
+      }
+
+      if (attempt.state === "UNKNOWN") {
+        exceptions.push(
+          item(now, {
+            key: `attempt-unknown:${attempt.id}`,
+            kind: "action_unknown",
+            tone: "rose",
+            title: `${attempt.tool} outcome unknown`,
+            detail:
+              clip(attempt.reason) ??
+              "operation may or may not have committed; reconcile before retry",
+            since: attempt.settledAt ?? attempt.updatedAt ?? attempt.startedAt,
+            href: "/system/logs",
+            evidence,
+          }),
+        );
+        continue;
+      }
+
+      if (attempt.state === "FAILED") {
+        exceptions.push(
+          item(now, {
+            key: `attempt-failed:${attempt.id}`,
+            kind: "action_failed",
+            tone: "rose",
+            title: `${attempt.tool} failed`,
+            detail: clip(attempt.reason) ?? clip(attempt.operationKey),
+            since: attempt.settledAt ?? attempt.updatedAt ?? attempt.startedAt,
+            href: "/system/logs",
+            evidence,
+          }),
+        );
+        continue;
+      }
+
+      if (
+        attempt.state === "EXECUTING" &&
+        now.getTime() - attempt.startedAt.getTime() >=
+          ACTION_EXECUTION_STALE_MS
+      ) {
+        exceptions.push(
+          item(now, {
+            key: `attempt-stalled:${attempt.id}`,
+            kind: "action_stalled",
+            tone: "amber",
+            title: `${attempt.tool} still executing after 30m`,
+            detail: clip(attempt.reason) ?? clip(attempt.operationKey),
+            since: attempt.startedAt,
+            href: "/system/logs",
+            evidence,
+          }),
+        );
+      }
+    }
+  }
 
   if (input.pendingActions === null || input.approvalRequests === null || input.expiredRequests === null)
     unreadable.push("approvals");

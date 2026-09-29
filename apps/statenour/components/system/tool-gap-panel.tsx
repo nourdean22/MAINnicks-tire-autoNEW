@@ -10,6 +10,10 @@ export function ToolGapPanel() {
     { windowDays: 30 },
     { staleTime: 60_000 },
   );
+  const lifecycle = trpc.system.capabilityLifecycleReport.useQuery(
+    { windowDays: 30 },
+    { staleTime: 60_000 },
+  );
 
   if (report.isLoading) {
     return (
@@ -30,6 +34,7 @@ export function ToolGapPanel() {
     );
   }
   const data = report.data;
+  const lifecycleData = lifecycle.data;
   if (!data.available) {
     return (
       <section className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-4">
@@ -87,15 +92,20 @@ export function ToolGapPanel() {
                 <tr>
                   <th className="pb-2 font-normal">Class</th>
                   <th className="pb-2 font-normal">Recovered capability</th>
+                  <th className="pb-2 font-normal">Lifecycle response</th>
                   <th className="pb-2 font-normal text-right">Occurrences</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-default)]/50 font-mono">
-                {data.topGaps.map((gap) => (
+                {data.topGaps.map((gap, index) => (
                   <tr key={`${gap.classification}:${gap.toolName ?? "unresolved"}`}>
                     <td className="py-2 pr-4 text-amber-300">{gap.classification}</td>
                     <td className="py-2 pr-4 text-[var(--text-secondary)]">
-                      {gap.toolName ?? "unresolved — needs more evidence"}
+                      {gap.toolName ?? "unresolved — investigate capability need"}
+                    </td>
+                    <td className="py-2 pr-4 text-sky-300">
+                      {lifecycleData?.gapRecommendations[index]?.recommendedAction ??
+                        "unmeasured"}
                     </td>
                     <td className="py-2 text-right text-white">{gap.count}</td>
                   </tr>
@@ -104,10 +114,28 @@ export function ToolGapPanel() {
             </table>
           </div>
         )}
-        <p className="mt-3 border-t border-[var(--border-default)] pt-3 text-[9px] leading-relaxed text-[var(--text-tertiary)]">
-          {data.caveat} Budget-truncated {rate(data.budgetTruncatedRatePct)} ·
-          semantic cold cache {rate(data.coldCacheRatePct)}.
-        </p>
+        {lifecycleData && (
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-[var(--border-default)] pt-3 md:grid-cols-4">
+            {[
+              ["Proposed", lifecycleData.counts.proposed],
+              ["Approved", lifecycleData.counts.approved],
+              ["Built · unverified", lifecycleData.counts.implementedUnverified],
+              ["Verified", lifecycleData.counts.verified],
+            ].map(([label, value]) => (
+              <div key={String(label)}>
+                <p className="text-[8px] uppercase tracking-wider text-[var(--text-tertiary)]">{label}</p>
+                <p className="mt-1 font-mono text-sm text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-3 space-y-1 border-t border-[var(--border-default)] pt-3 text-[9px] leading-relaxed text-[var(--text-tertiary)]">
+          <p>
+            {data.caveat} Budget-truncated {rate(data.budgetTruncatedRatePct)} ·
+            semantic cold cache {rate(data.coldCacheRatePct)}.
+          </p>
+          {lifecycleData && <p>{lifecycleData.caveat}</p>}
+        </div>
       </div>
     </section>
   );

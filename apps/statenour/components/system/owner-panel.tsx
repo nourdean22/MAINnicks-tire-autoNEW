@@ -72,6 +72,10 @@ function Row({ item }: { item: OwnerItem }) {
 export function OwnerPanel() {
   const q = trpc.system.ownerPanel.useQuery(undefined, { refetchInterval: 60_000 });
   const p = q.data;
+  const decisionsUnknown =
+    p?.unreadable.includes("approvals") ||
+    p?.unreadable.includes("action attempts") ||
+    false;
 
   if (!p) {
     return (
@@ -117,7 +121,7 @@ export function OwnerPanel() {
       )}
 
       <h3 className="mt-6 font-mono text-[11px] uppercase tracking-[0.14em] text-fg-tertiary">
-        decisions waiting · {p.unreadable.includes("approvals") ? "unknown" : p.decisions.length + p.decisionsHidden}
+        decisions waiting · {decisionsUnknown ? "unknown" : p.decisions.length + p.decisionsHidden}
       </h3>
       {p.decisions.length > 0 ? (
         <ul aria-label="decisions waiting" className="mt-2 divide-y divide-edge border-y border-edge">
@@ -134,7 +138,9 @@ export function OwnerPanel() {
         </ul>
       ) : (
         <p className="mt-2 text-[13px] text-fg-secondary">
-          {p.unreadable.includes("approvals") ? "Approvals unreadable — state unknown." : "No approval is waiting on you."}
+          {decisionsUnknown
+            ? "Decision sources unreadable — state unknown."
+            : "No approval is waiting on you."}
         </p>
       )}
 

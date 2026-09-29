@@ -184,6 +184,46 @@ try {
     Write-Output '=== CODE GRAPH (graphify) ==='
     Write-Output ($verdict + $via)
     if ($summary) { $summary | Where-Object { $_ -match '^- ' } | Select-Object -First 1 | Write-Output }
+
+    # Compact governance receipt from the SAME directory as the selected report.
+    # A worktree may choose the primary checkout's fresher report above, so reading
+    # a local receipt here would join two different snapshots and fabricate truth.
+    try {
+        $receiptPath = Join-Path (Split-Path -Parent $report) 'GRAPH_RECEIPT.json'
+        if (-not (Test-Path $receiptPath)) {
+            Write-Output 'graph governance: receipt unavailable - the next governed sync will generate it.'
+        } else {
+            $receipt = Get-Content $receiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $receiptCommit = [string]$receipt.report.sourceCommit
+            $receiptHash = [string]$receipt.report.sha256
+            $selectedHash = (Get-FileHash -Path $report -Algorithm SHA256).Hash.ToLowerInvariant()
+            if (
+                -not $builtFrom -or
+                -not $receiptCommit -or
+                $receiptCommit -ne $builtFrom -or
+                -not $receiptHash -or
+                $receiptHash.ToLowerInvariant() -ne $selectedHash
+            ) {
+                Write-Output "graph governance: RECEIPT MISMATCH - report=$builtFrom/$selectedHash receipt=$receiptCommit/$receiptHash; ignoring receipt."
+            } else {
+                $originState = $receipt.comparedTo.originMain.state
+                $originBehind = $receipt.comparedTo.originMain.commitsBehind
+                $originText = if ($null -ne $originBehind) { "$originState ($originBehind commit(s) behind origin/main)" } else { "$originState vs origin/main" }
+                Write-Output "graph governance: labels=$($receipt.labelProvenance) | run=$($receipt.runStatus) | $originText"
+
+                if ($receipt.architectureDelta) {
+                    Write-Output "graph delta: nodes $($receipt.architectureDelta.nodeDelta) | edges $($receipt.architectureDelta.edgeDelta) | communities $($receipt.architectureDelta.communityDelta) vs $($receipt.architectureDelta.previousSnapshotDate)"
+                }
+                if ($null -ne $receipt.importerDeathDocket.importerDeaths) {
+                    Write-Output "graph necropsy: $($receipt.importerDeathDocket.importerDeaths) importer-death candidate(s) | propose-only docket"
+                }
+            }
+        }
+    }
+    catch {
+        Write-Output "graph governance: receipt unreadable ($($_.Exception.Message)) - graph summary still usable."
+    }
+
     # Point grep at the file this briefing actually DESCRIBES. When the primary's
     # copy won, a worktree's own graphify-out/GRAPH_REPORT.md is the stale committed
     # one - naming the relative path there would send every lookup to a different

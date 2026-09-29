@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
 import { listPendingActions } from "@/lib/automation/approval-queue";
 import { listLaneStatus } from "@/lib/ai/budget";
+import { getOutboxHealth } from "@/lib/services/chat/post-turn-outbox";
 import { today } from "@/lib/utils/datetime";
 import {
   composeOwnerPanel,
@@ -38,8 +39,20 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
   const since = new Date(now.getTime() - EXCEPTION_WINDOW_MS);
   const costSince = new Date(now.getTime() - COST_WINDOW_DAYS * 86_400_000);
 
-  const [cronRows, deployPages, pendingActions, approvalRequests, expiredRequests, commitments, lanes, spendAgg, unpriced, tasksDone] =
-    await Promise.all([
+  const [
+    cronRows,
+    deployPages,
+    pendingActions,
+    approvalRequests,
+    expiredRequests,
+    commitments,
+    lanes,
+    outboxHealth,
+    actionAttempts,
+    spendAgg,
+    unpriced,
+    tasksDone,
+  ] = await Promise.all([
       guarded(
         "cron runs",
         prisma.cronJobLog.findMany({
@@ -92,6 +105,34 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
         }),
       ),
       guarded("lane budgets", listLaneStatus().then((r) => r.lanes)),
+      guarded("chat outbox", getOutboxHealth()),
+      guarded(
+        "action attempts",
+        prisma.actionAttempt.findMany({
+          where: {
+            tool: { not: DEPLOY_ALERT_TOOL },
+            OR: [
+              { state: { in: ["UNKNOWN", "WAITING_APPROVAL", "EXECUTING"] } },
+              { state: "FAILED", startedAt: { gte: since } },
+            ],
+          },
+          select: {
+            id: true,
+            operationKey: true,
+            tool: true,
+            effectClass: true,
+            state: true,
+            reason: true,
+            startedAt: true,
+            settledAt: true,
+            updatedAt: true,
+          },
+          // Oldest unresolved work survives the cap; recent FAILED rows are
+          // already bounded to the exception window above.
+          orderBy: { startedAt: "asc" },
+          take: 200,
+        }),
+      ),
       guarded(
         "AI spend",
         prisma.aiGeneration.aggregate({
@@ -122,6 +163,8 @@ export async function buildOwnerPanel(now = new Date()): Promise<OwnerPanel> {
     expiredRequests,
     commitments,
     lanes,
+    outboxHealth,
+    actionAttempts,
     spend,
     tasksDone,
   });
