@@ -128,8 +128,8 @@ export function bgnbdExpectedPurchases(input: {
   const z = t / (p.alpha + T + t);
   const hyp = hypergeometric2F1(
     p.r + x,
-    p.a + p.b + x - 1,
     p.b + x,
+    p.a + p.b + x - 1,
     z,
   );
   const numerator =
