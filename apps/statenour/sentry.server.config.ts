@@ -35,6 +35,12 @@ import type { LangfuseSpanProcessorLike } from "@/lib/observability/langfuse";
  *
  * Fails closed with no valid DSN (`enabled: false`), and every event's free
  * text passes the shared secret mask before export.
+ *
+ * ⚠ `@sentry/nextjs` 11 removes `openTelemetrySpanProcessors` and ignores
+ * `beforeSendTransaction`. Because the option sits in a conditional spread,
+ * `tsc` would not flag the upgrade. tests/observability/sentry-handover-real-sdk.test.ts
+ * runs the installed SDK and goes red instead. Stay on 10.x until the app
+ * owns its tracer provider (Q-15 / WP-O).
  */
 export function initSentryServer(openTelemetrySpanProcessors: LangfuseSpanProcessorLike[] = []): void {
   const carriesForeignProcessors = openTelemetrySpanProcessors.length > 0;
