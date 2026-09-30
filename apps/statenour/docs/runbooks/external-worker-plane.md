@@ -36,15 +36,20 @@ OpenWebUI is a local chat surface over that gateway. It is not the worker orches
 
 ## Install / persistence
 
-Only install/start after the matching server code and schema migration are live:
+Only install/start after the matching server code and schema migration are live. Run the
+installer **from a current source checkout**; the protected runtime-write worktree is the execution
+target, not the installer source:
 
 ```powershell
-cd C:\Users\nourd\NOURCITY\apps\statenour
-.\local-agent\install-external-worker.ps1 -BaseUrl https://bdnick.info
+# From a current MAINnicks-tire-autoNEW checkout:
+cd apps\statenour
+.\local-agent\install-external-worker.ps1 -BaseUrl https://bdnick.info -WorkspaceRoot C:\Users\nourd\Documents\Codex\NATTYNOUR-RUNTIME-WRITES-DO-NOT-CLEAN
 ```
 
-The installer copies the worker under `%LOCALAPPDATA%\StateNour\external-worker`, stores the runner
-secret with Windows current-user DPAPI, and registers `StateNour-ExternalWorker-NattyNour` as a
+The installer copies the worker and adjacent `chatgpt-plan-bridge.mjs` under
+`%LOCALAPPDATA%\StateNour\external-worker`, pins workspace aliases to the supplied protected
+workspace root, stores the runner secret with Windows current-user DPAPI, and registers
+`StateNour-ExternalWorker-NattyNour` as a
 **manual-only task with no automatic triggers**. It can start on battery, restarts on failure once
 manually started, and leaves machine writes OFF unless `-EnableWrites` is deliberately supplied.
 NattyNour's operator control is `NOUR External Worker Toggle.lnk`; OFF must mean task `Ready`, zero
