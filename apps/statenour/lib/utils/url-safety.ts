@@ -22,8 +22,10 @@
  * deputy" path into an authenticated tool · gate at the lib layer.
  */
 
+import { lookup as dnsLookupCallback, type LookupAddress } from "node:dns";
 import { lookup } from "node:dns/promises";
-import { isIP, isIPv4, isIPv6 } from "node:net";
+import { BlockList, isIP, isIPv4, isIPv6 } from "node:net";
+import { Agent, type Dispatcher } from "undici";
 
 /**
  * Private / loopback / link-local IPv4 + IPv6 ranges that should
@@ -46,11 +48,30 @@ function isPrivateIPv4(ip: string): boolean {
   if (a === 172 && b >= 16 && b <= 31) return true;
   if (a === 192 && b === 168) return true;
   if (a === 100 && b >= 64 && b <= 127) return true;
+  // 224/4 multicast · 240/4 reserved (includes 255.255.255.255 broadcast).
+  // Q-14 (estate architecture §10.1 S5): neither is a public unicast host.
+  if (a >= 224) return true;
   return false;
 }
 
+/**
+ * IPv6 ranges the prefix checks below cannot express safely, matched by
+ * `net.BlockList` so every spelling (`::`, `0:0:0:0:0:0:0:0`, an embedded
+ * dotted quad) normalizes before it is compared. Q-14 (§10.1 S5):
+ * - `::` unspecified: a name whose AAAA record is `::` connects to this host.
+ * - `64:ff9b::/96` well-known NAT64 and `64:ff9b:1::/48` local-use NAT64: on a
+ *   NAT64 network these reach the embedded IPv4, private ranges included.
+ * - `ff00::/8` multicast.
+ */
+const BLOCKED_IPV6 = new BlockList();
+BLOCKED_IPV6.addAddress("::", "ipv6");
+BLOCKED_IPV6.addSubnet("64:ff9b::", 96, "ipv6");
+BLOCKED_IPV6.addSubnet("64:ff9b:1::", 48, "ipv6");
+BLOCKED_IPV6.addSubnet("ff00::", 8, "ipv6");
+
 function isPrivateIPv6(ip: string): boolean {
   const lower = ip.toLowerCase();
+  if (BLOCKED_IPV6.check(lower, "ipv6")) return true;
   // ::1 loopback · ::ffff:* IPv4-mapped (treat as IPv4) · fc00::/7
   // unique-local · fe80::/10 link-local · 2001:db8::/32 documentation
   if (lower === "::1") return true;
@@ -111,7 +132,11 @@ export async function assertPublicUrl(rawUrl: string): Promise<UrlSafetyResult> 
     return { safe: false, reason: `protocol_not_allowed: ${parsed.protocol}` };
   }
 
-  const host = parsed.hostname.toLowerCase();
+  // WHATWG keeps the brackets on an IPv6 literal (`[::1]`), and isIP() rejects
+  // the bracketed form, so without this a literal fell through to a DNS lookup
+  // of "[::1]". It failed closed, but for the wrong reason, and it also
+  // refused every public IPv6 literal.
+  const host = parsed.hostname.toLowerCase().replace(/^\[(.*)\]$/, "$1");
 
   if (DENY_HOSTS.has(host)) {
     return { safe: false, reason: `host_deny_list: ${host}`, resolvedHost: host };
@@ -175,6 +200,82 @@ export async function assertPublicUrl(rawUrl: string): Promise<UrlSafetyResult> 
   };
 }
 
+/** Why a resolved address may not be connected to; null when it may. */
+function blockedAddressReason(address: string, family: number): string | null {
+  if (family === 4 && isPrivateIPv4(address)) return `resolves_to_private_ipv4: ${address}`;
+  if (family === 6 && isPrivateIPv6(address)) return `resolves_to_private_ipv6: ${address}`;
+  if (family !== 4 && family !== 6) return `unknown_address_family: ${family}`;
+  return null;
+}
+
+type LookupCallback = (
+  err: NodeJS.ErrnoException | null,
+  address: string | LookupAddress[],
+  family?: number,
+) => void;
+type Resolver = (hostname: string) => Promise<LookupAddress[]>;
+
+const systemResolver: Resolver = (hostname) =>
+  new Promise((resolve, reject) => {
+    dnsLookupCallback(hostname, { all: true }, (err, addresses) => (err ? reject(err) : resolve(addresses)));
+  });
+
+/**
+ * A `net.connect` lookup that refuses to hand back a private address.
+ *
+ * Q-14 (estate architecture §10.1 S5) · DNS rebinding. `assertPublicUrl()`
+ * resolves the name, then `fetch` resolves it AGAIN to connect. A name with
+ * a short TTL can answer public to the first lookup and 127.0.0.1 (or
+ * 169.254.169.254) to the second. This lookup runs at connect time, so the
+ * address that is checked is the address that is dialled. Every address is
+ * checked; one private answer refuses the whole name, the same rule as
+ * `assertPublicUrl()`.
+ */
+export function createPublicOnlyLookup(resolver: Resolver = systemResolver) {
+  return (
+    hostname: string,
+    options: { all?: boolean; family?: number | string } | number | undefined,
+    callback: LookupCallback,
+  ): void => {
+    const wantAll = typeof options === "object" && options !== null && options.all === true;
+    resolver(hostname).then(
+      (addresses) => {
+        if (addresses.length === 0) {
+          callback(Object.assign(new Error(`dns_no_records: ${hostname}`), { code: "ENOTFOUND" }), "", 4);
+          return;
+        }
+        for (const { address, family } of addresses) {
+          const reason = blockedAddressReason(address, family);
+          if (reason) {
+            callback(Object.assign(new Error(`url_blocked: ${reason}`), { code: "EADDRNOTPUBLIC" }), "", 4);
+            return;
+          }
+        }
+        if (wantAll) callback(null, addresses);
+        else callback(null, addresses[0].address, addresses[0].family);
+      },
+      (err: NodeJS.ErrnoException) => callback(err, "", 4),
+    );
+  };
+}
+
+/**
+ * An undici dispatcher whose every connection goes through the public-only
+ * lookup. Pass it as `dispatcher` on a fetch. IP-literal URLs skip DNS, so
+ * they stay covered only by `assertPublicUrl()`, which checks literals.
+ */
+function createPublicOnlyDispatcher(resolver?: Resolver): Dispatcher {
+  return new Agent({ connect: { lookup: createPublicOnlyLookup(resolver) } });
+}
+
+let sharedPublicOnlyDispatcher: Dispatcher | null = null;
+
+/** The process-wide pinned dispatcher (one pool, created on first use). */
+export function publicOnlyDispatcher(): Dispatcher {
+  sharedPublicOnlyDispatcher ??= createPublicOnlyDispatcher();
+  return sharedPublicOnlyDispatcher;
+}
+
 /**
  * Fetch a URL with the SSRF gate applied AT EVERY HOP.
  *
@@ -214,7 +315,20 @@ export async function fetchPublicUrl(
     }
     seen.add(currentUrl);
 
-    const response = await fetch(currentUrl, { ...init, redirect: "manual" });
+    // `dispatcher` is undici's fetch option (Node's fetch is undici); it pins
+    // the connection to an address the public-only lookup accepted.
+    let response: Response;
+    try {
+      response = await fetch(currentUrl, {
+        ...init,
+        redirect: "manual",
+        dispatcher: publicOnlyDispatcher(),
+      } as RequestInit);
+    } catch (err) {
+      const reason = connectBlockedReason(err);
+      if (reason) return { ok: false, code: "url_blocked", reason };
+      throw err;
+    }
     if (response.status >= 300 && response.status < 400) {
       const next = response.headers.get("location");
       if (!next) {
@@ -228,6 +342,23 @@ export async function fetchPublicUrl(
   }
 
   return { ok: false, code: "too_many_hops", reason: `more than ${maxHops} redirects` };
+}
+
+/**
+ * The refusal reason when a fetch failed because the public-only lookup
+ * refused the address it resolved at connect time; null for any other
+ * failure. Node's fetch wraps the socket error as `TypeError.cause`.
+ */
+export function connectBlockedReason(err: unknown): string | null {
+  let current: unknown = err;
+  for (let depth = 0; depth < 5 && current; depth++) {
+    const e = current as { code?: unknown; message?: unknown; cause?: unknown };
+    if (e.code === "EADDRNOTPUBLIC" && typeof e.message === "string") {
+      return e.message.replace(/^url_blocked: /, "");
+    }
+    current = e.cause;
+  }
+  return null;
 }
 
 /**
