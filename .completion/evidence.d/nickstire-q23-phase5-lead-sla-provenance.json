@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Q-23 phase 5 (2026-09-30, branch nickstire/q23-phase5-lead-sla-provenance). What the operator sees on Admin > Intelligence HQ: (1) Lead SLA Monitor. Its average badge now wears a provenance tag. When the lead-response engine failed or its database read failed, the badge reads 'Avg: unknown' in grey, tagged UNMEASURED, with 'Lead response times could not be read. They are unknown, not 0 minutes.', and the bucket counts and Impact Analysis are hidden; before, all of these showed an emerald 'Avg: 0m'. When no lead was contacted in the 90-day window, the badge reads 'Avg: none' (grey, MEASURED) with a one-line explanation, instead of an emerald 0m. A real average still shows 'Avg: Nm' in its colour, tagged MEASURED. A bucket with no leads says 'no leads to convert' instead of '0% conversion rate'. (2) Money At Risk: no visible change; the LOW-to-MEDIUM badge raise while a read is unread is now a named function with render tests, and the header comment now says a failed bundle read renders a warning line. Proof is jsdom renders with a mocked report and a mocked DB, not a live admin session: lead-sla-monitor-provenance.test.tsx 5/5 (5/5 red against main's source), money-risks-severity-unread.test.tsx 5/5 (the unit case red on main; the two unread-badge render cases go red when the raise is removed), leadResponseUnavailable.test.ts 3/3 (the failure case red on main). Not yet seen by the operator on the installed PWA."
+    }
+  }
+}

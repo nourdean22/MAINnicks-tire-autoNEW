@@ -10,9 +10,10 @@
  * OverviewSection already runs every 30s, so React Query dedupes to a cache hit
  * (no extra network round-trip). Derivation lives in ./moneyRisks (pure, tested).
  *
- * CLARITY-GATE · renders nothing while loading, on bundle failure, or when there
- * is nothing at risk (topItem === null) AND both the leads and callbacks slices
- * were read. No vanity empty card. The `$ at risk`
+ * CLARITY-GATE · renders nothing while loading, or when there is nothing at
+ * risk (topItem === null) AND both the leads and callbacks slices were read.
+ * No vanity empty card. A failed bundle read is not "nothing at risk": it
+ * renders a one-line "status unknown, not clear" warning. The `$ at risk`
  * line shows only when leads carry a real estimate — never a fabricated figure.
  *
  * Q-23 phase 4 · every number wears MEASURED / ESTIMATE / UNMEASURED, and a
@@ -24,7 +25,7 @@ import { AlertTriangle, Clock, DollarSign, Users, PhoneCall, ChevronRight } from
 import { formatCents } from "../shared/format";
 import { navigateToAdminSection } from "../shared";
 import { ProvenanceTag } from "../shared/ProvenanceTag";
-import { deriveMoneyRisks, moneyRisksProvenance, unreadableRiskSlices } from "./moneyRisks";
+import { deriveMoneyRisks, displayedRiskSeverity, moneyRisksProvenance, unreadableRiskSlices } from "./moneyRisks";
 
 function formatAge(ms: number): string {
   const min = Math.floor(ms / 60_000);
@@ -70,7 +71,7 @@ export function TodaysMoneyRisks() {
   // An unread slice is not "nothing at risk", so it keeps the card on screen.
   if (!anyUnread && (!risks.topItem || risks.totalRisks === 0)) return null;
 
-  const style = SEVERITY_STYLE[anyUnread && risks.severity === "low" ? "medium" : risks.severity];
+  const style = SEVERITY_STYLE[displayedRiskSeverity(risks.severity, anyUnread)];
   const primaryIsLeads = risks.primary === "leads";
   // With a slice unread, the item count is a floor, not a total.
   const itemsWord = `${anyUnread ? "at least " : ""}${risks.totalRisks} unresolved item${risks.totalRisks === 1 ? "" : "s"}`;

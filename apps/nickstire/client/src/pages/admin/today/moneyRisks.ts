@@ -177,6 +177,15 @@ export function unreadableRiskSlices(slices: RiskSlices | null | undefined): {
 }
 
 /**
+ * Q-23 phase 5 · the severity badge the card shows. An unread slice may be
+ * hiding the worst item, so the badge never reads LOW while one is unread:
+ * the floor is MEDIUM. A derived MEDIUM or HIGH is shown as is.
+ */
+export function displayedRiskSeverity(severity: RiskSeverity, anyUnread: boolean): RiskSeverity {
+  return anyUnread && severity === "low" ? "medium" : severity;
+}
+
+/**
  * Q-23 phase 4 · the MEASURED / ESTIMATE word each number on this card wears.
  *
  * Both counts are rows the database returned, so they are MEASURED. The dollar
