@@ -4,8 +4,8 @@
  * Its sibling TodaysMoneyRisks reads `leads` (2 rows in all of production) and
  * `callback_requests` (nothing newer than 2026-05-31). This card reads the
  * three things the shop genuinely generates: declined work worth reclaiming,
- * calls, and invoiced revenue. `controlCenter.todayPulse` documents what was
- * measured and excluded, and why.
+ * calls, and invoiced revenue; plus the promises the shop owes (Q-23 phase 3).
+ * `controlCenter.todayPulse` documents what was measured and excluded, and why.
  *
  * HONESTY · when the query fails the card renders NOTHING. An unreadable pulse
  * must never draw as a quiet day — that is the exact confusion this whole arc
@@ -14,10 +14,10 @@
  * currency it does not have.
  */
 import { trpc } from "@/lib/trpc";
-import { AlertTriangle, PhoneCall, Receipt, TrendingUp } from "lucide-react";
+import { AlertTriangle, HandHeart, PhoneCall, Receipt, TrendingUp } from "lucide-react";
 import { formatCents } from "../shared/format";
 import { ProvenanceTag } from "../shared/ProvenanceTag";
-import { mirrorFreshness, mirrorLagDays, abandonRate, todayPulseProvenance } from "./todayPulse";
+import { mirrorFreshness, mirrorLagDays, abandonRate, promiseDebtView, todayPulseProvenance } from "./todayPulse";
 
 export function TodaysRealNumbers() {
   const { data, isLoading } = trpc.controlCenter.todayPulse.useQuery(undefined, {
@@ -34,6 +34,7 @@ export function TodaysRealNumbers() {
   const abandoned = abandonRate(calls);
   // Q-23: every number says whether it was counted or estimated.
   const prov = todayPulseProvenance(freshness.stale, neverSynced);
+  const owed = promiseDebtView(data.obligations);
 
   return (
     <div className="bg-card border border-border/30">
@@ -95,6 +96,19 @@ export function TodaysRealNumbers() {
             </div>
           </div>
         </div>
+
+        {/* Q-23 phase 3 · obligation debt. A zero is stated; an unread ledger says so. */}
+        {owed && (
+          <div className="px-4 py-3.5 flex items-start gap-3" data-tile="promises-owed">
+            <HandHeart className={`w-4 h-4 mt-0.5 shrink-0 ${owed.loud ? "text-amber-400" : "text-foreground/60"}`} />
+            <div className="min-w-0">
+              <div className={`text-sm font-semibold tabular-nums ${owed.loud ? "text-amber-400" : ""}`}>
+                {owed.headline} <ProvenanceTag provenance={owed.provenance} />
+              </div>
+              {owed.detail && <div className="text-xs text-foreground/60 mt-0.5">{owed.detail}</div>}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Loud only when the lag is genuinely abnormal — a one-day lag is normal

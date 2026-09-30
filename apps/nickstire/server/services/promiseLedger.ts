@@ -499,6 +499,55 @@ export async function listOpenPromises(limit = 100): Promise<PromiseRow[]> {
 }
 
 /**
+ * Q-23 phase 3 · obligation debt for the admin "Today, for real" card: how many
+ * promises are open, how many are past due, and how many are 4h+ past due (the
+ * sweep's `critical` line in classifyOverdue). Same row set as listOpenPromises,
+ * so the card and PromisesPanel never disagree, and the mirror stays in shadow.
+ *
+ * A failed read or an un-applied table is `available: false`, never zeros: a
+ * card that shows "0 owed" when it could not look is how a forgotten callback
+ * hides. `due_at` is a TIMESTAMP, so comparing it with NOW() in SQL is
+ * timezone-safe; no instant crosses the driver.
+ */
+export type PromiseDebt =
+  | { available: true; open: number; overdue: number; overdue4h: number }
+  | { available: false; reason: string };
+
+export async function promiseDebt(): Promise<PromiseDebt> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return { available: false, reason: "DB unavailable" };
+  try {
+    const rows = rowsFromExecute(await db.execute(sql`
+      SELECT
+        COUNT(*) AS open,
+        COALESCE(SUM(due_at < NOW()), 0) AS overdue,
+        COALESCE(SUM(due_at < DATE_SUB(NOW(), INTERVAL 4 HOUR)), 0) AS overdue4h
+      FROM customer_promises
+      WHERE status = 'open' AND ${await notMirrored()}
+    `));
+    const r = rows[0];
+    if (!r) return { available: false, reason: "count returned no row" };
+    return {
+      available: true,
+      open: Number(r.open ?? 0),
+      overdue: Number(r.overdue ?? 0),
+      overdue4h: Number(r.overdue4h ?? 0),
+    };
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      warnMissingOnce("debt");
+      return { available: false, reason: "table not applied (migration 0102)" };
+    }
+    log.warn("[promise-ledger] debt read failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { available: false, reason: "read failed" };
+  }
+}
+
+/**
  * Cron sweep: overdue open promises escalate ONCE into the Decision
  * Inbox (promise_overdue opportunity per promise; ≥4h overdue =
  * critical). Also marks promises `missed` after 48h overdue without

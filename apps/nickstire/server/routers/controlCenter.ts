@@ -1332,6 +1332,12 @@ export const controlCenterRouter = router({
       const throughRaw = revenue.throughDate;
       const throughDate = throughRaw ? new Date(throughRaw as string) : null;
 
+      // Q-23 phase 3 · obligation debt. Read on its own and never throws: a
+      // failed promise read is `available: false` on this one tile, and the
+      // three tiles above still render.
+      const { promiseDebt } = await import("../services/promiseLedger");
+      const obligations = await promiseDebt();
+
       return {
         available: true as const,
         declinedWork: {
@@ -1353,6 +1359,8 @@ export const controlCenterRouter = router({
           /** Newest invoice in the mirror. The operator needs to see the lag. */
           throughDate,
         },
+        /** Open customer promises (PromisesPanel's row set). Unavailable is never zeros. */
+        obligations,
       };
     } catch (err) {
       log.error("[ControlCenter] todayPulse failed:", err);
