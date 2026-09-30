@@ -2915,6 +2915,37 @@
         "Only actual below-threshold context drops count; advisory/over-budget receipts do not."
       ],
       "lastVerifiedAt": "2026-09-29"
+    },
+    {
+      "capabilityId": "nickstire-daily-digest-q29",
+      "name": "Daily digest (cron db-backup): counts-only nickstire -> StateNour, no customer rows",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "PR #2816 (branch nickstire/q29-daily-digest-counts-only): server/services/dbBackup.ts reads count(*) only and posts { kind, date, timestamp, counts, recent24h }; StateNour /api/sync/backup whitelists the count keys on POST and GET via lib/nickstire/daily-digest.ts.",
+        "tests": [
+          "server/services/dbBackup.test.ts: canary contact details in the 24h window never reach the POST body or Telegram; body keys are exactly the digest keys; an archive 401 still fails the run. Red on main 3/4 before the fix.",
+          "apps/statenour/tests/api/sync-backup-digest.test.ts: a legacy row-carrying body is stored and served counts-only; non-numeric counts become null; sync auth runs before any write. Red on main's route 4/6."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "daily_backup audit_events rows written before this change still hold lead/booking/invoice rows in payload; redacting or deleting them is an operator-only production write on Neon."
+        },
+        {
+          "severity": "P3",
+          "description": "Not deployed: the first post-deploy daily_backup row must be read back (GET /api/sync/backup) to show no row arrays before promotion."
+        }
+      ],
+      "deferredScope": [
+        "This is not a restorable backup; the restore path is TiDB Cloud native backups (estate architecture §5.4, §15 item 1).",
+        "safetyMonitor's 'No successful backup' wording is unchanged pending an operator decision."
+      ],
+      "lastVerifiedAt": "2026-09-30"
     }
   ],
   "axes": {
