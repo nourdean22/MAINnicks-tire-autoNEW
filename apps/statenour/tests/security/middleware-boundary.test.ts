@@ -153,6 +153,28 @@ describe("W-4 · the production probes are denied without a session", () => {
   });
 });
 
+describe("runner API · NextAuth passes self-authenticated worker calls through", () => {
+  it.each([
+    "/api/internal/runner/capture",
+    "/api/internal/runner/claim",
+    "/api/internal/runner/complete",
+    "/api/internal/runner/heartbeat",
+    "/api/internal/runner/recovery",
+    "/api/internal/runner/snapshot",
+  ])("%s reaches route-level x-runner-secret auth instead of middleware 401", async (path) => {
+    expect(middlewareRuns(path), path).toBe(true);
+    const d = await decide(path);
+    expect(allowed(d), `${path} → ${d.status} ${d.location ?? d.next ?? ""}`).toBe(true);
+  });
+
+  it("keeps unrelated runner-like API siblings behind NextAuth", async () => {
+    for (const path of ["/api/internal/runner-admin", "/api/internal/runners/heartbeat"]) {
+      const d = await decide(path);
+      expect(d.status, path).toBe(401);
+    }
+  });
+});
+
 describe("config.matcher · the middleware RUNS for extension-suffixed page paths (PR-review follow-up)", () => {
   // The boundary test above calls the middleware function directly, so it is
   // blind to paths the matcher never routes to it. `/decisions/1.png` was

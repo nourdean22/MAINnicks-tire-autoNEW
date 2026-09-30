@@ -52,6 +52,11 @@ export const PUBLIC_PREFIXES = [
   // Same whitelist pattern as /api/actions above.
   "/api/devices",     // device RPC queue/ack/upsert (own x-sync-key auth)
   "/api/nour-os",     // nour-os bridge query (own x-sync-key auth)
+  // 2026-09-29 · external/local runner requests carry no NextAuth cookie.
+  // The runner routes fail closed with their own x-runner-secret check in
+  // lib/internal/runner-auth.ts. Without this bypass proxy.ts returns 401
+  // before route-level authentication can run.
+  "/api/internal/runner/",
   // code-review 2026-07-09 · same class as devices/nour-os above:
   // Apple Health / iOS-Shortcut sync authed by its OWN header secret
   // (x-statenour-health-sync-secret, constant-time compared in the

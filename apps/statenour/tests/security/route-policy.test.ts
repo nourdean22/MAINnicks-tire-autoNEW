@@ -41,6 +41,27 @@ describe("route-policy · public allowlist", () => {
   });
 });
 
+describe("runner routes bypass the session gate and keep route-level secret auth authoritative", () => {
+  it("exempts every current runner endpoint from NextAuth", () => {
+    for (const p of [
+      "/api/internal/runner/capture",
+      "/api/internal/runner/claim",
+      "/api/internal/runner/complete",
+      "/api/internal/runner/heartbeat",
+      "/api/internal/runner/recovery",
+      "/api/internal/runner/snapshot",
+    ]) {
+      expect(isPublic(p), p).toBe(true);
+    }
+  });
+
+  it("does not bleed into sibling prefixes", () => {
+    for (const p of ["/api/internal/runner", "/api/internal/runner-admin", "/api/internal/runners/heartbeat"]) {
+      expect(isPublic(p), p).toBe(false);
+    }
+  });
+});
+
 describe("apple-health inlets bypass the session gate (H1 smoke-caught bug)", () => {
   // The end-to-end smoke's first live POST hit the middleware 401
   // ({"error":"Unauthorized"}) before the route's own bearer auth could
