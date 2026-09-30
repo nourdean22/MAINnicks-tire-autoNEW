@@ -1,0 +1,3 @@
+interface:
+  display_name: "Nick's Demand Report"
+  short_description: "Executive demand report across search, local, calls, bookings, reviews, and revenue."
