@@ -1,10 +1,12 @@
 import importlib.util
+import io
 import json
 import os
 import subprocess
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 MODULE_PATH = Path(__file__).with_name("external_worker_agent.py")
@@ -252,21 +254,21 @@ class ExternalWorkerAgentTests(unittest.TestCase):
     def test_auto_interactive_routes_simple_chat_local_first(self):
         self.assertEqual(
             worker.auto_interactive_candidates("Explain this simply."),
-            ["local-qwen", "codex", "claude-code", "antigravity"],
+            ["local-qwen", "chatgpt-plan", "codex", "claude-code", "antigravity"],
         )
 
     def test_auto_interactive_routes_code_to_codex_and_architecture_to_claude(self):
         self.assertEqual(
             worker.auto_interactive_candidates("Debug this TypeScript repository."),
-            ["codex", "claude-code", "antigravity", "local-qwen"],
+            ["codex", "claude-code", "chatgpt-plan", "antigravity", "local-qwen"],
         )
         self.assertEqual(
             worker.auto_interactive_candidates("Design the system architecture and tradeoffs."),
-            ["claude-code", "codex", "antigravity", "local-qwen"],
+            ["chatgpt-plan", "claude-code", "codex", "antigravity", "local-qwen"],
         )
         self.assertEqual(
             worker.auto_interactive_candidates("x" * 6001),
-            ["claude-code", "codex", "antigravity", "local-qwen"],
+            ["chatgpt-plan", "claude-code", "codex", "antigravity", "local-qwen"],
         )
 
     def test_auto_interactive_prefers_routing_prompt_over_enriched_prompt(self):
@@ -274,7 +276,10 @@ class ExternalWorkerAgentTests(unittest.TestCase):
         result_payload = {"schemaVersion": 1, "laneId": "local-qwen", "status": "completed", "output": "ok", "outputTruncated": False, "elapsedMs": 1, "exitCode": 0, "model": "qwen35-4b-local", "errorCode": None}
         with patch.object(worker, "probe_lanes", return_value=lanes), patch.object(worker, "execute_job", return_value=("completed", result_payload, None, None)):
             response = worker.execute_interactive_request({"model": "nour-auto", "prompt": "repository code architecture strategy", "routingPrompt": "Hello there.", "workspaceKey": "repo"})
-        self.assertEqual(response["candidateLaneIds"], ["local-qwen", "codex", "claude-code", "antigravity"])
+        self.assertEqual(
+            response["candidateLaneIds"],
+            ["local-qwen", "chatgpt-plan", "codex", "claude-code", "antigravity"],
+        )
 
     def test_interactive_request_reuses_worker_contract_and_forces_read_only(self):
         lanes = {"codex": {"health": "ready", "quota": "available"}}
@@ -314,6 +319,276 @@ class ExternalWorkerAgentTests(unittest.TestCase):
         )
         self.assertEqual(response["status"], "failed")
         self.assertEqual(response["errorCode"], "PROMPT_INVALID")
+
+    def test_chatgpt_plan_explicit_lane_fails_closed(self):
+        with patch.object(
+            worker,
+            "run_chatgpt_plan_bridge",
+            side_effect=RuntimeError("CHATGPT_PLAN_SCOPE_DENIED"),
+        ):
+            code, output, model = worker.execute_chatgpt_plan("hello")
+        self.assertNotEqual(code, 0)
+        self.assertIn("CHATGPT_PLAN_SCOPE_DENIED", output)
+        self.assertIsNone(model)
+
+    def test_claude_research_adapter_is_web_only_and_proves_retrieval(self):
+        payload = "\n".join(
+            json.dumps(event)
+            for event in (
+                {"type": "system", "subtype": "init", "model": "claude-test"},
+                {
+                    "type": "assistant",
+                    "message": {
+                        "model": "claude-test",
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "tool-search-1",
+                                "name": "WebSearch",
+                                "input": {"query": "official source"},
+                            }
+                        ],
+                    },
+                },
+                {
+                    "type": "user",
+                    "message": {
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": "tool-search-1"}
+                        ]
+                    },
+                    "tool_use_result": {
+                        "query": "official source",
+                        "results": [
+                            {
+                                "content": [
+                                    {
+                                        "title": "Source",
+                                        "url": "https://example.com/source",
+                                    }
+                                ]
+                            }
+                        ],
+                        "searchCount": 1,
+                    },
+                },
+                {
+                    "type": "assistant",
+                    "message": {
+                        "model": "claude-test",
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "tool-fetch-1",
+                                "name": "WebFetch",
+                                "input": {"url": "https://example.com/source"},
+                            }
+                        ],
+                    },
+                },
+                {
+                    "type": "user",
+                    "message": {
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": "tool-fetch-1"}
+                        ]
+                    },
+                    "tool_use_result": {
+                        "url": "https://example.com/source",
+                        "code": 200,
+                        "codeText": "OK",
+                        "durationMs": 25,
+                        "bytes": 1234,
+                        "result": "retrieved source",
+                    },
+                },
+                {
+                    "type": "result",
+                    "result": "research ok https://example.com/source",
+                    "modelUsage": {"claude-test": {"webSearchRequests": 1}},
+                    "permission_denials": [],
+                    "is_error": False,
+                },
+            )
+        )
+        with patch.object(worker, "run_process", return_value=(0, payload)) as run:
+            code, output, model, meta = worker.execute_claude_research(
+                "research this", Path.cwd(), web_search=True
+            )
+        self.assertEqual(
+            (code, output, model),
+            (0, "research ok https://example.com/source", "claude-test"),
+        )
+        self.assertTrue(meta["retrievalVerified"])
+        self.assertEqual(meta["webSearchRequests"], 1)
+        self.assertEqual(meta["webFetchRequests"], 1)
+        self.assertEqual(meta["permissionDenials"], 0)
+        self.assertEqual(meta["reportedSources"], ["https://example.com/source"])
+        self.assertEqual(meta["searchResultSources"], ["https://example.com/source"])
+        self.assertEqual(meta["fetchedSources"], ["https://example.com/source"])
+        self.assertEqual(meta["evidenceReceipts"][0]["tool"], "WebSearch")
+        self.assertEqual(meta["evidenceReceipts"][1]["tool"], "WebFetch")
+        args = run.call_args.args[1]
+        self.assertIn("--restricted", args)
+        self.assertEqual(args[args.index("--output-format") + 1], "stream-json")
+        self.assertIn("--verbose", args)
+        self.assertEqual(args[args.index("--permission-mode") + 1], "auto")
+        tools = args[args.index("--tools") + 1]
+        self.assertEqual(tools, "WebSearch,WebFetch")
+        for forbidden in ("Bash", "PowerShell", "Edit", "Write", "Read", "Glob", "Grep"):
+            self.assertNotIn(forbidden, tools)
+
+    def test_claude_research_does_not_treat_url_text_as_retrieval(self):
+        payload = "\n".join(
+            json.dumps(event)
+            for event in (
+                {"type": "system", "subtype": "init", "model": "claude-test"},
+                {
+                    "type": "result",
+                    "result": "memory-only answer https://example.com/not-retrieved",
+                    "modelUsage": {"claude-test": {"webSearchRequests": 0}},
+                    "permission_denials": [{"tool": "WebSearch"}],
+                    "is_error": False,
+                },
+            )
+        )
+        with patch.object(worker, "run_process", return_value=(0, payload)):
+            code, output, model, meta = worker.execute_claude_research(
+                "research this", Path.cwd(), web_search=True
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(model, "claude-test")
+        self.assertFalse(meta["retrievalVerified"])
+        self.assertEqual(meta["reportedSources"], [])
+        self.assertEqual(meta["searchResultSources"], [])
+        self.assertEqual(meta["fetchedSources"], [])
+        self.assertEqual(meta["evidenceReceipts"], [])
+        self.assertEqual(meta["permissionDenials"], 1)
+
+    def test_research_provider_rejects_memory_answer_with_url_but_no_retrieval(self):
+        lanes = {
+            "chatgpt-plan": {"health": "unavailable", "quota": "unknown"},
+            "claude-code": {"health": "ready", "quota": "unknown"},
+        }
+        with patch.object(
+            worker,
+            "execute_claude_research",
+            return_value=(
+                0,
+                "memory answer https://example.com/not-retrieved",
+                "claude-test",
+                {
+                    "retrievalVerified": False,
+                    "webSearchRequests": 0,
+                    "webFetchRequests": 0,
+                    "permissionDenials": 1,
+                    "reportedSources": [],
+                },
+            ),
+        ):
+            result = worker.research_provider_call(
+                "research this",
+                Path.cwd(),
+                lanes,
+                web_search=True,
+                timeout_seconds=60,
+            )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["sources"], [])
+        self.assertIn("claude-code:no_verified_retrieval", result["failures"])
+
+    def test_explicit_research_persists_receipt_and_marks_partial_degraded(self):
+        def fake_research_call(prompt, workspace, lanes, *, web_search, timeout_seconds):
+            if "research planner" in prompt:
+                return {"ok": True, "provider": "claude-code", "model": "planner", "output": '{"threads":["q1","q2"]}', "sources": [], "failures": []}
+            if "SEARCH THREAD:\nq1" in prompt:
+                return {"ok": True, "provider": "claude-code", "model": "web", "output": "FACT one https://example.com/one", "sources": ["https://example.com/one"], "failures": []}
+            if "SEARCH THREAD:\nq2" in prompt:
+                return {"ok": False, "provider": "claude-code", "model": "web", "output": "", "sources": [], "failures": ["claude-code:failed"]}
+            if "gap checker" in prompt:
+                return {"ok": True, "provider": "claude-code", "model": "critic", "output": '{"gap":"","risks":["coverage partial"]}', "sources": [], "failures": []}
+            if "research synthesizer" in prompt:
+                return {"ok": True, "provider": "claude-code", "model": "synth", "output": "Synthesis https://example.com/one", "sources": ["https://example.com/one"], "failures": []}
+            raise AssertionError(prompt[:100])
+
+        lanes = {
+            "chatgpt-plan": {"health": "unavailable", "quota": "unknown"},
+            "claude-code": {"health": "ready", "quota": "unknown"},
+        }
+        with TemporaryDirectory() as tmp, patch.object(worker, "RESEARCH_DIR", Path(tmp)), patch.object(
+            worker, "resolve_workspace", return_value=Path.cwd()
+        ), patch.object(worker, "probe_lanes", return_value=lanes), patch.object(
+            worker, "research_provider_call", side_effect=fake_research_call
+        ):
+            response = worker.execute_interactive_request(
+                {
+                    "model": "nour-research",
+                    "prompt": "system context plus question",
+                    "routingPrompt": "Research the thing.",
+                    "workspaceKey": "repo",
+                }
+            )
+            receipt_json = Path(response["result"]["receiptJson"])
+            receipt_md = Path(response["result"]["receiptMarkdown"])
+            self.assertTrue(receipt_json.exists())
+            self.assertTrue(receipt_md.exists())
+            receipt = json.loads(receipt_json.read_text(encoding="utf-8"))
+        self.assertEqual(response["status"], "completed")
+        self.assertEqual(response["result"]["researchStatus"], "degraded")
+        self.assertEqual(response["result"]["sourceCount"], 1)
+        self.assertEqual(receipt["status"], "degraded")
+
+    def test_research_complete_requires_at_least_one_fetched_page(self):
+        def fake_research_call(prompt, workspace, lanes, *, web_search, timeout_seconds):
+            if "research planner" in prompt:
+                return {"ok": True, "provider": "claude-code", "model": "planner", "output": '{"threads":["q1"]}', "sources": [], "failures": []}
+            if "SEARCH THREAD:\nq1" in prompt:
+                return {
+                    "ok": True,
+                    "provider": "claude-code",
+                    "model": "web",
+                    "output": "FACT one https://example.com/one",
+                    "sources": ["https://example.com/one"],
+                    "retrieval": {
+                        "retrievalVerified": True,
+                        "searchResultSources": ["https://example.com/one"],
+                        "fetchedSources": [],
+                    },
+                    "failures": [],
+                }
+            if "gap checker" in prompt:
+                return {"ok": True, "provider": "claude-code", "model": "critic", "output": '{"gap":"","risks":[]}', "sources": [], "failures": []}
+            if "research synthesizer" in prompt:
+                return {"ok": True, "provider": "claude-code", "model": "synth", "output": "Synthesis https://example.com/one", "sources": [], "failures": []}
+            raise AssertionError(prompt[:100])
+
+        lanes = {
+            "chatgpt-plan": {"health": "unavailable", "quota": "unknown"},
+            "claude-code": {"health": "ready", "quota": "unknown"},
+        }
+        with TemporaryDirectory() as tmp, patch.object(worker, "RESEARCH_DIR", Path(tmp)), patch.object(
+            worker, "research_provider_call", side_effect=fake_research_call
+        ):
+            response = worker.run_research_orchestrator("Research the thing.", Path.cwd(), lanes)
+            receipt = json.loads(Path(response["result"]["receiptJson"]).read_text(encoding="utf-8"))
+        self.assertEqual(response["result"]["researchStatus"], "degraded")
+        self.assertEqual(response["result"]["sourceCount"], 1)
+        self.assertEqual(receipt["fetchedSources"], [])
+
+    def test_local_chat_protocol_is_ascii_safe_for_unicode_research_output(self):
+        expected = "A → B — ✓"
+        with patch.object(
+            worker,
+            "execute_interactive_request",
+            return_value={"status": "completed", "result": {"output": expected}},
+        ), patch.object(sys, "stdin", io.StringIO("{}")), patch.object(
+            sys, "stdout", io.StringIO()
+        ) as stdout:
+            code = worker.local_chat_main()
+            raw = stdout.getvalue()
+        self.assertEqual(code, 0)
+        self.assertTrue(all(ord(char) < 128 for char in raw))
+        self.assertEqual(json.loads(raw)["result"]["output"], expected)
 
     def test_local_probe_reports_lane_truth_and_read_only_policy(self):
         lanes = {
