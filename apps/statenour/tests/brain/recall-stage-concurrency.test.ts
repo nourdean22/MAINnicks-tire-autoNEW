@@ -51,6 +51,7 @@ const h = vi.hoisted(() => {
     memFetch: null as Deferred<unknown[]> | null,
     vecFetch: null as Deferred<unknown[]> | null,
     people: [] as unknown[],
+    sqlScorerError: null as Error | null,
   };
 });
 
@@ -102,7 +103,24 @@ vi.mock("@/lib/prisma", () => {
       get: (_t, prop: string) => {
         if (prop in named) return named[prop];
         if (prop === "$transaction") return (fn: (t: typeof tx) => unknown) => fn(tx);
-        if (prop === "$queryRawUnsafe" || prop === "$queryRaw") return () => Promise.resolve([]);
+        // Q-17: the semantic stage reads through one raw statement now, not
+        // vectorEmbedding.findMany. Same gate, same fixture rows — delivered
+        // as the statement's JSON-fallback column so the scores are unchanged.
+        if (prop === "$queryRawUnsafe") {
+          return (sql: string) => {
+            if (!sql.includes('DISTINCT ON (ve."sourceId")')) return Promise.resolve([]);
+            if (h.sqlScorerError) return Promise.reject(h.sqlScorerError);
+            h.events.push("start:semantic");
+            return h.vecFetch!.promise.then((rows) =>
+              (rows as { sourceId: string; embedding: string }[]).map((r) => ({
+                id: r.sourceId,
+                score: null,
+                json: r.embedding,
+              })),
+            );
+          };
+        }
+        if (prop === "$queryRaw") return () => Promise.resolve([]);
         if (prop === "$executeRawUnsafe") return () => Promise.resolve(0);
         return generic();
       },
@@ -168,6 +186,7 @@ let warnSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   h.events.length = 0;
   h.people = [];
+  h.sqlScorerError = null;
   h.memFetch = h.deferred<unknown[]>();
   h.vecFetch = h.deferred<unknown[]>();
   logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -188,6 +207,22 @@ describe("contextual recall · independent stages start together (2026-09-23)", 
     expect(h.events).toContain("start:dbFetch");
     h.memFetch!.resolve(MEMORIES);
     await flush();
+    h.vecFetch!.resolve(VECTORS);
+    const out = await p;
+    expect(out).toContain("Context-Matched Memories [semantic]");
+  });
+
+  it("★ the semantic stage fails soft: a failed SQL scorer falls back to the JSON column (Q-17 review)", async () => {
+    // pgvector or embedding_vec unavailable. Before the fallback this rejected
+    // getContextualMemories, and brain-context's withTimeout turned that into
+    // null: the turn lost every lane, not only semantic.
+    h.sqlScorerError = new Error("column ve.embedding_vec does not exist");
+    const p = run();
+    await flush();
+    h.memFetch!.resolve(MEMORIES);
+    await flush();
+    // The fallback reads through vectorEmbedding.findMany (the pre-Q-17 path).
+    expect(h.events).toContain("start:semantic");
     h.vecFetch!.resolve(VECTORS);
     const out = await p;
     expect(out).toContain("Context-Matched Memories [semantic]");
