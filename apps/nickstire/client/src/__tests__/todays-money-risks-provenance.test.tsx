@@ -40,13 +40,14 @@ const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
 const staleLead = { status: "new", createdAt: ago(6 * HOUR), name: "Canary Lead", estimatedValueCents: 45_000 };
 const waitingCallback = { status: "new", createdAt: ago(5 * HOUR), name: "Canary Caller" };
 
-const ok = { available: true, error: null };
-const down = { available: false, error: "read failed" };
+type Slice = { available: boolean; error: string | null };
+const ok: Slice = { available: true, error: null };
+const down: Slice = { available: false, error: "read failed" };
 
 function bundle(opts: {
   leads: unknown[] | null;
   callbacks: unknown[] | null;
-  slices?: { leads: typeof ok; callbacks: typeof ok } | undefined;
+  slices?: { leads: Slice; callbacks: Slice } | undefined;
 }) {
   return { leads: opts.leads, callbacks: opts.callbacks, slices: opts.slices };
 }
