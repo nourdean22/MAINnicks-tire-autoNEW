@@ -81,11 +81,11 @@ Set-Content -LiteralPath $LauncherPath -Value $launcher -Encoding UTF8
 
 $taskArgs = '-NoProfile -ExecutionPolicy Bypass -File "' + $LauncherPath + '"'
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $taskArgs
-$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
 
-Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "StateNour outbound-only external subscription/local worker. API-key envs scrubbed; writes double-gated." -Force | Out-Null
+# Manual-only by design: no time/logon trigger. The desktop toggle is the start/stop control.
+Register-ScheduledTask -TaskName $TaskName -Action $action -Principal $principal -Settings $settings -Description "StateNour manual-only outbound external subscription/local worker. API-key envs scrubbed; writes double-gated." -Force | Out-Null
 
 if ($Start) {
   Start-ScheduledTask -TaskName $TaskName

@@ -287,6 +287,11 @@ def post(path: str, payload: dict[str, Any], timeout: int = 20) -> dict[str, Any
     data = response.json()
     if not isinstance(data, dict):
         raise RuntimeError(f"unexpected response from {path}")
+    # StateNour apiHandler wraps route results in { ok, data, meta }.
+    # Preserve compatibility with raw-dict responses while unwrapping the
+    # standard envelope so callers such as claim() can see data.items.
+    if data.get("ok") is True and isinstance(data.get("data"), dict):
+        return data["data"]
     return data
 
 
