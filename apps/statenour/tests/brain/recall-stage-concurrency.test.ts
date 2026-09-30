@@ -102,7 +102,23 @@ vi.mock("@/lib/prisma", () => {
       get: (_t, prop: string) => {
         if (prop in named) return named[prop];
         if (prop === "$transaction") return (fn: (t: typeof tx) => unknown) => fn(tx);
-        if (prop === "$queryRawUnsafe" || prop === "$queryRaw") return () => Promise.resolve([]);
+        // Q-17: the semantic stage reads through one raw statement now, not
+        // vectorEmbedding.findMany. Same gate, same fixture rows — delivered
+        // as the statement's JSON-fallback column so the scores are unchanged.
+        if (prop === "$queryRawUnsafe") {
+          return (sql: string) => {
+            if (!sql.includes('DISTINCT ON (ve."sourceId")')) return Promise.resolve([]);
+            h.events.push("start:semantic");
+            return h.vecFetch!.promise.then((rows) =>
+              (rows as { sourceId: string; embedding: string }[]).map((r) => ({
+                id: r.sourceId,
+                score: null,
+                json: r.embedding,
+              })),
+            );
+          };
+        }
+        if (prop === "$queryRaw") return () => Promise.resolve([]);
         if (prop === "$executeRawUnsafe") return () => Promise.resolve(0);
         return generic();
       },

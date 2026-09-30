@@ -21,6 +21,11 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("contextual-recall", "chat");
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { cosineSimilarity, semanticSearch } from "@/lib/brain/embedding-utils";
+import {
+  noveltyWindowSims,
+  scoreCandidatesInSql,
+  type SemanticScores,
+} from "@/lib/brain/semantic-sql";
 import { fuseRankings } from "@/lib/brain/rrf";
 // 2026-08-27 · F3 KNN candidate lane — reuse the one guard/pad convention
 // (lib/db/pgvector.ts), same as memory-recall.ts.
@@ -91,9 +96,10 @@ function importanceMultiplier(content: string, enabled: boolean): number {
  * that over-surfaces genuine noise is worse than none. Promote it only on an
  * eval win (pnpm eval:recall).
  *
- * Cost: zero extra queries — `selectedVectors` are the embeddings
- * getSemanticScores already parsed. O(k) per memory against a capped
- * selection set, NOT O(N²) over the 300-row candidate pool.
+ * Cost: O(k) per memory against a capped selection set, NOT O(N²) over the
+ * 300-row candidate pool. Since Q-17 recall computes those k similarities in
+ * Postgres (one query, noveltyWindowSims) rather than from vectors shipped to
+ * Node; this vector form remains for callers that hold vectors in memory.
  */
 export function noveltyMultiplier(
   vec: number[] | undefined,
@@ -102,12 +108,25 @@ export function noveltyMultiplier(
 ): number {
   if (!enabled) return 1.0;
   if (!vec || vec.length === 0 || selectedVectors.length === 0) return 1.0;
-  let maxSim = 0;
+  const sims: number[] = [];
   for (const other of selectedVectors) {
     if (other.length !== vec.length) continue;
-    const sim = cosineSimilarity(vec, other);
-    if (sim > maxSim) maxSim = sim;
+    sims.push(cosineSimilarity(vec, other));
   }
+  // An all-mismatched selection still counts as "something was selected":
+  // maxSim stays 0, exactly as before the split below.
+  return sims.length === 0 ? 0.95 + 0.23 : noveltyMultiplierFromSims(sims, true);
+}
+
+/**
+ * The same multiplier, from precomputed similarities to the selection set
+ * (Q-17: recall gets them from Postgres, lib/brain/semantic-sql.ts). An empty
+ * list means nothing was selected before this memory → neutral 1.0.
+ */
+export function noveltyMultiplierFromSims(sims: number[], enabled: boolean): number {
+  if (!enabled || sims.length === 0) return 1.0;
+  let maxSim = 0;
+  for (const sim of sims) if (sim > maxSim) maxSim = sim;
   // maxSim 1.0 (says exactly what we already picked) → 0.95
   // maxSim 0.0 (orthogonal to everything picked)     → 1.18
   const novelty = 1 - Math.max(0, Math.min(1, maxSim));
@@ -1196,7 +1215,6 @@ export async function getContextualMemories(
     getSemanticScores(queryText, candidatePool, opts.queryEmbedding),
   );
   const useEmbeddings = semanticScores !== null;
-  const memoryVectors = semanticScores?.vectors ?? null;
 
   // v10.0.361 · RRF (Reciprocal Rank Fusion) replaces linear weighted
   // fusion. Per /hybrid-search-implementation skill, RRF is more robust
@@ -1366,17 +1384,38 @@ export async function getContextualMemories(
   // shape (relevance vs. redundancy), kept to a capped comparison window so
   // the hot path stays O(n·k) — the candidate pool is up to 300 rows and this
   // block runs inside a 3s timeout on every chat turn.
-  if (noveltyOn && memoryVectors) {
-    const accepted: number[][] = [];
-    for (const m of scored) {
-      const vec = memoryVectors.get(m.id);
-      m.hybrid *= noveltyMultiplier(vec, accepted, true);
-      if (vec) {
-        accepted.push(vec);
-        if (accepted.length > NOVELTY_COMPARISON_SET) accepted.shift();
+  //
+  // Q-17: the pair similarities come from Postgres (lib/brain/semantic-sql.ts)
+  // instead of from vectors shipped to Node; the window is the same one the
+  // old in-memory `accepted` list held. Best-effort like every other lane: a
+  // failed read leaves the ranking un-nudged and says so.
+  if (noveltyOn && semanticScores) {
+    try {
+      const { simsById, mixedPairsSkipped } = await timed("novelty", () =>
+        noveltyWindowSims(
+          prisma,
+          scored.map((m) => m.id),
+          semanticScores,
+          NOVELTY_COMPARISON_SET,
+          semanticScores.dim,
+        ),
+      );
+      for (const m of scored) {
+        const sims = simsById.get(m.id);
+        if (sims) m.hybrid *= noveltyMultiplierFromSims(sims, true);
       }
+      scored.sort((a, b) => b.hybrid - a.hybrid);
+      if (mixedPairsSkipped > 0) {
+        console.warn(
+          `[brain-recall] novelty skipped ${mixedPairsSkipped} pairs with one side lacking embedding_vec`,
+        );
+      }
+    } catch (err) {
+      console.warn(
+        "[brain-recall] novelty pass failed — ranking left un-nudged:",
+        err instanceof Error ? err.message.slice(0, 120) : String(err),
+      );
     }
-    scored.sort((a, b) => b.hybrid - a.hybrid);
   }
 
   // Build result: always include top wisdom + top scored
@@ -1808,52 +1847,38 @@ async function getSemanticScores(
   memories: { id: string; category: string; key: string; content: string }[],
   /** v10.0.529.106 · Wave 81 · pre-computed embedding short-circuit. */
   precomputedEmbedding?: number[],
-): Promise<{ scores: Map<string, number>; vectors: Map<string, number[]> } | null> {
+): Promise<(SemanticScores & { dim: number }) | null> {
   // Generate query embedding · or use the pre-computed one when supplied.
   const queryVec = precomputedEmbedding && precomputedEmbedding.length > 0
     ? precomputedEmbedding
     : await getEmbedding(queryText);
   if (queryVec.length === 0) return null; // No embedding provider available
 
-  // Load all brain_memory embeddings
-  const memoryIds = memories.map((m) => m.id);
-  const embeddingRows = await prisma.vectorEmbedding.findMany({
-    where: { sourceType: "brain_memory", sourceId: { in: memoryIds } },
-    select: { sourceId: true, embedding: true },
-  });
+  // 2026-09-30 · Q-17 · scored in Postgres. This used to findMany every
+  // candidate's JSON embedding (~4 MB a turn) and run cosine in Node; the
+  // cosine now runs where the vectors live and only the scores come back.
+  // Equality contract and the one intended difference: lib/brain/semantic-sql.ts.
+  const semantic = await scoreCandidatesInSql(
+    prisma,
+    queryVec,
+    memories.map((m) => m.id),
+  );
 
   // Need at least 5 embedded memories for semantic mode to be useful
-  if (embeddingRows.length < 5) return null;
+  if (semantic.rowsFound < 5) return null;
 
-  const scores = new Map<string, number>();
-  // 2026-08-16 · keep the parsed vectors. This loop already JSON.parsed every
-  // candidate's embedding and threw it away after one cosine — so the novelty
-  // axis below costs zero extra queries and zero extra embedding calls.
-  const vectors = new Map<string, number[]>();
-
-  let corrupted = 0;
-  for (const row of embeddingRows) {
-    try {
-      const vec = JSON.parse(row.embedding) as number[];
-      if (vec.length !== queryVec.length) continue;
-      scores.set(row.sourceId, cosineSimilarity(queryVec, vec));
-      vectors.set(row.sourceId, vec);
-    } catch {
-      // Skip corrupted rows · aggregated below — recall runs every chat
-      // turn over up to 300 rows, so per-row logging would flood ErrorLog
-      corrupted++;
-    }
-  }
-  if (corrupted > 0) {
+  if (semantic.corrupted > 0) {
+    // Aggregated — recall runs every chat turn over up to 300 rows, so
+    // per-row logging would flood ErrorLog
     logError(
       "brain.contextual-recall",
-      new Error(`${corrupted} corrupted embedding rows skipped`),
-      { fn: "getSemanticScores", corrupted, scanned: embeddingRows.length },
+      new Error(`${semantic.corrupted} corrupted embedding rows skipped`),
+      { fn: "getSemanticScores", corrupted: semantic.corrupted, scanned: semantic.rowsFound },
       "warn",
     );
   }
 
-  return { scores, vectors };
+  return { ...semantic, dim: queryVec.length };
 }
 
 // ---------------------------------------------------------------------------
