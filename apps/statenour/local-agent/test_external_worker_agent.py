@@ -63,6 +63,29 @@ class ExternalWorkerAgentTests(unittest.TestCase):
         self.assertTrue(truncated)
         self.assertEqual(len(text), worker.MAX_OUTPUT_CHARS)
 
+    def test_codex_write_uses_approve_for_me_without_explicit_sandbox(self):
+        with patch.object(worker, "run_process", return_value=(0, "ok")) as run:
+            code, output, _ = worker.execute_codex("Make one edit.", Path.cwd(), True)
+        self.assertEqual(code, 0)
+        self.assertEqual(output, "ok")
+        args = run.call_args.args[1]
+        self.assertIn("--approve-for-me", args)
+        self.assertNotIn("-s", args)
+        self.assertNotIn("workspace-write", args)
+
+    def test_claude_worker_isolated_from_interactive_context(self):
+        payload = json.dumps({"result": "ok", "modelUsage": {"claude-test": {}}})
+        payload += "\nworkspace trust diagnostic"
+        with patch.object(worker, "run_process", return_value=(0, payload)) as run:
+            code, output, model = worker.execute_claude("Make one edit.", Path.cwd(), True)
+        self.assertEqual((code, output, model), (0, "ok", "claude-test"))
+        args = run.call_args.args[1]
+        self.assertIn("--safe-mode", args)
+        self.assertIn("--no-session-persistence", args)
+        self.assertIn("--no-chrome", args)
+        self.assertEqual(args[args.index("--permission-prompts") + 1], "none")
+        self.assertEqual(args[args.index("--permission-mode") + 1], "acceptEdits")
+
     def test_workspace_key_is_allowlisted(self):
         with patch.object(worker, "workspace_map", return_value={"repo": str(Path.cwd())}):
             self.assertEqual(worker.resolve_workspace("repo"), Path.cwd().resolve())

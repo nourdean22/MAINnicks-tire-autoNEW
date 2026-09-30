@@ -22,13 +22,14 @@ OpenWebUI is a local chat surface over that gateway. It is not the worker orches
 
 1. The server chooses the ordered `candidateLaneIds`; the machine may only choose from that list.
 2. `AUTO` never silently crosses into `METERED_PAID`. Subscription-included and local-free are distinct from API billing.
-3. Worker subprocesses remove `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, Gemini/Google API-key variables, and Codex API-token variables.
-4. Read-only jobs may fall through to the next already-approved candidate on quota/provider failure.
-5. Write jobs never auto-fallback after execution begins. A partial edit plus a second agent would create duplicate/conflicting side effects.
-6. Workspace writes require both `allowWorkspaceWrite=true` on the job and machine policy `NOUR_EXTERNAL_WORKER_ALLOW_WRITES=1`.
-7. Missing/empty output, denied required Antigravity actions, timeout, or nonzero exit is failure — never success by process-exit guesswork.
-8. Quota exhaustion updates the lane heartbeat immediately; stale/unavailable lanes must not be selected as healthy.
-9. Worker communication is outbound HTTPS to bdnick.info using `RUNNER_SHARED_SECRET`; do not expose a public local-agent port.
+3. Worker subprocesses remove `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, Gemini/Google API-key variables, and Codex API-token variables. Claude worker sessions also run in `--safe-mode` with no session persistence so interactive CLAUDE.md/hooks/plugins/MCP/skills cannot inflate or alter bounded worker context.
+4. Codex write execution uses the current CLI's `--approve-for-me` path without also forcing `-s workspace-write`; those flags conflict on current Codex builds. Read-only Codex remains explicitly sandboxed `read-only`.
+5. Read-only jobs may fall through to the next already-approved candidate on quota/provider failure.
+6. Write jobs never auto-fallback after execution begins. A partial edit plus a second agent would create duplicate/conflicting side effects.
+7. Workspace writes require both `allowWorkspaceWrite=true` on the job and machine policy `NOUR_EXTERNAL_WORKER_ALLOW_WRITES=1`.
+8. Missing/empty output, denied required Antigravity actions, timeout, or nonzero exit is failure — never success by process-exit guesswork.
+9. Quota exhaustion updates the lane heartbeat immediately; stale/unavailable lanes must not be selected as healthy.
+10. Worker communication is outbound HTTPS to bdnick.info using `RUNNER_SHARED_SECRET`; do not expose a public local-agent port.
 
 ## Install / persistence
 
