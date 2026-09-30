@@ -11,14 +11,20 @@
  * (no extra network round-trip). Derivation lives in ./moneyRisks (pure, tested).
  *
  * CLARITY-GATE · renders nothing while loading, on bundle failure, or when there
- * is nothing at risk (topItem === null). No vanity empty card. The `$ at risk`
+ * is nothing at risk (topItem === null) AND both the leads and callbacks slices
+ * were read. No vanity empty card. The `$ at risk`
  * line shows only when leads carry a real estimate — never a fabricated figure.
+ *
+ * Q-23 phase 4 · every number wears MEASURED / ESTIMATE / UNMEASURED, and a
+ * leads or callbacks slice the bundle could not read renders as UNMEASURED,
+ * "unknown, not zero", instead of vanishing into a clean-looking card.
  */
 import { trpc } from "@/lib/trpc";
 import { AlertTriangle, Clock, DollarSign, Users, PhoneCall, ChevronRight } from "lucide-react";
 import { formatCents } from "../shared/format";
 import { navigateToAdminSection } from "../shared";
-import { deriveMoneyRisks } from "./moneyRisks";
+import { ProvenanceTag } from "../shared/ProvenanceTag";
+import { deriveMoneyRisks, moneyRisksProvenance, unreadableRiskSlices } from "./moneyRisks";
 
 function formatAge(ms: number): string {
   const min = Math.floor(ms / 60_000);
@@ -55,21 +61,30 @@ export function TodaysMoneyRisks() {
   if (!bundle) return null;
 
   const risks = deriveMoneyRisks(bundle.leads, bundle.callbacks, Date.now());
+  // A failed slice arrives as null, which the derivation reads as empty. Say so.
+  const unread = unreadableRiskSlices(bundle.slices);
+  const anyUnread = unread.leads || unread.callbacks;
+  const prov = moneyRisksProvenance();
 
-  // Clarity-gate · nothing at risk → render nothing (no empty vanity card).
-  if (!risks.topItem || risks.totalRisks === 0) return null;
+  // Clarity-gate · nothing at risk AND everything was read → render nothing.
+  // An unread slice is not "nothing at risk", so it keeps the card on screen.
+  if (!anyUnread && (!risks.topItem || risks.totalRisks === 0)) return null;
 
-  const style = SEVERITY_STYLE[risks.severity];
+  const style = SEVERITY_STYLE[anyUnread && risks.severity === "low" ? "medium" : risks.severity];
   const primaryIsLeads = risks.primary === "leads";
+  // With a slice unread, the item count is a floor, not a total.
+  const itemsWord = `${anyUnread ? "at least " : ""}${risks.totalRisks} unresolved item${risks.totalRisks === 1 ? "" : "s"}`;
 
   return (
     <div className={`bg-card border ${style.border} p-4 space-y-2.5`}>
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-2 text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/55">
           <AlertTriangle className={`w-3.5 h-3.5 ${style.icon}`} />
-          {risks.atRiskCents > 0 
-            ? `Potential money at risk: ${formatCents(risks.atRiskCents)} across ${risks.totalRisks} unresolved items.`
-            : `Potential money at risk across ${risks.totalRisks} unresolved items.`}
+          {risks.totalRisks === 0
+            ? "Money at risk: could not be read in full."
+            : risks.atRiskCents > 0
+              ? `Potential money at risk: ${formatCents(risks.atRiskCents)} across ${itemsWord}.`
+              : `Potential money at risk across ${itemsWord}.`}
         </span>
         <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded ${style.badge}`}>
           {style.label}
@@ -81,7 +96,8 @@ export function TodaysMoneyRisks() {
           <div className="flex items-center gap-2.5">
             <Users className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <span className="text-[12.5px] text-foreground/85 leading-tight">
-              <span className="font-semibold">{risks.staleLeadCount.toLocaleString()}</span> stale lead{risks.staleLeadCount === 1 ? "" : "s"} &gt;4h uncontacted
+              <span className="font-semibold">{risks.staleLeadCount.toLocaleString()}</span> stale lead{risks.staleLeadCount === 1 ? "" : "s"} &gt;4h uncontacted{" "}
+              <ProvenanceTag provenance={prov.staleLeads} />
             </span>
           </div>
         )}
@@ -90,7 +106,8 @@ export function TodaysMoneyRisks() {
           <div className="flex items-center gap-2.5">
             <PhoneCall className="w-3.5 h-3.5 text-blue-400 shrink-0" />
             <span className="text-[12.5px] text-foreground/85 leading-tight">
-              <span className="font-semibold">{risks.callbacksWaitingCount.toLocaleString()}</span> callback{risks.callbacksWaitingCount === 1 ? "" : "s"} waiting &gt;4h
+              <span className="font-semibold">{risks.callbacksWaitingCount.toLocaleString()}</span> callback{risks.callbacksWaitingCount === 1 ? "" : "s"} waiting &gt;4h{" "}
+              <ProvenanceTag provenance={prov.callbacksWaiting} />
             </span>
           </div>
         )}
@@ -100,30 +117,53 @@ export function TodaysMoneyRisks() {
           <div className="flex items-center gap-2.5">
             <DollarSign className="w-3.5 h-3.5 text-red-400 shrink-0" />
             <span className="text-[12.5px] text-red-300 leading-tight">
-              <span className="font-semibold">{formatCents(risks.atRiskCents)}</span> at risk · 5-min response lifts close rate 9x
+              <span className="font-semibold">{formatCents(risks.atRiskCents)}</span> quoted, at risk · 5-min response lifts close rate 9x{" "}
+              <ProvenanceTag provenance={prov.atRisk} />
+            </span>
+          </div>
+        )}
+
+        {/* Q-23 phase 4 · a slice the bundle could not read. Unknown, not zero. */}
+        {unread.leads && (
+          <div className="flex items-center gap-2.5" data-unread="leads">
+            <Users className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+            <span className="text-[12.5px] text-foreground/70 leading-tight">
+              Stale leads could not be read · unknown, not zero <ProvenanceTag provenance={prov.unreadable} />
+            </span>
+          </div>
+        )}
+        {unread.callbacks && (
+          <div className="flex items-center gap-2.5" data-unread="callbacks">
+            <PhoneCall className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+            <span className="text-[12.5px] text-foreground/70 leading-tight">
+              Waiting callbacks could not be read · unknown, not zero <ProvenanceTag provenance={prov.unreadable} />
             </span>
           </div>
         )}
 
         {/* The single oldest/most-urgent item. */}
-        <div className="flex items-center gap-2.5">
-          <Clock className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
-          <span className="text-[12px] text-foreground/60 leading-tight">
-            Oldest · {risks.topItem.name} · {risks.topItem.kind === "lead" ? "lead" : "callback"} waiting {formatAge(risks.topItem.ageMs)}
-          </span>
-        </div>
+        {risks.topItem && (
+          <div className="flex items-center gap-2.5">
+            <Clock className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
+            <span className="text-[12px] text-foreground/60 leading-tight">
+              Oldest · {risks.topItem.name} · {risks.topItem.kind === "lead" ? "lead" : "callback"} waiting {formatAge(risks.topItem.ageMs)}
+            </span>
+          </div>
+        )}
       </div>
 
-      <button
-        type="button"
-        onClick={() => navigateToAdminSection(primaryIsLeads ? "leads" : "callTrackingView")}
-        className="flex items-center gap-2 w-full text-left hover:bg-foreground/[0.03] -mx-2 px-2 py-1.5 rounded transition-colors group"
-      >
-        <span className="text-[12px] font-semibold text-primary leading-tight flex-1">
-          Check {primaryIsLeads ? "Leads" : "Callbacks"} first
-        </span>
-        <ChevronRight className="w-3.5 h-3.5 text-primary/60 group-hover:text-primary transition-colors" />
-      </button>
+      {risks.topItem && (
+        <button
+          type="button"
+          onClick={() => navigateToAdminSection(primaryIsLeads ? "leads" : "callTrackingView")}
+          className="flex items-center gap-2 w-full text-left hover:bg-foreground/[0.03] -mx-2 px-2 py-1.5 rounded transition-colors group"
+        >
+          <span className="text-[12px] font-semibold text-primary leading-tight flex-1">
+            Check {primaryIsLeads ? "Leads" : "Callbacks"} first
+          </span>
+          <ChevronRight className="w-3.5 h-3.5 text-primary/60 group-hover:text-primary transition-colors" />
+        </button>
+      )}
     </div>
   );
 }
