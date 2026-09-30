@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -573,6 +574,21 @@ class ExternalWorkerAgentTests(unittest.TestCase):
         self.assertEqual(response["result"]["researchStatus"], "degraded")
         self.assertEqual(response["result"]["sourceCount"], 1)
         self.assertEqual(receipt["fetchedSources"], [])
+
+    def test_local_chat_protocol_is_ascii_safe_for_unicode_research_output(self):
+        expected = "A → B — ✓"
+        with patch.object(
+            worker,
+            "execute_interactive_request",
+            return_value={"status": "completed", "result": {"output": expected}},
+        ), patch.object(sys, "stdin", io.StringIO("{}")), patch.object(
+            sys, "stdout", io.StringIO()
+        ) as stdout:
+            code = worker.local_chat_main()
+            raw = stdout.getvalue()
+        self.assertEqual(code, 0)
+        self.assertTrue(all(ord(char) < 128 for char in raw))
+        self.assertEqual(json.loads(raw)["result"]["output"], expected)
 
     def test_local_probe_reports_lane_truth_and_read_only_policy(self):
         lanes = {

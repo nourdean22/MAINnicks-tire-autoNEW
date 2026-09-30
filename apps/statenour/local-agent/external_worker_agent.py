@@ -341,6 +341,8 @@ def probe_antigravity() -> dict[str, str]:
         cp = subprocess.run(
             [agy, "models"],
             text=True,
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
             env=scrubbed_env(),
             timeout=15,
@@ -849,6 +851,8 @@ def execute_antigravity(
     cp = subprocess.run(
         args,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         cwd=str(workspace),
         env=scrubbed_env(),
@@ -1570,7 +1574,9 @@ def local_chat_main() -> int:
         if not isinstance(raw, dict):
             raise ValueError("request must be a JSON object")
         response = execute_interactive_request(raw)
-        sys.stdout.write(json.dumps(response, ensure_ascii=False))
+        # Keep the local JSON protocol ASCII-safe so Windows console/code-page
+        # settings cannot corrupt or reject valid Unicode research output.
+        sys.stdout.write(json.dumps(response, ensure_ascii=True))
         sys.stdout.flush()
         return 0 if response.get("status") == "completed" else 3
     except Exception as exc:
@@ -1581,7 +1587,7 @@ def local_chat_main() -> int:
                     "errorCode": "INTERACTIVE_ADAPTER_ERROR",
                     "errorMessage": f"{type(exc).__name__}: {exc}",
                 },
-                ensure_ascii=False,
+                ensure_ascii=True,
             )
         )
         sys.stdout.flush()
@@ -1600,7 +1606,7 @@ def local_probe_payload() -> dict[str, Any]:
 
 def local_probe_main() -> int:
     try:
-        sys.stdout.write(json.dumps(local_probe_payload(), ensure_ascii=False))
+        sys.stdout.write(json.dumps(local_probe_payload(), ensure_ascii=True))
         sys.stdout.flush()
         return 0
     except Exception as exc:
@@ -1611,7 +1617,7 @@ def local_probe_main() -> int:
                     "errorCode": "INTERACTIVE_PROBE_ERROR",
                     "errorMessage": f"{type(exc).__name__}: {exc}",
                 },
-                ensure_ascii=False,
+                ensure_ascii=True,
             )
         )
         sys.stdout.flush()
