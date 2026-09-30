@@ -1,12 +1,20 @@
 import { ProtocolErrorCode } from "@modelcontextprotocol/server";
 import { assertBridgeAuth } from "@/lib/agent-bridge/auth";
 import { auditBridgeRejection, classifyBridgeFailure } from "@/lib/agent-bridge/audit";
-import { handleAuthenticatedMcpRequest } from "@/lib/agent-bridge/mcp-server";
+import { handleAuthenticatedMcpRequest, mcpOriginRejection } from "@/lib/agent-bridge/mcp-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  // Before auth: a cross-site browser request is refused whatever token it
+  // carries, and never reaches the token comparison.
+  const originRejected = mcpOriginRejection(req);
+  if (originRejected) {
+    await auditBridgeRejection({ protocol: "mcp", reason: "invalid_origin", req });
+    return originRejected;
+  }
+
   try {
     const identity = assertBridgeAuth(req);
     return await handleAuthenticatedMcpRequest(req, identity);
