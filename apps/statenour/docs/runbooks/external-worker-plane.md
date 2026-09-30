@@ -11,13 +11,14 @@ The cloud control plane queues an explicit external-worker envelope; a Windows w
 reports lane health/quota, claims a job, executes one approved candidate lane, and completes the same
 WorkItem. Do not create a second queue, second task database, or inbound desktop RPC server.
 
-The four current lanes are:
+The current worker lanes are:
+- `chatgpt-plan` — optional Sign in with ChatGPT plan-usage OAuth. It uses only the granted plan bearer, stores renewable credentials with Windows CurrentUser DPAPI, and has no API-key fallback. If consent, plan scope, account eligibility, or workspace policy denies access, the lane stays unavailable.
 - `codex` — ChatGPT/Codex subscription authentication.
 - `claude-code` — Claude subscription authentication.
 - `antigravity` — Google Antigravity account authentication.
 - `local-qwen` — local OpenAI-compatible gateway at `127.0.0.1:11436`.
 
-OpenWebUI is a local chat surface over that gateway. It is not the worker orchestrator.
+OpenWebUI is a local chat surface over that gateway. It is not the worker orchestrator. The gateway also exposes `nour-research` as an **interactive logical model**, not a sixth durable worker queue. Research reuses the same read-only subscription adapters and writes only local research receipts.
 ## Safety + routing rules
 
 1. The server chooses the ordered `candidateLaneIds`; the machine may only choose from that list.
@@ -30,6 +31,8 @@ OpenWebUI is a local chat surface over that gateway. It is not the worker orches
 8. Missing/empty output, denied required Antigravity actions, timeout, or nonzero exit is failure — never success by process-exit guesswork.
 9. Quota exhaustion updates the lane heartbeat immediately; stale/unavailable lanes must not be selected as healthy.
 10. Worker communication is outbound HTTPS to bdnick.info using `RUNNER_SHARED_SECRET`; do not expose a public local-agent port.
+11. Research source truth comes from provider tool-result telemetry. URL-shaped text in a model answer is never promoted into the evidence ledger. Each round records WebSearch/WebFetch receipts, and a report cannot be `complete` unless at least one page was actually fetched.
+12. Research web content is untrusted data. Evidence prompts explicitly forbid treating page content as instructions, and research runs remain read-only even when the machine's separate durable-write gate is enabled.
 
 ## Install / persistence
 
@@ -51,11 +54,13 @@ triggers, and zero `external_worker_agent.py` processes.
 
 1. **Local contract:** `python -m unittest local-agent\test_external_worker_agent.py local-agent\test_external_worker_installer.py`.
 2. **Router oracle:** `pnpm eval:router-oracle` — AUTO/no-consent, paid-only fail-closed, MAX+consent, quota fallback, FREE, privacy boundary.
-3. **Lane probe:** confirm Codex/Claude/Antigravity/local-Qwen health reflects real auth/quota, not merely binary presence.
+3. **Lane probe:** confirm ChatGPT-plan/Codex/Claude/Antigravity/local-Qwen health reflects real auth/quota/policy, not merely binary presence.
 4. **Runner receipt:** start the task and verify a fresh RunnerNode heartbeat + lane metadata from `getExternalWorkerStatus`.
 5. **Read-only job:** queue `queueExternalWorkerJob` with `allowWorkspaceWrite=false`; read it with `getExternalWorkerJob`; require durable completed status plus Reality Ledger phase receipts.
 6. **Fallback canary:** with Codex quota exhausted, a read-only candidate list may complete on Claude/local; prove selected lane in the persisted result.
-7. **Write canary:** keep writes OFF by default. When explicitly authorized later, use an isolated disposable workspace and verify no second-lane execution occurs after a failure.
+7. **Research canary:** run `nour-research` against a current factual question. Require a persisted receipt, at least one verified WebFetch page for `complete`, and zero promotion of text-only URLs into sources.
+8. **ChatGPT-plan canary:** run `chatgpt-plan-bridge.mjs --self-test`, then OAuth sign-in only when the selected account/workspace permits delegated plan use. A policy denial is an unavailable lane, not permission to substitute an API key.
+9. **Write canary:** keep writes OFF by default. When explicitly authorized later, use an isolated disposable workspace and verify no second-lane execution occurs after a failure.
 
 ## Failure / recovery
 

@@ -20,11 +20,31 @@ const KERNEL_MARKER = "[NOUR_RUNTIME_KERNEL_V1]";
 const PYTHON_EXE = path.join(HOME, "AppData", "Local", "Programs", "Python", "Python314", "python.exe");
 const WORKER_AGENT = path.join(HOME, "AppData", "Local", "StateNour", "external-worker", "external_worker_agent.py");
 const PROTECTED_WORKSPACE = path.join(HOME, "Documents", "Codex", "NATTYNOUR-RUNTIME-WRITES-DO-NOT-CLEAN");
+const CHATGPT_PLAN_CREDENTIALS = path.join(
+  HOME,
+  "AppData",
+  "Local",
+  "StateNour",
+  "chatgpt-plan",
+  "credentials.dpapi",
+);
 
 const UNIFIED_MODELS = [
   {
     id: "nour-auto",
     name: "NOUR Auto · Cost-Safe Router",
+    owned_by: "nour",
+    context_length: 20000,
+  },
+  {
+    id: "nour-research",
+    name: "NOUR Research · Multi-Stage Web Research",
+    owned_by: "nour",
+    context_length: 20000,
+  },
+  {
+    id: "nour-chatgpt-plan",
+    name: "ChatGPT · Plan OAuth",
     owned_by: "nour",
     context_length: 20000,
   },
@@ -276,7 +296,9 @@ async function mergedModels() {
   } catch (err) {
     log("model list backend probe failed: " + String(err && err.message ? err.message : err));
   }
-  const logical = UNIFIED_MODELS.map(model => unifiedModelRecord(model));
+  const logical = UNIFIED_MODELS
+    .filter(model => model.id !== "nour-chatgpt-plan" || fs.existsSync(CHATGPT_PLAN_CREDENTIALS))
+    .map(model => unifiedModelRecord(model));
   const [autoModel, ...externalModels] = logical;
   const localModels = [];
   const otherPhysical = [];
