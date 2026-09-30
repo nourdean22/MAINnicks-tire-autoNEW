@@ -4,8 +4,8 @@
  * 1. With no invoice ever synced, the revenue figure is not a lower bound of
  *    anything, so it must read UNMEASURED, not ESTIMATE, and the banner must not
  *    call it "understated".
- * 2. A tile naming a metric the contract does not carry still throws in dev and
- *    test (the rename gate), but a production bundle keeps the card up.
+ * 2. (the unknown-metric fallback lives in todays-real-numbers-unknown-metric.test.tsx,
+ *    because it has to mock the contract lookup for the whole module.)
  */
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -21,7 +21,7 @@ vi.mock("@/lib/trpc", () => ({
 }));
 
 import { TodaysRealNumbers } from "../pages/admin/today/TodaysRealNumbers";
-import { tileMetricProvenance, todayPulseProvenance } from "../pages/admin/today/todayPulse";
+import { todayPulseProvenance } from "../pages/admin/today/todayPulse";
 
 afterEach(() => {
   cleanup();
@@ -80,18 +80,10 @@ describe("todayPulseProvenance · never synced", () => {
   });
 });
 
-describe("tileMetricProvenance", () => {
-  it("reads the contract for a known name", () => {
-    expect(tileMetricProvenance("Estimated recovery opportunity")).toBe("ESTIMATE");
-    expect(tileMetricProvenance("Tool engagements")).toBe("MEASURED");
-  });
-
-  it("still throws on an unknown name in dev and test, so CI catches a rename", () => {
-    expect(() => tileMetricProvenance("Conversions")).toThrow(/not in CANONICAL_METRICS/);
-  });
-
-  it("falls back to ESTIMATE in a production bundle instead of crashing the card", () => {
-    vi.stubEnv("DEV", false);
-    expect(tileMetricProvenance("Conversions")).toBe("ESTIMATE");
+describe("card tiles · contract names", () => {
+  it("read the contract for known names", () => {
+    const p = todayPulseProvenance(false);
+    expect(p.declinedWork).toBe("ESTIMATE"); // modeled
+    expect(p.reachedTool).toBe("MEASURED"); // observed
   });
 });

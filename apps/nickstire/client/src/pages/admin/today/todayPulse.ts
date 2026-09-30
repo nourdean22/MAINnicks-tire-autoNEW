@@ -69,7 +69,7 @@ export function abandonRate(calls: { last24h: number; abandoned24h: number }): n
  * the one label that never overclaims a number as counted. Dev and test still throw,
  * which is what keeps the render test the gate for a renamed metric.
  */
-export function tileMetricProvenance(canonicalName: string): TileProvenance {
+function tileMetricProvenance(canonicalName: string): TileProvenance {
   try {
     return metricProvenance(canonicalName);
   } catch (err) {
