@@ -53,6 +53,13 @@ vi.mock("node:dns", async (importOriginal) => {
   return { ...real, lookup, default: { ...real, lookup } };
 });
 
+// The ingest tool's daily quota writes to the database; the rebinding test
+// below needs it to say yes and nothing else.
+vi.mock("@/lib/ai/tool-quota", () => ({
+  checkAndIncrementToolQuota: vi.fn(async () => ({ ok: true, count: 1, cap: 50, resetAt: "" })),
+}));
+
+import { systemTools } from "@/lib/ai/tools/system";
 import {
   assertPublicUrl,
   connectBlockedReason,
@@ -153,6 +160,26 @@ describe("Q-14 · the address dialled is the address checked (DNS rebinding)", (
       expect(result.code).toBe("url_blocked");
       expect(result.reason).toBe("resolves_to_private_ipv4: 127.0.0.1");
     }
+    expect(hits).toBe(0);
+  });
+
+  it("ingestDocumentFromUrl (the model-driven sink) is pinned too, not only fetchPublicUrl", async () => {
+    // Orchestrator review on #2804: this tool keeps its own redirect walk, and
+    // dropping its dispatcher left every other test green.
+    dnsState.checkAnswers.set("rebind-ingest.test", [{ address: "93.184.216.34", family: 4 }]);
+    dnsState.connectAnswers.set("rebind-ingest.test", [{ address: "127.0.0.1", family: 4 }]);
+
+    const execute = systemTools.ingestDocumentFromUrl.execute as (
+      input: { url: string; filename?: string },
+      opts: unknown,
+    ) => Promise<Record<string, unknown>>;
+    const result = await execute({ url: `http://rebind-ingest.test:${port}/doc.pdf` }, {});
+
+    expect(result).toMatchObject({
+      ok: false,
+      code: "url_blocked",
+      error: "URL safety check failed: resolves_to_private_ipv4: 127.0.0.1",
+    });
     expect(hits).toBe(0);
   });
 
