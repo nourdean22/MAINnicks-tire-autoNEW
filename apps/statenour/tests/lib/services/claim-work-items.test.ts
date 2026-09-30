@@ -26,7 +26,7 @@ vi.mock("@/lib/demo-store", () => ({
 }));
 vi.mock("@/lib/runtime", () => ({ isDemoMode: false }));
 
-import { claimWorkItems } from "@/lib/services/runner-state";
+import { claimWorkItems, heartbeatRunner } from "@/lib/services/runner-state";
 
 describe("claimWorkItems TOCTOU and spin guard", () => {
   beforeEach(() => {
@@ -75,5 +75,33 @@ describe("claimWorkItems TOCTOU and spin guard", () => {
     expect(result).toHaveLength(0);
     // Should have checked findFirst exactly 4 times (hardCap = 2 * 2 = 4) and then bailed
     expect(mocks.workItem.findFirst).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not erase runner metadata when claim heartbeat omits metadata", async () => {
+    mocks.workItem.findFirst.mockResolvedValue(null);
+
+    await claimWorkItems({ nodeKey: "external-worker:nattynour", limit: 1 });
+
+    const upsert = mocks.runnerNode.upsert.mock.calls[0][0];
+    expect(upsert.update).not.toHaveProperty("metadata");
+    expect(upsert.create.metadata).toEqual({});
+  });
+
+  it("writes explicit heartbeat metadata on both update and create paths", async () => {
+    const metadata = {
+      externalWorker: { writesEnabled: false, lanes: { "local-qwen": { health: "ready" } } },
+    };
+
+    await heartbeatRunner({
+      nodeKey: "external-worker:nattynour",
+      label: "NOUR External Worker",
+      status: "READY",
+      version: "external-worker-v1",
+      metadata,
+    });
+
+    const upsert = mocks.runnerNode.upsert.mock.calls[0][0];
+    expect(upsert.update.metadata).toEqual(metadata);
+    expect(upsert.create.metadata).toEqual(metadata);
   });
 });
