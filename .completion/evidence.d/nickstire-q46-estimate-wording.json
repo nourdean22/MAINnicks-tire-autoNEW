@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "operator-pending (Q-46 wording): on /estimate (LaborEstimator.tsx) after a quote, the grey note under the price now shows the estimate-choice line (written / oral / no estimate; no work starts until you approve) above a server-owned disclaimer, and model text calling the repair necessary, urgent or the car dangerous or unsafe no longer appears. Covered offline by server/laborEstimateWording.test.ts (4 tests, red 4/4 on origin/main 762d8a5); the rendered page and the wording itself are for the operator to review."
+    }
+  }
+}
