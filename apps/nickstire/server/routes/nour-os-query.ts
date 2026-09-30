@@ -1654,39 +1654,10 @@ export const QUERY_HANDLERS: Record<string, QueryHandler> = {
     return getReelReliability();
   },
 
-  "instagram_autopost_run": async (filters) => {
-    const { runIgAutopost } = await import("../services/igAutopost");
-    const { isEnabled, setFlag } = await import("../services/featureFlags");
-    
-    const dryRun = filters.dryRun !== false;
-    const forceArchetype = filters.forceArchetype as any;
-    
-    const initialFlag = await isEnabled("legacy_autopost_live");
-    
-    if (!initialFlag && !dryRun) {
-      await setFlag("legacy_autopost_live", true);
-    }
-    
-    try {
-      const result = await runIgAutopost({
-        dryRun,
-        forceArchetype,
-        source: "admin",
-      });
-      return result;
-    } finally {
-      if (!initialFlag && !dryRun) {
-        await setFlag("legacy_autopost_live", false);
-      }
-    }
-  },
-
-  "instagram_autopost_set_config": async (filters) => {
-    const { setFlag } = await import("../services/featureFlags");
-    const enabled = filters.enabled === true;
-    await setFlag("legacy_autopost_live", enabled);
-    return { success: true, livePostingEnabled: enabled };
-  },
+  // instagram_autopost_run and instagram_autopost_set_config lived here until
+  // Q-13. Both mutate (one can publish live), so they moved to
+  // /api/nour-os/ig-control behind their own key: see nour-os-ig-control.ts.
+  // STATENOUR_SYNC_KEY alone can no longer post to the shop's Instagram.
 
   "instagram_autopost_test_hf": async () => {
     const dns = await import("dns");

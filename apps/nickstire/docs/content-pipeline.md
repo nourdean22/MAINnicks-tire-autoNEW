@@ -24,7 +24,8 @@ Operator (Nour)
   │
   ├─ Chat command ("generate an IG post")
   │   └─ statenour/lib/ai/tools/social.ts
-  │       └─ triggerInstagramAutopost → queryNick("instagram_autopost_run")
+  │       └─ triggerInstagramAutopost → controlNickIg("autopost_run")
+  │           (POST /api/nour-os/ig-control, NOUR_OS_IG_CONTROL_KEY — not the sync-key query bridge)
   │
   ├─ Admin UI button ("Fire Now")
   │   └─ nickstire/server/routers/nickActions.ts
