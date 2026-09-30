@@ -469,26 +469,39 @@ Date: ${String(m.date).slice(0, 64)}
       forceArchetype: z.enum(["educational", "promo", "behind_scenes", "testimonial", "meme", "tips", "showcase"]).optional().describe("Force a content archetype angle for the generated post."),
     }),
     execute: async ({ dryRun, forceArchetype }) => {
-      const { queryNick } = await import("@/lib/nickstire/query");
+      // Q-13: the IG control route, behind its own key and never retried (see
+      // lib/nickstire/ig-control.ts). The sync-key query bridge cannot post.
+      const { controlNickIg } = await import("@/lib/nickstire/ig-control");
       // Dry-runs are side-effect-free. For LIVE publishes, guard against a
       // re-run of this turn (auto-regen / retry / best-of-2) publishing a SECOND
       // public post. Fixed key (content is generated fresh each run) + 15-min window.
       if (dryRun) {
-        return queryNick("instagram_autopost_run", { dryRun, forceArchetype });
+        return controlNickIg("autopost_run", { dryRun, forceArchetype });
       }
       const { withToolIdempotency } = await import("./tool-idempotency");
       return withToolIdempotency<
-        Awaited<ReturnType<typeof queryNick>> | { deduped: boolean; status: string; message: string }
+        Awaited<ReturnType<typeof controlNickIg>> | { deduped: boolean; status: string; message: string }
       >(
         `triggerInstagramAutopost:live${forceArchetype ? `:${forceArchetype}` : ""}`,
         15 * 60_000,
-        () => queryNick("instagram_autopost_run", { dryRun, forceArchetype }),
+        () => controlNickIg("autopost_run", { dryRun, forceArchetype }),
         () => ({
           deduped: true,
           status: "skipped",
           message: "A live Instagram autopost was already triggered in the last 15 minutes — not re-posted (duplicate-guard).",
         }),
-        (r) => !((r as { error?: unknown })?.error), // queryNick returns {error} (no throw) on failure — release then
+        (r) => !((r as { error?: unknown })?.error), // controlNickIg returns {error} (no throw) on failure — release then
+        {
+          // A timeout or dropped reply may still end in a public post on the
+          // shop side: hold the claim as "unknown" instead of releasing it, so
+          // a re-run inside the window cannot publish a second post.
+          classifyResult: (r) =>
+            (r as { outcomeUnknown?: boolean })?.outcomeUnknown
+              ? "unknown"
+              : (r as { error?: unknown })?.error
+                ? "known_failure"
+                : "success",
+        },
       );
     },
   }),
@@ -509,8 +522,8 @@ Date: ${String(m.date).slice(0, 64)}
       enabled: z.boolean().describe("Set to true to allow scheduled live autoposting, or false to restrict to dry-runs only."),
     }),
     execute: async ({ enabled }) => {
-      const { queryNick } = await import("@/lib/nickstire/query");
-      const result = await queryNick("instagram_autopost_set_config", { enabled });
+      const { controlNickIg } = await import("@/lib/nickstire/ig-control");
+      const result = await controlNickIg("autopost_set_config", { enabled });
       return result;
     },
   }),

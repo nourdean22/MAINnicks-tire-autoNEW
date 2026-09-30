@@ -703,9 +703,9 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
       case "/stats":
         return await cmdStats(chatId);
       // Read-only Instagram, over the nickstire query bridge. Reads the SAME
-      // services the admin console reads; writes nothing. Note the sibling
-      // handlers instagram_autopost_run / _set_config in that same bridge map
-      // DO mutate — they are deliberately not reachable from here.
+      // services the admin console reads; writes nothing. The two IG actions
+      // that mutate live on nickstire's /api/nour-os/ig-control behind their
+      // own key (Q-13) — they are deliberately not reachable from here.
       case "/ig":
       case "/instagram":
         return await cmdIg(args, chatId);
@@ -1804,8 +1804,9 @@ async function cmdAlerts(chatId: string): Promise<void> {
 // never throws, so narrowing on "error" BEFORE touching .data is what stops a
 // dead bridge from rendering as a calm "0 blockers".
 //
-// Note the sibling handlers instagram_autopost_run / _set_config in that same
-// bridge map DO mutate. They are deliberately not reachable from here.
+// The two IG actions that mutate are not in that bridge map: they live on
+// nickstire's /api/nour-os/ig-control behind their own key (Q-13), and are
+// deliberately not reachable from here.
 
 /** The bridge resolves to { error } on every failure; it never rejects. */
 function igBridgeError(res: unknown): string | null {
