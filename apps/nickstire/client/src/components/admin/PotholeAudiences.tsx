@@ -75,8 +75,8 @@ export function PotholeAudiences({ days, onDaysChange }: { days: number; onDaysC
         </div>
         <p className="text-sm text-foreground/70">
           {r.totalRequests} requests in the last {r.window.days} days (previous {r.window.days}: {r.priorTotalRequests})
-          {r.unassignedRequests > 0 ? ` · ${r.unassignedRequests} with no ward` : ""}. City of Cleveland only — Euclid
-          streets are not in this data. Wards within 8 mi of the shop are listed first. Drafts only: nothing here posts or spends.
+          {r.unassignedRequests > 0 ? ` · ${r.unassignedRequests} with no ward` : ""}. City of Cleveland only: the shop's own
+          neighborhood is included; suburbs such as Euclid and East Cleveland are not. Wards within 8 mi of the shop are listed first. Drafts only: nothing here posts or spends.
         </p>
       </section>
 

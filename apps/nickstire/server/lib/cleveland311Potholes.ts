@@ -5,8 +5,10 @@
  * the ArcGIS layer Data_311/FeatureServer/0 (item 7ed7b5f316fc40e99b10dbcffde4ebbe).
  * Its licence is the Open Data Commons Open Database License (ODbL) v1.0
  * (item licenseInfo, read 2026-09-30). No key. Coverage is the CITY of
- * Cleveland only: the shop is in Euclid, which files its own requests
- * elsewhere, so Euclid streets never appear here.
+ * Cleveland only. The shop (BUSINESS.address, 17625 Euclid Ave, Cleveland)
+ * sits inside it, in Ward 10 / Euclid-Green. Neighbouring suburbs (the City
+ * of Euclid, East Cleveland, South Euclid) file their requests elsewhere and
+ * never appear here.
  *
  * WHAT THIS IS. A read-only map input for the Ad Studio. It ranks wards by how
  * many pothole repair requests residents filed in the last N days and drafts
@@ -43,7 +45,8 @@ const DRAFT_RADIUS_MILES = 1;
 /**
  * Wards whose request centre is within this distance of the shop rank first.
  * A heuristic, not a measured catchment: 8 mi reaches Collinwood, Glenville,
- * University Circle and Hough from Euclid, and stops short of the west side.
+ * University Circle and Hough from the shop in Euclid-Green, and stops short
+ * of the west side.
  * Measured 2026-09-30: by raw count alone, Ward 15 (15.6 mi) ranked above
  * Ward 9 (1.9 mi) and would have been the first draft offered.
  */

@@ -4,7 +4,7 @@
  * ODbL notice and a copy-only draft (no post/launch control).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 type Q = { data: unknown; isLoading: boolean; error: { message: string } | null; refetch: () => void };
 
@@ -84,6 +84,23 @@ describe("PotholeAudiences panel", () => {
     expect(screen.getByText(new RegExp(ATTRIBUTION.replace(/[()]/g, "\\$&")))).toBeTruthy();
     expect(screen.getByRole("button", { name: "Copy Ward 9 ad draft" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /post|launch|publish|schedule/i })).toBeNull();
+  });
+
+  it("the copied draft carries the ODbL notice, because the copy is what gets pasted into an ad", () => {
+    h.q = { ...h.q, data: report };
+    const writeText = vi.fn((_text: string) => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    render(<PotholeAudiences days={30} onDaysChange={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ward 9 ad draft" }));
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(writeText.mock.calls[0][0]).toContain("Hit a pothole around Glenville?");
+    expect(writeText.mock.calls[0][0]).toContain(ATTRIBUTION);
+  });
+
+  it("does not tell the operator the shop's own area is missing from the data", () => {
+    h.q = { ...h.q, data: report };
+    render(<PotholeAudiences days={30} onDaysChange={() => {}} />);
+    expect(screen.getByText(/the shop's own neighborhood is included/)).toBeTruthy();
   });
 
   it("says so plainly when 311 answered with zero requests", () => {
