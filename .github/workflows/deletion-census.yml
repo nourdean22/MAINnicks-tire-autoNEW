@@ -1,0 +1,57 @@
+name: Deletion census
+
+# Q-33 (docs/research/2026-09-23-estate-master-architecture.md §14.4): a weekly
+# code-side census of Railway variables no code reads and tables no code reads,
+# each marked DELETE / WATCH / KEEP. See scripts/census/deletion-census.mjs.
+#
+# Advisory. The census exits non-zero only when its own instrument is blind (it
+# parsed nothing, or a known-live control came back flagged); a long findings list
+# is the output, not a failure. DELETE is a candidate: removing a Railway variable
+# or dropping a table stays an operator action after a production read.
+#
+# Node only, no install: the census reads tracked files with git and regexes.
+
+on:
+  schedule:
+    - cron: "41 6 * * 1" # 06:41 UTC every Monday, off the hour and clear of branch-sweep's 06:17
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/census/**"
+      - ".github/workflows/deletion-census.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deletion-census-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  census:
+    name: census tests + weekly report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+
+      # Fixture tests for every classifier, each with a planted positive and a known
+      # negative, plus a planted unread variable scanned against the real tree.
+      - name: census tests
+        run: node --test scripts/census/deletion-census.test.mjs
+
+      - name: census report
+        run: |
+          node scripts/census/deletion-census.mjs | tee -a "$GITHUB_STEP_SUMMARY"
+          node scripts/census/deletion-census.mjs --json > deletion-census.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: deletion-census
+          path: deletion-census.json
+          retention-days: 90

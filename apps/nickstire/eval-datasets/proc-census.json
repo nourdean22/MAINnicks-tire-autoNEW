@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-09-29T22:24:33.573Z",
-  "count": 758,
+  "generatedAt": "2026-09-30T16:43:55.235Z",
+  "count": 759,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -731,6 +731,7 @@
     "query.vapi.status",
     "query.vapi.todayCalls",
     "query.vapi.todayMetrics",
+    "query.vehicleData.complaints",
     "query.vehicleData.decodeVin",
     "query.vehicleData.recalls",
     "query.voiceAgent.capacityCheck",
