@@ -1,6 +1,6 @@
 # Runbook · Current truth — where Statenour runs
 
-- **Status:** active · **Domain:** orientation · **Risk:** low · **Last verified:** 2026-06-09
+- **Status:** active · **Domain:** orientation · **Risk:** low · **Last verified:** 2026-09-29
 - **When to use:** first thing in any session, or whenever a doc seems to contradict reality.
 - **Source of truth:** [`../CURRENT-TRUTH.md`](../CURRENT-TRUTH.md), [`../../AGENTS.md`](../../AGENTS.md), [`../RECONCILIATION.md`](../RECONCILIATION.md).
 
@@ -19,6 +19,7 @@ pnpm check:stale-docs     # active docs assert no retired fact as current
 ## Gotchas
 
 - Historical docs under `docs/archive/**` read like instructions but are **retired** history — never paste them into an agent as current context.
+- NattyNour local Qwen/OpenWebUI/external-worker capability is an auxiliary execution surface. It does not replace `main → Railway → bdnick.info` as production authority; read CURRENT-TRUTH for its current proof/promotion state.
 
 ## Verification
 

@@ -106,6 +106,26 @@ describe("bridge_outbox key derivation", () => {
     expect(paid.key).toMatch(/^v1:shop\.invoice\.paid:invoice:[a-p]{16}$/);
   });
 
+  // Q-12 phase 1c: the callback, emergency and review emit sites now carry their row ids.
+  it("keys callbacks and emergencies by the row the route persisted", async () => {
+    const cb = await keyFor("callback_requested", { id: 311, name: "Ann", phone: PHONE, reason: null });
+    expect(cb.key).toBe("v1:lead.callback_requested:callback:311");
+    const em = await keyFor("emergency_request", { id: 12, name: "Ann", phone: PHONE, urgency: "emergency" });
+    expect(em.key).toBe("v1:lead.emergency:emergency:12");
+    // A failed insert leaves id null: unkeyed, never keyed on something weaker.
+    expect(await keyFor("callback_requested", { id: null, name: "Ann", phone: PHONE })).toEqual({ reason: "no_object_id" });
+  });
+
+  it("keys a review by its stable id, even Google's 10-digit review time (the phone guard would refuse it in the clear)", async () => {
+    const a = await keyFor("review_detected", { reviewId: "1727623800", rating: 5, customerName: "Ann" });
+    const b = await keyFor("review_detected", { reviewId: "1727623800", rating: 5, customerName: "Ann" }, "2026-09-30T02:00:00.000Z");
+    const other = await keyFor("review_detected", { reviewId: "1727623801", rating: 5, customerName: "Ann" });
+    expect(a.key).toMatch(/^v1:review\.received:review:[a-p]{16}$/);
+    expect(b.key).toBe(a.key); // the 6-hourly monitor re-seeing a review is one fact
+    expect(other.key).not.toBe(a.key);
+    expect(a.key).not.toContain("1727623800");
+  });
+
   it("keeps stage_changed off the outbox (a re-entered stage would dedupe a real event)", async () => {
     expect(await keyFor("stage_changed", { id: 1, workOrderId: 1, newStatus: "done" })).toEqual({ reason: "excluded" });
   });

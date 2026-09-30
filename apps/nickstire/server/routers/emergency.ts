@@ -158,6 +158,7 @@ export const emergencyRouter = router({
         // Unified event bus — CRITICAL priority (→ NOUR OS + Telegram + learning)
         import("../services/eventBus").then(({ emit }) =>
           emit.emergencyRequest({
+            id: emergencyId,
             name,
             phone,
             problem: problem || "No description",

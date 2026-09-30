@@ -171,7 +171,7 @@ describe("POST /api/system/apply-pending-migration · registry copy matches the 
    */
   it("runs 20260929123500_reality_event_envelope statement for statement, then verifies its three indexes", async () => {
     const name = "20260929123500_reality_event_envelope";
-    const file = fileURLToPath(new URL(`../../prisma/migrations-pending/${name}/migration.sql`, import.meta.url));
+    const file = fileURLToPath(new URL(`../../prisma/migrations/${name}/migration.sql`, import.meta.url));
     const expected = statementsOf(readFileSync(file, "utf8"));
 
     const res = await post({ name });

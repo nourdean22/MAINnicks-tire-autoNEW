@@ -1753,6 +1753,33 @@
     }
   },
   {
+    "name": "getExternalWorkerJob",
+    "description": "Read one previously queued NOUR external-worker job, including durable queue status, bounded result payload, error state, and Reality Ledger phase receipts.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "jobId": {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "jobId"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "getExternalWorkerLanes",
+    "description": "Read the live NOUR external-worker plane: Codex, Claude Code, Antigravity, and the local Qwen gateway. Reports measured runner freshness, auth/health/quota state, and cost class. No worker is executed.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "type": "object"
+    }
+  },
+  {
     "name": "getFinancialSnapshot",
     "description": "Get the latest financial snapshot",
     "inputSchema": {
@@ -2808,6 +2835,72 @@
       },
       "required": [
         "question"
+      ],
+      "type": "object"
+    }
+  },
+  {
+    "name": "queueExternalWorkerJob",
+    "description": "Queue a bounded coding/reasoning job onto NOUR's existing durable local-worker queue. AUTO routes only across subscription-included or local-free lanes and never silently uses metered API billing. Read-only is the default. Workspace writes require an explicit allowWorkspaceWrite=true AND a separate local worker write-policy switch.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "allowWorkspaceWrite": {
+          "default": false,
+          "type": "boolean"
+        },
+        "capability": {
+          "default": "coder",
+          "enum": [
+            "supervisor",
+            "deep_reasoner",
+            "coder",
+            "large_context",
+            "multimodal",
+            "cheap_local",
+            "embed",
+            "rerank",
+            "ocr",
+            "voice"
+          ],
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        },
+        "mode": {
+          "default": "AUTO",
+          "enum": [
+            "FREE",
+            "AUTO",
+            "MAX"
+          ],
+          "type": "string"
+        },
+        "preferredLane": {
+          "enum": [
+            "codex",
+            "claude-code",
+            "antigravity",
+            "local-qwen"
+          ],
+          "type": "string"
+        },
+        "prompt": {
+          "maxLength": 20000,
+          "minLength": 5,
+          "type": "string"
+        },
+        "workspaceKey": {
+          "default": "repo",
+          "pattern": "^[a-z0-9][a-z0-9_-]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "prompt"
       ],
       "type": "object"
     }

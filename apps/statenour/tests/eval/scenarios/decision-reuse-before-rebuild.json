@@ -1,0 +1,38 @@
+{
+  "id": "decision-reuse-before-rebuild",
+  "name": "Reuse incumbent before rebuilding",
+  "description": "Operator asks for a new monitoring dashboard even though the repository already has a cockpit with stubbed metrics. Tests whether Nick fixes and extends the incumbent instead of creating a duplicate system.",
+  "category": "decision",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "build me a new unified health cost mission dashboard for the OS"
+      }
+    ]
+  },
+  "contextSetup": [
+    "An existing cockpit UI and cockpitStats endpoint already exist.",
+    "Several cockpit fields are hard-coded to zero or empty arrays.",
+    "Existing cost, health, mission receipt, and eval stores already contain the needed data."
+  ],
+  "judgeCriteria": [
+    {
+      "id": "detects-incumbent",
+      "description": "Recognizes the existing cockpit as the primary extension point rather than assuming the capability is missing.",
+      "weight": 4
+    },
+    {
+      "id": "fixes-built-unwired",
+      "description": "Prioritizes wiring real stores into stubbed fields before proposing a new dashboard.",
+      "weight": 3
+    },
+    {
+      "id": "avoids-duplicate-system",
+      "description": "Does not create a second cockpit, metric store, or parallel observability stack without evidence it is necessary.",
+      "weight": 3
+    }
+  ],
+  "expectedBehavior": "Inspect the existing cockpit, wire its fake or empty metrics to the real incumbent data stores, and extend that surface instead of duplicating it.",
+  "tags": ["nour-command", "reuse-first", "built-unwired", "architecture"]
+}

@@ -59,7 +59,7 @@ const episodePayload = z
 const darwinPayload = recordPayload;
 
 const EPISODE_TYPE =
-  /^episode\.(decision|tool|tool_gap|mission|content|experiment|business_outcome)\.([a-z0-9_]+)$/;
+  /^episode\.(decision|tool|tool_gap|mission|worker|content|experiment|business_outcome)\.([a-z0-9_]+)$/;
 const PROOF_TYPE = /^proof\.(run|holdout|episode_failed)$/;
 const DARWIN_TYPE =
   /^darwin\.(run_refused|run_failed|proposal_opened|no_proposal)$/;

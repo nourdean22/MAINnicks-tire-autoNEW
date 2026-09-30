@@ -1,5 +1,12 @@
 # Bringing the producer up on the always-on shop PC
 
+> **2026-09-28 authority update:** this is now a fallback/historical WGC runbook. Nick's
+> production `sign` authority moved to NicksMax's direct V380 cloud/P2P -> local RTSP lane.
+> Do not enable this WGC `sign` producer concurrently with NicksMax. See
+> `docs/operations/NICKSMAX-CAMERA-HOST-2026-09-28.md` for current truth.
+>
+
+
 Written 2026-09-10 for the session standing up the shop computer. Everything below was
 measured that day from a laptop sitting on the shop LAN, not inferred.
 

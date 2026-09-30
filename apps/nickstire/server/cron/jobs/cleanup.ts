@@ -142,6 +142,30 @@ export async function cleanupOldData(): Promise<{ recordsProcessed: number; deta
     log.warn("bridge_outbox shadow cleanup failed", { error: err instanceof Error ? err.message : String(err) });
   }
 
+  // Q-12 phase 1c · ADR-0019 §9: while shadow rows are being recorded, log the
+  // 7-day completeness totals (counts only) so the comparison is read, not just
+  // written. Only while the flag is ON: off, there is nothing being compared,
+  // and the admin query (nourOsBridge.outboxCompleteness) still answers on demand.
+  try {
+    const { isEnabled } = await import("../../services/featureFlags");
+    const { bridgeOutboxCompleteness } = await import("../../services/bridgeOutboxCompleteness");
+    const report = (await isEnabled("bridge_outbox_shadow"))
+      ? await bridgeOutboxCompleteness({ windowDays: 7 })
+      : null;
+    if (report?.state === "measured") {
+      log.info("bridge_outbox completeness", {
+        windowDays: report.windowDays,
+        shadowEnabled: report.shadowEnabled,
+        ...report.totals,
+        byFamily: Object.fromEntries(report.families.map((f) => [f.family, { source: f.source, missing: f.missing, extra: f.extra }])),
+      });
+    } else if (report?.state === "error") {
+      log.warn("bridge_outbox completeness unavailable", { family: report.family });
+    }
+  } catch (err) {
+    log.warn("bridge_outbox completeness failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+
   log.info("Cleanup completed", { cleaned });
   return { recordsProcessed: cleaned, details: `Cleaned ${cleaned} stale entries` };
 }

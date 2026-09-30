@@ -14,6 +14,13 @@ import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
+import {
+  getExternalWorkerJob,
+  getExternalWorkerLaneSnapshots,
+  getExternalWorkerLanes,
+  queueExternalWorker,
+} from "@/lib/workers/external-worker";
+import { EXTERNAL_WORKER_LANE_IDS } from "@/lib/workers/contracts";
 
 // moneyprinter rewrites the shared MoneyPrinterTurbo config.toml before each
 // run while a prior 7-minute subprocess may still be reading it — one run at
@@ -66,6 +73,76 @@ export function parseMoneyprinterResult(stdout: string): { taskId: string | null
 const READ_ONLY_NOTEBOOKLM_ACTIONS = new Set(["ask_question", "list_notebooks", "get_health"]);
 
 export const systemTools = {
+  getExternalWorkerLanes: tool({
+    description:
+      "Read the live NOUR external-worker plane: Codex, Claude Code, Antigravity, and the local Qwen gateway. Reports measured runner freshness, auth/health/quota state, and cost class. No worker is executed.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      const [snapshot, lanes] = await Promise.all([
+        getExternalWorkerLaneSnapshots(),
+        getExternalWorkerLanes(),
+      ]);
+      return {
+        ...snapshot,
+        lanes: lanes.map((lane) => ({
+          id: lane.id,
+          provider: lane.provider,
+          model: lane.model ?? null,
+          capabilities: lane.capabilities,
+          health: lane.health,
+          quota: lane.quota,
+          authClass: lane.authClass,
+          costClass: lane.costClass,
+          priority: lane.priority,
+        })),
+      };
+    },
+  }),
+
+  queueExternalWorkerJob: tool({
+    description:
+      "Queue a bounded coding/reasoning job onto NOUR's existing durable local-worker queue. AUTO routes only across subscription-included or local-free lanes and never silently uses metered API billing. Read-only is the default. Workspace writes require an explicit allowWorkspaceWrite=true AND a separate local worker write-policy switch.",
+    inputSchema: z.object({
+      prompt: z.string().min(5).max(20_000),
+      capability: z
+        .enum([
+          "supervisor",
+          "deep_reasoner",
+          "coder",
+          "large_context",
+          "multimodal",
+          "cheap_local",
+          "embed",
+          "rerank",
+          "ocr",
+          "voice",
+        ])
+        .default("coder"),
+      mode: z.enum(["FREE", "AUTO", "MAX"]).default("AUTO"),
+      preferredLane: z.enum(EXTERNAL_WORKER_LANE_IDS).optional(),
+      workspaceKey: z
+        .string()
+        .regex(/^[a-z0-9][a-z0-9_-]*$/)
+        .default("repo"),
+      allowWorkspaceWrite: z.boolean().default(false),
+      idempotencyKey: z.string().min(1).max(160).optional(),
+    }),
+    execute: async (input) =>
+      queueExternalWorker({ ...input, requestedBy: "nick" }),
+  }),
+
+  getExternalWorkerJob: tool({
+    description:
+      "Read one previously queued NOUR external-worker job, including durable queue status, bounded result payload, error state, and Reality Ledger phase receipts.",
+    inputSchema: z.object({
+      jobId: z.string().min(1).max(100),
+    }),
+    execute: async ({ jobId }) => {
+      const job = await getExternalWorkerJob(jobId);
+      return job ?? { error: "external_worker_job_not_found", jobId };
+    },
+  }),
+
   runDeviceCommand: tool({
     description:
       "Queue a smart-home command to a physical device (lights, locks, cameras, thermostats). Use when Nour says things like 'lock the front door', 'turn off the shop lights', 'take a snapshot'. Identify the device by name OR location + type — Nick resolves to the closest match.",

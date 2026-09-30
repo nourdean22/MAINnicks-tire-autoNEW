@@ -143,6 +143,28 @@
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {
+    "name": "get_external_worker_job",
+    "camelName": "getExternalWorkerJob",
+    "category": "personal_read",
+    "riskClass": "low",
+    "riskDeclared": true,
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "896c580d169ea575",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "get_external_worker_lanes",
+    "camelName": "getExternalWorkerLanes",
+    "category": "personal_read",
+    "riskClass": "low",
+    "riskDeclared": true,
+    "sideEffecting": false,
+    "requiredEnv": [],
+    "descriptionSha256": "420419b04f912cc0",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
     "name": "get_financial_snapshot",
     "camelName": "getFinancialSnapshot",
     "category": "personal_read",
@@ -305,6 +327,17 @@
     "sideEffecting": false,
     "requiredEnv": [],
     "descriptionSha256": "dd62570d71d79029",
+    "inputSchemaSha256": "efddc7bd8bbcef73"
+  },
+  {
+    "name": "queue_external_worker_job",
+    "camelName": "queueExternalWorkerJob",
+    "category": "personal_write",
+    "riskClass": "medium",
+    "riskDeclared": true,
+    "sideEffecting": true,
+    "requiredEnv": [],
+    "descriptionSha256": "f2749c822e165afb",
     "inputSchemaSha256": "efddc7bd8bbcef73"
   },
   {

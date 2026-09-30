@@ -122,6 +122,8 @@ const READ_TOOLS: readonly string[] = [
   // personal read — the operator's own loop from a phone
   "getTasks",
   "getMissions",
+  "getExternalWorkerJob",
+  "getExternalWorkerLanes",
   "getFinancialSnapshot",
   "getTodaySchedule",
   "getWeeklyTargets",
@@ -142,6 +144,7 @@ const READ_TOOLS: readonly string[] = [
 const TASKS_ONLY_TOOLS: readonly string[] = [
   "createTask",
   "completeTask",
+  "queueExternalWorkerJob",
   "pinMemory",
   "triggerBrief",
   "sendTelegram",

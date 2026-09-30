@@ -100,6 +100,8 @@ export async function processReviewMonitor(): Promise<{ recordsProcessed: number
       // Dispatch through event bus (reaches NOUR OS bridge, Telegram, learning, statenour, feedback loop)
       import("../../services/eventBus").then(({ dispatch }) =>
         dispatch("review_detected", {
+          // The review_replies identity, so bridge_outbox records this review once (ADR-0019 §4).
+          reviewId,
           rating: review.rating || 3,
           reviewText: review.text || "",
           customerName: review.author_name || "Anonymous",

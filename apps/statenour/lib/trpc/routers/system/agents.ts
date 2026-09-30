@@ -26,6 +26,7 @@ import {
 import {
   buildAgentTraceByMessage,
 } from "@/lib/services/agent-trace-by-message";
+import { buildCockpitStats } from "@/lib/services/system-observability";
 const TraceSourceSchema = z.enum([
   "chat",
   "cron",
@@ -246,103 +247,11 @@ export const agentsProcedures = {
     ),
 
   /**
-   * Cockpit Observability stats. Pulls cost, TTFT averages, memory decay aggregates,
-   * recent runs, and prompt versions table.
+   * Cockpit Observability stats. Real data only: AiGeneration cost/latency,
+   * ChatMessage TTFT/feedback, AgentTrace runs, recent BrainMemory recall,
+   * eval receipts, and external-worker heartbeat state.
    */
-  cockpitStats: operatorProcedure.query(async () => {
-    const { prisma } = await import("@/lib/prisma");
-
-    // 1. KPI Metrics
-    const costAgg = { _sum: { costCents: 0 as number | null }, _avg: { durationMs: 0 as number | null } };
-
-    const totalCostCents = costAgg._sum.costCents ?? 0;
-    const avgDurationMs = costAgg._avg.durationMs ?? 0;
-
-    // Fetch durMs for p95
-    const durations: Array<{ durationMs: number }> = [];
-    const p95Idx = Math.floor(durations.length * 0.95);
-    const p95TtftMs = durations[p95Idx]?.durationMs ?? 0;
-
-    const feedbackAgg = { _avg: { score: 0 as number | null } };
-    const averageFeedback = feedbackAgg._avg.score ?? 0;
-
-    const pendingApprovalsCount = await prisma.approvalRequest.count({
-      where: { status: "pending_approval" },
-    });
-
-    // 2. Timeline of recent runs
-    const recentRuns: Array<{
-      id: string;
-      traceId: string;
-      model: string;
-      provider: string;
-      status: string;
-      costCents: number;
-      durationMs: number;
-      feedback: { score: number; note: string } | null;
-      createdAt: Date;
-    }> = [];
-
-    // 3. Memory Category usage (for Decay Visualizer)
-    const memoryHits: Array<{ category: string; _count: { _all: number } }> = [];
-
-    // 4. Prompt versions table
-    const promptVersionsRaw = await prisma.promptVersion.findMany({
-      orderBy: { version: "desc" },
-    }) as unknown as Array<{
-      id: string;
-      version: number;
-      active: boolean;
-      systemPrompt: string;
-      createdAt: Date;
-      runs: Array<{ feedback: { score: number } | null }>;
-    }>;
-
-    const promptVersions = promptVersionsRaw.map((pv) => {
-      const runsWithFeedback = pv.runs.filter((r) => r.feedback !== null);
-      const avgScore =
-        runsWithFeedback.length > 0
-          ? runsWithFeedback.reduce((acc, r) => acc + (r.feedback?.score ?? 0), 0) /
-            runsWithFeedback.length
-          : 0;
-
-      return {
-        id: pv.id,
-        version: pv.version,
-        active: pv.active,
-        systemPrompt: pv.systemPrompt.slice(0, 100) + "...",
-        createdAt: pv.createdAt.toISOString(),
-        totalRuns: pv.runs.length,
-        averageFeedback: avgScore,
-      };
-    });
-
-    return {
-      kpis: {
-        totalCostCents,
-        p95TtftMs,
-        averageFeedback,
-        pendingApprovalsCount,
-        avgDurationMs,
-      },
-      recentRuns: recentRuns.map((r) => ({
-        id: r.id,
-        traceId: r.traceId,
-        model: r.model,
-        provider: r.provider,
-        status: r.status,
-        costCents: r.costCents,
-        durationMs: r.durationMs,
-        feedback: r.feedback,
-        createdAt: r.createdAt.toISOString(),
-      })),
-      memoryDecay: memoryHits.map((mh) => ({
-        category: mh.category,
-        count: mh._count._all,
-      })),
-      promptVersions,
-    };
-  }),
+  cockpitStats: operatorProcedure.query(async () => buildCockpitStats()),
 
   /**
    * Set specific prompt version active and disable other versions.

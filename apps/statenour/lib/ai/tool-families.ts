@@ -233,6 +233,9 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   runDeviceCommand: { family: "device", description: "Dispatch a device command (Ring/Eufy/Tuya)", cost: "cheap" },
 
   // ── Meta (system introspection) ──
+  getExternalWorkerLanes: { family: "meta", description: "Read live NOUR external-worker lanes with auth, health, quota, capabilities, and cost class", cost: "cheap", tags: ["worker", "routing"] },
+  getExternalWorkerJob: { family: "meta", description: "Read durable status, result/error state, and Reality Ledger receipts for one external-worker job", cost: "cheap", tags: ["worker", "receipts"] },
+  queueExternalWorkerJob: { family: "meta", description: "Queue a bounded external-worker job through NOUR's governed durable worker plane", cost: "medium", tags: ["worker", "routing", "durable"] },
   listTools: { family: "meta", description: "List available tools (self-reflection)", cost: "cheap" },
   toolHealth: { family: "meta", description: "Check tool health / recent failures", cost: "cheap" },
   getCronStatus: { family: "meta", description: "Query cron fire/fail status", cost: "cheap" },
