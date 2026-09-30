@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { ArrowLeft, Sparkles, Loader2, Send, CalendarClock, AlertTriangle, Megaphone, Copy, Target } from "lucide-react";
 import { CampaignPlanViewer } from "@/components/admin/CampaignPlanViewer";
+import { PotholeAudiences } from "@/components/admin/PotholeAudiences";
 import type { CampaignInput, CampaignOutput } from "@nour/meta-ads-architect";
 
 const ANGLES = [
@@ -319,7 +320,8 @@ function CampaignArchitectView() {
 
 export default function AdStudio() {
   const { user, loading: authLoading } = useAuth();
-  const [tab, setTab] = useState<"single" | "campaign">("single");
+  const [tab, setTab] = useState<"single" | "campaign" | "potholes">("single");
+  const [potholeDays, setPotholeDays] = useState(30);
 
   if (authLoading) {
     return <div className="min-h-screen grid place-items-center bg-background"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
@@ -356,11 +358,23 @@ export default function AdStudio() {
           >
             Campaign Architect
           </button>
+          <button
+            onClick={() => setTab("potholes")}
+            className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors ${tab === "potholes" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Pothole Map
+          </button>
         </div>
       </header>
 
       <div className="max-w-4xl mx-auto p-5">
-        {tab === "single" ? <SingleAdView /> : <CampaignArchitectView />}
+        {tab === "single" ? (
+          <SingleAdView />
+        ) : tab === "campaign" ? (
+          <CampaignArchitectView />
+        ) : (
+          <PotholeAudiences days={potholeDays} onDaysChange={setPotholeDays} />
+        )}
       </div>
     </div>
   );

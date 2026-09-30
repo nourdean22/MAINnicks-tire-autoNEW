@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "operator-pending (Q-53): Ad Studio gains a third tab, Pothole Map, that lists Cleveland 311 pothole repair requests by ward with a copy-only ad draft per ward. Render states are pinned by client/src/__tests__/pothole-audiences-panel.test.tsx (error renders as an error, never an empty list; ranked wards; ODbL notice; no post/launch control). A signed-in walkthrough of /admin Ad Studio -> Pothole Map on the live site needs the operator after merge."
+    }
+  }
+}
