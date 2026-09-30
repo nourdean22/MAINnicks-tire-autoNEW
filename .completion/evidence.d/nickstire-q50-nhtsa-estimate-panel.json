@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "deferred": "operator-pending (Q-50 phase 1, 2026-09-30): open /admin > Work Orders, tap any order whose vehicle has a 4-digit year, make and model; below the parts list a new 'NHTSA · RECALLS & COMPLAINTS (information only)' block lists recall campaigns newest first (red 'Maker says: do not drive / park outside' badges when NHTSA sets them) and owner-complaint counts by component. An order missing year/make/model shows 'Add the 4-digit year, make and model...' and sends no request. A failed NHTSA call shows an amber 'unavailable - NOT the same as none on file' box with Retry. Render-proven in client/src/__tests__/nhtsa-vehicle-panel.test.tsx (5 cases) and the admin render matrix (ok/loading/error); live NHTSA endpoints checked by curl from the build container (2018 Honda Accord: 6 recalls, 1,882 complaints). Not yet seen on a phone."
+    }
+  }
+}

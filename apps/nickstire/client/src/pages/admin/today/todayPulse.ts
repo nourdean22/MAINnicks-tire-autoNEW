@@ -61,6 +61,24 @@ export function abandonRate(calls: { last24h: number; abandoned24h: number }): n
 }
 
 /**
+ * Q-23 · the label for a tile that shows a canonical metric, safe to call in render.
+ *
+ * `metricProvenance` throws on a name the contract does not carry, so a typo fails
+ * the test run (ROS-003). In a production bundle the same throw would take the whole
+ * card down over a label. So outside dev/test an unknown name falls back to ESTIMATE:
+ * the one label that never overclaims a number as counted. Dev and test still throw,
+ * which is what keeps the render test the gate for a renamed metric.
+ */
+function tileMetricProvenance(canonicalName: string): TileProvenance {
+  try {
+    return metricProvenance(canonicalName);
+  } catch (err) {
+    if (import.meta.env.DEV) throw err;
+    return "ESTIMATE";
+  }
+}
+
+/**
  * Q-23 · which of MEASURED / ESTIMATE / UNMEASURED each number on the card wears.
  *
  * Canonical names are used where the tile shows exactly that metric, so the label
@@ -72,8 +90,13 @@ export function abandonRate(calls: { last24h: number; abandoned24h: number }): n
  *     and "Unmatched paid" revenue, which the contract names only separately.
  * A mirror lagging past the warn threshold makes revenue a lower bound (the card
  * already says it is understated), so it is a partial read, i.e. an ESTIMATE.
+ * A mirror that has never synced an invoice supplies nothing, so the revenue
+ * figure is not a lower bound of anything: it is UNMEASURED (phase 2).
  */
-export function todayPulseProvenance(revenueMirrorStale: boolean): {
+export function todayPulseProvenance(
+  revenueMirrorStale: boolean,
+  revenueNeverSynced = false,
+): {
   declinedWork: TileProvenance;
   calls: TileProvenance;
   reachedTool: TileProvenance;
@@ -82,11 +105,14 @@ export function todayPulseProvenance(revenueMirrorStale: boolean): {
 } {
   return {
     // A sum of estimates nobody accepted: an opportunity, never money.
-    declinedWork: metricProvenance("Estimated recovery opportunity"),
+    declinedWork: tileMetricProvenance("Estimated recovery opportunity"),
     calls: provenanceOf("observed"),
-    reachedTool: metricProvenance("Tool engagements"),
+    reachedTool: tileMetricProvenance("Tool engagements"),
     // "Hung up under 20s" is a duration heuristic for a genuine abandon.
-    abandoned: metricProvenance("Abandoned calls"),
-    revenue: provenanceOf("observed", revenueMirrorStale ? "partial" : "ok"),
+    abandoned: tileMetricProvenance("Abandoned calls"),
+    revenue: provenanceOf(
+      "observed",
+      revenueNeverSynced ? "unavailable" : revenueMirrorStale ? "partial" : "ok",
+    ),
   };
 }
