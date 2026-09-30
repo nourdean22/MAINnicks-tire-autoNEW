@@ -19,6 +19,8 @@
  */
 
 import { isCallbackDuplicateLead } from "@shared/leadSource";
+import { type TileProvenance, provenanceOf } from "@shared/tileProvenance";
+import { tileMetricProvenance } from "./todayPulse";
 
 /** 4h uncontacted = SLA breach. Matches LeadsBrief's red tier + the visual SLA timer. */
 export const SLA_BREACH_MS = 4 * 60 * 60 * 1000;
@@ -144,4 +146,55 @@ export function deriveMoneyRisks(
     topItem === null ? null : (topItem as MoneyRiskItem).kind === "lead" ? "leads" : "callbacks";
 
   return { staleLeadCount, callbacksWaitingCount, atRiskCents, totalRisks, severity, topItem, primary };
+}
+
+/**
+ * Q-23 phase 4 · which bundle reads this card could NOT trust.
+ *
+ * `overviewMediumBundle` runs leads and callbacks as separate settled reads and
+ * reports each in `slices` (server/services/adminBundle.ts). A failed slice
+ * arrives as `null`, which `deriveMoneyRisks` reads as an empty list, so a
+ * leads-only failure used to render as "no stale leads", and a failure of both
+ * as no card at all: the same picture as a clean day. A failed slice is
+ * UNKNOWN, never zero.
+ *
+ * `slices` absent (a server that predates the map) is treated as readable, the
+ * behaviour this card always had.
+ */
+export interface RiskSlices {
+  leads?: { available: boolean } | null;
+  callbacks?: { available: boolean } | null;
+}
+
+export function unreadableRiskSlices(slices: RiskSlices | null | undefined): {
+  leads: boolean;
+  callbacks: boolean;
+} {
+  return {
+    leads: slices?.leads?.available === false,
+    callbacks: slices?.callbacks?.available === false,
+  };
+}
+
+/**
+ * Q-23 phase 4 · the MEASURED / ESTIMATE word each number on this card wears.
+ *
+ * Both counts are rows the database returned, so they are MEASURED. The dollar
+ * figure is the sum of quotes stored on stale leads (`estimatedValueCents` is set
+ * only when a quote was given, see opportunityQueue.collectStaleLeads), which is
+ * the contract's "Potential pipeline value": quoted work, not money received. The
+ * label follows METRICS-CONTRACT.md if the contract ever reclassifies it.
+ */
+export function moneyRisksProvenance(): {
+  staleLeads: TileProvenance;
+  callbacksWaiting: TileProvenance;
+  atRisk: TileProvenance;
+  unreadable: TileProvenance;
+} {
+  return {
+    staleLeads: provenanceOf("observed"),
+    callbacksWaiting: provenanceOf("observed"),
+    atRisk: tileMetricProvenance("Potential pipeline value"),
+    unreadable: provenanceOf("observed", "unavailable"),
+  };
 }
