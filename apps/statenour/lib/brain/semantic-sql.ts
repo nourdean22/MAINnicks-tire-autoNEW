@@ -137,6 +137,46 @@ export async function scoreCandidatesInSql(
   return { scores, sqlIds, fallbackVectors, rowsFound: rows.length, corrupted };
 }
 
+/** The slice of the Prisma client the JSON fallback needs — injectable for tests. */
+export interface JsonEmbeddingClient {
+  vectorEmbedding: {
+    findMany(args: {
+      where: { sourceType: string; sourceId: { in: string[] } };
+      select: { sourceId: true; embedding: true };
+    }): Promise<{ sourceId: string; embedding: string }[]>;
+  };
+}
+
+/**
+ * The pre-Q-17 path, kept as the fallback when the SQL scorer cannot run
+ * (pgvector or `embedding_vec` unavailable). Every row is a fallback row, so
+ * `noveltyWindowSims` computes every pair in Node and issues no SQL.
+ */
+export async function scoreCandidatesFromJson(
+  db: JsonEmbeddingClient,
+  queryVec: number[],
+  candidateIds: string[],
+): Promise<SemanticScores> {
+  const rows = await db.vectorEmbedding.findMany({
+    where: { sourceType: "brain_memory", sourceId: { in: candidateIds } },
+    select: { sourceId: true, embedding: true },
+  });
+  const scores = new Map<string, number>();
+  const fallbackVectors = new Map<string, number[]>();
+  let corrupted = 0;
+  for (const row of rows) {
+    try {
+      const vec = JSON.parse(row.embedding) as number[];
+      if (!Array.isArray(vec) || vec.length !== queryVec.length) continue;
+      scores.set(row.sourceId, cosineSimilarity(queryVec, vec));
+      fallbackVectors.set(row.sourceId, vec);
+    } catch {
+      corrupted++;
+    }
+  }
+  return { scores, sqlIds: new Set(), fallbackVectors, rowsFound: rows.length, corrupted };
+}
+
 /** Order-independent key for a pair of ids. */
 export function pairKey(a: string, b: string): string {
   return a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`;

@@ -23,6 +23,7 @@ import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { cosineSimilarity, semanticSearch } from "@/lib/brain/embedding-utils";
 import {
   noveltyWindowSims,
+  scoreCandidatesFromJson,
   scoreCandidatesInSql,
   type SemanticScores,
 } from "@/lib/brain/semantic-sql";
@@ -1858,11 +1859,17 @@ async function getSemanticScores(
   // candidate's JSON embedding (~4 MB a turn) and run cosine in Node; the
   // cosine now runs where the vectors live and only the scores come back.
   // Equality contract and the one intended difference: lib/brain/semantic-sql.ts.
-  const semantic = await scoreCandidatesInSql(
-    prisma,
-    queryVec,
-    memories.map((m) => m.id),
-  );
+  const candidateIds = memories.map((m) => m.id);
+  let semantic: SemanticScores;
+  try {
+    semantic = await scoreCandidatesInSql(prisma, queryVec, candidateIds);
+  } catch (err) {
+    // Fail soft, like every other lane: the SQL scorer needs pgvector, and the
+    // JSON column exists precisely so recall survives without it. Fall back to
+    // the pre-Q-17 path (every row a fallback row) instead of failing the turn.
+    logError("brain.contextual-recall", err, { fn: "getSemanticScores.sql" }, "warn");
+    semantic = await scoreCandidatesFromJson(prisma, queryVec, candidateIds);
+  }
 
   // Need at least 5 embedded memories for semantic mode to be useful
   if (semantic.rowsFound < 5) return null;
