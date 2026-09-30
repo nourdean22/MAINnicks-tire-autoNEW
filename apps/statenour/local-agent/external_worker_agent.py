@@ -1000,17 +1000,36 @@ def persist_research_receipt(receipt: dict[str, Any]) -> tuple[str, str]:
     md_path = RESEARCH_DIR / f"{stamp}-{slug}.md"
     temp_json = json_path.with_suffix(".json.tmp")
     temp_md = md_path.with_suffix(".md.tmp")
-    temp_json.write_text(json.dumps(receipt, indent=2, ensure_ascii=False), encoding="utf-8")
-    synthesis = str(receipt.get("synthesis") or "")
-    source_lines = "\n".join(f"- {url}" for url in receipt.get("sources", [])) or "- (none captured)"
-    temp_md.write_text(
-        f"# NOUR Research\n\n**Question:** {receipt.get('question', '')}\n\n"
-        f"**Status:** {receipt.get('status', 'unknown')}\n\n{synthesis}\n\n## Sources\n{source_lines}\n",
+    # Web tool payloads can contain lone UTF-16 surrogates from malformed
+    # pages. JSON-escape all non-ASCII code points so receipt persistence can
+    # never fail on an invalid surrogate; preserve readable Unicode in Markdown
+    # while replacing only unencodable code points.
+    temp_json.write_text(
+        json.dumps(receipt, indent=2, ensure_ascii=True),
         encoding="utf-8",
     )
+    synthesis = str(receipt.get("synthesis") or "")
+    source_lines = "\n".join(f"- {url}" for url in receipt.get("sources", [])) or "- (none captured)"
+    markdown = (
+        f"# NOUR Research\n\n**Question:** {receipt.get('question', '')}\n\n"
+        f"**Status:** {receipt.get('status', 'unknown')}\n\n{synthesis}\n\n## Sources\n{source_lines}\n"
+    )
+    temp_md.write_text(markdown, encoding="utf-8", errors="replace")
     temp_json.replace(json_path)
     temp_md.replace(md_path)
     return str(json_path), str(md_path)
+
+
+def mandatory_mandate_tail(question: str) -> str:
+    """Preserve explicit deliverable/final-decision instructions from long mandates."""
+    text = str(question or "")
+    match = re.search(r"(?im)^# .*RESEARCH DELIVERABLES\s*$", text)
+    if match:
+        return text[match.start() :][-4000:].strip()
+    match = re.search(r"(?im)^# FINAL DECISION STANDARD\s*$", text)
+    if match:
+        return text[match.start() :][-4000:].strip()
+    return ""
 
 
 def run_research_orchestrator(
@@ -1020,17 +1039,47 @@ def run_research_orchestrator(
 ) -> dict[str, Any]:
     started = time.monotonic()
     question = question.strip()
+    long_mandate = len(question) > 6000
     planner_prompt = (
-        "You are the NOUR research planner. Do not browse. Return STRICT JSON only: "
-        '{"threads":["query", "..."]}. Create exactly 3 complementary search threads that '
-        "together answer the question, including one disconfirming or risk angle. "
-        "Prefer current primary/official evidence when freshness matters.\n\nQUESTION:\n"
-        + question[:6000]
+        "You are the NOUR research planner and mandate compiler. Do not browse. "
+        "Return STRICT JSON only with exactly these keys: "
+        '{"brief":"faithful execution brief","threads":["query","query","query"]}. '
+        "The brief must preserve the user's business objectives, named entities/accounts, "
+        "requested deliverables, evaluation criteria, blind spots to find, implementation/safety "
+        "constraints, and success criteria. For a long mandate, compress faithfully rather than "
+        "dropping later requirements; target <=8000 characters. Create exactly 3 complementary "
+        "search threads that together answer the brief, including one disconfirming/risk angle. "
+        "Prefer current primary/official evidence when freshness matters.\n\nFULL MANDATE:\n"
+        + question[:76000]
     )
     planner = research_provider_call(
-        planner_prompt, workspace, lanes, web_search=False, timeout_seconds=45
+        planner_prompt, workspace, lanes, web_search=False, timeout_seconds=75
     )
+    planner_ok = bool(planner.get("ok"))
     parsed = parse_json_object(str(planner.get("output") or ""))
+    model_brief = (
+        str(parsed.get("brief") or "").strip()
+        if isinstance(parsed, dict)
+        else ""
+    )
+    mandatory_tail = mandatory_mandate_tail(question)
+    mandate_brief_ok = (not long_mandate) or bool(model_brief)
+    compiled_brief = model_brief[:8000]
+    if mandatory_tail:
+        compiled_brief = (
+            compiled_brief
+            + "\n\nMANDATORY USER DELIVERABLES / FINAL DECISION STANDARD (verbatim):\n"
+            + mandatory_tail
+        ).strip()
+    if not compiled_brief:
+        if long_mandate:
+            compiled_brief = (
+                question[:4000]
+                + "\n\n[planner mandate compilation unavailable; middle omitted]\n\n"
+                + question[-4000:]
+            )
+        else:
+            compiled_brief = question
     raw_threads = parsed.get("threads") if parsed else None
     threads = [
         item.strip()
@@ -1038,7 +1087,7 @@ def run_research_orchestrator(
         if isinstance(item, str) and item.strip()
     ][:3]
     if not threads:
-        threads = [question]
+        threads = [compiled_brief]
     threads = list(dict.fromkeys(threads))
 
     def gather(
@@ -1056,7 +1105,7 @@ def run_research_orchestrator(
             "Budget the run: use at most 3 WebSearch calls and fetch at most 5 strongest pages; "
             "stop searching once the thread is adequately evidenced. "
             "Return a compact evidence memo, not a final answer.\n\n"
-            f"ORIGINAL QUESTION:\n{question[:3000]}\n\nSEARCH THREAD:\n{query[:2000]}"
+            f"RESEARCH MANDATE BRIEF:\n{compiled_brief[:12000]}\n\nSEARCH THREAD:\n{query[:2000]}"
         )
         result = research_provider_call(
             prompt,
@@ -1101,11 +1150,12 @@ def run_research_orchestrator(
         "evidence memos, return STRICT JSON only: "
         '{"gap": "one missing search query or empty string", "risks":["risk", "..."]}. '
         "Name at most one material missing angle. Do not repeat covered threads.\n\n"
-        f"QUESTION:\n{question[:2500]}\n\nEVIDENCE:\n{coverage[:12000]}"
+        f"RESEARCH MANDATE BRIEF:\n{compiled_brief[:12000]}\n\nEVIDENCE:\n{coverage[:12000]}"
     )
     critic = research_provider_call(
         critic_prompt, workspace, lanes, web_search=False, timeout_seconds=45
     )
+    critic_ok = bool(critic.get("ok"))
     critic_json = parse_json_object(str(critic.get("output") or "")) or {}
     gap = str(critic_json.get("gap") or "").strip()[:1200]
     risks = [
@@ -1157,27 +1207,39 @@ def run_research_orchestrator(
         "contradictions. Never invent a citation or claim unsupported by the dossier. Put source "
         "URLs inline beside important factual claims and end with: Key findings, What could change "
         "the conclusion, Remaining unknowns, and Concrete next actions.\n\n"
-        f"QUESTION:\n{question[:3000]}\n\nRISKS/GAPS:\n{json.dumps(risks)}\n\n"
+        f"RESEARCH MANDATE BRIEF:\n{compiled_brief[:12000]}\n\nRISKS/GAPS:\n{json.dumps(risks)}\n\n"
         f"EVIDENCE DOSSIER:\n{dossier[:24000]}"
     )
     synthesis_call = research_provider_call(
-        synthesis_prompt, workspace, lanes, web_search=False, timeout_seconds=110
+        synthesis_prompt, workspace, lanes, web_search=False, timeout_seconds=165
     )
     synthesis = str(synthesis_call.get("output") or "").strip()
-    if not synthesis and successful:
+    synthesis_ok = bool(synthesis_call.get("ok") and synthesis)
+    if not synthesis_ok and successful:
         synthesis = (
             "Research synthesis provider failed. Raw evidence follows.\n\n"
             + "\n\n---\n\n".join(str(item.get("output") or "") for item in successful)
         )
 
+    degradation_reasons: list[str] = []
+    if not planner_ok:
+        degradation_reasons.append("planner_failed")
+    if not mandate_brief_ok:
+        degradation_reasons.append("mandate_brief_failed")
+    if not critic_ok:
+        degradation_reasons.append("critic_failed")
+    if not synthesis_ok:
+        degradation_reasons.append("synthesis_failed")
+    if not sources:
+        degradation_reasons.append("no_verified_sources")
+    if not fetched_sources:
+        degradation_reasons.append("no_fetched_pages")
+    if len(successful) < len(rounds):
+        degradation_reasons.append("evidence_round_incomplete")
+
     if not successful:
         status = "failed"
-    elif (
-        not synthesis
-        or not sources
-        or not fetched_sources
-        or len(successful) < len(rounds)
-    ):
+    elif degradation_reasons:
         status = "degraded"
     else:
         status = "complete"
@@ -1186,11 +1248,17 @@ def run_research_orchestrator(
         "question": question,
         "status": status,
         "plan": threads,
+        "mandateBrief": compiled_brief,
+        "mandateBriefOk": mandate_brief_ok,
         "planner": planner,
+        "plannerOk": planner_ok,
         "rounds": rounds,
         "critic": critic,
+        "criticOk": critic_ok,
         "risks": risks,
         "synthesisProvider": synthesis_call.get("provider"),
+        "synthesisOk": synthesis_ok,
+        "degradationReasons": degradation_reasons,
         "synthesisModel": synthesis_call.get("model"),
         "synthesis": synthesis,
         "sources": sources,
@@ -1201,8 +1269,17 @@ def run_research_orchestrator(
     json_path, md_path = persist_research_receipt(receipt)
     quality = (
         f"Research status: {status}; evidence threads: {len(successful)}/{len(rounds)}; "
-        f"discovered sources: {len(sources)}; fetched pages: {len(fetched_sources)}.\n"
-        f"Receipt: {md_path}"
+        f"discovered sources: {len(sources)}; fetched pages: {len(fetched_sources)}; "
+        f"pipeline mandate={'ok' if mandate_brief_ok else 'failed'}, "
+        f"planner={'ok' if planner_ok else 'failed'}, "
+        f"critic={'ok' if critic_ok else 'failed'}, "
+        f"synthesis={'ok' if synthesis_ok else 'failed'}."
+        + (
+            f" Degradation reasons: {', '.join(degradation_reasons)}."
+            if degradation_reasons
+            else ""
+        )
+        + f"\nReceipt: {md_path}"
     )
     output = (synthesis or "No research evidence could be gathered.") + "\n\n---\n" + quality
     return {
@@ -1218,6 +1295,11 @@ def run_research_orchestrator(
             "model": synthesis_call.get("model"),
             "errorCode": None if status != "failed" else "RESEARCH_NO_EVIDENCE",
             "researchStatus": status,
+            "degradationReasons": degradation_reasons,
+            "mandateBriefOk": mandate_brief_ok,
+            "plannerOk": planner_ok,
+            "criticOk": critic_ok,
+            "synthesisOk": synthesis_ok,
             "receiptJson": json_path,
             "receiptMarkdown": md_path,
             "sourceCount": len(sources),
@@ -1468,6 +1550,76 @@ INTERACTIVE_MODEL_LANES: dict[str, list[str]] = {
 }
 
 
+CONTINUATION_HINTS = (
+    "try again",
+    "retry",
+    "continue",
+    "keep going",
+    "go ahead",
+    "finish",
+    "finish it",
+    "run it",
+    "do it",
+    "do the report",
+    "same report",
+    "again",
+    "proceed",
+    "pick up",
+    "resume",
+    "this time",
+    "no sloppy",
+    "no lazy",
+)
+
+
+def is_continuation_turn(text: str) -> bool:
+    compact = " ".join(str(text or "").strip().lower().split())
+    return bool(
+        compact
+        and len(compact) <= 320
+        and any(hint in compact for hint in CONTINUATION_HINTS)
+    )
+
+
+def contextual_routing_prompt(latest: str, prior: str) -> str:
+    latest_text = str(latest or "").strip()
+    prior_text = str(prior or "").strip()
+    if prior_text and is_continuation_turn(latest_text):
+        return f"{prior_text}\n\nFOLLOW-UP:\n{latest_text}"
+    return latest_text or prior_text
+
+
+def auto_research_requested(prompt: str) -> bool:
+    text = str(prompt or "").lower()
+    strong_hints = (
+        "deep research",
+        "research report",
+        "research mandate",
+        "competitive intelligence",
+        "source-backed",
+        "source backed",
+        "web research",
+        "cite only urls actually retrieved",
+        "cite sources",
+        "current sources",
+        "study successful",
+        "reference accounts",
+    )
+    if any(hint in text for hint in strong_hints):
+        return True
+    signals = (
+        "research",
+        "sources",
+        "citations",
+        "evidence",
+        "current",
+        "report",
+        "study",
+        "compare",
+    )
+    return len(prompt) >= 500 and sum(hint in text for hint in signals) >= 3
+
+
 def auto_interactive_candidates(
     prompt: str, full_prompt_chars: int | None = None
 ) -> list[str]:
@@ -1504,7 +1656,12 @@ def execute_interactive_request(raw: dict[str, Any]) -> dict[str, Any]:
     """Run one local, read-only chat request through the hardened worker adapters."""
     model = str(raw.get("model") or "").strip()
     prompt = str(raw.get("prompt") or "").strip()
-    routing_prompt = str(raw.get("routingPrompt") or prompt).strip()
+    latest_routing_prompt = str(raw.get("routingPrompt") or prompt).strip()
+    prior_user_prompt = str(raw.get("priorUserPrompt") or "").strip()
+    routing_prompt = contextual_routing_prompt(
+        latest_routing_prompt,
+        prior_user_prompt,
+    )
     workspace_key = str(raw.get("workspaceKey") or "repo").strip()
     if len(prompt) < 1 or len(prompt) > INTERACTIVE_MAX_PROMPT_CHARS:
         return {
@@ -1513,7 +1670,10 @@ def execute_interactive_request(raw: dict[str, Any]) -> dict[str, Any]:
             "errorMessage": "interactive prompt length outside contract",
         }
 
-    if model == "nour-research":
+    auto_promoted_research = (
+        model == "nour-auto" and auto_research_requested(routing_prompt)
+    )
+    if model == "nour-research" or auto_promoted_research:
         try:
             workspace = resolve_workspace(workspace_key)
         except Exception as exc:
@@ -1523,11 +1683,15 @@ def execute_interactive_request(raw: dict[str, Any]) -> dict[str, Any]:
                 "errorMessage": str(exc)[:240],
             }
         lanes = probe_lanes()
-        return run_research_orchestrator(
+        response = run_research_orchestrator(
             routing_prompt or prompt,
             workspace,
             lanes,
         )
+        if auto_promoted_research:
+            response["autoPromotedToResearch"] = True
+            response["requestedModel"] = "nour-auto"
+        return response
 
     if model == "nour-auto":
         candidates = auto_interactive_candidates(
