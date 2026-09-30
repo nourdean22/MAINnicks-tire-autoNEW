@@ -27,8 +27,32 @@ export const PROMISE_TYPES = [
   "completion_notice",
   "manager_followup",
   "other",
+  // ADR-0020 (Q-22): written only by the obligation mirror.
+  "reply",
+  "emergency_response",
 ] as const;
 export type PromiseType = (typeof PROMISE_TYPES)[number];
+
+/**
+ * Source kinds written by the obligation mirror (ADR-0020 §4). Phase 1 runs
+ * them in SHADOW: every existing reader below (the open list, the sweep, the
+ * kept-rate) leaves them out, so arming `obligation_mirror_enabled` changes no
+ * panel, no brief and no Decision Inbox item. Phase 2 and 3 lift this per
+ * reader, each behind its own flag.
+ *
+ * Why the sweep must not see them yet: it escalates every overdue open row into
+ * the Inbox, so a mirrored owed text would raise a second alert beside the
+ * hourly Telegram that already covers it. Why the list must not: SWEEP_PAGE and
+ * the panel both page by due_at, and a week of mirrored rows would push the
+ * operator's own promises off the page.
+ */
+const MIRROR_SOURCE_KINDS = ["callback_request", "owed_reply", "emergency"] as const;
+export type MirrorSourceKind = (typeof MIRROR_SOURCE_KINDS)[number];
+
+async function notMirrored() {
+  const { sql } = await import("drizzle-orm");
+  return sql`source_kind NOT IN (${sql.join(MIRROR_SOURCE_KINDS.map((k) => sql`${k}`), sql`, `)})`;
+}
 
 export const PROMISE_STATUSES = ["open", "kept", "missed", "cancelled"] as const;
 export type PromiseStatus = (typeof PROMISE_STATUSES)[number];
@@ -461,7 +485,7 @@ export async function listOpenPromises(limit = 100): Promise<PromiseRow[]> {
   if (!db) return [];
   try {
     const result = await db.execute(sql`
-      SELECT * FROM customer_promises WHERE status = 'open'
+      SELECT * FROM customer_promises WHERE status = 'open' AND ${await notMirrored()}
       ORDER BY due_at ASC LIMIT ${Math.min(limit, 500)}
     `);
     return rowsFromExecute(result).map(mapRow);
@@ -504,7 +528,7 @@ async function countOpenPromises(): Promise<number | null> {
   if (!db) return null;
   try {
     const rows = rowsFromExecute(await db.execute(sql`
-      SELECT COUNT(*) AS n FROM customer_promises WHERE status = 'open'
+      SELECT COUNT(*) AS n FROM customer_promises WHERE status = 'open' AND ${await notMirrored()}
     `));
     const n = rows[0]?.n;
     return n == null ? null : Number(n);
@@ -655,6 +679,7 @@ export async function promiseLedgerStats(windowDays = 30): Promise<{
       FROM customer_promises
       WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${windowDays} DAY)
         AND source_kind <> 'voice'
+        AND ${await notMirrored()}
     `));
     const r = rows[0] ?? {};
     return {

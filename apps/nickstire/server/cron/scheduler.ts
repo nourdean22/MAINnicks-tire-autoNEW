@@ -1213,6 +1213,19 @@ function buildTiers(): void {
         },
       },
       {
+        // ADR-0020 phase 1 (Q-22): index every open callback, owed text and
+        // emergency request in customer_promises, and close each row on its
+        // source's outcome. Shadow: no alert, no inbox item, no customer send;
+        // a no-op until obligation_mirror_enabled is ON. Same 15-min tier as the
+        // 30-min reply SLA it indexes; the report carries per-kind parity.
+        name: "obligation-mirror",
+        businessHoursOnly: true,
+        handler: async () => {
+          const { runObligationMirror } = await import("../services/obligationMirror");
+          return runObligationMirror();
+        },
+      },
+      {
         name: "gateway-order-status-poll", // Detect stale/stuck tire orders
         businessHoursOnly: true,
         handler: async () => {

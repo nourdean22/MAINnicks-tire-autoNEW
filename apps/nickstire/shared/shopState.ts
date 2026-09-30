@@ -113,8 +113,11 @@ function fmt(minutes: number): string {
  *
  * Minute-accurate rather than second-accurate on purpose: the shop's hours are
  * configured to the minute, so seconds would be false precision.
+ *
+ * Exported for the obligation mirror (ADR-0020 §4), which dates a callback or
+ * emergency request that arrived while the shop was closed from the next opening.
  */
-function nextOpenAt(
+export function nextOpenAt(
   now: Date,
   timezone: string,
   hours: Record<string, string>,

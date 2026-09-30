@@ -156,6 +156,10 @@ export const FLAG_DEFINITIONS = [
   // ADR-0019 phase 1 (Q-12). Internal bookkeeping only: sends nothing, and the
   // legacy StateNour senders run exactly as before whether it is ON or OFF.
   { key: "bridge_outbox_shadow", description: "Record every bus event bound for StateNour as a status='shadow' row in bridge_outbox (migration 0137), keyed per ADR-0019. Never drained; used to prove the outbox is complete before cutover. OFF = nothing written." },
+  // ADR-0020 phase 1 (Q-22). Shadow bookkeeping only: sends nothing, changes no
+  // source row, and promiseLedger keeps these rows out of the sweep, the panel
+  // and the kept-rate until phase 2/3.
+  { key: "obligation_mirror_enabled", description: "Mirror open callback requests, owed texts and emergency requests into customer_promises (one row each, keyed per ADR-0020) every 15 min, and close each row when its source reaches an outcome. Shadow only: no alert, inbox item or panel change. OFF = nothing read or written." },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];
