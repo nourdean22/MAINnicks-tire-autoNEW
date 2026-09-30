@@ -22,7 +22,12 @@ class ExternalWorkerAgentTests(unittest.TestCase):
             {
                 "OPENAI_API_KEY": "secret",
                 "ANTHROPIC_API_KEY": "secret",
+                "ANTHROPIC_AUTH_TOKEN": "stale-bearer",
+                "ANTHROPIC_BASE_URL": "https://invalid.example",
+                "CLAUDE_CODE_OAUTH_TOKEN": "stale-oauth",
                 "GEMINI_API_KEY": "secret",
+                "CLAUDECODE": "1",
+                "CLAUDE_CODE_ENTRYPOINT": "nested-session",
                 "SAFE_VALUE": "kept",
             },
             clear=False,
@@ -30,7 +35,12 @@ class ExternalWorkerAgentTests(unittest.TestCase):
             env = worker.scrubbed_env()
         self.assertNotIn("OPENAI_API_KEY", env)
         self.assertNotIn("ANTHROPIC_API_KEY", env)
+        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", env)
+        self.assertNotIn("ANTHROPIC_BASE_URL", env)
+        self.assertNotIn("CLAUDE_CODE_OAUTH_TOKEN", env)
         self.assertNotIn("GEMINI_API_KEY", env)
+        self.assertNotIn("CLAUDECODE", env)
+        self.assertNotIn("CLAUDE_CODE_ENTRYPOINT", env)
         self.assertEqual(env.get("SAFE_VALUE"), "kept")
 
     def test_post_unwraps_standard_api_handler_envelope(self):
@@ -212,6 +222,7 @@ class ExternalWorkerAgentTests(unittest.TestCase):
                 "denied_actions": [{"action": "command", "display_name": "RunCommand"}],
             }
         )
+        payload += "\njetski: trailing headless permission diagnostic"
         fake = subprocess.CompletedProcess(args=["agy"], returncode=0, stdout=payload, stderr="")
         with patch.object(worker.subprocess, "run", return_value=fake), patch.object(
             worker.Path, "exists", return_value=True
@@ -221,6 +232,101 @@ class ExternalWorkerAgentTests(unittest.TestCase):
             )
         self.assertNotEqual(code, 0)
         self.assertIn("denied required actions", output)
+
+    def test_antigravity_interactive_chat_forbids_tools_without_unsafe_bypass(self):
+        payload = json.dumps({"status": "SUCCESS", "response": "ANTIGRAVITY_UI_OK"})
+        fake = subprocess.CompletedProcess(args=["agy"], returncode=0, stdout=payload, stderr="")
+        with patch.object(worker.subprocess, "run", return_value=fake) as run, patch.object(
+            worker.Path, "exists", return_value=True
+        ):
+            code, output, _ = worker.execute_antigravity(
+                "Return exactly ANTIGRAVITY_UI_OK", Path.cwd(), False, True
+            )
+        args = run.call_args.args[0]
+        effective_prompt = args[args.index("--print") + 1]
+        self.assertEqual(code, 0)
+        self.assertEqual(output, "ANTIGRAVITY_UI_OK")
+        self.assertIn("read-only chat lane", effective_prompt)
+        self.assertNotIn("--dangerously-skip-permissions", args)
+
+    def test_auto_interactive_routes_simple_chat_local_first(self):
+        self.assertEqual(
+            worker.auto_interactive_candidates("Explain this simply."),
+            ["local-qwen", "codex", "claude-code", "antigravity"],
+        )
+
+    def test_auto_interactive_routes_code_to_codex_and_architecture_to_claude(self):
+        self.assertEqual(
+            worker.auto_interactive_candidates("Debug this TypeScript repository."),
+            ["codex", "claude-code", "antigravity", "local-qwen"],
+        )
+        self.assertEqual(
+            worker.auto_interactive_candidates("Design the system architecture and tradeoffs."),
+            ["claude-code", "codex", "antigravity", "local-qwen"],
+        )
+        self.assertEqual(
+            worker.auto_interactive_candidates("x" * 6001),
+            ["claude-code", "codex", "antigravity", "local-qwen"],
+        )
+
+    def test_auto_interactive_prefers_routing_prompt_over_enriched_prompt(self):
+        lanes = {"local-qwen": {"health": "ready", "quota": "available"}}
+        result_payload = {"schemaVersion": 1, "laneId": "local-qwen", "status": "completed", "output": "ok", "outputTruncated": False, "elapsedMs": 1, "exitCode": 0, "model": "qwen35-4b-local", "errorCode": None}
+        with patch.object(worker, "probe_lanes", return_value=lanes), patch.object(worker, "execute_job", return_value=("completed", result_payload, None, None)):
+            response = worker.execute_interactive_request({"model": "nour-auto", "prompt": "repository code architecture strategy", "routingPrompt": "Hello there.", "workspaceKey": "repo"})
+        self.assertEqual(response["candidateLaneIds"], ["local-qwen", "codex", "claude-code", "antigravity"])
+
+    def test_interactive_request_reuses_worker_contract_and_forces_read_only(self):
+        lanes = {"codex": {"health": "ready", "quota": "available"}}
+        result_payload = {
+            "schemaVersion": 1,
+            "laneId": "codex",
+            "status": "completed",
+            "output": "ok",
+            "outputTruncated": False,
+            "elapsedMs": 1,
+            "exitCode": 0,
+            "model": None,
+            "errorCode": None,
+        }
+        with patch.object(worker, "probe_lanes", return_value=lanes), patch.object(
+            worker,
+            "execute_job",
+            return_value=("completed", result_payload, None, None),
+        ) as execute:
+            response = worker.execute_interactive_request(
+                {
+                    "model": "nour-codex-chatgpt",
+                    "prompt": "Review the code without changing it.",
+                    "workspaceKey": "repo",
+                }
+            )
+        self.assertEqual(response["status"], "completed")
+        item = execute.call_args.args[0]
+        self.assertEqual(item["requestPayload"]["candidateLaneIds"], ["codex"])
+        self.assertFalse(item["requestPayload"]["allowWorkspaceWrite"])
+        self.assertTrue(item["requestPayload"]["interactiveChat"])
+
+
+    def test_interactive_request_rejects_prompt_beyond_worker_contract(self):
+        response = worker.execute_interactive_request(
+            {"model": "nour-auto", "prompt": "x" * 80_001, "workspaceKey": "repo"}
+        )
+        self.assertEqual(response["status"], "failed")
+        self.assertEqual(response["errorCode"], "PROMPT_INVALID")
+
+    def test_local_probe_reports_lane_truth_and_read_only_policy(self):
+        lanes = {
+            "local-qwen": {"health": "ready", "quota": "available"},
+            "codex": {"health": "ready", "quota": "unknown"},
+        }
+        with patch.object(worker, "probe_lanes", return_value=lanes), patch.object(
+            worker, "ALLOW_WRITES", False
+        ):
+            payload = worker.local_probe_payload()
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["writePolicy"], "disabled")
+        self.assertEqual(payload["lanes"], lanes)
 
 
 if __name__ == "__main__":

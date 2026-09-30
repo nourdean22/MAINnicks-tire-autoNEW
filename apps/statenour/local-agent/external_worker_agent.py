@@ -37,6 +37,7 @@ POLL_SECONDS = max(3, int(os.getenv("NOUR_EXTERNAL_WORKER_POLL_SECONDS", "10")))
 TIMEOUT_SECONDS = max(30, int(os.getenv("NOUR_EXTERNAL_WORKER_TIMEOUT_SECONDS", "900")))
 ALLOW_WRITES = os.getenv("NOUR_EXTERNAL_WORKER_ALLOW_WRITES", "0").strip() == "1"
 MAX_OUTPUT_CHARS = 50_000
+INTERACTIVE_MAX_PROMPT_CHARS = 80_000
 LOCAL_GATEWAY = os.getenv("NOUR_LOCAL_GATEWAY_URL", "http://127.0.0.1:11436")
 
 LANE_IDS = ("codex", "claude-code", "antigravity", "local-qwen")
@@ -54,8 +55,13 @@ def scrubbed_env() -> dict[str, str]:
         "CODEX_API_KEY",
         "CODEX_ACCESS_TOKEN",
         "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_BASE_URL",
+        "CLAUDE_CODE_OAUTH_TOKEN",
         "GEMINI_API_KEY",
         "GOOGLE_API_KEY",
+        "CLAUDECODE",
+        "CLAUDE_CODE_ENTRYPOINT",
     ):
         env.pop(key, None)
     return env
@@ -229,7 +235,7 @@ def probe_antigravity() -> dict[str, str]:
                 "detail": "agy unavailable",
             }
         cp = subprocess.run(
-            [agy, "--version"],
+            [agy, "models"],
             text=True,
             capture_output=True,
             env=scrubbed_env(),
@@ -237,13 +243,19 @@ def probe_antigravity() -> dict[str, str]:
             check=False,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
-        ready = cp.returncode == 0
+        models = [
+            line.split("\t", 1)[0].strip()
+            for line in (cp.stdout or "").splitlines()
+            if "\t" in line and line.strip()
+        ]
+        ready = cp.returncode == 0 and bool(models)
         override = runtime_lane_overrides.get("antigravity", {})
+        detail = f"{len(models)} authenticated models available" if ready else (cp.stdout or cp.stderr).strip()[:160]
         return {
             "health": override.get("health", "ready" if ready else "unavailable"),
             "quota": override.get("quota", "unknown"),
-            "auth": "Google account" if ready else "unknown",
-            "detail": override.get("detail", (cp.stdout or cp.stderr).strip()[:160]),
+            "auth": "Google account" if ready else "not authenticated",
+            "detail": override.get("detail", detail),
         }
     except Exception as exc:
         return {
@@ -341,8 +353,13 @@ def execute_local_qwen(prompt: str) -> tuple[int, str, str | None]:
         json={
             "model": "qwen35-4b-local",
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.2,
-            "max_tokens": 1600,
+            "temperature": 0.7,
+            "top_p": 0.8,
+            "top_k": 20,
+            "min_p": 0.0,
+            "presence_penalty": 1.5,
+            "repeat_penalty": 1.0,
+            "max_tokens": 2048,
         },
         timeout=TIMEOUT_SECONDS,
     )
@@ -440,14 +457,23 @@ def execute_claude(prompt: str, workspace: Path, write: bool) -> tuple[int, str,
         return code, raw, None
 
 
-def execute_antigravity(prompt: str, workspace: Path, write: bool) -> tuple[int, str, str | None]:
+def execute_antigravity(
+    prompt: str, workspace: Path, write: bool, direct_chat: bool = False
+) -> tuple[int, str, str | None]:
     agy = str(Path(os.getenv("LOCALAPPDATA", "")) / "agy" / "bin" / "agy.exe")
     if not Path(agy).exists():
         raise FileNotFoundError("agy_not_installed")
+    effective_prompt = prompt
+    if direct_chat and not write:
+        effective_prompt = (
+            "You are in a read-only chat lane. Do not use tools or commands. "
+            "Do not inspect or modify files. Answer directly from the prompt only.\n\n"
+            + prompt
+        )
     args = [
         agy,
         "--print",
-        prompt,
+        effective_prompt,
         "--output-format",
         "json",
         "--mode",
@@ -466,7 +492,7 @@ def execute_antigravity(prompt: str, workspace: Path, write: bool) -> tuple[int,
     )
     raw = ((cp.stdout or "") + (("\n" + cp.stderr) if cp.stderr else "")).strip()
     try:
-        data = json.loads(raw)
+        data, _ = json.JSONDecoder().raw_decode(raw.lstrip())
         if not isinstance(data, dict):
             return cp.returncode, raw, None
         response = str(data.get("response") or data.get("result") or data.get("output") or "").strip()
@@ -554,6 +580,7 @@ def execute_job(item: dict[str, Any], lanes: dict[str, dict[str, str]]) -> tuple
         return "failed", result, "WORKSPACE_NOT_ALLOWED", str(exc)[:240]
 
     wants_write = bool(payload.get("allowWorkspaceWrite"))
+    interactive_chat = bool(payload.get("interactiveChat"))
     if wants_write and not ALLOW_WRITES:
         result = {
             "schemaVersion": 1,
@@ -569,7 +596,8 @@ def execute_job(item: dict[str, Any], lanes: dict[str, dict[str, str]]) -> tuple
         return "failed", result, "WRITE_POLICY_DISABLED", "machine-level worker write policy is disabled"
 
     prompt = str(payload.get("prompt") or "")
-    if len(prompt) < 5 or len(prompt) > 20_000:
+    max_prompt_chars = INTERACTIVE_MAX_PROMPT_CHARS if interactive_chat else 20_000
+    if len(prompt) < 5 or len(prompt) > max_prompt_chars:
         result = {
             "schemaVersion": 1,
             "laneId": lane,
@@ -597,7 +625,9 @@ def execute_job(item: dict[str, Any], lanes: dict[str, dict[str, str]]) -> tuple
             elif lane == "claude-code":
                 code, output, model = execute_claude(prompt, workspace, wants_write)
             elif lane == "antigravity":
-                code, output, model = execute_antigravity(prompt, workspace, wants_write)
+                code, output, model = execute_antigravity(
+                    prompt, workspace, wants_write, interactive_chat
+                )
             else:
                 raise RuntimeError("unsupported_lane")
         except subprocess.TimeoutExpired:
@@ -666,6 +696,135 @@ def execute_job(item: dict[str, Any], lanes: dict[str, dict[str, str]]) -> tuple
     )
 
 
+INTERACTIVE_MODEL_LANES: dict[str, list[str]] = {
+    "nour-codex-chatgpt": ["codex"],
+    "nour-claude-subscription": ["claude-code"],
+    "nour-antigravity": ["antigravity"],
+}
+
+
+def auto_interactive_candidates(prompt: str) -> list[str]:
+    """Cost-safe/capability-aware routing for the local unified chat surface."""
+    text = prompt.lower()
+    code_hints = (
+        "code", "debug", "bug", "repo", "repository", "git ", "github", "typescript",
+        "javascript", "python", "sql", "test ", "tests ", "build ", "compile",
+        "function", "class ", "api ", "pull request", "pr #", "diff", "stack trace",
+    )
+    supervisor_hints = (
+        "architect", "architecture", "orchestrate", "supervise", "strategy",
+        "roadmap", "plan across", "system design", "tradeoff", "trade-off",
+        "deep analysis", "analyze deeply", "reason carefully", "think deeply",
+        "comprehensive", "multi-step", "decision framework",
+    )
+    if len(prompt) > 6_000 or any(hint in text for hint in supervisor_hints):
+        return ["claude-code", "codex", "antigravity", "local-qwen"]
+    if any(hint in text for hint in code_hints):
+        return ["codex", "claude-code", "antigravity", "local-qwen"]
+    return ["local-qwen", "codex", "claude-code", "antigravity"]
+
+
+def execute_interactive_request(raw: dict[str, Any]) -> dict[str, Any]:
+    """Run one local, read-only chat request through the hardened worker adapters."""
+    model = str(raw.get("model") or "").strip()
+    prompt = str(raw.get("prompt") or "").strip()
+    routing_prompt = str(raw.get("routingPrompt") or prompt).strip()
+    workspace_key = str(raw.get("workspaceKey") or "repo").strip()
+    if len(prompt) < 1 or len(prompt) > INTERACTIVE_MAX_PROMPT_CHARS:
+        return {
+            "status": "failed",
+            "errorCode": "PROMPT_INVALID",
+            "errorMessage": "interactive prompt length outside contract",
+        }
+
+    if model == "nour-auto":
+        candidates = auto_interactive_candidates(routing_prompt)
+    else:
+        candidates = INTERACTIVE_MODEL_LANES.get(model, [])
+    if not candidates:
+        return {
+            "status": "failed",
+            "errorCode": "MODEL_NOT_SUPPORTED",
+            "errorMessage": f"unsupported unified model: {model}",
+        }
+
+    lanes = probe_lanes()
+    item = {
+        "id": "local-interactive",
+        "requestPayload": {
+            "schemaVersion": 1,
+            "candidateLaneIds": candidates,
+            "workspaceKey": workspace_key,
+            "allowWorkspaceWrite": False,
+            "interactiveChat": True,
+            "prompt": prompt,
+        },
+    }
+    status, result, error_code, error_message = execute_job(item, lanes)
+    return {
+        "status": status,
+        "result": result,
+        "errorCode": error_code,
+        "errorMessage": error_message,
+        "candidateLaneIds": candidates,
+    }
+
+
+def local_chat_main() -> int:
+    """JSON stdin/stdout adapter used by the localhost NOUR OpenAI gateway."""
+    try:
+        raw = json.load(sys.stdin)
+        if not isinstance(raw, dict):
+            raise ValueError("request must be a JSON object")
+        response = execute_interactive_request(raw)
+        sys.stdout.write(json.dumps(response, ensure_ascii=False))
+        sys.stdout.flush()
+        return 0 if response.get("status") == "completed" else 3
+    except Exception as exc:
+        sys.stdout.write(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "errorCode": "INTERACTIVE_ADAPTER_ERROR",
+                    "errorMessage": f"{type(exc).__name__}: {exc}",
+                },
+                ensure_ascii=False,
+            )
+        )
+        sys.stdout.flush()
+        return 3
+
+
+def local_probe_payload() -> dict[str, Any]:
+    """Return live subscription/local lane truth without starting the durable worker."""
+    return {
+        "status": "ok",
+        "nodeKey": NODE_KEY,
+        "writePolicy": "enabled" if ALLOW_WRITES else "disabled",
+        "lanes": probe_lanes(),
+    }
+
+
+def local_probe_main() -> int:
+    try:
+        sys.stdout.write(json.dumps(local_probe_payload(), ensure_ascii=False))
+        sys.stdout.flush()
+        return 0
+    except Exception as exc:
+        sys.stdout.write(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "errorCode": "INTERACTIVE_PROBE_ERROR",
+                    "errorMessage": f"{type(exc).__name__}: {exc}",
+                },
+                ensure_ascii=False,
+            )
+        )
+        sys.stdout.flush()
+        return 3
+
+
 def complete(
     work_item_id: str,
     status: str,
@@ -721,4 +880,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if "--local-chat" in sys.argv:
+        raise SystemExit(local_chat_main())
+    if "--local-probe" in sys.argv:
+        raise SystemExit(local_probe_main())
     raise SystemExit(main())
