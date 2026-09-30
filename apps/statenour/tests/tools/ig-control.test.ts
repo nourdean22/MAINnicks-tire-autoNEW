@@ -6,8 +6,9 @@
  *      /api/nour-os/ig-control, and never falls back to STATENOUR_SYNC_KEY.
  *   2. It makes exactly ONE request on a 5xx or a timeout (queryNick retried
  *      both, and each retry started another minutes-long, possibly live, run).
- *   3. A timeout is "outcome unknown", and the live tool HOLDS its duplicate
- *      claim on it instead of releasing it.
+ *   3. A timeout, an edge 502/504, a route 500 or an unreadable 200 is
+ *      "outcome unknown", and the live tool HOLDS its duplicate claim on it.
+ *      Only a 4xx or the route's own "not configured" 503 releases it.
  *   4. The two mutating tools use the control route, not the query bridge.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -51,6 +52,9 @@ import { socialTools } from "@/lib/ai/tools/social";
 type Exec = (a: unknown, b: unknown) => Promise<Record<string, unknown>>;
 const fetchSpy = vi.fn();
 const ORIG = { control: process.env.NOUR_OS_IG_CONTROL_KEY, sync: process.env.STATENOUR_SYNC_KEY, url: process.env.NICKSTIRE_URL };
+
+// The nickstire route's exact body for a missing key (pinned there too).
+const NOT_CONFIGURED_503 = JSON.stringify({ error: "Instagram control is not configured" });
 
 function ok(body: unknown) {
   return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -98,11 +102,30 @@ describe("controlNickIg", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("5xx → exactly one request, reported as a known error", async () => {
-    fetchSpy.mockResolvedValue(new Response("boom", { status: 503 }));
+  it("the route's own 503 refusal → exactly one request, reported as a known error", async () => {
+    fetchSpy.mockResolvedValue(new Response(NOT_CONFIGURED_503, { status: 503 }));
     const res = await controlNickIg("autopost_run", { dryRun: false });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(res).toMatchObject({ statusCode: 503 });
+    expect((res as { outcomeUnknown?: boolean }).outcomeUnknown).toBeUndefined();
+  });
+
+  it.each([
+    ["an edge 504", () => new Response("upstream timed out", { status: 504 })],
+    ["an edge 502", () => new Response("bad gateway", { status: 502 })],
+    ["a plain-text 503 (not the route's refusal)", () => new Response("boom", { status: 503 })],
+    ["a route 500", () => new Response(JSON.stringify({ error: "IG control action failed" }), { status: 500 })],
+    ["a 200 with an unreadable body", () => new Response("<html>not json", { status: 200 })],
+  ])("%s → exactly one request, outcome unknown", async (_label, make) => {
+    fetchSpy.mockResolvedValue(make());
+    const res = await controlNickIg("autopost_run", { dryRun: false });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(res).toMatchObject({ outcomeUnknown: true });
+  });
+
+  it("a 4xx refusal → known error", async () => {
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }));
+    const res = await controlNickIg("autopost_run", { dryRun: false });
     expect((res as { outcomeUnknown?: boolean }).outcomeUnknown).toBeUndefined();
   });
 
@@ -150,8 +173,22 @@ describe("IG tools use the control route", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ["an edge 504", () => new Response("upstream timed out", { status: 504 })],
+    ["an edge 502", () => new Response("bad gateway", { status: 502 })],
+    ["a route 500", () => new Response(JSON.stringify({ error: "IG control action failed" }), { status: 500 })],
+    ["a 200 with an unreadable body", () => new Response("<html>not json", { status: 200 })],
+  ])("live run that gets %s HOLDS the claim: a second live call does not post", async (_label, make) => {
+    fetchSpy.mockResolvedValueOnce(make());
+    await run({ dryRun: false }, {});
+    fetchSpy.mockResolvedValue(ok({ action: "autopost_run", timestamp: "t", data: { status: "posted" } }));
+    const second = await run({ dryRun: false }, {});
+    expect(second).toMatchObject({ deduped: true });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("live run with a known failure RELEASES the claim, so a retry may post", async () => {
-    fetchSpy.mockResolvedValueOnce(new Response("nope", { status: 503 }));
+    fetchSpy.mockResolvedValueOnce(new Response(NOT_CONFIGURED_503, { status: 503 }));
     await run({ dryRun: false }, {});
     fetchSpy.mockResolvedValueOnce(ok({ action: "autopost_run", timestamp: "t", data: { status: "posted" } }));
     const second = await run({ dryRun: false }, {});

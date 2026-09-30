@@ -10,7 +10,8 @@
  * ONE attempt, never retried. queryNick retries on a timeout or a 5xx, and an
  * autopost run takes minutes: a client timeout does not stop the server-side
  * run, so each retry started another one, and on a live run that is another
- * public post. A timeout here is reported as "outcome unknown", not a failure.
+ * public post. A timeout, a 5xx other than the route's own "not configured"
+ * refusal, or an unreadable 200 is reported as "outcome unknown", not a failure.
  */
 
 export type IgControlAction = "autopost_run" | "autopost_set_config";
@@ -21,6 +22,9 @@ export type IgControlResult =
 
 // A generate → render → evaluate run can take several minutes on the shop side.
 const DEFAULT_TIMEOUT_MS = 5 * 60_000;
+
+// The route's own missing-key 503 body (pinned in nickstire's nour-os-ig-control.test.ts).
+const IG_CONTROL_NOT_CONFIGURED = "Instagram control is not configured";
 
 export async function controlNickIg(
   action: IgControlAction,
@@ -54,7 +58,29 @@ export async function controlNickIg(
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    return { error: `HTTP ${res.status}: ${body.slice(0, 300)}`, statusCode: res.status };
+    return {
+      error: `HTTP ${res.status}: ${body.slice(0, 300)}`,
+      statusCode: res.status,
+      ...(isRefusal(res.status, body) ? {} : { outcomeUnknown: true }),
+    };
   }
-  return (await res.json()) as IgControlResult;
+  try {
+    return (await res.json()) as IgControlResult;
+  } catch (e) {
+    // A 200 means the run finished; an unreadable body must not release the claim.
+    return {
+      error: `Instagram ${action} replied ${res.status} with an unreadable body: ${e instanceof Error ? e.message : String(e)}. Check the autopost status before retrying.`,
+      statusCode: res.status,
+      outcomeUnknown: true,
+    };
+  }
+}
+
+// Only a refusal proves nothing ran: a 4xx, or the route's own 503 for a
+// missing key (both sent before any handler starts). A 500 can follow a run
+// that already posted, and a 502/504 comes from Railway's edge, which closes a
+// request after 5 minutes with no bytes while the shop keeps running it.
+function isRefusal(status: number, body: string): boolean {
+  if (status >= 400 && status < 500) return true;
+  return status === 503 && body.includes(IG_CONTROL_NOT_CONFIGURED);
 }

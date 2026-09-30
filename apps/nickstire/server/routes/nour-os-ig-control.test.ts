@@ -89,6 +89,9 @@ describe("/api/nour-os/ig-control auth", () => {
     delete process.env.NOUR_OS_IG_CONTROL_KEY;
     const res = await post({ "x-ig-control-key": SYNC, "x-sync-key": SYNC });
     expect(res.statusCode).toBe(503);
+    // StateNour's ig-control client matches this exact text to tell the route's
+    // own refusal (nothing ran) from an edge 503 (the run may be in flight).
+    expect(res.body).toEqual({ error: "Instagram control is not configured" });
     expect(runSpy).not.toHaveBeenCalled();
     expect(setFlagSpy).not.toHaveBeenCalled();
   });
