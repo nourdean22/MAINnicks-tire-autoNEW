@@ -12,7 +12,8 @@
  *   · Transactional (the ADR §6.2 shape): `claimReceipt(tx, …)` inside the
  *     route's `$transaction`, then `settleReceipt(tx, …)`. A crash between the
  *     receipt and the business write rolls both back, so the next delivery is
- *     correctly "first". Used by /api/sync/evidence.
+ *     correctly "first". Used by /api/sync/evidence and, per event, by
+ *     /api/sync/events.
  *
  *   · Claim -> act -> settle, for a write that runs its own transaction and
  *     post-commit side effects (createTask). The receipt commits first with
@@ -49,8 +50,19 @@ const KEY_SHAPE = /^[\x21-\x7e]+$/;
  * (400) rather than silently writing un-deduplicated.
  */
 export function readIdempotencyKey(headers: Headers): string | null {
-  const raw = headers.get(IDEMPOTENCY_KEY_HEADER);
-  if (raw === null) return null;
+  return parseIdempotencyKey(headers.get(IDEMPOTENCY_KEY_HEADER));
+}
+
+/**
+ * The same rules for a key carried in a request BODY (ADR-0019 §4: a batch
+ * carries `idempotencyKey` on each event). Absent (null/undefined) is no key;
+ * anything else that is not a well-formed key is a 400.
+ */
+export function parseIdempotencyKey(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw !== "string") {
+    throw new ServiceError(`Idempotency-Key must be 1-${KEY_MAX} visible ASCII characters`, 400);
+  }
   const key = raw.trim();
   if (!key || key.length > KEY_MAX || !KEY_SHAPE.test(key)) {
     throw new ServiceError(`Idempotency-Key must be 1-${KEY_MAX} visible ASCII characters`, 400);

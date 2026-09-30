@@ -4,6 +4,94 @@ import { today } from "@/lib/utils/datetime";
 import { processShopEvent, type ShopEvent } from "@/lib/brain/pipeline-controller";
 import { emitDriftFired } from "@/lib/db/brain-bus-emit";
 import { recordCoachEvent } from "@/lib/services/coach-events";
+import {
+  claimReceipt,
+  isReceiptTableMissing,
+  parseIdempotencyKey,
+  readIdempotencyKey,
+  settleReceipt,
+} from "@/lib/services/bridge-receipts";
+import { ServiceError } from "@/lib/utils/service-error";
+
+type BridgeEvent = {
+  type: string;
+  timestamp: string;
+  source: string;
+  data: Record<string, unknown>;
+  idempotencyKey?: unknown;
+};
+
+/** `bridge_receipts.route` for this receiver (ADR-0019 §5.1 names it `sync/events`). */
+const RECEIPT_ROUTE = "sync/events";
+
+/**
+ * ADR-0019 §4 latest-wins types. Their key names the object, not a fact, and
+ * the write is already idempotent (the draft upsert on `data.id`), so a receipt
+ * would wrongly swallow the NEWER state as a duplicate of the older one.
+ */
+const LATEST_WINS_TYPES = new Set(["nickstire:social_draft:sync", "nickstire:mirror_synced", "nickstire:data_refreshed"]);
+
+function auditData(event: BridgeEvent) {
+  return {
+    actor: event.source ?? "nickstire",
+    eventType: event.type,
+    detail: `Bridge event: ${event.type}`,
+    payload: JSON.parse(JSON.stringify(event.data ?? event)),
+  };
+}
+
+/**
+ * Each event's key, validated for the whole batch BEFORE anything is written,
+ * so a malformed key is a clean 400 rather than a half-written batch.
+ * A key rides on the event (`idempotencyKey`); the `Idempotency-Key` header
+ * names a single-event request only, because one header cannot name a batch.
+ */
+function eventKeys(events: BridgeEvent[], headers: Headers): Array<string | null> {
+  const headerKey = readIdempotencyKey(headers);
+  if (headerKey && events.length !== 1) {
+    throw new ServiceError("The Idempotency-Key header names one event; a batch carries idempotencyKey on each event", 400);
+  }
+  return events.map((event) => {
+    const bodyKey = parseIdempotencyKey(event.idempotencyKey);
+    if (bodyKey && headerKey && bodyKey !== headerKey) {
+      throw new ServiceError("The Idempotency-Key header and the event's idempotencyKey disagree", 400);
+    }
+    const key = bodyKey ?? headerKey;
+    return key && !LATEST_WINS_TYPES.has(event.type) ? key : null;
+  });
+}
+
+type KeyedWrite = { duplicate: true; resultRef: string | null } | { duplicate: false; dedupe?: "unavailable" };
+
+/**
+ * ADR-0019 §6.2: the receipt and the AuditEvent commit together, so a crash
+ * between them rolls both back and the next delivery is correctly "first".
+ * A failure here is a 503, never the legacy "log and carry on": the receipt
+ * rolled back, so the sender's retry lands the event exactly once.
+ */
+async function writeAuditOnce(event: BridgeEvent, key: string): Promise<KeyedWrite> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const claim = await claimReceipt(tx, key, RECEIPT_ROUTE);
+      if (!claim.first) return { duplicate: true as const, resultRef: claim.resultRef };
+      const row = await tx.auditEvent.create({ data: auditData(event), select: { id: true } });
+      await settleReceipt(tx, key, row.id);
+      return { duplicate: false as const };
+    });
+  } catch (err) {
+    if (isReceiptTableMissing(err)) {
+      // bridge_receipts not applied yet: today's un-deduplicated write, never a fail-closed sender.
+      try {
+        await prisma.auditEvent.create({ data: auditData(event) });
+      } catch (auditErr) {
+        console.warn("[sync/events] Audit write failed:", auditErr);
+      }
+      return { duplicate: false, dedupe: "unavailable" };
+    }
+    console.error("[sync/events] Keyed audit write failed:", err);
+    throw new ServiceError("The keyed event was not recorded; retry", 503);
+  }
+}
 
 /**
  * POST /api/sync/events
@@ -13,29 +101,31 @@ import { recordCoachEvent } from "@/lib/services/coach-events";
 export const POST = apiHandler(
   async (req) => {
     const body = await req.json();
-    const events: Array<{
-      type: string;
-      timestamp: string;
-      source: string;
-      data: Record<string, unknown>;
-    }> = body.events ?? [body];
+    const events: BridgeEvent[] = body.events ?? [body];
+    const keys = eventKeys(events, req.headers);
 
     const results = [];
 
-    for (const event of events) {
-      try {
-        // Store every event as an audit record
-        await prisma.auditEvent.create({
-          data: {
-            actor: event.source ?? "nickstire",
-            eventType: event.type,
-            detail: `Bridge event: ${event.type}`,
-            payload: JSON.parse(JSON.stringify(event.data ?? event)),
-          },
-        });
-      } catch (auditErr) {
-        console.warn("[sync/events] Audit write failed:", auditErr);
-        // Don't fail the whole request for an audit write failure
+    for (const [index, event] of events.entries()) {
+      const key = keys[index];
+      let dedupe: "unavailable" | undefined;
+      if (key) {
+        // ADR-0019 phase 1d. A replay writes nothing and re-fires nothing: no
+        // second audit row, coach event or pipeline run.
+        const write = await writeAuditOnce(event, key);
+        if (write.duplicate) {
+          results.push({ type: event.type, stored: false, duplicate: true, resultRef: write.resultRef });
+          continue;
+        }
+        dedupe = write.dedupe;
+      } else {
+        try {
+          // Store every event as an audit record
+          await prisma.auditEvent.create({ data: auditData(event) });
+        } catch (auditErr) {
+          console.warn("[sync/events] Audit write failed:", auditErr);
+          // Don't fail the whole request for an audit write failure
+        }
       }
 
       try {
@@ -132,7 +222,7 @@ export const POST = apiHandler(
         console.warn("[sync/events] Alert write failed:", alertErr);
       }
 
-      results.push({ type: event.type, stored: true });
+      results.push(dedupe ? { type: event.type, stored: true, dedupe } : { type: event.type, stored: true });
 
       // Fire brain pipeline — FIRE AND FORGET (don't block the response)
       const typeMap: Record<string, ShopEvent["type"]> = {
