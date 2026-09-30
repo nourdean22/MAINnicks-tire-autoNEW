@@ -19,6 +19,7 @@
 
 import { brainTools } from "@/lib/ai/tools/brain";
 import { sinkPolicyGate } from "@/lib/tools/sink-policy";
+import { twoKeyGate } from "@/lib/tools/two-key";
 import { tasksTools } from "@/lib/ai/tools/tasks";
 import { businessTools } from "@/lib/ai/tools/business";
 import { contentTools } from "@/lib/ai/tools/content";
@@ -146,6 +147,10 @@ export function wrapToolsWithEmptyHandling<T extends Record<string, any>>(tools:
         // catalog tool crosses -- guardian-wrapped or not.
         const refused = await sinkPolicyGate(name, args);
         if (refused) return refused;
+        // Q-19 two-key rule: an irreversible customer-facing send waits for the
+        // owner's approval of the exact call, even in a clean owner turn.
+        const held = await twoKeyGate(name, args);
+        if (held) return held;
         let res: any;
         const budgetMs = TOOL_TIME_BUDGET_MS[name] ?? DEFAULT_TOOL_TIMEOUT_MS;
         let timer: ReturnType<typeof setTimeout> | undefined;
