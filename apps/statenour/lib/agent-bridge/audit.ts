@@ -70,7 +70,12 @@ export async function auditBridgeCall(params: {
 }
 
 /** Why a bridge call never reached a tool. */
-export type BridgeRejectionReason = "disabled" | "misconfigured" | "unauthorized" | "forbidden";
+export type BridgeRejectionReason =
+  | "disabled"
+  | "misconfigured"
+  | "unauthorized"
+  | "forbidden"
+  | "invalid_origin";
 
 /**
  * Audit a bridge call rejected BEFORE any tool matched.

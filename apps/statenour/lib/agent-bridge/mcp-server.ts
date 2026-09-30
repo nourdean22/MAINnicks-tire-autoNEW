@@ -11,10 +11,13 @@ import {
   ProtocolErrorCode,
   Server,
   createMcpHandler,
+  localhostAllowedOrigins,
+  originValidationResponse,
   type AuthInfo,
   type McpHttpHandler,
 } from "@modelcontextprotocol/server";
 import { getToolRiskClass } from "@/lib/ai/tools/catalog";
+import { env } from "@/lib/env";
 import { auditBridgeCall } from "./audit";
 import type { BridgeIdentity } from "./auth";
 import { BRIDGE_SCOPES, type BridgeScope } from "./scopes";
@@ -204,6 +207,32 @@ export const mcpHttpHandler: McpHttpHandler = createMcpHandler(
   ({ authInfo }) => buildBridgeMcpServer(identityFromMcpAuthInfo(authInfo)),
   { legacy: "stateless" },
 );
+
+/**
+ * Hostnames a browser `Origin` may carry on POST /api/mcp: this app's own
+ * public host plus the localhost class (a local MCP Inspector).
+ *
+ * Streamable HTTP 2026-07-28 "Security & Endpoint" 1: servers MUST validate
+ * `Origin` on every request and answer 403 when it is present and invalid.
+ * `createMcpHandler` is deliberately validation-free (its own docs say to put
+ * the check in front of it), so the route owns this. A request with no
+ * `Origin` passes: server-side MCP clients do not send one, and the check
+ * exists to stop a web page from driving the bridge from a victim's browser.
+ */
+export function mcpAllowedOriginHostnames(): string[] {
+  const hosts = new Set(localhostAllowedOrigins());
+  try {
+    hosts.add(new URL(env.NEXT_PUBLIC_APP_URL).hostname);
+  } catch {
+    // An unparseable app URL adds nothing; the localhost class still applies.
+  }
+  return [...hosts];
+}
+
+/** The spec's 403 for a present-and-invalid `Origin`, or undefined to proceed. */
+export function mcpOriginRejection(request: Request): Response | undefined {
+  return originValidationResponse(request, mcpAllowedOriginHostnames());
+}
 
 export function handleAuthenticatedMcpRequest(
   request: Request,
