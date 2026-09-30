@@ -158,6 +158,22 @@ describe("POST /api/mcp - Origin validation (Q-18)", () => {
     expect(res.status).toBe(200);
   });
 
+  it.each(["https://claude.ai", "https://chatgpt.com", "https://chat.openai.com"])(
+    "POSITIVE CONTROL: hosted MCP client Origin %s with a valid token initializes",
+    async (origin) => {
+      const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const res = await POST(post({ ...AUTH, origin }));
+      expect(res.status).toBe(200);
+      expect(rejectionLines(spy)).toHaveLength(0);
+    },
+  );
+
+  it("a hosted-client look-alike (claude.ai.evil.example) is still refused", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const res = await POST(post({ ...AUTH, origin: "https://claude.ai.evil.example" }));
+    expect(res.status).toBe(403);
+  });
+
   it("the allowlist follows NEXT_PUBLIC_APP_URL and always keeps the localhost class", () => {
     process.env.NEXT_PUBLIC_APP_URL = "https://staging.example.org";
     const hosts = mcpAllowedOriginHostnames();

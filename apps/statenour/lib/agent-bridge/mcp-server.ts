@@ -209,8 +209,19 @@ export const mcpHttpHandler: McpHttpHandler = createMcpHandler(
 );
 
 /**
+ * Hosted MCP clients that call from their vendor's servers but still send the
+ * vendor's own `Origin` (reported for claude.ai: `Origin: https://claude.ai`,
+ * KirianM/vihko#64). A web page cannot claim these origins, and user content on
+ * those services runs on separate origins (claudeusercontent.com,
+ * oaiusercontent.com), so allowing them keeps the check's point: no
+ * attacker-controlled page can drive the bridge from a browser.
+ */
+const HOSTED_MCP_CLIENT_ORIGINS = ["claude.ai", "chatgpt.com", "chat.openai.com"];
+
+/**
  * Hostnames a browser `Origin` may carry on POST /api/mcp: this app's own
- * public host plus the localhost class (a local MCP Inspector).
+ * public host, the localhost class (a local MCP Inspector) and the hosted MCP
+ * clients above. Matching is exact-hostname (any port), so look-alikes fail.
  *
  * Streamable HTTP 2026-07-28 "Security & Endpoint" 1: servers MUST validate
  * `Origin` on every request and answer 403 when it is present and invalid.
@@ -220,7 +231,7 @@ export const mcpHttpHandler: McpHttpHandler = createMcpHandler(
  * exists to stop a web page from driving the bridge from a victim's browser.
  */
 export function mcpAllowedOriginHostnames(): string[] {
-  const hosts = new Set(localhostAllowedOrigins());
+  const hosts = new Set([...localhostAllowedOrigins(), ...HOSTED_MCP_CLIENT_ORIGINS]);
   try {
     hosts.add(new URL(env.NEXT_PUBLIC_APP_URL).hostname);
   } catch {
