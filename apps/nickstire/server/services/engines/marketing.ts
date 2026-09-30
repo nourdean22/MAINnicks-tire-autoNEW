@@ -187,6 +187,12 @@ export async function analyzeLeadResponseTime(): Promise<{
   under30min: number;
   over1hour: number;
   conversionBySpeed: Array<{ bucket: string; leads: number; converted: number; rate: number }>;
+  /**
+   * Q-23 phase 5 · true only when the read failed. The zeros beside it are
+   * then placeholders, not a 0-minute average: the Lead SLA Monitor reads this
+   * to show UNMEASURED instead of an emerald "Avg: 0m".
+   */
+  unavailable?: true;
 }> {
   try {
     const rows = await (await db()).execute(sql`
@@ -233,7 +239,7 @@ export async function analyzeLeadResponseTime(): Promise<{
       conversionBySpeed,
     };
   } catch {
-    return { avgMinutes: 0, under5min: 0, under30min: 0, over1hour: 0, conversionBySpeed: [] };
+    return { avgMinutes: 0, under5min: 0, under30min: 0, over1hour: 0, conversionBySpeed: [], unavailable: true };
   }
 }
 
