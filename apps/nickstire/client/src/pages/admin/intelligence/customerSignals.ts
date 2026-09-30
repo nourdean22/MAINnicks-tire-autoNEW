@@ -21,8 +21,8 @@
 import { provenanceOf, type TileProvenance } from "@shared/tileProvenance";
 
 /** List caps in the engines: predictChurn slices highRisk to 25, predictRepeatVisits dueSoon to 30. */
-export const CHURN_HIGH_RISK_CAP = 25;
-export const REPEAT_DUE_SOON_CAP = 30;
+const CHURN_HIGH_RISK_CAP = 25;
+const REPEAT_DUE_SOON_CAP = 30;
 
 export interface CustomerSignalCount {
   /** false when the engine failed or its read failed. */
