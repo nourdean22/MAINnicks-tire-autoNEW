@@ -2915,6 +2915,35 @@
         "Only actual below-threshold context drops count; advisory/over-budget receipts do not."
       ],
       "lastVerifiedAt": "2026-09-29"
+    },
+    {
+      "capabilityId": "work-order-nhtsa-panel-q50",
+      "name": "Work-order drawer shows NHTSA recall campaigns and owner-complaint counts for the car's year/make/model (information only)",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch nickstire/q50-nhtsa-estimate-panel (draft PR, not merged): server/services/vehicleData.ts complaintsByVehicle (counts only; narratives and VIN fragments never leave the server) + recallsByVehicle newest-first with parkIt/parkOutside/remedy and a missing-results-array error; server/routers/vehicleData.ts complaints procedure; client/src/pages/admin/money/NhtsaVehiclePanel.tsx mounted in WorkOrdersSection's drawer. Before this, vehicleData.recalls had no caller.",
+        "tests": [
+          "server/__tests__/vehicleData.test.ts: 14 cases incl. newest-first dd/mm/yyyy ordering, park-it flags, complaint counts with a planted phone number and VIN fragment asserted absent from the payload, per-vehicle cache, and a 200 without a results array reading as an error for both recalls and complaints (red on main first).",
+          "client/src/__tests__/nhtsa-vehicle-panel.test.tsx: 5 cases incl. an {ok:false} value and a thrown query both rendering 'unavailable' with Retry, never 'none on file' (mutation removing the ok check is caught), no query without a 4-digit year/make/model, and no 'dangerous'/'necessary' wording.",
+          "client/src/__tests__/admin.test.tsx render matrix covers NhtsaVehiclePanel in ok/loading/error modes."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not yet seen on a phone in the live admin; the NHTSA endpoints were read by curl from the build container only (2018 Honda Accord: 6 recalls, 1,882 complaints)."
+        }
+      ],
+      "deferredScope": [
+        "Phase 2: the daily NHTSA manufacturer-communications file (static.nhtsa.gov/odi/ffdd/tsbs/) to flag WPE warranty extensions needs a stored, scheduled ingest; not in this change.",
+        "No per-VIN open-recall status (NHTSA has no public per-VIN API); the panel links to nhtsa.gov for the VIN check.",
+        "Nothing is sent to the customer; the panel is advisor information only."
+      ],
+      "lastVerifiedAt": "2026-09-30"
     }
   ],
   "axes": {
