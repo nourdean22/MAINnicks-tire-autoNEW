@@ -119,7 +119,7 @@ function injectIntelligence(targetPath, body) {
   }
 }
 
-function backendRequest(method, targetPath, headers = {}, body = null) {
+function backendRequest(method, targetPath, headers = {}, body = null, timeoutMs = 240000) {
   return new Promise((resolve, reject) => {
     const h = { ...headers };
     delete h.host;
@@ -131,7 +131,7 @@ function backendRequest(method, targetPath, headers = {}, body = null) {
       path: targetPath,
       method,
       headers: h,
-      timeout: 240000,
+      timeout: timeoutMs,
     }, res => resolve(res));
     req.on("timeout", () => req.destroy(new Error("backend timeout")));
     req.on("error", reject);
@@ -157,6 +157,36 @@ async function backendReady() {
     return false;
   }
 }
+
+async function unloadLocalQwenForHeavyPrompt(prompt, routingPrompt) {
+  const promptChars = String(prompt || "").length;
+  const routingChars = String(routingPrompt || "").length;
+  if (promptChars <= 24000 && routingChars <= 20000) return false;
+
+  try {
+    const res = await backendRequest(
+      "POST",
+      "/api/models/unload/qwen35-4b-local",
+      {},
+      null,
+      15000
+    );
+    const body = (await drain(res)).trim();
+    const ok = res.statusCode >= 200 && res.statusCode < 300;
+    log(
+      `heavy prompt local unload status=${res.statusCode} ok=${ok} ` +
+      `promptChars=${promptChars} routingChars=${routingChars} body=${body.slice(0, 120)}`
+    );
+    return ok;
+  } catch (err) {
+    log(
+      `heavy prompt local unload skipped promptChars=${promptChars} ` +
+      `routingChars=${routingChars} error=${String(err && err.message ? err.message : err)}`
+    );
+    return false;
+  }
+}
+
 async function ensureBackend() {
   if (await backendReady()) return true;
   if (!backendStartPromise) {
@@ -481,6 +511,7 @@ async function serveUnifiedChat(req, res, body) {
   }
   log(`unified start model=${requestedModel} promptChars=${prompt.length} routingChars=${routingPrompt.length}`);
   try {
+    await unloadLocalQwenForHeavyPrompt(prompt, routingPrompt);
     const result = await runInteractiveAdapter({
       model: requestedModel,
       prompt,
