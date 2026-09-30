@@ -24,8 +24,8 @@ import { createLogger } from "../lib/logger";
 
 const log = createLogger("nour-os-ig-control");
 
-export const IG_CONTROL_PATH = "/api/nour-os/ig-control";
-export const IG_CONTROL_HEADER = "x-ig-control-key";
+const IG_CONTROL_PATH = "/api/nour-os/ig-control";
+const IG_CONTROL_HEADER = "x-ig-control-key";
 
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
