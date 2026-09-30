@@ -1,0 +1,8 @@
+{
+  "_doc": "Items the deletion census flags that are read by something other than our code. Key = the census key (env:<railway service>:<NAME> or table:<app>:<name>). The value is the reason, with a receipt. A key whose item stops being flagged, or stops existing, is reported as STALE. Remove it then. Never add a key here just to quiet a finding: prove the reader first.",
+  "keep": {
+    "env:MAINnicks-tire-auto:RAILPACK_DEPLOY_APT_PACKAGES": "read by Railway's Railpack builder, not by app code: it installs these apt packages into the deploy image (railway.ts builder: RAILPACK)",
+    "env:statenour-web:AUTH_URL": "read implicitly by Auth.js v5 (next-auth ^5 in apps/statenour/package.json), which takes AUTH_URL from the environment without a code reference",
+    "env:statenour-web:AUTH_TRUST_HOST": "read implicitly by Auth.js v5 (next-auth ^5 in apps/statenour/package.json) to trust the proxy's Host header behind Railway"
+  }
+}
