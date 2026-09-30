@@ -19,7 +19,10 @@ class ExternalWorkerInstallerTests(unittest.TestCase):
 
     def test_task_is_outbound_worker_for_current_interactive_user(self):
         self.assertIn("StateNour-ExternalWorker-NattyNour", SOURCE)
-        self.assertIn("New-ScheduledTaskTrigger -AtLogOn", SOURCE)
+        self.assertNotIn("New-ScheduledTaskTrigger -AtLogOn", SOURCE)
+        self.assertIn("manual-only", SOURCE)
+        self.assertIn("-AllowStartIfOnBatteries", SOURCE)
+        self.assertIn("-DontStopIfGoingOnBatteries", SOURCE)
         self.assertIn("-LogonType Interactive", SOURCE)
         self.assertIn("-RunLevel Limited", SOURCE)
         self.assertIn("-RestartCount 10", SOURCE)

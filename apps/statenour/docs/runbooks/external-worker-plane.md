@@ -1,6 +1,6 @@
 # Runbook · External worker plane — subscription/local execution
 
-- **Status:** active · **Domain:** ai-runtime · **Risk:** high · **Last verified:** 2026-09-29
+- **Status:** active · **Domain:** ai-runtime · **Risk:** high · **Last verified:** 2026-09-30
 - **When to use:** installing, routing, debugging, or proving NattyNour external-worker execution.
 - **Source of truth:** `lib/workers/external-worker.ts`, `lib/workers/contracts.ts`, `local-agent/external_worker_agent.py`, `lib/services/runner-state.ts`.
 
@@ -40,8 +40,12 @@ cd C:\Users\nourd\NOURCITY\apps\statenour
 ```
 
 The installer copies the worker under `%LOCALAPPDATA%\StateNour\external-worker`, stores the runner
-secret with Windows current-user DPAPI, registers `StateNour-ExternalWorker-NattyNour`, restarts on
-failure, and leaves machine writes OFF unless `-EnableWrites` is deliberately supplied.
+secret with Windows current-user DPAPI, and registers `StateNour-ExternalWorker-NattyNour` as a
+**manual-only task with no automatic triggers**. It can start on battery, restarts on failure once
+manually started, and leaves machine writes OFF unless `-EnableWrites` is deliberately supplied.
+NattyNour's operator control is `NOUR External Worker Toggle.lnk`; OFF must mean task `Ready`, zero
+triggers, and zero `external_worker_agent.py` processes.
+
 ## Verification sequence
 
 1. **Local contract:** `python -m unittest local-agent\test_external_worker_agent.py local-agent\test_external_worker_installer.py`.
@@ -56,7 +60,7 @@ failure, and leaves machine writes OFF unless `-EnableWrites` is deliberately su
 
 - A WorkItem stuck PENDING/CLAIMED for >15 minutes is already handled by the autonomic orchestrator:
   it becomes FAILED/STALLED and emits a P0 coach event. Do not add another reaper.
-- Stop the host lane with `Stop-ScheduledTask -TaskName StateNour-ExternalWorker-NattyNour`.
+- Prefer the desktop toggle for OFF. If stopping manually, stop the task **and** verify/terminate only the exact `external_worker_agent.py` child; `Stop-ScheduledTask` alone can leave that child orphaned.
 - Read `%LOCALAPPDATA%\StateNour\external-worker\external-worker.log` before restarting.
 - If auth expires, repair the subscription CLI session locally; do not substitute an API key.
 - If production schema/server is behind the worker contract, leave the task stopped until deploy/migration read-back is green.

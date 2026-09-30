@@ -5,7 +5,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 MODULE_PATH = Path(__file__).with_name("external_worker_agent.py")
 SPEC = importlib.util.spec_from_file_location("external_worker_agent", MODULE_PATH)
@@ -32,6 +32,20 @@ class ExternalWorkerAgentTests(unittest.TestCase):
         self.assertNotIn("ANTHROPIC_API_KEY", env)
         self.assertNotIn("GEMINI_API_KEY", env)
         self.assertEqual(env.get("SAFE_VALUE"), "kept")
+
+    def test_post_unwraps_standard_api_handler_envelope(self):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "ok": True,
+            "data": {"items": [{"id": "job-1"}]},
+            "meta": {"request_id": "req-1"},
+        }
+        with patch.object(worker, "RUNNER_SECRET", "test-secret"), patch.object(
+            worker.requests, "post", return_value=response
+        ):
+            result = worker.post("/api/internal/runner/claim", {"nodeKey": "node-1"})
+        self.assertEqual(result, {"items": [{"id": "job-1"}]})
 
     def test_lane_choice_skips_exhausted_and_unavailable(self):
         lanes = {
