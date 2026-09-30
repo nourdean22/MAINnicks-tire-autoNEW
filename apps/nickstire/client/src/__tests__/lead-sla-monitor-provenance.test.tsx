@@ -65,6 +65,9 @@ describe("LeadSLAMonitor · unknown is not zero", () => {
     expect(tags(container)).toEqual(["UNMEASURED"]);
     // No bucket counts that would read as "0 leads" measured.
     expect(container.textContent).not.toMatch(/0 leads/);
+    // Q-23 phase 6 · the #2829 L8 survivor: no Impact Analysis on an unknown read.
+    expect(container.textContent).not.toMatch(/Impact Analysis/);
+    expect(container.textContent).not.toMatch(/Not enough recent conversion data/);
   });
 
   it("a failed engine read (zeros + unavailable) renders UNMEASURED, not 0 minutes", () => {
@@ -73,6 +76,7 @@ describe("LeadSLAMonitor · unknown is not zero", () => {
     expect(avgBadge(container)?.textContent).toBe("Avg: unknown");
     expect(tags(container)).toEqual(["UNMEASURED"]);
     expect(container.textContent).toMatch(/unknown, not 0 minutes/);
+    expect(container.textContent).not.toMatch(/Impact Analysis/);
   });
 
   it("an empty 90-day window shows no average, never an emerald 0m", () => {
