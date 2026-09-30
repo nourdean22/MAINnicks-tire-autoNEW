@@ -353,7 +353,6 @@ def execute_local_qwen(prompt: str) -> tuple[int, str, str | None]:
 
 
 def execute_codex(prompt: str, workspace: Path, write: bool) -> tuple[int, str, str | None]:
-    sandbox = "workspace-write" if write else "read-only"
     with tempfile.NamedTemporaryFile("w", delete=False, suffix=".txt", encoding="utf-8") as tmp:
         output_path = tmp.name
     try:
@@ -362,16 +361,21 @@ def execute_codex(prompt: str, workspace: Path, write: bool) -> tuple[int, str, 
             "--skip-git-repo-check",
             "--color",
             "never",
-            "-s",
-            sandbox,
+        ]
+        if write:
+            # Current Codex CLI: --approve-for-me already routes approval
+            # requests through the workspace-write sandbox and conflicts with
+            # an explicit --sandbox/-s flag.
+            args.append("--approve-for-me")
+        else:
+            args.extend(["-s", "read-only"])
+        args.extend([
             "-C",
             str(workspace),
             "-o",
             output_path,
-        ]
-        if write:
-            args.append("--approve-for-me")
-        args.append("-")
+            "-",
+        ])
         code, raw = run_process(
             "codex",
             args,
@@ -386,21 +390,29 @@ def execute_codex(prompt: str, workspace: Path, write: bool) -> tuple[int, str, 
 
 
 def execute_claude(prompt: str, workspace: Path, write: bool) -> tuple[int, str, str | None]:
+    # Worker sessions must not inherit the operator's giant interactive Claude
+    # context (CLAUDE.md, hooks, plugins, MCP servers, skills, memory, etc.).
+    # Safe mode preserves Claude auth and built-in tools while isolating those
+    # customizations; no-session-persistence prevents durable worker chat state.
+    base_args = [
+        "-p",
+        "--output-format",
+        "json",
+        "--safe-mode",
+        "--no-session-persistence",
+        "--no-chrome",
+        "--permission-prompts",
+        "none",
+    ]
     if write:
-        args = [
-            "-p",
-            "--output-format",
-            "json",
+        args = base_args + [
             "--permission-mode",
             "acceptEdits",
             "--tools",
             "Read,Glob,Grep,Edit,Write,Bash,PowerShell",
         ]
     else:
-        args = [
-            "-p",
-            "--output-format",
-            "json",
+        args = base_args + [
             "--restricted",
             "--permission-mode",
             "manual",
@@ -415,9 +427,15 @@ def execute_claude(prompt: str, workspace: Path, write: bool) -> tuple[int, str,
         timeout=TIMEOUT_SECONDS,
     )
     try:
-        data = json.loads(raw)
+        # Claude can append non-JSON diagnostics after the JSON result (for
+        # example a workspace-trust warning). Decode the first JSON value and
+        # ignore only trailing diagnostic text instead of discarding the result.
+        data, _ = json.JSONDecoder().raw_decode(raw.lstrip())
         result = data.get("result") if isinstance(data, dict) else None
-        return code, str(result if result is not None else raw), str(data.get("model")) if isinstance(data, dict) and data.get("model") else None
+        model = data.get("model") if isinstance(data, dict) else None
+        if not model and isinstance(data, dict) and isinstance(data.get("modelUsage"), dict):
+            model = next(iter(data["modelUsage"]), None)
+        return code, str(result if result is not None else raw), str(model) if model else None
     except Exception:
         return code, raw, None
 
