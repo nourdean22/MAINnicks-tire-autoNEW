@@ -4,7 +4,9 @@
  * The card reads three things, and only three, because those are the only ones
  * production actually carries: unclaimed declined work, calls in the last 24h,
  * and invoiced revenue over 7 days. See the `controlCenter.todayPulse` docblock
- * for the full list of what was measured and deliberately left out.
+ * for the full list of what was measured and deliberately left out. Since Q-23
+ * phase 3 it also shows the promise ledger's debt (`promiseDebtView` below), a
+ * count of obligations rather than of shop activity.
  *
  * The judgement calls all live here so they can be tested without a database:
  * how stale the invoice mirror is, whether that staleness is worth interrupting
@@ -114,5 +116,56 @@ export function todayPulseProvenance(
       "observed",
       revenueNeverSynced ? "unavailable" : revenueMirrorStale ? "partial" : "ok",
     ),
+  };
+}
+
+/**
+ * Q-23 phase 3 · the obligation-debt tile: promises the shop owes a customer.
+ *
+ * Three states the card must keep apart, because the whole point of the promise
+ * ledger is that an obligation cannot be forgotten:
+ *   - the read failed or the table is missing → UNMEASURED, and says so in words;
+ *   - read, and nothing is open → a measured zero, stated, not hidden;
+ *   - read, with open promises → MEASURED counts, loud when any are past due.
+ * "Past due" means nobody pressed Keep by the due time. A callback made from the
+ * counter phone is invisible to the system, so the words say "not marked kept"
+ * rather than "missed".
+ *
+ * `undefined` is a server that predates this tile (a payload without the field),
+ * not a failed read, so it returns null and the card draws no tile at all.
+ */
+export type PromiseDebtPayload =
+  | { available: true; open: number; overdue: number; overdue4h: number }
+  | { available: false; reason: string };
+
+export function promiseDebtView(debt: PromiseDebtPayload | undefined): {
+  provenance: TileProvenance;
+  headline: string;
+  detail: string | null;
+  loud: boolean;
+} | null {
+  if (debt === undefined) return null;
+  if (!debt.available) {
+    return {
+      provenance: provenanceOf("observed", "unavailable"),
+      headline: "Promises owed: could not be read",
+      detail: "Unknown, not zero. Check the Promises panel on the Today tab.",
+      loud: true,
+    };
+  }
+  const provenance = provenanceOf("observed");
+  if (debt.open === 0) {
+    return { provenance, headline: "0 promises owed", detail: null, loud: false };
+  }
+  const noun = debt.open === 1 ? "promise" : "promises";
+  if (debt.overdue === 0) {
+    return { provenance, headline: `${debt.open} ${noun} owed`, detail: "none past due", loud: false };
+  }
+  const late = debt.overdue4h > 0 ? ` · ${debt.overdue4h} by 4h or more` : "";
+  return {
+    provenance,
+    headline: `${debt.open} ${noun} owed`,
+    detail: `${debt.overdue} past due, not marked kept${late}`,
+    loud: true,
   };
 }

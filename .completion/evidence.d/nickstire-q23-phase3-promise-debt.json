@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Q-23 phase 3 (2026-09-30, branch nickstire/q23-phase3-promise-debt). What the operator sees: on Admin > Intelligence HQ, the 'Today, for real' card gains a fourth row under revenue, the promises the shop owes. It reads '0 promises owed' (MEASURED) when the ledger is empty; 'N promises owed · none past due' when nothing is late; and in amber 'N promises owed · M past due, not marked kept · K by 4h or more' when some are late. If the ledger cannot be read it says 'Promises owed: could not be read · Unknown, not zero. Check the Promises panel on the Today tab.' tagged UNMEASURED. That panel's header now says '50+ open' when its 50-row page is full and 'count unknown' on a failed read, so it never contradicts the card's total (client/src/__tests__/promises-panel-open-count.test.tsx 5/5). The count uses the same rows as the Promises panel (open, obligation-mirror rows excluded). The other three rows are unchanged. Proof is a jsdom render plus the real tRPC procedure with mocked reads, not a live admin session: client/src/__tests__/todays-real-numbers-promises.test.tsx 6/6, server/todayPulseObligations.test.ts 2/2, server/services/promiseDebt.test.ts 7/7; against main's source 14 of those 15 fail (the no-field case passes on both by design). Not yet seen by the operator on the installed PWA."
+    }
+  }
+}
