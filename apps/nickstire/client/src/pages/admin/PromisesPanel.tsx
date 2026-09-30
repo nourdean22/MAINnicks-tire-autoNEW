@@ -45,6 +45,21 @@ const resolveDueSafely = (pick: DuePickId): DueResolution | null => {
   }
 };
 
+/**
+ * listOpen returns at most PANEL_LIMIT open promises, most overdue first, so the
+ * header must not present that page as the ledger's total. A full page reads
+ * "50+ open", a failed read has no count, and a read in flight shows nothing.
+ * The Intelligence HQ card shows the true total (promiseDebt, Q-23 phase 3) and
+ * sends the operator here when it cannot read it, so the two must not disagree.
+ */
+const PANEL_LIMIT = 50;
+
+function openCountLabel(open: readonly unknown[] | undefined, isLoading: boolean, isError: boolean): string | null {
+  if (isError) return "count unknown";
+  if (isLoading || !open) return null;
+  return open.length >= PANEL_LIMIT ? `${PANEL_LIMIT}+ open` : `${open.length} open`;
+}
+
 export default function PromisesPanel() {
   const utils = trpc.useUtils();
   /**
@@ -55,7 +70,8 @@ export default function PromisesPanel() {
    * — a confident all-clear about the ledger that tracks every "we'll call you
    * back" this shop has made. With `retry: 1` it reached that state fast.
    */
-  const { data: open, isLoading, isError } = trpc.promises.listOpen.useQuery({ limit: 50 }, { staleTime: 60_000, retry: 1 });
+  const { data: open, isLoading, isError } = trpc.promises.listOpen.useQuery({ limit: PANEL_LIMIT }, { staleTime: 60_000, retry: 1 });
+  const openLabel = openCountLabel(open, isLoading, isError);
 
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ promiseType: "callback", promisedAction: "", customerName: "", customerPhone: "", duePick: "in_2h" as DuePickId });
@@ -123,7 +139,7 @@ export default function PromisesPanel() {
         <div className="flex items-center gap-2">
           <HandHeart className="w-4 h-4 text-nick-yellow" />
           <h2 className="text-sm font-bold uppercase tracking-wide">Promises</h2>
-          <span className="text-[10px] text-muted-foreground">{open?.length ?? 0} open</span>
+          {openLabel && <span className="text-[10px] text-muted-foreground">{openLabel}</span>}
         </div>
         <button
           onClick={() => setShowCreate((s) => !s)}

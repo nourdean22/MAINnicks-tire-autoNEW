@@ -2521,6 +2521,62 @@
       "deferredScope": []
     },
     {
+      "capabilityId": "admin-promise-debt-tile-q23",
+      "name": "Admin 'Today, for real' card shows promise debt (open / past due / 4h+) from customer_promises, UNMEASURED on a failed read",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch nickstire/q23-phase3-promise-debt (Q-23 phase 3): server/services/promiseLedger.ts promiseDebt() counts open, past-due and 4h+ past-due promises over listOpenPromises' row set (obligation-mirror kinds excluded); a failed read or unapplied table returns available:false, never zeros. controlCenter.todayPulse returns it as `obligations`; TodaysRealNumbers renders it via todayPulse.ts promiseDebtView with a MEASURED or UNMEASURED tag.",
+        "tests": [
+          "server/services/promiseDebt.test.ts: counts coerce to numbers; the query reads open rows, past due against NOW() and 4h past due, and excludes the three mirror kinds; a failed read, an unapplied table and no DB handle are available:false, never zeros. Red on main 7/7.",
+          "server/todayPulseObligations.test.ts: the real controlCenter.todayPulse procedure returns the ledger's counts, and an unreadable ledger rides along as unavailable while the pulse stays up. Red on main 2/2.",
+          "client/src/__tests__/todays-real-numbers-promises.test.tsx: an unreadable ledger renders UNMEASURED and 'Unknown, not zero'; an empty ledger states '0 promises owed' MEASURED; past-due promises render loud with counts; a payload without the field draws no tile. Red on main 5/6 (the no-field case passes on both by design)."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not deployed: the tile has not been seen on the installed admin PWA, and the production row count of open customer_promises is unread from this session."
+        }
+      ],
+      "deferredScope": [
+        "Q-23 remaining: provenance tags on the other admin tiles, the lane-health strip, and data freshness.",
+        "Past due means nobody pressed Keep by due_at; a counter-phone callback is invisible, so the count is not a measure of missed promises."
+      ],
+      "lastVerifiedAt": "2026-09-30"
+    },
+    {
+      "capabilityId": "admin-lead-sla-provenance-q23",
+      "name": "Admin Lead SLA Monitor shows UNMEASURED on a failed read and no average on an empty window, never an emerald 'Avg: 0m'",
+      "owner": "operator",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch nickstire/q23-phase5-lead-sla-provenance (Q-23 phase 5, draft PR, not merged): server/services/engines/marketing.ts analyzeLeadResponseTime marks its catch-path zeros unavailable:true (a successful read never carries it; scoring in masterIntelligence is unchanged). client/src/pages/admin/intelligence/leadSla.ts deriveLeadSla maps a null engine result or unavailable:true to UNMEASURED 'Avg: unknown', an empty 90-day window (bucket counts sum to 0) to MEASURED 'Avg: none', and a real average to MEASURED 'Avg: Nm'; an empty bucket reads 'no leads to convert', not '0% conversion rate'. LeadSLAMonitor.tsx renders it with a ProvenanceTag. Also: TodaysMoneyRisks' LOW-to-MEDIUM raise while a slice is unread is now moneyRisks.displayedRiskSeverity.",
+        "tests": [
+          "client/src/__tests__/lead-sla-monitor-provenance.test.tsx: failed engine, failed read, empty window, real average, empty bucket. Red on main 5/5.",
+          "server/services/engines/leadResponseUnavailable.test.ts: a rejected execute returns unavailable:true; an empty window and a populated read do not; bucket counts sum to the rows read. Red on main 1/3 (the two success-path controls pass on both by design).",
+          "client/src/__tests__/money-risks-severity-unread.test.tsx: the unit case is red on main (no export); the two unread-badge render cases go red when the raise is removed (the #2827 M9 survivor)."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not deployed: the card has not been seen on the installed admin PWA, and how often the production engine read fails is unread from this session."
+        }
+      ],
+      "deferredScope": [
+        "Q-23 remaining: the lane-health strip, data freshness, and provenance tags on AIHealth, LlmSpend and CustomerIntelligence.",
+        "masterIntelligence counts a failed engine only when it throws; this engine's swallowed failure (now unavailable:true) is still not counted toward the report's scoreReliable threshold."
+      ],
+      "lastVerifiedAt": "2026-09-30"
+    },
+    {
       "capabilityId": "estimate-invoice-match-scheduled",
       "name": "The estimate -> invoice matcher runs daily on its own, before the declined-work recovery sends",
       "owner": "operator",
@@ -2920,7 +2976,7 @@
       "capabilityId": "work-order-nhtsa-panel-q50",
       "name": "Work-order drawer shows NHTSA recall campaigns and owner-complaint counts for the car's year/make/model (information only)",
       "owner": "system",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {

@@ -1786,6 +1786,14 @@ function buildTiers(): void {
         },
       },
       {
+        name: "review-reminder-drafts", // Q-39 · day-13 reminder DRAFTS for the review queue; never sends (flag-gated, off by default)
+        businessHoursOnly: true,
+        handler: async () => {
+          const { processReviewReminderDrafts } = await import("./jobs/reviewReminderDrafts");
+          return processReviewReminderDrafts();
+        },
+      },
+      {
         name: "promise-risk-check", // NEW: detect work orders about to miss promised time
         businessHoursOnly: true,
         handler: async () => {

@@ -1268,7 +1268,10 @@ export const controlCenterRouter = router({
    * the database — this is a phone-and-walk-in shop, not a web-lead shop.
    *
    * Every figure below was verified to be non-trivial against production before
-   * being built. Deliberately EXCLUDED after measuring:
+   * being built, except `obligations` (Q-23 phase 3, promise debt): nobody has
+   * read the production count of open promises yet, and an empty ledger renders
+   * as a stated zero rather than being hidden. Deliberately EXCLUDED after
+   * measuring:
    *
    *   · gross margin — partsCost is set on 6 of 334 recent invoices, laborCost
    *     on 1. The columns exist; the data does not. A margin tile would be
@@ -1332,6 +1335,12 @@ export const controlCenterRouter = router({
       const throughRaw = revenue.throughDate;
       const throughDate = throughRaw ? new Date(throughRaw as string) : null;
 
+      // Q-23 phase 3 · obligation debt. Read on its own and never throws: a
+      // failed promise read is `available: false` on this one tile, and the
+      // three tiles above still render.
+      const { promiseDebt } = await import("../services/promiseLedger");
+      const obligations = await promiseDebt();
+
       return {
         available: true as const,
         declinedWork: {
@@ -1353,6 +1362,8 @@ export const controlCenterRouter = router({
           /** Newest invoice in the mirror. The operator needs to see the lag. */
           throughDate,
         },
+        /** Open customer promises (PromisesPanel's row set). Unavailable is never zeros. */
+        obligations,
       };
     } catch (err) {
       log.error("[ControlCenter] todayPulse failed:", err);

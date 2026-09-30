@@ -1,0 +1,496 @@
+{
+ "fields": [
+  {
+   "name": "n",
+   "type": "esriFieldTypeInteger"
+  },
+  {
+   "name": "lat",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "name": "lng",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "name": "latest",
+   "type": "esriFieldTypeDate"
+  },
+  {
+   "name": "ward_2026",
+   "type": "esriFieldTypeDouble"
+  },
+  {
+   "name": "ward_name_2026",
+   "type": "esriFieldTypeString"
+  },
+  {
+   "name": "neighborhood",
+   "type": "esriFieldTypeString"
+  }
+ ],
+ "features": [
+  {
+   "attributes": {
+    "n": 13,
+    "lat": 41.45318342384615,
+    "lng": -81.80508903384617,
+    "latest": 1790705387000,
+    "ward_2026": 15,
+    "ward_name_2026": "Ward 15",
+    "neighborhood": "Kamm's"
+   }
+  },
+  {
+   "attributes": {
+    "n": 7,
+    "lat": 41.53114716428571,
+    "lng": -81.60385096285714,
+    "latest": 1790705135000,
+    "ward_2026": 9,
+    "ward_name_2026": "Ward 9",
+    "neighborhood": "Glenville"
+   }
+  },
+  {
+   "attributes": {
+    "n": 6,
+    "lat": 41.512381014999995,
+    "lng": -81.66789834000001,
+    "latest": 1789741246000,
+    "ward_2026": 8,
+    "ward_name_2026": "Ward 8",
+    "neighborhood": "Goodrich-Kirtland Pk"
+   }
+  },
+  {
+   "attributes": {
+    "n": 6,
+    "lat": 41.55505058166666,
+    "lng": -81.58363846833333,
+    "latest": 1790285541000,
+    "ward_2026": 9,
+    "ward_name_2026": "Ward 9",
+    "neighborhood": "Collinwood-Nottingham"
+   }
+  },
+  {
+   "attributes": {
+    "n": 6,
+    "lat": 41.44438071166667,
+    "lng": -81.559521315,
+    "latest": 1790448291000,
+    "ward_2026": 1,
+    "ward_name_2026": "Ward 1",
+    "neighborhood": "Lee-Harvard"
+   }
+  },
+  {
+   "attributes": {
+    "n": 6,
+    "lat": 41.50629486333333,
+    "lng": -81.60137120666667,
+    "latest": 1790599966000,
+    "ward_2026": 6,
+    "ward_name_2026": "Ward 6",
+    "neighborhood": "University"
+   }
+  },
+  {
+   "attributes": {
+    "n": 6,
+    "lat": 41.481004815,
+    "lng": -81.70939236166667,
+    "latest": 1790431438000,
+    "ward_2026": 7,
+    "ward_name_2026": "Ward 7",
+    "neighborhood": "Ohio City"
+   }
+  },
+  {
+   "attributes": {
+    "n": 5,
+    "lat": 41.435822202000004,
+    "lng": -81.704424312,
+    "latest": 1790699151000,
+    "ward_2026": 4,
+    "ward_name_2026": "Ward 4",
+    "neighborhood": "Old Brooklyn"
+   }
+  },
+  {
+   "attributes": {
+    "n": 5,
+    "lat": 41.499097762000005,
+    "lng": -81.69036307799999,
+    "latest": 1790597140000,
+    "ward_2026": 5,
+    "ward_name_2026": "Ward 5",
+    "neighborhood": "Downtown"
+   }
+  },
+  {
+   "attributes": {
+    "n": 5,
+    "lat": 41.484123658,
+    "lng": -81.76417422400002,
+    "latest": 1790106585000,
+    "ward_2026": 12,
+    "ward_name_2026": "Ward 12",
+    "neighborhood": "Edgewater"
+   }
+  },
+  {
+   "attributes": {
+    "n": 5,
+    "lat": 41.460431906000004,
+    "lng": -81.76158546799999,
+    "latest": 1790704215000,
+    "ward_2026": 12,
+    "ward_name_2026": "Ward 12",
+    "neighborhood": "West Boulevard"
+   }
+  },
+  {
+   "attributes": {
+    "n": 5,
+    "lat": 41.41523844,
+    "lng": -81.848951326,
+    "latest": 1790620332000,
+    "ward_2026": 15,
+    "ward_name_2026": "Ward 15",
+    "neighborhood": "Hopkins"
+   }
+  },
+  {
+   "attributes": {
+    "n": 4,
+    "lat": 41.58176924,
+    "lng": -81.5515924825,
+    "latest": 1790616744000,
+    "ward_2026": 10,
+    "ward_name_2026": "Ward 10",
+    "neighborhood": "North Shore Collinwood"
+   }
+  },
+  {
+   "attributes": {
+    "n": 4,
+    "lat": 41.4485270625,
+    "lng": -81.6380093,
+    "latest": 1790370841000,
+    "ward_2026": 2,
+    "ward_name_2026": "Ward 2",
+    "neighborhood": "Broadway-Slavic Village"
+   }
+  },
+  {
+   "attributes": {
+    "n": 3,
+    "lat": 41.47816692,
+    "lng": -81.63263635666668,
+    "latest": 1790364521000,
+    "ward_2026": 5,
+    "ward_name_2026": "Ward 5",
+    "neighborhood": "Kinsman"
+   }
+  },
+  {
+   "attributes": {
+    "n": 3,
+    "lat": 41.49348213333334,
+    "lng": -81.69928043,
+    "latest": 1789412181000,
+    "ward_2026": 7,
+    "ward_name_2026": "Ward 7",
+    "neighborhood": "Cuyahoga Valley"
+   }
+  },
+  {
+   "attributes": {
+    "n": 3,
+    "lat": 41.469278270000004,
+    "lng": -81.64759693666667,
+    "latest": 1790419205000,
+    "ward_2026": 3,
+    "ward_name_2026": "Ward 3",
+    "neighborhood": "Broadway-Slavic Village"
+   }
+  },
+  {
+   "attributes": {
+    "n": 3,
+    "lat": 41.486707853333336,
+    "lng": -81.61095536333333,
+    "latest": 1790255147000,
+    "ward_2026": 6,
+    "ward_name_2026": "Ward 6",
+    "neighborhood": "Buckeye-Woodhill"
+   }
+  },
+  {
+   "attributes": {
+    "n": 3,
+    "lat": 41.50053094,
+    "lng": -81.69806721666667,
+    "latest": 1790341137000,
+    "ward_2026": 8,
+    "ward_name_2026": "Ward 8",
+    "neighborhood": "Downtown"
+   }
+  },
+  {
+   "attributes": {
+    "n": 3,
+    "lat": 41.45617674,
+    "lng": -81.73637477,
+    "latest": 1789929350000,
+    "ward_2026": 11,
+    "ward_name_2026": "Ward 11",
+    "neighborhood": "Stockyards"
+   }
+  },
+  {
+   "attributes": {
+    "n": 3,
+    "lat": 41.56697895333333,
+    "lng": -81.55484129333333,
+    "latest": 1789831164000,
+    "ward_2026": 10,
+    "ward_name_2026": "Ward 10",
+    "neighborhood": "Collinwood-Nottingham"
+   }
+  },
+  {
+   "attributes": {
+    "n": 3,
+    "lat": 41.45927524666667,
+    "lng": -81.78142565666667,
+    "latest": 1790639484000,
+    "ward_2026": 13,
+    "ward_name_2026": "Ward 13",
+    "neighborhood": "Jefferson"
+   }
+  },
+  {
+   "attributes": {
+    "n": 2,
+    "lat": 41.475045595,
+    "lng": -81.764787345,
+    "latest": 1790690244000,
+    "ward_2026": 12,
+    "ward_name_2026": "Ward 12",
+    "neighborhood": "Cudell"
+   }
+  },
+  {
+   "attributes": {
+    "n": 2,
+    "lat": 41.565763765,
+    "lng": -81.58563964000001,
+    "latest": 1790629498000,
+    "ward_2026": 9,
+    "ward_name_2026": "Ward 9",
+    "neighborhood": "North Shore Collinwood"
+   }
+  },
+  {
+   "attributes": {
+    "n": 2,
+    "lat": 41.470216525,
+    "lng": -81.614275035,
+    "latest": 1788177124000,
+    "ward_2026": 3,
+    "ward_name_2026": "Ward 3",
+    "neighborhood": "Mount Pleasant"
+   }
+  },
+  {
+   "attributes": {
+    "n": 2,
+    "lat": 41.483126045,
+    "lng": -81.727108705,
+    "latest": 1790096084000,
+    "ward_2026": 7,
+    "ward_name_2026": "Ward 7",
+    "neighborhood": "Detroit Shoreway"
+   }
+  },
+  {
+   "attributes": {
+    "n": 2,
+    "lat": 41.44986394,
+    "lng": -81.62663748,
+    "latest": 1790359111000,
+    "ward_2026": 2,
+    "ward_name_2026": "Ward 2",
+    "neighborhood": "Union-Miles"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.43761747,
+    "lng": -81.55659786,
+    "latest": 1790017305000,
+    "ward_2026": 1,
+    "ward_name_2026": "Ward 1",
+    "neighborhood": "Lee-Seville"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.48721719,
+    "lng": -81.59166248,
+    "latest": 1789042620000,
+    "ward_2026": 6,
+    "ward_name_2026": "Ward 6",
+    "neighborhood": "Buckeye-Shaker Square"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.47216185,
+    "lng": -81.72514903,
+    "latest": 1788554840000,
+    "ward_2026": 7,
+    "ward_name_2026": "Ward 7",
+    "neighborhood": "Stockyards"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.46738416,
+    "lng": -81.68683165,
+    "latest": 1790519091000,
+    "ward_2026": 7,
+    "ward_name_2026": "Ward 7",
+    "neighborhood": "Tremont"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.46113281,
+    "lng": -81.61693814,
+    "latest": 1790463285000,
+    "ward_2026": 3,
+    "ward_name_2026": "Ward 3",
+    "neighborhood": "Union-Miles"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.51700533,
+    "lng": -81.60433083,
+    "latest": 1788478364000,
+    "ward_2026": 6,
+    "ward_name_2026": "Ward 6",
+    "neighborhood": "Glenville"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.47234904,
+    "lng": -81.73949239,
+    "latest": 1789673698000,
+    "ward_2026": 11,
+    "ward_name_2026": "Ward 11",
+    "neighborhood": "Detroit Shoreway"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.44126872,
+    "lng": -81.71664423,
+    "latest": 1788270037000,
+    "ward_2026": 11,
+    "ward_name_2026": "Ward 11",
+    "neighborhood": "Old Brooklyn"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.5165566,
+    "lng": -81.62876488,
+    "latest": 1788893990000,
+    "ward_2026": 8,
+    "ward_name_2026": "Ward 8",
+    "neighborhood": "Hough"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.52903953,
+    "lng": -81.63047211,
+    "latest": 1788200369000,
+    "ward_2026": 8,
+    "ward_name_2026": "Ward 8",
+    "neighborhood": "St.Clair-Superior"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.46756447,
+    "lng": -81.75120156,
+    "latest": 1788983131000,
+    "ward_2026": 11,
+    "ward_name_2026": "Ward 11",
+    "neighborhood": "West Boulevard"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.42567288,
+    "lng": -81.77949051,
+    "latest": 1790174999000,
+    "ward_2026": 13,
+    "ward_name_2026": "Ward 13",
+    "neighborhood": "Bellaire-Puritas"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.45324286,
+    "lng": -81.7692859,
+    "latest": 1790705035000,
+    "ward_2026": 12,
+    "ward_name_2026": "Ward 12",
+    "neighborhood": "Jefferson"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.45326814,
+    "lng": -81.71504543,
+    "latest": 1789505499000,
+    "ward_2026": 14,
+    "ward_name_2026": "Ward 14",
+    "neighborhood": "Brooklyn Centre"
+   }
+  },
+  {
+   "attributes": {
+    "n": 1,
+    "lat": 41.45737163,
+    "lng": -81.72385496,
+    "latest": 1790723231000,
+    "ward_2026": 14,
+    "ward_name_2026": "Ward 14",
+    "neighborhood": "Stockyards"
+   }
+  }
+ ]
+}

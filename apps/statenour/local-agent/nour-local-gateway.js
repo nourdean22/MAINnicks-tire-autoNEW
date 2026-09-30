@@ -20,11 +20,31 @@ const KERNEL_MARKER = "[NOUR_RUNTIME_KERNEL_V1]";
 const PYTHON_EXE = path.join(HOME, "AppData", "Local", "Programs", "Python", "Python314", "python.exe");
 const WORKER_AGENT = path.join(HOME, "AppData", "Local", "StateNour", "external-worker", "external_worker_agent.py");
 const PROTECTED_WORKSPACE = path.join(HOME, "Documents", "Codex", "NATTYNOUR-RUNTIME-WRITES-DO-NOT-CLEAN");
+const CHATGPT_PLAN_CREDENTIALS = path.join(
+  HOME,
+  "AppData",
+  "Local",
+  "StateNour",
+  "chatgpt-plan",
+  "credentials.dpapi",
+);
 
 const UNIFIED_MODELS = [
   {
     id: "nour-auto",
     name: "NOUR Auto · Cost-Safe Router",
+    owned_by: "nour",
+    context_length: 20000,
+  },
+  {
+    id: "nour-research",
+    name: "NOUR Research · Multi-Stage Web Research",
+    owned_by: "nour",
+    context_length: 20000,
+  },
+  {
+    id: "nour-chatgpt-plan",
+    name: "ChatGPT · Plan OAuth",
     owned_by: "nour",
     context_length: 20000,
   },
@@ -119,7 +139,7 @@ function injectIntelligence(targetPath, body) {
   }
 }
 
-function backendRequest(method, targetPath, headers = {}, body = null) {
+function backendRequest(method, targetPath, headers = {}, body = null, timeoutMs = 240000) {
   return new Promise((resolve, reject) => {
     const h = { ...headers };
     delete h.host;
@@ -131,7 +151,7 @@ function backendRequest(method, targetPath, headers = {}, body = null) {
       path: targetPath,
       method,
       headers: h,
-      timeout: 240000,
+      timeout: timeoutMs,
     }, res => resolve(res));
     req.on("timeout", () => req.destroy(new Error("backend timeout")));
     req.on("error", reject);
@@ -157,6 +177,36 @@ async function backendReady() {
     return false;
   }
 }
+
+async function unloadLocalQwenForHeavyPrompt(prompt, routingPrompt) {
+  const promptChars = String(prompt || "").length;
+  const routingChars = String(routingPrompt || "").length;
+  if (promptChars <= 24000 && routingChars <= 20000) return false;
+
+  try {
+    const res = await backendRequest(
+      "POST",
+      "/api/models/unload/qwen35-4b-local",
+      {},
+      null,
+      15000
+    );
+    const body = (await drain(res)).trim();
+    const ok = res.statusCode >= 200 && res.statusCode < 300;
+    log(
+      `heavy prompt local unload status=${res.statusCode} ok=${ok} ` +
+      `promptChars=${promptChars} routingChars=${routingChars} body=${body.slice(0, 120)}`
+    );
+    return ok;
+  } catch (err) {
+    log(
+      `heavy prompt local unload skipped promptChars=${promptChars} ` +
+      `routingChars=${routingChars} error=${String(err && err.message ? err.message : err)}`
+    );
+    return false;
+  }
+}
+
 async function ensureBackend() {
   if (await backendReady()) return true;
   if (!backendStartPromise) {
@@ -246,7 +296,9 @@ async function mergedModels() {
   } catch (err) {
     log("model list backend probe failed: " + String(err && err.message ? err.message : err));
   }
-  const logical = UNIFIED_MODELS.map(model => unifiedModelRecord(model));
+  const logical = UNIFIED_MODELS
+    .filter(model => model.id !== "nour-chatgpt-plan" || fs.existsSync(CHATGPT_PLAN_CREDENTIALS))
+    .map(model => unifiedModelRecord(model));
   const [autoModel, ...externalModels] = logical;
   const localModels = [];
   const otherPhysical = [];
@@ -339,7 +391,7 @@ function scrubbedInteractiveEnv() {
   return env;
 }
 
-function runWorkerAdapter(request, mode = "--local-chat", expectedStatus = "completed", timeoutMs = 600000) {
+function runWorkerAdapter(request, mode = "--local-chat", expectedStatus = "completed", timeoutMs = 480000) {
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(PYTHON_EXE)) return reject(new Error("Python runtime missing"));
     if (!fs.existsSync(WORKER_AGENT)) return reject(new Error("external worker adapter missing"));
@@ -355,7 +407,17 @@ function runWorkerAdapter(request, mode = "--local-chat", expectedStatus = "comp
     let stderrBytes = 0;
     const cap = 4 * 1024 * 1024;
     const timer = setTimeout(() => {
-      try { child.kill(); } catch {}
+      try {
+        const killer = spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], {
+          windowsHide: true,
+          stdio: "ignore",
+        });
+        killer.on("error", () => {
+          try { child.kill(); } catch {}
+        });
+      } catch {
+        try { child.kill(); } catch {}
+      }
       reject(new Error(mode + " adapter timed out"));
     }, timeoutMs);
     child.stdout.on("data", chunk => {
@@ -469,7 +531,9 @@ async function serveUnifiedChat(req, res, body) {
     res.end(JSON.stringify({ error: { message: "No chat messages supplied", type: "invalid_request_error" } }));
     return;
   }
+  log(`unified start model=${requestedModel} promptChars=${prompt.length} routingChars=${routingPrompt.length}`);
   try {
+    await unloadLocalQwenForHeavyPrompt(prompt, routingPrompt);
     const result = await runInteractiveAdapter({
       model: requestedModel,
       prompt,
@@ -478,7 +542,18 @@ async function serveUnifiedChat(req, res, body) {
     });
     const output = String(result && result.result && result.result.output || "");
     const lane = String(result && result.result && result.result.laneId || "unknown");
-    log(`unified served model=${requestedModel} lane=${lane} ms=${Date.now()-started}`);
+    const candidates = Array.isArray(result && result.candidateLaneIds)
+      ? result.candidateLaneIds.join(",")
+      : "unknown";
+    const attemptTimeout = Number(result && result.result && result.result.attemptTimeoutSeconds || 0);
+    const attemptFailures = Array.isArray(result && result.result && result.result.attemptFailures)
+      ? result.result.attemptFailures.join(",")
+      : "";
+    log(
+      `unified served model=${requestedModel} lane=${lane} candidates=${candidates} ` +
+      `attemptTimeout=${attemptTimeout}s failures=${attemptFailures || "none"} ` +
+      `promptChars=${prompt.length} ms=${Date.now()-started}`
+    );
     writeOpenAiCompletion(res, requestedModel, output, Boolean(payload.stream), lane);
   } catch (err) {
     const message = String(err && err.message ? err.message : err);
