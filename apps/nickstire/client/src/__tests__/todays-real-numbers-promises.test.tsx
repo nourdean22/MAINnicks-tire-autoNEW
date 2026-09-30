@@ -48,7 +48,7 @@ describe("TodaysRealNumbers · promises owed", () => {
     expect(t).not.toBeNull();
     expect(t?.querySelector("[data-provenance]")?.getAttribute("data-provenance")).toBe("UNMEASURED");
     expect(t?.textContent).toMatch(/could not be read/);
-    expect(t?.textContent).toMatch(/Not zero/);
+    expect(t?.textContent).toMatch(/Unknown, not zero/);
     expect(t?.textContent).not.toMatch(/\b0 promises/);
   });
 
@@ -66,7 +66,8 @@ describe("TodaysRealNumbers · promises owed", () => {
     const t = tile(container);
     expect(t?.textContent).toMatch(/5 promises owed/);
     expect(t?.textContent).toMatch(/3 past due, not marked kept · 2 by 4h or more/);
-    expect(t?.querySelector(".text-amber-400")).not.toBeNull();
+    // The count itself is amber, not only the icon beside it.
+    expect(t?.querySelector("div.text-sm.text-amber-400")?.textContent).toMatch(/5 promises owed/);
   });
 
   it("a payload without the field draws no tile, and the rest of the card still renders", () => {

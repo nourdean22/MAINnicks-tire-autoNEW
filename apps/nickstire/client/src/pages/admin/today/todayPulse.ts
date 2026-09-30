@@ -4,7 +4,9 @@
  * The card reads three things, and only three, because those are the only ones
  * production actually carries: unclaimed declined work, calls in the last 24h,
  * and invoiced revenue over 7 days. See the `controlCenter.todayPulse` docblock
- * for the full list of what was measured and deliberately left out.
+ * for the full list of what was measured and deliberately left out. Since Q-23
+ * phase 3 it also shows the promise ledger's debt (`promiseDebtView` below), a
+ * count of obligations rather than of shop activity.
  *
  * The judgement calls all live here so they can be tested without a database:
  * how stale the invoice mirror is, whether that staleness is worth interrupting
@@ -147,7 +149,7 @@ export function promiseDebtView(debt: PromiseDebtPayload | undefined): {
     return {
       provenance: provenanceOf("observed", "unavailable"),
       headline: "Promises owed: could not be read",
-      detail: "Not zero. Check the Promises panel on the Today tab.",
+      detail: "Unknown, not zero. Check the Promises panel on the Today tab.",
       loud: true,
     };
   }

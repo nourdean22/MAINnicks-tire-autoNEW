@@ -502,7 +502,9 @@ export async function listOpenPromises(limit = 100): Promise<PromiseRow[]> {
  * Q-23 phase 3 · obligation debt for the admin "Today, for real" card: how many
  * promises are open, how many are past due, and how many are 4h+ past due (the
  * sweep's `critical` line in classifyOverdue). Same row set as listOpenPromises,
- * so the card and PromisesPanel never disagree, and the mirror stays in shadow.
+ * and the mirror stays in shadow. PromisesPanel lists at most 50 of those rows
+ * and its header says "50+ open" when the page is full, so the panel and the
+ * card do not contradict each other.
  *
  * A failed read or an un-applied table is `available: false`, never zeros: a
  * card that shows "0 owed" when it could not look is how a forgotten callback

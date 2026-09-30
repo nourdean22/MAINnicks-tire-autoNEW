@@ -2524,7 +2524,7 @@
       "capabilityId": "admin-promise-debt-tile-q23",
       "name": "Admin 'Today, for real' card shows promise debt (open / past due / 4h+) from customer_promises, UNMEASURED on a failed read",
       "owner": "operator",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
@@ -2532,7 +2532,7 @@
         "tests": [
           "server/services/promiseDebt.test.ts: counts coerce to numbers; the query reads open rows, past due against NOW() and 4h past due, and excludes the three mirror kinds; a failed read, an unapplied table and no DB handle are available:false, never zeros. Red on main 7/7.",
           "server/todayPulseObligations.test.ts: the real controlCenter.todayPulse procedure returns the ledger's counts, and an unreadable ledger rides along as unavailable while the pulse stays up. Red on main 2/2.",
-          "client/src/__tests__/todays-real-numbers-promises.test.tsx: an unreadable ledger renders UNMEASURED and 'Not zero'; an empty ledger states '0 promises owed' MEASURED; past-due promises render loud with counts; a payload without the field draws no tile. Red on main 5/6 (the no-field case passes on both by design)."
+          "client/src/__tests__/todays-real-numbers-promises.test.tsx: an unreadable ledger renders UNMEASURED and 'Unknown, not zero'; an empty ledger states '0 promises owed' MEASURED; past-due promises render loud with counts; a payload without the field draws no tile. Red on main 5/6 (the no-field case passes on both by design)."
         ],
         "liveRuns": []
       },
@@ -2948,7 +2948,7 @@
       "capabilityId": "work-order-nhtsa-panel-q50",
       "name": "Work-order drawer shows NHTSA recall campaigns and owner-complaint counts for the car's year/make/model (information only)",
       "owner": "system",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {

@@ -1268,7 +1268,10 @@ export const controlCenterRouter = router({
    * the database — this is a phone-and-walk-in shop, not a web-lead shop.
    *
    * Every figure below was verified to be non-trivial against production before
-   * being built. Deliberately EXCLUDED after measuring:
+   * being built, except `obligations` (Q-23 phase 3, promise debt): nobody has
+   * read the production count of open promises yet, and an empty ledger renders
+   * as a stated zero rather than being hidden. Deliberately EXCLUDED after
+   * measuring:
    *
    *   · gross margin — partsCost is set on 6 of 334 recent invoices, laborCost
    *     on 1. The columns exist; the data does not. A margin tile would be
