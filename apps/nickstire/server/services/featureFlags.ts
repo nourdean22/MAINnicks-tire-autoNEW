@@ -38,6 +38,7 @@ export const FLAG_DEFINITIONS = [
   { key: "contact_holdout_winback", description: "15% deterministic no-contact control for winback SMS. Requires contact_holdouts_enabled." },
   { key: "contact_holdout_weather", description: "15% deterministic no-contact control per weather-trigger SMS lane. Requires contact_holdouts_enabled." },
   { key: "contact_holdout_review_requests", description: "15% deterministic no-contact control for review-request SMS. Random only; never sentiment-selected. Requires contact_holdouts_enabled." },
+  { key: "review_reminder_drafts", description: "Q-39 experiment: one review reminder ~day 13 to customers who got a review request and never clicked. DRAFTS ONLY (Human Review Queue); 15% no-contact control. Requires contact_holdouts_enabled." },
   { key: "contact_holdout_campaigns", description: "15% deterministic no-contact control independently within each explicit SMS campaign. Requires contact_holdouts_enabled." },
   { key: "service_affinity_v2_compute", description: "Service Affinity v2 prediction cron · writes per-customer predictions to service_affinity_predictions w/ 50/50 A/B arm split (treatment eligible for SMS · control hold-out for closed-loop measurement). Disabled until migration 0061 applied + operator verifies v2 quality." },
   { key: "auto_revenue_correction", description: "Auto-trigger winback when revenue behind pace" },

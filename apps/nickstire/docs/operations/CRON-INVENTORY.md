@@ -17,11 +17,11 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 |---|---|---|
 | heartbeat | every 5m | 4 / 2 |
 | pulse | every 15m | 24 / 0 |
-| hourly | every 2h | 35 / 1 |
+| hourly | every 2h | 36 / 1 |
 | daily | every 1d | 52 / 0 |
 | briefings | every 12h | 6 / 0 |
 
-**Total: 124 tiered jobs (121 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
+**Total: 125 tiered jobs (122 scheduled automatically, 3 staged off the scheduler) + 6 HTTP-only registry jobs.**
 
 ## heartbeat (every 5m)
 
@@ -92,6 +92,7 @@ those two sources — `server/cron/cronInventoryParity.test.ts` fails when they 
 | `pull-from-statenour-brain` | no | no | yes | — |
 | `referral-loop-closer` | yes | yes | yes | — |
 | `reminder-queue` | yes | no | yes | — |
+| `review-reminder-drafts` | yes | no | yes | Q-39: draft (never send) one day-13 review reminder per unclicked request, with a 15% no-contact control; off until flagged |
 | `review-requests` | yes | no | yes | Send review request SMS to recently-completed bookings |
 | `safety-check` | no | no | yes | — |
 | `service-affinity-compute` | no | no | yes | — |

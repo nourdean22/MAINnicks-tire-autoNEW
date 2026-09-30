@@ -63,6 +63,12 @@ describe("contactExperiment", () => {
     expect(contactLaneForVariant("winback")?.laneKey).toBe("winback");
     expect(contactLaneForVariant("weather_first_freeze")?.laneKey).toBe("weather_first_freeze");
     expect(contactLaneForVariant("review_request")?.laneKey).toBe("review_request");
+    // Q-39: the reminder is its own experiment, armed by its own drafts flag.
+    expect(contactLaneForVariant("review_reminder")).toMatchObject({
+      laneKey: "review_reminder",
+      experimentId: "contact:review_reminder:v1",
+      flagKey: "review_reminder_drafts",
+    });
     expect(contactLaneForVariant("campaign:42")?.experimentId).toBe("contact:campaign:42:v1");
 
     // drip pools every drip campaign (incl. declined-estimate follow-ups) under
