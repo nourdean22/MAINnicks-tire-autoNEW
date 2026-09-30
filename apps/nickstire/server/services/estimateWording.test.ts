@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { hasUnfoundedVerdict, stripUnfoundedVerdicts, stripVerdictFromTitle } from "./estimateWording";
+import { stripUnfoundedVerdicts, stripVerdictFromTitle } from "./estimateWording";
+
+const hasUnfoundedVerdict = (s: string) => stripUnfoundedVerdicts(s).dropped > 0;
 
 // Each verdict is paired with the hedged or neutral phrasing of the same thought, which must stay.
 const PAIRS: Array<[verdict: string, clean: string]> = [

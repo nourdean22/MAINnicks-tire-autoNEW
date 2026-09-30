@@ -146,7 +146,7 @@ export type LaborEstimateResult = {
  * danger and urgency verdicts (no inspection backs them) and replaces the
  * model's disclaimer with the server-owned one. Prices are not touched.
  */
-export function finalizeEstimateWording(raw: Omit<LaborEstimateResult, "estimateChoice">): LaborEstimateResult {
+function finalizeEstimateWording(raw: Omit<LaborEstimateResult, "estimateChoice">): LaborEstimateResult {
   let dropped = 0;
   const strip = (t: string) => {
     const r = stripUnfoundedVerdicts(t ?? "");

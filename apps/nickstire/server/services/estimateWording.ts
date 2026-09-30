@@ -36,7 +36,7 @@ const HEDGE = String.raw`(?<!\b(?:if|as|when|whether|unless|where|not|(?:can|cou
 
 const UNHEDGED_VERDICT = new RegExp(`${HEDGE}\\b(?:${VERDICT_WORDS})\\b`, "i");
 
-export function hasUnfoundedVerdict(text: string): boolean {
+function hasUnfoundedVerdict(text: string): boolean {
   return UNHEDGED_VERDICT.test(text);
 }
 
