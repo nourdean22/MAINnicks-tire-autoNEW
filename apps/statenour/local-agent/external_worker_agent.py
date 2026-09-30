@@ -38,6 +38,17 @@ TIMEOUT_SECONDS = max(30, int(os.getenv("NOUR_EXTERNAL_WORKER_TIMEOUT_SECONDS", 
 ALLOW_WRITES = os.getenv("NOUR_EXTERNAL_WORKER_ALLOW_WRITES", "0").strip() == "1"
 MAX_OUTPUT_CHARS = 50_000
 INTERACTIVE_MAX_PROMPT_CHARS = 80_000
+# Interactive chat needs bounded failover. Durable background work can keep the
+# longer TIMEOUT_SECONDS contract, but a single chat lane must not consume the
+# gateway's entire request deadline and prevent fall-through to healthy lanes.
+INTERACTIVE_ATTEMPT_TIMEOUT_SECONDS = max(
+    60,
+    min(300, int(os.getenv("NOUR_EXTERNAL_WORKER_INTERACTIVE_ATTEMPT_TIMEOUT_SECONDS", "165"))),
+)
+INTERACTIVE_TOTAL_TIMEOUT_SECONDS = max(
+    INTERACTIVE_ATTEMPT_TIMEOUT_SECONDS,
+    min(450, int(os.getenv("NOUR_EXTERNAL_WORKER_INTERACTIVE_TOTAL_TIMEOUT_SECONDS", "420"))),
+)
 LOCAL_GATEWAY = os.getenv("NOUR_LOCAL_GATEWAY_URL", "http://127.0.0.1:11436")
 
 LANE_IDS = ("codex", "claude-code", "antigravity", "local-qwen")
@@ -116,6 +127,33 @@ def executable_command(name: str, args: list[str]) -> list[str]:
     return [path, *args]
 
 
+def _terminate_process_tree(proc: subprocess.Popen[str]) -> None:
+    """Terminate only the process tree rooted at a worker-owned subprocess."""
+    if proc.poll() is not None:
+        return
+
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill.exe", "/PID", str(proc.pid), "/T", "/F"],
+                text=True,
+                capture_output=True,
+                timeout=10,
+                check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+    else:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
 def run_process(
     name: str,
     args: list[str],
@@ -125,19 +163,28 @@ def run_process(
     timeout: int = 20,
 ) -> tuple[int, str]:
     cmd = executable_command(name, args)
-    cp = subprocess.run(
+    proc = subprocess.Popen(
         cmd,
-        input=stdin_text,
+        stdin=subprocess.PIPE if stdin_text is not None else subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        capture_output=True,
         cwd=str(cwd) if cwd else None,
         env=scrubbed_env(),
-        timeout=timeout,
-        check=False,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
-    output = (cp.stdout or "") + (("\n" + cp.stderr) if cp.stderr else "")
-    return cp.returncode, output.strip()
+    try:
+        stdout, stderr = proc.communicate(input=stdin_text, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _terminate_process_tree(proc)
+        try:
+            proc.communicate(timeout=5)
+        except Exception:
+            pass
+        raise
+
+    output = (stdout or "") + (("\n" + stderr) if stderr else "")
+    return proc.returncode, output.strip()
 
 
 def quota_from_text(text: str) -> str:
@@ -347,7 +394,9 @@ def truncate_output(text: str) -> tuple[str, bool]:
     return text[:MAX_OUTPUT_CHARS], True
 
 
-def execute_local_qwen(prompt: str) -> tuple[int, str, str | None]:
+def execute_local_qwen(
+    prompt: str, timeout_seconds: int = TIMEOUT_SECONDS
+) -> tuple[int, str, str | None]:
     response = requests.post(
         f"{LOCAL_GATEWAY}/v1/chat/completions",
         json={
@@ -361,7 +410,7 @@ def execute_local_qwen(prompt: str) -> tuple[int, str, str | None]:
             "repeat_penalty": 1.0,
             "max_tokens": 2048,
         },
-        timeout=TIMEOUT_SECONDS,
+        timeout=timeout_seconds,
     )
     response.raise_for_status()
     data = response.json()
@@ -369,7 +418,12 @@ def execute_local_qwen(prompt: str) -> tuple[int, str, str | None]:
     return 0, str(text), "qwen35-4b-local"
 
 
-def execute_codex(prompt: str, workspace: Path, write: bool) -> tuple[int, str, str | None]:
+def execute_codex(
+    prompt: str,
+    workspace: Path,
+    write: bool,
+    timeout_seconds: int = TIMEOUT_SECONDS,
+) -> tuple[int, str, str | None]:
     with tempfile.NamedTemporaryFile("w", delete=False, suffix=".txt", encoding="utf-8") as tmp:
         output_path = tmp.name
     try:
@@ -398,7 +452,7 @@ def execute_codex(prompt: str, workspace: Path, write: bool) -> tuple[int, str, 
             args,
             cwd=workspace,
             stdin_text=prompt,
-            timeout=TIMEOUT_SECONDS,
+            timeout=timeout_seconds,
         )
         final = Path(output_path).read_text(encoding="utf-8", errors="replace").strip()
         return code, final or raw, None
@@ -406,7 +460,12 @@ def execute_codex(prompt: str, workspace: Path, write: bool) -> tuple[int, str, 
         Path(output_path).unlink(missing_ok=True)
 
 
-def execute_claude(prompt: str, workspace: Path, write: bool) -> tuple[int, str, str | None]:
+def execute_claude(
+    prompt: str,
+    workspace: Path,
+    write: bool,
+    timeout_seconds: int = TIMEOUT_SECONDS,
+) -> tuple[int, str, str | None]:
     # Worker sessions must not inherit the operator's giant interactive Claude
     # context (CLAUDE.md, hooks, plugins, MCP servers, skills, memory, etc.).
     # Safe mode preserves Claude auth and built-in tools while isolating those
@@ -441,7 +500,7 @@ def execute_claude(prompt: str, workspace: Path, write: bool) -> tuple[int, str,
         args,
         cwd=workspace,
         stdin_text=prompt,
-        timeout=TIMEOUT_SECONDS,
+        timeout=timeout_seconds,
     )
     try:
         # Claude can append non-JSON diagnostics after the JSON result (for
@@ -458,7 +517,11 @@ def execute_claude(prompt: str, workspace: Path, write: bool) -> tuple[int, str,
 
 
 def execute_antigravity(
-    prompt: str, workspace: Path, write: bool, direct_chat: bool = False
+    prompt: str,
+    workspace: Path,
+    write: bool,
+    direct_chat: bool = False,
+    timeout_seconds: int = TIMEOUT_SECONDS,
 ) -> tuple[int, str, str | None]:
     agy = str(Path(os.getenv("LOCALAPPDATA", "")) / "agy" / "bin" / "agy.exe")
     if not Path(agy).exists():
@@ -486,7 +549,7 @@ def execute_antigravity(
         capture_output=True,
         cwd=str(workspace),
         env=scrubbed_env(),
-        timeout=TIMEOUT_SECONDS,
+        timeout=timeout_seconds,
         check=False,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
@@ -614,19 +677,51 @@ def execute_job(item: dict[str, Any], lanes: dict[str, dict[str, str]]) -> tuple
     attempt_failures: list[str] = []
     last_result: dict[str, Any] | None = None
     last_error_code: str | None = None
+    interactive_started = time.monotonic()
 
     for lane in ready_candidates:
+        if interactive_chat:
+            remaining = INTERACTIVE_TOTAL_TIMEOUT_SECONDS - (
+                time.monotonic() - interactive_started
+            )
+            if remaining < 30:
+                attempt_failures.append("interactive-budget:exhausted")
+                last_error_code = "INTERACTIVE_BUDGET_EXHAUSTED"
+                break
+            attempt_timeout_seconds = min(
+                INTERACTIVE_ATTEMPT_TIMEOUT_SECONDS,
+                max(30, int(remaining)),
+            )
+        else:
+            attempt_timeout_seconds = TIMEOUT_SECONDS
+
         started = time.monotonic()
         try:
             if lane == "local-qwen":
-                code, output, model = execute_local_qwen(prompt)
+                code, output, model = execute_local_qwen(
+                    prompt, timeout_seconds=attempt_timeout_seconds
+                )
             elif lane == "codex":
-                code, output, model = execute_codex(prompt, workspace, wants_write)
+                code, output, model = execute_codex(
+                    prompt,
+                    workspace,
+                    wants_write,
+                    timeout_seconds=attempt_timeout_seconds,
+                )
             elif lane == "claude-code":
-                code, output, model = execute_claude(prompt, workspace, wants_write)
+                code, output, model = execute_claude(
+                    prompt,
+                    workspace,
+                    wants_write,
+                    timeout_seconds=attempt_timeout_seconds,
+                )
             elif lane == "antigravity":
                 code, output, model = execute_antigravity(
-                    prompt, workspace, wants_write, interactive_chat
+                    prompt,
+                    workspace,
+                    wants_write,
+                    interactive_chat,
+                    timeout_seconds=attempt_timeout_seconds,
                 )
             else:
                 raise RuntimeError("unsupported_lane")
@@ -659,8 +754,10 @@ def execute_job(item: dict[str, Any], lanes: dict[str, dict[str, str]]) -> tuple
             "exitCode": code,
             "model": model,
             "errorCode": error_code,
+            "attemptTimeoutSeconds": attempt_timeout_seconds,
         }
         if success:
+            result["attemptFailures"] = attempt_failures[:]
             return "completed", result, None, None
 
         last_result = result
@@ -703,9 +800,12 @@ INTERACTIVE_MODEL_LANES: dict[str, list[str]] = {
 }
 
 
-def auto_interactive_candidates(prompt: str) -> list[str]:
+def auto_interactive_candidates(
+    prompt: str, full_prompt_chars: int | None = None
+) -> list[str]:
     """Cost-safe/capability-aware routing for the local unified chat surface."""
     text = prompt.lower()
+    assembled_chars = full_prompt_chars if full_prompt_chars is not None else len(prompt)
     code_hints = (
         "code", "debug", "bug", "repo", "repository", "git ", "github", "typescript",
         "javascript", "python", "sql", "test ", "tests ", "build ", "compile",
@@ -716,8 +816,16 @@ def auto_interactive_candidates(prompt: str) -> list[str]:
         "roadmap", "plan across", "system design", "tradeoff", "trade-off",
         "deep analysis", "analyze deeply", "reason carefully", "think deeply",
         "comprehensive", "multi-step", "decision framework",
+        "research", "sources", "citation", "cite ", "evidence",
     )
-    if len(prompt) > 6_000 or any(hint in text for hint in supervisor_hints):
+    # Route on the fully assembled prompt as well as the last user turn. Open
+    # WebUI can turn a short research request into a large RAG synthesis prompt;
+    # sending that to the 4B local lane first is slow and low quality.
+    if (
+        assembled_chars > 24_000
+        or len(prompt) > 6_000
+        or any(hint in text for hint in supervisor_hints)
+    ):
         return ["claude-code", "codex", "antigravity", "local-qwen"]
     if any(hint in text for hint in code_hints):
         return ["codex", "claude-code", "antigravity", "local-qwen"]
@@ -738,7 +846,10 @@ def execute_interactive_request(raw: dict[str, Any]) -> dict[str, Any]:
         }
 
     if model == "nour-auto":
-        candidates = auto_interactive_candidates(routing_prompt)
+        candidates = auto_interactive_candidates(
+            routing_prompt,
+            full_prompt_chars=len(prompt),
+        )
     else:
         candidates = INTERACTIVE_MODEL_LANES.get(model, [])
     if not candidates:
@@ -767,6 +878,8 @@ def execute_interactive_request(raw: dict[str, Any]) -> dict[str, Any]:
         "errorCode": error_code,
         "errorMessage": error_message,
         "candidateLaneIds": candidates,
+        "promptChars": len(prompt),
+        "routingPromptChars": len(routing_prompt),
     }
 
 
