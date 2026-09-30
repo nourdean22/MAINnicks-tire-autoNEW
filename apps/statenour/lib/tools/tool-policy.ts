@@ -146,6 +146,29 @@ export function evaluateToolAction(request: ToolActionRequest): ToolDecision {
 
   // 6. Memory write from external content -> require memory review
   const isMemoryWrite = request.memoryWriteRequested || cap.memoryWriteAllowed;
+
+  // 6a. Q-20 (2026-09-30) · ...unless the same action also has an external
+  // side effect. Memory review approves a memory write; it is not an owner
+  // approval of a send, and checkApprovalGate never gated it. Before this,
+  // adding memoryWriteRequested + containsExternalContent to an external
+  // send (both model-declared on the action path) turned require_owner into
+  // require_memory_review, and the send ran. Found by the exhaustive
+  // monotonicity invariant in tests/tools/tool-policy-permissiveness.test.ts.
+  const hasExternalSideEffect = Boolean(request.externalMutation || cap.externalMutation);
+  if (
+    isMemoryWrite &&
+    hasExternalSideEffect &&
+    (request.containsExternalContent || request.basedOnInferredMemory)
+  ) {
+    return {
+      decision: "require_owner",
+      riskClass: riskClass === "low" ? "medium" : riskClass,
+      reason:
+        "A memory write from untrusted content or a model inference is bundled with an external side effect; the owner must approve both.",
+      requiredApproval: "owner_required"
+    };
+  }
+
   if (isMemoryWrite && request.containsExternalContent) {
     return {
       decision: "require_memory_review",
@@ -218,7 +241,26 @@ export function evaluateToolAction(request: ToolActionRequest): ToolDecision {
   // 9. External mutation -> require approval / owner
   const isExternalMutation = request.externalMutation || cap.externalMutation;
   if (isExternalMutation) {
-    const policy = approvalPolicy === "none" ? "owner_required" : approvalPolicy;
+    // Q-20 (2026-09-30) · a human-specific policy keeps a human-specific
+    // gate. This used to collapse screenshot_required, memory_review_required
+    // and manual_only into a generic require_approval, so a model-declared
+    // externalMutation LOWERED such a tool's gate (found by the monotonicity
+    // invariant in tests/tools/tool-policy-permissiveness.test.ts). Memory
+    // review never gates a send, so it escalates to the owner.
+    if (approvalPolicy === "screenshot_required") {
+      return {
+        decision: "require_screenshot_approval",
+        riskClass,
+        reason: "External mutations must be approved by the operator (screenshot confirmation).",
+        requiredApproval: "screenshot_required"
+      };
+    }
+    const policy =
+      approvalPolicy === "none" ||
+      approvalPolicy === "manual_only" ||
+      approvalPolicy === "memory_review_required"
+        ? "owner_required"
+        : approvalPolicy;
     return {
       decision: policy === "owner_required" ? "require_owner" : "require_approval",
       riskClass,
