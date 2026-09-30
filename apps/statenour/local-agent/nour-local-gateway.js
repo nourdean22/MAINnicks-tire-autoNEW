@@ -339,7 +339,7 @@ function scrubbedInteractiveEnv() {
   return env;
 }
 
-function runWorkerAdapter(request, mode = "--local-chat", expectedStatus = "completed", timeoutMs = 600000) {
+function runWorkerAdapter(request, mode = "--local-chat", expectedStatus = "completed", timeoutMs = 480000) {
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(PYTHON_EXE)) return reject(new Error("Python runtime missing"));
     if (!fs.existsSync(WORKER_AGENT)) return reject(new Error("external worker adapter missing"));
@@ -355,7 +355,17 @@ function runWorkerAdapter(request, mode = "--local-chat", expectedStatus = "comp
     let stderrBytes = 0;
     const cap = 4 * 1024 * 1024;
     const timer = setTimeout(() => {
-      try { child.kill(); } catch {}
+      try {
+        const killer = spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], {
+          windowsHide: true,
+          stdio: "ignore",
+        });
+        killer.on("error", () => {
+          try { child.kill(); } catch {}
+        });
+      } catch {
+        try { child.kill(); } catch {}
+      }
       reject(new Error(mode + " adapter timed out"));
     }, timeoutMs);
     child.stdout.on("data", chunk => {
@@ -469,6 +479,7 @@ async function serveUnifiedChat(req, res, body) {
     res.end(JSON.stringify({ error: { message: "No chat messages supplied", type: "invalid_request_error" } }));
     return;
   }
+  log(`unified start model=${requestedModel} promptChars=${prompt.length} routingChars=${routingPrompt.length}`);
   try {
     const result = await runInteractiveAdapter({
       model: requestedModel,
@@ -478,7 +489,18 @@ async function serveUnifiedChat(req, res, body) {
     });
     const output = String(result && result.result && result.result.output || "");
     const lane = String(result && result.result && result.result.laneId || "unknown");
-    log(`unified served model=${requestedModel} lane=${lane} ms=${Date.now()-started}`);
+    const candidates = Array.isArray(result && result.candidateLaneIds)
+      ? result.candidateLaneIds.join(",")
+      : "unknown";
+    const attemptTimeout = Number(result && result.result && result.result.attemptTimeoutSeconds || 0);
+    const attemptFailures = Array.isArray(result && result.result && result.result.attemptFailures)
+      ? result.result.attemptFailures.join(",")
+      : "";
+    log(
+      `unified served model=${requestedModel} lane=${lane} candidates=${candidates} ` +
+      `attemptTimeout=${attemptTimeout}s failures=${attemptFailures || "none"} ` +
+      `promptChars=${prompt.length} ms=${Date.now()-started}`
+    );
     writeOpenAiCompletion(res, requestedModel, output, Boolean(payload.stream), lane);
   } catch (err) {
     const message = String(err && err.message ? err.message : err);
