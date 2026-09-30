@@ -362,7 +362,7 @@ export const systemTools = {
         // documents Nick reads · pivot into AWS/GCP metadata or
         // internal services on RFC-1918 ranges. Gate via DNS-
         // resolution + private-IP block + manual redirect walk.
-        const { assertPublicUrl, isAllowedDocumentContentType } =
+        const { assertPublicUrl, isAllowedDocumentContentType, publicOnlyDispatcher, connectBlockedReason } =
           await import("@/lib/utils/url-safety");
 
         // Walk redirects manually so external→internal redirects
@@ -386,7 +386,17 @@ export const systemTools = {
           }
           seen.add(currentUrl);
 
-          res = await fetch(currentUrl, { redirect: "manual" });
+          // Q-14: the pinned dispatcher re-checks the address it dials, so a
+          // name that re-resolves private after the check above is refused.
+          try {
+            res = await fetch(currentUrl, { redirect: "manual", dispatcher: publicOnlyDispatcher() } as RequestInit);
+          } catch (err) {
+            const blocked = connectBlockedReason(err);
+            if (blocked) {
+              return { ok: false, code: "url_blocked", error: `URL safety check failed: ${blocked}` };
+            }
+            throw err;
+          }
           if (res.status >= 300 && res.status < 400) {
             const next = res.headers.get("location");
             if (!next) {
