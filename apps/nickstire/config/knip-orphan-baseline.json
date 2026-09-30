@@ -83,8 +83,28 @@
     },
     {
       "file": "apps/nickstire/shared/metricsContract.ts",
-      "symbol": null,
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+      "symbol": "CANONICAL_METRICS",
+      "reason": "Q-23 2026-09-30: the file now has a runtime caller (shared/tileProvenance.ts reads getCanonicalMetric for the admin Today card), so the whole-file entry narrowed to the exports that still have none. CANONICAL_METRICS is covered by server/metricsContractParity.test.ts / shared/tileProvenance.test.ts only; the envelope path waits for a server read that returns MetricEnvelope (later Q-23 phases)."
+    },
+    {
+      "file": "apps/nickstire/shared/metricsContract.ts",
+      "symbol": "SHOP_TIME_ZONE",
+      "reason": "Q-23 2026-09-30: the file now has a runtime caller (shared/tileProvenance.ts reads getCanonicalMetric for the admin Today card), so the whole-file entry narrowed to the exports that still have none. SHOP_TIME_ZONE is covered by server/metricsContractParity.test.ts / shared/tileProvenance.test.ts only; the envelope path waits for a server read that returns MetricEnvelope (later Q-23 phases)."
+    },
+    {
+      "file": "apps/nickstire/shared/metricsContract.ts",
+      "symbol": "buildEnvelope",
+      "reason": "Q-23 2026-09-30: the file now has a runtime caller (shared/tileProvenance.ts reads getCanonicalMetric for the admin Today card), so the whole-file entry narrowed to the exports that still have none. buildEnvelope is covered by server/metricsContractParity.test.ts / shared/tileProvenance.test.ts only; the envelope path waits for a server read that returns MetricEnvelope (later Q-23 phases)."
+    },
+    {
+      "file": "apps/nickstire/shared/metricsContract.ts",
+      "symbol": "isRoiSafe",
+      "reason": "Q-23 2026-09-30: the file now has a runtime caller (shared/tileProvenance.ts reads getCanonicalMetric for the admin Today card), so the whole-file entry narrowed to the exports that still have none. isRoiSafe is covered by server/metricsContractParity.test.ts / shared/tileProvenance.test.ts only; the envelope path waits for a server read that returns MetricEnvelope (later Q-23 phases)."
+    },
+    {
+      "file": "apps/nickstire/shared/metricsContract.ts",
+      "symbol": "validateEnvelope",
+      "reason": "Q-23 2026-09-30: the file now has a runtime caller (shared/tileProvenance.ts reads getCanonicalMetric for the admin Today card), so the whole-file entry narrowed to the exports that still have none. validateEnvelope is covered by server/metricsContractParity.test.ts / shared/tileProvenance.test.ts only; the envelope path waits for a server read that returns MetricEnvelope (later Q-23 phases)."
     },
     {
       "file": "apps/nickstire/shared/reelVoiceCraft.ts",

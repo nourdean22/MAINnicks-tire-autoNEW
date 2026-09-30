@@ -13,6 +13,8 @@
  * Pure + side-effect-free, like its sibling ./moneyRisks.
  */
 
+import { type TileProvenance, metricProvenance, provenanceOf } from "@shared/tileProvenance";
+
 /** The mirror normally runs a day behind. Beyond this, the number is suspect. */
 export const MIRROR_STALE_WARN_DAYS = 3;
 
@@ -56,4 +58,35 @@ export function mirrorFreshness(
 export function abandonRate(calls: { last24h: number; abandoned24h: number }): number | null {
   if (calls.last24h <= 0) return null;
   return Math.round((calls.abandoned24h / calls.last24h) * 100);
+}
+
+/**
+ * Q-23 · which of MEASURED / ESTIMATE / UNMEASURED each number on the card wears.
+ *
+ * Canonical names are used where the tile shows exactly that metric, so the label
+ * follows METRICS-CONTRACT.md if the contract ever reclassifies it. Two tiles have
+ * no exact canonical metric and state their evidence directly:
+ *   - calls counts every `vapi_call_logs` row in 24h, inbound or not, so calling it
+ *     "Total inbound calls" would claim a filter the SQL does not apply;
+ *   - revenue is every paid invoice, the sum of the contract's "Verified attributed"
+ *     and "Unmatched paid" revenue, which the contract names only separately.
+ * A mirror lagging past the warn threshold makes revenue a lower bound (the card
+ * already says it is understated), so it is a partial read, i.e. an ESTIMATE.
+ */
+export function todayPulseProvenance(revenueMirrorStale: boolean): {
+  declinedWork: TileProvenance;
+  calls: TileProvenance;
+  reachedTool: TileProvenance;
+  abandoned: TileProvenance;
+  revenue: TileProvenance;
+} {
+  return {
+    // A sum of estimates nobody accepted: an opportunity, never money.
+    declinedWork: metricProvenance("Estimated recovery opportunity"),
+    calls: provenanceOf("observed"),
+    reachedTool: metricProvenance("Tool engagements"),
+    // "Hung up under 20s" is a duration heuristic for a genuine abandon.
+    abandoned: metricProvenance("Abandoned calls"),
+    revenue: provenanceOf("observed", revenueMirrorStale ? "partial" : "ok"),
+  };
 }
