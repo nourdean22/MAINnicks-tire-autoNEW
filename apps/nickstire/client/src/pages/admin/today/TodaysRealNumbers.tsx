@@ -17,7 +17,7 @@ import { trpc } from "@/lib/trpc";
 import { AlertTriangle, PhoneCall, Receipt, TrendingUp } from "lucide-react";
 import { formatCents } from "../shared/format";
 import { ProvenanceTag } from "../shared/ProvenanceTag";
-import { mirrorFreshness, abandonRate, todayPulseProvenance } from "./todayPulse";
+import { mirrorFreshness, mirrorLagDays, abandonRate, todayPulseProvenance } from "./todayPulse";
 
 export function TodaysRealNumbers() {
   const { data, isLoading } = trpc.controlCenter.todayPulse.useQuery(undefined, {
@@ -28,10 +28,12 @@ export function TodaysRealNumbers() {
   if (isLoading || !data?.available) return null;
 
   const { declinedWork, calls, revenue } = data;
-  const freshness = mirrorFreshness(revenue.throughDate, new Date());
+  const now = new Date();
+  const freshness = mirrorFreshness(revenue.throughDate, now);
+  const neverSynced = mirrorLagDays(revenue.throughDate, now) === null;
   const abandoned = abandonRate(calls);
   // Q-23: every number says whether it was counted or estimated.
-  const prov = todayPulseProvenance(freshness.stale);
+  const prov = todayPulseProvenance(freshness.stale, neverSynced);
 
   return (
     <div className="bg-card border border-border/30">
@@ -101,7 +103,9 @@ export function TodaysRealNumbers() {
         <div className="px-4 py-2.5 border-t border-border/30 bg-amber-500/10 flex items-center gap-2">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <span className="text-[11px] text-amber-200/90">
-            Invoice sync is {freshness.label} — revenue above is understated until the mirror catches up.
+            {neverSynced
+              ? "No invoices have synced yet, so revenue above is not measured."
+              : `Invoice sync is ${freshness.label} — revenue above is understated until the mirror catches up.`}
           </span>
         </div>
       )}
