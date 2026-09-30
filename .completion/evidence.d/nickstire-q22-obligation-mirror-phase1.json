@@ -1,0 +1,10 @@
+{
+  "evidence": {
+    "cron-fail-closed": {
+      "ref": "Q-22 phase 1 (2026-09-30): the new obligation-mirror pulse job fails closed. runObligationMirror throws on a failed read or a non-duplicate insert error, so cron_log records a failure instead of a healthy zero; only a missing customer_promises table degrades, and its details say UNKNOWN. apps/nickstire/server/services/obligationMirror.test.ts pins both: 'a failed source read throws' and 'an insert failure that is NOT a duplicate key propagates' (the second was added after mutant M6, which swallowed every insert error, survived the first suite; it is red on that mutant). Full verify: 814 files, 10,103 tests passed, exit 0; lint:cron-wiring 0 faults."
+    },
+    "capability-ledger-updated": {
+      "deferred": "Q-22 phase 1 (2026-09-30) is SHADOW ONLY behind obligation_mirror_enabled, seeded OFF. No production run has written a mirrored row, and promiseLedger keeps the mirror's source kinds out of every existing reader (open list, sweep, kept-rate), so no capability changes state. The row (obligation ledger) earns a ledger entry when the operator arms the flag and a shadow week reports parity mismatch 0, per ADR-0020 §8."
+    }
+  }
+}

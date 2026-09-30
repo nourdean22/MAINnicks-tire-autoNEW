@@ -121,7 +121,10 @@ export interface EmergencySource {
 
 type Hours = { timezone: string; hours: Record<string, string> };
 
+const valid = (d: Date | null): d is Date => d != null && Number.isFinite(d.getTime());
+
 export function mapCallback(src: CallbackSource, h: Hours): MirrorInsert | null {
+  if (!valid(src.createdAt)) return null;
   const dueAt = responseDueAt(src.createdAt, CALLBACK_WINDOW_MS, h.timezone, h.hours);
   if (!dueAt) return null;
   return {
@@ -136,7 +139,8 @@ export function mapCallback(src: CallbackSource, h: Hours): MirrorInsert | null 
 }
 
 /** The SLA clock is the job's own `dueAt`: the ledger never starts a second one. */
-export function mapOwedReply(src: OwedReplySource): MirrorInsert {
+export function mapOwedReply(src: OwedReplySource): MirrorInsert | null {
+  if (!valid(src.dueAt)) return null;
   const excerpt = src.body.replace(/\s+/g, " ").trim().slice(0, 120);
   return {
     sourceKind: "owed_reply",
@@ -150,7 +154,7 @@ export function mapOwedReply(src: OwedReplySource): MirrorInsert {
 }
 
 function mapEmergency(src: EmergencySource, h: Hours): MirrorInsert | null {
-  if (!src.createdAt) return null;
+  if (!valid(src.createdAt)) return null;
   const dueAt = responseDueAt(src.createdAt, EMERGENCY_WINDOW_MS, h.timezone, h.hours);
   if (!dueAt) return null;
   return {
@@ -235,7 +239,14 @@ function affected(value: unknown): number {
   return raw?.affectedRows ?? 0;
 }
 
-const date = (v: unknown): Date | null => (v == null ? null : new Date(v as string));
+/**
+ * Every instant crosses the driver as epoch SECONDS: read with UNIX_TIMESTAMP(),
+ * written with FROM_UNIXTIME(). The pool sets no `timezone`, so a DATETIME the
+ * driver parses into a Date is shifted by the process/session offset (+4h on
+ * Eastern, apps/nickstire/AGENTS.md "Time"). A shifted createdAt would move a
+ * 3 pm callback to 7 pm, after close, and date it from the next opening.
+ */
+const epoch = (v: unknown): Date | null => (v == null ? null : new Date(Number(v) * 1000));
 const str = (v: unknown): string | null => (v == null ? null : String(v));
 
 function toCallback(r: Row): CallbackSource {
@@ -245,10 +256,10 @@ function toCallback(r: Row): CallbackSource {
     phone: String(r.phone ?? ""),
     context: str(r.context),
     status: String(r.status),
-    calledAt: date(r.calledAt),
+    calledAt: epoch(r.calledAt),
     calledBy: str(r.calledBy),
     notes: str(r.notes),
-    createdAt: new Date(r.createdAt as string),
+    createdAt: epoch(r.createdAt) ?? new Date(NaN),
   };
 }
 
@@ -258,8 +269,8 @@ function toOwedReply(r: Row): OwedReplySource {
     customerPhone: String(r.customerPhone ?? ""),
     body: String(r.body ?? ""),
     status: String(r.status),
-    dueAt: new Date(r.dueAt as string),
-    createdAt: new Date(r.createdAt as string),
+    dueAt: epoch(r.dueAt) ?? new Date(NaN),
+    createdAt: epoch(r.createdAt) ?? new Date(NaN),
   };
 }
 
@@ -270,7 +281,7 @@ function toEmergency(r: Row): EmergencySource {
     phone: String(r.phone ?? ""),
     problem: str(r.problem),
     status: r.status == null ? null : String(r.status),
-    createdAt: date(r.created_at),
+    createdAt: epoch(r.created_at),
   };
 }
 
@@ -279,7 +290,7 @@ interface KindSpec<S extends { id: number }> {
   kind: MirrorSourceKind;
   promiseType: PromiseType;
   /** Open rows inside the window, oldest first, plus the two counts. */
-  readOpen: (db: Db, cutoff: Date) => Promise<{ open: S[]; total: number; tooOld: number }>;
+  readOpen: (db: Db) => Promise<{ open: S[]; total: number; tooOld: number }>;
   readByIds: (db: Db, ids: number[]) => Promise<S[]>;
   map: (src: S) => MirrorInsert | null;
   close: (src: S | undefined) => Closure;
@@ -299,16 +310,16 @@ async function specs(h: Hours): Promise<[KindSpec<CallbackSource>, KindSpec<Owed
     {
       kind: "callback_request",
       promiseType: "callback",
-      readOpen: async (db, cutoff) => ({
+      readOpen: async (db) => ({
         open: rows(await db.execute(sql`
-          SELECT id, name, phone, context, status, calledAt, calledBy, notes, createdAt FROM callback_requests
-          WHERE status = 'new' AND createdAt >= ${cutoff} ORDER BY createdAt ASC LIMIT ${PAGE}
+          SELECT id, name, phone, context, status, UNIX_TIMESTAMP(calledAt) AS calledAt, calledBy, notes, UNIX_TIMESTAMP(createdAt) AS createdAt FROM callback_requests
+          WHERE status = 'new' AND createdAt >= NOW() - INTERVAL ${MIRROR_WINDOW_DAYS} DAY ORDER BY createdAt ASC LIMIT ${PAGE}
         `)).map(toCallback),
-        total: count(rows(await db.execute(sql`SELECT COUNT(*) AS n FROM callback_requests WHERE status = 'new' AND createdAt >= ${cutoff}`))),
-        tooOld: count(rows(await db.execute(sql`SELECT COUNT(*) AS n FROM callback_requests WHERE status = 'new' AND createdAt < ${cutoff}`))),
+        total: count(rows(await db.execute(sql`SELECT COUNT(*) AS n FROM callback_requests WHERE status = 'new' AND createdAt >= NOW() - INTERVAL ${MIRROR_WINDOW_DAYS} DAY`))),
+        tooOld: count(rows(await db.execute(sql`SELECT COUNT(*) AS n FROM callback_requests WHERE status = 'new' AND createdAt < NOW() - INTERVAL ${MIRROR_WINDOW_DAYS} DAY`))),
       }),
       readByIds: async (db, ids) => rows(await db.execute(sql`
-        SELECT id, name, phone, context, status, calledAt, calledBy, notes, createdAt FROM callback_requests
+        SELECT id, name, phone, context, status, UNIX_TIMESTAMP(calledAt) AS calledAt, calledBy, notes, UNIX_TIMESTAMP(createdAt) AS createdAt FROM callback_requests
         WHERE id IN (${await inList(ids)})
       `)).map(toCallback),
       map: (src) => mapCallback(src, h),
@@ -318,16 +329,16 @@ async function specs(h: Hours): Promise<[KindSpec<CallbackSource>, KindSpec<Owed
     {
       kind: "owed_reply",
       promiseType: "reply",
-      readOpen: async (db, cutoff) => ({
+      readOpen: async (db) => ({
         open: rows(await db.execute(sql`
-          SELECT id, customerPhone, body, status, dueAt, createdAt FROM sms_response_jobs
-          WHERE status = 'human_pending' AND createdAt >= ${cutoff} ORDER BY createdAt ASC LIMIT ${PAGE}
+          SELECT id, customerPhone, body, status, UNIX_TIMESTAMP(dueAt) AS dueAt, UNIX_TIMESTAMP(createdAt) AS createdAt FROM sms_response_jobs
+          WHERE status = 'human_pending' AND createdAt >= NOW() - INTERVAL ${MIRROR_WINDOW_DAYS} DAY ORDER BY createdAt ASC LIMIT ${PAGE}
         `)).map(toOwedReply),
-        total: count(rows(await db.execute(sql`SELECT COUNT(*) AS n FROM sms_response_jobs WHERE status = 'human_pending' AND createdAt >= ${cutoff}`))),
-        tooOld: count(rows(await db.execute(sql`SELECT COUNT(*) AS n FROM sms_response_jobs WHERE status = 'human_pending' AND createdAt < ${cutoff}`))),
+        total: count(rows(await db.execute(sql`SELECT COUNT(*) AS n FROM sms_response_jobs WHERE status = 'human_pending' AND createdAt >= NOW() - INTERVAL ${MIRROR_WINDOW_DAYS} DAY`))),
+        tooOld: count(rows(await db.execute(sql`SELECT COUNT(*) AS n FROM sms_response_jobs WHERE status = 'human_pending' AND createdAt < NOW() - INTERVAL ${MIRROR_WINDOW_DAYS} DAY`))),
       }),
       readByIds: async (db, ids) => rows(await db.execute(sql`
-        SELECT id, customerPhone, body, status, dueAt, createdAt FROM sms_response_jobs WHERE id IN (${await inList(ids)})
+        SELECT id, customerPhone, body, status, UNIX_TIMESTAMP(dueAt) AS dueAt, UNIX_TIMESTAMP(createdAt) AS createdAt FROM sms_response_jobs WHERE id IN (${await inList(ids)})
       `)).map(toOwedReply),
       map: mapOwedReply,
       close: closeOwedReply,
@@ -335,16 +346,16 @@ async function specs(h: Hours): Promise<[KindSpec<CallbackSource>, KindSpec<Owed
     {
       kind: "emergency",
       promiseType: "emergency_response",
-      readOpen: async (db, cutoff) => ({
+      readOpen: async (db) => ({
         open: rows(await db.execute(sql`
-          SELECT id, name, phone, problem, status, created_at FROM emergency_requests
-          WHERE COALESCE(status, 'new') = 'new' AND created_at >= ${cutoff} ORDER BY created_at ASC LIMIT ${PAGE}
+          SELECT id, name, phone, problem, status, UNIX_TIMESTAMP(created_at) AS created_at FROM emergency_requests
+          WHERE COALESCE(status, 'new') = 'new' AND created_at >= NOW() - INTERVAL ${MIRROR_WINDOW_DAYS} DAY ORDER BY created_at ASC LIMIT ${PAGE}
         `)).map(toEmergency),
-        total: count(rows(await db.execute(sql`SELECT COUNT(*) AS n FROM emergency_requests WHERE COALESCE(status, 'new') = 'new' AND created_at >= ${cutoff}`))),
-        tooOld: count(rows(await db.execute(sql`SELECT COUNT(*) AS n FROM emergency_requests WHERE COALESCE(status, 'new') = 'new' AND (created_at < ${cutoff} OR created_at IS NULL)`))),
+        total: count(rows(await db.execute(sql`SELECT COUNT(*) AS n FROM emergency_requests WHERE COALESCE(status, 'new') = 'new' AND created_at >= NOW() - INTERVAL ${MIRROR_WINDOW_DAYS} DAY`))),
+        tooOld: count(rows(await db.execute(sql`SELECT COUNT(*) AS n FROM emergency_requests WHERE COALESCE(status, 'new') = 'new' AND (created_at < NOW() - INTERVAL ${MIRROR_WINDOW_DAYS} DAY OR created_at IS NULL)`))),
       }),
       readByIds: async (db, ids) => rows(await db.execute(sql`
-        SELECT id, name, phone, problem, status, created_at FROM emergency_requests WHERE id IN (${await inList(ids)})
+        SELECT id, name, phone, problem, status, UNIX_TIMESTAMP(created_at) AS created_at FROM emergency_requests WHERE id IN (${await inList(ids)})
       `)).map(toEmergency),
       map: (src) => mapEmergency(src, h),
       close: closeEmergency,
@@ -352,7 +363,7 @@ async function specs(h: Hours): Promise<[KindSpec<CallbackSource>, KindSpec<Owed
   ];
 }
 
-async function reconcileKind<S extends { id: number }>(db: Db, spec: KindSpec<S>, cutoff: Date): Promise<KindReport> {
+async function reconcileKind<S extends { id: number }>(db: Db, spec: KindSpec<S>): Promise<KindReport> {
   const { sql } = await import("drizzle-orm");
   const report: KindReport = {
     kind: spec.kind, sourceOpen: 0, tooOld: 0, truncated: false, mirrored: 0, alreadyMirrored: 0,
@@ -360,7 +371,7 @@ async function reconcileKind<S extends { id: number }>(db: Db, spec: KindSpec<S>
   };
 
   // 1 · Mirror: one ledger row per open, datable source row.
-  const { open, total, tooOld } = await spec.readOpen(db, cutoff);
+  const { open, total, tooOld } = await spec.readOpen(db);
   report.sourceOpen = total;
   report.tooOld = tooOld;
   report.truncated = total > open.length;
@@ -410,7 +421,7 @@ async function reconcileKind<S extends { id: number }>(db: Db, spec: KindSpec<S>
            promised_action, owner, due_at, created_by)
         VALUES
           (${randomUUID()}, ${ins.promiseType}, ${ins.customerName}, ${ins.customerPhone},
-           ${ins.sourceKind}, ${ins.sourceId}, ${ins.promisedAction}, ${MIRROR_OWNER}, ${ins.dueAt}, ${MIRROR_CREATED_BY})
+           ${ins.sourceKind}, ${ins.sourceId}, ${ins.promisedAction}, ${MIRROR_OWNER}, FROM_UNIXTIME(${Math.floor(ins.dueAt.getTime() / 1000)}), ${MIRROR_CREATED_BY})
       `);
       report.mirrored++;
       matched++;
@@ -464,7 +475,7 @@ function renderMirrorReport(reports: KindReport[]): string {
  * The cron entry. Throws on a failed read (so cron_log records a failure, never
  * a healthy zero); degrades only when customer_promises itself is missing.
  */
-export async function runObligationMirror(now = new Date()): Promise<{ recordsProcessed: number; details: string }> {
+export async function runObligationMirror(): Promise<{ recordsProcessed: number; details: string }> {
   const { isEnabled } = await import("./featureFlags");
   if (!(await isEnabled("obligation_mirror_enabled"))) {
     return { recordsProcessed: 0, details: "disabled (obligation_mirror_enabled is OFF)" };
@@ -474,14 +485,13 @@ export async function runObligationMirror(now = new Date()): Promise<{ recordsPr
   if (!db) throw new Error("obligation mirror: DB unavailable");
 
   const { BUSINESS } = await import("@shared/business");
-  const cutoff = new Date(now.getTime() - MIRROR_WINDOW_DAYS * 86_400_000);
   const [callbacks, replies, emergencies] = await specs({ timezone: BUSINESS.timezone, hours: BUSINESS.hours.structured });
 
   const reports: KindReport[] = [];
   try {
-    reports.push(await reconcileKind(db, callbacks, cutoff));
-    reports.push(await reconcileKind(db, replies, cutoff));
-    reports.push(await reconcileKind(db, emergencies, cutoff));
+    reports.push(await reconcileKind(db, callbacks));
+    reports.push(await reconcileKind(db, replies));
+    reports.push(await reconcileKind(db, emergencies));
   } catch (err) {
     if (isMissingTableError(err)) {
       return { recordsProcessed: 0, details: "UNKNOWN · a table is missing (customer_promises needs 0102/0125) · mirror wrote nothing more" };

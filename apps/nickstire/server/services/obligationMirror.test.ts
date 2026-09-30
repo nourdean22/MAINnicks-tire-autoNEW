@@ -93,6 +93,8 @@ describe("mappers", () => {
       promisedAction: "Call Ann back about: brakes", dueAt: new Date("2026-09-29T16:00:00Z"),
     });
     expect(mapCallback(cb(), { timezone: TZ, hours: {} })).toBeNull();
+    // An unreadable instant is undatable, not a crash that aborts every other row.
+    expect(mapCallback(cb({ createdAt: new Date(NaN) }), H)).toBeNull();
   });
 
   it("an owed text keeps the job's own SLA clock", () => {
@@ -198,8 +200,9 @@ function fakeDb(f: Fake) {
   return writes;
 }
 
-const NOW = new Date("2026-09-29T16:00:00Z");
-const created = "2026-09-29T14:00:00Z";
+/** Rows cross the driver as UNIX_TIMESTAMP() seconds (see obligationMirror.ts `epoch`). */
+const sec = (iso: string) => Date.parse(iso) / 1000;
+const created = sec("2026-09-29T14:00:00Z");
 
 describe("runObligationMirror", () => {
   beforeEach(() => {
@@ -209,7 +212,7 @@ describe("runObligationMirror", () => {
 
   it("flag OFF: no table is read or written", async () => {
     h.isEnabled.mockResolvedValue(false);
-    const r = await runObligationMirror(NOW);
+    const r = await runObligationMirror();
     expect(h.isEnabled).toHaveBeenCalledWith("obligation_mirror_enabled");
     expect(h.getDb).not.toHaveBeenCalled();
     expect(h.execute).not.toHaveBeenCalled();
@@ -222,12 +225,12 @@ describe("runObligationMirror", () => {
       callbacks: [
         { id: 1, name: "Ann", phone: "2165550101", context: "brakes", status: "new", createdAt: created },
         { id: 2, name: "Bo", phone: "2165550102", context: "[VOICE-AGENT CALLBACK] callId=call_9 · prefers: noon", status: "new", createdAt: created },
-        { id: 3, name: "Cy", phone: "2165550103", context: null, status: "called", calledBy: "Sam", calledAt: "2026-09-29T15:00:00Z", createdAt: created },
+        { id: 3, name: "Cy", phone: "2165550103", context: null, status: "called", calledBy: "Sam", calledAt: sec("2026-09-29T15:00:00Z"), createdAt: created },
         { id: 4, name: "Di", phone: "2165550104", context: null, status: "no-answer", notes: "left voicemail", createdAt: created },
       ],
       jobs: [
-        { id: 70, customerPhone: "2165550170", body: "open?", status: "human_pending", dueAt: "2026-09-29T14:30:00Z", createdAt: created },
-        { id: 71, customerPhone: "2165550171", body: "thanks", status: "human_replied", dueAt: "2026-09-29T14:30:00Z", createdAt: created },
+        { id: 70, customerPhone: "2165550170", body: "open?", status: "human_pending", dueAt: sec("2026-09-29T14:30:00Z"), createdAt: created },
+        { id: 71, customerPhone: "2165550171", body: "thanks", status: "human_replied", dueAt: sec("2026-09-29T14:30:00Z"), createdAt: created },
       ],
       ledger: [
         { id: "v", source_kind: "voice", source_id: "call_9", promise_type: "callback", status: "open" },
@@ -238,10 +241,15 @@ describe("runObligationMirror", () => {
     };
     const writes = fakeDb(f);
 
-    const r = await runObligationMirror(NOW);
+    const r = await runObligationMirror();
 
     const inserted = writes.filter((w) => w.text.startsWith("INSERT")).map((w) => `${w.params[4]}:${w.params[5]}`);
     expect(inserted).toEqual(["callback_request:1", "owed_reply:70"]);
+    // Instants cross the driver as epoch seconds both ways, so a process/session
+    // timezone offset cannot shift them: Tue 10:00 EDT + 2h, and the job's own dueAt.
+    const ins = writes.filter((w) => w.text.startsWith("INSERT"));
+    for (const w of ins) expect(w.text).toContain("FROM_UNIXTIME(?)");
+    expect(ins.map((w) => w.params[8])).toEqual([sec("2026-09-29T16:00:00Z"), sec("2026-09-29T14:30:00Z")]);
     expect(f.ledger.find((l) => l.source_id === "3")).toMatchObject({ status: "kept", kept_evidence: "callback #3 called by Sam at 2026-09-29 15:00Z" });
     expect(f.ledger.find((l) => l.source_id === "4")?.status).toBe("open");
     expect(f.ledger.find((l) => l.source_id === "71")?.status).toBe("kept");
@@ -254,7 +262,7 @@ describe("runObligationMirror", () => {
 
     // A second run writes nothing new: idempotent.
     writes.length = 0;
-    const again = await runObligationMirror(NOW);
+    const again = await runObligationMirror();
     expect(writes).toEqual([]);
     expect(again.recordsProcessed).toBe(0);
     expect(again.details).toContain("callback_request: 2 open · +0 mirrored · 1 already");
@@ -268,7 +276,7 @@ describe("runObligationMirror", () => {
       ledger: [],
       dupOnInsert: new Set(["5"]),
     });
-    const r = await runObligationMirror(NOW);
+    const r = await runObligationMirror();
     expect(r.details).toContain("callback_request: 1 open · +0 mirrored · 1 already");
     expect(r.details).toContain("parity mismatch 1");
   });
@@ -280,7 +288,7 @@ describe("runObligationMirror", () => {
       jobs: [],
       ledger: [{ id: "L6", source_kind: "callback_request", source_id: "6", promise_type: "callback", status: "kept" }],
     });
-    const r = await runObligationMirror(NOW);
+    const r = await runObligationMirror();
     expect(r.details).toContain("callback_request: 1 open · +0 mirrored · 1 already");
     expect(r.details).toContain("parity mismatch 1");
   });
@@ -297,12 +305,12 @@ describe("runObligationMirror", () => {
       if (flat(q).text.startsWith("INSERT")) throw Object.assign(new Error("Data too long for column"), { code: "ER_DATA_TOO_LONG", errno: 1406 });
       return route(q);
     });
-    await expect(runObligationMirror(NOW)).rejects.toThrow("Data too long");
+    await expect(runObligationMirror()).rejects.toThrow("Data too long");
   });
 
   it("a failed source read throws (cron_log records a failure, not a zero)", async () => {
     h.isEnabled.mockResolvedValue(true);
     h.execute.mockRejectedValue(new Error("connection lost"));
-    await expect(runObligationMirror(NOW)).rejects.toThrow("connection lost");
+    await expect(runObligationMirror()).rejects.toThrow("connection lost");
   });
 });
