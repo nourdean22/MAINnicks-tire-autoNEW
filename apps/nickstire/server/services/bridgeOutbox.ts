@@ -65,7 +65,7 @@ function opaqueObj(kind: string, value: unknown): Part[] | null {
 
 const BUS_EVENT_REGISTRY: Record<BusinessEvent, Registered | Excluded> = {
   lead_captured: { eventType: "lead.created", parts: (d) => obj("lead", d.id) },
-  // emit.callbackRequested carries no row id today (routers/callback.ts).
+  // routers/callback.ts passes the callback_requests row id (null if the insert failed).
   callback_requested: { eventType: "lead.callback_requested", parts: (d) => obj("callback", d.id) },
   booking_created: { eventType: "shop.booking.created", parts: (d) => obj("booking", d.id) },
   booking_completed: { eventType: "shop.booking.completed", parts: (d) => obj("booking", d.id) },
@@ -77,10 +77,11 @@ const BUS_EVENT_REGISTRY: Record<BusinessEvent, Registered | Excluded> = {
   payment_received: { eventType: "shop.payment.received", parts: (d) => obj("order", d.orderNumber) },
   // No estimate emitter carries an estimate id today (routers/estimates.ts).
   estimate_generated: { eventType: "shop.estimate.presented", parts: (d) => obj("estimate", d.id) },
-  // emit.emergencyRequest carries no row id today (ADR §11 open item 5).
+  // routers/emergency.ts passes the emergency_requests row id it persisted.
   emergency_request: { eventType: "lead.emergency", parts: (d) => obj("emergency", d.id) },
-  // cron/jobs/reviewMonitor.ts sends no Google review id today.
-  review_detected: { eventType: "review.received", parts: (d) => obj("review", d.reviewId) },
+  // cron/jobs/reviewMonitor.ts passes stableReviewId(): usually Google's unix
+  // review time, 10 digits, which bridgeKey's phone guard would refuse in the clear.
+  review_detected: { eventType: "review.received", parts: (d) => opaqueObj("review", d.reviewId) },
   // routers/campaigns.ts carries campaignId; per-customer cross-sell sends do not.
   campaign_sent: { eventType: "comms.campaign.sent", parts: (d) => obj("campaign", d.campaignId) },
   stage_changed: {
