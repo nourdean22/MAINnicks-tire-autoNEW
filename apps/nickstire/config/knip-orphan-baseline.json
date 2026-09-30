@@ -5530,6 +5530,41 @@
       "file": "apps/nickstire/shared/customerValueModel.ts",
       "symbol": "gammaGammaExpectedAverageValue",
       "reason": "Q-27 INTENTIONAL TEST-VISIBLE MODEL SEAM. customerValueRankingScore consumes this function in production; the focused test compares it to published Gamma-Gamma reference answers and pins repeat-value semantics."
+    },
+    {
+      "file": "apps/nickstire/server/services/obligationMirror.ts",
+      "symbol": "responseDueAt",
+      "reason": "Q-22 phase 1 2026-09-30 · TEST-VISIBLE CONTRACT: callback and emergency due times from shop hours (created while open: capped at close; created while closed: next opening + window; no hours: null), pinned case by case incl. a closed Sunday in obligationMirror.test.ts. Runtime consumer: mapCallback/mapEmergency -> runObligationMirror in the same module (obligation-mirror pulse job)."
+    },
+    {
+      "file": "apps/nickstire/server/services/obligationMirror.ts",
+      "symbol": "voiceCallIdFromContext",
+      "reason": "Q-22 phase 1 2026-09-30 · TEST-VISIBLE CONTRACT: the call-id parse that links a voice-captured callback_requests row to its voice promise (ADR-0020 §4 rule 2), pinned against both voiceAgent writer formats. Runtime consumer: the callback KindSpec -> runObligationMirror in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/obligationMirror.ts",
+      "symbol": "mapCallback",
+      "reason": "Q-22 phase 1 2026-09-30 · TEST-VISIBLE CONTRACT: callback_requests row -> customer_promises insert (key, due time, text). Runtime consumer: the callback KindSpec -> runObligationMirror in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/obligationMirror.ts",
+      "symbol": "mapOwedReply",
+      "reason": "Q-22 phase 1 2026-09-30 · TEST-VISIBLE CONTRACT: sms_response_jobs human_pending row -> customer_promises insert, keeping the job's own dueAt as the SLA clock. Runtime consumer: the owed_reply KindSpec -> runObligationMirror in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/obligationMirror.ts",
+      "symbol": "closeCallback",
+      "reason": "Q-22 phase 1 2026-09-30 · TEST-VISIBLE CONTRACT: ADR-0020 §5 closure table for callbacks (called/completed kept, a person's no-answer stays open, hygiene's stale close cancels). Runtime consumer: the callback KindSpec -> runObligationMirror in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/obligationMirror.ts",
+      "symbol": "closeOwedReply",
+      "reason": "Q-22 phase 1 2026-09-30 · TEST-VISIBLE CONTRACT: ADR-0020 §5 closure table for owed texts (human_replied kept at gateway acceptance, no_reply_required cancelled, failed/dead stay open). Runtime consumer: the owed_reply KindSpec -> runObligationMirror in the same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/obligationMirror.ts",
+      "symbol": "closeEmergency",
+      "reason": "Q-22 phase 1 2026-09-30 · TEST-VISIBLE CONTRACT: emergency_requests has no writer that changes status, so only a vanished row closes (phase 2 adds the close path). Runtime consumer: the emergency KindSpec -> runObligationMirror in the same module."
     }
   ]
 }
