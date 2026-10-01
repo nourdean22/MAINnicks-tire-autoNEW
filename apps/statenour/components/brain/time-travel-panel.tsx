@@ -1,11 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, Loader2 } from "lucide-react";
+import { AlertTriangle, CalendarDays, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/utils/api-fetch";
 
-type TimeTravelReport = {
+export type TimeTravelReport = {
   date: string;
+  /**
+   * Reads that FAILED server-side (summary keys, plus memoriesByCategory,
+   * identitySnapshot, healthDigest, emotionalStates). Their values are
+   * fallbacks, not measurements. Optional only for deploy skew with an
+   * older server that did not send it.
+   */
+  degradedReads?: string[];
   summary: {
     memoriesCreated: number;
     tasksCreated: number;
@@ -34,6 +41,8 @@ function todayEt(): string {
     day: "2-digit",
   }).format(new Date());
 }
+
+const UNKNOWN = "—";
 
 const COUNT_LABELS: Array<[keyof TimeTravelReport["summary"], string]> = [
   ["memoriesCreated", "memories"],
@@ -103,54 +112,81 @@ export function TimeTravelPanel() {
           {error} — state unknown, not empty.
         </p>
       ) : null}
-      {report ? (
-        <div className="mt-4 space-y-4">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-            {COUNT_LABELS.map(([key, label]) => (
-              <div key={key} className="rounded-md border border-edge bg-void/50 p-2.5">
-                <div className="font-mono text-lg tabular-nums text-fg">
-                  {String(report.summary[key])}
-                </div>
-                <div className="mt-1 text-[9px] uppercase tracking-wider text-fg-tertiary">
-                  {label}
-                </div>
-              </div>
+      {report ? <TimeTravelSnapshot report={report} /> : null}
+    </section>
+  );
+}
+
+/**
+ * The loaded day. Pure, so the honest-render test can drive it with the
+ * route's real output. A read listed in `degradedReads` FAILED: its value is
+ * a fallback, so it renders as "—" — never as a zero or as "absent".
+ */
+export function TimeTravelSnapshot({ report }: { report: TimeTravelReport }) {
+  const failed = new Set(report.degradedReads ?? []);
+  const healthUnknown = failed.has("healthDigest");
+
+  return (
+    <div className="mt-4 space-y-4">
+      {failed.size > 0 ? (
+        <p
+          role="status"
+          className="flex items-start gap-2 rounded-md border border-amber-500/25 bg-amber-500/[0.04] px-3 py-2 text-xs text-amber-200"
+        >
+          <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden />
+          <span>
+            Some of this day could not be read — values shown as {UNKNOWN} are unknown, not zero. Unread:{" "}
+            {[...failed].join(", ")}.
+          </span>
+        </p>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+        {COUNT_LABELS.map(([key, label]) => (
+          <div key={key} className="rounded-md border border-edge bg-void/50 p-2.5">
+            <div className="font-mono text-lg tabular-nums text-fg">{failed.has(key) ? UNKNOWN : String(report.summary[key])}</div>
+            <div className="mt-1 text-[9px] uppercase tracking-wider text-fg-tertiary">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-fg-tertiary">
+        <span>health {healthUnknown ? UNKNOWN : (report.summary.healthOverall ?? "unmeasured")}</span>
+        <span>warnings {healthUnknown ? UNKNOWN : (report.summary.healthWarnings ?? UNKNOWN)}</span>
+        <span>
+          emotion{" "}
+          {failed.has("emotionalStates") ? UNKNOWN : report.summary.emotionalStateLogged ? "logged" : "not logged"}
+        </span>
+        <span>
+          identity snapshot{" "}
+          {failed.has("identitySnapshot") ? UNKNOWN : report.identitySnapshotPresent ? "present" : "absent"}
+        </span>
+      </div>
+      {report.memoriesByCategory.length > 0 ? (
+        <div>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+            Memory categories
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {report.memoriesByCategory.map((item) => (
+              <span key={item.category} className="rounded border border-edge px-2 py-1 text-[10px] text-fg-secondary">
+                {item.category} · {item.count}
+              </span>
             ))}
           </div>
-
-          <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] text-fg-tertiary">
-            <span>health {report.summary.healthOverall ?? "unmeasured"}</span>
-            <span>warnings {report.summary.healthWarnings ?? "—"}</span>
-            <span>emotion {report.summary.emotionalStateLogged ? "logged" : "not logged"}</span>
-            <span>identity snapshot {report.identitySnapshotPresent ? "present" : "absent"}</span>
-          </div>
-          {report.memoriesByCategory.length > 0 ? (
-            <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-                Memory categories
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {report.memoriesByCategory.map((item) => (
-                  <span key={item.category} className="rounded border border-edge px-2 py-1 text-[10px] text-fg-secondary">
-                    {item.category} · {item.count}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {[...report.decisions.map((item) => ({ id: item.id, kind: "decision", text: item.title })),
-            ...report.reflections.map((item) => ({ id: item.id, kind: "reflection", text: item.insight })),
-            ...report.brainDumps.map((item) => ({ id: item.id, kind: "brain dump", text: item.text }))]
-            .slice(0, 8)
-            .map((item) => (
-              <div key={`${item.kind}:${item.id}`} className="rounded-md border border-edge bg-void/50 p-3">
-                <p className="font-mono text-[9px] uppercase tracking-wider text-fg-tertiary">{item.kind}</p>
-                <p className="mt-1 text-xs leading-5 text-fg-secondary">{item.text}</p>
-              </div>
-            ))}
         </div>
       ) : null}
-    </section>
+
+      {[...report.decisions.map((item) => ({ id: item.id, kind: "decision", text: item.title })),
+        ...report.reflections.map((item) => ({ id: item.id, kind: "reflection", text: item.insight })),
+        ...report.brainDumps.map((item) => ({ id: item.id, kind: "brain dump", text: item.text }))]
+        .slice(0, 8)
+        .map((item) => (
+          <div key={`${item.kind}:${item.id}`} className="rounded-md border border-edge bg-void/50 p-3">
+            <p className="font-mono text-[9px] uppercase tracking-wider text-fg-tertiary">{item.kind}</p>
+            <p className="mt-1 text-xs leading-5 text-fg-secondary">{item.text}</p>
+          </div>
+        ))}
+    </div>
   );
 }

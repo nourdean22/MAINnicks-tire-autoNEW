@@ -22,8 +22,16 @@ export const GET = apiHandler(
     if (!q) throw new ServiceError("q query param required", 400);
     const limit = parseInt(url.searchParams.get("limit") ?? "8", 10) || 8;
     const includePrompt = url.searchParams.get("includePrompt") === "1";
+    // 2026-10-01 · `preview=1` is sent ONLY by the /brain recall preview
+    // panel: inspecting what Nick would recall must not bump lastSeen (a
+    // 14-day ranking boost in real chat recall) or write the recall-quality
+    // metric. The chat-island inspector omits it and keeps the default.
+    const preview = url.searchParams.get("preview") === "1";
 
-    const report = await recallMemoriesForQuery(q, { limit });
+    const report = await recallMemoriesForQuery(
+      q,
+      preview ? { limit, sideEffects: false } : { limit },
+    );
     return {
       ...report,
       promptBlock: includePrompt ? formatRecallForPrompt(report.hits) : undefined,
