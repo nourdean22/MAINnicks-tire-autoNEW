@@ -1,7 +1,7 @@
 import { createLogger } from "../lib/logger";
 import { randomUUID } from "crypto";
 import { and, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
-import { bookings, invoices, leads, vapiCallLogs } from "../../drizzle/schema";
+import { bookings, expectedArrivals, invoices, leads, vapiCallLogs } from "../../drizzle/schema";
 import { getDbTyped } from "../db";
 import { attributionObligationSubject } from "./bridgeKeys";
 import {
@@ -55,9 +55,10 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
   `);
 
   try {
-    const [callRows, invoiceRows, leadRows, currentDecisionRaw] = await Promise.all([
+    const [callRows, invoiceRows, leadRows, arrivalRows, currentDecisionRaw] = await Promise.all([
       db.select({
         callId: vapiCallLogs.id,
+        vapiCallId: vapiCallLogs.vapiCallId,
         phoneNumber: vapiCallLogs.phoneNumber,
         leadId: vapiCallLogs.leadId,
         serviceMention: vapiCallLogs.serviceMention,
@@ -84,6 +85,18 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
         invoiceId: leads.invoiceId,
         bookingId: leads.bookingId,
       }).from(leads),
+      db.select({
+        id: expectedArrivals.id,
+        sourceRef: expectedArrivals.sourceRef,
+        status: expectedArrivals.status,
+        reconciledInvoiceId: expectedArrivals.reconciledInvoiceId,
+        expectedDate: expectedArrivals.expectedDate,
+        arrivedAt: expectedArrivals.arrivedAt,
+      }).from(expectedArrivals).where(and(
+        eq(expectedArrivals.source, "voice"),
+        gte(expectedArrivals.createdAt, input.since),
+        lte(expectedArrivals.createdAt, invoiceUntil),
+      )),
       db.execute(sql`
         SELECT call_id AS callId
         FROM revenue_attribution_decisions
@@ -95,6 +108,11 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
       rowsFromExecute<{ callId: number }>(currentDecisionRaw).map((row) => Number(row.callId)),
     );
     const leadById = new Map(leadRows.map((row) => [row.leadId, row]));
+    const arrivalByVapiCallId = new Map(
+      arrivalRows
+        .filter((row) => row.sourceRef)
+        .map((row) => [String(row.sourceRef), row]),
+    );
     const callById = new Map(callRows.map((row) => [row.callId, row]));
     const candidates = buildCallInvoiceCandidates({
       calls: callRows as CallObservation[],
@@ -120,6 +138,18 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
       const lead = call?.leadId == null ? null : leadById.get(call.leadId) ?? null;
       const callMetadata = asRecord(call?.metadata);
       const behavior = asRecord(callMetadata.behavior);
+      const arrival = call?.vapiCallId ? arrivalByVapiCallId.get(call.vapiCallId) ?? null : null;
+      const arrivalEvidence = arrival ? {
+        source: "expected_arrivals",
+        link: "sourceRef=vapiCallId",
+        status: arrival.status,
+        reconciledInvoiceId: arrival.reconciledInvoiceId,
+        expectedDate: arrival.expectedDate,
+        arrivedAt: arrival.arrivedAt,
+        evidenceLevel: arrival.status === "arrived" && arrival.reconciledInvoiceId != null
+          ? "reconciled_observed"
+          : "observed_intent",
+      } : null;
       if (candidate.resolution === "attributed") verified += 1;
       else if (candidate.resolution === "manual_review") inferred += 1;
       else if (candidate.resolution === "ambiguous") {
@@ -146,6 +176,7 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
            ${candidate.confidence}, ${JSON.stringify({
              reasons: candidate.reasons,
              ...(behavior.hash ? { behavior } : {}),
+             ...(arrivalEvidence ? { arrival: arrivalEvidence } : {}),
            })})
       `);
     }
