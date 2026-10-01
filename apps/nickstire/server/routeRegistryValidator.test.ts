@@ -103,6 +103,42 @@ describe("validate-route-registry.mjs — behavioural canary", () => {
     expect(r.out).toContain('App.tsx route "/tires" is NOT in shared/routes.ts');
   });
 
+  it("measures a title and description past the apostrophe in \"Nick's\" (Rules 3-4)", () => {
+    // Until 2026-10-01 the field pattern was ["']([^"']*)["'], which ended this
+    // title at "Nick" (45 chars) and this description at "Nick" (7 chars), so
+    // neither limit was ever reached.
+    const title = "Brake Repair Cleveland · Pads & Rotors | Nick's Tire & Auto Open 7 Days";
+    const description = `At Nick's Tire & Auto ${"the brake check is free and the quote is written first. ".repeat(3)}`;
+    expect(title.length).toBeGreaterThan(70);
+    expect(description.length).toBeGreaterThan(165);
+    const routes = HEALTHY_ROUTES.replace('title: "Brakes", description: "Brake repair."', `title: "${title}", description: "${description}"`);
+    const r = run(fixture(HEALTHY_APP, routes));
+    expect(r.out).toContain(`"/brakes" title is ${title.length} chars (> 70)`);
+    expect(r.out).toContain(`"/brakes" description is ${description.length} chars (> 165)`);
+    expect(r.status).toBe(0); // length is a warning, never a block
+  });
+
+  it("checks an entry that opens with a comment before path: (Rules 2-4)", () => {
+    const routes = HEALTHY_ROUTES.replace(
+      '  { path: "/brakes", title: "Brakes", description: "Brake repair.",',
+      '  {\n    // 2026-10-01 rationale comment, the shape many real entries open with\n    path: "/brakes", title: "Brakes", description: "",',
+    );
+    expect(routes).toContain("// 2026-10-01 rationale");
+    const r = run(fixture(HEALTHY_APP, routes));
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('"/brakes" has empty description');
+  });
+
+  it("FAILS closed when the SEO block parser finds no entries (Rule 0 for Rules 2-4)", () => {
+    // Same paths (so Rule 1 still passes), in a field order the block parser
+    // does not read: title first, then path.
+    const routes = HEALTHY_ROUTES.replace(/\{ path: ("[^"]*"), title: ("[^"]*"),/g, "{ title: $2, path: $1,");
+    expect(routes).toContain('{ title: "Brakes", path: "/brakes",');
+    const r = run(fixture(HEALTHY_APP, routes));
+    expect(r.status).toBe(1);
+    expect(r.out).toContain("ZERO registry entries with path/title/description/prerender");
+  });
+
   it("FAILS closed when the App.tsx parser finds nothing (Rule 0 — a blind gate must not be green)", () => {
     const r = run(fixture("// no routes here\nexport default function App() { return null; }\n", HEALTHY_ROUTES));
     expect(r.status).toBe(1);
