@@ -273,12 +273,20 @@ export const instagramStudioRouter = router({
    * missing retrieval half of the real-shop registry: read-only, rights-gated,
    * and limited to current reusable assets.
    */
-  listRealShopMedia: adminProcedure.query(async () => {
-    const database = await dbTyped();
-    if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — real-shop media is unknown, not empty." });
-    const { listReusableRealShopMedia } = await import("../services/instagramAdminStrategy");
-    return listReusableRealShopMedia(database);
-  }),
+  listRealShopMedia: adminProcedure
+    .input(z.object({
+      subject: z.string().max(32).optional(),
+      service: z.string().max(120).optional(),
+      symptom: z.string().max(120).optional(),
+      season: z.string().max(16).optional(),
+      minQuality: z.number().min(0).max(1).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const database = await dbTyped();
+      if (!database) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database unavailable — real-shop media is unknown, not empty." });
+      const { listReusableRealShopMedia } = await import("../services/instagramAdminStrategy");
+      return listReusableRealShopMedia(database, input ?? {});
+    }),
 
   /**
    * Evidence-first Create (Wave B): phone photo → durable storage → a URL the
@@ -315,12 +323,22 @@ export const instagramStudioRouter = router({
       // media registry already stores provenance/rights, but the two never met.
       // Registration is tolerant by design and must never make a successful
       // operator upload fail.
+      let assetId: string | null = null;
       try {
         const { getDb } = await import("../db");
         const database = await getDb();
         if (database) {
+          // Dimensions are one sharp metadata read on bytes already in memory
+          // (no decode). HEIC/HEIF may be unreadable on this libvips build —
+          // null dims then, never a failed upload.
+          let dims: { width?: number; height?: number } = {};
+          try {
+            const sharp = (await import("sharp")).default;
+            const meta = await sharp(buffer).metadata();
+            dims = { width: meta.width, height: meta.height };
+          } catch { /* dimensions unknown, not fatal */ }
           const { registerProducedAsset } = await import("../services/mediaRegistry");
-          await registerProducedAsset(database, buffer, {
+          const registered = await registerProducedAsset(database, buffer, {
             logicalKey: registryKey,
             assetType: "instagram_evidence_photo",
             format: "image",
@@ -333,11 +351,32 @@ export const instagramStudioRouter = router({
             gdriveSyncState: "pending",
             generationParams: { originalFilename: safeFilename, source: "instagram_studio_evidence" },
             rightsStatus: "real_shop",
+            width: dims.width ?? null,
+            height: dims.height ?? null,
           });
+          assetId = registered?.id ?? null;
         }
       } catch { /* upload succeeded; registry observability may degrade */ }
 
-      return { url };
+      // §K.1 vision enrichment — fire-and-forget. The upload response never
+      // waits on a 45 s vision call, and a failed enrichment is a logged
+      // skip on an asset that is still registered and still reusable.
+      if (assetId) {
+        const id = assetId;
+        void (async () => {
+          const { createLogger } = await import("../lib/logger");
+          const log = createLogger("routers:instagramStudio");
+          try {
+            const { enrichRealShopAsset } = await import("../services/mediaEnrichment");
+            const r = await enrichRealShopAsset(id, { capturedAt: new Date(capturedAt) });
+            if (r.skipped) log.warn("evidence photo enrichment skipped", { assetId: id, reason: r.reason, error: r.error ?? null });
+          } catch (err) {
+            log.warn("evidence photo enrichment threw", { assetId: id, error: err instanceof Error ? err.message : String(err) });
+          }
+        })();
+      }
+
+      return { url, assetId };
     }),
 
   generate: adminProcedure

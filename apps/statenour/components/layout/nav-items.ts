@@ -1,3 +1,4 @@
+import { STATS_TABS } from "@/lib/stats/resolve-tab";
 import {
   Brain,
   Home,
@@ -58,14 +59,15 @@ export const NAV: NavEntry[] = [
   { href: "/chat",     label: "Chat",     icon: MessageSquare, section: "capture", bottomTab: true },
   { href: "/missions", label: "Missions", icon: ListTodo,      section: "execute", bottomTab: true },
   { href: "/journal",  label: "Journal",  icon: NotebookPen,   section: "reflect", bottomTab: true },
-  { href: "/stats",    label: "Stats",    icon: Target,        section: "reflect", flatRow: true },
+  { href: "/stats",    label: "Stats",    icon: Target,        section: "reflect", flatRow: true,
+    tabs: STATS_TABS.map((tab) => ({ key: tab.id, label: tab.label })) },
 
   // ── CAPTURE ──
   { href: "/pins",  label: "Pinned Memory", icon: Pin, section: "capture", flatRow: true },
 
   // ── EXECUTE ──
   { href: "/content", label: "Content", icon: Send, section: "execute",
-    tabs: [{ key: "drafts", label: "Drafts" }, { key: "history", label: "History" }, { key: "publish", label: "Publish" }, { key: "outreach", label: "Outreach" }] },
+    tabs: [{ key: "drafts", label: "Drafts" }, { key: "assistant", label: "AI Assistant" }, { key: "history", label: "History" }, { key: "publish", label: "Publish" }, { key: "outreach", label: "Outreach" }] },
   { href: "/learn",          label: "Learn",          icon: GraduationCap,  section: "execute", flatRow: true },
   { href: "/photo-improver", label: "Photo Improver", icon: ImageIcon,      section: "execute", flatRow: true },
   { href: "/links",          label: "Short Links",    icon: Link2,          section: "execute", flatRow: true },

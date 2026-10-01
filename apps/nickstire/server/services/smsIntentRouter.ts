@@ -91,6 +91,10 @@ interface Rule {
   test: (body: string, ctx: SmsRouterContext) => boolean;
 }
 
+/** Paying in parts, asked in everyday words (see the financing rule below). */
+const FINANCING_EVERYDAY_RE =
+  /\b((do|make|doing|making|set up) (monthly |weekly )?payments|monthly payments?|payments? on (?:(?:my|the|a|an|those|these|new|used|front|rear|\d+) )*(?:brakes?|tires?|wheels?|rims?|repairs?|alignment|exhaust|muffler|transmission|engine|job|work)\b|pay(ing)? (it |this |that )?(off )?(over time|monthly|weekly|in (installments|parts|pieces))|installments?|split (?:it|the (?:payment|bill|cost)) (?:up|into|over)|spread (?:the )?(?:cost|bill|payments?) out|spread out (?:the )?(?:cost|bill|payments?)|lay ?away)\b/i;
+
 const RULES: Rule[] = [
   // ─── Tier 0: safety — a wrong template here is dangerous, not just wrong ──
   {
@@ -387,7 +391,18 @@ const RULES: Rule[] = [
     // mid-word. Only the exact singular "payment plan" ever fired, so the most
     // common phrasing of the question — "do you offer financing?" — fell through
     // to `general` and never reached the financing playbook.
-    test: (b) => /\b(financ\w*|payment plans?|snap|acima|koalafi|no credit|credit check)\b/i.test(b),
+    // "payment programs", "payment options" and "lease-to-own" are the site's
+    // own words since 2026-10-01, so customers text them back.
+    // Paying in parts is asked the everyday way too ("can I do payments on
+    // brakes?", "pay over time"). Without these, that question matched only
+    // price_brakes and got the brake-price template, with nothing about paying
+    // in parts. Settling a bill is NOT matched ("I made a payment on my
+    // account", "payment on file", "split it between two cards", "pay later
+    // when I pick it up"): "payments on" needs a service after it, and "split"
+    // needs a payment split up, into or over something.
+    test: (b) =>
+      /\b(financ\w*|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own|snap|acima|koalafi|no credit|credit check)\b/i.test(b) ||
+      FINANCING_EVERYDAY_RE.test(b),
   },
   {
     intent: "human_requested",

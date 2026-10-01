@@ -1,7 +1,8 @@
 /*
  * IG Carousel Intelligence Studio — core model, validation, scoring.
  *
- * Pure, dependency-free helpers (no network, no storage, no side effects).
+ * Pure helpers (no network, no storage, no side effects); the only import is
+ * the BUSINESS SSOT constants, so review/rating copy cannot go stale here.
  * Everything here is testable in isolation and consumed by the admin-only
  * Studio page (client/src/pages/admin/IgCarouselStudio.tsx).
  *
@@ -13,6 +14,8 @@
  */
 
 // ─── Modes & statuses ─────────────────────────────────────────────
+
+import { BUSINESS } from "@shared/business";
 
 export type CarouselStudioMode = "draft" | "asset_prep" | "publish_prep";
 
@@ -49,8 +52,8 @@ export const STUDIO_BRAND = {
   website: "nickstire.org",
   address: "17625 Euclid Ave, Cleveland, OH 44112",
   phone: "(216) 862-0005",
-  reputation: "4.9-star local reputation",
-  reviews: "1,685+ Google reviews",
+  reputation: `${BUSINESS.reviews.rating}-star local reputation`,
+  reviews: `${BUSINESS.reviews.countDisplay} Google reviews`,
   certification: "ASE-certified service capability",
 } as const;
 
@@ -65,7 +68,7 @@ export const ALLOWED_SERVICES = [
   "auto repair",
   "alignment and suspension",
   "E-Check / emissions help",
-  "$10-down lease-to-own",
+  "payment programs (lease-to-own)",
 ] as const;
 
 /** The ONLY approved used-tire price wording. Anything else price-shaped gets flagged. */
@@ -393,7 +396,7 @@ export const FEARMONGER_PATTERNS: PatternRule[] = [
 
 export const GENERIC_MARKETING_PATTERNS: PatternRule[] = [
   { rule: "no-generic-cliche", pattern: /\bhassle.?free\b|\btop.?notch\b|\bstate.of.the.art\b|\bone.stop\s+shop\b/i, fix: "Concrete beats cliché — name the actual thing." },
-  { rule: "no-trust-label", pattern: /\btrusted\b|\bexperts?\b(?!\s+say)/i, fix: "Show, don't claim: 4.9★ and 1,685+ reviews do the work." },
+  { rule: "no-trust-label", pattern: /\btrusted\b|\bexperts?\b(?!\s+say)/i, fix: `Show, don't claim: ${BUSINESS.reviews.rating}★ and ${BUSINESS.reviews.countDisplay} reviews do the work.` },
 ];
 
 /** Price-shaped text that is NOT the approved used-tire line. */

@@ -21,8 +21,18 @@ import { SERVICE_CATEGORIES } from "../../shared/serviceTypes";
 import type { TopicSignals } from "../../shared/contentTopicMiner";
 import type { FranchiseId } from "../../shared/contentFranchises";
 import { localDiscoveryTopics, splitLocalDiscoveryTopics } from "../../shared/localDiscoveryLibrary";
+import type { CustomerLanguageResult } from "./customerLanguageMiner";
 
 const log = createLogger("services:content-topic-signals");
+
+/**
+ * Customer-language cache. The miner scans four tables for 30 days of text;
+ * the topic feed is read far more often than that changes. A FAILED read is
+ * cached for the same TTL on purpose: the failure is reported on every gather
+ * (as `failed`), but logged once per window rather than once per caller.
+ */
+const CUSTOMER_LANGUAGE_TTL_MS = 15 * 60 * 1000;
+let customerLanguageCache: { at: number; value: CustomerLanguageResult } | null = null;
 
 export interface SignalGatherReport {
   signals: TopicSignals;
@@ -192,6 +202,63 @@ export async function gatherTopicSignals(now: Date = new Date()): Promise<Signal
   } catch (e) {
     failed.push("declined_work");
     log.warn("declined-work signal unavailable — the strongest topic source is missing", { e: String(e) });
+  }
+
+  // Customer language — what callers, texters, reviewers and form-fillers
+  // actually said, as symptom phrases with counts (customerLanguageMiner).
+  // Populates `customerQuestions`, which the miner has declared since v1 and
+  // nothing fed until 2026-10-01. On ANY failure the field stays undefined:
+  // an empty list here would read as "customers asked nothing this month".
+  try {
+    const t = now.getTime();
+    let result = customerLanguageCache && t >= customerLanguageCache.at && t - customerLanguageCache.at < CUSTOMER_LANGUAGE_TTL_MS
+      ? customerLanguageCache.value
+      : null;
+    const fresh = !result;
+    if (!result) {
+      const { mineCustomerLanguage } = await import("./customerLanguageMiner");
+      result = await mineCustomerLanguage({ days: 30, now });
+      customerLanguageCache = { at: t, value: result };
+    }
+    if (result.error) {
+      failed.push("customer_questions");
+      if (fresh) log.warn("customer language unavailable — customerQuestions left UNKNOWN, not empty", { error: result.error });
+    } else {
+      if (result.failedSources?.length) failed.push(`customer_questions:${result.failedSources.join("+")}`);
+      if (result.phrases.length) {
+        // A single-word phrase ("grinding", "muffler") is not a scriptable
+        // topic and the miner drops it as a CANDIDATE (isScriptableTopic) —
+        // but its count still BOOSTS every candidate whose subject overlaps
+        // it, which is the half of the signal that matters most.
+        signals.customerQuestions = result.phrases.map((p) => p.phrase);
+        signals.customerQuestionCounts = Object.fromEntries(result.phrases.map((p) => [p.phrase, p.count]));
+      } else {
+        empty.push("customer_questions");
+      }
+    }
+  } catch (e) {
+    failed.push("customer_questions");
+    log.warn("customer language miner threw — customerQuestions left UNKNOWN, not empty", { e: String(e) });
+  }
+
+  // Search demand gaining impressions week over week. A boost, not a source:
+  // the miner raises any candidate whose subject overlaps a rising query.
+  try {
+    const { getRisingQueries } = await import("../pipelines/gsc-data");
+    const rising = await getRisingQueries({ days: 7, limit: 15, now });
+    if (rising.length) {
+      signals.gscRising = rising.map((q) => ({
+        query: q.query,
+        impressions: q.impressions,
+        deltaImpressions: q.deltaImpressions,
+        position: q.position,
+      }));
+    } else {
+      empty.push("gsc_rising");
+    }
+  } catch (e) {
+    failed.push("gsc_rising");
+    log.warn("rising GSC queries unavailable — search-demand boost is off this run", { e: String(e) });
   }
 
   if (failed.length) {

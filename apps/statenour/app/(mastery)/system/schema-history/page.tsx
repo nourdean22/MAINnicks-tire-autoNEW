@@ -12,7 +12,7 @@
 import { Suspense, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Panel } from "@/components/panel";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { MetricCard } from "@/components/metric-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { cn } from "@/lib/utils/cn";
@@ -118,14 +118,14 @@ function SchemaHistoryInner() {
   const entries = data?.entries ?? [];
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-3 py-4 sm:px-4 sm:py-6">
-      <PageHeader
-        parentHref="/system"
-        parentLabel="system"
-        eyebrow="NOUR OS · System"
-        title="schema history"
-        description="Database migrations, manual pushes, and DDL schema audit ledger"
-        actions={
+    <StandardPage
+      eyebrow="NOUR OS · System"
+      title="Schema History"
+      description="Database migrations, manual pushes, and DDL schema audit ledger."
+      width="2xl"
+      rhythm="loose"
+      className="px-3 py-4 sm:px-4 sm:py-6"
+      actions={
           <div className="flex items-center gap-2">
             <FreshnessChip
               lastFetchedAt={data?.generatedAt}
@@ -142,7 +142,7 @@ function SchemaHistoryInner() {
             </button>
           </div>
         }
-      />
+    >
 
       {/* Metrics Row */}
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
@@ -368,6 +368,6 @@ function SchemaHistoryInner() {
           })
         )}
       </div>
-    </div>
+    </StandardPage>
   );
 }

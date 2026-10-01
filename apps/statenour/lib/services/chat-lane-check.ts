@@ -71,7 +71,7 @@ function inferDomain(text: string): string | null {
 
 /** Exported for tests/repo/retired-routes-gate.test.ts: every href here must exist or be external. */
 export const HREF_BY_DOMAIN: Record<string, string> = {
-  body: "/stats#body",
+  body: "/stats?tab=body",
   // 2026-09-02 · /business deleted; shop money lives in Nick's Tire Admin.
   money: "https://nickstire.org/admin",
   lead: "/missions",

@@ -332,7 +332,7 @@ export default function TireFinderV2() {
             <h2 className="font-heading text-2xl sm:text-3xl font-black text-foreground uppercase tracking-tight">Got a flat, not a size to search? Tire repair, walk-in</h2>
             <p className="mt-2 max-w-2xl text-muted-foreground">
               Free check first. If the puncture is in the tread center it's usually repairable in about 15 minutes; sidewall or shoulder
-              damage isn't safely repairable per industry standard, and we'll show you why before offering a used tire from $25 installed.
+              damage isn't safely repairable per industry standard, and we'll show you why before offering a used tire from $25 installed (select 12-inch; most $40-80).
             </p>
             <div className="mt-6 grid gap-4 sm:grid-cols-3">
               <div className="rounded-2xl border border-border/50 bg-card p-5">
@@ -348,7 +348,7 @@ export default function TireFinderV2() {
               <div className="rounded-2xl border border-border/50 bg-card p-5">
                 <p className="text-xs font-semibold uppercase tracking-wide text-primary">Used tire replacement</p>
                 <p className="mt-1 text-2xl font-black">From $25 installed</p>
-                <p className="mt-1 text-sm text-muted-foreground">When the damage isn't repairable — mounted from our in-stock inventory the same visit.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Select 12-inch rims; most sizes $40-80 installed. When the damage isn't repairable — mounted from our in-stock inventory the same visit.</p>
               </div>
             </div>
           </div>
@@ -367,10 +367,10 @@ export default function TireFinderV2() {
         <nav aria-label="Tire resources" className="container max-w-4xl mx-auto py-8 text-center">
           <p className="text-xs uppercase tracking-wide text-muted-foreground mb-3">More tire help</p>
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm">
-            <Link href="/used-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Used Tires from $25</Link>
+            <Link href="/used-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Used Tires</Link>
             <a href="#new-tires" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">New Tires from $89</a>
             <Link href="/tire-prices-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Live Tire Prices</Link>
-            <Link href="/no-credit-check-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">No Credit Check Tires</Link>
+            <Link href="/no-credit-check-tires-cleveland" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Bad Credit? Tire Options</Link>
             <a href="#tire-repair" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Flat / Tire Repair</a>
             <a href="#open-sundays" className="underline underline-offset-4 text-muted-foreground hover:text-foreground">Open Sundays</a>
           </div>
@@ -397,8 +397,8 @@ export default function TireFinderV2() {
                 </details>
               ))}
             </div>
-            {/* Financing fine print — the FAQ above quotes $10-down / no-credit-check
-                payment-program terms; this keeps the required disclosure on-page. */}
+            {/* Payment-program fine print — the FAQ above names the providers;
+                this keeps the Acima disclosure on-page. */}
             <p className="mt-6 text-[11px] leading-relaxed text-foreground/40">
               {ACIMA_COMPACT_DISCLOSURE}
             </p>

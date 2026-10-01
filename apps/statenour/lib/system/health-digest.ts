@@ -226,7 +226,7 @@ export async function computeHealthDigest(): Promise<SystemHealthDigest> {
     pushFor("stale-data", {
       severity: "warning",
       headline: `${stale.totalStaleRows} stale rows accumulating across ${stale.categories.filter((c) => c.count > 0).length} categories`,
-      link: "/system/stale",
+      link: "/system#stale-data",
     });
   }
 

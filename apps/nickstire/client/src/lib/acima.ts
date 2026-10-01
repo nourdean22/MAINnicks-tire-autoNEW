@@ -9,13 +9,18 @@
 
 import { getSessionId } from "@/lib/session";
 import { getUtmData } from "@/lib/utm";
+import { PROVIDER_MAP } from "@shared/financing";
 
 /** Update annually — never hardcode the year in prose text */
 export const ACIMA_PROMO_YEAR = 2026;
 
-/** Required near every "$10" mention (FTC Regulation M) */
-export const ACIMA_COMPACT_DISCLOSURE =
-  "$10 initial payment. Lease terms and total cost vary by item and payment schedule. 90-day early purchase option available. Not a loan or credit.";
+/**
+ * Required near every "$10" mention (FTC Regulation M). Read from
+ * shared/financing.ts so it says what /financing says: the old text promised a
+ * flat "$10 initial payment" and a "90-day" purchase option, while Acima offers
+ * the $10 start only in select circumstances and the lease sets the deadline.
+ */
+export const ACIMA_COMPACT_DISCLOSURE = PROVIDER_MAP.acima.disclosure;
 
 /** Social proof — use on CTAs and hero sections. Individual results vary. */
 export const ACIMA_SOCIAL_PROOF = "Trusted by hundreds of Nick's customers";

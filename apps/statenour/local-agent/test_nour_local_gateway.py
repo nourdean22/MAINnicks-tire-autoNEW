@@ -260,5 +260,249 @@ class LocalGatewayGuardTests(unittest.TestCase):
         self.assertEqual(self.result["envSafeValue"], "kept")
 
 
+
+TOOL_HARNESS = r"""
+const http = require("http");
+const mod = require(process.env.GATEWAY_PATH);
+const prompts = [];
+mod.gatewayDeps.runInteractiveAdapter = async request => {
+  const prompt = String(request && request.prompt || "");
+  prompts.push(prompt);
+  if (prompt.includes("TOOL_RESULT_META:")) {
+    return {
+      status: "completed",
+      result: {
+        output: JSON.stringify({ type: "final", content: "working tree clean" }),
+        laneId: "stub",
+      },
+    };
+  }
+  if (prompt.includes("UNKNOWN_TOOL_CASE")) {
+    return {
+      status: "completed",
+      result: {
+        output: JSON.stringify({
+          type: "tool_calls",
+          tool_calls: [{ id: "call_bad", name: "not_allowed", arguments: {} }],
+        }),
+        laneId: "stub",
+      },
+    };
+  }
+  if (prompt.includes("__NOUR_TOOL_PROTOCOL__")) {
+    return {
+      status: "completed",
+      result: {
+        output: JSON.stringify({
+          type: "tool_calls",
+          tool_calls: [{
+            id: "call_test",
+            name: "bash",
+            arguments: { command: "git status --short" },
+          }],
+        }),
+        laneId: "stub",
+      },
+    };
+  }
+  return { status: "completed", result: { output: "plain stub", laneId: "stub" } };
+};
+mod.gatewayDeps.runLaneProbe = async () => ({ status: "ok", lanes: {} });
+
+function request(port, method, path, payload) {
+  return new Promise((resolve, reject) => {
+    const body = payload === undefined ? null : Buffer.from(JSON.stringify(payload), "utf8");
+    const headers = {};
+    if (body) {
+      headers["content-type"] = "application/json";
+      headers["content-length"] = body.length;
+    }
+    const req = http.request({ host: "127.0.0.1", port, method, path, headers }, res => {
+      const chunks = [];
+      res.on("data", chunk => chunks.push(chunk));
+      res.on("end", () => resolve({
+        status: res.statusCode,
+        headers: res.headers,
+        body: Buffer.concat(chunks).toString("utf8"),
+      }));
+    });
+    req.on("error", reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+const bashTool = {
+  type: "function",
+  function: {
+    name: "bash",
+    description: "Run a shell command",
+    parameters: {
+      type: "object",
+      properties: { command: { type: "string" } },
+      required: ["command"],
+    },
+  },
+};
+
+(async () => {
+  await new Promise(r => mod.server.listen(0, "127.0.0.1", r));
+  const port = mod.server.address().port;
+  const out = {};
+
+  const models = await request(port, "GET", "/v1/models");
+  out.modelsStatus = models.status;
+  const modelPayload = JSON.parse(models.body);
+  const nourAuto = (modelPayload.data || []).find(x => x.id === "nour-auto");
+  out.functionCalling = Boolean(nourAuto && nourAuto.capabilities && nourAuto.capabilities.function_calling);
+  out.supportedParameters = nourAuto && nourAuto.supported_parameters || [];
+
+  const first = await request(port, "POST", "/v1/chat/completions", {
+    model: "nour-auto",
+    messages: [{ role: "user", content: "Run git status" }],
+    tools: [bashTool],
+    tool_choice: "auto",
+    stream: false,
+  });
+  out.firstStatus = first.status;
+  out.first = JSON.parse(first.body);
+  out.firstPrompt = prompts[prompts.length - 1];
+
+  const firstChoice = out.first.choices[0];
+  const call = firstChoice.message.tool_calls[0];
+  const second = await request(port, "POST", "/v1/chat/completions", {
+    model: "nour-auto",
+    messages: [
+      { role: "user", content: "Run git status" },
+      { role: "assistant", content: null, tool_calls: firstChoice.message.tool_calls },
+      { role: "tool", tool_call_id: call.id, name: "bash", content: "" },
+    ],
+    tools: [bashTool],
+    tool_choice: "auto",
+    stream: false,
+  });
+  out.secondStatus = second.status;
+  out.second = JSON.parse(second.body);
+  out.secondPrompt = prompts[prompts.length - 1];
+
+  const streamed = await request(port, "POST", "/v1/chat/completions", {
+    model: "nour-auto",
+    messages: [{ role: "user", content: "Run git status" }],
+    tools: [bashTool],
+    tool_choice: "auto",
+    stream: true,
+  });
+  out.streamStatus = streamed.status;
+  out.streamBody = streamed.body;
+
+  const unknown = await request(port, "POST", "/v1/chat/completions", {
+    model: "nour-auto",
+    messages: [{ role: "user", content: "UNKNOWN_TOOL_CASE" }],
+    tools: [bashTool],
+    tool_choice: "auto",
+    stream: false,
+  });
+  out.unknown = JSON.parse(unknown.body);
+
+  const none = await request(port, "POST", "/v1/chat/completions", {
+    model: "nour-auto",
+    messages: [{ role: "user", content: "No tools please" }],
+    tools: [bashTool],
+    tool_choice: "none",
+    stream: false,
+  });
+  out.none = JSON.parse(none.body);
+  out.nonePrompt = prompts[prompts.length - 1];
+
+  console.log(JSON.stringify(out));
+  mod.server.close();
+})().catch(err => {
+  console.log(JSON.stringify({ error: String(err && err.stack || err) }));
+  try { mod.server.close(); } catch {}
+});
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "node is required for the gateway tool-call test")
+class LocalGatewayToolCallTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        home = Path(tempfile.mkdtemp(prefix="nour-gateway-tool-test-"))
+        (home / "AI" / "config").mkdir(parents=True)
+        (home / "AI" / "logs").mkdir(parents=True)
+        (home / "AI" / "config" / "NOUR-RUNTIME-KERNEL.md").write_text("test kernel", encoding="utf-8")
+        os_environ = __import__("os").environ
+        env = {
+            "PATH": os_environ.get("PATH", ""),
+            "USERPROFILE": str(home),
+            "HOME": str(home),
+            **{
+                key: os_environ[key]
+                for key in ("SystemRoot", "WINDIR", "COMSPEC", "TEMP", "TMP")
+                if os_environ.get(key)
+            },
+            "NOUR_GATEWAY_NO_LISTEN": "1",
+            "GATEWAY_PATH": str(GATEWAY),
+        }
+        proc = subprocess.run(
+            ["node", "-e", TOOL_HARNESS],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=45,
+        )
+        shutil.rmtree(home, ignore_errors=True)
+        lines = [line for line in proc.stdout.splitlines() if line.startswith("{")]
+        if not lines:
+            raise AssertionError(f"tool harness produced no result: {proc.stdout!r} {proc.stderr!r}")
+        cls.result = json.loads(lines[-1])
+        if "error" in cls.result:
+            raise AssertionError(cls.result["error"])
+
+    def test_models_advertise_function_calling(self) -> None:
+        self.assertEqual(self.result["modelsStatus"], 200)
+        self.assertIs(self.result["functionCalling"], True)
+        self.assertIn("tools", self.result["supportedParameters"])
+        self.assertIn("tool_choice", self.result["supportedParameters"])
+
+    def test_nonstreaming_tool_call_is_openai_compatible(self) -> None:
+        self.assertEqual(self.result["firstStatus"], 200)
+        choice = self.result["first"]["choices"][0]
+        self.assertEqual(choice["finish_reason"], "tool_calls")
+        self.assertIsNone(choice["message"]["content"])
+        call = choice["message"]["tool_calls"][0]
+        self.assertEqual(call["type"], "function")
+        self.assertEqual(call["function"]["name"], "bash")
+        self.assertEqual(json.loads(call["function"]["arguments"]), {"command": "git status --short"})
+        self.assertIn("__NOUR_TOOL_PROTOCOL__", self.result["firstPrompt"])
+        self.assertIn('"name":"bash"', self.result["firstPrompt"])
+
+    def test_tool_result_round_trip_can_finish(self) -> None:
+        self.assertEqual(self.result["secondStatus"], 200)
+        choice = self.result["second"]["choices"][0]
+        self.assertEqual(choice["finish_reason"], "stop")
+        self.assertEqual(choice["message"]["content"], "working tree clean")
+        self.assertNotIn("tool_calls", choice["message"])
+        self.assertIn("TOOL_RESULT_META:", self.result["secondPrompt"])
+        self.assertIn("call_test", self.result["secondPrompt"])
+
+    def test_streaming_tool_call_has_delta_and_tool_finish_reason(self) -> None:
+        self.assertEqual(self.result["streamStatus"], 200)
+        self.assertIn('"tool_calls"', self.result["streamBody"])
+        self.assertIn('"finish_reason":"tool_calls"', self.result["streamBody"])
+        self.assertIn("data: [DONE]", self.result["streamBody"])
+
+    def test_unknown_tool_is_never_forwarded_as_a_tool_call(self) -> None:
+        choice = self.result["unknown"]["choices"][0]
+        self.assertEqual(choice["finish_reason"], "stop")
+        self.assertNotIn("tool_calls", choice["message"])
+
+    def test_tool_choice_none_preserves_plain_chat_path(self) -> None:
+        choice = self.result["none"]["choices"][0]
+        self.assertEqual(choice["finish_reason"], "stop")
+        self.assertEqual(choice["message"]["content"], "plain stub")
+        self.assertNotIn("__NOUR_TOOL_PROTOCOL__", self.result["nonePrompt"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -408,7 +408,7 @@ export default function CityPage() {
                   for internal-link authority transfer. Each city page sees
                   ~5-15 impressions/mo. With 18 city pages, that's a real
                   link-equity boost on the keyword-led targets. */}
-              <Link href="/no-credit-check-tires-cleveland" className="text-emerald-400 hover:underline">No-credit-check tires · $10 down</Link>
+              <Link href="/no-credit-check-tires-cleveland" className="text-emerald-400 hover:underline">Bad credit? Tire payment options</Link>
               <span className="text-foreground/20">|</span>
               <Link href="/tires#open-sundays" className="hover:text-primary transition-colors">Sunday tire shop</Link>
               <span className="text-foreground/20">|</span>
@@ -456,8 +456,8 @@ export default function CityPage() {
                 <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-bold text-foreground text-lg mb-2">Affordable Financing From $10 Down</h3>
-                    <p className="text-foreground/70 leading-relaxed">Need tires or a major repair but can't pay in full today? We offer <Link href="/financing" className="text-nick-blue-light hover:underline">financing starting at just $10 down</Link>. Get the repair done now and pay over time — so you're never stuck driving on unsafe brakes or bald tires.</p>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Payment Programs From 4 Providers</h3>
+                    <p className="text-foreground/70 leading-relaxed">Need tires or a major repair but can't pay in full today? We accept <Link href="/financing" className="text-nick-blue-light hover:underline">payment programs from four providers</Link>. Some don't require established credit; each provider decides approval and terms, and you see the total cost before you sign.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -518,8 +518,8 @@ export default function CityPage() {
               </FadeIn>
               <FadeIn delay={0.25}>
                 <Link href="/emissions" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
-                  <h3 className="font-bold text-foreground mb-2">E-Check & Emissions Testing</h3>
-                  <p className="text-foreground/60 text-sm leading-relaxed">Need to pass Ohio E-Check for your registration renewal? We handle emissions testing and can fix whatever's causing a failure so you pass the first time.</p>
+                  <h3 className="font-bold text-foreground mb-2">E-Check Failure Diagnosis & Repair</h3>
+                  <p className="text-foreground/60 text-sm leading-relaxed">Need to pass Ohio E-Check for your registration renewal? The state runs the test; we run a free readiness check and fix whatever is causing a failure before you go back.</p>
                 </Link>
               </FadeIn>
               <FadeIn delay={0.3}>
@@ -557,7 +557,7 @@ export default function CityPage() {
               <FadeIn delay={0.15}>
                 <div className="border border-border/40 p-6 bg-card/30 rounded-lg">
                   <h3 className="font-bold text-lg text-foreground mb-3">What if I can't afford the repair right now?</h3>
-                  <p className="text-foreground/70 leading-relaxed">We offer <Link href="/financing" className="text-nick-blue-light hover:underline">financing from just $10 down</Link> on tires and major repairs. Get the work done today and pay over time. We never want you driving on unsafe equipment because of cost — we'll find a way to make it work.</p>
+                  <p className="text-foreground/70 leading-relaxed">We accept <Link href="/financing" className="text-nick-blue-light hover:underline">payment programs from four providers</Link> on tires and major repairs. Each provider decides approval and terms, and you see the total cost before you sign.</p>
                 </div>
               </FadeIn>
             </div>

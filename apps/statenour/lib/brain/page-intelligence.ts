@@ -156,7 +156,7 @@ export async function analyzePagePatterns(): Promise<PagePattern> {
   //
   // Wave 2 (2026-06-03) · the old "/drift + /body avoidance" insight was
   // dropped here: both are now redirected routes (/drift retired; /body
-  // folded into /stats#body), so pageCounts for them are permanently 0 and
+  // folded into /stats?tab=body), so pageCounts for them are permanently 0 and
   // the heuristic would fire false every run. Body is a /stats section now,
   // so "avoiding body" can no longer be inferred from page-visit counts.
 

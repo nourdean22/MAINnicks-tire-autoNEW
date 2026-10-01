@@ -486,3 +486,39 @@ describe("the production store (dbWarrantyStore)", () => {
     expect(o.status === "completed" && o.chunks).toHaveLength(7);
   });
 });
+
+/* ── January: NHTSA renames the open chunk ─────────────────────── */
+
+describe("January rename of the open chunk", () => {
+  const DEC_30 = new Date("2026-12-30T15:00:00Z"); // Wednesday, 10:00 ET
+  const JAN_12 = new Date("2027-01-12T15:00:00Z"); // Tuesday, 10:00 ET
+
+  async function decemberThenJanuary(januaryFiles: Record<string, Buffer>) {
+    const mem = memoryStore();
+    mem.setState(fullyParsedState(DEC_30));
+    const december = fakeNet({ "2025-2026": buildZip("TSBS_RECEIVED_2025-2026.txt", CURRENT_TEXT) });
+    await runNhtsaWarrantyIngest({ fetchImpl: december.fetchImpl, store: mem.store, isEnabled: on, now: () => DEC_30 });
+    expect(mem.getState().chunks["2025-2026"]).toBeDefined();
+    const o = await runNhtsaWarrantyIngest({ fetchImpl: fakeNet(januaryFiles).fetchImpl, store: mem.store, isEnabled: on, now: () => JAN_12 });
+    return { mem, o };
+  }
+
+  it("once NHTSA serves 2025-2027, last year's name loses its pass, so rows NHTSA dropped stop counting as current", async () => {
+    // GM_SPECIAL_COVERAGE and VW_ENROLLMENT are gone from the renamed file.
+    const renamed = [TYPED, NEWSLETTER, PLAIN_TSB].join("\n") + "\n";
+    const { mem, o } = await decemberThenJanuary({ "2025-2027": buildZip("TSBS_RECEIVED_2025-2027.txt", renamed) });
+    expect(o.status === "completed" && o.chunks).toEqual([expect.objectContaining({ range: "2025-2027", status: "parsed" })]);
+    expect(mem.comms.get(11000001)).toMatchObject({ chunk: "2025-2027" }); // still listed: moved to the new name
+    expect(mem.comms.get(11013460)).toMatchObject({ chunk: "2025-2026" }); // dropped: its row stays under the old name
+    const names = Object.keys(mem.getState().chunks);
+    expect(names).toContain("2025-2027");
+    expect(names).not.toContain("2025-2026"); // the read builds its current passes from these names
+    expect(names).toEqual(expect.arrayContaining(allClosed(JAN_12))); // a daily run keeps the closed chunks' passes
+  });
+
+  it("while NHTSA still serves 2025-2026 in January, that name keeps its pass (control)", async () => {
+    const { mem, o } = await decemberThenJanuary({ "2025-2026": buildZip("TSBS_RECEIVED_2025-2026.txt", CURRENT_TEXT) });
+    expect(o.status === "completed" && o.chunks).toEqual([{ range: "2025-2026", status: "skipped_unchanged" }]);
+    expect(Object.keys(mem.getState().chunks)).toContain("2025-2026");
+  });
+});

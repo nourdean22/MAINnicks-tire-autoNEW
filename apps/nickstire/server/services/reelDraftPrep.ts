@@ -20,6 +20,7 @@ import { attachAutonomousVisualWorld } from "./visualWorld";
 import { buildHiggsfieldReelPromptPack, buildRepetitionChecks, runReelPreflight } from "../../client/src/lib/facelessReelStudio";
 import { DEFAULT_REPETITION_WINDOW_DAYS, getRecentReelSignals } from "./reelRepetitionHistory";
 import { createLogger } from "../lib/logger";
+import type { RealAssetRef } from "../../shared/reelJobPayload";
 
 const log = createLogger("reel-draft-prep");
 
@@ -39,7 +40,33 @@ export class PreflightExhaustedError extends Error {
   }
 }
 
-type ReelBrief = Awaited<ReturnType<typeof generateReelBriefAI>>["brief"];
+/**
+ * The generator's brief plus the real-asset reference §K.3 attaches. The
+ * brief is JSON.stringify'd whole into reel_jobs.payload at enqueue, so the
+ * field persists; `ReelJobPayloadView.realAsset` is its typed read-back.
+ */
+type ReelBrief = Awaited<ReturnType<typeof generateReelBriefAI>>["brief"] & { realAsset?: RealAssetRef };
+
+/**
+ * Ask the real-shop pool for this brief's subject. Never throws and never
+ * blocks the brief: a reel without a real asset is the pre-§K status quo,
+ * while a lookup ERROR is logged as such so it is not mistaken for "none".
+ */
+async function lookupRealAssetForBrief(brief: ReelBrief): Promise<RealAssetRef | null> {
+  try {
+    const { findRealAssetFor, toRealAssetRef } = await import("./realAssetFirst");
+    const lookup = await findRealAssetFor({ topic: brief.topic, symptoms: [brief.driverConfusion, brief.mechanicTruth] });
+    if (lookup.state === "matched") {
+      log.info("real shop asset attached to reel brief", { assetId: lookup.match.assetId, score: lookup.match.score, why: lookup.why });
+      return toRealAssetRef(lookup.match);
+    }
+    log.info("no real shop asset for reel brief", { state: lookup.state, why: lookup.why, ...("error" in lookup ? { error: lookup.error } : {}) });
+    return null;
+  } catch (err) {
+    log.warn("real asset lookup threw — brief continues without one", { error: err instanceof Error ? err.message : String(err) });
+    return null;
+  }
+}
 
 export interface PreparedReelBrief {
   brief: ReelBrief;
@@ -122,10 +149,15 @@ export async function prepareCleanReelBrief(
         brief.structurePatternId = structure.patternId;
         await recordStructureUse(structure.patternId);
       }
+      // §K.3 — a real shop photo of this brief's subject, when the pool has
+      // one. Attached after preflight so a rejected brief never pays the read.
+      const prepared: ReelBrief = brief;
+      const realAsset = await lookupRealAssetForBrief(prepared);
+      if (realAsset) prepared.realAsset = realAsset;
       if (attempt > 1) {
         log.info(`clean reel brief on attempt ${attempt}/${maxAttempts} after ${rejected.length} rejection(s)`);
       }
-      return { brief, attempts: attempt, rejectedForPreflight: rejected };
+      return { brief: prepared, attempts: attempt, rejectedForPreflight: rejected };
     }
     const blocking = pre.status === "block" ? pre.blocking.map((f) => f.message) : [];
     if (repetition.topicRepeated) {

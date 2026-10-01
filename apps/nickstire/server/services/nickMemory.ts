@@ -306,7 +306,7 @@ MEMORY TYPES:
 - customer: Customer-specific intelligence with HISTORY.
   Example: "JELKS, TINA is a repeat customer (2 visits). Vehicles: 2004 Mercury Mountaineer, 2013 VW Jetta. High-value: $300 total."
 - decision: A decision Nour made with REASONING and ALTERNATIVES considered.
-  Example: "Decided to use Snap Finance over Synchrony. Reason: faster approval, no credit check, virtual CC flow works with our system."
+  Example: "Decided to use Snap Finance over Synchrony. Reason: faster decisions, virtual CC flow works with our system."
 
 RULES:
 - Be SPECIFIC — include names, numbers, dates, amounts

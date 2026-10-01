@@ -23,10 +23,12 @@
  */
 import { spawn } from "child_process";
 import { NOIR_PALETTE, BRAND_BIBLE_VERSION } from "../../shared/brandBible";
+import { parseReelJobPayload } from "../../shared/reelJobPayload";
 import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
 import { createLogger } from "../lib/logger";
+import type { PixelStats } from "./renderedPixelStats";
 
 const log = createLogger("services:rendered-qa");
 
@@ -98,6 +100,160 @@ export interface RenderedFinding {
   description: string;
   preserve: string[];
   change: string[];
+  /** Critic's own confidence 0–1 (PROMPT-PACK §13). Undefined when the model
+   *  omitted it — an older verdict, or a model that ignored the schema. Drives
+   *  escalation (a low-confidence warn on the hero beat earns a second lens)
+   *  and scales a warn's craft deduction. Never drives severity. */
+  confidence?: number;
+}
+
+// ─── Craft score (README §H2) ──────────────────────────────────────
+//
+// Thirteen dimensions, weights summing to 100. The score is a PURE FOLD over
+// the findings the critic already emits plus the deterministic pixel flags —
+// no second model call, no averaging across lenses. A block empties the
+// dimension(s) its code speaks to; a warn takes half, scaled by the critic's
+// confidence; a pixel flag takes the fraction named in PIXEL_FLAG_DEDUCTIONS.
+// Dimensions no instrument can see from still frames (audio) are listed in
+// `unobserved` rather than silently scored full — a 100 with `unobserved:
+// ["audio"]` is an honest 93-of-93, not a false green.
+
+const CRAFT_WEIGHTS = {
+  openingComposition: 12,
+  mechanicalAccuracy: 12,
+  subjectRealism: 10,
+  plausibility: 8,
+  continuity: 8,
+  cinematography: 8,
+  pacing: 8,
+  motion: 7,
+  typography: 7,
+  audio: 7,
+  brand: 5,
+  nonGeneric: 4,
+  noArtifacts: 4,
+} as const;
+
+export type CraftDimension = keyof typeof CRAFT_WEIGHTS;
+
+export interface CraftScore {
+  /** 0–100, sum of the dimension scores. */
+  total: number;
+  dimensions: Record<CraftDimension, number>;
+  weights: Record<CraftDimension, number>;
+  /** Dimensions nothing in this pass could observe. Scored at full weight
+   *  but named, so a reader never mistakes "unseen" for "excellent". */
+  unobserved: CraftDimension[];
+}
+
+/** Which craft dimensions each defect code is evidence AGAINST. */
+const CODE_DIMENSIONS: Record<RenderedDefectCode, CraftDimension[]> = {
+  SUBJECT_CONTINUITY: ["continuity"],
+  DAMAGE_LOCATION_DRIFT: ["continuity", "mechanicalAccuracy"],
+  ENVIRONMENT_DRIFT: ["continuity"],
+  HUMAN_PRESENT: ["brand"],
+  NARRATOR_EMBODIED: ["brand"],
+  GENERATED_TEXT_ARTIFACT: ["noArtifacts", "typography"],
+  BEAT_SEMANTIC_MISMATCH: ["mechanicalAccuracy"],
+  MECHANICAL_MISREPRESENTATION: ["mechanicalAccuracy"],
+  MALFORMED_GEOMETRY: ["plausibility", "noArtifacts"],
+  LIGHTING_DRIFT: ["continuity", "cinematography"],
+  PALETTE_DRIFT: ["brand", "continuity"],
+  PLASTIC_AI_LOOK: ["subjectRealism"],
+  IMPOSSIBLE_PHYSICALITY: ["plausibility"],
+  GENERIC_STOCK_LOOK: ["nonGeneric"],
+  WEAK_COMPOSITION: ["cinematography"],
+  CAPTION_OBSTRUCTION: ["typography"],
+};
+
+/** Fraction of a dimension's weight each pixel flag removes. Hypotheses, like
+ *  the thresholds that produce the flags (renderedPixelStats header). */
+const PIXEL_FLAG_DEDUCTIONS: Record<string, Array<[CraftDimension, number]>> = {
+  BLACK_FRAME: [["continuity", 0.5]],
+  SOFT_FRAME: [["cinematography", 0.25], ["subjectRealism", 0.25]],
+  DUP_FRAME: [["motion", 0.5], ["pacing", 0.25]],
+  CAPTION_BOX_BUSY: [["typography", 0.5]],
+};
+
+/** The hero beat is beat 1; `null` is the first/final frame, which the prompt
+ *  tells the critic to use for anything it cannot pin to a beat. */
+const isHeroBeat = (beatNumber: number | null) => beatNumber === 1 || beatNumber === null;
+
+export function craftScore(findings: RenderedFinding[], pixelStats?: PixelStats | null): CraftScore {
+  const dimensions = { ...CRAFT_WEIGHTS } as Record<CraftDimension, number>;
+  const deduct = (dim: CraftDimension, fraction: number) => {
+    dimensions[dim] = Math.max(0, dimensions[dim] - CRAFT_WEIGHTS[dim] * fraction);
+  };
+  for (const f of findings) {
+    const conf = typeof f.confidence === "number" ? Math.min(1, Math.max(0, f.confidence)) : 1;
+    const fraction = f.severity === "block" ? 1 : 0.5 * conf;
+    const dims = [...CODE_DIMENSIONS[f.code]];
+    // A weak frame where the thumb stops is the opening, not just cinematography.
+    if (f.code === "WEAK_COMPOSITION" && isHeroBeat(f.beatNumber)) dims.push("openingComposition");
+    for (const dim of dims) deduct(dim, fraction);
+  }
+  if (pixelStats && !pixelStats.skipped) {
+    for (const flag of pixelStats.flags) {
+      const [code, label] = flag.split(":");
+      // A black OPENING frame is a failed hook, not a continuity nit.
+      if (code === "BLACK_FRAME" && label === "first") { deduct("openingComposition", 1); continue; }
+      for (const [dim, fraction] of PIXEL_FLAG_DEDUCTIONS[code] ?? []) deduct(dim, fraction);
+    }
+  }
+  const rounded = Object.fromEntries(
+    (Object.keys(CRAFT_WEIGHTS) as CraftDimension[]).map((k) => [k, Number(dimensions[k].toFixed(1))]),
+  ) as Record<CraftDimension, number>;
+  const total = Number(Object.values(rounded).reduce((a, b) => a + b, 0).toFixed(1));
+  return { total, dimensions: rounded, weights: { ...CRAFT_WEIGHTS }, unobserved: ["audio"] };
+}
+
+// ─── Adaptive specialist escalation (README §L.2) ─────────────────
+//
+// At most ONE specialist lens per reel, chosen deterministically from the
+// general critic's findings: a craft warn, or any warn on the hero beat the
+// critic was not sure about (confidence < 0.7). Blocks do not escalate — a
+// block already orders the repair, and a second opinion cannot un-spend it.
+// Geometry → automotive, opening → editorial, text → typography, plastic or
+// generic → brand, framing/faceless → composition. Running the lens is a
+// separate, flag-gated step in criticPanel.escalateIfNeeded.
+
+export type EscalationLens = "none" | "automotive" | "editorial" | "typography" | "brand" | "composition";
+
+const ESCALATION_PRIORITY: Exclude<EscalationLens, "none">[] = ["automotive", "editorial", "typography", "brand", "composition"];
+
+function lensForFinding(f: RenderedFinding): Exclude<EscalationLens, "none"> | null {
+  switch (f.code) {
+    case "MALFORMED_GEOMETRY":
+    case "DAMAGE_LOCATION_DRIFT":
+    case "IMPOSSIBLE_PHYSICALITY":
+      return "automotive";
+    case "WEAK_COMPOSITION":
+      return isHeroBeat(f.beatNumber) ? "editorial" : "composition";
+    case "GENERATED_TEXT_ARTIFACT":
+    case "CAPTION_OBSTRUCTION":
+      return "typography";
+    case "PLASTIC_AI_LOOK":
+    case "GENERIC_STOCK_LOOK":
+    case "PALETTE_DRIFT":
+      return "brand";
+    case "HUMAN_PRESENT":
+    case "NARRATOR_EMBODIED":
+      return "composition";
+    default:
+      return null;
+  }
+}
+
+function chooseEscalation(findings: RenderedFinding[]): EscalationLens {
+  const candidates = new Set<Exclude<EscalationLens, "none">>();
+  for (const f of findings) {
+    if (f.severity !== "warn") continue;
+    const uncertainHero = isHeroBeat(f.beatNumber) && typeof f.confidence === "number" && f.confidence < 0.7;
+    if (!CRAFT_CODES.has(f.code) && !uncertainHero) continue;
+    const lens = lensForFinding(f);
+    if (lens) candidates.add(lens);
+  }
+  return ESCALATION_PRIORITY.find((l) => candidates.has(l)) ?? "none";
 }
 
 export interface RenderedQaVerdict {
@@ -123,6 +279,23 @@ export interface RenderedQaVerdict {
   /** Set by selectiveRepair when the media is re-rendered — the verdict no
    *  longer describes the current mp4. */
   staleAfterRepair?: boolean;
+  /** README §H2 craft score. Absent on a skipped verdict — an unevaluated
+   *  reel has no craft, and a default would read as one. */
+  craftScore?: CraftScore;
+  /** The one specialist lens this verdict asks for (README §L.2), or "none". */
+  escalate?: EscalationLens;
+  /** Deterministic pre-flags the critic was shown (renderedPixelStats). */
+  pixelStats?: PixelStats;
+  /** Vision calls spent on this verdict: 1 for the general critic, +1 when a
+   *  specialist lens ran. Logged per reel; the budget test pins it. */
+  visionCalls?: number;
+  /** Present when escalateIfNeeded ran a lens and merged it in. */
+  specialist?: {
+    lens: Exclude<EscalationLens, "none">;
+    /** "skipped" means the lens call failed — the general verdict stands alone. */
+    critic: "vision" | "skipped";
+    findingsAdded: number;
+  };
 }
 
 function runFfmpeg(args: string[]): Promise<void> {
@@ -253,8 +426,9 @@ const VERDICT_SCHEMA = {
             description: { type: "string" },
             preserve: { type: "array", items: { type: "string" } },
             change: { type: "array", items: { type: "string" } },
+            confidence: { type: ["number", "null"] },
           },
-          required: ["beatNumber", "code", "description", "preserve", "change"],
+          required: ["beatNumber", "code", "description", "preserve", "change", "confidence"],
         },
       },
     },
@@ -265,12 +439,17 @@ const VERDICT_SCHEMA = {
 /** Clamp raw critic output to the registry: unknown codes are dropped WITH a
  *  warning (a critic may not invent vocabulary); severity comes from the
  *  registry, never the model; any block finding forces decision "repair". */
-export function clampVerdict(raw: unknown, framesEvaluated: number, critic: "vision" | "skipped"): RenderedQaVerdict {
+export function clampVerdict(
+  raw: unknown,
+  framesEvaluated: number,
+  critic: "vision" | "skipped",
+  pixelStats?: PixelStats | null,
+): RenderedQaVerdict {
   const obj = (raw ?? {}) as { decision?: string; findings?: unknown[] };
   const findings: RenderedFinding[] = [];
   let droppedUnknownCodes = 0;
   for (const f of Array.isArray(obj.findings) ? obj.findings : []) {
-    const rec = f as { beatNumber?: unknown; code?: unknown; description?: unknown; preserve?: unknown; change?: unknown };
+    const rec = f as { beatNumber?: unknown; code?: unknown; description?: unknown; preserve?: unknown; change?: unknown; confidence?: unknown };
     const code = String(rec.code ?? "");
     if (!(code in RENDERED_DEFECT_CODES)) {
       // Dropped from `findings` (severity is registry-owned), but COUNTED — a
@@ -279,6 +458,9 @@ export function clampVerdict(raw: unknown, framesEvaluated: number, critic: "vis
       log.warn("critic emitted unknown defect code — dropped from findings, counted as incomplete evidence", { code });
       continue;
     }
+    const confidence = typeof rec.confidence === "number" && Number.isFinite(rec.confidence)
+      ? Math.min(1, Math.max(0, rec.confidence))
+      : undefined;
     findings.push({
       beatNumber: typeof rec.beatNumber === "number" ? rec.beatNumber : null,
       code: code as RenderedDefectCode,
@@ -286,6 +468,7 @@ export function clampVerdict(raw: unknown, framesEvaluated: number, critic: "vis
       description: String(rec.description ?? "").slice(0, 400),
       preserve: Array.isArray(rec.preserve) ? rec.preserve.map(String).slice(0, 6) : [],
       change: Array.isArray(rec.change) ? rec.change.map(String).slice(0, 6) : [],
+      ...(confidence === undefined ? {} : { confidence }),
     });
   }
   const hasBlock = findings.some((f) => f.severity === "block");
@@ -314,6 +497,12 @@ export function clampVerdict(raw: unknown, framesEvaluated: number, critic: "vis
     // consumer can mistake its approve-shaped payload for a real pass.
     qaState: critic === "skipped" ? "unavailable" : "completed",
     droppedUnknownCodes,
+    // No craft score on a non-evaluation: an unseen reel has no craft, and a
+    // 100 here would be the exact false green qaState exists to prevent.
+    ...(critic === "vision" ? { craftScore: craftScore(findings, pixelStats) } : {}),
+    escalate: critic === "vision" ? chooseEscalation(findings) : "none",
+    ...(pixelStats ? { pixelStats } : {}),
+    visionCalls: critic === "vision" ? 1 : 0,
   };
 }
 
@@ -329,6 +518,57 @@ export interface EvaluateRenderedReelInput {
     motionLens?: string;
     storyboardBeats?: Array<{ beatNumber: number; visual: string }>;
   };
+  /** Deterministic pre-flags from renderedPixelStats; shown to the critic as
+   *  PIXEL_STATS and folded into the craft score. Optional so the operator
+   *  endpoint and older callers keep working without them. */
+  pixelStats?: PixelStats | null;
+}
+
+/**
+ * THE vision wrapper — one Gemini call over the extracted frames with a given
+ * system prompt, returning the first balanced JSON object the model produced
+ * (or throwing). Shared by the general critic below and by every specialist
+ * lens in criticPanel, so a lens cannot drift onto a different model, timeout
+ * or parser than the critic it is second-guessing.
+ *
+ * Gemini-flash wraps/pads JSON unpredictably (prose before, trailing junk
+ * after — both observed live on the 660002 retrigger). Extract the first
+ * BALANCED object; a truncated object still fails parse and stays an honest
+ * throw for the caller to turn into "skipped", never a fabricated verdict.
+ */
+export async function callVisionCritic(input: { frames: ExtractedFrame[]; system: string; user: string }): Promise<unknown> {
+  const { invokeLLM } = await import("../_core/llm");
+  const imageParts = await Promise.all(
+    input.frames.map(async (f) => ({
+      type: "image_url" as const,
+      image_url: { url: `data:image/jpeg;base64,${(await fs.readFile(f.path)).toString("base64")}` },
+    })),
+  );
+  const res = await invokeLLM({
+    messages: [
+      { role: "system", content: input.system },
+      { role: "user", content: [{ type: "text", text: input.user }, ...imageParts] },
+    ],
+    maxTokens: 4096,
+    timeoutMs: 90_000,
+    outputSchema: VERDICT_SCHEMA,
+  });
+  const content = res.choices?.[0]?.message?.content;
+  const text = typeof content === "string" ? content : "";
+  const cleaned = text.replace(/```(?:json)?/g, "").trim();
+  const start = cleaned.indexOf("{");
+  let depth = 0;
+  let end = -1;
+  for (let i = start; start >= 0 && i < cleaned.length; i++) {
+    if (cleaned[i] === "{") depth++;
+    else if (cleaned[i] === "}") { depth--; if (depth === 0) { end = i; break; } }
+  }
+  return JSON.parse(start >= 0 && end > start ? cleaned.slice(start, end + 1) : "{}");
+}
+
+/** The planned-beats block, shared with the specialist lenses. */
+export function beatsDocFor(brief: EvaluateRenderedReelInput["brief"]): string {
+  return (brief.storyboardBeats ?? []).map((b) => `beat ${b.beatNumber}: ${b.visual}`).join("\n");
 }
 
 /** Vision critic over the actual frames. Requires image support in the LLM
@@ -336,16 +576,20 @@ export interface EvaluateRenderedReelInput {
  *  critic failure returns a skipped verdict the operator can see. */
 export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Promise<RenderedQaVerdict> {
   try {
-    const { invokeLLM } = await import("../_core/llm");
-    const imageParts = await Promise.all(
-      input.frames.map(async (f) => ({
-        type: "image_url" as const,
-        image_url: { url: `data:image/jpeg;base64,${(await fs.readFile(f.path)).toString("base64")}` },
-      })),
-    );
     const codeDoc = Object.entries(RENDERED_DEFECT_CODES)
       .map(([code, v]) => `${code} (${v.severity}): ${v.meaning}`)
       .join("\n");
+    // Pre-flags are shown even when they could not be computed — "unavailable"
+    // is itself information, and a silent omission would let the critic assume
+    // every frame passed the $0 checks.
+    const pixelBlock = await (async () => {
+      try {
+        const { formatPixelStatsForPrompt } = await import("./renderedPixelStats");
+        return formatPixelStatsForPrompt(input.pixelStats);
+      } catch {
+        return "PIXEL_STATS: unavailable (formatter failed to load).";
+      }
+    })();
     const worldBlock = input.brief.visualWorld?.lockedInvariants
       ? `APPROVED VISUAL WORLD (every frame must match):\n${input.brief.visualWorld.lockedInvariants}`
       : "No approved visual world — judge continuity against beat 1's establishing frame.";
@@ -366,52 +610,37 @@ export async function evaluateRenderedReel(input: EvaluateRenderedReelInput): Pr
         return BRAND_PALETTE_PROMPT;
       }
     })();
-    const beatsDoc = (input.brief.storyboardBeats ?? []).map((b) => `beat ${b.beatNumber}: ${b.visual}`).join("\n");
-    const res = await invokeLLM({
-      messages: [
-        {
-          role: "system",
-          content: `You are a ruthless creative QA inspector for automotive reels. Frames are labeled in order: first, per-beat midpoints, final. Judge ONLY what is visible. Emit findings ONLY with these exact codes:\n${codeDoc}\n\n${worldBlock}\n\nPLANNED BEATS:\n${beatsDoc}\n\nCALIBRATION (from a real miss — the first live verdict approved frames a human immediately rejected):\n- GENERATED_TEXT_ARTIFACT: the ONLY legitimate text is the deterministic caption overlay — UPPERCASE gold letters on a solid black box, plus a gold "SAVE THIS" style pill. ANY other lettering is a defect: fake UI status bars, watermark-like strings, gibberish signage, pseudo-HUD readouts, misspelled screen text on devices (e.g. a tester showing "Vbort"), license-plate-like smears. Inspect frame edges and any screens/devices CLOSELY.\n- BEAT_SEMANTIC_MISMATCH: compare EACH labeled frame against its planned beat and burned-in claim. If the beat says belts/hoses and the frame shows a spare tire, or the beat says pressure gauge and the frame shows an unrelated wheel, BLOCK it. A beautiful frame of the wrong thing is still wrong.\n- MECHANICAL_MISREPRESENTATION: block only concrete automotive falsehoods visible in the frame — anatomy, damage, diagnosis, or repair that would teach a viewer the wrong thing even if the geometry looks plausible. Examples: a tire repair cross-section that depicts the plug/patch path incorrectly, a "brake line" that is visibly a frame rail, or an impossible belt routing presented as instructional. Do not use this for mere stylistic ambiguity.\n- IDENTITY DRIFT: if the same logical object (a battery, a car, a tool) changes design, brand, color, or shape between beats, flag it — "similar object" is not "same object".\n- NARRATOR_EMBODIED: the narrator (NICK-01) is a gold scanning beam and an icy-blue reticle — LIGHT AND MOTION ONLY. If any frame draws it as a figure, silhouette, uniform, visor, or any body, that is a defect even when no face is visible. A body-shaped presence is not an acceptable narrator here.\n- PALETTE: the world for THIS reel is ${reelPaletteSpec}. Judge PALETTE_DRIFT against THAT, not against a generic "cinematic" look and not against any other reel. Each reel declares its own world, so a bright daylight world is not drift.\n- CRAFT (record these when you see them; they are evidence, and not grounds for "repair" on their own): PLASTIC_AI_LOOK - rubber, rust and brake dust must read as those materials rather than as smooth tinted plastic, so look for absent pore, grain and scratch detail, and for one uniform sheen across surfaces that should differ. IMPOSSIBLE_PHYSICALITY - every object needs a contact shadow, every reflection needs a visible source, and tread blocks, lug nuts and bolt patterns must stay countable and consistent between beats. GENERIC_STOCK_LOOK - ask whether this frame could be any shop in any city, and if nothing in it is specific to this vehicle, this damage or this place, say so.\nFor each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change). If the render is clean, decision "approve" with zero findings. Do not invent codes. Do not praise. A miss is worse than a false alarm: when unsure whether lettering is the caption overlay, flag it.`,
-        },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: `Evaluate these ${input.frames.length} frames (order: ${input.frames.map((f) => f.label).join(", ")}). Topic: ${input.brief.topic ?? "unknown"}. Hero: ${input.brief.objectCharacter ?? "unknown"}.` },
-            ...imageParts,
-          ],
-        },
-      ],
-      maxTokens: 4096,
-      timeoutMs: 90_000,
-      outputSchema: VERDICT_SCHEMA,
+    const beatsDoc = beatsDocFor(input.brief);
+    const parsed = await callVisionCritic({
+      frames: input.frames,
+      system: `You are a ruthless creative QA inspector for automotive reels. Frames are labeled in order: first, per-beat midpoints, final. Judge ONLY what is visible. Emit findings ONLY with these exact codes:\n${codeDoc}\n\n${worldBlock}\n\nPLANNED BEATS:\n${beatsDoc}\n\n${pixelBlock}\n\nCALIBRATION (from a real miss — the first live verdict approved frames a human immediately rejected):\n- GENERATED_TEXT_ARTIFACT: the ONLY legitimate text is the deterministic caption overlay — UPPERCASE gold letters on a solid black box, plus a gold "SAVE THIS" style pill. ANY other lettering is a defect: fake UI status bars, watermark-like strings, gibberish signage, pseudo-HUD readouts, misspelled screen text on devices (e.g. a tester showing "Vbort"), license-plate-like smears. Inspect frame edges and any screens/devices CLOSELY.\n- BEAT_SEMANTIC_MISMATCH: compare EACH labeled frame against its planned beat and burned-in claim. If the beat says belts/hoses and the frame shows a spare tire, or the beat says pressure gauge and the frame shows an unrelated wheel, BLOCK it. A beautiful frame of the wrong thing is still wrong.\n- MECHANICAL_MISREPRESENTATION: block only concrete automotive falsehoods visible in the frame — anatomy, damage, diagnosis, or repair that would teach a viewer the wrong thing even if the geometry looks plausible. Examples: a tire repair cross-section that depicts the plug/patch path incorrectly, a "brake line" that is visibly a frame rail, or an impossible belt routing presented as instructional. Do not use this for mere stylistic ambiguity.\n- IDENTITY DRIFT: if the same logical object (a battery, a car, a tool) changes design, brand, color, or shape between beats, flag it — "similar object" is not "same object".\n- NARRATOR_EMBODIED: the narrator (NICK-01) is a gold scanning beam and an icy-blue reticle — LIGHT AND MOTION ONLY. If any frame draws it as a figure, silhouette, uniform, visor, or any body, that is a defect even when no face is visible. A body-shaped presence is not an acceptable narrator here.\n- PALETTE: the world for THIS reel is ${reelPaletteSpec}. Judge PALETTE_DRIFT against THAT, not against a generic "cinematic" look and not against any other reel. Each reel declares its own world, so a bright daylight world is not drift.\n- CRAFT (record these when you see them; they are evidence, and not grounds for "repair" on their own): PLASTIC_AI_LOOK - rubber, rust and brake dust must read as those materials rather than as smooth tinted plastic, so look for absent pore, grain and scratch detail, and for one uniform sheen across surfaces that should differ. IMPOSSIBLE_PHYSICALITY - every object needs a contact shadow, every reflection needs a visible source, and tread blocks, lug nuts and bolt patterns must stay countable and consistent between beats. GENERIC_STOCK_LOOK - ask whether this frame could be any shop in any city, and if nothing in it is specific to this vehicle, this damage or this place, say so.\nFor each finding give beatNumber (the beat whose frame shows it, or null for first/final), a concrete description, preserve[] (what the repair must keep), change[] (the minimal change). If the render is clean, decision "approve" with zero findings. Do not invent codes. Do not praise. A miss is worse than a false alarm: when unsure whether lettering is the caption overlay, flag it. For EVERY finding also give confidence (0-1): how sure you are the defect is real from the pixels you were shown. The deterministic PIXEL_STATS pre-flags above are not findings; confirm them with your own eyes or say nothing.`,
+      user: `Evaluate these ${input.frames.length} frames (order: ${input.frames.map((f) => f.label).join(", ")}). Topic: ${input.brief.topic ?? "unknown"}. Hero: ${input.brief.objectCharacter ?? "unknown"}.`,
     });
-    const content = res.choices?.[0]?.message?.content;
-    const text = typeof content === "string" ? content : "";
-    // Gemini-flash wraps/pads JSON unpredictably (prose before, trailing junk
-    // after — both observed live on the 660002 retrigger). Extract the first
-    // BALANCED object; a truncated object still fails parse and stays an
-    // honest "skipped", never a fabricated verdict.
-    const cleaned = text.replace(/```(?:json)?/g, "").trim();
-    const start = cleaned.indexOf("{");
-    let depth = 0;
-    let end = -1;
-    for (let i = start; start >= 0 && i < cleaned.length; i++) {
-      if (cleaned[i] === "{") depth++;
-      else if (cleaned[i] === "}") { depth--; if (depth === 0) { end = i; break; } }
-    }
-    const parsed = JSON.parse(start >= 0 && end > start ? cleaned.slice(start, end + 1) : "{}");
-    return clampVerdict(parsed, input.frames.length, "vision");
+    return clampVerdict(parsed, input.frames.length, "vision", input.pixelStats);
   } catch (err) {
     log.warn("vision critic unavailable — verdict skipped, not fabricated", {
       err: err instanceof Error ? err.message.slice(0, 160) : String(err),
     });
-    return clampVerdict({ decision: "approve", findings: [] }, input.frames.length, "skipped");
+    return clampVerdict({ decision: "approve", findings: [] }, input.frames.length, "skipped", input.pixelStats);
   }
 }
 
-/** Full QA pass for an assembled reel job: frames → sheet → critic → verdict
- *  persisted into the job payload (renderedQa field). Never throws. */
-export async function runRenderedQaOnJob(jobId: number): Promise<RenderedQaVerdict | null> {
+export interface RunRenderedQaOptions {
+  /** Run the $0 deterministic pixel checks and show them to the critic.
+   *  Default ON — they never throw and cost nothing. */
+  pixelStats?: boolean;
+  /** Run at most one specialist lens when the general critic asks for one
+   *  (README §L.2). Default = `RENDERED_QA_SPECIALIST === "true"`, i.e. OFF;
+   *  the pipeline passes it explicitly so the gate is visible at the call site. */
+  specialist?: boolean;
+}
+
+/** Full QA pass for an assembled reel job: frames → pixel stats → sheet →
+ *  critic (→ ≤1 specialist lens) → verdict persisted into the job payload
+ *  (renderedQa field). Never throws. */
+export async function runRenderedQaOnJob(jobId: number, opts: RunRenderedQaOptions = {}): Promise<RenderedQaVerdict | null> {
+  const wantPixelStats = opts.pixelStats ?? true;
+  const wantSpecialist = opts.specialist ?? process.env.RENDERED_QA_SPECIALIST === "true";
   try {
     const { getDb } = await import("../db");
     const d = await getDb();
@@ -423,7 +652,10 @@ export async function runRenderedQaOnJob(jobId: number): Promise<RenderedQaVerdi
       log.warn("rendered QA: job has no mp4", { jobId });
       return null;
     }
-    const payload = JSON.parse(job.payload ?? "{}");
+    // The canonical typed view of reel_jobs.payload — the same object is
+    // written back below with `renderedQa` set, so the field is declared on
+    // the view rather than cast in here.
+    const payload = parseReelJobPayload(job.payload);
     const beats: Array<{ beatNumber: number; startSecond: number; endSecond: number }> = payload.storyboardBeats ?? [];
     // Resolving the master to a LOCAL path was safe only while data/generated was
     // the store. Since durable object storage landed the bytes may live solely in
@@ -488,11 +720,37 @@ export async function runRenderedQaOnJob(jobId: number): Promise<RenderedQaVerdi
         return undefined;
       }
     })();
-    const verdict = await evaluateRenderedReel({ frames, brief: payload });
+    // $0 pre-flags over the frames already on disk. A failure here is a
+    // weaker prompt, never a lost verdict — the module resolves to skipped on
+    // its own errors, and a load failure (native sharp) is caught here.
+    const pixelStats: PixelStats | null = wantPixelStats
+      ? await import("./renderedPixelStats")
+          .then((m) => m.computeRenderedPixelStats(frames))
+          .catch((err: unknown): PixelStats => ({ skipped: true, reason: `pixel stats failed to load: ${err instanceof Error ? err.message.slice(0, 120) : String(err)}` }))
+      : null;
+    let verdict = await evaluateRenderedReel({ frames, brief: payload, pixelStats });
+    if (wantSpecialist) {
+      try {
+        const { escalateIfNeeded } = await import("./criticPanel");
+        verdict = await escalateIfNeeded(verdict, frames, { brief: payload }, { enabled: true });
+      } catch (err) {
+        log.warn("specialist escalation failed — general verdict stands", { jobId, err: err instanceof Error ? err.message.slice(0, 160) : String(err) });
+      }
+    }
     verdict.contactSheetPath = sheet;
     payload.renderedQa = verdict;
     await d.update(reelJobs).set({ payload: JSON.stringify(payload) }).where(eq(reelJobs.id, jobId));
-    log.info("rendered QA verdict persisted", { jobId, decision: verdict.decision, findings: verdict.findings.length, critic: verdict.critic });
+    log.info("rendered QA verdict persisted", {
+      jobId,
+      decision: verdict.decision,
+      findings: verdict.findings.length,
+      critic: verdict.critic,
+      visionCalls: verdict.visionCalls ?? 0,
+      escalate: verdict.escalate ?? "none",
+      specialistLens: verdict.specialist?.lens ?? null,
+      craftTotal: verdict.craftScore?.total ?? null,
+      pixelFlags: pixelStats && !pixelStats.skipped ? pixelStats.flags : null,
+    });
     return verdict;
   } catch (err) {
     log.warn("rendered QA failed — job untouched", { jobId, err: err instanceof Error ? err.message.slice(0, 160) : String(err) });

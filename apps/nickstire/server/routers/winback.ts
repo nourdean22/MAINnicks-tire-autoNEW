@@ -176,7 +176,7 @@ const buildWinbackTemplates = (
     },
     {
       step: 2, delayDays: 7,
-      template: `Still here at ${STORE_NAME}. If cost was the holdup on that estimate, $10 down splits it across 4 lenders. Free re-check first, no charge. ${STORE_PHONE}`,
+      template: `Still here at ${STORE_NAME}. If cost was the holdup on that estimate, four payment programs can spread it out; each decides approval. Free re-check first, no charge. ${STORE_PHONE}`,
     },
     {
       step: 3, delayDays: 21,

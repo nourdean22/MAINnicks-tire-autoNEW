@@ -185,74 +185,37 @@ export function CommandPalette() {
   // also calls; most already exist from earlier slices, only
   // `operator.businessDashboard` + `system.aiSpend` are new this slice.
 
-  // Keyboard shortcuts:
-  //   ⌘K / Ctrl+K       → toggle palette
-  //   ⌘⇧K / Ctrl+⇧K    → re-run most-recently-used command (repeat-last)
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        if (e.shiftKey) {
-          // Repeat-last shortcut. Read recents from storage (fresh)
-          // and fire the most recent action's callback. Only fires
-          // when the palette is CLOSED — if it's already open, let
-          // the ⌘K handler close it (predictable).
-          if (!open) {
-            const ids = loadRecents();
-            const mostRecent = ids[0];
-            if (mostRecent) {
-              const match = actionsRef.current.find((a) => a.id === mostRecent);
-              if (match) {
-                // Fire immediately without opening the palette.
-                void match.action();
-                saveRecent(match.id);
-                return;
-              }
-            }
-            // No recent yet — fall through to just open the palette.
-            captureUrlFocus();
-            setOpen(true);
-          }
-          return;
-        }
-        if (!open) captureUrlFocus();
-        setOpen((o) => !o);
-      }
-    };
-    document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
-  }, [open, captureUrlFocus]);
-
   // 2026-06-18 · IA reorg Phase 1 · tap-to-open. On the iOS PWA there is no
   // ⌘K — the FloatingHome "Search" button (and the future bottom-bar search)
   // dispatch COMMAND_PALETTE_OPEN_EVENT to open the palette by tap.
   useEffect(() => {
     const onOpen = () => {
       captureUrlFocus();
+      setRecents(loadRecents());
       setOpen(true);
     };
     window.addEventListener(COMMAND_PALETTE_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(COMMAND_PALETTE_OPEN_EVENT, onOpen);
   }, [captureUrlFocus]);
 
-  // Refresh recents every time the palette opens — cheap, and makes
-  // ranking reflect what he actually just used (multi-tab safe).
-  useEffect(() => {
-    if (open) setRecents(loadRecents());
-  }, [open]);
+  const closePalette = useCallback(() => {
+    setOpen(false);
+    setSemanticHits([]);
+    setSemanticLoading(false);
+  }, []);
 
   const navigate = useCallback(
     (path: string) => {
-      setOpen(false);
+      closePalette();
       router.push(path);
     },
-    [router],
+    [closePalette, router],
   );
 
   const openExternal = useCallback((url: string) => {
     window.open(url, "_blank", "noopener,noreferrer");
-    setOpen(false);
-  }, []);
+    closePalette();
+  }, [closePalette]);
 
   const runAction = useCallback(async (id: string, fn: () => void | Promise<void>) => {
     setLoading(id);
@@ -261,9 +224,9 @@ export function CommandPalette() {
       saveRecent(id);
     } finally {
       setLoading(null);
-      setOpen(false);
+      closePalette();
     }
-  }, []);
+  }, [closePalette]);
 
   // Wrap any async probe so failures surface cleanly as toast.error
   // rather than silently hanging at "Running...".
@@ -301,17 +264,37 @@ export function CommandPalette() {
     [navigate, openExternal],
   );
 
+  // Hub sub-surfaces come from the SAME registry as More/navigation. Before
+  // this, only Brain Board was hand-added below, so a new Content/Brain tab
+  // could be live and deep-linkable but invisible to the intent resolver.
+  const navTabCommands: CommandAction[] = useMemo(
+    () =>
+      NAV.flatMap((entry) =>
+        (entry.tabs ?? []).map((tab) => ({
+          id: `nav-tab:${entry.href}:${tab.key}`,
+          label: `${entry.label} · ${tab.label}`,
+          group: "Navigate",
+          icon: <entry.icon className="size-4" />,
+          action: () => navigate(`${entry.href}?tab=${encodeURIComponent(tab.key)}`),
+          keywords: [entry.label, tab.label, tab.key],
+        })),
+      ),
+    [navigate],
+  );
+
   const actions: CommandAction[] = useMemo(
     () => [
       ...navCommands,
-      // High-value sub-surface deep-links not covered by a top-level NAV entry.
-      { id: "nav-brain-board", label: "Brain Board · multi-advisor", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=board"), keywords: ["board", "advisor", "consult", "council", "elon", "buffett", "warren"] },
-      { id: "nav-body", label: "Body Tracking", group: "Navigate", icon: <HeartPulseIcon className="size-4" />, action: () => navigate("/stats#body"), keywords: ["weight", "workout", "boxing", "body"] },
+      ...navTabCommands,
+      // High-value anchors that are deeper than a tab.
+      { id: "nav-brain-anti-patterns", label: "Brain · Anti-patterns", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=memory#anti-patterns"), keywords: ["anti-pattern", "lesson", "failure", "revisit"] },
+      { id: "nav-brain-recall-preview", label: "Brain · Recall Preview", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=memory#recall-preview"), keywords: ["recall", "memory", "prompt", "context", "retrieval"] },
+      { id: "nav-brain-time-travel", label: "Brain · Time Travel", group: "Navigate", icon: <HistoryIcon className="size-4" />, action: () => navigate("/brain?tab=continuity#time-travel"), keywords: ["time travel", "history", "day", "snapshot", "memory"] },
 
       // ═══ DIAGNOSTICS — push+pull probe hub (ENR3/ENR4) ═══
       { id: "diag-hub", label: "Diagnostics Hub (all probes)", group: "Diagnostics", icon: <StethoscopeIcon className="size-4" />, action: () => navigate("/system/health"), keywords: ["diagnostics", "health", "push", "pull", "probe", "env", "oauth", "pulse", "stale", "cron"] },
       { id: "diag-crons", label: "Cron Diagnostics (silent/slow)", group: "Diagnostics", icon: <ClockIcon className="size-4" />, action: () => navigate("/system/crons"), keywords: ["cron", "silent", "slow", "schedule", "diagnose"] },
-      { id: "diag-stale", label: "Stale Data (purge surface)", group: "Diagnostics", icon: <DatabaseIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["stale", "purge", "clean", "orphan", "dismissed"] },
+      { id: "diag-stale", label: "Stale Data · review + cleanup", group: "Diagnostics", icon: <DatabaseIcon className="size-4" />, action: () => navigate("/system#stale-data"), keywords: ["stale", "purge", "clean", "orphan", "dismissed"] },
       // v10.0.304 · "Live Event Stream" entry removed · /system/events
       // page deleted. /system/logs covers the same data with broader
       // source list, just slower poll. Manual refresh = live enough.
@@ -328,7 +311,7 @@ export function CommandPalette() {
       { id: "sys-ai-cost", label: "AI Cost · burn rate", group: "System", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/system/ai-cost"), keywords: ["cost", "nick", "tokens", "budget", "burn"] },
       { id: "sys-actions", label: "Autonomous Actions · audit", group: "System", icon: <BotIcon className="size-4" />, action: () => navigate("/system/actions"), keywords: ["action", "autonomous", "rule", "audit", "approval"] },
       { id: "sys-health", label: "Health · diagnostics", group: "System", icon: <StethoscopeIcon className="size-4" />, action: () => navigate("/system/health"), keywords: ["health", "diagnostics", "probe", "env", "vectors", "backlog"] },
-      { id: "sys-calibration", label: "Calibration · accuracy + judge-eval", group: "System", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["calibration", "quality", "judge", "eval", "drift", "coverage", "operator state", "lens", "anti-pattern"] },
+      { id: "sys-calibration", label: "Calibration · accuracy + judge-eval", group: "System", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["calibration", "quality", "judge", "eval", "drift", "coverage", "operator state", "lens"] },
       { id: "sys-alerts", label: "Alerts · cross-category inspector", group: "System", icon: <AlertTriangleIcon className="size-4" />, action: () => navigate("/system/alerts"), keywords: ["alert", "inspect", "category", "coach"] },
       { id: "sys-inbox", label: "Memory Inbox · quarantine review", group: "System", icon: <InboxIcon className="size-4" />, action: () => navigate("/system/inbox"), keywords: ["inbox", "quarantine", "memory", "contradiction", "review"] },
       { id: "sys-tools", label: "Tools Registry · governance", group: "System", icon: <WrenchIcon className="size-4" />, action: () => navigate("/system/tools"), keywords: ["tool", "registry", "govern", "permission", "capability"] },
@@ -372,8 +355,8 @@ export function CommandPalette() {
         // Full-page navigation — this is an OAuth start URL that
         // redirects to Google, not a Next.js route we can router.push.
         action: () => {
-          setOpen(false);
-          window.location.href = "/api/oauth/google-data/start";
+          closePalette();
+          window.location.assign(new URL("/api/oauth/google-data/start", window.location.origin));
         },
         keywords: ["google", "oauth", "reconnect", "drive", "gmail", "calendar", "refresh", "token"],
       },
@@ -493,13 +476,45 @@ export function CommandPalette() {
     ],
     // lint-baseline 2026-08-13 · `openExternal` was flagged as an
     // unnecessary dep (no longer referenced in the memo body).
-    [navigate, probe, navCommands],
+    [closePalette, navigate, probe, navCommands, navTabCommands],
   );
 
-  // Keep a ref so the ⌘⇧K keyboard handler can reach the current
-  // action list without resubscribing the listener on every re-render.
-  const actionsRef = useRef<CommandAction[]>(actions);
-  actionsRef.current = actions;
+  // Keyboard shortcuts:
+  //   ⌘K / Ctrl+K       → toggle palette
+  //   ⌘⇧K / Ctrl+⇧K    → re-run most-recently-used command (repeat-last)
+  // This listener lives AFTER the finalized action list so repeat-last can
+  // read current actions directly — no render-time mutable ref required.
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key !== "k" || (!e.metaKey && !e.ctrlKey)) return;
+      e.preventDefault();
+
+      if (e.shiftKey) {
+        if (!open) {
+          const mostRecent = loadRecents()[0];
+          const match = mostRecent ? actions.find((action) => action.id === mostRecent) : undefined;
+          if (match) {
+            void match.action();
+            saveRecent(match.id);
+            return;
+          }
+          captureUrlFocus();
+          setRecents(loadRecents());
+          setOpen(true);
+        }
+        return;
+      }
+
+      if (!open) {
+        captureUrlFocus();
+        setRecents(loadRecents());
+      }
+      setOpen((value) => !value);
+    };
+
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, [actions, captureUrlFocus, open]);
 
   // Recency boost: take last-used action IDs in order, surface them at
   // top as a "Recently Used" pseudo-group. Avoids re-ranking the whole
@@ -606,14 +621,7 @@ export function CommandPalette() {
   // FTS + KNN cosine on brain_memory + chat_message (~22 days of
   // paid-for embeddings · zero UI consumer pre-Wave-W).
   useEffect(() => {
-    if (!open) {
-      setSemanticHits([]);
-      return;
-    }
-    if (query.trim().length < 3) {
-      setSemanticHits([]);
-      return;
-    }
+    if (!open || query.trim().length < 3) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       setSemanticLoading(true);
@@ -666,7 +674,7 @@ export function CommandPalette() {
   // the page (e.g. /brain/wisdom?focus= from the evolution panel).
   const navigateToHit = useCallback(
     (hit: { id: string; sourceType: string }) => {
-      setOpen(false);
+      closePalette();
       if (hit.sourceType === "brain_memory") {
         // 2026-09-15 · a memory hit opens the universal memory inspector on the
         // Brain memory tab (was: the wisdom tab's KEY-based ?focus= fed a ROW id,
@@ -679,15 +687,36 @@ export function CommandPalette() {
         router.push(`/chat?prompt=${encodeURIComponent(query)}`);
       }
     },
-    [router, query],
+    [closePalette, router, query],
   );
 
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) {
+        closePalette();
+        return;
+      }
+      captureUrlFocus();
+      setRecents(loadRecents());
+      setOpen(true);
+    },
+    [captureUrlFocus, closePalette],
+  );
+
+  const handleQueryChange = useCallback((value: string) => {
+    setQuery(value);
+    if (value.trim().length < 3) {
+      setSemanticHits([]);
+      setSemanticLoading(false);
+    }
+  }, []);
+
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
+    <CommandDialog open={open} onOpenChange={handleOpenChange}>
       <CommandInput
         placeholder="Type a command or search brain... (⌘K)"
         value={query}
-        onValueChange={setQuery}
+        onValueChange={handleQueryChange}
       />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
@@ -699,7 +728,7 @@ export function CommandPalette() {
             the operator's intended action immediately. */}
         <RelationshipLogAction
           query={query.trim()}
-          onLogged={() => setOpen(false)}
+          onLogged={closePalette}
         />
 
         {/* 2026-09-15 · Intent Resolver · the focused / inspected object's

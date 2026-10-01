@@ -96,7 +96,7 @@ describe("selectLevelUpDirective · recovery override", () => {
     expect(d!.recovery).toBe(true);
     expect(d!.stat.key).toBe("physical"); // body-branch stat, not the heavy rep
     expect(d!.reason).toContain("slept 4.5h");
-    expect(d!.rep.href).toBe("/stats#body");
+    expect(d!.rep.href).toBe("/stats?tab=body");
   });
 
   it("energy ≤ 2 triggers it too", () => {
@@ -247,7 +247,7 @@ describe("selectLevelUpDirective · body-neglect + learning + closest", () => {
     const d = selectLevelUpDirective({ stats: [body1, body2, mind] });
     expect(d!.tier).toBe("body-neglect");
     expect(d!.stat.key).toBe("mobility"); // highest progress in the branch
-    expect(d!.rep.href).toBe("/stats#body");
+    expect(d!.rep.href).toBe("/stats?tab=body");
   });
 
   it("does not fire body-neglect when any Body stat moved this week", () => {
@@ -267,7 +267,7 @@ describe("selectLevelUpDirective · body-neglect + learning + closest", () => {
     const other = statLevel({ key: "patience", branch: "mind", progressPct: 30, rising7dXp: 1 });
     const d = selectLevelUpDirective({ stats: [learning, other] });
     expect(d!.tier).toBe("learning");
-    expect(d!.rep.href).toBe("/stats#learning");
+    expect(d!.rep.href).toBe("/stats?tab=learning");
     expect(d!.reason).toContain("+3.5 XP");
   });
 
@@ -313,7 +313,7 @@ describe("selectLevelUpDirective · execution bridge (rep links)", () => {
       goals: [{ id: "g1", title: "Close 10 deals" }],
     });
     const d = selectLevelUpDirective({ stats: [s] }); // goals payload absent
-    expect(d!.rep.href).toBe("/stats#goal-g1");
+    expect(d!.rep.href).toBe("/stats?tab=goals#goal-g1");
   });
 });
 

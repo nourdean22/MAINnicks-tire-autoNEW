@@ -175,6 +175,15 @@ const REDIRECTS: RedirectRule[] = [
   // session's ROS-111 fix). Same shape as the three entries above.
   { from: "/blog/check-engine-light-guide", to: "/diagnostics", reason: "article record no longer exists; soft-404/duplicate-canonical. /diagnostics is the canonical check-engine-light service page, matching /blog/check-engine-light-cleveland's redirect" },
 
+  // 2026-10-01 · a DB-published article (not in BLOG_ARTICLES). Its "Financing
+  // If Money's Tight" section promised "$0 down financing ... 2-minute
+  // approval, no hard credit check, most customers qualify for $500-$5,000",
+  // which the providers' own published terms contradict (shared/financing.ts).
+  // The text lives in the production DB, which an agent may not edit, so the URL
+  // 301s to the live page for the same intent until the operator corrects or
+  // retires the row. Delete this line to bring the article back.
+  { from: "/blog/tire-shop-near-me-open-now", to: "/tire-shop-near-me", reason: "DB article makes payment-program claims the providers contradict; 301 until the DB row is corrected" },
+
   // 2026-09-10 · GSC soft-404 audit. /tires/info was registered in App.tsx
   // against GenericServicePage, whose matcher is useRoute("/:slug") — a SINGLE
   // path segment. "/tires/info" has two, so it never matched, `service` was

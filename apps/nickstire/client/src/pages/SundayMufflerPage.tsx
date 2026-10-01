@@ -12,6 +12,8 @@
 
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { Volume2, Clock, AlertTriangle } from "lucide-react";
+import { OHIO_ECHECK } from "@shared/echeck";
+import { PAYMENT_PROGRAMS_FAQ_ANSWER } from "@shared/financing";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/muffler-shop-open-sunday-cleveland",
@@ -47,8 +49,8 @@ const CONFIG: ServicePageConfig = {
     { q: "Can I get a muffler replaced today?", a: "Basic muffler replacements and weld repairs take 60–90 minutes. If we have the part in stock or it's a universal fit, we will finish it same-day. However, custom or vehicle-specific parts requiring Monday warehouse orders will be diagnosed on Sunday, and we'll start work first thing Monday. Walk in on a first-come, first-served (FCFS) basis or call (216) 862-0005 to check." },
     { q: "How much does a muffler cost in Cleveland?", a: "Most muffler replacements run $189–$450 depending on vehicle, muffler grade (universal vs. OEM-fit), and whether the pipes/clamps need to be replaced too. Full exhaust system work (manifold to tailpipe) is $400–$1,200. Catalytic converter work is significantly more — $600–$2,500 — depending on whether OEM or aftermarket. We quote every job in writing before we start, so you'll know your number before any work begins." },
     { q: "What if I just need a weld, not a full replacement?", a: "Weld jobs are common — pinhole leaks, broken hangers, cracked flex pipes — and usually $80–$180 depending on access and weld time. We do welding in-house so there's no waiting on a third-party shop. Walk in and we'll inspect free; if it's weldable, we tell you. If it's rotted past welding, we tell you that too." },
-    { q: "My car failed E-Check — can you fix that?", a: "Yes — most E-Check failures are catalytic converter, oxygen sensor, EVAP, or exhaust-leak related. We're state-certified for emissions repair. Free check to find what's failing, then a written quote before any work. You don't pay until you say yes." },
-    { q: "Can I finance an exhaust repair?", a: "Yes — $10 down, no credit check, approved in 90 seconds. We work with Acima, Snap, Koalafi, and American First. Most exhaust jobs ($200–$800) fit comfortably in financing terms. Drive away today, pay over time." },
+    { q: "My car failed E-Check — can you fix that?", a: "Yes — most E-Check failures are catalytic converter, oxygen sensor, EVAP, or exhaust-leak related. The state runs the official test; we run a free readiness check, find what's failing, and give you a written quote before any work. You don't pay until you say yes." },
+    { q: "Can I finance an exhaust repair?", a: PAYMENT_PROGRAMS_FAQ_ANSWER },
     { q: "Do you do work on diesel exhaust?", a: "We service light-duty gas and diesel exhaust — passenger cars, light trucks, vans. Heavy-duty commercial diesel (semi tractors, large box trucks) and DPF/DEF system work on heavy diesel is outside our scope; we'll refer you to a specialist if your vehicle falls in that category." },
   ],
   bookingService: "general-repair",
@@ -64,9 +66,9 @@ const CONFIG: ServicePageConfig = {
         consequence: "Catalytic converter damage from running with an exhaust leak. The unburned air pulled into the system overheats the cat, melting the substrate. A $189 muffler patch ignored becomes $1,500+ in cat work.",
       },
       {
-        value: "30",
-        unit: "day E-Check deadline",
-        consequence: "Failed Ohio E-Check has a 30-day repair window. Day 31 = parking tickets, expired registration, impound risk. Most failures are exhaust-related and fixable same day.",
+        value: `$${OHIO_ECHECK.repairWaiver.minimumSpend}`,
+        unit: "E-Check waiver floor",
+        consequence: `${OHIO_ECHECK.repairWaiver.display} An exhaust leak ahead of the oxygen sensor is one common cause of a failure.`,
       },
       {
         value: "1",
@@ -100,8 +102,8 @@ const CONFIG: ServicePageConfig = {
         tone: "info",
         icon: <Clock className="w-5 h-5" />,
         symptom: "Failed Ohio E-Check",
-        consequence: "30-day deadline. Most failures are exhaust-related. We're state-certified.",
-        relief: "Same-day fix on most failures — pass guaranteed or we keep working.",
+        consequence: `${OHIO_ECHECK.registrationRule} Many failures trace back to the exhaust.`,
+        relief: "Free readiness check, then we fix the cause and confirm the monitors are ready before your retest.",
         ctaLabel: "GET LEGAL",
         ctaHref: "/emissions",
       },

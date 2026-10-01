@@ -437,11 +437,11 @@ function buildDefaultFaqs(format: ComparisonFormat, primary: CompetitorProfile, 
   if (format === "alternative" || format === "vs") {
     base.push({
       question: `What's the best ${primary.shortName} alternative in Cleveland?`,
-      answer: `Nick's Tire & Auto on Euclid Ave. ${primary.shortName} is fine if ${primary.bestFor[0].toLowerCase()} — we're not pretending otherwise. But ${primary.weaknesses[0].toLowerCase()} The Cleveland drivers who walk into Nick's say the same three things: open 7 days, no appointment needed, written estimate before any wrench moves. Used tires from $25 if a used tire solves it. The yellow sign on Euclid Ave you've probably driven past.`,
+      answer: `Nick's Tire & Auto on Euclid Ave. ${primary.shortName} is fine if ${primary.bestFor[0].toLowerCase()} — we're not pretending otherwise. But ${primary.weaknesses[0].toLowerCase()} The Cleveland drivers who walk into Nick's say the same three things: open 7 days, no appointment needed, written estimate before any wrench moves. Used tires from $25 (select 12-inch; most $40-80) if a used tire solves it. The yellow sign on Euclid Ave you've probably driven past.`,
     });
     base.push({
       question: `Is Nick's Tire & Auto really cheaper than ${primary.shortName}?`,
-      answer: `Used tires? Yes — from $25 installed (mount, balance, valve stems, TPMS reset, alignment check, all free). ${primary.shortName} won't even sell you a used tire. New tires? Competitive market-rate, but here's the difference: we hand you the estimate in writing before we touch a wrench. No surprise shop fees, no "we found other things wrong," no "while we have it on the lift" speech. The metal doesn't lie. Neither do we.`,
+      answer: `Used tires? Yes — from $25 installed on select 12-inch rims, most sizes $40-80, with mount, balance, valve stems, TPMS reset and an alignment check included. ${primary.shortName} won't even sell you a used tire. New tires? Competitive market-rate, but here's the difference: we hand you the estimate in writing before we touch a wrench. No surprise shop fees, no "we found other things wrong," no "while we have it on the lift" speech. The metal doesn't lie. Neither do we.`,
     });
   }
 
@@ -519,11 +519,11 @@ export default function ComparisonPage({
   const defaultTldr = (() => {
     switch (format) {
       case "alternative":
-        return `${primary.shortName} is fine for what they do. Closed Sunday. Want an appointment. New tires only. Nick's Tire & Auto is the Cleveland alternative on Euclid Ave — open 7 days including Sundays, walk in any time, used tires from $25 installed, written estimate before any wrench moves. The yellow sign you've probably driven past.`;
+        return `${primary.shortName} is fine for what they do. Closed Sunday. Want an appointment. New tires only. Nick's Tire & Auto is the Cleveland alternative on Euclid Ave — open 7 days including Sundays, walk in any time, used tires from $25 installed (select 12-inch; most $40-80), written estimate before any wrench moves. The yellow sign you've probably driven past.`;
       case "vs":
         return `${primary.shortName} is ${primary.tier.replace(/-/g, " ")} — chain pricing, chain hours, chain upsell pressure. Nick's is mechanic-owned, single-location, first-come-first-served, open 7 days including Sunday. Pick ${primary.shortName} if you want a chain lobby. Pick Nick's if you want a written estimate before any wrench moves.`;
       case "third-party":
-        return `${primary.shortName} has ${primary.clevelandLocations} Cleveland locations. ${secondary?.shortName} has ${secondary?.clevelandLocations}. Both close Sunday. Both want an appointment. Both write the estimate after the work starts. The third option neither chain wants you to know about: Nick's Tire & Auto on Euclid Ave — walk in 7 days, used tires from $25, the estimate in writing before the wrench moves.`;
+        return `${primary.shortName} has ${primary.clevelandLocations} Cleveland locations. ${secondary?.shortName} has ${secondary?.clevelandLocations}. Both close Sunday. Both want an appointment. Both write the estimate after the work starts. The third option neither chain wants you to know about: Nick's Tire & Auto on Euclid Ave — walk in 7 days, used tires from $25 (select 12-inch; most $40-80), the estimate in writing before the wrench moves.`;
       case "roundup":
         return `Cleveland's got plenty of options if you're done with ${primary.shortName}. The chains. The tire-only specialists. The independents. Below — the honest ranking. Nick's leads on Sunday hours + walk-in + used tire pricing. The chains lead on location count and brand familiarity. You decide which matters.`;
     }
@@ -657,7 +657,7 @@ export default function ComparisonPage({
             ? "Cleveland's first-come-first-served shop on Euclid Ave."
             : `Done with chain pricing? Pull up to Nick's.`
         }
-        sub="17625 Euclid Ave · Open 7 days · Walk in any day we're awake. Used tires from $25 installed. Written estimate before any wrench moves."
+        sub="17625 Euclid Ave · Open 7 days · Walk in any day we're awake. Used tires from $25 installed (select 12-inch; most $40-80). Written estimate before any wrench moves."
       />
     </PageLayout>
   );

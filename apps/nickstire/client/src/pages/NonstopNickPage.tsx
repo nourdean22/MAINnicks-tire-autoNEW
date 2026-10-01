@@ -78,7 +78,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     },
     {
       q: "Do I need an appointment?",
-      a: "Never. Pull up to 17625 Euclid Ave in Cleveland (Euclid), 7 days a week, and we'll take care of you. That's the whole point.",
+      a: "Never. Pull up to 17625 Euclid Ave in Cleveland, 7 days a week, and we'll take care of you. That's the whole point.",
     },
     {
       q: "What's actually covered?",

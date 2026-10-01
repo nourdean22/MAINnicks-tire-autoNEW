@@ -7,7 +7,7 @@
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { complaintsByVehicle, decodeVin, recallsByVehicle } from "../services/vehicleData";
-import { warrantyExtensionsByVehicle } from "../services/nhtsaWarrantyRead";
+import { warrantyExtensionsByVehicle, warrantyIngestFreshness } from "../services/nhtsaWarrantyRead";
 
 const vehicleInput = z.object({
   year: z.string().regex(/^\d{4}$/),
@@ -36,4 +36,7 @@ export const vehicleDataRouter = router({
   warrantyExtensions: adminProcedure
     .input(vehicleInput)
     .query(async ({ input }) => warrantyExtensionsByVehicle(input)),
+
+  /** How current that stored list is: Intelligence HQ's Data freshness row (Q-50 phase 3). */
+  warrantyIngestFreshness: adminProcedure.query(async () => warrantyIngestFreshness()),
 });

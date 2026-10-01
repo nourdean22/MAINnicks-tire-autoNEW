@@ -30,7 +30,7 @@ export default function BestTireShopsCleveland() {
       extraFaqs={[
         {
           question: "What's actually the best tire shop in Cleveland?",
-          answer: "Depends on what \"best\" means for you. If best = closest, the chains win on location count. If best = lowest advertised tire price, Mavis. If best = lifetime free flat repair on tires you bought there, Discount Tire. If best = walk in any day we're awake, used tires from $25, the estimate in writing before any wrench moves, and a mechanic who hands you the flashlight to see the worn part — that's Nick's. Honest answer for honest question.",
+          answer: "Depends on what \"best\" means for you. If best = closest, the chains win on location count. If best = lowest advertised tire price, Mavis. If best = lifetime free flat repair on tires you bought there, Discount Tire. If best = walk in any day we're awake, used tires from $25 (select 12-inch; most $40-80), the estimate in writing before any wrench moves, and a mechanic who hands you the flashlight to see the worn part — that's Nick's. Honest answer for honest question.",
         },
         {
           question: "Which Cleveland tire shop is open Sundays?",
@@ -38,7 +38,7 @@ export default function BestTireShopsCleveland() {
         },
         {
           question: "Where can I find used tires in Cleveland?",
-          answer: "Most chains don't sell used tires — corporate policy. Nick's Tire & Auto sells used tires from $25 installed. Every used tire gets a 4-point check (tread depth, sidewall integrity, bead seat, age date). If a used tire is wrong for your car, we say so and put new ones on instead. Honesty is the floor.",
+          answer: "Most chains don't sell used tires — corporate policy. Nick's Tire & Auto sells used tires from $25 installed (select 12-inch; most $40-80). Every used tire gets a 4-point check (tread depth, sidewall integrity, bead seat, age date). If a used tire is wrong for your car, we say so and put new ones on instead. Honesty is the floor.",
         },
         {
           question: "Which tire shop in Cleveland writes the estimate before starting work?",

@@ -520,7 +520,29 @@ export async function buildProfileMerchandising(database: DB) {
   };
 }
 
-export async function listReusableRealShopMedia(database: DB) {
+export interface RealShopMediaFilters {
+  subject?: string;
+  /** Canonical service route path, e.g. "/brakes". */
+  service?: string;
+  /** Substring match against enrichment symptoms + failureMode (case-insensitive). */
+  symptom?: string;
+  season?: string;
+  /** Rows whose enrichment has no quality are EXCLUDED when this is set — unknown is not "good enough". */
+  minQuality?: number;
+}
+
+/**
+ * The real-shop pool (§K.2). Filters are applied in JS over the same
+ * 100-row newest-first window the picker already reads — deliberately, not
+ * JSON_EXTRACT: the window is small, the column is free-form TEXT (not a
+ * JSON column, so TiDB would parse every row anyway), and a JS filter runs
+ * through the SAME `readEnrichment` validator every other reader uses. The
+ * consequence to know: a filter can only ever see the newest 100 rows.
+ * An unenriched row never satisfies a filter — it is returned unfiltered
+ * with `enrichment: null` so callers can count it as "unenriched".
+ */
+export async function listReusableRealShopMedia(database: DB, filters: RealShopMediaFilters = {}) {
+  const { readEnrichment } = await import("./mediaEnrichment");
   const rows = await database.select({
     id: mediaAssets.id,
     logicalKey: mediaAssets.logicalKey,
@@ -552,6 +574,20 @@ export async function listReusableRealShopMedia(database: DB) {
       const meta = row.generationParamsJson ? JSON.parse(row.generationParamsJson) as { originalFilename?: string } : null;
       originalFilename = meta?.originalFilename ?? null;
     } catch {}
+    const enrichment = readEnrichment(row.generationParamsJson);
+    const hasFilter = Boolean(filters.subject || filters.service || filters.symptom || filters.season || filters.minQuality !== undefined);
+    if (hasFilter) {
+      if (!enrichment) return [];
+      if (filters.subject && enrichment.subject !== filters.subject.toLowerCase()) return [];
+      if (filters.service && enrichment.service !== filters.service) return [];
+      if (filters.season && enrichment.season !== filters.season.toLowerCase()) return [];
+      if (filters.minQuality !== undefined && (enrichment.quality === undefined || enrichment.quality < filters.minQuality)) return [];
+      if (filters.symptom) {
+        const needle = filters.symptom.toLowerCase();
+        const hay = `${(enrichment.symptoms ?? []).join(" ")} ${enrichment.failureMode ?? ""}`.toLowerCase();
+        if (!hay.includes(needle)) return [];
+      }
+    }
     return [{
       id: row.id,
       logicalKey: row.logicalKey,
@@ -561,6 +597,89 @@ export async function listReusableRealShopMedia(database: DB) {
       height: row.height,
       createdAt: row.createdAt,
       originalFilename,
+      enrichment,
     }];
   });
+}
+
+export interface CaptureOpportunity {
+  subject: string;
+  forTopic: string;
+  why: string[];
+}
+
+/**
+ * §K.4 — subjects the upcoming slate needs a real photo of and the pool
+ * cannot supply. Topics come from the active reel slate (approved packs)
+ * plus the live topic miner; each is scored against the enriched pool with
+ * the same scorer `realAssetFirst` uses, so "no real asset" here means
+ * exactly what the retrieval layer would conclude at production time.
+ * Throws on a pool-read failure — the Today card must render that as
+ * unknown, not as a clean "nothing to capture".
+ *
+ * CONTRACT (creativeAssistant.ts reads `.opportunities`): the §K.4 items
+ * `[{ subject, forTopic, why }]` sit under `opportunities`, beside the pool
+ * counts that make an EMPTY list interpretable — zero opportunities over an
+ * unenriched pool means "nothing could be scored", not "nothing to shoot".
+ */
+export async function captureOpportunities(database: DB): Promise<{
+  opportunities: CaptureOpportunity[];
+  topicsConsidered: number;
+  poolSize: number;
+  enrichedCount: number;
+  demandSignal: { failedSources: string[]; emptySources: string[] };
+  unknowns: string[];
+}> {
+  const { inferRealAssetNeed, scoreRealAsset, REAL_ASSET_MIN_SCORE } = await import("./realAssetFirst");
+  const [active, signalReport, pool] = await Promise.all([
+    readActiveReelSlate(database),
+    gatherTopicSignals(),
+    listReusableRealShopMedia(database),
+  ]);
+  const slateTopics = active.slugs
+    .map((slug) => APPROVED_REEL_PACKS.find((p) => p.slug === slug)?.topic ?? null)
+    .filter((t): t is string => Boolean(t));
+  const minedTopics = mineTopicCandidates(signalReport.signals).slice(0, 12).map((c) => c.topic);
+  const topics = [...new Set([...slateTopics, ...minedTopics])];
+  const enriched = pool.flatMap((r) => (r.enrichment ? [{ id: r.id, enrichment: r.enrichment }] : []));
+
+  const bySubject = new Map<string, CaptureOpportunity>();
+  for (const topic of topics) {
+    const need = inferRealAssetNeed({ topic });
+    if (!need.subjects.length) continue;
+    const subject = need.subjects[0];
+    const seen = bySubject.get(subject);
+    if (seen) {
+      seen.why.push(`also needed for "${topic}"`);
+      continue;
+    }
+    let best: { id: string; score: number } | null = null;
+    for (const row of enriched) {
+      const { score } = scoreRealAsset(need, row.enrichment);
+      if (!best || score > best.score) best = { id: row.id, score };
+    }
+    if (best && best.score >= REAL_ASSET_MIN_SCORE) continue;
+    bySubject.set(subject, {
+      subject,
+      forTopic: topic,
+      why: [
+        enriched.length === 0
+          ? `no enriched real_shop asset exists (${pool.length} unenriched image(s) in the newest-100 pool window)`
+          : `best enriched asset ${best ? `${best.id} scored ${best.score}` : "scored 0"} < ${REAL_ASSET_MIN_SCORE} (${enriched.length} of ${pool.length} pool images enriched)`,
+        need.service ? `would serve ${need.service}` : "no service route inferred",
+        ...(signalReport.failed.length ? [`topic signal sources failed: ${signalReport.failed.join(", ")}`] : []),
+      ],
+    });
+  }
+  return {
+    opportunities: [...bySubject.values()],
+    topicsConsidered: topics.length,
+    poolSize: pool.length,
+    enrichedCount: enriched.length,
+    demandSignal: { failedSources: signalReport.failed, emptySources: signalReport.empty },
+    unknowns: [
+      "subject inference is topicGraph-first with a keyword-map floor; a topic naming no known part yields no opportunity, not a clean bill",
+      "the pool read sees the newest 100 reusable real_shop images only",
+    ],
+  };
 }

@@ -218,7 +218,7 @@ const RULES: Rule[] = [
   { intent: "drop_off", priority: 5, friction: "transportation", confidence: 0.8, re: /drop\s?(it|the car|my car)?\s?off|leave it (with|there)/i },
   { intent: "wait_time", priority: 5, friction: "wait_uncertainty", confidence: 0.8, re: /how long\b|\bwait\w*\b|how busy|backed up/i },
   { intent: "walk_in_same_day", priority: 5, friction: "wait_uncertainty", confidence: 0.75, re: /appointment|walk[- ]?in|come in (today|now)|\btoday\b|right now\b|squeeze me/i },
-  { intent: "financing", priority: 4, friction: "financing", confidence: 0.9, re: /financ\w*|payment plans?|make payments|no credit|bad credit|credit check|snap\b|acima|koalafi/i },
+  { intent: "financing", priority: 4, friction: "financing", confidence: 0.9, re: /financ\w*|payment (?:plans?|programs?|options?)|(?:lease|rent)[- ]to[- ]own|make payments|no credit|bad credit|credit check|snap\b|acima|koalafi/i },
   { intent: "price_comparison", priority: 4, friction: "price_uncertainty", confidence: 0.8, re: /another (shop|place)|cheaper (somewhere|else)|calling around|quoted me|beat that price/i },
   { intent: "estimate_question", priority: 4, friction: "price_uncertainty", confidence: 0.75, re: /\bestimates?\b|\bquotes?\b(?!.{0,10}\btire)/i },
   { intent: "parts_eta", priority: 4, friction: "wait_uncertainty", confidence: 0.8, re: /\bparts?\b.{0,20}\b(in|arriv\w*|come in|order\w*)|waiting on (the )?parts?/i },

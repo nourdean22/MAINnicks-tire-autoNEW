@@ -45,14 +45,73 @@ export const INSPECTOR_PANEL_WIDTH = "380px";
 export function InspectorFrame({ kind, mode, presentation, onClose, actions, children, className }: InspectorFrameProps) {
   const eyebrow = kind ? ENTITY_KIND_LABEL[kind] : "object";
   const closeRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
 
-  // The sheet is `aria-modal`: focus moves INTO it on open (the header close
-  // button), so Tab does not land on the page underneath and Esc from the
-  // selection hook reaches a dialog that owns focus. The panel is non-modal
-  // and leaves focus on the row that opened it.
+  // The sheet is intentionally specialized rather than portaled through
+  // Dialog because this same frame also renders the non-modal desktop panel
+  // and participates in Inspector ViewTransitions. Enforce the same modal
+  // contract in place: trap focus, restore the opener, and lock page scroll.
+  // Object swaps do NOT re-focus Close; the effect runs only when the
+  // presentation itself becomes a sheet.
   useEffect(() => {
-    if (presentation === "sheet") closeRef.current?.focus({ preventScroll: true });
-  }, [presentation, kind]);
+    if (presentation !== "sheet") return;
+
+    const previousFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const focusFrame = requestAnimationFrame(() => {
+      closeRef.current?.focus({ preventScroll: true });
+    });
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const root = sheetRef.current;
+      if (!root) return;
+
+      const focusables = Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((node) => !node.hasAttribute("aria-hidden"));
+
+      if (focusables.length === 0) {
+        event.preventDefault();
+        closeRef.current?.focus({ preventScroll: true });
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+
+      if (!active || !root.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus && document.contains(previousFocus)) {
+        requestAnimationFrame(() => {
+          if (document.contains(previousFocus)) {
+            previousFocus.focus({ preventScroll: true });
+          }
+        });
+      }
+    };
+  }, [presentation]);
 
   const header = (
     <div className="flex items-start justify-between gap-3 border-b border-glass px-4 pb-2 pt-3">
@@ -122,6 +181,7 @@ export function InspectorFrame({ kind, mode, presentation, onClose, actions, chi
       {/* Scrim: tap-to-close, but not a second "Close inspector" in the tab order. */}
       <button type="button" aria-hidden tabIndex={-1} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div
+        ref={sheetRef}
         className={cn(
           "relative z-[61] flex max-h-[85vh] min-h-[40vh] flex-col rounded-t-2xl border-t border-[var(--gold)]/30 bg-void",
           "pb-[env(safe-area-inset-bottom,12px)] shadow-[0_-20px_60px_rgba(0,0,0,0.7),0_-1px_30px_rgba(253,185,19,0.06)] animate-fadeSlideUp",

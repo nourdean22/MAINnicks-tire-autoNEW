@@ -103,3 +103,36 @@ describe("FocusedServicePage · written-estimate ticket", () => {
     expect(text).not.toMatch(/every charge is on a written estimate you approve first/i);
   });
 });
+
+describe("FocusedServicePage · price fine print", () => {
+  it("renders config.finePrint at the bottom of the page, after the city links", async () => {
+    const { default: FocusedServicePage } = await import("../components/FocusedServicePage");
+    const finePrint = "*Pads + rotors start at $149.99 per axle, depending on vehicle.";
+    render(React.createElement(FocusedServicePage, { config: { ...config, finePrint } }));
+    const note = screen.getByLabelText("Pricing fine print");
+    expect(note.textContent).toBe(finePrint);
+    const cities = screen.getByText("CITIES WE SERVE");
+    expect(cities.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("renders no fine-print band when the page has none", async () => {
+    const { default: FocusedServicePage } = await import("../components/FocusedServicePage");
+    render(React.createElement(FocusedServicePage, { config }));
+    expect(screen.queryByLabelText("Pricing fine print")).toBeNull();
+  });
+
+  it("/brakes shows the canonical starting prices with their fine print, and no expired special", async () => {
+    // Operator decision 2026-10-01: pads + rotors "starting at $149.99,
+    // depending on vehicle", the condition in fine print at the bottom. The
+    // page had kept advertising a "Summer Special" that ended September 30.
+    const { BRAKE_PRICE } = await import("@shared/pricing");
+    const { default: BrakeRepairPage } = await import("../pages/BrakeRepairPage");
+    const { container } = render(React.createElement(BrakeRepairPage));
+    const ticket = within(screen.getByTestId("estimate-ticket"));
+    expect(ticket.getByText(`From $${BRAKE_PRICE.padsStarting}`)).toBeTruthy();
+    expect(ticket.getByText(`From $${BRAKE_PRICE.padsAndRotorsStarting.toFixed(2)}*`)).toBeTruthy();
+    expect(screen.getByLabelText("Pricing fine print").textContent).toMatch(/\$149\.99 per axle, depending on vehicle/);
+    expect(container.textContent ?? "").not.toMatch(/summer special|up to 30% off/i);
+  });
+});
+

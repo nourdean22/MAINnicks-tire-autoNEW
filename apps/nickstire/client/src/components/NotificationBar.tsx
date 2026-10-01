@@ -227,7 +227,7 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "acima-1",
     strategy: "loss_aversion",
-    text: "Unexpected repair? Acima lease-to-own approved on the spot — drive today, pay over time.",
+    text: "Unexpected repair? Ask about Acima lease-to-own and three other payment programs.",
     disclosure: ACIMA_COMPACT_DISCLOSURE,
     cta: "Learn More",
     ctaHref: "/financing?utm_source=notification_bar",
@@ -236,7 +236,7 @@ const getAllNotifications = (reviewRating: number, reviewCountDisplay: string): 
   {
     id: "acima-2",
     strategy: "value_anchor",
-    text: "Need tires? Acima approves you on the spot — no credit history needed.",
+    text: "Need tires? Ask about Acima lease-to-own. No credit history required to apply.",
     disclosure: ACIMA_COMPACT_DISCLOSURE,
     cta: "Learn More",
     ctaHref: "/financing?utm_source=notification_bar",

@@ -279,7 +279,7 @@ export default function PriceEstimator() {
               { title: "No Hidden Fees", desc: "The price we quote is the price you pay. Period." },
               { title: "You Say Yes First", desc: "We tell you what's wrong, hand you the written quote, and don't touch the car until you say yes." },
               { title: "Fair Parts Pricing", desc: "OE-spec parts at honest prices. No markup on markup." },
-              { title: "Acima Lease-to-Own Accepted", desc: "Get repairs done today for $10 initial payment. No credit history needed. 90-day early purchase option.", accent: true },
+              { title: "Acima Lease-to-Own Accepted", desc: "Acima says no credit history is required. A $10 start is available only in select circumstances; the lease shows the total cost and early-purchase terms.", accent: true },
             ] as { title: string; desc: string; accent?: boolean }[]).map((item) => (
               <div key={item.title} className={`text-center ${item.accent ? "bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4" : ""}`}>
                 {item.accent && <CreditCard className="w-5 h-5 text-emerald-400 mx-auto mb-2" />}

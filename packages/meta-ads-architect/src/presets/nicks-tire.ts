@@ -1,5 +1,13 @@
 import { CampaignInput } from "../schemas/input.js";
 
+/**
+ * CLI / test preset ONLY. The app never uses this: apps/nickstire compiles
+ * the fact-bearing fields from its SSOT (server/services/brandTruth.ts) and
+ * overrides whatever a caller sent. Values here mirror that SSOT as of
+ * 2026-10-01 so the deterministic path cannot regress to the retired
+ * mileage warranty; if they drift, the app's drift canary fails CI.
+ */
+
 export const NicksTirePreset: CampaignInput = {
   offer: {
     productOrServiceName: "General Auto Repair & Maintenance",
@@ -7,28 +15,28 @@ export const NicksTirePreset: CampaignInput = {
     primaryOutcome: "Safe, reliable driving with peace of mind",
     deliveryFormat: "In-person service",
     whatsIncluded: "Full diagnostic, transparent written quote, quality parts, expert installation",
-    timeToConsumeOrFulfill: "Usually same day or next day",
+    timeToConsumeOrFulfill: "Drop-offs preferred — same day service",
     commercialUseTerms: "N/A",
     locationRequirement: "In-shop drop-off required",
     serviceArea: "Cleveland, OH and surrounding suburbs",
     appointmentRequired: false,
-    emergencyOrUrgencyContext: "Available for urgent breakdowns and tows",
+    emergencyOrUrgencyContext: "Walk-ins welcome 7 days a week",
   },
   priceStack: {
-    corePrice: "Varies by service (Free initial inspection)",
+    corePrice: "Varies by service (free quick check, written quote first)",
     upsells: "Preventative maintenance, fluid flushes, premium tire upgrades",
     downsells: "Basic repairs to keep vehicle safe until major work can be done",
     bundles: "Oil change + Tire Rotation + Brake Inspection",
-    guaranteeOrRefundTerms: "12-month / 12,000-mile warranty on most repairs",
+    guaranteeOrRefundTerms: "12-month parts / 90-day labor limited warranty on shop-installed repairs (no mileage or road-hazard warranty)",
     financingAvailable: true,
-    paymentMethods: "Cash, Credit Card, Snap Finance",
+    paymentMethods: "Cash, card; payment programs (Acima, Snap, Koalafi, American First Finance) — Acima: $10 start in select circumstances",
   },
   audience: {
     whoItIsFor: "Local drivers with vehicles out of factory warranty",
     painPoints: "Fear of being ripped off, unexpected breakdowns, tight budgets, needing a car for work",
     desires: "Honest mechanic, fast turnaround, affordable payments",
     countries: ["US"],
-    languages: ["English", "Spanish"],
+    languages: ["English", "Arabic"],
     awarenessLevel: "Problem Aware",
     localRadius: "15-mile radius of Cleveland shop",
     customerType: "Both",
@@ -40,7 +48,7 @@ export const NicksTirePreset: CampaignInput = {
     beforeAfterAvailable: true,
     founderFaceAvailable: true,
     brandKitAvailable: true,
-    realReviewSources: "Google Reviews, Yelp",
+    realReviewSources: "Google (4.9★)",
     leadMagnetAvailable: false,
   },
   constraints: {
@@ -48,7 +56,7 @@ export const NicksTirePreset: CampaignInput = {
     monthlyBudgetRange: "$600 - $1500",
     brandVoice: "Honest, straightforward, blue-collar, empathetic, expert",
     complianceSensitivity: "High",
-    businessAddress: "Cleveland, OH",
+    businessAddress: "17625 Euclid Ave, Cleveland, OH 44112",
     landingPageUrl: "https://nickstire.org",
   }
 };

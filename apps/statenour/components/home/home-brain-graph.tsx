@@ -333,12 +333,17 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
   // would desync server and client markup for the toggle.
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   useEffect(() => {
-    try {
-      if (localStorage.getItem("brain-map-include-activity") === "1") setIncludeActivity(true);
-    } catch {
-      /* storage unavailable - the default (semantic) stands */
-    }
-    setPrefsLoaded(true);
+    const frame = requestAnimationFrame(() => {
+      try {
+        if (localStorage.getItem("brain-map-include-activity") === "1") {
+          setIncludeActivity(true);
+        }
+      } catch {
+        /* storage unavailable - the default (semantic) stands */
+      }
+      setPrefsLoaded(true);
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   const simNodesRef = useRef<CanvasNode[]>([]);
@@ -827,8 +832,13 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
 
   useEffect(() => {
     if (!prefsLoaded) return; // one request, with the right scope
-    fetchGraphData();
-    return () => abortRef.current?.abort();
+    const frame = requestAnimationFrame(() => {
+      void fetchGraphData();
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      abortRef.current?.abort();
+    };
   }, [fetchGraphData, prefsLoaded]);
 
   // ── Canvas sizing ───────────────────────────────────────────────────
@@ -1299,7 +1309,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
             <button
               type="button"
               onClick={() => fetchGraphData()}
-              className="ml-auto px-2.5 py-1 text-[9px] font-mono uppercase tracking-wider rounded border border-amber-400/40 text-amber-200 hover:bg-amber-400/10 min-h-[32px] inline-flex items-center gap-1"
+              className="ml-auto inline-flex min-h-11 items-center gap-1 rounded border border-amber-400/40 px-2.5 py-1 font-mono text-[9px] uppercase tracking-wider text-amber-200 hover:bg-amber-400/10 sm:min-h-8"
             >
               <RefreshCw size={10} />
               retry
@@ -1361,7 +1371,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
             type="button"
             aria-expanded={unlinkedOpen}
             onClick={() => setUnlinkedOpen((v) => !v)}
-            className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded border bg-(--bg-elevated) border-(--border-default) text-[10px] font-mono uppercase tracking-wider text-(--text-tertiary) hover:text-(--text-secondary) min-h-[40px]"
+            className="flex min-h-11 w-full items-center justify-between gap-2 rounded border border-(--border-default) bg-(--bg-elevated) px-3 py-2 font-mono text-[10px] uppercase tracking-wider text-(--text-tertiary) hover:text-(--text-secondary) sm:min-h-10"
           >
             <span>
               UNLINKED ({unlinked.length})
@@ -1381,7 +1391,7 @@ export function HomeBrainGraph({ variant = "home", initialFocusId }: HomeBrainGr
                       if (n.href) router.push(n.href);
                       else setSelectedNode(n);
                     }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-(--bg-raised) min-h-[40px]"
+                    className="flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left hover:bg-(--bg-raised) sm:min-h-10"
                     title={n.fullLabel ?? n.label}
                   >
                     <span className="shrink-0 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase tracking-wider border border-(--border-default) text-(--text-tertiary)">

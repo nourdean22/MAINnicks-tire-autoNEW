@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-10-01 last-mile OpenWebUI direct-tool wiring fixed and browser-verified. Root cause: OpenWebUI 0.11.4 sent model_item.info.meta.toolIds=[direct_server:nour-cockpit] but actual /api/chat/completions payload tool_servers=[]; even manually toggling the NOUR Cockpit tool row on did not change tool_servers or add tool_ids. Fix: ensure_openwebui_cockpit.py now fetches the live 4101 OpenAPI schema, deterministically materializes exactly six user-facing run operations into /static/nour-cockpit-tool-server.json, and openwebui-nour-cockpit-loader.js injects that server only for model=nour-cockpit when tool_servers would otherwise be empty. Browser canary captured toolServerCount=1, serverId=nour-cockpit, serverUrl=http://127.0.0.1:4101, specCount=6 with start/check/continue/approve/cancel/recent operations. The bridge now supports CORS only from http://127.0.0.1:8080 and http://localhost:8080 while retaining loopback Host enforcement. Real browser-origin GET /health returned 200 and browser-origin JSON POST /runs/status completed through CORS and returned expected 404 for a missing run, proving preflight/execution reachability. NOT YET CLAIMED at this checkpoint: natural-language OpenWebUI -> start_cockpit_run -> CockpitRun -> OpenCode end-to-end completion after this fix, PR/CI/merge of the new last-mile changes, or refreshed known-good snapshot."
+    }
+  }
+}

@@ -6,7 +6,18 @@
  * cleanly, and keep the kind:id readable (only the id is percent-encoded).
  */
 import { describe, expect, it } from "vitest";
-import { INSPECT_PARAM, inspectHref, isInspecting, readInspect, withInspect } from "@/lib/ui/inspect-url";
+import { INSPECT_PARAM, INSPECT_TRANSITION_TYPES, inspectHref, isInspecting, readInspect, withInspect } from "@/lib/ui/inspect-url";
+
+describe("inspector navigation transition contract", () => {
+  it("keeps open, close, and row-swap transition intents distinct", () => {
+    expect(INSPECT_TRANSITION_TYPES).toEqual({
+      open: "inspector-open",
+      close: "inspector-close",
+      swap: "inspector-swap",
+    });
+    expect(new Set(Object.values(INSPECT_TRANSITION_TYPES)).size).toBe(3);
+  });
+});
 
 describe("readInspect", () => {
   it("reads from a string with or without the leading '?', and from URLSearchParams", () => {

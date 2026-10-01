@@ -348,7 +348,7 @@ async function detectCallbacksWaiting(): Promise<ScoreboardNumber | null> {
       "callbacks_pending",
       "Customer callbacks waiting",
       "callback mirror unreadable — waiting customers are unknown, not zero",
-      "/customer-360",
+      "https://nickstire.org/admin?tab=customers",
     );
   }
   const ctx = (ev?.payload ?? {}) as Record<string, unknown>;
@@ -372,7 +372,7 @@ async function detectCallbacksWaiting(): Promise<ScoreboardNumber | null> {
     trend: "down",
     anomalous: true,
     why: `${pending} customer${pending === 1 ? "" : "s"} waiting for a callback`,
-    link: "/customer-360",
+    link: "https://nickstire.org/admin?tab=customers",
   };
 }
 

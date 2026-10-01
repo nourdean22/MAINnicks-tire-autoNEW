@@ -20,6 +20,7 @@ import {
 import { genomeToCarouselSeed, type CreativeGenome } from "../../client/src/lib/creativeGenome";
 import { campaignKeywordFromGenome } from "./reelDirector";
 import { createLogger } from "../lib/logger";
+import type { RealAssetRef } from "../../shared/reelJobPayload";
 
 const log = createLogger("services:carousel-director");
 
@@ -55,6 +56,14 @@ export interface DraftCarouselFromGenomeResult {
   boostScore: BoostScoreResult;
   /** evidence accounting: what the resolver verified vs rejected */
   evidence: { attached: number; rejected: string[] };
+  /**
+   * §K.3 — a real shop photo offered as the COVER subject image (slide 1)
+   * when the pool holds one for this topic. Offered, not applied: the slide
+   * renderer still gets its visualPrompt; the Studio chooses. Null means no
+   * match OR a failed lookup — `realAssetLookup` says which.
+   */
+  realAsset: RealAssetRef | null;
+  realAssetLookup: string;
 }
 
 /**
@@ -78,7 +87,20 @@ export async function draftCarouselFromGenome(genome: CreativeGenome): Promise<D
   // Claim-level provenance rides the brief - a published asset can name its evidence.
   (brief as { evidenceRecords?: unknown }).evidenceRecords = resolution.records;
   const boostScore = calculateBoostScore(brief);
+  let realAsset: RealAssetRef | null = null;
+  let realAssetLookup = "not_attempted";
+  try {
+    const { findRealAssetFor, toRealAssetRef } = await import("./realAssetFirst");
+    const lookup = await findRealAssetFor({ topic: brief.topic, symptoms: [brief.driverConfusion, brief.mechanicTruth] });
+    realAssetLookup = lookup.state;
+    if (lookup.state === "matched") realAsset = toRealAssetRef(lookup.match);
+  } catch (err) {
+    realAssetLookup = "error";
+    log.warn("real asset lookup threw — carousel continues without a cover offer", { error: err instanceof Error ? err.message : String(err) });
+  }
   log.info("carousel drafted from genome", {
+    realAsset: realAsset?.assetId ?? null,
+    realAssetLookup,
     territory: genome.creativeTerritory,
     campaignKeyword: campaignKeyword ?? "(generator's choice)",
     slides: brief.slides.length,
@@ -90,5 +112,7 @@ export async function draftCarouselFromGenome(genome: CreativeGenome): Promise<D
     brief,
     boostScore,
     evidence: { attached: brief === rawBrief ? 0 : resolution.records.slice(0, 2).length, rejected: resolution.rejected },
+    realAsset,
+    realAssetLookup,
   };
 }

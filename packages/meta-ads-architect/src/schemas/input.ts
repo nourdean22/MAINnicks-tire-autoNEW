@@ -70,6 +70,28 @@ export const CampaignInputSchema = z.object({
     phoneNumber: z.string().optional(),
     businessAddress: z.string().optional(),
   }),
+  /**
+   * Compiled, server-authoritative business facts (warranty, payment programs,
+   * hours, reviews, claim restrictions). When present the creative prompt
+   * embeds THIS block verbatim and the package never states a fact of its own.
+   * Produced by apps/nickstire/server/services/brandTruth.ts. The package
+   * carries no mutable business fact in source — see prompts.ts.
+   */
+  businessFacts: z.object({
+    factsBlock: z.string(),
+    source: z.string(),
+    compiledAt: z.string(),
+  }).optional(),
+  /**
+   * Organic discovery evidence compiled by the app (what already earned
+   * sends/saves on the feed). Discovery evidence only — the prompt says so
+   * and asks for a direct-response derivative, never a copy.
+   */
+  organicEvidence: z.object({
+    block: z.string(),
+    windowDays: z.number(),
+    measured: z.number(),
+  }).optional(),
   // Additional optional fields:
   businessProfile: z.string().optional(),
   serviceList: z.string().optional(),

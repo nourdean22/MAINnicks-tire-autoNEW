@@ -14,6 +14,7 @@
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { useReviewStats } from "@/hooks/useReviewStats";
 import { Disc, Activity, Wrench, AlertTriangle } from "lucide-react";
+import { PAYMENT_PROGRAMS_FAQ_ANSWER } from "@shared/financing";
 
 // A FUNCTION, not a module constant: the rating and review count are live
 // (useReviewStats), and a module-scope object is built once at import time —
@@ -57,7 +58,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     "OE-spec parts — OEM or name-brand aftermarket",
     "12-month parts / 90-day labor warranty",
     "Walk-ins welcome 7 days a week — most repairs same or next day",
-    "$10 down financing via Snap, Acima, Koalafi",
+    "Payment programs: Snap Finance, Acima, Koalafi, American First Finance",
     "Free multi-point check with every oil change",
     "30+ years of experience on domestic, Asian, and European vehicles",
   ],
@@ -65,7 +66,7 @@ const buildConfig = (reviewRating: string, reviewCountDisplay: string): ServiceP
     { q: "Do you work on my type of car?", a: "Almost certainly yes. Domestic (Ford, Chevy, Dodge, GMC, Jeep), Asian (Toyota, Honda, Nissan, Hyundai, Kia, Mazda, Subaru, Lexus, Acura), European (BMW, Mercedes, Audi, VW, Volvo), trucks and SUVs. If we can't work on something specific, we'll tell you up front and refer you to someone who can." },
     { q: "How much is a full diagnostic?", a: "Free code scan on the spot. If it needs deeper checking — live data, component testing, wiring — we write you a quote first. If you fix it with us, the check fee comes off the bill. Free check. Written quote. You don't pay until you say yes." },
     { q: "Can I get an estimate before you start?", a: "Always. Every repair over $100 gets a written quote — we don't touch anything else until you say yes. If we find something additional while working, we stop and call you with the new number. We tell you the cost before we touch anything." },
-    { q: "Do you offer financing?", a: "Yes — $10 down financing through Snap Finance, Acima, and Koalafi. Pre-approval takes 2 minutes with no hard credit check. Most customers qualify for $500-$5,000. Payments as low as $89/mo. Great if you need a repair today but the money's tight until next paycheck." },
+    { q: "Do you offer financing?", a: PAYMENT_PROGRAMS_FAQ_ANSWER },
     { q: "How long will my repair take?", a: "Depends on the job. Basic stuff (oil change, tire, brake pads): 30-90 minutes. Medium repairs (alternator, water pump, brakes + rotors): 2-4 hours. Major work (timing chain, transmission): 1-3 days. We give you an estimated completion time up front and text updates." },
     { q: "Do I need to make an appointment?", a: "Not usually. Walk-ins welcome 7 days a week. If you're dropping off, show up before 10 AM for best chance of same-day turnaround. Call ahead at (216) 862-0005 if it's a specific repair — that way we can confirm parts availability." },
     { q: "What's your warranty?", a: "12-month parts / 90-day labor for most repairs. If a part fails early or the fix didn't take, bring it back — we do it again for free. Real warranty, not 'good luck getting someone to honor it' corporate stuff." },

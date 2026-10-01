@@ -43,7 +43,7 @@ const CORE_PAGES: RouteEntry[] = [
     // Adds the Sunday differentiator (market check 2026-08-19: Conrad's
     // Downtown, Best Buy/Confident and AutoCheck are all CLOSED Sunday).
     // Title deliberately untouched: 2x-GSC-tuned and it matches SEOHead.
-    description: "Used tires from $25 installed (most sizes $40-80), brakes & repairs on Euclid Ave. Open Sunday 9-4, walk in 7 days, written quote first. (216) 862-0005",
+    description: "Used tires from $25 installed (select 12-inch; most $40-80), brakes & repairs on Euclid Ave. Open Sunday 9-4, walk in 7 days, written quote first. (216) 862-0005",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -107,7 +107,7 @@ const CORE_PAGES: RouteEntry[] = [
     // /contact SERP snippet carries the same promise as /services and the
     // VAPI prompt. Title stays as the SERP answer (high zero-click intent).
     title: "Contact Nick's Tire & Auto · Cleveland & Euclid Auto Shop",
-    description: "Contact Nick's Tire & Auto in Euclid/Cleveland. Hours: Mon-Sat 8-6, Sun 9-4. First come, first served. Vehicle drop-off welcome. Call (216) 862-0005.",
+    description: "Contact Nick's Tire & Auto on Euclid Ave in Cleveland. Hours: Mon-Sat 8-6, Sun 9-4. First come, first served. Vehicle drop-off welcome. Call (216) 862-0005.",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -214,8 +214,11 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/no-credit-check-tires-cleveland",
     priority: 0.85,
     changefreq: "monthly",
-    title: "No Credit Check Tires Cleveland · $10 Down, Drive Today | Nick's",
-    description: "No credit check tires in Cleveland. $10 down. 4 lenders (Acima · Snap · Koalafi · American First) approve when banks don't. Drive home on new tires today. (216) 862-0005",
+    // 2026-10-01 · mirrors NoCreditCheckTiresPage. The old pair promised "no
+    // credit check" and "4 lenders approve when banks don't"; Koalafi and
+    // American First Finance both say they check credit.
+    title: "No Credit Check Tires Cleveland? Straight Answers | Nick's",
+    description: "Searching for no credit check tires? Straight answer: all 4 payment providers review applications, but some don't need established credit. Walk in 7 days.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -280,7 +283,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     title: "Used Tires Cleveland | From $25 Installed | Nick's Tire & Auto",
     // 2026-08-19 · desc said "from $40" while the title says "$25" — a
     // self-contradicting SERP snippet. Canon: $25 floor, most sizes $40-80.
-    description: "Used tires in Cleveland from $25 installed (most sizes $40-80). Every tire passes a 4-point inspection — tread, sidewall, DOT date, plug history. (216) 862-0005",
+    description: "Used tires in Cleveland from $25 installed (select 12-inch; most $40-80). Each tire passes a 4-point check: tread, sidewall, DOT date, plug history. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -365,7 +368,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // the literal search phrase. Rewrite includes "service station"
     // since that's how the high-volume query frames the intent.
     title: "Oil Change Service Station Cleveland · $49 · Walk-In Today | Nick's", // keep in sync with OIL_PRICE
-    description: "Cleveland oil change $49 with code OIL2999 (full synthetic from $80). New filter + free multi-point check. In and out in 15 min. Walk-ins 7 days. (216) 862-0005",
+    description: "Cleveland oil change $49 with code NICKSOIL (full synthetic from $80). New filter + free multi-point check. In and out in 15 min. Walk-ins 7 days. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -433,7 +436,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.95,
     changefreq: "weekly",
     title: "Tire Shop Near Me — Open Now in Cleveland | New & Used | Nick's Tire & Auto",
-    description: "Local tire shop in Cleveland/Euclid — open 7 days, walk-ins welcome. New & used tires from $25. Free install, balance, alignment check. 4.9 stars. (216) 862-0005",
+    description: "Tire shop in Cleveland near Euclid — open 7 days, walk-ins welcome. Used tires from $25 (select 12-inch; most $40-80). Free install + balance. 4.9★. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -483,11 +486,11 @@ const SERVICE_PAGES: RouteEntry[] = [
   // it. It now 301s to /tires (server/_core/redirects.ts), which is the real
   // page at priority 1.0 — and the sitemap builder already drops redirected
   // paths, so it cannot come back through this file.
-  { path: "/ac-repair", priority: 0.8, changefreq: "monthly", title: "AC Repair Cleveland · Cold Air By Lunch · $10 Down | Nick's", description: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Most jobs blow cold by lunch. Free check. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  { path: "/ac-repair", priority: 0.8, changefreq: "monthly", title: "AC Repair Cleveland · Open 7 Days · Written Quote | Nick's", description: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Written quote before work. Free check. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/transmission", priority: 0.8, changefreq: "monthly", title: "Transmission Repair Cleveland · We Try Fluid First | Nick's", description: "Cleveland transmission shop where fluid service comes before rebuild quote. Solenoid, valve body, full rebuild as last resort. Estimate first. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/electrical", priority: 0.8, changefreq: "monthly", title: "Auto Electrical Cleveland · Trace, Don't Swap | Nick's", description: "Cleveland auto electrical shop where wiring gets traced before modules get swapped. Battery, alternator, starter, parasitic draws, CAN bus. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/battery", priority: 0.8, changefreq: "monthly", title: "Car Battery Cleveland · Free Test, 5-Minute Install | Nick's", description: "Cleveland battery replacement in 5 minutes. Free load test + alternator test before we sell you anything. Walk-ins 7 days. Open Sunday. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
-  { path: "/exhaust", priority: 0.8, changefreq: "monthly", title: "Muffler Shop Cleveland · Stop Announcing Yourself | Nick's", description: "Cleveland muffler & exhaust shop where the rumble stops by lunch. Muffler, full exhaust, catalytic converter, weld jobs. Open Sunday. From $189. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
+  { path: "/exhaust", priority: 0.8, changefreq: "monthly", title: "Muffler Shop Cleveland · Stop Announcing Yourself | Nick's", description: "Cleveland muffler & exhaust shop. Muffler, full exhaust, catalytic converter, weld jobs. Written quote before work. Open Sunday. From $189. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/cooling", priority: 0.8, changefreq: "monthly", title: "Radiator Repair Cleveland · Stop The Steam Cloud | Nick's", description: "Cleveland radiator shop where overheat diagnosis happens before the parts cannon. Water pump, thermostat, coolant flush, pressure test. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/pre-purchase-inspection", priority: 0.8, changefreq: "monthly", title: "Used Car Inspection Cleveland · Before You Sign | Nick's", description: "Cleveland pre-purchase inspection — the 90-min check that catches what the seller didn't mention. Engine, trans, brakes, frame, tires. Same-day. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
   { path: "/belts-hoses", priority: 0.7, changefreq: "monthly", title: "Belt & Hose Cleveland · Catch It Before The Tow | Nick's", description: "Cleveland belt + hose shop where the squeak gets diagnosed before it becomes a tow truck. Serpentine, timing belt, radiator hose. Same-day. (216) 862-0005.", group: "service", sitemap: true, prerender: true },
@@ -565,7 +568,7 @@ const CITY_PAGES: RouteEntry[] = [
     path: "/euclid-auto-repair",
     priority: 0.8,
     changefreq: "monthly",
-    title: "Euclid Auto Repair · 17625 Euclid Ave · Used Tires $25 | Nick's",
+    title: "Euclid Auto Repair · 17625 Euclid Ave · Used Tires | Nick's",
     description: "Nick's Tire & Auto — literally on Euclid Ave. Brakes, tires, check-engine light, emissions. Free check, written quote. Walk-ins 7 days. (216) 862-0005.",
     group: "city",
     sitemap: true,
@@ -576,7 +579,7 @@ const CITY_PAGES: RouteEntry[] = [
     path: "/lakewood-auto-repair",
     priority: 0.8,
     changefreq: "monthly",
-    title: "Lakewood Auto Repair · Used Tires $25 · Open Sundays | Nick's",
+    title: "Lakewood Auto Repair · Used Tires · Open Sundays | Nick's",
     description: "Lakewood drivers cross town for honest auto repair. Brakes, tires, check-engine light, emissions. Free check, written quote. 4.9★ 1,710+ reviews.",
     group: "city",
     sitemap: true,
@@ -595,8 +598,8 @@ const CITY_PAGES: RouteEntry[] = [
     // that overcome the geography (price + Sunday hours that local Parma
     // shops don't offer). The drive-time bait isn't enough; the
     // money-and-time bait might be.
-    title: "Parma Auto Repair · Used Tires $25 · Open Sundays | Nick's",
-    description: "Parma drivers — Nick's Tire & Auto. Used tires from $25 installed (chains won't sell them). Open Sundays 9a-4p when shops close. ★4.9 · 1,710+ reviews. (216) 862-0005",
+    title: "Parma Auto Repair · Used Tires · Open Sundays | Nick's",
+    description: "Parma drivers: used tires from $25 installed (select 12-inch; most $40-80). Open Sundays 9a-4p. ★4.9 · 1,710+ reviews. Nick's Tire & Auto · (216) 862-0005",
     group: "city",
     sitemap: true,
     prerender: true,
@@ -615,7 +618,7 @@ const CITY_PAGES: RouteEntry[] = [
     path: "/shaker-heights-auto-repair",
     priority: 0.8,
     changefreq: "monthly",
-    title: "Shaker Heights Auto Repair · Used Tires $25 · Open Sundays | Nick's",
+    title: "Shaker Heights Auto Repair · Used Tires · Open Sundays | Nick's",
     description: "Shaker Heights drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, check-engine light. 4.9 stars, 1,710+ reviews. Call (216) 862-0005.",
     group: "city",
     sitemap: true,
@@ -625,7 +628,7 @@ const CITY_PAGES: RouteEntry[] = [
     path: "/cleveland-heights-auto-repair",
     priority: 0.8,
     changefreq: "monthly",
-    title: "Cleveland Heights Auto Repair · Used Tires $25 · Open Sundays | Nick's",
+    title: "Cleveland Heights Auto Repair · Used Tires · Open Sundays | Nick's",
     description: "Cleveland Heights auto repair at Nick's Tire & Auto, 15 min away. Brakes, tires, check-engine light, emissions. 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
     group: "city",
     sitemap: true,
@@ -635,7 +638,7 @@ const CITY_PAGES: RouteEntry[] = [
     path: "/mentor-auto-repair",
     priority: 0.8,
     changefreq: "monthly",
-    title: "Mentor Auto Repair · Used Tires $25 · Open Sundays | Nick's",
+    title: "Mentor Auto Repair · Used Tires · Open Sundays | Nick's",
     description: "Mentor drivers make the drive to Nick's Tire & Auto for honest auto repair. Brakes, tires, check-engine light. 4.9 stars. Worth the trip. Call (216) 862-0005.",
     group: "city",
     sitemap: true,
@@ -645,7 +648,7 @@ const CITY_PAGES: RouteEntry[] = [
     path: "/strongsville-auto-repair",
     priority: 0.8,
     changefreq: "monthly",
-    title: "Strongsville Auto Repair · Used Tires $25 · Open Sundays | Nick's",
+    title: "Strongsville Auto Repair · Used Tires · Open Sundays | Nick's",
     description: "Strongsville drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, check-engine light, emissions. 4.9★ across 1,710+ Google reviews. (216) 862-0005.",
     group: "city",
     sitemap: true,
@@ -702,7 +705,7 @@ const CITY_PAGES: RouteEntry[] = [
     // Tightened title to match the /parma-auto-repair winning pattern
     // (city + service + differentiator + brand). Was "Near Parma Heights
     // OH" which is bland; new title leads with the city.
-    title: "Parma Heights Auto Repair · Used Tires $25 · Open Sundays | Nick's",
+    title: "Parma Heights Auto Repair · Used Tires · Open Sundays | Nick's",
     description: "Parma Heights drivers cross town for an honest mechanic. 4.9★ 1,710+ reviews. Free Uber drop-off + pick-up. Brakes, tires, check-engine light. Walk-ins 7 days.",
     group: "city",
     sitemap: true,
@@ -815,7 +818,7 @@ const CITY_PAGES: RouteEntry[] = [
     path: "/willoughby-auto-repair",
     priority: 0.8,
     changefreq: "monthly",
-    title: "Willoughby Auto Repair · Used Tires $25 · Open Sundays | Nick's",
+    title: "Willoughby Auto Repair · Used Tires · Open Sundays | Nick's",
     description: "Willoughby drivers trust Nick's Tire & Auto for honest auto repair. Brakes, tires, check-engine light. 4.9 stars, fair pricing. Call (216) 862-0005.",
     group: "city",
     sitemap: true,
@@ -1000,7 +1003,7 @@ const NEIGHBORHOOD_PAGES: RouteEntry[] = [
   { path: "/hough-cleveland", priority: 0.7, changefreq: "monthly", title: "Auto Repair Hough Cleveland — Nick's Tire & Auto", description: "Honest auto repair serving Hough, Cleveland. Tires, brakes, check-engine light, oil changes, emissions. Walk-ins welcome 7 days.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/lee-miles", priority: 0.7, changefreq: "monthly", title: "Auto Repair Lee-Miles Cleveland — Nick's Tire & Auto", description: "Honest auto repair serving Lee-Miles, Cleveland. Tires, brakes, check-engine light, oil changes, emissions. Walk-ins welcome 7 days.", group: "neighborhood", sitemap: true, prerender: true },
   { path: "/union-miles", priority: 0.7, changefreq: "monthly", title: "Auto Repair Union-Miles Cleveland — Nick's Tire & Auto", description: "Honest auto repair serving Union-Miles, Cleveland. Tires, brakes, check-engine light, oil changes, emissions. Walk-ins welcome 7 days.", group: "neighborhood", sitemap: true, prerender: true },
-  { path: "/st-clair-superior", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near St. Clair-Superior — Nick's Tire & Auto", description: "Honest auto repair for St. Clair-Superior fleet vans, work trucks, and daily drivers. Tires from $25 installed, brakes, flat repair. Walk-ins welcome 7 days.", group: "neighborhood", sitemap: true, prerender: true },
+  { path: "/st-clair-superior", priority: 0.7, changefreq: "monthly", title: "Auto Repair Near St. Clair-Superior — Nick's Tire & Auto", description: "Auto repair for St. Clair-Superior fleet vans, work trucks and daily drivers. Used tires from $25 (select 12-inch; most $40-80), brakes. Walk-ins 7 days.", group: "neighborhood", sitemap: true, prerender: true },
 ];
 
 // ─── SEO SERVICE PAGES (long-tail keywords) ──────────────
@@ -1077,8 +1080,11 @@ const UTILITY_PAGES: RouteEntry[] = [
     path: "/financing",
     priority: 0.8,
     changefreq: "weekly",
-    title: "Auto Repair Payment Programs Cleveland & Euclid · Nick's",
-    description: "Cleveland & Euclid auto repair payment programs. $10 down, no hard credit pull, soft check pre-qualification. Easy weekly payments. Call (216) 862-0005.",
+    // 2026-10-01 · aligned with Financing.tsx's own SEOHead. This pair promised
+    // "no hard credit pull" and "soft check pre-qualification"; Koalafi and
+    // American First Finance both say they check credit.
+    title: "Auto Repair Payment Options Cleveland | Nick's Tire & Auto",
+    description: "Compare third-party payment options for tires and auto repair at Nick's Tire & Auto in Cleveland: product types, published limits, disclosures and how to apply.",
     group: "utility",
     sitemap: true,
     prerender: true,
@@ -1377,17 +1383,17 @@ const LEGAL_PAGES: RouteEntry[] = [
 // truth: client/src/data/competitors.ts.
 const COMPARISON_PAGES: RouteEntry[] = [
   // Format 1: Alternative (singular) — switch intent
-  { path: "/conrads-tire-alternative-cleveland", priority: 0.85, changefreq: "monthly", title: "Conrad's Tire Alternative Cleveland · Open Sundays | Nick's", description: "Tired of Conrad's? Nick's Tire & Auto on Euclid Ave is open 7 days, walk-in any time, used tires from $25 installed. Written estimate before any wrench moves.", group: "comparison", sitemap: true, prerender: true },
-  { path: "/mavis-tire-alternative-cleveland", priority: 0.85, changefreq: "monthly", title: "Mavis Tire Alternative Cleveland · No Surprise Fees | Nick's", description: "Mavis advertised tire price low? Final invoice high? Nick's Tire & Auto on Euclid Ave: walk-in 7 days, written estimate up front, used tires from $25 installed.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/conrads-tire-alternative-cleveland", priority: 0.85, changefreq: "monthly", title: "Conrad's Tire Alternative Cleveland · Open Sundays | Nick's", description: "Tired of Conrad's? Nick's Tire & Auto on Euclid Ave: open 7 days, walk-ins, used tires from $25 installed (select 12-inch; most $40-80), written estimate first.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/mavis-tire-alternative-cleveland", priority: 0.85, changefreq: "monthly", title: "Mavis Tire Alternative Cleveland · No Surprise Fees | Nick's", description: "Mavis tire price low, final invoice high? Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $25 (select 12-inch; most $40-80), estimate up front.", group: "comparison", sitemap: true, prerender: true },
   { path: "/discount-tire-alternative-cleveland", priority: 0.8, changefreq: "monthly", title: "Discount Tire Alternative Cleveland · One-Stop Shop | Nick's", description: "Discount Tire is tires only — they can't do brakes, oil, or alignment. Nick's Tire & Auto: tires + brakes + repair under one roof, open 7 days, walk-in any time.", group: "comparison", sitemap: true, prerender: true },
   { path: "/firestone-alternative-cleveland", priority: 0.8, changefreq: "monthly", title: "Firestone Alternative Cleveland · No Chain Pricing | Nick's", description: "Firestone wants $200/hr labor, an appointment, and a Firestone credit card. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent pricing, real address.", group: "comparison", sitemap: true, prerender: true },
-  { path: "/monro-mr-tire-alternative-cleveland", priority: 0.75, changefreq: "monthly", title: "Monro / Mr. Tire Alternative Cleveland · One Standard | Nick's", description: "Monro and Mr. Tire OE-specvaries wildly store-to-store. Nick's Tire & Auto on Euclid Ave: one shop, one crew, one standard. Walk-in 7 days, written estimate up front.", group: "comparison", sitemap: true, prerender: true },
-  { path: "/big-o-tires-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "Big O Alternative Cleveland · Closer, Honest, Open Sundays | Nick's", description: "Big O has only a handful of Cleveland locations. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $25, the estimate in writing before any wrench moves.", group: "comparison", sitemap: true, prerender: true },
-  { path: "/ntb-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "NTB Alternative Cleveland · After the Mavis Acquisition | Nick's", description: "NTB became Mavis in 2021. Same surprise-checkout pattern, same closed Sundays. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires $25, estimate up front.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/monro-mr-tire-alternative-cleveland", priority: 0.75, changefreq: "monthly", title: "Monro / Mr. Tire Alternative Cleveland · One Standard | Nick's", description: "Monro and Mr. Tire service varies store to store. Nick's Tire & Auto on Euclid Ave: one shop, one crew, one standard. Walk-in 7 days, written estimate up front.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/big-o-tires-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "Big O Alternative Cleveland · Closer, Honest, Open Sundays | Nick's", description: "Big O has few Cleveland locations. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $25 (select 12-inch; most $40-80), written estimate first.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/ntb-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "NTB Alternative Cleveland · After the Mavis Acquisition | Nick's", description: "NTB became Mavis in 2021: same checkout, closed Sundays. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $25 (select 12-inch; most $40-80).", group: "comparison", sitemap: true, prerender: true },
   // Format 3: You vs Competitor — direct head-to-head
   { path: "/nicks-tire-vs-conrads-cleveland", priority: 0.8, changefreq: "monthly", title: "Nick's Tire & Auto vs Conrad's Cleveland · Honest Compare", description: "Conrad's vs Nick's Tire & Auto in Cleveland. Hours, pricing, walk-in policy, used tires, written estimates — head-to-head, no spin.", group: "comparison", sitemap: true, prerender: true },
-  { path: "/nicks-tire-vs-mavis-cleveland", priority: 0.8, changefreq: "monthly", title: "Nick's Tire & Auto vs Mavis Cleveland · Honest Compare", description: "Mavis advertised price low, ticket high? Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $25, estimate in writing before wrench moves.", group: "comparison", sitemap: true, prerender: true },
-  { path: "/nicks-tire-vs-firestone-cleveland", priority: 0.75, changefreq: "monthly", title: "Nick's Tire & Auto vs Firestone Cleveland · Honest Compare", description: "Firestone wants chain pricing + appointment. Nick's Tire & Auto on Euclid: walk-in 7 days, transparent labor, used tires from $25, estimate up front.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/nicks-tire-vs-mavis-cleveland", priority: 0.8, changefreq: "monthly", title: "Nick's Tire & Auto vs Mavis Cleveland · Honest Compare", description: "Mavis advertised price low, ticket high? Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $25 (select 12-inch; most $40-80), estimate up front.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/nicks-tire-vs-firestone-cleveland", priority: 0.75, changefreq: "monthly", title: "Nick's Tire & Auto vs Firestone Cleveland · Honest Compare", description: "Firestone wants chain pricing + appointment. Nick's Tire & Auto on Euclid: walk-in 7 days, used tires from $25 (select 12-inch; most $40-80), estimate up front.", group: "comparison", sitemap: true, prerender: true },
   // wave-175 · Index hub for all comparison content (per competitor-
   // alternatives skill's Vs-Comparisons-Index pattern). Higher priority
   // than individual comparison pages because it's the hub that passes

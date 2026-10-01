@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-10-01 NOUR Cockpit Chat Controls optimizer verified live. OpenWebUI serves the managed loader.js/custom.css patch. Headless real-UI canary with selected model NOUR Cockpit found data-nour-controls-mode=cockpit, rendered the NOUR Cockpit summary card, marked 33 raw advanced parameter rows, hid all 33 by default, and restored all 33 via Show raw overrides. A second headless canary switched to qwen35-4b-local and verified mode=standard, no summary card, zero hidden raw rows, and Temperature still visible. This is presentation-only: no model parameter values are written. Gateway nour-auto advertises supported_parameters only tools/tool_choice, so the hidden sampling/Ollama knobs are not authoritative for the routed model. UI source is apps/statenour/local-agent/openwebui-nour-cockpit-loader.js plus openwebui-nour-cockpit.css and is self-healed by ensure_openwebui_cockpit.py."
+    }
+  }
+}

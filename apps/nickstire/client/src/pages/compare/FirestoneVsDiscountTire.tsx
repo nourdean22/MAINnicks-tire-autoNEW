@@ -17,7 +17,7 @@ export default function FirestoneVsDiscountTire() {
       seoTitle="Firestone vs Discount Tire Cleveland · Honest Compare + 3rd Option"
       seoDescription="Firestone vs Discount Tire in Cleveland. Tires, brakes, alignment, pricing — head-to-head. Plus the third option that does Sunday + walk-in + used tires."
       h1="Firestone vs Discount Tire — Cleveland honest compare"
-      intro="Firestone is corporate Bridgestone — full-service tires + brakes + alignment, chain-tier pricing, appointment-required, lifetime alignment program. Discount Tire is the national tire-only specialist — free flat repair, free balance, free rotation lifetime, no mechanical work. Two completely different models. Both close Sunday. Both want an appointment. The third option Cleveland drivers actually use when neither fits: Nick's Tire & Auto on Euclid Ave — open 7 days including Sunday, walk-in any time, used tires from $25 installed, full mechanical repair under one roof. The yellow sign you've driven past."
+      intro="Firestone is corporate Bridgestone — full-service tires + brakes + alignment, chain-tier pricing, appointment-required, lifetime alignment program. Discount Tire is the national tire-only specialist — free flat repair, free balance, free rotation lifetime, no mechanical work. Two completely different models. Both close Sunday. Both want an appointment. The third option Cleveland drivers actually use when neither fits: Nick's Tire & Auto on Euclid Ave — open 7 days including Sunday, walk-in any time, used tires from $25 installed (select 12-inch; most $40-80), full mechanical repair under one roof. The yellow sign you've driven past."
       extraFaqs={[
         {
           question: "Firestone vs Discount Tire — which is better?",
@@ -25,7 +25,7 @@ export default function FirestoneVsDiscountTire() {
         },
         {
           question: "Why would I pick Nick's over either Firestone or Discount Tire?",
-          answer: "Three reasons. One: open Sunday — both Firestone and Discount Tire close Sunday, Nick's is open 9am–4pm. Two: full-service walk-in — Nick's does tires + brakes + alignment + oil + mechanical without an appointment. Three: used tires from $25 — neither Firestone nor Discount Tire sells used tires. If you need tires AND brakes AND it's Sunday afternoon, Nick's is the only option that handles all of that in one visit.",
+          answer: "Three reasons. One: open Sunday — both Firestone and Discount Tire close Sunday, Nick's is open 9am–4pm. Two: full-service walk-in — Nick's does tires + brakes + alignment + oil + mechanical without an appointment. Three: used tires from $25 (select 12-inch; most $40-80) — neither Firestone nor Discount Tire sells used tires. If you need tires AND brakes AND it's Sunday afternoon, Nick's is the only option that handles all of that in one visit.",
         },
         {
           question: "Is Nick's pricing closer to Firestone or Discount Tire?",

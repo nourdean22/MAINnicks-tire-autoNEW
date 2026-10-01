@@ -19,6 +19,7 @@
 import type { ServicePageConfig } from "@/components/FocusedServicePage";
 import { Disc, Activity, Wrench, AlertTriangle, Clock, Snowflake, Thermometer, Battery, Zap, CheckCircle } from "lucide-react";
 import { BUSINESS } from "@shared/business";
+import { OHIO_ECHECK } from "@shared/echeck";
 import { trackEvent } from "@/components/SEO";
 
 /** A subset of ServicePageConfig containing only the conversion fields.
@@ -166,17 +167,16 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
         <p className="text-foreground/70 mt-4 text-[15px] leading-relaxed">
           No price list here on purpose — a number on a website can&apos;t see
           your car, and every failure is different. Here&apos;s what we can
-          tell you: payment programs get people approved here every week,
-          including plenty of folks who came in thinking their credit was too
-          far gone. No credit history needed to check, and checking
-          doesn&apos;t ding your score. Come talk to us before you write the
-          car off.
+          tell you: four payment providers each run their own application.
+          Some don&apos;t require established credit, each one decides
+          approval, and its agreement shows the total cost before you sign.
+          Come talk to us before you write the car off.
         </p>
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
           {[
             "Free readiness scan before the state test — pull up, no drop-off needed",
             "Written estimate before any wrench moves — you don't pay until you say yes",
-            "Four payment providers compete for your approval — no hard credit pull to check",
+            "Four payment providers, each with its own application and disclosure",
             "If the repair costs more than the car is worth, we tell you straight",
           ].map((item) => (
             <div key={item} className="flex items-start gap-3 bg-card/40 border border-border/20 rounded px-4 py-3">
@@ -194,46 +194,36 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
         </a>
       </div>
     ),
-    anchorTable: {
-      serviceName: "Ohio E-Check repair — Cleveland market quotes",
-      rows: [
-        { label: "Cleveland-area dealer (typical fail-fix)", price: "$650" },
-        { label: "Independent chain", price: "$420" },
-        { label: "Nick's (free readiness check + repair)", price: "Free estimate", ours: true },
-      ],
-      source: "Final price varies with the failure mode (O2 sensor / EVAP / catalytic). The state runs the official E-Check; we run a free readiness check, then fix the failure so you pass — no \"do it twice\" risk.",
-    },
+    // 2026-10-01 · the dealer ($650) and chain ($420) "market quotes" had no
+    // source, so the comparison table is gone rather than kept with invented
+    // competitor prices.
+    // 2026-10-01 · the three stats here were a "30 days from the fail notice"
+    // rule that does not exist (cited to the BMV), an unsourced $150 ticket and
+    // an unsourced $400-$800 impound figure, plus a $10/day "insurance risk"
+    // loss stat. Replaced with the rules Ohio actually publishes (shared/echeck.ts).
     fearStats: {
-      heading: "What an E-Check failure actually costs if you let it slide.",
+      heading: "What a failed E-Check actually means in Ohio.",
       stats: [
         {
-          value: "30",
-          unit: "days",
-          consequence: "Ohio gives you 30 days from the fail notice to remedy + retest. Day 31 your registration becomes invalid — even if your tags say otherwise on paper.",
-          source: "Ohio Bureau of Motor Vehicles E-Check program rules.",
+          value: "No renewal",
+          unit: "without a pass, waiver or extension",
+          consequence: OHIO_ECHECK.registrationRule,
+          source: "Ohio Rev. Code 4503.10; Ohio Admin. Code 3745-26-12.",
         },
         {
-          value: "$150+",
-          unit: "per stop",
-          consequence: "Driving with expired registration in Ohio: $150+ ticket per traffic stop, plus court costs. Two stops in 30 days = the cost of fixing the car twice over.",
+          value: `$${OHIO_ECHECK.repairWaiver.minimumSpend}`,
+          unit: "waiver floor",
+          consequence: `${OHIO_ECHECK.repairWaiver.display} Fixing the actual fault is usually the shorter road.`,
+          source: "Ohio EPA, E-Check repair cap waiver; Ohio Admin. Code 3745-26-01.",
         },
         {
-          value: "Impound",
-          unit: "risk",
-          consequence: "Repeat expired-registration violations can result in vehicle impoundment in Cuyahoga County. Towing fee + daily storage + reinstatement fee compounds fast — typically $400-$800 to recover the car.",
+          value: String(OHIO_ECHECK.freeTests.count),
+          unit: "free tests",
+          consequence: `${OHIO_ECHECK.freeTests.display} Our free readiness check tells you whether the car is ready before you spend one.`,
+          source: "ohioecheck.info, failed vehicles.",
         },
       ],
     },
-    lossStats: [
-      {
-        amount: 10,
-        unit: "per day",
-        label: "in extra ticket-risk exposure once your tags expire",
-        reason: "Insurance companies treat invalid registration as elevated risk on subsequent claims. The longer it sits expired, the higher the chance of a stop, ticket, court date, and a rate hike that lasts 3 years.",
-        ctaHref: "#booking",
-        ctaLabel: "GET LEGAL TODAY",
-      },
-    ],
     crossSell: {
       heading: "Failed for a specific reason? We fix it specifically.",
       items: [
@@ -251,7 +241,7 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
           icon: <Wrench className="w-5 h-5" />,
           symptom: "Failed on \"readiness monitors not ready\"?",
           consequence: "Battery disconnect resets monitors — needs ~100 miles of mixed driving + fresh oil to complete.",
-          relief: "We do the drive cycle + retest while you wait.",
+          relief: "We run the drive cycle and confirm the monitors read ready before you go back for the state test.",
           ctaLabel: "GET RETEST READY",
           ctaHref: "#booking",
         },

@@ -110,7 +110,7 @@ describe("ChatMessageList . receipt chip does not over-claim", () => {
         messages={messages}
         isLoading={false}
         error={undefined}
-        lastTraceIdRef={{ current: "trace-abc" } as React.RefObject<string | null>}
+        lastTraceId="trace-abc"
       />,
     );
   }
