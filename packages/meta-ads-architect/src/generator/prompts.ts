@@ -37,6 +37,7 @@ It will be BOOSTED with real ad spend, so every word must convert and every clai
 
 ${renderBusinessFacts(input)}
 ${forbidden ? `\nADDITIONAL FORBIDDEN WORDS (from the brief): ${forbidden}\n` : ""}
+${input.organicEvidence ? `\n${input.organicEvidence.block}\nUSE IT AS: a validated customer tension and hook family to derive a DIRECT-RESPONSE variant from. Do not reuse organic captions; organic reach is not ad conversion.\n` : ""}
 CAMPAIGN INPUT:
 - Offer: ${input.offer.productOrServiceName} (${input.offer.primaryOutcome})
 - Audience: ${input.audience.whoItIsFor} (${input.audience.painPoints})

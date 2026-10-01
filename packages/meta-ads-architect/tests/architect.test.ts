@@ -220,3 +220,14 @@ describe("Business facts never live in package source (2026-10-01 drift fix)", (
     expect(flat).not.toMatch(/5-star rated|Top Rated|No Credit Check Financing/);
   });
 });
+
+describe("organic evidence reaches the creative prompt as discovery evidence only", () => {
+  it("embeds the block and the derive-don't-copy instruction when supplied; absent otherwise", async () => {
+    const { buildCreativeSystemPrompt } = await import("../src/generator/prompts.js");
+    const withEv = buildCreativeSystemPrompt({ ...NicksTirePreset, organicEvidence: { block: "ORGANIC EVIDENCE: SENTINEL-ORGANIC", windowDays: 90, measured: 12 } });
+    expect(withEv).toContain("SENTINEL-ORGANIC");
+    expect(withEv).toMatch(/organic reach is not ad conversion/);
+    const without = buildCreativeSystemPrompt(NicksTirePreset);
+    expect(without).not.toMatch(/ORGANIC EVIDENCE/);
+  });
+});

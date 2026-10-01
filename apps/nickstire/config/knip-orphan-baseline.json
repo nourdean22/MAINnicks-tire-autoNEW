@@ -5605,6 +5605,36 @@
       "file": "apps/nickstire/server/services/imageProviderCircuit.ts",
       "symbol": "__resetCircuits",
       "reason": "TEST-ONLY STATE RESET, vacuous in production by design. The circuit map is module state shared across one process; vitest runs serially in one process (singleFork), so each test file must clear it. Production never resets a circuit by hand — closeCircuit on success and the cooldown clock are the only live paths."
+    },
+    {
+      "file": "apps/nickstire/server/services/organicEvidence.ts",
+      "symbol": "rankOrganicRows",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The pure ranking behind buildOrganicEvidence (sends+saves per reach, zero-reach rows excluded from ratios, hook-category grouping); exported so creativeOsServices.test.ts pins the ratio math on fixture rows without a DB. Consumed internally by buildOrganicEvidence on every ads-architect plan."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentAtomizer.ts",
+      "symbol": "thesisIdFor",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Stable thesis id (sha256 of mechanic truth + audience moment) used by planAtomization for lineage; exported so the test can assert two genomes with the same truth share one id while a CTA change does not fork it."
+    },
+    {
+      "file": "apps/nickstire/server/services/creativePatternMiner.ts",
+      "symbol": "validateMinedPattern",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The originality gate (verbatim Jaccard ≥ 0.3 per field rejects; creator-named pattern ids reject) consumed by minePattern after every LLM reply; exported so the test proves a lifted sentence and a creator-named id are refused without an LLM call."
+    },
+    {
+      "file": "apps/nickstire/server/services/creativePatternMiner.ts",
+      "symbol": "toReelPattern",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Projection of Creative DNA onto the house ReelPattern shape stored in social_reel_patterns; consumed by minePattern; exported so the test pins that attribution lives in sourceLabel/provenance and never in the pattern id or label."
+    },
+    {
+      "file": "apps/nickstire/server/services/creativePatternMiner.ts",
+      "symbol": "parseDna",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Fence-stripping zod parse of the miner reply, consumed by minePattern; exported so the test proves an out-of-vocabulary hookType is rejected rather than stored."
+    },
+    {
+      "file": "apps/nickstire/server/services/trendIntel.ts",
+      "symbol": "classifyTrend",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The deterministic use/watch/skip classifier consumed by gatherTrends; exported so the test pins the two hard refusals (audio without a licence note, formats needing others' graphics) and the relevance mapping without network."
     }
   ]
 }

@@ -16,6 +16,7 @@ import { TRPCError } from "@trpc/server";
 import { applyCreativeSkills } from "../services/skillRouter";
 import { validateClaimSafety } from "../services/contentManufacturing";
 import { applyBrandTruthToCampaignInput, compileBrandTruthLive } from "../services/brandTruth";
+import { buildOrganicEvidence, renderOrganicEvidenceBlock } from "../services/organicEvidence";
 
 const log = createLogger("routers:metaAdsArchitect");
 
@@ -61,7 +62,15 @@ export const metaAdsArchitectRouter = router({
         // place a business fact may rot (2026-10-01: three copies of a retired
         // mileage warranty reached paid-ad copy through this procedure).
         const grounded = applyBrandTruthToCampaignInput(input, await compileBrandTruthLive());
-        const plan = await generateCampaignPlan(grounded, llmProvider);
+        // Organic → paid: what the feed already earned (sends/saves per reach),
+        // compiled from social_content_inventory. Unavailable reads say so in
+        // the block rather than vanishing (empty-vs-error).
+        const organic = await buildOrganicEvidence();
+        const withEvidence = {
+          ...grounded,
+          organicEvidence: { block: renderOrganicEvidenceBlock(organic), windowDays: organic.windowDays, measured: organic.measured },
+        };
+        const plan = await generateCampaignPlan(withEvidence, llmProvider);
         
         const exportMarkdown = exportPlanToMarkdown(plan);
         const exportJson = exportPlanToJson(plan);

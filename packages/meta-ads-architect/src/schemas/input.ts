@@ -82,6 +82,16 @@ export const CampaignInputSchema = z.object({
     source: z.string(),
     compiledAt: z.string(),
   }).optional(),
+  /**
+   * Organic discovery evidence compiled by the app (what already earned
+   * sends/saves on the feed). Discovery evidence only — the prompt says so
+   * and asks for a direct-response derivative, never a copy.
+   */
+  organicEvidence: z.object({
+    block: z.string(),
+    windowDays: z.number(),
+    measured: z.number(),
+  }).optional(),
   // Additional optional fields:
   businessProfile: z.string().optional(),
   serviceList: z.string().optional(),
