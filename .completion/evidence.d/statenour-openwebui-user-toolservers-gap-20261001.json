@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-10-01 executor root cause checkpoint. The browser execute:tool handler resolves e.server.url via a lookup function that first searches the current user's settings.toolServers store for a matching URL, then terminal server fallbacks. If no match exists it returns {error: Tool Server Not Found}. The admin user's persisted settings currently contain only ui preferences and no toolServers entry. This explains the direct-fix canary: model tool schema injection succeeded and start_cockpit_run/check_cockpit_run were invoked, but browser execution could not resolve http://127.0.0.1:4101 to a local tool server. Next action: persist the NOUR Cockpit server in the admin user's UI toolServers settings through OpenWebUI's Users.update_user_settings_by_id field-level patch path, make it self-healing, then rerun the E2E canary."
+    }
+  }
+}
