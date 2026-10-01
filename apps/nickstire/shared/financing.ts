@@ -45,7 +45,7 @@ export const FINANCING_PROVIDERS: FinancingProvider[] = [
     color: "#00B2A9",
     highlight: "Up to $5,000 for qualifying applicants",
     maxAmount: "Up to $5,000",
-    approvalTime: "Usually fast; provider decision",
+    approvalTime: "Provider decision after application",
     creditCheck: "Uses consumer-reporting and other application data",
     termRange: "Terms shown in your lease agreement",
     features: [
@@ -78,7 +78,7 @@ export const FINANCING_PROVIDERS: FinancingProvider[] = [
     highlight: "$300-$5,000 for qualifying applicants",
     maxAmount: "$300-$5,000",
     approvalTime: "Decision may be available in seconds",
-    creditCheck: "No impact to FICO score; other consumer-report scores may be affected",
+    creditCheck: "Applying doesn't affect your FICO score, per Snap; other consumer-report scores may be affected",
     termRange: "Varies by product and agreement",
     features: [
       "Online application designed to take only a few minutes",
@@ -228,7 +228,7 @@ export const FINANCING_FAQ = [
   },
   {
     q: "Will applying affect my credit?",
-    a: "It depends on the provider and product. Snap says applying does not affect your FICO score, although another consumer-report score may be affected. American First Finance may check credit. Koalafi may report payment history. Review each provider's application disclosure before submitting.",
+    a: "It depends on the provider and product. Snap says applying does not affect your FICO score, although another consumer-report score may be affected. Koalafi checks credit through alternative credit bureaus and reports payments to TransUnion; Koalafi says this does not affect your FICO score. American First Finance says credit may be checked. Review each provider's application disclosure before submitting.",
   },
   {
     q: "How much could I be approved for?",

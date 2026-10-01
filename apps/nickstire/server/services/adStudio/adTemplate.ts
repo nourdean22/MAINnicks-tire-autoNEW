@@ -20,12 +20,12 @@ export type AdSlideRole = "hook" | "value" | "offer" | "proof" | "cta";
 /** Copy the LLM produces (persuasive slides only — proof/cta come from BUSINESS). */
 export interface AdCopy {
   /** hook card */
-  hookYellow: string; // e.g. "$10 DOWN."
+  hookYellow: string; // e.g. "FREE CHECK."
   hookWhite: string; //  e.g. "DRIVE TODAY."
   hookSub: string; //    e.g. "New tires from $89 installed · 4 payment programs"
   /** value card */
   valueWhite: string; // e.g. "4 PAYMENT PROGRAMS."
-  valueYellow: string; // e.g. "$10 DOWN."
+  valueYellow: string; // e.g. "WRITTEN QUOTE."
   valueTicks: [string, string, string];
   /** offer / free-check card */
   offerYellow: string; // e.g. "FREE"

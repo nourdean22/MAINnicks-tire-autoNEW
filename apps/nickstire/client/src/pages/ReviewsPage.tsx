@@ -130,7 +130,7 @@ function PillButton({
 // ─── REVIEW CARD ──────────────────────────────────────
 function ReviewCard({ review }: { review: { authorName: string; rating: number; text: string; relativeTime: string } }) {
   const [expanded, setExpanded] = useState(false);
-  const isLong = review.text.length > 200;
+  const isLong = (review.text ?? "").length > 200;
   // Google lets a customer leave stars without writing anything. Those cards
   // used to render an empty paragraph; say what they are instead.
   const isRatingOnly = (review.text ?? "").trim().length === 0;

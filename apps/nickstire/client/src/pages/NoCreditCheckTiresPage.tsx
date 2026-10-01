@@ -34,7 +34,7 @@ const CONFIG: ServicePageConfig = {
   description: "Searching for no credit check tires? Straight answer: all 4 payment providers review applications, but some don't need established credit. Walk in 7 days.",
   eyebrow: "TIRE PAYMENT OPTIONS · CLEVELAND",
   h1: "SEARCHING FOR NO CREDIT CHECK TIRES?\nHERE'S THE STRAIGHT ANSWER.",
-  sub: `Every payment provider we work with reviews your application, and Koalafi and American First Finance both say they check credit. What some of them don't need is established credit. The provider decides approval and terms, and you see the total cost before you sign. Used tires ${USED.priceDisplay} (${USED.fineprint}; ${USED.typicalBand}). New ${BUSINESS.newTires.priceDisplay}.`,
+  sub: `Every payment provider we work with reviews your application, Koalafi says it checks credit, and American First Finance says credit may be checked. What some of them don't need is established credit. The provider decides approval and terms, and you see the total cost before you sign. Used tires ${USED.priceDisplay} (${USED.fineprint}; ${USED.typicalBand}). New ${BUSINESS.newTires.priceDisplay}.`,
   startingPrice: "4 payment providers · each decides approval",
   pricingTitle: "WHAT A SET OF TIRES COSTS AT NICK'S",
   pricingSub: "Out-the-door pricing: mount, balance, valve stems, TPMS reset and alignment check included. A payment program can spread the cost; its agreement shows the total before you sign.",
@@ -98,7 +98,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "How fast is the decision?",
-      a: "That's the provider's call, not ours. Snap and Koalafi both advertise decisions in seconds for many applicants; some applications need more review.",
+      a: "That's the provider's call, not ours. Snap says a decision may be available in seconds; other providers can take longer, and some applications need more review.",
     },
     {
       q: "Do I need an appointment?",
@@ -106,7 +106,7 @@ const CONFIG: ServicePageConfig = {
     },
   ],
   bookingService: "tires",
-  serviceType: "Tire Payment Programs",
+  serviceType: "Tire Sales & Installation",
   ctaHeadline: "APPLY WITH THE PROVIDER · SEE YOUR TERMS FIRST",
   ctaSub: `${PAYMENT_PROGRAMS_SHORT}. Apply online or at the counter. Call ${BUSINESS.phone.display} or walk in to ${BUSINESS.address.full}.`,
 

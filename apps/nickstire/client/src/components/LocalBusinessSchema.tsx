@@ -182,7 +182,7 @@ export default function LocalBusinessSchema({
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Used Tires", description: "Checked used tires from $25 installed (12-inch rims; most sizes $40-80). 4-point check: tread, sidewall, DOT date, plug history." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "25" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "25", description: "From $25 installed on 12-inch rims; most sizes $40-80 installed" },
         },
         {
           "@type": "Offer",
@@ -211,7 +211,7 @@ export default function LocalBusinessSchema({
         },
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "Ohio E-Check Emissions Testing & Repair", description: "Certified station. Walk-ins welcome, 20-30 minutes." },
+          itemOffered: { "@type": "Service", name: "E-Check Failure Diagnosis & Repair", description: "Free readiness check before the state test; we repair what failed. Walk-ins welcome." },
         },
         {
           "@type": "Offer",
@@ -254,8 +254,6 @@ export default function LocalBusinessSchema({
       { "@type": "PropertyValue", name: "appointmentRequired", value: "false" },
       { "@type": "PropertyValue", name: "partsWarranty", value: "1 year" },
       { "@type": "PropertyValue", name: "laborWarranty", value: "90 days" },
-      { "@type": "PropertyValue", name: "noCreditCheckFinancing", value: "true" },
-      { "@type": "PropertyValue", name: "certifiedECheckStation", value: "true" },
       { "@type": "PropertyValue", name: "freeEstimates", value: "true" },
       { "@type": "PropertyValue", name: "sameDayService", value: "true" },
     ],

@@ -23,11 +23,11 @@ const CONFIG: ServicePageConfig = {
     "Real tire prices in Cleveland from our live distributor feed. Used tires from $25 installed (12-inch rims; most $40-80), new from $89 installed. Walk-ins 7 days.",
   eyebrow: "TIRE PRICES — CLEVELAND, OHIO",
   h1: "TIRE PRICES IN CLEVELAND.\nREAL NUMBERS, UPDATED DAILY.",
-  sub: "Most tire shops make you call for every price. This page shows what tires actually cost at our shop: inspected used tires from $25 installed, new tires from $89 installed, and live per-size pricing pulled straight from our distributor feed. If a number is on this page, we honor it — and if your size isn't listed, one call gets you the exact quote.",
+  sub: "Most tire shops make you call for every price. This page shows what tires actually cost at our shop: inspected used tires from $25 installed (select 12-inch; most $40-80), new tires from $89 installed, and live per-size pricing pulled straight from our distributor feed. If a number is on this page, we honor it — and if your size isn't listed, one call gets you the exact quote.",
   aeoAnswer:
     "At Nick's Tire & Auto in Cleveland, inspected used tires run from $25 installed (12-inch rims; most sizes $40-80 installed) and new tires from $89 installed, with live per-size distributor pricing published on this page. Walk-ins 7 days at 17625 Euclid Ave, Cleveland. (216) 862-0005.",
   startingPrice:
-    "Used from $25 installed (12-inch rims, subject to availability) · new from $89 installed",
+    "Used from $25 installed (12-inch rims, subject to availability; most sizes $40-80) · new from $89 installed",
   pricingTitle: "WHAT TIRES ACTUALLY COST HERE",
   pricingSub: "Floors from our published pricing, per-size numbers from the live distributor feed.",
   tiers: [],
@@ -52,7 +52,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "How current is the pricing on this page?",
-      a: "The per-size table comes from our distributor price feed and refreshes daily; the update date is printed next to the table. Floors ($25 used, $89 new) are our standing published prices. Availability moves fast on popular sizes, so confirm by phone before driving over.",
+      a: "The per-size table comes from our distributor price feed and refreshes daily; the update date is printed next to the table. Floors ($25 used on select 12-inch rims, most sizes $40-80; $89 new) are our standing published prices. Availability moves fast on popular sizes, so confirm by phone before driving over.",
     },
     {
       q: "What's the cheapest safe way to get rolling today?",

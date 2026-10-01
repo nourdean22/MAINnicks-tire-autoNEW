@@ -156,12 +156,12 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "Pricing & Warranty",
     question: "What is Acima lease-to-own?",
-    answer: "Acima is a rental purchase agreement — not a loan, credit, or financing. At Nick's Tire & Auto, you can lease the auto services you need with a $10 initial payment and no credit history required. A 90-day early purchase option is available to reduce your total cost. Not available in MN, NJ, WI, or WY."
+    answer: "Acima is a rental purchase agreement — not a loan, credit, or financing. At Nick's Tire & Auto, you can lease the tires and parts you need. Acima says no credit history is required, though it obtains information from consumer reporting agencies. A $10 start is available only in select circumstances and does not include taxes or other charges. Early purchase options can lower the total cost; your lease shows them. Not available in MN, NJ, WI, or WY."
   },
   {
     category: "Pricing & Warranty",
-    question: "How does the $10 initial payment work?",
-    answer: "Apply online or in-store in minutes. Once approved, make a $10 initial payment and get your service done the same day. You then pay the remainder over your lease term. $10 initial payment. Lease terms and total cost vary by item and payment schedule. 90-day early purchase option available. Not a loan or credit."
+    question: "How does Acima's $10 start work?",
+    answer: "Apply with Acima online or in store. If Acima approves you, your lease shows the initial payment, which can be $10 in select circumstances (taxes and other charges extra), along with the payment schedule and total cost, before you sign. Not a loan or credit, and not every applicant is approved."
   },
   {
     category: "Pricing & Warranty",

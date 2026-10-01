@@ -124,7 +124,7 @@ function generateDeterministicSections(input: CampaignInput): Partial<CampaignOu
     ],
     valueStack: `Core: ${priceStack.corePrice}. Includes: ${offer.whatsIncluded}. Guarantee: ${priceStack.guaranteeOrRefundTerms}.`,
     objectionsAndRebuttals: [
-      { objection: "It's too expensive", rebuttal: "We offer no-credit-check financing and clear ROI." },
+      { objection: "It's too expensive", rebuttal: "Four payment programs; each provider decides approval and shows the total cost before you sign." },
       { objection: "It takes too long", rebuttal: `Delivered in ${offer.timeToConsumeOrFulfill}.` },
       { objection: "I don't trust you", rebuttal: "We provide written quotes before any work begins." },
       { objection: "Will it work for me?", rebuttal: `Yes, designed specifically for ${audience.whoItIsFor}.` },
@@ -264,9 +264,9 @@ function generateDeterministicCreative(): Partial<CampaignOutput> {
   const adCopyFactory = Array.from({ length: 5 }).map((_, i) => ({
     bundleName: `Bundle ${i + 1}`,
     shortPrimaryTexts: ["Need auto repair? We offer free inspections.", "Don't ignore that noise. Get a free check today."],
-    longPrimaryText: "Is your car making a strange noise? Don't wait until it breaks down. At Nick's Tire & Auto, we offer free initial inspections and written quotes before any work begins. Drop it off in the morning and we can usually have it done the same day. Plus, we offer no-credit-check financing. Click below to learn more.",
-    headlines: ["Free Auto Inspection", "Same Day Service", "No Credit Check Financing", "Top Rated Auto Shop", "Honest Auto Repair", "Drop Off Service", "Expert Mechanics"],
-    descriptions: ["Get a free written quote.", "Serving Cleveland for years.", "5-star rated service.", "Walk-ins welcome."],
+    longPrimaryText: "Is your car making a strange noise? Don't wait until it breaks down. At Nick's Tire & Auto, we offer free initial inspections and written quotes before any work begins. Drop it off or wait while we work. Payment programs from four providers are available; each decides approval. Click below to learn more.",
+    headlines: ["Free Auto Inspection", "Walk-Ins 7 Days", "4 Payment Programs", "Top Rated Auto Shop", "Honest Auto Repair", "Drop Off Service", "Expert Mechanics"],
+    descriptions: ["Get a free written quote.", "Serving Cleveland for years.", "Read our Google reviews.", "Walk-ins welcome."],
     ctaButtonRecommendations: ["Learn More", "Book Now", "Get Quote"]
   }));
 

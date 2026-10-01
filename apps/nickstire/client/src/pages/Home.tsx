@@ -324,7 +324,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
                 "0 1px 6px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.6)",
             }}
           >
-            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-nick-yellow font-semibold">$25</span> — most sizes $40-80 installed. Written estimate before any wrench moves.
+            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-nick-yellow font-semibold">$25</span> (select 12-inch) — most sizes $40-80 installed. Written estimate before any wrench moves.
           </p>
 
           <IntentRouter personalization={personalization} />
@@ -341,7 +341,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               {rating.toFixed(1)} from {totalReviews.toLocaleString()}+ reviews
             </span>
             <span className="text-[#A0A0A0]">&bull; First-come-first-served</span>
-            <span className="text-[#A0A0A0]">&bull; Used tires from $25 &middot; most sizes $40-80</span>
+            <span className="text-[#A0A0A0]">&bull; Used tires from $25 (select 12-inch) &middot; most sizes $40-80</span>
             <span className="text-[#A0A0A0]">&bull; Open 7 days incl. Sunday</span>
           </div>
           <div className="mt-3 motion-safe:animate-[fadeIn_0.5s_ease-out_1.1s_both]">
@@ -912,7 +912,7 @@ export default function Home() {
           the site's real approval-gate wording. */}
       <SEOHead
         title="Nick's Tire & Auto Cleveland · Tires & Auto Repair Euclid"
-        description="Used tires from $25 installed (most sizes $40-80), brakes & repairs on Euclid Ave. Open Sunday 9-4, walk in 7 days, written quote first. (216) 862-0005"
+        description="Used tires from $25 installed (select 12-inch; most $40-80), brakes & repairs on Euclid Ave. Open Sunday 9-4, walk in 7 days, written quote first. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeReviews />

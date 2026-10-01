@@ -235,7 +235,8 @@ export const WARRANTY_SCHEDULE: Record<string, { months: number; miles: number; 
 
 /**
  * Financing providers available at Nick's — operator-side quote math only.
- * Provider facts must agree with shared/financing.ts (2026-10-01: the payoff
+ * Provider names, caps, minimums and credit wording must agree with
+ * shared/financing.ts; `type` is only the quote-math assumption (2026-10-01: the payoff
  * lines said "90/100 days same as cash", Koalafi's cap said $10,000 against its
  * published $7,500, and Koalafi was called a soft check when Koalafi says it
  * checks credit through alternative bureaus).
@@ -254,7 +255,7 @@ export const FINANCING_OPTIONS = [
   {
     provider: "Snap Finance",
     type: "lease_to_own",
-    minAmount: 150,
+    minAmount: 300,
     maxAmount: 5000,
     termMonths: [12],
     approvalType: "No credit needed per Snap; consumer-report data used",

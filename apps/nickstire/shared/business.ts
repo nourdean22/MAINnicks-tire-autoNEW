@@ -92,11 +92,12 @@ export const BUSINESS = {
     // (a resolveReviewDisplay() fallback, not a per-page bug — see
     // useReviewStats.ts). This is a periodic floor update, not a design
     // change; keep raising it as the live count grows.
-    // 2026-10-01 · 1710 -> 1715: the live endpoint (reviews.google) returned
-    // totalReviews 1715, and the homepage snapshot, which captured the floor,
-    // read 1,710+ while every other page read 1,715+.
-    count: 1715,
-    countDisplay: "1,715+",
+    // A FLOOR, so it stays below the live count: on 2026-10-01 the live endpoint
+    // (reviews.google) returned totalReviews 1715. Setting the floor to exactly
+    // the live number would overstate the moment Google drops one review, and
+    // the city pages already say 1,710+.
+    count: 1710,
+    countDisplay: "1,710+",
     source: "Google",
     url: "https://www.google.com/maps/place/Nick's+Tire+And+Auto+Euclid",
   },
@@ -183,7 +184,7 @@ export const BUSINESS = {
     // 2026-10-01 · was "No-credit-check financing available". Koalafi and
     // American First Finance both say they check credit (shared/financing.ts).
     display: "Payment programs from four providers; each decides approval",
-    downPayment: "$10 down",
+    downPayment: "Acima: $10 start in select circumstances",
   },
 
   // ─── STARTING PRICES (internal reference only — not displayed publicly) ─────
@@ -259,7 +260,7 @@ export const BUSINESS = {
     meme: "Nick's got you rolling.",
     memeShort: "Keep it rolling.",
     memeCleveland: "We keep Cleveland rolling.",
-    hookAction: "$10 down, drive today.",
+    hookAction: "Four payment programs; each provider decides approval.",
     hookSince: "Since 2018.",
   },
 
@@ -277,7 +278,7 @@ export const BUSINESS = {
   // ─── SEO ─────────────────────────────────────────
   seo: {
     titleSuffix: " | Nick's Tire & Auto — Cleveland, OH",
-    defaultDescription: "Honest auto repair and tire service in Cleveland, OH. Free check, written quote, you don't pay until you say yes. Brakes, tires, check-engine light, emissions. Serving Cleveland, Euclid, and Northeast Ohio. $10 down.",
+    defaultDescription: "Honest auto repair and tire service in Cleveland, OH. Free check, written quote, you don't pay until you say yes. Brakes, tires, check-engine light, emissions. Serving Cleveland, Euclid, and Northeast Ohio.",
   },
 } as const;
 

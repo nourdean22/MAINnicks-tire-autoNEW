@@ -87,10 +87,10 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Tire Shop Cleveland · Walk-In 7 Days · From $40 | Nick's",
     metaDescription: "New & used tires in Cleveland & Euclid. Free installation package included in estimate. Walk in 7 days, payment programs available. Call (216) 862-0005.",
     heroHeadline: "Tires from $40.\nOr whatever your budget says.",
-    heroSubline: "Pull up, stay in your car — we come out to you. Used tires from $25, new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
+    heroSubline: "Pull up, stay in your car — we come out to you. Used tires from $25 (select 12-inch; most $40-80), new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
     heroCTA: "GET A TIRE QUOTE",
     turnaround: "Most tire repairs done in under 20 minutes. Full installations under an hour. Walk-ins welcome — just pull up.",
-    pricingNote: "Stay in your car · We come to you · Used tires from $25 · All major brands",
+    pricingNote: "Stay in your car · We come to you · Used tires from $25 (select 12-inch; most $40-80) · All major brands",
     urgencyNote: "Tires below the legal tread limit triple your stopping distance on wet roads. Cleveland's freeze-thaw cycles and potholes accelerate wear — don't wait for a blowout.",
     signs: [
       "Tread depth below 2/32 of an inch (the penny test)",
@@ -397,16 +397,16 @@ export const SERVICES: ServiceData[] = [
     slug: "emissions",
     num: "04",
     title: "EMISSIONS & E-CHECK REPAIR",
-    shortDesc: "Failed Ohio E-Check? We diagnose and repair emissions problems — oxygen sensors, EVAP leaks, catalytic converters — and get you passing.",
+    shortDesc: "Failed Ohio E-Check? We diagnose and repair emissions problems — oxygen sensors, EVAP leaks, catalytic converters — then you retest at an official station.",
     // 2026-09-16 · claim-safety fix — "Pass Guaranteed" is an unsupported
     // promise (turnaround below says "Most emissions repairs completed in
     // 1-2 days," never a guarantee) and AGENTS.md bans "guaranteed" outright.
     // Unified with routes.ts:372's title so prerendered HTML and the live SPA
     // can't disagree.
     metaTitle: "Failed E-Check Cleveland · Free Readiness Check | Nick's",
-    metaDescription: "Failed your Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. State tests; we get you passing. Same-day diagnosis. (216) 862-0005.",
-    heroHeadline: "Failed E-Check?\nWe'll get you passing.",
-    heroSubline: "The state runs the official E-Check — we run a FREE readiness check that tells you if you'll pass, then diagnose and repair the exact emissions problem and make sure all monitors complete so you pass the official test.",
+    metaDescription: "Failed your Ohio E-Check? Free readiness check, then we fix what failed: O2 sensors, EVAP leaks, catalytic converters. The state runs the test. (216) 862-0005.",
+    heroHeadline: "Failed E-Check?\nWe'll find what failed.",
+    heroSubline: "The state runs the official E-Check — we run a FREE readiness check that shows whether your car is ready to test, then diagnose and repair the exact emissions problem and help the monitors complete before you retest.",
     heroCTA: "SCHEDULE E-CHECK REPAIR",
     turnaround: "Most emissions repairs completed in 1–2 days. Drive cycle verification included.",
     pricingNote: "Free E-Check report review · Honest assessment if repair cost exceeds vehicle value",
@@ -718,8 +718,8 @@ export const SERVICES: ServiceData[] = [
     num: "07",
     title: "AC & HEATING",
     shortDesc: "AC recharge, compressor, condenser, evaporator, heater core, and blower motor repair. Stay comfortable year-round.",
-    metaTitle: "AC Repair Cleveland · Cold Air By Lunch · $10 Down | Nick's",
-    metaDescription: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Most jobs blow cold by lunch. Free check. (216) 862-0005.",
+    metaTitle: "AC Repair Cleveland · Open 7 Days · Written Quote | Nick's",
+    metaDescription: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Written quote before work. Free check. (216) 862-0005.",
     heroHeadline: "Cold air, fast —\nor we keep working.",
     heroSubline: "Everything you need to know about your car's air conditioning system — common problems, repair costs, and when to get service. From the technicians Cleveland drivers trust.",
     heroCTA: "FIX MY AC",
@@ -1073,7 +1073,7 @@ export const SERVICES: ServiceData[] = [
     title: "EXHAUST & MUFFLER",
     shortDesc: "Muffler, catalytic converter, exhaust pipe, manifold, and resonator repair. Quiet your ride and pass emissions.",
     metaTitle: "Muffler Shop Cleveland · Stop Announcing Yourself | Nick's",
-    metaDescription: "Cleveland muffler & exhaust shop where the rumble stops by lunch. Muffler, full exhaust, catalytic converter, weld jobs. Open Sunday. From $189. (216) 862-0005.",
+    metaDescription: "Cleveland muffler & exhaust shop. Muffler, full exhaust, catalytic converter, weld jobs. Written quote before work. Open Sunday. From $189. (216) 862-0005.",
     heroHeadline: "Exhaust never breaks Tuesday.\nWe're open Sunday.",
     heroSubline: "Searching for muffler shops near me in Cleveland? Nick's handles the entire exhaust system from manifold to tailpipe — muffler replacement, catalytic converters, exhaust pipes, and emissions repair. Same-day service starting at $149.",
     heroCTA: "FIX MY EXHAUST",

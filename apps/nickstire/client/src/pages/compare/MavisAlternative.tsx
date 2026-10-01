@@ -21,12 +21,12 @@ export default function MavisAlternative() {
       primary={COMPETITORS.mavis}
       slug="mavis-tire-alternative-cleveland"
       seoTitle="Mavis Tire Alternative Cleveland · You See The Cost First | Nick's"
-      seoDescription="Mavis advertised tire price low? Final invoice high? Nick's Tire & Auto on Euclid Ave: walk-in 7 days, written quote up front, used tires from $25 installed."
-      intro="Mavis Discount Tire wins the advertised tire-only price. They lose the rest of the receipt. Read 100 Mavis reviews on Google or Yelp and you'll see the same line ten times: 'final cost was way more than the quote.' That's because the labor + valve stems + TPMS service + disposal fees aren't in the advertised number. Nick's Tire & Auto on Euclid Ave puts all of that in the quote before the wrench moves. Walk in any day we're awake including Sunday. Used tires from $25 installed when a used tire fits. Free check. Written quote. You don't pay until you say yes."
+      seoDescription="Mavis advertised tire price low? Final invoice high? Nick's Tire & Auto on Euclid Ave: walk-in 7 days, written quote up front, used tires from $25 installed (select 12-inch; most $40-80)."
+      intro="Mavis Discount Tire wins the advertised tire-only price. They lose the rest of the receipt. Read 100 Mavis reviews on Google or Yelp and you'll see the same line ten times: 'final cost was way more than the quote.' That's because the labor + valve stems + TPMS service + disposal fees aren't in the advertised number. Nick's Tire & Auto on Euclid Ave puts all of that in the quote before the wrench moves. Walk in any day we're awake including Sunday. Used tires from $25 installed (select 12-inch; most $40-80) when a used tire fits. Free check. Written quote. You don't pay until you say yes."
       extraFaqs={[
         {
           question: "Why does Mavis Tire have so many surprise charges at checkout?",
-          answer: "Because the advertised tire-only price doesn't include mount, balance, valve stems, TPMS service, or disposal — and those line items add up. It's not technically dishonest. It's just confusing. Nick's quotes it all in writing before any wrench moves: $25 used tire installed includes mount, balance, valve stems, TPMS reset, and an alignment check. No \"oh by the way\" at checkout.",
+          answer: "Because the advertised tire-only price doesn't include mount, balance, valve stems, TPMS service, or disposal — and those line items add up. It's not technically dishonest. It's just confusing. Nick's quotes it all in writing before any wrench moves: $25 (select 12-inch; most $40-80) used tire installed includes mount, balance, valve stems, TPMS reset, and an alignment check. No \"oh by the way\" at checkout.",
         },
         {
           question: "Mavis acquired NTB — is the service quality the same now?",

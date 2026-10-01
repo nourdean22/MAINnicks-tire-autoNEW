@@ -293,7 +293,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
                 "0 1px 6px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.6)",
             }}
           >
-            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-nick-yellow font-semibold">$25</span> installed. Written estimate before any wrench moves. Explore <Link href="/financing" className="underline text-primary hover:text-primary-foreground">payment programs for repairs</Link>, get <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> today.
+            Cleveland's first-come-first-served <Link href="/tires" className="underline text-primary hover:text-primary-foreground">tire shop near Cleveland</Link> on Euclid Ave. Walk in 7 days. Used tires from <span className="text-nick-yellow font-semibold">$25 (select 12-inch; most $40-80)</span> installed. Written estimate before any wrench moves. Explore <Link href="/financing" className="underline text-primary hover:text-primary-foreground">payment programs for repairs</Link>, get <Link href="/brakes" className="underline text-primary hover:text-primary-foreground">brake repair in Euclid</Link>, or <Link href="/contact" className="underline text-primary hover:text-primary-foreground">contact Nick’s Tire & Auto</Link> today.
           </p>
 
           {/* Symptom Search Widget */}
@@ -414,7 +414,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               {rating.toFixed(1)} from {totalReviews.toLocaleString()}+ reviews
             </span>
             <span className="text-[#A0A0A0]">&bull; First-come-first-served</span>
-            <span className="text-[#A0A0A0]">&bull; Used tires from $25</span>
+            <span className="text-[#A0A0A0]">&bull; Used tires from $25 (select 12-inch; most $40-80)</span>
             <span className="text-[#A0A0A0]">&bull; Payment programs available</span>
             <span className="text-[#A0A0A0]">&bull; Open 7 days incl. Sunday</span>
           </div>
@@ -1067,8 +1067,8 @@ function SafetyFactsSection() {
                 "Average compounded cost when a $89 fix gets postponed for 90+ days. Sensors fail, parts seize, labor multiplies.",
             },
             {
-              value: "30",
-              unit: "days",
+              value: "No renewal",
+              unit: "without a pass, waiver or extension",
               consequence:
                 OHIO_ECHECK.registrationRule,
             },

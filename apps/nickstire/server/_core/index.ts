@@ -717,8 +717,8 @@ async function startServer() {
 - Service area: Cleveland, Euclid, East Cleveland, South Euclid, Cleveland Heights, Shaker Heights, Garfield Heights, Lakewood, Parma, Mentor, Strongsville, Lyndhurst, Richmond Heights, Willoughby
 
 ## Services
-- [Brake repair](${b}/brakes): Pads from $149/axle, pads + rotors from $279/axle. Free check, written quote, same-day.
-- [Tires - new & used](${b}/tires): Used from $25 installed (most sizes $40-80), new from $89 installed. Free install package (mount, balance, valve stems, TPMS reset, alignment check).
+- [Brake repair](${b}/brakes): Pads from $149/axle. Rotors and other parts after a free check, with a written quote first.
+- [Tires - new & used](${b}/tires): Used from $25 installed (select 12-inch; most sizes $40-80), new from $89 installed. Free install package (mount, balance, valve stems, TPMS reset, alignment check).
 - [Oil change](${b}/oil-change): Conventional from $49, full synthetic from $80. Free multi-point check included.
 - [Engine diagnostics / check-engine light](${b}/diagnostics): Free code scan, honest diagnosis, written estimate first.
 - [Ohio E-Check / emissions](${b}/emissions): Failed-emissions repair, O2 sensors, EVAP, catalytic converters. Free readiness check before the state test.
@@ -729,7 +729,7 @@ async function startServer() {
 ## Common questions
 - Why is my car shaking or vibrating when I brake? Usually a warped brake rotor: the surface is no longer flat, so the pad grabs unevenly and you feel it in the wheel or pedal. Common on Cleveland cars from stop-and-go traffic and winter heat cycles. The fix is resurfacing or replacing the rotor, most often as a pads + rotors job. Free check at 17625 Euclid Ave, written quote before any work.
 - Is it safe to drive with grinding brakes? No. Grinding means the pads are worn out and bare metal is cutting into the rotor, so every stop does more damage and your stopping distance gets longer. Get it checked the same day. Open 7 days, walk in or call (216) 862-0005.
-- How much does a brake job cost in Cleveland? At Nick's Tire & Auto: pad replacement from $149 per axle, pads + rotors from $279 per axle, full brake job from $499 per axle. Free check and a written quote before any work, and you don't pay until you say yes.
+- How much does a brake job cost in Cleveland? At Nick's Tire & Auto: pad replacement from $149 per axle. Rotors and other parts depend on what the free check finds; you get a written quote before any work, and you don't pay until you say yes.
 - Where can I get brakes done near me in Cleveland (44112)? Nick's Tire & Auto, 17625 Euclid Ave, Cleveland, OH 44112 (east side), serving Euclid, East Cleveland, Cleveland Heights, South Euclid, and Lyndhurst. First-come-first-served, walk in 7 days a week, no appointment needed.
 
 ## Guides

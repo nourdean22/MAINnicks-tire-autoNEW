@@ -333,7 +333,7 @@ export default function ChatWidget() {
               {showLeadCapture && !leadSubmitted && (
                 <div className="bg-foreground/[0.03] border border-primary/15 rounded-xl p-3.5 space-y-2.5">
                   <p className="text-[11px] text-emerald-400/70 text-center mb-2">
-                    We offer lease-to-own and other payment programs; the provider decides approval. Ask us about it.
+                    We accept lease-to-own and other payment programs; the provider decides approval. Ask us about it.
                   </p>
                   <p className="text-foreground/70 text-[12px]">
                     Want us to call you with a free assessment?

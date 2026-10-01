@@ -44,7 +44,7 @@ function getSeasonalContext(season: Season): string {
     case "summer":
       return "Seasonal note: It's summer in Cleveland. Proactively mention AC issues, cooling system checks, road trip prep packages, and tire pressure monitoring (heat affects tire pressure) when relevant.";
     case "fall":
-      return "Seasonal note: It's fall in Cleveland. Proactively mention tire rotation, winterization prep, Ohio E-Check deadlines, and brake inspection before winter when relevant.";
+      return "Seasonal note: It's fall in Cleveland. Proactively mention tire rotation, winterization prep, the free E-Check readiness check (the state runs the test itself; Nick's is not a test station), and brake inspection before winter when relevant.";
   }
 }
 

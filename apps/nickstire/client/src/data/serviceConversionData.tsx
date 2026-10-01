@@ -194,15 +194,9 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
         </a>
       </div>
     ),
-    anchorTable: {
-      serviceName: "Ohio E-Check repair — Cleveland market quotes",
-      rows: [
-        { label: "Cleveland-area dealer (typical fail-fix)", price: "$650" },
-        { label: "Independent chain", price: "$420" },
-        { label: "Nick's (free readiness check + repair)", price: "Free estimate", ours: true },
-      ],
-      source: "Final price varies with the failure mode (O2 sensor / EVAP / catalytic). The state runs the official E-Check; we run a free readiness check, then fix the failure before you go back for the state test.",
-    },
+    // 2026-10-01 · the dealer ($650) and chain ($420) "market quotes" had no
+    // source, so the comparison table is gone rather than kept with invented
+    // competitor prices.
     // 2026-10-01 · the three stats here were a "30 days from the fail notice"
     // rule that does not exist (cited to the BMV), an unsourced $150 ticket and
     // an unsourced $400-$800 impound figure, plus a $10/day "insurance risk"

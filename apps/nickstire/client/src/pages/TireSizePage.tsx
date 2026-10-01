@@ -56,7 +56,7 @@ export default function TireSizePage() {
   const FAQS = [
     {
       q: `How much do ${page.size} tires cost?`,
-      a: `Prices vary by brand and type. Used ${page.size} tires start around $25-60 each. New tires range from $89-200+ per tire depending on the brand. All prices include our free install package ($266 value).`,
+      a: `Prices vary by brand and type. Used ${page.size} tires usually run $40-80 installed. New tires range from $89-200+ per tire depending on the brand. All prices include our free install package.`,
     },
     // 2026-09-17: this answer used to open "Yes — {size} is one of our most
     // popular sizes. We typically have multiple options in stock, both new and
@@ -189,7 +189,7 @@ export default function TireSizePage() {
                   only price info was buried in the FAQ ~4 sections below the
                   fold; competitors who show pricing in the hero get the click. */}
               <span className="inline-flex items-center px-3 py-1.5 bg-emerald-500/10 text-emerald-400 text-sm font-semibold rounded-sm">
-                Used $25+ · New $89+ · Free install
+                Used most sizes $40-80 · New $89+ · Free install
               </span>
               {page.commonVehicles.map(v => (
                 <span key={v} className="inline-flex items-center px-3 py-1.5 bg-foreground/5 text-foreground/70 text-sm rounded-sm">
@@ -248,7 +248,7 @@ export default function TireSizePage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground mb-1">New & Used Options</h3>
-                  <p className="text-sm text-foreground/60">Budget-friendly used tires from $25. Major brands available. Every tire inspected.</p>
+                  <p className="text-sm text-foreground/60">Budget-friendly used tires from $25 (select 12-inch; most $40-80). Major brands available. Every tire inspected.</p>
                 </div>
               </div>
             </div>
