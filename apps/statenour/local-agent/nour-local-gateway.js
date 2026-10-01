@@ -425,6 +425,18 @@ function scrubbedInteractiveEnv() {
   return env;
 }
 
+// The worker reports a refusal as { status: "failed", errorCode, errorMessage }.
+// Carrying errorCode onto the Error is what lets serveUnifiedChat answer a busy
+// research slot (RESEARCH_BUSY) with 429 instead of a generic 503.
+function workerFailure(parsed, stderrText) {
+  const workerOutput = String(parsed && parsed.result && parsed.result.output || "").trim();
+  const detail = workerOutput ? `; workerOutput=${workerOutput.slice(0, 2000)}` : "";
+  const message = String(parsed.errorMessage || parsed.errorCode || stderrText || "interactive adapter failed") + detail;
+  const failure = new Error(message);
+  if (parsed.errorCode) failure.code = String(parsed.errorCode);
+  return failure;
+}
+
 function runWorkerAdapter(request, mode = "--local-chat", expectedStatus = "completed", timeoutMs = 480000) {
   return new Promise((resolve, reject) => {
     if (!fs.existsSync(PYTHON_EXE)) return reject(new Error("Python runtime missing"));
@@ -472,14 +484,7 @@ function runWorkerAdapter(request, mode = "--local-chat", expectedStatus = "comp
       const err = Buffer.concat(stderr).toString("utf8").trim();
       try {
         const parsed = JSON.parse(out);
-        if (parsed.status !== expectedStatus) {
-          const workerOutput = String(parsed && parsed.result && parsed.result.output || "").trim();
-          const detail = workerOutput ? `; workerOutput=${workerOutput.slice(0, 2000)}` : "";
-          const message = String(parsed.errorMessage || parsed.errorCode || err || "interactive adapter failed") + detail;
-          const failure = new Error(message);
-          if (parsed.errorCode) failure.code = String(parsed.errorCode);
-          return reject(failure);
-        }
+        if (parsed.status !== expectedStatus) return reject(workerFailure(parsed, err));
         resolve(parsed);
       } catch (parseErr) {
         reject(new Error(err || out || String(parseErr && parseErr.message ? parseErr.message : parseErr)));
@@ -824,4 +829,5 @@ module.exports = {
   originAllowed,
   isJsonContentType,
   scrubbedInteractiveEnv,
+  workerFailure,
 };
