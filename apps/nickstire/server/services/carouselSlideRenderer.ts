@@ -21,6 +21,7 @@
 import { createLogger } from "../lib/logger";
 import { fitFontSize } from "./instagramStudio";
 import type { CarouselBrief, CarouselSlide, CreativeTerritory } from "../../client/src/lib/igCarouselStudio";
+import { territoryGrammar } from "../../shared/visualLanguage";
 
 const log = createLogger("services:carousel-slide-renderer");
 
@@ -52,6 +53,13 @@ interface TerritoryDesign {
  * Per-territory design systems. Same philosophy as the reel/carousel prompt
  * compilers: premium gold-on-black is ONE style, not the default identity of
  * every deck.
+ *
+ * Each territory is also an alias of ONE Creative Visual Language grammar
+ * (`territoryGrammar` in shared/visualLanguage.ts, README §J). For now that is
+ * a mapping stamped into the produced asset's provenance — the CSS here is
+ * unchanged and the slide HTML is byte-identical to the pre-mapping output
+ * (pinned in visualLanguageParity.test.ts). Drawing these colours from the
+ * grammar's palette tokens is the documented next step, not this one.
  */
 export const CAROUSEL_TERRITORY_DESIGNS: Record<CreativeTerritory, TerritoryDesign> = {
   cleveland_survival_guide: {
@@ -209,7 +217,15 @@ export async function renderCarouselSlides(brief: RenderableCarouselBrief): Prom
         campaignId: deckId,
         provider: "deterministic-renderer",
         runtimeUrl: upload.url,
-        generationParams: { territory: brief.creativeTerritory, slideNumber: i + 1, ofSlides: slides.length },
+        generationParams: {
+          territory: brief.creativeTerritory,
+          // Composition grammar provenance (README §T: enrichment lives in
+          // media_assets.generation_params_json). Same fallback as the design
+          // lookup above: an unknown territory renders — and records — premium.
+          grammar: territoryGrammar[brief.creativeTerritory] ?? territoryGrammar.premium_product_ad,
+          slideNumber: i + 1,
+          ofSlides: slides.length,
+        },
       });
     }
     urls.push(upload.url);

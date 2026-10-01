@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-10-01 payload and integrations-menu checkpoint. Intercepted real OpenWebUI /api/chat/completions payload proves model_item.info.meta.toolIds contains [direct_server:nour-cockpit] while request.tool_servers is []. Switching away from NOUR Cockpit and back does not change this: tool_servers remains []. Backend middleware expects fully materialized direct-tool-server objects in metadata.tool_servers, not synthetic IDs. Opening the real chat Integrations menu shows a top-level Tools 1 entry plus Web Search and Code Interpreter; the NOUR Cockpit direct server is not visible at the top level. Next step is to inspect/click Tools 1 and capture the exact canonical direct-server selection object OpenWebUI emits."
+    }
+  }
+}

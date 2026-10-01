@@ -116,4 +116,14 @@ paths = [
   # The cost, stated plainly: a real secret committed to THIS ONE component
   # test file would not be caught. Every other file is scanned as before.
   '''apps/statenour/tests/components/related-wisdom-links\.test\.tsx''',
+  # Render-fingerprint fixtures, added 2026-10-01 with PR #2865. The file pins
+  # the static-family and carousel-territory renderers by sha256 of their HTML
+  # (19 hashes) so the visual-language mapping can be proven byte-identical.
+  # One key is the territory id `blueprint_xray`, and `xray` is a JFrog keyword:
+  # the jfrog-identity-token rule matched that ONE 64-hex fingerprint and no
+  # other. Path-allowlisted, not by value, because the hashes change whenever a
+  # render legitimately changes and an exact-value entry would fire again on
+  # the next repin. Same cost as the entries above: a real secret in this one
+  # fixture file would not be caught; every other file is scanned as before.
+  '''apps/nickstire/server/visualLanguageParity\.test\.ts''',
 ]

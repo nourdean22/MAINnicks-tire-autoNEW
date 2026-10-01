@@ -49,6 +49,19 @@ export interface TopicSignals {
   reviewThemes?: string[];
   /** What customers actually ask, from calls/DMs/forms. */
   customerQuestions?: string[];
+  /**
+   * Mention counts per customer phrase (conversations, not repeats), from
+   * server/services/customerLanguageMiner. Keys are the same strings as
+   * customerQuestions. Counts RANK here and never travel into a brief — the
+   * same rule declinedWork follows.
+   */
+  customerQuestionCounts?: Record<string, number>;
+  /**
+   * Search queries gaining impressions week over week (search_performance via
+   * getRisingQueries). Boosts any candidate whose subject overlaps the query;
+   * never a candidate source on its own — a query is demand, not a topic.
+   */
+  gscRising?: GscRisingSignal[];
   /** Current local condition worth talking about (e.g. "first hard freeze"). */
   seasonalConditions?: string[];
   /** Service categories with little or no recent content. */
@@ -86,6 +99,16 @@ export interface TopicSignals {
   governmentFeedTopics?: string[];
 }
 
+export interface GscRisingSignal {
+  query: string;
+  /** Impressions in the current window. */
+  impressions: number;
+  /** Current minus previous window. Only a positive delta counts as rising. */
+  deltaImpressions: number;
+  /** Impression-weighted average position in the current window. */
+  position: number;
+}
+
 export interface TopicCandidate {
   topic: string;
   source: TopicSource;
@@ -118,6 +141,102 @@ const SOURCE_WEIGHT: Record<TopicSource, number> = {
 };
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+
+/**
+ * DEMAND BOOST — weights are HYPOTHESES (README §M: "start as weighted
+ * log-sum; fit weights to historical content_runs × metrics after 30 days").
+ *
+ *   customer mentions  → min(5, ceil(log2(1 + count)))      1→1 · 3→2 · 7→3 · 15→4 · 31→5
+ *   rising GSC query   → min(4, 1 + floor(log10(1 + impr)))  10→2 · 100→3 · 1000→4, delta > 0 only
+ *   total              → capped at 7
+ *
+ * The cap is the one deliberate constraint: customer_question (26) + 7 = 33
+ * stays BELOW declined_work (34), so no amount of demand lifts a proxy source
+ * over a counter refusal. Both boosts are logarithmic so the seventh mention is
+ * worth less than the first, and both apply to ANY source — a declined-work
+ * topic customers also keep asking about climbs too.
+ */
+const CUSTOMER_BOOST_CAP = 5;
+const GSC_BOOST_CAP = 4;
+const DEMAND_BOOST_CAP = 7;
+const SUBJECT_OVERLAP_MIN = 0.5;
+
+const STOPWORDS = new Set([
+  "the", "a", "an", "and", "or", "but", "if", "when", "while", "as", "is", "are", "was", "were", "be", "been",
+  "it", "its", "my", "me", "i", "im", "you", "your", "we", "our", "to", "of", "in", "on", "at", "for", "with",
+  "from", "by", "this", "that", "these", "those", "do", "does", "did", "have", "has", "had", "not", "no",
+  "just", "so", "than", "then", "there", "what", "why", "how", "can", "could", "would", "should", "will",
+  "car", "truck", "suv", "van", "vehicle", "like", "get", "gets", "got", "keep", "keeps", "still", "very",
+  "cleveland", "ohio", "near", "shop", "repair", "auto",
+]);
+
+/** Light stemmer: enough to make "shakes", "shaking" and "shake" one token. */
+function stem(w: string): string {
+  if (w.length <= 4) return w;
+  let s = w;
+  // plural first: batteries → battery · tires → tire · brakes → brake
+  if (/ies$/.test(s)) s = s.slice(0, -3) + "y";
+  else if (/[^s]s$/.test(s)) s = s.slice(0, -1);
+  // then the verb endings: shaking → shak · started → start
+  if (s.length > 5) s = s.replace(/(ing|ed)$/, "");
+  // then the silent e, so shake / shakes / shaking all land on shak
+  if (s.length > 4) s = s.replace(/e$/, "");
+  return s;
+}
+
+/**
+ * Content tokens of a phrase: lowercased, stopwords and short words dropped,
+ * light-stemmed. Shared with customerLanguageMiner so "near-duplicate" means
+ * the same thing on both sides of the boundary.
+ */
+export function demandTokens(s: string): Set<string> {
+  const out = new Set<string>();
+  for (const raw of norm(s).replace(/[^a-z0-9'\s]/g, " ").split(/\s+/)) {
+    const w = raw.replace(/'/g, "");
+    if (w.length < 3 || STOPWORDS.has(w)) continue;
+    out.add(stem(w));
+  }
+  return out;
+}
+
+/** Overlap of the smaller token set — 1.0 when one phrase is contained in the other. */
+function subjectOverlap(a: string, b: string): number {
+  const A = demandTokens(a);
+  const B = demandTokens(b);
+  if (!A.size || !B.size) return 0;
+  let shared = 0;
+  for (const w of A) if (B.has(w)) shared++;
+  return shared / Math.min(A.size, B.size);
+}
+
+function demandBoost(topic: string, signals: TopicSignals): { boost: number; reasons: string[] } {
+  const reasons: string[] = [];
+  let customer = 0;
+  let mentions = 0;
+  for (const [phrase, count] of Object.entries(signals.customerQuestionCounts ?? {})) {
+    if (count > 0 && subjectOverlap(topic, phrase) >= SUBJECT_OVERLAP_MIN) mentions += count;
+  }
+  if (mentions > 0) {
+    customer = Math.min(CUSTOMER_BOOST_CAP, Math.ceil(Math.log2(1 + mentions)));
+    reasons.push(`customer mentions ×${mentions} (+${customer})`);
+  }
+
+  let gsc = 0;
+  let best: GscRisingSignal | null = null;
+  for (const q of signals.gscRising ?? []) {
+    if (q.deltaImpressions <= 0 || q.impressions <= 0) continue;
+    if (subjectOverlap(topic, q.query) < SUBJECT_OVERLAP_MIN) continue;
+    if (!best || q.impressions > best.impressions) best = q;
+  }
+  if (best) {
+    gsc = Math.min(GSC_BOOST_CAP, 1 + Math.floor(Math.log10(1 + best.impressions)));
+    reasons.push(`rising search "${best.query}" ${best.impressions} impr, +${best.deltaImpressions} wk/wk, pos ${best.position} (+${gsc})`);
+  }
+
+  const boost = Math.min(DEMAND_BOOST_CAP, customer + gsc);
+  if (boost > 0 && customer + gsc > DEMAND_BOOST_CAP) reasons.push(`demand boost capped at +${DEMAND_BOOST_CAP}`);
+  return { boost, reasons };
+}
 
 /**
  * The SUBJECT of a topic — the part before the editorial framing.
@@ -270,6 +389,13 @@ export function mineTopicCandidates(signals: TopicSignals): TopicCandidate[] {
     if (penalty > 0) {
       score -= penalty;
       reasons.push(`rotation penalty -${penalty} (used ${recentFranchises.indexOf(franchiseId) + 1} episodes ago)`);
+    }
+
+    // Demand from first-party signals — counts rank here and stay out of the brief.
+    const demand = demandBoost(topic, signals);
+    if (demand.boost > 0) {
+      score += demand.boost;
+      reasons.push(...demand.reasons);
     }
 
     // A franchise needing government evidence cannot be rendered autonomously:

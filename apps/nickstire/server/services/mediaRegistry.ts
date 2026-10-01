@@ -71,6 +71,9 @@ export interface RegisterAssetInput {
   gdriveSyncState?: "not_required" | "pending";
   generationParams?: Record<string, unknown>;
   rightsStatus?: string;
+  /** Pixel dimensions when the producer can read them cheaply (sharp metadata on uploads). */
+  width?: number | null;
+  height?: number | null;
 }
 
 /**
@@ -121,6 +124,8 @@ export async function registerAsset(database: DB, input: RegisterAssetInput): Pr
       gdriveSyncState: input.gdriveSyncState ?? "pending",
       mimeType: input.mimeType,
       byteSize: Math.round(input.byteSize),
+      width: input.width ?? null,
+      height: input.height ?? null,
       checksumSha256: input.checksumSha256,
       generationParamsJson: input.generationParams ? JSON.stringify(input.generationParams) : null,
       rightsStatus: input.rightsStatus ?? "ai_generated",

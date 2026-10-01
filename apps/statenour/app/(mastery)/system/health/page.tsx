@@ -25,7 +25,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import {
   RefreshCw,
   CheckCircle2,
@@ -39,7 +39,6 @@ import {
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { TrendCounter } from "@/components/ui/trend-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
-import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { SchemaDriftCard } from "@/components/system/schema-drift-card";
 import { trpc } from "@/lib/trpc/client";
 import type { HealthReport } from "@/lib/services/system-health";
@@ -62,16 +61,27 @@ export default function SystemHealthPage() {
 
   if (isLoading && !data) {
     return (
-      <main className="max-w-4xl mx-auto px-3 py-4">
-        <ShimmerSkeleton className="h-10 rounded" />
-      </main>
+      <StandardPage
+        eyebrow="System"
+        title="OS Health"
+        description="Provider, database, cron + integration health at a glance."
+        width="lg"
+        className="px-3 py-4"
+        loading
+      />
     );
   }
   if (!data) {
     return (
-      <main className="max-w-4xl mx-auto px-3 py-4">
-        <p className="text-[var(--text-tertiary)]">health-report unavailable</p>
-      </main>
+      <StandardPage
+        eyebrow="System"
+        title="OS Health"
+        description="Provider, database, cron + integration health at a glance."
+        width="lg"
+        className="px-3 py-4"
+      >
+        <p className="text-[var(--text-tertiary)]">Health report unavailable — state unknown, not healthy.</p>
+      </StandardPage>
     );
   }
 
@@ -99,15 +109,14 @@ export default function SystemHealthPage() {
     (data.backlog.unackedDriftAlerts ?? 0);
 
   return (
-    <main className="max-w-4xl mx-auto px-3 py-4 space-y-4">
-      {/* Header */}
-      <PageHeader
-        parentHref="/system"
-        parentLabel="system"
-        eyebrow="System"
-        title="os health"
-        description="Provider, database, cron + integration health at a glance."
-        actions={
+    <StandardPage
+      eyebrow="System"
+      title="OS Health"
+      description="Provider, database, cron + integration health at a glance."
+      width="lg"
+      rhythm="comfortable"
+      className="px-3 py-4"
+      actions={
           <div className="flex items-center gap-2">
             <FreshnessChip
               lastFetchedAt={data.generatedAt}
@@ -140,7 +149,7 @@ export default function SystemHealthPage() {
             </button>
           </div>
         }
-      />
+    >
 
       {/* 2026-05-29 · "What's broken now" — operational rollup (AI eval
           pass-rate + nickstire bridge / data-source probes). The two
@@ -449,7 +458,7 @@ export default function SystemHealthPage() {
           </dl>
         </section>
       )}
-    </main>
+    </StandardPage>
   );
 }
 

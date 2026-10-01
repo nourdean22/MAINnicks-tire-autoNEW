@@ -22,6 +22,7 @@
 import { useEffect, useRef } from "react";
 import { useRealtimeVoice } from "@/hooks/use-realtime-voice";
 import { Mic, MicOff, X, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 interface Props {
   open: boolean;
@@ -43,30 +44,37 @@ interface Props {
 }
 
 export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorContext }: Props) {
-  const voice = useRealtimeVoice({ brainContext, operatorContext });
+  const {
+    start,
+    stop,
+    isConnected,
+    isUserSpeaking,
+    isAgentSpeaking,
+    transcript,
+    error,
+    audioElRef,
+  } = useRealtimeVoice({ brainContext, operatorContext });
   const startedRef = useRef(false);
 
   // Auto-start when overlay opens · stop when closes
   useEffect(() => {
     if (open && !startedRef.current) {
       startedRef.current = true;
-      voice.start();
+      start();
     }
     if (!open && startedRef.current) {
       startedRef.current = false;
-      voice.stop();
+      stop();
     }
-  }, [open, voice]);
+  }, [open, start, stop]);
 
-  if (!open) return null;
-
-  const status: "connecting" | "ready" | "you-speak" | "nick-speak" | "error" = voice.error
+  const status: "connecting" | "ready" | "you-speak" | "nick-speak" | "error" = error
     ? "error"
-    : !voice.isConnected
+    : !isConnected
       ? "connecting"
-      : voice.isUserSpeaking
+      : isUserSpeaking
         ? "you-speak"
-        : voice.isAgentSpeaking
+        : isAgentSpeaking
           ? "nick-speak"
           : "ready";
 
@@ -87,15 +95,21 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
   }[status];
 
   return (
-    <div
-      className="fixed inset-0 z-[200] bg-[var(--bg-void)]/95 backdrop-blur-xl flex flex-col"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="voice-mode-title"
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose();
+      }}
     >
+      <DialogContent
+        unstyled
+        showCloseButton={false}
+        overlayClassName="z-[200] bg-[var(--bg-void)]/95 backdrop-blur-xl"
+        className="fixed inset-0 z-[201] flex flex-col bg-[var(--bg-void)]/95 outline-none"
+      >
       {/* Hidden audio element — Nick's voice plays through this */}
       <audio
-        ref={voice.audioElRef}
+        ref={audioElRef}
         autoPlay
         playsInline
         className="hidden"
@@ -111,9 +125,9 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
       <header className="flex items-center justify-between p-4 border-b border-[var(--border-default)]">
         <div>
           <p className="text-eyebrow">Voice mode</p>
-          <h1 id="voice-mode-title" className="page-title text-lg">
+          <DialogTitle className="page-title text-lg">
             Talk to Nick
-          </h1>
+          </DialogTitle>
         </div>
         <button
           onClick={onClose}
@@ -171,21 +185,21 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
           {statusLabel}
         </p>
 
-        {voice.error && (
+        {error && (
           <p className="page-copy text-rose-300/80 mt-4 text-center text-sm" style={{ maxWidth: "40ch" }}>
-            {voice.error}
+            {error}
           </p>
         )}
 
         {/* Live transcript · low-key, editorial */}
-        {voice.transcript && (
+        {transcript && (
           <div
             className="mt-12 px-6 py-4 rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]/60 max-h-40 overflow-y-auto"
             style={{ maxWidth: "60ch" }}
           >
             <p className="text-eyebrow mb-2">Transcript</p>
             <p className="text-[var(--text-secondary)] text-sm leading-relaxed whitespace-pre-line">
-              {voice.transcript}
+              {transcript}
             </p>
           </div>
         )}
@@ -194,8 +208,9 @@ export function RealtimeVoiceOverlay({ open, onClose, brainContext, operatorCont
       {/* Footer · model + sub-500ms label */}
       <footer className="px-4 py-3 border-t border-[var(--border-default)] flex items-center justify-between text-[10px] font-mono text-[var(--text-tertiary)] uppercase tracking-wider">
         <span>OpenAI Realtime · gpt-realtime · sub-500ms target</span>
-        <span>{voice.isConnected ? "● live" : "○ idle"}</span>
+        <span>{isConnected ? "● live" : "○ idle"}</span>
       </footer>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

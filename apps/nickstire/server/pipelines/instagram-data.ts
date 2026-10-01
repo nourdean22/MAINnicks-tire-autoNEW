@@ -12,8 +12,8 @@
  */
 
 import { invokeLLM } from "../_core/llm";
-import { instagramAnalytics, igMetricSnapshots } from "../../drizzle/schema";
-import { desc, eq, gte, sql } from "drizzle-orm";
+import { instagramAnalytics, igMetricSnapshots, igAutopostLog } from "../../drizzle/schema";
+import { and, desc, eq, gte, isNotNull, sql } from "drizzle-orm";
 import { getInstagramPosts, getInstagramAccount } from "../instagram";
 
 import { db } from "../lib/db-helper";
@@ -123,6 +123,9 @@ export async function syncInstagramPosts(): Promise<{
   /** Append-only history rows written this sync — 0 with errors>0 means the snapshot lane is failing, not idle. */
   snapshotsWritten: number;
   snapshotErrors: number;
+  /** Facebook cross-post insights (Wave C): rows written as `fb:<postId>` into ig_metric_snapshots. */
+  fbSnapshotsWritten: number;
+  fbErrors: number;
 }> {
   const d = await db();
   if (!d) throw new Error("Database not available");
@@ -146,7 +149,7 @@ export async function syncInstagramPosts(): Promise<{
     );
   }
   if (source !== "graph") {
-    return { processed: 0, newPosts: 0, errors: 0, source, snapshotsWritten: 0, snapshotErrors: 0 };
+    return { processed: 0, newPosts: 0, errors: 0, source, snapshotsWritten: 0, snapshotErrors: 0, fbSnapshotsWritten: 0, fbErrors: 0 };
   }
 
   const { writeInstagramCache } = await import("../instagram");
@@ -305,7 +308,92 @@ export async function syncInstagramPosts(): Promise<{
     log.error(`[Instagram Pipeline] snapshot lane wrote NOTHING across ${posts.length} posts (${snapshotErrors} errors) — history is not accruing`);
   }
 
-  return { processed: posts.length, newPosts, errors, source, snapshotsWritten, snapshotErrors };
+  // Facebook cross-posts: the SAME token, a different Graph node. Runs after the
+  // IG loop so an FB failure can never cost an IG row; its own counters keep it
+  // from hiding inside the IG ones.
+  const fb = await syncFacebookPostInsights(d);
+
+  return { processed: posts.length, newPosts, errors, source, snapshotsWritten, snapshotErrors, fbSnapshotsWritten: fb.written, fbErrors: fb.errors };
+}
+
+/** Prefix that keeps Facebook ids apart from IG media ids in the shared snapshot table. */
+export const FB_SNAPSHOT_PREFIX = "fb:";
+
+/**
+ * Facebook post insights → ig_metric_snapshots (Wave C "Facebook branch").
+ *
+ * WHY THIS TABLE, STATED PLAINLY: there is no Facebook metrics table and no
+ * schema change in this wave. `ig_metric_snapshots.postId` is varchar(100)
+ * and carries no platform column, so FB rows are written with the `fb:`
+ * prefix — the IG readers (instagramAdminStrategy, reelStructurePrior,
+ * contentExperimentStore) all select by `inArray(postId, <IG ids>)`, so a
+ * prefixed id never joins into an IG read. Column mapping, native units:
+ *   likes    ← post_reactions_by_type_total (sum)   comments ← NOT available
+ *   reach    ← post_impressions_unique              views    ← post_video_views
+ *   saved    ← NULL (Facebook has no save metric)   shares   ← NULL (not on the ladder)
+ * `comments`/`likes` are NOT NULL in the table; a row is written only when the
+ * reactions sum is reported (comments stays 0 and is documented here as
+ * UNOBSERVED for FB rows — the Graph post object, not /insights, carries it
+ * and that read is deliberately out of this slice).
+ *
+ * Source rows: ig_autopost_log entries with a live fbPostId (`status='posted'`)
+ * from the last INSIGHTS_REFRESH_DAYS, same window as the IG refresh.
+ */
+export async function syncFacebookPostInsights(d: Awaited<ReturnType<typeof db>>): Promise<{ written: number; errors: number; candidates: number }> {
+  if (!d) return { written: 0, errors: 0, candidates: 0 };
+  const FB_REFRESH_DAYS = 14;
+  let written = 0;
+  let errors = 0;
+  let rows: Array<{ fbPostId: string | null; createdAt: Date | string | null }> = [];
+  try {
+    const since = new Date(Date.now() - FB_REFRESH_DAYS * 86_400_000);
+    rows = await d
+      .select({ fbPostId: igAutopostLog.fbPostId, createdAt: igAutopostLog.createdAt })
+      .from(igAutopostLog)
+      .where(and(isNotNull(igAutopostLog.fbPostId), eq(igAutopostLog.status, "posted"), gte(igAutopostLog.createdAt, since)))
+      .orderBy(desc(igAutopostLog.createdAt))
+      .limit(50);
+  } catch (err) {
+    log.warn("[Instagram Pipeline] FB candidate read failed — FB insights skipped this run", { err: err instanceof Error ? err.message : String(err) });
+    return { written: 0, errors: 1, candidates: 0 };
+  }
+  const ids = Array.from(new Set(rows.map((r) => r.fbPostId).filter((x): x is string => !!x)));
+  if (ids.length === 0) return { written: 0, errors: 0, candidates: 0 };
+
+  const { fetchFacebookPostInsights } = await import("../services/metaSocial");
+  for (const fbPostId of ids) {
+    try {
+      const ins = await fetchFacebookPostInsights(fbPostId);
+      if (!ins.ok) { errors++; continue; }
+      if (ins.reactions === undefined) {
+        // likes is NOT NULL — without a reactions count the row would store a
+        // fabricated 0. Count it, do not write it.
+        errors++;
+        log.warn("[Instagram Pipeline] FB insights without reactions — snapshot skipped", { fbPostId, rung: ins.rung });
+        continue;
+      }
+      await d.insert(igMetricSnapshots).values({
+        postId: `${FB_SNAPSHOT_PREFIX}${fbPostId}`.slice(0, 100),
+        likes: ins.reactions,
+        comments: 0,
+        reach: ins.reach ?? null,
+        saved: null,
+        views: ins.videoViews ?? null,
+        shares: null,
+        avgWatchTimeMs: null,
+        skipRate: null,
+        followerSnapshot: null,
+      });
+      written++;
+    } catch (err) {
+      errors++;
+      if (errors === 1) log.warn("[Instagram Pipeline] FB snapshot write failed (continuing):", err);
+    }
+  }
+  if (ids.length > 0 && written === 0) {
+    log.error(`[Instagram Pipeline] FB snapshot lane wrote NOTHING across ${ids.length} cross-posts (${errors} errors)`);
+  }
+  return { written, errors, candidates: ids.length };
 }
 
 // ─── AI CONTENT SCORING ─────────────────────────────────

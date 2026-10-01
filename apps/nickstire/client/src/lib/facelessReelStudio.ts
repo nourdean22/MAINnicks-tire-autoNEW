@@ -26,6 +26,7 @@ import {
   type DuaFinding,
 } from "@shared/dua";
 import { askLeakageProblem } from "@shared/reelAsk";
+import { BUSINESS } from "@shared/business";
 
 // ─── Modes & statuses ─────────────────────────────────────────────
 
@@ -57,10 +58,9 @@ export const DISABLED_REASON =
   "Studio actions are turned off — no external generation or posting occurs.";
 
 // ─── Brand constants (operator-facing source of truth for the Studio) ──
-// NOTE: shared/business.ts holds site-wide business facts; it is being edited
-// by an open PR (#49), so the Studio carries its own copy for now. Same
-// deliberate duplication as the Carousel Studio; consolidation is a listed
-// follow-up in docs/faceless-reel-intelligence-studio.md.
+// Review rating/count read from the BUSINESS SSOT (2026-10-01): the copy this
+// file carried had drifted from the live floor; the drift canary in
+// server/brandTruth.test.ts now fails on any literal review count here.
 
 export const STUDIO_BRAND = {
   name: "Nick's Tire & Auto",
@@ -68,8 +68,8 @@ export const STUDIO_BRAND = {
   website: "nickstire.org",
   address: "17625 Euclid Ave, Cleveland, OH 44112",
   phone: "(216) 862-0005",
-  reputation: "4.9-star local reputation",
-  reviews: "1,685+ Google reviews",
+  reputation: `${BUSINESS.reviews.rating}-star local reputation`,
+  reviews: `${BUSINESS.reviews.countDisplay} Google reviews`,
   certification: "ASE-certified service capability",
   typography: {
     display: "Anton",
@@ -677,7 +677,7 @@ export const FEARMONGER_PATTERNS: PatternRule[] = [
 
 export const GENERIC_MARKETING_PATTERNS: PatternRule[] = [
   { rule: "no-generic-cliche", pattern: /\bhassle.?free\b|\btop.?notch\b|\bstate.of.the.art\b|\bone.stop\s+shop\b/i, fix: "Concrete beats cliché — name the actual thing." },
-  { rule: "no-trust-label", pattern: /\btrusted\b|\bexperts?\b(?!\s+say)/i, fix: "Show, don't claim: 4.9-star and 1,685+ reviews do the work." },
+  { rule: "no-trust-label", pattern: /\btrusted\b|\bexperts?\b(?!\s+say)/i, fix: `Show, don't claim: ${BUSINESS.reviews.rating}-star and ${BUSINESS.reviews.countDisplay} reviews do the work.` },
 ];
 
 /** Price-shaped text blocks in reel copy: reels carry NO price claims at all. */

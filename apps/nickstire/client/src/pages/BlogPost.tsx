@@ -16,6 +16,7 @@ import PageLayout from "@/components/PageLayout";
 import { useRef, useEffect, useMemo, useState } from "react";
 import { useRoute, Link, useLocation } from "wouter";
 import { getArticleBySlug, BLOG_ARTICLES, type BlogArticle } from "@shared/blog";
+import { rankRelatedArticles, validateServiceChips, serviceChipLabel } from "@shared/linkGraph";
 import { trpc } from "@/lib/trpc";
 import { deriveBlogSlug } from "@/lib/blogSlug";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
@@ -519,12 +520,22 @@ export default function BlogPost() {
     );
   }
 
-  // Related articles — pull from static registry. Keeps cross-linking predictable
-  // and ensures the reader is nudged toward hand-tuned content.
-  const related = BLOG_ARTICLES.filter(a => a.slug !== article.slug && a.category === article.category).slice(0, 2);
-  const moreRelated = related.length < 2
-    ? [...related, ...BLOG_ARTICLES.filter(a => a.slug !== article.slug && a.category !== article.category).slice(0, 2 - related.length)]
-    : related;
+  // Related articles — scored by topic (Jaccard on title+tags+headings, plus a
+  // same-category and shared-service bonus — shared/linkGraph), not by array
+  // position: the old pick was "first 2 same-category entries", so every one
+  // of the 20 "Tires" articles pointed at the same two. STATIC POOL ONLY: this
+  // page only queries `content.articleBySlug` (one article, on a static miss);
+  // it has no published-article list, and adding a list query to every blog
+  // view is a payload decision for a later PR, not a side effect of this one.
+  const moreRelated = rankRelatedArticles(
+    { ...article, headings: article.sections.map(s => s.heading) },
+    BLOG_ARTICLES,
+    2,
+  );
+  // Service chips: an article's own `relatedServices` is author-typed and was
+  // rendered unvalidated — validate against the route registry (registered +
+  // sitemap:true) and fall back to the tag→service prior when none survive.
+  const serviceChips = validateServiceChips(article.relatedServices, article.tags);
 
   // JSON-LD Article schema — tells Google this is a news/blog article with proper
   // metadata (author, publisher, dates). Big factor in rich-result eligibility.
@@ -726,24 +737,21 @@ export default function BlogPost() {
                 </FadeIn>
               )}
 
-              {/* Related Service Links */}
-              {article.relatedServices.length > 0 && (
+              {/* Related Service Links — validated through the route registry (see
+                  serviceChips above); label is the curated service name from
+                  @shared/internalLinks, not a de-hyphenated slug. */}
+              {serviceChips.length > 0 && (
                 <FadeIn>
                   <div className="mt-8 bg-card border border-primary/20 p-6">
                     <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-3">RELATED SERVICES</h3>
                     <div className="flex flex-wrap gap-3">
-                      {article.relatedServices.map(svc => (
+                      {serviceChips.map(svc => (
                         <Link
                           key={svc}
                           href={svc}
                           className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-4 py-2 font-bold text-xs tracking-wide hover:bg-primary/20 transition-colors"
                         >
-                          {/* Strip leading slash + replace ALL hyphens with spaces.
-                              Was `.replace("-", " ")` which only replaced the FIRST
-                              hyphen — `/synthetic-oil-change` rendered as
-                              "synthetic oil-change", `/pre-purchase-inspection` as
-                              "pre purchase-inspection". */}
-                          {svc.replace(/^\//, "").replace(/-/g, " ")}
+                          {serviceChipLabel(svc)}
                           <ArrowRight className="w-3 h-3" />
                         </Link>
                       ))}

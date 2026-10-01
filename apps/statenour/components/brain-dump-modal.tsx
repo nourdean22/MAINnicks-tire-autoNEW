@@ -41,6 +41,7 @@ import { trpc } from "@/lib/trpc/client";
 // while a capture is in-flight via the same isStreaming gate /chat
 // uses while Nick is replying.
 import { WisdomPill } from "@/components/chat/wisdom-pill";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 interface CaptureResult {
   brainDumpId: string;
   entryType: string;
@@ -153,13 +154,10 @@ export function BrainDumpModal() {
         setOpen((v) => !v);
         return;
       }
-      if (e.key === "Escape" && open) {
-        setOpen(false);
-      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, []);
 
   // Window event opener — lets FloatingHome (and anyone else) trigger
   // this modal without a prop drill or portal choreography.
@@ -237,10 +235,6 @@ export function BrainDumpModal() {
         e.preventDefault();
         submit();
       }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setOpen(false);
-      }
     },
     [submit]
   );
@@ -249,27 +243,21 @@ export function BrainDumpModal() {
 
   return (
     // v10.0.529.21 a11y + mobile fix · iPhone Safari raises the
-    // on-screen keyboard which pushes the visual viewport up · the
-    // pre-fix `pt-[10vh]` was computed against the layout viewport so
-    // the modal sat 10% from the top regardless, and the textarea +
-    // submit button could fall partially below the keyboard fold.
-    <div
-      className="fixed inset-0 z-[9500] flex items-start sm:items-center justify-center px-4 pt-[max(2rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom,0px)] bg-[var(--bg-void)]/85 backdrop-blur-sm"
-      onClick={() => setOpen(false)}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Capture a thought"
-    >
-      <div
-        className="relative w-full max-w-2xl rounded-2xl border border-[var(--gold)]/30 bg-[var(--bg-void)] shadow-[0_20px_60px_rgba(0,0,0,0.6),0_0_40px_rgba(253,185,19,0.15)] overflow-hidden animate-fade-in-scale max-h-[calc(100dvh-4rem)] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+    // on-screen keyboard which pushes the visual viewport up. Base UI Dialog
+    // now owns focus trapping/restoration, Escape/outside dismissal and scroll lock.
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent
+        unstyled
+        showCloseButton={false}
+        overlayClassName="z-[9500] bg-[var(--bg-void)]/85 backdrop-blur-sm"
+        className="fixed left-1/2 top-[max(2rem,env(safe-area-inset-top))] z-[9501] flex max-h-[calc(100dvh-4rem)] w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-[var(--gold)]/30 bg-[var(--bg-void)] shadow-[0_20px_60px_rgba(0,0,0,0.6),0_0_40px_rgba(253,185,19,0.15)] outline-none animate-fade-in-scale sm:top-1/2 sm:-translate-y-1/2"
       >
         <div className="px-4 py-3 border-b border-[var(--border-default)] flex items-center justify-between">
           <div className="flex items-center gap-2">
             <NotebookPen size={14} className="text-[var(--gold)]" />
-            <span className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
+            <DialogTitle className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
               Capture a Thought
-            </span>
+            </DialogTitle>
             {inFlight > 0 && (
               <span
                 className="flex items-center gap-1 text-[9px] font-mono text-[var(--text-tertiary)]"
@@ -287,7 +275,7 @@ export function BrainDumpModal() {
             </kbd>
             <button
               onClick={() => setOpen(false)}
-              className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
               aria-label="Close"
             >
               <X size={14} />
@@ -339,7 +327,7 @@ export function BrainDumpModal() {
                   aria-pressed={m.key === mode.key}
                   className={cn(
                     "rounded-md border px-2 py-1 text-[9px] font-bold uppercase tracking-wider transition-all",
-                    "[@media(pointer:coarse)]:min-h-[36px]",
+                    "[@media(pointer:coarse)]:min-h-[44px] [@media(pointer:coarse)]:px-3",
                     m.key === mode.key
                       ? "bg-[var(--gold)]/15 border-[var(--gold)]/40 text-[var(--gold)]"
                       : "bg-transparent border-zinc-800 text-zinc-500 hover:text-zinc-300",
@@ -366,7 +354,7 @@ export function BrainDumpModal() {
             placeholder={mode.placeholder}
             rows={6}
             className={cn(
-              "w-full text-[13px] leading-[1.55] resize-none rounded-xl px-3.5 py-3",
+              "w-full text-[16px] sm:text-[13px] leading-[1.55] resize-none rounded-xl px-3.5 py-3",
               "bg-[var(--bg-elevated)] border border-[var(--border-default)] text-[var(--text-primary)]",
               "placeholder:text-[var(--text-tertiary)] outline-none transition-colors",
               "focus:border-[var(--gold)]/40"
@@ -385,7 +373,7 @@ export function BrainDumpModal() {
                 onClick={submit}
                 disabled={text.trim().length < 3}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-bold border transition-all",
+                  "flex min-h-11 items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-bold border transition-all",
                   text.trim().length < 3
                     ? "bg-transparent border-zinc-800 text-zinc-600"
                     : "bg-[var(--gold)]/15 border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/25"
@@ -434,7 +422,7 @@ export function BrainDumpModal() {
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

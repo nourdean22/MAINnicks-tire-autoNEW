@@ -382,7 +382,7 @@ export function NickMessage({
             <button
               key={qa.label}
               onClick={() => onQuickAction(qa.prompt)}
-              className="inline-flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/30 hover:text-[var(--gold)] transition-all"
+              className="inline-flex min-h-11 items-center gap-1 rounded-full border border-[var(--border-default)] px-2 py-1 text-[10px] text-[var(--text-tertiary)] transition-all hover:border-[var(--gold)]/30 hover:text-[var(--gold)] sm:min-h-8"
             >
               {qa.label}
             </button>

@@ -490,3 +490,116 @@ This supersedes the pre-PR status notes immediately above while preserving them 
 - **External worker is NOT yet live on NattyNour.** A fresh `RUNNER_SHARED_SECRET` is staged server-side and the web service was redeployed successfully, but the local installer could not be completed through the current remote safety boundary that prevents moving the secret into the machine's persistent DPAPI store. No `StateNour-ExternalWorker-NattyNour` scheduled task exists yet; writes remain OFF by default. Do not claim runner heartbeat or queue/claim/complete receipts until that install is completed and verified.
 - **ChatGPT/Desktop Commander continuity:** a connected Desktop Commander device is not bound to a ChatGPT conversation. New chats must explicitly recover `list_devices`, `get_recent_tool_calls`, `list_sessions`, repo/worktree state, and production state before acting. A reusable `nour-operator-takeover` ChatGPT skill was created for this recovery protocol.
 
+
+## 2026-10-01 — NattyNour NOUR Gateway tool execution + OpenWebUI cockpit checkpoint
+
+- **Gateway tool calling is MERGED + LIVE + VERIFIED locally on NattyNour.** PR **#2861** squash-merged as `27f4d7a72ca5901b665d3e2b33a037cc0674f875`. The exact merged `apps/statenour/local-agent/nour-local-gateway.js` blob was verified byte-for-byte when copied to `C:\\Users\\nourd\\bin\\nour-local-gateway.js`; live `127.0.0.1:11436` now advertises `function_calling=true` plus `tools` / `tool_choice`.
+- **Real OpenCode execution is proven against the live gateway.** OpenCode Desktop/CLI/headless are aligned at **1.18.34**. A disposable repo canary caused NOUR Auto to emit a real `bash` tool call for `git status --short`; OpenCode persisted the tool part, matched the `git status*` permission rule, executed it with exit 0, returned `?? scratch.txt`, and the follow-up model turn returned that result. This is execution evidence, not prompt inference.
+- **The OpenWebUI cockpit bridge is LOCAL-LIVE + TESTED, not merged yet.** Branch/worktree `statenour/cockpit-bridge-20261001` serves a loopback-only OpenAPI bridge at `127.0.0.1:4101`; `/health` reports cockpit ready, OpenCode 1.18.34 healthy, and `mission_task_writes=false`. Current tests: cockpit **6/6**, gateway **16/16**, Python compile clean, Node syntax clean, `git diff --check` clean.
+- **CockpitRun is deliberately separate from bdnick Mission/Task.** Each machine-work run gets an isolated Git worktree + OpenCode session + machine-local JSON state under `%USERPROFILE%\\AI\\cockpit\\runs`; current canaries have `mission_id=null`. Read-only canary completed without modifying files. Writable canary created only `COCKPIT_CANARY.txt`, stopped for shell approval, resumed after explicit owner approval, verified the change, and did **not** commit or push.
+- **Safety boundary:** external directories and `.env*` reads are denied; shell defaults to approval; only narrow single-command read/test prefixes can auto-approve; shell metacharacters/chaining are excluded from auto-approval. Commit/push/PR/deploy/destructive/external actions remain owner-gated.
+- **Still unfinished at this checkpoint:** bridge PR/CI/merge, startup persistence, OpenWebUI native tool-server registration, and end-to-end chat UX verification. Do not claim those until their receipts exist.
+
+
+## 2026-10-01 — NOUR Cockpit default model + restart lifecycle checkpoint
+
+- OpenWebUI custom model **`nour-cockpit`** is persisted as a profile over **`nour-auto`** with **`meta.toolIds=["direct_server:nour-cockpit"]`**. It is the OpenWebUI default and pinned first; the raw `nour-auto` lane remains available underneath rather than being mutated.
+- OpenWebUI **v0.11.4** restarted after the lifecycle fix and logged **`Initialized 1 tool server(s)`** at 09:33:14. The UI also requested the `nour-cockpit` profile image immediately after fetching `/api/models`, proving the running server loaded the custom model.
+- The restart bug is fixed: the old `Stop-WebUIOwned` predicate matched every process whose executable lived under the OpenWebUI Python directory, which killed the Cockpit bridge because it intentionally reuses that embedded Python. The filter now matches actual OpenWebUI/OpenTerminal command lines only. Controlled proof: OpenWebUI stopped, **4101 stayed healthy**, `mission_task_writes=false`, then the normal launcher restarted OpenWebUI and the server initialized one tool server.
+- Machine-local cockpit/runtime helpers are now copied into repo source-of-record under `apps/statenour/local-agent/`: `launch-nour-ai.ps1`, `start-nour-cockpit.ps1`, and `ensure_openwebui_cockpit.py`. The helper is idempotent: after repair, a second run reported `changed:false`.
+- **Still unfinished at this checkpoint:** model/tool naming and menu simplification, natural-language OpenWebUI → Cockpit → OpenCode end-to-end canary, bridge PR/CI/merge, and refreshed known-good snapshot.
+
+
+## 2026-10-01 — Chat Controls UX target clarified before UI patch
+
+- The user clarified that the cluttered surface is the **top-right per-chat Controls panel** in OpenWebUI, not the model picker. Do not conflate these surfaces again.
+- Current NOUR Cockpit profile remains the correct default model wrapper over `nour-auto`; that model/default/toolkit work is separate from this UI cleanup.
+- Current OpenWebUI admin settings show `tool_approval_mode=full`. The NOUR Cockpit workspace model currently has no sampling params forced in its model `params`, which is desirable because requests may route across multiple providers with non-identical parameter semantics.
+- The visible Controls panel includes System Prompt plus a long Advanced Params list such as Stream Chat Response, Stream Delta Chunk Size, Context Compaction Threshold, Function Calling, Reasoning Tags, Seed, Stop Sequence, Temperature, Reasoning Effort, logit_bias, max_tokens, top_k, top_p and related provider-specific knobs.
+- OpenWebUI model capability flags gate tool/file features but do **not** natively provide per-parameter visibility control for the sampling-knob list. Therefore the intended implementation path is a small, upgrade-resilient customization via OpenWebUI''s supported `custom.css` / `loader.js` static surface, not editing minified application bundles.
+- UX objective: for NOUR Cockpit, keep useful power but reduce normal-path clutter and accidental misconfiguration. Preserve access to deeper parameters only through an explicit advanced/reveal path if required; do not globally cripple other models.
+- No Controls-panel UI patch has been applied yet at this checkpoint.
+
+
+## 2026-10-01 — NOUR Cockpit Chat Controls optimizer verified
+
+- The top-right OpenWebUI **Controls** panel is now optimized specifically for **NOUR Cockpit** through OpenWebUI''s supported `/static/loader.js` + `/static/custom.css` extension surface. No minified app bundle was edited.
+- Scope is model-specific: the patch activates only when `#model-selector-model-button` reports **Selected model: NOUR Cockpit** and only inside `#controls-container`.
+- For NOUR Cockpit, **33 raw Advanced Params rows** are hidden by default and replaced by a concise status card explaining that routing/tools/provider params are automatic. **Show raw overrides** restores every original row; the change is presentation-only and writes no model values.
+- Isolation canary: switching to `qwen35-4b-local` produced `data-nour-controls-mode=standard`, no NOUR summary, **0 hidden rows**, and Temperature remained visible.
+- This matches gateway truth: live `nour-auto` advertises `supported_parameters=["tools","tool_choice"]`; generic sampling/Ollama knobs are therefore misleading in the normal routed-model path.
+- The UI patch is self-healed by `ensure_openwebui_cockpit.py`, which preserves native OpenWebUI static content and replaces only the managed NOUR block.
+- **Still unfinished at this checkpoint:** real natural-language OpenWebUI → Cockpit → OpenCode canary, bridge PR/CI/merge, merged-runtime promotion, and known-good snapshot refresh.
+
+
+## 2026-10-01 — first full OpenWebUI → Cockpit canary exposed a last-mile gap
+
+- A real headless OpenWebUI chat canary ran with **Selected model: NOUR Cockpit** and submitted marker `UI_E2E_CANARY_20261001_0951`, explicitly asking the Cockpit to start a read-only isolated run.
+- **It did not create a CockpitRun.** No new machine-local run JSON appeared and the marker was absent from existing CockpitRun state.
+- Gateway receipt for the corresponding turn: `nour-auto` started at **14:17:27**, routed through the normal candidate set, Codex reported quota exhaustion, Claude Code completed at **14:18:12**, and the gateway logged **`toolCalls=0`**.
+- Therefore the natural-language OpenWebUI → Cockpit execution path is **NOT YET VERIFIED**. Do not regress the already-proven lower layers: direct live gateway function calling, OpenCode execution, Cockpit bridge/worktree isolation, approval gating, one-button startup, and the NOUR-Cockpit-specific Controls optimizer all remain separately verified.
+- Next step is payload-level diagnosis: capture the actual OpenWebUI chat request to determine whether model `meta.toolIds=["direct_server:nour-cockpit"]` is being materialized into the per-chat direct-tool-server/tool schema or whether the tool was present and the routed model declined to call it.
+
+
+## 2026-10-01 — OpenWebUI direct-tool selection payload root cause pinned
+
+- Intercepted the real `/api/chat/completions` request from the disposable headless UI. **`model_item.info.meta.toolIds` correctly contains `["direct_server:nour-cockpit"]`, but the actual request sends `tool_servers: []`.** This is the definitive last-mile failure.
+- Switching from NOUR Cockpit to another model and back does not materialize the server; the request still sends `tool_servers: []` while `modelToolIds` remains correct.
+- Backend middleware confirms `tool_servers` expects fully materialized direct-server objects with OpenAPI specs, not synthetic IDs. Do not inject `direct_server:nour-cockpit` as a string into that field.
+- The live **Integrations** menu currently shows top-level **Tools 1**, Web Search, and Code Interpreter. The next diagnostic step is opening **Tools 1** to capture the exact canonical direct-server selection shape OpenWebUI itself emits when selected manually.
+
+
+## 2026-10-01 — exact OpenWebUI 0.11.4 direct-server default-selection bug found
+
+- Installed frontend code in `DUmjoMyK.js` proves the bug: model initialization reads `rs.info.meta.toolIds` but filters those IDs against the **native Workspace Tools store**. `direct_server:nour-cockpit` is held in the separate direct-server/tool-server store, so it is discarded before chat.
+- The later request builder is otherwise correct: it splits selected tool IDs into ordinary `tool_ids` and `direct_server:*` IDs, then materializes matching direct servers into `tool_servers`. Our direct ID simply never survives the earlier initialization filter.
+- This fully explains the intercepted payload: the model metadata contains `direct_server:nour-cockpit`, while the outgoing chat request has `tool_servers: []`.
+- Preferred fix: **do not fork the minified frontend bundle.** Create a native OpenWebUI Workspace Tool wrapper around the loopback NOUR Cockpit bridge and attach that native tool ID to the NOUR Cockpit model. Native Workspace Tool IDs are already auto-selected by the code path above. Keep the direct OpenAPI server registered as a separately usable integration.
+
+
+## 2026-10-01 — native Workspace Tool wrapper selected as final OpenWebUI fix
+
+- OpenWebUI 0.11.4''s model initialization path filters `meta.toolIds` against **native Workspace Tools**. This is why `direct_server:nour-cockpit` is dropped even though the direct-server request builder itself is correct.
+- Final integration design: keep the direct OpenAPI Cockpit server registered as a separate integration, and create a **native OpenWebUI Workspace Tool** wrapper around the same loopback Cockpit bridge on `127.0.0.1:4101`.
+- The native tool will expose the same simple cockpit actions and remain only a transport wrapper. Execution authority still lives in `nour_cockpit_bridge.py`: isolated worktrees, shell approval policy, no automatic commit/push/deploy, and `mission_task_writes=false` remain unchanged.
+- The NOUR Cockpit model will point `meta.toolIds` at the native tool ID so OpenWebUI''s existing model-load path auto-selects it correctly.
+- No native Workspace Tool has been installed yet at this checkpoint.
+
+
+## 2026-10-01 — OpenWebUI direct-tool last-mile wiring fixed and browser-verified
+
+- Payload capture identified the exact OpenWebUI 0.11.4 gap: the `nour-cockpit` model item correctly carried `meta.toolIds=["direct_server:nour-cockpit"]`, but the real `POST /api/chat/completions` request sent **`tool_servers: []`**. Switching models away/back did not change this. Even manually toggling the NOUR Cockpit tool entry to `aria-pressed=true` / `aria-checked=true` still produced an empty `tool_servers` payload and no `tool_ids` field.
+- The fix stays in the supported customization/runtime layer rather than forking minified OpenWebUI bundles. `ensure_openwebui_cockpit.py` now fetches the live Cockpit OpenAPI and materializes exactly six user-facing operations into **`/static/nour-cockpit-tool-server.json`**: start, check, continue, approve, cancel, recent.
+- `openwebui-nour-cockpit-loader.js` now wraps only same-origin `POST /api/chat/completions` and injects that fully materialized direct server only when the selected model is `nour-cockpit`, its model metadata contains `direct_server:nour-cockpit`, and OpenWebUI would otherwise send an empty tool-server list.
+- Browser payload proof after the fix: `toolServerCount=1`, `serverId=nour-cockpit`, `serverUrl=http://127.0.0.1:4101`, and **6 specs** with the expected operation names. The loader also recorded its injection receipt in `window.__NOUR_COCKPIT_LAST_INJECTION__`.
+- Browser direct-tool execution reachability is also fixed. The Cockpit bridge now allows CORS **only** from `http://127.0.0.1:8080` and `http://localhost:8080`, while continuing to require a loopback Host. A real browser-origin GET `/health` returned 200 and browser-origin JSON POST `/runs/status` passed preflight and returned the expected 404 for a deliberately missing run.
+- **Still unfinished at this checkpoint:** rerun the natural-language OpenWebUI → CockpitRun → OpenCode canary with the fixed tool injection, then PR/CI/merge, merged-runtime promotion, final doctor, and known-good snapshot.
+
+
+## 2026-10-01 — direct-tool injection works; executor lookup is the final E2E gap
+
+- Fresh browser canary `UI_E2E_CANARY_20261001_DIRECTFIX_1` proved the loader injection is active: `window.__NOUR_COCKPIT_LAST_INJECTION__` recorded model `nour-cockpit`, server `nour-cockpit`, and the six expected operation names.
+- The model **did call Cockpit tools**. The UI showed attempted `start_cockpit_run` and `check_cockpit_run` tool calls.
+- Both tool calls returned exactly **`{"error":"Tool Server Not Found"}`**. No CockpitRun state file was created and the marker never reached the bridge.
+- This narrows the remaining defect to OpenWebUI''s **direct-tool executor server lookup/resolution**. Model routing, gateway tool-calling transport, tool-schema injection, browser CORS reachability, and the Cockpit bridge remain independently verified.
+- Next action: locate the literal error emitter and align the injected server identifier with the executor''s expected ID/index/store representation. Do not retry the canary until that lookup mismatch is corrected.
+
+
+## 2026-10-01 — final executor lookup root cause pinned to per-user toolServers settings
+
+- The literal **`Tool Server Not Found`** emitter is in OpenWebUI''s browser-side `execute:tool` handler. It takes `e.server.url` and resolves it through the current user''s **`settings.toolServers`** list first, with terminal-server fallbacks.
+- The admin user''s persisted settings currently contain ordinary `ui` preferences but **no `toolServers` entry at all**.
+- That exactly explains the latest canary: the six Cockpit function specs were injected, the model invoked `start_cockpit_run` and `check_cockpit_run`, but the browser executor could not resolve `http://127.0.0.1:4101` to a local server record and returned `{"error":"Tool Server Not Found"}` before the bridge received anything.
+- OpenWebUI exposes a supported field-level settings patch path via `Users.update_user_settings_by_id(...)`; the next fix is to persist the NOUR Cockpit server into the admin user''s UI `toolServers` setting and make that part of the self-healer. Do not patch the minified executor.
+
+
+## 2026-10-01 — NOUR Cockpit natural-language E2E VERIFIED
+
+- **OpenWebUI → NOUR Cockpit → browser direct tool executor → Cockpit bridge → OpenCode → isolated worktree → result back to OpenWebUI chat is now VERIFIED.**
+- Natural-language OpenWebUI chat invoked `start_cockpit_run`; the browser issued `POST http://127.0.0.1:4101/runs/start`, received **HTTP 200**, and created `cr_20261001_112711_fc4e81` with `mission_id=null` in a linked isolated worktree.
+- OpenCode completed the read-only task. Independent machine verification after completion: `git status --porcelain --untracked-files=all` returned **exit 0 + empty output**; worktree HEAD exactly equals base commit `664c6ffc73c60630f78ab2e44b0fa35e951d7732`; `git diff --check` returned 0; diff stat is empty; linked worktree git-dir/common-dir resolve correctly.
+- A second natural-language OpenWebUI chat explicitly called `check_cockpit_run` for the same run. The browser issued `POST /runs/status` and received **HTTP 200**. The persisted OpenWebUI chat stores the final assistant response with a real `check_cockpit_run` source, reporting `status=ready`, no pending approvals, `mission_linked=false`, and `diff=[]`.
+- The browser-executor registration bug is resolved by persisting the Cockpit direct server into the admin user''s `ui.toolServers` settings in addition to the global tool-server connection.
+- The startup self-healer idempotence regression is fixed by normalizing `admin_user.settings` through `model_dump()` when OpenWebUI returns a Pydantic-style settings object. Two consecutive ensure runs now both report `changed=false` and `user_tool_server_changed=false`.
+- **Mission/Task boundary remains intact:** Cockpit machine work stays in CockpitRun state/worktrees and does not write StateNour Mission/Task records by default.
+

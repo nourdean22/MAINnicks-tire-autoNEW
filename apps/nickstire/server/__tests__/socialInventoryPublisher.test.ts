@@ -113,4 +113,34 @@ describe("runSocialInventoryPublisher", () => {
     expect(mockPublishToSocial).toHaveBeenCalled();
     expect(mockUpdate).toHaveBeenCalled();
   });
+
+  // POSITIVE CONTROL (pre-2026-10-01): an all-ambiguous result landed in the
+  // "succeeded.length === 0" branch and was written as status "failed" — the
+  // next drain tick retried it, and a Facebook reel whose "finish" step had
+  // timed out could be published twice.
+  it("parks an ambiguous publish as published_partial instead of failed (no retry can double-post)", async () => {
+    mockDueItems = [
+      {
+        id: "item_amb",
+        contentType: "reel",
+        platform: "facebook",
+        hookText: "Salt season starts under your car",
+        bodyText: "What road salt does to brake lines.",
+        assetPaths: ["https://cdn.nickstire.com/video2.mp4"],
+        scheduledAt: new Date(Date.now() - 1000),
+      },
+    ];
+    mockPublishToSocial.mockResolvedValueOnce({
+      results: [{ platform: "facebook", success: false, ambiguous: true, error: "reel finish: no answer (timeout)" }],
+    });
+
+    await runSocialInventoryPublisher();
+
+    const setCalls = mockUpdate.mock.results.flatMap((r) => (r.value as { set: { mock: { calls: unknown[][] } } }).set.mock.calls.map((c) => c[0] as Record<string, unknown>));
+    const statusWrites = setCalls.filter((c) => typeof c.status === "string");
+    expect(statusWrites.some((c) => c.status === "failed")).toBe(false);
+    const parked = statusWrites.find((c) => c.status === "published_partial");
+    expect(parked).toBeDefined();
+    expect(String(parked!.errorMessage)).toMatch(/^ambiguous \(may be live, not retried\)/);
+  });
 });

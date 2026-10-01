@@ -134,7 +134,7 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
           <button
             type="button"
             onClick={() => setExpandedPrompt(!expandedPrompt)}
-            className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-white/[0.02] transition-colors"
+            className="flex min-h-11 w-full items-center justify-between px-3 py-2 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.02]"
           >
             <span>Raw Markdown Prompt ({data.finalPromptMarkdown.length} chars)</span>
             {expandedPrompt ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
@@ -151,7 +151,7 @@ export function StitchPromptCard({ data }: StitchPromptCardProps) {
           type="button"
           onClick={handleCopy}
           className={cn(
-            "w-full flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-semibold transition-all duration-200 border",
+            "flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-xs font-semibold transition-all duration-200",
             copied
               ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
               : "bg-[#e5a93b]/10 border-[#e5a93b]/30 text-[#e5a93b] hover:bg-[#e5a93b]/15"

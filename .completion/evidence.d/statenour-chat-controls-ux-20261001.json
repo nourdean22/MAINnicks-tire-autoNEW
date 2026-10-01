@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-10-01 Chat Controls UX checkpoint: corrected target is OpenWebUI top-right per-chat Controls panel, not model selection. Current admin user setting tool_approval_mode=full. NOUR Cockpit model params remain empty, avoiding cross-provider sampling overrides. The panel exposes many provider-specific knobs that are misleading for a routed multi-provider model. OpenWebUI capability flags do not provide per-param visibility control, so the planned implementation is the supported custom.css/loader.js surface, scoped to NOUR Cockpit where possible, rather than editing minified bundles. No UI patch applied yet."
+    }
+  }
+}

@@ -93,7 +93,10 @@ describe("cron rethrow contract · 2026-09-01 audit F-9", () => {
     // test that passes two days a week.
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-23T16:00:00Z")); // Wednesday noon ET
-    vi.doMock("../../content-generator", () => ({ generateArticle: async () => { throw new Error("llm down (canary)"); } }));
+    vi.doMock("../../content-generator", () => ({
+      generateArticle: async () => { throw new Error("llm down (canary)"); },
+      saveGeneratedArticle: async () => { throw new Error("save must never be reached when generation throws"); },
+    }));
     try {
       const { autoGenerateContent } = await import("./crudAutomation");
       await expect(autoGenerateContent()).rejects.toThrow(/Content gen failed: llm down/);

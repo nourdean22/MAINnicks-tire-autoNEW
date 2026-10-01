@@ -104,7 +104,7 @@ test.describe("selection grammar · /system/ui-lab fixtures", () => {
     await expect(panel).toBeVisible();
     await expect(panel).toHaveAttribute("data-inspector-mode", "inspect");
 
-    await page.getByRole("button", { name: "More — all surfaces and search" }).click();
+    await page.getByRole("button", { name: "All surfaces" }).click();
     const more = page.getByRole("dialog", { name: "More navigation" });
     await expect(more).toBeVisible();
 

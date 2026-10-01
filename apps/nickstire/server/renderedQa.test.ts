@@ -226,3 +226,151 @@ describe("evaluateRenderedReel (mocked vision seam)", () => {
     expect(verdict.findings).toHaveLength(0);
   });
 });
+
+// ─── Wave B: craft score, confidence, escalation, PIXEL_STATS ──────
+//
+// Positive control, recorded before the implementation: with `craftScore`
+// returning the raw weights (no fold) the deduction tests below fail on
+// `plausibility` (expected 0, got 8) and `total` (expected 88, got 100); with
+// `escalate` hard-coded "none" the brand/editorial/automotive expectations fail.
+
+import { craftScore, type RenderedFinding } from "./services/renderedQa";
+import type { PixelStats } from "./services/renderedPixelStats";
+
+const warn = (code: RenderedFinding["code"], beatNumber: number | null, confidence?: number): RenderedFinding => ({
+  beatNumber, code, severity: "warn", description: "d", preserve: [], change: [], ...(confidence === undefined ? {} : { confidence }),
+});
+const block = (code: RenderedFinding["code"], beatNumber: number | null): RenderedFinding => ({
+  beatNumber, code, severity: "block", description: "d", preserve: [], change: [],
+});
+const px = (flags: string[]): PixelStats => ({
+  skipped: false, perFrame: [], flags, analysisWidth: 270,
+  thresholds: { softSharpnessMax: 25, dupMeanAbsDiffMax: 3, blackMeanMax: 14, blackStdMax: 8, captionHaloStdMin: 42, captionBandFrac: 0.1, captionHaloFrac: 0.06 },
+});
+
+describe("craftScore (README §H2) — a pure fold over findings + pixel flags", () => {
+  it("weights are the §H2 weights and sum to 100; a clean reel scores 100 with audio named unobserved", () => {
+    const s = craftScore([]);
+    expect(Object.values(s.weights).reduce((a, b) => a + b, 0)).toBe(100);
+    expect(s.weights).toMatchObject({ openingComposition: 12, mechanicalAccuracy: 12, subjectRealism: 10, plausibility: 8, continuity: 8, cinematography: 8, pacing: 8, motion: 7, typography: 7, audio: 7, brand: 5, nonGeneric: 4, noArtifacts: 4 });
+    expect(s.total).toBe(100);
+    expect(s.unobserved).toEqual(["audio"]);
+  });
+
+  it("a block empties the dimensions its code speaks to", () => {
+    const s = craftScore([block("MALFORMED_GEOMETRY", 2)]);
+    expect(s.dimensions.plausibility).toBe(0);
+    expect(s.dimensions.noArtifacts).toBe(0);
+    expect(s.total).toBe(88);
+  });
+
+  it("a warn takes half, scaled by the critic's confidence (missing confidence = 1)", () => {
+    expect(craftScore([warn("PLASTIC_AI_LOOK", 2, 0.6)]).dimensions.subjectRealism).toBe(7);
+    expect(craftScore([warn("PLASTIC_AI_LOOK", 2)]).dimensions.subjectRealism).toBe(5);
+  });
+
+  it("weak composition on the HERO beat also costs the opening; on a later beat it does not", () => {
+    expect(craftScore([warn("WEAK_COMPOSITION", 1)]).dimensions.openingComposition).toBe(6);
+    expect(craftScore([warn("WEAK_COMPOSITION", 3)]).dimensions.openingComposition).toBe(12);
+  });
+
+  it("pixel flags deduct: a black opening frame kills the opening; a duplicate beat costs motion and pacing", () => {
+    const s = craftScore([], px(["BLACK_FRAME:first", "DUP_FRAME:beat3", "SOFT_FRAME:beat2", "CAPTION_BOX_BUSY:beat2"]));
+    expect(s.dimensions.openingComposition).toBe(0);
+    expect(s.dimensions.motion).toBe(3.5);
+    expect(s.dimensions.pacing).toBe(6);
+    expect(s.dimensions.cinematography).toBe(6);
+    expect(s.dimensions.subjectRealism).toBe(7.5);
+    expect(s.dimensions.typography).toBe(3.5);
+    expect(s.total).toBe(100 - 12 - 3.5 - 2 - 2 - 2.5 - 3.5);
+  });
+
+  it("deductions accumulate and clamp at zero — never negative", () => {
+    const s = craftScore([block("SUBJECT_CONTINUITY", 2), block("ENVIRONMENT_DRIFT", 3), warn("LIGHTING_DRIFT", 4)]);
+    expect(s.dimensions.continuity).toBe(0);
+    expect(s.total).toBeGreaterThanOrEqual(0);
+  });
+
+  it("skipped pixel stats deduct nothing", () => {
+    expect(craftScore([], { skipped: true, reason: "x" }).total).toBe(100);
+  });
+});
+
+describe("clampVerdict — confidence, craft score and escalation on the verdict", () => {
+  const raw = (findings: unknown[]) => ({ decision: "approve", findings });
+  const f = (code: string, beatNumber: number | null, confidence?: unknown) => ({ beatNumber, code, description: "d", preserve: [], change: [], confidence });
+
+  it("parses and clamps confidence to 0..1; a missing/invalid confidence is left undefined", () => {
+    const v = clampVerdict(raw([f("WEAK_COMPOSITION", 1, 1.7), f("PALETTE_DRIFT", 2, -3), f("LIGHTING_DRIFT", 3, "high"), f("GENERIC_STOCK_LOOK", 4)]), 5, "vision");
+    expect(v.findings.map((x) => x.confidence)).toEqual([1, 0, undefined, undefined]);
+  });
+
+  it("a vision verdict carries craftScore, visionCalls=1 and a deterministic escalate; a skipped one carries NO craft score", () => {
+    const v = clampVerdict(raw([]), 5, "vision");
+    expect(v.craftScore?.total).toBe(100);
+    expect(v.visionCalls).toBe(1);
+    expect(v.escalate).toBe("none");
+    const s = clampVerdict(raw([]), 5, "skipped");
+    expect(s.craftScore).toBeUndefined();
+    expect(s.visionCalls).toBe(0);
+    expect(s.escalate).toBe("none");
+  });
+
+  it("escalation: any craft warn earns its lens (plastic/generic -> brand)", () => {
+    expect(clampVerdict(raw([f("PLASTIC_AI_LOOK", 3, 0.95)]), 5, "vision").escalate).toBe("brand");
+    expect(clampVerdict(raw([f("GENERIC_STOCK_LOOK", 3)]), 5, "vision").escalate).toBe("brand");
+  });
+
+  it("escalation: an uncertain warn on the hero beat earns its lens; a confident one, or one on a later beat, does not", () => {
+    expect(clampVerdict(raw([f("WEAK_COMPOSITION", 1, 0.5)]), 5, "vision").escalate).toBe("editorial");
+    expect(clampVerdict(raw([f("WEAK_COMPOSITION", null, 0.6)]), 5, "vision").escalate).toBe("editorial");
+    expect(clampVerdict(raw([f("WEAK_COMPOSITION", 1, 0.9)]), 5, "vision").escalate).toBe("none");
+    expect(clampVerdict(raw([f("WEAK_COMPOSITION", 3, 0.5)]), 5, "vision").escalate).toBe("none");
+    expect(clampVerdict(raw([f("CAPTION_OBSTRUCTION", 1, 0.4)]), 5, "vision").escalate).toBe("typography");
+  });
+
+  it("escalation: blocks never escalate (the repair is already ordered), and at most ONE lens is chosen by priority", () => {
+    expect(clampVerdict(raw([f("MALFORMED_GEOMETRY", 1, 0.3)]), 5, "vision").escalate).toBe("none");
+    // automotive (IMPOSSIBLE_PHYSICALITY is a craft warn) outranks brand.
+    expect(clampVerdict(raw([f("PLASTIC_AI_LOOK", 2), f("IMPOSSIBLE_PHYSICALITY", 3)]), 5, "vision").escalate).toBe("automotive");
+  });
+
+  it("pixel stats are persisted on the verdict and folded into its craft score", () => {
+    const v = clampVerdict(raw([]), 5, "vision", px(["BLACK_FRAME:first"]));
+    expect(v.pixelStats && !v.pixelStats.skipped && v.pixelStats.flags).toEqual(["BLACK_FRAME:first"]);
+    expect(v.craftScore?.dimensions.openingComposition).toBe(0);
+  });
+});
+
+describe("evaluateRenderedReel — PIXEL_STATS reaches the critic prompt (PROMPT-PACK §13)", () => {
+  it("shows the pre-flags, asks for confidence, and the schema requires it", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rqa-px-"));
+    const fake = path.join(dir, "f.jpg");
+    await fs.writeFile(fake, Buffer.from("fakejpegbytes"));
+    const spy = vi.fn().mockResolvedValue({ choices: [{ message: { content: JSON.stringify({ decision: "approve", findings: [] }) } }] });
+    vi.doMock("./_core/llm", () => ({ invokeLLM: spy }));
+    vi.resetModules();
+    const { evaluateRenderedReel: evalReel } = await import("./services/renderedQa");
+    const verdict = await evalReel({
+      frames: [{ label: "beat2", beatNumber: 2, timestamp: 1.5, path: fake }],
+      brief: { topic: "t" },
+      pixelStats: px(["DUP_FRAME:beat2"]),
+    });
+    const call = spy.mock.calls[0][0];
+    expect(call.messages[0].content).toContain("PIXEL_STATS");
+    expect(call.messages[0].content).toContain("DUP_FRAME:beat2");
+    expect(call.messages[0].content).toContain("confidence (0-1)");
+    expect(call.outputSchema.schema.properties.findings.items.required).toContain("confidence");
+    expect(verdict.pixelStats && !verdict.pixelStats.skipped && verdict.pixelStats.flags).toEqual(["DUP_FRAME:beat2"]);
+    expect(verdict.craftScore?.dimensions.motion).toBe(3.5);
+  });
+
+  it("names pre-flags as unavailable when they were skipped — never silently omitted", async () => {
+    const spy = vi.fn().mockResolvedValue({ choices: [{ message: { content: "{\"decision\":\"approve\",\"findings\":[]}" } }] });
+    vi.doMock("./_core/llm", () => ({ invokeLLM: spy }));
+    vi.resetModules();
+    const { evaluateRenderedReel: evalReel } = await import("./services/renderedQa");
+    await evalReel({ frames: [], brief: {}, pixelStats: { skipped: true, reason: "sharp exploded" } });
+    expect(spy.mock.calls[0][0].messages[0].content).toContain("PIXEL_STATS: unavailable (sharp exploded)");
+  });
+});

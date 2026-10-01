@@ -123,11 +123,25 @@ export async function runSocialInventoryPublisher(): Promise<{ recordsProcessed:
         const failedResults = results.filter((r) => !r.success);
         const errors = failedResults.map((r) => `${r.platform}: ${r.error}`).join("; ");
 
-        if (succeeded.length === 0) {
+        // An AMBIGUOUS result (the publish was dispatched and Meta never
+        // answered — IG media_publish, or the Facebook reel "finish" step) may
+        // be LIVE. "failed" invites a retry, and a retry can double-post; park
+        // it as published_partial with the ambiguity named so the reconciler
+        // or the operator settles it instead of the next drain tick.
+        const ambiguousResults = failedResults.filter((r) => r.ambiguous);
+        if (succeeded.length === 0 && ambiguousResults.length === 0) {
           failed++;
           await db
             .update(socialContentInventory)
             .set({ status: "failed", errorMessage: errors.slice(0, 500) })
+            .where(eq(socialContentInventory.id, item.id));
+        } else if (succeeded.length === 0) {
+          failed++;
+          const note = `ambiguous (may be live, not retried): ${errors}`;
+          log.warn(`Ambiguous publish for ${item.id}: ${ambiguousResults.map((r) => r.platform).join(", ")} dispatched without an answer`);
+          await db
+            .update(socialContentInventory)
+            .set({ status: "published_partial", publishedAt: new Date(), errorMessage: note.slice(0, 500) })
             .where(eq(socialContentInventory.id, item.id));
         } else if (failedResults.length > 0) {
           // Partial: at least one platform is LIVE. The old branch recorded this as

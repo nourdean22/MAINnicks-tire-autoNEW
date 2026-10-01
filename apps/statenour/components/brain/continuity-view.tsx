@@ -36,6 +36,7 @@ import {
 import { useCallback, useState } from "react";
 import { useInspector } from "@/hooks/use-inspector";
 import { BrainChangeLine } from "@/components/brain/brain-change-line";
+import { TimeTravelPanel } from "@/components/brain/time-travel-panel";
 import { ReceiptsTimeline } from "@/components/brain/receipts-timeline";
 import { JudgmentQualityPanel } from "@/components/brain/judgment-quality-panel";
 import {
@@ -137,6 +138,7 @@ export function BrainContinuityView() {
           primitive, second consumer) — a different question from the 24h
           buckets below it. */}
       <BrainChangeLine />
+      <TimeTravelPanel />
 
       {/* BDN-003 (2026-08-12) · ONE merged activity/receipts timeline —
           the fold ORGANIZATION-WIRING-AUDIT §6/§7 prescribed. Supersedes

@@ -316,8 +316,8 @@ export function ChatIsland() {
             isLoading={chat.isStreaming}
             isLoadingConvo={conversations.isLoadingConvo}
             error={chat.error}
-            liveContextBlocksRef={chat.liveContextBlocksRef}
-            lastTraceIdRef={chat.lastTraceIdRef}
+            liveContextBlocks={chat.liveContextBlocks}
+            lastTraceId={chat.lastTraceId}
             onRetry={() => void chat.regenerate()}
             onCommand={(prompt) => chat.sendText(prompt)}
             tts={tts}

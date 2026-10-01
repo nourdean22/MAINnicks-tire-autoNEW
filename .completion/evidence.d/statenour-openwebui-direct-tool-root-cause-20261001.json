@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "2026-10-01 exact OpenWebUI 0.11.4 root cause located in frontend chunk DUmjoMyK.js. During model initialization, rs.info.meta.toolIds is filtered against the native Workspace Tools store before being copied into selectedToolIds. direct_server:nour-cockpit is not a native Workspace Tool, so it is discarded. The later request builder correctly splits selectedToolIds into normal tool_ids and direct_server IDs and materializes direct tool_servers from the toolServers store, but the direct ID never survives initialization. This explains the payload evidence: model meta toolIds contains direct_server:nour-cockpit while request tool_servers is []. Preferred fix is not a minified-bundle fork: add a native OpenWebUI Workspace Tool wrapper for the NOUR Cockpit bridge and attach that native tool ID to the NOUR Cockpit model; native tool IDs are the path the model initialization already auto-selects."
+    }
+  }
+}

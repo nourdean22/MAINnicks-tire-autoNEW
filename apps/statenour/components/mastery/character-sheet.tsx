@@ -23,7 +23,7 @@
  * page). Stats open at a starting level seeded from your baseline self-
  * rating and climb as work lands, so the board reads as who you are today.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { BRANCHES } from "@/lib/mastery/config";
@@ -54,7 +54,7 @@ export function CharacterSheet() {
   const query = trpc.operator.characterSheet.useQuery(undefined, {
     staleTime: 60_000,
   });
-  const stats = (query.data as StatLevel[] | undefined) ?? [];
+  const stats = useMemo(() => (query.data as StatLevel[] | undefined) ?? [], [query.data]);
 
   // 2026-05-30 · mobile · collapsible branch sections. 33 stats in one phone
   // column is a ~4-screen scroll; folding a branch (persisted to localStorage)
@@ -62,12 +62,15 @@ export function CharacterSheet() {
   // run BEFORE the early returns below so hook order stays stable.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("nour:stats:collapsed-branches:v1");
-      if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]));
-    } catch {
-      /* corrupt/unavailable storage — stay all-expanded */
-    }
+    const frame = requestAnimationFrame(() => {
+      try {
+        const raw = localStorage.getItem("nour:stats:collapsed-branches:v1");
+        if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]));
+      } catch {
+        /* corrupt/unavailable storage — stay all-expanded */
+      }
+    });
+    return () => cancelAnimationFrame(frame);
   }, []);
   const toggleBranch = (key: string) =>
     setCollapsed((prev) => {
@@ -84,6 +87,45 @@ export function CharacterSheet() {
       }
       return next;
     });
+
+  // Deep-link repair: operator-pulse links use #axis-<MasteryScore.domain>.
+  // Those domain keys are the same stable keys that build the Character Sheet.
+  // If the target branch was persisted collapsed, reveal it before scrolling.
+  useEffect(() => {
+    if (stats.length === 0 || typeof window === "undefined") return;
+    const match = /^#axis-([A-Za-z0-9_-]+)$/.exec(window.location.hash);
+    if (!match) return;
+    const key = decodeURIComponent(match[1] ?? "");
+    const stat = stats.find((item) => item.key === key);
+    if (!stat) return;
+
+    const revealFrame = requestAnimationFrame(() => {
+      setCollapsed((prev) => {
+        if (!prev.has(stat.branch)) return prev;
+        const next = new Set(prev);
+        next.delete(stat.branch);
+        try {
+          localStorage.setItem(
+            "nour:stats:collapsed-branches:v1",
+            JSON.stringify([...next]),
+          );
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+
+      requestAnimationFrame(() => {
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        document.getElementById(`axis-${key}`)?.scrollIntoView({
+          block: "center",
+          behavior: reduceMotion ? "auto" : "smooth",
+        });
+      });
+    });
+
+    return () => cancelAnimationFrame(revealFrame);
+  }, [stats]);
 
   // Cold load: render nothing (the scoreboard already has plenty above).
   if (query.isLoading && stats.length === 0) return null;
@@ -333,7 +375,8 @@ function StatCard({ stat }: { stat: StatLevel }) {
   const pct = Math.max(0, Math.min(100, stat.progressPct));
   return (
     <div
-      className="flex items-center gap-2.5 rounded-md border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 hover:bg-white/[0.04] transition-colors"
+      id={`axis-${stat.key}`}
+      className="scroll-mt-24 flex items-center gap-2.5 rounded-md border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 hover:bg-white/[0.04] transition-colors"
       title={`${stat.tier} · ${Math.round(stat.xp).toLocaleString()} XP total · ${stat.xpIntoLevel}/${stat.xpForNext} to Lvl ${stat.level + 1}`}
     >
       <span className="text-base leading-none shrink-0" aria-hidden>
@@ -387,7 +430,7 @@ function StatCard({ stat }: { stat: StatLevel }) {
             {stat.goals.slice(0, 3).map((g) => (
               <a
                 key={g.id}
-                href={`/stats#goal-${g.id}`}
+                href={`/stats?tab=goals#goal-${g.id}`}
                 title={g.title}
                 className="max-w-[120px] truncate text-[9px] text-white/45 underline decoration-white/10 underline-offset-2 hover:text-white/75"
               >

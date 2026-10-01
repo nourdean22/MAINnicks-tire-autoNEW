@@ -12,8 +12,10 @@ import { dynamicArticles, notificationMessages, contentGenerationLog, type Dynam
 import { eq, desc, and, sql } from "drizzle-orm";
 
 import { createLogger } from "./lib/logger";
-import { isRedirectedPath } from "./_core/redirects";
 import { getReviewCopy, type ReviewCopy } from "./lib/reviewCopy";
+import { ALL_ROUTES } from "@shared/routes";
+import { isRedirectedPath } from "./_core/redirects";
+import { compileBrandTruth, renderBrandTruthBlock } from "./services/brandTruth";
 
 const log = createLogger("content-generator");
 // ─── SEASONAL CONTEXT ──────────────────────────────────
@@ -148,21 +150,65 @@ Every article follows:
 1. PROBLEM HOOK — A real driver problem in the first sentence ("Squeal on left turn?")
 2. PLAIN-ENGLISH EXPLANATION — Translate the symptom to the actual mechanical cause
 3. DIAGNOSTIC AUTHORITY — How a real mechanic figures out which root cause it is (this is where insider vocab earns its keep)
-4. SOLUTION — Specific repair, with at least one number anchor (cost range, time, miles)
+4. SOLUTION — What the repair actually involves and what the driver decides. Numbers ONLY when they come from the business facts below or a named public source (NHTSA, a manufacturer spec); if you do not have a verified figure, say what the figure depends on ("rotor thickness vs the stamped minimum") — never invent a cost range, time, or mileage
 5. LOCAL TRUST — A Cleveland-specific reference (street, weather, neighborhood, season)
 6. CALL TO ACTION — "Pull up to Nick's on Euclid Ave" or "Call (216) 862-0005" — never "Contact us today"
 
-═══ BUSINESS FACTS ═══
-- Hours: Mon-Sat 8AM-6PM, Sunday 9AM-4PM
-- Phone: (216) 862-0005
-- Address: 17625 Euclid Ave, Cleveland, OH 44112
+═══ BUSINESS FACTS (compiled from the SSOT — the only facts you may state) ═══
+${renderBrandTruthBlock(compileBrandTruth(), "article")}
+- Live review line for this article: ${rating}★ from ${countDisplay} Google reviews
 - Services: Tires (new + used), Brakes, Diagnostics, Emissions/E-Check, Oil Change, AC, Transmission, Electrical, Battery, Exhaust, Cooling, Pre-purchase Inspection
-- Reviews: ${rating}★ from ${countDisplay} Google reviews
 - Service area: Cleveland, Euclid, Lakewood, Parma, East Cleveland, Cleveland Heights, Shaker Heights, South Euclid, Richmond Heights, Mentor, Strongsville
-- Differentiators: Free install package on every tire (mount/balance/valve stems/alignment check), payment programs from four providers (Acima lease-to-own, Snap Finance, Koalafi, American First Finance; each decides approval), written estimate before any wrench moves, walk you under your car on a lift
+- Differentiators: written estimate before any wrench moves; we walk you under your car on a lift
+
+═══ LENGTH ═══
+There is no word count. Answer the topic completely, accurately and economically — the shortest complete answer that deserves to exist. A section earns its place by answering one question the driver actually has; cut any section that restates another. Google states it has no preferred word count; padding is the failure mode, not brevity.
 
 ═══ SEO KEYWORDS (work in naturally — never stuff) ═══
 Cleveland auto repair · check engine light repair · Ohio E-Check · emissions repair Cleveland · tire shop Cleveland · OBD-II code pull · brake repair Cleveland · suspension repair Cleveland · alignment Cleveland`;
+
+// ─── RELATED-SERVICE ROUTE RESOLUTION ───────────────────
+
+/** Registry groups an article may link to as a "related service". */
+const LINKABLE_GROUPS = new Set(["service", "seo-service", "problem", "seasonal", "comparison"]);
+
+const LINKABLE_ROUTES = new Map<string, string>();
+for (const r of ALL_ROUTES) {
+  if (!LINKABLE_GROUPS.has(r.group) || r.path === "/") continue;
+  LINKABLE_ROUTES.set(r.path, r.path);
+  LINKABLE_ROUTES.set(r.path.replace(/^\//, ""), r.path);
+}
+
+/** Topic words the model tends to use → the canonical route. Extend here, never in the prompt. */
+const TOPIC_ALIASES: Record<string, string> = {
+  tire: "/tires", tires: "/tires", "used tires": "/tires", "new tires": "/tires",
+  brake: "/brakes", brakes: "/brakes", "brake repair": "/brakes", rotors: "/brakes", pads: "/brakes",
+  alignment: "/alignment", "wheel alignment": "/alignment",
+  diagnostic: "/diagnostics", diagnostics: "/diagnostics", "check engine": "/diagnostics", "check engine light": "/diagnostics",
+  emissions: "/emissions", "e-check": "/emissions", echeck: "/emissions",
+  oil: "/oil-change", "oil change": "/oil-change",
+};
+
+/**
+ * Map whatever the model returned (topic words, slugs, or URLs — including
+ * ones that 301 or never existed) onto 2-4 canonical, non-redirected
+ * registry routes. Unknowns are dropped, never guessed. Exported for tests.
+ */
+export function resolveRelatedServiceRoutes(candidates: unknown, max = 4): string[] {
+  const out: string[] = [];
+  const list = Array.isArray(candidates) ? candidates : [];
+  for (const raw of list) {
+    if (typeof raw !== "string") continue;
+    const key = raw.trim().toLowerCase().replace(/\/+$/, "");
+    const direct = LINKABLE_ROUTES.get(key) ?? TOPIC_ALIASES[key] ?? TOPIC_ALIASES[key.replace(/^\//, "").replace(/-/g, " ")];
+    if (!direct) continue;
+    if (isRedirectedPath(direct)) continue;
+    if (!LINKABLE_ROUTES.has(direct)) continue;
+    if (!out.includes(direct)) out.push(direct);
+    if (out.length >= max) break;
+  }
+  return out;
+}
 
 // ─── GENERATE ARTICLE ──────────────────────────────────
 
@@ -205,8 +251,8 @@ Return your response as a JSON object with these exact fields:
 - category (string): One of: Brake Repair, Diagnostics, Emissions, Tires, Seasonal Tips, Oil Change, General Repair
 - readTime (string): Estimated read time, e.g. 4 min read
 - excerpt (string): 1-2 sentence summary for the blog listing card, under 200 chars
-- sections (array): 4-6 sections, each with "heading" (string) and "content" (string, 80-200 words)
-- relatedServices (array of strings): 2-4 related service routes like /tires, /brakes, /brake-repair-cleveland, etc.
+- sections (array): as many sections as the topic needs (typically 3-7), each with "heading" (string) and "content" (string — exactly as long as it takes to answer that heading; no padding, no filler transitions). The set should answer: what the driver is experiencing · what it could mean · what it does NOT automatically mean · what they can safely check · when inspection is the right call · what diagnosis involves · the common misconception · the Cleveland-specific angle
+- relatedServices (array of strings): 2-4 related SERVICE TOPICS as plain words (e.g. "brakes", "alignment", "tires", "diagnostics") — the server maps them to real routes; do not write URLs
 - tags (array of strings): 4-8 SEO tags
 
 Respond with valid JSON only. No markdown, no code blocks, just raw JSON.`,
@@ -238,6 +284,12 @@ Respond with valid JSON only. No markdown, no code blocks, just raw JSON.`,
   if (!article.slug || !article.title || !article.sections?.length) {
     throw new Error("Generated article missing required fields");
   }
+
+  // The model names TOPICS; the route registry decides URLs. Before 2026-10-01
+  // the prompt asked the LLM for "service routes like /brake-repair-cleveland"
+  // (a 301 since the 2026-07-04 audit) and the raw strings were stored and
+  // rendered as links — an LLM is not a source of truth for URL structure.
+  article.relatedServices = resolveRelatedServiceRoutes(article.relatedServices);
 
   // Ensure meta description is under 160 chars
   if (article.metaDescription.length > 160) {

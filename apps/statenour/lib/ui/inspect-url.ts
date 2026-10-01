@@ -18,6 +18,18 @@ import { formatEntityRef, parseEntityRef, type EntityRef } from "@/lib/ui/entity
 
 export const INSPECT_PARAM = "inspect";
 
+/**
+ * Next 16.2+ marks App Router navigations as React Transitions and forwards
+ * transitionTypes to React.addTransitionType. Naming the inspector's three
+ * navigation intents keeps its ViewTransition local: open/close animate,
+ * row-to-row replacement stays instant.
+ */
+export const INSPECT_TRANSITION_TYPES = {
+  open: "inspector-open",
+  close: "inspector-close",
+  swap: "inspector-swap",
+} as const;
+
 type SearchInput = string | URLSearchParams | null | undefined;
 
 function toParams(search: SearchInput): URLSearchParams {
