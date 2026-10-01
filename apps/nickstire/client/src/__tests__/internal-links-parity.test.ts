@@ -10,11 +10,14 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { SITEWIDE_COMPONENT_LINKS } from "@shared/linkGraph";
+import { sliceBlock } from "../../../server/testUtils/sourceBlock";
 
 describe("InternalLinks.tsx ↔ SITEWIDE_COMPONENT_LINKS", () => {
   it("the component's href list equals the mirror (order-insensitive)", () => {
     const src = readFileSync(path.resolve(__dirname, "../components/InternalLinks.tsx"), "utf8");
-    const body = src.slice(src.indexOf("function buildAllLinks"), src.indexOf("interface Props"));
+    // sliceBlock throws when an anchor is gone, so a renamed function cannot
+    // silently widen this region to EOF and pass on unrelated hrefs.
+    const body = sliceBlock(src, "function buildAllLinks", "interface Props", { label: "InternalLinks.tsx" });
     const hrefs = Array.from(body.matchAll(/href:\s*"([^"]+)"/g)).map((m) => m[1]!);
     expect(hrefs.length).toBeGreaterThan(40);
     expect([...hrefs].sort()).toEqual([...SITEWIDE_COMPONENT_LINKS].sort());
