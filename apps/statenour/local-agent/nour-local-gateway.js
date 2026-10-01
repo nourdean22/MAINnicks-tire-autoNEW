@@ -9,6 +9,12 @@ const PORT = 11436;
 // no-preflight POST to 127.0.0.1; a present, non-loopback Origin is refused. A
 // request with no Origin (OpenWebUI server-side, the worker, curl) is allowed.
 const LOOPBACK_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/i;
+// Host allowlist (DNS rebinding). A rebinding page is same-origin with the
+// gateway, so it sends no cross-origin Origin and can read GET responses; its
+// Host header still carries the attacker's name. Every real caller (OpenWebUI
+// at 127.0.0.1:8080 running natively, the worker's NOUR_LOCAL_GATEWAY_URL,
+// OpenCode/Goose, curl) addresses the gateway by a loopback name.
+const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/i;
 const MAX_RESEARCH_IN_FLIGHT = 1;
 const BACKEND_HOST = "127.0.0.1";
 const BACKEND_PORT = 11435;
@@ -258,6 +264,10 @@ function enqueue(task) {
   queueTail = run.catch(() => {}).finally(() => { queueDepth--; });
   return run;
 }
+function hostAllowed(host) {
+  if (host === undefined) return false;
+  return LOOPBACK_HOST.test(String(host));
+}
 function originAllowed(origin) {
   if (origin === undefined) return true;
   return LOOPBACK_ORIGIN.test(String(origin));
@@ -403,6 +413,7 @@ function scrubbedInteractiveEnv() {
     "GOOGLE_API_KEY",
     "CLAUDECODE",
     "CLAUDE_CODE_ENTRYPOINT",
+    "RUNNER_SHARED_SECRET",
   ]) delete env[key];
   env.NOUR_EXTERNAL_WORKER_ALLOW_WRITES = "0";
   env.NOUR_EXTERNAL_WORKER_WORKSPACES_JSON = JSON.stringify({
@@ -465,7 +476,9 @@ function runWorkerAdapter(request, mode = "--local-chat", expectedStatus = "comp
           const workerOutput = String(parsed && parsed.result && parsed.result.output || "").trim();
           const detail = workerOutput ? `; workerOutput=${workerOutput.slice(0, 2000)}` : "";
           const message = String(parsed.errorMessage || parsed.errorCode || err || "interactive adapter failed") + detail;
-          return reject(new Error(message));
+          const failure = new Error(message);
+          if (parsed.errorCode) failure.code = String(parsed.errorCode);
+          return reject(failure);
         }
         resolve(parsed);
       } catch (parseErr) {
@@ -584,6 +597,12 @@ async function serveUnifiedChat(req, res, body) {
     writeOpenAiCompletion(res, requestedModel, output, Boolean(payload.stream), lane);
   } catch (err) {
     const message = String(err && err.message ? err.message : err);
+    if (err && err.code === "RESEARCH_BUSY") {
+      // The worker holds one OS-level research slot for both "nour-research"
+      // and a "nour-auto" it promoted to research, so this covers both.
+      log(`blocked model=${requestedModel} reason=research-busy source=worker ms=${Date.now()-started}`);
+      return sendJsonError(res, 429, "A research run is already in progress; retry when it finishes.", "nour_research_busy");
+    }
     log(`unified failed model=${requestedModel} error=${message} ms=${Date.now()-started}`);
     res.writeHead(503, { "content-type": "application/json" });
     res.end(JSON.stringify({
@@ -663,8 +682,12 @@ async function proxyDirect(req, res, body) {
     res.end(JSON.stringify({ error: String(err.message || err) }));
   }
 }
-const gatewayDeps = { runInteractiveAdapter };
+const gatewayDeps = { runInteractiveAdapter, runLaneProbe };
 const server = http.createServer((req, res) => {
+  if (!hostAllowed(req.headers.host)) {
+    log(`blocked path=${req.url} reason=host host=${String(req.headers.host || "").slice(0, 120)}`);
+    return sendJsonError(res, 403, "Host is not a loopback name for this gateway.", "nour_host_forbidden");
+  }
   if (!originAllowed(req.headers.origin)) {
     log(`blocked path=${req.url} reason=cross-origin origin=${String(req.headers.origin).slice(0, 120)}`);
     return sendJsonError(res, 403, "Cross-origin requests are not allowed.", "nour_origin_forbidden");
@@ -688,7 +711,7 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === "GET" && /^\/health\/lanes(?:\?|$)/.test(req.url)) {
-    runLaneProbe()
+    gatewayDeps.runLaneProbe()
       .then(probe => {
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify(probe));
@@ -789,4 +812,16 @@ if (process.env.NOUR_GATEWAY_NO_LISTEN !== "1") {
   });
 }
 
-module.exports = { server, gatewayDeps, originAllowed, isJsonContentType };
+function gatewayState() {
+  return { researchInFlight };
+}
+
+module.exports = {
+  server,
+  gatewayDeps,
+  gatewayState,
+  hostAllowed,
+  originAllowed,
+  isJsonContentType,
+  scrubbedInteractiveEnv,
+};

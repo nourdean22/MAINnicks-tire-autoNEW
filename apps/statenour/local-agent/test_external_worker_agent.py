@@ -924,5 +924,136 @@ class ExternalWorkerAgentTests(unittest.TestCase):
         self.assertNotIn("attacker", gap_rounds[0])
 
 
+    # --- follow-ups from the #2832 review ------------------------------------
+
+    def test_research_scratch_dir_works_without_ignore_cleanup_errors(self):
+        # Python 3.8/3.9 TemporaryDirectory has no ignore_cleanup_errors keyword.
+        real_tempdir = worker.tempfile.TemporaryDirectory
+
+        def py39_tempdir(suffix=None, prefix=None, dir=None, **kwargs):
+            if kwargs:
+                raise TypeError(f"unexpected keyword argument {sorted(kwargs)[0]!r}")
+            return real_tempdir(suffix=suffix, prefix=prefix, dir=dir)
+
+        seen = {}
+
+        def fake_run(name, args, *, cwd=None, stdin_text=None, timeout=20):
+            seen["cwd"] = cwd
+            seen["exists"] = cwd is not None and Path(cwd).is_dir()
+            return 0, ""
+
+        with patch.object(worker.tempfile, "TemporaryDirectory", py39_tempdir), patch.object(
+            worker, "run_process", side_effect=fake_run
+        ):
+            code, output, _model, _meta = worker.execute_claude_research(
+                "research this", Path.cwd(), web_search=True
+            )
+        self.assertFalse(output.startswith("RESEARCH_EXEC_FAILED"), output)
+        self.assertTrue(seen.get("exists"), "the research CLI ran in a real scratch dir")
+        self.assertTrue(Path(seen["cwd"]).name.startswith("nour-research-"))
+        self.assertFalse(Path(seen["cwd"]).exists(), "scratch dir is removed after the run")
+
+    def test_research_scratch_cleanup_failure_is_best_effort(self):
+        def failing_rmtree(path, ignore_errors=False, onerror=None):
+            if not ignore_errors:
+                raise PermissionError("file still locked by the CLI")
+
+        with patch.object(worker.shutil, "rmtree", side_effect=failing_rmtree), patch.object(
+            worker, "run_process", return_value=(0, "")
+        ):
+            code, output, _model, _meta = worker.execute_claude_research(
+                "research this", Path.cwd(), web_search=True
+            )
+        self.assertFalse(output.startswith("RESEARCH_EXEC_FAILED"), output)
+
+    def _promoted_auto_request(self):
+        prior = "# MAX-EFFORT DEEP RESEARCH + COMPETITIVE INTELLIGENCE\n" + ("evidence sources report " * 40)
+        return {
+            "model": "nour-auto",
+            "prompt": "USER:\n" + prior,
+            "routingPrompt": prior,
+            "workspaceKey": "repo",
+        }
+
+    def test_research_slot_is_exclusive_and_released(self):
+        with TemporaryDirectory() as tmp:
+            lock = Path(tmp) / "research.lock"
+            with worker.research_slot(lock) as first:
+                with worker.research_slot(lock) as second:
+                    self.assertTrue(first)
+                    self.assertFalse(second)
+            with worker.research_slot(lock) as again:
+                self.assertTrue(again, "the slot is released when the holder exits")
+
+    def test_research_slot_is_released_when_holder_process_dies(self):
+        with TemporaryDirectory() as tmp:
+            lock = Path(tmp) / "research.lock"
+            holder = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    "import importlib.util, sys, time\n"
+                    f"spec = importlib.util.spec_from_file_location('w', {str(MODULE_PATH)!r})\n"
+                    "w = importlib.util.module_from_spec(spec); spec.loader.exec_module(w)\n"
+                    f"with w.research_slot({str(lock)!r}) as ok:\n"
+                    "    print('held' if ok else 'busy', flush=True)\n"
+                    "    time.sleep(60)\n",
+                ],
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                self.assertEqual(holder.stdout.readline().strip(), "held")
+                with worker.research_slot(lock) as while_held:
+                    self.assertFalse(while_held, "positive control: another process holds it")
+            finally:
+                holder.kill()
+                holder.wait(timeout=10)
+                holder.stdout.close()
+            with worker.research_slot(lock) as after_kill:
+                self.assertTrue(after_kill, "a killed holder must not wedge the slot")
+
+    def test_promoted_auto_research_is_refused_while_research_slot_is_held(self):
+        with TemporaryDirectory() as tmp:
+            lock = Path(tmp) / "research.lock"
+            with patch.object(worker, "RESEARCH_LOCK_PATH", lock), patch.object(
+                worker, "resolve_workspace", return_value=Path.cwd()
+            ), patch.object(worker, "probe_lanes", return_value={}) as probe, patch.object(
+                worker, "run_research_orchestrator"
+            ) as research:
+                with worker.research_slot(lock) as held:
+                    self.assertTrue(held)
+                    promoted = worker.execute_interactive_request(self._promoted_auto_request())
+                    explicit = worker.execute_interactive_request(
+                        {"model": "nour-research", "prompt": "Research the thing.", "workspaceKey": "repo"}
+                    )
+            for response in (promoted, explicit):
+                self.assertEqual(response["status"], "failed")
+                self.assertEqual(response["errorCode"], "RESEARCH_BUSY")
+            research.assert_not_called()
+            probe.assert_not_called()
+
+    def test_promoted_auto_research_holds_the_slot_and_releases_it_on_error(self):
+        with TemporaryDirectory() as tmp:
+            lock = Path(tmp) / "research.lock"
+            observed = {}
+
+            def orchestrator(*_args, **_kwargs):
+                with worker.research_slot(lock) as second:
+                    observed["second"] = second
+                raise RuntimeError("provider exploded")
+
+            with patch.object(worker, "RESEARCH_LOCK_PATH", lock), patch.object(
+                worker, "resolve_workspace", return_value=Path.cwd()
+            ), patch.object(worker, "probe_lanes", return_value={}), patch.object(
+                worker, "run_research_orchestrator", side_effect=orchestrator
+            ):
+                with self.assertRaises(RuntimeError):
+                    worker.execute_interactive_request(self._promoted_auto_request())
+            self.assertIs(observed["second"], False, "the promoted run held the slot")
+            with worker.research_slot(lock) as after:
+                self.assertTrue(after, "the slot is released after an error")
+
+
 if __name__ == "__main__":
     unittest.main()

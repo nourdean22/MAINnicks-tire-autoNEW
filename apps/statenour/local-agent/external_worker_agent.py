@@ -14,6 +14,7 @@ Optional:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import platform
@@ -57,6 +58,17 @@ RESEARCH_DIR = Path(
     os.getenv(
         "NOUR_RESEARCH_DIR",
         str(Path.home() / "AI" / "research-sessions" / "nour-research"),
+    )
+)
+
+# One research run at a time across every caller: the gateway spawns a fresh
+# process per chat request, and "nour-auto" can promote itself to research
+# after the gateway has already decided, so the cap lives here, as an OS file
+# lock the OS releases when the holder dies (timeout kill, crash, abort).
+RESEARCH_LOCK_PATH = Path(
+    os.getenv(
+        "NOUR_RESEARCH_LOCK_PATH",
+        str(Path(tempfile.gettempdir()) / "nour-research.lock"),
     )
 )
 
@@ -543,6 +555,57 @@ def sanitize_gap_query(gap: str) -> str:
     return " ".join(text.split())[:GAP_QUERY_MAX_CHARS].strip()
 
 
+@contextlib.contextmanager
+def research_scratch_dir():
+    """Fresh empty dir, best-effort cleanup.
+
+    Equivalent to TemporaryDirectory(ignore_cleanup_errors=True) without needing
+    Python 3.10: a CLI child can still hold a file open on Windows at exit.
+    """
+    path = tempfile.mkdtemp(prefix="nour-research-")
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
+
+
+@contextlib.contextmanager
+def research_slot(lock_path: Path | str | None = None):
+    """Yield True when this process holds the single research slot, else False."""
+    handle = open(Path(lock_path or RESEARCH_LOCK_PATH), "a+b")
+    acquired = False
+    try:
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            acquired = True
+        except OSError:
+            acquired = False
+        yield acquired
+    finally:
+        if acquired:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+        handle.close()
+
+
 def execute_claude_research(
     prompt: str,
     workspace: Path,
@@ -574,9 +637,7 @@ def execute_claude_research(
     try:
         # Research needs no repo access: run it from a fresh empty directory so
         # the CLI never starts inside Nour's checkout.
-        with tempfile.TemporaryDirectory(
-            prefix="nour-research-", ignore_cleanup_errors=True
-        ) as scratch:
+        with research_scratch_dir() as scratch:
             code, raw = run_process(
                 "claude",
                 args,
@@ -1728,12 +1789,20 @@ def execute_interactive_request(raw: dict[str, Any]) -> dict[str, Any]:
                 "errorCode": "WORKSPACE_NOT_ALLOWED",
                 "errorMessage": str(exc)[:240],
             }
-        lanes = probe_lanes()
-        response = run_research_orchestrator(
-            routing_prompt or prompt,
-            workspace,
-            lanes,
-        )
+        with research_slot() as acquired:
+            if not acquired:
+                return {
+                    "status": "failed",
+                    "errorCode": "RESEARCH_BUSY",
+                    "errorMessage": "a research run is already in progress; retry when it finishes",
+                    "autoPromotedToResearch": auto_promoted_research,
+                }
+            lanes = probe_lanes()
+            response = run_research_orchestrator(
+                routing_prompt or prompt,
+                workspace,
+                lanes,
+            )
         if auto_promoted_research:
             response["autoPromotedToResearch"] = True
             response["requestedModel"] = "nour-auto"
