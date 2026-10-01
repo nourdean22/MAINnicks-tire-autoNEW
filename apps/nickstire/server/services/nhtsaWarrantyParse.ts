@@ -221,7 +221,8 @@ export function chunkUrl(range: string): string {
 /**
  * Closed 5-year ranges are fixed. The open range's live name contradicts the
  * spec ("2025-2026", not "2025-2029"), so its name is probed, never assumed:
- * `<start>-<this year>` first, then `<start>-<start+4>`.
+ * `<start>-<this year>` first, then `<start>-<start+4>`, then (the ingest's
+ * last resort) previousYearCandidate's `<start>-<last year>`.
  */
 export function chunkPlan(year: number): { closed: string[]; openCandidates: string[] } {
   const openStart = FIRST_CHUNK_START + Math.floor((year - FIRST_CHUNK_START) / CHUNK_SPAN) * CHUNK_SPAN;
@@ -229,4 +230,21 @@ export function chunkPlan(year: number): { closed: string[]; openCandidates: str
   for (let s = FIRST_CHUNK_START; s < openStart; s += CHUNK_SPAN) closed.push(`${s}-${s + CHUNK_SPAN - 1}`);
   const candidates = [`${openStart}-${year}`, `${openStart}-${openStart + CHUNK_SPAN - 1}`];
   return { closed, openCandidates: [...new Set(candidates)] };
+}
+
+/**
+ * One more name for the open range, probed only after every `chunkPlan`
+ * candidate is absent: `<start>-<last year>`. Early in a new year NHTSA can
+ * still be serving last year's name (in January 2027, "2025-2026" until the
+ * first 2027 communication renames it), and without this probe the run would
+ * fail "current chunk not found" until it does. null when last year is not
+ * after the range's first year (in January 2031 the "2030-2030" name is not
+ * probed; that run fails loudly, as before).
+ */
+export function previousYearCandidate(year: number): string | null {
+  const openStart = FIRST_CHUNK_START + Math.floor((year - FIRST_CHUNK_START) / CHUNK_SPAN) * CHUNK_SPAN;
+  const last = year - 1;
+  if (last <= openStart) return null;
+  const name = `${openStart}-${last}`;
+  return chunkPlan(year).openCandidates.includes(name) ? null : name;
 }

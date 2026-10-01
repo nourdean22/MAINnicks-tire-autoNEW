@@ -3061,6 +3061,33 @@
       "lastVerifiedAt": "2026-10-01"
     },
     {
+      "capabilityId": "admin-data-freshness-nhtsa-q50",
+      "name": "Intelligence HQ's Data freshness card reports how current the stored NHTSA manufacturer-program list is, and the ingest probes last year's open-chunk name before failing",
+      "owner": "system",
+      "codeState": "in_progress",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Branch nickstire/q50-phase3-freshness-row (draft PR, not merged): server/services/nhtsaWarrantyRead.ts (warrantyIngestFreshness: the ingest's lastSuccessAt, the work-order panel's own 3-day stale rule, and the nhtsa_warranty_ingest flag read from its row so a flag-table failure is unknown, not off); vehicleData.warrantyIngestFreshness; client/src/pages/admin/today/dataFreshness.ts nhtsaWarrantyRow + DataFreshness.tsx fourth row; server/services/nhtsaWarrantyParse.ts previousYearCandidate, probed last by resolveOpenChunk.",
+        "tests": [
+          "server/services/nhtsaWarrantyPhase3.test.ts: 10 cases incl. never-finished (armed and off), the 3-day boundary both sides, failed state/flag/database reads as ok:false, SELECT-only production SQL with the flag key as a parameter, a missing flag row as off, and the January 2027 probe order 2025-2027, 2025-2029, 2025-2026 with 2026's order and message unchanged.",
+          "client/src/__tests__/data-freshness-nhtsa-q50.test.tsx: 9 cases incl. not set up (quiet), armed but never finished (loud), fresh, stale armed and off (loud), a failed read and ok:false as UNMEASURED unknown, and the card counting the row in 'need a look'.",
+          "17 of 19 new cases fail on main (the other 2 pin unchanged behaviour); 5 of 5 mutants caught."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "The row reads 'not set up' until the operator applies migration 0138 and arms nhtsa_warranty_ingest; no run has finished in production yet."
+        }
+      ],
+      "deferredScope": [
+        "The work-order panel still offers Retry on 'never ingested' and 'not installed', where a retry cannot help: the existing nhtsa-warranty-panel test asserts that Retry, and the shift loop may not rewrite an existing test, so that change needs the operator's go-ahead."
+      ],
+      "lastVerifiedAt": "2026-10-01"
+    },
+    {
       "capabilityId": "nickstire-daily-digest-q29",
       "name": "Daily digest (cron db-backup): counts-only nickstire -> StateNour, no customer rows",
       "owner": "system",
@@ -3254,6 +3281,32 @@
         "Eligible per lane: no job records how many customers it considered. Recording it means each lane returning a count in its cron result, lane by lane.",
         "Blocked reasons the scheduler does not log: businessHoursOnly and once-per-shop-day passes write no cron_log row, so outside hours a lane simply ages; the 72h stale line allows for a closed weekend.",
         "Lanes sent from routers rather than the scheduler (operator campaigns campaign:N, the statenour bulk_campaign:N bridge) and the voice lanes (voice-recovery, missed-call-recovery, confirmation calls) are not on the strip."
+      ],
+      "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "instagram-capi-growth-wave-20261001",
+      "name": "Instagram Studio bounds and Meta CAPI attribution preserve truthful lead, callback, and booking conversion context",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "internal",
+      "evidence": {
+        "codeCommit": "PR #2835 branch nickstire/monthly-growth-20260930: deterministic Instagram model-output normalization plus Meta CAPI attribution/context fixes across lead, callback, and booking paths.",
+        "tests": [
+          "server/instagramStudio.normalize.test.ts exercises overlong model output through generateInstagramStudioDraft and verifies bounded caption/headline/CTA/art direction/slide copy.",
+          "server/meta-capi.test.ts verifies event normalization and attribution/context behavior for the updated CAPI path."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not yet production-verified; this entry is intentionally unit_verified until the merged deployment is observed."
+        }
+      ],
+      "deferredScope": [
+        "Production conversion delivery/read-back remains a post-merge operational verification."
       ],
       "lastVerifiedAt": "2026-10-01"
     }

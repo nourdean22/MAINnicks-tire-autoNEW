@@ -169,6 +169,10 @@ CREATE TABLE IF NOT EXISTS nhtsa_mfr_warranty_products (
    For the open range, probe `2025-<current year>` and then `2025-2029`, and take the first that
    answers 200. If neither does, the run **fails** with "current chunk not found", recorded as
    `failed` in `cron_log`. It never reports success with zero rows.
+   > **Added in phase 3 (2026-10-01).** If both miss, the probe tries `<start>-<last year>`
+   > last (`previousYearCandidate` in `nhtsaWarrantyParse.ts`), so in January 2027 a
+   > still-unrenamed `2025-2026` is found instead of failing. It is skipped when last year is
+   > the range's first year or belongs to a closed range; those runs fail loudly as above.
 5. **Parsing:** stream the zip entry and split lines as they arrive. Never hold the 392 MB text in
    memory. Proposed unzip: `fflate` (MIT, no dependencies, streaming `Unzip`). It is already in
    `pnpm-lock.yaml` at 0.8.3 through another package; the build adds it as a direct nickstire
@@ -223,6 +227,10 @@ read the way `cron/jobs/cronSkipWatchdog.ts` reads `cron_log`.
 Once the ingest has run, the same freshness reading can become a row on Intelligence HQ's Data
 freshness card (`client/src/pages/admin/today/dataFreshness.ts`, Q-23 phase 9); that is a
 follow-up, not part of phase 2.
+
+> **Built in phase 3 (2026-10-01).** The row is `nhtsaWarrantyRow` in that file, read through
+> `vehicleData.warrantyIngestFreshness` (the same `lastSuccessAt` and 3-day rule, plus the flag
+> read from its row so a flag-table failure shows "unknown", not "off").
 
 ## 8 · Matching shop names to NHTSA names (and phase 1's carry-overs)
 

@@ -1,10 +1,12 @@
 /**
  * DataFreshness — Q-23 phase 9 · how current the inputs behind Intelligence HQ are.
  *
- * Three rows: ShopDriver connection, invoice mirror, SMS gateway. Each reads an
- * existing query (see ./dataFreshness for which, and why no new reader), so this
- * card adds no request the admin was not already making: `todayPulse` is shared
- * with "Today, for real" through the react-query cache.
+ * Four rows: ShopDriver connection, invoice mirror, SMS gateway, and the NHTSA
+ * manufacturer-program list behind the work-order drawer (Q-50 phase 3). The first
+ * three read existing queries (see ./dataFreshness for which, and why no new reader):
+ * `todayPulse` is shared with "Today, for real" through the react-query cache. The
+ * NHTSA row is the one extra request, a two-row SELECT polled every 10 minutes,
+ * because nothing else on the admin reads the ingest's state.
  *
  * HONESTY · unlike "Today, for real", this card always renders, because its job
  * is to report the reads that failed. A failed read is a row that says
@@ -13,18 +15,21 @@
 import { trpc } from "@/lib/trpc";
 import { Clock } from "lucide-react";
 import { ProvenanceTag } from "../shared/ProvenanceTag";
-import { invoiceMirrorRow, shopDriverRow, smsGatewayRow, type FreshnessRow } from "./dataFreshness";
+import { invoiceMirrorRow, nhtsaWarrantyRow, shopDriverRow, smsGatewayRow, type FreshnessRow } from "./dataFreshness";
 
 export function DataFreshness() {
   const shopDriver = trpc.adminSecurity.integrationFreshness.useQuery(undefined, { refetchInterval: 300_000 });
   const pulse = trpc.controlCenter.todayPulse.useQuery(undefined, { refetchInterval: 120_000 });
   const gateway = trpc.sms.gatewayHealth.useQuery(undefined, { refetchInterval: 60_000 });
+  // The ingest runs once a day; a 10-minute poll is plenty.
+  const nhtsa = trpc.vehicleData.warrantyIngestFreshness.useQuery(undefined, { refetchInterval: 600_000 });
 
   const now = new Date();
   const rows: FreshnessRow[] = [
     shopDriverRow({ data: shopDriver.data, isError: shopDriver.isError }, now),
     invoiceMirrorRow({ data: pulse.data, isError: pulse.isError }, now),
     smsGatewayRow({ data: gateway.data, isError: gateway.isError }),
+    nhtsaWarrantyRow({ data: nhtsa.data, isError: nhtsa.isError }, now),
   ];
   const needsLook = rows.filter((r) => r.loud).length;
 

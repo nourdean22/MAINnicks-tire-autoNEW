@@ -20,6 +20,11 @@ import {
   CapabilityProposalSchema,
   CapabilityTransitionSchema,
 } from "@/lib/tools/capability-lifecycle";
+import {
+  buildCostPerOutcomeAttribution,
+  recordValueObservation,
+  ValueObservationSchema,
+} from "@/lib/intelligence/value-attribution";
 
 const ToolActionRequestSchema = z.object({
   toolId: z.string(),
@@ -76,6 +81,14 @@ export const toolsProcedures = {
   transitionCapabilityProposal: operatorProcedure
     .input(CapabilityTransitionSchema)
     .mutation(async ({ input }) => transitionCapabilityProposal(input)),
+
+  costPerOutcomeAttribution: operatorProcedure
+    .input(z.object({ windowDays: z.number().int().min(1).max(90).default(7) }).optional())
+    .query(async ({ input }) => buildCostPerOutcomeAttribution(input?.windowDays ?? 7)),
+
+  recordValueObservation: operatorProcedure
+    .input(ValueObservationSchema)
+    .mutation(async ({ input }) => recordValueObservation(input)),
 
   evaluateTool: operatorProcedure
     .input(ToolActionRequestSchema)

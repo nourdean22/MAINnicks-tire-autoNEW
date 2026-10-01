@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-01T08:39:56.941Z",
-  "count": 762,
+  "generatedAt": "2026-10-01T09:40:30.148Z",
+  "count": 763,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -737,6 +737,7 @@
     "query.vehicleData.decodeVin",
     "query.vehicleData.recalls",
     "query.vehicleData.warrantyExtensions",
+    "query.vehicleData.warrantyIngestFreshness",
     "query.voiceAgent.capacityCheck",
     "query.voiceAgent.getCurrentWaitTime",
     "query.voiceAgent.getDeclinedEstimate",

@@ -13,7 +13,7 @@ import { storagePut } from "../storage";
 import { notifyNewBooking, notifyInvoiceCreated } from "../email-notify";
 import { syncBookingToSheet, syncInvoiceToSheet } from "../sheets-sync";
 import { sendSms, sendSmsOrThrow, bookingConfirmationSms, statusUpdateSms } from "../sms";
-import { sendLeadEvent, sendScheduleEvent } from "../meta-capi";
+import { requireCapiDelivery, sendLeadEvent, sendScheduleEvent } from "../meta-capi";
 import { scheduleReviewRequest } from "./reviewRequests";
 import { scheduleRemindersForBooking, getNextInvoiceNumber, createInvoice } from "../db";
 import { shopSettings } from "../../drizzle/schema";
@@ -413,13 +413,13 @@ export const bookingRouter = router({
           fbp: input.pixelUserData?.fbp,
         };
         withRetry(
-          () => sendLeadEvent({
+          () => requireCapiDelivery(sendLeadEvent({
             eventId: pixelEventIds.leadEventId,
             sourceUrl: SITE_URL,
             contentName: "Booking Form Submission",
             contentCategory: input.service,
             ...capiUserData,
-          }),
+          })),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendLeadEvent (booking)" }
         ).catch(err => {
           log.error("[CAPI] Lead event failed:", err);
@@ -432,13 +432,13 @@ export const bookingRouter = router({
           });
         });
         withRetry(
-          () => sendScheduleEvent({
+          () => requireCapiDelivery(sendScheduleEvent({
             eventId: pixelEventIds.scheduleEventId,
             sourceUrl: SITE_URL,
             service: input.service,
             vehicle: vehicleStr || undefined,
             ...capiUserData,
-          }),
+          })),
           { maxRetries: 3, baseDelayMs: 1000, label: "sendScheduleEvent (booking)" }
         ).catch(err => {
           log.error("[CAPI] Schedule event failed:", err);
