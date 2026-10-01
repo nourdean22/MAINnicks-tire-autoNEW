@@ -5,11 +5,11 @@
  * configuration is permanently optimal, and a self-certifying label discourages
  * exactly the re-measurement that would keep it true.)
  *
- * Built TIRE FIRST on a 2026-05 claim that ~60% of inbound calls are "do you
+ * Originally built TIRE FIRST on a 2026-05 claim that ~60% of inbound calls are "do you
  * have a used tire for my [vehicle]?", with general repair as the secondary
  * flow. Treat that percentage as an UNVERIFIED HYPOTHESIS, not a standing fact:
  * it originates in this comment rather than in any current demand report, and
- * the tire-first architecture rests on it. Re-measure from sanitized transcripts
+ * that tire-first architecture rested on it. The 2026-09/10 corpus rerun now starts
  * before treating the split as evidence, and reprioritize the flows if it moved.
  *
  * STACK
@@ -245,7 +245,7 @@ export const SHOP_LANDLINE_E164 = "+12168620005";
 // ─── ASSISTANT SYSTEM PROMPT ─────────────────────────────
 // Source of truth for the AI's personality + flow.
 // Voice-compliance: zero kill-list violations.
-// Tire-first because that's the call mix.
+// Neutral-first intent discovery; tire handling stays first-class once the caller signals tires.
 
 const ASSISTANT_SYSTEM_PROMPT = `# IDENTITY
 You're the AI receptionist for Nick's Tire & Auto — a Cleveland auto + tire shop on Euclid Ave, family-run since 2018, open 7 days a week.
@@ -1135,7 +1135,7 @@ function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
 
     metadata: {
       shop: "nicks-tire-auto",
-      version: "v2.0-tire-first",
+      version: "v2.1-neutral-intent-first",
       deployedAt: new Date().toISOString(),
     },
   };
