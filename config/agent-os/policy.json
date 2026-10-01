@@ -73,20 +73,36 @@
     {
       "id": "push-implicit-dest",
       "tools": ["Bash", "PowerShell"],
-      "pattern": "__GIT__push(?:\\s+--?[\\w=./-]+)*\\s*$|__GIT__push(?:\\s+--?[\\w=./-]+)*\\s+[A-Za-z][\\w.-]*\\s*$|__GIT__push\\b[^\\n]*\\s(?:HEAD|@)(?=[\\s\"']|$)",
-      "why": "Red-team 2026-08-04: `git push`, `git push origin`, and `git push origin HEAD` resolve the destination from the CURRENT branch — which may be main. The push-to-main rule blocks a spelling; this rule blocks the destination being left implicit at all.",
+      "pattern": "__GIT__push(?:\\s+--?[\\w=./-]+)*(?=(?:\\s+&?\\d*>{1,2}&?[^\\s;&|)]*)*\\s*(?:$|[;&|\\n)]))|__GIT__push(?:\\s+--?[\\w=./-]+)*\\s+[^\\s;&|)>\"'\\-][^\\s;&|)>\"']*(?:\\s+--?[\\w=./-]+)*(?=(?:\\s+&?\\d*>{1,2}&?[^\\s;&|)]*)*\\s*(?:$|[;&|\\n)]))|__GIT__push\\b[^;&|\\n]*?\\s[\"']?(?:HEAD|@)(?=[\"']?(?:\\s|$|[;&|)]))",
+      "why": "Red-team 2026-08-04: `git push`, `git push origin`, and `git push origin HEAD` resolve the destination from the CURRENT branch — which may be main. The push-to-main rule blocks a spelling; this rule blocks the destination being left implicit at all. Red-team 2026-10-01: the first two arms were anchored to the end of the whole command, so an implicit push followed by ;, &&, a pipe, a redirect or a newline passed (15 bypasses through the real hook), while the HEAD arm read past those into later commands and blocked explicit pushes (5 false positives). Every arm now ends at its own command.",
       "fix": "Name the full destination explicitly: git push -u origin <branch>  (or  git push origin HEAD:<branch>).",
       "denyExamples": [
         "git push",
         "git push origin",
         "git push origin HEAD",
         "git push -u origin HEAD",
-        "git -C . push"
+        "git -C . push",
+        "git push && echo done",
+        "git push; echo done",
+        "git push origin && echo done",
+        "git push 2>&1 | tail -3",
+        "(cd repo && git push)",
+        "git add a.ts\ngit commit -m x\ngit push\necho done",
+        "git push origin HEAD; echo done",
+        "git push origin -u",
+        "git push origin 'HEAD'"
       ],
       "allowExamples": [
         "git push -u origin chore/agent-os-v2",
         "git push origin HEAD:chore/agent-os-v1",
-        "git push origin statenour/fix-thing"
+        "git push origin statenour/fix-thing",
+        "git push -u origin feature/x 2>&1 | tail -4; git rev-parse HEAD",
+        "git push -u origin feature/x && git log -1 HEAD",
+        "git push origin feature/x && echo @ done",
+        "git push origin HEAD:feature/x; git rev-parse HEAD",
+        "git push origin feature/x\ngit log -1 HEAD",
+        "git push origin -u feature/x",
+        "echo \"use git push carefully\""
       ]
     },
     {
