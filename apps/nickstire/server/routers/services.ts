@@ -593,7 +593,7 @@ export const smsRouter = router({
     const password = process.env.SHOP_SMS_GATEWAY_PASSWORD;
     const baseUrl = process.env.SHOP_SMS_GATEWAY_URL || "https://api.sms-gate.app/3rdparty/v1";
     if (!username || !password) {
-      return { configured: false as const, online: false, lastSeen: null, deviceName: null, error: "SHOP_SMS_GATEWAY_USERNAME/PASSWORD not set" };
+      return { configured: false as const, readable: true, online: false, lastSeen: null, deviceName: null, error: "SHOP_SMS_GATEWAY_USERNAME/PASSWORD not set" };
     }
     const auth = Buffer.from(`${username}:${password}`).toString("base64");
     try {
@@ -602,11 +602,13 @@ export const smsRouter = router({
         signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) {
-        return { configured: true as const, online: false, lastSeen: null, deviceName: null, error: `Capevace /device returned ${res.status}` };
+        // readable: false · the vendor API failed, so the phone's state is UNKNOWN,
+        // not offline. Q-23 phase 9: the admin must not blame the device for it.
+        return { configured: true as const, readable: false, online: false, lastSeen: null, deviceName: null, error: `Capevace /device returned ${res.status}` };
       }
       const devices = (await res.json()) as Array<{ id: string; name?: string; lastSeen?: string }>;
       if (!devices.length) {
-        return { configured: true as const, online: false, lastSeen: null, deviceName: null, error: "No devices registered" };
+        return { configured: true as const, readable: true, online: false, lastSeen: null, deviceName: null, error: "No devices registered" };
       }
       // Don't blindly trust devices[0] — the Capevace account can hold a stale
       // test phone alongside the live F25e, and order isn't guaranteed. Prefer
@@ -615,6 +617,7 @@ export const smsRouter = router({
       if (!dev) {
         return {
           configured: true as const,
+          readable: true,
           online: false,
           lastSeen: null,
           deviceName: null,
@@ -625,6 +628,7 @@ export const smsRouter = router({
       const ageMin = lastSeenMs ? Math.round((Date.now() - lastSeenMs) / 60_000) : 999;
       return {
         configured: true as const,
+        readable: true,
         online: isGatewayOnline(ageMin),
         lastSeen: dev.lastSeen || null,
         ageMinutes: ageMin,
@@ -634,6 +638,7 @@ export const smsRouter = router({
     } catch (err) {
       return {
         configured: true as const,
+        readable: false,
         online: false,
         lastSeen: null,
         deviceName: null,

@@ -161,6 +161,9 @@ export const FLAG_DEFINITIONS = [
   // source row, and promiseLedger keeps these rows out of the sweep, the panel
   // and the kept-rate until phase 2/3.
   { key: "obligation_mirror_enabled", description: "Mirror open callback requests, owed texts and emergency requests into customer_promises (one row each, keyed per ADR-0020) every 15 min, and close each row when its source reaches an outcome. Shadow only: no alert, inbox item or panel change. OFF = nothing read or written." },
+  // ADR-0021 phase 2a (Q-50). Reads a public NHTSA file and writes two public-data tables;
+  // sends nothing. Stays OFF until the measured parse keeps the event loop under 250 ms max delay.
+  { key: "nhtsa_warranty_ingest", description: "Daily (09:30 ET tier) download of NHTSA's manufacturer-communications file; keeps only warranty-extension rows in nhtsa_mfr_warranty_comms/_products (migration 0138). Sunday = every chunk. Sends nothing; nothing displays the rows until phase 2b. OFF = no download, no write." },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];

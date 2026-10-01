@@ -2572,8 +2572,7 @@
         }
       ],
       "deferredScope": [
-        "Q-23 remaining: the lane-health strip, data freshness, and provenance tags on AIHealth and LlmSpend (CustomerIntelligence: admin-customer-intel-provenance-q23).",
-        "masterIntelligence counts a failed engine only when it throws; this engine's swallowed failure (now unavailable:true) is still not counted toward the report's scoreReliable threshold."
+        "Q-23 remaining: the lane-health strip and data freshness (AIHealth and LlmSpend tags: admin-ai-health-llm-provenance-q23)."
       ],
       "lastVerifiedAt": "2026-09-30"
     },
@@ -2581,14 +2580,15 @@
       "capabilityId": "admin-customer-intel-provenance-q23",
       "name": "Admin Customer Intelligence counts read the fields their engines return, show UNMEASURED on a failed read, and make no retention claim from an empty VIP list",
       "owner": "operator",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch nickstire/q23-phase6-customer-intel-provenance (Q-23 phase 6, draft PR, not merged): 'Due For Maintenance' read repeatPrediction.recommendations, a field predictRepeatVisits never returns, so it was 0 on every render; it now reads dueSoon (label 'Due Or Overdue'). predictChurn and predictRepeatVisits mark their catch-path empty lists unavailable:true. client/src/pages/admin/intelligence/customerSignals.ts deriveCustomerSignals maps a null engine result or unavailable:true to UNMEASURED 'unknown', a read count to ESTIMATE, and a list at the engine's cap (25 / 30) to 'N+'. The empty VIP list no longer says 'Retention looks solid': nextBestActions keeps the top 8 of all actions, so higher-urgency items can crowd VIP win-backs out.",
+        "codeCommit": "Q-23 phase 6, merged as #2833 (squash 5163f2dab, 2026-10-01): 'Due For Maintenance' read repeatPrediction.recommendations, a field predictRepeatVisits never returns, so it was 0 on every render; it now reads dueSoon (label 'Due Or Overdue'). predictChurn and predictRepeatVisits mark their catch-path empty lists unavailable:true. client/src/pages/admin/intelligence/customerSignals.ts deriveCustomerSignals maps a null engine result or unavailable:true to UNMEASURED 'unknown', a read count to ESTIMATE, and a list at the engine's cap (25 / 30) to 'N+'. The empty VIP list no longer says 'Retention looks solid': nextBestActions keeps the top 8 of all actions, so higher-urgency items can crowd VIP win-backs out.",
         "tests": [
           "client/src/__tests__/customer-intelligence-provenance.test.tsx: failed engines, failed engine reads, dueSoon read, empty read, cap floor, no retention claim. Red on main 6/6.",
-          "server/services/engines/customerSignalsUnavailable.test.ts: a rejected read returns unavailable:true for both engines; an empty read does not. Red on main 2/4 (the two success-path controls pass on both by design)."
+          "server/services/engines/customerSignalsUnavailable.test.ts: a rejected read returns unavailable:true for both engines; an empty read does not. Red on main 2/4 (the two success-path controls pass on both by design).",
+          "Q-23 phase 7: customer-intelligence-provenance.test.tsx also pins the 'Due Or Overdue' label (dueSoon includes overdue customers); renaming it back to 'Due For Maintenance' turns that case red."
         ],
         "liveRuns": []
       },
@@ -2599,9 +2599,8 @@
         }
       ],
       "deferredScope": [
-        "Q-23 remaining: the lane-health strip, data freshness, and provenance tags on AIHealth and LlmSpend.",
-        "nextBestActions' VIP read goes through safeRowQuery, which returns [] on failure, so a failed VIP read still renders as an empty list (now worded without a retention claim).",
-        "masterIntelligence still scores these engines' swallowed failures as successful reads (scoreReliable does not see unavailable:true)."
+        "Q-23 remaining: the lane-health strip and data freshness (AIHealth and LlmSpend tags: admin-ai-health-llm-provenance-q23).",
+        "nextBestActions' VIP read goes through safeRowQuery, which returns [] on failure, so a failed VIP read still renders as an empty list (now worded without a retention claim)."
       ],
       "lastVerifiedAt": "2026-09-30"
     },
@@ -3009,7 +3008,7 @@
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch nickstire/q50-nhtsa-estimate-panel (draft PR, not merged): server/services/vehicleData.ts complaintsByVehicle (counts only; narratives and VIN fragments never leave the server) + recallsByVehicle newest-first with parkIt/parkOutside/remedy and a missing-results-array error; server/routers/vehicleData.ts complaints procedure; client/src/pages/admin/money/NhtsaVehiclePanel.tsx mounted in WorkOrdersSection's drawer. Before this, vehicleData.recalls had no caller.",
+        "codeCommit": "Q-50 phase 1, merged as #2820 (squash 9d85850a9, 2026-09-30): server/services/vehicleData.ts complaintsByVehicle (counts only; narratives and VIN fragments never leave the server) + recallsByVehicle newest-first with parkIt/parkOutside/remedy and a missing-results-array error; server/routers/vehicleData.ts complaints procedure; client/src/pages/admin/money/NhtsaVehiclePanel.tsx mounted in WorkOrdersSection's drawer. Before this, vehicleData.recalls had no caller.",
         "tests": [
           "server/__tests__/vehicleData.test.ts: 14 cases incl. newest-first dd/mm/yyyy ordering, park-it flags, complaint counts with a planted phone number and VIN fragment asserted absent from the payload, per-vehicle cache, and a 200 without a results array reading as an error for both recalls and complaints (red on main first).",
           "client/src/__tests__/nhtsa-vehicle-panel.test.tsx: 5 cases incl. an {ok:false} value and a thrown query both rendering 'unavailable' with Retry, never 'none on file' (mutation removing the ok check is caught), no query without a 4-digit year/make/model, and no 'dangerous'/'necessary' wording.",
@@ -3031,14 +3030,45 @@
       "lastVerifiedAt": "2026-09-30"
     },
     {
-      "capabilityId": "nickstire-daily-digest-q29",
-      "name": "Daily digest (cron db-backup): counts-only nickstire -> StateNour, no customer rows",
+      "capabilityId": "work-order-nhtsa-warranty-programs-q50",
+      "name": "Work-order drawer shows NHTSA manufacturer warranty programs that may apply to the car (stored ingest, information only), and asks NHTSA by its own make names",
       "owner": "system",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "PR #2816 (branch nickstire/q29-daily-digest-counts-only): server/services/dbBackup.ts reads count(*) only and posts { kind, date, timestamp, counts, recent24h }; StateNour /api/sync/backup whitelists the count keys on POST and GET via lib/nickstire/daily-digest.ts.",
+        "codeCommit": "Q-50 phase 2b, merged as #2852 (squash 849d8ee71, 2026-10-01): server/services/nhtsaWarrantyRead.ts (vehicleData.warrantyExtensions, SELECT-only read of the phase-2a tables, freshness from the ingest's lastSuccessAt, rows limited to each chunk's latest pass); server/services/nhtsaVehicleNames.ts (ADR-0021 section 8 make aliases shared with the live recall and complaint lookups); vehicleData.ts reports NHTSA's 400-with-empty-body as unknown_vehicle and gives complaints a 25 s timeout; NhtsaVehiclePanel.tsx block 'Manufacturer warranty programs (may apply)'. The stored rows come from the phase-2a ingest, merged as #2851 (squash 1bd38cb5c, 2026-10-01): migration 0138_nhtsa_mfr_warranty (operator-applied), flag nhtsa_warranty_ingest (default OFF) and the nhtsa-warranty-ingest job, last in the 09:30 ET daily tier.",
+        "tests": [
+          "server/services/nhtsaWarrantyRead.test.ts: 13 cases incl. never-ingested, migration-missing and failed reads as ok:false (never 'none listed'), the 3-day stale flag, Chevy/Silverado/2015 reading CHEVROLET, both stored Mercedes spellings, exact over related, year 9999 kept and labelled, pass times reaching the SQL as parameters, SELECT-only production SQL and LIKE escaping.",
+          "client/src/__tests__/nhtsa-warranty-panel.test.tsx: 11 cases incl. the three ADR-0021 section 7.3 states, the related-model and unstated-year labels, the always-on eligibility footer, no 'covered'/'free'/'will pay' wording, an unknown NHTSA name shown without a useless Retry, the park-outside badge and a complaints {ok:false} value.",
+          "server/__tests__/vehicleDataNhtsaNames.test.ts: 12 cases incl. alias resolution, NHTSA's 400 for an unknown name, errors not cached, dd/mm order, deaths-only injury, count vs rows, the complaints timeout.",
+          "server/services/nhtsaWarrantyFit.test.ts: 3 cases pinning fit(), the phase-2a review's surviving mutant.",
+          "27 of 27 mutants caught across the four files; the new panel cases were red on main (9 of 11) and both new server files fail to import there."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P2",
+          "description": "Shows 'unavailable' until the operator applies migration 0138, arms nhtsa_warranty_ingest and one ingest run finishes; no stored row has been read in production yet."
+        }
+      ],
+      "deferredScope": [
+        "Not on the technician's work order or any customer surface (ADR-0021 section 12 question 1 is still open; this is the advisor's drawer only).",
+        "A Data freshness row on Intelligence HQ for the ingest (ADR-0021 section 7.3 follow-up).",
+        "The previous-year chunk-name candidate from the phase-2a review (optional) is not built; it would change an existing chunkPlan expectation."
+      ],
+      "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "nickstire-daily-digest-q29",
+      "name": "Daily digest (cron db-backup): counts-only nickstire -> StateNour, no customer rows",
+      "owner": "system",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Q-29, merged as #2816 (squash 908df6c9, 2026-10-01): server/services/dbBackup.ts reads count(*) only and posts { kind, date, timestamp, counts, recent24h }; StateNour /api/sync/backup whitelists the count keys on POST and GET via lib/nickstire/daily-digest.ts.",
         "tests": [
           "server/services/dbBackup.test.ts: canary contact details in the 24h window never reach the POST body or Telegram; body keys are exactly the digest keys; an archive 401 still fails the run. Red on main 3/4 before the fix.",
           "apps/statenour/tests/api/sync-backup-digest.test.ts: a legacy row-carrying body is stored and served counts-only; non-numeric counts become null; sync auth runs before any write. Red on main's route 4/6."
@@ -3060,6 +3090,172 @@
         "safetyMonitor's 'No successful backup' wording is unchanged pending an operator decision."
       ],
       "lastVerifiedAt": "2026-09-30"
+    },
+    {
+      "capabilityId": "admin-ai-health-llm-provenance-q23",
+      "name": "The Business Health Score counts an engine whose read failed as a failed engine, and the AI Health score and AI-usage numbers wear MEASURED / ESTIMATE / UNMEASURED",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Q-23 phase 7, merged as #2836 (squash b1b636962, 2026-10-01): server/services/masterIntelligence.ts settled() maps a fulfilled engine result marked unavailable:true (predictChurn, predictRepeatVisits, analyzeLeadResponseTime catch paths) to null, so it is absent from the score instead of scoring as the best case (a failed churn read scored 'Churn risk +8 · 0 high-risk customers'); it is counted in enginesFailed, named in failures via MASTER_ENGINE_LABELS, and passes the same 1/3 scoreReliable threshold as a rejected engine. AIHealthPanel tags the score ESTIMATE (modeled composite) or UNMEASURED (scoreReliable false). LlmSpendPanel tags calls/failed MEASURED while the writer records and ESTIMATE (lower bound) while it is off or stopped, tokens ESTIMATE under partial usage coverage, an empty window MEASURED only while recording, and an unreadable ledger UNMEASURED.",
+        "tests": [
+          "server/services/masterIntelligenceReadFailed.test.ts: read-failed churn is absent from the score and named in failures; a successful empty churn read still scores +8 (control); 7 rejected + 3 read-failed of 28 trips scoreReliable=false; the section reads null; the first, a middle and the last engine are named by their own label. Red on main 4/5 (the control passes on both by design); shifting the label list turns 2 of 5 red.",
+          "client/src/__tests__/ai-health-llm-provenance.test.tsx: score ESTIMATE / UNMEASURED; LLM calls/failed/tokens MEASURED, tokens ESTIMATE under partial coverage, ESTIMATE while recording off or stopped, empty window MEASURED only while recording, unreadable UNMEASURED. Red on main 8/8."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not deployed: neither card has been seen on the installed admin PWA, and how often each engine's production read fails (which now lowers enginesFailed-based reliability) is unread from this session."
+        }
+      ],
+      "deferredScope": [
+        "Q-23 remaining: the lane-health strip and data freshness.",
+        "The morning brief's score/churn wording is Q-23 phase 8 (morning-brief-master-provenance-q23)."
+      ],
+      "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "morning-brief-master-provenance-q23",
+      "name": "The morning brief prints the Business Health score as an ESTIMATE (UNKNOWN when the report says it averaged over silence), a failed churn read as 'unknown, not zero', and the monthly review count the engine actually returns",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Q-23 phase 8, merged as #2840 (squash 85eb39502, 2026-10-01): server/cron/jobs/morningBriefMaster.ts formatMasterBriefBlock builds the brief's Master Intelligence block. Health: 'BUSINESS HEALTH (ESTIMATE, modeled not measured): N/100', or 'UNKNOWN (F of T engines failed ...)' when summary.scoreReliable is false (it printed the bare score, e.g. 50/100 on an outage). Churn: a null churnRisk (rejected or unavailable:true, mapped by settled()) prints 'unknown, not zero' (it printed 0); a list at predictChurn's cap of 25 prints '25+'. Reviews: reads reviewVelocity.thisMonth as 'Reviews this month' (it read weeklyRate/monthlyRate, which analyzeReviewVelocity never returns, so the brief said 'Reviews/wk: 0' on every run). morningBrief.ts calls it instead of building the block inline. The brief's FORMAT RULES now tell the model to call the score an estimate, give no number when it reads UNKNOWN, and keep any count marked unknown as unknown.",
+        "tests": [
+          "server/__tests__/morningBriefMasterProvenance.test.ts: ESTIMATE label; UNKNOWN with no score when scoreReliable is false; churn unknown-not-zero on a failed read; real count and the 25+ cap floor; monthly reviews and unknown on a failed read; morningBrief.ts routes through the formatter and no longer reads weeklyRate/monthlyRate or prints a bare score, and its FORMAT RULES carry the estimate/unknown rule. Red on main 1/6: the wiring case (the formatter cases need the new module)."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not deployed: no morning brief has been sent with this block, and the LLM that writes the Telegram brief from it may still paraphrase; that it keeps the ESTIMATE/UNKNOWN wording is unobserved."
+        }
+      ],
+      "deferredScope": [
+        "Q-23 remaining: the lane-health strip and data freshness.",
+        "analyzeReviewVelocity's catch still returns zeros without unavailable:true, so a failed review read prints 'Reviews this month: 0' and scores as data in the health score; marking it would change the score's engine count, left for a separate decision."
+      ],
+      "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "admin-data-freshness-q23",
+      "name": "Intelligence HQ shows how current its inputs are (ShopDriver connection, invoice mirror, SMS gateway), and a failed status read says 'unknown', never healthy and never 'offline'",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Q-23 phase 9, merged as #2842 (squash 4e1f93855, 2026-10-01): client/src/pages/admin/today/DataFreshness.tsx is a 'Data freshness' card under 'Today, for real' on Intelligence HQ. It reads three existing queries and adds no reader: adminSecurity.integrationFreshness (alg_probe_log, classified by the same classifyIntegrationFreshness as the Overview card, 24h window), controlCenter.todayPulse revenue.throughDate (the same mirrorFreshness as 'Today, for real'; shared react-query cache, no extra request), and sms.gatewayHealth. dataFreshness.ts maps each to a row tagged MEASURED or UNMEASURED: a failed query, an unreadable probe log, an unavailable pulse or a vendor API failure is 'unknown' (UNMEASURED, loud); stale, failing auth, never connected, no invoices, gateway offline and not configured are MEASURED and loud. sms.gatewayHealth gains an additive readable field: false on the two branches where the Capevace API was not answered (non-OK status, throw), true on every other branch. Before, both returned online:false and every badge said 'Gateway offline'. GatewayPill (Outreach Hub, SMS, Tire Orders) now says 'Gateway status unknown' on readable:false or a failed query.",
+        "tests": [
+          "client/src/__tests__/data-freshness-q23.test.tsx: each row's states (fresh, stale, failing, never connected, unread, loading; mirror current, through yesterday, behind, no invoices, unavailable, invalid date; gateway online, offline, no device, not configured, vendor failure, failed query); the card renders all three rows as UNMEASURED 'unknown' when every read fails; GatewayPill says 'status unknown' on a vendor failure or failed query and still says 'offline' for a silent phone. Red on main: the 2 GatewayPill unknown cases (the rest import the new module). Mutants 4 of 4 caught (drop the readable branch, unavailable pulse as no invoices, unknown probe as MEASURED, unread rows quiet).",
+          "server/gatewayHealthReadable.test.ts: fetch stubbed; readable:false on a 503 and on a throw, readable:true for a silent phone, an online phone, an empty device list and missing credentials. Red on main 6 of 6.",
+          "client/src/__tests__/gateway-unknown-readers-q23.test.tsx (Q-23 phase 10): Intelligence HQ mounts the Data freshness card on the default Battlefield tab; the phase 9 review's surviving mutant (card removed from the section, no test failed) is now caught."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not deployed: the card has not been seen on the installed admin PWA, and how often the Capevace API fails, as opposed to the phone going quiet, is unread from this session."
+        }
+      ],
+      "deferredScope": [
+        "Q-23 remaining: the lane-health strip (per customer lane: last run, eligible, sent, holdout-adjusted outcome, blocked reason). It needs a new per-lane server read across cron_log, sms_messages and contact_experiment_assignments.",
+        "Match rate (estate plan section 9 item 4) has no reader to reuse; not drawn rather than invented.",
+        "MorningBrief, OutreachBrief and the Settings status tab honouring readable: Q-23 phase 10 (admin-gateway-unknown-readers-q23)."
+      ],
+      "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "admin-gateway-unknown-readers-q23",
+      "name": "Every admin reader of the SMS gateway status says 'unknown' when the status could not be read, and keeps 'offline' for a phone that stopped checking in",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Q-23 phase 10, merged as #2843 (squash cae77f743, 2026-10-01): client/src/lib/gatewayState.ts maps sms.gatewayHealth plus the query's isError to online / offline / unknown / not_configured / checking, (readable:false, or a failed query with nothing cached, is unknown; a failed background refetch keeps the last good read, the rule OutreachBrief already applies to its other queries). MorningBrief prints 'F25e status unknown' instead of 'F25e OFFLINE' on a vendor failure, and on a quiet night with an unreadable gateway prints a 'gateway status unknown' line instead of nothing. OutreachBrief prints 'status unknown (the status read failed)' instead of 'offline (Twilio fallback active)'. useSettingsStatus counts a vendor failure as the 'SMS gateway health' check that could not run (once, so the 'N of 8 checks' banner stays honest) and no longer raises the red 'F25e shop SMS gateway offline' alert for it; it now exposes smsGwState. SettingsStatusTab's F25e pill reads 'status unknown · the gateway service did not answer' (grey) instead of 'offline · check device'. A silent phone still reads offline everywhere.",
+        "tests": [
+          "client/src/__tests__/gateway-unknown-readers-q23.test.tsx: gatewayState's five states, a failed background refetch keeping the last good read, and a pre-phase-9 payload; MorningBrief vendor failure with calls and on a quiet night; OutreachBrief vendor failure and failed query; useSettingsStatus vendor failure (no offline alert, one failed check); SettingsStatusTab pill; each paired with a silent-phone or live-phone control; Intelligence HQ mounts DataFreshness. Red on main 6/6 vendor-failure cases (the 6 controls pass on both). Mutants 9 of 9 caught (helper ignores readable, helper ignores isError, isError-first precedence, quiet-night unknown line dropped, OutreachBrief ignores the query error, failedChecks ignores readable, alert on unknown, pill ignores unknown, HQ card unmounted)."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not deployed: none of the four surfaces has been seen on the installed admin PWA with the Capevace API failing."
+        }
+      ],
+      "deferredScope": [
+        "The lane-health strip: Q-23 phase 11 (admin-lane-health-q23).",
+        "OutreachBrief's offline wording still says 'Twilio fallback active'; server/sms.ts documents F25e as the sole sender with offline sends queued, so that clause looks false. Not changed here: it is a claim about send routing, not about reading the status.",
+        "GatewayPill and dataFreshness.smsGatewayRow keep their own copies of the rule, and both treat isError as unknown even with cached data (a failed background refetch turns the pill grey). Folding them onto gatewayState would change that; left out to keep this diff to the readers that called a failed read 'offline'."
+      ],
+      "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "admin-gateway-one-rule-q23",
+      "name": "Every admin reader of the SMS gateway status takes its state from one rule (lib/gatewayState), and no admin surface claims a Twilio fallback the send path does not have",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Q-23 phase 12, merged as #2844 (squash 811a3cdca, 2026-10-01): GatewayPill and dataFreshness.smsGatewayRow now call gatewayState instead of keeping their own copies of the rule. The cached-data case is settled once, on the helper's side: a failed background refetch keeps the last good read (client/src/main.tsx sets retry: 0, so one failed refetch on tab-back would otherwise flip every badge to unknown). The Data freshness row adds 'Last good read; the latest refresh failed.' in that case. GatewayPill says 'Checking gateway...' while the first read is in flight (it said 'Gateway offline') and says 'not configured' only when a read said so (a still-loading sms.status used to read as not configured). useSettingsStatus counts the gateway query error in the 'N of 8 checks could not run' banner, like its 7 sibling checks; since #2843 a failed refetch with cached data dropped it. SettingsStatusTab's F25e pill says 'status unknown · the status read failed' when our query failed with nothing cached (it blamed the gateway service). OutreachBrief's offline line and the Settings gateway-offline alert no longer claim a Twilio fallback: server/sms.ts queues every text while a configured gateway is unreachable and never falls back to Twilio on that path. Supersedes the two gateway deferred items on admin-gateway-unknown-readers-q23.",
+        "tests": [
+          "client/src/__tests__/gateway-one-rule-q23.test.tsx: GatewayPill on a failed refetch with a cached live and a cached silent read, first read in flight, still-loading sms.status, and two controls; smsGatewayRow on a failed refetch with cached live data and with a cached vendor failure, plus a clean-read control; the Settings banner listing the gateway on a failed refetch with cached data (and the state staying the cached read), once on a vendor failure, not on a clean read; the Settings F25e pill on a failed query with nothing cached; no Twilio claim in OutreachBrief or the Settings alert. Red on main 8 of 13 (the 2 later pill cases were added after the M4 mutant survived). Mutants 8 of 8 caught (banner drops the query error, pill state drops isSmsGwError, pill ignores the query error, pill 'not configured' on a loading status, no refresh note, row ignores the query error, Twilio copy restored, pill detail wording)."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not deployed: none of the changed surfaces has been seen on the installed admin PWA with a failed gateway refetch."
+        }
+      ],
+      "deferredScope": [
+        "Q-23 remaining: the lane-health strip (phase 11, claimed separately).",
+        "SmsSection's subtitle said texts route 'with Twilio fallback': taken off by Q-23 phase 13 (branch nickstire/q23-phase13-sms-subtitle), pinned by client/src/__tests__/sms-section-no-twilio-q23.test.tsx."
+      ],
+      "lastVerifiedAt": "2026-10-01"
+    },
+    {
+      "capabilityId": "admin-lane-health-q23",
+      "name": "Intelligence HQ shows each customer-contact lane's last run, 30-day sends, holdout-adjusted outcome and blocked reason, and a failed read says 'unknown', never 0 or 'not run'",
+      "owner": "operator",
+      "codeState": "merged",
+      "operationalState": "unit_verified",
+      "exposure": "disabled",
+      "evidence": {
+        "codeCommit": "Q-23 phase 11, merged as #2846 (squash 69d9519f, 2026-10-01): shared/laneHealth.ts registers the eight customer lanes live in the scheduler (declined-work recovery, retention D7-D365, win-back, review requests, review-reminder drafts, weather, drip, review+referral auto-retry), each with its cron job, its sms_messages.variantKey pattern and, for the Q-21 lanes, its contact_experiment_assignments lane keys. New admin query smsPerformance.laneHealth makes four independent reads, each with its own failure flag: cron_log (newest and newest-completed run per job, age computed in SQL), 30-day outbound sends per variantKey (same delivered allowlist as summary30d), the Q-21 holdout cohorts (readHoldoutObservations, extracted unchanged from recoveredRevenue so the board and the strip share one read) and the holdout flags. The 'Customer lanes' card under 'Data freshness' classifies each lane as running / blocked / stale / failing / unknown: a scheduler skip names its flag, env var or dependency; a failed run shows its first line with digit runs masked; a lock skip defers to the last completed run; a completed run that says it did nothing on purpose (declined recovery's 'DRY RUN: N eligible', 'nothing was sent', 'flag ... off', 'not set up') is blocked with that clause as the reason, and any other completed run's own summary is shown as 'last run said'; a lane that runs but delivered 0 of N texts is blocked; the outcome is the pooled gross lift vs holdout (ESTIMATE), 'collecting', 'not armed', 'migration 0136 not applied', or why the lane has no Q-21 holdout. Every failed read is 'unknown' and UNMEASURED. 'Eligible' is not drawn: no lane records how many customers it considered; cron_log.records_processed is shown as 'processed N'.",
+        "tests": [
+          "shared/laneHealth.test.ts: run states (recent, unreadable log, no row, flag skip, failed with a masked phone, formatted phones, emails and a bare 7-digit number masked while a date survives, lock skip, stale, SQL age preferred), sends (variant pooling, unreadable vs measured 0, ran-but-undelivered, drafts label), completed-but-idle runs (dry run behind a long prefix, failed match, control summary kept as a note), outcome (matured lift, pooling, collecting, failed read vs not armed, 0136 pending, no-holdout lane), helpers.",
+          "server/laneHealthRegistry.test.ts: every lane's job name is registered in cron/scheduler.ts, every sender still writes its key, no two lanes claim one key, and each holdout lane agrees with contactLaneForVariant.",
+          "server/laneHealthRouter.test.ts: a cron_log, send-log, holdout or flag failure marks only its own part unreadable; newest and newest-completed run per job.",
+          "client/src/__tests__/lane-health-q23.test.tsx: a failed query is one 'unknown, not idle' line with no lane rows; a readable payload draws every lane with state, blocked reason and last-run note; loading claims nothing; Intelligence HQ mounts the card.",
+          "Mutants 27 of 27 caught (unreadable log as no run, unreadable sends as 0, lock-skip deferral, bare-digit mask, formatted-phone mask, short bare-phone mask, email mask, holdout error as read, undelivered not blocked, card error branch, HQ mount, server cron default readable, stale threshold, SQL age, server holdout state, flag failure as false, newest-completed selection, pooling first experiment only, pooling another lane's experiments, the one-line cut, renamed job, narrowed variant, completed-but-idle rule, matching past the display cut, idle clause selection, last-run note dropped in the row and in the card)."
+        ],
+        "liveRuns": []
+      },
+      "blockers": [
+        {
+          "severity": "P3",
+          "description": "Not deployed: the card has not been seen on the installed admin PWA against production cron_log, and no lane's blocked reason has been checked against what the operator knows of that lane."
+        }
+      ],
+      "deferredScope": [
+        "Eligible per lane: no job records how many customers it considered. Recording it means each lane returning a count in its cron result, lane by lane.",
+        "Blocked reasons the scheduler does not log: businessHoursOnly and once-per-shop-day passes write no cron_log row, so outside hours a lane simply ages; the 72h stale line allows for a closed weekend.",
+        "Lanes sent from routers rather than the scheduler (operator campaigns campaign:N, the statenour bulk_campaign:N bridge) and the voice lanes (voice-recovery, missed-call-recovery, confirmation calls) are not on the strip."
+      ],
+      "lastVerifiedAt": "2026-10-01"
     }
   ],
   "axes": {

@@ -1058,6 +1058,13 @@
       "when": 1790712000000,
       "tag": "0137_bridge_outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "5",
+      "when": 1790812000000,
+      "tag": "0138_nhtsa_mfr_warranty",
+      "breakpoints": true
     }
   ]
 }

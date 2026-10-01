@@ -37,6 +37,7 @@
  *     "all clear" is OK but only if we know enough to say it confidently
  */
 import { trpc } from "@/lib/trpc";
+import { gatewayState } from "@/lib/gatewayState";
 import { MessageSquare, Activity, AlertTriangle, ArrowRight, Send } from "lucide-react";
 
 interface OutreachBriefProps {
@@ -56,14 +57,25 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
   const { data: reviewStats, isError: reviewStatsError } = trpc.reviewRequests.stats.useQuery(undefined, { staleTime: 60_000 });
   const { data: campaignStats, isError: campaignStatsError } = trpc.campaigns.stats.useQuery(undefined, { staleTime: 60_000 });
   const { data: recovery, isError: recoveryError } = trpc.shopdriver.declinedRecoveryStatus.useQuery(undefined, { staleTime: 60_000 });
-  const { data: gw } = trpc.sms.gatewayHealth.useQuery(undefined, { staleTime: 60_000 });
+  const { data: gw, isError: gwError } = trpc.sms.gatewayHealth.useQuery(undefined, { staleTime: 60_000 });
 
   const reviewsPending = reviewStats?.pending ?? 0;
   const activeCampaigns = campaignStats?.activeCampaigns ?? 0;
   const totalCampaigns = campaignStats?.totalCampaigns ?? 0;
   const totalSentReviews = reviewStats?.sent ?? 0;
   const totalSentCampaigns = campaignStats?.totalSent ?? 0;
-  const gwOnline = gw?.online ?? false;
+  // Q-23 phase 10 · a failed read (our query, or the vendor API) is unknown,
+  // not the phone going offline. See lib/gatewayState.
+  const gwState = gatewayState(gw, gwError);
+  const gwText =
+    gwState === "online" ? "online"
+      // server/sms.ts queues texts while the gateway is offline. There is no
+      // Twilio fallback on that path (Q-23 phase 12).
+      : gwState === "offline" ? "offline (texts queue until the phone checks back in)"
+        : gwState === "not_configured" ? "not configured"
+          : gwState === "checking" ? "checking…"
+            : "status unknown (the status read failed)";
+  const gwTone = gwState === "online" ? "text-emerald-400" : gwState === "unknown" || gwState === "checking" ? "text-foreground/40" : "text-amber-400";
 
   const recoveryDryRun = recovery?.dryRun ?? false;
   // `?? 0` here is what let a DB outage read as "nothing to recover". The
@@ -150,9 +162,9 @@ export function OutreachBrief({ onRecoveryAction }: OutreachBriefProps) {
 
         {/* Line 2 · live · gateway + lifetime send count */}
         <div className="flex items-center gap-2.5">
-          <Activity className={`w-3.5 h-3.5 shrink-0 ${gwOnline ? "text-emerald-400" : "text-amber-400"}`} />
+          <Activity className={`w-3.5 h-3.5 shrink-0 ${gwTone}`} />
           <span className="text-[12.5px] text-foreground/85 leading-tight">
-            Live · F25e shop gateway {gwOnline ? "online" : "offline (Twilio fallback active)"}
+            Live · F25e shop gateway {gwText}
             {totalSentLifetime > 0 ? ` · ${totalSentLifetime.toLocaleString()} customer touches sent lifetime` : ""}
           </span>
         </div>

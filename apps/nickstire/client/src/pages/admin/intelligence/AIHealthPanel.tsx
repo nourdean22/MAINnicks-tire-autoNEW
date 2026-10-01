@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Activity, AlertTriangle, TrendingUp, ShieldAlert, ChevronDown, ChevronUp } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { provenanceOf } from "@shared/tileProvenance";
+import { ProvenanceTag } from "../shared/ProvenanceTag";
 
 export function AIHealthPanel() {
   const [showBreakdown, setShowBreakdown] = useState(false);
@@ -48,6 +50,9 @@ export function AIHealthPanel() {
   // is amber-to-green on this scale and reads as "fine". Colour must not
   // imply health that was never measured.
   if (!scoreReliable) scoreColor = "text-amber-400";
+  // Q-23 · the score is a weighted composite of heuristics, so a reliable one is
+  // an ESTIMATE, never MEASURED. One whose engines mostly failed is UNMEASURED.
+  const scoreProvenance = provenanceOf("modeled", scoreReliable ? "ok" : "unavailable");
 
   return (
     <div className="stat-card p-0 overflow-hidden border-indigo-500/20">
@@ -61,6 +66,9 @@ export function AIHealthPanel() {
             <div className={`text-3xl font-black ${scoreColor}`}>{scoreReliable ? Math.round(score) : "—"}</div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-widest">
               {scoreReliable ? "Health Score" : "Score unavailable"}
+            </div>
+            <div data-score-provenance className="mt-1">
+              <ProvenanceTag provenance={scoreProvenance} />
             </div>
           </div>
         </div>
