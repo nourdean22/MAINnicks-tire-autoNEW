@@ -35,10 +35,24 @@ type Call = { url: string; method: string; body?: string };
 
 function stubVapi(get: () => Promise<Response>) {
   const calls: Call[] = [];
+  let lastPatch: Record<string, unknown> | null = null;
   vi.stubEnv("VAPI_API_KEY", "test-key");
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit = {}) => {
     const method = (init.method ?? "GET").toUpperCase();
-    calls.push({ url: String(url), method, body: typeof init.body === "string" ? init.body : undefined });
+    const body = typeof init.body === "string" ? init.body : undefined;
+    calls.push({ url: String(url), method, body });
+    if (method === "PATCH") {
+      lastPatch = body ? JSON.parse(body) as Record<string, unknown> : {};
+      return new Response(JSON.stringify({ id: "asst-1", ...lastPatch }), { status: 200 });
+    }
+    if (method === "GET" && lastPatch) {
+      // Second GET = provider read-back after PATCH. Echo the stored metadata
+      // exactly as Vapi's assistant GET endpoint does.
+      return new Response(JSON.stringify({
+        ...LIVE_ASSISTANT,
+        metadata: (lastPatch as { metadata?: unknown }).metadata,
+      }), { status: 200 });
+    }
     if (method === "GET") return get();
     return new Response("{}", { status: 200 });
   }));
@@ -70,6 +84,8 @@ describe("updateAssistant fails closed when it cannot read the live assistant", 
     const calls = stubVapi(async () => new Response(JSON.stringify(LIVE_ASSISTANT), { status: 200 }));
     const res = await updateAssistant("asst-1", "https://nickstire.org/api/webhooks/vapi");
     expect(res.success).toBe(true);
+    expect(res.verified).toBe(true);
+    expect(res.behaviorHash).toMatch(/^[a-f0-9]{24}$/);
     const patch = calls.find((c) => c.method === "PATCH");
     expect(patch).toBeTruthy();
     const sent = JSON.parse(patch!.body!);
