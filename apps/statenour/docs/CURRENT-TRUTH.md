@@ -1,6 +1,16 @@
 # CURRENT-TRUTH.md — Statenour
 
 
+
+## 2026-10-01 - NOUR Gateway OpenAI tool-call transport (branch + isolated-live proof; 11436 cutover pending)
+
+- **What changed:** the logical NOUR models now advertise OpenAI-compatible `tools` / `tool_choice` support. When a client supplies tools, the gateway serializes the tool schemas + prior tool results into a strict reasoning envelope, validates the selected tool name against the caller's allowlist, and returns standard `message.tool_calls` / streaming `delta.tool_calls`.
+- **Authority boundary is unchanged:** the external worker/subscription lanes remain read-only. The gateway never executes the requested shell/file tool itself; execution stays with the caller (OpenCode in the canary). `tool_choice=none` stays on the ordinary chat path, and an unknown model-selected tool name is never forwarded as a tool call.
+- **Real end-to-end proof:** isolated gateway `127.0.0.1:11437` + isolated OpenCode 1.18.34 server `127.0.0.1:4098` completed `user -> NOUR Auto -> bash(git status --short) -> OpenCode tool execution -> tool result -> NOUR Auto -> final answer`. OpenCode persisted a completed `tool` part with `exit=0` and the exact two modified files.
+- **Failover proof:** the direct Codex lane reported subscription quota exhaustion; the same request through `nour-auto` failed over to Claude Code and still returned a valid `bash` tool call.
+- **Regression proof:** 66/66 Windows local-agent tests green, including 16 gateway tests; Python compile, Node syntax, 17/17 ChatGPT-plan bridge self-tests, and `git diff --check` are green.
+- **Not claimed yet:** the production local gateway on `127.0.0.1:11436` still runs the prior bytes until this branch passes PR/CI and is promoted. The OpenWebUI cockpit bridge/run ledger is separate follow-on work. This change creates no bdnick.info Mission/Task rows and does not enable worker writes.
+
 ## 2026-09-29 — live Railway topology supersedes older worker-region/domain notes
 
 - **Read-only Railway read-back:** production project `natural-appreciation` currently has exactly four services: `MAINnicks-tire-auto` (`a6234c8d-1ff4-478f-9085-654954b54e97`), `statenour-web` (`c68ce7f7-63b1-47bf-9e9e-2d7dfe717d4e`), `statenour-worker` (`5441c378-3bab-4bb7-958f-36961159f5fe`), and `Redis` (`ee90ba3b-7dc4-44da-b892-bc6152226b75`).
