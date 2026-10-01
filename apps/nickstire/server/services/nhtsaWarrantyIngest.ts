@@ -48,6 +48,7 @@ import {
   fit,
   normalizeVehicleName,
   parseLine,
+  previousYearCandidate,
   repairMojibake,
   type Signal,
 } from "./nhtsaWarrantyParse";
@@ -139,11 +140,13 @@ async function chunkExists(fetchImpl: FetchLike, range: string): Promise<boolean
 
 /** The open chunk's live name (§6.4). Throws "current chunk not found" when no candidate answers. */
 export async function resolveOpenChunk(fetchImpl: FetchLike, now: Date): Promise<string> {
-  const { openCandidates } = chunkPlan(etYear(now));
-  for (const range of openCandidates) {
+  const year = etYear(now);
+  const fallback = previousYearCandidate(year);
+  const candidates = fallback ? [...chunkPlan(year).openCandidates, fallback] : chunkPlan(year).openCandidates;
+  for (const range of candidates) {
     if (await chunkExists(fetchImpl, range)) return range;
   }
-  throw new Error(`current chunk not found (tried ${openCandidates.join(", ")})`);
+  throw new Error(`current chunk not found (tried ${candidates.join(", ")})`);
 }
 
 /**
