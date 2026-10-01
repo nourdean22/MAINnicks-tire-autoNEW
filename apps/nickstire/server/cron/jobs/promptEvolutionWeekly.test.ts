@@ -53,7 +53,10 @@ describe("processPromptEvolutionWeekly", () => {
     expect(r.recordsProcessed).toBe(1);
     expect(r.details).toContain("accepted");
     expect(mocks.insert).toHaveBeenCalled(); // kv row written
-    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("ACCEPTED"));
+    // 9c6b591d renamed "ACCEPTED": an offline holdout pass is not a production
+    // winner, and the message must say so.
+    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("OFFLINE CANDIDATE"));
+    expect(mocks.sendTelegram).toHaveBeenCalledWith(expect.stringContaining("NOT a production/business winner"));
   });
 
   it("Monday + gate rejection → quiet zero with the outcome named, Telegram still informs", async () => {

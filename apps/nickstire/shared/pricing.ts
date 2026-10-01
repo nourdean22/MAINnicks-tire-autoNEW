@@ -8,6 +8,18 @@ export const OIL_PRICE = {
 } as const;
 
 /**
+ * Operator-confirmed high-intent quoting-channel used-tire anchor.
+ *
+ * WEBSITE discovery pricing stays in BUSINESS.usedTires ($25 select 12-inch
+ * floor + $40–80 most-size band). Phone/SMS/voice/chat quoting uses the real
+ * average anchor instead; do not collapse the two channel policies.
+ */
+export const USED_TIRE_QUOTE = {
+  startingDollars: 60,
+  display: "$60 installed",
+} as const;
+
+/**
  * The oil-change coupon customers mention at the counter, at
  * OIL_PRICE.conventional. Operator decision 2026-10-01 (the owner is the
  * source): OIL2999 ended 2026-09-30 and became NICKSOIL through the end of

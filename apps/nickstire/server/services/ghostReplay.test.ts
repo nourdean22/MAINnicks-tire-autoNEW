@@ -103,7 +103,7 @@ describe("splitSeeds", () => {
 
 describe("violatedInvariants", () => {
   it("a candidate that edits away the compliance spine is named, not scored", () => {
-    expect(violatedInvariants("You are a generic helpful assistant.")).toEqual(["identity", "no-price-quotes", "tire-first"]);
-    expect(violatedInvariants("You're the AI receptionist for Nick's Tire. Never quote repair prices. Default tire-first.")).toEqual([]);
+    expect(violatedInvariants("You are a generic helpful assistant.")).toEqual(["identity", "no-price-quotes", "tire-capability"]);
+    expect(violatedInvariants("You're the AI receptionist for Nick's Tire. Never quote repair prices. Handle tire questions well after identifying the caller's need.")).toEqual([]);
   });
 });

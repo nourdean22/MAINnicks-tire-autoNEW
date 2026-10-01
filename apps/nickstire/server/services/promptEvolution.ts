@@ -261,7 +261,7 @@ async function proposeCandidates(
       messages: [
         {
           role: "system",
-          content: `You optimize a phone-receptionist system prompt for a tire shop. Make ONE bounded improvement: add, delete, or rewrite exactly ONE section to fix the failure pattern shown. HARD CONSTRAINTS: keep the shop identity, keep every compliance rule (never quote repair prices, never guarantee outcomes, never diagnose by phone), keep the tire-first default. Output format: one line "RATIONALE: <why this one edit>" then the COMPLETE edited prompt between <PROMPT> and </PROMPT> markers. Attempt ${i + 1} of ${k} — make each attempt a DIFFERENT single edit.`,
+          content: `You optimize a phone-receptionist system prompt for a tire shop. Make ONE bounded improvement: add, delete, or rewrite exactly ONE section to fix the failure pattern shown. HARD CONSTRAINTS: keep the shop identity, keep every compliance rule (never quote repair prices, never guarantee outcomes, never diagnose by phone), start neutral and identify the caller's need before specializing; preserve strong tire handling but never assume used tires before the caller gives a tire signal. Output format: one line "RATIONALE: <why this one edit>" then the COMPLETE edited prompt between <PROMPT> and </PROMPT> markers. Attempt ${i + 1} of ${k} — make each attempt a DIFFERENT single edit.`,
         },
         {
           role: "user",

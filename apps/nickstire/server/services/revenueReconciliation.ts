@@ -1,7 +1,7 @@
 import { createLogger } from "../lib/logger";
 import { randomUUID } from "crypto";
 import { and, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
-import { bookings, invoices, leads, vapiCallLogs } from "../../drizzle/schema";
+import { bookings, expectedArrivals, invoices, leads, vapiCallLogs } from "../../drizzle/schema";
 import { getDbTyped } from "../db";
 import { attributionObligationSubject } from "./bridgeKeys";
 import {
@@ -55,12 +55,14 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
   `);
 
   try {
-    const [callRows, invoiceRows, leadRows, currentDecisionRaw] = await Promise.all([
+    const [callRows, invoiceRows, leadRows, arrivalRows, currentDecisionRaw] = await Promise.all([
       db.select({
         callId: vapiCallLogs.id,
+        vapiCallId: vapiCallLogs.vapiCallId,
         phoneNumber: vapiCallLogs.phoneNumber,
         leadId: vapiCallLogs.leadId,
         serviceMention: vapiCallLogs.serviceMention,
+        metadata: vapiCallLogs.metadata,
         occurredAt: vapiCallLogs.createdAt,
       }).from(vapiCallLogs).where(and(
         gte(vapiCallLogs.createdAt, input.since),
@@ -83,6 +85,18 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
         invoiceId: leads.invoiceId,
         bookingId: leads.bookingId,
       }).from(leads),
+      db.select({
+        id: expectedArrivals.id,
+        sourceRef: expectedArrivals.sourceRef,
+        status: expectedArrivals.status,
+        reconciledInvoiceId: expectedArrivals.reconciledInvoiceId,
+        expectedDate: expectedArrivals.expectedDate,
+        arrivedAt: expectedArrivals.arrivedAt,
+      }).from(expectedArrivals).where(and(
+        eq(expectedArrivals.source, "voice"),
+        gte(expectedArrivals.createdAt, input.since),
+        lte(expectedArrivals.createdAt, invoiceUntil),
+      )),
       db.execute(sql`
         SELECT call_id AS callId
         FROM revenue_attribution_decisions
@@ -94,6 +108,14 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
       rowsFromExecute<{ callId: number }>(currentDecisionRaw).map((row) => Number(row.callId)),
     );
     const leadById = new Map(leadRows.map((row) => [row.leadId, row]));
+    const arrivalsByVapiCallId = new Map<string, typeof arrivalRows>();
+    for (const row of arrivalRows) {
+      if (!row.sourceRef) continue;
+      const key = String(row.sourceRef);
+      const rows = arrivalsByVapiCallId.get(key) ?? [];
+      rows.push(row);
+      arrivalsByVapiCallId.set(key, rows);
+    }
     const callById = new Map(callRows.map((row) => [row.callId, row]));
     const candidates = buildCallInvoiceCandidates({
       calls: callRows as CallObservation[],
@@ -117,6 +139,45 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
 
       const call = callById.get(candidate.callId);
       const lead = call?.leadId == null ? null : leadById.get(call.leadId) ?? null;
+      const callMetadata = asRecord(call?.metadata);
+      const behavior = asRecord(callMetadata.behavior);
+      const arrivals = call?.vapiCallId ? arrivalsByVapiCallId.get(call.vapiCallId) ?? [] : [];
+      // A model can fire bookSlot more than once. Prefer the receipt that
+      // reconciles to THIS revenue candidate; otherwise preserve the strongest
+      // other arrival evidence without implying the two invoices are the same.
+      const arrival = (
+        arrivals.find((row) =>
+          row.reconciledInvoiceId != null &&
+          candidate.invoiceId != null &&
+          Number(row.reconciledInvoiceId) === Number(candidate.invoiceId)
+        ) ??
+        arrivals.find((row) => row.status === "arrived" && row.reconciledInvoiceId != null) ??
+        arrivals[0] ??
+        null
+      );
+      const sameCandidateInvoice = Boolean(
+        arrival?.reconciledInvoiceId != null &&
+        candidate.invoiceId != null &&
+        Number(arrival.reconciledInvoiceId) === Number(candidate.invoiceId)
+      );
+      const arrivalEvidence = arrival ? {
+        source: "expected_arrivals",
+        link: "sourceRef=vapiCallId",
+        status: arrival.status,
+        reconciledInvoiceId: arrival.reconciledInvoiceId,
+        expectedDate: arrival.expectedDate,
+        arrivedAt: arrival.arrivedAt,
+        relationshipToRevenueCandidate: sameCandidateInvoice
+          ? "same_candidate_invoice"
+          : arrival.reconciledInvoiceId != null
+            ? "different_invoice"
+            : "no_invoice_yet",
+        evidenceLevel: sameCandidateInvoice && arrival.status === "arrived"
+          ? "reconciled_same_invoice"
+          : arrival.status === "arrived" && arrival.reconciledInvoiceId != null
+            ? "reconciled_other_invoice"
+            : "observed_intent",
+      } : null;
       if (candidate.resolution === "attributed") verified += 1;
       else if (candidate.resolution === "manual_review") inferred += 1;
       else if (candidate.resolution === "ambiguous") {
@@ -140,7 +201,11 @@ export async function runRevenueReconciliation(input: ReconciliationInput) {
           (${randomUUID()}, ${runId}, ${candidate.callId}, ${call?.leadId ?? null},
            ${lead?.bookingId ?? null}, ${candidate.invoiceId}, NULL,
            ${candidate.resolution}, ${candidate.evidenceLevel}, ${matchMethod},
-           ${candidate.confidence}, ${JSON.stringify({ reasons: candidate.reasons })})
+           ${candidate.confidence}, ${JSON.stringify({
+             reasons: candidate.reasons,
+             ...(behavior.hash ? { behavior } : {}),
+             ...(arrivalEvidence ? { arrival: arrivalEvidence } : {}),
+           })})
       `);
     }
 
@@ -262,6 +327,7 @@ export async function getRevenueJourney(callId: number) {
   const raw = await db.execute(sql`
     SELECT
       c.id AS callId,
+      JSON_EXTRACT(c.metadata, '$.behavior') AS behavior,
       c.leadId AS leadId,
       l.bookingId AS bookingId,
       l.invoiceId AS invoiceId,
@@ -301,6 +367,7 @@ export async function getRevenueJourney(callId: number) {
     limitations: [
       "Booking confirmation is not treated as vehicle arrival.",
       "Arrival and repair-order stages remain not connected unless a reviewed work-order identifier is present.",
+      "Behavior provenance is provider-delivered when Vapi includes stamped assistant metadata; calls before the next config push can legitimately report behavior metadata unavailable.",
     ],
   };
 }

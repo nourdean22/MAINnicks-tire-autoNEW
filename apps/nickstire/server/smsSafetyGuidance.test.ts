@@ -75,6 +75,17 @@ describe("the ordinary path is unchanged", () => {
     expect(f.text).toMatch(/free check|price|quote/i);
   });
 
+  it("brake pricing facts distinguish symptoms without diagnosing a part", () => {
+    const body = "my brakes are squeaking, how much?";
+    const d = routeInboundSms(body, CTX);
+    const plan = buildReplyPlan(d, {} as never, body);
+    const text = plan.knownFacts.join(" | ");
+    expect(d.primary).toBe("price_brakes");
+    expect(text).toMatch(/squeaking, grinding and shaking/i);
+    expect(text).not.toMatch(/just the pads|rotor is involved/i);
+    expect(plan.prohibited.map((p) => p.label)).toContain("remote_diagnosis");
+  });
+
   it("a safety match with no red flag still gets a sane fallback", () => {
     // The router's own regex is broader than RED_FLAG_RULES, so safety_urgent
     // can fire with zero flags. That must not produce an empty fact list.

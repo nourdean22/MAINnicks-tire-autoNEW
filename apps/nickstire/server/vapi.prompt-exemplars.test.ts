@@ -25,6 +25,7 @@
  * is a good trade and this test must not punish it.
  */
 import { describe, expect, it } from "vitest";
+import { USED_TIRE_QUOTE } from "@shared/pricing";
 import { ASSISTANT_SYSTEM_PROMPT } from "./services/vapi";
 
 /** The cap the prompt sets for itself. */
@@ -77,7 +78,7 @@ describe("prompt exemplars stay speakable", () => {
 
   it("the restructure kept the facts, not just the shape", () => {
     for (const kept of [
-      "sixty dollars installed",
+      USED_TIRE_QUOTE.display,
       "computer spin balancing",
       "most standard sizes in stock",
       "First-come first-served",

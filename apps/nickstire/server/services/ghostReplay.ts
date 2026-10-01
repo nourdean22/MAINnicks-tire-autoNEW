@@ -186,7 +186,7 @@ export function splitSeeds<T extends { id: string }>(seeds: T[], holdoutRatio = 
 export const PROMPT_INVARIANTS: Array<{ name: string; rx: RegExp }> = [
   { name: "identity", rx: /Nick'?s Tire/i },
   { name: "no-price-quotes", rx: /price|quote/i },
-  { name: "tire-first", rx: /tire/i },
+  { name: "tire-capability", rx: /tire/i },
 ];
 
 export function violatedInvariants(candidatePrompt: string): string[] {

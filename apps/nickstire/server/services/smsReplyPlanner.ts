@@ -539,11 +539,11 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
   price_brakes: {
     goal: "answer",
     knownFacts: () => [
-      "Brake pricing depends on what is worn — free check first, price in writing before any work. Never quote a brake dollar amount.",
-      // The distinction is what makes "it depends" land as expertise instead of a
-      // dodge: it names two real paths the customer can tell apart by ear, and
-      // their answer genuinely changes what gets inspected first.
-      "Squeaking is often still just the pads; grinding can mean the rotor is involved. The symptom changes what gets checked first.",
+      "Brake pricing depends on what is worn — pads-only and pads-plus-rotors are different jobs. Free check first, price in writing before any work. Never quote a brake dollar amount.",
+      // Distinguish symptoms without turning a text exchange into a diagnosis.
+      // Squeak / grind / shake changes what the technician inspects first, but
+      // none of them proves which part is worn before the vehicle is checked.
+      "Squeaking, grinding and shaking can point the inspection toward different brake components, including pads and rotors, but the symptom alone cannot tell us which part is worn. Grinding is more urgent; the free check confirms what is actually worn.",
     ],
     missingInformation: (_ctx, body) =>
       BRAKE_SYMPTOM_RE.test(body) ? [] : ["which brake symptom they hear (squeak / grind / shake)"],
@@ -553,7 +553,7 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
     requiredQuestion: (_ctx, body) =>
       BRAKE_SYMPTOM_RE.test(body) ? null : "Is it squeaking, grinding or shaking?",
     nextStep: "Bring it in for the free check.",
-    prohibited: [CLAIM_COMPLETION],
+    prohibited: [CLAIM_COMPLETION, CLAIM_REMOTE_DIAGNOSIS],
     maxChars: 300,
   },
   price_alignment: {

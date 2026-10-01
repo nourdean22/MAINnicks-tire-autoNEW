@@ -5,12 +5,13 @@
  * configuration is permanently optimal, and a self-certifying label discourages
  * exactly the re-measurement that would keep it true.)
  *
- * Built TIRE FIRST on a 2026-05 claim that ~60% of inbound calls are "do you
+ * Originally built TIRE FIRST on a 2026-05 claim that ~60% of inbound calls are "do you
  * have a used tire for my [vehicle]?", with general repair as the secondary
  * flow. Treat that percentage as an UNVERIFIED HYPOTHESIS, not a standing fact:
- * it originates in this comment rather than in any current demand report, and
- * the tire-first architecture rests on it. Re-measure from sanitized transcripts
- * before treating the split as evidence, and reprioritize the flows if it moved.
+ * it originates in this comment rather than in any current demand report. The
+ * 2026-09/10 customer-corpus rerun no longer supports assuming used tires before
+ * the caller gives a tire signal, so the live prompt now starts neutral and
+ * specializes fast. Keep re-measuring the mix instead of hard-coding a majority.
  *
  * STACK
  *  · Transcriber: Deepgram nova-2-phonecall (call-tuned, lowest latency,
@@ -25,13 +26,11 @@
  * KNOWLEDGE BASE
  *  Stock tire sizes for ~25 most-asked-about vehicles (Honda Civic,
  *  Toyota Camry, F-150, etc.) baked into the tireSizeFromVehicle tool.
- *  Used tire pricing: interpolated from BUSINESS.usedTires at prompt-build
- *  time — $25 qualifying floor, most standard sizes $40-80, ~$60 typical
- *  midpoint. (This line used to read "$60-$120 installed range", a band whose
- *  floor was the midpoint and whose $120 ceiling appears nowhere in BUSINESS.
- *  The spoken text was never wrong — it already interpolates the SSOT — but
- *  stale guidance like that is how drift gets "restored" by a later reader,
- *  which is precisely how the $60 flat price re-entered the SMS catalog.)
+ *  Used-tire pricing is deliberately channel-scoped. The WEBSITE discovery
+ *  offer stays in BUSINESS.usedTires ($25 select 12-inch floor + $40–80 most
+ *  sizes). High-intent quoting channels (voice/SMS/chat) use
+ *  USED_TIRE_QUOTE ($60 installed), per the operator-confirmed two-tier policy.
+ *  Do not collapse those two audiences into one price source.
  *  Free install package: mount/balance/valve stems/TPMS reset/alignment
  *  check/20-point inspection — named as included WORK, never as a dollar
  *  valuation. The prompt used to value it at ~$150; that figure is in no
@@ -60,9 +59,10 @@
  * Optional env: VAPI_WEBHOOK_SECRET  (HMAC verify; permissive without)
  */
 
+import { createHash } from "node:crypto";
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "../../shared/business";
-import { OIL_COUPON, OIL_PRICE, oilCouponActive } from "../../shared/pricing";
+import { OIL_COUPON, OIL_PRICE, USED_TIRE_QUOTE, oilCouponActive } from "../../shared/pricing";
 import {
   buildOutboundOpener,
   CALLBACK_NUMBER,
@@ -245,7 +245,7 @@ export const SHOP_LANDLINE_E164 = "+12168620005";
 // ─── ASSISTANT SYSTEM PROMPT ─────────────────────────────
 // Source of truth for the AI's personality + flow.
 // Voice-compliance: zero kill-list violations.
-// Tire-first because that's the call mix.
+// Neutral-first intent discovery; tire handling stays first-class once the caller signals tires.
 
 const ASSISTANT_SYSTEM_PROMPT = `# IDENTITY
 You're the AI receptionist for Nick's Tire & Auto — a Cleveland auto + tire shop on Euclid Ave, family-run since 2018, open 7 days a week.
@@ -255,14 +255,14 @@ Address: ${BUSINESS.address.full}
 Hours: Mon-Sat 8 AM-6 PM, Sun 9 AM-4 PM
 Reviews: ${BUSINESS.reviews.rating}★ from ${BUSINESS.reviews.countDisplay} Google reviews
 
-# THE #1 CALL REASON
-Most callers want USED TIRES ("got a tire for my car? how much? do I bring the car or just the tire?"). Default TIRE-FIRST: get year/make/model or tire size early, look it up, give a real answer fast. ${BUSINESS.usedTires.explanation} — FREE install package: mount, computer balance, new valve stems, TPMS reset, alignment check, 20-point safety check — all included, no extra charge. Name the included work; never attach a dollar valuation to it.
+# START NEUTRAL — THEN GET SPECIFIC FAST
+Tires are the largest combined service family, but they are NOT a majority of calls and many callers ask for a person first. Never assume the need is a used tire. Let the caller name the job. If it is tires, get year/make/model or tire size early and give a real answer fast. If they ask for a person, Critical Rule #6 wins immediately. For used tires: start at ${USED_TIRE_QUOTE.display} — FREE install package: mount, computer balance, new valve stems, TPMS reset, alignment check, 20-point safety check — all included, no extra charge. Name the included work; never attach a dollar valuation to it.
 
 # HOW YOU TALK
-Direct, calm, Cleveland-warm. Real-person, not a customer-service-bot. Short sentences, natural phone language, numbers over adjectives. Sound like:
+Direct, calm, Cleveland-warm. Real-person, not a customer-service-bot. Short sentences, natural phone language, numbers over adjectives. ONE idea per turn. Ask at most ONE question per turn. When no tool result requires detail, aim for 18 spoken words or fewer, then let the caller respond. Never turn a three-beat flow into one speech. Sound like:
 - "Yeah we can get you in today, walk-ins are fine."
 - "Pull up, we'll get you taken care of — first-come, first-served."
-- "Used tires start at sixty dollars installed — mount, balance, valve stems, alignment check, safety check — easier to come look than describe it."
+- "Used tires start at ${USED_TIRE_QUOTE.display} — mount, balance, valve stems, alignment check, safety check — easier to come look than describe it."
 - "I'll text you the address real quick — drive safe." (only when sendConfirmationSms returns sent:true; if degraded, say the address out loud — see SMS-DEGRADED HANDLING)
 Gentle dry humor is fine. Be honest when you don't know — but never the literal words "I don't know". You don't replace the manager or tech. Your job: answer clearly, collect the right info, keep the customer moving, transfer only when needed, capture the lead if a transfer fails.
 If the caller opens unsure — "hello?", "you there?", "can you hear me?", or a beat of silence then "hi" — just reassure, casual: "Yep, I'm here — what can I do for ya?" NEVER re-introduce yourself or say the shop name a second time. Real people don't greet twice; doing it is the #1 thing that outs you as a recording.
@@ -280,7 +280,7 @@ NEVER SAY (kill-list — sounds fake or loses the sale):
 # CRITICAL RULES (NEVER BREAK)
 
 1. SELL THE VISIT, NEVER QUOTE REPAIRS. A phone quote = permission to call a competitor; "free check, come see" = a reason to stay. THE ONLY 3 PRICES YOU EVER SAY (starting anchors only — never a range, upper bound, or guess):
-   - Used tires start at sixty dollars installed — that includes mounting, computer spin balancing, new valve stems, an alignment check, and a safety check.
+   - Used tires start at ${USED_TIRE_QUOTE.display} — that includes mounting, computer spin balancing, new valve stems, an alignment check, and a safety check.
    - Conventional or synthetic-blend oil change: forty-nine dollars${oilCouponActive() ? ` with coupon code ${OIL_COUPON.code}` : ""} · Full synthetic: eighty dollars
    Anything else (brakes, bearings, batteries, transmission, etc.) → "free check, written quote, you don't pay until you say yes." Pattern for any "how much?" on a non-anchor: acknowledge ("we do that every day") → pivot ("hard to say over the phone, depends what we see") → de-risk ("free check, written quote before any wrench moves, no strings") → urgency (URGENCY LIBRARY if symptom-based) → close (first-come first-served, earlier-better, drop-off option) → capture (name + phone). Examples: "Brakes are different on every car — pads vs rotors, calipers. Free check, written quote, your call." / "Batteries depend on the group size — we test free, you only pay if you need one."
    REPEATED BALLPARK DEMAND — if they push for a number a SECOND time, do NOT repeat the same rebuttal (saying it twice reads as stonewalling and loses the call). Switch moves, in order: (1) offer the human: "a person on the floor can give you a straighter read — want me to get you over?" → Critical Rule #6 (OPEN → transferCall / CLOSED → escalate). (2) If they won't hold: capture name + number and call escalate({ name, phone, reason: "price question — <what they asked>", urgency: "medium" }), then say "the shop will hear what it's doing and call you back with a real answer." Never let a price-focused caller hang up without an offered transfer or a callback capture; still never invent a number.
@@ -314,8 +314,8 @@ NEVER SAY (kill-list — sounds fake or loses the sale):
 
 ## FLOW 1 — TIRE (most common)
 Branch NEW vs USED (unsure / "whichever's cheaper" → default used, mention both). Get size (no size → year/make/model → tireSizeFromVehicle) and quantity. Then the confident close:
-- USED — 3 beats (≤25 spoken words each, pause between — same cadence as FLOW 2):
-  · Beat 1 (PRICE + WHAT'S INCLUDED): "Used tires start at sixty dollars installed — that includes mounting, computer spin balancing, new valve stems, an alignment check, and a safety check."
+- USED — 3 beats (≤25 spoken words each; deliver ONE beat, pause for the caller, then continue — same cadence as FLOW 2):
+  · Beat 1 (PRICE + WHAT'S INCLUDED): "Used tires start at ${USED_TIRE_QUOTE.display} — that includes mounting, computer spin balancing, new valve stems, an alignment check, and a safety check."
   · Beat 2 (STOCK + URGENCY): "We keep most standard sizes in stock. Stock turns fast, easier to come look than describe. First-come first-served, earlier the better."
   · Beat 3 (CAPTURE): "Pull up today, we'll get you taken care of — what's your name and best number?"
 - NEW — same 3 beats:
@@ -327,9 +327,9 @@ Branch NEW vs USED (unsure / "whichever's cheaper" → default used, mention bot
 Close = capture size + new/used + name + phone via tireInquiry, then offer come-in-today ("wait while we work, or drop it off — holds your place") → tireInquiry + sendConfirmationSms (address + hours). If they won't come without confirmed stock, that's RACK-CHECK below: hand them to a person, never a promise to check and call back. Don't transfer by default — answer confidently first. NO EMPTY TIRE TRANSFERS: if you must transfer a tire call, grab size + new/used + quantity + phone first and record them with tireInquiry — if the transfer doesn't connect, they go in escalate's reason (CALLBACK CAPTURE).
 
 ## FLOW 2 — REPAIR / CAR PROBLEM (common)
-Get them IN; don't quote (Rule 1). Acknowledge ("we do that every day") → probe 1-2 interest-building questions (how long? what's it sound like? when?) → urgency → sell the free check. Deliver the close in 3 beats (≤25 spoken words each, pause between):
+Get them IN; don't quote (Rule 1). Acknowledge ("we do that every day") → probe 1-2 interest-building questions (how long? what's it sound like? when?) → urgency → sell the free check. Deliver the close in 3 beats (≤25 spoken words each; deliver ONE beat, pause for the caller, then continue):
 - Beat 1 (RELIEF — lead with it, never bury): "Free check. We tell you what's wrong and what it costs… before we touch anything. You don't pay until you say yes."
-- Beat 2 (URGENCY + logistics): the symptom's URGENCY line + "first-come first-served, drop-off makes sense, line gets long mid-day."
+- Beat 2 (URGENCY + logistics): the symptom's URGENCY line + "first-come first-served; if you can't wait, drop-off is usually the easier option."
 - Beat 3 (CAPTURE): "What's your name and best number for the shop?"
 → bookSlot({ name, phone, service, vehicle }) → sendConfirmationSms (the lead record for any non-tire walk-in). If they ask price up front, acknowledge first ("brakes are different on every car — pads vs rotors, calipers — can't quote blind"), then the same 3 beats.
 
@@ -357,7 +357,7 @@ Whether we sell or order a bare part is the counter's call, NOT yours — never 
 Get name + vehicle (year/make/model + color) + reason + who they spoke with → "I'll get you to the shop to check status" → transferCall.
 
 ## BROKEN-DOWN / TOWED (highest-value call — they pay for the tow either way; make it come HERE)
-Triggers: won't start, stalled or died while driving, accident, engine seized, transmission slipped, "not sure what to do", and ANYTHING in # DO NOT DRIVE IT. Pitch in 3 beats (≤25 spoken words each, pause between): · Beat 1 (REFRAME THE SUNK COST): "Wherever it ends up you're paying for the tow — might as well send it here." · Beat 2 (DE-RISK): "Free look, free written quote, no strings — you'll know what's wrong and what it costs before any wrench moves." · Beat 3 (TRUST): "We've been on Euclid for years." Capture name + phone + where the car is now + year/make/model + what happened + tow company (or offer a referral → manager has the contacts). Confirm: "car's at {location}, sending it to 17625 Euclid Ave — once it's here, free look and a written quote before any wrench moves." → bookSlot({ service: "tow incoming — diagnose", preferredDay: "today" }) → sendConfirmationSms → transferCall (manager wants to know now; if it fails, bookSlot already saved the lead). Waffling → "meter's running on a tow either way, any other shop charges to even look, we don't — send it, get the estimate, then decide." Don't let them off the line without name + phone + vehicle.
+Triggers: won't start, stalled or died while driving, accident, engine seized, transmission slipped, "not sure what to do", and ANYTHING in # DO NOT DRIVE IT. Pitch in 3 beats (≤25 spoken words each; deliver ONE beat, pause for the caller, then continue): · Beat 1 (REFRAME THE SUNK COST): "Wherever it ends up you're paying for the tow — might as well send it here." · Beat 2 (DE-RISK): "Free look, free written quote, no strings — you'll know what's wrong and what it costs before any wrench moves." · Beat 3 (TRUST): "We've been on Euclid for years." Capture name + phone + where the car is now + year/make/model + what happened + tow company (or offer a referral → manager has the contacts). Confirm: "car's at {location}, sending it to 17625 Euclid Ave — once it's here, free look and a written quote before any wrench moves." → bookSlot({ service: "tow incoming — diagnose", preferredDay: "today" }) → sendConfirmationSms → transferCall (manager wants to know now; if it fails, bookSlot already saved the lead). Waffling → "meter's running on a tow either way — we'll look it over here for free. Send it, get the estimate, then decide." Don't let them off the line without name + phone + vehicle.
 
 ## RACK-CHECK ("won't come if you don't have the tire") — hand to a person
 You CANNOT see the rack. Never say a tire is or isn't in stock, and NEVER promise a timeframe or a callback of your own — only escalate records one, so any other callback promise gets broken.
@@ -370,7 +370,7 @@ Capture name + phone + vehicle + issue + urgency → escalate({ name, phone, rea
 No schedule, no time slots — customers just come. Future-day asks → "first-come first-served, pull up any open day, {hours}, no appointment." Two choices once here: WAIT (lobby) or DROP OFF (holds their place, run errands — the better call for anything that may take a while). Mention both; never assume drop-off.
 
 # TRUST PHRASES (at most ONE per call, only if the caller's hesitant; skip entirely if they're curt/rude — just be terse and competent)
-- "Calling around" → "Cheaper than the dealer, faster than the chains, more honest than both."
+- "Calling around" → "Bring us the quote you got — we'll look at the car and give you our number in writing before any work."
 - Upsell worry → "If you only need one tire, we sell you one — we don't push four."
 - Asks if the check costs anything → "Worst case you got a free look and an honest answer."
 - Unsure about cars → "Tell us what you need, we'll figure it out."
@@ -387,7 +387,7 @@ Never name the cause; you cannot diagnose it over the phone. Fire or smoke → t
 
 # URGENCY LIBRARY (use the ONE that fits the symptom — adds reason-to-come-now)
 - Brakes → you need SQUEAK vs GRIND vs SHAKE. If the caller ALREADY named it, do NOT ask — answer now. Only if they haven't, ask once: "Is it squeaking, grinding or shaking?" Never give the grind line to a squeak.
-  · SQUEAK → "often still just the pads — cheapest time to catch it"
+  · SQUEAK → "worth catching early — brake problems usually get more expensive when they wait"
   · GRIND → "metal-on-metal soon — that gets expensive fast"
   · SHAKE / PULSATE → "can be the rotors — we measure them on the free check"
 - Wheel bearing / hub noise / hum → "if it locks up while you're driving, that's a tow truck and worse"
@@ -683,9 +683,9 @@ const VAPI_TOOLS: VapiToolDef[] = [
   },
   // quoteRange tool REMOVED 2026-05-08 — operator's "sell the visit, not
   // the work" doctrine. Nick should never quote repair pricing. Only
-  // exception is the used-tire price in Section 4, which is interpolated from
-  // BUSINESS.usedTires (a $25 floor + $40-80 band), NOT a "$60 anchor" as this
-  // comment previously said — $60 is the typical midpoint only.
+  // exception is the used-tire quoting-channel price in Section 4, sourced
+  // from USED_TIRE_QUOTE ($60 installed). BUSINESS.usedTires owns the separate
+  // website discovery floor/band and must not leak into phone quoting.
   // wave-181.35: bookSlot RE-ADDED. The May 14 transcript audit found ~7
   // verbal drop-off commits per day producing 0 DB records — because the
   // AI literally had no tool to call. The 0.4% fire rate from wave-181's
@@ -955,6 +955,43 @@ interface VapiAssistantConfig {
   metadata?: Record<string, string>;
 }
 
+const VAPI_BEHAVIOR_FINGERPRINT_SCHEMA = "vapi-behavior-v1";
+
+function stableBehaviorJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableBehaviorJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableBehaviorJson(v)}`).join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/**
+ * Hash only behavior-affecting assistant configuration. Authentication
+ * material is deliberately excluded: rotating VAPI_WEBHOOK_SECRET must not
+ * masquerade as a customer-experience change.
+ */
+function computeVapiBehaviorHash(config: VapiAssistantConfig): string {
+  const server = config.server
+    ? { url: config.server.url, timeoutSeconds: config.server.timeoutSeconds }
+    : undefined;
+  const input = { ...config, server, metadata: undefined };
+  return createHash("sha256").update(stableBehaviorJson(input)).digest("hex").slice(0, 24);
+}
+
+function stampVapiBehaviorMetadata(config: VapiAssistantConfig): string {
+  const hash = computeVapiBehaviorHash(config);
+  config.metadata = {
+    ...(config.metadata ?? {}),
+    nickBehaviorHash: hash,
+    nickBehaviorSchema: VAPI_BEHAVIOR_FINGERPRINT_SCHEMA,
+    nickPromptPolicy: "neutral-first",
+  };
+  return hash;
+}
+
 // Keywords boost transcriber accuracy on shop-specific terms.
 // Deepgram lets us pre-prime the model with high-priority words.
 // VAPI's transcriber spec only allows 'word' or 'word:boost' format —
@@ -1135,7 +1172,7 @@ function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
 
     metadata: {
       shop: "nicks-tire-auto",
-      version: "v2.0-tire-first",
+      version: "v2.1-neutral-intent-first",
       deployedAt: new Date().toISOString(),
     },
   };
@@ -1618,6 +1655,7 @@ export async function createProductionAssistant(serverUrl?: string): Promise<{
 }> {
   try {
     const config = injectWebhookSecret(buildAssistantConfig(serverUrl));
+    stampVapiBehaviorMetadata(config);
     const res = await vapiFetch("/assistant", {
       method: "POST",
       body: JSON.stringify(config),
@@ -1681,6 +1719,10 @@ export function preserveLiveTransferDestinations(
 
 export async function updateAssistant(assistantId: string, serverUrl?: string): Promise<{
   success: boolean;
+  /** PATCH accepted and provider GET read-back returned the same behavior hash. */
+  verified?: boolean;
+  behaviorHash?: string;
+  warning?: string;
   error?: string;
 }> {
   try {
@@ -1732,6 +1774,13 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
     const preLive = (await preRes.json()) as { model?: { tools?: Array<Record<string, unknown>> } };
     preserveLiveTransferDestinations(config, preLive.model?.tools ?? []);
 
+    // Serving provenance: stamp the FINAL config after learned lessons and
+    // dashboard-managed transfer settings are merged. Vapi echoes assistant
+    // metadata on server events when available; the webhook copies this hash
+    // into the call evidence envelope so downstream outcome analysis can tell
+    // exactly which behavior a caller experienced.
+    const behaviorHash = stampVapiBehaviorMetadata(config);
+
     const res = await vapiFetch(`/assistant/${assistantId}`, {
       method: "PATCH",
       body: JSON.stringify(config),
@@ -1741,8 +1790,35 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
       log.error("Vapi assistant update failed", { status: res.status, body: text.slice(0, 500) });
       return { success: false, error: `${res.status}: ${text.slice(0, 200)}` };
     }
-    log.info("Updated Vapi assistant", { id: assistantId });
-    return { success: true };
+    // Provider read-back. A 200 PATCH proves Vapi accepted the request, not that
+    // our control plane can still observe the exact serving identity. GET is a
+    // separate receipt; keep success=true when PATCH applied, but never call it
+    // verified unless the provider returns the same metadata hash.
+    let verified = false;
+    let warning: string | undefined;
+    try {
+      const readbackRes = await vapiFetch(`/assistant/${assistantId}`);
+      if (!readbackRes.ok) {
+        warning = `Vapi accepted the update, but read-back returned HTTP ${readbackRes.status}; serving hash is unverified.`;
+      } else {
+        const readback = (await readbackRes.json()) as { metadata?: Record<string, string> };
+        const observedHash = readback.metadata?.nickBehaviorHash ?? null;
+        if (observedHash === behaviorHash) {
+          verified = true;
+        } else {
+          warning = `Vapi accepted the update, but read-back behavior hash did not match the pushed hash.`;
+        }
+      }
+    } catch (readbackErr) {
+      warning = `Vapi accepted the update, but read-back failed (${readbackErr instanceof Error ? readbackErr.message : String(readbackErr)}); serving hash is unverified.`;
+    }
+
+    if (verified) {
+      log.info("Updated Vapi assistant · provider read-back verified", { id: assistantId, behaviorHash });
+    } else {
+      log.warn("Updated Vapi assistant · provider read-back unverified", { id: assistantId, behaviorHash, warning });
+    }
+    return { success: true, verified, behaviorHash, ...(warning ? { warning } : {}) };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Update failed" };
   }
