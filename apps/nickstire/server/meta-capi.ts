@@ -119,18 +119,23 @@ interface SendEventOptions {
   customData?: CAPICustomData;
 }
 
-// ─── Core Send Function ───────────────────────────────
-export async function sendCAPIEvent(options: SendEventOptions): Promise<{
+export interface CAPISendResult {
   success: boolean;
   eventsReceived?: number;
   error?: string;
-}> {
+  /** FALSE means retrying the identical request cannot fix the failure. */
+  retryable?: boolean;
+  httpStatus?: number;
+}
+
+// ─── Core Send Function ───────────────────────────────
+export async function sendCAPIEvent(options: SendEventOptions): Promise<CAPISendResult> {
   const accessToken = getAccessToken();
   if (!accessToken) {
     // DORMANT path — same quiet behavior as the interim stub. Becomes a
     // live send the moment META_CAPI_ACCESS_TOKEN is configured.
     log.debug(`Meta CAPI disabled — ${options.eventName} event not sent (META_CAPI_ACCESS_TOKEN not configured)`);
-    return { success: false, error: "META_CAPI_ACCESS_TOKEN not configured" };
+    return { success: false, error: "META_CAPI_ACCESS_TOKEN not configured", retryable: false };
   }
 
   try {
@@ -195,15 +200,38 @@ export async function sendCAPIEvent(options: SendEventOptions): Promise<{
 
     if (!response.ok) {
       log.error("[CAPI] Error sending event:", result);
-      return { success: false, error: result.error?.message || "Unknown error" };
+      return {
+        success: false,
+        error: result.error?.message || "Unknown error",
+        httpStatus: response.status,
+        retryable: response.status === 429 || response.status >= 500,
+      };
     }
 
-    log.info(`[capi:send] ${options.eventName} event sent (events_received: ${result.events_received})`);
-    return { success: true, eventsReceived: result.events_received };
+    log.info("[capi:send] event sent", {
+      eventName: options.eventName,
+      eventsReceived: result.events_received,
+      eventIdPresent: Boolean(options.eventId),
+    });
+    return { success: true, eventsReceived: result.events_received, retryable: false };
   } catch (err) {
     log.error("[CAPI] Failed to send event:", err);
-    return { success: false, error: String(err) };
+    return { success: false, error: String(err), retryable: true };
   }
+}
+
+/**
+ * Adapt CAPI's customer-safe non-throwing result to withRetry's contract.
+ * Customer submissions remain non-blocking, while a failed Meta delivery now
+ * reaches retry/failure-ledger code instead of resolving as a false success.
+ */
+export async function requireCapiDelivery(promise: Promise<CAPISendResult>): Promise<CAPISendResult> {
+  const result = await promise;
+  if (result.success) return result;
+
+  const error = new Error(result.error || "Meta CAPI event was not accepted") as Error & { terminal?: boolean };
+  if (result.retryable === false) error.terminal = true;
+  throw error;
 }
 
 // ─── Typed Event Helpers ──────────────────────────────
@@ -223,7 +251,7 @@ export function sendLeadEvent(params: {
   fbp?: string | null;
   contentName: string;
   contentCategory: string;
-}): Promise<{ success: boolean; error?: string }> {
+}): Promise<CAPISendResult> {
   const nameParts = (params.name || "").split(" ");
   return sendCAPIEvent({
     eventName: "Lead",
@@ -263,7 +291,7 @@ export function sendScheduleEvent(params: {
   fbp?: string | null;
   service: string;
   vehicle?: string;
-}): Promise<{ success: boolean; error?: string }> {
+}): Promise<CAPISendResult> {
   const nameParts = (params.name || "").split(" ");
   return sendCAPIEvent({
     eventName: "Schedule",
@@ -299,7 +327,7 @@ export function sendContactEvent(params: {
   fbp?: string | null;
   contentName: string;
   contentCategory: string;
-}): Promise<{ success: boolean; error?: string }> {
+}): Promise<CAPISendResult> {
   return sendCAPIEvent({
     eventName: "Contact",
     eventId: params.eventId,
@@ -335,7 +363,7 @@ export function sendPurchaseEvent(params: {
   value: number;
   currency?: string;
   contentName?: string;
-}): Promise<{ success: boolean; error?: string }> {
+}): Promise<CAPISendResult> {
   const nameParts = (params.name || "").split(" ");
   return sendCAPIEvent({
     eventName: "Purchase",

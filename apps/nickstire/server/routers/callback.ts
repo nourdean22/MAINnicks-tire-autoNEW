@@ -11,7 +11,9 @@ import { z } from "zod";
 import { leads } from "../../drizzle/schema";
 import { eq, and, gte } from "drizzle-orm";
 import { sanitizeText, sanitizePhone } from "../sanitize";
-import { sendLeadEvent } from "../meta-capi";
+import { requireCapiDelivery, sendLeadEvent } from "../meta-capi";
+import { logIntegrationFailure } from "../integration-failures";
+import { withRetry } from "../retry";
 import { SITE_URL, BUSINESS } from "@shared/business";
 import { handleAfterHoursCapture, isAfterHours } from "../services/afterHours";
 import { alertNewLead } from "../services/telegram";
@@ -173,17 +175,31 @@ export const callbackRouter = router({
 
       // Meta Conversions API: Send server-side Lead event for callback
       if (input.pixelEventId) {
-        sendLeadEvent({
-          eventId: input.pixelEventId,
-          sourceUrl: SITE_URL,
-          phone: input.phone,
-          name: input.name,
-          userAgent: input.pixelUserData?.client_user_agent,
-          fbc: input.pixelUserData?.fbc,
-          fbp: input.pixelUserData?.fbp,
-          contentName: "Callback Request",
-          contentCategory: input.sourcePage || "website",
-        }).catch(err => log.error("[CAPI] Callback lead event failed:", err));
+        withRetry(
+          () => requireCapiDelivery(sendLeadEvent({
+            eventId: input.pixelEventId,
+            sourceUrl: SITE_URL,
+            phone: input.phone,
+            name: input.name,
+            userAgent: input.pixelUserData?.client_user_agent,
+            fbc: input.pixelUserData?.fbc,
+            fbp: input.pixelUserData?.fbp,
+            contentName: "Callback Request",
+            contentCategory: input.sourcePage || "website",
+          })),
+          { maxRetries: 3, baseDelayMs: 1000, label: "sendLeadEvent (callback)" }
+        ).catch(err => {
+          log.error("[CAPI] Callback lead event failed:", err);
+          logIntegrationFailure({
+            failureType: "capi",
+            // integration_failures has no callback entity enum; do not mislabel
+            // a callback_request id as a lead id just to fill the column.
+            entityId: null,
+            entityType: "lead",
+            errorMessage: err instanceof Error ? err.message : String(err),
+            errorDetails: err,
+          });
+        });
       }
 
       // Telegram alert (always, regardless of hours)

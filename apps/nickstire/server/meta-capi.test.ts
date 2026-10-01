@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import crypto from "crypto";
+import { withRetry } from "./retry";
 
 const ORIGINAL_FETCH = global.fetch;
 
@@ -87,6 +88,7 @@ describe("meta-capi", () => {
     process.env.META_CAPI_ACCESS_TOKEN = "test-token-not-real";
     global.fetch = vi.fn(async () => ({
       ok: false,
+      status: 401,
       json: async () => ({ error: { message: "Invalid OAuth access token" } }),
     })) as unknown as typeof fetch;
     const { sendLeadEvent } = await import("./meta-capi");
@@ -97,5 +99,59 @@ describe("meta-capi", () => {
     });
     expect(result.success).toBe(false);
     expect(result.error).toBe("Invalid OAuth access token");
+    expect(result.retryable).toBe(false);
+    expect(result.httpStatus).toBe(401);
+  });
+
+  it("RETRY CONTRACT: transient Graph failures reject through the adapter and retry", async () => {
+    process.env.META_CAPI_ACCESS_TOKEN = "test-token-not-real";
+    let attempts = 0;
+    global.fetch = vi.fn(async () => {
+      attempts++;
+      if (attempts === 1) {
+        return {
+          ok: false,
+          status: 500,
+          json: async () => ({ error: { message: "temporary Meta outage" } }),
+        } as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ events_received: 1 }),
+      } as Response;
+    }) as unknown as typeof fetch;
+
+    const { requireCapiDelivery, sendLeadEvent } = await import("./meta-capi");
+    const result = await withRetry(
+      () => requireCapiDelivery(sendLeadEvent({
+        phone: "2165551234",
+        contentName: "Lead",
+        contentCategory: "popup",
+      })),
+      { maxRetries: 1, baseDelayMs: 0, label: "capi-test" },
+    );
+
+    expect(result.success).toBe(true);
+    expect(attempts).toBe(2);
+  });
+
+  it("RETRY CONTRACT: missing configuration is terminal and does not burn retries", async () => {
+    let attempts = 0;
+    const { requireCapiDelivery, sendLeadEvent } = await import("./meta-capi");
+
+    await expect(withRetry(
+      () => {
+        attempts++;
+        return requireCapiDelivery(sendLeadEvent({
+          phone: "2165551234",
+          contentName: "Lead",
+          contentCategory: "popup",
+        }));
+      },
+      { maxRetries: 3, baseDelayMs: 0, label: "capi-test" },
+    )).rejects.toThrow(/META_CAPI_ACCESS_TOKEN/);
+
+    expect(attempts).toBe(1);
   });
 });
