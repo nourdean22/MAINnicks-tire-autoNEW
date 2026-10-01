@@ -309,12 +309,18 @@ const nextConfig: NextConfig = {
     // morning Telegram links don't break. Inner /people/network path
     // also lands on /people (which is the dossier surface).
     { source: "/relationships", destination: "/people", permanent: true },
-    { source: "/relationships/:path*", destination: "/people/:path*", permanent: true },
+    { source: "/relationships/:path*", destination: "/people", permanent: true },
     { source: "/people/network", destination: "/people", permanent: false },
-    // Nickstire-leakage · external redirect.
-    { source: "/system/tire-stock-requests", destination: "https://nickstire.org/admin", permanent: false },
+    // Nickstire-leakage · explicit product boundary. Keep /admin as a
+    // same-origin handoff because StateNour's service worker focuses an existing
+    // bdnick window before navigating; the server redirect then crosses origins.
+    { source: "/admin", destination: "https://nickstire.org/admin", permanent: false },
+    { source: "/system/tire-stock-requests", destination: "https://nickstire.org/admin?tab=tireOrders", permanent: false },
     { source: "/system/vapi-calls", destination: "https://nickstire.org/admin", permanent: false },
-    { source: "/customer-360/:customerId*", destination: "https://nickstire.org/admin", permanent: false },
+    // Preserve the customer identity instead of dropping the operator at a
+    // generic admin home. Nick's admin reads ?tab=customers&id=<customerId>.
+    { source: "/customer-360/:customerId", destination: "https://nickstire.org/admin?tab=customers&id=:customerId", permanent: false },
+    { source: "/customer-360/:customerId*", destination: "https://nickstire.org/admin?tab=customers", permanent: false },
     // Wave 2 surface merge · 2026-06-03 · /financial + /funnel consolidated
     // into the tabbed /business surface (Money + Funnel tabs). Deep links +
     // bookmarks land on the right tab.
@@ -322,10 +328,12 @@ const nextConfig: NextConfig = {
     { source: "/financial", destination: "/stats", permanent: false },
     { source: "/funnel", destination: "/stats", permanent: false },
 
-    // 2026-06-19 · IA reorg Phase 5 · /finance + /wealth consolidated into the
-    // tabbed /money hub (Finance + Wealth tabs). Deep links land on the right tab.
-    { source: "/finance", destination: "/money?tab=finance", permanent: false },
-    { source: "/wealth", destination: "/money?tab=wealth", permanent: false },
+    // Personal finance/wealth subsystem was retired with its backing models +
+    // APIs in the 2026-06-21 schema purge; /money was later deleted. Keep old
+    // bookmarks alive by landing on the remaining personal metrics surface,
+    // rather than chaining into a page that no longer exists.
+    { source: "/finance", destination: "/stats", permanent: false },
+    { source: "/wealth", destination: "/stats", permanent: false },
     // 2026-06-19 · IA reorg Phase 5 · /crm folded into the /business Clients tab
     // (coaching pipeline next to the funnel it feeds).
     { source: "/crm", destination: "/stats", permanent: false }, // 2026-09-02 · /business gone
@@ -349,7 +357,7 @@ const nextConfig: NextConfig = {
     // health log) as a section + the /learn active-learning LOOP. /life
     // (a pure 5-link hub) DELETED. /learn KEEPS its Build-Your-Own-X
     // catalog (force-static dev reference) → NOT redirected.
-    { source: "/body", destination: "/stats#body", permanent: false },
+    { source: "/body", destination: "/stats?tab=body", permanent: false },
     { source: "/life", destination: "/stats", permanent: false },
 
     // Wave 2 surface merge · 2026-06-03 · /content/drafts + /content/history

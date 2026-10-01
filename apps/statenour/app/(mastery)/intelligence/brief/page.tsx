@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { RefreshCw, FileText, AlertTriangle, Zap, CheckSquare, Sparkles } from "lucide-react";
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 
 interface BriefLog {
   id: string;
@@ -80,7 +80,8 @@ export default function DailyBriefPage() {
   };
 
   useEffect(() => {
-    fetchLatestBrief();
+    const t = setTimeout(() => void fetchLatestBrief(), 0);
+    return () => clearTimeout(t);
   }, []);
 
   // Simple custom parser to style the Markdown brief nicely
@@ -145,18 +146,25 @@ export default function DailyBriefPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 pb-20">
-      <div className="flex justify-between items-center mb-6">
-        <PageHeader eyebrow="INTELLIGENCE" title="Daily Brief" description="Daily Executive Intelligence Briefings for Nour" />
+    <StandardPage
+      eyebrow="Intelligence"
+      title="Daily Brief"
+      description="Daily executive intelligence briefings for Nour."
+      width="md"
+      rhythm="comfortable"
+      className="mx-auto px-4 pb-20"
+      parent={{ href: "/system", label: "system" }}
+      actions={
         <button
           onClick={fetchLatestBrief}
           disabled={loading || generating}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-950 text-xs font-mono text-slate-400 hover:text-slate-200 transition-colors disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 font-mono text-xs text-slate-400 transition-colors hover:text-slate-200 disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           REFRESH
         </button>
-      </div>
+      }
+    >
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3 border border-slate-800/40 rounded-2xl bg-slate-900/10 backdrop-blur-md">
@@ -231,12 +239,12 @@ export default function DailyBriefPage() {
             ) : (
               <>
                 <Sparkles className="h-4 w-4" />
-                Compile Today's Brief
+                Compile Today&apos;s Brief
               </>
             )}
           </button>
         </div>
       )}
-    </div>
+    </StandardPage>
   );
 }

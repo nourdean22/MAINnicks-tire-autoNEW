@@ -26,7 +26,7 @@ vi.mock("@next/bundle-analyzer", () => ({ default: () => (config: unknown) => co
 import nextConfig from "../../next.config";
 import { IMPORTANT_PAGES } from "@/lib/brain/page-intelligence";
 import { HREF_BY_DOMAIN } from "@/lib/services/chat-lane-check";
-import { resolveStatsTab } from "@/lib/stats/resolve-tab";
+import { STATS_TABS, resolveStatsTab } from "@/lib/stats/resolve-tab";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -54,15 +54,19 @@ describe("retired routes gate · every route-carrying registry points at a page 
     expect(stale, "redirects still targeting the deleted page").toEqual([]);
   });
 
-  it("no redirect destination itself carries a retired tab into /stats", async () => {
+  it("redirects into /stats may name only a current canonical tab", async () => {
     // Next appends the incoming query to a redirect destination no matter what
     // (a `has` capture does NOT strip it — live-probed 2026-09-02:
-    // /business?tab=money → /stats?tab=money). So the page must tolerate any
-    // tab, which resolveStatsTab() guarantees below; this only pins that the
-    // config does not ADD a retired tab of its own.
+    // /business?tab=money → /stats?tab=money). So Stats still has to tolerate
+    // unknown incoming tabs via resolveStatsTab(). But a redirect may now
+    // deliberately target a CURRENT tab (e.g. /body → ?tab=body); only retired
+    // or invented tab keys are forbidden here.
+    const validTabs = new Set(STATS_TABS.map((tab) => tab.id));
     const redirects = await nextConfig.redirects!();
-    for (const r of redirects.filter((r) => r.destination.startsWith("/stats"))) {
-      expect(r.destination, `${r.source} must not carry a tab into /stats`).not.toMatch(/tab=/);
+    for (const r of redirects.filter((row) => row.destination.startsWith("/stats"))) {
+      const tab = new URL(r.destination, "https://bdnick.info").searchParams.get("tab");
+      if (!tab) continue;
+      expect(validTabs.has(tab), `${r.source} carries unknown /stats tab "${tab}"`).toBe(true);
     }
   });
 

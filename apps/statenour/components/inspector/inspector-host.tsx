@@ -17,7 +17,7 @@
 import { Suspense, ViewTransition, useEffect, useMemo, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useInspectorStore } from "@/lib/state/inspector-store";
-import { readInspect } from "@/lib/ui/inspect-url";
+import { INSPECT_TRANSITION_TYPES, readInspect } from "@/lib/ui/inspect-url";
 import { formatEntityRef } from "@/lib/ui/entity-ref";
 import { routeOwnsKind } from "@/lib/ui/entity-actions";
 import { INSPECTOR_PANEL_WIDTH, InspectorFrame } from "@/components/inspector/inspector-frame";
@@ -106,18 +106,24 @@ function InspectorHostInner() {
   const onClose = mode === "peek" ? () => setPeek(null) : closeInspector;
   const presentation = isWide ? "panel" : "sheet";
 
-  // Only Transition updates animate. The URL-backed OPEN and CLOSE travel
-  // through the router (a transition), so the dock slides in and out and the
-  // sheet gets the exit it never had (its entrance stays the CSS keyframe,
-  // hence `enter="none"` there). The store-backed PEEK is a synchronous
-  // update and stays instant by design — Space while arrowing must not wait
-  // on an animation. `update="none"`: arrowing between rows swaps the
-  // panel's content without a cross-fade.
+  // Next 16.2+ App Router navigation is already a React Transition.
+  // useInspector adds explicit transitionTypes so ONLY an inspector OPEN
+  // gets the enter class and ONLY a CLOSE gets the exit class. Row-to-row
+  // swaps carry their own type and stay instant; PEEK remains a synchronous
+  // store update by design. `update="none"` prevents content cross-fades.
   return (
     <>
       <ViewTransition
-        enter={presentation === "panel" ? INSPECTOR_TRANSITION.panelIn : "none"}
-        exit={presentation === "panel" ? INSPECTOR_TRANSITION.panelOut : INSPECTOR_TRANSITION.sheetOut}
+        enter={{
+          default: "none",
+          [INSPECT_TRANSITION_TYPES.open]:
+            presentation === "panel" ? INSPECTOR_TRANSITION.panelIn : "none",
+        }}
+        exit={{
+          default: "none",
+          [INSPECT_TRANSITION_TYPES.close]:
+            presentation === "panel" ? INSPECTOR_TRANSITION.panelOut : INSPECTOR_TRANSITION.sheetOut,
+        }}
         update="none"
         default="none"
       >

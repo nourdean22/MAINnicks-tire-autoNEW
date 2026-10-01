@@ -123,9 +123,9 @@ export const FEATURE_REGISTRY: FeatureMeta[] = [
   },
   {
     name: "Time-travel snapshot UI",
-    endpoint: "/brain/time-travel (consumes /api/brain/time-travel)",
+    endpoint: "/brain?tab=continuity#time-travel (consumes /api/brain/time-travel)",
     status: "LIVE",
-    notes: "v10.0.99 page · pick any date → 8-counter grid + category bar viz + 5 activity columns (chats / brain dumps / reflections / decisions / emotional states) + URL ?date= sync.",
+    notes: "2026-10-01 · folded into Brain → Changed. Pick a date to reconstruct the ET-day counts, memory categories, health frame, decisions, reflections, and brain dumps.",
   },
   {
     name: "Memory health rollup UI",
@@ -135,9 +135,9 @@ export const FEATURE_REGISTRY: FeatureMeta[] = [
   },
   {
     name: "Recall preview UI",
-    endpoint: "/brain/recall (consumes /api/brain/recall)",
+    endpoint: "/brain?tab=memory#recall-preview (consumes /api/brain/recall)",
     status: "LIVE",
-    notes: "v10.0.101 page · type a query → see what chat would inject as system-prompt context · optional 'preview the prompt block' shows the literal text.",
+    notes: "2026-10-01 · folded into Brain → Memory. Query the live recall pipeline, inspect provenance/trust/score/fact-age, and optionally reveal the exact fenced prompt block.",
   },
   {
     name: "Memory graph (nodes+edges)",

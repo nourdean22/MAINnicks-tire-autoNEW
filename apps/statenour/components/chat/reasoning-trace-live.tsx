@@ -22,7 +22,7 @@ export function ReasoningTraceLive({ steps }: { steps: ReasoningStep[] }) {
     <div className="mb-4 mt-1 rounded-xl overflow-hidden border border-zinc-800/60 bg-zinc-950 shadow-sm">
       <button 
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-2.5 bg-zinc-900/50 hover:bg-zinc-900 transition-colors text-left"
+        className="flex min-h-11 w-full items-center justify-between bg-zinc-900/50 px-3 py-2.5 text-left transition-colors hover:bg-zinc-900"
       >
         <div className="flex items-center gap-2 text-[13px] font-medium text-zinc-300">
           {isDone ? (

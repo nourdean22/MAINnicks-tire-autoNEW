@@ -48,7 +48,7 @@ export function SavedMomentsList() {
           <li key={m.key}>
             <button
               onClick={() => requestSeek(m.seconds)}
-              className="flex w-full gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-elevated"
+              className="flex min-h-11 w-full items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-elevated"
               aria-label={`Jump to saved moment at ${formatTimestamp(m.seconds)}`}
             >
               <span className="shrink-0 pt-px font-mono text-[9px] text-fg-tertiary">

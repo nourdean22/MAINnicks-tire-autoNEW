@@ -541,7 +541,7 @@ export async function fireEveningPush(options?: { dryRun?: boolean; now?: Date }
         summary: `${sleepStr}, ${energyStr}`,
         confidence: "high",
         reason: "Determined from logged sleep/energy metrics in operator health check-in.",
-        href: "/stats#body",
+        href: "/stats?tab=body",
       });
     } else {
       sources.push({

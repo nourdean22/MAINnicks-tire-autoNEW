@@ -1,10 +1,9 @@
 "use client";
 
-import { PageHeader } from "@/components/layout/ui";
+import { StandardPage } from "@/components/layout/standard-page";
 import { Panel } from "@/components/panel";
 import { MetricCard } from "@/components/metric-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
-import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { ToolGapPanel } from "@/components/system/tool-gap-panel";
@@ -36,23 +35,28 @@ export default function SystemToolsPage() {
 
   if (isLoading && !tools) {
     return (
-      <main className="max-w-6xl mx-auto px-3 py-4 space-y-4">
-        <ShimmerSkeleton className="h-10 w-48 rounded" />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[...Array(4)].map((_, i) => (
-            <ShimmerSkeleton key={i} className="h-24 rounded" />
-          ))}
-        </div>
-        <ShimmerSkeleton className="h-96 rounded" />
-      </main>
+      <StandardPage
+        eyebrow="System Security"
+        title="Agent Tools Registry"
+        description="Verify, govern, and audit tool availability and execution policies."
+        width="2xl"
+        className="px-3 py-4"
+        loading
+      />
     );
   }
 
   if (!tools) {
     return (
-      <main className="max-w-6xl mx-auto px-3 py-4">
-        <p className="text-[var(--text-tertiary)]">Tools capabilities catalog unavailable</p>
-      </main>
+      <StandardPage
+        eyebrow="System Security"
+        title="Agent Tools Registry"
+        description="Verify, govern, and audit tool availability and execution policies."
+        width="2xl"
+        className="px-3 py-4"
+      >
+        <p className="text-[var(--text-tertiary)]">Tools capabilities catalog unavailable — registry state unknown.</p>
+      </StandardPage>
     );
   }
 
@@ -71,15 +75,14 @@ export default function SystemToolsPage() {
   });
 
   return (
-    <main className="max-w-6xl mx-auto px-3 py-4 space-y-6">
-      {/* Header */}
-      <PageHeader
-        parentHref="/system"
-        parentLabel="system"
-        eyebrow="System Security"
-        title="agent tools registry"
-        description="Verify, govern, and audit tool availability and execution policies."
-        actions={
+    <StandardPage
+      eyebrow="System Security"
+      title="Agent Tools Registry"
+      description="Verify, govern, and audit tool availability and execution policies."
+      width="2xl"
+      rhythm="loose"
+      className="px-3 py-4"
+      actions={
           <div className="flex items-center gap-2">
             <FreshnessChip
               // 2026-09-10 · was `new Date().toISOString()` — the chip
@@ -102,7 +105,7 @@ export default function SystemToolsPage() {
             </button>
           </div>
         }
-      />
+    >
 
       {/* Security Warnings Panel */}
       <Panel className="border-l-4 border-amber-500/80 bg-amber-500/[0.03] p-4 space-y-2">
@@ -279,6 +282,6 @@ export default function SystemToolsPage() {
           </table>
         </div>
       </section>
-    </main>
+    </StandardPage>
   );
 }
