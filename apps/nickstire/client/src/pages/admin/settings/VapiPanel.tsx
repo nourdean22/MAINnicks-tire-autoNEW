@@ -50,8 +50,11 @@ export default function VapiPanel() {
   });
   const updateAssistant = trpc.vapi.updateAssistant.useMutation({
     onSuccess: (result) => {
-      if (result.success) {
-        toast.success("Assistant updated · prompt + tools + settings re-pushed");
+      if (result.success && result.verified) {
+        toast.success(`Assistant updated + Vapi read-back verified · ${result.behaviorHash?.slice(0, 10) ?? "hash"}…`);
+        utils.vapi.status.invalidate();
+      } else if (result.success) {
+        toast.warning(result.warning || "Assistant update accepted, but provider read-back is unverified.");
         utils.vapi.status.invalidate();
       } else {
         toast.error("Update failed: " + (result.error || "unknown"));
