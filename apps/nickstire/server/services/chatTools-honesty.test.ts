@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { executeTool } from "./chatTools";
-import { OIL_PRICE, BRAKE_PRICE, SERVICE_PRICE } from "@shared/pricing";
+import { OIL_PRICE, BRAKE_PRICE, SERVICE_PRICE, DIAGNOSTIC_PRICE } from "@shared/pricing";
 import { BUSINESS } from "@shared/business";
 
 describe("chat price quotes track canonical shared/pricing.ts", () => {
@@ -31,6 +31,22 @@ describe("chat price quotes track canonical shared/pricing.ts", () => {
   it("e-check quotes the canonical starting price", async () => {
     const r = JSON.parse(await executeTool("get_price_estimate", { service: "e-check repair" }));
     expect(r.lowEstimate).toBe(SERVICE_PRICE.eCheckFixStarting);
+  });
+
+  // 2026-10-01 (#2868): one diagnostic fee, $49 waived with the repair, and
+  // one new-tire floor, $89. The tool quoted $75-$150 and $80-$250 after both.
+  it("diagnostic and check-engine quote the one diagnostic fee, waived with the repair", async () => {
+    for (const service of ["diagnostic", "check engine light"]) {
+      const r = JSON.parse(await executeTool("get_price_estimate", { service }));
+      expect(r.lowEstimate, service).toBe(DIAGNOSTIC_PRICE.fee);
+      expect(r.highEstimate, service).toBe(DIAGNOSTIC_PRICE.fee);
+      expect(r.note, service).toContain(DIAGNOSTIC_PRICE.waiver);
+    }
+  });
+
+  it("new tires quote the canonical floor", async () => {
+    const r = JSON.parse(await executeTool("get_price_estimate", { service: "new tires" }));
+    expect(r.lowEstimate).toBe(BUSINESS.newTires.startingDollars);
   });
 });
 

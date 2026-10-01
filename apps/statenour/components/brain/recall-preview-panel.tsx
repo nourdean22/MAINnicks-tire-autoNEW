@@ -26,6 +26,15 @@ type RecallReport = {
   provenanceReason?: string;
   promptBlock?: string;
 };
+/**
+ * `preview=1` makes the route run recall read-only (no lastSeen bump, no
+ * recall-quality metric), which is what "without sending a chat message"
+ * promises. Exported so the test drives the exact URL this panel sends.
+ */
+export function recallPreviewUrl(q: string, includePrompt: boolean): string {
+  return `/api/brain/recall?q=${encodeURIComponent(q)}&limit=8&includePrompt=${includePrompt ? "1" : "0"}&preview=1`;
+}
+
 export function RecallPreviewPanel() {
   const [query, setQuery] = useState("");
   const [includePrompt, setIncludePrompt] = useState(false);
@@ -41,9 +50,7 @@ export function RecallPreviewPanel() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<RecallReport>(
-        `/api/brain/recall?q=${encodeURIComponent(q)}&limit=8&includePrompt=${includePrompt ? "1" : "0"}`,
-      );
+      const data = await apiFetch<RecallReport>(recallPreviewUrl(q, includePrompt));
       setReport(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Recall failed");

@@ -15,6 +15,7 @@
 import { invokeLLM } from "./_core/llm";
 
 import { BUSINESS } from "@shared/business";
+import { DIAGNOSTIC_PRICE } from "@shared/pricing";
 import { createLogger } from "./lib/logger";
 import { getBusinessBehaviorDirective, resolveBusinessIntensity } from "./lib/ai-behavior/business-behavior-directive";
 import { getReviewCopy } from "./lib/reviewCopy";
@@ -275,7 +276,7 @@ THE PIT STOP TIRE EXPERIENCE (our secret weapon):
 
 INSPECTIONS & ESTIMATES:
 - Free inspections under 1 hour are a STRATEGY, not charity. It gives us maximum opportunities to close. Get the car on the lift, find the problem, present the solution, offer a payment program. Maximum opportunities.
-- $50 inspection fee for longer inspections — but it comes off the repair if the customer accepts the work. This removes the risk for the customer and converts more estimates.
+- $${DIAGNOSTIC_PRICE.fee} diagnostic fee for longer inspections — ${DIAGNOSTIC_PRICE.waiver}. This removes the risk for the customer and converts more estimates.
 - We don't charge for estimates or diagnostics on simple issues. We earn your trust first, then earn your business.
 - The goal: get people through the door, get the car on the lift, find the real problem, present an honest solution, and make it easy to say yes.
 

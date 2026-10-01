@@ -8,7 +8,7 @@ import type { Tool } from "../_core/llm";
 
 import { BUSINESS } from "@shared/business";
 import { PAYMENT_PROGRAMS_CREDIT_LINE, PAYMENT_PROGRAMS_SHORT } from "@shared/financing";
-import { OIL_PRICE, BRAKE_PRICE, SERVICE_PRICE } from "@shared/pricing";
+import { OIL_PRICE, BRAKE_PRICE, SERVICE_PRICE, DIAGNOSTIC_PRICE } from "@shared/pricing";
 import { createLogger } from "../lib/logger";
 
 /** The one payment-program line the chat tools hand the model (shared/financing.ts). */
@@ -242,17 +242,18 @@ async function executeGetPriceEstimate(service: string, vehicle?: string): Promi
   // ranges; when the operator confirms one, add it to shared/pricing.ts
   // and import — never fork a second source of truth here.
   const brakeNote = "Per axle. Includes inspection of rotors.";
+  const diagnosticNote = `Full diagnostic, ${DIAGNOSTIC_PRICE.waiver}. The code scan alone is free.`;
   const PRICE_MAP: Record<string, { low: number; high: number; laborHours: number; note?: string }> = {
     "oil change": { low: OIL_PRICE.conventional, high: OIL_PRICE.fullSynthetic, laborHours: 0.3, note: "Synthetic blend standard. Full synthetic available." },
     "brake pads": { low: BRAKE_PRICE.padsStarting, high: BRAKE_PRICE.padsMax, laborHours: 1.5, note: brakeNote },
     "brake": { low: BRAKE_PRICE.padsStarting, high: BRAKE_PRICE.padsMax, laborHours: 1.5, note: brakeNote },
     "brakes": { low: BRAKE_PRICE.padsStarting, high: BRAKE_PRICE.padsMax, laborHours: 1.5, note: brakeNote },
     "tire rotation": { low: 25, high: 50, laborHours: 0.3 },
-    "tire": { low: 80, high: 250, laborHours: 0.7, note: "Per tire installed + balanced. Price depends on size/brand." },
+    "tire": { low: BUSINESS.newTires.startingDollars, high: 250, laborHours: 0.7, note: "Per tire installed + balanced. Price depends on size/brand." },
     "alignment": { low: 80, high: 120, laborHours: 1.0 },
     "wheel alignment": { low: 80, high: 120, laborHours: 1.0 },
-    "diagnostic": { low: 75, high: 150, laborHours: 1.0, note: "Includes code scan + visual inspection. Applied to repair if you proceed." },
-    "check engine": { low: 75, high: 150, laborHours: 1.0, note: "Full diagnostic scan. Fee applied toward repair." },
+    "diagnostic": { low: DIAGNOSTIC_PRICE.fee, high: DIAGNOSTIC_PRICE.fee, laborHours: 1.0, note: diagnosticNote },
+    "check engine": { low: DIAGNOSTIC_PRICE.fee, high: DIAGNOSTIC_PRICE.fee, laborHours: 1.0, note: diagnosticNote },
     "battery": { low: 120, high: 250, laborHours: 0.5, note: "Includes battery + installation. Free battery test anytime." },
     "ac": { low: 150, high: 500, laborHours: 1.5, note: "Recharge starts at $150. Compressor replacement higher." },
     "alternator": { low: 350, high: 600, laborHours: 1.5 },

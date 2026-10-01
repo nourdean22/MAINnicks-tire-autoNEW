@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "Deliberately not updated: server/services/chatTools.ts only changes the get_price_estimate PRICE_MAP values for diagnostic, check engine and tire to read DIAGNOSTIC_PRICE.fee ($49, waived with the repair) and BUSINESS.newTires.startingDollars ($89), the operator's 2026-10-01 prices from #2868. No capability is added, removed, wired or unwired, and no state changes. Proof: server/services/chatTools-honesty.test.ts runs the tool and asserts lowEstimate/highEstimate/note for 'diagnostic', 'check engine light' and 'new tires' (red 75 and 80 before the fix, green after)."
+    }
+  }
+}

@@ -18,6 +18,8 @@ export const SITE_URL =
   (typeof process !== "undefined" && process.env?.SITE_URL) ||
   "https://nickstire.org";
 
+const NEW_TIRE_FLOOR_DOLLARS = 89;
+
 export const BUSINESS = {
   name: "Nick's Tire & Auto",
   legalName: "Nick's Tire And Auto",
@@ -241,7 +243,10 @@ export const BUSINESS = {
   // confusion. No (TM): unregistered, and the shop DOES decline unsafe tires, so the
   // line stays bounded to ordering/selection.
   newTires: {
-    priceDisplay: "from $89 installed",
+    // Operator decision 2026-10-01 (#2868): one new-tire floor. The number is
+    // what the chat tool quotes; the display is built from it so they agree.
+    startingDollars: NEW_TIRE_FLOOR_DOLLARS,
+    priceDisplay: `from $${NEW_TIRE_FLOOR_DOLLARS} installed`,
     positioning: "Any tire, any brand. Nick never says no.",
   },
 
