@@ -33,7 +33,7 @@ const log = createLogger("nhtsa-warranty-read");
 
 const SOURCE_LABEL = "NHTSA manufacturer communications (public federal data)";
 /** §7.3: a last successful ingest older than this shows "may be out of date". */
-export const STALE_AFTER_MS = 3 * 24 * 3_600_000;
+const STALE_AFTER_MS = 3 * 24 * 3_600_000;
 /** Matches returned to the panel; `matchCount` is the full total. */
 const MAX_MATCHES = 25;
 /** Product rows read per lookup. One make + year is a few hundred rows; hitting this is reported, never hidden. */
@@ -43,7 +43,7 @@ const SUMMARY_CHARS = 2_000;
 /** model_year when the manufacturer did not state one. */
 const YEAR_NOT_STATED = 9999;
 
-export const WARRANTY_DISCLAIMER =
+const WARRANTY_DISCLAIMER =
   "Eligibility depends on VIN, mileage, in-service date and sometimes state. Confirm with a dealer before quoting this repair.";
 
 /** One stored product row joined to its communication. */
@@ -128,7 +128,7 @@ function modelMatch(carModel: string, nhtsaModel: string): "exact" | "related" |
 }
 
 /** Rows -> one match per communication, best model match first, newest manufacturer date first. */
-export function groupMatches(rows: WarrantyRow[], carModel: string, year: number): WarrantyMatch[] {
+function groupMatches(rows: WarrantyRow[], carModel: string, year: number): WarrantyMatch[] {
   const byId = new Map<number, WarrantyMatch>();
   for (const r of rows) {
     const m = modelMatch(carModel, r.modelNorm);

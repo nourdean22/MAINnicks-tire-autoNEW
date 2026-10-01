@@ -14,8 +14,6 @@ import { MySqlDialect } from "drizzle-orm/mysql-core";
 import type { SQL } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import {
-  STALE_AFTER_MS,
-  groupMatches,
   warrantyExtensionsByVehicle,
   type WarrantyReadQuery,
   type WarrantyReadStore,
@@ -36,6 +34,8 @@ vi.mock("../db", () => ({
 }));
 
 const NOW = new Date("2026-10-08T14:00:00Z");
+/** ADR-0021 §7.3: older than 3 days is stale. */
+const STALE_AFTER_MS = 3 * 24 * 3_600_000;
 const FRESH: IngestState = {
   chunks: {
     "2015-2019": { crc32: 1, size: 1, parsedAt: "2026-10-04T13:40:00.000Z" },
@@ -78,6 +78,14 @@ function memStore(state: IngestState | Error, rows: WarrantyRow[] | Error = []) 
 }
 
 const silverado = { year: "2015", make: "Chevy", model: "Silverado" };
+
+/** The public read over a fresh ingest returning `rows`, as the panel sees it. */
+async function groupMatches(rows: WarrantyRow[], model: string, year: number) {
+  const { store } = memStore(FRESH, rows);
+  const r = await warrantyExtensionsByVehicle({ year: String(year), make: "Chevrolet", model }, { store, now: () => NOW });
+  if (!r.ok) throw new Error(r.error);
+  return r.matches;
+}
 
 describe("empty vs error (§7.3)", () => {
   it("an ingest that never finished is unavailable, not 'none listed'", async () => {
@@ -141,8 +149,8 @@ describe("§8 matching", () => {
     expect([...queries[0].makeSpellings].sort()).toEqual(["MERCEDES BENZ", "MERCEDESBENZ"]);
   });
 
-  it("an exact model ranks first; a related one names NHTSA's model; a 9999 row is labelled", () => {
-    const matches = groupMatches(
+  it("an exact model ranks first; a related one names NHTSA's model; a 9999 row is labelled", async () => {
+    const matches = await groupMatches(
       [
         rowOf({ nhtsaId: 10, modelNorm: "SILVERADO 1500", modelRaw: "SILVERADO 1500", mfrDate: "2025-06-01" }),
         rowOf({ nhtsaId: 10, modelNorm: "SILVERADO 2500", modelRaw: "SILVERADO 2500", mfrDate: "2025-06-01" }),
@@ -160,8 +168,8 @@ describe("§8 matching", () => {
     expect(matches[2]).toMatchObject({ match: "related", nhtsaModels: ["SILVERADO 1500", "SILVERADO 2500"] });
   });
 
-  it("one communication listed under both the exact and a related model counts once, as exact", () => {
-    const matches = groupMatches(
+  it("one communication listed under both the exact and a related model counts once, as exact", async () => {
+    const matches = await groupMatches(
       [rowOf({ nhtsaId: 7, modelNorm: "SILVERADO 1500", modelRaw: "SILVERADO 1500" }), rowOf({ nhtsaId: 7 })],
       "SILVERADO",
       2015,
@@ -170,8 +178,8 @@ describe("§8 matching", () => {
     expect(matches[0]).toMatchObject({ match: "exact", nhtsaModels: [] });
   });
 
-  it("a car named more narrowly than NHTSA (SILVERADO 1500 vs SILVERADO) is a related match", () => {
-    const [m] = groupMatches([rowOf({ nhtsaId: 8 })], "SILVERADO 1500", 2015);
+  it("a car named more narrowly than NHTSA (SILVERADO 1500 vs SILVERADO) is a related match", async () => {
+    const [m] = await groupMatches([rowOf({ nhtsaId: 8 })], "SILVERADO 1500", 2015);
     expect(m).toMatchObject({ match: "related", nhtsaModels: ["SILVERADO"] });
   });
 });

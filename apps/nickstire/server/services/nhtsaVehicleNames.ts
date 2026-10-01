@@ -16,7 +16,7 @@
 import { normalizeVehicleName } from "./nhtsaWarrantyParse";
 
 /** §8 step 1, then spaces removed: the key every make spelling folds to. */
-export function foldMake(raw: string): string {
+function foldMake(raw: string): string {
   return normalizeVehicleName(raw).replace(/ /g, "");
 }
 
