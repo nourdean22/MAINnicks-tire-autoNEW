@@ -118,9 +118,12 @@ const LOCATION_GIVEN_RE =
  * rule because this only needs to decide whether ANSWERING is allowed, not what
  * the reply is about — a false positive here costs nothing.
  */
-// Customers ask in everyday words too: "payment options", "monthly", "installments",
-// "split the bill", "pay over time", a provider name or a pay-later brand.
-const FINANCING_ASK_RE = /\b(financ\w*|payments?|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own|installments?|monthly|pay(ing)? (it )?(off|over time|later|monthly|weekly)|split (it|the (payment|bill|cost))( up)?|spread (it |the (cost|bill|payments?) )?out|snap|acima|koalafi|afterpay|klarna|affirm|no credit|bad credit|credit check|lay ?away)\b/i;
+// Customers ask in everyday words too: "payment options", "monthly payments",
+// "installments", "split the bill up", "pay over time", a provider name or a
+// pay-later brand. NOT a bare "payment" or "monthly": a match lifts the
+// stop-selling guard, so "omw, payment will be cash" or "my monthly oil change"
+// must leave it in place.
+const FINANCING_ASK_RE = /\b(financ\w*|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own|installments?|(do|make|doing|making|set up) (monthly |weekly )?payments|monthly payments?|pay(ing)? (it |this |that )?(off )?(over time|monthly|weekly|in (installments|parts|pieces))|split (it|the (payment|bill|cost)) (up|into|over)|spread (the )?(cost|bill|payments?) out|spread out (the )?(cost|bill|payments?)|snap|acima|koalafi|afterpay|klarna|affirm|no credit|bad credit|credit check|lay ?away)\b/i;
 
 // ─── Shared prohibited-claim library (affirmative-claim shaped so honest
 //     "we'll check what's in stock" copy never trips them) ──────────────
@@ -201,7 +204,9 @@ const CLAIM_PITCH_FINANCING: ProhibitedClaim = {
   label: "pitch_after_commitment:unprompted_financing",
   // "payment programs" and "lease-to-own" are the site's words since 2026-10-01
   // (shared/financing.ts), so the drafter now says them too.
-  re: /\b(we (also )?(offer|have|accept|take) (financing|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own)|(financing|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own) (is |are )?available|no credit (check )?needed)\b/i,
+  // "payment options" followed by cash / card / debit is how a customer pays,
+  // not a financing pitch.
+  re: /\b(we (also )?(offer|have|accept|take) (financing|payment (plans?|programs?|options?(?![^.!?\n]{0,30}\b(?:cash|cards?|debit|apple pay|zelle|checks?)\b))|(lease|rent)[- ]to[- ]own)|(financing|payment (plans?|programs?|options?)|(lease|rent)[- ]to[- ]own) (is |are )?available|no credit (check )?needed)\b/i,
 };
 const CLAIM_PITCH_BENEFITS: ProhibitedClaim = {
   label: "pitch_after_commitment:benefit_restatement",

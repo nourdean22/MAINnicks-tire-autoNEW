@@ -41,7 +41,35 @@ for (const m of appTsx.matchAll(ROUTE_RE)) {
 }
 
 // ─── Parse routes.ts for registered paths ─────────────
-const routesTs = fs.readFileSync(path.join(ROOT, "shared", "routes.ts"), "utf8");
+// Comments are removed first, outside string literals: a commented-out
+// `title:` used to parse as the live one, and a comment between two fields
+// hid the entry from Rules 2-4 (independent review, 2026-10-01).
+function stripComments(src) {
+  let out = "";
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (c === '"' || c === "'" || c === "`") {
+      out += c;
+      for (i++; i < src.length && src[i] !== c; i++) {
+        if (src[i] === "\\") out += src[i++];
+        out += src[i];
+      }
+      out += src[i] ?? "";
+    } else if (c === "/" && src[i + 1] === "/") {
+      while (i < src.length && src[i] !== "\n") i++;
+      out += "\n";
+    } else if (c === "/" && src[i + 1] === "*") {
+      for (i += 2; i < src.length && !(src[i] === "*" && src[i + 1] === "/"); i++) {
+        if (src[i] === "\n") out += "\n";
+      }
+      i++;
+    } else {
+      out += c;
+    }
+  }
+  return out;
+}
+const routesTs = stripComments(fs.readFileSync(path.join(ROOT, "shared", "routes.ts"), "utf8"));
 const PATH_RE = /path:\s*["']([^"']+)["']/g;
 
 const registeredPaths = new Set();
@@ -141,10 +169,10 @@ const STR = String.raw`(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')`;
 const unquote = (literal) => literal.slice(1, -1).replace(/\\(.)/g, "$1");
 
 // Very simple block parser — count nothing fancy, match entry-level fields.
-// Line comments may sit between "{" and "path:" (many entries open with a
-// dated rationale); the old `\{\s*path:` skipped every one of those entries.
+// Comments are already stripped, so an entry that opens with a dated rationale
+// parses like any other (the old `\{\s*path:` skipped every one of them).
 const entryRe = new RegExp(
-  String.raw`\{(?:\s|//[^\n]*\n)*path:\s*(${STR})[^}]*?title:\s*(${STR})[^}]*?description:\s*(${STR})[^}]*?prerender:\s*(true|false)`,
+  String.raw`\{\s*path:\s*(${STR})[^}]*?title:\s*(${STR})[^}]*?description:\s*(${STR})[^}]*?prerender:\s*(true|false)`,
   "gs",
 );
 let seoEntries = 0;
@@ -161,10 +189,11 @@ for (const m of routesTs.matchAll(entryRe)) {
       warnings.push(`"${p}" description is ${desc.length} chars (> ${DESC_MAX})`);
   }
 }
-// Rule 0 again, for Rules 2-4: a block parser that matches nothing passes them
-// all vacuously.
-if (registeredPaths.size > 0 && seoEntries === 0) {
-  errors.push("Parser found ZERO registry entries with path/title/description/prerender in shared/routes.ts — the SEO block regex no longer matches; Rules 2-4 are blind.");
+// Rule 0 again, for Rules 2-4: an entry the block parser cannot read is an
+// entry they never check. Fail closed on any gap, not only a total one: a
+// partial blindness (15 entries, until 2026-10-01) still printed "OK".
+if (registeredPaths.size > 0 && seoEntries < registeredPaths.size) {
+  errors.push(`The SEO block parser read ${seoEntries} of ${registeredPaths.size} registry entries in shared/routes.ts — Rules 2-4 never checked the rest. Each entry needs path, title, description and prerender as plain string literals, in that order.`);
 }
 
 // ─── Report ───────────────────────────────────────────

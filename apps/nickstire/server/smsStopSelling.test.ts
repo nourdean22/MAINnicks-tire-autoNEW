@@ -234,6 +234,28 @@ describe("review #1099 P2 — an asked-for answer is not a pitch", () => {
     expect(planViolations(p, "Yes, we accept payment programs. Payment programs are available; each provider decides approval.")).toEqual([]);
   });
 
+  // Second review, 2026-10-01: a bare "payment" or "monthly" lifted the guard.
+  it.each([
+    "omw, payment will be cash",
+    "on my way, I'll bring the payment",
+    "on my way for my monthly oil change",
+  ])("still blocks an unprompted pitch when a committed customer only mentions %j", (body) => {
+    const p = plan(body);
+    expect(p.stopSelling).toBe(true);
+    expect(planViolations(p, "Got it. We also offer financing if you need it.")).toContain(
+      "pitch_after_commitment:unprompted_financing",
+    );
+  });
+
+  it("answers 'do you take card?' with payment methods, which is not a pitch", () => {
+    const p = plan("on my way, do you take card?");
+    expect(planViolations(p, "Yes! We have payment options: cash, card or debit.")).toEqual([]);
+    // Control: the same words with no payment method after them are still a pitch.
+    expect(planViolations(plan("I'm on my way"), "Got it. We also offer payment options if you need them.")).toContain(
+      "pitch_after_commitment:unprompted_financing",
+    );
+  });
+
   it("CONTROL: payment logistics a committed customer needs are not a pitch", () => {
     const p = plan("I'm on my way");
     expect(planViolations(p, "Got it. We take cash, cards and debit. 17625 Euclid Ave, first come, first served.")).toEqual([]);

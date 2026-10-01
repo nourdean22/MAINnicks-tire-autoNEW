@@ -136,7 +136,40 @@ describe("validate-route-registry.mjs — behavioural canary", () => {
     expect(routes).toContain('{ title: "Brakes", path: "/brakes",');
     const r = run(fixture(HEALTHY_APP, routes));
     expect(r.status).toBe(1);
-    expect(r.out).toContain("ZERO registry entries with path/title/description/prerender");
+    expect(r.out).toContain("read 0 of 2 registry entries");
+  });
+
+  it("FAILS closed when ONE entry is unreadable, not only when all are (Rules 2-4)", () => {
+    // A template-literal description is invisible to the string parser. A
+    // partial blindness like this printed "OK" until 2026-10-01.
+    const routes = HEALTHY_ROUTES.replace('description: "Brake repair."', "description: `Brake repair.`");
+    const r = run(fixture(HEALTHY_APP, routes));
+    expect(r.status).toBe(1);
+    expect(r.out).toContain("read 1 of 2 registry entries");
+  });
+
+  it("a comment between two fields does not hide the entry (Rules 2-4)", () => {
+    const routes = HEALTHY_ROUTES.replace(
+      '{ path: "/brakes", title: "Brakes", description: "Brake repair.",',
+      '{ path: "/brakes", // was {"/brake-repair"} until 2026\n    title: "Brakes", description: "",',
+    );
+    // The brace inside the comment is what stopped the old parser's [^}]*? span.
+    expect(routes).toContain('// was {"/brake-repair"}');
+    const r = run(fixture(HEALTHY_APP, routes));
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('"/brakes" has empty description');
+  });
+
+  it("a commented-out field is not read as the live one (Rules 3-4)", () => {
+    const longTitle = "Brake Repair Cleveland · Pads, Rotors, Calipers and Lines | Nick's Tire & Auto";
+    expect(longTitle.length).toBeGreaterThan(70);
+    const routes = HEALTHY_ROUTES.replace(
+      '{ path: "/brakes", title: "Brakes",',
+      `{ path: "/brakes",\n    // title: "Brakes",\n    title: "${longTitle}",`,
+    );
+    const r = run(fixture(HEALTHY_APP, routes));
+    expect(r.out).toContain(`"/brakes" title is ${longTitle.length} chars (> 70)`);
+    expect(r.status).toBe(0);
   });
 
   it("FAILS closed when the App.tsx parser finds nothing (Rule 0 — a blind gate must not be green)", () => {

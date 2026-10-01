@@ -102,10 +102,23 @@ describe("multi-intent messages are not flattened", () => {
     }
     // Control: the plain price question still gets its template.
     expect(routeInboundSms("how much for brakes", noCtx).catalogEvent).toBe("price_question_brakes");
-    // Settling a bill is not a request to pay in parts.
-    for (const msg of ["I made a payment yesterday", "can I pay my invoice online"]) {
+    // Settling a bill is not a request to pay in parts. The second review
+    // (2026-10-01) found the first draft of this rule routed every one of
+    // these to financing.
+    for (const msg of [
+      "I made a payment yesterday",
+      "can I pay my invoice online",
+      "I made a payment on my account",
+      "do you have my payment on file?",
+      "can you split it between two cards?",
+      "I sent the payment on Zelle",
+      "payment on the invoice went through?",
+      "can I pay later when I pick up the car?",
+    ]) {
       expect(routeInboundSms(msg, noCtx).signals, msg).not.toContain("financing");
     }
+    // A price question that mentions how it will be paid keeps its template.
+    expect(routeInboundSms("how much is a tire? payment on cash app ok?", noCtx).catalogEvent).toBe("price_question_tires");
   });
 
   it("a message that is half price-question, half complaint is a complaint", () => {

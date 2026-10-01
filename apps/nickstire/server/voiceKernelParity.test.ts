@@ -213,3 +213,21 @@ describe("Voice Kernel — the positive half exists and is renderable", () => {
     expect(rendered).toMatch(/at most 1 absurd line per 3 paragraphs/);
   });
 });
+
+describe("Voice Kernel — allow phrases survive curly quotes at runtime", () => {
+  // The corpus test normalizes quotes before it scans; live SMS drafts and ad
+  // copy are not normalized, so a curly apostrophe used to defeat an allow
+  // phrase and hold an honest, attributed line (second review, 2026-10-01).
+  const claims = (t: string) =>
+    findVoiceViolations(t, { surface: "sms" }).filter((v) => v.ruleId.startsWith("claim.")).map((v) => v.ruleId);
+
+  it("spares an attributed provider line written with a curly apostrophe", () => {
+    expect(claims("Snap says applying won\u2019t affect your FICO score.")).toEqual([]);
+    expect(claims("Never say \u2018no credit check\u2019 in an ad.")).toEqual([]);
+  });
+
+  it("still flags the unattributed claim with the same apostrophe (control)", () => {
+    expect(claims("Applying won\u2019t affect your FICO score.")).toContain("claim.no-credit-impact");
+  });
+});
+
