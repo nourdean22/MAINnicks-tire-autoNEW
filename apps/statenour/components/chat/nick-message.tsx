@@ -201,18 +201,18 @@ export function NickMessage({
             components={{
 
             // Headings
-            h1: ({ children }: MDProps) => <p className="text-[var(--gold)] font-semibold text-[13.5px] mt-3 mb-1">{children}</p>,
-            h2: ({ children }: MDProps) => <p className="text-[var(--gold)] font-semibold text-[13.5px] mt-3 mb-1">{children}</p>,
-            h3: ({ children }: MDProps) => <p className="text-[var(--text-primary)] font-semibold text-[13px] mt-2 mb-0.5">{children}</p>,
-            h4: ({ children }: MDProps) => <p className="text-[var(--text-primary)] font-medium text-[12px] mt-2 mb-0.5">{children}</p>,
+            h1: ({ children }: MDProps) => <p className="text-fg font-semibold text-[17px] leading-snug mt-4 mb-1.5">{children}</p>,
+            h2: ({ children }: MDProps) => <p className="text-fg font-semibold text-[15.5px] leading-snug mt-4 mb-1.5">{children}</p>,
+            h3: ({ children }: MDProps) => <p className="text-fg font-semibold text-[14.5px] mt-3 mb-1">{children}</p>,
+            h4: ({ children }: MDProps) => <p className="text-fg-secondary font-medium text-[13px] mt-3 mb-1">{children}</p>,
             // Text
-            p: ({ children }: MDProps) => <p className="mb-1.5 leading-relaxed">{children}</p>,
-            strong: ({ children }: MDProps) => <strong className="text-[var(--gold)] font-semibold">{children}</strong>,
+            p: ({ children }: MDProps) => <p className="mb-2.5 leading-[1.6]">{children}</p>,
+            strong: ({ children }: MDProps) => <strong className="text-fg font-semibold">{children}</strong>,
             em: ({ children }: MDProps) => <em className="text-[var(--text-primary)] not-italic">{children}</em>,
             del: ({ children }: MDProps) => <del className="text-[var(--text-tertiary)] line-through">{children}</del>,
             // Links
             a: ({ href, children }: MDProps) => (
-              <a href={href} target="_blank" rel="noopener noreferrer" className="text-[var(--gold)] underline underline-offset-2 hover:text-[var(--gold)]/80 transition-colors">
+              <a href={href} target="_blank" rel="noopener noreferrer" className="text-fg underline decoration-[var(--edge-strong)] underline-offset-[3px] transition-colors hover:decoration-[var(--text-secondary)]">
                 {children}
               </a>
             ),
@@ -256,13 +256,13 @@ export function NickMessage({
                 // so we can render block-level / SVG components without
                 // the invalid <pre><div>...</div> nesting.
                 return (
-                  <code className={cn(className, "text-[11px] font-mono text-[var(--text-secondary)] leading-relaxed")}>
+                  <code className={cn(className, "text-[12.5px] font-mono text-[var(--text-secondary)] leading-relaxed")}>
                     {children}
                   </code>
                 );
               }
               return (
-                <code className="bg-[var(--bg-raised)] border border-[var(--border-default)] rounded px-1.5 py-0.5 text-[11px] font-mono text-[var(--text-primary)]">
+                <code className="bg-[var(--surface-raised)] rounded-[var(--radius-micro)] px-1.5 py-0.5 text-[13px] font-mono text-[var(--text-primary)]">
                   {children}
                 </code>
               );
@@ -312,7 +312,7 @@ export function NickMessage({
                 );
               }
               return (
-                <pre className="bg-[var(--bg-void)] border border-[var(--border-default)] rounded-lg p-3 my-2 overflow-x-auto">
+                <pre className="bg-[var(--canvas)] border border-[var(--edge-subtle)] rounded-[var(--radius-surface)] p-3 my-3 overflow-x-auto">
                   {children}
                 </pre>
               );
@@ -321,7 +321,7 @@ export function NickMessage({
             ul: ({ children }: MDProps) => <ul className="space-y-0.5 my-1">{children}</ul>,
             ol: ({ children }: MDProps) => <ol className="space-y-0.5 my-1 list-decimal list-inside">{children}</ol>,
             li: ({ children, ordered }: MDProps) => (
-              <li className="pl-2 relative text-[var(--text-secondary)]">
+              <li className="pl-2 relative text-[var(--text-primary)]">
                 {!ordered && <span className="absolute left-0 text-[var(--text-tertiary)]">·</span>}
                 <span className="pl-2">{children}</span>
               </li>
@@ -329,20 +329,20 @@ export function NickMessage({
             // Tables
             table: ({ children }: MDProps) => (
               <div className="overflow-x-auto my-2">
-                <table className="w-full text-[11px] border-collapse">{children}</table>
+                <table className="w-full text-[13px] border-collapse">{children}</table>
               </div>
             ),
             thead: ({ children }: MDProps) => <thead className="border-b border-[var(--border-default)]">{children}</thead>,
             tbody: ({ children }: MDProps) => <tbody>{children}</tbody>,
             tr: ({ children }: MDProps) => <tr className="border-b border-[var(--border-default)]/30">{children}</tr>,
-            th: ({ children }: MDProps) => <th className="text-left py-1.5 px-2 text-[var(--gold)] font-semibold text-[10px] uppercase tracking-wider">{children}</th>,
-            td: ({ children }: MDProps) => <td className="py-1 px-2 text-[var(--text-secondary)]">{children}</td>,
+            th: ({ children }: MDProps) => <th className="text-left py-1.5 px-2 text-[var(--text-secondary)] font-medium text-[12px]">{children}</th>,
+            td: ({ children }: MDProps) => <td className="py-1.5 px-2 text-[var(--text-primary)] align-top">{children}</td>,
             // Blockquote
             blockquote: ({ children }: MDProps) => (
-              <blockquote className="border-l-2 border-[var(--gold)]/30 pl-3 my-2 text-[var(--text-tertiary)] italic">{children}</blockquote>
+              <blockquote className="border-l-2 border-[var(--edge-strong)] pl-3 my-3 text-[var(--text-secondary)]">{children}</blockquote>
             ),
             // Horizontal rule
-            hr: () => <hr className="border-[var(--border-default)] my-3" />,
+            hr: () => <hr className="border-[var(--edge-subtle)] my-4" />,
             // Task list items (GFM)
             input: ({ checked }: MDProps) => (
               <span className={cn("inline-block w-3.5 h-3.5 rounded border mr-1.5 align-text-bottom", checked ? "bg-emerald-500/20 border-emerald-500/40" : "border-[var(--border-default)]")}>

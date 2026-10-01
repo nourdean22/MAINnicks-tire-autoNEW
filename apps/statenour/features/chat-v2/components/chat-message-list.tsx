@@ -253,7 +253,7 @@ function ToolReceiptSummary({ message, traceId }: { message: UIMessage; traceId?
   const unproven = ranNothing || allEmpty;
 
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-edge bg-void/60 px-3 py-2 text-[11px] text-fg-secondary">
+    <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[11px] text-fg-tertiary">
       <ShieldCheck
         size={13}
         aria-hidden="true"
@@ -267,7 +267,7 @@ function ToolReceiptSummary({ message, traceId }: { message: UIMessage; traceId?
       {traceId && (
         <Link
           href={`/system/cockpit-observability?search=${encodeURIComponent(traceId)}`}
-          className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-md px-2 font-medium text-gold hover:bg-gold/10 sm:min-h-8"
+          className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-[var(--radius-control)] px-2 text-fg-secondary transition-colors hover:text-fg sm:min-h-8"
         >
           View trace <ExternalLink size={11} />
         </Link>
@@ -280,7 +280,7 @@ function InterruptedTurnCard({ message, onRetry }: { message: UIMessage; onRetry
   const partialText = textOf(message);
   return (
     <div className="flex justify-start">
-      <div className="max-w-[85%] rounded-2xl border border-red-900/40 bg-red-950/25 px-5 py-3.5">
+      <div className="max-w-[85%] rounded-[var(--radius-surface)] border border-rose-500/30 bg-surface px-4 py-3">
         {partialText && <div className="mb-3 whitespace-pre-wrap text-[15px] leading-relaxed text-fg">{partialText}</div>}
         <div className="flex items-center gap-2 text-red-400">
           <AlertTriangle size={15} />
@@ -383,35 +383,35 @@ export function ChatMessageList({
     }
     return (
       <div className="mx-auto flex h-full w-full max-w-3xl flex-col justify-center p-5 sm:p-8">
-        <div className="mb-6 text-center">
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-gold">NOUR OS · operator chat</p>
-          <h2 className="mt-2 text-2xl font-semibold text-fg">What are we solving?</h2>
-          <p className="mt-2 text-sm text-fg-secondary">
+        <div className="mb-8">
+          <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">NICK</p>
+          <h2 className="mt-2 text-[26px] font-semibold tracking-[-0.02em] text-fg">What are we solving?</h2>
+          <p className="mt-2 max-w-[48ch] text-[15px] leading-relaxed text-fg-secondary">
             Live business data, memory, tasks, research, and verified system actions from one surface.
           </p>
           {connection !== "online" && (
-            <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[11px] text-amber-300">
+            <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-[12px] text-amber-300">
               <AlertTriangle size={12} /> Chat is degraded — run /diagnose for an independent check.
             </p>
           )}
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <ul className="border-t border-edge-subtle">
           {COMMANDS.map((command) => (
-            <button
-              key={command.label}
-              type="button"
-              onClick={() => onCommand?.(command.prompt)}
-              className="rounded-xl border border-edge bg-raised p-4 text-left transition hover:border-gold/35 hover:bg-elevated"
-            >
-              <div className="flex items-start gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-fg">{command.label}</p>
-                  <p className="mt-1 text-[11px] text-fg-tertiary">{command.detail}</p>
-                </div>
-              </div>
-            </button>
+            <li key={command.label} className="border-b border-edge-subtle">
+              <button
+                type="button"
+                onClick={() => onCommand?.(command.prompt)}
+                className="group flex min-h-[56px] w-full items-center gap-3 rounded-[var(--radius-control)] px-1 py-2 text-left transition-colors duration-[var(--motion-state)] hover:bg-surface"
+              >
+                <span className="notch h-4 shrink-0 opacity-0 transition-opacity duration-[var(--motion-state)] group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-medium text-fg">{command.label}</span>
+                  <span className="block text-[12.5px] text-fg-tertiary">{command.detail}</span>
+                </span>
+              </button>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     );
   }
@@ -427,20 +427,20 @@ export function ChatMessageList({
       role="log"
       aria-label="Chat messages"
       aria-busy={isLoading}
-      className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-4 pb-12"
+      className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-4 py-5 pb-12 sm:px-6"
     >
       {diagnosticReport && (
-        <section className="rounded-xl border border-gold/25 bg-gold/[0.04] p-4">
-          <div className="mb-3 flex items-center gap-2 text-gold">
+        <section className="rounded-[var(--radius-surface)] border border-edge-subtle bg-surface p-4">
+          <div className="mb-3 flex items-center gap-2 text-fg-secondary">
             <CheckCircle2 size={15} />
-            <h3 className="text-[12px] font-bold uppercase tracking-wider">Independent chat diagnostic</h3>
+            <h3 className="font-mono text-[11px] uppercase tracking-[0.12em]">Independent chat diagnostic</h3>
             <button onClick={() => setDiagnosticReport(null)} className="ml-auto min-h-11 px-2 text-[11px] text-fg-tertiary hover:text-fg sm:min-h-8">Dismiss</button>
           </div>
           <NickMessage text={diagnosticReport} streaming={false} messageId="chat-diagnostic" />
         </section>
       )}
 
-      {hasHidden && <button onClick={showOlder} className="mx-auto min-h-11 rounded-full border border-edge bg-raised px-4 py-1.5 text-xs text-fg-secondary sm:min-h-8">Show {hiddenCount} older messages</button>}
+      {hasHidden && <button onClick={showOlder} className="mx-auto min-h-11 rounded-full border border-edge-default bg-surface px-4 py-1.5 text-xs text-fg-secondary transition-colors hover:text-fg sm:min-h-8">Show {hiddenCount} older messages</button>}
 
       {renderedMessages.map((message, messageIndex) => {
         if (isErroredAssistantTurn(message)) return <InterruptedTurnCard key={message.id} message={message} onRetry={onRetry} />;
@@ -456,7 +456,21 @@ export function ChatMessageList({
         );
         return (
           <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[88%] rounded-2xl px-5 py-3.5 text-[15px] leading-relaxed ${message.role === "user" ? "bg-surface text-fg" : "border border-glass bg-raised/85 text-fg"}`}>
+            {/* UI v2 (2026-10-01): the operator's message is a compact graphite block; Nick's
+                reply is editorial prose in the reading column — no bubble, no border. The
+                NICK designation replaces an avatar. docs/design/ui-v2/SURFACES.md §E1. */}
+            <div
+              className={
+                message.role === "user"
+                  ? "max-w-[80%] rounded-[var(--radius-surface)] bg-surface-interactive px-4 py-3 text-[15px] leading-relaxed text-fg"
+                  : "w-full min-w-0 text-[16px] leading-[1.6] text-fg"
+              }
+            >
+              {message.role === "assistant" && (
+                <p className="mb-2 font-mono text-[11px] tracking-[0.1em] text-fg-tertiary" aria-hidden>
+                  NICK
+                </p>
+              )}
               {message.parts?.map((part, index) => {
                 if (part.type === "text") {
                   if (message.role === "user") {
@@ -502,7 +516,7 @@ export function ChatMessageList({
                   if (repeat === undefined) return null;
                   const toolName = part.type.replace("tool-", "");
                   const repeatBadge = repeat > 1 ? (
-                    <div className="mt-1 text-[10px] uppercase tracking-wider text-fg-tertiary">
+                    <div className="mt-1 font-mono text-[11px] text-fg-tertiary">
                       ×{repeat} — same call, same result
                     </div>
                   ) : null;
@@ -515,7 +529,7 @@ export function ChatMessageList({
                   // "verified complete" was the same overclaim as the receipt
                   // chip: `output-available` only means the call returned.
                   return (
-                    <div key={`${message.id}-${index}`} className="mt-2 rounded-lg border border-edge bg-void/50 p-3 text-xs text-fg-secondary">
+                    <div key={`${message.id}-${index}`} className="mt-2 rounded-[var(--radius-surface)] border border-edge-subtle bg-surface px-3 py-2 font-mono text-[12px] text-fg-secondary">
                       {toolName}: {(part as any).state === "output-available" ? (isEmptyToolOutput((part as any).output) ? "returned no results" : "returned data") : (part as any).state === "output-error" ? "failed" : "running"}
                       {repeatBadge}
                     </div>
@@ -573,20 +587,25 @@ export function ChatMessageList({
 
       {pending.map((item) => (
         <div key={item.tempId} className="flex justify-end opacity-75">
-          <div className="max-w-[88%] rounded-2xl bg-surface px-5 py-3.5 text-[15px] text-fg">
+          <div className="max-w-[80%] rounded-[var(--radius-surface)] bg-surface-interactive px-4 py-3 text-[15px] text-fg">
             <p className="whitespace-pre-wrap">{item.text}</p>
-            <p className="mt-1 font-mono text-[9px] uppercase tracking-wider text-fg-tertiary">{item.status === "resolving-context" ? "Resolving live context…" : "Sending…"}</p>
+            <p className="mt-1 font-mono text-[11px] text-fg-tertiary">{item.status === "resolving-context" ? "Resolving live context…" : "Sending…"}</p>
           </div>
         </div>
       ))}
 
-      {isLoading && messages[messages.length - 1]?.role === "user" && <div className="px-4 py-2 text-xs font-semibold uppercase tracking-widest text-fg-tertiary">Thinking…</div>}
+      {isLoading && messages[messages.length - 1]?.role === "user" && (
+        <div className="flex items-center gap-2 px-1 py-1 font-mono text-[11.5px] text-fg-tertiary">
+          <span aria-hidden className="pulse-live inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+          Working…
+        </div>
+      )}
       {/* 2026-07-29 · was a hardcoded "Stream failed." that DISCARDED the
           server's message — an image turn dying for want of a vision model
           looked exactly like a network blip. The server authors a safe
           category string (never raw provider text); render it. */}
       {error && (
-        <div className="mx-auto rounded-xl border border-red-900/40 bg-red-950/25 p-4 text-center text-sm text-red-300">
+        <div className="mx-auto rounded-[var(--radius-surface)] border border-rose-500/30 bg-surface p-4 text-center text-sm text-rose-300">
           {error.message?.trim() || "Stream failed."}
           {onRetry && (
             <button onClick={onRetry} className="ml-2 underline">

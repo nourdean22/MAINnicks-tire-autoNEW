@@ -223,9 +223,9 @@ export function NickSidePane({
           // docked (inspector-host.tsx) — at right-4 it painted over the
           // panel's footer, where the entity actions live.
           "fixed bottom-[calc(var(--bottom-chrome-h,6rem)+0.5rem)] right-[calc(var(--inspector-lane,0px)_+_1rem)] z-[56] hidden md:inline-flex h-11 min-w-[44px] items-center gap-1.5 rounded-full px-3.5",
-          "border border-[var(--gold)]/40 bg-[var(--bg-base)]/95 backdrop-blur-sm",
-          "text-[var(--gold)] shadow-lg shadow-[var(--gold)]/10",
-          "hover:bg-[var(--gold)]/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",
+          "ui-material border border-edge-default",
+          "text-fg-secondary shadow-[var(--shadow-l1)]",
+          "hover:text-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",
           // Mobile-tightening #2 · active:scale tap feedback (replaces
           // absent haptic on iOS Safari PWAs · operator sees the FAB
           // press-down). Subtle enough not to feel "bouncy" on desktop.
@@ -237,7 +237,7 @@ export function NickSidePane({
         )}
       >
         <Brain size={14} strokeWidth={1.75} />
-        <span className="text-[10px] font-mono uppercase tracking-[0.18em]">nick</span>
+        <span className="font-mono text-[11px] uppercase tracking-[0.12em]">nick</span>
       </button>
 
       {/* Pane · slide-in from right on desktop · bottom-sheet on
@@ -277,8 +277,8 @@ export function NickSidePane({
                 strokeWidth={1.75}
                 aria-hidden
               />
-              <Brain size={14} className="text-[var(--gold)] shrink-0" strokeWidth={1.75} />
-              <h2 className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+              <Brain size={14} className="text-fg-tertiary shrink-0" strokeWidth={1.75} />
+              <h2 className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-secondary">
                 nick · {page}
               </h2>
               {/* "esc to close" hint · desktop only · phones don't have Esc */}
@@ -306,7 +306,7 @@ export function NickSidePane({
                   aria-label="proactive coach events"
                   className="space-y-1.5"
                 >
-                  <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/70">
+                  <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-fg-tertiary">
                     nick noticed
                   </p>
                   {coachEvents.map((event) => (
@@ -332,7 +332,7 @@ export function NickSidePane({
              *  thread + proactive chip surfaces both shipped via the
              *  Coach Channel layer + new side-pane-chat endpoint. */}
             <footer className="px-4 py-2 border-t border-[var(--border-default)]/60 shrink-0">
-              <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]/60">
+              <p className="font-mono text-[11px] text-fg-tertiary">
                 phase 5 full · multi-turn · proactive chips · per-device thread
               </p>
             </footer>

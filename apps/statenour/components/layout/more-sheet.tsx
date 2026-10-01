@@ -82,7 +82,7 @@ export function MoreSheet() {
         unstyled
         showCloseButton={false}
         overlayClassName="z-[70] bg-black/60 backdrop-blur-sm"
-        className="fixed inset-x-0 bottom-0 z-[71] max-h-[86dvh] overflow-y-auto overscroll-contain rounded-t-2xl border-t border-[var(--gold)]/30 bg-[var(--bg-void)] pb-[env(safe-area-inset-bottom,12px)] outline-none shadow-[0_-20px_60px_rgba(0,0,0,0.7),0_-1px_30px_rgba(253,185,19,0.06)] data-open:animate-fadeSlideUp data-closed:animate-fadeSlideDown"
+        className="fixed inset-x-0 bottom-0 z-[71] max-h-[86dvh] overflow-y-auto overscroll-contain rounded-t-[var(--radius-overlay)] border-t border-edge-default bg-overlay pb-[env(safe-area-inset-bottom,12px)] outline-none shadow-[var(--shadow-l2)] data-open:animate-fadeSlideUp data-closed:animate-fadeSlideDown"
       >
         <DialogTitle className="sr-only">More navigation</DialogTitle>
         {/* Sticky header: grab handle + Search */}
@@ -103,7 +103,7 @@ export function MoreSheet() {
               window.dispatchEvent(new Event(COMMAND_PALETTE_OPEN_EVENT));
               close();
             }}
-            className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-[var(--gold)]/30 bg-[var(--bg-raised)]/40 px-3 py-2.5 text-[var(--text-secondary)] transition-colors hover:border-[var(--gold)]/60 hover:text-[var(--gold)]"
+            className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-edge-default bg-surface px-3 py-2.5 text-[var(--text-secondary)] transition-colors hover:border-edge-strong hover:text-fg"
           >
             <Search size={16} className="shrink-0" />
             <span className="text-sm">Search everything…</span>
@@ -120,7 +120,7 @@ export function MoreSheet() {
                 window.dispatchEvent(new Event(NICK_PANE_OPEN_EVENT));
                 close();
               }}
-              className="mt-2 flex w-full min-h-[44px] items-center gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-raised)]/40 px-3 py-2.5 text-[var(--text-secondary)] transition-colors hover:border-[var(--gold)]/60 hover:text-[var(--gold)] md:hidden"
+              className="mt-2 flex w-full min-h-[44px] items-center gap-2 rounded-xl border border-edge-default bg-surface px-3 py-2.5 text-[var(--text-secondary)] transition-colors hover:border-edge-strong hover:text-fg md:hidden"
             >
               <Brain size={16} className="shrink-0" />
               <span className="text-sm">Ask Nick about this page</span>

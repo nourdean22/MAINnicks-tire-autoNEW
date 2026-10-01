@@ -29,6 +29,12 @@ export function NeuralBackground() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
+    // UI v2 (2026-10-01 · docs/design/ui-v2/SYSTEM.md §11): the cockpit has no
+    // decorative particle field. base.css hides the canvas under the v2 lane;
+    // returning here also skips the rAF loop and the mousemove listener. The
+    // v1 comparison lane (data-ui="v1") still gets the full effect.
+    if (document.documentElement.dataset.ui !== "v1") return;
+
     // Respect reduced motion preference
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
@@ -194,6 +200,7 @@ export function NeuralBackground() {
   return (
     <canvas
       ref={canvasRef}
+      data-neural-bg=""
       className="fixed inset-0 pointer-events-none z-0"
       style={{ opacity: 0.4 }}
     />

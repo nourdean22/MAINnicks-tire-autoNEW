@@ -7,5 +7,5 @@ export function Panel({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <section className={cn("panel rounded-[24px] p-4 md:p-5", className)}>{children}</section>;
+  return <section className={cn("panel rounded-[var(--radius-surface)] p-4 md:p-5", className)}>{children}</section>;
 }

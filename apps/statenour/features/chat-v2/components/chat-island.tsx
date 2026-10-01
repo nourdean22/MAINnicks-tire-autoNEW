@@ -268,17 +268,17 @@ export function ChatIsland() {
 
   return (
     <div ref={islandRef} className="relative flex h-full w-full flex-col overflow-hidden bg-void text-fg">
-      <header className="z-10 flex items-center justify-between gap-3 border-b border-edge bg-void/90 px-3 py-2.5 backdrop-blur-xl sm:px-4">
+      <header className="z-10 flex items-center justify-between gap-3 border-b border-edge-subtle bg-canvas/90 px-3 py-2 backdrop-blur-xl sm:px-4">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm font-semibold tracking-wide text-fg">NICK</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="font-mono text-[13px] font-semibold tracking-[0.08em] text-fg">NICK</h1>
             <ChatCapabilityIndicator />
           </div>
           {/* UI-1 authority strip: the header answers "what mode, what
               access" at a glance — the static tagline told the operator
               nothing about current authority. Reads the same store the
               composer writes; gold = non-default. */}
-          <p className="mt-0.5 text-[10px] text-fg-tertiary">
+          <p className="mt-0.5 font-mono text-[11px] text-fg-tertiary">
             <span className={posture !== "auto" ? "text-gold" : undefined}>{posture === "auto" ? "auto posture" : posture}</span>
             {" · "}
             <span className={depth !== "auto" ? "text-gold" : undefined}>{depth === "auto" ? "auto depth" : depth}</span>
@@ -291,15 +291,15 @@ export function ChatIsland() {
             {privateMode && <span className="text-gold"> · PRIVATE</span>}
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${memoryInspectorOpen ? "border-gold/35 bg-gold/10 text-gold" : "border-edge text-fg-secondary hover:text-fg"}`}>
-            <Brain size={13} /><span className="hidden sm:inline">Context</span>
+        <div className="flex items-center gap-0.5">
+          <button onClick={() => setMemoryInspectorOpen(!memoryInspectorOpen)} aria-label="Context and memory" aria-pressed={memoryInspectorOpen} className={`flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] transition-colors duration-[var(--motion-state)] ${memoryInspectorOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+            <Brain size={16} /><span className="sr-only">Context</span>
           </button>
-          <button onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${historyDrawerOpen ? "border-gold/35 bg-gold/10 text-gold" : "border-edge text-fg-secondary hover:text-fg"}`}>
-            <History size={13} /><span className="hidden sm:inline">History</span>
+          <button onClick={() => setHistoryDrawerOpen(!historyDrawerOpen)} aria-label="Conversation history" aria-pressed={historyDrawerOpen} className={`flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] transition-colors duration-[var(--motion-state)] ${historyDrawerOpen ? "bg-surface-interactive text-fg" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+            <History size={16} /><span className="sr-only">History</span>
           </button>
-          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold uppercase tracking-wider ${isVoiceDocked ? "border-red-500/35 bg-red-500/10 text-red-300" : "border-edge text-fg-secondary hover:text-fg"}`}>
-            {isVoiceDocked ? <MicOff size={13} /> : <Mic size={13} />}<span className="hidden sm:inline">Voice</span>
+          <button onClick={toggleVoiceDock} aria-label={isVoiceDocked ? "Close voice" : "Open voice"} aria-pressed={isVoiceDocked} className={`flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] transition-colors duration-[var(--motion-state)] ${isVoiceDocked ? "bg-rose-500/15 text-rose-300" : "text-fg-tertiary hover:bg-surface hover:text-fg"}`}>
+            {isVoiceDocked ? <MicOff size={16} /> : <Mic size={16} />}<span className="sr-only">Voice</span>
           </button>
         </div>
       </header>
@@ -339,7 +339,7 @@ export function ChatIsland() {
           <button
             onClick={scrollToBottom}
             aria-label="Scroll to latest message"
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-edge bg-void/90 text-fg-secondary shadow-lg backdrop-blur-xl transition-colors hover:text-fg active:scale-95"
+            className="ui-material absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-edge-default text-fg-secondary shadow-[var(--shadow-l1)] transition-colors hover:text-fg active:scale-95"
           >
             <ArrowDown size={18} />
           </button>
@@ -358,7 +358,7 @@ export function ChatIsland() {
           which would add dead space under the player. */}
       <ChatMediaDock />
 
-      <div className="relative z-10 border-t border-edge bg-void/90 px-3 pb-3 pt-3 backdrop-blur-xl sm:px-4">
+      <div className="relative z-10 bg-canvas px-3 pb-3 pt-2 sm:px-4">
         <ChatComposer chat={chat} />
       </div>
 
@@ -371,7 +371,7 @@ export function ChatIsland() {
       <MemoryInspectorSidebar open={memoryInspectorOpen} onClose={() => setMemoryInspectorOpen(false)} hits={recalledHits} contradictions={contradictions} fetchedAt={memoryFetchedAt} reply={replyQuality} recallProvenance={recallProvenance} recallProvenanceReason={recallProvenanceReason} />
 
       {historyDrawerOpen && (
-        <div className="absolute inset-y-0 left-0 z-50 w-full border-r border-edge bg-void sm:w-80" style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}>
+        <div className="absolute inset-y-0 left-0 z-50 w-full border-r border-edge-default bg-overlay shadow-[var(--shadow-l1)] sm:w-80" style={{ paddingLeft: "env(safe-area-inset-left, 0px)" }}>
           <OperatorConversationDrawer
             convos={conversations.convos}
             activeId={conversations.activeId}

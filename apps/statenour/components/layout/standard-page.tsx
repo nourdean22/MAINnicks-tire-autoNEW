@@ -164,7 +164,8 @@ export function StandardPage({
     <div
       {...rootProps}
       className={cn(
-        "page-fade-in",
+        // UI v2 (2026-10-01): no mount animation here — the route entrance is the
+        // layout's single `.page-enter`; a second fade on every page read as a slideshow.
         RHYTHM_CLASS[rhythm],
         WIDTH_CLASS[width],
         // Narrow fixture pages and wider data pages auto-center; "md"

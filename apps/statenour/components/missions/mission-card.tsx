@@ -278,7 +278,7 @@ export function MissionCard({
           className="text-[var(--gold)] shrink-0"
           strokeWidth={2}
         />
-        <h3 className="flex-1 truncate font-display text-[22px] font-bold uppercase leading-none tracking-tight text-fg sm:text-2xl">
+        <h3 className="flex-1 truncate text-[17px] font-semibold leading-tight tracking-[-0.01em] text-fg sm:text-[18px]">
           {mission.title}
         </h3>
         {/* wave-AA-audit · hide "0%" when the mission has no tasks ·

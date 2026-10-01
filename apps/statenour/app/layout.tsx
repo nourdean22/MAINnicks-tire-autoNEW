@@ -8,6 +8,8 @@ import { PWAInstallPrompt } from "@/components/hud/pwa-install-prompt";
 import { ServiceWorkerRegister } from "@/components/hud/sw-register";
 import { ClientErrorTelemetry } from "@/components/ui/client-error-telemetry";
 import { Toaster } from "sonner";
+import { cookies } from "next/headers";
+import { UiVersionSwitch, UI_VERSION_COOKIE } from "@/components/ui/ui-version-switch";
 import "./globals.css";
 
 const barlowCondensed = Barlow_Condensed({
@@ -73,13 +75,18 @@ export const viewport: Viewport = {
   themeColor: "#050505",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // UI v2 (2026-10-01): the cookie (set by `?ui=v1|v2`, components/ui/ui-version-switch.tsx)
+  // or STATENOUR_UI=v1 keeps the previous grammar reachable for side-by-side comparison.
+  // tokens.css / base.css key the old values off `:root[data-ui="v1"]`.
+  const uiCookie = (await cookies()).get(UI_VERSION_COOKIE)?.value;
+  const ui = uiCookie === "v1" || (uiCookie !== "v2" && process.env.STATENOUR_UI === "v1") ? "v1" : "v2";
   return (
-    <html lang="en" className={`dark ${GeistSans.variable} ${GeistMono.variable} ${barlowCondensed.variable} ${instrumentSerif.variable}`}>
+    <html lang="en" data-ui={ui} className={`dark ${GeistSans.variable} ${GeistMono.variable} ${barlowCondensed.variable} ${instrumentSerif.variable}`}>
       {/* v10.0.529.54 · removed `font-sans` (Tailwind's default stack)
           so the `body { font-family: var(--font-body) }` rule in
           globals.css resolves to Geist + sans-serif (no Inter fallback).
@@ -92,6 +99,7 @@ export default function RootLayout({
               /system/errors. First line of defense against silent
               client crashes like today's X-Persona render loop. */}
           <ClientErrorTelemetry />
+          <UiVersionSwitch />
           {children}
           <CommandPalette />
           <PWAInstallPrompt />
