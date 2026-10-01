@@ -34,7 +34,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { BUSINESS } from "@shared/business";
-import { BRAKE_PRICE, OIL_COUPON, OIL_PRICE } from "@shared/pricing";
+import { BRAKE_PRICE, DIAGNOSTIC_PRICE, OIL_COUPON, OIL_PRICE } from "@shared/pricing";
 import { OHIO_ECHECK } from "@shared/echeck";
 import { findVoiceViolations, KILL_RULES } from "@shared/voice";
 
@@ -565,6 +565,122 @@ describe("prices the shop states as its own match shared/pricing.ts", () => {
     expect(shopPrices("Pads and resurfacing from $199", PAD_PRICE_CLAIM)).toEqual([]);
     expect(shopPrices("Full synthetic at Valvoline starts at $99", OIL_PRICE_CLAIM)).toEqual([]);
     expect(shopPrices("Full synthetic at chains: $60 to $90.", OIL_PRICE_CLAIM)).toEqual([]);
+  });
+});
+
+/**
+ * 2026-10-01 (#2868): the operator set ONE diagnostic fee, $49 waived if the
+ * customer does the repair with us, and ONE new-tire floor, $89. The survivors
+ * #2868 could not see: /diagnostics' own tier ("From $89", which the page's
+ * JSON-LD Offer published as 89), the chat model's "$50 inspection fee", and a
+ * blog line pricing a new tire from $80. These read every customer line the
+ * claim rules read (client/src, shared, every non-test file under server/,
+ * client/index.html and the workspace packages), not the narrow copy list.
+ *
+ * Diagnostic: "diagnostic[ fee|evaluation|service] ... $N" within one clause,
+ * or "$N [full|engine|deeper|to] diagnos*" / "$N inspection fee". A sentence
+ * about a dealer, chain, market price or "another shop" is skipped. The free
+ * code scan has no dollar figure and is not read.
+ * New tires: "new tire(s) [prices] ... from / start(s|ing) at / prices of $N".
+ * The chat tool's numeric PRICE_MAP is asserted by value in
+ * server/services/chatTools-honesty.test.ts, which runs the tool.
+ */
+const DIAG_FEE_AFTER = /\bdiagnos(?:tics?|is)\b(?!\s+scan)(?:\s+(?:fee|evaluation|service))?[^.\n$]{0,40}?\$(\d{2,3})(?![\d,])/gi;
+const DIAG_FEE_BEFORE =
+  /\$(\d{2,3})(?![\d,])(?:\.\d{2})?\s+(?:(?:full|engine|deeper|to)\s+)?\[?(?:diagnos\w*|(?<=(?:deeper|full)\s+)check\b)/gi;
+// "$N inspection fee" is the diagnostic fee only where the same sentence takes
+// it off the repair (the chat prompt's wording); a pre-purchase inspection has
+// its own price.
+const INSPECTION_FEE_CLAIM =
+  /\$(\d{2,3})(?![\d,])\s+inspection fee\b[^.\n]*?\b(?:off|toward|towards|credited|applied|waived)\b[^.\n]{0,30}\brepair/gi;
+const NOT_OUR_DIAGNOSTIC = new RegExp(
+  `${NOT_THE_SHOPS_PRICE.source}|\\b(?:another shop|other shops?|autozone|o'?reilly)\\b`,
+  "i",
+);
+const NEW_TIRE_FLOOR_CLAIM =
+  /\bnew tires?\b(?:\s+prices?)?[^.\n$]{0,30}?\b(?:start(?:s|ing)? at|from|prices? of)\s+(?:just |only |around |about )?\$(\d{2,3})(?![\d,])/gi;
+
+// Reads the WHOLE sentence around a match, not only up to it: "a diagnostic
+// fee of $49 to $100 at another shop" names the other shop after the price.
+function shopDiagnosticFees(text: string): number[] {
+  const out: number[] = [];
+  for (const re of [DIAG_FEE_AFTER, DIAG_FEE_BEFORE, INSPECTION_FEE_CLAIM]) {
+    for (const m of text.matchAll(re)) {
+      const at = m.index ?? 0;
+      const stop = text.indexOf(".", at + m[0].length);
+      const sentence = text.slice(text.lastIndexOf(".", at) + 1, stop === -1 ? undefined : stop);
+      if (!NOT_OUR_DIAGNOSTIC.test(sentence)) out.push(Number(m[1]));
+    }
+  }
+  return out;
+}
+
+type CopyLine = { file: string; line: number; text: string };
+// shared/proof.ts holds customer testimonials ("Quoted $89 to diagnose...") —
+// a customer's words about a past visit, not the shop stating its fee.
+const priceScanLines = (lines: CopyLine[]) => lines.filter((l) => !CLAIM_SCAN_SKIP.has(l.file));
+
+function wrongDiagnosticFees(lines: CopyLine[]): string[] {
+  return priceScanLines(lines).flatMap((l) =>
+    shopDiagnosticFees(l.text)
+      .filter((p) => p !== DIAGNOSTIC_PRICE.fee)
+      .map((p) => `${l.file}:${l.line} says $${p}`),
+  );
+}
+
+function wrongNewTireFloors(lines: CopyLine[]): string[] {
+  return priceScanLines(lines).flatMap((l) =>
+    shopPrices(l.text, NEW_TIRE_FLOOR_CLAIM)
+      .filter((p) => p !== BUSINESS.newTires.startingDollars)
+      .map((p) => `${l.file}:${l.line} says $${p}`),
+  );
+}
+
+describe("one diagnostic fee and one new-tire floor, everywhere a customer reads", () => {
+  it("every diagnostic fee the shop states is DIAGNOSTIC_PRICE.fee", () => {
+    expect(wrongDiagnosticFees(CLAIM_LINES)).toEqual([]);
+  });
+
+  it("every 'new tires from $N' is BUSINESS.newTires.startingDollars, and the display says the same", () => {
+    expect(wrongNewTireFloors(CLAIM_LINES)).toEqual([]);
+    expect(BUSINESS.newTires.priceDisplay).toContain(`$${BUSINESS.newTires.startingDollars}`);
+  });
+
+  it("the scan reads server/, not only the eight named copy files", () => {
+    const files = new Set(priceScanLines(CLAIM_LINES).map((l) => l.file));
+    expect(files.has("server/gemini.ts")).toBe(true);
+    expect(files.has("server/routers/nick/utils.ts")).toBe(true);
+    expect(files.has("client/src/pages/DiagnosticsPage.tsx")).toBe(true);
+    expect(files.has("shared/blog.ts")).toBe(true);
+  });
+
+  // POSITIVE CONTROL through the SAME scan functions the corpus checks call:
+  // each retired figure, planted in a fixture line, must be caught.
+  it("the scan catches every retired diagnostic fee and new-tire floor", () => {
+    const at = (text: string): CopyLine[] => [{ file: "fixture.tsx", line: 1, text }];
+    expect(wrongDiagnosticFees(at('{ name: "Full Diagnostic", price: "From $89", sub: "live data" },'))).toEqual(["fixture.tsx:1 says $89"]);
+    expect(wrongDiagnosticFees(at("- $50 inspection fee for longer inspections — but it comes off the repair"))).toEqual(["fixture.tsx:1 says $50"]);
+    expect(wrongDiagnosticFees(at('{ label: "Full diagnostic evaluation", range: "$59.99" },'))).toEqual(["fixture.tsx:1 says $59"]);
+    expect(wrongDiagnosticFees(at("Free OBD-II code scan. $95 deeper check credited to repair if you say yes."))).toEqual(["fixture.tsx:1 says $95"]);
+    expect(wrongDiagnosticFees(at("- Diagnostics: $50-100"))).toEqual(["fixture.tsx:1 says $50"]);
+    expect(wrongNewTireFloors(at("A new tire ranges from $80 to $200+ depending on size and brand."))).toEqual(["fixture.tsx:1 says $80"]);
+    expect(wrongNewTireFloors(at("Compare that to new tire prices of $80 to $250 each plus installation"))).toEqual(["fixture.tsx:1 says $80"]);
+    expect(wrongNewTireFloors(at("New tires start at $99 installed."))).toEqual(["fixture.tsx:1 says $99"]);
+    // and the canonical figures pass
+    expect(wrongDiagnosticFees(at("Our diagnostic fee is $49, waived if you do the repair with us."))).toEqual([]);
+    expect(wrongNewTireFloors(at("New tires from $89 installed."))).toEqual([]);
+  });
+
+  it("the scan skips other shops' prices and the market's", () => {
+    expect(shopDiagnosticFees("Check engine light diagnostic: dealership $100 to $150, independent $49 to $75.")).toEqual([]);
+    expect(shopDiagnosticFees("A diagnostic fee of $49 to $100 at another shop is cheap insurance.")).toEqual([]);
+    expect(shopDiagnosticFees('{ label: "Dealer AC diagnostic + recharge", price: "$295" },')).toEqual([]);
+    expect(shopDiagnosticFees("a diagnostic platform that costs $3,000 to $10,000")).toEqual([]);
+    expect(shopDiagnosticFees("Free OBD-II diagnostic scan with any repair over $200.")).toEqual([]);
+    expect(shopDiagnosticFees("In every case, the $100 inspection fee saved them thousands in future repair costs.")).toEqual([]);
+    expect(shopPrices("Dealer new tires start at $150 each.", NEW_TIRE_FLOOR_CLAIM)).toEqual([]);
+    expect(shopPrices("A comparable new tire at $200 each + $80 install fees = $880.", NEW_TIRE_FLOOR_CLAIM)).toEqual([]);
+    expect(shopPrices("New and used tires from $25 installed", NEW_TIRE_FLOOR_CLAIM)).toEqual([]);
   });
 });
 
