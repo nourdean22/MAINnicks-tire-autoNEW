@@ -508,3 +508,14 @@ This supersedes the pre-PR status notes immediately above while preserving them 
 - Machine-local cockpit/runtime helpers are now copied into repo source-of-record under `apps/statenour/local-agent/`: `launch-nour-ai.ps1`, `start-nour-cockpit.ps1`, and `ensure_openwebui_cockpit.py`. The helper is idempotent: after repair, a second run reported `changed:false`.
 - **Still unfinished at this checkpoint:** model/tool naming and menu simplification, natural-language OpenWebUI → Cockpit → OpenCode end-to-end canary, bridge PR/CI/merge, and refreshed known-good snapshot.
 
+
+## 2026-10-01 — Chat Controls UX target clarified before UI patch
+
+- The user clarified that the cluttered surface is the **top-right per-chat Controls panel** in OpenWebUI, not the model picker. Do not conflate these surfaces again.
+- Current NOUR Cockpit profile remains the correct default model wrapper over `nour-auto`; that model/default/toolkit work is separate from this UI cleanup.
+- Current OpenWebUI admin settings show `tool_approval_mode=full`. The NOUR Cockpit workspace model currently has no sampling params forced in its model `params`, which is desirable because requests may route across multiple providers with non-identical parameter semantics.
+- The visible Controls panel includes System Prompt plus a long Advanced Params list such as Stream Chat Response, Stream Delta Chunk Size, Context Compaction Threshold, Function Calling, Reasoning Tags, Seed, Stop Sequence, Temperature, Reasoning Effort, logit_bias, max_tokens, top_k, top_p and related provider-specific knobs.
+- OpenWebUI model capability flags gate tool/file features but do **not** natively provide per-parameter visibility control for the sampling-knob list. Therefore the intended implementation path is a small, upgrade-resilient customization via OpenWebUI''s supported `custom.css` / `loader.js` static surface, not editing minified application bundles.
+- UX objective: for NOUR Cockpit, keep useful power but reduce normal-path clutter and accidental misconfiguration. Preserve access to deeper parameters only through an explicit advanced/reveal path if required; do not globally cripple other models.
+- No Controls-panel UI patch has been applied yet at this checkpoint.
+
