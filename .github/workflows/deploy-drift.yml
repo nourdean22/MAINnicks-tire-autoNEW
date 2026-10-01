@@ -9,9 +9,10 @@ name: Deploy drift (statenour)
 # This runs on GitHub's schedule, reads only PUBLIC surfaces, and compares each
 # service with its EXPECTED release:
 #   · web: `/api/version` commit must be an ANCESTOR of the newest main commit
-#     that touched something the web image is built from, once that commit is
-#     older than the grace window (Railway builds take ~5 min; a merge from two
-#     minutes ago is not drift);
+#     that touched a path statenour-web redeploys on (its watchPatterns in
+#     .railway/railway.ts, via scripts/ci/railway-watch-pathspecs.mjs), once that
+#     commit is older than the grace window (Railway builds take ~5 min; a merge
+#     from two minutes ago is not drift);
 #   · worker: public web heartbeat must report a fresh persisted worker-forward
 #     receipt (brain-bus-drain; 1h tolerance = four missed 15-minute ticks).
 # An unrelated nickstire or docs-only merge does not count as drift for
@@ -79,13 +80,19 @@ jobs:
             echo "expected release pinned by operator input"
             exit 0
           fi
-          # Newest commit on main, older than the grace window, that touched what
-          # the statenour-web image is built from.
+          # Newest commit on main, older than the grace window, that Railway
+          # redeploys statenour-web on: its watchPatterns in .railway/railway.ts,
+          # read here so the two cannot drift. A hand-kept list counted every
+          # packages/** change, so two nickstire-only package edits (#2865,
+          # #2863) read as DRIFT every 30 min on 2026-10-01. If the list cannot
+          # be read, this step fails; it never falls back to "no paths".
+          specs="$(node scripts/ci/railway-watch-pathspecs.mjs statenour-web)"
+          mapfile -t pathspecs <<< "$specs"
           cutoff="$(date -u -d "-${GRACE_MINUTES} minutes" +%s)"
           # awk must CONSUME the whole stream: an early `exit` closes the pipe,
           # git log dies with SIGPIPE, and under `pipefail` the step reports
           # exit 141 instead of a verdict (run 34175670920, 2026-09-08).
-          sha="$(git log origin/main --format='%H %ct' -- apps/statenour packages pnpm-lock.yaml pnpm-workspace.yaml package.json apps/statenour/Dockerfile \
+          sha="$(git log origin/main --format='%H %ct' -- "${pathspecs[@]}" \
                  | awk -v c="$cutoff" '!found && $2 <= c { print $1; found = 1 }')"
           if [ -z "$sha" ]; then
             echo "::warning::no statenour-affecting commit older than ${GRACE_MINUTES} min on main — nothing to compare"
@@ -112,6 +119,9 @@ jobs:
           fi
 
       - name: Worker liveness from persisted private-worker receipt
+        # Runs even when the drift check above failed: one red must not hide the
+        # other (the drift false positive of 2026-10-01 skipped this for hours).
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           if [ "${{ github.event.inputs.simulate }}" = "worker-down" ]; then
