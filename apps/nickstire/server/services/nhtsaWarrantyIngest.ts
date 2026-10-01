@@ -56,7 +56,7 @@ const log = createLogger("nhtsa-warranty-ingest");
 
 const MIGRATION_NAME = "0138_nhtsa_mfr_warranty";
 /** shop_settings key holding the per-chunk parse state (no new table, ADR-0021 §6.3). */
-const STATE_KEY = "nhtsa_warranty_chunk_state";
+export const STATE_KEY = "nhtsa_warranty_chunk_state";
 /** More than this share of malformed rows means the layout changed (like the May 2024 reorder): fail. */
 const MAX_MALFORMED_RATE = 0.01;
 
@@ -441,7 +441,7 @@ function componentsText(components: Set<string>): string | null {
 }
 
 /** A corrupt or absent state row reads as "nothing parsed yet", which forces a full pass: the safe direction. */
-function parseState(raw: string | null | undefined): IngestState {
+export function parseState(raw: string | null | undefined): IngestState {
   if (!raw) return { chunks: {} };
   try {
     const v = JSON.parse(raw) as IngestState;
