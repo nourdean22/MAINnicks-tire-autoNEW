@@ -149,6 +149,10 @@ export interface ValueAttributionLite {
   recoveredRevenuePerSendCostDollar: number | null;
   estimatedSendCostCents: number;
   estimatedRecoveredRevenueCents: number;
+  /** All measured send cost in the window. In the ESTIMATE state none of it joined revenue. */
+  measuredSendCostCents?: number;
+  /** All measured holdout-adjusted recovered revenue in the window, joined or not. */
+  measuredRecoveredRevenueCents?: number;
   reasons: string[];
 }
 export interface OutboxHealthLite {
@@ -638,13 +642,19 @@ export function costTiles(
       note: `${valueAttribution.matchedRefs} matched attribution ref${valueAttribution.matchedRefs === 1 ? "" : "s"} · ${perOutcome} · ${ratio}`,
     };
   } else if (valueAttribution.measurementState === "ESTIMATE") {
+    // Each side sums its measured and estimated money: nothing joined, but a measured amount is
+    // still real money on its side. A side with nothing recorded says so; "~$0.00" would read as free.
+    const costCents =
+      (valueAttribution.measuredSendCostCents ?? 0) + valueAttribution.estimatedSendCostCents;
+    const revenueCents =
+      (valueAttribution.measuredRecoveredRevenueCents ?? 0) +
+      valueAttribution.estimatedRecoveredRevenueCents;
     recoveredRevenue = {
       key: "recovered_revenue",
       label: "SMS + voice cost vs recovered revenue",
       value:
-        valueAttribution.estimatedSendCostCents > 0 ||
-        valueAttribution.estimatedRecoveredRevenueCents > 0
-          ? `~${dollars(valueAttribution.estimatedSendCostCents)} → ~${dollars(valueAttribution.estimatedRecoveredRevenueCents)}`
+        costCents > 0 || revenueCents > 0
+          ? `${costCents > 0 ? `~${dollars(costCents)}` : "no cost recorded"} → ${revenueCents > 0 ? `~${dollars(revenueCents)}` : "no revenue recorded"}`
           : null,
       provenance: "ESTIMATE",
       note:
