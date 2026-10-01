@@ -5,6 +5,18 @@ export const OIL_PRICE = {
   fullSynthetic: 80,
 } as const;
 
+/**
+ * Operator-confirmed high-intent quoting-channel used-tire anchor.
+ *
+ * WEBSITE discovery pricing stays in BUSINESS.usedTires ($25 select 12-inch
+ * floor + $40–80 most-size band). Phone/SMS/voice/chat quoting uses the real
+ * average anchor instead; do not collapse the two channel policies.
+ */
+export const USED_TIRE_QUOTE = {
+  startingDollars: 60,
+  display: "$60 installed",
+} as const;
+
 export const BRAKE_PRICE = {
   padsStarting: 149,
   padsMax: 299,
