@@ -172,7 +172,7 @@ export const SERVICES: ServiceData[] = [
       "Torque to manufacturer spec",
     ],
     pricingTiers: [
-      { label: "New tires (each)", range: "$80–$250" },
+      { label: "New tires (each)", range: "$89–$250" },
       { label: "Used tires (each)", range: "$40–$80" },
       { label: "Flat repair", range: "$15–$25" },
       { label: "TPMS sensor", range: "$45–$85" },
@@ -382,11 +382,11 @@ export const SERVICES: ServiceData[] = [
     ],
     pricingTiers: [
       { label: "Basic code read", range: "FREE" },
-      { label: "Full diagnostic evaluation", range: "$59.99" },
+      { label: "Full diagnostic evaluation", range: "$49" },
       { label: "Diagnostic fee credited toward repair", range: "Yes" },
     ],
     duration: "30-60 min",
-    startingPrice: "$59.99 (credited toward repair)",
+    startingPrice: "$49 (waived if you do the repair with us)",
     priceRange: "",
     whyChooseUs: "We test before we replace -- no parts guessing. Our advanced OBD-II scanners and live data analysis pinpoint the exact failed component so you only pay for what you need. Diagnostic fee is credited toward your repair, and everything is backed by our 12-month warranty.",
     commonSymptoms: [

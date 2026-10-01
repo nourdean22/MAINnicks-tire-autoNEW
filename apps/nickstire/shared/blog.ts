@@ -433,7 +433,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Why Buy Used Tires?",
-        content: "New tires cost $80 to $250+ each depending on the size and brand. A full set with installation can run $400 to $1,200. For many Cleveland drivers, that is a major expense. Quality used tires with good tread can cost $30 to $80 each — saving you hundreds while still providing safe, reliable grip. The key is knowing what to look for and where to buy."
+        content: "New tires cost $89 to $250+ each depending on the size and brand. A full set with installation can run $400 to $1,200. For many Cleveland drivers, that is a major expense. Quality used tires with good tread can cost $30 to $80 each — saving you hundreds while still providing safe, reliable grip. The key is knowing what to look for and where to buy."
       },
       {
         heading: "What to Look For in Used Tires",

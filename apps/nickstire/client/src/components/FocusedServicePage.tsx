@@ -401,7 +401,7 @@ function AeoAnswer({ config }: { config: ServicePageConfig }) {
     // brand-voice kernel (shared/voice.ts) prescribes it, and SMS, voice and
     // 100+ pages repeat it. A 2026-09-08 pass briefly paraphrased it here as
     // "every charge is on a written estimate you approve first" on the theory
-    // that a $59.99 diagnostic contradicts it; it does not — the diagnostic
+    // that a paid diagnostic contradicts it; it does not — the diagnostic
     // is itself on the written quote before it is charged. Canon restored;
     // any change to this promise is the owner's, made in shared/voice.ts.
     `${config.serviceType} at Nick's Tire & Auto, ${BUSINESS.address.full}: ${priceClause}. Walk in 7 days a week — no appointment needed, and you don't pay until you say yes. Call (216) 862-0005.`;
