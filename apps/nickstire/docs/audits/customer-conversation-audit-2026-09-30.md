@@ -107,11 +107,11 @@ This section records the deeper read after the first corpus pass. It separates l
    - No recurrence was found in the sampled current-deployment logs, but no successful transfer-artifact persistence receipt was captured either.
    - State: **LIVE BUT UNVERIFIED after a historical failure**, not fixed-by-assumption.
 
-6. **The optimizer is gated, but its objective is still mostly conversational rather than business-outcome causal.**
-   - Prompt evolution trains on call failures and grades ghost-replayed replies for resolution / claim defects.
-   - Revenue reconciliation exists separately and can classify direct call→lead→invoice as verified while weaker phone/time/service matches remain inferred/manual review.
-   - The optimizer does not currently require measured arrival, paid invoice, repeat visit, or revenue lift before proposing a prompt change.
-   - State: **BUILT + WIRED quality loop; missing outcome-learning closure**.
+6. **The optimizer already consumes verified revenue truth defensively, but it does not yet optimize on downstream business lift.**
+   - `loadSeeds()` joins the existing revenue-reconciliation candidates and operator attribution decisions. A verified paid conversion (direct call→lead→paid-invoice, or an operator-confirmed decision carrying an invoice) is excluded from the failure pool so a mislabeled win cannot train the optimizer to "fix" a call that actually converted.
+   - Weaker phone/time/service matches stay inferred/manual-review and are not promoted to verified truth; a manual-review near-miss may remain a seed with that uncertainty annotated.
+   - The remaining gap is positive learning: the weekly loop still grades ghost-replayed conversational resolution / claim defects. It does not mine which strategies made verified paid wins work, nor require measured arrival, paid-invoice, repeat-visit, margin, or revenue lift before promoting a challenger proposal.
+   - State: **BUILT + WIRED + REVENUE-GUARDED failure loop; MISSING positive win-mining / causal outcome promotion**.
 
 7. **Pricing authority is internally contradictory and must be resolved before more autonomous tuning.**
    - A June operator decision documented a two-tier strategy: website/SEO can use the $25 installed loss-leader floor with qualifiers, while high-intent quoting channels use $60.
