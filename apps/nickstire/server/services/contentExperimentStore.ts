@@ -24,7 +24,10 @@ import {
   assignArm,
   evaluateExperiment,
   horizonForSnapshot,
+  isDurationLaneId,
   type ArmObservation,
+  type DurationLaneId,
+  type ExperimentArm,
   type ExperimentDefinition,
   type ExperimentVerdict,
 } from "../../shared/contentExperiments";
@@ -100,9 +103,23 @@ export async function assignEpisode(
  * Picks the OLDEST running experiment so two overlapping ones cannot silently
  * fight over the same episode.
  */
+/**
+ * The key an episode's arm is derived from. MUST be the same key generation
+ * resolves on (dailyReelPost → hookArmForEpisode(briefId); reelBriefGen →
+ * durationLaneForEpisode(episodeKey)). Until 2026-10-01 enqueue recorded the
+ * arm under `reel_job_<id>` while generation derived it from the brief id —
+ * assignArm hashes the key, so the RECORDED arm disagreed with the GENERATED
+ * arm on roughly half the episodes and the hook experiment measured noise.
+ * The brief id wins when the caller has it; the job id is the fallback for
+ * callers that never had a brief (none today, kept so nothing is unassigned).
+ */
+export function experimentEpisodeKey(reelJobId: number, briefId?: string | null): string {
+  return briefId && briefId.trim() ? briefId.trim() : `reel_job_${reelJobId}`;
+}
+
 export async function assignEpisodeToActiveExperiment(
   reelJobId: number,
-  context: { franchiseId?: string; contentOrigin?: string; postingSlot?: string; provider?: string; model?: string } = {},
+  context: { franchiseId?: string; contentOrigin?: string; postingSlot?: string; provider?: string; model?: string; briefId?: string } = {},
 ): Promise<{ experimentId: string; armId: string; variantValue: string } | null> {
   try {
     const { getDb } = await import("../db");
@@ -134,7 +151,9 @@ export async function assignEpisodeToActiveExperiment(
 
     // The episode key must be STABLE for this job — assignment is derived from
     // it, so a changing key would re-roll the arm on every retry.
-    const assigned = await assignEpisode(def, `reel_job_${reelJobId}`, { reelJobId, ...context });
+    const { briefId, ...rest } = context;
+    const episodeKey = experimentEpisodeKey(reelJobId, briefId);
+    const assigned = await assignEpisode(def, episodeKey, { reelJobId, ...rest });
     if (!assigned) return null;
     log.info("episode assigned to experiment", { reelJobId, experimentId: def.experimentId, arm: assigned.armId });
     return { experimentId: def.experimentId, ...assigned };
@@ -160,6 +179,21 @@ export async function assignEpisodeToActiveExperiment(
  * enqueue the brief already exists.
  */
 export async function hookArmForEpisode(episodeKey: string): Promise<"direct" | undefined> {
+  const arm = await runningArmForEpisode("hook_style", episodeKey);
+  return arm?.variantValue === "direct" ? "direct" : undefined;
+}
+
+/**
+ * The arm this episode lands in for the oldest RUNNING experiment on one
+ * primary variable — undefined when none is running (the default) or the
+ * read fails (logged; the episode runs as control). Shared by the hook-style
+ * reader above and the duration-lane reader below so the two interventional
+ * lookups cannot derive an arm two different ways.
+ */
+async function runningArmForEpisode(
+  primaryVariable: ExperimentDefinition["primaryVariable"],
+  episodeKey: string,
+): Promise<ExperimentArm | undefined> {
   try {
     const { getDb } = await import("../db");
     const d = await getDb();
@@ -169,7 +203,7 @@ export async function hookArmForEpisode(episodeKey: string): Promise<"direct" | 
     const rows = await d
       .select()
       .from(contentExperiments)
-      .where(and(eq(contentExperiments.status, "running"), eq(contentExperiments.primaryVariable, "hook_style")))
+      .where(and(eq(contentExperiments.status, "running"), eq(contentExperiments.primaryVariable, primaryVariable)))
       .orderBy(asc(contentExperiments.startedAt))
       .limit(1);
     if (!rows.length) return undefined;
@@ -177,19 +211,34 @@ export async function hookArmForEpisode(episodeKey: string): Promise<"direct" | 
     const row = rows[0] as unknown as { experimentId: string; primaryVariable: string; objective: string; primaryMetric: string; armsJson: unknown; startedAt: Date };
     const def: ExperimentDefinition = {
       experimentId: row.experimentId,
-      primaryVariable: "hook_style",
+      primaryVariable,
       objective: row.objective as ExperimentDefinition["objective"],
       primaryMetric: row.primaryMetric,
       arms: (Array.isArray(row.armsJson) ? row.armsJson : []) as ExperimentDefinition["arms"],
       startedAt: new Date(row.startedAt).toISOString(),
     };
     if (def.arms.length < 2) return undefined;
-    const arm = assignArm(def, episodeKey);
-    return arm.variantValue === "direct" ? "direct" : undefined;
+    return assignArm(def, episodeKey);
   } catch (err) {
-    log.warn("hook arm lookup failed — treating as control", { episodeKey, err: err instanceof Error ? err.message : String(err) });
+    log.warn("experiment arm lookup failed — treating as control", { primaryVariable, episodeKey, err: err instanceof Error ? err.message : String(err) });
     return undefined;
   }
+}
+
+/**
+ * Which DURATION lane this episode belongs to (duration_v1 preset), resolved
+ * BEFORE generation the same way the hook arm is. Returns undefined when no
+ * length_band experiment is running — the generator then keeps its default
+ * target — or when the arm's lane id is not one DURATION_LANES declares, which
+ * is logged rather than guessed at.
+ */
+export async function durationLaneForEpisode(episodeKey: string): Promise<DurationLaneId | undefined> {
+  const arm = await runningArmForEpisode("length_band", episodeKey);
+  if (!arm) return undefined;
+  const lane = arm.lengthBand ?? arm.variantValue;
+  if (isDurationLaneId(lane)) return lane;
+  log.warn("length_band arm names no declared duration lane — generating at the default target", { episodeKey, armId: arm.armId, lane });
+  return undefined;
 }
 
 /**

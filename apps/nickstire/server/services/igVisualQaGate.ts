@@ -15,6 +15,7 @@
  * a vision call would only score a photo it does not contain.
  *
  *   kind=poster                      → clear (deterministic)
+ *   kind=real                        → clear (operator-captured real_shop photo; reason names the asset)
  *   kind=ai, scored ≥ min            → clear
  *   kind=ai, scored < min            → block (scored weak)
  *   kind=ai, skipped / null          → block (UNKNOWN — hold for a human)
@@ -29,7 +30,7 @@
  * a new key).
  */
 
-export type ImageKind = "poster" | "ai";
+export type ImageKind = "poster" | "ai" | "real";
 
 export interface ImageVerdictRecord {
   proLook: number | null;
@@ -47,13 +48,19 @@ export interface VisualQaGateDecision {
 export function visualQaGate(
   kind: ImageKind,
   image: ImageVerdictRecord,
-  opts: { enabled: boolean; minProLook: number },
+  opts: { enabled: boolean; minProLook: number; realAssetId?: string },
 ): VisualQaGateDecision {
   if (!opts.enabled) {
     return { block: false, state: "disabled", reason: "visual QA gate disabled (IG_VISUAL_QA_GATE=false) — publishing on caption eval only" };
   }
   if (kind === "poster") {
     return { block: false, state: "deterministic", reason: "branded poster — deterministic template, layout validated by construction" };
+  }
+  if (kind === "real") {
+    // Not generative pixels: an operator pressed the shutter on this one and
+    // the registry row carries rights_status=real_shop. The vision critic
+    // scores "does this look like a photo" — it IS a photo.
+    return { block: false, state: "deterministic", reason: `real shop asset ${opts.realAssetId ?? "(id missing)"} — operator-captured photo, rights real_shop` };
   }
   if (image.skipped || image.proLook === null) {
     return {

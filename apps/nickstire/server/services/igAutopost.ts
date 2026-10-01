@@ -48,7 +48,8 @@ export { parseJsonObject };
 import { isEnabled } from "./featureFlags";
 import { ensureHiggsfieldBinary } from "./higgsfieldBinary";
 import { circuitOpen, circuitSnapshot, closeCircuit, tripCircuit } from "./imageProviderCircuit";
-import { visualQaGate, visualQaGateEnabled } from "./igVisualQaGate";
+import { visualQaGate, visualQaGateEnabled, type ImageKind } from "./igVisualQaGate";
+import { findRealAssetFor, REAL_ASSET_MIN_SCORE } from "./realAssetFirst";
 import { shadowJudgeGate } from "./igJudgeGate";
 // ONE source of truth for the cap — the reel lane's constant, not a second copy.
 // A forked limit is how this lane drifted to 12 while the reel lane was on 5.
@@ -1056,10 +1057,26 @@ async function generateImageOpenRouter(prompt: string): Promise<string> {
   return uploadedUrl;
 }
 
-export async function generatePostImage(
-  prompt: string,
-  ctx?: { caption?: string },
-): Promise<{ url: string; format: "jpeg"; kind: "poster" | "ai" }> {
+export interface PostImage {
+  url: string;
+  format: "jpeg";
+  kind: ImageKind;
+  /** media_assets.id when kind === "real" — the visual QA gate names it in its reason. */
+  realAssetId?: string;
+  /** Why the real asset was chosen (or why the lookup declined), for the run log. */
+  why?: string[];
+}
+
+// Phase 6 (feed-wide): the branded "garage poster" is the DEFAULT visual.
+// Only an explicit AI provider opts out. "higgsfield" was a deprecated stub
+// that silently resolved to the poster — an operator selecting it in Settings
+// got a different image than the UI claimed. Re-wired 2026-07-16 (plan
+// re-funded): it now routes to the real Higgsfield generator below. A poster
+// failure falls through to AI gen so a post is never imageless.
+const AI_IMAGE_PROVIDERS = new Set(["openai", "gemini", "openrouter", "higgsfield"]);
+
+/** Settings override (app_secret_kv) → env → poster default. Lowercased. */
+async function resolveImageProvider(): Promise<string> {
   let provider = "adrender";
   try {
     const { db } = await import("../lib/db-helper");
@@ -1076,15 +1093,77 @@ export async function generatePostImage(
     log.warn("failed to load image provider from db overrides, using env fallback", { err });
     provider = process.env.IG_AUTOPOST_IMAGE_PROVIDER || "adrender";
   }
-  provider = provider.toLowerCase();
+  return provider.toLowerCase();
+}
 
-  // Phase 6 (feed-wide): the branded "garage poster" is the DEFAULT visual.
-  // Only an explicit AI provider opts out. "higgsfield" was a deprecated stub
-  // that silently resolved to the poster — an operator selecting it in Settings
-  // got a different image than the UI claimed. Re-wired 2026-07-16 (plan
-  // re-funded): it now routes to the real Higgsfield generator below. A poster
-  // failure falls through to AI gen so a post is never imageless.
-  const aiProviders = new Set(["openai", "gemini", "openrouter", "higgsfield"]);
+/**
+ * Image-selection step of the autopost run (§K.3, real-asset-first).
+ *
+ * Only an AI provider asks the real-shop pool: the poster default is a
+ * deterministic branded template the operator chose on purpose, and that
+ * behaviour is unchanged. When an AI image WOULD be generated, a matching
+ * operator-captured photo (score ≥ REAL_ASSET_MIN_SCORE) is used instead —
+ * no generation spend, kind "real", and the visual QA gate names the asset.
+ * Any lookup outcome other than a match — including a pool-read ERROR —
+ * falls through to generation exactly as before; the outcome is logged so
+ * "error" and "no match" stay distinguishable in the run log.
+ */
+export async function selectPostImage(
+  post: Pick<GeneratedPost, "caption" | "imagePrompt" | "visualConcept" | "conceptKey">,
+  deps: {
+    resolveProvider?: () => Promise<string>;
+    findReal?: typeof findRealAssetFor;
+    generate?: typeof generatePostImage;
+    toJpeg?: (url: string) => Promise<string>;
+  } = {},
+): Promise<PostImage> {
+  const resolveProvider = deps.resolveProvider ?? resolveImageProvider;
+  const findReal = deps.findReal ?? findRealAssetFor;
+  const generate = deps.generate ?? generatePostImage;
+  const toJpeg = deps.toJpeg ?? convertHostedPngToJpeg;
+
+  const provider = await resolveProvider();
+  if (!AI_IMAGE_PROVIDERS.has(provider)) {
+    return generate(post.imagePrompt, { caption: post.caption, provider });
+  }
+
+  // Topic = concept key + visual concept + the caption's hook line. NOT the
+  // image prompt: it is generator boilerplate ("Nick's Tire & Auto bay…")
+  // that would name "tire" as a subject on every post regardless of topic.
+  const firstLine = post.caption.split("\n")[0] ?? "";
+  const lookup = await findReal(
+    { topic: `${post.conceptKey} ${post.visualConcept} ${firstLine}` },
+    { minScore: REAL_ASSET_MIN_SCORE },
+  );
+  if (lookup.state !== "matched") {
+    log.info("real-asset-first: generating instead", {
+      state: lookup.state,
+      why: lookup.why,
+      ...(lookup.state === "error" || lookup.state === "no_db" ? { error: lookup.error } : {}),
+    });
+    return generate(post.imagePrompt, { caption: post.caption, provider });
+  }
+
+  const { match } = lookup;
+  try {
+    const url = /jpe?g/i.test(match.mimeType) ? match.runtimeUrl : await toJpeg(match.runtimeUrl);
+    log.info("real-asset-first: using real shop asset", { assetId: match.assetId, score: match.score, why: lookup.why });
+    return { url, format: "jpeg", kind: "real", realAssetId: match.assetId, why: lookup.why };
+  } catch (err) {
+    log.warn("real-asset-first: matched asset could not be prepared — generating instead", {
+      assetId: match.assetId, error: errMsg(err),
+    });
+    return generate(post.imagePrompt, { caption: post.caption, provider });
+  }
+}
+
+export async function generatePostImage(
+  prompt: string,
+  ctx?: { caption?: string; provider?: string },
+): Promise<PostImage> {
+  let provider = (ctx?.provider ?? (await resolveImageProvider())).toLowerCase();
+
+  const aiProviders = AI_IMAGE_PROVIDERS;
   if (!aiProviders.has(provider)) {
     try {
       const h = await derivePosterCopy(ctx?.caption?.trim() || prompt);
@@ -1429,9 +1508,12 @@ async function evalImage(imageUrl: string): Promise<{ proLook: number | null; sk
       "Consider: lighting, sharpness, composition, and whether it looks studio/cinematic-grade vs amateur or AI-glitchy. " +
       "Penalize garbled text, distorted hands/faces, or muddy composition. " +
       "End with exactly one line: SCORE: <0-100>.";
-    // analyzePhoto is feature-flagged for the SMS damage-assess use case;
-    // name the backend explicitly so this works regardless of that flag.
-    const r = await analyzePhoto({ photoUrl: imageUrl, prompt, provider });
+    // analyzePhoto is feature-flagged for the SMS damage-assess use case.
+    // Until 2026-10-01 this comment claimed naming the backend bypassed that
+    // flag — it did not: the flag check ran first and returned "disabled",
+    // which the old code read as PASS and this gate reads as UNKNOWN (hold).
+    // `internal: true` + an explicit provider is the real bypass.
+    const r = await analyzePhoto({ photoUrl: imageUrl, prompt, provider, internal: true });
     if (!r.ok) {
       log.warn("image-eval call failed — verdict UNKNOWN", { provider, reason: r.reason, error: r.error });
       return { proLook: null, skipped: true, note: `image-eval unavailable (${provider}: ${r.reason}) — verdict UNKNOWN` };
@@ -1605,21 +1687,25 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
     const brief = await buildSignalBrief();
 
     // Generate → eval, regenerating until pass or attempts exhausted.
-    let best: { post: GeneratedPost; image: { url: string; format: "jpeg"; kind: "poster" | "ai" }; scores: IgEvalScores } | null = null;
+    let best: { post: GeneratedPost; image: PostImage; scores: IgEvalScores } | null = null;
     let lastScores: IgEvalScores | null = null;
     let lastPost: GeneratedPost | null = null;
 
     for (let attempt = 0; attempt <= MAX_REGEN_ATTEMPTS; attempt++) {
       const post = await generatePost(brief, opts.forceArchetype, opts.customConcept);
       lastPost = post;
-      const image = await generatePostImage(post.imagePrompt, { caption: post.caption });
+      const image = await selectPostImage(post);
       const [captionEval, imageEval] = await Promise.all([
         evalCaption(post, brief),
         // A branded poster is a deterministic, approved template — not an AI
         // gamble — so the pro-look vision eval (which scores photos) is skipped.
+        // A real shop asset is an operator-captured photo: same exemption,
+        // the gate's reason names the asset.
         image.kind === "poster"
           ? Promise.resolve({ proLook: null, skipped: true, note: "branded poster — deterministic template, eval skipped" })
-          : evalImage(image.url),
+          : image.kind === "real"
+            ? Promise.resolve({ proLook: null, skipped: true, note: `real shop asset ${image.realAssetId} — operator-captured photo, eval skipped` })
+            : evalImage(image.url),
       ]);
       const scores = combineScores(captionEval, imageEval);
       lastScores = scores;
@@ -1753,7 +1839,7 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
     // "image-eval skipped (no REPLICATE_API_KEY)" → 12:17:51 "Instagram image
     // published" — an image nobody scored went to IG + FB. Poster renders are
     // deterministic and pass by construction. Kill switch IG_VISUAL_QA_GATE=false.
-    const visualGate = visualQaGate(image.kind, scores.image, { enabled: visualQaGateEnabled(), minProLook: IMAGE_PRO_LOOK_MIN });
+    const visualGate = visualQaGate(image.kind, scores.image, { enabled: visualQaGateEnabled(), minProLook: IMAGE_PRO_LOOK_MIN, realAssetId: image.realAssetId });
     if (visualGate.block) {
       await logRun({
         archetype: post.archetype, conceptKey: post.conceptKey, slot, slotDate,

@@ -72,11 +72,6 @@
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
     {
-      "file": "apps/nickstire/shared/internalLinks.ts",
-      "symbol": null,
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
       "file": "apps/nickstire/shared/journey.ts",
       "symbol": null,
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
@@ -218,8 +213,13 @@
     },
     {
       "file": "apps/nickstire/server/services/criticPanel.ts",
-      "symbol": null,
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
+      "symbol": "CRITIC_LENSES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The lens definitions (defect-code ownership + focus string per specialist lens) that runSpecialistLens reads to build the one escalated vision call. criticPanel.test.ts and reelCraftCritic.test.ts import it to pin which codes each lens owns, because the only other route is a mocked vision call. Its runtime consumer is escalateIfNeeded -> runSpecialistLens in the same module (wired from renderedQa.runRenderedQaOnJob behind RENDERED_QA_SPECIALIST since 2026-10-01), so the rule is live, not vacuous. Replaces the 2026-08-29 whole-file entry: the module is reachable now."
+    },
+    {
+      "file": "apps/nickstire/server/services/criticPanel.ts",
+      "symbol": "mergePanel",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The pure merge (dedupe on (code, beat), strongest severity wins, ANY block forces repair, a skipped lens is recorded rather than counted clean) that escalateIfNeeded applies to the general+specialist pair. criticPanel.test.ts imports it to pin those rules directly, because the only other route is a mocked vision call. Its runtime consumer is escalateIfNeeded in the same module, so the rule is live, not vacuous."
     },
     {
       "file": "apps/nickstire/server/services/editPlanner.ts",
@@ -523,11 +523,6 @@
     },
     {
       "file": "apps/nickstire/server/cron/jobs/crossSellOutreach.ts",
-      "symbol": null,
-      "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
-    },
-    {
-      "file": "apps/nickstire/server/services/carouselStudio/carouselRender.ts",
       "symbol": null,
       "reason": "baseline 2026-08-29 — pre-existing, not individually reviewed"
     },
@@ -5635,6 +5630,196 @@
       "file": "apps/nickstire/server/services/trendIntel.ts",
       "symbol": "classifyTrend",
       "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The deterministic use/watch/skip classifier consumed by gatherTrends; exported so the test pins the two hard refusals (audio without a licence note, formats needing others' graphics) and the relevance mapping without network."
+    },
+    {
+      "file": "apps/nickstire/shared/topicGraph.ts",
+      "symbol": "TOPIC_NODES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The seeded node set of the Creative Intelligence OS topic graph (README §O). topicGraph.test.ts imports it to assert every path is a live registry route and not a 301 alias — the defect an internal-link recommender would otherwise ship for months. Its runtime consumers are neighbors/routesForSymptom in the same module, reached through symptomForPhrase from customerLanguageMiner, so the data is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/shared/topicGraph.ts",
+      "symbol": "TOPIC_EDGES",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The seeded edge set of the topic graph. topicGraph.test.ts imports it to assert every edge joins two known nodes and carries a why. Its runtime consumers are neighbors/routesForSymptom in the same module."
+    },
+    {
+      "file": "apps/nickstire/shared/topicGraph.ts",
+      "symbol": "neighbors",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Graph traversal for Wave C slices 2+ (creativeAssistant, linkRecommender, README §M/§P) — the consumer that will read it is the next slice on the queue, and the kind filter is pinned by topicGraph.test.ts now so that slice inherits a tested helper. Its runtime consumer today is routesForSymptom in the same module."
+    },
+    {
+      "file": "apps/nickstire/shared/topicGraph.ts",
+      "symbol": "routesForSymptom",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. symptom → registry service routes, the lookup the internal-link recommender (Wave C slice 2, README §P) consumes. topicGraph.test.ts pins that it returns only ALL_ROUTES paths and never a redirect alias, which is the whole point of the helper existing before its consumer."
+    },
+    {
+      "file": "apps/nickstire/server/services/customerLanguageMiner.ts",
+      "symbol": "mineCustomerLanguageFromRows",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The pure core of the customer-language miner (rows in, counted phrases out). customerLanguageMiner.test.ts drives it with planted PII and asserts redactedTokens counts every token, which cannot be asserted through the database wrapper. Its runtime consumer is mineCustomerLanguage in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/igAutopost.ts",
+      "symbol": "selectPostImage",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The image-selection step of the autonomous IG publisher (§K.3 real-asset-first): only an AI provider consults the real-shop pool, a match replaces generation with kind=real, every non-match (including a pool-read ERROR) generates as before. igAutopost.realAssetFirst.test.ts drives it with the lookup mocked and provider/generation injected, which runIgAutopost (its runtime consumer in the same module, inside the regen loop) cannot expose without a live DB, poster renderer and image provider. The rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/realAssetFirst.ts",
+      "symbol": "assertServiceKeywordsAreRoutes",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Returns every SERVICE_KEYWORDS key that is not a group=service path in shared/routes.ts. realAssetFirst.test.ts asserts it is empty, so a matched 'service' can never name a page that does not exist; the map it checks is consumed at runtime by inferRealAssetNeed in the same module (igAutopost, reelDraftPrep, carouselDirector, captureOpportunities)."
+    },
+    {
+      "file": "apps/nickstire/server/services/mediaEnrichment.ts",
+      "symbol": "seasonFor",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Season bucket of a capture instant computed in America/New_York (AGENTS.md §5 Time): mediaEnrichment.test.ts pins the UTC-vs-Cleveland day boundary (03:00Z Dec 1 is still fall), which cannot be asserted through enrichRealShopAsset without a vision provider. Its runtime consumer is enrichRealShopAsset in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/mediaEnrichment.ts",
+      "symbol": "parseEnrichmentReply",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The strict parser every real-asset reader scores against: garbage → null, partial JSON → only present fields, a service path outside ALL_ROUTES or a safe-claim quoting a price is DROPPED, never coerced. mediaEnrichment.test.ts pins each shape directly. Its runtime consumers are enrichRealShopAsset and readEnrichment in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/linkRecommender.ts",
+      "symbol": "W_GRAPH_NEED",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). Scoring weight pinned BY VALUE by server/linkRecommender.test.ts (orphan money page boost = exactly W_GRAPH_NEED). Runtime consumer: scorePair in the same module, reached via seoTools.linkRecommendations."
+    },
+    {
+      "file": "apps/nickstire/server/services/linkRecommender.ts",
+      "symbol": "P_CANNIBALIZATION",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). Penalty pinned by value by linkRecommender.test.ts (cannibal pair = exactly P_CANNIBALIZATION). Runtime consumer: scorePair, same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/linkRecommender.ts",
+      "symbol": "pairKey",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). Builds the sorted cannibalization pair key; the test constructs GscSignals with it. Runtime consumer: loadGscSignals + scorePair, same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/linkRecommender.ts",
+      "symbol": "validateTarget",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). The registry/redirect/noindex gate; the test pins 'redirected' for /euclid-ohio and 'noindex' for /pay. Runtime consumer: recommendLinks, same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/linkRecommender.ts",
+      "symbol": "isDescriptiveAnchor",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). Anchor rule (<=8 words, no 'click here'); every recommended anchor is asserted through it. Runtime consumer: anchorsFor, same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/linkRecommender.ts",
+      "symbol": "anchorsFor",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). Three distinct anchors avoiding taken ones; the test proves a second call never repeats the first. Runtime consumer: scorePair + recommendLinks, same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/linkRecommender.ts",
+      "symbol": "scorePair",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). One-pair scorer; each signal has a present/absent positive-control pair in the test. Runtime consumer: recommendLinks, same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/linkRecommender.ts",
+      "symbol": "recommendLinks",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). PROMPT-PACK §10 entry point for one source page. Runtime consumer: buildAdminLinkRecommendations (seoTools.linkRecommendations), same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/linkRecommender.ts",
+      "symbol": "verifyRenderedLinks",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). Advisory rendered-truth check over prerendered/<path>/index.html; the test uses a temp tree and the committed /brakes snapshot. Runtime consumer: buildAdminLinkRecommendations evidence.rendered."
+    },
+    {
+      "file": "apps/nickstire/shared/linkGraph.ts",
+      "symbol": "SITEWIDE_COMPONENT_LINKS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). Mirror of the hrefs InternalLinks.tsx renders; client/src/__tests__/internal-links-parity.test.ts fails when the two drift. Runtime consumer: curatedEdges (inbound counts), same module."
+    },
+    {
+      "file": "apps/nickstire/shared/linkGraph.ts",
+      "symbol": "servicePathFor",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). Slug -> canonical route (alias-aware); shared/linkGraph.test.ts pins /general-repair -> /auto-repair-near-me. Runtime consumer: curatedEdges, same module."
+    },
+    {
+      "file": "apps/nickstire/shared/linkGraph.ts",
+      "symbol": "cityPathFor",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). SERVICE_TO_CITIES slug -> /<slug>-auto-repair only when registered; the test pins the cuyahoga-county null. Runtime consumer: curatedEdges, same module."
+    },
+    {
+      "file": "apps/nickstire/shared/linkGraph.ts",
+      "symbol": "servicesForTagWords",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). Word-level tag -> service mapper replacing the exact-key one that matched nothing; positive control in shared/linkGraph.test.ts. Runtime consumers: validateServiceChips (BlogPost.tsx) + curatedRelation."
+    },
+    {
+      "file": "apps/nickstire/client/src/components/RelatedServices.tsx",
+      "symbol": "resolveRelatedSlugs",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). The grid's slug decision (prop > curated graph > legacy fallback), exported so related-services-curated.test.tsx exercises the real function instead of a copy. Runtime consumer: the default export in the same file."
+    },
+    {
+      "file": "apps/nickstire/server/services/metaSocial.ts",
+      "symbol": "parseFacebookInsights",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). Pure mapper for /{post-id}/insights rows, pinned by server/metaSocial.fbInsights.test.ts (reaction sum, malformed input). Runtime consumer: fetchFacebookPostInsights, same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/facebookVariant.ts",
+      "symbol": "MAX_FB_HASHTAGS",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). The surviving-hashtag cap asserted by server/facebookVariant.test.ts. Runtime consumer: buildFacebookCaption, same module."
+    },
+    {
+      "file": "apps/nickstire/server/services/facebookVariant.ts",
+      "symbol": "deriveQuestion",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). Topic-lexicon question picker pinned by facebookVariant.test.ts (tires/battery/default). Runtime consumer: buildFacebookCaption, same module."
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/instagram-data.ts",
+      "symbol": "FB_SNAPSHOT_PREFIX",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). The 'fb:' id prefix that keeps Facebook rows apart from IG media ids in ig_metric_snapshots; server/instagram-data.fbInsights.test.ts asserts the written postId. Runtime consumer: syncFacebookPostInsights, same module."
+    },
+    {
+      "file": "apps/nickstire/server/pipelines/instagram-data.ts",
+      "symbol": "syncFacebookPostInsights",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT (Wave C link layer / Facebook branch, 2026-10-01). FB insights lane exported so the test drives it with a queued select and a mocked Graph read; runtime consumer: syncInstagramPosts in the same module (runs after the IG loop every sync)."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelBriefGen.ts",
+      "symbol": "clampDurationLane",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Pure clamp of a duration_v1 lane to REEL_OUTPUT_RULES (15-35 s storyboard ceiling, 24 s render cap). reelBriefGenDuration.test.ts imports it to pin that the 45-60 s lane is capped and MARKED capped rather than targeting a length validateReelLengthTarget would reject. Its runtime consumer is resolveDurationTarget in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelBriefGen.ts",
+      "symbol": "buildDurationLaneFragment",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The prompt block the duration_v1 arm appends. reelBriefGenDuration.test.ts imports it to pin the end-second bounds and the capped wording without an LLM call. Its runtime consumer is generateReelBriefAI in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelRepetitionHistory.ts",
+      "symbol": "classifyHookGrammar",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Deterministic hook-grammar classifier (the dimension §R hypothesis 3 compares). reelRepetitionHistory.test.ts imports it to pin the five grammars and the quote-before-question order. Its runtime consumer is getRecentReelSignals in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelRepetitionHistory.ts",
+      "symbol": "classifyCtaFamily",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. CTA-family classifier that reads the caption BEFORE the declared ask (which defaults to profile on every brief). reelRepetitionHistory.test.ts imports it to pin that order. Its runtime consumer is getRecentReelSignals in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/reelRepetitionHistory.ts",
+      "symbol": "durationBucket",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Declared storyboard length bucketed to 5 s, null without beats. reelRepetitionHistory.test.ts imports it to pin the bucket boundary. Its runtime consumer is getRecentReelSignals in the same module (feeds the Creative Assistant's duration_v1 recommendation), so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/shared/reelStructureLearning.ts",
+      "symbol": "scoreForObjective",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Pattern Lab 2.0 objective scorer; `blended` delegates to scorePost so production ranking is unchanged until an objective is passed. reelStructureLearning.test.ts imports it to pin that identity and that conversion is null (unknown) without profile/site actions. Its runtime consumer is rankPatternsByDistribution in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeAssistant.ts",
+      "symbol": "composeCreativeCards",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The pure ranking half of the Creative Assistant (README §M). creativeAssistant.test.ts imports it to pin the five-card positive control and the omission rule (a failed source removes exactly its cards) without a database. Its runtime consumer is buildCreativeAssistant in the same module, reached by instagramAdmin.getCreativeAssistant, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeAssistant.ts",
+      "symbol": "computeFormatFit",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. Carousel-vs-image saves/reach over the latest 90-day snapshots, null (unknown) under 3 posts per format. creativeAssistant.test.ts imports it to pin unknown-vs-error. Its runtime consumer is composeCreativeCards in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/creativeAssistant.ts",
+      "symbol": "significantWords",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The tokenizer every topic match in the assistant (freshness, asset evidence, article reuse) runs on. creativeAssistant.test.ts imports it to pin the stoplist. Its runtime consumer is sameTopic in the same module, so the rule is live, not vacuous."
+    },
+    {
+      "file": "apps/nickstire/server/services/contentExperimentStore.ts",
+      "symbol": "experimentEpisodeKey",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The one derivation of an episode's experiment key (brief id when the enqueue site has it, reel_job_<id> fallback), consumed internally by assignEpisodeToActiveExperiment; exported so server/contentExperimentArmKey.test.ts pins that the RECORDED arm is derived from the same key generation resolves on — the 2026-10-01 mismatch that mis-recorded ~half of all episodes."
     }
   ]
 }

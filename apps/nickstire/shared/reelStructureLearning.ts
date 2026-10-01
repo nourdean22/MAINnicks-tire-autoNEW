@@ -21,30 +21,128 @@
 import { scorePost, type ThemePerformanceRow } from "./reelPerformancePrior";
 import { selectRotationPattern, type RotatablePattern } from "./reelStructureRotation";
 
-export interface PatternPerformanceRow extends ThemePerformanceRow {
+export interface PatternPerformanceRow extends ObjectiveMetrics {
   patternId: string;
 }
+
+/**
+ * Pattern Lab 2.0 (README §N): the objective a ranking is FOR.
+ *
+ * `blended` is the pre-existing saves 45 / shares 35 / retention 20 score
+ * (reelPerformancePrior.scorePost) and remains the default everywhere, so
+ * production ranking does not move until a caller passes an objective.
+ */
+export type PatternObjective = "blended" | "discovery" | "reference" | "conversation" | "conversion";
+
+export type ScoreBasis =
+  | "saves" | "shares" | "retention"
+  | "watch_ratio" | "comments" | "profile_visits" | "site_actions";
 
 export interface ScoredPattern {
   patternId: string;
   score: number;
   posts: number;
-  basis: Array<"saves" | "shares" | "retention">;
+  basis: ScoreBasis[];
+}
+
+/**
+ * One post's metrics for objective scoring. Extends the distribution row with
+ * the fields the non-blended objectives need; every one is optional and a
+ * missing one stays UNKNOWN (dropped from the weighting), never zero.
+ */
+export interface ObjectiveMetrics extends ThemePerformanceRow {
+  comments?: number | null;
+  /** Profile visits attributed to the post, when the sync captured them. */
+  profileVisits?: number | null;
+  /** Site / call / directions / booking taps attributed to the post. */
+  siteActions?: number | null;
+  /** The reel's own length, so watch time can become a ratio. */
+  durationSeconds?: number | null;
 }
 
 const MIN_POSTS_PER_PATTERN = 3;
 const MIN_TOTAL_MEASURED_PATTERN_POSTS = 12;
 const EXPLORATION_EVERY_N_SELECTIONS = 4;
 
-export function rankPatternsByDistribution(rows: PatternPerformanceRow[]): ScoredPattern[] {
-  const acc = new Map<string, { total: number; posts: number; basis: Set<string> }>();
+/** Normalise a per-reach rate into 0..1 with the same 10% ceiling scorePost uses. */
+function perReach(numerator: number | null | undefined, reach: number | null | undefined, ceiling = 0.1): number | null {
+  if (numerator == null || reach == null || reach <= 0) return null;
+  const r = numerator / reach;
+  if (!Number.isFinite(r) || r < 0) return null;
+  return Math.min(1, r / ceiling);
+}
+
+function weighted(parts: Array<[value: number | null, weight: number, basis: ScoreBasis]>): { score: number; basis: ScoreBasis[] } | null {
+  const present = parts.filter((p): p is [number, number, ScoreBasis] => p[0] != null);
+  if (!present.length) return null;
+  const totalWeight = present.reduce((s, [, w]) => s + w, 0);
+  return {
+    score: present.reduce((s, [v, w]) => s + v * w, 0) / totalWeight,
+    basis: present.map(([, , b]) => b),
+  };
+}
+
+/**
+ * Score ONE post for an objective. Returns null when nothing the objective
+ * needs was reported — "unknown", which the ranker drops rather than averages
+ * in as a bad post. `blended` delegates to scorePost so the default ranking
+ * is byte-identical to before this function existed.
+ */
+export function scoreForObjective(
+  row: ObjectiveMetrics,
+  objective: PatternObjective = "blended",
+): { score: number; basis: ScoreBasis[] } | null {
+  const reach = row.reach ?? row.views;
+  switch (objective) {
+    case "blended":
+      return scorePost(row);
+    case "discovery": {
+      const survival = row.skipRate != null && Number.isFinite(row.skipRate)
+        ? Math.max(0, Math.min(1, 1 - row.skipRate))
+        : null;
+      const watchRatio = row.avgWatchTimeMs != null && row.durationSeconds != null && row.durationSeconds > 0
+        ? Math.max(0, Math.min(1, row.avgWatchTimeMs / (row.durationSeconds * 1000)))
+        : null;
+      // Reach is the denominator of every rate here, so it is not also a term;
+      // non-follower reach would be, and no snapshot stores it.
+      return weighted([
+        [survival, 0.4, "retention"],
+        [watchRatio, 0.2, "watch_ratio"],
+        [perReach(row.shares, reach), 0.4, "shares"],
+      ]);
+    }
+    case "reference":
+      return weighted([
+        [perReach(row.saved, reach), 0.6, "saves"],
+        [perReach(row.shares, reach), 0.4, "shares"],
+      ]);
+    case "conversation":
+      return weighted([
+        [perReach(row.comments, reach, 0.05), 0.6, "comments"],
+        [perReach(row.shares, reach), 0.4, "shares"],
+      ]);
+    case "conversion":
+      // Nothing proxies a conversion: without profile/site actions this is
+      // UNKNOWN, and the caller sees an empty ranking rather than a guess.
+      return weighted([
+        [perReach(row.profileVisits, reach, 0.05), 0.5, "profile_visits"],
+        [perReach(row.siteActions, reach, 0.02), 0.5, "site_actions"],
+      ]);
+  }
+}
+
+export function rankPatternsByDistribution(
+  rows: PatternPerformanceRow[],
+  objective: PatternObjective = "blended",
+): ScoredPattern[] {
+  const acc = new Map<string, { total: number; posts: number; basis: Set<ScoreBasis> }>();
 
   for (const row of rows) {
     const id = String(row.patternId ?? "").trim();
     if (!id) continue;
-    const scored = scorePost(row);
+    const scored = scoreForObjective(row, objective);
     if (!scored) continue;
-    const cur = acc.get(id) ?? { total: 0, posts: 0, basis: new Set<string>() };
+    const cur = acc.get(id) ?? { total: 0, posts: 0, basis: new Set<ScoreBasis>() };
     cur.total += scored.score;
     cur.posts += 1;
     for (const b of scored.basis) cur.basis.add(b);
@@ -56,7 +154,7 @@ export function rankPatternsByDistribution(rows: PatternPerformanceRow[]): Score
       patternId,
       score: v.total / v.posts,
       posts: v.posts,
-      basis: [...v.basis] as ScoredPattern["basis"],
+      basis: [...v.basis],
     }))
     .sort((a, b) => b.score - a.score || b.posts - a.posts || a.patternId.localeCompare(b.patternId));
 }

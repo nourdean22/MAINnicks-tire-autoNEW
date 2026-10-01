@@ -251,4 +251,19 @@ export const seoToolsRouter = router({
     }
     return { ok: true, authError: null, sitemaps };
   }),
+
+  /** Wave C semantic internal linking (README §P): scored source→target
+   *  recommendations with evidence. READ-ONLY and admin-only — nothing here
+   *  edits a page; the operator takes a recommendation into a client PR. GSC
+   *  and DB-article states are reported explicitly (HEALTHY/UNAVAILABLE), never
+   *  collapsed into "no opportunities". */
+  linkRecommendations: adminProcedure
+    .input(z.object({
+      sourcePath: z.string().min(1).max(200).optional(),
+      limit: z.number().int().min(1).max(200).optional(),
+    }).optional())
+    .query(async ({ input }) => {
+      const { buildAdminLinkRecommendations } = await import("../services/linkRecommender");
+      return buildAdminLinkRecommendations({ sourcePath: input?.sourcePath, limit: input?.limit });
+    }),
 });

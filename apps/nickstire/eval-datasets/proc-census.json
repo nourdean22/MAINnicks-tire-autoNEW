@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-01T16:35:31.789Z",
-  "count": 768,
+  "generatedAt": "2026-10-01T16:55:00.909Z",
+  "count": 771,
   "procedures": [
     "mutation.adStudio.generate",
     "mutation.adStudio.post",
@@ -541,9 +541,11 @@
     "query.instagramAdmin.getActiveSlate",
     "query.instagramAdmin.getAllDrafts",
     "query.instagramAdmin.getAnalytics",
+    "query.instagramAdmin.getCaptureOpportunities",
     "query.instagramAdmin.getComments",
     "query.instagramAdmin.getConnectionStatus",
     "query.instagramAdmin.getCreationBrief",
+    "query.instagramAdmin.getCreativeAssistant",
     "query.instagramAdmin.getDeliveryIssues",
     "query.instagramAdmin.getHiggsfieldHealth",
     "query.instagramAdmin.getLiveFeed",
@@ -665,6 +667,7 @@
     "query.reviews.google",
     "query.search.instant",
     "query.segments.segmentCustomer",
+    "query.seoTools.linkRecommendations",
     "query.seoTools.seoFixDrafts",
     "query.seoTools.sitemapStatus",
     "query.seoTools.weeklyAudit",

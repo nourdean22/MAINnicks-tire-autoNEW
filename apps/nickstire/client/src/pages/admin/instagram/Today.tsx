@@ -10,6 +10,7 @@ import type { InstagramStudioDraft } from "../../../../shared/instagramStudio";
 import type { IgView } from "./igViews";
 import { writeCreateHandoff } from "./igViews";
 import { HQ } from "./HQ";
+import { CreativeAssistantCards } from "./CreativeAssistantCards";
 
 /**
  * TODAY — the command center the audit found missing. One ranked list of what
@@ -104,6 +105,11 @@ export default function Today({ onNavigate }: { onNavigate: (view: IgView) => vo
 
   return (
     <div className="space-y-6 pb-12">
+      {/* Wave C (README §M/§S): the "what should we make?" recommendation the
+          audit found missing from Today. Sits above the decision list so the
+          day opens on the strongest opportunity, not only on what is broken. */}
+      <CreativeAssistantCards onNavigate={onNavigate} />
+
       <Card className="border-primary/30">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg"><ShieldAlert className="h-5 w-5 text-primary" /> Needs your decision</CardTitle>

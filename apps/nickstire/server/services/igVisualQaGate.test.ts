@@ -33,6 +33,14 @@ describe("visualQaGate — UNKNOWN is not PASS", () => {
     expect(d).toMatchObject({ block: false, state: "deterministic" });
   });
 
+  it("real shop asset clears deterministically and the reason names the asset (§K.3)", () => {
+    const d = visualQaGate("real", { proLook: null, skipped: true, note: "real shop asset ma_rotor — operator-captured photo, eval skipped" }, { ...on, realAssetId: "ma_rotor" });
+    expect(d).toMatchObject({ block: false, state: "deterministic" });
+    expect(d.reason).toBe("real shop asset ma_rotor — operator-captured photo, rights real_shop");
+    // Without the id the gate still clears but says the id is missing rather than inventing one.
+    expect(visualQaGate("real", { proLook: null, skipped: true, note: "" }, on).reason).toContain("(id missing)");
+  });
+
   it("kill switch clears everything and says so", () => {
     const d = visualQaGate("ai", { proLook: null, skipped: true, note: "" }, { enabled: false, minProLook: MIN });
     expect(d).toMatchObject({ block: false, state: "disabled" });

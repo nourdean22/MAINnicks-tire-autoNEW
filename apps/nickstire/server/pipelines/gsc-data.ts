@@ -48,6 +48,7 @@ import { searchPerformance } from "../../drizzle/schema";
 import { desc, eq, gte, lte, sql, and } from "drizzle-orm";
 
 import { db } from "../lib/db-helper";
+import { getBusinessDateKey } from "../lib/timezoneAssert";
 
 import { createLogger } from "../lib/logger";
 
@@ -1255,6 +1256,112 @@ export async function runGscPipeline(): Promise<{
       cannibalizationIssues: cannibalization.length,
     },
   };
+}
+
+// ─── RISING QUERIES (content topic signal) ───────────────
+
+export interface RisingQuery {
+  query: string;
+  /** Impressions in the current window. */
+  impressions: number;
+  /** Impressions in the window immediately before it, same length. */
+  previousImpressions: number;
+  deltaImpressions: number;
+  clicks: number;
+  /** Impression-weighted average position in the current window, 1 decimal. */
+  position: number;
+}
+
+/**
+ * Queries gaining impressions window over window — demand the site is being
+ * SHOWN for, which is the right seed for content (a click is demand already
+ * captured; an impression without a click is demand still on the table).
+ *
+ * Reads the top 200 queries of the current window by impressions, joins the
+ * prior window, and returns the `limit` largest positive deltas. Windows are
+ * cut on the shop's calendar (getBusinessDateKey, Eastern) — the `date` column
+ * is GSC's own day, so a UTC cut would shift the boundary by a day for the
+ * evening sync.
+ *
+ * Returns [] only when the query ran and nothing is rising. An unavailable
+ * database THROWS — the caller (contentTopicSignals) records that as a failed
+ * source rather than an empty one; the sibling helpers in this file return []
+ * for both, which is the confident-empty shape the empty-vs-error rule exists
+ * to stop, and new code here does not inherit it.
+ */
+export async function getRisingQueries(opts?: {
+  days?: number;
+  limit?: number;
+  searchType?: string;
+  now?: Date;
+}): Promise<RisingQuery[]> {
+  const d = await db();
+  if (!d) throw new Error("database unavailable");
+
+  const days = Math.max(1, opts?.days ?? 7);
+  const limit = opts?.limit ?? 15;
+  const searchType = opts?.searchType ?? "web";
+  const now = opts?.now ?? new Date();
+  const dayMs = 86400000;
+  const currentEnd = getBusinessDateKey(now);
+  const currentStart = getBusinessDateKey(new Date(now.getTime() - (days - 1) * dayMs));
+  const previousEnd = getBusinessDateKey(new Date(now.getTime() - days * dayMs));
+  const previousStart = getBusinessDateKey(new Date(now.getTime() - (2 * days - 1) * dayMs));
+
+  const [current, previous] = await Promise.all([
+    d
+      .select({
+        query: searchPerformance.query,
+        impressions: sql<number>`SUM(${searchPerformance.impressions})`,
+        clicks: sql<number>`SUM(${searchPerformance.clicks})`,
+        position: sql<number>`CASE WHEN SUM(${searchPerformance.impressions}) > 0
+          THEN ROUND(SUM(${searchPerformance.position} * ${searchPerformance.impressions})
+                     / SUM(${searchPerformance.impressions}) / 100, 1)
+          ELSE 0 END`,
+      })
+      .from(searchPerformance)
+      .where(and(
+        gte(searchPerformance.date, currentStart),
+        lte(searchPerformance.date, currentEnd),
+        eq(searchPerformance.searchType, searchType),
+      ))
+      .groupBy(searchPerformance.query)
+      .orderBy(sql`SUM(${searchPerformance.impressions}) DESC`)
+      .limit(200),
+    d
+      .select({
+        query: searchPerformance.query,
+        impressions: sql<number>`SUM(${searchPerformance.impressions})`,
+      })
+      .from(searchPerformance)
+      .where(and(
+        gte(searchPerformance.date, previousStart),
+        lte(searchPerformance.date, previousEnd),
+        eq(searchPerformance.searchType, searchType),
+      ))
+      .groupBy(searchPerformance.query),
+  ]);
+
+  const prev = new Map<string, number>(
+    (previous as Array<{ query: string; impressions: unknown }>).map((r) => [r.query, Number(r.impressions)]),
+  );
+  const rows: RisingQuery[] = (current as Array<{ query: string; impressions: unknown; clicks: unknown; position: unknown }>)
+    .map((r) => {
+      const impressions = Number(r.impressions);
+      const previousImpressions = prev.get(r.query) ?? 0;
+      return {
+        query: r.query,
+        impressions,
+        previousImpressions,
+        deltaImpressions: impressions - previousImpressions,
+        clicks: Number(r.clicks),
+        position: Number(r.position),
+      };
+    })
+    .filter((r) => r.deltaImpressions > 0)
+    .sort((a, b) => b.deltaImpressions - a.deltaImpressions || b.impressions - a.impressions);
+
+  return rows.slice(0, limit);
 }
 
 // ─── HELPERS ─────────────────────────────────────────────

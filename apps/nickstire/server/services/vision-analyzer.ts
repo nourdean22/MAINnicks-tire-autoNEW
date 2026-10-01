@@ -85,6 +85,16 @@ export interface AnalyzePhotoOptions {
   model?: string;
   /** Optional timeout */
   timeoutMs?: number;
+  /**
+   * INTERNAL caller (2026-10-01): the `photo_assess_enabled` flag gates the
+   * customer-facing MMS damage-assess pipeline (its description says so),
+   * not this backend. The IG autopost critic and the real-shop media
+   * enrichment are operator-side reads with an explicit provider; a shop
+   * that never armed the MMS flag must not lose its visual QA — and under
+   * igVisualQaGate "disabled" is UNKNOWN, which HOLDS every autonomous
+   * static post. Honoured only together with an explicit `provider`.
+   */
+  internal?: boolean;
 }
 
 export interface AnalyzePhotoResult {
@@ -159,7 +169,8 @@ export async function analyzePhoto(opts: AnalyzePhotoOptions): Promise<AnalyzePh
   if (!isValidPublicUrl(opts.photoUrl)) {
     return { ok: false, error: "photoUrl is not a public HTTPS URL", reason: "invalid_url" };
   }
-  if (!(await isPhotoAssessEnabled())) {
+  const bypassMmsFlag = opts.internal === true && !!opts.provider;
+  if (!bypassMmsFlag && !(await isPhotoAssessEnabled())) {
     return { ok: false, error: "feature flag off", reason: "disabled" };
   }
 

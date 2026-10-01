@@ -25,7 +25,8 @@ function buildAllLinks(reviewCountDisplay: string, reviewRating: string): LinkIt
   { href: "/diagnostics", label: "Check Engine Light Near Me", desc: "Free scan with repair — OBD-II + live data" },
   { href: "/emissions", label: "Emissions & E-Check", desc: "Ohio E-Check repair and testing" },
   { href: "/oil-change", label: "Oil Change Cleveland", desc: "Quick oil change service — conventional and synthetic" },
-  { href: "/general-repair", label: "Auto Repair Near Me", desc: "Suspension, steering, exhaust, cooling — full service" },
+  // canonical: /general-repair is a 301 alias (server/_core/redirects.ts) — link the destination.
+  { href: "/auto-repair-near-me", label: "Auto Repair Near Me", desc: "Suspension, steering, exhaust, cooling — full service" },
   { href: "/ac-repair", label: "AC & Heating Repair", desc: "AC check, recharge, compressor repair" },
   { href: "/transmission", label: "Transmission Repair", desc: "Shifting problems, fluid service, scan-tool checks" },
   { href: "/electrical", label: "Electrical Repair", desc: "Wiring, sensors, modules — we tell you what's wrong" },
