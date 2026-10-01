@@ -366,17 +366,9 @@ PROMISES (30d, from the ledger): ${ps.created} made · ${kept} kept` +
     let masterBlock = "";
     try {
       const { generateMasterIntelligenceReport } = await import("../../services/masterIntelligence");
+      const { formatMasterBriefBlock } = await import("./morningBriefMaster");
       const master = await generateMasterIntelligenceReport();
-      const s = master.summary;
-      const hrArr = master.customers.churnRisk?.highRisk;
-      const churnCount = Array.isArray(hrArr) ? hrArr.length : 0;
-      const rv = master.marketing.reviewVelocity;
-      const reviewRate = (typeof rv?.weeklyRate === "number" ? rv.weeklyRate : 0) || (typeof rv?.monthlyRate === "number" ? rv.monthlyRate : 0);
-      masterBlock = `\nBUSINESS HEALTH: ${s.score}/100`;
-      masterBlock += `\n🔔 Alert: ${s.topAlert}`;
-      masterBlock += `\n💡 Opportunity: ${s.topOpportunity}`;
-      masterBlock += `\n⚠️ Risk: ${s.topRisk}`;
-      masterBlock += `\nKEY: Churn risk: ${churnCount} | New customers: ${newCustomersMonth[0]?.count ?? 0} | Reviews/wk: ${reviewRate}`;
+      masterBlock = formatMasterBriefBlock(master, newCustomersMonth[0]?.count ?? 0);
     } catch (e) {
       log.warn("Master intelligence for brief failed:", { error: e instanceof Error ? e.message : String(e) });
     }
@@ -444,6 +436,7 @@ FORMAT RULES:
 - Structure: Greeting → Headline number → Yesterday recap → Pipeline status → Money snapshot → Customer insight → Pattern from memory → What needs attention (ONLY from the EXCEPTIONS block) → Personal check-in → Motivational closer
 - Be direct. No fluff. Like a chief of staff briefing the CEO.
 - This brief REPORTS; it does not assign work. Do NOT write a ranked priority list, a "Top 3", a to-do list, or any list of things Nour should do today. The only things you may present as needing attention are the ones the EXCEPTIONS block explicitly names, phrased as what they are, and if that block is empty or reports a value as UNKNOWN you say so plainly and move on. NEVER infer, rank, or invent a priority from the surrounding numbers — an invented priority is indistinguishable from an evidence-backed one once it reaches Telegram, and a quiet day is allowed to be quiet.
+- BUSINESS HEALTH is a modeled ESTIMATE, not a measurement: if you mention it, call it an estimate. If it reads UNKNOWN, say the score is unknown and give no number. Any count the data marks "unknown" stays unknown in the brief, never 0.
 - If stale leads > 3, call it out as lost money.
 - If revenue is strong, acknowledge it. If weak, flag it.
 - Reference a SPECIFIC customer by name if there's a follow-up opportunity.
