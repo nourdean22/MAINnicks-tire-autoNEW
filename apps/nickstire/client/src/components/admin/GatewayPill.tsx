@@ -11,6 +11,7 @@
  *   - not configured → red dot, "Gateway: not configured"
  *   - configured + online → emerald dot, "Live"
  *   - configured + offline → amber dot, "Gateway offline"
+ *   - status read failed   → grey dot, "Gateway status unknown" (Q-23 phase 9)
  *
  * Refetches every 60s so transient F25e drops surface quickly.
  */
@@ -22,8 +23,23 @@ export default function GatewayPill() {
   const health = trpc.sms.gatewayHealth.useQuery(undefined, { refetchInterval: 60_000 });
   const shopOnline = health.data?.online ?? false;
   const shopConfigured = status.data?.shopGateway?.configured ?? false;
-  const tone = !shopConfigured ? "bg-red-400" : shopOnline ? "bg-emerald-400" : "bg-amber-400";
-  const label = !shopConfigured ? "Gateway: not configured" : shopOnline ? "Live" : "Gateway offline";
+  // Q-23 phase 9 · a failed status read (our query, or the vendor API) is not
+  // the phone going offline. Say "unknown" rather than blame the device.
+  const statusUnknown = health.isError || health.data?.readable === false;
+  const tone = !shopConfigured
+    ? "bg-red-400"
+    : statusUnknown
+      ? "bg-foreground/30"
+      : shopOnline
+        ? "bg-emerald-400"
+        : "bg-amber-400";
+  const label = !shopConfigured
+    ? "Gateway: not configured"
+    : statusUnknown
+      ? "Gateway status unknown"
+      : shopOnline
+        ? "Live"
+        : "Gateway offline";
   return (
     <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-foreground/[0.04] border border-border/30 rounded-full text-[11px] text-foreground/60">
       <span className={`w-1.5 h-1.5 rounded-full ${tone}`} />
