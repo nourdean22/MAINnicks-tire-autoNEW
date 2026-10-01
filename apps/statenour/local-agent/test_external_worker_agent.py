@@ -281,6 +281,60 @@ class ExternalWorkerAgentTests(unittest.TestCase):
             ["local-qwen", "chatgpt-plan", "codex", "claude-code", "antigravity"],
         )
 
+    def test_contextual_routing_inherits_prior_user_request_for_retry(self):
+        prior = "# MAX-EFFORT DEEP RESEARCH\nProduce a source-backed competitive intelligence report."
+        latest = "try again this time no sloppy or lazy work"
+        effective = worker.contextual_routing_prompt(latest, prior)
+        self.assertIn(prior, effective)
+        self.assertIn(latest, effective)
+        self.assertTrue(worker.auto_research_requested(effective))
+
+    def test_contextual_routing_does_not_inherit_prior_for_new_topic(self):
+        prior = "Deep research the tire market with sources."
+        latest = "What is 2 + 2?"
+        self.assertEqual(worker.contextual_routing_prompt(latest, prior), latest)
+        self.assertFalse(worker.auto_research_requested(latest))
+
+    def test_contextual_retry_preserves_code_routing_without_research_promotion(self):
+        effective = worker.contextual_routing_prompt(
+            "continue",
+            "Debug this TypeScript repository and fix the failing tests.",
+        )
+        self.assertFalse(worker.auto_research_requested(effective))
+        self.assertEqual(
+            worker.auto_interactive_candidates(effective),
+            ["codex", "claude-code", "chatgpt-plan", "antigravity", "local-qwen"],
+        )
+
+    def test_nour_auto_promotes_research_retry_to_research_orchestrator(self):
+        prior = "# MAX-EFFORT DEEP RESEARCH + COMPETITIVE INTELLIGENCE\n" + ("evidence sources report " * 40)
+        latest = "try again this time no sloppy or lazy work"
+        fake = {
+            "status": "completed",
+            "result": {
+                "laneId": "nour-research",
+                "status": "completed",
+                "output": "report",
+            },
+        }
+        with patch.object(worker, "resolve_workspace", return_value=Path.cwd()), patch.object(
+            worker, "probe_lanes", return_value={"claude-code": {"health": "ready", "quota": "unknown"}}
+        ), patch.object(worker, "run_research_orchestrator", return_value=fake) as research:
+            response = worker.execute_interactive_request(
+                {
+                    "model": "nour-auto",
+                    "prompt": "SYSTEM:\ncontext\n\nUSER:\n" + prior + "\n\nUSER:\n" + latest,
+                    "routingPrompt": latest,
+                    "priorUserPrompt": prior,
+                    "workspaceKey": "repo",
+                }
+            )
+        self.assertTrue(response["autoPromotedToResearch"])
+        self.assertEqual(response["requestedModel"], "nour-auto")
+        question = research.call_args.args[0]
+        self.assertIn(prior.strip(), question)
+        self.assertIn(latest, question)
+
     def test_interactive_request_reuses_worker_contract_and_forces_read_only(self):
         lanes = {"codex": {"health": "ready", "quota": "available"}}
         result_payload = {
@@ -538,6 +592,23 @@ class ExternalWorkerAgentTests(unittest.TestCase):
         self.assertEqual(response["result"]["sourceCount"], 1)
         self.assertEqual(receipt["status"], "degraded")
 
+    def test_research_receipt_survives_lone_surrogate_from_web_content(self):
+        receipt = {
+            "question": "Research malformed web unicode",
+            "status": "complete",
+            "synthesis": "valid → text plus broken " + "\udc9d",
+            "sources": ["https://example.com/source"],
+        }
+        with TemporaryDirectory() as tmp, patch.object(worker, "RESEARCH_DIR", Path(tmp)):
+            json_path, md_path = worker.persist_research_receipt(receipt)
+            parsed = json.loads(Path(json_path).read_text(encoding="utf-8"))
+            markdown = Path(md_path).read_text(encoding="utf-8")
+        self.assertEqual(parsed["status"], "complete")
+        self.assertIn("valid", parsed["synthesis"])
+        self.assertIn("valid", markdown)
+        self.assertTrue(Path(json_path).name.endswith(".json"))
+        self.assertTrue(Path(md_path).name.endswith(".md"))
+
     def test_research_complete_requires_at_least_one_fetched_page(self):
         def fake_research_call(prompt, workspace, lanes, *, web_search, timeout_seconds):
             if "research planner" in prompt:
@@ -574,6 +645,157 @@ class ExternalWorkerAgentTests(unittest.TestCase):
         self.assertEqual(response["result"]["researchStatus"], "degraded")
         self.assertEqual(response["result"]["sourceCount"], 1)
         self.assertEqual(receipt["fetchedSources"], [])
+        self.assertIn("no_fetched_pages", receipt["degradationReasons"])
+
+    def test_long_research_mandate_compiles_tail_requirements_into_all_stages(self):
+        tail_marker = "TAIL_REQUIREMENT_MUST_SURVIVE"
+        question = (
+            ("Detailed research requirement. " * 260)
+            + tail_marker
+            + "\n# PART XL - RESEARCH DELIVERABLES"
+            + "\n## Take / Reject / Transform matrix"
+            + "\n## Acceptance tests"
+            + "\n## Do nothing comparison"
+            + "\n## Conclusion-changing evidence"
+            + "\n# FINAL DECISION STANDARD"
+            + "\nPrefer the smallest verified improvement over duplicate machinery."
+        )
+        brief = "COMPILED_BRIEF " + tail_marker
+
+        def fake_research_call(prompt, workspace, lanes, *, web_search, timeout_seconds):
+            if "research planner and mandate compiler" in prompt:
+                self.assertIn(tail_marker, prompt)
+                self.assertEqual(timeout_seconds, 75)
+                return {
+                    "ok": True,
+                    "provider": "claude-code",
+                    "model": "planner",
+                    "output": json.dumps({"brief": brief, "threads": ["q1"]}),
+                    "sources": [],
+                    "failures": [],
+                }
+            if "SEARCH THREAD:\nq1" in prompt:
+                self.assertIn(brief, prompt)
+                return {
+                    "ok": True,
+                    "provider": "claude-code",
+                    "model": "web",
+                    "output": "FACT one",
+                    "sources": ["https://example.com/one"],
+                    "retrieval": {
+                        "retrievalVerified": True,
+                        "searchResultSources": ["https://example.com/one"],
+                        "fetchedSources": ["https://example.com/one"],
+                    },
+                    "failures": [],
+                }
+            if "gap checker" in prompt:
+                self.assertIn(brief, prompt)
+                return {"ok": True, "provider": "claude-code", "model": "critic", "output": '{"gap":"","risks":[]}', "sources": [], "failures": []}
+            if "research synthesizer" in prompt:
+                self.assertIn(brief, prompt)
+                return {"ok": True, "provider": "claude-code", "model": "synth", "output": "Executive synthesis", "sources": [], "failures": []}
+            raise AssertionError(prompt[:120])
+
+        lanes = {
+            "chatgpt-plan": {"health": "unavailable", "quota": "unknown"},
+            "claude-code": {"health": "ready", "quota": "unknown"},
+        }
+        with TemporaryDirectory() as tmp, patch.object(worker, "RESEARCH_DIR", Path(tmp)), patch.object(
+            worker, "research_provider_call", side_effect=fake_research_call
+        ):
+            response = worker.run_research_orchestrator(question, Path.cwd(), lanes)
+            receipt = json.loads(Path(response["result"]["receiptJson"]).read_text(encoding="utf-8"))
+        self.assertEqual(response["result"]["researchStatus"], "complete")
+        self.assertTrue(response["result"]["mandateBriefOk"])
+        self.assertIn(tail_marker, receipt["mandateBrief"])
+        self.assertIn("Take / Reject / Transform", receipt["mandateBrief"])
+        self.assertIn("Do nothing comparison", receipt["mandateBrief"])
+        self.assertIn("Conclusion-changing evidence", receipt["mandateBrief"])
+        self.assertIn("FINAL DECISION STANDARD", receipt["mandateBrief"])
+        self.assertEqual(receipt["degradationReasons"], [])
+
+    def test_long_research_mandate_without_compiled_brief_is_degraded(self):
+        question = ("Detailed research requirement. " * 260) + "TAIL"
+
+        def fake_research_call(prompt, workspace, lanes, *, web_search, timeout_seconds):
+            if "research planner and mandate compiler" in prompt:
+                return {"ok": True, "provider": "claude-code", "model": "planner", "output": '{"threads":["q1"]}', "sources": [], "failures": []}
+            if "SEARCH THREAD:\nq1" in prompt:
+                return {
+                    "ok": True,
+                    "provider": "claude-code",
+                    "model": "web",
+                    "output": "FACT one",
+                    "sources": ["https://example.com/one"],
+                    "retrieval": {
+                        "retrievalVerified": True,
+                        "searchResultSources": ["https://example.com/one"],
+                        "fetchedSources": ["https://example.com/one"],
+                    },
+                    "failures": [],
+                }
+            if "gap checker" in prompt:
+                return {"ok": True, "provider": "claude-code", "model": "critic", "output": '{"gap":"","risks":[]}', "sources": [], "failures": []}
+            if "research synthesizer" in prompt:
+                return {"ok": True, "provider": "claude-code", "model": "synth", "output": "Executive synthesis", "sources": [], "failures": []}
+            raise AssertionError(prompt[:120])
+
+        lanes = {
+            "chatgpt-plan": {"health": "unavailable", "quota": "unknown"},
+            "claude-code": {"health": "ready", "quota": "unknown"},
+        }
+        with TemporaryDirectory() as tmp, patch.object(worker, "RESEARCH_DIR", Path(tmp)), patch.object(
+            worker, "research_provider_call", side_effect=fake_research_call
+        ):
+            response = worker.run_research_orchestrator(question, Path.cwd(), lanes)
+        self.assertEqual(response["result"]["researchStatus"], "degraded")
+        self.assertFalse(response["result"]["mandateBriefOk"])
+        self.assertIn("mandate_brief_failed", response["result"]["degradationReasons"])
+
+    def test_failed_synthesis_is_degraded_not_complete(self):
+        synthesis_timeouts = []
+
+        def fake_research_call(prompt, workspace, lanes, *, web_search, timeout_seconds):
+            if "research planner" in prompt:
+                return {"ok": True, "provider": "claude-code", "model": "planner", "output": '{"threads":["q1"]}', "sources": [], "failures": []}
+            if "SEARCH THREAD:\nq1" in prompt:
+                return {
+                    "ok": True,
+                    "provider": "claude-code",
+                    "model": "web",
+                    "output": "FACT one",
+                    "sources": ["https://example.com/one"],
+                    "retrieval": {
+                        "retrievalVerified": True,
+                        "searchResultSources": ["https://example.com/one"],
+                        "fetchedSources": ["https://example.com/one"],
+                    },
+                    "failures": [],
+                }
+            if "gap checker" in prompt:
+                return {"ok": True, "provider": "claude-code", "model": "critic", "output": '{"gap":"","risks":[]}', "sources": [], "failures": []}
+            if "research synthesizer" in prompt:
+                synthesis_timeouts.append(timeout_seconds)
+                return {"ok": False, "provider": "claude-code", "model": None, "output": "", "sources": [], "failures": ["claude-code:failed"]}
+            raise AssertionError(prompt[:100])
+
+        lanes = {
+            "chatgpt-plan": {"health": "unavailable", "quota": "unknown"},
+            "claude-code": {"health": "ready", "quota": "unknown"},
+        }
+        with TemporaryDirectory() as tmp, patch.object(worker, "RESEARCH_DIR", Path(tmp)), patch.object(
+            worker, "research_provider_call", side_effect=fake_research_call
+        ):
+            response = worker.run_research_orchestrator("Research the thing.", Path.cwd(), lanes)
+            receipt = json.loads(Path(response["result"]["receiptJson"]).read_text(encoding="utf-8"))
+        self.assertEqual(response["result"]["researchStatus"], "degraded")
+        self.assertFalse(response["result"]["synthesisOk"])
+        self.assertIn("synthesis_failed", response["result"]["degradationReasons"])
+        self.assertIn("Research synthesis provider failed", response["result"]["output"])
+        self.assertEqual(receipt["status"], "degraded")
+        self.assertFalse(receipt["synthesisOk"])
+        self.assertEqual(synthesis_timeouts, [165])
 
     def test_local_chat_protocol_is_ascii_safe_for_unicode_research_output(self):
         expected = "A → B — ✓"
