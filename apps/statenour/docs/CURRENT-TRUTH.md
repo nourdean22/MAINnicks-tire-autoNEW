@@ -499,3 +499,12 @@ This supersedes the pre-PR status notes immediately above while preserving them 
 - **Safety boundary:** external directories and `.env*` reads are denied; shell defaults to approval; only narrow single-command read/test prefixes can auto-approve; shell metacharacters/chaining are excluded from auto-approval. Commit/push/PR/deploy/destructive/external actions remain owner-gated.
 - **Still unfinished at this checkpoint:** bridge PR/CI/merge, startup persistence, OpenWebUI native tool-server registration, and end-to-end chat UX verification. Do not claim those until their receipts exist.
 
+
+## 2026-10-01 — NOUR Cockpit default model + restart lifecycle checkpoint
+
+- OpenWebUI custom model **`nour-cockpit`** is persisted as a profile over **`nour-auto`** with **`meta.toolIds=["direct_server:nour-cockpit"]`**. It is the OpenWebUI default and pinned first; the raw `nour-auto` lane remains available underneath rather than being mutated.
+- OpenWebUI **v0.11.4** restarted after the lifecycle fix and logged **`Initialized 1 tool server(s)`** at 09:33:14. The UI also requested the `nour-cockpit` profile image immediately after fetching `/api/models`, proving the running server loaded the custom model.
+- The restart bug is fixed: the old `Stop-WebUIOwned` predicate matched every process whose executable lived under the OpenWebUI Python directory, which killed the Cockpit bridge because it intentionally reuses that embedded Python. The filter now matches actual OpenWebUI/OpenTerminal command lines only. Controlled proof: OpenWebUI stopped, **4101 stayed healthy**, `mission_task_writes=false`, then the normal launcher restarted OpenWebUI and the server initialized one tool server.
+- Machine-local cockpit/runtime helpers are now copied into repo source-of-record under `apps/statenour/local-agent/`: `launch-nour-ai.ps1`, `start-nour-cockpit.ps1`, and `ensure_openwebui_cockpit.py`. The helper is idempotent: after repair, a second run reported `changed:false`.
+- **Still unfinished at this checkpoint:** model/tool naming and menu simplification, natural-language OpenWebUI → Cockpit → OpenCode end-to-end canary, bridge PR/CI/merge, and refreshed known-good snapshot.
+

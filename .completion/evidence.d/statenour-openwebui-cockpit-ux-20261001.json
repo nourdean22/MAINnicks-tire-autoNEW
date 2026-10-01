@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "Post-checkpoint NattyNour cockpit UX/runtime state on 2026-10-01: OpenWebUI custom model nour-cockpit is persisted with base_model_id=nour-auto and meta.toolIds=[direct_server:nour-cockpit]; ui.default_models=nour-cockpit and the cockpit is pinned first. OpenWebUI v0.11.4 restarted after the lifecycle fix and logged 'Initialized 1 tool server(s)' at 09:33:14. The NOUR Cockpit bridge remained alive on 127.0.0.1:4101 while only OpenWebUI was stopped/restarted; its health reported ok=true and mission_task_writes=false. The launcher stop filter was corrected so it matches actual OpenWebUI/OpenTerminal command lines but not nour_cockpit_bridge.py, even though both use the same embedded OpenWebUI Python executable. Machine-local runtime sources were copied into apps/statenour/local-agent as launch-nour-ai.ps1, start-nour-cockpit.ps1 and ensure_openwebui_cockpit.py for reproducibility. NOT YET CLAIMED: final bridge PR/CI/merge, user-facing naming/menu optimization, end-to-end OpenWebUI natural-language execution canary, or known-good snapshot refresh."
+    }
+  }
+}
