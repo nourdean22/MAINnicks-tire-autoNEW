@@ -18,7 +18,7 @@
 
 1. **Ingest NHTSA's Manufacturer Communications TSV, keep only warranty-extension rows, store them
    in two small tables, and read them by year/make/model in the existing NHTSA panel.** The full
-   history matched by the rules below is about 2,500 communications and 34,000 product rows
+   history matched by the rules below is about 2,550 communications and 34,000 product rows
    (measured, §3). That fits in tables this size; no search engine, no blob store.
 2. **Two classification signals, both stored, both shown.** NHTSA's own `Communication Type`
    ("Warranty Program/Extension") exists only for rows received since mid-2024. Older rows, and
@@ -53,12 +53,13 @@ field. Fields used here: 1 `NHTSA ID Number`, 3 `Date Added to File`, 4 `TSB/Doc
 
 | Chunk | Zip | Rows | Communications | Typed WPE (ids / rows) | Text-rule-only (ids / rows) |
 |---|---|---|---|---|---|
-| 2015-2019 | 32.9 MB | 2,090,783 | 91,693 | 0 / 0 | 1,064 / 17,661 |
-| 2020-2024 | 31.8 MB | 2,404,946 | 73,930 | 154 / 7,507 | 710 / 11,115 |
-| 2025-2026 | 11.8 MB (391.7 MB unzipped) | 773,240 | 22,379 | 542 / 8,964 | 119 / 2,798 |
+| 2015-2019 | 32.9 MB | 2,090,783 | 91,693 | 0 / 0 | 1,056 / 17,601 |
+| 2020-2024 | 31.8 MB | 2,404,946 | 73,930 | 154 / 7,507 | 681 / 10,732 |
+| 2025-2026 | 11.8 MB (391.7 MB unzipped) | 773,240 | 22,379 | 542 / 8,964 | 117 / 2,787 |
 
-- Across those three chunks the rules match **2,515 communications and 33,689 distinct
-  (id, make, model, year) product rows**. The four older chunks (1995-2014) were confirmed to
+- Across those three chunks the rules match **2,550 communications and 34,151 distinct
+  (id, make, model, year) product rows** (recounted 2026-10-01 07:12Z with the §4 rule as
+  written; the first draft's counts came from an earlier version of the rule). The four older chunks (1995-2014) were confirmed to
   exist (HTTP 200) but not measured; the build measures them before sizing anything.
 - **The current chunk is named `2025-2026`, not `2025-2029`** (404). `TSBS.txt` says "5-year
   chunks"; the live name contradicts it. The ingest must not hard-code the current chunk's name (§6).
@@ -86,8 +87,8 @@ A row is kept when **either** signal fires. Each stored communication records `s
    `EXTENDED (THE )?(NEW VEHICLE )?(LIMITED )?WARRANTY`, or `(WARRANTY|COVERAGE)` followed within
    120 characters by `HAS BEEN EXTENDED`.
 
-Why both, from the 2025-2026 chunk: of 542 typed communications, the text rule alone finds 171 and
-**misses 371 (68%)**, for example Hyundai's "Certain 2013-2019 Santa Fe ... engine damage" notice.
+Why both, from the 2025-2026 chunk: of 542 typed communications, the text rule alone finds 230 and
+**misses 312 (58%)**, for example Hyundai's "Certain 2013-2019 Santa Fe ... engine damage" notice.
 And GM files its Special Coverage programs as "Service Campaign" (e.g. 11013460, Chevrolet
 thermostat), which the type rule misses.
 
@@ -157,9 +158,13 @@ CREATE TABLE IF NOT EXISTS nhtsa_mfr_warranty_products (
    - Daily: the current chunk only (11.8 MB today).
    - Sunday: all chunks, so revisions to older communications and NHTSA deletions are picked up.
    - First armed run: all chunks.
-   - Each chunk is skipped when its `last-modified` and `content-length` match the values stored
-     from the last successful pass. A small key-value row is enough, e.g. in the existing flag or
-     settings store; the build picks one after a `prior-art-grep`, never a third new table.
+   - A chunk whose zip entry CRC-32 and uncompressed size (from the zip's central directory; a
+     ranged GET of the file's tail is enough to read them) match its last parsed pass is not
+     parsed again, and that parsed pass stays the chunk's reference for §5's `last_seen_at` rule.
+     `last-modified` is not used: every chunk is regenerated even when its content is unchanged
+     (§2). A small key-value row is enough to hold the CRC-32, size and parsed-pass time, e.g. in
+     the existing flag or settings store; the build picks one after a `prior-art-grep`, never a
+     third new table.
 4. **Discovering the current chunk name.** Closed ranges are fixed (`1995-1999` ... `2020-2024`).
    For the open range, probe `2025-<current year>` and then `2025-2029`, and take the first that
    answers 200. If neither does, the run **fails** with "current chunk not found", recorded as
@@ -169,6 +174,12 @@ CREATE TABLE IF NOT EXISTS nhtsa_mfr_warranty_products (
    `pnpm-lock.yaml` at 0.8.3 through another package; the build adds it as a direct nickstire
    dependency and lists it in `docs/UPSTREAMS.md`. A row whose field count is not 14 is counted and
    skipped; more than 1% malformed fails the run (layout drift, like the May 2024 reorder).
+   The job runs in the web process (`server/_core/index.ts:438` starts the scheduler there), next
+   to the site and the Vapi and SMS webhooks, and unzipped chunks are large (391.7 MB current,
+   876.3 MB for 2015-2019, 859.3 MB for 2020-2024). So the parser feeds fflate one network chunk
+   at a time and yields to the event loop after each inflated slice
+   (`await new Promise((r) => setImmediate(r))`), or it runs in a `worker_threads` worker. It
+   never parses a chunk in one synchronous pass.
 6. **Receipt:** `cron_log` details carry chunks fetched or skipped, rows read, rows malformed,
    communications kept by signal, and products upserted. These numbers are what §9's acceptance
    compares against.
@@ -229,16 +240,16 @@ files.
 
 | Phase | Ships | Acceptance (red on `main` first where a test is new) |
 |---|---|---|
-| **2a** | migration file, `schema.ts` tables, ingest job + flag, parser, classifier | (1) A fixture TSV with one typed WPE row, one GM "Service Campaign" Special Coverage row, one "Warranty Newsletter" row, one VW "enrollment period has been extended" row and one malformed row. The classifier keeps the first three with the right `signal` and drops the VW row; the malformed row is counted. (2) A mutant that drops either signal turns a test red. (3) The chunk-name probe fails the run when every candidate 404s. (4) An upsert run twice yields the same row count. (5) A Node timing of the real current chunk, recorded in the PR (not a test) |
+| **2a** | migration file, `schema.ts` tables, ingest job + flag, parser, classifier | (1) A fixture TSV with one typed WPE row, one GM "Service Campaign" Special Coverage row, one "Warranty Newsletter" row, one VW "enrollment period has been extended" row and one malformed row. The classifier keeps the first three with the right `signal` and drops the VW row; the malformed row is counted. (2) A mutant that drops either signal turns a test red. (3) The chunk-name probe fails the run when every candidate 404s. (4) An upsert run twice yields the same row count. (5) A Node run on the real current chunk, recorded in the PR (not a test): wall time, peak RSS, and the p99 and max event-loop delay from `perf_hooks.monitorEventLoopDelay` during the parse. The flag stays off until the max delay is under 250 ms |
 | **2b** | the procedure, the panel block, the make aliases, phase 1's carry-overs | Render tests for the three §7.3 states, the `related` label and the always-on footer. A forbidden-wording test ("covered", "free", "will pay"). An alias test: `Chevy`/`Silverado`/2015 resolves to `CHEVROLET`. The six missing phase-1 tests |
-| **Operator** | apply the migration, arm `nhtsa_warranty_ingest`, read the first run's `cron_log` receipt, open one work order for a car with a known program (e.g. a 2016-2018 Hyundai Santa Fe with the 3.3L) | First run: every chunk fetched, malformed rows under 1%, kept communications within ±10% of this note's 2,515 for 2015-2026 |
+| **Operator** | apply the migration, arm `nhtsa_warranty_ingest`, read the first run's `cron_log` receipt, open one work order for a car with a known program (e.g. a 2016-2018 Hyundai Santa Fe with the 3.3L) | First run: every chunk fetched, malformed rows under 1%, kept communications within ±10% of this note's 2,550 for 2015-2026 |
 
 ## 10 · Alternatives rejected
 
 | Option | Why not |
 |---|---|
 | Live `manufacturerCommunications` API per work order | Not public: 403 "Missing Authentication Token" |
-| The CSV file instead of the TSV | No `Communication Type`; the text rule alone misses 68% of typed rows |
+| The CSV file instead of the TSV | No `Communication Type`; the text rule alone misses 58% of typed rows |
 | Type field only | Zero coverage before mid-2024, and misses GM Special Coverage |
 | Storing all 5.3 M rows (every TSB) | Every non-warranty TSB is a different product question (repair procedures). Out of scope; revisit only with a named consumer |
 | A third-party TSB feed (Alldata, Mitchell, Identifix) | Paid, and an account is an operator decision. NHTSA's file is free and authoritative for what manufacturers filed |
