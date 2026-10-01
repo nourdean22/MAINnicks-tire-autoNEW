@@ -3008,7 +3008,7 @@
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch nickstire/q50-nhtsa-estimate-panel (draft PR, not merged): server/services/vehicleData.ts complaintsByVehicle (counts only; narratives and VIN fragments never leave the server) + recallsByVehicle newest-first with parkIt/parkOutside/remedy and a missing-results-array error; server/routers/vehicleData.ts complaints procedure; client/src/pages/admin/money/NhtsaVehiclePanel.tsx mounted in WorkOrdersSection's drawer. Before this, vehicleData.recalls had no caller.",
+        "codeCommit": "Q-50 phase 1, merged as #2820 (squash 9d85850a9, 2026-09-30): server/services/vehicleData.ts complaintsByVehicle (counts only; narratives and VIN fragments never leave the server) + recallsByVehicle newest-first with parkIt/parkOutside/remedy and a missing-results-array error; server/routers/vehicleData.ts complaints procedure; client/src/pages/admin/money/NhtsaVehiclePanel.tsx mounted in WorkOrdersSection's drawer. Before this, vehicleData.recalls had no caller.",
         "tests": [
           "server/__tests__/vehicleData.test.ts: 14 cases incl. newest-first dd/mm/yyyy ordering, park-it flags, complaint counts with a planted phone number and VIN fragment asserted absent from the payload, per-vehicle cache, and a 200 without a results array reading as an error for both recalls and complaints (red on main first).",
           "client/src/__tests__/nhtsa-vehicle-panel.test.tsx: 5 cases incl. an {ok:false} value and a thrown query both rendering 'unavailable' with Retry, never 'none on file' (mutation removing the ok check is caught), no query without a 4-digit year/make/model, and no 'dangerous'/'necessary' wording.",
@@ -3033,11 +3033,11 @@
       "capabilityId": "work-order-nhtsa-warranty-programs-q50",
       "name": "Work-order drawer shows NHTSA manufacturer warranty programs that may apply to the car (stored ingest, information only), and asks NHTSA by its own make names",
       "owner": "system",
-      "codeState": "in_progress",
+      "codeState": "merged",
       "operationalState": "unit_verified",
       "exposure": "disabled",
       "evidence": {
-        "codeCommit": "Branch nickstire/q50-phase2b-warranty-panel (draft PR, not merged): server/services/nhtsaWarrantyRead.ts (vehicleData.warrantyExtensions, SELECT-only read of the phase-2a tables, freshness from the ingest's lastSuccessAt, rows limited to each chunk's latest pass); server/services/nhtsaVehicleNames.ts (ADR-0021 section 8 make aliases shared with the live recall and complaint lookups); vehicleData.ts reports NHTSA's 400-with-empty-body as unknown_vehicle and gives complaints a 25 s timeout; NhtsaVehiclePanel.tsx block 'Manufacturer warranty programs (may apply)'.",
+        "codeCommit": "Q-50 phase 2b, merged as #2852 (squash 849d8ee71, 2026-10-01): server/services/nhtsaWarrantyRead.ts (vehicleData.warrantyExtensions, SELECT-only read of the phase-2a tables, freshness from the ingest's lastSuccessAt, rows limited to each chunk's latest pass); server/services/nhtsaVehicleNames.ts (ADR-0021 section 8 make aliases shared with the live recall and complaint lookups); vehicleData.ts reports NHTSA's 400-with-empty-body as unknown_vehicle and gives complaints a 25 s timeout; NhtsaVehiclePanel.tsx block 'Manufacturer warranty programs (may apply)'. The stored rows come from the phase-2a ingest, merged as #2851 (squash 1bd38cb5c, 2026-10-01): migration 0138_nhtsa_mfr_warranty (operator-applied), flag nhtsa_warranty_ingest (default OFF) and the nhtsa-warranty-ingest job, last in the 09:30 ET daily tier.",
         "tests": [
           "server/services/nhtsaWarrantyRead.test.ts: 13 cases incl. never-ingested, migration-missing and failed reads as ok:false (never 'none listed'), the 3-day stale flag, Chevy/Silverado/2015 reading CHEVROLET, both stored Mercedes spellings, exact over related, year 9999 kept and labelled, pass times reaching the SQL as parameters, SELECT-only production SQL and LIKE escaping.",
           "client/src/__tests__/nhtsa-warranty-panel.test.tsx: 11 cases incl. the three ADR-0021 section 7.3 states, the related-model and unstated-year labels, the always-on eligibility footer, no 'covered'/'free'/'will pay' wording, an unknown NHTSA name shown without a useless Retry, the park-outside badge and a complaints {ok:false} value.",
