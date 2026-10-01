@@ -23,7 +23,8 @@ not from `.env`:
 | `FEATURE_CONFIRMATION_CALLS` | `1` | VOICE · outbound confirmation calls |
 | `FEATURE_FOLLOWUP_CADENCE` | `1` | SMS · multi-touch follow-up cadence |
 | `ENABLE_CUSTOMER_CONFIRMATIONS` | `true` | SMS · booking confirmations |
-| `REEL_PUBLISH_ENABLED` | `true` | PUBLISH · reels to Instagram |
+| `REEL_PUBLISH_ENABLED` | `true` | PUBLISH · reels to Instagram, and since #2865 the same door gates reel VIDEO to the Facebook Page |
+| `REEL_FB_CROSSPOST_ENABLED` | `true` *(set 2026-10-01 17:19Z, operator instruction)* | PUBLISH · the nightly reel cron also hands the reel to the Facebook Page as a video reel. Instagram stays the authority; FB failure only logs. Inert until #2865 is the running container. |
 | `REEL_AUTOPOST_ENABLED` | `true` | PUBLISH · unattended posting |
 | `REEL_COMMENT_RESPONDER_ENABLED` | `true` | PUBLISH · public replies to IG comments |
 | `SOCIAL_INVENTORY_PUBLISH_ENABLED` | `true` | PUBLISH · inventory posts |
@@ -94,6 +95,43 @@ detailed in `docs/CURRENT-TRUTH.md`:
   `shop_settings.tirePriceFloors` so cold pods and prerender can serve them —
   retail only, wholesale never leaves the server. Live sections self-suppress
   when the feed is cold (canon floors render, never an empty table).
+
+## 2026-10-01 — Creative Intelligence OS (#2865): the visual critic can say UNKNOWN, ads read the SSOT, Facebook gets the video
+
+Merged as `54a366629ba89867dcd5dbc916e37bee88f8e645` (squash of 8 commits; blueprint, evidence book, prompt pack and example
+outputs in `docs/creative-intelligence-os/`). Runtime receipt: see `docs/CURRENT-TRUTH.md` §"Creative Intelligence OS".
+Four live defects were found in Railway logs on 2026-10-01 and closed with no schema change; everything else is new
+signal around capabilities already live.
+
+- **An unscored AI image could publish.** `evalImage` skipped without `REPLICATE_API_KEY` and `combineScores` set
+  `imagePass=true` on the skip — on the LIVE lane (12:17:20 `image-eval skipped` → 12:17:51 `Instagram image published`,
+  every static slot 09-26 → 10-01). `igVisualQaGate`: generative pixels with no rendered verdict = UNKNOWN = **held**
+  (Telegram `HELD BY VISUAL QA` + `ig_autopost_log` `visual-qa-unknown`); branded posters and operator-captured
+  `real_shop` photos are exempt by construction. The critic falls to Gemini vision when Replicate is unkeyed; a reply
+  with no SCORE line is UNKNOWN, not the old default 0.65 pass. Kill switch `IG_VISUAL_QA_GATE=false`.
+- **Three dead image-provider hops per static post** (Higgsfield credits → OpenRouter 402 → HF FLUX 410 → Gemini).
+  `imageProviderCircuit`: credits failures skip the provider 6 h, retired models 24 h, transient never. HF route deleted.
+- **Paid-ad copy carried a warranty the shop does not honor** ("12-month / 12,000-mile", retired from the SSOT
+  2026-07-21). `brandTruth.ts` compiles one fact object from `shared/business.ts` + invoice facts; the Meta Ads
+  Architect router overrides every fact-bearing field server-side; `brandTruth.test.ts` is a drift canary over 10
+  creative prompt sources (positive control on old main: 3 hits).
+- **The Wed/Sat article cron generated a draft and never saved it** while telling Telegram to review it in Drafts.
+  It now persists the draft (status `draft`; this path never publishes). Articles no longer get a word count or a
+  "number anchor" instruction; service routes are resolved against the route registry.
+- **Facebook was a text status.** A cross-posted reel reached the Page with no media. `publishToSocial` now runs the
+  Reels Publishing 3-step for a video (behind `REEL_PUBLISH_ENABLED` + the claim check on an FB-native caption), the
+  nightly cron sends `["instagram","facebook"]` when `REEL_FB_CROSSPOST_ENABLED="true"`, and FB post insights land in
+  `ig_metric_snapshots` under the `fb:` prefix (IG readers filter it). FB live + IG refused parks the job
+  `publish_ambiguous` rather than releasing the claim. **LIVE+UNPROVEN** until the first `Facebook reel cross-post
+  published` log line (~04:00Z reel tick).
+- **New signal, default-safe:** customer-language miner (PII scrubbed before extraction) + GSC rising queries feed the
+  topic miner; real-asset-first picks a `real_shop` photo before generating; Creative Assistant cards on Today; $0 pixel
+  checks + craft score on every rendered-QA verdict with ONE specialist lens behind `RENDERED_QA_SPECIALIST` (default
+  off); 6 experiment presets (`hook_style_v1`, `duration_v1` wired end to end); curated internal links on service and
+  blog pages; `creativeOs` router (organic→paid evidence, atomizer, pattern miner, trend intel — generation only).
+- **Three defects the review found in the diff itself:** `analyzePhoto` failed closed on the SMS-MMS flag for internal
+  callers (would have held every autonomous static post); experiment arm recorded under `reel_job_<id>` but generated
+  under the brief id (~half of episodes mis-recorded); an all-ambiguous publish was written `failed` and retried.
 
 ## 2026-09-23 — the first production census, and what it moved
 

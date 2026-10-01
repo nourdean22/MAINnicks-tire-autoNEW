@@ -34,7 +34,7 @@ actually sees. Ranked:
 
 ## A2. What this branch shipped beyond Wave A (2026-10-01, same PR, batched)
 
-Verified on the combined tree: `pnpm run check` 0 errors · lint/lint:source/brand-voice/pii/curdate/validate:routes exit 0 · knip orphan gate 0 NEW · prerender:check + semantic OK · targeted vitest 38 files / 350 tests + 21 (review fixes) green. Everything below is BUILT+WIRED unless marked; nothing here has run against production yet.
+Verified on the combined tree: `pnpm run check` 0 errors · lint/lint:source/brand-voice/pii/curdate/validate:routes exit 0 · knip orphan gate 0 NEW · prerender:check + semantic OK · targeted vitest 38 files / 350 tests + 21 (review fixes) green; CI full suite on the merged head 10,768 passed. **Merged 2026-10-01 as PR #2865 → `54a36662`**; Railway deployment `015c1e73` (status at doc time: DEPLOYING (image built 17:47Z, container rollout started 17:48:27Z; SUCCESS + server:ready receipt pending, recorded here when observed)). Everything below is BUILT+WIRED and, once that deployment is SUCCESS, LIVE+UNPROVEN until the §V receipts appear.
 
 | Slice | Entry point | State |
 |---|---|---|
@@ -48,7 +48,7 @@ Verified on the combined tree: `pnpm run check` 0 errors · lint/lint:source/bra
 | $0 pixel checks + craft score + adaptive specialist | `renderedPixelStats.ts`, `renderedQa.ts`, `criticPanel.ts` | wired; specialist behind `RENDERED_QA_SPECIALIST` |
 | Visual language (16 grammars) | `shared/visualLanguage.ts` | mapping only; renders byte-identical (parity test) |
 | Link graph + recommender + curated wiring | `shared/linkGraph.ts`, `linkRecommender.ts`, `seoTools.linkRecommendations` | public pages wired; recommender admin-only |
-| Facebook branch (video reels, caption variant, insights) | `metaSocial.ts`, `socialPublish.ts`, `instagram-data.ts` | LIVE+UNPROVEN — Graph shapes from docs read 2026-10-01 |
+| Facebook branch (video reels, caption variant, insights) | `metaSocial.ts`, `socialPublish.ts`, `instagram-data.ts`, `dailyReelPost.ts` | LIVE+UNPROVEN — Graph shapes from docs read 2026-10-01; cron cross-post ARMED (`REEL_FB_CROSSPOST_ENABLED=true` in prod, operator instruction) |
 | Organic→paid evidence · atomizer · pattern miner · trend intel | `creativeOs` router | wired (generation only) |
 
 **Defects found and fixed along the way:** `analyzePhoto` fails closed on the SMS-MMS flag `photo_assess_enabled` (default OFF) even for internal callers with an explicit provider — the old igAutopost comment said the opposite; left alone, Wave A's gate would have HELD every autonomous static post in a prod where that flag is off (internal callers now bypass the MMS flag) · experiment arm recorded under `reel_job_<id>` but generated under the brief id (≈half of episodes mis-recorded) · an all-ambiguous publish was written as `failed` and would be retried (now parked `published_partial`) · `/general-repair` 301 linked from `InternalLinks.tsx`, `RelatedServices`, 57 article chips · `fb:` snapshot rows could enter two IG aggregates (filtered).
@@ -396,13 +396,19 @@ subject is a wiring order (then both). Live receipts after deploy:
 3. `/admin/ad-studio` plan export contains "90-day labor" and no mileage warranty.
 4. Wednesday 2026-10-07: `dynamic_articles` gains a `status='draft', generatedBy='ai'` row and the
    Telegram line carries `(draft #id)`.
+5. First reel tick after deploy (~04:00Z): `Facebook reel cross-post published {fbPostId}` in the
+   `cron:daily-reel-post` log, then an `fb:`-prefixed row in `ig_metric_snapshots` within 8 h. A
+   `Facebook reel cross-post did not publish` warning with the job still `posted` is the designed
+   failure shape (IG authority); `publish PARTIAL` means FB live + IG refused, parked, reconcile by hand.
 
 ## W. Deployment / rollback
 
 All Wave A changes are env-reversible without redeploy: `IG_VISUAL_QA_GATE=false` restores the old
 publish behaviour; the circuit breaker is in-memory (restart clears it); the ads override is a pure
 function (revert the router line). Article prompt changes affect drafts only (never auto-publish).
-No migration, no schema change, no flag flip required. Deploy = merge to `main`.
+No migration, no schema change, no flag flip required. Deploy = merge to `main`. Waves B/C add two more
+env-reversible switches: `RENDERED_QA_SPECIALIST` unset = old call count; `REEL_FB_CROSSPOST_ENABLED` unset or
+`false` = Instagram-only reels again, no redeploy of code.
 
 ## X. Prioritised execution queue
 

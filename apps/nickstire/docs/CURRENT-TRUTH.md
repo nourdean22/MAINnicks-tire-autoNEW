@@ -7,6 +7,22 @@
 
 Live code and production evidence override this document when they disagree. Update this file in the same change that alters a listed contract.
 
+## Creative Intelligence OS (2026-10-01, PR #2865 → `54a36662`) — merged; runtime receipt below
+
+Railway deployment `015c1e73-b1f7-486d-b887-d6c876b9f41f` for `54a366629ba89867dcd5dbc916e37bee88f8e645` — status at the time this file was written: **DEPLOYING (image built 17:47Z, container rollout started 17:48:27Z; SUCCESS + server:ready receipt pending, recorded here when observed)**. The narrative, the four live defects and the evidence are in `truth_os.md` §2026-10-01 and `docs/creative-intelligence-os/README.md` (§A2 per-slice states, §V post-deploy receipts). Contracts that changed:
+
+- **Visual-QA publish gate (autonomous static lane).** For generative pixels, no rendered verdict means UNKNOWN and UNKNOWN never publishes unattended: Telegram `HELD BY VISUAL QA (unknown|scored_weak)` + `ig_autopost_log` reason `visual-qa-unknown`. Branded posters and operator-captured `real_shop` assets are exempt and the log reason names the asset. Critic ladder: Replicate → Gemini vision; a scoreless reply is UNKNOWN. Kill switch `IG_VISUAL_QA_GATE=false` (default on).
+- **Image-provider circuit breaker.** `not_enough_credits`/402 opens a provider for 6 h, a retired model (410) for 24 h, transient errors never; in-memory, restart clears it. HF FLUX route removed from the ladder.
+- **Brand truth in creative prompts.** `server/services/brandTruth.ts` is the single compiled fact object for the Meta Ads Architect and the article generator (warranty: 1-year parts / 90-day labor, no mileage; payment programs is the SSOT term; languages English/Arabic). A drift canary fails on any retired literal in 10 creative sources.
+- **Article cron persists.** Wed/Sat auto-generated articles are saved as `status='draft'`; nothing on this path publishes.
+- **Facebook reels as video.** `publishToSocial` Facebook branch: a video with no image and not a story runs Reels Publishing (start → rupload `file_url` → finish) behind `REEL_PUBLISH_ENABLED` and the claim check on `fbCaption ?? buildFacebookCaption(caption)`; `finish` timeout returns `ambiguous:true`. Nightly cron: `platforms = ["instagram","facebook"]` iff `REEL_FB_CROSSPOST_ENABLED === "true"` (set in prod 2026-10-01). Instagram is the status authority; FB failure/ambiguous only logs; FB live + IG refused parks `publish_ambiguous`. FB post insights sync after the IG loop into `ig_metric_snapshots` with `fb:`-prefixed post ids; both IG aggregate readers filter them. **LIVE+UNPROVEN** until the first `Facebook reel cross-post published` line and an `fb:` snapshot row.
+- **Rendered QA cascade.** `renderedQa` now records `pixelStats` ($0, sharp), `craftScore`, `escalate`, `visionCalls` on every verdict; one specialist lens runs only with `RENDERED_QA_SPECIALIST=true` (default off, ≤2 vision calls per reel).
+- **Experiments.** Arm key is the brief id end to end (`experimentEpisodeKey`); six presets, two generator-wired (`hook_style_v1`, `duration_v1` — lanes above 35 s collapse under `REEL_OUTPUT_RULES`, logged `capped`), four exposed-only.
+- **Topic signals.** `customerQuestions` (calls/SMS/reviews/lead notes, PII scrubbed, fixed phrase bank) and `gscRising` boost the topic miner below declined-work. `shared/topicGraph.ts` 78 nodes / 161 edges.
+- **Public site links.** `RelatedServices`, `BlogPost` chips and `InternalLinks` follow `shared/internalLinks.ts` / `linkGraph.ts`; `/general-repair` (a 301) replaced by `/auto-repair-near-me`. Prerendered tree refreshes via the workflow on `main`.
+- **New admin surfaces, read-only or generation-only:** Creative Assistant cards (Today), `seoTools.linkRecommendations`, `creativeOs.{organicEvidence,atomizePlan,atomize,minePattern,trends}`, `instagramAdmin.getCaptureOpportunities`. None publishes.
+- **Env contract additions (all optional):** `IG_VISUAL_QA_GATE` (default on), `RENDERED_QA_SPECIALIST` (default off), `REEL_FB_CROSSPOST_ENABLED` (default off; prod `true`). All three are registered in the Social Pipeline panel's env gates where they publish.
+
 ## Original-plan infrastructure reconciliation (2026-09-28)
 
 - Durable 24-slice ledger: `../../../docs/research/2026-09-28-original-plan-reconciliation.md`.

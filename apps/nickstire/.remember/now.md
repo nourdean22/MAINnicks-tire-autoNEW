@@ -1,6 +1,19 @@
 # Session ledger - nickstire
 
-**Updated: 2026-09-28** (Instagram Admin closeout current through #2742 docs receipt; #2741 is the live Nick runtime and its Queue repair is live-receipted)
+**Updated: 2026-10-01** (Creative Intelligence OS #2865 merged as `54a36662`; FB reel cross-post armed in prod; deployment 015c1e73 DEPLOYING (image built 17:47Z, container rollout started 17:48:27Z; SUCCESS + server:ready receipt pending, recorded here when observed))
+## 2026-10-01 · Creative Intelligence OS (#2865) merged; Facebook reels armed
+
+**Repo truth.** PR #2865 squash-merged to `main` as `54a366629ba89867dcd5dbc916e37bee88f8e645` (8 commits: Wave A truth + safety, Wave C creativeOs router, Waves B/C agents + review fixes, knip/census/gitleaks CI fixes, FB cross-post arming, fail-open-slice fix). CI on the merged head: node 10,768 passed, e2e, typecheck, knip orphan gate 0 NEW, gitleaks, security, adapter parity all green. Branch `claude/epic-pascal-i34a9l` still exists on origin (delete pushes hung through the container proxy) — merged, harmless, delete from the UI.
+
+**Runtime truth.** Railway deployment `015c1e73-b1f7-486d-b887-d6c876b9f41f` for `54a36662`: DEPLOYING (image built 17:47Z, container rollout started 17:48:27Z; SUCCESS + server:ready receipt pending, recorded here when observed). Until it is SUCCESS, every capability below is BUILT+WIRED, not live.
+
+**Prod env (read, not retyped):** `REEL_PUBLISH_ENABLED` was ALREADY `true` (nightly `Instagram Reel published` 09-24 → 10-01, zero `Reel publishing is disabled` lines) — so arming FB needed the cron to include the platform, not a flag flip. `REEL_FB_CROSSPOST_ENABLED=true` was set 2026-10-01 on the operator's instruction with deploys skipped; it takes effect on the #2865 container. `GEMINI_API_KEY` present (vision critic + enrichment use it); `REPLICATE_API_KEY` absent; Higgsfield + OpenRouter image credits exhausted (circuit breaker now skips them 6 h after a credits failure).
+
+**What to look for next (receipts, README §V):** circuit-open log line on the second static slot; a Gemini image verdict or a Telegram `HELD BY VISUAL QA`; Wed 2026-10-07 a `dynamic_articles` draft row; `rendered QA verdict persisted {visionCalls,...}`; `Facebook reel cross-post published {fbPostId}` at the ~04:00Z reel tick then an `fb:` snapshot row within 8 h; a Creative Assistant card with a non-unknown input on Today.
+
+**Known limits, stated not hidden:** duration lanes >35 s collapse under `REEL_OUTPUT_RULES` (logged `capped`); 3-s skip / watch metrics not gatherable by the experiment resolver; four experiment presets are exposed-only; Facebook Graph shapes are from docs (LIVE+UNPROVEN); `getRisingQueries` SQL and the `vapi_call_logs` speech-turn JSON shape have not run against TiDB.
+
+**Traps this session hit, for the next one:** knip counts test-only exports as orphans → baseline with a reason, not a re-export; `proc-census.json` must be regenerated (`PROC_CENSUS_WRITE=1`) from a clean extract when procedures are added; gitleaks' jfrog rule matches sha256 fixtures near the word "xray" → path allowlist; the fail-open-slice gate rejects raw `src.slice(indexOf, indexOf)` in tests → `sliceBlock()`; `analyzePhoto` fails closed on the SMS-MMS flag `photo_assess_enabled` unless the caller passes `internal: true`; `lint:brand-voice` with nothing staged scans nothing and says so.
 
 ## 2026-09-28 · Instagram Admin production closeout
 
