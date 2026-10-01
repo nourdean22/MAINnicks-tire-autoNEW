@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Q-23 phase 6 (2026-09-30, branch nickstire/q23-phase6-customer-intel-provenance). What the operator sees on Admin > Intelligence HQ: (1) Customer Intelligence. The second tile, formerly 'Due For Maintenance', read a field its engine never returns and showed 0 on every load; it is now 'Due Or Overdue' and shows the repeat-visit engine's real count of customers predicted due within 14 days or already overdue. Both tiles (High Churn Risk, Due Or Overdue) now wear a provenance tag: ESTIMATE when read, because both are heuristic predictions, not counts of events. When an engine failed or its database read failed, the tile shows a grey italic 'unknown', tagged UNMEASURED, instead of 0. A list at the engine's cap reads '25+' or '30+'. When no VIP win-back appears, the card no longer says 'Retention looks solid'; it says no VIP win-back made the top 8 actions and that this is not a retention verdict. (2) Lead SLA Monitor: no visible change; a test now pins that Impact Analysis stays hidden while the read is unknown. Proof is jsdom renders with a mocked report and a mocked DB, not a live admin session: customer-intelligence-provenance.test.tsx 6/6 (6/6 red against main's source), customerSignalsUnavailable.test.ts 4/4 (the two failure cases red on main), lead-sla-monitor-provenance.test.tsx 5/5 (2 cases red when the Impact Analysis guard is removed). Not yet seen by the operator on the installed PWA."
+    }
+  }
+}
