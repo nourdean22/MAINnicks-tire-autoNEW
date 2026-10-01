@@ -15,6 +15,7 @@ import { socialContentInventory } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
 import { applyCreativeSkills } from "../services/skillRouter";
 import { validateClaimSafety } from "../services/contentManufacturing";
+import { applyBrandTruthToCampaignInput, compileBrandTruthLive } from "../services/brandTruth";
 
 const log = createLogger("routers:metaAdsArchitect");
 
@@ -54,7 +55,13 @@ export const metaAdsArchitectRouter = router({
       };
 
       try {
-        const plan = await generateCampaignPlan(input, llmProvider);
+        // Server-authoritative facts: the admin form keeps the creative inputs,
+        // but warranty / payment programs / hours / reviews / address are
+        // REPLACED by the compiled SSOT (brandTruth) — a form field is not a
+        // place a business fact may rot (2026-10-01: three copies of a retired
+        // mileage warranty reached paid-ad copy through this procedure).
+        const grounded = applyBrandTruthToCampaignInput(input, await compileBrandTruthLive());
+        const plan = await generateCampaignPlan(grounded, llmProvider);
         
         const exportMarkdown = exportPlanToMarkdown(plan);
         const exportJson = exportPlanToJson(plan);

@@ -497,21 +497,28 @@ export async function autoGenerateContent(): Promise<{ recordsProcessed: number;
     const dow = new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone, weekday: "long" });
     if (dow !== "Wednesday" && dow !== "Saturday") return { recordsProcessed: 0, details: "Not a content day (Wed/Sat)" };
 
-    const { generateArticle } = await import("../../content-generator");
+    const { generateArticle, saveGeneratedArticle } = await import("../../content-generator");
     const article = await generateArticle();
+
+    // Until 2026-10-01 this job generated the article and then DROPPED it:
+    // nothing called saveGeneratedArticle, while the Telegram line below told
+    // the operator to "review in admin → Content → Drafts" — a draft that never
+    // existed. The article is now persisted as a draft (status "draft", never
+    // published by this path) and the alert carries the row id.
+    const draftId = article ? await saveGeneratedArticle(article) : null;
 
     if (article) {
       try {
         const { sendTelegram } = await import("../../services/telegram");
         await sendTelegram(
           `📝 AUTO-CONTENT: New article drafted!\n\n` +
-          `"${article.title || "Untitled"}"\n\n` +
+          `"${article.title || "Untitled"}"${draftId ? ` (draft #${draftId})` : " (NOT SAVED — no DB)"}\n\n` +
           `Review in admin → Content → Drafts`
         );
       } catch (err) { log.warn("autoGenerateContent: Telegram alert failed", { error: err instanceof Error ? err.message : String(err) }); }
     }
 
-    return { recordsProcessed: 1, details: `Article draft: "${article?.title || "generated"}"` };
+    return { recordsProcessed: draftId ? 1 : 0, details: `Article draft${draftId ? ` #${draftId}` : " (unsaved)"}: "${article?.title || "generated"}"` };
   } catch (e: unknown) {
     throw new Error(`Content gen failed: ${(e as Error).message}`, { cause: e });
   }

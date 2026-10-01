@@ -21,9 +21,10 @@
  *      rejects PNG; see generatePostImage). Prompt forces professional craft.
  *   4. DUAL EVAL     — LLM-as-judge scores the caption on a weighted rubric
  *      (viral shape · voice · price-compliance · novelty · no-fabrication);
- *      the vision analyzer scores the image's pro-look (skipped gracefully
- *      if REPLICATE_API_KEY is unset). Weighted score must clear 0.7 or we
- *      regenerate (≤2×) then ABORT.
+ *      the vision analyzer scores the image's pro-look (Replicate, else
+ *      Gemini; no key → verdict UNKNOWN). Weighted score must clear 0.7 or
+ *      we regenerate (≤2×) then ABORT. An AI image with an UNKNOWN verdict
+ *      never publishes unattended (igVisualQaGate, 2026-10-01).
  *   5. POST / DRYRUN — dryRun (default TRUE via IG_AUTOPOST_DRYRUN) logs +
  *      sends a Telegram PREVIEW. Live posts to IG (JPEG) + FB and captures
  *      ids/errors.
@@ -46,6 +47,8 @@ export { parseJsonObject };
 
 import { isEnabled } from "./featureFlags";
 import { ensureHiggsfieldBinary } from "./higgsfieldBinary";
+import { circuitOpen, circuitSnapshot, closeCircuit, tripCircuit } from "./imageProviderCircuit";
+import { visualQaGate, visualQaGateEnabled } from "./igVisualQaGate";
 import { shadowJudgeGate } from "./igJudgeGate";
 // ONE source of truth for the cap — the reel lane's constant, not a second copy.
 // A forked limit is how this lane drifted to 12 while the reel lane was on 5.
@@ -1105,17 +1108,31 @@ export async function generatePostImage(
   let pngUrl: string;
   let alreadyJpeg = false;
   if (provider === "higgsfield") {
-    try {
-      // Returns a Higgsfield-hosted URL (gpt_image_2, 1:1, 2k) — the shared
-      // convert/re-host tail below moves it onto our permanent storage, same
-      // as the carousel route does with storagePut.
-      const { generateCarouselSlideImage } = await import("./higgsfieldStudio");
-      pngUrl = await generateCarouselSlideImage(prompt);
-    } catch (err) {
-      log.warn("Higgsfield image generation failed — falling back", {
-        err: err instanceof Error ? err.message : String(err),
-      });
+    // Circuit breaker (2026-10-01): Railway logs showed every static post
+    // 09-29 → 10-01 paying a Higgsfield `not_enough_credits` round-trip, then
+    // an OpenRouter 402, then a retired HF model's 410, before the working
+    // route produced pixels. A credits failure is remembered for 6 h and the
+    // provider is skipped, so the ladder goes straight to what works.
+    const open = circuitOpen("higgsfield");
+    if (open) {
+      log.info("skipping higgsfield image provider — circuit open", { klass: open.klass, until: new Date(open.until).toISOString(), reason: open.reason });
       pngUrl = await generatePostImageFallback(prompt);
+    } else {
+      try {
+        // Returns a Higgsfield-hosted URL (gpt_image_2, 1:1, 2k) — the shared
+        // convert/re-host tail below moves it onto our permanent storage, same
+        // as the carousel route does with storagePut.
+        const { generateCarouselSlideImage } = await import("./higgsfieldStudio");
+        pngUrl = await generateCarouselSlideImage(prompt);
+        closeCircuit("higgsfield");
+      } catch (err) {
+        const klass = tripCircuit("higgsfield", err);
+        log.warn("Higgsfield image generation failed — falling back", {
+          klass,
+          err: err instanceof Error ? err.message : String(err),
+        });
+        pngUrl = await generatePostImageFallback(prompt);
+      }
     }
   } else if (provider === "gemini") {
     try {
@@ -1129,10 +1146,10 @@ export async function generatePostImage(
           log.warn("Gemini Direct image generation failed, falling back to OpenRouter", {
             err: geminiErr instanceof Error ? geminiErr.message : String(geminiErr),
           });
-          pngUrl = await generateImageOpenRouter(prompt);
+          pngUrl = await generateImageOpenRouterGuarded(prompt);
         }
       } else {
-        pngUrl = await generateImageOpenRouter(prompt);
+        pngUrl = await generateImageOpenRouterGuarded(prompt);
       }
     } catch (err) {
       log.warn("Gemini/OpenRouter image generation failed, falling back to fallback provider", {
@@ -1152,65 +1169,50 @@ export async function generatePostImage(
   return { url: jpegUrl, format: "jpeg", kind: "ai" };
 }
 
+/** OpenRouter, but skipped while its circuit is open and tripped on a credits/retired failure. */
+async function generateImageOpenRouterGuarded(prompt: string): Promise<string> {
+  const open = circuitOpen("openrouter");
+  if (open) {
+    throw new Error(`openrouter image provider skipped — circuit open (${open.klass}) until ${new Date(open.until).toISOString()}: ${open.reason}`);
+  }
+  try {
+    const url = await generateImageOpenRouter(prompt);
+    closeCircuit("openrouter");
+    return url;
+  } catch (err) {
+    tripCircuit("openrouter", err);
+    throw err;
+  }
+}
+
 async function generatePostImageFallback(prompt: string): Promise<string> {
   const isOpenRouter = (process.env.OPENAI_BASE_URL || "").includes("openrouter.ai");
 
   if (isOpenRouter) {
-    try {
-      log.info("OpenAI base URL is OpenRouter (no image support). Using OpenRouter Gemini fallback...");
-      return await generateImageOpenRouter(prompt);
-    } catch (err) {
-      log.error("OpenRouter Gemini image generation fallback failed", { err: err instanceof Error ? err.message : String(err) });
-    }
-
-    if (process.env.HF_API_KEY) {
+    // The Hugging Face FLUX.1-schnell hop that used to sit here was removed
+    // 2026-10-01: hf-inference answered `410 Gone — model deprecated` on every
+    // call in the Railway logs, so it was a guaranteed error log and nothing
+    // else. OpenRouter stays, behind its circuit, as the one hosted fallback.
+    const open = circuitOpen("openrouter");
+    if (open) {
+      log.info("skipping OpenRouter image fallback — circuit open", { klass: open.klass, until: new Date(open.until).toISOString() });
+    } else {
       try {
-        log.info("Trying Hugging Face fallback...");
-        return await generateImageHuggingFace(prompt);
+        log.info("OpenAI base URL is OpenRouter (no image support). Using OpenRouter Gemini fallback...");
+        return await generateImageOpenRouterGuarded(prompt);
       } catch (err) {
-        log.error("Hugging Face image generation fallback failed", { err: err instanceof Error ? err.message : String(err) });
+        log.error("OpenRouter Gemini image generation fallback failed", { err: err instanceof Error ? err.message : String(err) });
       }
     }
   }
 
-  // Otherwise, default to the existing OpenAI generator (DALL-E 3)
+  // Otherwise, the shared generator: direct Gemini when GEMINI_API_KEY is set
+  // (the route that actually produced every static image 09-29 → 10-01),
+  // else OpenAI.
   const { generateImage } = await import("../_core/imageGeneration");
   const res = await generateImage({ prompt });
-  if (!res.url) throw new Error("Fallback image generation (openai) returned no url");
+  if (!res.url) throw new Error("Fallback image generation (gemini/openai) returned no url");
   return res.url;
-}
-
-async function generateImageHuggingFace(prompt: string): Promise<string> {
-  const apiKey = process.env.HF_API_KEY;
-  if (!apiKey) throw new Error("HF_API_KEY is not configured");
-
-  const model = "black-forest-labs/FLUX.1-schnell";
-  const url = `https://router.huggingface.co/hf-inference/models/${model}`;
-
-  log.info("Generating image via Hugging Face...", { model, prompt });
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ inputs: prompt }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(`Hugging Face image generation failed (${response.status} ${response.statusText}): ${errorText}`);
-  }
-
-  const buffer = Buffer.from(await response.arrayBuffer());
-  const { storagePut } = await import("../storage");
-  const { url: uploadedUrl } = await storagePut(
-    `generated/${Date.now()}.png`,
-    buffer,
-    "image/png"
-  );
-  if (!uploadedUrl) throw new Error("storagePut returned no url for HF image");
-  return uploadedUrl;
 }
 
 /**
@@ -1402,13 +1404,23 @@ function weightCaption(c: CaptionEval): number {
 
 /**
  * Score the generated image's professional look with the vision analyzer
- * (qwen2-vl). If REPLICATE_API_KEY is unset, skip gracefully — the dryrun
- * Telegram review is the gate in that case. Never fails the run.
+ * (Replicate qwen2-vl, else Gemini vision). No key, a failed call, or a
+ * reply without a SCORE line all return skipped=true — a verdict of UNKNOWN,
+ * which igVisualQaGate holds on the live lane. Never throws into the run.
  */
 async function evalImage(imageUrl: string): Promise<{ proLook: number | null; skipped: boolean; note: string }> {
-  if (!process.env.REPLICATE_API_KEY) {
-    log.info("image-eval skipped (no REPLICATE_API_KEY) — dryrun review is the gate");
-    return { proLook: null, skipped: true, note: "image-eval skipped (no REPLICATE_API_KEY) — dryrun review is the gate" };
+  // Provider ladder for the critic: Replicate (qwen2-vl) when keyed, else
+  // Gemini vision (the key prod already holds for image generation). Before
+  // 2026-10-01 a missing REPLICATE_API_KEY skipped the critic outright and
+  // combineScores treated "skipped" as PASS — on the LIVE lane, not only the
+  // dryrun one the comment promised. A skip is now a verdict of UNKNOWN that
+  // igVisualQaGate holds; this ladder exists so prod rarely reaches that.
+  const provider: "replicate" | "gemini" | null = process.env.REPLICATE_API_KEY
+    ? "replicate"
+    : process.env.GEMINI_API_KEY ? "gemini" : null;
+  if (!provider) {
+    log.warn("image-eval skipped (no REPLICATE_API_KEY and no GEMINI_API_KEY) — verdict UNKNOWN; live publish will hold");
+    return { proLook: null, skipped: true, note: "image-eval skipped (no vision provider key) — verdict UNKNOWN" };
   }
   try {
     const { analyzePhoto } = await import("./vision-analyzer");
@@ -1418,18 +1430,24 @@ async function evalImage(imageUrl: string): Promise<{ proLook: number | null; sk
       "Penalize garbled text, distorted hands/faces, or muddy composition. " +
       "End with exactly one line: SCORE: <0-100>.";
     // analyzePhoto is feature-flagged for the SMS damage-assess use case;
-    // call its Replicate backend directly so this works regardless of that flag.
-    const r = await analyzePhoto({ photoUrl: imageUrl, prompt, provider: "replicate" });
+    // name the backend explicitly so this works regardless of that flag.
+    const r = await analyzePhoto({ photoUrl: imageUrl, prompt, provider });
     if (!r.ok) {
-      log.warn("image-eval call failed — treating as skip", { reason: r.reason, error: r.error });
-      return { proLook: null, skipped: true, note: `image-eval unavailable (${r.reason}) — dryrun review is the gate` };
+      log.warn("image-eval call failed — verdict UNKNOWN", { provider, reason: r.reason, error: r.error });
+      return { proLook: null, skipped: true, note: `image-eval unavailable (${provider}: ${r.reason}) — verdict UNKNOWN` };
     }
     const m = r.description.match(/SCORE:\s*(\d{1,3})/i);
-    const raw = m ? Math.min(100, Math.max(0, parseInt(m[1], 10))) : 65;
+    if (!m) {
+      // A reply with no score used to default to 65 — above the 0.6 floor, so
+      // a critic that said nothing scored as a pass. No score is no verdict.
+      log.warn("image-eval reply carried no SCORE line — verdict UNKNOWN", { provider, head: r.description.slice(0, 120) });
+      return { proLook: null, skipped: true, note: `image-eval (${provider}) returned no SCORE line — verdict UNKNOWN: ${r.description.slice(0, 200)}` };
+    }
+    const raw = Math.min(100, Math.max(0, parseInt(m[1], 10)));
     return { proLook: raw / 100, skipped: false, note: r.description.slice(0, 300) };
   } catch (err) {
-    log.warn("image-eval threw — treating as skip", { err: errMsg(err) });
-    return { proLook: null, skipped: true, note: "image-eval error — dryrun review is the gate" };
+    log.warn("image-eval threw — verdict UNKNOWN", { provider, err: errMsg(err) });
+    return { proLook: null, skipped: true, note: `image-eval error (${provider}) — verdict UNKNOWN` };
   }
 }
 
@@ -1440,8 +1458,10 @@ function combineScores(caption: CaptionEval, image: { proLook: number | null; sk
   // outright regardless of the weighted average (safety over taste).
   const hardOk = caption.priceCompliance >= 1 && caption.noFabrication >= 1;
   const captionPass = hardOk && captionWeighted >= PASS_THRESHOLD;
-  // When the image was scored, require it to clear IMAGE_PRO_LOOK_MIN; when
-  // skipped, the image dim does not block (dryrun review covers it).
+  // When the image was scored, require it to clear IMAGE_PRO_LOOK_MIN. When
+  // skipped, this GENERATION-LOOP verdict does not block (regenerating cannot
+  // produce a verdict the critic could not give) — the LIVE publish decision
+  // is made separately by igVisualQaGate, where skipped == UNKNOWN == hold.
   const imagePass = image.skipped || image.proLook === null ? true : image.proLook >= IMAGE_PRO_LOOK_MIN;
   // Overall = caption weighted, nudged down if the (scored) image is weak.
   const overall = image.proLook === null ? captionWeighted : captionWeighted * 0.8 + image.proLook * 0.2;
@@ -1578,10 +1598,14 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
   }
 
   try {
+    const openCircuits = circuitSnapshot();
+    if (openCircuits.length > 0) {
+      log.info("image provider circuits open — those rungs are skipped this run", { openCircuits });
+    }
     const brief = await buildSignalBrief();
 
     // Generate → eval, regenerating until pass or attempts exhausted.
-    let best: { post: GeneratedPost; image: { url: string; format: "jpeg" }; scores: IgEvalScores } | null = null;
+    let best: { post: GeneratedPost; image: { url: string; format: "jpeg"; kind: "poster" | "ai" }; scores: IgEvalScores } | null = null;
     let lastScores: IgEvalScores | null = null;
     let lastPost: GeneratedPost | null = null;
 
@@ -1717,6 +1741,39 @@ export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIg
       return {
         recordsProcessed: 1,
         details: `judge-blocked (${post.archetype}) — not posted: ${judgeGate.reason}`,
+        status: "aborted",
+        archetype: post.archetype, conceptKey: post.conceptKey, scores,
+        igPostId: null, fbPostId: null, dryRun: false,
+      };
+    }
+
+    // ── VISUAL-QA PUBLISH GATE (2026-10-01) ──
+    // For generative pixels, no rendered verdict is UNKNOWN, and UNKNOWN does
+    // not publish unattended. Live trace that motivated this: 12:17:20
+    // "image-eval skipped (no REPLICATE_API_KEY)" → 12:17:51 "Instagram image
+    // published" — an image nobody scored went to IG + FB. Poster renders are
+    // deterministic and pass by construction. Kill switch IG_VISUAL_QA_GATE=false.
+    const visualGate = visualQaGate(image.kind, scores.image, { enabled: visualQaGateEnabled(), minProLook: IMAGE_PRO_LOOK_MIN });
+    if (visualGate.block) {
+      await logRun({
+        archetype: post.archetype, conceptKey: post.conceptKey, slot, slotDate,
+        scores, status: "aborted", caption, hashtags: post.hashtags,
+        imagePrompt: post.imagePrompt, imageUrl: image.url,
+        igPostId: null, fbPostId: null, error: `visual-qa-${visualGate.state}: ${visualGate.reason}`.slice(0, 500), source,
+      });
+      try {
+        const { sendTelegram } = await import("./telegram");
+        await sendTelegram(
+          `IG AUTOPOST — HELD BY VISUAL QA (${visualGate.state}) (${post.archetype}/${post.conceptKey})\n` +
+          `${visualGate.reason}\nImage: ${image.url}\nNothing was posted. Post it by hand from the preview if it looks right; the slot retries with fresh content on a later tick.`,
+        );
+      } catch (e) {
+        log.warn("visual-qa-gate notify failed (hold stands)", { error: errMsg(e) });
+      }
+      log.warn("ig-autopost visual QA gate held live publish", { state: visualGate.state, reason: visualGate.reason });
+      return {
+        recordsProcessed: 1,
+        details: `visual-qa-held (${visualGate.state}, ${post.archetype}) — not posted: ${visualGate.reason}`,
         status: "aborted",
         archetype: post.archetype, conceptKey: post.conceptKey, scores,
         igPostId: null, fbPostId: null, dryRun: false,
