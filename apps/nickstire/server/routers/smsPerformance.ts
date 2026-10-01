@@ -20,9 +20,9 @@
  * the operator can spot a running A/B test.
  */
 import { adminProcedure, router } from "../_core/trpc";
-import { and, desc, eq, gte, sql, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { smsMessages, smsConversations } from "../../drizzle/schema";
+import { cronLog, smsMessages, smsConversations } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
 import { describeDbError, isMissingTableError } from "../lib/dbErrors";
 import { createLogger } from "../lib/logger";
@@ -34,7 +34,9 @@ import {
   type LoopRow,
   type LoopScoreboard,
 } from "../../shared/loopScoreboard";
-import { CONTACT_HOLDOUT_VERSION } from "../services/contactExperiment";
+import { CONTACT_HOLDOUT_VERSION, contactLaneForVariant } from "../services/contactExperiment";
+import { isEnabled } from "../services/featureFlags";
+import { CUSTOMER_LANES, type LaneHealthPayload, type LaneRunRow } from "../../shared/laneHealth";
 
 const log = createLogger("routers:smsPerformance");
 
@@ -82,6 +84,160 @@ function prettyTier(rollup: string): string {
     cross_sell: "Cross-sell",
   };
   return map[rollup] ?? rollup;
+}
+
+type Db = NonNullable<Awaited<ReturnType<typeof db>>>;
+
+interface HoldoutRead {
+  byLane: Map<string, HoldoutObservationInput & { laneKey: string }>;
+  /** Migration 0136 is not applied: no experiment can exist yet. */
+  pending: boolean;
+  /** Driver class/code of a failed read (describeDbError), never the SQL. */
+  error?: string;
+}
+
+/**
+ * Q-21 holdout cohorts per lane, read once for recoveredRevenue and for the
+ * Q-23 lane-health strip so the two cannot disagree. Never throws: a missing
+ * table is `pending`, any other failure is `error`.
+ */
+async function readHoldoutObservations(
+  d: Db,
+  windowDays: number,
+  attributionWindowDays: number,
+): Promise<HoldoutRead> {
+  const holdoutByLane = new Map<string, HoldoutObservationInput & { laneKey: string }>();
+  let holdoutReadError: string | undefined;
+  let holdoutPending = false;
+  try {
+    const [assignmentRows] = await d.execute(sql`
+      SELECT a.lane_key      AS laneKey,
+             a.experiment_id AS experimentId,
+             a.arm_id        AS armId,
+             COUNT(*)        AS assigned,
+             SUM(
+               CASE
+                 WHEN a.assigned_at <= DATE_SUB(
+                   NOW(),
+                   INTERVAL ${sql.raw(String(attributionWindowDays))} DAY
+                 )
+                 THEN 1 ELSE 0
+               END
+             ) AS matured
+      FROM contact_experiment_assignments a
+      WHERE a.assignment_version = ${CONTACT_HOLDOUT_VERSION}
+        AND a.assigned_at >= DATE_SUB(
+          NOW(),
+          INTERVAL ${sql.raw(String(windowDays))} DAY
+        )
+      GROUP BY a.lane_key, a.experiment_id, a.arm_id
+    `);
+
+    const [holdoutRevenueRows] = await d.execute(sql`
+      SELECT matured_invoice.laneKey,
+             matured_invoice.experimentId,
+             matured_invoice.armId,
+             COUNT(*)                      AS paidInvoices,
+             COALESCE(SUM(matured_invoice.totalAmount), 0) AS revenueCents
+      FROM (
+        SELECT DISTINCT
+               a.lane_key      AS laneKey,
+               a.experiment_id AS experimentId,
+               a.arm_id        AS armId,
+               a.subject_key   AS subjectKey,
+               i.id            AS invoiceId,
+               i.totalAmount   AS totalAmount
+        FROM contact_experiment_assignments a
+        JOIN customers cu
+          ON ${sql.raw(PHONE_MATCH_KEY_SQL("cu.phone"))} = a.subject_key
+        JOIN invoices i
+          ON i.customerId = cu.id
+         AND i.paymentStatus = 'paid'
+         AND i.invoiceDate > a.assigned_at
+         AND i.invoiceDate <= DATE_ADD(
+           a.assigned_at,
+           INTERVAL ${sql.raw(String(attributionWindowDays))} DAY
+         )
+        WHERE a.assignment_version = ${CONTACT_HOLDOUT_VERSION}
+          AND a.assigned_at >= DATE_SUB(
+            NOW(),
+            INTERVAL ${sql.raw(String(windowDays))} DAY
+          )
+          AND a.assigned_at <= DATE_SUB(
+            NOW(),
+            INTERVAL ${sql.raw(String(attributionWindowDays))} DAY
+          )
+      ) AS matured_invoice
+      GROUP BY matured_invoice.laneKey,
+               matured_invoice.experimentId,
+               matured_invoice.armId
+    `);
+
+    const byExperiment = new Map<string, HoldoutObservationInput & { laneKey: string }>();
+    for (const raw of assignmentRows as Array<Record<string, unknown>>) {
+      const experimentId = String(raw.experimentId ?? "");
+      const laneKey = String(raw.laneKey ?? "");
+      if (!experimentId || !laneKey) continue;
+      const current = byExperiment.get(experimentId) ?? {
+        experimentId,
+        laneKey,
+        treatmentAssigned: 0,
+        controlAssigned: 0,
+        treatmentMatured: 0,
+        controlMatured: 0,
+        treatmentPaidInvoices: 0,
+        controlPaidInvoices: 0,
+        treatmentRevenueCents: 0,
+        controlRevenueCents: 0,
+      };
+      const armId = String(raw.armId ?? "");
+      if (armId === "control") {
+        current.controlAssigned += Number(raw.assigned ?? 0);
+        current.controlMatured += Number(raw.matured ?? 0);
+      } else if (armId === "treatment") {
+        current.treatmentAssigned += Number(raw.assigned ?? 0);
+        current.treatmentMatured += Number(raw.matured ?? 0);
+      }
+      byExperiment.set(experimentId, current);
+    }
+
+    for (const raw of holdoutRevenueRows as Array<Record<string, unknown>>) {
+      const experimentId = String(raw.experimentId ?? "");
+      const current = byExperiment.get(experimentId);
+      if (!current) continue;
+      const armId = String(raw.armId ?? "");
+      if (armId === "control") {
+        current.controlPaidInvoices += Number(raw.paidInvoices ?? 0);
+        current.controlRevenueCents += Number(raw.revenueCents ?? 0);
+      } else if (armId === "treatment") {
+        current.treatmentPaidInvoices += Number(raw.paidInvoices ?? 0);
+        current.treatmentRevenueCents += Number(raw.revenueCents ?? 0);
+      }
+    }
+
+    // Current assignment_version guarantees one active experiment version
+    // per lane. Keeping the map keyed by lane makes it join naturally to
+    // the existing variant rollup below without changing that incumbent.
+    for (const current of byExperiment.values()) {
+      holdoutByLane.set(current.laneKey, current);
+    }
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      // 0136 not applied yet: no experiment can exist, so every lane is
+      // truthfully "unmeasured". Reporting it as a failed read would put
+      // an outage banner on the board from the day this deploys.
+      holdoutPending = true;
+      log.info("Q-21 holdout table not present (migration 0136 pending); lanes stay unmeasured");
+    } else {
+      // describeDbError, not err.message: the message is the SQL + params.
+      holdoutReadError = describeDbError(err);
+      log.warn("Q-21 holdout economics unavailable; keeping observed board", {
+        error: holdoutReadError,
+      });
+    }
+  }
+
+  return { byLane: holdoutByLane, pending: holdoutPending, error: holdoutReadError };
 }
 
 export const smsPerformanceRouter = router({
@@ -381,136 +537,11 @@ export const smsPerformanceRouter = router({
         // Lift uses matured cohorts only. That avoids right-censoring a customer
         // assigned yesterday against a control customer who already had 30 days
         // to return.
-        const holdoutByLane = new Map<string, HoldoutObservationInput>();
-        let holdoutReadError: string | undefined;
-        let holdoutPending = false;
-        try {
-          const [assignmentRows] = await d.execute(sql`
-            SELECT a.lane_key      AS laneKey,
-                   a.experiment_id AS experimentId,
-                   a.arm_id        AS armId,
-                   COUNT(*)        AS assigned,
-                   SUM(
-                     CASE
-                       WHEN a.assigned_at <= DATE_SUB(
-                         NOW(),
-                         INTERVAL ${sql.raw(String(attributionWindowDays))} DAY
-                       )
-                       THEN 1 ELSE 0
-                     END
-                   ) AS matured
-            FROM contact_experiment_assignments a
-            WHERE a.assignment_version = ${CONTACT_HOLDOUT_VERSION}
-              AND a.assigned_at >= DATE_SUB(
-                NOW(),
-                INTERVAL ${sql.raw(String(windowDays))} DAY
-              )
-            GROUP BY a.lane_key, a.experiment_id, a.arm_id
-          `);
-
-          const [holdoutRevenueRows] = await d.execute(sql`
-            SELECT matured_invoice.laneKey,
-                   matured_invoice.experimentId,
-                   matured_invoice.armId,
-                   COUNT(*)                      AS paidInvoices,
-                   COALESCE(SUM(matured_invoice.totalAmount), 0) AS revenueCents
-            FROM (
-              SELECT DISTINCT
-                     a.lane_key      AS laneKey,
-                     a.experiment_id AS experimentId,
-                     a.arm_id        AS armId,
-                     a.subject_key   AS subjectKey,
-                     i.id            AS invoiceId,
-                     i.totalAmount   AS totalAmount
-              FROM contact_experiment_assignments a
-              JOIN customers cu
-                ON ${sql.raw(PHONE_MATCH_KEY_SQL("cu.phone"))} = a.subject_key
-              JOIN invoices i
-                ON i.customerId = cu.id
-               AND i.paymentStatus = 'paid'
-               AND i.invoiceDate > a.assigned_at
-               AND i.invoiceDate <= DATE_ADD(
-                 a.assigned_at,
-                 INTERVAL ${sql.raw(String(attributionWindowDays))} DAY
-               )
-              WHERE a.assignment_version = ${CONTACT_HOLDOUT_VERSION}
-                AND a.assigned_at >= DATE_SUB(
-                  NOW(),
-                  INTERVAL ${sql.raw(String(windowDays))} DAY
-                )
-                AND a.assigned_at <= DATE_SUB(
-                  NOW(),
-                  INTERVAL ${sql.raw(String(attributionWindowDays))} DAY
-                )
-            ) AS matured_invoice
-            GROUP BY matured_invoice.laneKey,
-                     matured_invoice.experimentId,
-                     matured_invoice.armId
-          `);
-
-          const byExperiment = new Map<string, HoldoutObservationInput & { laneKey: string }>();
-          for (const raw of assignmentRows as Array<Record<string, unknown>>) {
-            const experimentId = String(raw.experimentId ?? "");
-            const laneKey = String(raw.laneKey ?? "");
-            if (!experimentId || !laneKey) continue;
-            const current = byExperiment.get(experimentId) ?? {
-              experimentId,
-              laneKey,
-              treatmentAssigned: 0,
-              controlAssigned: 0,
-              treatmentMatured: 0,
-              controlMatured: 0,
-              treatmentPaidInvoices: 0,
-              controlPaidInvoices: 0,
-              treatmentRevenueCents: 0,
-              controlRevenueCents: 0,
-            };
-            const armId = String(raw.armId ?? "");
-            if (armId === "control") {
-              current.controlAssigned += Number(raw.assigned ?? 0);
-              current.controlMatured += Number(raw.matured ?? 0);
-            } else if (armId === "treatment") {
-              current.treatmentAssigned += Number(raw.assigned ?? 0);
-              current.treatmentMatured += Number(raw.matured ?? 0);
-            }
-            byExperiment.set(experimentId, current);
-          }
-
-          for (const raw of holdoutRevenueRows as Array<Record<string, unknown>>) {
-            const experimentId = String(raw.experimentId ?? "");
-            const current = byExperiment.get(experimentId);
-            if (!current) continue;
-            const armId = String(raw.armId ?? "");
-            if (armId === "control") {
-              current.controlPaidInvoices += Number(raw.paidInvoices ?? 0);
-              current.controlRevenueCents += Number(raw.revenueCents ?? 0);
-            } else if (armId === "treatment") {
-              current.treatmentPaidInvoices += Number(raw.paidInvoices ?? 0);
-              current.treatmentRevenueCents += Number(raw.revenueCents ?? 0);
-            }
-          }
-
-          // Current assignment_version guarantees one active experiment version
-          // per lane. Keeping the map keyed by lane makes it join naturally to
-          // the existing variant rollup below without changing that incumbent.
-          for (const current of byExperiment.values()) {
-            holdoutByLane.set(current.laneKey, current);
-          }
-        } catch (err) {
-          if (isMissingTableError(err)) {
-            // 0136 not applied yet: no experiment can exist, so every lane is
-            // truthfully "unmeasured". Reporting it as a failed read would put
-            // an outage banner on the board from the day this deploys.
-            holdoutPending = true;
-            log.info("Q-21 holdout table not present (migration 0136 pending); lanes stay unmeasured");
-          } else {
-            // describeDbError, not err.message: the message is the SQL + params.
-            holdoutReadError = describeDbError(err);
-            log.warn("Q-21 holdout economics unavailable; keeping observed board", {
-              error: holdoutReadError,
-            });
-          }
-        }
+        const {
+          byLane: holdoutByLane,
+          pending: holdoutPending,
+          error: holdoutReadError,
+        } = await readHoldoutObservations(d, windowDays, attributionWindowDays);
 
         // Merge on the RAW variantKey before the rollup below folds A/B and
         // profile suffixes together.
@@ -588,4 +619,113 @@ export const smsPerformanceRouter = router({
         return empty(err instanceof Error ? err.message : "Query failed");
       }
     }),
+  /**
+   * Q-23 phase 11 · the lane-health strip. Raw reads only; the client
+   * classifies with shared/laneHealth.ts against its own clock.
+   *
+   * Four independent reads, each with its own failure flag, because each one
+   * failing means a different "unknown": the run log, the 30-day sends, the
+   * holdout cohorts (shared with recoveredRevenue) and the holdout flags. One
+   * failed read must not blank the other cells, and none may become a zero.
+   */
+  laneHealth: adminProcedure.query(async (): Promise<LaneHealthPayload> => {
+    const windowDays = 30;
+    const payload: LaneHealthPayload = {
+      windowDays,
+      cron: { readable: false, runs: {} },
+      sms: { readable: false, byVariant: [] },
+      holdout: { state: "error", byLane: [] },
+      holdoutArmed: {},
+    };
+    const d = await db();
+    if (!d) return payload;
+
+    try {
+      // cron_log keeps 7 days (cron/jobs/cleanup.ts), newest first. The cap
+      // bounds a read the strip makes every few minutes; a business-hours job
+      // writes about one row an hour.
+      const rows = await d
+        .select({
+          jobName: cronLog.jobName,
+          status: cronLog.status,
+          startedAt: cronLog.startedAt,
+          recordsProcessed: cronLog.recordsProcessed,
+          details: cronLog.details,
+          // Age in SQL, not JS: driver-parsed TiDB times come back shifted on
+          // ET (apps/nickstire/AGENTS.md §5 "Time").
+          ageMinutes: sql<number>`TIMESTAMPDIFF(MINUTE, ${cronLog.startedAt}, NOW())`,
+        })
+        .from(cronLog)
+        .where(inArray(cronLog.jobName, CUSTOMER_LANES.map((l) => l.jobName)))
+        .orderBy(desc(cronLog.startedAt))
+        .limit(3000);
+      const runs: LaneHealthPayload["cron"]["runs"] = {};
+      for (const r of rows) {
+        const slot = (runs[r.jobName] ??= { latest: null, latestCompleted: null });
+        const run: LaneRunRow = {
+          status: r.status,
+          startedAt: r.startedAt,
+          recordsProcessed: r.recordsProcessed,
+          details: r.details,
+          ageMinutes: r.ageMinutes == null ? null : Number(r.ageMinutes),
+        };
+        if (!slot.latest) slot.latest = run;
+        if (!slot.latestCompleted && r.status === "completed") slot.latestCompleted = run;
+      }
+      payload.cron = { readable: true, runs };
+    } catch (err) {
+      log.warn("laneHealth: cron_log read failed", { error: describeDbError(err) });
+    }
+
+    try {
+      const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+      const rows = await d
+        .select({
+          variantKey: smsMessages.variantKey,
+          attempted: sql<number>`COUNT(*)`,
+          // Same delivered-state allowlist as summary30d and recoveredRevenue.
+          sent: sql<number>`SUM(CASE WHEN ${smsMessages.status} IN ('sent','delivered') THEN 1 ELSE 0 END)`,
+        })
+        .from(smsMessages)
+        .where(and(
+          eq(smsMessages.direction, "outbound"),
+          gte(smsMessages.createdAt, since),
+          sql`${smsMessages.variantKey} IS NOT NULL`,
+        ))
+        .groupBy(smsMessages.variantKey);
+      payload.sms = {
+        readable: true,
+        byVariant: rows.map((r: { variantKey: string | null; attempted: number; sent: number }) => ({
+          variantKey: String(r.variantKey ?? ""),
+          attempted: Number(r.attempted ?? 0),
+          sent: Number(r.sent ?? 0),
+        })),
+      };
+    } catch (err) {
+      log.warn("laneHealth: sms_messages read failed", { error: describeDbError(err) });
+    }
+
+    // Same defaults as recoveredRevenue, so the strip and the board agree.
+    const holdout = await readHoldoutObservations(d, 180, 30);
+    payload.holdout = {
+      state: holdout.error ? "error" : holdout.pending ? "pending" : "read",
+      byLane: [...holdout.byLane.values()],
+    };
+
+    try {
+      const master = await isEnabled("contact_holdouts_enabled");
+      for (const lane of CUSTOMER_LANES) {
+        const def = lane.holdoutProbeVariant ? contactLaneForVariant(lane.holdoutProbeVariant) : null;
+        if (!def) continue;
+        payload.holdoutArmed[lane.key] = master && (await isEnabled(def.flagKey));
+      }
+    } catch (err) {
+      for (const lane of CUSTOMER_LANES) {
+        if (lane.holdoutProbeVariant) payload.holdoutArmed[lane.key] = null;
+      }
+      log.warn("laneHealth: holdout flag read failed", { error: describeDbError(err) });
+    }
+
+    return payload;
+  }),
 });

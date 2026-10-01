@@ -51,6 +51,7 @@ vi.mock("@/lib/trpc", () => ({
 // rendering the Data freshness card, not about each card's own queries.
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 vi.mock("../pages/admin/today/DataFreshness", () => ({ DataFreshness: () => <div data-testid="data-freshness-card" /> }));
+vi.mock("../pages/admin/today/LaneHealthStrip", () => ({ LaneHealthStrip: () => <div data-testid="lane-health-card" /> }));
 vi.mock("../pages/admin/today/TopMoneyMoves", () => ({ TopMoneyMoves: () => null }));
 vi.mock("../pages/admin/today/TodaysMoneyRisks", () => ({ TodaysMoneyRisks: () => null }));
 vi.mock("../pages/admin/today/TodaysRealNumbers", () => ({ TodaysRealNumbers: () => null }));
