@@ -34,6 +34,8 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { BUSINESS } from "@shared/business";
+import { BRAKE_PRICE, OIL_PRICE } from "@shared/pricing";
+import { findVoiceViolations, KILL_RULES } from "@shared/voice";
 
 const ROOT = join(__dirname, "..", "..", "..");
 const SCAN_DIRS = [join(ROOT, "client", "src"), join(ROOT, "shared")];
@@ -311,5 +313,331 @@ describe("the shop's weekday hours open at 8, everywhere", () => {
     expect(WEEKDAY_OPEN_AT_9.test("we're here Monday-Saturday 9-6 and Sunday 9-4")).toBe(true);
     expect(WEEKDAY_OPEN_AT_9.test("Mon-Sat 8-6, Sun 9-4")).toBe(false);
     expect(WEEKDAY_OPEN_AT_9.test("Sunday 9-4")).toBe(false);
+  });
+});
+
+/* -- copy the server renders: llms.txt, website chat, GBP/ad generators, SMS, voice -- */
+
+/**
+ * These files hold customer copy written in server code. The hours, ZIP, price
+ * and claim checks below read them alongside client/src and shared, with the
+ * same comment rule.
+ */
+const SERVER_COPY_FILES = [
+  "server/_core/index.ts",
+  "server/gemini.ts",
+  "server/services/chatTools.ts",
+  "server/services/gbpContentGenerator.ts",
+  "server/services/adStudio/adCopyGen.ts",
+  "server/services/smsReplyPlanner.ts",
+  "server/services/nickSmsPersona.ts",
+  "server/services/vapi.ts",
+];
+const SERVER_LINES: Array<{ file: string; line: number; text: string }> = [];
+for (const rel of SERVER_COPY_FILES) {
+  readFileSync(join(ROOT, rel), "utf8").split("\n").forEach((text, i) => {
+    if (!isCommentLine(text)) SERVER_LINES.push({ file: rel, line: i + 1, text });
+  });
+}
+const COPY_LINES = [...LINES, ...SERVER_LINES];
+
+describe("the server copy files are read", () => {
+  it("every listed file contributes lines (a rename cannot silently drop one)", () => {
+    expect(SERVER_LINES.length).toBeGreaterThan(1000);
+    for (const rel of SERVER_COPY_FILES) expect(SERVER_LINES.some((l) => l.file === rel), rel).toBe(true);
+  });
+});
+
+/* -- weekday hours, any drift: the 9-6 rule above only saw one spelling ---- */
+
+/**
+ * 2026-10-01: /wheel-alignment-cleveland said "9am-6pm Mon-Sat" while its own
+ * header said 8AM, and WEEKDAY_OPEN_AT_9 above stayed green: it matches
+ * "Mon-Sat 9-6" only, day first and without "am". These matchers read the open
+ * and close hour from either order, with or without am/pm, and compare both to
+ * BUSINESS.hours.structured.monday instead of banning one wrong value. Sunday's
+ * span written just before "Mon-Sat" is Sunday's, and an hour is never read
+ * out of a ":00" minutes field.
+ */
+const WEEKDAY_SPAN_DAY_FIRST =
+  /Mon(?:day)?\s?[-–]\s?Sat(?:urday)?[:,]?\s?(\d{1,2})(?::\d{2})?\s?(?:a\.?m\.?)?\s?[-–]\s?(\d{1,2})(?::\d{2})?/gi;
+const WEEKDAY_SPAN_TIME_FIRST =
+  /(?<!Sun[a-z]*\b[^\d\n]{0,15})(?<![\d:])\b(\d{1,2})(?::\d{2})?\s?(?:a\.?m\.?)?\s?[-–]\s?(\d{1,2})(?::\d{2})?\s?(?:p\.?m\.?)?[\s,·]{1,4}Mon(?:day)?\s?[-–]\s?Sat(?:urday)?/gi;
+
+function weekdaySpans(text: string): Array<{ open: number; close: number }> {
+  return [WEEKDAY_SPAN_DAY_FIRST, WEEKDAY_SPAN_TIME_FIRST].flatMap((re) =>
+    [...text.matchAll(re)].map((m) => ({ open: Number(m[1]), close: Number(m[2]) })),
+  );
+}
+
+const CANON_OPEN = Number(BUSINESS.hours.structured.monday.slice(0, 2));
+const CANON_CLOSE = Number(BUSINESS.hours.structured.monday.slice(6, 8));
+const isCanonicalSpan = (s: { open: number; close: number }) =>
+  s.open === CANON_OPEN && (s.close === CANON_CLOSE || s.close === CANON_CLOSE - 12);
+
+describe("every Mon-Sat hours span matches BUSINESS.hours", () => {
+  it("no span on a customer surface opens or closes at a different hour", () => {
+    const wrong = COPY_LINES.flatMap((l) =>
+      weekdaySpans(l.text).filter((s) => !isCanonicalSpan(s)).map((s) => `${l.file}:${l.line} says ${s.open}-${s.close}`),
+    );
+    expect(wrong).toEqual([]);
+  });
+
+  // MATCHER PROBES, not corpus counts: a count of canonical literals would go
+  // red the day someone replaces the literals with BUSINESS.hours, which is the
+  // fix this file wants (see the 2026-09-08 note above).
+  it("the matchers read both orders and both spellings", () => {
+    expect(weekdaySpans("17625 Euclid Ave · 9am-6pm Mon-Sat · walk-in welcome")).toEqual([{ open: 9, close: 6 }]);
+    expect(weekdaySpans("Mon–Sat 9 AM–6 PM")).toEqual([{ open: 9, close: 6 }]);
+    expect(weekdaySpans("Monday–Saturday: 7:00 AM–6:00 PM")).toEqual([{ open: 7, close: 6 }]);
+  });
+
+  it("the real hours pass, and Sunday's own span is not read as the weekday's", () => {
+    for (const ok of [
+      "Mon–Sat 8AM–6PM, Sun 9AM–4PM",
+      "Sun 9–4 · Mon–Sat 8–6",
+      "Open Sunday 9–4, Mon–Sat 8–6.",
+      "Sunday: 9–4, Mon–Sat 8–6",
+      "Sundays & holidays 9-4, Mon-Sat 8-6",
+      "Sunday 9:00 AM–4:00 PM, Monday–Saturday 8:00 AM–6:00 PM",
+    ]) {
+      expect(weekdaySpans(ok).every(isCanonicalSpan), ok).toBe(true);
+    }
+    expect(weekdaySpans("Sunday 9am-4pm")).toEqual([]);
+  });
+});
+
+/* -- the shop's ZIP ---------------------------------------------------------- */
+
+/**
+ * 2026-10-01: shared/guides.ts told customers to ship tires to "17625 Euclid
+ * Ave, Cleveland, OH 44110". The ZIP is 44112: BUSINESS.address.zip, Cuyahoga
+ * County parcel 117-07-027 and the Census geocoder agree. Nothing read ZIPs in
+ * copy before; business-logic.test.ts checks only the constant. JSON-LD writes
+ * the ZIP on its own as postalCode, so that shape is read too.
+ */
+const SHOP_ZIP_SHAPE = /17625\s+Euclid[^\n]{0,40}?\b(44\d{3})\b/gi;
+const POSTAL_CODE_SHAPE = /postalCode["']?\s*:\s*["'](\d{5})["']/g;
+
+function zipsIn(text: string): string[] {
+  return [SHOP_ZIP_SHAPE, POSTAL_CODE_SHAPE].flatMap((re) => [...text.matchAll(re)].map((m) => m[1]));
+}
+
+describe("the shop's ZIP has exactly one value", () => {
+  it("every ZIP written with the street address, or as postalCode, is BUSINESS.address.zip", () => {
+    const wrong = COPY_LINES.flatMap((l) =>
+      zipsIn(l.text).filter((z) => z !== BUSINESS.address.zip).map((z) => `${l.file}:${l.line} says ${z}`),
+    );
+    expect(wrong).toEqual([]);
+  });
+
+  it("the matchers detect a drifted ZIP in both shapes", () => {
+    expect(zipsIn("have them shipped to 17625 Euclid Ave, Cleveland, OH 44110, and")).toEqual(["44110"]);
+    expect(zipsIn('address: { "@type": "PostalAddress", postalCode: "44110" }')).toEqual(["44110"]);
+    expect(zipsIn("17625 Euclid Ave, Cleveland, OH 44112")).toEqual(["44112"]);
+  });
+});
+
+/* -- prices the shop states as its own --------------------------------------- */
+
+/**
+ * 2026-10-01: brake pads were "$89 per axle" in the /brakes FAQ JSON-LD, "$129"
+ * on every blog post's CTA and "$149" on /brakes itself; oil was "$29.99",
+ * "$35", "$39" and "$69.99" on blog and guide surfaces against $49 / $80.
+ * These read "<pads|oil change|conventional|synthetic> ... from / starts at $N",
+ * the shape the shop uses for its own price. A sentence naming a dealer, chain
+ * or competitor, or speaking of typical or average market prices, is skipped,
+ * and so are pads-plus-rotors and resurfacing jobs.
+ */
+const PAD_PRICE_CLAIM =
+  /\bpads?\b(?:(?!rotor|resurfac)[^.\n$+]){0,40}?\b(?:start(?:s|ing)? at|(?<!rang(?:e|es|ing) )from)\s+(?:just |only )?\$(\d{2,3})/gi;
+const OIL_PRICE_CLAIM =
+  /\b(?:oil changes?|conventional|synthetic)\b[^.\n$]{0,30}?\b(?:from|start(?:s|ing)? at)\s+(?:just |only )?\$(\d{2,3})(?:\.\d{2})?/gi;
+const STALE_OIL_SPECIAL = /\$(?:29\.99|39)\s+oil change/gi;
+const NOT_THE_SHOPS_PRICE =
+  /\b(?:dealers?|dealerships?|chains?|valvoline|jiffy|midas|firestone|mavis|conrad'?s|monro|pep boys|typical(?:ly)?|average|independent shops|elsewhere|market)\b/i;
+
+function shopPrices(text: string, re: RegExp): number[] {
+  const out: number[] = [];
+  for (const m of text.matchAll(re)) {
+    const from = text.lastIndexOf(".", m.index ?? 0) + 1;
+    const sentence = text.slice(from, (m.index ?? 0) + m[0].length);
+    if (!NOT_THE_SHOPS_PRICE.test(sentence)) out.push(Number(m[1]));
+  }
+  return out;
+}
+
+describe("prices the shop states as its own match shared/pricing.ts", () => {
+  const OIL_PRICES: number[] = [OIL_PRICE.conventional, OIL_PRICE.fullSynthetic];
+
+  it("every 'pads from $N' is BRAKE_PRICE.padsStarting", () => {
+    const wrong = COPY_LINES.flatMap((l) =>
+      shopPrices(l.text, PAD_PRICE_CLAIM).filter((p) => p !== BRAKE_PRICE.padsStarting).map((p) => `${l.file}:${l.line} says $${p}`),
+    );
+    expect(wrong).toEqual([]);
+  });
+
+  it("every 'oil change from $N' is a price in OIL_PRICE, and no stale special survives", () => {
+    const wrong = COPY_LINES.flatMap((l) =>
+      shopPrices(l.text, OIL_PRICE_CLAIM).filter((p) => !OIL_PRICES.includes(p)).map((p) => `${l.file}:${l.line} says $${p}`),
+    );
+    const stale = COPY_LINES.filter((l) => l.text.match(STALE_OIL_SPECIAL)).map((l) => `${l.file}:${l.line}`);
+    expect([...wrong, ...stale]).toEqual([]);
+  });
+
+  it("the matchers see the shop's drifted prices", () => {
+    expect(shopPrices("Pads start at $89 per axle installed", PAD_PRICE_CLAIM)).toEqual([89]);
+    expect(shopPrices("pad replacement at our shop starts at $129 per axle", PAD_PRICE_CLAIM)).toEqual([129]);
+    expect(shopPrices("Pads from $149/axle, pads + rotors from $279/axle", PAD_PRICE_CLAIM)).toEqual([149]);
+    expect(shopPrices("Full conventional oil change from $29.99.", OIL_PRICE_CLAIM)).toEqual([29]);
+    expect(shopPrices("Oil changes from $39.99. Brake pads from $149.99 per axle.", OIL_PRICE_CLAIM)).toEqual([39]);
+    expect(shopPrices("At Nick's: conventional starts at $35, full synthetic starts at $65.", OIL_PRICE_CLAIM)).toEqual([35, 65]);
+    expect(shopPrices("synthetic from just $69 today", OIL_PRICE_CLAIM)).toEqual([69]);
+    expect("our [$39 oil change special](/oil-change)".match(STALE_OIL_SPECIAL)).not.toBeNull();
+  });
+
+  it("the matchers skip market ranges, competitors and other jobs", () => {
+    expect(shopPrices("pad replacement typically ranges from $150 to $350", PAD_PRICE_CLAIM)).toEqual([]);
+    expect(shopPrices("Dealer brake pads start at $250", PAD_PRICE_CLAIM)).toEqual([]);
+    expect(shopPrices("Pads and resurfacing from $199", PAD_PRICE_CLAIM)).toEqual([]);
+    expect(shopPrices("Full synthetic at Valvoline starts at $99", OIL_PRICE_CLAIM)).toEqual([]);
+    expect(shopPrices("Full synthetic at chains: $60 to $90.", OIL_PRICE_CLAIM)).toEqual([]);
+  });
+});
+
+/* -- unsupported claims: the kernel's claim.* rules over every customer line -- */
+
+/**
+ * The rules live in shared/voice.ts (reason "claim") so the copy linter, the IG
+ * generator and critic prompts, Ad Studio's lintAdCopy and this scan read one
+ * list. The linter checks only ADDED lines and voice-compliance.test.ts only a
+ * fixed set of fields, so neither could see the "no credit check" pitch on
+ * every prerendered page, the E-Check "30-day deadline" or "pass guaranteed".
+ * This scan reads every customer-copy line, zero tolerance, twice: line by line,
+ * and with each file's lines joined, because JSX prose wraps ("checking /
+ * doesn't ding your score" was split across two lines and passed a line scan).
+ * HTML entities are decoded first (&apos; hid "doesn't").
+ *
+ * Skipped, with reasons: shared/voice.ts (its labels ARE the banned phrases);
+ * shared/proof.ts (attributed customer testimonials, consumed only by the admin
+ * review-request screen; a customer's words are evidence, not shop copy, the
+ * same rule voice-compliance.test.ts applies). Admin files are scanned as the
+ * admin surface, which the claim rules exempt, exactly as the linter does.
+ */
+const CLAIM_RULE_IDS = KILL_RULES.filter((r) => r.reason === "claim").map((r) => r.id);
+const CLAIM_SCAN_SKIP = new Set(["shared/voice.ts", "shared/proof.ts"]);
+
+const decodeEntities = (t: string) =>
+  t
+    .replace(/&apos;|&#39;|&rsquo;/g, "'")
+    .replace(/&quot;|&ldquo;|&rdquo;/g, '"')
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");
+
+function claimHits(file: string, text: string): Array<{ ruleId: string; match: string; index: number }> {
+  if (CLAIM_SCAN_SKIP.has(file)) return [];
+  const surface = file.includes("/admin/") ? "admin" : "web";
+  return findVoiceViolations(decodeEntities(text), { surface })
+    .filter((v) => CLAIM_RULE_IDS.includes(v.ruleId))
+    .map((v) => ({ ruleId: v.ruleId, match: v.match, index: v.index }));
+}
+
+function claimFindings(lines: Array<{ file: string; line: number; text: string }>): string[] {
+  const found = new Set<string>();
+  const byFile = new Map<string, Array<{ line: number; text: string }>>();
+  for (const l of lines) {
+    for (const h of claimHits(l.file, l.text)) found.add(`${l.file}:${l.line} [${h.ruleId}] "${h.match}"`);
+    const list = byFile.get(l.file) ?? [];
+    list.push(l);
+    byFile.set(l.file, list);
+  }
+  // Joined pass: a phrase split across wrapped lines. Reported at its first line.
+  for (const [file, list] of byFile) {
+    let joined = "";
+    const starts: number[] = [];
+    for (const l of list) {
+      starts.push(joined.length);
+      joined += decodeEntities(l.text.trim()) + " ";
+    }
+    for (const h of claimHits(file, joined)) {
+      let i = 0;
+      while (i + 1 < starts.length && starts[i + 1] <= h.index) i++;
+      const key = `${file}:${list[i].line} [${h.ruleId}]`;
+      if (![...found].some((f) => f.startsWith(key))) found.add(`${key} "${h.match}" (wrapped)`);
+    }
+  }
+  return [...found];
+}
+
+const scanOne = (text: string, file = "client/src/pages/Canary.tsx") =>
+  claimFindings([{ file, line: 1, text }]).map((f) => f.match(/\[(claim\.[a-z-]+)\]/)?.[1]);
+
+describe("no unsupported claim reaches a customer surface", () => {
+  it("the kernel carries the claim rules", () => {
+    expect(CLAIM_RULE_IDS.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("no customer-copy line makes a claim the shop cannot back", () => {
+    expect(claimFindings(COPY_LINES)).toEqual([]);
+  });
+
+  // PER-RULE CANARY through the SAME function the corpus scan uses.
+  it.each(KILL_RULES.filter((r) => r.reason === "claim").map((r) => [r.id, r.label] as const))(
+    "%s is caught by the corpus scan",
+    (id, label) => {
+      expect(scanOne(label)).toContain(id);
+    },
+  );
+
+  // MUST-FLAG: wordings that were live on 2026-10-01 and slipped past the first
+  // version of these rules. A canary that only fires each rule on its own label
+  // cannot show the rule is too narrow; these can.
+  it.each([
+    ["claim.no-credit-check", "Pre-approval takes 2 minutes with no hard credit check."],
+    ["claim.no-credit-check", "all $10 down with no traditional credit check"],
+    ["claim.no-credit-check", "Bad credit? No credit check? No problem."],
+    ["claim.no-credit-impact", "No credit history needed to check, and checking doesn't ding your score."],
+    ["claim.no-credit-impact", "Pre-qualified in 60 seconds with a soft credit pull (no impact to your score)"],
+    ["claim.no-credit-impact", "checking approval does not require a credit history or a hard credit pull"],
+    ["claim.approval-promise", "Need tires? Acima approves you on the spot"],
+    ["claim.approval-promise", "Walk-ins 7 days, payment programs on the spot."],
+    ["claim.approval-promise", "Most customers qualify for $500-$5,000."],
+    ["claim.approval-promise", "Soft credit pre-qualification takes 60 seconds"],
+    ["claim.approval-promise", "Approved in seconds, guaranteed approval"],
+    ["claim.lease-no-interest", "Some plans offer 0% interest for qualified buyers."],
+    ["claim.echeck-deadline", "You have 30 days and one free retest after a failure."],
+    ["claim.echeck-deadline", "Failed Ohio E-Check has a 30-day repair window. Day 31 = parking tickets."],
+    ["claim.echeck-deadline", "you have 30 days to make repairs and retest at no additional cost"],
+    ["claim.echeck-pass-guarantee", "We handle emissions testing and can fix it so you pass the first time."],
+    ["claim.echeck-pass-guarantee", "then fix the failure so you pass, no \"do it twice\" risk"],
+    ["claim.echeck-pass-guarantee", "We guarantee your car passes."],
+  ])("%s flags: %s", (id, text) => {
+    expect(scanOne(text)).toContain(id);
+  });
+
+  it("a phrase wrapped across JSX lines, with an HTML entity, is still caught", () => {
+    const wrapped = [
+      { file: "client/src/data/X.tsx", line: 10, text: "          far gone. No credit history needed to check, and checking" },
+      { file: "client/src/data/X.tsx", line: 11, text: "          doesn&apos;t ding your score. Come talk to us." },
+    ];
+    expect(claimFindings(wrapped).some((f) => f.includes("claim.no-credit-impact"))).toBe(true);
+  });
+
+  it("MUST NOT FLAG: honest copy, addresses, the searcher's question, and admin", () => {
+    for (const ok of [
+      "We have no interest in selling you parts you don't need.",
+      "Most customers approve the estimate the same day.",
+      "Text YES to approve in 2 minutes.",
+      "Snap says applying won't affect your FICO score, though another consumer-report score may be.",
+      "You have 30 days from the date of purchase to complete the title transfer at a BMV office.",
+      '<Link href="/no-credit-check-tires-cleveland">Bad credit? Tire options</Link>',
+      "SEARCHING FOR NO CREDIT CHECK TIRES?\\nHERE'S THE STRAIGHT ANSWER.",
+      "Can I get tires with no credit check?",
+      "Never say 'no credit check' or promise approval.",
+      "The state runs the test; we run a free readiness check and fix whatever is causing a failure.",
+    ]) {
+      expect(scanOne(ok), ok).toEqual([]);
+    }
+    expect(scanOne("no credit check", "client/src/pages/admin/Canary.tsx")).toEqual([]);
   });
 });

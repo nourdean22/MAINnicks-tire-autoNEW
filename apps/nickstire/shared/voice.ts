@@ -57,7 +57,11 @@ export type VoiceSource =
   | "lint-brand-voice"
   | "igAutopost.generator"
   | "igAutopost.critic"
-  | "voice-compliance";
+  | "voice-compliance"
+  // Claim rules cite the document that makes the claim unsupportable, not a style guide.
+  | "AGENTS.md" // apps/nickstire/AGENTS.md "Content and claim safety"
+  | "shared/financing.ts" // provider-language rules, truth-reviewed against provider disclosures
+  | "Ohio EPA"; // the E-Check program's own published rules
 
 /** Why a phrase is banned — drives how the fix is explained. */
 export type KillReason =
@@ -65,7 +69,8 @@ export type KillReason =
   | "archetype" // HERO/RULER/SAGE invasion of a CAREGIVER+EVERYMAN brand
   | "llm-tell" // ChatGPT/Claude-ism that marks copy as AI-written
   | "bot-speak" // customer-service-script phrasing
-  | "positioning"; // contradicts a standing operator directive (FCFS, payment programs)
+  | "positioning" // contradicts a standing operator directive (FCFS, payment programs)
+  | "claim"; // a factual promise the shop cannot back (credit outcome, legal deadline, pass guarantee)
 
 export interface KillRule {
   /** Stable slug. Referenced by tests and suppression comments — never renumber. */
@@ -844,6 +849,102 @@ export const KILL_RULES: readonly KillRule[] = Object.freeze([
     sources: ["voice-compliance"],
     note:
       "Deliberately scoped to DIRECT conflation ('Acima financing', 'credit via Acima'). Provider lists naming Acima beside real lenders are governed by shared/financing.ts's product-accuracy header, not this rule — lender names themselves are intentional customer copy, not violations.",
+  },
+
+  // ─── Unsupported claims (claim-safety) ────────────────────────────────────
+  // Not style. Each of these is a factual promise the shop cannot keep, and each
+  // was live on the public site on 2026-10-01: in FAQ JSON-LD, in llms.txt, in the
+  // sitewide service footer, and in the GBP post generator. They sit in the
+  // kernel so the copy linter, the IG generator and critic prompts, and the
+  // corpus scan in canonical-business-truth.test.ts all read one list.
+  {
+    id: "claim.no-credit-check",
+    pattern: /\bno[- ](?:hard[- ]|traditional[- ])?credit[- ]checks?\b|\bwithout (?:a )?(?:hard |traditional )?credit checks?\b/i,
+    label: "no credit check",
+    why:
+      "False for at least two of the four providers: Koalafi says 'we check your credit', and American First Finance says 'credit may be checked'. Acima and Snap pull consumer-report data too. What the providers actually say is that established credit is not required (shared/financing.ts).",
+    fix: "Name the providers and say the provider decides approval; PAYMENT_PROGRAMS_* in shared/financing.ts has the approved lines",
+    reason: "claim",
+    severity: "block",
+    // Same principle as CHEAP_QUERY_TARGETS: the rule governs what the shop
+    // claims, not an address or the searcher's own question. Kept to exact
+    // phrases: a bare "no credit check?" would also pass "No credit check? No
+    // problem.", and a bare quoted form would pass alt="No credit check tires".
+    allow: [
+      // URL slugs: addresses, not claims (renaming them would 404 indexed pages)
+      "no-credit-check-tires-cleveland",
+      "auto-repair-payment-programs-no-credit-check",
+      "financing-auto-repair-no-credit-check",
+      // the searcher's own question, answered honestly on that page
+      "searching for no credit check tires?",
+      "no credit check tires cleveland?",
+      "tires with no credit check?",
+      "the 'no credit check tires' search",
+      // prompts telling a model NOT to say it
+      "say 'no credit check'",
+      "write 'no credit check'",
+    ],
+    exempt: ["admin"],
+    sources: ["AGENTS.md", "shared/financing.ts"],
+    note: "smsFactCompiler.ts already kept this phrase out of SMS; the web never got the same rule.",
+  },
+  {
+    id: "claim.approval-promise",
+    pattern:
+      /\bapproved (?:in|within) (?:about |under |just |only )?\d+ ?(?:sec(?:ond)?s?|min(?:ute)?s?)\b|\b(?:decision|approval) in (?:about |under |just |only )?\d+ ?sec(?:ond)?s?\b|\bpre-?qualif(?:ied|ying|ication)\b[^.\n]{0,40}?\b(?:in|takes)\s+(?:about |under |just |only )?\d+\s?(?:sec(?:ond)?s?|min(?:ute)?s?)\b|\bapprov(?:ed|al)\b[^.\n]{0,20}?\b(?:in|takes)\s+(?:about |under |just |only )?(?:\d+\s?)?(?:sec(?:ond)?s?|min(?:ute)?s?)\b|\bapproved on the spot\b|\bapproves? you on the spot\b|\b(?:payment programs?|financing|lease-to-own)(?: approved)? on the spot\b|\bon[- ]the[- ]spot approvals?\b|\binstant approval\b|\bguaranteed approval\b|\bup to \$[\d,]+ approved\b|\bmost (?:customers|people|applicants) (?:are )?(?:approved|qualify)\b|\bget people approved\b|\bwhen one says no, the next says yes\b/i,
+    label: "approved in 90 seconds / approved on the spot",
+    why: "Approval, its timing and its amount belong to the provider. No published provider term supports a speed or an approval rate (shared/financing.ts).",
+    fix: "'The provider decides approval and amount; not every applicant is approved.'",
+    reason: "claim",
+    severity: "block",
+    exempt: ["admin"],
+    sources: ["AGENTS.md", "shared/financing.ts"],
+  },
+  {
+    id: "claim.no-credit-impact",
+    pattern:
+      /\bsoft[- ]pull only\b|\bno fico ding\b|\b(?:no|without a|not require a|doesn['’]t require a) hard (?:credit )?(?:pull|inquiry|check)\b|\b(?:does not|doesn['’]t|won['’]t|will not|never) require\b[^.\n]{0,40}?\bhard (?:credit )?(?:pull|inquiry|check)\b|\bdoesn['’]t pull credit\b|\b(?:won['’]t|doesn['’]t|does not|will not|never) (?:hurt|affect|ding|lower) your (?:credit(?: score)?|score)\b|\bno impact (?:to|on) your (?:credit(?: score)?|score)\b|\bsoft (?:credit )?(?:pull|check)\b/i,
+    label: "soft pull only / no FICO ding",
+    why: "Only Snap publishes 'no impact to FICO', and even Snap says another consumer-report score may be affected. American First Finance may check credit.",
+    fix: "Attribute the credit effect to the provider that publishes it, or link to /financing",
+    reason: "claim",
+    severity: "block",
+    exempt: ["admin"],
+    sources: ["shared/financing.ts"],
+  },
+  {
+    id: "claim.lease-no-interest",
+    pattern: /\bsame[- ]as[- ]cash\b|\binterest[- ]free\b|\bno interest\b(?! in\b)|\b0% (?:interest|apr)\b|\bzero[- ]interest\b/i,
+    label: "same as cash / no interest",
+    why: "Lease-to-own is not credit, so 'interest' framing misdescribes it. The FTC's 2020 order against Progressive Leasing bars 'no interest' claims made without the total cost, and its one count was the promise that customers would pay the cash price. Payoff windows vary by provider and agreement.",
+    fix: "'Early purchase options may reduce the total cost; the agreement controls' (shared/financing.ts)",
+    reason: "claim",
+    severity: "block",
+    exempt: ["admin"],
+    sources: ["shared/financing.ts"],
+  },
+  {
+    id: "claim.echeck-deadline",
+    pattern:
+      /\b30[- ]days? (?:to (?:fix|remedy|repair|make repairs|re-?test)|from the fail)|\b30[- ]day (?:deadline|repair window)\b|\bregistration (?:goes|becomes|is) invalid\b|\bin 30 days when (?:your )?registration expires\b|\bday e-?check deadline\b|\bdays to e-?check fail(?:ure)?\b|\bday 31\b|\b(?:30|thirty)[- ]days?\b[^.\n]{0,80}?\b(?:retest|re-test|e-?check|emissions)\b|\b(?:30|thirty) days after (?:that|expired|the fail)/i,
+    label: "E-Check 30-day deadline / registration goes invalid",
+    why: "Ohio sets no 30-day repair deadline after a failed E-Check. The real consequence is that the registration cannot be renewed until the vehicle passes or qualifies for a waiver or extension.",
+    fix: "'Ohio won't renew your registration until the vehicle passes E-Check or qualifies for a waiver or extension.'",
+    reason: "claim",
+    severity: "block",
+    exempt: ["admin"],
+    sources: ["Ohio EPA"],
+  },
+  {
+    id: "claim.echeck-pass-guarantee",
+    pattern: /\bpass(?:ing)? guarantee(?:d)?\b|\bguarantee(?:d)? (?:to |you(?:['’]ll)? )?pass\b|\bguarantee(?:s|d)? (?:that )?(?:your car |it )pass(?:es)?\b|\bsame[- ]day pass\b|\bpass promise\b|\bpass (?:it )?(?:the )?first time\b|\bno ["'“]?do it twice["'”]? risk\b|\bwe (?:handle|do|run|perform|offer) (?:the )?(?:state |official )?(?:emissions|e-?check) test(?:ing|s)?\b/i,
+    label: "pass guaranteed / same-day pass",
+    why: "Only the state's E-Check test passes a car, and AGENTS.md bans 'guaranteed' outright. services.ts dropped 'Pass Guaranteed' on 2026-09-16; four other surfaces kept it.",
+    fix: "'Free readiness check before you test, and we fix the cause of the failure.'",
+    reason: "claim",
+    severity: "block",
+    exempt: ["admin"],
+    sources: ["AGENTS.md", "Ohio EPA"],
   },
 ]);
 

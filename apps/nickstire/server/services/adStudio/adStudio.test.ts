@@ -5,7 +5,7 @@ import { lintAdCopy } from "./adCopyGen";
 
 const COPY: AdCopy = {
   hookYellow: "$10 DOWN.", hookWhite: "DRIVE TODAY.", hookSub: "New tires from $89 installed",
-  valueWhite: "NO CREDIT CHECK.", valueYellow: "$10 DOWN.",
+  valueWhite: "4 PAYMENT PROGRAMS.", valueYellow: "$10 DOWN.",
   valueTicks: ["Drive home today", "Acima · Snap · Koalafi", "Any tire, any brand"],
   offerYellow: "FREE", offerWhite: "TIRE CHECK.", offerSub: "No appointment. No pressure.",
   caption: "Walk in 7 days a week.",
@@ -61,6 +61,14 @@ describe("lintAdCopy", () => {
   it("allows 'free tire check'", () => {
     const ok = { ...COPY, caption: "Get a free tire check today" };
     expect(lintAdCopy(ok)).toEqual([]);
+  });
+  it("flags a claim the shop cannot back (kernel claim.* rules)", () => {
+    // The fixture above carried "NO CREDIT CHECK." as clean copy until
+    // 2026-10-01; Koalafi and American First Finance both check credit.
+    const bad = { ...COPY, valueWhite: "NO CREDIT CHECK." };
+    expect(lintAdCopy(bad).some((i) => i.includes("claim.no-credit-check"))).toBe(true);
+    const approval = { ...COPY, caption: "Approved on the spot, drive today." };
+    expect(lintAdCopy(approval).some((i) => i.includes("claim.approval-promise"))).toBe(true);
   });
   it("flags leaked HTML entities", () => {
     const bad = { ...COPY, caption: "Snap &amp; Koalafi" };

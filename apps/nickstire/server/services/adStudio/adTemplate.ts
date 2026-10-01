@@ -22,9 +22,9 @@ export interface AdCopy {
   /** hook card */
   hookYellow: string; // e.g. "$10 DOWN."
   hookWhite: string; //  e.g. "DRIVE TODAY."
-  hookSub: string; //    e.g. "New tires from $89 installed · no credit check"
+  hookSub: string; //    e.g. "New tires from $89 installed · 4 payment programs"
   /** value card */
-  valueWhite: string; // e.g. "NO CREDIT CHECK."
+  valueWhite: string; // e.g. "4 PAYMENT PROGRAMS."
   valueYellow: string; // e.g. "$10 DOWN."
   valueTicks: [string, string, string];
   /** offer / free-check card */
