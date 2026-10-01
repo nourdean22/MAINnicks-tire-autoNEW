@@ -526,11 +526,11 @@ const PLAYBOOKS: Partial<Record<SmsIntent, SmsPlaybook>> = {
   price_brakes: {
     goal: "answer",
     knownFacts: () => [
-      "Brake pricing depends on what is worn — free check first, price in writing before any work. Never quote a brake dollar amount.",
+      "Brake pricing depends on what is worn — pads-only and pads-plus-rotors are different jobs. Free check first, price in writing before any work. Never quote a brake dollar amount.",
       // Distinguish symptoms without turning a text exchange into a diagnosis.
       // Squeak / grind / shake changes what the technician inspects first, but
       // none of them proves which part is worn before the vehicle is checked.
-      "Squeaking, grinding and shaking point the inspection in different directions. Grinding is more urgent; the free check determines what is actually worn.",
+      "Squeaking, grinding and shaking can point the inspection toward different brake components, including pads and rotors, but the symptom alone cannot tell us which part is worn. Grinding is more urgent; the free check confirms what is actually worn.",
     ],
     missingInformation: (_ctx, body) =>
       BRAKE_SYMPTOM_RE.test(body) ? [] : ["which brake symptom they hear (squeak / grind / shake)"],

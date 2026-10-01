@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "ref": "apps/nickstire/docs/operations/capability-ledger.json: customer-conversation-tuning-20261001 records PR #2839 SMS/voice customer-corpus tuning, focused tests, and the truthful unit_verified pre-production state."
+    }
+  }
+}
