@@ -152,6 +152,26 @@ export async function buildSystemPrompt(
  *  providers — the hard slice the built prompt must fit at runtime. */
 const NON_ANTHROPIC_RUNTIME_CAP = 65_000;
 
+/**
+ * 2026-10-01 · drop rank for the pack-scoped trim only. Every pack card
+ * ranked 30 in getSectionPriority, so tail-first position alone decided
+ * what a content ask kept, and the asked format's engine survived only by
+ * the length of the cards in front of it. The seasonal playbook is one of
+ * them: a carousel ask on a 40k base kept CAROUSEL ENGINE with 44 chars
+ * to spare in September and lost it on October 1, when the playbook
+ * turned to its longer winter text (REELS ENGINE never fit at all). These
+ * ranks make the documented order hold in any month: every other card
+ * goes first, then the asked format's engine, then the mandatory content
+ * rules, the OPS CARD last. Pack-scoped on purpose: in the whole-prompt
+ * trim (finalize-system-prompt.ts) they would outrank base sections.
+ */
+function packDropRank(title: string): number | undefined {
+  if (/^## (reels|carousel|story) engine\b/.test(title)) return 29;
+  if (title.includes("content generation mode")) return 28;
+  if (title.includes("ops card")) return 27;
+  return undefined;
+}
+
 export async function appendBusinessKnowledgeLayer(
   prompt: string,
   tier: TopicTier,
@@ -192,7 +212,7 @@ export async function appendBusinessKnowledgeLayer(
     // essentials, OPS CARD last).
     const room = NON_ANTHROPIC_RUNTIME_CAP - prompt.length - 2;
     if (room <= 0) return prompt;
-    const bounded = block.length > room ? trimPromptToBudget(block, room) : block;
+    const bounded = block.length > room ? trimPromptToBudget(block, room, packDropRank) : block;
     if (!bounded.trim()) return prompt;
     return `${prompt}\n\n${bounded}`;
   } catch {
@@ -266,7 +286,11 @@ export async function buildSystemPromptUncached(
   return prompt;
 }
 
-export function trimPromptToBudget(prompt: string, maxLimit = 58000): string {
+export function trimPromptToBudget(
+  prompt: string,
+  maxLimit = 58000,
+  rankOverride?: (lowerTitle: string) => number | undefined,
+): string {
   if (prompt.length <= maxLimit) return prompt;
 
   const sections = prompt.split(/\n(?=## )/g);
@@ -306,7 +330,7 @@ export function trimPromptToBudget(prompt: string, maxLimit = 58000): string {
 
   const mappedSections = sections.map((sec, idx) => {
     const firstLine = sec.split("\n")[0] || "";
-    const priority = getSectionPriority(firstLine);
+    const priority = rankOverride?.(firstLine.toLowerCase()) ?? getSectionPriority(firstLine);
     return { idx, text: sec, priority };
   });
 

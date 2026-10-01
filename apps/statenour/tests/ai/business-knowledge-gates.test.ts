@@ -13,7 +13,7 @@
  * Pure data + regex — no mocks needed.
  */
 
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 
 // No mocks — content-intent.ts is a zero-import pure module, so these
 // gates run against the REAL content detector.
@@ -70,7 +70,7 @@ describe("getBusinessKnowledge load gates", () => {
 // ── AG-35 · V2 knowledge layer ────────────────────────────────────
 // The pack was orphaned from the live prompt by the Prompt V2 cutover;
 // appendBusinessKnowledgeLayer re-injects it, tier/slot-gated.
-import { appendBusinessKnowledgeLayer } from "@/lib/ai/system-prompt";
+import { appendBusinessKnowledgeLayer, trimPromptToBudget } from "@/lib/ai/system-prompt";
 
 describe("AG-35 · appendBusinessKnowledgeLayer", () => {
   it("business tier appends the ops card marker", async () => {
@@ -144,5 +144,100 @@ describe("content pack · section visibility + runtime-floor bound", () => {
     expect(out.length).toBeLessThanOrEqual(65_000);
     expect(out).toContain("CAROUSEL ENGINE");
     expect(out).toContain("CONTENT GENERATION MODE");
+  });
+});
+
+// ── 2026-10-01 · the asked engine survives the bound in every month ──
+// The format-ask test above went red on October 1 with no code change.
+// The pack carries the month's SEASONAL PLAYBOOK, and every pack card
+// ranked the same for the trimmer, so whether the engine survived came
+// down to the length of the cards in front of it. The winter playbook
+// is ~250 chars longer than fall's, and that was more than the whole
+// margin: CAROUSEL ENGINE was kept with 44 chars to spare in September
+// and lost in eight months of twelve; REELS ENGINE was lost in all of
+// them. The clock is pinned per month here, so a month-dependent card
+// can no longer decide the outcome on the day CI happens to run.
+//
+// Assertions read section HEADINGS, never mentions: the pack's text
+// mentions "OPS CARD" inside CUSTOMER PROFILE, so a bare substring check
+// would pass with the OPS CARD block itself dropped.
+
+describe("content pack · the asked engine survives the bound in every month", () => {
+  const MONTHS = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+  const CAROUSEL_ASK = "write me an instagram carousel about winter tire safety";
+  const REELS_ASK = "write me a reel script about brake noise";
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function pinMonth(monthIndex: number): void {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(Date.UTC(2026, monthIndex, 15, 12)));
+  }
+
+  function hasSection(out: string, title: string): boolean {
+    return out.split("\n").some((line) => line.startsWith("## ") && line.includes(title));
+  }
+
+  it.each(MONTHS.map((name, index) => [name, index] as const))(
+    "%s: a carousel or reels ask on a 40k base keeps its engine and the mandatory rules",
+    async (month, monthIndex) => {
+      pinMonth(monthIndex);
+      // Positive control: the pinned clock is the one the pack is built on.
+      expect(getBusinessKnowledge("business", CAROUSEL_ASK)).toContain(`(current month: ${month})`);
+      const base = "## BASE\n" + "x".repeat(40_000);
+      for (const [ask, engine] of [
+        [CAROUSEL_ASK, "CAROUSEL ENGINE"],
+        [REELS_ASK, "REELS ENGINE"],
+      ] as const) {
+        const out = await appendBusinessKnowledgeLayer(base, "business", "content", ask);
+        expect(out.length).toBeLessThanOrEqual(65_000);
+        expect(out.startsWith(base)).toBe(true);
+        expect(hasSection(out, engine), `${month}: ${engine} dropped`).toBe(true);
+        expect(hasSection(out, "CONTENT GENERATION MODE"), `${month}: rules dropped`).toBe(true);
+      }
+    },
+  );
+
+  // The pack's documented drop order, checked as the base grows and the
+  // room shrinks: every other card goes before the asked engine, the
+  // engine before the mandatory rules, and the OPS CARD last. So wherever
+  // the engine survives the rules do, and wherever the rules survive the
+  // OPS CARD does.
+  it("as the room shrinks the engine goes first, then the rules, and the OPS CARD last", async () => {
+    pinMonth(9); // October: the longer winter playbook
+    let engineDropped = false;
+    let rulesDroppedOpsKept = false;
+    for (let baseLen = 30_000; baseLen <= 62_000; baseLen += 1_000) {
+      const base = "## BASE\n" + "x".repeat(baseLen);
+      const out = await appendBusinessKnowledgeLayer(base, "business", "content", CAROUSEL_ASK);
+      const engine = hasSection(out, "CAROUSEL ENGINE");
+      const rules = hasSection(out, "CONTENT GENERATION MODE");
+      const ops = hasSection(out, "OPS CARD");
+      if (engine) expect(rules, `base ${baseLen}: engine kept, rules dropped`).toBe(true);
+      if (rules) expect(ops, `base ${baseLen}: rules kept, OPS CARD dropped`).toBe(true);
+      engineDropped ||= !engine;
+      rulesDroppedOpsKept ||= !rules && ops;
+    }
+    // Positive control: the sweep has to reach the squeeze where the
+    // engine goes, and the one where the rules are gone but the OPS CARD
+    // stands, or the implications above hold vacuously.
+    expect(engineDropped).toBe(true);
+    expect(rulesDroppedOpsKept).toBe(true);
+  });
+
+  // The ranks are pack-scoped. In the whole-prompt trim the pack, appended
+  // last, still goes before the base's own unranked sections, so a base
+  // section such as the live data snapshot never makes way for an OPS CARD.
+  it("the whole-prompt trim still drops the pack's OPS CARD before a base section", () => {
+    const base = "## LIVE DATA SNAPSHOT\n" + "d".repeat(500);
+    const pack = "## NICK'S TIRE & AUTO — OPS CARD\n" + "o".repeat(500);
+    const out = trimPromptToBudget(`${base}\n\n${pack}`, 700);
+    expect(hasSection(out, "LIVE DATA SNAPSHOT")).toBe(true);
+    expect(hasSection(out, "OPS CARD")).toBe(false);
   });
 });
