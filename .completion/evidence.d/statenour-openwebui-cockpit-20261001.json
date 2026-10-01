@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "capability-ledger-updated": {
+      "deferred": "StateNour has no Nick's-style capability ledger for this local-agent surface. Current truth is recorded in apps/statenour/docs/CURRENT-TRUTH.md. As of 2026-10-01: PR #2861 merged as 27f4d7a72ca5901b665d3e2b33a037cc0674f875 and the exact merged nour-local-gateway.js blob was copied to NattyNour C:\\Users\\nourd\\bin\\nour-local-gateway.js. Live 127.0.0.1:11436 advertises function_calling=true and tools/tool_choice. A disposable live OpenCode 1.18.34 canary persisted a real bash tool call for git status --short, OpenCode permission-matched git status*, executed it with exit 0, returned ?? scratch.txt, and NOUR Auto completed the next model turn. The separate NOUR Cockpit bridge on 127.0.0.1:4101 is local-live from branch statenour/cockpit-bridge-20261001: health reports ready, OpenCode 1.18.34, mission_task_writes=false; 6/6 cockpit tests and 16/16 gateway tests pass; Python compile, Node syntax, and git diff --check pass. Three isolated CockpitRun worktrees were created with mission_id=null. Read-only canary completed without changes. Writable canary created only COCKPIT_CANARY.txt, paused on a shell approval, resumed after owner approval, verified the file, and made no commit/push. NOT YET CLAIMED: cockpit bridge PR/CI/merge, startup persistence, OpenWebUI tool-server registration, automatic PR/merge/deploy authority, or any StateNour Mission/Task mutation."
+    }
+  }
+}
