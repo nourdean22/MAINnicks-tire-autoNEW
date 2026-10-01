@@ -96,4 +96,21 @@ describe("updateAssistant fails closed when it cannot read the live assistant", 
     expect(sent.metadata?.nickBehaviorSchema).toBe("vapi-behavior-v1");
     expect(sent.metadata?.nickPromptPolicy).toBe("neutral-first");
   });
+  it("rotating the webhook secret does not create a fake behavior-version change", async () => {
+    stubVapi(async () => new Response(JSON.stringify(LIVE_ASSISTANT), { status: 200 }));
+
+    vi.stubEnv("VAPI_WEBHOOK_SECRET", "secret-a");
+    const first = await updateAssistant("asst-1", "https://nickstire.org/api/webhooks/vapi");
+    expect(first.success).toBe(true);
+    expect(first.verified).toBe(true);
+
+    vi.stubEnv("VAPI_WEBHOOK_SECRET", "secret-b");
+    const second = await updateAssistant("asst-1", "https://nickstire.org/api/webhooks/vapi");
+    expect(second.success).toBe(true);
+    expect(second.verified).toBe(true);
+
+    expect(first.behaviorHash).toMatch(/^[a-f0-9]{24}$/);
+    expect(second.behaviorHash).toBe(first.behaviorHash);
+  });
+
 });
