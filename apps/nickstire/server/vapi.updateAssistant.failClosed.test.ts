@@ -76,5 +76,8 @@ describe("updateAssistant fails closed when it cannot read the live assistant", 
     const transfer = sent.model.tools.find((t: { type?: string }) => t.type === "transferCall");
     expect(transfer.destinations[0].number).toBe("+12165550199");
     expect(transfer.destinations[0].transferPlan).toEqual(LIVE_PLAN);
+    expect(sent.metadata?.nickBehaviorHash).toMatch(/^[a-f0-9]{24}$/);
+    expect(sent.metadata?.nickBehaviorSchema).toBe("vapi-behavior-v1");
+    expect(sent.metadata?.nickPromptPolicy).toBe("neutral-first");
   });
 });
