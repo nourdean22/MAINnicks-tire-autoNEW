@@ -26,7 +26,7 @@ import { classifyIntegrationFreshness } from "@/lib/integrationFreshness";
 import { mirrorFreshness } from "./todayPulse";
 
 /** Same window as the Overview "Integration freshness" card. */
-export const SHOPDRIVER_STALE_AFTER_MINUTES = 24 * 60;
+const SHOPDRIVER_STALE_AFTER_MINUTES = 24 * 60;
 
 export interface FreshnessRow {
   key: "shopdriver" | "invoices" | "sms";
@@ -57,7 +57,7 @@ function unread(key: FreshnessRow["key"], label: string, detail: string): Freshn
   return { key, label, status: "unknown", detail, provenance: UNMEASURED, loud: true };
 }
 
-export function ageText(minutes: number): string {
+function ageText(minutes: number): string {
   if (minutes < 60) return `${minutes}m`;
   if (minutes < 48 * 60) return `${Math.floor(minutes / 60)}h`;
   return `${Math.floor(minutes / (24 * 60))}d`;

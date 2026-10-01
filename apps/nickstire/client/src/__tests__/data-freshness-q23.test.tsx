@@ -34,7 +34,6 @@ vi.mock("@/lib/trpc", () => ({
 import { DataFreshness } from "../pages/admin/today/DataFreshness";
 import GatewayPill from "../components/admin/GatewayPill";
 import {
-  ageText,
   invoiceMirrorRow,
   shopDriverRow,
   smsGatewayRow,
@@ -177,18 +176,15 @@ describe("smsGatewayRow", () => {
     expect(r.detail).toBe("No devices registered");
   });
 
+  it("a gateway quiet for 3 days reads in days", () => {
+    const r = smsGatewayRow({ data: { configured: true, readable: true, online: false, lastSeen: minsAgo(3 * 24 * 60), ageMinutes: 3 * 24 * 60 }, isError: false });
+    expect(r.status).toBe("offline · seen 3d ago");
+  });
+
   it("not configured is loud", () => {
     const r = smsGatewayRow({ data: { configured: false, readable: true, online: false }, isError: false });
     expect(r.status).toBe("not configured");
     expect(r.loud).toBe(true);
-  });
-});
-
-describe("ageText", () => {
-  it("minutes, hours, days", () => {
-    expect(ageText(12)).toBe("12m");
-    expect(ageText(180)).toBe("3h");
-    expect(ageText(3 * 24 * 60)).toBe("3d");
   });
 });
 
