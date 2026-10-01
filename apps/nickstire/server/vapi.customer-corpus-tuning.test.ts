@@ -81,4 +81,19 @@ describe("VAPI corpus-grounded conversation rules", () => {
     expect(src).toContain("OFFLINE CANDIDATE passed strict holdout improvement");
     expect(src).toContain("arrival/revenue impact is unmeasured");
   });
+  it("uses TiDB JSON functions for Vapi metadata and never logs bound PII params", () => {
+    const src = readFileSync(new URL("./routes/webhooks/vapi.ts", import.meta.url), "utf8");
+    expect(src).not.toMatch(/CAST\(\$\{JSON\.stringify\((?:behavior|speech|stored|claims)\)\} AS JSON\)/);
+    for (const value of ["behavior", "speech", "stored", "claims"]) {
+      expect(src).toContain(`JSON_EXTRACT(\${JSON.stringify(${value})}, '$')`);
+    }
+    expect(src).toContain("VAPI_METADATA_CUSTOMER_SPEECH_PERSIST_FAILED");
+    expect(src).toContain("VAPI_METADATA_TRANSFER_ARTIFACT_PERSIST_FAILED");
+    expect(src).toContain("VAPI_METADATA_VOICE_CLAIM_PERSIST_FAILED");
+    expect(src).toContain("transfer artifact persisted");
+    expect(src).not.toContain("error: transferErr instanceof Error ? transferErr.message");
+    expect(src).not.toContain("error: speechErr instanceof Error ? speechErr.message");
+    expect(src).not.toContain("error: claimErr instanceof Error ? claimErr.message");
+  });
+
 });
