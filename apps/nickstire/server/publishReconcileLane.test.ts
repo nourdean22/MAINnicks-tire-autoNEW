@@ -140,3 +140,31 @@ describe("reconcileAmbiguousPublishes behavior", () => {
     expect(recordPublishOutcome).not.toHaveBeenCalled();
   });
 });
+
+describe("an attempt that also went to the Facebook Page is never auto-released (review of #2865)", () => {
+  const notOnInstagram = { status: "resolved_not_published", detail: "No post appeared on the account within 30 minutes of the attempt." };
+
+  it("hands it to the operator: Instagram's silence says nothing about the Page", async () => {
+    findUnreconciledAttempts.mockResolvedValue([attempt({ platforms: ["instagram", "facebook"] })]);
+    reconcileAttempt.mockResolvedValue(notOnInstagram);
+
+    const result = await reconcileAmbiguousPublishes();
+
+    expect(applyReconciliation).not.toHaveBeenCalled();
+    expect(result.resolvedNotPublished).toEqual([]);
+    expect(result.leftForOperator).toEqual([{ jobId: 41, why: "facebook_unverifiable" }]);
+    expect(recordPublishOutcome).toHaveBeenCalledWith("pub_1", "OPERATOR_REQUIRED", expect.objectContaining({
+      platformResults: expect.objectContaining({ handoffReason: "facebook_unverifiable" }),
+    }));
+  });
+
+  it("control: an Instagram-only attempt with no post is still released for a retry", async () => {
+    findUnreconciledAttempts.mockResolvedValue([attempt({ platforms: ["instagram"] })]);
+    reconcileAttempt.mockResolvedValue(notOnInstagram);
+
+    const result = await reconcileAmbiguousPublishes();
+
+    expect(applyReconciliation).toHaveBeenCalledWith(expect.objectContaining({ jobId: 41, decision: "not_published" }));
+    expect(result.resolvedNotPublished).toEqual([41]);
+  });
+});

@@ -272,6 +272,19 @@ export async function publishToSocial(input: PublishInput): Promise<PublishOutco
       // caption Facebook will actually show.
       if (process.env.REEL_PUBLISH_ENABLED !== "true") {
         results.push({ platform: "facebook", success: false, error: "Reel publishing is disabled (set REEL_PUBLISH_ENABLED=true to arm)." });
+      } else if (input.isAiGenerated) {
+        // NO DISCLOSURE FIELD ON THE PAGE. Instagram's container takes
+        // is_ai_generated (below). Facebook's Reels publish step takes video_id,
+        // upload_phase, video_state, description, title, scheduled_publish_time
+        // and place, and nothing for AI (developers.facebook.com, Reels
+        // Publishing API, read 2026-10-01). shared/reelDisclosure.ts blocks
+        // generated video that would go out without the flag, so a generated
+        // reel stays off the Page; Instagram still gets it, disclosed.
+        results.push({
+          platform: "facebook",
+          success: false,
+          error: "Not cross-posted: AI-generated reel, and Facebook's Reels API has no AI-disclosure field (shared/reelDisclosure.ts).",
+        });
       } else {
         const fbBlockers = checkReviewReply(fbMessage).filter((f) => f.severity === "block");
         if (fbBlockers.length) {

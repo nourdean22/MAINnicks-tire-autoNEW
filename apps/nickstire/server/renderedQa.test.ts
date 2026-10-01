@@ -217,6 +217,54 @@ describe("evaluateRenderedReel (mocked vision seam)", () => {
     expect(verdict.critic).toBe("vision");
   });
 
+  // Review of #2865 (2026-10-01): a reply with no complete JSON object parsed as
+  // "{}", which clampVerdict reads as approve / qaState completed / craft 100 —
+  // and qualityGate passes that. Red on main for every case below but the control.
+  it.each([
+    ["truncated at the token cap", '{"decision":"repair","findings":[{"beatNumber":1,"code":"MALFORMED_GEOMETRY","description":"warped rot'],
+    ["empty (a safety block)", ""],
+    ["null content", null],
+    ["prose, no JSON", "I cannot evaluate these frames."],
+    ["an object with no decision", "{}"],
+  ])("an unreadable critic reply (%s) is a SKIPPED verdict, never an approval", async (_label, content) => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rqa-unreadable-"));
+    const fake = path.join(dir, "f.jpg");
+    await fs.writeFile(fake, Buffer.from("fakejpegbytes"));
+    vi.doMock("./_core/llm", () => ({ invokeLLM: vi.fn().mockResolvedValue({ choices: [{ message: { content } }] }) }));
+    vi.resetModules();
+    const { evaluateRenderedReel: evalReel } = await import("./services/renderedQa");
+    const verdict = await evalReel({ frames: [{ label: "beat1", beatNumber: 1, timestamp: 1, path: fake }], brief: { topic: "brakes" } });
+    expect(verdict.critic).toBe("skipped");
+    expect(verdict.qaState).not.toBe("completed");
+  });
+
+  it("callVisionCritic itself throws on a reply with no complete object — the specialist lenses rely on that, not on a decision check", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rqa-parser-"));
+    const fake = path.join(dir, "f.jpg");
+    await fs.writeFile(fake, Buffer.from("fakejpegbytes"));
+    vi.doMock("./_core/llm", () => ({ invokeLLM: vi.fn().mockResolvedValue({ choices: [{ message: { content: '{"decision":"repair","findings":[' } }] }) }));
+    vi.resetModules();
+    const { callVisionCritic } = await import("./services/renderedQa");
+    await expect(
+      callVisionCritic({ frames: [{ label: "beat1", beatNumber: 1, timestamp: 1, path: fake }], system: "s", user: "u" }),
+    ).rejects.toThrow("no complete JSON object");
+  });
+
+  it("control: a well-formed approve is still a completed vision verdict", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rqa-wellformed-"));
+    const fake = path.join(dir, "f.jpg");
+    await fs.writeFile(fake, Buffer.from("fakejpegbytes"));
+    vi.doMock("./_core/llm", () => ({
+      invokeLLM: vi.fn().mockResolvedValue({ choices: [{ message: { content: 'Here you go: {"decision":"approve","findings":[]} trailing' } }] }),
+    }));
+    vi.resetModules();
+    const { evaluateRenderedReel: evalReel } = await import("./services/renderedQa");
+    const verdict = await evalReel({ frames: [{ label: "beat1", beatNumber: 1, timestamp: 1, path: fake }], brief: { topic: "brakes" } });
+    expect(verdict.critic).toBe("vision");
+    expect(verdict.qaState).toBe("completed");
+    expect(verdict.decision).toBe("approve");
+  });
+
   it("a critic failure yields a SKIPPED verdict, never a fabricated pass/fail", async () => {
     vi.doMock("./_core/llm", () => ({ invokeLLM: vi.fn().mockRejectedValue(new Error("model down")) }));
     vi.resetModules();
