@@ -105,6 +105,39 @@ export function describeDbError(err: unknown): string {
   return parts.join(" > ") || "unknown error";
 }
 
+/**
+ * Log-safe text for an error caught around MIXED work (a tool call, a post-call
+ * pass): describeDbError when any level of it is a database error, the plain
+ * message otherwise.
+ *
+ * An ordinary error's message is the useful part ("phone is required"). A
+ * database error's message is the SQL and its bound values, which here are the
+ * caller's name, phone and words. A database error is recognised by shape at
+ * any of four `.cause` levels: drizzle's wrapper (`query` + `params`) or a
+ * driver error (`sqlMessage`, `sqlState`, or an `ER_` code). A message that
+ * carries drizzle's "Failed query:" header counts too: a wrapper re-thrown as
+ * text, or as a tRPC error, loses its shape but keeps its params.
+ */
+export function logSafeErrorMessage(err: unknown): string {
+  if (isDatabaseError(err)) return describeDbError(err);
+  return err instanceof Error ? err.message : String(err);
+}
+
+function isDatabaseError(err: unknown): boolean {
+  let e: unknown = err;
+  for (let depth = 0; depth < 4 && e != null; depth++) {
+    if (typeof e === "string") return e.includes("Failed query:");
+    if (typeof e !== "object") return false;
+    const x = e as DriverErrorShape & { sqlMessage?: unknown; sqlState?: unknown };
+    if ("query" in x && "params" in x) return true;
+    if (typeof x.sqlMessage === "string" || typeof x.sqlState === "string") return true;
+    if (typeof x.code === "string" && x.code.startsWith("ER_")) return true;
+    if (typeof x.message === "string" && x.message.includes("Failed query:")) return true;
+    e = x.cause;
+  }
+  return false;
+}
+
 type DriverErrorShape = {
   code?: unknown;
   errno?: unknown;

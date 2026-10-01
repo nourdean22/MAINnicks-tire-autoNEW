@@ -15,7 +15,8 @@ import { resolve } from "node:path";
 import { DrizzleQueryError } from "drizzle-orm";
 import { isDuplicateKeyError } from "./dbErrors";
 import { isMissingTableError, isUnknownColumnError } from "../db";
-import { isSchemaBugError, describeDbError } from "./dbErrors";
+import { isSchemaBugError, describeDbError, logSafeErrorMessage } from "./dbErrors";
+import { TRPCError } from "@trpc/server";
 
 // This file needs the REAL db module (serial mode shares one mock registry).
 vi.unmock("../db");
@@ -248,5 +249,74 @@ describe("describeDbError", () => {
     expect(src).toMatch(/booking needs manual recovery[^\n]*describeDbError\(bookingErr\)/);
     expect(src).not.toMatch(/Invoice creation failed[^\n]*\.message/);
     expect(src).not.toMatch(/bookingErr\.message/);
+  });
+});
+
+describe("logSafeErrorMessage · mixed catch blocks keep useful text, never a failed query's params", () => {
+  const pii = ["Jane Doe", "+12165551234", "said her brakes grind"];
+
+  it("a drizzle-wrapped driver error becomes describeDbError's line", () => {
+    const line = logSafeErrorMessage(wrap(dupEntry(), pii));
+    expect(line).toBe("DrizzleQueryError > Error ER_DUP_ENTRY/1062");
+    for (const v of pii) expect(line).not.toContain(v);
+  });
+
+  it("a bare driver error, whose own text echoes the value, is a database error too", () => {
+    const driver = driverError("ER_DUP_ENTRY", 1062, "Duplicate entry '+12165551234' for key 'uniq_customer_phone'");
+    expect(logSafeErrorMessage(driver)).toBe("Error ER_DUP_ENTRY/1062");
+  });
+
+  it("a tRPC error around a failed query keeps the query's text as its message, and is caught by shape", () => {
+    const trpc = new TRPCError({ code: "INTERNAL_SERVER_ERROR", cause: wrap(timeout(), pii) });
+    expect(trpc.message).toContain("+12165551234"); // the leak this guards against
+    const line = logSafeErrorMessage(trpc);
+    expect(line).toBe("TRPCError INTERNAL_SERVER_ERROR > DrizzleQueryError > Error ETIMEDOUT");
+    for (const v of pii) expect(line).not.toContain(v);
+  });
+
+  it("an error that wraps a failed query as its cause, without quoting it, is caught by walking the cause", () => {
+    const outer = new Error("escalate failed", { cause: wrap(timeout(), pii) });
+    expect(logSafeErrorMessage(outer)).toBe("Error > DrizzleQueryError > Error ETIMEDOUT");
+  });
+
+  it("a failed query re-thrown as text (no cause) is still caught by drizzle's header", () => {
+    const rethrown = new Error(`escalate failed: ${wrap(timeout(), pii).message}`);
+    expect(logSafeErrorMessage(rethrown)).toBe("Error");
+    expect(logSafeErrorMessage(`Failed query: insert ...\nparams: ${pii.join(",")}`)).toBe("string");
+  });
+
+  it("each database shape alone is enough: a later driver may drop the others", () => {
+    const value = "Duplicate entry '+12165551234' for key 'uniq_customer_phone'";
+    // drizzle's wrapper shape with a message that no longer carries its header
+    const wrapperOnly = Object.assign(new Error("query failed: +12165551234"), { query: "insert into `t` values (?)", params: ["+12165551234"] });
+    // a driver error with no code, only the server's sqlMessage / sqlState
+    const sqlOnly = Object.assign(new Error(value), { errno: 1062, sqlMessage: value, sqlState: "23000" });
+    // a driver error with only an ER_ code
+    const codeOnly = Object.assign(new Error(value), { code: "ER_DUP_ENTRY" });
+    for (const e of [wrapperOnly, sqlOnly, codeOnly]) {
+      expect(logSafeErrorMessage(e)).not.toContain("+12165551234");
+    }
+    expect(logSafeErrorMessage(sqlOnly)).toBe("Error 1062");
+    expect(logSafeErrorMessage(codeOnly)).toBe("Error ER_DUP_ENTRY");
+  });
+
+  it("an ordinary error keeps its message — the useful part of a tool failure", () => {
+    expect(logSafeErrorMessage(new Error("phone is required"))).toBe("phone is required");
+    expect(logSafeErrorMessage(Object.assign(new Error("connect ECONNREFUSED 10.0.0.1:443"), { code: "ECONNREFUSED" }))).toBe(
+      "connect ECONNREFUSED 10.0.0.1:443",
+    );
+    expect(logSafeErrorMessage("plain text")).toBe("plain text");
+    expect(logSafeErrorMessage(undefined)).toBe("undefined");
+  });
+
+  it("every catch in the Vapi webhook logs through it; the one raw message left only echoes Vapi's own arguments back (comment-stripped)", () => {
+    const src = stripComments(readFileSync(resolve(__dirname, "../routes/webhooks/vapi.ts"), "utf8"));
+    const raw = /([A-Za-z_][\w.]*) instanceof Error \? \1\.message : String\(\1\)/g;
+    const left = src.split("\n").filter((l) => raw.test(l) && (raw.lastIndex = 0, true));
+    expect(left).toHaveLength(1);
+    expect(left[0]).toContain("Invalid arguments JSON");
+    expect(src.match(/logSafeErrorMessage\(/g)?.length ?? 0).toBeGreaterThanOrEqual(15);
+    // Positive control: the scan sees the shape it bans.
+    expect("log.warn(\"x\", { error: dncErr instanceof Error ? dncErr.message : String(dncErr) });".match(raw)).not.toBeNull();
   });
 });
