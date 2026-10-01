@@ -5,6 +5,9 @@
     },
     "cron-fail-closed": {
       "ref": "apps/nickstire/server/vapi.customer-corpus-tuning.test.ts pins prompt-evolution-weekly's explicit 30-minute timeout budget; existing server/__tests__/cronNoSwallowedFailure.test.ts + server/cron/jobs/cronRethrow2026.test.ts remain the fail-closed contract. This diff changes only the per-job budget, not timeout failure propagation or lock-hold behavior."
+    },
+    "operator-walkthrough": {
+      "deferred": "This branch changes only the VapiPanel explanatory helper copy from stale 'tire-first prompt' wording to 'neutral-first intent prompt with strong tire handling'. The Push Latest Config mutation/button behavior is unchanged. No authenticated production browser walkthrough has been performed on this draft branch; after merge/deploy, verify the Vapi settings panel renders the corrected helper text and the existing push control still behaves unchanged."
     }
   }
 }
