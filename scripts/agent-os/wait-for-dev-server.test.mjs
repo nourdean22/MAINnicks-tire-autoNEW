@@ -26,6 +26,7 @@ import { mkdtempSync, writeFileSync, existsSync, readFileSync, openSync, closeSy
 import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { canListen, holdAsClient } from "./free-port.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SCRIPT = join(ROOT, "scripts", "ci", "wait-for-dev-server.sh");
@@ -79,19 +80,24 @@ nohup node "$FAKE_PATH" >/dev/null 2>&1 &
 exit 0
 `.replace("$FAKE_PATH", FAKE));
 
-let nextPort = 31700 + (process.pid % 2000);
+// Below Linux's client-port range (32768 up), which the old 31700 window reached
+// into (free-port.mjs). warm-routes.test.mjs starts at 24000, so they never meet.
+let nextPort = 20000 + (process.pid % 2000);
 
 /**
- * A port nothing answers on. Without this the suite is not hermetic: a fake
+ * A port a fake can listen on. Without this the suite is not hermetic: a fake
  * left listening by an earlier run answered 200 on the first probe, so the
  * RECOVERS case saw a healthy server, never restarted, and failed — a test
  * reporting a real defect that did not exist.
+ *
+ * It used to mean "a port nothing answers on", which also passed a port a
+ * client held; the GIVES UP case then got a fake that never listened, and
+ * failed for it (#2843, 2026-10-01).
  */
 function freePort() {
   for (let i = 0; i < 400; i++) {
     const p = nextPort++;
-    const r = spawnSync("curl", ["-s", "-o", "/dev/null", "-m", "1", `http://localhost:${p}/`]);
-    if (r.status !== 0) return p;
+    if (canListen(p)) return p;
   }
   throw new Error("no free port in range");
 }
@@ -138,6 +144,21 @@ test("bash is available — this canary must not silently self-disable", () => {
   const r = spawnSync("bash", ["-c", "echo ok"], { encoding: "utf8" });
   assert.equal((r.stdout ?? "").trim(), "ok", "no bash: the canary cannot run, which is a failure, not a skip");
   assert.ok(existsSync(SCRIPT), `missing ${SCRIPT}`);
+});
+
+test("freePort skips a port only a CLIENT holds, the hole behind this file's flake", async (t) => {
+  // A port held as the local end of a connection answers nothing, so the old
+  // curl probe called it free, and the fake started there died on EADDRINUSE
+  // (free-port.mjs). Hold the very next candidate that way and require a skip.
+  if (process.platform !== "linux") return t.skip("Linux-only: pins the agent-policy runner's bind rules for a client-held port");
+  const held = freePort();
+  nextPort = held; // rewind: `held` is the very next candidate again
+  const release = await holdAsClient(held);
+  try {
+    assert.notEqual(freePort(), held, "a client-held port is not free: the fake would never listen there");
+  } finally {
+    release();
+  }
 });
 
 test("POSITIVE CONTROL: a healthy server is accepted, with no restart", () => {
