@@ -3001,6 +3001,24 @@ function buildTiers(): void {
           } catch (e) { log.warn("[cron/scheduler] operation failed:", e); throw e; /* audit F-9: a swallowed error was recorded as completed */ }
         },
       },
+      {
+        /*
+         * Q-50 phase 2a (ADR-0021) · NHTSA manufacturer warranty extensions.
+         * Not warranty-alerts (earlier in this tier), which is the shop's OWN service-warranty
+         * reminder to customers; this one only downloads NHTSA's public file and
+         * upserts two public-data tables. Sends nothing. Flag-gated
+         * (nhtsa_warranty_ingest, default OFF) inside the handler. A Sunday pass
+         * streams ~2.6 GB of inflated text, so it gets a 30-minute budget,
+         * and it sits LAST in this tier so a long pass never delays a
+         * customer lane behind it (tier jobs run sequentially).
+         */
+        name: "nhtsa-warranty-ingest",
+        timeoutMs: 30 * 60 * 1000,
+        handler: async () => {
+          const { processNhtsaWarrantyIngest } = await import("./jobs/nhtsaWarrantyIngest");
+          return processNhtsaWarrantyIngest();
+        },
+      },
     ],
     running: false,
     lastRun: null,
