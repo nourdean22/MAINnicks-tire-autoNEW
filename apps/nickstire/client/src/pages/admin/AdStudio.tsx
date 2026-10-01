@@ -17,7 +17,7 @@ import { PotholeAudiences } from "@/components/admin/PotholeAudiences";
 import type { CampaignInput, CampaignOutput } from "@nour/meta-ads-architect";
 
 const ANGLES = [
-  { id: "financing", label: "$10 down / financing", note: "Kills the price objection first — drive today." },
+  { id: "financing", label: "Payment programs", note: "Kills the price objection first — four programs, each provider decides approval." },
   { id: "free_check", label: "Free check offer", note: "Low-friction walk-in hook." },
   { id: "trust", label: "4.9★ trust / local", note: "Social proof as the engine." },
 ] as const;
