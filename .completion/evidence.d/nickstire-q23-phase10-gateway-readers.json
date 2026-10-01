@@ -1,0 +1,7 @@
+{
+  "evidence": {
+    "operator-walkthrough": {
+      "ref": "Q-23 phase 10 (2026-10-01, branch nickstire/q23-phase10). What the operator sees when the gateway service (Capevace) does not answer, as opposed to the phone going quiet: (1) Today > morning brief: 'Last 24h: Nick handled N calls ... F25e status unknown' instead of 'F25e OFFLINE'; on a night with no AI calls, a new line 'F25e gateway status unknown - the status read failed' instead of nothing. (2) Outreach Hub brief: 'Live - F25e shop gateway status unknown (the status read failed)' with a grey icon, instead of 'offline (Twilio fallback active)'. (3) Settings > Status: no red 'F25e shop SMS gateway offline' alert; the amber 'Status unknown - N of 8 checks could not run' banner names 'SMS gateway health'; the F25e connection pill is grey and says 'status unknown - the gateway service did not answer' instead of 'offline - check device'. A phone that really stopped checking in still reads OFFLINE / offline / the red alert on all three. Proof is a jsdom render, not a live admin session: client/src/__tests__/gateway-unknown-readers-q23.test.tsx (15 cases; the 6 vendor-failure cases red on main, the 6 controls green on both; 9 of 9 mutants caught, including removing the Data freshness card from Intelligence HQ). Not yet seen by the operator on the installed PWA."
+    }
+  }
+}

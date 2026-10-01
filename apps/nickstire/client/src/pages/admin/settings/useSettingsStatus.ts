@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { gatewayState } from "@/lib/gatewayState";
 import { deriveCronIssues } from "./cron-issues";
 
 export interface OpenIssue {
@@ -47,7 +48,9 @@ export function useSettingsStatus() {
     isFlagsError && "feature flags",
     isFunnelError && "traffic funnel",
     isAlgError && "auto-labor",
-    isSmsGwError && "SMS gateway health",
+    // Q-23 phase 10 · the vendor API not answering (readable:false) is this
+    // same check failing to run, not the phone being offline.
+    gatewayState(smsGwHealth, isSmsGwError) === "unknown" && "SMS gateway health",
     isSmsStatusError && "SMS status",
     isVapiError && "voice (VAPI) status",
     isCronError && "cron health",
@@ -59,8 +62,10 @@ export function useSettingsStatus() {
 
     // RULE 1 · F25e gateway offline → alert
     const shopGwConfigured = smsStatus?.shopGateway?.configured ?? false;
-    const shopGwOnline = smsGwHealth?.online ?? false;
-    if (shopGwConfigured && !shopGwOnline) {
+    // Only a phone the vendor API reported as stale is offline. A failed read
+    // is listed in failedChecks above; alerting on it blamed the device.
+    const gwState = gatewayState(smsGwHealth);
+    if (shopGwConfigured && (gwState === "offline" || gwState === "not_configured")) {
       issues.push({
         key: "f25e-offline",
         severity: "alert",
@@ -131,6 +136,8 @@ export function useSettingsStatus() {
     funnel,
     algStatus,
     smsGwHealth,
+    /** Q-23 phase 10 · online / offline / unknown / not_configured / checking. */
+    smsGwState: gatewayState(smsGwHealth, isSmsGwError),
     smsStatus,
     vapiStatus,
     cronHealth,

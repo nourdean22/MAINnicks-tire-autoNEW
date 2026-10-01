@@ -148,6 +148,7 @@ export default function SettingsStatusTab() {
     dashStats,
     algStatus,
     smsGwHealth,
+    smsGwState,
     vapiStatus,
     cronHealth,
     funnel,
@@ -159,6 +160,7 @@ export default function SettingsStatusTab() {
     totalCustomers,
     vipCustomers,
   } = useSettingsStatus();
+  const smsGwUnknown = smsGwState === "unknown";
 
   if (isLoading) {
     return (
@@ -252,10 +254,12 @@ export default function SettingsStatusTab() {
           />
           <ConnectionPill
             label="F25e SMS gateway"
-            online={smsGwHealth?.online ?? false}
-            detail={smsGwHealth?.online ? `last seen ${smsGwHealth.ageMinutes ?? "?"}m ago` : "offline · check device"}
+            // Q-23 phase 10 · a vendor API failure is unknown (grey), not
+            // "offline · check device": nobody could ask the phone.
+            online={smsGwUnknown ? undefined : smsGwHealth?.online ?? false}
+            detail={smsGwUnknown ? "status unknown · the gateway service did not answer" : smsGwHealth?.online ? `last seen ${smsGwHealth.ageMinutes ?? "?"}m ago` : "offline · check device"}
             onlineIcon={<MessageSquare className="w-3.5 h-3.5 text-emerald-400" />}
-            offlineIcon={<MessageSquare className="w-3.5 h-3.5 text-red-400" />}
+            offlineIcon={<MessageSquare className={`w-3.5 h-3.5 ${smsGwUnknown ? "text-foreground/40" : "text-red-400"}`} />}
           />
           <ConnectionPill
             label="VAPI receptionist"
