@@ -18,7 +18,8 @@ import type { FlagKey } from "../services/featureFlags";
 /** Env-backed gates for the social pipeline (not in the DB flags table). */
 const ENV_GATES = [
   { key: "REEL_GENERATION_ENABLED", description: "FFmpeg reel assembly pipeline (processNextReelJob, processNextAssemblyJob, recoverStuckReelJobs)", defaultOff: true },
-  { key: "REEL_PUBLISH_ENABLED", description: "publishToSocial() reel gate — controls whether assembled reels can be posted to IG", defaultOff: true },
+  { key: "REEL_PUBLISH_ENABLED", description: "publishToSocial() reel gate — controls whether assembled reels can be posted to IG and (as video) to the Facebook Page", defaultOff: true },
+  { key: "REEL_FB_CROSSPOST_ENABLED", description: "Nightly reel cron also hands the reel video to the Facebook Page (Reels Publishing). IG stays the authority; FB failure never retries.", defaultOff: true }, // gitleaks:allow — flag name, not a secret
   { key: "REEL_AUTOPOST_ENABLED", description: "Daily cron (9am ET) auto-posts one pre-made reel from the 26-reel manifest", defaultOff: true },
   { key: "IG_AUTOPOST_DRYRUN", description: "IG autopost dry-run mode — when NOT 'false', posts go to Telegram only (default: dry-run ON)", defaultOff: false },
   { key: "SOCIAL_INVENTORY_PUBLISH_ENABLED", description: "Social content inventory publisher cron (every 5 min)", defaultOff: true },

@@ -10,9 +10,15 @@
  *   reel_autopost_index     — index of the NEXT reel into MANIFEST (0..length)
  *   reel_autopost_last_date — YYYY-MM-DD (ET) of the last successful post
  *
- * Two kill switches, both default OFF:
- *   REEL_AUTOPOST_ENABLED  — this job (set true on Railway to arm the schedule)
- *   REEL_PUBLISH_ENABLED   — the publishToSocial reel gate (Phase-0 safety)
+ * Three kill switches, all default OFF:
+ *   REEL_AUTOPOST_ENABLED      — this job (set true on Railway to arm the schedule)
+ *   REEL_PUBLISH_ENABLED       — the publishToSocial reel gate (Phase-0 safety; IG and FB)
+ *   REEL_FB_CROSSPOST_ENABLED  — also hand the SAME video to the Facebook Page as a
+ *                                video reel (operator armed 2026-10-01). Instagram stays
+ *                                the delivery authority: a Facebook failure never changes
+ *                                the job's status, and a Facebook SUCCESS beside an
+ *                                Instagram failure PARKS the job instead of releasing it,
+ *                                because a retry would post the Page a second time.
  *
  * Idempotency: posts at most once per ET day. On any failure the index is NOT
  * advanced and the date is NOT recorded, so the next eligible tick retries the
@@ -317,6 +323,22 @@ function etNow(): { date: string; hour: number } {
   const date = now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }); // YYYY-MM-DD
   const hour = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }), 10);
   return { date, hour };
+}
+
+/** Which platforms the nightly reel goes to. Instagram always; Facebook only when
+ *  REEL_FB_CROSSPOST_ENABLED is exactly "true" (the Page gate inside publishToSocial
+ *  still requires REEL_PUBLISH_ENABLED and the claim check on the FB caption). */
+export function reelPublishPlatforms(env: NodeJS.ProcessEnv = process.env): ("instagram" | "facebook")[] {
+  return env.REEL_FB_CROSSPOST_ENABLED === "true" ? ["instagram", "facebook"] : ["instagram"];
+}
+
+/** publishToSocial posts Facebook BEFORE Instagram, so "FB live, IG not" is a real
+ *  outcome. Releasing the claim then would republish the Page on the next tick. */
+export function facebookLiveWithoutInstagram(results: ReadonlyArray<{ platform: string; success: boolean; postId?: string }>): string | null {
+  const fb = results.find((r) => r.platform === "facebook");
+  const ig = results.find((r) => r.platform === "instagram");
+  if (fb?.success && !ig?.success) return fb.postId ?? "(no id returned)";
+  return null;
 }
 
 export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; details?: string }> {
@@ -1360,8 +1382,9 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // attempt happened at all. Refusing to publish unrecorded is the point — an
     // unrecorded publish is the ambiguity this exists to remove.
     const { recordPublishAttempt, recordPublishOutcome, OUTCOME } = await import("../../services/publishAttemptLedger");
+    const platforms = reelPublishPlatforms();
     const attemptId = await recordPublishAttempt({
-      jobId: job.id, platforms: ["instagram"], mediaUrl: videoUrl, caption,
+      jobId: job.id, platforms, mediaUrl: videoUrl, caption,
     });
     if (!attemptId) {
       await d.update(reelJobs).set({ status: "assembled", queueState: queueStateForReelStatus("assembled"), publicationScheduledAt: null })
@@ -1403,7 +1426,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
       // the evidence the stock guard trusts; it decides this too.
       const isAiGenerated = shouldDiscloseAi(job.clipUrlsJson, process.env.REEL_VIDEO_PROVIDER);
       outcome = await publishToSocial({
-        platforms: ["instagram"],
+        platforms,
         videoUrl,
         caption,
         actor: "automated",
@@ -1446,6 +1469,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // which the very next pulse republishes. scheduledPosts, instagramAdmin,
     // adStudio and instagramStudio all already park this; the autonomous reel
     // door was the only surface that did not.
+    const fbLiveId = facebookLiveWithoutInstagram(outcome.results);
     if (!ig?.success && ig?.ambiguous) {
       await recordPublishOutcome(attemptId, OUTCOME.ambiguous, {
         igPostId: null, error: ig?.error ?? "ambiguous dispatch", platformResults: outcome.results,
@@ -1454,7 +1478,7 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
         .set({
           status: "publish_ambiguous",
           queueState: queueStateForReelStatus("publish_ambiguous"),
-          error: String(ig?.error ?? "media_publish dispatched, no response — may be LIVE").slice(0, 500),
+          error: `${fbLiveId ? `Facebook reel LIVE (${fbLiveId}); ` : ""}${String(ig?.error ?? "media_publish dispatched, no response — may be LIVE")}`.slice(0, 500),
         })
         .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
       {
@@ -1476,6 +1500,32 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     await recordPublishOutcome(attemptId, ig?.success ? OUTCOME.confirmed : OUTCOME.failed, {
       igPostId: ig?.postId ?? null, error: ig?.success ? null : (ig?.error ?? "unknown"), platformResults: outcome.results,
     });
+    if (!ig?.success && fbLiveId) {
+      // PARTIAL: the Page already has this reel, Instagram cleanly refused it.
+      // Restoring "assembled" would hand the SAME video to Facebook again on the
+      // next tick (same shape socialInventoryPublisher parks as published_partial).
+      await d.update(reelJobs)
+        .set({
+          status: "publish_ambiguous",
+          queueState: queueStateForReelStatus("publish_ambiguous"),
+          error: `Facebook reel LIVE (${fbLiveId}) but Instagram refused: ${String(ig?.error ?? "unknown")}`.slice(0, 500),
+        })
+        .where(and(eq(reelJobs.id, job.id), eq(reelJobs.status, "publishing")));
+      {
+        const { advanceContentRunByReelJobId, RUN_STAGE, OPERATIONAL_STATE } = await import("../../services/contentRun");
+        await advanceContentRunByReelJobId(job.id, {
+          stage: RUN_STAGE.held,
+          operationalState: OPERATIONAL_STATE.ambiguous,
+          failureReason: `Facebook live, Instagram refused: ${String(ig?.error ?? "unknown")}`.slice(0, 1000),
+          evidence: { at: new Date().toISOString(), what: "Facebook reel published; Instagram rejected — parked, not retried" },
+        });
+      }
+      log.error(`Reel autopost PARTIAL for job ${job.id} — Facebook live (${fbLiveId}), Instagram refused; parked, NOT retried`, { error: ig?.error });
+      return {
+        recordsProcessed: 0,
+        details: `publish PARTIAL for job ${job.id} (Facebook live, Instagram refused) — parked for reconciliation; index not advanced`,
+      };
+    }
     if (!ig?.success) {
       // Cleanly-returned failure: Meta explicitly did not accept it, so the
       // claim is safe to release for a later retry.
@@ -1501,6 +1551,14 @@ export async function runDailyReelPost(): Promise<{ recordsProcessed?: number; d
     // the "HELD awaiting approval ..." explanation in that column, and leaving
     // it on a successfully posted reel would describe a live post as blocked.
     await d.update(reelJobs).set({ status: "posted", queueState: queueStateForReelStatus("posted"), igPostId: ig.postId, error: null }).where(eq(reelJobs.id, job.id));
+
+    // Facebook is a cross-post, never the authority: its id lives in the
+    // attempt ledger's platformResults; a failure is logged, not retried.
+    if (platforms.includes("facebook")) {
+      const fb = outcome.results.find((r) => r.platform === "facebook");
+      if (fb?.success) log.info("Facebook reel cross-post published", { jobId: job.id, fbPostId: fb.postId ?? null });
+      else log.warn("Facebook reel cross-post did not publish — Instagram is live, job stays posted", { jobId: job.id, error: fb?.error ?? "no facebook result", ambiguous: fb?.ambiguous ?? false });
+    }
 
     // The Reel job is the delivery authority, but social_content_inventory is
     // what Queue/creative-memory/metric-sync learn from. Keep that mirror in the

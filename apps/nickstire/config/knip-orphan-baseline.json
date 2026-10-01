@@ -38,6 +38,16 @@
     },
     {
       "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
+      "symbol": "reelPublishPlatforms",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The Facebook cross-post decision (REEL_FB_CROSSPOST_ENABLED must be exactly 'true') is exported so its gate test can pin the exact-match rule; the cron is the only runtime caller."
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
+      "symbol": "facebookLiveWithoutInstagram",
+      "reason": "INTENTIONAL TEST-VISIBLE CONTRACT. The partial-publish decision (Facebook live, Instagram not) is exported so the park-never-retry rule is pinned by a test; the cron is the only runtime caller."
+    },
+    {
+      "file": "apps/nickstire/server/cron/jobs/dailyReelPost.ts",
       "symbol": "REEL_READY_LOW_WATERMARK",
       "reason": "INTENTIONAL TEST-VISIBLE OPERATING POLICY. The daily production job exports the READY low-watermark so its buffer test can assert the refill boundary directly; it only holds or refills production and cannot publish."
     },
